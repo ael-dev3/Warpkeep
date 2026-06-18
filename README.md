@@ -4,6 +4,16 @@
 
 Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
+<p align="center">
+  <img src="public/images/warpkeep-cover.png" alt="Warpkeep cover art" width="720" />
+</p>
+
+<p align="center">
+  <em>Build, expand, warp, and conquer across a fantasy realm of shifting keeps and distant wars.</em>
+</p>
+
+Warpkeep aims for the feel of a grand fantasy 4X strategy game: vast realms, distant battles, player-built keeps, alliances, conquest, and magical warping across the map.
+
 Current status: **initial seed / scaffold**. The UI works locally with mocked Farcaster identity and local deterministic state. SpacetimeDB and real Farcaster auth are planned, not complete.
 
 ## Concept
@@ -93,3 +103,7 @@ Read `docs/farcaster-integration.md` before implementing auth.
 ## Screenshots
 
 No screenshots are committed yet. Run `npm run dev` and open the local Vite URL to view the current seed UI.
+
+## Asset licensing
+
+The cover image at `public/images/warpkeep-cover.png` is a reserved non-code project asset. It is not covered by any open-source license that may apply to source code. See `ASSETS-LICENSE.md`.
