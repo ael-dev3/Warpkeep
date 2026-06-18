@@ -2,7 +2,7 @@
 
 ## Summary of changes
 
-This pass created the initial Warpcastle seed repository:
+This pass created the initial Warpkeep seed repository:
 
 - Vite + React + TypeScript app scaffold.
 - Landing page and castle dashboard UI.
@@ -16,7 +16,7 @@ This pass created the initial Warpcastle seed repository:
 
 ## Current project status
 
-Warpcastle is an initial playable scaffold, not a production game. It communicates the core direction: every FID has a castle, local state is temporary, SpacetimeDB should become authoritative, and AI should add flavor without mutating game state.
+Warpkeep is an initial playable scaffold, not a production game. It communicates the core direction: every FID has a castle, local state is temporary, SpacetimeDB should become authoritative, and AI should add flavor without mutating game state.
 
 ## Known limitations
 
@@ -40,7 +40,7 @@ Warpcastle is an initial playable scaffold, not a production game. It communicat
 
 ## Warnings for future agents
 
-- Do not turn Warpcastle into a DeFi dashboard or on-chain execution bot.
+- Do not turn Warpkeep into a DeFi dashboard or on-chain execution bot.
 - Do not implement token mechanics in the core loop yet.
 - Do not let AI mutate authoritative state.
 - Do not add random combat formulas without a proper design doc and tests.

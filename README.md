@@ -1,8 +1,8 @@
-# Warpcastle
+# Warpkeep
 
 **Every FID has a castle.**
 
-Warpcastle is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
+Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
 Current status: **initial seed / scaffold**. The UI works locally with mocked Farcaster identity and local deterministic state. SpacetimeDB and real Farcaster auth are planned, not complete.
 
@@ -12,7 +12,7 @@ A Farcaster-native strategy game where your FID becomes a kingdom.
 
 The first experience:
 
-1. Landing page introduces Warpcastle.
+1. Landing page introduces Warpkeep.
 2. User signs in with Farcaster, currently a placeholder button.
 3. User sees their own castle dashboard.
 4. The FID maps to a deterministic castle profile.

@@ -1,6 +1,6 @@
 # Future Agent Roadmap
 
-Future GPT-5.6, Fable-grade, or stronger agentic systems should expand Warpcastle by deepening systems without breaking the seed's rules.
+Future GPT-5.6, Fable-grade, or stronger agentic systems should expand Warpkeep by deepening systems without breaking the seed's rules.
 
 ## Good future agent tasks
 

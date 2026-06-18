@@ -9,7 +9,7 @@ export function LandingPage({ onEnterCastle }: LandingPageProps) {
     <main className="landing-shell">
       <section className="hero-panel">
         <p className="eyebrow">Farcaster-native strategy</p>
-        <h1>Warpcastle</h1>
+        <h1>Warpkeep</h1>
         <p className="tagline">Every FID has a castle.</p>
         <p className="hero-copy">A Farcaster-native strategy game where your FID becomes a kingdom.</p>
         <div className="hero-actions">

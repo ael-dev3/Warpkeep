@@ -1,6 +1,6 @@
 # SpacetimeDB Plan
 
-SpacetimeDB is a strong fit for Warpcastle because the game needs server-authoritative multiplayer state, real-time subscriptions, deterministic reducers, and low-friction client updates for many small asynchronous timers.
+SpacetimeDB is a strong fit for Warpkeep because the game needs server-authoritative multiplayer state, real-time subscriptions, deterministic reducers, and low-friction client updates for many small asynchronous timers.
 
 ## State that should be server-authoritative
 

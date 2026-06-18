@@ -7,7 +7,7 @@ import {
   startUnitTraining
 } from '../src/game/systems/gameLoop';
 
-describe('Warpcastle deterministic game loop', () => {
+describe('Warpkeep deterministic game loop', () => {
   it('creates one stable starter castle profile for a Farcaster FID', () => {
     const castle = createCastleForFid({ fid: 777, handle: 'ael' });
 

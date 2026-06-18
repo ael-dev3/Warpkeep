@@ -1,6 +1,6 @@
-# Warpcastle Vision
+# Warpkeep Vision
 
-Warpcastle is a Farcaster-native asynchronous strategy game where every Farcaster FID has a castle.
+Warpkeep is a Farcaster-native asynchronous strategy game where every Farcaster FID has a castle.
 
 The seed experience is intentionally small:
 
@@ -10,10 +10,10 @@ The seed experience is intentionally small:
 4. Collect resources, upgrade buildings, train units, and scout nearby FID castles.
 5. Understand that multiplayer state is intended to become server-authoritative through SpacetimeDB.
 
-Warpcastle is not a dashboard, DeFi agent, on-chain execution bot, or token-price game. It is a social strategy game where Farcaster identity, social graph, channels, and optional future token integrations can become game mechanics without becoming the foundation.
+Warpkeep is not a dashboard, DeFi agent, on-chain execution bot, or token-price game. It is a social strategy game where Farcaster identity, social graph, channels, and optional future token integrations can become game mechanics without becoming the foundation.
 
 ## Success condition
 
 A future agent or human should immediately understand this sentence:
 
-> Warpcastle is a Farcaster-native castle strategy game where every FID has a castle, SpacetimeDB will power the multiplayer state, and future AI models will make the world feel alive without controlling the game's authoritative logic.
+> Warpkeep is a Farcaster-native castle strategy game where every FID has a castle, SpacetimeDB will power the multiplayer state, and future AI models will make the world feel alive without controlling the game's authoritative logic.

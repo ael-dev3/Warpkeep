@@ -1,6 +1,6 @@
 # Farcaster Integration Plan
 
-Farcaster sign-in is the primary identity path for Warpcastle.
+Farcaster sign-in is the primary identity path for Warpkeep.
 
 ## Identity rule
 
@@ -36,4 +36,4 @@ Casts can later become:
 
 ## Token/currency note
 
-Warpcastle may later explore optional Streme token or other Farcaster-native token integrations for cosmetics, season passes, alliance sponsorships, or optional sinks. The core game should not depend on token price, should avoid pay-to-win, and should avoid financialized mechanics in the initial seed.
+Warpkeep may later explore optional Streme token or other Farcaster-native token integrations for cosmetics, season passes, alliance sponsorships, or optional sinks. The core game should not depend on token price, should avoid pay-to-win, and should avoid financialized mechanics in the initial seed.
