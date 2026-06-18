@@ -207,6 +207,12 @@ export const startBuildingUpgrade = (state: GameState, buildingType: BuildingTyp
 
   const currentLevel = getBuildingLevel(next, buildingType);
   const targetLevel = currentLevel + 1;
+  const pendingUpgrade = next.constructionQueue.find((item) => item.buildingType === buildingType);
+  if (pendingUpgrade) {
+    next.activityLog = prependLog(next, 'upgrade_blocked', `${BUILDING_LABELS[buildingType]} already has an upgrade pending.`, startedAt);
+    return next;
+  }
+
   const cost = getConstructionCost(buildingType, targetLevel);
   if (!canAfford(next.resources, cost)) {
     next.activityLog = prependLog(next, 'upgrade_blocked', `Not enough resources to raise the ${BUILDING_LABELS[buildingType]}.`, startedAt);

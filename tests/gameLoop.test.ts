@@ -43,6 +43,22 @@ describe('Warpcastle deterministic game loop', () => {
     expect(next.constructionQueue[0]).toMatchObject({ buildingType: 'farm', targetLevel: 2, startedAt: 1000, completesAt: 1060 });
   });
 
+  it('blocks duplicate pending upgrades for the same building', () => {
+    const castle = createCastleForFid({ fid: 222, handle: 'foreman' });
+    const keep = castle.buildings.find((building) => building.type === 'keep');
+    if (!keep) throw new Error('expected starter keep');
+    keep.level = 2;
+    castle.resources = { grain: 500, stone: 500, iron: 500, influence: 500 };
+
+    const firstOrder = startBuildingUpgrade(castle, 'farm', 1_000);
+    const secondOrder = startBuildingUpgrade(firstOrder, 'farm', 1_015);
+
+    expect(secondOrder.constructionQueue).toHaveLength(1);
+    expect(secondOrder.constructionQueue[0]).toMatchObject({ buildingType: 'farm', targetLevel: 2 });
+    expect(secondOrder.resources).toEqual(firstOrder.resources);
+    expect(secondOrder.activityLog[0].message).toContain('Farm already has an upgrade pending');
+  });
+
   it('starts unit training from barracks with deterministic costs and timers', () => {
     const castle = createCastleForFid({ fid: 303, handle: 'captain' });
     const next = startUnitTraining(castle, 'scout', 3, 2_000);

@@ -11,6 +11,7 @@ This pass created the initial Warpcastle seed repository:
 - AI court report placeholder interface.
 - SpacetimeDB schema/reducer scaffold.
 - Vitest coverage for the starter game loop.
+- GitHub Actions verification for tests, typecheck, build, and audit.
 - Product, architecture, Farcaster, SpacetimeDB, and future-agent docs.
 
 ## Current project status
@@ -32,9 +33,10 @@ Warpcastle is an initial playable scaffold, not a production game. It communicat
 2. Create the real SpacetimeDB module from `docs/spacetime-db-plan.md`.
 3. Replace local React state with a repository abstraction that can switch from mocks to SpacetimeDB subscriptions.
 4. Add queue completion UI and server-authoritative timer tests.
-5. Add more tests for costs, queue limits, invalid actions, and completion reducers.
-6. Design combat in a doc before adding raids.
-7. Add browser smoke tests once routes stabilize.
+5. Keep duplicate pending upgrades blocked in both client previews and future SpacetimeDB reducers.
+6. Add more tests for costs, queue limits, invalid actions, and completion reducers.
+7. Design combat in a doc before adding raids.
+8. Add browser smoke tests once routes stabilize.
 
 ## Warnings for future agents
 
