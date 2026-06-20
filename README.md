@@ -77,6 +77,10 @@ npm run build
 - Production art pipeline.
 - AI-generated state changes.
 
+## Design references
+
+- Castle reference art is archived under `docs/reference/castles/` for future visual direction.
+
 ## SpacetimeDB direction
 
 SpacetimeDB should become the authoritative multiplayer/game-state backend for players, FIDs, castles, resources, buildings, queues, units, scouting, raids, alliances, seasons, world events, diplomacy, and activity logs.
