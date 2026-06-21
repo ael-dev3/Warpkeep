@@ -110,4 +110,4 @@ No screenshots are committed yet. Run `npm run dev` and open the local Vite URL 
 
 ## Asset licensing
 
-The cover image at `public/images/warpkeep-cover.png` is a reserved non-code project asset. It is not covered by any open-source license that may apply to source code. See `ASSETS-LICENSE.md`.
+The cover image at `public/images/warpkeep-cover.png` and castle reference/generated archives under `docs/reference/castles/` are reserved non-code project assets. They are not covered by any open-source license that may apply to source code. See `ASSETS-LICENSE.md`.
