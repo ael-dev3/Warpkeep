@@ -1,12 +1,13 @@
 .warpkeep-title-screen {
   position: relative;
   min-height: 100vh;
+  min-height: 100svh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 42%, rgba(55, 32, 116, 0.28), transparent 28rem),
-    radial-gradient(circle at 18% 72%, rgba(126, 74, 149, 0.18), transparent 22rem),
-    linear-gradient(180deg, #03040c 0%, #080b20 42%, #04030a 100%);
-  color: #fff2ca;
+    radial-gradient(circle at 50% 42%, rgba(42, 39, 92, 0.24), transparent 27rem),
+    radial-gradient(circle at 18% 72%, rgba(108, 72, 60, 0.1), transparent 19rem),
+    linear-gradient(180deg, #02030a 0%, #070b1d 46%, #020208 100%);
+  color: #fff0c0;
   isolation: isolate;
 }
 
@@ -28,44 +29,8 @@
   inset: 0;
   z-index: 2;
   background:
-    radial-gradient(circle at 50% 46%, transparent 0%, transparent 36%, rgba(1, 2, 8, 0.42) 72%, rgba(0, 0, 0, 0.86) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.06), rgba(0, 0, 0, 0.56));
-}
-
-.warpkeep-title-overlay {
-  position: absolute;
-  inset: auto 0 clamp(2rem, 7vh, 5rem);
-  z-index: 3;
-  display: grid;
-  justify-items: center;
-  gap: 1rem;
-  pointer-events: none;
-}
-
-.warpkeep-title-overlay > * {
-  pointer-events: auto;
-}
-
-.warpkeep-title-button {
-  border: 1px solid rgba(255, 224, 146, 0.42);
-  border-radius: 999px;
-  background: rgba(8, 8, 20, 0.44);
-  box-shadow:
-    0 0 24px rgba(240, 199, 107, 0.12),
-    inset 0 0 18px rgba(255, 242, 202, 0.05);
-  color: #fff2ca;
-  font-size: clamp(0.82rem, 1vw, 0.95rem);
-  font-weight: 800;
-  letter-spacing: 0.22em;
-  padding: 0.82rem 1.45rem;
-  text-transform: uppercase;
-  backdrop-filter: blur(12px);
-}
-
-.warpkeep-title-button:hover:not(:disabled) {
-  background: rgba(240, 199, 107, 0.13);
-  border-color: rgba(255, 242, 202, 0.82);
-  transform: translateY(-1px);
+    radial-gradient(circle at 50% 47%, transparent 0%, transparent 42%, rgba(1, 2, 7, 0.42) 74%, rgba(0, 0, 0, 0.88) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.42));
 }
 
 .sr-only {
@@ -87,12 +52,12 @@
 
 .warpkeep-fallback-nebula {
   position: absolute;
-  inset: -20%;
+  inset: -18%;
   background:
-    radial-gradient(ellipse at 50% 42%, rgba(109, 67, 172, 0.34), transparent 34%),
-    radial-gradient(ellipse at 26% 28%, rgba(88, 127, 205, 0.16), transparent 30%),
-    radial-gradient(ellipse at 72% 70%, rgba(210, 134, 88, 0.15), transparent 28%);
-  animation: warpkeepFallbackDrift 28s ease-in-out infinite alternate;
+    radial-gradient(ellipse at 50% 42%, rgba(64, 55, 128, 0.25), transparent 35%),
+    radial-gradient(ellipse at 25% 28%, rgba(80, 104, 170, 0.11), transparent 29%),
+    radial-gradient(ellipse at 74% 72%, rgba(154, 94, 52, 0.1), transparent 27%);
+  animation: warpkeepFallbackDrift 34s ease-in-out infinite alternate;
 }
 
 .warpkeep-fallback-stars {
@@ -105,49 +70,51 @@
   position: absolute;
   display: block;
   border-radius: 999px;
-  background: #dfe9ff;
-  box-shadow: 0 0 12px rgba(223, 233, 255, 0.78);
-  opacity: 0.38;
-  animation: warpkeepFallbackTwinkle 5.6s ease-in-out infinite;
+  background: #dfe8ff;
+  box-shadow: 0 0 10px rgba(223, 232, 255, 0.64);
+  opacity: 0.32;
+  animation: warpkeepFallbackTwinkle 6.8s ease-in-out infinite;
 }
 
 .warpkeep-title-overlay--fallback {
   position: relative;
-  inset: auto;
-  padding: 2rem;
+  z-index: 3;
+  width: min(94vw, 1120px);
+  padding: 2rem 1rem;
 }
 
 .warpkeep-fallback-title {
   margin: 0;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(4rem, 17vw, 11rem);
+  font-size: clamp(3rem, 14vw, 10.5rem);
   line-height: 0.82;
-  letter-spacing: -0.09em;
+  letter-spacing: -0.085em;
   text-align: center;
   text-shadow:
-    0 0 18px rgba(255, 242, 202, 0.38),
-    0 18px 42px rgba(43, 23, 91, 0.85),
-    0 0 90px rgba(118, 75, 178, 0.62);
-  background: linear-gradient(100deg, #7b551d 0%, #fff2ca 20%, #d49c3b 48%, #fff8d7 67%, #80541e 100%);
+    0 2px 0 #fff0bd,
+    -10px 14px 0 rgba(31, 19, 34, 0.78),
+    0 22px 44px rgba(3, 4, 10, 0.86),
+    0 0 42px rgba(104, 105, 171, 0.28);
+  background: linear-gradient(100deg, #513311 0%, #f2c46b 24%, #fff0bd 50%, #b67324 75%, #3a240d 100%);
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
-  animation: warpkeepFallbackTitleShift 8s ease-in-out infinite alternate;
+  animation: warpkeepFallbackTitleShift 10s ease-in-out infinite alternate;
 }
 
 @keyframes warpkeepFallbackTwinkle {
-  0%, 100% { opacity: 0.18; transform: scale(0.8); }
-  42% { opacity: 0.66; transform: scale(1.18); }
+  0%, 100% { opacity: 0.16; transform: scale(0.86); }
+  48% { opacity: 0.54; transform: scale(1.12); }
 }
 
 @keyframes warpkeepFallbackDrift {
-  from { transform: translate3d(-1.5%, -1%, 0) rotate(-1deg); }
-  to { transform: translate3d(1.5%, 1%, 0) rotate(1deg); }
+  from { transform: translate3d(-1%, -0.6%, 0) rotate(-0.5deg); }
+  to { transform: translate3d(1%, 0.6%, 0) rotate(0.5deg); }
 }
 
 @keyframes warpkeepFallbackTitleShift {
-  from { filter: brightness(0.94) drop-shadow(0 0 14px rgba(169, 122, 255, 0.26)); transform: perspective(900px) rotateY(-1.2deg); }
-  to { filter: brightness(1.1) drop-shadow(0 0 26px rgba(255, 226, 151, 0.36)); transform: perspective(900px) rotateY(1.2deg); }
+  from { filter: brightness(0.96) drop-shadow(0 0 10px rgba(94, 97, 168, 0.22)); transform: perspective(900px) rotateY(-0.9deg); }
+  to { filter: brightness(1.08) drop-shadow(0 0 18px rgba(242, 196, 107, 0.28)); transform: perspective(900px) rotateY(0.9deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -160,13 +127,20 @@
 }
 
 @media (max-width: 720px) {
-  .warpkeep-title-overlay {
-    bottom: clamp(1.4rem, 5vh, 2.4rem);
+  .warpkeep-title-screen {
+    background:
+      radial-gradient(circle at 50% 38%, rgba(42, 39, 92, 0.22), transparent 18rem),
+      linear-gradient(180deg, #02030a 0%, #060a1a 52%, #020208 100%);
   }
 
-  .warpkeep-title-button {
-    font-size: 0.76rem;
-    letter-spacing: 0.14em;
-    padding: 0.72rem 1rem;
+  .warpkeep-title-vignette {
+    background:
+      radial-gradient(circle at 50% 45%, transparent 0%, transparent 50%, rgba(1, 2, 7, 0.5) 82%, rgba(0, 0, 0, 0.9) 100%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.3));
+  }
+
+  .warpkeep-fallback-title {
+    font-size: clamp(2.6rem, 16vw, 6rem);
+    letter-spacing: -0.08em;
   }
 }

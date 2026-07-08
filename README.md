@@ -6,7 +6,7 @@ Warpkeep is an open-source Farcaster-native strategy game where each player can 
 
 **Live demo:** https://ael-dev3.github.io/Warpkeep/
 
-Current visual experiment: the live demo opens on an animated Three.js **WARPKEEP** title screen with a Civ 1-inspired monumental title layout, Hyperion-inspired star systems, mild star flicker, soft title perspective movement, and animated lighting shifts across the title text.
+Current visual experiment: the live demo is a pure animated Three.js **WARPKEEP** title screen. It keeps the presentation clean and title-only: no live game entry, no placeholder sign-in button, and no gameplay dashboard exposed on the public site.
 
 Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
@@ -20,7 +20,7 @@ Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farca
 
 Warpkeep aims for the feel of a grand fantasy 4X strategy game: vast realms, distant battles, player-built keeps, alliances, conquest, and magical warping across the map.
 
-Current status: **initial seed / scaffold**. The UI works locally with mocked Farcaster identity and local deterministic state. SpacetimeDB and real Farcaster auth are planned, not complete.
+Current status: **initial seed / scaffold**. The public GitHub Pages site is title-screen-only for now. The repo still contains a local mocked castle dashboard and deterministic state scaffold for development, but SpacetimeDB and real Farcaster auth are planned, not complete.
 
 ## Current direction
 
@@ -37,13 +37,11 @@ Read more:
 
 A Farcaster-native strategy game where your FID becomes a kingdom.
 
-The first experience:
+The current public experience:
 
-1. Landing page introduces Warpkeep.
-2. User signs in with Farcaster, currently a placeholder button.
-3. User sees their own castle dashboard.
-4. The FID maps to a deterministic castle profile.
-5. The player can collect resources, start upgrades, train scouts, and scout nearby mocked castles.
+1. The live site shows only a cinematic **WARPKEEP** title screen.
+2. There is no public game entry button yet.
+3. The local development scaffold still contains a mocked castle dashboard for future gameplay work.
 
 ## Local development
 
@@ -78,9 +76,9 @@ npm run build
 
 ## What is implemented now
 
-- Animated Three.js title screen experiment with procedural star systems, slow title lighting, WebGL fallback, and GitHub Pages deployment.
-- Placeholder Farcaster sign-in flow from the title screen into the local castle dashboard.
-- Castle dashboard with player identity, buildings, resources, queues, nearby castles, court report, and activity log.
+- Polished Three.js title-screen experiment with a sharp 3D **WARPKEEP** title, restrained star systems, slow title lighting, WebGL fallback, and GitHub Pages deployment.
+- Public site is title-screen-only; no live game entry button is exposed yet.
+- Local development scaffold includes a castle dashboard with player identity, buildings, resources, queues, nearby castles, court report, and activity log.
 - Deterministic resource collection, upgrade queue, training queue, and scouting report functions.
 - Vitest tests for the core game loop.
 - Product and architecture docs for Farcaster, SpacetimeDB, game design, and future agents.
@@ -123,7 +121,7 @@ Read `docs/farcaster-integration.md` before implementing auth.
 
 ## Screenshots
 
-No screenshots are committed yet. Run `npm run dev` and open the local Vite URL to view the current seed UI.
+No screenshots are committed yet. Run `npm run dev` and open the local Vite URL to view the current title screen.
 
 ## License
 
