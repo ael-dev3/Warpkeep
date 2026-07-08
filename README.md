@@ -2,6 +2,12 @@
 
 **Every FID has a castle.**
 
+Warpkeep is an open-source Farcaster-native strategy game where each player can claim a keep, build a realm, and participate in seasonal conflicts.
+
+**Live demo:** https://ael-dev3.github.io/Warpkeep/
+
+Current visual experiment: the live demo opens on an animated Three.js **WARPKEEP** title screen with a Civ 1-inspired monumental title layout, Hyperion-inspired star systems, mild star flicker, soft title perspective movement, and animated lighting shifts across the title text.
+
 Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
 <p align="center">
@@ -72,8 +78,8 @@ npm run build
 
 ## What is implemented now
 
-- Landing page with tagline and loop explanation.
-- Placeholder Farcaster sign-in flow.
+- Animated Three.js title screen experiment with procedural star systems, slow title lighting, WebGL fallback, and GitHub Pages deployment.
+- Placeholder Farcaster sign-in flow from the title screen into the local castle dashboard.
 - Castle dashboard with player identity, buildings, resources, queues, nearby castles, court report, and activity log.
 - Deterministic resource collection, upgrade queue, training queue, and scouting report functions.
 - Vitest tests for the core game loop.

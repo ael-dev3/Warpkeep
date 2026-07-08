@@ -13,13 +13,16 @@
   },
   "dependencies": {
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
+    "@types/node": "^26.1.1",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "latest",
     "jsdom": "latest",
     "typescript": "latest",
