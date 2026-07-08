@@ -16,6 +16,17 @@ Warpkeep aims for the feel of a grand fantasy 4X strategy game: vast realms, dis
 
 Current status: **initial seed / scaffold**. The UI works locally with mocked Farcaster identity and local deterministic state. SpacetimeDB and real Farcaster auth are planned, not complete.
 
+## Current direction
+
+Warpkeep is an open-source Farcaster-native strategy game where each player can claim a keep, build a realm, and participate in seasonal conflicts. The first direction is a small Hegemony-versus-Core campaign focused on castle progression, PvE battles, public reports, and social strategy. Long-term, Warpkeep is intended to support Ousters as a second human faction, community realms, forkable rules, and player-driven Farcaster-native stories.
+
+Long-term, Warpkeep may explore distinct faction economies: a regulated Hegemony economy using official faction currency rails such as Hypersnap `$SNAP`, and an Ouster economy based on player-to-player trade and social trust. This is experimental/post-MVP and not part of the initial playable scope.
+
+Read more:
+
+- [`docs/design/warpkeep-direction.md`](docs/design/warpkeep-direction.md)
+- [`docs/design/roadmap.md`](docs/design/roadmap.md)
+
 ## Concept
 
 A Farcaster-native strategy game where your FID becomes a kingdom.
