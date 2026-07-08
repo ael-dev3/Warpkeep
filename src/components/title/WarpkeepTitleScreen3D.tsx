@@ -472,13 +472,13 @@ export function WarpkeepTitleScreen3D({ onEnterCastle }: WarpkeepTitleScreen3DPr
 
       resize();
       window.addEventListener('resize', resize);
-      const clock = new THREE.Clock();
+      const startTime = performance.now();
 
       const render = () => {
         if (disposed) {
           return;
         }
-        const elapsed = prefersReducedMotion ? 1.5 : clock.getElapsedTime();
+        const elapsed = prefersReducedMotion ? 1.5 : (performance.now() - startTime) / 1000;
 
         starLayers.forEach(({ material }, index) => {
           material.uniforms.time.value = elapsed * (0.72 + index * 0.11);
