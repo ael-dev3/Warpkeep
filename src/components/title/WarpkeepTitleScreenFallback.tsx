@@ -1,3 +1,4 @@
+import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
 import { titleTheme } from './titleTheme';
 
 const fallbackStars = Array.from({ length: 22 }, (_, index) => ({
@@ -23,6 +24,7 @@ export function WarpkeepTitleScreenFallback() {
       <div className="warpkeep-title-overlay--fallback">
         <h1 className="warpkeep-fallback-title">{titleTheme.title}</h1>
       </div>
+      <WarpkeepTitleSoundtrack />
     </main>
   );
 }

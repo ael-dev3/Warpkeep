@@ -33,6 +33,59 @@
     linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.42));
 }
 
+.warpkeep-soundtrack {
+  position: fixed;
+  right: clamp(1rem, 2.8vw, 2rem);
+  bottom: clamp(1rem, 3vh, 1.8rem);
+  z-index: 4;
+}
+
+.warpkeep-soundtrack-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(255, 224, 146, 0.22);
+  border-radius: 999px;
+  background: rgba(4, 5, 14, 0.36);
+  box-shadow: inset 0 0 16px rgba(255, 240, 192, 0.035), 0 0 20px rgba(0, 0, 0, 0.18);
+  color: rgba(255, 240, 192, 0.72);
+  cursor: pointer;
+  font: 800 clamp(0.62rem, 0.78vw, 0.72rem) / 1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0.18em;
+  padding: 0.56rem 0.72rem;
+  text-transform: uppercase;
+  transition: border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 160ms ease;
+  backdrop-filter: blur(10px);
+  opacity: 0.72;
+}
+
+.warpkeep-soundtrack-button:hover:not(:disabled),
+.warpkeep-soundtrack-button:focus-visible {
+  border-color: rgba(255, 240, 192, 0.56);
+  color: rgba(255, 244, 210, 0.96);
+  opacity: 1;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.warpkeep-soundtrack-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.warpkeep-soundtrack-dot {
+  width: 0.44rem;
+  height: 0.44rem;
+  border-radius: 999px;
+  background: rgba(255, 240, 192, 0.42);
+  box-shadow: 0 0 12px rgba(242, 196, 107, 0.22);
+}
+
+.warpkeep-soundtrack-button[aria-pressed="true"] .warpkeep-soundtrack-dot {
+  background: #f2c46b;
+  box-shadow: 0 0 16px rgba(242, 196, 107, 0.64);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -137,6 +190,18 @@
     background:
       radial-gradient(circle at 50% 45%, transparent 0%, transparent 50%, rgba(1, 2, 7, 0.5) 82%, rgba(0, 0, 0, 0.9) 100%),
       linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.3));
+  }
+
+  .warpkeep-soundtrack {
+    right: 50%;
+    bottom: max(0.82rem, env(safe-area-inset-bottom));
+    transform: translateX(50%);
+  }
+
+  .warpkeep-soundtrack-button {
+    font-size: 0.62rem;
+    letter-spacing: 0.14em;
+    padding: 0.5rem 0.62rem;
   }
 
   .warpkeep-fallback-title {

@@ -6,7 +6,7 @@ Warpkeep is an open-source Farcaster-native strategy game where each player can 
 
 **Live demo:** https://ael-dev3.github.io/Warpkeep/
 
-Current visual experiment: the live demo is a pure animated Three.js **WARPKEEP** title screen. It keeps the presentation clean and title-only: no live game entry, no placeholder sign-in button, and no gameplay dashboard exposed on the public site.
+Current visual experiment: the live demo is a pure animated Three.js **WARPKEEP** title screen with two randomly selected looping title soundtracks. It keeps the presentation clean and title-only: no live game entry, no placeholder sign-in button, and no gameplay dashboard exposed on the public site. Browsers that block autoplay show a small sound toggle so the soundtrack can start after a click or tap.
 
 Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
@@ -76,7 +76,7 @@ npm run build
 
 ## What is implemented now
 
-- Polished Three.js title-screen experiment with a sharp 3D **WARPKEEP** title, restrained star systems, slow title lighting, WebGL fallback, and GitHub Pages deployment.
+- Polished Three.js title-screen experiment with a sharp 3D **WARPKEEP** title, restrained star systems, slow title lighting, two random looping soundtracks, WebGL fallback, and GitHub Pages deployment.
 - Public site is title-screen-only; no live game entry button is exposed yet.
 - Local development scaffold includes a castle dashboard with player identity, buildings, resources, queues, nearby castles, court report, and activity log.
 - Deterministic resource collection, upgrade queue, training queue, and scouting report functions.

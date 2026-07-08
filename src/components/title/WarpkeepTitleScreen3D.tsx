@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { WarpkeepTitleScreenFallback } from './WarpkeepTitleScreenFallback';
+import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
 import { titleTheme } from './titleTheme';
 import './WarpkeepTitleScreen.css';
 
@@ -567,6 +568,7 @@ export function WarpkeepTitleScreen3D() {
       <div ref={mountRef} className="warpkeep-title-canvas-shell" aria-hidden="true" />
       <h1 className="sr-only">{titleTheme.title}</h1>
       <div className="warpkeep-title-vignette" aria-hidden="true" />
+      <WarpkeepTitleSoundtrack />
     </main>
   );
 }
