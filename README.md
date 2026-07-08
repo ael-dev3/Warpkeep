@@ -119,6 +119,11 @@ Read `docs/farcaster-integration.md` before implementing auth.
 
 No screenshots are committed yet. Run `npm run dev` and open the local Vite URL to view the current seed UI.
 
-## Asset licensing
+## License
 
-The cover image at `public/images/warpkeep-cover.png` and castle reference/generated archives under `docs/reference/castles/` are reserved non-code project assets. They are not covered by any open-source license that may apply to source code. See `ASSETS-LICENSE.md`.
+Warpkeep is licensed for maximum reuse freedom:
+
+- Software code: Zero-Clause BSD (`0BSD`). See [`LICENSE`](LICENSE).
+- Documentation, lore, manifests, and project-owned media/reference assets: CC0 1.0 Universal unless a file says otherwise. See [`LICENSE-CC0`](LICENSE-CC0) and [`ASSETS-LICENSE.md`](ASSETS-LICENSE.md).
+
+These licenses allow broad copying, modification, redistribution, private use, commercial use, forks, mods, alternate clients, and community realms. They do not grant trademark rights or imply endorsement by the official Warpkeep project.

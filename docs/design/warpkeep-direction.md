@@ -461,15 +461,15 @@ Anyone should be able to fork the code, but the official deployment should remai
 
 ## License notes
 
-Recommended direction:
+Current licensing direction:
 
-- Code: MIT or Apache-2.0.
-- Docs/lore: consider CC BY 4.0 or CC BY-SA 4.0.
-- Project name, official marks, and canonical deployment identity: consider retaining enough control to avoid confusion.
+- Software code: Zero-Clause BSD (`0BSD`).
+- Docs/lore/manifests/project-owned media: CC0 1.0 Universal unless a file says otherwise.
+- Project name, official marks, and canonical deployment identity: not granted as endorsement or trademark rights.
 
-The goal is to be open and remixable without making it impossible for users to know which version is the official Warpkeep.
+The goal is maximum reuse freedom: forks, mods, alternate clients, community realms, commercial experiments, and remixing should be easy.
 
-Do not finalize license choices without deliberate review.
+The only retained boundary is user clarity. Community forks should not imply they are the canonical Warpkeep deployment unless explicitly authorized.
 
 ## MVP scope
 

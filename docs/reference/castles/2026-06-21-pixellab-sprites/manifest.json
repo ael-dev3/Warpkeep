@@ -1,9 +1,9 @@
 {
   "name": "Warpkeep PixelLab castle sprite archive",
   "archived_at": "2026-06-21",
-  "source": "PixelLab generations requested by Ael in the Warpkeep PixelLab thread",
+  "source": "PixelLab generations archived for Warpkeep visual direction",
   "repo_commit_used_for_prompting": "906ec8814f66925a130d0342e64364cbc599b24a",
-  "license": "Reserved project reference assets; see ASSETS-LICENSE.md",
+  "license": "CC0-1.0; see ASSETS-LICENSE.md and LICENSE-CC0",
   "generator": {
     "service": "PixelLab API",
     "endpoint": "/create-image-pixen",

@@ -4,7 +4,7 @@ Four PixelLab-generated castle sprite candidates for future Warpkeep visual dire
 
 These are reference/generated art assets, not final production UI art.
 
-License/status: reserved project reference assets. See `../../../../ASSETS-LICENSE.md`.
+License/status: CC0 1.0 Universal under the repo's maximum-freedom media policy. See `../../../../ASSETS-LICENSE.md`.
 
 ## Files
 

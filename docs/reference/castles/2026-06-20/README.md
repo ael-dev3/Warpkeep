@@ -1,8 +1,8 @@
 # Castle Reference Archive — 2026-06-20
 
-Pixel-castle references supplied by Ael for future Warpkeep visual direction. These are reference assets, not production UI art.
+Pixel-castle references archived for future Warpkeep visual direction. These are reference assets, not production UI art.
 
-License/status: reserved project reference assets. See `../../../../ASSETS-LICENSE.md`.
+License/status: CC0 1.0 Universal under the repo's maximum-freedom media policy. See `../../../../ASSETS-LICENSE.md`.
 
 ## Files
 

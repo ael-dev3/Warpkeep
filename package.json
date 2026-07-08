@@ -2,6 +2,7 @@
   "name": "warpkeep",
   "private": true,
   "version": "0.0.1",
+  "license": "0BSD",
   "type": "module",
   "scripts": {
     "dev": "vite",
