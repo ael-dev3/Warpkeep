@@ -13,7 +13,7 @@ const titleSoundtracks = [
   }
 ] as const;
 
-type PlaybackState = 'loading' | 'playing' | 'blocked' | 'paused' | 'error';
+type PlaybackState = 'starting' | 'playing' | 'blocked' | 'paused' | 'error';
 
 function randomTrackIndex() {
   if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
@@ -29,7 +29,8 @@ export function WarpkeepTitleSoundtrack() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const playbackErrorRef = useRef(false);
   const track = useMemo(() => titleSoundtracks[randomTrackIndex()], []);
-  const [playbackState, setPlaybackState] = useState<PlaybackState>('loading');
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [playbackState, setPlaybackState] = useState<PlaybackState>('starting');
 
   const startPlayback = useCallback(async () => {
     const audio = audioRef.current;
@@ -38,7 +39,10 @@ export function WarpkeepTitleSoundtrack() {
     }
 
     audio.loop = true;
+    audio.muted = false;
     audio.volume = 0.58;
+    setSoundEnabled(true);
+    setPlaybackState((state) => (state === 'playing' ? 'playing' : 'starting'));
 
     try {
       await audio.play();
@@ -56,6 +60,7 @@ export function WarpkeepTitleSoundtrack() {
 
     if (playbackState === 'playing') {
       audio.pause();
+      setSoundEnabled(false);
       setPlaybackState('paused');
       return;
     }
@@ -70,16 +75,22 @@ export function WarpkeepTitleSoundtrack() {
     }
 
     audio.loop = true;
+    audio.muted = false;
     audio.volume = 0.58;
 
-    const markPlaying = () => setPlaybackState('playing');
+    const markPlaying = () => {
+      setSoundEnabled(true);
+      setPlaybackState('playing');
+    };
     const markPaused = () => setPlaybackState((state) => (state === 'playing' ? 'paused' : state));
     const markError = () => {
       playbackErrorRef.current = true;
       setPlaybackState('error');
     };
     const playAfterGesture = () => {
-      void startPlayback();
+      if (!playbackErrorRef.current && soundEnabled) {
+        void startPlayback();
+      }
     };
 
     audio.addEventListener('play', markPlaying);
@@ -88,7 +99,9 @@ export function WarpkeepTitleSoundtrack() {
     window.addEventListener('pointerdown', playAfterGesture, { once: true });
     window.addEventListener('keydown', playAfterGesture, { once: true });
 
-    void startPlayback();
+    if (soundEnabled) {
+      void startPlayback();
+    }
 
     return () => {
       audio.removeEventListener('play', markPlaying);
@@ -98,20 +111,24 @@ export function WarpkeepTitleSoundtrack() {
       window.removeEventListener('keydown', playAfterGesture);
       audio.pause();
     };
-  }, [startPlayback]);
+  }, [soundEnabled, startPlayback]);
 
-  const label = playbackState === 'playing' ? 'Sound on' : playbackState === 'error' ? 'Sound unavailable' : 'Tap for sound';
+  const label = playbackState === 'error' ? 'Sound unavailable' : soundEnabled ? 'Sound on' : 'Sound off';
 
   return (
-    <div className="warpkeep-soundtrack" data-track={track.id}>
-      <audio ref={audioRef} src={track.src} loop preload="auto" aria-hidden="true" />
+    <div className="warpkeep-soundtrack" data-track={track.id} data-playback-state={playbackState}>
+      <audio ref={audioRef} src={track.src} loop autoPlay preload="auto" aria-hidden="true" />
       <button
         className="warpkeep-soundtrack-button"
         type="button"
         onClick={togglePlayback}
         disabled={playbackState === 'error'}
-        aria-pressed={playbackState === 'playing'}
-        aria-label={`${label}: ${track.label}`}
+        aria-pressed={soundEnabled && playbackState !== 'error'}
+        aria-label={
+          playbackState === 'blocked'
+            ? `Sound on by default. Click or tap to allow playback for ${track.label}`
+            : `${label}: ${track.label}`
+        }
       >
         <span className="warpkeep-soundtrack-dot" aria-hidden="true" />
         {label}
