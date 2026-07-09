@@ -1,79 +1,116 @@
-export type BrutalistGlyphPart = {
-  points: ReadonlyArray<readonly [number, number]>;
-  tier: number;
-};
+export type BrutalistGlyphPoint = readonly [x: number, y: number];
 
 export type BrutalistGlyphDefinition = {
-  width: number;
-  parts: ReadonlyArray<BrutalistGlyphPart>;
+  /** Horizontal extent in cap-height units. */
+  readonly width: number;
+  /** Clockwise exterior silhouette in cap-height units. */
+  readonly outer: ReadonlyArray<BrutalistGlyphPoint>;
+  /** Counter-clockwise counters carved from the exterior silhouette. */
+  readonly holes: ReadonlyArray<ReadonlyArray<BrutalistGlyphPoint>>;
 };
 
-const part = (tier: number, points: BrutalistGlyphPart['points']): BrutalistGlyphPart => ({
-  tier,
-  points
-});
+export type BrutalistGlyphPlacement = {
+  readonly character: BrutalistGlyphCharacter;
+  readonly glyph: BrutalistGlyphDefinition;
+  readonly x: number;
+  readonly index: number;
+};
 
+export type BrutalistGlyphLayout = {
+  readonly placements: ReadonlyArray<BrutalistGlyphPlacement>;
+  readonly width: number;
+};
+
+/**
+ * A deliberately small architectural alphabet for the WARPKEEP wordmark.
+ *
+ * Coordinates are expressed directly in cap-height units rather than as a
+ * percentage of each glyph's width. Each glyph therefore shares the same
+ * structural stroke measurements while retaining its own optical width.
+ * Every exterior is a single clockwise loop; A, R, and P each contain one
+ * counter-clockwise counter.
+ */
 const glyphs = {
   W: {
     width: 1.08,
-    parts: [
-      part(1, [[0, 1], [0.2, 1], [0.38, 0], [0.17, 0]]),
-      part(0, [[0.17, 0], [0.38, 0], [0.52, 0.69], [0.38, 0.82]]),
-      part(2, [[0.48, 0.69], [0.62, 0.82], [0.82, 0], [0.62, 0]]),
-      part(1, [[0.62, 0], [0.82, 0], [1, 1], [0.8, 1]])
-    ]
+    outer: [
+      [0, 1], [0.2, 1], [0.36, 0.25], [0.44, 0.66], [0.54, 0.66],
+      [0.64, 0.25], [0.88, 1], [1.08, 1], [0.77, 0], [0.58, 0],
+      [0.49, 0.38], [0.4, 0], [0.21, 0]
+    ],
+    holes: []
   },
   A: {
     width: 0.86,
-    parts: [
-      part(0, [[0, 0], [0.25, 0], [0.49, 1], [0.28, 1]]),
-      part(1, [[0.75, 0], [1, 0], [0.72, 1], [0.51, 1]]),
-      part(2, [[0.18, 0.35], [0.82, 0.35], [0.76, 0.57], [0.24, 0.57]]),
-      part(2, [[0.28, 0.82], [0.72, 0.82], [0.72, 1], [0.28, 1]])
-    ]
+    outer: [
+      [0, 0], [0.29, 1], [0.57, 1], [0.86, 0],
+      [0.65, 0], [0.57, 0.35], [0.29, 0.35], [0.21, 0]
+    ],
+    holes: [[
+      [0.335, 0.52], [0.525, 0.52], [0.485, 0.78], [0.375, 0.78]
+    ]]
   },
   R: {
     width: 0.88,
-    parts: [
-      part(0, [[0, 0], [0.25, 0], [0.25, 1], [0, 1]]),
-      part(2, [[0.18, 0.78], [0.76, 0.78], [0.76, 1], [0.18, 1]]),
-      part(1, [[0.2, 0.45], [0.72, 0.45], [0.72, 0.65], [0.2, 0.65]]),
-      part(0, [[0.68, 0.51], [0.91, 0.61], [0.91, 0.86], [0.68, 0.96]]),
-      part(2, [[0.43, 0.52], [0.66, 0.52], [1, 0], [0.7, 0]])
-    ]
+    outer: [
+      [0, 1], [0.67, 1], [0.79, 0.87], [0.79, 0.68], [0.74, 0.56],
+      [0.58, 0.47], [0.88, 0], [0.69, 0], [0.41, 0.39], [0.22, 0.39],
+      [0.22, 0], [0, 0]
+    ],
+    holes: [[
+      [0.22, 0.6], [0.5, 0.6], [0.59, 0.66],
+      [0.59, 0.77], [0.51, 0.82], [0.22, 0.82]
+    ]]
   },
   P: {
     width: 0.8,
-    parts: [
-      part(0, [[0, 0], [0.26, 0], [0.26, 1], [0, 1]]),
-      part(2, [[0.18, 0.78], [0.76, 0.78], [0.76, 1], [0.18, 1]]),
-      part(1, [[0.2, 0.45], [0.72, 0.45], [0.72, 0.66], [0.2, 0.66]]),
-      part(0, [[0.67, 0.51], [0.94, 0.58], [0.94, 0.88], [0.67, 0.96]])
-    ]
+    outer: [
+      [0, 1], [0.68, 1], [0.8, 0.87], [0.8, 0.57],
+      [0.62, 0.43], [0.22, 0.43], [0.22, 0], [0, 0]
+    ],
+    holes: [[
+      [0.22, 0.6], [0.51, 0.6], [0.6, 0.66],
+      [0.6, 0.77], [0.52, 0.82], [0.22, 0.82]
+    ]]
   },
   K: {
     width: 0.85,
-    parts: [
-      part(0, [[0, 0], [0.26, 0], [0.26, 1], [0, 1]]),
-      part(2, [[0.19, 0.43], [0.43, 0.43], [1, 1], [0.7, 1]]),
-      part(1, [[0.2, 0.57], [0.45, 0.57], [1, 0], [0.7, 0]]),
-      part(3, [[0.18, 0.41], [0.48, 0.41], [0.48, 0.59], [0.18, 0.59]])
-    ]
+    outer: [
+      [0, 1], [0.22, 1], [0.22, 0.62], [0.59, 1], [0.85, 1],
+      [0.49, 0.5], [0.85, 0], [0.59, 0], [0.22, 0.39],
+      [0.22, 0], [0, 0]
+    ],
+    holes: []
   },
   E: {
     width: 0.74,
-    parts: [
-      part(0, [[0, 0], [0.27, 0], [0.27, 1], [0, 1]]),
-      part(2, [[0.19, 0.78], [1, 0.78], [1, 1], [0.19, 1]]),
-      part(1, [[0.19, 0.4], [0.82, 0.4], [0.82, 0.6], [0.19, 0.6]]),
-      part(2, [[0.19, 0], [1, 0], [1, 0.22], [0.19, 0.22]])
-    ]
+    outer: [
+      [0, 1], [0.74, 1], [0.74, 0.8], [0.22, 0.8],
+      [0.22, 0.59], [0.59, 0.59], [0.59, 0.41], [0.22, 0.41],
+      [0.22, 0.2], [0.74, 0.2], [0.74, 0], [0, 0]
+    ],
+    holes: []
   }
 } as const satisfies Record<string, BrutalistGlyphDefinition>;
 
 export type BrutalistGlyphCharacter = keyof typeof glyphs;
 
-export const brutalistGlyphCharacters = Object.freeze(Object.keys(glyphs) as BrutalistGlyphCharacter[]);
+export const brutalistGlyphCharacters = Object.freeze(
+  Object.keys(glyphs) as BrutalistGlyphCharacter[]
+);
+
+const defaultPairGap = 0.035;
+
+/** Optical gaps in cap-height units for the only pairs used by WARPKEEP. */
+const pairGaps: Readonly<Record<string, number>> = Object.freeze({
+  WA: 0.025,
+  AR: 0.039,
+  RP: 0.035,
+  PK: 0.045,
+  KE: 0.035,
+  EE: 0.031,
+  EP: 0.039
+});
 
 export function getBrutalistGlyph(character: string): BrutalistGlyphDefinition {
   const glyph = glyphs[character as BrutalistGlyphCharacter];
@@ -81,4 +118,38 @@ export function getBrutalistGlyph(character: string): BrutalistGlyphDefinition {
     throw new Error(`Unsupported monumental title glyph: ${character}`);
   }
   return glyph;
+}
+
+export function getBrutalistPairGap(left: string, right: string): number {
+  getBrutalistGlyph(left);
+  getBrutalistGlyph(right);
+  return pairGaps[`${left}${right}`] ?? defaultPairGap;
+}
+
+export function layoutBrutalistGlyphs(text: string, scale = 1): BrutalistGlyphLayout {
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new RangeError('Brutalist glyph layout scale must be a finite positive number.');
+  }
+
+  const characters = Array.from(text);
+  const placements: BrutalistGlyphPlacement[] = [];
+  let cursor = 0;
+
+  characters.forEach((character, index) => {
+    const glyph = getBrutalistGlyph(character);
+    placements.push({
+      character: character as BrutalistGlyphCharacter,
+      glyph,
+      x: cursor,
+      index
+    });
+    cursor += glyph.width * scale;
+
+    const nextCharacter = characters[index + 1];
+    if (nextCharacter !== undefined) {
+      cursor += getBrutalistPairGap(character, nextCharacter) * scale;
+    }
+  });
+
+  return { placements, width: cursor };
 }

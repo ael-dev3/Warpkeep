@@ -9,18 +9,17 @@ export type SpiralGalaxyLayout = {
 export const titleSceneSpec = {
   title: {
     text: 'WARPKEEP',
-    roughness: 0.9,
+    roughness: 0.92,
+    sideRoughness: 0.96,
     metalness: 0,
-    desktopViewportWidth: 0.94,
-    mobileViewportWidth: 0.93,
+    bumpScale: 0.014,
+    desktopViewportWidth: 0.925,
+    mobileViewportWidth: 0.91,
     height: 2.18,
     depth: 0.98,
-    tierDepth: 0.075,
     bevelSize: 0.012,
     bevelThickness: 0.018,
-    letterGap: 0.075,
-    shinePeriodSeconds: 17,
-    shineStrength: 0.34
+    shinePeriodSeconds: 32
   },
   galaxy: {
     armCount: 5,
@@ -62,15 +61,15 @@ export const titleSceneSpec = {
     galaxyTravelY: 0.09,
     galaxyRotationX: 0.005,
     galaxyRotationY: 0.008,
-    lightTravelX: 5.2,
-    lightTravelY: 2.6
+    lightTravelX: 2.4,
+    lightTravelY: 1.2
   },
   palette: {
     void: '#010207',
     deepNavy: '#05091a',
-    concrete: '#c8c3b8',
-    concreteShadow: '#393841',
-    concreteEdge: '#817a83',
+    concrete: '#f3f0e8',
+    concreteShadow: '#bab6ae',
+    concreteEdge: '#cbc7be',
     violet: '#67448f',
     warp: '#9d72ca',
     coldStar: '#e7efff',

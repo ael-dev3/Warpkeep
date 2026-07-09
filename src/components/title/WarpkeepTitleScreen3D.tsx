@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { WarpkeepTitleScreenFallback } from './WarpkeepTitleScreenFallback';
 import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
-import { getBrutalistGlyph } from './brutalistGlyphs';
+import { layoutBrutalistGlyphs } from './brutalistGlyphs';
 import { dampValue, isMousePointerType, normalizePointerPosition } from './titleInteraction';
+import { createBrutalistGlyphGeometry } from './titleGeometry';
 import { createConcreteTextures, type ConcreteTextureSet } from './titleTextures';
+import { calculateTitleResponsiveLayout } from './titleLayout';
 import { calculateGalaxyGrowth, createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
 import './WarpkeepTitleScreen.css';
 
@@ -27,8 +28,7 @@ type GalaxyAssembly = {
 
 type TitleAssembly = {
   group: THREE.Group;
-  width: number;
-  glimmerLightPosition: { value: THREE.Vector3 };
+  safeWidth: number;
 };
 
 function canUseWebGL() {
@@ -503,157 +503,62 @@ function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean
   };
 }
 
-function configureConcreteGlimmer(
-  material: THREE.MeshStandardMaterial,
-  lightPosition: { value: THREE.Vector3 }
-) {
-  const strength = { value: titleSceneSpec.title.shineStrength };
-
-  material.onBeforeCompile = (shader) => {
-    shader.uniforms.titleGlimmerLightPosition = lightPosition;
-    shader.uniforms.titleGlimmerStrength = strength;
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        '#include <common>\nvarying vec3 vTitleWorldPosition;\nvarying vec3 vTitleWorldNormal;'
-      )
-      .replace(
-        '#include <beginnormal_vertex>',
-        '#include <beginnormal_vertex>\nvTitleWorldNormal = normalize(mat3(modelMatrix) * objectNormal);'
-      )
-      .replace(
-        '#include <begin_vertex>',
-        '#include <begin_vertex>\nvTitleWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;'
-      );
-    shader.fragmentShader = shader.fragmentShader
-      .replace(
-        '#include <common>',
-        `#include <common>
-         varying vec3 vTitleWorldPosition;
-         varying vec3 vTitleWorldNormal;
-         uniform vec3 titleGlimmerLightPosition;
-         uniform float titleGlimmerStrength;`
-      )
-      .replace(
-        '#include <lights_fragment_end>',
-        `#include <lights_fragment_end>
-         vec3 titleWorldNormal = normalize(vTitleWorldNormal);
-         vec3 titleLightDirection = normalize(titleGlimmerLightPosition - vTitleWorldPosition);
-         vec3 titleViewDirection = normalize(cameraPosition - vTitleWorldPosition);
-         vec3 titleHalfDirection = normalize(titleLightDirection + titleViewDirection);
-         float titleLightFacing = max(dot(titleWorldNormal, titleLightDirection), 0.0);
-         float titleMineralBreakup = 0.72 + 0.28 * sin(
-           vTitleWorldPosition.x * 17.0 +
-           vTitleWorldPosition.y * 23.0 +
-           vTitleWorldPosition.z * 31.0
-         );
-         float titleGlimmer = pow(
-           max(dot(titleWorldNormal, titleHalfDirection), 0.0),
-           38.0
-         ) * titleLightFacing * titleMineralBreakup * titleGlimmerStrength;
-         reflectedLight.directSpecular += vec3(0.78, 0.68, 0.92) * titleGlimmer;`
-      );
-  };
-  material.customProgramCacheKey = () => 'warpkeep-brutalist-concrete-glimmer-v3';
-}
-
-function offsetGeometryUvs(
-  geometry: THREE.BufferGeometry,
-  wordPositionX: number,
-  characterIndex: number,
-  partIndex: number
-) {
-  const uvs = geometry.getAttribute('uv');
-  if (!uvs) {
-    return;
-  }
-
-  for (let index = 0; index < uvs.count; index += 1) {
-    const u = uvs.getX(index);
-    const v = uvs.getY(index);
-    uvs.setXY(
-      index,
-      (u + wordPositionX) * 0.34 + characterIndex * 0.071 + partIndex * 0.037,
-      v * 0.43 + characterIndex * 0.053 + partIndex * 0.089
-    );
-  }
-  uvs.needsUpdate = true;
-}
-
 function createTitleAssembly(textures: ConcreteTextureSet): TitleAssembly {
   const group = new THREE.Group();
-  const glimmerLightPosition = { value: new THREE.Vector3(-5.8, 4.2, 8.5) };
-  const material = new THREE.MeshStandardMaterial({
+  const faceMaterial = new THREE.MeshStandardMaterial({
     color: titleSceneSpec.palette.concrete,
     map: textures.color,
     bumpMap: textures.bump,
-    bumpScale: 0.052,
+    bumpScale: titleSceneSpec.title.bumpScale,
     roughnessMap: textures.roughness,
     roughness: titleSceneSpec.title.roughness,
     metalness: titleSceneSpec.title.metalness,
-    emissive: 0x100e13,
-    emissiveIntensity: 0.035
+    emissive: 0x0c0b10,
+    emissiveIntensity: 0.012
   });
-  configureConcreteGlimmer(material, glimmerLightPosition);
-  const glyphs = Array.from(titleSceneSpec.title.text, (character) => ({
-    character,
-    glyph: getBrutalistGlyph(character)
-  }));
-  const glyphWidths = glyphs.map(({ glyph }) => glyph.width * titleSceneSpec.title.height);
-  const totalWidth = glyphWidths.reduce((sum, width) => sum + width, 0) +
-    titleSceneSpec.title.letterGap * (glyphs.length - 1);
-  let cursor = -totalWidth * 0.5;
+  const sideMaterial = new THREE.MeshStandardMaterial({
+    color: titleSceneSpec.palette.concreteShadow,
+    map: textures.color,
+    bumpMap: textures.bump,
+    bumpScale: titleSceneSpec.title.bumpScale * 0.72,
+    roughnessMap: textures.roughness,
+    roughness: titleSceneSpec.title.sideRoughness,
+    metalness: titleSceneSpec.title.metalness,
+    emissive: 0x080810,
+    emissiveIntensity: 0.01
+  });
+  const layout = layoutBrutalistGlyphs(
+    titleSceneSpec.title.text,
+    titleSceneSpec.title.height
+  );
+  const createdGeometries: THREE.BufferGeometry[] = [];
 
-  glyphs.forEach(({ character, glyph }, characterIndex) => {
-    const characterWidth = glyphWidths[characterIndex];
-    const partGeometries: THREE.BufferGeometry[] = [];
-
-    glyph.parts.forEach((glyphPart, partIndex) => {
-      const shape = new THREE.Shape();
-      glyphPart.points.forEach(([x, y], pointIndex) => {
-        const pointX = x * characterWidth;
-        const pointY = (y - 0.5) * titleSceneSpec.title.height;
-        if (pointIndex === 0) {
-          shape.moveTo(pointX, pointY);
-        } else {
-          shape.lineTo(pointX, pointY);
-        }
-      });
-      shape.closePath();
-
-      const partDepth = titleSceneSpec.title.depth +
-        glyphPart.tier * titleSceneSpec.title.tierDepth;
-      const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: partDepth,
-        steps: 1,
-        curveSegments: 1,
-        bevelEnabled: true,
-        bevelSegments: 1,
+  try {
+    layout.placements.forEach(({ character, glyph, x, index }) => {
+      const geometry = createBrutalistGlyphGeometry(glyph, {
+        height: titleSceneSpec.title.height,
+        depth: titleSceneSpec.title.depth,
         bevelSize: titleSceneSpec.title.bevelSize,
-        bevelThickness: titleSceneSpec.title.bevelThickness
+        bevelThickness: titleSceneSpec.title.bevelThickness,
+        uvOffset: [index * 0.173, index * 0.097]
       });
-      geometry.translate(0, 0, -titleSceneSpec.title.depth * 0.54);
-      offsetGeometryUvs(geometry, cursor, characterIndex, partIndex);
-      geometry.computeVertexNormals();
-      partGeometries.push(geometry);
+      createdGeometries.push(geometry);
+
+      const mesh = new THREE.Mesh(geometry, [faceMaterial, sideMaterial]);
+      mesh.name = `warpkeep-title-${character}-${index}`;
+      mesh.position.x = x - layout.width * 0.5;
+      group.add(mesh);
     });
-
-    const geometry = mergeGeometries(partGeometries, false);
-    partGeometries.forEach((partGeometry) => partGeometry.dispose());
-    if (!geometry) {
-      throw new Error(`Unable to merge monumental title glyph: ${character}`);
-    }
-
-    const letter = new THREE.Group();
-    letter.position.x = cursor;
-    const mesh = new THREE.Mesh(geometry, material);
-    letter.add(mesh);
-    group.add(letter);
-    cursor += characterWidth + titleSceneSpec.title.letterGap;
-  });
+  } catch (error) {
+    createdGeometries.forEach((geometry) => geometry.dispose());
+    faceMaterial.dispose();
+    sideMaterial.dispose();
+    throw error;
+  }
 
   group.position.set(0, -1.52, 0.28);
-  return { group, width: totalWidth, glimmerLightPosition };
+  const safeWidth = layout.width + titleSceneSpec.title.depth * 0.22;
+  return { group, safeWidth };
 }
 
 function disposeScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, textures: THREE.Texture[]) {
@@ -829,30 +734,32 @@ export function WarpkeepTitleScreen3D() {
       const title = createTitleAssembly(concreteTextures);
       scene.add(title.group);
 
-      scene.add(new THREE.AmbientLight(0x111522, 0.38));
-      scene.add(new THREE.HemisphereLight(0xe6e2d6, 0x050711, 0.86));
+      scene.add(new THREE.AmbientLight(0x111522, 0.3));
+      scene.add(new THREE.HemisphereLight(0xe6e2d6, 0x050711, 0.72));
 
-      const keyLight = new THREE.DirectionalLight(0xfff5dc, 2.7);
+      const keyLight = new THREE.DirectionalLight(0xfff7e8, 2.45);
       keyLight.position.set(-3.4, 5.8, 8.6);
       scene.add(keyLight);
 
-      const sweepLight = new THREE.SpotLight(0xf8f1df, 74, 34, 0.38, 0.68, 1.35);
+      const sweepLight = new THREE.SpotLight(0xf7f2e8, 48, 36, 0.64, 0.92, 1.25);
       sweepLight.position.set(-5.8, 4.2, 8.5);
       sweepLight.target.position.set(0, -0.7, 0);
       scene.add(sweepLight, sweepLight.target);
 
-      const violetRimLight = new THREE.PointLight(0x7651a3, 25, 28, 1.75);
+      const violetRimLight = new THREE.PointLight(0x7651a3, 21, 28, 1.75);
       violetRimLight.position.set(0, 1.3, -4.8);
       scene.add(violetRimLight);
 
-      const goldFillLight = new THREE.PointLight(0xa99168, 10, 22, 1.6);
-      goldFillLight.position.set(-6, -1.4, 4.5);
-      scene.add(goldFillLight);
+      const neutralFillLight = new THREE.PointLight(0xb8b0a5, 5.5, 22, 1.65);
+      neutralFillLight.position.set(-6, -1.4, 4.5);
+      scene.add(neutralFillLight);
 
       let titleBaseY = -1.52;
       let galaxyBaseY = 1.55;
       let galaxyLayoutScale = 1;
       let cameraTargetY = -0.42;
+      let titleRestYaw = THREE.MathUtils.degToRad(-1.1);
+      let cameraDriftX = 0.1;
       const resize = () => {
         if (!renderer || !scene || disposed) {
           return;
@@ -872,13 +779,17 @@ export function WarpkeepTitleScreen3D() {
         const titleDistance = camera.position.z - title.group.position.z;
         const titleVisibleHeight = 2 * titleDistance * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
         const titleVisibleWidth = titleVisibleHeight * aspect;
-        const titleWidthRatio = portrait
-          ? titleSceneSpec.title.mobileViewportWidth
-          : titleSceneSpec.title.desktopViewportWidth;
-        const titleScale = Math.min(1.16, (titleVisibleWidth * titleWidthRatio) / title.width);
-        title.group.scale.setScalar(titleScale);
-        titleBaseY = portrait ? -0.46 : -1.52;
-        cameraTargetY = portrait ? 0.08 : -0.42;
+        const titleLayout = calculateTitleResponsiveLayout(
+          width,
+          height,
+          titleVisibleWidth,
+          title.safeWidth
+        );
+        title.group.scale.setScalar(titleLayout.scale);
+        titleBaseY = titleLayout.baseY;
+        cameraTargetY = titleLayout.cameraTargetY;
+        titleRestYaw = titleLayout.restYawRadians;
+        cameraDriftX = titleLayout.cameraDriftX;
 
         const galaxyDistance = camera.position.z - galaxy.group.position.z;
         const galaxyVisibleHeight = 2 * galaxyDistance * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
@@ -924,7 +835,6 @@ export function WarpkeepTitleScreen3D() {
       };
       document.addEventListener('visibilitychange', visibilityChangeHandler);
       const titleRestPitch = THREE.MathUtils.degToRad(-2.1);
-      const titleRestYaw = THREE.MathUtils.degToRad(-1.1);
 
       const render = () => {
         if (!renderer || !scene || disposed) {
@@ -998,17 +908,16 @@ export function WarpkeepTitleScreen3D() {
           titleBaseY + pointerCurrent.y * 0.32,
           0
         );
-        sweepLight.intensity = 72 + Math.sin(lightCycle + 0.4) * 8;
-        title.glimmerLightPosition.value.copy(sweepLight.position);
+        sweepLight.intensity = 46 + Math.sin(lightCycle + 0.4) * 5;
         keyLight.position.x = -3.4 + pointerCurrent.x * 2.1;
         keyLight.position.y = 5.8 + pointerCurrent.y * 1.15;
         violetRimLight.position.x = pointerCurrent.x * 2.6;
         violetRimLight.position.y = 1.3 + pointerCurrent.y * 1.2;
         violetRimLight.intensity = 24 + Math.sin(shaderTime * 0.36) * 3;
-        goldFillLight.position.x = -6 + pointerCurrent.x * 1.4;
+        neutralFillLight.position.x = -6 + pointerCurrent.x * 0.65;
 
         camera.position.x =
-          Math.sin(visibleElapsed * 0.052) * 0.1 +
+          Math.sin(visibleElapsed * 0.052) * cameraDriftX +
           pointerCurrent.x * titleSceneSpec.interaction.cameraTravelX;
         camera.position.y =
           0.18 + Math.cos(visibleElapsed * 0.046) * 0.04 +
