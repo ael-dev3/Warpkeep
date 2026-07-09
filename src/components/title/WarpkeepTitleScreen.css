@@ -5,8 +5,8 @@
   overflow: hidden;
   isolation: isolate;
   background:
-    radial-gradient(ellipse at 50% 31%, rgba(73, 52, 122, 0.12), transparent 33rem),
-    linear-gradient(180deg, #010207 0%, #040715 52%, #010207 100%);
+    radial-gradient(ellipse at 50% 29%, rgba(98, 55, 168, 0.17), transparent 36rem),
+    linear-gradient(180deg, #010207 0%, #050719 52%, #010207 100%);
   color: #f1eee4;
 }
 
@@ -90,19 +90,19 @@
 
 .warpkeep-fallback-galaxy {
   position: absolute;
-  top: 10%;
+  top: 5%;
   left: 50%;
   z-index: 1;
-  width: min(62vw, 760px);
-  aspect-ratio: 1.48;
+  width: min(74vw, 980px);
+  aspect-ratio: 1.7;
   border-radius: 50%;
   transform: translateX(-50%) rotate(-9deg);
   background:
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.76) 0 1.8%, rgba(158, 122, 220, 0.36) 4%, transparent 13%),
-    repeating-conic-gradient(from 8deg at 50% 50%, transparent 0deg 18deg, rgba(202, 210, 241, 0.2) 24deg, rgba(113, 84, 169, 0.17) 32deg, transparent 43deg 72deg),
-    radial-gradient(ellipse at 50% 50%, rgba(223, 228, 246, 0.22), rgba(99, 72, 154, 0.13) 32%, transparent 68%);
-  filter: drop-shadow(0 0 40px rgba(102, 71, 158, 0.24));
-  opacity: 0.88;
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.72) 0 1.8%, rgba(181, 128, 247, 0.34) 4%, transparent 13%),
+    repeating-radial-gradient(ellipse at 50% 50%, transparent 0 9%, rgba(225, 216, 255, 0.09) 11%, rgba(143, 83, 222, 0.08) 13%, transparent 16% 22%),
+    radial-gradient(ellipse at 50% 50%, rgba(231, 225, 255, 0.19), rgba(117, 64, 188, 0.13) 34%, transparent 70%);
+  filter: drop-shadow(0 0 46px rgba(120, 68, 194, 0.25));
+  opacity: 0.76;
   animation: warpkeepFallbackGalaxyDrift 48s linear infinite;
 }
 
@@ -115,8 +115,18 @@
   background: repeating-conic-gradient(from 102deg, transparent 0deg 25deg, rgba(238, 241, 255, 0.16) 31deg, transparent 43deg 78deg);
 }
 
+.warpkeep-fallback-galaxy::before {
+  background:
+    radial-gradient(ellipse at 38% 43%, transparent 0 18%, rgba(238, 226, 255, 0.13) 23%, transparent 31%),
+    radial-gradient(ellipse at 64% 58%, transparent 0 22%, rgba(153, 92, 225, 0.1) 27%, transparent 36%);
+  filter: blur(8px);
+  mix-blend-mode: screen;
+  animation: warpkeepFallbackGalaxyShine 16s ease-in-out infinite;
+}
+
 .warpkeep-fallback-galaxy::after {
   inset: 18%;
+  background: radial-gradient(ellipse at 50% 50%, transparent 0 28%, rgba(222, 205, 255, 0.14) 36%, transparent 52%);
   filter: blur(7px);
   opacity: 0.64;
   transform: rotate(31deg);
@@ -148,7 +158,13 @@
 
 .warpkeep-fallback-title {
   margin: 0;
-  color: #f1eee4;
+  color: transparent;
+  background: linear-gradient(105deg, #d1cfca 8%, #f1eee4 34%, #ffffff 45%, #c8a1ff 50%, #ffffff 55%, #ddd9d0 72%);
+  background-position: 100% 50%;
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   font-family: Impact, "Arial Black", "Helvetica Neue", sans-serif;
   font-size: clamp(3rem, 13.8vw, 12rem);
   font-weight: 900;
@@ -175,14 +191,19 @@
   to { transform: translateX(-50%) rotate(-3deg); }
 }
 
+@keyframes warpkeepFallbackGalaxyShine {
+  0%, 100% { opacity: 0.16; transform: rotate(-16deg) scale(0.96); }
+  48% { opacity: 0.42; transform: rotate(18deg) scale(1.03); }
+}
+
 @keyframes warpkeepFallbackRiftPulse {
   0%, 100% { opacity: 0.74; filter: brightness(0.86); }
   50% { opacity: 1; filter: brightness(1.1); }
 }
 
 @keyframes warpkeepFallbackTitleLight {
-  from { filter: brightness(0.9); transform: rotateX(1.5deg) rotateY(-0.7deg); }
-  to { filter: brightness(1.12); transform: rotateX(1.5deg) rotateY(0.7deg); }
+  from { background-position: 100% 50%; filter: brightness(0.92); transform: rotateX(1.5deg) rotateY(-0.7deg); }
+  to { background-position: 0% 50%; filter: brightness(1.14); transform: rotateX(1.5deg) rotateY(0.7deg); }
 }
 
 @media (max-width: 720px) {
@@ -199,8 +220,8 @@
   }
 
   .warpkeep-fallback-galaxy {
-    top: 15%;
-    width: 90vw;
+    top: 12%;
+    width: 94vw;
   }
 
   .warpkeep-fallback-title-stage {
@@ -223,6 +244,7 @@
 @media (prefers-reduced-motion: reduce) {
   .warpkeep-fallback-stars span,
   .warpkeep-fallback-galaxy,
+  .warpkeep-fallback-galaxy::before,
   .warpkeep-fallback-rift,
   .warpkeep-fallback-title {
     animation: none;
