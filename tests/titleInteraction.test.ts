@@ -41,6 +41,10 @@ describe('Warpkeep pointer perspective', () => {
     expect(interaction.galaxyTravelY).toBeLessThanOrEqual(0.18);
     expect(interaction.galaxyRotationX).toBeLessThanOrEqual(0.018);
     expect(interaction.galaxyRotationY).toBeLessThanOrEqual(0.024);
+    expect(interaction.lightTravelX).toBeGreaterThanOrEqual(3.5);
+    expect(interaction.lightTravelX).toBeLessThanOrEqual(6);
+    expect(interaction.lightTravelY).toBeGreaterThanOrEqual(1.5);
+    expect(interaction.lightTravelY).toBeLessThanOrEqual(3.2);
     expect(interaction.damping).toBeGreaterThanOrEqual(5);
     expect(interaction.damping).toBeLessThanOrEqual(12);
   });

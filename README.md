@@ -6,7 +6,7 @@ Warpkeep is an open-source Farcaster-native strategy game where each player can 
 
 **Live demo:** https://ael-dev3.github.io/Warpkeep/
 
-Current visual experiment: the live demo is a pure Three.js **WARPKEEP** title screen with pristine ivory brutalist megastructure letters, a large complete spiral galaxy, richer restrained purple light, slow galaxy/title glints, subtle star flicker, and smooth pointer-responsive cinematic perspective. The compact black-hole warp rift remains proportionally restrained. Motion is disabled for reduced-motion preferences, while the existing two-track soundtrack remains randomly selected and loops with sound enabled by default; browsers that block audible autoplay resume playback from the first click, tap, or key press anywhere on the page. The public site remains title-only with no gameplay controls or prompts.
+Current visual experiment: the live demo is a pure Three.js **WARPKEEP** title screen built around custom, sharply polygonal architectural letters instead of a font. Tiered concrete masses, procedural stains and cracks, pointer-responsive lighting, and a slow glimmer give the wordmark the scale of an aged brutalist monument. Behind it, a larger five-arm galaxy uses one shared particle-and-shader coordinate system: its softened gravitational core, lensing glow, dust, and spiral structure move together under perspective instead of behaving like a separate black-hole badge. The galaxy completes a stately rotation every five minutes and grows gradually toward a restrained maximum while the screen remains visible. Motion is disabled for reduced-motion preferences, while the existing two-track soundtrack remains randomly selected and loops with sound enabled by default; browsers that block audible autoplay resume playback from the first click, tap, or key press anywhere on the page. The public site remains title-only with no gameplay controls or prompts.
 
 Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
@@ -90,7 +90,7 @@ npm run build
 
 ## What is implemented now
 
-- Current Three.js title-screen experiment with pristine ivory brutalist megastructure letters, a large complete spiral galaxy, defined stars, richer restrained purple energy, slow galaxy/title glints, smooth pointer-responsive perspective, a compact warp rift, reduced-motion handling, WebGL fallback, two random looping soundtracks, and GitHub Pages deployment.
+- Current Three.js title-screen experiment with custom tiered brutalist glyph geometry, procedural aged concrete, pointer-responsive physical lighting and glimmer, a large slowly rotating and gradually growing five-arm galaxy with an integrated gravitational core, defined stars and dust, reduced-motion handling, WebGL fallback, two random looping soundtracks, and GitHub Pages deployment.
 - Public site is title-screen-only; no live game entry button is exposed yet.
 - Local development scaffold includes a castle dashboard with player identity, buildings, resources, queues, nearby castles, court report, and activity log.
 - Deterministic resource collection, upgrade queue, training queue, and scouting report functions.
