@@ -5,7 +5,7 @@
   overflow: hidden;
   isolation: isolate;
   background:
-    radial-gradient(ellipse at 50% 29%, rgba(98, 55, 168, 0.17), transparent 36rem),
+    radial-gradient(ellipse at 50% 28%, rgba(78, 48, 121, 0.19), transparent 42rem),
     linear-gradient(180deg, #010207 0%, #050719 52%, #010207 100%);
   color: #f1eee4;
 }
@@ -90,20 +90,20 @@
 
 .warpkeep-fallback-galaxy {
   position: absolute;
-  top: 5%;
+  top: -2%;
   left: 50%;
   z-index: 1;
-  width: min(74vw, 980px);
-  aspect-ratio: 1.7;
+  width: min(88vw, 1320px);
+  aspect-ratio: 1.82;
   border-radius: 50%;
-  transform: translateX(-50%) rotate(-9deg);
+  transform: translateX(-50%) rotate(-11deg) scale(1);
   background:
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.72) 0 1.8%, rgba(181, 128, 247, 0.34) 4%, transparent 13%),
-    repeating-radial-gradient(ellipse at 50% 50%, transparent 0 9%, rgba(225, 216, 255, 0.09) 11%, rgba(143, 83, 222, 0.08) 13%, transparent 16% 22%),
-    radial-gradient(ellipse at 50% 50%, rgba(231, 225, 255, 0.19), rgba(117, 64, 188, 0.13) 34%, transparent 70%);
-  filter: drop-shadow(0 0 46px rgba(120, 68, 194, 0.25));
-  opacity: 0.76;
-  animation: warpkeepFallbackGalaxyDrift 48s linear infinite;
+    radial-gradient(ellipse at 50% 50%, rgba(5, 3, 12, 0.82) 0 2.5%, rgba(213, 190, 239, 0.72) 3.4%, rgba(135, 82, 178, 0.2) 8%, transparent 16%),
+    repeating-radial-gradient(ellipse at 50% 50%, transparent 0 7%, rgba(231, 225, 239, 0.1) 9%, rgba(111, 67, 154, 0.09) 12%, transparent 15% 20%),
+    radial-gradient(ellipse at 50% 50%, rgba(231, 225, 237, 0.2), rgba(94, 52, 137, 0.14) 36%, transparent 72%);
+  filter: drop-shadow(0 0 58px rgba(91, 52, 133, 0.28));
+  opacity: 0.82;
+  animation: warpkeepFallbackGalaxyGrow 420s cubic-bezier(0.16, 0.72, 0.24, 1) forwards;
 }
 
 .warpkeep-fallback-galaxy::before,
@@ -112,7 +112,7 @@
   inset: 8%;
   border-radius: 50%;
   content: "";
-  background: repeating-conic-gradient(from 102deg, transparent 0deg 25deg, rgba(238, 241, 255, 0.16) 31deg, transparent 43deg 78deg);
+  background: repeating-conic-gradient(from 102deg, transparent 0deg 20deg, rgba(231, 226, 235, 0.17) 26deg, transparent 38deg 67deg);
 }
 
 .warpkeep-fallback-galaxy::before {
@@ -121,64 +121,60 @@
     radial-gradient(ellipse at 64% 58%, transparent 0 22%, rgba(153, 92, 225, 0.1) 27%, transparent 36%);
   filter: blur(8px);
   mix-blend-mode: screen;
-  animation: warpkeepFallbackGalaxyShine 16s ease-in-out infinite;
+  animation: warpkeepFallbackGalaxyShine 21s ease-in-out infinite;
 }
 
 .warpkeep-fallback-galaxy::after {
-  inset: 18%;
-  background: radial-gradient(ellipse at 50% 50%, transparent 0 28%, rgba(222, 205, 255, 0.14) 36%, transparent 52%);
-  filter: blur(7px);
-  opacity: 0.64;
-  transform: rotate(31deg);
+  inset: 5%;
+  background:
+    repeating-conic-gradient(from 102deg, transparent 0deg 20deg, rgba(231, 226, 235, 0.16) 26deg, transparent 38deg 67deg),
+    radial-gradient(ellipse at 50% 50%, transparent 0 28%, rgba(222, 205, 255, 0.13) 36%, transparent 58%);
+  filter: blur(5px);
+  opacity: 0.62;
+  animation: warpkeepFallbackGalaxyRotate 300s linear infinite;
 }
 
-.warpkeep-fallback-rift {
+.warpkeep-fallback-galaxy-core {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 5.5%;
-  aspect-ratio: 1;
+  width: 13%;
+  aspect-ratio: 2.8;
   border-radius: 50%;
-  transform: translate(-50%, -50%) scaleY(0.72);
-  background: #000104;
-  box-shadow:
-    0 0 0 5px rgba(126, 88, 193, 0.28),
-    0 0 24px 8px rgba(129, 91, 196, 0.26),
-    0 0 60px 18px rgba(95, 62, 153, 0.11);
-  animation: warpkeepFallbackRiftPulse 8s ease-in-out infinite;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse, rgba(0, 1, 5, 0.98) 0 25%, rgba(8, 4, 12, 0.94) 38%, rgba(19, 10, 28, 0.62) 55%, transparent 76%);
+  filter: blur(1.2px);
+  animation: warpkeepFallbackCoreBreathe 13s ease-in-out infinite;
+}
+
+.warpkeep-fallback-galaxy-core::before {
+  position: absolute;
+  inset: -72%;
+  border-radius: 50%;
+  content: "";
+  background: radial-gradient(ellipse, transparent 0 32%, rgba(205, 175, 225, 0.42) 42%, rgba(103, 63, 142, 0.16) 55%, transparent 72%);
+  mix-blend-mode: screen;
 }
 
 .warpkeep-fallback-title-stage {
   position: relative;
   z-index: 2;
   width: min(97vw, 1480px);
-  margin-top: 32vh;
+  margin-top: 35vh;
   perspective: 1000px;
 }
 
-.warpkeep-fallback-title {
-  margin: 0;
-  color: transparent;
-  background: linear-gradient(105deg, #d1cfca 8%, #f1eee4 34%, #ffffff 45%, #c8a1ff 50%, #ffffff 55%, #ddd9d0 72%);
-  background-position: 100% 50%;
-  background-size: 240% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-family: Impact, "Arial Black", "Helvetica Neue", sans-serif;
-  font-size: clamp(3rem, 13.8vw, 12rem);
-  font-weight: 900;
-  line-height: 0.78;
-  letter-spacing: 0.018em;
-  text-align: center;
-  transform: rotateX(1.5deg);
-  text-shadow:
-    0 2px 0 #ffffff,
-    0 5px 0 #c9c8c9,
-    0 9px 0 #8d8b96,
-    0 15px 22px rgba(0, 0, 0, 0.74),
-    0 0 28px rgba(111, 78, 169, 0.34);
-  animation: warpkeepFallbackTitleLight 14s ease-in-out infinite alternate;
+.warpkeep-fallback-wordmark {
+  display: block;
+  width: 100%;
+  overflow: visible;
+  transform: rotateX(2.2deg) scaleY(1.08);
+  filter:
+    brightness(0.9)
+    drop-shadow(-7px 16px 12px rgba(0, 0, 0, 0.74))
+    drop-shadow(0 0 22px rgba(91, 60, 124, 0.22));
+  transform-style: preserve-3d;
+  animation: warpkeepFallbackTitleLight 17s ease-in-out infinite alternate;
 }
 
 @keyframes warpkeepFallbackStarFlicker {
@@ -186,9 +182,14 @@
   52% { opacity: 0.72; transform: scale(1.08); }
 }
 
-@keyframes warpkeepFallbackGalaxyDrift {
-  from { transform: translateX(-50%) rotate(-9deg); }
-  to { transform: translateX(-50%) rotate(-3deg); }
+@keyframes warpkeepFallbackGalaxyGrow {
+  from { transform: translateX(-50%) rotate(-11deg) scale(1); }
+  to { transform: translateX(-50%) rotate(-11deg) scale(1.115); }
+}
+
+@keyframes warpkeepFallbackGalaxyRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes warpkeepFallbackGalaxyShine {
@@ -196,14 +197,20 @@
   48% { opacity: 0.42; transform: rotate(18deg) scale(1.03); }
 }
 
-@keyframes warpkeepFallbackRiftPulse {
-  0%, 100% { opacity: 0.74; filter: brightness(0.86); }
-  50% { opacity: 1; filter: brightness(1.1); }
+@keyframes warpkeepFallbackCoreBreathe {
+  0%, 100% { opacity: 0.72; filter: blur(1.2px) brightness(0.86); }
+  50% { opacity: 0.94; filter: blur(1.5px) brightness(1.06); }
 }
 
 @keyframes warpkeepFallbackTitleLight {
-  from { background-position: 100% 50%; filter: brightness(0.92); transform: rotateX(1.5deg) rotateY(-0.7deg); }
-  to { background-position: 0% 50%; filter: brightness(1.14); transform: rotateX(1.5deg) rotateY(0.7deg); }
+  from {
+    filter: brightness(0.84) drop-shadow(-8px 17px 13px rgba(0, 0, 0, 0.78)) drop-shadow(0 0 18px rgba(91, 60, 124, 0.18));
+    transform: rotateX(2.2deg) rotateY(-0.8deg) scaleY(1.08);
+  }
+  to {
+    filter: brightness(1.08) drop-shadow(-4px 13px 9px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 28px rgba(119, 79, 151, 0.27));
+    transform: rotateX(2.2deg) rotateY(0.8deg) scaleY(1.08);
+  }
 }
 
 @media (max-width: 720px) {
@@ -220,8 +227,8 @@
   }
 
   .warpkeep-fallback-galaxy {
-    top: 12%;
-    width: 94vw;
+    top: 7%;
+    width: 102vw;
   }
 
   .warpkeep-fallback-title-stage {
@@ -229,15 +236,11 @@
     margin-top: 22vh;
   }
 
-  .warpkeep-fallback-title {
-    font-size: clamp(2.35rem, 15.4vw, 6.4rem);
-    letter-spacing: -0.005em;
-    text-shadow:
-      0 1px 0 #ffffff,
-      0 3px 0 #c9c8c9,
-      0 6px 0 #8d8b96,
-      0 11px 18px rgba(0, 0, 0, 0.78),
-      0 0 22px rgba(111, 78, 169, 0.32);
+  .warpkeep-fallback-wordmark {
+    filter:
+      brightness(0.92)
+      drop-shadow(-4px 10px 8px rgba(0, 0, 0, 0.76))
+      drop-shadow(0 0 16px rgba(91, 60, 124, 0.24));
   }
 }
 
@@ -245,8 +248,9 @@
   .warpkeep-fallback-stars span,
   .warpkeep-fallback-galaxy,
   .warpkeep-fallback-galaxy::before,
-  .warpkeep-fallback-rift,
-  .warpkeep-fallback-title {
+  .warpkeep-fallback-galaxy::after,
+  .warpkeep-fallback-galaxy-core,
+  .warpkeep-fallback-wordmark {
     animation: none;
   }
 }

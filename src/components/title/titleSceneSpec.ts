@@ -9,64 +9,82 @@ export type SpiralGalaxyLayout = {
 export const titleSceneSpec = {
   title: {
     text: 'WARPKEEP',
-    roughness: 0.78,
-    metalness: 0.025,
-    desktopViewportWidth: 0.91,
-    mobileViewportWidth: 0.9,
-    depth: 0.84,
-    bevelSize: 0.027,
-    bevelThickness: 0.05,
-    shinePeriodSeconds: 14,
-    shineStrength: 0.44
+    roughness: 0.9,
+    metalness: 0,
+    desktopViewportWidth: 0.94,
+    mobileViewportWidth: 0.93,
+    height: 2.18,
+    depth: 0.98,
+    tierDepth: 0.075,
+    bevelSize: 0.012,
+    bevelThickness: 0.018,
+    letterGap: 0.075,
+    shinePeriodSeconds: 17,
+    shineStrength: 0.34
   },
   galaxy: {
-    armCount: 4,
-    radius: 7.2,
-    verticalScale: 0.52,
-    spiralTurns: 0.84,
-    armScatter: 0.16,
-    desktopViewportWidth: 0.66,
-    desktopViewportHeight: 0.62,
-    portraitViewportWidth: 0.92,
-    portraitViewportHeight: 0.48,
-    shortLandscapeBaseY: -0.25,
-    purpleMix: 0.46,
-    shinePeriodSeconds: 16,
-    maxPointSize: 12,
-    desktopParticleCount: 4_200,
-    mobileParticleCount: 2_600,
-    desktopBackgroundStars: 1_050,
-    mobileBackgroundStars: 620,
+    armCount: 5,
+    radius: 7.8,
+    verticalScale: 0.49,
+    spiralTurns: 1.12,
+    armScatter: 0.32,
+    desktopViewportWidth: 0.9,
+    desktopViewportHeight: 0.74,
+    portraitViewportWidth: 1.08,
+    portraitViewportHeight: 0.6,
+    shortLandscapeBaseY: -0.08,
+    purpleMix: 0.58,
+    shinePeriodSeconds: 21,
+    rotationPeriodSeconds: 300,
+    growthPerMinute: 0.018,
+    maxGrowth: 0.115,
+    maxPointSize: 13,
+    desktopParticleCount: 6_800,
+    mobileParticleCount: 4_200,
+    desktopBackgroundStars: 1_250,
+    mobileBackgroundStars: 760,
     seed: 0x57415250
   },
-  rift: {
-    radius: 0.42,
-    haloRadius: 1.75,
-    energyParticleCount: 180
+  core: {
+    shadowRadius: 0.055,
+    accretionRadius: 0.17,
+    lensRadius: 0.29
   },
   interaction: {
-    damping: 8,
-    cameraTravelX: 0.38,
-    cameraTravelY: 0.21,
-    cameraTargetX: 0.14,
-    cameraTargetY: 0.08,
-    titleRotationX: 0.026,
-    titleRotationY: 0.046,
-    galaxyTravelX: 0.24,
-    galaxyTravelY: 0.12,
-    galaxyRotationX: 0.012,
-    galaxyRotationY: 0.018
+    damping: 6.8,
+    cameraTravelX: 0.34,
+    cameraTravelY: 0.18,
+    cameraTargetX: 0.11,
+    cameraTargetY: 0.065,
+    titleRotationX: 0.021,
+    titleRotationY: 0.039,
+    galaxyTravelX: 0.18,
+    galaxyTravelY: 0.09,
+    galaxyRotationX: 0.005,
+    galaxyRotationY: 0.008,
+    lightTravelX: 5.2,
+    lightTravelY: 2.6
   },
   palette: {
     void: '#010207',
     deepNavy: '#05091a',
-    concrete: '#f1eee4',
-    concreteShadow: '#9a9ca5',
-    violet: '#7251b5',
-    warp: '#9c73e5',
-    coldStar: '#e7efff'
+    concrete: '#c8c3b8',
+    concreteShadow: '#393841',
+    concreteEdge: '#817a83',
+    violet: '#67448f',
+    warp: '#9d72ca',
+    coldStar: '#e7efff',
+    oldGold: '#a99168'
   }
 } as const;
+
+export function calculateGalaxyGrowth(elapsedSeconds: number) {
+  const safeElapsed = Math.max(0, elapsedSeconds);
+  const initialGrowthPerSecond = titleSceneSpec.galaxy.growthPerMinute / 60;
+  const timeConstant = titleSceneSpec.galaxy.maxGrowth / initialGrowthPerSecond;
+  const boundedGrowth = titleSceneSpec.galaxy.maxGrowth * (1 - Math.exp(-safeElapsed / timeConstant));
+  return 1 + boundedGrowth;
+}
 
 function createSeededRandom(seed: number) {
   let state = seed >>> 0;
@@ -92,28 +110,45 @@ export function createSpiralGalaxyLayout(count: number, seed: number = titleScen
   const brightness = new Float32Array(safeCount);
   const temperature = new Float32Array(safeCount);
   const random = createSeededRandom(seed);
-  const { armCount, radius: galaxyRadius, spiralTurns, verticalScale, armScatter } = titleSceneSpec.galaxy;
+  const { armCount, radius: galaxyRadius, spiralTurns, armScatter } = titleSceneSpec.galaxy;
 
   for (let index = 0; index < safeCount; index += 1) {
-    const isCoreStar = random() < 0.12;
+    const isCoreStar = random() < 0.17;
+    const isFieldStar = !isCoreStar && random() < 0.16;
     const armIndex = index % armCount;
     const radiusRatio = isCoreStar
-      ? Math.pow(random(), 2.15) * 0.21
-      : 0.08 + Math.pow(random(), 0.68) * 0.92;
+      ? Math.pow(random(), 2.35) * 0.24
+      : 0.065 + Math.pow(random(), 0.72) * 0.935;
     const armAngle = (armIndex / armCount) * Math.PI * 2;
     const spiralAngle = radiusRatio * spiralTurns * Math.PI * 2;
-    const angularScatter = signedNoise(random) * (isCoreStar ? 1.1 : armScatter * (0.85 + radiusRatio * 0.45));
-    const radialScatter = signedNoise(random) * galaxyRadius * (isCoreStar ? 0.022 : 0.035);
+    const angularScatter = signedNoise(random) * (
+      isCoreStar
+        ? 1.25
+        : isFieldStar
+          ? 0
+          : armScatter * (0.82 + radiusRatio * 0.58)
+    );
+    const radialScatter = signedNoise(random) * galaxyRadius * (
+      isCoreStar ? 0.024 : isFieldStar ? 0.072 : 0.055
+    );
     const pointRadius = Math.max(0.01, Math.min(galaxyRadius * 1.08, radiusRatio * galaxyRadius + radialScatter));
-    const angle = isCoreStar ? random() * Math.PI * 2 : armAngle + spiralAngle + angularScatter;
+    const angle = isCoreStar || isFieldStar
+      ? random() * Math.PI * 2
+      : armAngle + spiralAngle + angularScatter;
     const i = index * 3;
 
     positions[i] = Math.cos(angle) * pointRadius;
-    positions[i + 1] = Math.sin(angle) * pointRadius * verticalScale;
-    positions[i + 2] = signedNoise(random) * (0.42 - radiusRatio * 0.28);
+    positions[i + 1] = Math.sin(angle) * pointRadius;
+    positions[i + 2] = signedNoise(random) * (0.2 - radiusRatio * 0.12);
     phases[index] = random() * Math.PI * 2;
-    sizes[index] = (isCoreStar ? 1.05 : 0.62) + random() * (isCoreStar ? 1.45 : 1.05);
-    brightness[index] = isCoreStar ? 0.66 + random() * 0.34 : 0.28 + random() * 0.62;
+    sizes[index] = isFieldStar
+      ? 0.42 + random() * 0.82
+      : (isCoreStar ? 0.9 : 0.52) + random() * (isCoreStar ? 1.55 : 1.18);
+    brightness[index] = isCoreStar
+      ? 0.62 + random() * 0.38
+      : isFieldStar
+        ? 0.12 + random() * 0.38
+        : 0.2 + random() * 0.72;
     temperature[index] = Math.min(1, Math.max(0, 0.12 + radiusRatio * 0.58 + signedNoise(random) * 0.18));
   }
 

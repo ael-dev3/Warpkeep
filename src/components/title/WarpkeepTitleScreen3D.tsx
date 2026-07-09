@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import helvetikerBold from '../../assets/fonts/helvetiker_bold.typeface.json';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
-import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { WarpkeepTitleScreenFallback } from './WarpkeepTitleScreenFallback';
 import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
+import { getBrutalistGlyph } from './brutalistGlyphs';
 import { dampValue, isMousePointerType, normalizePointerPosition } from './titleInteraction';
-import { createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
+import { createConcreteTextures, type ConcreteTextureSet } from './titleTextures';
+import { calculateGalaxyGrowth, createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
 import './WarpkeepTitleScreen.css';
 
 type PointLayer = {
@@ -14,33 +14,29 @@ type PointLayer = {
   points: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
 };
 
-type GalaxyAssembly = PointLayer & {
+type GalaxyAssembly = {
   group: THREE.Group;
+  parallaxGroup: THREE.Group;
+  growthGroup: THREE.Group;
+  spinGroup: THREE.Group;
+  stars: PointLayer;
+  dust: PointLayer;
   discMaterial: THREE.ShaderMaterial;
-  haloMaterial: THREE.SpriteMaterial;
-  coreMaterial: THREE.SpriteMaterial;
-};
-
-type RiftAssembly = {
-  group: THREE.Group;
-  ringMaterial: THREE.ShaderMaterial;
-  energyMaterial: THREE.ShaderMaterial;
-  energyPoints: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
-  innerRing: THREE.Mesh<THREE.RingGeometry, THREE.ShaderMaterial>;
+  coreMaterial: THREE.ShaderMaterial;
 };
 
 type TitleAssembly = {
   group: THREE.Group;
   width: number;
-  shineTime: { value: number };
-  shineRange: { value: number };
-  edgeMaterial: THREE.LineBasicMaterial;
+  glimmerLightPosition: { value: THREE.Vector3 };
 };
 
 function canUseWebGL() {
   try {
     const canvas = document.createElement('canvas');
-    return Boolean(canvas.getContext('webgl2'));
+    const context = canvas.getContext('webgl2');
+    context?.getExtension('WEBGL_lose_context')?.loseContext();
+    return Boolean(context);
   } catch {
     return false;
   }
@@ -55,31 +51,14 @@ function createRandom(seed: number) {
   };
 }
 
-function createGlowTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const context = canvas.getContext('2d');
-
-  if (!context) {
-    throw new Error('Canvas 2D context unavailable for procedural glow texture.');
-  }
-
-  const glow = context.createRadialGradient(128, 128, 0, 128, 128, 128);
-  glow.addColorStop(0, 'rgba(255,255,255,0.96)');
-  glow.addColorStop(0.12, 'rgba(255,255,255,0.56)');
-  glow.addColorStop(0.42, 'rgba(255,255,255,0.16)');
-  glow.addColorStop(1, 'rgba(255,255,255,0)');
-  context.fillStyle = glow;
-  context.fillRect(0, 0, canvas.width, canvas.height);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.needsUpdate = true;
-  return texture;
-}
-
-function createPointMaterial(pixelRatio: number, pointScale: number, opacity: number, flickerSpeed: number) {
+function createPointMaterial(
+  pixelRatio: number,
+  pointScale: number,
+  opacity: number,
+  flickerSpeed: number,
+  softness = 0,
+  coreFade = 0
+) {
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -91,7 +70,11 @@ function createPointMaterial(pixelRatio: number, pointScale: number, opacity: nu
       pointScale: { value: pointScale },
       maxPointSize: { value: titleSceneSpec.galaxy.maxPointSize },
       layerOpacity: { value: opacity },
-      flickerSpeed: { value: flickerSpeed }
+      flickerSpeed: { value: flickerSpeed },
+      softness: { value: softness },
+      coreFade: { value: coreFade },
+      galaxyRadius: { value: titleSceneSpec.galaxy.radius },
+      shadowRadius: { value: titleSceneSpec.core.shadowRadius }
     },
     vertexShader: `
       attribute float phase;
@@ -99,42 +82,62 @@ function createPointMaterial(pixelRatio: number, pointScale: number, opacity: nu
       attribute float brightness;
       varying float vBrightness;
       varying float vPhase;
+      varying float vCoreFade;
       varying vec3 vColor;
       uniform float time;
       uniform float pixelRatio;
       uniform float pointScale;
       uniform float maxPointSize;
       uniform float flickerSpeed;
+      uniform float coreFade;
+      uniform float galaxyRadius;
+      uniform float shadowRadius;
 
       void main() {
         vBrightness = brightness;
         vPhase = phase;
         vColor = color;
+        float normalizedRadius = length(position.xy) / galaxyRadius;
+        float coreVisibility = smoothstep(
+          shadowRadius * 0.72,
+          shadowRadius * 2.2,
+          normalizedRadius
+        );
+        vCoreFade = mix(1.0, coreVisibility, coreFade);
         vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-        float flicker = 0.93 + 0.07 * sin(time * flickerSpeed + phase);
-        gl_PointSize = clamp(size * pixelRatio * pointScale * flicker / max(8.0, -viewPosition.z), 1.0, maxPointSize);
+        float flicker = 0.94 + 0.06 * sin(time * flickerSpeed + phase);
+        float perspectiveSize = size * pixelRatio * pointScale * flicker / max(7.0, -viewPosition.z);
+        gl_PointSize = clamp(perspectiveSize, 1.0, maxPointSize);
         gl_Position = projectionMatrix * viewPosition;
       }
     `,
     fragmentShader: `
       varying float vBrightness;
       varying float vPhase;
+      varying float vCoreFade;
       varying vec3 vColor;
       uniform float time;
       uniform float layerOpacity;
       uniform float flickerSpeed;
+      uniform float softness;
 
       void main() {
         vec2 centered = gl_PointCoord - vec2(0.5);
         float radius = length(centered);
-        float core = 1.0 - smoothstep(0.045, 0.5, radius);
-        float horizontalFlare = exp(-abs(centered.y) * 38.0) * (1.0 - smoothstep(0.02, 0.48, abs(centered.x)));
-        float verticalFlare = exp(-abs(centered.x) * 42.0) * (1.0 - smoothstep(0.02, 0.46, abs(centered.y)));
-        float starShape = max(core, (horizontalFlare + verticalFlare) * 0.16);
-        float flicker = 0.94 + 0.06 * sin(time * flickerSpeed + vPhase);
-        float alpha = starShape * vBrightness * layerOpacity * flicker;
-        if (alpha < 0.008) discard;
+        float stellarCore = 1.0 - smoothstep(0.035, 0.5, radius);
+        float horizontalFlare = exp(-abs(centered.y) * 40.0) *
+          (1.0 - smoothstep(0.025, 0.48, abs(centered.x)));
+        float verticalFlare = exp(-abs(centered.x) * 44.0) *
+          (1.0 - smoothstep(0.025, 0.46, abs(centered.y)));
+        float starShape = max(stellarCore, (horizontalFlare + verticalFlare) * 0.15);
+        float dustShape = pow(max(0.0, 1.0 - radius * 2.0), 2.2);
+        float pointShape = mix(starShape, dustShape, softness);
+        float flicker = 0.95 + 0.05 * sin(time * flickerSpeed + vPhase);
+        float alpha = pointShape * vBrightness * layerOpacity * flicker * vCoreFade;
+        if (alpha < 0.006) discard;
         gl_FragColor = vec4(vColor, alpha);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `
   });
@@ -149,20 +152,24 @@ function createBackgroundStars(count: number, pixelRatio: number): PointLayer {
   const brightness = new Float32Array(count);
   const cold = new THREE.Color(titleSceneSpec.palette.coldStar);
   const violet = new THREE.Color('#a59bd2');
+  const oldGold = new THREE.Color(titleSceneSpec.palette.oldGold);
 
   for (let index = 0; index < count; index += 1) {
     const i = index * 3;
-    const brightSystem = random() > 0.965;
-    const color = cold.clone().lerp(violet, random() * 0.34);
-    positions[i] = (random() - 0.5) * 46;
-    positions[i + 1] = (random() - 0.5) * 28 + 1.2;
-    positions[i + 2] = -8 - random() * 56;
+    const brightSystem = random() > 0.966;
+    const color = cold.clone().lerp(violet, random() * 0.3);
+    if (random() > 0.94) {
+      color.lerp(oldGold, 0.12 + random() * 0.12);
+    }
+    positions[i] = (random() - 0.5) * 48;
+    positions[i + 1] = (random() - 0.5) * 30 + 1;
+    positions[i + 2] = -8 - random() * 58;
     colors[i] = color.r;
     colors[i + 1] = color.g;
     colors[i + 2] = color.b;
     phases[index] = random() * Math.PI * 2;
-    sizes[index] = brightSystem ? 2.2 + random() * 1.4 : 0.58 + random() * 1.05;
-    brightness[index] = brightSystem ? 0.72 + random() * 0.26 : 0.18 + random() * 0.58;
+    sizes[index] = brightSystem ? 2.15 + random() * 1.5 : 0.5 + random() * 1.08;
+    brightness[index] = brightSystem ? 0.7 + random() * 0.28 : 0.15 + random() * 0.56;
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -171,13 +178,27 @@ function createBackgroundStars(count: number, pixelRatio: number): PointLayer {
   geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
   geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
   geometry.setAttribute('brightness', new THREE.BufferAttribute(brightness, 1));
-  const material = createPointMaterial(pixelRatio, 84, 0.86, 0.42);
+  const material = createPointMaterial(pixelRatio, 86, 0.86, 0.38);
   const points = new THREE.Points(geometry, material);
   points.frustumCulled = false;
   return { points, material };
 }
 
-function createGalaxyDiscMaterial() {
+function createGalaxyDiscMaterial(compactQuality: boolean) {
+  const fbmOctaves = compactQuality ? 3 : 5;
+  const dustLaneNoise = compactQuality
+    ? 'broadNoise'
+    : 'fbm(point * 10.5 + vec2(4.3, -2.1))';
+  const clumpNoise = compactQuality
+    ? 'mix(broadNoise, fineNoise, 0.45)'
+    : 'fbm(point * 13.5 + vec2(-3.7, 8.2))';
+  const coreNoise = compactQuality
+    ? 'fineNoise'
+    : 'fbm(point * 23.0 + vec2(7.0, 3.0))';
+  const peripheralNoise = compactQuality
+    ? 'broadNoise'
+    : 'fbm(point * 7.4 + vec2(-8.0, 5.0))';
+
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -186,10 +207,16 @@ function createGalaxyDiscMaterial() {
     uniforms: {
       time: { value: 0 },
       purpleMix: { value: titleSceneSpec.galaxy.purpleMix },
-      shineSpeed: { value: (Math.PI * 2) / titleSceneSpec.galaxy.shinePeriodSeconds }
+      armCount: { value: titleSceneSpec.galaxy.armCount },
+      spiralTurns: { value: titleSceneSpec.galaxy.spiralTurns },
+      shineSpeed: { value: (Math.PI * 2) / titleSceneSpec.galaxy.shinePeriodSeconds },
+      shadowRadius: { value: titleSceneSpec.core.shadowRadius },
+      accretionRadius: { value: titleSceneSpec.core.accretionRadius },
+      lensRadius: { value: titleSceneSpec.core.lensRadius }
     },
     vertexShader: `
       varying vec2 vUv;
+
       void main() {
         vUv = uv;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -199,258 +226,300 @@ function createGalaxyDiscMaterial() {
       varying vec2 vUv;
       uniform float time;
       uniform float purpleMix;
+      uniform float armCount;
+      uniform float spiralTurns;
       uniform float shineSpeed;
+      uniform float shadowRadius;
+      uniform float accretionRadius;
+      uniform float lensRadius;
+
+      const float TAU = 6.28318530718;
+
+      float hash21(vec2 point) {
+        point = fract(point * vec2(123.34, 456.21));
+        point += dot(point, point + 45.32);
+        return fract(point.x * point.y);
+      }
+
+      float valueNoise(vec2 point) {
+        vec2 cell = floor(point);
+        vec2 local = fract(point);
+        local = local * local * (3.0 - 2.0 * local);
+        float a = hash21(cell);
+        float b = hash21(cell + vec2(1.0, 0.0));
+        float c = hash21(cell + vec2(0.0, 1.0));
+        float d = hash21(cell + vec2(1.0, 1.0));
+        return mix(mix(a, b, local.x), mix(c, d, local.x), local.y);
+      }
+
+      float fbm(vec2 point) {
+        float value = 0.0;
+        float amplitude = 0.52;
+        mat2 turn = mat2(0.8, -0.6, 0.6, 0.8);
+        for (int octave = 0; octave < ${fbmOctaves}; octave += 1) {
+          value += valueNoise(point) * amplitude;
+          point = turn * point * 2.03 + vec2(13.1, 7.7);
+          amplitude *= 0.5;
+        }
+        return value;
+      }
 
       void main() {
-        vec2 p = (vUv - vec2(0.5)) * 2.0;
-        float radius = length(p);
-        if (radius > 1.0) discard;
+        vec2 point = (vUv - vec2(0.5)) * 2.0;
+        float radius = length(point);
+        if (radius > 1.045) discard;
 
-        float angle = atan(p.y, p.x);
-        float wave = 0.5 + 0.5 * cos(angle * 4.0 - radius * 20.5 + time * 0.018);
-        float arm = pow(smoothstep(0.54, 0.98, wave), 1.58);
-        float innerFade = smoothstep(0.07, 0.2, radius);
-        float edgeFade = 1.0 - smoothstep(0.72, 1.0, radius);
-        float dustVariation = 0.86 + 0.14 * sin(angle * 11.0 + radius * 37.0);
-        float core = 1.0 - smoothstep(0.02, 0.25, radius);
+        float broadNoise = fbm(point * 4.8 + vec2(time * 0.002, -time * 0.0015));
+        float fineNoise = fbm(point * 17.0 - vec2(time * 0.003, time * 0.001));
+        float warpedRadius = radius * (0.955 + broadNoise * 0.095);
+        float angle = atan(point.y, point.x);
+        float spiralPhase = angle * armCount -
+          warpedRadius * spiralTurns * TAU * armCount +
+          (broadNoise - 0.5) * 2.1;
+        float armWave = 0.5 + 0.5 * cos(spiralPhase);
+        float secondaryWave = 0.5 + 0.5 * cos(spiralPhase + 0.65 + fineNoise * 0.72);
+        float arm = pow(smoothstep(0.31, 0.99, armWave), 2.05);
+        float feathers = pow(smoothstep(0.58, 0.99, secondaryWave), 3.1);
+        float edgeFade = 1.0 - smoothstep(0.74, 1.035, radius);
+        float innerFade = smoothstep(0.035, 0.16, radius);
+        float dustLane = smoothstep(0.48, 0.79, ${dustLaneNoise});
+        float granularDust = pow(smoothstep(0.18, 0.94, fineNoise), 1.7);
+        float clumpNoise = ${clumpNoise};
+        float clumps = smoothstep(0.34, 0.76, clumpNoise);
+        float armDensity = (arm * 0.72 + feathers * 0.28) *
+          (0.5 + granularDust * 0.5) * (0.55 + clumps * 0.45);
+        armDensity *= mix(1.0, 0.4, dustLane) * innerFade * edgeFade;
 
-        float shineWave = 0.5 + 0.5 * cos(angle * 2.0 - radius * 13.0 - time * shineSpeed);
-        float shine = pow(shineWave, 12.0) * (0.35 + arm * 0.65) * edgeFade;
-        float alpha = (arm * 0.15 * innerFade * edgeFade + core * 0.105 + shine * 0.048) * dustVariation;
+        float coreNoise = ${coreNoise};
+        float coreDistance = radius * (0.93 + coreNoise * 0.12);
+        float shadow = 1.0 - smoothstep(
+          shadowRadius * 0.38,
+          shadowRadius * (1.68 + coreNoise * 0.42),
+          coreDistance
+        );
+        float accretionWidth = 0.038 + coreNoise * 0.014;
+        float accretion = exp(-pow((coreDistance - accretionRadius) / accretionWidth, 2.0));
+        float lensing = exp(-pow((coreDistance - lensRadius) / 0.065, 2.0));
+        float coreBloom = exp(-coreDistance * 8.2) * (1.0 - shadow * 0.86);
 
-        vec3 ivory = vec3(0.91, 0.93, 0.99);
-        vec3 violet = vec3(0.51, 0.27, 0.82);
-        vec3 lavender = vec3(0.72, 0.5, 1.0);
-        vec3 color = mix(ivory, violet, purpleMix * (0.72 + radius * 0.46));
-        color += lavender * shine * 0.34;
-        if (alpha < 0.004) discard;
+        float shineWave = 0.5 + 0.5 * cos(
+          angle * 2.0 - warpedRadius * 15.0 - time * shineSpeed
+        );
+        float shine = pow(shineWave, 13.0) * (0.25 + arm * 0.75) * edgeFade;
+        float peripheralDust = ${peripheralNoise} * edgeFade;
+        float density = armDensity * 0.36 + peripheralDust * 0.045 +
+          coreBloom * 0.25 + accretion * 0.24 + lensing * 0.075 + shine * 0.06;
+        density *= 1.0 - shadow * 0.9;
+
+        vec3 coldIvory = vec3(0.91, 0.94, 1.0);
+        vec3 deepViolet = vec3(0.45, 0.16, 0.75);
+        vec3 lavender = vec3(0.78, 0.45, 1.0);
+        vec3 oldGold = vec3(0.54, 0.45, 0.31);
+        vec3 color = mix(coldIvory, deepViolet, purpleMix * (0.7 + radius * 0.42));
+        color *= 0.72 + granularDust * 0.4;
+        color += deepViolet * arm * (0.18 + purpleMix * 0.28);
+        color += lavender * (accretion * 0.66 + shine * 0.36 + lensing * 0.24);
+        color += oldGold * coreBloom * 0.16;
+        color *= 1.0 - shadow * 0.94;
+
+        float alpha = density * (0.9 + broadNoise * 0.2) * edgeFade;
+        if (alpha < 0.003) discard;
         gl_FragColor = vec4(color, alpha);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `
   });
 }
 
-function createGalaxy(count: number, pixelRatio: number, glowTexture: THREE.Texture): GalaxyAssembly {
-  const layout = createSpiralGalaxyLayout(count);
-  const colors = new Float32Array(count * 3);
-  const ivory = new THREE.Color('#f6f3ea');
-  const coldWhite = new THREE.Color('#d9e5ff');
-  const mutedViolet = new THREE.Color('#aa78e8');
+function createCoreOcclusionMaterial() {
+  const coreExtent = titleSceneSpec.core.shadowRadius * 2.1;
 
-  for (let index = 0; index < count; index += 1) {
-    const i = index * 3;
-    const temperature = layout.temperature[index];
-    const base = ivory.clone().lerp(coldWhite, temperature * 0.42);
-    base.lerp(mutedViolet, titleSceneSpec.galaxy.purpleMix * (0.24 + temperature * 0.58));
-    colors[i] = base.r;
-    colors[i + 1] = base.g;
-    colors[i + 2] = base.b;
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(layout.positions, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geometry.setAttribute('phase', new THREE.BufferAttribute(layout.phases, 1));
-  geometry.setAttribute('size', new THREE.BufferAttribute(layout.sizes, 1));
-  geometry.setAttribute('brightness', new THREE.BufferAttribute(layout.brightness, 1));
-  geometry.computeBoundingSphere();
-
-  const material = createPointMaterial(pixelRatio, 96, 0.96, 0.32);
-  const points = new THREE.Points(geometry, material);
-  points.frustumCulled = false;
-
-  const group = new THREE.Group();
-  group.position.set(0, 1.28, -18);
-  group.rotation.z = -0.13;
-
-  const haloMaterial = new THREE.SpriteMaterial({
-    map: glowTexture,
-    color: 0x7642c2,
-    transparent: true,
-    opacity: 0.15,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
-  });
-  const haloGlow = new THREE.Sprite(haloMaterial);
-  haloGlow.position.z = -0.42;
-  haloGlow.scale.set(
-    titleSceneSpec.galaxy.radius * 2.25,
-    titleSceneSpec.galaxy.radius * titleSceneSpec.galaxy.verticalScale * 2.35,
-    1
-  );
-  group.add(haloGlow);
-
-  const discMaterial = createGalaxyDiscMaterial();
-  const disc = new THREE.Mesh(
-    new THREE.PlaneGeometry(
-      titleSceneSpec.galaxy.radius * 2,
-      titleSceneSpec.galaxy.radius * 2 * titleSceneSpec.galaxy.verticalScale
-    ),
-    discMaterial
-  );
-  disc.position.z = -0.22;
-  group.add(disc);
-  group.add(points);
-
-  const coreMaterial = new THREE.SpriteMaterial({
-    map: glowTexture,
-    color: 0xc4a4ff,
-    transparent: true,
-    opacity: 0.27,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
-  });
-  const coreGlow = new THREE.Sprite(coreMaterial);
-  coreGlow.position.z = -0.24;
-  coreGlow.scale.set(6.2, 3.55, 1);
-  group.add(coreGlow);
-
-  return { group, points, material, discMaterial, haloMaterial, coreMaterial };
-}
-
-function createRift(pixelRatio: number, glowTexture: THREE.Texture): RiftAssembly {
-  const group = new THREE.Group();
-  group.position.z = 0.55;
-
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: glowTexture,
-    color: titleSceneSpec.palette.warp,
-    transparent: true,
-    opacity: 0.24,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending
-  }));
-  halo.scale.setScalar(titleSceneSpec.rift.haloRadius * 2);
-  halo.position.z = -0.08;
-  group.add(halo);
-
-  const ringMaterial = new THREE.ShaderMaterial({
+  return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending,
+    blending: THREE.NormalBlending,
     uniforms: {
-      time: { value: 0 },
-      pulse: { value: 1 }
+      shadowRadius: { value: titleSceneSpec.core.shadowRadius },
+      coreExtent: { value: coreExtent }
     },
     vertexShader: `
-      varying vec3 vLocalPosition;
+      varying vec2 vUv;
+
       void main() {
-        vLocalPosition = position;
+        vUv = uv;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: `
-      varying vec3 vLocalPosition;
-      uniform float time;
-      uniform float pulse;
+      varying vec2 vUv;
+      uniform float shadowRadius;
+      uniform float coreExtent;
+
+      float hash21(vec2 point) {
+        point = fract(point * vec2(123.34, 456.21));
+        point += dot(point, point + 45.32);
+        return fract(point.x * point.y);
+      }
 
       void main() {
-        float angle = atan(vLocalPosition.y, vLocalPosition.x);
-        float sweep = 0.55 + 0.45 * sin(angle * 3.0 - time * 0.46);
-        float quietVariation = 0.88 + 0.12 * sin(angle * 7.0 + time * 0.19);
-        vec3 violet = vec3(0.43, 0.28, 0.72);
-        vec3 pale = vec3(0.78, 0.69, 1.0);
-        vec3 color = mix(violet, pale, sweep * 0.32);
-        gl_FragColor = vec4(color, (0.18 + sweep * 0.24) * quietVariation * pulse);
+        vec2 point = (vUv - vec2(0.5)) * 2.0 * coreExtent;
+        float irregularity = mix(0.86, 1.14, hash21(floor(point * 88.0)));
+        float coreDistance = length(point) * irregularity;
+        float absorption = 1.0 - smoothstep(
+          shadowRadius * 0.46,
+          shadowRadius * 1.82,
+          coreDistance
+        );
+        if (absorption < 0.006) discard;
+        gl_FragColor = vec4(vec3(0.0006, 0.0008, 0.0018), absorption * 0.985);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }
     `
   });
+}
 
-  const innerRing = new THREE.Mesh(new THREE.RingGeometry(0.48, 0.78, 128, 1), ringMaterial);
-  innerRing.scale.y = 0.46;
-  innerRing.position.z = 0.08;
-  group.add(innerRing);
-
-  const outerRing = new THREE.Mesh(
-    new THREE.RingGeometry(0.8, 0.86, 128, 1),
-    new THREE.MeshBasicMaterial({
-      color: 0x6e4fa7,
-      transparent: true,
-      opacity: 0.12,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide
-    })
-  );
-  outerRing.scale.y = 0.5;
-  outerRing.rotation.z = -0.32;
-  outerRing.position.z = 0.04;
-  group.add(outerRing);
-
-  const eventHorizon = new THREE.Mesh(
-    new THREE.CircleGeometry(titleSceneSpec.rift.radius, 96),
-    new THREE.MeshBasicMaterial({ color: 0x000105, transparent: true, opacity: 0.99, depthWrite: false })
-  );
-  eventHorizon.scale.set(1, 0.72, 1);
-  eventHorizon.rotation.z = 0.12;
-  eventHorizon.position.z = 0.16;
-  group.add(eventHorizon);
-
-  const count = titleSceneSpec.rift.energyParticleCount;
-  const random = createRandom(0x52494654);
+function createGalaxyDust(layout: ReturnType<typeof createSpiralGalaxyLayout>, pixelRatio: number): PointLayer {
+  const sourceCount = layout.phases.length;
+  const count = Math.max(1, Math.floor(sourceCount * 0.48));
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
   const phases = new Float32Array(count);
   const sizes = new Float32Array(count);
   const brightness = new Float32Array(count);
-  const violet = new THREE.Color('#8f68d3');
-  const pale = new THREE.Color('#d8c9ff');
+  const violet = new THREE.Color('#7f3fb2');
+  const ivory = new THREE.Color('#c6b5d8');
+  const oldGold = new THREE.Color(titleSceneSpec.palette.oldGold);
+
+  for (let index = 0; index < count; index += 1) {
+    const source = (index * 11 + 3) % sourceCount;
+    const sourceOffset = source * 3;
+    const targetOffset = index * 3;
+    const phase = layout.phases[source];
+    const temperature = layout.temperature[source];
+    const color = violet.clone().lerp(ivory, 0.08 + temperature * 0.12);
+    if (source % 17 === 0) {
+      color.lerp(oldGold, 0.12);
+    }
+    positions[targetOffset] = layout.positions[sourceOffset] + Math.cos(phase) * 0.035;
+    positions[targetOffset + 1] = layout.positions[sourceOffset + 1] + Math.sin(phase) * 0.035;
+    positions[targetOffset + 2] = layout.positions[sourceOffset + 2] - 0.035;
+    colors[targetOffset] = color.r;
+    colors[targetOffset + 1] = color.g;
+    colors[targetOffset + 2] = color.b;
+    phases[index] = phase;
+    sizes[index] = 1.3 + layout.sizes[source] * 1.35;
+    brightness[index] = 0.12 + layout.brightness[source] * 0.24;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
+  geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+  geometry.setAttribute('brightness', new THREE.BufferAttribute(brightness, 1));
+  const material = createPointMaterial(pixelRatio, 112, 0.62, 0.16, 0.92, 1);
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+  points.renderOrder = 1;
+  return { points, material };
+}
+
+function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean): GalaxyAssembly {
+  const layout = createSpiralGalaxyLayout(count);
+  const colors = new Float32Array(count * 3);
+  const ivory = new THREE.Color('#e9e1eb');
+  const coldWhite = new THREE.Color('#d7ddff');
+  const mutedViolet = new THREE.Color('#b068e8');
 
   for (let index = 0; index < count; index += 1) {
     const i = index * 3;
-    const radiusRatio = Math.pow(random(), 0.74);
-    const radius = 0.58 + radiusRatio * 1.6;
-    const angle = random() * Math.PI * 2 + radiusRatio * 5.4;
-    const color = violet.clone().lerp(pale, random() * 0.38);
-    positions[i] = Math.cos(angle) * radius;
-    positions[i + 1] = Math.sin(angle) * radius * 0.58;
-    positions[i + 2] = (random() - 0.5) * 0.24;
+    const temperature = layout.temperature[index];
+    const color = mutedViolet.clone().lerp(coldWhite, 0.18 + temperature * 0.28);
+    color.lerp(ivory, 0.08);
     colors[i] = color.r;
     colors[i + 1] = color.g;
     colors[i + 2] = color.b;
-    phases[index] = random() * Math.PI * 2;
-    sizes[index] = 0.45 + random() * 0.78;
-    brightness[index] = (1 - radiusRatio) * 0.42 + 0.16 + random() * 0.2;
   }
 
-  const energyGeometry = new THREE.BufferGeometry();
-  energyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  energyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  energyGeometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
-  energyGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-  energyGeometry.setAttribute('brightness', new THREE.BufferAttribute(brightness, 1));
-  const energyMaterial = createPointMaterial(pixelRatio, 92, 0.54, 0.35);
-  const energyPoints = new THREE.Points(energyGeometry, energyMaterial);
-  energyPoints.frustumCulled = false;
-  group.add(energyPoints);
+  const starGeometry = new THREE.BufferGeometry();
+  starGeometry.setAttribute('position', new THREE.BufferAttribute(layout.positions, 3));
+  starGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  starGeometry.setAttribute('phase', new THREE.BufferAttribute(layout.phases, 1));
+  starGeometry.setAttribute('size', new THREE.BufferAttribute(layout.sizes, 1));
+  starGeometry.setAttribute('brightness', new THREE.BufferAttribute(layout.brightness, 1));
+  starGeometry.computeBoundingSphere();
 
-  return { group, ringMaterial, energyMaterial, energyPoints, innerRing };
+  const starMaterial = createPointMaterial(pixelRatio, 96, 0.72, 0.3, 0, 1);
+  const starPoints = new THREE.Points(starGeometry, starMaterial);
+  starPoints.frustumCulled = false;
+  starPoints.renderOrder = 2;
+  const stars = { points: starPoints, material: starMaterial };
+  const dust = createGalaxyDust(layout, pixelRatio);
+
+  const discMaterial = createGalaxyDiscMaterial(compactQuality);
+  const disc = new THREE.Mesh(
+    new THREE.PlaneGeometry(titleSceneSpec.galaxy.radius * 2, titleSceneSpec.galaxy.radius * 2),
+    discMaterial
+  );
+  disc.position.z = -0.075;
+  disc.renderOrder = 0;
+
+  const coreMaterial = createCoreOcclusionMaterial();
+  const coreExtent = titleSceneSpec.core.shadowRadius * 2.1;
+  const coreOccluder = new THREE.Mesh(
+    new THREE.PlaneGeometry(
+      titleSceneSpec.galaxy.radius * 2 * coreExtent,
+      titleSceneSpec.galaxy.radius * 2 * coreExtent
+    ),
+    coreMaterial
+  );
+  coreOccluder.position.z = 0.24;
+  coreOccluder.renderOrder = 4;
+
+  const group = new THREE.Group();
+  group.position.set(0, 1.55, -18);
+  const parallaxGroup = new THREE.Group();
+  const growthGroup = new THREE.Group();
+  const tiltGroup = new THREE.Group();
+  const spinGroup = new THREE.Group();
+  tiltGroup.rotation.x = Math.acos(titleSceneSpec.galaxy.verticalScale);
+  spinGroup.add(disc, dust.points, stars.points, coreOccluder);
+  tiltGroup.add(spinGroup);
+  growthGroup.add(tiltGroup);
+  parallaxGroup.add(growthGroup);
+  group.add(parallaxGroup);
+
+  return {
+    group,
+    parallaxGroup,
+    growthGroup,
+    spinGroup,
+    stars,
+    dust,
+    discMaterial,
+    coreMaterial
+  };
 }
 
-function createTitleAssembly(): TitleAssembly {
-  const font = new FontLoader().parse(helvetikerBold);
-  const group = new THREE.Group();
-  const shineTime = { value: 0 };
-  const shineRange = { value: 6 };
-  const shinePeriod = { value: titleSceneSpec.title.shinePeriodSeconds };
-  const shineStrength = { value: titleSceneSpec.title.shineStrength };
-  const concrete = new THREE.MeshStandardMaterial({
-    color: titleSceneSpec.palette.concrete,
-    roughness: titleSceneSpec.title.roughness,
-    metalness: titleSceneSpec.title.metalness,
-    emissive: 0x171327,
-    emissiveIntensity: 0.03
-  });
-  concrete.onBeforeCompile = (shader) => {
-    shader.uniforms.titleShineTime = shineTime;
-    shader.uniforms.titleShineRange = shineRange;
-    shader.uniforms.titleShinePeriod = shinePeriod;
-    shader.uniforms.titleShineStrength = shineStrength;
+function configureConcreteGlimmer(
+  material: THREE.MeshStandardMaterial,
+  lightPosition: { value: THREE.Vector3 }
+) {
+  const strength = { value: titleSceneSpec.title.shineStrength };
+
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.titleGlimmerLightPosition = lightPosition;
+    shader.uniforms.titleGlimmerStrength = strength;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        '#include <common>\nvarying vec3 vTitleWorldPosition;'
+        '#include <common>\nvarying vec3 vTitleWorldPosition;\nvarying vec3 vTitleWorldNormal;'
+      )
+      .replace(
+        '#include <beginnormal_vertex>',
+        '#include <beginnormal_vertex>\nvTitleWorldNormal = normalize(mat3(modelMatrix) * objectNormal);'
       )
       .replace(
         '#include <begin_vertex>',
@@ -461,83 +530,130 @@ function createTitleAssembly(): TitleAssembly {
         '#include <common>',
         `#include <common>
          varying vec3 vTitleWorldPosition;
-         uniform float titleShineTime;
-         uniform float titleShineRange;
-         uniform float titleShinePeriod;
-         uniform float titleShineStrength;`
+         varying vec3 vTitleWorldNormal;
+         uniform vec3 titleGlimmerLightPosition;
+         uniform float titleGlimmerStrength;`
       )
       .replace(
-        '#include <emissivemap_fragment>',
-        `#include <emissivemap_fragment>
-         float shineProgress = fract(titleShineTime / titleShinePeriod);
-         float shineCenter = mix(-titleShineRange, titleShineRange, shineProgress);
-         float shineDistance = abs(vTitleWorldPosition.x - shineCenter);
-         float titleShine = pow(1.0 - smoothstep(0.08, 1.15, shineDistance), 3.0);
-         totalEmissiveRadiance += vec3(0.62, 0.46, 1.0) * titleShine * titleShineStrength;`
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+         vec3 titleWorldNormal = normalize(vTitleWorldNormal);
+         vec3 titleLightDirection = normalize(titleGlimmerLightPosition - vTitleWorldPosition);
+         vec3 titleViewDirection = normalize(cameraPosition - vTitleWorldPosition);
+         vec3 titleHalfDirection = normalize(titleLightDirection + titleViewDirection);
+         float titleLightFacing = max(dot(titleWorldNormal, titleLightDirection), 0.0);
+         float titleMineralBreakup = 0.72 + 0.28 * sin(
+           vTitleWorldPosition.x * 17.0 +
+           vTitleWorldPosition.y * 23.0 +
+           vTitleWorldPosition.z * 31.0
+         );
+         float titleGlimmer = pow(
+           max(dot(titleWorldNormal, titleHalfDirection), 0.0),
+           38.0
+         ) * titleLightFacing * titleMineralBreakup * titleGlimmerStrength;
+         reflectedLight.directSpecular += vec3(0.78, 0.68, 0.92) * titleGlimmer;`
       );
   };
-  concrete.customProgramCacheKey = () => 'warpkeep-title-shine-v1';
-  const shadowedConcrete = new THREE.MeshStandardMaterial({
-    color: titleSceneSpec.palette.concreteShadow,
-    roughness: 0.88,
-    metalness: 0.01,
-    emissive: 0x0b0912,
-    emissiveIntensity: 0.02
-  });
-  const edgeMaterial = new THREE.LineBasicMaterial({
-    color: 0xc6b8e8,
-    transparent: true,
-    opacity: 0.09,
-    depthWrite: false
-  });
-  const letterGap = 0.13;
-  const letters: Array<{ group: THREE.Group; width: number }> = [];
+  material.customProgramCacheKey = () => 'warpkeep-brutalist-concrete-glimmer-v3';
+}
 
-  for (const character of titleSceneSpec.title.text) {
-    const geometry = new TextGeometry(character, {
-      font,
-      size: 2.12,
-      depth: titleSceneSpec.title.depth,
-      curveSegments: 4,
-      bevelEnabled: true,
-      bevelThickness: titleSceneSpec.title.bevelThickness,
-      bevelSize: titleSceneSpec.title.bevelSize,
-      bevelOffset: 0,
-      bevelSegments: 2
-    });
-    geometry.scale(0.96, 1.08, 1);
-    geometry.computeBoundingBox();
-    const bounds = geometry.boundingBox;
-    if (!bounds) {
-      geometry.dispose();
-      throw new Error(`Unable to measure title character: ${character}`);
-    }
-
-    const width = bounds.max.x - bounds.min.x;
-    const centerY = (bounds.min.y + bounds.max.y) * 0.5;
-    geometry.translate(-bounds.min.x, -centerY, -titleSceneSpec.title.depth * 0.5);
-    geometry.computeVertexNormals();
-
-    const letter = new THREE.Group();
-    const mesh = new THREE.Mesh(geometry, [concrete, shadowedConcrete]);
-    letter.add(mesh);
-
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry, 34), edgeMaterial);
-    edges.renderOrder = 2;
-    letter.add(edges);
-    letters.push({ group: letter, width });
+function offsetGeometryUvs(
+  geometry: THREE.BufferGeometry,
+  wordPositionX: number,
+  characterIndex: number,
+  partIndex: number
+) {
+  const uvs = geometry.getAttribute('uv');
+  if (!uvs) {
+    return;
   }
 
-  const totalWidth = letters.reduce((sum, letter) => sum + letter.width, 0) + letterGap * (letters.length - 1);
+  for (let index = 0; index < uvs.count; index += 1) {
+    const u = uvs.getX(index);
+    const v = uvs.getY(index);
+    uvs.setXY(
+      index,
+      (u + wordPositionX) * 0.34 + characterIndex * 0.071 + partIndex * 0.037,
+      v * 0.43 + characterIndex * 0.053 + partIndex * 0.089
+    );
+  }
+  uvs.needsUpdate = true;
+}
+
+function createTitleAssembly(textures: ConcreteTextureSet): TitleAssembly {
+  const group = new THREE.Group();
+  const glimmerLightPosition = { value: new THREE.Vector3(-5.8, 4.2, 8.5) };
+  const material = new THREE.MeshStandardMaterial({
+    color: titleSceneSpec.palette.concrete,
+    map: textures.color,
+    bumpMap: textures.bump,
+    bumpScale: 0.052,
+    roughnessMap: textures.roughness,
+    roughness: titleSceneSpec.title.roughness,
+    metalness: titleSceneSpec.title.metalness,
+    emissive: 0x100e13,
+    emissiveIntensity: 0.035
+  });
+  configureConcreteGlimmer(material, glimmerLightPosition);
+  const glyphs = Array.from(titleSceneSpec.title.text, (character) => ({
+    character,
+    glyph: getBrutalistGlyph(character)
+  }));
+  const glyphWidths = glyphs.map(({ glyph }) => glyph.width * titleSceneSpec.title.height);
+  const totalWidth = glyphWidths.reduce((sum, width) => sum + width, 0) +
+    titleSceneSpec.title.letterGap * (glyphs.length - 1);
   let cursor = -totalWidth * 0.5;
-  letters.forEach((letter) => {
-    letter.group.position.x = cursor;
-    group.add(letter.group);
-    cursor += letter.width + letterGap;
+
+  glyphs.forEach(({ character, glyph }, characterIndex) => {
+    const characterWidth = glyphWidths[characterIndex];
+    const partGeometries: THREE.BufferGeometry[] = [];
+
+    glyph.parts.forEach((glyphPart, partIndex) => {
+      const shape = new THREE.Shape();
+      glyphPart.points.forEach(([x, y], pointIndex) => {
+        const pointX = x * characterWidth;
+        const pointY = (y - 0.5) * titleSceneSpec.title.height;
+        if (pointIndex === 0) {
+          shape.moveTo(pointX, pointY);
+        } else {
+          shape.lineTo(pointX, pointY);
+        }
+      });
+      shape.closePath();
+
+      const partDepth = titleSceneSpec.title.depth +
+        glyphPart.tier * titleSceneSpec.title.tierDepth;
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: partDepth,
+        steps: 1,
+        curveSegments: 1,
+        bevelEnabled: true,
+        bevelSegments: 1,
+        bevelSize: titleSceneSpec.title.bevelSize,
+        bevelThickness: titleSceneSpec.title.bevelThickness
+      });
+      geometry.translate(0, 0, -titleSceneSpec.title.depth * 0.54);
+      offsetGeometryUvs(geometry, cursor, characterIndex, partIndex);
+      geometry.computeVertexNormals();
+      partGeometries.push(geometry);
+    });
+
+    const geometry = mergeGeometries(partGeometries, false);
+    partGeometries.forEach((partGeometry) => partGeometry.dispose());
+    if (!geometry) {
+      throw new Error(`Unable to merge monumental title glyph: ${character}`);
+    }
+
+    const letter = new THREE.Group();
+    letter.position.x = cursor;
+    const mesh = new THREE.Mesh(geometry, material);
+    letter.add(mesh);
+    group.add(letter);
+    cursor += characterWidth + titleSceneSpec.title.letterGap;
   });
 
-  group.position.set(0, -1.58, 0.25);
-  return { group, width: totalWidth, shineTime, shineRange, edgeMaterial };
+  group.position.set(0, -1.52, 0.28);
+  return { group, width: totalWidth, glimmerLightPosition };
 }
 
 function disposeScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, textures: THREE.Texture[]) {
@@ -596,6 +712,7 @@ export function WarpkeepTitleScreen3D() {
     let pointerMoveHandler: ((event: PointerEvent) => void) | null = null;
     let pointerResetHandler: (() => void) | null = null;
     let contextLostHandler: ((event: Event) => void) | null = null;
+    let visibilityChangeHandler: (() => void) | null = null;
     let disposed = false;
     const pointerTarget = { x: 0, y: 0 };
     const pointerCurrent = { x: 0, y: 0 };
@@ -620,6 +737,9 @@ export function WarpkeepTitleScreen3D() {
       if (contextLostHandler && renderer) {
         renderer.domElement.removeEventListener('webglcontextlost', contextLostHandler);
       }
+      if (visibilityChangeHandler) {
+        document.removeEventListener('visibilitychange', visibilityChangeHandler);
+      }
       if (scene && renderer) {
         disposeScene(scene, renderer, textures);
       }
@@ -631,6 +751,7 @@ export function WarpkeepTitleScreen3D() {
       const initialWidth = Math.max(1, Math.round(container.clientWidth));
       const initialHeight = Math.max(1, Math.round(container.clientHeight));
       const initialPortrait = initialWidth / initialHeight < 0.78;
+      const compactGalaxyQuality = Math.min(initialWidth, initialHeight) < 720;
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.65);
 
       scene = new THREE.Scene();
@@ -682,46 +803,56 @@ export function WarpkeepTitleScreen3D() {
         window.addEventListener('blur', pointerResetHandler);
       }
 
-      const glowTexture = createGlowTexture();
-      textures.push(glowTexture);
       const backgroundStars = createBackgroundStars(
-        initialPortrait ? titleSceneSpec.galaxy.mobileBackgroundStars : titleSceneSpec.galaxy.desktopBackgroundStars,
+        initialPortrait
+          ? titleSceneSpec.galaxy.mobileBackgroundStars
+          : titleSceneSpec.galaxy.desktopBackgroundStars,
         pixelRatio
       );
       scene.add(backgroundStars.points);
 
       const galaxy = createGalaxy(
-        initialPortrait ? titleSceneSpec.galaxy.mobileParticleCount : titleSceneSpec.galaxy.desktopParticleCount,
+        initialPortrait
+          ? titleSceneSpec.galaxy.mobileParticleCount
+          : titleSceneSpec.galaxy.desktopParticleCount,
         pixelRatio,
-        glowTexture
+        compactGalaxyQuality
       );
       scene.add(galaxy.group);
 
-      const rift = createRift(pixelRatio, glowTexture);
-      galaxy.group.add(rift.group);
-
-      const title = createTitleAssembly();
+      const concreteTextures = createConcreteTextures();
+      const maxAnisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      [concreteTextures.color, concreteTextures.bump, concreteTextures.roughness].forEach((texture) => {
+        texture.anisotropy = maxAnisotropy;
+        textures.push(texture);
+      });
+      const title = createTitleAssembly(concreteTextures);
       scene.add(title.group);
 
-      scene.add(new THREE.AmbientLight(0x1a1d2b, 0.58));
-      scene.add(new THREE.HemisphereLight(0xf4f2ea, 0x090b18, 1.2));
+      scene.add(new THREE.AmbientLight(0x111522, 0.38));
+      scene.add(new THREE.HemisphereLight(0xe6e2d6, 0x050711, 0.86));
 
-      const keyLight = new THREE.DirectionalLight(0xfffdf5, 2.5);
-      keyLight.position.set(-2.8, 5.4, 8.5);
+      const keyLight = new THREE.DirectionalLight(0xfff5dc, 2.7);
+      keyLight.position.set(-3.4, 5.8, 8.6);
       scene.add(keyLight);
 
-      const sweepLight = new THREE.SpotLight(0xffffff, 58, 32, 0.42, 0.72, 1.4);
-      sweepLight.position.set(-5.5, 3.8, 8.4);
+      const sweepLight = new THREE.SpotLight(0xf8f1df, 74, 34, 0.38, 0.68, 1.35);
+      sweepLight.position.set(-5.8, 4.2, 8.5);
       sweepLight.target.position.set(0, -0.7, 0);
       scene.add(sweepLight, sweepLight.target);
 
-      const warpRimLight = new THREE.PointLight(0x855ac8, 26, 28, 1.7);
-      warpRimLight.position.set(0, 1.4, -5.2);
-      scene.add(warpRimLight);
+      const violetRimLight = new THREE.PointLight(0x7651a3, 25, 28, 1.75);
+      violetRimLight.position.set(0, 1.3, -4.8);
+      scene.add(violetRimLight);
 
-      let titleBaseY = -1.58;
+      const goldFillLight = new THREE.PointLight(0xa99168, 10, 22, 1.6);
+      goldFillLight.position.set(-6, -1.4, 4.5);
+      scene.add(goldFillLight);
+
+      let titleBaseY = -1.52;
       let galaxyBaseY = 1.55;
-      let cameraTargetY = -0.55;
+      let galaxyLayoutScale = 1;
+      let cameraTargetY = -0.42;
       const resize = () => {
         if (!renderer || !scene || disposed) {
           return;
@@ -746,8 +877,7 @@ export function WarpkeepTitleScreen3D() {
           : titleSceneSpec.title.desktopViewportWidth;
         const titleScale = Math.min(1.16, (titleVisibleWidth * titleWidthRatio) / title.width);
         title.group.scale.setScalar(titleScale);
-        title.shineRange.value = title.width * titleScale * 0.54;
-        titleBaseY = portrait ? -0.46 : -1.58;
+        titleBaseY = portrait ? -0.46 : -1.52;
         cameraTargetY = portrait ? 0.08 : -0.42;
 
         const galaxyDistance = camera.position.z - galaxy.group.position.z;
@@ -764,15 +894,15 @@ export function WarpkeepTitleScreen3D() {
             : titleSceneSpec.galaxy.desktopViewportHeight
         );
         const galaxyDiameter = titleSceneSpec.galaxy.radius * 2;
-        const galaxyScale = THREE.MathUtils.clamp(
+        galaxyLayoutScale = THREE.MathUtils.clamp(
           Math.min(
             desiredGalaxyWidth / galaxyDiameter,
             desiredGalaxyHeight / (galaxyDiameter * titleSceneSpec.galaxy.verticalScale)
           ),
           0.42,
-          1.7
+          2.25
         );
-        galaxy.group.scale.setScalar(galaxyScale);
+        galaxy.group.scale.setScalar(galaxyLayoutScale);
         galaxyBaseY = portrait
           ? 2.8
           : shortLandscape
@@ -780,82 +910,108 @@ export function WarpkeepTitleScreen3D() {
             : 1.55;
         galaxy.group.position.y = galaxyBaseY;
 
-        [backgroundStars.material, galaxy.material, rift.energyMaterial].forEach((material) => {
+        [backgroundStars.material, galaxy.stars.material, galaxy.dust.material].forEach((material) => {
           material.uniforms.pixelRatio.value = nextPixelRatio;
         });
       };
 
-      const startTime = performance.now();
-      let previousElapsed = 0;
+      let previousFrameTime = performance.now();
+      let visibleElapsed = 0;
+      let pageVisible = !document.hidden;
+      visibilityChangeHandler = () => {
+        pageVisible = !document.hidden;
+        previousFrameTime = performance.now();
+      };
+      document.addEventListener('visibilitychange', visibilityChangeHandler);
+      const titleRestPitch = THREE.MathUtils.degToRad(-2.1);
+      const titleRestYaw = THREE.MathUtils.degToRad(-1.1);
 
       const render = () => {
         if (!renderer || !scene || disposed) {
           return;
         }
 
-        const elapsed = prefersReducedMotion ? 7.5 : (performance.now() - startTime) / 1000;
-        const delta = Math.max(0, Math.min(0.05, elapsed - previousElapsed));
-        previousElapsed = elapsed;
+        const frameTime = performance.now();
+        const rawDelta = Math.max(0, (frameTime - previousFrameTime) / 1000);
+        previousFrameTime = frameTime;
+        const visibleDelta = prefersReducedMotion || !pageVisible
+          ? 0
+          : rawDelta;
+        const dampingDelta = Math.min(0.05, visibleDelta);
+        visibleElapsed += visibleDelta;
+        const shaderTime = prefersReducedMotion ? 7.5 : visibleElapsed;
+
         if (!prefersReducedMotion) {
           pointerCurrent.x = dampValue(
             pointerCurrent.x,
             pointerTarget.x,
-            delta,
+            dampingDelta,
             titleSceneSpec.interaction.damping
           );
           pointerCurrent.y = dampValue(
             pointerCurrent.y,
             pointerTarget.y,
-            delta,
+            dampingDelta,
             titleSceneSpec.interaction.damping
           );
         }
 
-        backgroundStars.material.uniforms.time.value = elapsed;
-        galaxy.material.uniforms.time.value = elapsed;
-        galaxy.discMaterial.uniforms.time.value = elapsed;
-        rift.ringMaterial.uniforms.time.value = elapsed;
-        rift.energyMaterial.uniforms.time.value = elapsed;
-        title.shineTime.value = elapsed;
+        backgroundStars.material.uniforms.time.value = shaderTime;
+        galaxy.stars.material.uniforms.time.value = shaderTime;
+        galaxy.dust.material.uniforms.time.value = shaderTime;
+        galaxy.discMaterial.uniforms.time.value = shaderTime;
 
-        backgroundStars.points.rotation.z = elapsed * 0.0007;
+        backgroundStars.points.rotation.z = visibleElapsed * 0.00065;
         backgroundStars.points.rotation.x = pointerCurrent.y * 0.003;
         backgroundStars.points.rotation.y = pointerCurrent.x * -0.004;
-        galaxy.group.rotation.z = -0.13 + elapsed * 0.0024;
-        galaxy.group.rotation.x = pointerCurrent.y * titleSceneSpec.interaction.galaxyRotationX;
-        galaxy.group.rotation.y = pointerCurrent.x * -titleSceneSpec.interaction.galaxyRotationY;
+
+        galaxy.spinGroup.rotation.z = -0.13 +
+          visibleElapsed * (Math.PI * 2) / titleSceneSpec.galaxy.rotationPeriodSeconds;
+        galaxy.growthGroup.scale.setScalar(calculateGalaxyGrowth(visibleElapsed));
+        galaxy.parallaxGroup.rotation.x =
+          pointerCurrent.y * titleSceneSpec.interaction.galaxyRotationX;
+        galaxy.parallaxGroup.rotation.y =
+          pointerCurrent.x * -titleSceneSpec.interaction.galaxyRotationY;
         galaxy.group.position.x =
-          Math.sin(elapsed * 0.055) * 0.08 -
+          Math.sin(visibleElapsed * 0.05) * 0.065 -
           pointerCurrent.x * titleSceneSpec.interaction.galaxyTravelX;
         galaxy.group.position.y =
           galaxyBaseY + pointerCurrent.y * titleSceneSpec.interaction.galaxyTravelY;
-        galaxy.haloMaterial.opacity = 0.145 + Math.sin(elapsed * 0.37) * 0.025;
-        galaxy.coreMaterial.opacity = 0.265 + Math.sin(elapsed * 0.49 + 0.8) * 0.035;
-
-        rift.energyPoints.rotation.z = -elapsed * 0.045;
-        rift.innerRing.rotation.z = elapsed * 0.055;
-        rift.ringMaterial.uniforms.pulse.value = 0.91 + Math.sin(elapsed * 0.52) * 0.09;
 
         title.group.rotation.y =
-          Math.sin(elapsed * 0.12) * 0.01 +
+          titleRestYaw + Math.sin(visibleElapsed * 0.1) * 0.008 +
           pointerCurrent.x * titleSceneSpec.interaction.titleRotationY;
         title.group.rotation.x =
-          Math.sin(elapsed * 0.09 + 0.7) * 0.0035 -
+          titleRestPitch + Math.sin(visibleElapsed * 0.075 + 0.7) * 0.0028 -
           pointerCurrent.y * titleSceneSpec.interaction.titleRotationX;
-        title.group.position.y = titleBaseY + Math.sin(elapsed * 0.16) * 0.025;
-        title.edgeMaterial.opacity = 0.2 + Math.sin(elapsed * 0.45) * 0.035;
+        title.group.position.y = titleBaseY + Math.sin(visibleElapsed * 0.13) * 0.018;
 
-        const titleLightCycle = (elapsed / titleSceneSpec.title.shinePeriodSeconds) * Math.PI * 2;
-        sweepLight.position.x = Math.sin(titleLightCycle) * 7.2;
-        sweepLight.position.y = 3.7 + Math.cos(titleLightCycle * 0.72) * 0.46;
-        sweepLight.intensity = 58 + Math.sin(titleLightCycle + 0.4) * 8;
-        warpRimLight.intensity = 27 + Math.sin(elapsed * 0.48) * 4;
+        const lightCycle = (shaderTime / titleSceneSpec.title.shinePeriodSeconds) * Math.PI * 2;
+        sweepLight.position.x =
+          Math.sin(lightCycle) * 6.8 +
+          pointerCurrent.x * titleSceneSpec.interaction.lightTravelX;
+        sweepLight.position.y =
+          4.1 + Math.cos(lightCycle * 0.72) * 0.52 +
+          pointerCurrent.y * titleSceneSpec.interaction.lightTravelY;
+        sweepLight.target.position.set(
+          pointerCurrent.x * 1.1,
+          titleBaseY + pointerCurrent.y * 0.32,
+          0
+        );
+        sweepLight.intensity = 72 + Math.sin(lightCycle + 0.4) * 8;
+        title.glimmerLightPosition.value.copy(sweepLight.position);
+        keyLight.position.x = -3.4 + pointerCurrent.x * 2.1;
+        keyLight.position.y = 5.8 + pointerCurrent.y * 1.15;
+        violetRimLight.position.x = pointerCurrent.x * 2.6;
+        violetRimLight.position.y = 1.3 + pointerCurrent.y * 1.2;
+        violetRimLight.intensity = 24 + Math.sin(shaderTime * 0.36) * 3;
+        goldFillLight.position.x = -6 + pointerCurrent.x * 1.4;
 
         camera.position.x =
-          Math.sin(elapsed * 0.065) * 0.12 +
+          Math.sin(visibleElapsed * 0.052) * 0.1 +
           pointerCurrent.x * titleSceneSpec.interaction.cameraTravelX;
         camera.position.y =
-          0.18 + Math.cos(elapsed * 0.057) * 0.05 +
+          0.18 + Math.cos(visibleElapsed * 0.046) * 0.04 +
           pointerCurrent.y * titleSceneSpec.interaction.cameraTravelY;
         camera.lookAt(
           pointerCurrent.x * titleSceneSpec.interaction.cameraTargetX,
