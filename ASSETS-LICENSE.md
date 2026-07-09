@@ -15,8 +15,10 @@ Markdown documentation, design notes, lore text, manifests, and project-owned vi
 This includes, unless separately noted:
 
 - `public/images/warpkeep-cover.png`
+- `public/images/factions/**`
 - `public/audio/warpkeep-title-theme-a.mp3`
 - `public/audio/warpkeep-title-theme-b.mp3`
+- `docs/reference/factions/**`
 - `docs/reference/castles/**`
 - generated/reference images, audio, contact sheets, archive notes, and manifests committed to this repository
 

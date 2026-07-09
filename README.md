@@ -33,6 +33,20 @@ Read more:
 - [`docs/design/warpkeep-direction.md`](docs/design/warpkeep-direction.md)
 - [`docs/design/roadmap.md`](docs/design/roadmap.md)
 
+## Official faction art
+
+<p align="center">
+  <img src="public/images/factions/hegemony/logo-wordmark.png" alt="Official Hegemony faction logo wordmark" width="420" />
+</p>
+
+<p align="center">
+  <img src="public/images/factions/hegemony/logo-ui.png" alt="Official Hegemony in-game UI faction logo" width="260" />
+</p>
+
+The Hegemony wordmark is the official high-resolution faction logo for public docs and faction identity surfaces. The textless version is the official in-game UI logo for compact badges, cards, and small interface use.
+
+See [`docs/reference/factions/hegemony/`](docs/reference/factions/hegemony/) for asset metadata.
+
 ## Concept
 
 A Farcaster-native strategy game where your FID becomes a kingdom.
@@ -94,6 +108,7 @@ npm run build
 
 ## Design references
 
+- Official faction logos and metadata are archived under `docs/reference/factions/`.
 - Castle reference art is archived under `docs/reference/castles/` for future visual direction.
 
 ## SpacetimeDB direction
