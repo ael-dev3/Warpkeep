@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 const titleSoundtracks = [
   {
@@ -13,7 +13,8 @@ const titleSoundtracks = [
   }
 ] as const;
 
-type PlaybackState = 'starting' | 'playing' | 'blocked' | 'paused' | 'error';
+const titleSoundtrackVolume = 0.58;
+const playbackGestureEvents = ['pointerdown', 'pointerup', 'click', 'touchstart', 'keydown'] as const;
 
 function randomTrackIndex() {
   if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
@@ -27,46 +28,7 @@ function randomTrackIndex() {
 
 export function WarpkeepTitleSoundtrack() {
   const audioRef = useRef<HTMLAudioElement>(null);
-  const playbackErrorRef = useRef(false);
   const track = useMemo(() => titleSoundtracks[randomTrackIndex()], []);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [playbackState, setPlaybackState] = useState<PlaybackState>('starting');
-
-  const startPlayback = useCallback(async () => {
-    const audio = audioRef.current;
-    if (!audio || playbackErrorRef.current) {
-      return;
-    }
-
-    audio.loop = true;
-    audio.muted = false;
-    audio.volume = 0.58;
-    setSoundEnabled(true);
-    setPlaybackState((state) => (state === 'playing' ? 'playing' : 'starting'));
-
-    try {
-      await audio.play();
-      setPlaybackState('playing');
-    } catch {
-      setPlaybackState('blocked');
-    }
-  }, []);
-
-  const togglePlayback = () => {
-    const audio = audioRef.current;
-    if (!audio || playbackState === 'error') {
-      return;
-    }
-
-    if (playbackState === 'playing') {
-      audio.pause();
-      setSoundEnabled(false);
-      setPlaybackState('paused');
-      return;
-    }
-
-    void startPlayback();
-  };
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -74,65 +36,93 @@ export function WarpkeepTitleSoundtrack() {
       return undefined;
     }
 
-    audio.loop = true;
-    audio.muted = false;
-    audio.volume = 0.58;
+    let disposed = false;
 
-    const markPlaying = () => {
-      setSoundEnabled(true);
-      setPlaybackState('playing');
+    const configureAudio = () => {
+      audio.autoplay = true;
+      audio.loop = true;
+      audio.muted = false;
+      audio.volume = titleSoundtrackVolume;
+      audio.preload = 'auto';
     };
-    const markPaused = () => setPlaybackState((state) => (state === 'playing' ? 'paused' : state));
-    const markError = () => {
-      playbackErrorRef.current = true;
-      setPlaybackState('error');
+
+    const removeGestureListeners = () => {
+      playbackGestureEvents.forEach((eventName) => {
+        window.removeEventListener(eventName, playAfterGesture, true);
+      });
     };
-    const playAfterGesture = () => {
-      if (!playbackErrorRef.current && soundEnabled) {
+
+    const addGestureListeners = () => {
+      playbackGestureEvents.forEach((eventName) => {
+        window.addEventListener(eventName, playAfterGesture, {
+          capture: true,
+          passive: true
+        });
+      });
+    };
+
+    const startPlayback = async () => {
+      if (disposed || audio.error) {
+        return;
+      }
+
+      configureAudio();
+
+      try {
+        await audio.play();
+        if (!audio.paused) {
+          removeGestureListeners();
+        }
+      } catch {
+        // Browsers usually block audible autoplay until the first user gesture.
+        // Keep sound enabled and retry from any click/tap/key without exposing a UI button.
+      }
+    };
+
+    function playAfterGesture() {
+      void startPlayback();
+    }
+
+    const startWhenReady = () => {
+      void startPlayback();
+    };
+
+    const resumeWhenVisible = () => {
+      if (!document.hidden && audio.paused) {
         void startPlayback();
       }
     };
 
-    audio.addEventListener('play', markPlaying);
-    audio.addEventListener('pause', markPaused);
-    audio.addEventListener('error', markError);
-    window.addEventListener('pointerdown', playAfterGesture, { once: true });
-    window.addEventListener('keydown', playAfterGesture, { once: true });
+    configureAudio();
+    addGestureListeners();
+    audio.addEventListener('canplay', startWhenReady);
+    audio.addEventListener('play', removeGestureListeners);
+    document.addEventListener('visibilitychange', resumeWhenVisible);
 
-    if (soundEnabled) {
-      void startPlayback();
-    }
+    void startPlayback();
 
     return () => {
-      audio.removeEventListener('play', markPlaying);
-      audio.removeEventListener('pause', markPaused);
-      audio.removeEventListener('error', markError);
-      window.removeEventListener('pointerdown', playAfterGesture);
-      window.removeEventListener('keydown', playAfterGesture);
+      disposed = true;
+      removeGestureListeners();
+      audio.removeEventListener('canplay', startWhenReady);
+      audio.removeEventListener('play', removeGestureListeners);
+      document.removeEventListener('visibilitychange', resumeWhenVisible);
       audio.pause();
     };
-  }, [soundEnabled, startPlayback]);
-
-  const label = playbackState === 'error' ? 'Sound unavailable' : soundEnabled ? 'Sound on' : 'Sound off';
+  }, [track.src]);
 
   return (
-    <div className="warpkeep-soundtrack" data-track={track.id} data-playback-state={playbackState}>
-      <audio ref={audioRef} src={track.src} loop autoPlay preload="auto" aria-hidden="true" />
-      <button
-        className="warpkeep-soundtrack-button"
-        type="button"
-        onClick={togglePlayback}
-        disabled={playbackState === 'error'}
-        aria-pressed={soundEnabled && playbackState !== 'error'}
-        aria-label={
-          playbackState === 'blocked'
-            ? `Sound on by default. Click or tap to allow playback for ${track.label}`
-            : `${label}: ${track.label}`
-        }
-      >
-        <span className="warpkeep-soundtrack-dot" aria-hidden="true" />
-        {label}
-      </button>
-    </div>
+    <audio
+      ref={audioRef}
+      className="warpkeep-title-audio"
+      data-sound-default="on"
+      data-track={track.id}
+      src={track.src}
+      loop
+      autoPlay
+      preload="auto"
+      aria-hidden="true"
+      tabIndex={-1}
+    />
   );
 }
