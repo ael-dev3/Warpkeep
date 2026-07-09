@@ -22,7 +22,11 @@ This includes, unless separately noted:
 - `docs/reference/castles/**`
 - generated/reference images, audio, contact sheets, archive notes, and manifests committed to this repository
 
-To the extent the CC0 public-domain dedication is not legally effective in a jurisdiction, the project owner grants everyone a perpetual, worldwide, royalty-free, non-exclusive, irrevocable license to use, copy, modify, publish, distribute, sublicense, sell, and create derivative works from those materials for any purpose.
+To the extent the CC0 public-domain dedication is not legally effective in a jurisdiction, the project owner grants everyone a perpetual, worldwide, royalty-free, non-exclusive, irrevocable license to use, copy, modify, publish, distribute, sublicense, sell, and create derivative works from those project-owned materials for any purpose.
+
+## Third-party assets
+
+- `src/assets/fonts/helvetiker_bold.typeface.json` is copied unchanged from Three.js r183 and remains under the Three.js MIT License. The required copyright and permission notice is preserved in [`src/assets/fonts/LICENSE-threejs-MIT.txt`](src/assets/fonts/LICENSE-threejs-MIT.txt); provenance and checksum are documented in [`src/assets/fonts/README.md`](src/assets/fonts/README.md).
 
 ## Trademark and endorsement note
 

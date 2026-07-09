@@ -3,12 +3,22 @@
   min-height: 100vh;
   min-height: 100svh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(42, 39, 92, 0.24), transparent 27rem),
-    radial-gradient(circle at 18% 72%, rgba(108, 72, 60, 0.1), transparent 19rem),
-    linear-gradient(180deg, #02030a 0%, #070b1d 46%, #020208 100%);
-  color: #fff0c0;
   isolation: isolate;
+  background:
+    radial-gradient(ellipse at 50% 31%, rgba(73, 52, 122, 0.12), transparent 33rem),
+    linear-gradient(180deg, #010207 0%, #040715 52%, #010207 100%);
+  color: #f1eee4;
+}
+
+.warpkeep-title-screen::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(ellipse at 50% 34%, rgba(110, 78, 167, 0.08), transparent 31%),
+    linear-gradient(180deg, rgba(5, 8, 22, 0.02), rgba(0, 0, 0, 0.26));
 }
 
 .warpkeep-title-canvas-shell,
@@ -19,18 +29,23 @@
   height: 100%;
 }
 
+.warpkeep-title-canvas-shell {
+  z-index: 1;
+}
+
 .warpkeep-title-canvas {
   display: block;
+  outline: none;
 }
 
 .warpkeep-title-vignette {
-  pointer-events: none;
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 3;
+  pointer-events: none;
   background:
-    radial-gradient(circle at 50% 47%, transparent 0%, transparent 42%, rgba(1, 2, 7, 0.42) 74%, rgba(0, 0, 0, 0.88) 100%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.42));
+    radial-gradient(ellipse at 50% 42%, transparent 0%, transparent 48%, rgba(0, 1, 6, 0.28) 73%, rgba(0, 0, 3, 0.82) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.12), transparent 28%, transparent 64%, rgba(0, 0, 0, 0.5));
 }
 
 .warpkeep-title-audio {
@@ -54,19 +69,10 @@
   place-items: center;
 }
 
-.warpkeep-fallback-nebula {
-  position: absolute;
-  inset: -18%;
-  background:
-    radial-gradient(ellipse at 50% 42%, rgba(64, 55, 128, 0.25), transparent 35%),
-    radial-gradient(ellipse at 25% 28%, rgba(80, 104, 170, 0.11), transparent 29%),
-    radial-gradient(ellipse at 74% 72%, rgba(154, 94, 52, 0.1), transparent 27%);
-  animation: warpkeepFallbackDrift 34s ease-in-out infinite alternate;
-}
-
 .warpkeep-fallback-stars {
   position: absolute;
   inset: 0;
+  z-index: 0;
   overflow: hidden;
 }
 
@@ -74,77 +80,151 @@
   position: absolute;
   display: block;
   border-radius: 999px;
-  background: #dfe8ff;
-  box-shadow: 0 0 10px rgba(223, 232, 255, 0.64);
-  opacity: 0.32;
-  animation: warpkeepFallbackTwinkle 6.8s ease-in-out infinite;
+  background: #e7efff;
+  box-shadow:
+    0 0 6px rgba(231, 239, 255, 0.58),
+    0 0 16px rgba(128, 104, 189, 0.16);
+  opacity: 0.42;
+  animation: warpkeepFallbackStarFlicker 8s ease-in-out infinite;
 }
 
-.warpkeep-title-overlay--fallback {
+.warpkeep-fallback-galaxy {
+  position: absolute;
+  top: 10%;
+  left: 50%;
+  z-index: 1;
+  width: min(62vw, 760px);
+  aspect-ratio: 1.48;
+  border-radius: 50%;
+  transform: translateX(-50%) rotate(-9deg);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.76) 0 1.8%, rgba(158, 122, 220, 0.36) 4%, transparent 13%),
+    repeating-conic-gradient(from 8deg at 50% 50%, transparent 0deg 18deg, rgba(202, 210, 241, 0.2) 24deg, rgba(113, 84, 169, 0.17) 32deg, transparent 43deg 72deg),
+    radial-gradient(ellipse at 50% 50%, rgba(223, 228, 246, 0.22), rgba(99, 72, 154, 0.13) 32%, transparent 68%);
+  filter: drop-shadow(0 0 40px rgba(102, 71, 158, 0.24));
+  opacity: 0.88;
+  animation: warpkeepFallbackGalaxyDrift 48s linear infinite;
+}
+
+.warpkeep-fallback-galaxy::before,
+.warpkeep-fallback-galaxy::after {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  content: "";
+  background: repeating-conic-gradient(from 102deg, transparent 0deg 25deg, rgba(238, 241, 255, 0.16) 31deg, transparent 43deg 78deg);
+}
+
+.warpkeep-fallback-galaxy::after {
+  inset: 18%;
+  filter: blur(7px);
+  opacity: 0.64;
+  transform: rotate(31deg);
+}
+
+.warpkeep-fallback-rift {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5.5%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scaleY(0.72);
+  background: #000104;
+  box-shadow:
+    0 0 0 5px rgba(126, 88, 193, 0.28),
+    0 0 24px 8px rgba(129, 91, 196, 0.26),
+    0 0 60px 18px rgba(95, 62, 153, 0.11);
+  animation: warpkeepFallbackRiftPulse 8s ease-in-out infinite;
+}
+
+.warpkeep-fallback-title-stage {
   position: relative;
-  z-index: 3;
-  width: min(94vw, 1120px);
-  padding: 2rem 1rem;
+  z-index: 2;
+  width: min(97vw, 1480px);
+  margin-top: 32vh;
+  perspective: 1000px;
 }
 
 .warpkeep-fallback-title {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(3rem, 14vw, 10.5rem);
-  line-height: 0.82;
-  letter-spacing: -0.085em;
+  color: #f1eee4;
+  font-family: Impact, "Arial Black", "Helvetica Neue", sans-serif;
+  font-size: clamp(3rem, 13.8vw, 12rem);
+  font-weight: 900;
+  line-height: 0.78;
+  letter-spacing: 0.018em;
   text-align: center;
+  transform: rotateX(1.5deg);
   text-shadow:
-    0 2px 0 #fff0bd,
-    -10px 14px 0 rgba(31, 19, 34, 0.78),
-    0 22px 44px rgba(3, 4, 10, 0.86),
-    0 0 42px rgba(104, 105, 171, 0.28);
-  background: linear-gradient(100deg, #513311 0%, #f2c46b 24%, #fff0bd 50%, #b67324 75%, #3a240d 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  animation: warpkeepFallbackTitleShift 10s ease-in-out infinite alternate;
+    0 2px 0 #ffffff,
+    0 5px 0 #c9c8c9,
+    0 9px 0 #8d8b96,
+    0 15px 22px rgba(0, 0, 0, 0.74),
+    0 0 28px rgba(111, 78, 169, 0.34);
+  animation: warpkeepFallbackTitleLight 14s ease-in-out infinite alternate;
 }
 
-@keyframes warpkeepFallbackTwinkle {
-  0%, 100% { opacity: 0.16; transform: scale(0.86); }
-  48% { opacity: 0.54; transform: scale(1.12); }
+@keyframes warpkeepFallbackStarFlicker {
+  0%, 100% { opacity: 0.26; transform: scale(0.88); }
+  52% { opacity: 0.72; transform: scale(1.08); }
 }
 
-@keyframes warpkeepFallbackDrift {
-  from { transform: translate3d(-1%, -0.6%, 0) rotate(-0.5deg); }
-  to { transform: translate3d(1%, 0.6%, 0) rotate(0.5deg); }
+@keyframes warpkeepFallbackGalaxyDrift {
+  from { transform: translateX(-50%) rotate(-9deg); }
+  to { transform: translateX(-50%) rotate(-3deg); }
 }
 
-@keyframes warpkeepFallbackTitleShift {
-  from { filter: brightness(0.96) drop-shadow(0 0 10px rgba(94, 97, 168, 0.22)); transform: perspective(900px) rotateY(-0.9deg); }
-  to { filter: brightness(1.08) drop-shadow(0 0 18px rgba(242, 196, 107, 0.28)); transform: perspective(900px) rotateY(0.9deg); }
+@keyframes warpkeepFallbackRiftPulse {
+  0%, 100% { opacity: 0.74; filter: brightness(0.86); }
+  50% { opacity: 1; filter: brightness(1.1); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .warpkeep-fallback-nebula,
-  .warpkeep-fallback-stars span,
-  .warpkeep-fallback-title {
-    animation-duration: 1ms;
-    animation-iteration-count: 1;
-  }
+@keyframes warpkeepFallbackTitleLight {
+  from { filter: brightness(0.9); transform: rotateX(1.5deg) rotateY(-0.7deg); }
+  to { filter: brightness(1.12); transform: rotateX(1.5deg) rotateY(0.7deg); }
 }
 
 @media (max-width: 720px) {
   .warpkeep-title-screen {
     background:
-      radial-gradient(circle at 50% 38%, rgba(42, 39, 92, 0.22), transparent 18rem),
-      linear-gradient(180deg, #02030a 0%, #060a1a 52%, #020208 100%);
+      radial-gradient(ellipse at 50% 30%, rgba(73, 52, 122, 0.13), transparent 24rem),
+      linear-gradient(180deg, #010207 0%, #040715 52%, #010207 100%);
   }
 
   .warpkeep-title-vignette {
     background:
-      radial-gradient(circle at 50% 45%, transparent 0%, transparent 50%, rgba(1, 2, 7, 0.5) 82%, rgba(0, 0, 0, 0.9) 100%),
-      linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.3));
+      radial-gradient(ellipse at 50% 40%, transparent 0%, transparent 54%, rgba(0, 1, 6, 0.34) 81%, rgba(0, 0, 3, 0.86) 100%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.08), transparent 52%, rgba(0, 0, 0, 0.42));
+  }
+
+  .warpkeep-fallback-galaxy {
+    top: 15%;
+    width: 90vw;
+  }
+
+  .warpkeep-fallback-title-stage {
+    width: 98vw;
+    margin-top: 22vh;
   }
 
   .warpkeep-fallback-title {
-    font-size: clamp(2.6rem, 16vw, 6rem);
-    letter-spacing: -0.08em;
+    font-size: clamp(2.35rem, 15.4vw, 6.4rem);
+    letter-spacing: -0.005em;
+    text-shadow:
+      0 1px 0 #ffffff,
+      0 3px 0 #c9c8c9,
+      0 6px 0 #8d8b96,
+      0 11px 18px rgba(0, 0, 0, 0.78),
+      0 0 22px rgba(111, 78, 169, 0.32);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .warpkeep-fallback-stars span,
+  .warpkeep-fallback-galaxy,
+  .warpkeep-fallback-rift,
+  .warpkeep-fallback-title {
+    animation: none;
   }
 }
