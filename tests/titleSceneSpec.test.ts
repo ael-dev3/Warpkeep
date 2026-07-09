@@ -6,16 +6,24 @@ import {
 } from '../src/components/title/titleSceneSpec';
 
 describe('Warpkeep brutalist galaxy title specification', () => {
-  it('keeps the title monumental, deeply extruded, weathered, and non-metallic', () => {
+  it('keeps the title monumental, deeply extruded, premium, and non-metallic', () => {
     expect(titleSceneSpec.title.text).toBe('WARPKEEP');
-    expect(titleSceneSpec.title.roughness).toBeGreaterThanOrEqual(0.82);
+    expect(titleSceneSpec.title.roughness).toBeGreaterThanOrEqual(0.88);
+    expect(titleSceneSpec.title.roughness).toBeLessThanOrEqual(0.96);
+    expect(titleSceneSpec.title.sideRoughness).toBeGreaterThan(titleSceneSpec.title.roughness);
+    expect(titleSceneSpec.title.sideRoughness).toBeLessThanOrEqual(1);
     expect(titleSceneSpec.title.metalness).toBe(0);
+    expect(titleSceneSpec.title.bumpScale).toBeGreaterThan(0);
+    expect(titleSceneSpec.title.bumpScale).toBeLessThanOrEqual(0.018);
     expect(titleSceneSpec.title.depth / titleSceneSpec.title.height).toBeGreaterThanOrEqual(0.4);
     expect(titleSceneSpec.title.bevelSize).toBeLessThanOrEqual(0.02);
     expect(titleSceneSpec.title.desktopViewportWidth).toBeGreaterThanOrEqual(0.92);
-    expect(titleSceneSpec.title.desktopViewportWidth).toBeLessThanOrEqual(0.96);
-    expect(titleSceneSpec.title.mobileViewportWidth).toBeGreaterThanOrEqual(0.91);
-    expect(titleSceneSpec.title.mobileViewportWidth).toBeLessThanOrEqual(0.95);
+    expect(titleSceneSpec.title.desktopViewportWidth).toBeLessThanOrEqual(0.93);
+    expect(titleSceneSpec.title.mobileViewportWidth).toBeGreaterThanOrEqual(0.9);
+    expect(titleSceneSpec.title.mobileViewportWidth).toBeLessThanOrEqual(0.92);
+    expect(Number.parseInt(titleSceneSpec.palette.concrete.slice(1), 16)).toBeGreaterThan(
+      Number.parseInt(titleSceneSpec.palette.concreteShadow.slice(1), 16)
+    );
   });
 
   it('keeps the gravitational core restrained and integrated inside a larger complete galaxy', () => {
@@ -54,10 +62,8 @@ describe('Warpkeep brutalist galaxy title specification', () => {
     expect(titleSceneSpec.galaxy.shinePeriodSeconds).toBeLessThanOrEqual(22);
     expect(titleSceneSpec.galaxy.maxPointSize).toBeGreaterThanOrEqual(8);
     expect(titleSceneSpec.galaxy.maxPointSize).toBeLessThanOrEqual(16);
-    expect(titleSceneSpec.title.shinePeriodSeconds).toBeGreaterThanOrEqual(9);
-    expect(titleSceneSpec.title.shinePeriodSeconds).toBeLessThanOrEqual(20);
-    expect(titleSceneSpec.title.shineStrength).toBeGreaterThan(0.1);
-    expect(titleSceneSpec.title.shineStrength).toBeLessThanOrEqual(0.6);
+    expect(titleSceneSpec.title.shinePeriodSeconds).toBeGreaterThanOrEqual(28);
+    expect(titleSceneSpec.title.shinePeriodSeconds).toBeLessThanOrEqual(40);
   });
 
   it('generates a deterministic full spiral layout within the configured radius', () => {

@@ -1,5 +1,9 @@
 import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
-import { getBrutalistGlyph } from './brutalistGlyphs';
+import {
+  layoutBrutalistGlyphs,
+  type BrutalistGlyphDefinition,
+  type BrutalistGlyphPoint
+} from './brutalistGlyphs';
 import { titleTheme } from './titleTheme';
 
 const fallbackStars = Array.from({ length: 48 }, (_, index) => ({
@@ -12,90 +16,101 @@ const fallbackStars = Array.from({ length: 48 }, (_, index) => ({
 }));
 
 const glyphHeight = 100;
-const glyphGap = 7;
-const fallbackGlyphs = Array.from(titleTheme.title).map((character) => ({
-  character,
-  glyph: getBrutalistGlyph(character)
-}));
-const fallbackTitleWidth = fallbackGlyphs.reduce(
-  (width, { glyph }, index) => width + glyph.width * glyphHeight + (index === 0 ? 0 : glyphGap),
-  0
-);
+const fallbackLayout = layoutBrutalistGlyphs(titleTheme.title, glyphHeight);
+const fallbackTitleWidth = fallbackLayout.width;
 
-function polygonPoints(points: ReadonlyArray<readonly [number, number]>, glyphWidth: number) {
+function contourPath(points: ReadonlyArray<BrutalistGlyphPoint>, offsetX: number) {
   return points
-    .map(([x, y]) => `${(x * glyphWidth * glyphHeight).toFixed(2)},${((1 - y) * glyphHeight).toFixed(2)}`)
+    .map(([x, y], index) => `${index === 0 ? 'M' : 'L'} ${(x * glyphHeight + offsetX).toFixed(2)} ${((1 - y) * glyphHeight).toFixed(2)}`)
+    .join(' ') + ' Z';
+}
+
+function glyphPath(glyph: BrutalistGlyphDefinition, offsetX: number) {
+  return [glyph.outer, ...glyph.holes]
+    .map((points) => contourPath(points, offsetX))
     .join(' ');
 }
 
 function MonumentWordmark() {
-  let cursor = 0;
+  const pathData = fallbackLayout.placements.map((placement) => ({
+    ...placement,
+    path: glyphPath(placement.glyph, placement.x)
+  }));
 
   return (
     <svg
       className="warpkeep-fallback-wordmark"
-      viewBox={`-14 -9 ${fallbackTitleWidth + 28} 132`}
+      viewBox={`-12 -7 ${fallbackTitleWidth + 24} 125`}
       preserveAspectRatio="xMidYMid meet"
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id="warpkeepConcreteFace" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#7b7775" />
-          <stop offset="0.28" stopColor="#c3beb4" />
-          <stop offset="0.48" stopColor="#e1ddd2" />
-          <stop offset="0.56" stopColor="#a78eae" />
-          <stop offset="0.72" stopColor="#bcb7ad" />
-          <stop offset="1" stopColor="#6d6a6b" />
+        <linearGradient
+          id="warpkeepConcreteFace"
+          gradientUnits="userSpaceOnUse"
+          x1="0"
+          y1="12"
+          x2={fallbackTitleWidth}
+          y2="92"
+        >
+          <stop offset="0" stopColor="#aaa7a2" />
+          <stop offset="0.22" stopColor="#d7d3ca" />
+          <stop offset="0.48" stopColor="#eeeae0" />
+          <stop offset="0.68" stopColor="#d8d3cb" />
+          <stop offset="1" stopColor="#aaa6a3" />
         </linearGradient>
-        <filter id="warpkeepConcreteWear" x="-15%" y="-15%" width="130%" height="145%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.065 0.24" numOctaves="3" seed="71" result="wear" />
+        <filter
+          id="warpkeepConcreteGrain"
+          filterUnits="userSpaceOnUse"
+          x="-12"
+          y="-7"
+          width={fallbackTitleWidth + 24}
+          height="125"
+        >
+          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.035" numOctaves="1" seed="71" result="grain" />
           <feColorMatrix
-            in="wear"
-            values="0.26 0 0 0 0.16  0 0.25 0 0 0.15  0 0 0.24 0 0.14  0 0 0 0.34 0"
-            result="weathering"
+            in="grain"
+            values="0.035 0 0 0 -0.012  0 0.035 0 0 -0.012  0 0 0.035 0 -0.012  0 0 0 0.09 0"
+            result="subtleGrain"
           />
-          <feBlend in="SourceGraphic" in2="weathering" mode="multiply" />
+          <feBlend in="SourceGraphic" in2="subtleGrain" mode="soft-light" />
         </filter>
       </defs>
-      {fallbackGlyphs.map(({ character, glyph }, glyphIndex) => {
-        const glyphWidth = glyph.width * glyphHeight;
-        const glyphX = cursor + (glyphIndex === 0 ? 0 : glyphGap);
-        cursor = glyphX + glyphWidth;
 
-        return (
-          <g key={`${character}-${glyphIndex}`} transform={`translate(${glyphX} 0)`}>
-            {glyph.parts.map((glyphPart, partIndex) => {
-              const points = polygonPoints(glyphPart.points, glyph.width);
-              const depth = 8 + glyphPart.tier * 2.4;
-              return (
-                <g key={`${character}-${partIndex}`}>
-                  <polygon
-                    points={points}
-                    transform={`translate(${-depth * 0.42} ${depth})`}
-                    fill="#26252d"
-                    stroke="#121219"
-                    strokeWidth="1.2"
-                  />
-                  <polygon
-                    points={points}
-                    transform={`translate(${-depth * 0.18} ${depth * 0.5})`}
-                    fill="#4d4950"
-                    stroke="#2f2d34"
-                    strokeWidth="0.7"
-                  />
-                  <polygon
-                    points={points}
-                    fill="url(#warpkeepConcreteFace)"
-                    stroke="#716b70"
-                    strokeWidth="0.85"
-                    filter="url(#warpkeepConcreteWear)"
-                  />
-                </g>
-              );
-            })}
-          </g>
-        );
-      })}
+      <g className="warpkeep-fallback-wordmark-depth">
+        {pathData.map(({ character, index, path }) => (
+          <path
+            key={`back-${character}-${index}`}
+            d={path}
+            transform="translate(-4.1 9.2)"
+            fill="#3f3e45"
+            fillRule="evenodd"
+          />
+        ))}
+        {pathData.map(({ character, index, path }) => (
+          <path
+            key={`side-${character}-${index}`}
+            d={path}
+            transform="translate(-1.9 4.3)"
+            fill="#96928f"
+            fillRule="evenodd"
+          />
+        ))}
+      </g>
+
+      <g filter="url(#warpkeepConcreteGrain)">
+        {pathData.map(({ character, index, path }) => (
+          <path
+            key={`face-${character}-${index}`}
+            d={path}
+            fill="url(#warpkeepConcreteFace)"
+            fillRule="evenodd"
+            clipRule="evenodd"
+            stroke="#8f8b8b"
+            strokeWidth="0.65"
+          />
+        ))}
+      </g>
     </svg>
   );
 }
