@@ -25,7 +25,7 @@
     "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "latest",
     "jsdom": "latest",
-    "typescript": "latest",
+    "typescript": "^7.0.2",
     "vite": "latest",
     "vitest": "latest"
   }
