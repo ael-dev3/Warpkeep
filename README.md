@@ -114,7 +114,7 @@ npm run build
 
 - Official faction logos and metadata are archived under `docs/reference/factions/`.
 - Castle reference art is archived under `docs/reference/castles/` for future visual direction.
-- The Hegemony main-menu composition reference and runtime-media provenance are archived under [`docs/reference/menu/2026-07-10/`](docs/reference/menu/2026-07-10/).
+- The Hegemony main-menu source archive and runtime-media provenance are recorded under [`docs/reference/menu/2026-07-10/`](docs/reference/menu/2026-07-10/).
 
 ## SpacetimeDB direction
 
