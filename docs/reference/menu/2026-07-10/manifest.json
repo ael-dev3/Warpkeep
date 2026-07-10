@@ -1,9 +1,9 @@
 {
-  "archive": "warpkeep-main-menu-reference-2026-07-10",
-  "purpose": "Visual reference for future Warpkeep menu development",
-  "source": "Ael-provided Discord attachment",
+  "archive": "warpkeep-menu-reference-2026-07-10",
+  "purpose": "Visual, motion, and audio references for future Warpkeep menu development",
+  "source": "Ael-provided Discord attachments",
   "license": "CC0-1.0 under the repository project-owned reference-media policy",
-  "usage": "Reference only; not a runtime application asset",
+  "usage": "Reference archive; assets are not wired into the application runtime",
   "assets": [
     {
       "filename": "warpkeep-main-menu-reference.png",
@@ -14,6 +14,51 @@
       "height": 1011,
       "color_type": "8-bit RGB",
       "sha256": "dc7ad4319cf8d37e3e127a0954ac9ed982ed37031ac672ef614f84311c10277c"
+    },
+    {
+      "filename": "warpkeep-menu-loop-silent.mp4",
+      "original_attachment_basename": "warpkeep_menu_loop_no_audio.mp4",
+      "media_type": "video/mp4",
+      "bytes": 5142079,
+      "duration_seconds": 15.041667,
+      "video": {
+        "codec": "H.264 / AVC",
+        "profile": "High",
+        "width": 1280,
+        "height": 720,
+        "pixel_format": "yuv420p",
+        "frame_rate": "24/1"
+      },
+      "audio_streams": 0,
+      "sha256": "de2670656a227b0e86ac2ccf5ac22f0d410db234474d47298cf9c03a8affeb37"
+    },
+    {
+      "filename": "sunset-hegemony.mp3",
+      "original_attachment_basename": "audio_ac578c8d7609.ogg",
+      "original_attachment_extension_mismatch": true,
+      "media_type": "audio/mpeg",
+      "bytes": 9631066,
+      "duration_seconds": 401.919979,
+      "audio": {
+        "codec": "MP3",
+        "sample_rate_hz": 48000,
+        "channels": 2,
+        "channel_layout": "stereo"
+      },
+      "embedded_cover": {
+        "codec": "MJPEG",
+        "width": 360,
+        "height": 360
+      },
+      "metadata": {
+        "title": "Sunset Hegemony",
+        "artist": "ael_dev7",
+        "type": "instrumental",
+        "generator": "Suno",
+        "created_at": "2026-07-10T16:20:48.990436Z",
+        "generation_id": "b6cf08ee-1696-467f-b044-7f36658b1003"
+      },
+      "sha256": "ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917"
     }
   ]
 }
