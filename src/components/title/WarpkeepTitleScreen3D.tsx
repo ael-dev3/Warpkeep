@@ -1,8 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import {
+  BlackHoleGateway,
+  type BlackHoleGatewayHandle
+} from './BlackHoleGateway';
 import { WarpkeepTitleScreenFallback } from './WarpkeepTitleScreenFallback';
 import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
 import { layoutBrutalistGlyphs } from './brutalistGlyphs';
+import {
+  calculateActivationSurge,
+  calculateGatewayInteractionRadius,
+  calculateGatewayProximity
+} from './gatewayInteraction';
 import { dampValue, isMousePointerType, normalizePointerPosition } from './titleInteraction';
 import { createBrutalistGlyphGeometry } from './titleGeometry';
 import { createConcreteTextures, type ConcreteTextureSet } from './titleTextures';
@@ -20,6 +29,7 @@ type GalaxyAssembly = {
   parallaxGroup: THREE.Group;
   growthGroup: THREE.Group;
   spinGroup: THREE.Group;
+  gatewayAnchor: THREE.Object3D;
   stars: PointLayer;
   dust: PointLayer;
   discMaterial: THREE.ShaderMaterial;
@@ -212,7 +222,13 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
       shineSpeed: { value: (Math.PI * 2) / titleSceneSpec.galaxy.shinePeriodSeconds },
       shadowRadius: { value: titleSceneSpec.core.shadowRadius },
       accretionRadius: { value: titleSceneSpec.core.accretionRadius },
-      lensRadius: { value: titleSceneSpec.core.lensRadius }
+      lensRadius: { value: titleSceneSpec.core.lensRadius },
+      gatewayProximity: { value: 0 },
+      gatewayPulsePhase: { value: 0 },
+      gatewayFlowPhase: { value: 0 },
+      gatewaySurge: { value: 0 },
+      gatewaySurgeProgress: { value: 1 },
+      reducedMotion: { value: 0 }
     },
     vertexShader: `
       varying vec2 vUv;
@@ -232,6 +248,12 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
       uniform float shadowRadius;
       uniform float accretionRadius;
       uniform float lensRadius;
+      uniform float gatewayProximity;
+      uniform float gatewayPulsePhase;
+      uniform float gatewayFlowPhase;
+      uniform float gatewaySurge;
+      uniform float gatewaySurgeProgress;
+      uniform float reducedMotion;
 
       const float TAU = 6.28318530718;
 
@@ -292,6 +314,13 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
 
         float coreNoise = ${coreNoise};
         float coreDistance = radius * (0.93 + coreNoise * 0.12);
+        float gatewayActivity = clamp(gatewayProximity, 0.0, 1.0);
+        float gatewayActivity2 = gatewayActivity * gatewayActivity;
+        float gatewayPulse = mix(
+          0.72,
+          0.5 + 0.5 * sin(gatewayPulsePhase),
+          1.0 - reducedMotion
+        );
         float shadow = 1.0 - smoothstep(
           shadowRadius * 0.38,
           shadowRadius * (1.68 + coreNoise * 0.42),
@@ -301,6 +330,36 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
         float accretion = exp(-pow((coreDistance - accretionRadius) / accretionWidth, 2.0));
         float lensing = exp(-pow((coreDistance - lensRadius) / 0.065, 2.0));
         float coreBloom = exp(-coreDistance * 8.2) * (1.0 - shadow * 0.86);
+        float accretionFlux = 0.86 + 0.14 * sin(
+          angle * 3.0 - gatewayFlowPhase + coreNoise * 2.4
+        );
+        float accretionGain = 1.0 + gatewayPulse * 0.08 +
+          gatewayActivity * 0.12 + gatewayActivity2 * 0.08 + gatewaySurge * 0.14;
+        accretion *= accretionFlux * accretionGain;
+        lensing *= 1.0 + gatewayActivity * 0.04 +
+          gatewayActivity2 * 0.1 + gatewaySurge * 0.1;
+        coreBloom *= 1.0 + gatewayPulse * 0.04 +
+          gatewayActivity * 0.13 + gatewaySurge * 0.08;
+
+        float residueEnvelope =
+          smoothstep(lensRadius * 0.82, lensRadius * 1.02, coreDistance) *
+          (1.0 - smoothstep(lensRadius * 1.52, lensRadius * 1.88, coreDistance));
+        float residueWave = 0.5 + 0.5 * sin(
+          coreDistance * 34.0 - angle * 4.0 - gatewayFlowPhase +
+          (fineNoise - 0.5) * 3.2
+        );
+        float residue = pow(smoothstep(0.62, 0.98, residueWave), 3.0) *
+          (0.35 + clumps * 0.65) * residueEnvelope;
+        float residueGain = 0.05 + gatewayPulse * 0.022 +
+          gatewayActivity * 0.05 + gatewayActivity2 * 0.07 + gatewaySurge * 0.075;
+        float surgeRadius = mix(
+          accretionRadius * 0.9,
+          lensRadius * 1.55,
+          clamp(gatewaySurgeProgress, 0.0, 1.0)
+        );
+        float surgeWidth = mix(0.022, 0.047, clamp(gatewaySurgeProgress, 0.0, 1.0));
+        float surgeRing = exp(-pow((coreDistance - surgeRadius) / surgeWidth, 2.0)) *
+          gatewaySurge * (0.58 + fineNoise * 0.42);
 
         float shineWave = 0.5 + 0.5 * cos(
           angle * 2.0 - warpedRadius * 15.0 - time * shineSpeed
@@ -308,7 +367,8 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
         float shine = pow(shineWave, 13.0) * (0.25 + arm * 0.75) * edgeFade;
         float peripheralDust = ${peripheralNoise} * edgeFade;
         float density = armDensity * 0.36 + peripheralDust * 0.045 +
-          coreBloom * 0.25 + accretion * 0.24 + lensing * 0.075 + shine * 0.06;
+          coreBloom * 0.25 + accretion * 0.24 + lensing * 0.075 + shine * 0.06 +
+          residue * residueGain + surgeRing * 0.11;
         density *= 1.0 - shadow * 0.9;
 
         vec3 coldIvory = vec3(0.91, 0.94, 1.0);
@@ -318,7 +378,12 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
         vec3 color = mix(coldIvory, deepViolet, purpleMix * (0.7 + radius * 0.42));
         color *= 0.72 + granularDust * 0.4;
         color += deepViolet * arm * (0.18 + purpleMix * 0.28);
-        color += lavender * (accretion * 0.66 + shine * 0.36 + lensing * 0.24);
+        color += lavender * (accretion * 0.5 + shine * 0.36 + lensing * 0.24);
+        color += deepViolet * accretion * (
+          0.28 + gatewayPulse * 0.15 + gatewayActivity * 0.28
+        );
+        color += deepViolet * residue * (0.55 + gatewayActivity * 0.45);
+        color += lavender * surgeRing * 0.46;
         color += oldGold * coreBloom * 0.16;
         color *= 1.0 - shadow * 0.94;
 
@@ -333,7 +398,7 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
 }
 
 function createCoreOcclusionMaterial() {
-  const coreExtent = titleSceneSpec.core.shadowRadius * 2.1;
+  const coreExtent = titleSceneSpec.core.shadowRadius * 2.55;
 
   return new THREE.ShaderMaterial({
     transparent: true,
@@ -341,7 +406,13 @@ function createCoreOcclusionMaterial() {
     blending: THREE.NormalBlending,
     uniforms: {
       shadowRadius: { value: titleSceneSpec.core.shadowRadius },
-      coreExtent: { value: coreExtent }
+      coreExtent: { value: coreExtent },
+      gatewayProximity: { value: 0 },
+      gatewayPulsePhase: { value: 0 },
+      gatewayFlowPhase: { value: 0 },
+      gatewaySurge: { value: 0 },
+      gatewaySurgeProgress: { value: 1 },
+      reducedMotion: { value: 0 }
     },
     vertexShader: `
       varying vec2 vUv;
@@ -355,6 +426,12 @@ function createCoreOcclusionMaterial() {
       varying vec2 vUv;
       uniform float shadowRadius;
       uniform float coreExtent;
+      uniform float gatewayProximity;
+      uniform float gatewayPulsePhase;
+      uniform float gatewayFlowPhase;
+      uniform float gatewaySurge;
+      uniform float gatewaySurgeProgress;
+      uniform float reducedMotion;
 
       float hash21(vec2 point) {
         point = fract(point * vec2(123.34, 456.21));
@@ -371,8 +448,43 @@ function createCoreOcclusionMaterial() {
           shadowRadius * 1.82,
           coreDistance
         );
-        if (absorption < 0.006) discard;
-        gl_FragColor = vec4(vec3(0.0006, 0.0008, 0.0018), absorption * 0.985);
+        float proximity = clamp(gatewayProximity, 0.0, 1.0);
+        float pulse = mix(
+          0.72,
+          0.5 + 0.5 * sin(gatewayPulsePhase),
+          1.0 - reducedMotion
+        );
+        float rimRadius = shadowRadius * (
+          1.52 + proximity * 0.07 + gatewaySurge * 0.08
+        );
+        float rimWidth = mix(0.011, 0.018, proximity) + gatewaySurge * 0.003;
+        float rim = exp(-pow((coreDistance - rimRadius) / rimWidth, 2.0));
+        float fragmentation = 0.72 + 0.28 * hash21(
+          floor(point * 108.0 + vec2(gatewayFlowPhase * 0.18, -gatewayFlowPhase * 0.11))
+        );
+        float rimEnergy = rim * fragmentation * (
+          0.2 + pulse * 0.11 + proximity * 0.28 + gatewaySurge * 0.12
+        );
+        float surgeRadius = mix(
+          shadowRadius * 1.55,
+          shadowRadius * 2.28,
+          clamp(gatewaySurgeProgress, 0.0, 1.0)
+        );
+        float surgeRing = exp(-pow(
+          (coreDistance - surgeRadius) / mix(0.008, 0.015, gatewaySurgeProgress),
+          2.0
+        )) * gatewaySurge * fragmentation * 0.24;
+        float energyAlpha = rimEnergy + surgeRing;
+        float alpha = max(absorption * 0.985, energyAlpha);
+        if (alpha < 0.006) discard;
+        vec3 coreColor = vec3(0.0006, 0.0008, 0.0018);
+        vec3 rimColor = mix(
+          vec3(0.16, 0.035, 0.28),
+          vec3(0.58, 0.24, 0.88),
+          0.42 + proximity * 0.38
+        );
+        vec3 color = mix(coreColor, rimColor, clamp(energyAlpha * 2.8, 0.0, 1.0));
+        gl_FragColor = vec4(color, alpha);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }
@@ -467,7 +579,7 @@ function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean
   disc.renderOrder = 0;
 
   const coreMaterial = createCoreOcclusionMaterial();
-  const coreExtent = titleSceneSpec.core.shadowRadius * 2.1;
+  const coreExtent = titleSceneSpec.core.shadowRadius * 2.55;
   const coreOccluder = new THREE.Mesh(
     new THREE.PlaneGeometry(
       titleSceneSpec.galaxy.radius * 2 * coreExtent,
@@ -478,6 +590,10 @@ function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean
   coreOccluder.position.z = 0.24;
   coreOccluder.renderOrder = 4;
 
+  const gatewayAnchor = new THREE.Object3D();
+  gatewayAnchor.name = 'warpkeep-gateway-anchor';
+  gatewayAnchor.position.copy(coreOccluder.position);
+
   const group = new THREE.Group();
   group.position.set(0, 1.55, -18);
   const parallaxGroup = new THREE.Group();
@@ -485,7 +601,7 @@ function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean
   const tiltGroup = new THREE.Group();
   const spinGroup = new THREE.Group();
   tiltGroup.rotation.x = Math.acos(titleSceneSpec.galaxy.verticalScale);
-  spinGroup.add(disc, dust.points, stars.points, coreOccluder);
+  spinGroup.add(disc, dust.points, stars.points, coreOccluder, gatewayAnchor);
   tiltGroup.add(spinGroup);
   growthGroup.add(tiltGroup);
   parallaxGroup.add(growthGroup);
@@ -496,6 +612,7 @@ function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean
     parallaxGroup,
     growthGroup,
     spinGroup,
+    gatewayAnchor,
     stars,
     dust,
     discMaterial,
@@ -596,12 +713,26 @@ function disposeScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, texture
 }
 
 export function WarpkeepTitleScreen3D() {
+  const screenRef = useRef<HTMLElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
+  const gatewayRef = useRef<BlackHoleGatewayHandle>(null);
+  const gatewayActivationSequenceRef = useRef(0);
+  const gatewayFocusedRef = useRef(false);
   const [fallback, setFallback] = useState(false);
+
+  const handleGatewayActivate = useCallback(() => {
+    // Future: navigate to the Warpkeep game menu once that destination exists.
+    gatewayActivationSequenceRef.current += 1;
+  }, []);
+
+  const handleGatewayFocusChange = useCallback((focused: boolean) => {
+    gatewayFocusedRef.current = focused;
+  }, []);
 
   useEffect(() => {
     const container = mountRef.current;
-    if (!container) {
+    const interactionSurface = screenRef.current;
+    if (!container || !interactionSurface) {
       return undefined;
     }
 
@@ -618,9 +749,12 @@ export function WarpkeepTitleScreen3D() {
     let pointerResetHandler: (() => void) | null = null;
     let contextLostHandler: ((event: Event) => void) | null = null;
     let visibilityChangeHandler: (() => void) | null = null;
+    let reducedMotionQuery: MediaQueryList | null = null;
+    let reducedMotionChangeHandler: ((event: MediaQueryListEvent) => void) | null = null;
     let disposed = false;
     const pointerTarget = { x: 0, y: 0 };
     const pointerCurrent = { x: 0, y: 0 };
+    const pointerScreen = { x: 0, y: 0, active: false };
     const textures: THREE.Texture[] = [];
 
     const teardown = () => {
@@ -633,10 +767,10 @@ export function WarpkeepTitleScreen3D() {
         window.cancelAnimationFrame(animationFrame);
       }
       if (pointerMoveHandler) {
-        container.removeEventListener('pointermove', pointerMoveHandler);
+        interactionSurface.removeEventListener('pointermove', pointerMoveHandler);
       }
       if (pointerResetHandler) {
-        container.removeEventListener('pointerleave', pointerResetHandler);
+        interactionSurface.removeEventListener('pointerleave', pointerResetHandler);
         window.removeEventListener('blur', pointerResetHandler);
       }
       if (contextLostHandler && renderer) {
@@ -645,14 +779,19 @@ export function WarpkeepTitleScreen3D() {
       if (visibilityChangeHandler) {
         document.removeEventListener('visibilitychange', visibilityChangeHandler);
       }
+      if (reducedMotionQuery && reducedMotionChangeHandler) {
+        reducedMotionQuery.removeEventListener('change', reducedMotionChangeHandler);
+      }
       if (scene && renderer) {
         disposeScene(scene, renderer, textures);
       }
+      gatewayRef.current?.setProjectedPosition(0, 0, 0, 0, false);
       renderer?.domElement.remove();
     };
 
     try {
-      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let prefersReducedMotion = reducedMotionQuery.matches;
       const initialWidth = Math.max(1, Math.round(container.clientWidth));
       const initialHeight = Math.max(1, Math.round(container.clientHeight));
       const initialPortrait = initialWidth / initialHeight < 0.78;
@@ -684,29 +823,54 @@ export function WarpkeepTitleScreen3D() {
       };
       renderer.domElement.addEventListener('webglcontextlost', contextLostHandler);
 
-      const pointerPerspectiveEnabled =
-        !prefersReducedMotion && window.matchMedia('(pointer: fine)').matches;
-      if (pointerPerspectiveEnabled) {
+      const finePointerEnabled = window.matchMedia('(pointer: fine)').matches;
+      const attachPointerInteraction = () => {
+        if (prefersReducedMotion || !finePointerEnabled || pointerMoveHandler) {
+          return;
+        }
+
         pointerMoveHandler = (event: PointerEvent) => {
           if (!isMousePointerType(event.pointerType)) {
             return;
           }
+          const surfaceBounds = interactionSurface.getBoundingClientRect();
           const normalized = normalizePointerPosition(
             event.clientX,
             event.clientY,
-            container.getBoundingClientRect()
+            surfaceBounds
           );
           pointerTarget.x = normalized.x;
           pointerTarget.y = normalized.y;
+          pointerScreen.x = event.clientX - surfaceBounds.left;
+          pointerScreen.y = event.clientY - surfaceBounds.top;
+          pointerScreen.active = true;
         };
         pointerResetHandler = () => {
           pointerTarget.x = 0;
           pointerTarget.y = 0;
+          pointerScreen.active = false;
         };
-        container.addEventListener('pointermove', pointerMoveHandler, { passive: true });
-        container.addEventListener('pointerleave', pointerResetHandler);
+        interactionSurface.addEventListener('pointermove', pointerMoveHandler, { passive: true });
+        interactionSurface.addEventListener('pointerleave', pointerResetHandler);
         window.addEventListener('blur', pointerResetHandler);
-      }
+      };
+      const detachPointerInteraction = () => {
+        if (pointerMoveHandler) {
+          interactionSurface.removeEventListener('pointermove', pointerMoveHandler);
+          pointerMoveHandler = null;
+        }
+        if (pointerResetHandler) {
+          interactionSurface.removeEventListener('pointerleave', pointerResetHandler);
+          window.removeEventListener('blur', pointerResetHandler);
+          pointerResetHandler = null;
+        }
+        pointerTarget.x = 0;
+        pointerTarget.y = 0;
+        pointerCurrent.x = 0;
+        pointerCurrent.y = 0;
+        pointerScreen.active = false;
+      };
+      attachPointerInteraction();
 
       const backgroundStars = createBackgroundStars(
         initialPortrait
@@ -760,6 +924,17 @@ export function WarpkeepTitleScreen3D() {
       let cameraTargetY = -0.42;
       let titleRestYaw = THREE.MathUtils.degToRad(-1.1);
       let cameraDriftX = 0.1;
+      let viewportWidth = initialWidth;
+      let viewportHeight = initialHeight;
+      let gatewayInteractionRadius = THREE.MathUtils.clamp(
+        calculateGatewayInteractionRadius(
+          initialWidth,
+          initialHeight,
+          titleSceneSpec.gateway.interactionRadiusRatio
+        ),
+        titleSceneSpec.gateway.minInteractionRadiusPx,
+        titleSceneSpec.gateway.maxInteractionRadiusPx
+      );
       const resize = () => {
         if (!renderer || !scene || disposed) {
           return;
@@ -771,6 +946,17 @@ export function WarpkeepTitleScreen3D() {
         const portrait = aspect < 0.78;
         const shortLandscape = !portrait && height < 460;
         const nextPixelRatio = Math.min(window.devicePixelRatio || 1, 1.65);
+        viewportWidth = width;
+        viewportHeight = height;
+        gatewayInteractionRadius = THREE.MathUtils.clamp(
+          calculateGatewayInteractionRadius(
+            width,
+            height,
+            titleSceneSpec.gateway.interactionRadiusRatio
+          ),
+          titleSceneSpec.gateway.minInteractionRadiusPx,
+          titleSceneSpec.gateway.maxInteractionRadiusPx
+        );
         renderer.setPixelRatio(nextPixelRatio);
         renderer.setSize(width, height, false);
         camera.aspect = aspect;
@@ -835,6 +1021,14 @@ export function WarpkeepTitleScreen3D() {
       };
       document.addEventListener('visibilitychange', visibilityChangeHandler);
       const titleRestPitch = THREE.MathUtils.degToRad(-2.1);
+      const gatewayWorldPosition = new THREE.Vector3();
+      const gatewayProjectedPosition = new THREE.Vector3();
+      let gatewayProximity = 0;
+      let gatewayPulsePhase = 0.42;
+      let gatewayFlowPhase = 0;
+      let handledActivationSequence = gatewayActivationSequenceRef.current;
+      let surgeElapsed: number = titleSceneSpec.gateway.surgeDurationSeconds;
+      const gatewayMaterials = [galaxy.discMaterial, galaxy.coreMaterial];
 
       const render = () => {
         if (!renderer || !scene || disposed) {
@@ -927,6 +1121,85 @@ export function WarpkeepTitleScreen3D() {
           cameraTargetY + pointerCurrent.y * titleSceneSpec.interaction.cameraTargetY,
           -1.4
         );
+
+        scene.updateMatrixWorld(true);
+        camera.updateMatrixWorld(true);
+        galaxy.gatewayAnchor.getWorldPosition(gatewayWorldPosition);
+        gatewayProjectedPosition.copy(gatewayWorldPosition).project(camera);
+        const gatewayX = (gatewayProjectedPosition.x * 0.5 + 0.5) * viewportWidth;
+        const gatewayY = (-gatewayProjectedPosition.y * 0.5 + 0.5) * viewportHeight;
+        const gatewayVisible =
+          gatewayProjectedPosition.z >= -1 &&
+          gatewayProjectedPosition.z <= 1;
+        gatewayRef.current?.setProjectedPosition(
+          gatewayX,
+          gatewayY,
+          viewportWidth,
+          viewportHeight,
+          gatewayVisible
+        );
+
+        const pointerProximity = !prefersReducedMotion && pointerScreen.active
+          ? calculateGatewayProximity(
+            pointerScreen.x,
+            pointerScreen.y,
+            gatewayX,
+            gatewayY,
+            gatewayInteractionRadius
+          )
+          : 0;
+        const gatewayTarget = !prefersReducedMotion && gatewayFocusedRef.current
+          ? Math.max(pointerProximity, 0.72)
+          : pointerProximity;
+        const gatewayResponse = gatewayTarget > gatewayProximity
+          ? titleSceneSpec.gateway.proximityRiseResponse
+          : titleSceneSpec.gateway.proximitySettleResponse;
+        gatewayProximity = prefersReducedMotion
+          ? 0
+          : dampValue(gatewayProximity, gatewayTarget, dampingDelta, gatewayResponse);
+
+        const gatewayActivity = gatewayProximity * gatewayProximity;
+        gatewayPulsePhase += visibleDelta * THREE.MathUtils.lerp(
+          (Math.PI * 2) / titleSceneSpec.gateway.idlePulsePeriodSeconds,
+          (Math.PI * 2) / titleSceneSpec.gateway.activePulsePeriodSeconds,
+          gatewayActivity
+        );
+        gatewayFlowPhase += visibleDelta * THREE.MathUtils.lerp(
+          titleSceneSpec.gateway.idleFlowRate,
+          titleSceneSpec.gateway.activeFlowRate,
+          gatewayProximity * (0.65 + gatewayProximity * 0.35)
+        );
+
+        if (handledActivationSequence !== gatewayActivationSequenceRef.current) {
+          handledActivationSequence = gatewayActivationSequenceRef.current;
+          surgeElapsed = 0;
+        } else if (!prefersReducedMotion) {
+          surgeElapsed = Math.min(
+            titleSceneSpec.gateway.surgeDurationSeconds,
+            surgeElapsed + visibleDelta
+          );
+        }
+        const gatewaySurge = prefersReducedMotion
+          ? 0
+          : calculateActivationSurge(
+            surgeElapsed,
+            titleSceneSpec.gateway.surgeDurationSeconds
+          );
+        const gatewaySurgeProgress = THREE.MathUtils.clamp(
+          surgeElapsed / titleSceneSpec.gateway.surgeDurationSeconds,
+          0,
+          1
+        );
+
+        for (let materialIndex = 0; materialIndex < gatewayMaterials.length; materialIndex += 1) {
+          const material = gatewayMaterials[materialIndex];
+          material.uniforms.gatewayProximity.value = gatewayProximity;
+          material.uniforms.gatewayPulsePhase.value = gatewayPulsePhase;
+          material.uniforms.gatewayFlowPhase.value = gatewayFlowPhase;
+          material.uniforms.gatewaySurge.value = gatewaySurge;
+          material.uniforms.gatewaySurgeProgress.value = gatewaySurgeProgress;
+          material.uniforms.reducedMotion.value = prefersReducedMotion ? 1 : 0;
+        }
         renderer.render(scene, camera);
 
         if (!prefersReducedMotion) {
@@ -940,6 +1213,31 @@ export function WarpkeepTitleScreen3D() {
           render();
         }
       };
+
+      reducedMotionChangeHandler = (event: MediaQueryListEvent) => {
+        if (disposed || prefersReducedMotion === event.matches) {
+          return;
+        }
+
+        prefersReducedMotion = event.matches;
+        handledActivationSequence = gatewayActivationSequenceRef.current;
+        surgeElapsed = titleSceneSpec.gateway.surgeDurationSeconds;
+        previousFrameTime = performance.now();
+        if (prefersReducedMotion) {
+          detachPointerInteraction();
+          if (animationFrame) {
+            window.cancelAnimationFrame(animationFrame);
+            animationFrame = 0;
+          }
+          render();
+        } else {
+          attachPointerInteraction();
+          if (!animationFrame) {
+            animationFrame = window.requestAnimationFrame(render);
+          }
+        }
+      };
+      reducedMotionQuery.addEventListener('change', reducedMotionChangeHandler);
 
       resizeObserver = new ResizeObserver(handleResize);
       resizeObserver.observe(container);
@@ -960,9 +1258,15 @@ export function WarpkeepTitleScreen3D() {
   }
 
   return (
-    <main className="warpkeep-title-screen" aria-label="Warpkeep title screen">
+    <main ref={screenRef} className="warpkeep-title-screen" aria-label="Warpkeep title screen">
       <div ref={mountRef} className="warpkeep-title-canvas-shell" aria-hidden="true" />
       <h1 className="sr-only">{titleSceneSpec.title.text}</h1>
+      <BlackHoleGateway
+        ref={gatewayRef}
+        onActivate={handleGatewayActivate}
+        onFocusChange={handleGatewayFocusChange}
+        autoDismissMs={titleSceneSpec.gateway.noticeDurationMs}
+      />
       <div className="warpkeep-title-vignette" aria-hidden="true" />
       <WarpkeepTitleSoundtrack />
     </main>

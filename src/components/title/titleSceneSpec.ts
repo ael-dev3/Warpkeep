@@ -49,6 +49,23 @@ export const titleSceneSpec = {
     accretionRadius: 0.17,
     lensRadius: 0.29
   },
+  gateway: {
+    interactionRadiusRatio: 0.31,
+    minInteractionRadiusPx: 132,
+    maxInteractionRadiusPx: 380,
+    hitSizeMinPx: 68,
+    hitSizeMaxPx: 80,
+    proximityRiseResponse: 5.4,
+    proximitySettleResponse: 2.8,
+    idlePulsePeriodSeconds: 7.4,
+    activePulsePeriodSeconds: 3,
+    idleFlowRate: 0.22,
+    activeFlowRate: 0.72,
+    surgeDurationSeconds: 1.2,
+    noticeDurationMs: 5_200,
+    noticeGapPx: 16,
+    viewportMarginPx: 16
+  },
   interaction: {
     damping: 6.8,
     cameraTravelX: 0.34,

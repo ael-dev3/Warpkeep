@@ -66,6 +66,22 @@ describe('Warpkeep brutalist galaxy title specification', () => {
     expect(titleSceneSpec.title.shinePeriodSeconds).toBeLessThanOrEqual(40);
   });
 
+  it('keeps the gateway responsive, practical to target, and cinematically paced', () => {
+    const gateway = titleSceneSpec.gateway;
+
+    expect(gateway.interactionRadiusRatio).toBeGreaterThanOrEqual(0.25);
+    expect(gateway.interactionRadiusRatio).toBeLessThanOrEqual(0.35);
+    expect(gateway.hitSizeMinPx).toBeGreaterThanOrEqual(56);
+    expect(gateway.hitSizeMaxPx).toBeGreaterThanOrEqual(gateway.hitSizeMinPx);
+    expect(gateway.hitSizeMaxPx).toBeLessThanOrEqual(88);
+    expect(gateway.proximityRiseResponse).toBeGreaterThan(gateway.proximitySettleResponse);
+    expect(gateway.idlePulsePeriodSeconds).toBeGreaterThan(gateway.activePulsePeriodSeconds);
+    expect(gateway.surgeDurationSeconds).toBeGreaterThanOrEqual(0.8);
+    expect(gateway.surgeDurationSeconds).toBeLessThanOrEqual(1.5);
+    expect(gateway.noticeDurationMs).toBeGreaterThanOrEqual(4_000);
+    expect(gateway.noticeDurationMs).toBeLessThanOrEqual(6_000);
+  });
+
   it('generates a deterministic full spiral layout within the configured radius', () => {
     const first = createSpiralGalaxyLayout(256, 91);
     const second = createSpiralGalaxyLayout(256, 91);
