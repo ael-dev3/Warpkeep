@@ -6,7 +6,7 @@ Warpkeep is an open-source Farcaster-native strategy game where each player can 
 
 **Live demo:** https://ael-dev3.github.io/Warpkeep/
 
-Current visual experiment: the live demo is a pure Three.js **WARPKEEP** title screen built around custom continuous architectural letterforms instead of a font. Every glyph is one coherent, deeply extruded brutalist structure with carved counters, controlled ivory-mineral concrete, darker side planes, optical pair spacing, pointer-responsive perspective, and a slow physical light sweep. Behind it, a larger five-arm galaxy uses one shared particle-and-shader coordinate system. Its center is an eye-like gravitational gateway with a smooth event-horizon shadow, upper and lower photon crescents, batched reflective violet warp ribbons, fine filaments, GPU-driven residue, proximity-reactive turbulence, and localized pointer-space distortion across the disc, dust, and nearby stars. The galaxy completes a stately rotation every five minutes and grows gradually toward a restrained maximum while the screen remains visible. Compact and reduced-motion quality profiles preserve performance and visual comfort, while the existing two-track soundtrack remains randomly selected and loops with sound enabled by default; browsers that block audible autoplay resume playback from the first click, tap, or key press anywhere on the page. The public site remains title-only with an interactive development notice, but no playable game menu or permanent navigation UI yet.
+Current public prototype: the live demo opens on a pure Three.js **WARPKEEP** title screen built around custom continuous architectural letterforms, a slowly rotating five-arm galaxy, and an accessible eye-like gravitational gateway. Activating the galactic core now pulls the scene through a violet warp passage into a live Hegemony main menu. That menu uses a repaired looping castle-and-sunset film, the project-provided “Sunset Hegemony” score, antique-gold semantic HTML controls, command-specific development notices, keyboard/touch navigation, a static reduced-motion treatment, and a clean return path to the title. The five menu destinations remain prototypes—no playable campaign, saved realm, settings, credits, or exit destination is implemented yet.
 
 Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
@@ -20,7 +20,7 @@ Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farca
 
 Warpkeep aims for the feel of a grand fantasy 4X strategy game: vast realms, distant battles, player-built keeps, alliances, conquest, and magical warping across the map.
 
-Current status: **initial seed / scaffold**. The public GitHub Pages site is title-screen-only for now. The repo still contains a local mocked castle dashboard and deterministic state scaffold for development, but SpacetimeDB and real Farcaster auth are planned, not complete.
+Current status: **initial seed / scaffold with title-to-menu presentation prototype**. The repo still contains a local mocked castle dashboard and deterministic state scaffold for development, but that dashboard is not exposed by the public menu. SpacetimeDB, gameplay, persistence, and real Farcaster auth are planned, not complete.
 
 ## Current direction
 
@@ -53,9 +53,11 @@ A Farcaster-native strategy game where your FID becomes a kingdom.
 
 The current public experience:
 
-1. The live site shows only a cinematic **WARPKEEP** title screen.
-2. The central gateway is accessible and interactive, but it currently shows only a development notice instead of opening a game menu.
-3. The local development scaffold still contains a mocked castle dashboard for future gameplay work.
+1. A cinematic **WARPKEEP** title screen establishes the cosmic world.
+2. Click/tap the central gateway, or press Enter/Space, to enter the Hegemony menu through a gateway-centered transition.
+3. The live menu presents the five planned destinations—Enter Realm, Continue, Settings, Credits, and Exit—but each currently gives an honest development notice.
+4. Escape, browser Back, or the separate Return to Title control returns without a page reload.
+5. The local mocked castle dashboard remains a future-development scaffold and is not a playable public destination.
 
 ## Local development
 
@@ -90,8 +92,10 @@ npm run build
 
 ## What is implemented now
 
-- Current Three.js title-screen experiment with unified custom brutalist glyph outlines, refined load-bearing W and K silhouettes, deeply extruded premium ivory concrete, optical wordmark spacing, pointer-responsive physical lighting, and a large slowly rotating and gradually growing five-arm galaxy. Its integrated eye-lens gateway layers sharp reflective violet ribbons, filamentary energy, GPU residue, local galaxy/star distortion, adaptive quality, reduced-motion handling, a lightweight matching fallback, controlled activation choreography, two random looping soundtracks, and GitHub Pages deployment. The semantic gateway displays a temporary development notice instead of navigating to a game menu.
-- Public site is title-screen-only; the gateway currently shows an under-development notice and does not navigate to a game menu.
+- Current Three.js title-screen experiment with unified custom brutalist glyph outlines, refined load-bearing W and K silhouettes, deeply extruded premium ivory concrete, optical wordmark spacing, pointer-responsive physical lighting, and a large slowly rotating and gradually growing five-arm galaxy. Its integrated eye-lens gateway layers sharp reflective violet ribbons, filamentary energy, GPU residue, local galaxy/star distortion, adaptive quality, reduced-motion handling, a lightweight matching fallback, and controlled activation choreography.
+- Reducer-driven title → menu → title flow with a gateway-origin warp veil, Three.js camera pull, five-second entry hint, global Enter/Space shortcuts, history/hash support, focus restoration, and a short reduced-motion path.
+- Hegemony main-menu prototype with live HTML/CSS typography and commands over a responsive no-audio castle film, poster fallback, one stable crossfading audio director, a measured OST loop overlap, unique anchored notices, and keyboard/touch behavior.
+- Public menu destinations are presentation-only; they do not expose gameplay or the local mocked dashboard.
 - Local development scaffold includes a castle dashboard with player identity, buildings, resources, queues, nearby castles, court report, and activity log.
 - Deterministic resource collection, upgrade queue, training queue, and scouting report functions.
 - Vitest tests for the core game loop.
@@ -110,7 +114,7 @@ npm run build
 
 - Official faction logos and metadata are archived under `docs/reference/factions/`.
 - Castle reference art is archived under `docs/reference/castles/` for future visual direction.
-- Menu composition and navigation references are archived under `docs/reference/menu/` for future menu development.
+- The Hegemony main-menu source archive and runtime-media provenance are recorded under [`docs/reference/menu/2026-07-10/`](docs/reference/menu/2026-07-10/).
 
 ## SpacetimeDB direction
 
@@ -135,9 +139,9 @@ Read `docs/farcaster-integration.md` before implementing auth.
 - Add seasons and reset mechanics.
 - Add AI court reports, battle reports, lore, and shareable Farcaster cards as read-only flavor layers.
 
-## Screenshots
+## Viewing the prototype
 
-No screenshots are committed yet. Run `npm run dev` and open the local Vite URL to view the current title screen.
+Run `npm run dev` and open the local Vite URL. The normal route opens the title; `#menu` opens the media-resilient menu directly for development and accessibility testing.
 
 ## License
 

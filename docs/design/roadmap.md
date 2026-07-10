@@ -2,6 +2,10 @@
 
 This roadmap keeps the first playable version small while preserving the longer faction and social-strategy direction described in [`warpkeep-direction.md`](./warpkeep-direction.md).
 
+## Current presentation milestone: Hegemony gateway
+
+The public prototype now connects the cosmic Three.js title to a responsive Hegemony main menu with a gateway-centered transition, authored background film, menu score, accessibility paths, and honest development notices. This is a presentation/navigation milestone, not completion of a playable destination. The five menu commands remain intentionally nonfunctional until their corresponding product systems exist.
+
 ## MVP: Hegemony Genesis
 
 Goal: prove the smallest Farcaster-native keep loop.

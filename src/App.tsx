@@ -1,5 +1,5 @@
-import { LandingPage } from './components/LandingPage';
+import { WarpkeepExperience } from './components/WarpkeepExperience';
 
 export default function App() {
-  return <LandingPage />;
+  return <WarpkeepExperience />;
 }

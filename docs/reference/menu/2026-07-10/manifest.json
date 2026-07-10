@@ -1,51 +1,76 @@
 {
   "archive": "warpkeep-menu-reference-2026-07-10",
-  "purpose": "Visual, motion, and audio references for future Warpkeep menu development",
-  "source": "Ael-provided Discord attachments",
-  "license": "CC0-1.0 under the repository project-owned reference-media policy",
-  "usage": "Reference archive; assets are not wired into the application runtime",
+  "recordedAt": "2026-07-10",
+  "purpose": "Source archive and runtime-derivative provenance for the Warpkeep Hegemony menu",
+  "source": "Ael-provided project attachments",
+  "license": "CC0-1.0 under the repository project-owned media policy",
+  "usage": "Files under docs are archival; application-loaded copies and derivatives are listed under each asset's runtime field.",
   "assets": [
     {
       "filename": "warpkeep-main-menu-reference.png",
-      "original_attachment_basename": "img_8be8dd61c97e.png",
-      "media_type": "image/png",
+      "originalAttachmentBasenames": [
+        "img_8be8dd61c97e.png",
+        "warpkeep-main-menu-reference.png"
+      ],
+      "mediaType": "image/png",
       "bytes": 2653834,
       "width": 1555,
       "height": 1011,
-      "color_type": "8-bit RGB",
-      "sha256": "dc7ad4319cf8d37e3e127a0954ac9ed982ed37031ac672ef614f84311c10277c"
+      "colorType": "8-bit RGB",
+      "sha256": "dc7ad4319cf8d37e3e127a0954ac9ed982ed37031ac672ef614f84311c10277c",
+      "runtime": null,
+      "intendedUse": "Composition reference only; never rendered as the runtime menu"
     },
     {
       "filename": "warpkeep-menu-loop-silent.mp4",
-      "original_attachment_basename": "warpkeep_menu_loop_no_audio.mp4",
-      "media_type": "video/mp4",
+      "originalAttachmentBasename": "warpkeep_menu_loop_no_audio.mp4",
+      "mediaType": "video/mp4",
       "bytes": 5142079,
-      "duration_seconds": 15.041667,
+      "durationSeconds": 15.041667,
       "video": {
         "codec": "H.264 / AVC",
         "profile": "High",
         "width": 1280,
         "height": 720,
-        "pixel_format": "yuv420p",
-        "frame_rate": "24/1"
+        "pixelFormat": "yuv420p",
+        "frameRate": "24/1"
       },
-      "audio_streams": 0,
-      "sha256": "de2670656a227b0e86ac2ccf5ac22f0d410db234474d47298cf9c03a8affeb37"
+      "audioStreams": 0,
+      "archiveContainerSha256": "de2670656a227b0e86ac2ccf5ac22f0d410db234474d47298cf9c03a8affeb37",
+      "implementationPromptContainerSha256": "270b4ecc7fa69519a29eb743786a8c69d5062f5fc454d82f2bfd8094698f0542",
+      "sharedH264StreamSha256": "69f2b9281701c3fcfabf163c9cf9d6db5ba96ddcdfd5bd81d5f5ae4d2535aeb4",
+      "sharedDecodedRgbSha256": "2168930390eb856c67f4e3f72d33f917597530f52a74d0fc6276b930662ab05f",
+      "runtime": {
+        "filename": "public/video/warpkeep-menu-loop.mp4",
+        "bytes": 4439356,
+        "sha256": "75a6b3c8dd023f537b2b0889d0de0ee2ccd82483ec8913ea9626f0a2b3e5e303",
+        "width": 1280,
+        "height": 720,
+        "framesPerSecond": 24,
+        "durationSeconds": 14.041667,
+        "codec": "H.264 High, yuv420p limited-range BT.709, progressive",
+        "audioStreams": 0,
+        "derivation": "One-second end-to-head dissolve; timeline rotated to begin at source 1.000 seconds; CRF 18 slow encode; stream-copy tagging of limited-range BT.709 primaries, transfer, and matrix; faststart.",
+        "intendedUse": "Muted full-viewport Hegemony menu background"
+      }
     },
     {
       "filename": "sunset-hegemony.mp3",
-      "original_attachment_basename": "audio_ac578c8d7609.ogg",
-      "original_attachment_extension_mismatch": true,
-      "media_type": "audio/mpeg",
+      "originalAttachmentBasenames": [
+        "audio_ac578c8d7609.ogg",
+        "Sunset Hegemony.mp3"
+      ],
+      "originalAttachmentExtensionMismatch": true,
+      "mediaType": "audio/mpeg",
       "bytes": 9631066,
-      "duration_seconds": 401.919979,
+      "durationSeconds": 401.919979,
       "audio": {
         "codec": "MP3",
-        "sample_rate_hz": 48000,
+        "sampleRateHz": 48000,
         "channels": 2,
-        "channel_layout": "stereo"
+        "channelLayout": "stereo"
       },
-      "embedded_cover": {
+      "embeddedCover": {
         "codec": "MJPEG",
         "width": 360,
         "height": 360
@@ -55,10 +80,30 @@
         "artist": "ael_dev7",
         "type": "instrumental",
         "generator": "Suno",
-        "created_at": "2026-07-10T16:20:48.990436Z",
-        "generation_id": "b6cf08ee-1696-467f-b044-7f36658b1003"
+        "createdAt": "2026-07-10T16:20:48.990436Z",
+        "generationId": "b6cf08ee-1696-467f-b044-7f36658b1003"
       },
-      "sha256": "ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917"
+      "sha256": "ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917",
+      "runtime": {
+        "filename": "public/audio/warpkeep-menu-theme.mp3",
+        "bytes": 9631066,
+        "sha256": "ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917",
+        "derivation": "Original bytes preserved; the audio director schedules a 1.792-second equal-power overlap from 400.128 through 401.920 seconds.",
+        "intendedUse": "Hegemony main-menu soundtrack"
+      }
+    },
+    {
+      "type": "runtimeDerivative",
+      "source": "public/video/warpkeep-menu-loop.mp4 frame 0, color-managed BT.709 to sRGB",
+      "runtime": {
+        "filename": "public/images/menu/warpkeep-menu-poster.webp",
+        "bytes": 122328,
+        "sha256": "2280d6ef6b1f09e6b72d8b34dbecff2ee1e7e5c72dab17e1a8c8a22b9c01b53a",
+        "width": 1280,
+        "height": 720,
+        "codec": "WebP quality 82 with embedded sRGB ICC",
+        "intendedUse": "Immediate menu poster and video-failure fallback"
+      }
     }
   ]
 }

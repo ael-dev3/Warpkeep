@@ -16,11 +16,10 @@ function renderVisibleGateway(props: React.ComponentProps<typeof BlackHoleGatewa
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-  vi.unstubAllGlobals();
 });
 
 describe('BlackHoleGateway', () => {
-  it('exposes a native semantic button and positions it without a React frame update', () => {
+  it('projects a native semantic button without a React frame update', () => {
     const gatewayRef = createRef<BlackHoleGatewayHandle>();
     render(<BlackHoleGateway ref={gatewayRef} />);
     const button = screen.getByRole('button', { hidden: true });
@@ -33,88 +32,70 @@ describe('BlackHoleGateway', () => {
     act(() => gatewayRef.current?.setProjectedPosition(240, 120, 800, 600, true));
     expect((button as HTMLButtonElement).disabled).toBe(false);
     expect(button.parentElement?.style.transform).toContain('translate3d(240px, 120px');
+    expect(gatewayRef.current?.getProjectedPosition()).toEqual({
+      x: 240,
+      y: 120,
+      viewportWidth: 800,
+      viewportHeight: 600,
+      visible: true
+    });
 
     act(() => gatewayRef.current?.setProjectedPosition(Number.NaN, 120, 800, 600, true));
     expect((button as HTMLButtonElement).disabled).toBe(true);
     expect(button.parentElement?.hidden).toBe(true);
   });
 
-  it('activates through the native click path and exposes a polite status notice', () => {
+  it('requests the real experience through the native click path without the obsolete notice', () => {
     const onActivate = vi.fn();
-    renderVisibleGateway({ onActivate, autoDismissMs: null });
+    renderVisibleGateway({ onActivate });
     const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
 
-    button.focus();
     fireEvent.click(button, { detail: 0 });
-
-    const status = screen.getByRole('status');
-    expect(onActivate).toHaveBeenCalledTimes(1);
-    expect(status.textContent).toBe('The Warpkeep gateway is still under development. Return soon.');
-    expect(status.getAttribute('aria-live')).toBe('polite');
-    expect(status.getAttribute('aria-atomic')).toBe('true');
-    expect(button.getAttribute('aria-expanded')).toBe('true');
-    expect(button.getAttribute('aria-controls')).toBe(status.id);
-    expect(button.getAttribute('aria-describedby')).toBe(status.id);
-    expect(document.activeElement).toBe(button);
-  });
-
-  it('reports focus changes without changing notice state', () => {
-    const onFocusChange = vi.fn();
-    renderVisibleGateway({ onFocusChange, autoDismissMs: null });
-    const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
-
-    fireEvent.focus(button);
-    fireEvent.blur(button);
-
-    expect(onFocusChange.mock.calls).toEqual([[true], [false]]);
+    expect(onActivate).toHaveBeenLastCalledWith('keyboard');
     expect(screen.queryByRole('status')).toBeNull();
-  });
+    expect(button.hasAttribute('aria-expanded')).toBe(false);
 
-  it('activates directly from Enter and Space without allowing key-repeat surges', () => {
-    const onActivate = vi.fn();
-    renderVisibleGateway({ onActivate, autoDismissMs: null });
-    const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
-
-    button.focus();
-    fireEvent.keyDown(button, { key: 'Enter' });
-    expect(screen.getByRole('status')).not.toBeNull();
-    expect(onActivate).toHaveBeenCalledTimes(1);
-
-    fireEvent.keyDown(document, { key: 'Escape' });
-    fireEvent.keyDown(button, { key: ' ', repeat: true });
-    expect(screen.queryByRole('status')).toBeNull();
-    expect(onActivate).toHaveBeenCalledTimes(1);
-
-    fireEvent.keyDown(button, { key: ' ' });
-    expect(screen.queryByRole('status')).toBeNull();
-    fireEvent.keyUp(button, { key: ' ' });
-    expect(screen.getByRole('status')).not.toBeNull();
+    fireEvent.click(button, { detail: 1 });
+    expect(onActivate).toHaveBeenLastCalledWith('pointer');
     expect(onActivate).toHaveBeenCalledTimes(2);
   });
 
-  it('dismisses with Escape and with an outside pointer down but not an inside one', () => {
-    renderVisibleGateway({ autoDismissMs: null });
+  it('reports focus and meaningful interaction while retaining focus control', () => {
+    const onFocusChange = vi.fn();
+    const onMeaningfulInteraction = vi.fn();
+    const { gatewayRef } = renderVisibleGateway({ onFocusChange, onMeaningfulInteraction });
+    const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
+
+    act(() => gatewayRef.current?.focus());
+    expect(document.activeElement).toBe(button);
+    fireEvent.blur(button);
+    expect(onFocusChange.mock.calls).toEqual([[true], [false]]);
+    expect(onMeaningfulInteraction).toHaveBeenCalled();
+  });
+
+  it('keeps an explicitly requested reusable notice dismissible and nonmodal', () => {
+    renderVisibleGateway({ notice: 'Optional atmospheric status.', autoDismissMs: null });
     const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
 
     fireEvent.click(button);
-    const firstStatus = screen.getByRole('status');
-    fireEvent.pointerDown(firstStatus);
-    expect(screen.getByRole('status')).toBe(firstStatus);
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('Optional atmospheric status.');
+    expect(status.getAttribute('aria-live')).toBe('polite');
+    expect(button.getAttribute('aria-describedby')).toBe(status.id);
 
+    fireEvent.pointerDown(status);
+    expect(screen.getByRole('status')).toBe(status);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(button.getAttribute('aria-expanded')).toBe('false');
 
     fireEvent.click(button);
-    expect(screen.getByRole('status')).not.toBeNull();
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('restarts auto-dismiss and refreshes the live notice on repeated activation', () => {
+  it('refreshes and auto-dismisses only an explicitly configured notice', () => {
     vi.useFakeTimers();
-    const onActivate = vi.fn();
-    renderVisibleGateway({ onActivate, autoDismissMs: 5_000 });
+    renderVisibleGateway({ notice: 'Temporary status.', autoDismissMs: 5_000 });
     const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
 
     fireEvent.click(button);
@@ -122,38 +103,25 @@ describe('BlackHoleGateway', () => {
     act(() => vi.advanceTimersByTime(3_000));
     fireEvent.click(button);
     const refreshedStatus = screen.getByRole('status');
-
     expect(refreshedStatus).not.toBe(firstStatus);
-    expect(onActivate).toHaveBeenCalledTimes(2);
-    act(() => vi.advanceTimersByTime(3_000));
+
+    act(() => vi.advanceTimersByTime(4_999));
     expect(screen.getByRole('status')).toBe(refreshedStatus);
-    act(() => vi.advanceTimersByTime(2_001));
+    act(() => vi.advanceTimersByTime(2));
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('can keep the notice available when automatic dismissal is disabled', () => {
-    vi.useFakeTimers();
-    renderVisibleGateway({ autoDismissMs: null });
-    fireEvent.click(screen.getByRole('button', { name: 'Enter Warpkeep' }));
+  it('stays disabled while its owning title view is inactive', () => {
+    const onActivate = vi.fn();
+    const { rerender, gatewayRef } = renderVisibleGateway({ onActivate, disabled: true });
+    const button = screen.getByRole('button', { name: 'Enter Warpkeep', hidden: true });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
 
-    act(() => vi.advanceTimersByTime(60_000));
-    expect(screen.getByRole('status')).not.toBeNull();
-  });
+    fireEvent.click(button);
+    expect(onActivate).not.toHaveBeenCalled();
 
-  it('keeps semantic activation available when reduced motion is preferred', () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
-      matches: true,
-      media: '(prefers-reduced-motion: reduce)',
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn()
-    }));
-    renderVisibleGateway({ autoDismissMs: null });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Enter Warpkeep' }));
-    expect(screen.getByRole('status').textContent).toContain('under development');
+    rerender(<BlackHoleGateway ref={gatewayRef} onActivate={onActivate} disabled={false} />);
+    act(() => gatewayRef.current?.setProjectedPosition(200, 140, 400, 320, true));
+    expect((button as HTMLButtonElement).disabled).toBe(false);
   });
 });
