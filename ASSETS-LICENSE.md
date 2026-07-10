@@ -19,8 +19,8 @@ This includes, unless separately noted:
 - `public/audio/warpkeep-title-theme-a.mp3`
 - `public/audio/warpkeep-title-theme-b.mp3`
 - `public/audio/warpkeep-menu-theme.mp3`
-- `public/video/warpkeep-menu-loop.mp4`
-- `public/images/menu/warpkeep-menu-poster.webp`
+- `public/video/warpkeep-menu-loop-v2.mp4`
+- `public/images/menu/warpkeep-menu-poster-v2.webp`
 - `docs/reference/factions/**`
 - `docs/reference/castles/**`
 - `docs/reference/menu/**`
@@ -34,10 +34,12 @@ The 2026-07-10 title-to-menu milestone uses project-provided media supplied for 
 
 | Intended use | Project-provided source | Repository file | Technical record |
 | --- | --- | --- | --- |
-| Animated menu plate | `warpkeep_menu_loop_no_audio.mp4` | `public/video/warpkeep-menu-loop.mp4` | Source: 5,142,079 bytes, SHA-256 `270b4ecc7fa69519a29eb743786a8c69d5062f5fc454d82f2bfd8094698f0542`. Runtime derivative: 1280×720, 24 fps, H.264 High, yuv420p limited-range BT.709, no audio, 14.041667 s, 4,439,356 bytes, SHA-256 `75a6b3c8dd023f537b2b0889d0de0ee2ccd82483ec8913ea9626f0a2b3e5e303`. The final source second is dissolved into its first second and the timeline begins at source 1.000 s to reduce the original visible seam; explicit BT.709 color metadata and faststart are retained for consistent browser decoding. |
-| Immediate menu fallback | Color-managed derivative of runtime video frame 0 | `public/images/menu/warpkeep-menu-poster.webp` | 1280×720 WebP, quality 82 with embedded sRGB ICC, 122,328 bytes, SHA-256 `2280d6ef6b1f09e6b72d8b34dbecff2ee1e7e5c72dab17e1a8c8a22b9c01b53a`. The tagged BT.709 frame is converted to sRGB so the poster and first decoded video frame remain visually aligned in Chromium and macOS decoders. |
+| Animated menu plate | `warpkeep_menu_loop_clean_hq_max_coverage_1080p_no_audio.mp4` | `public/video/warpkeep-menu-loop-v2.mp4` | Source: 7,561,210 bytes, SHA-256 `5ef6c41af8231665dadd0c214e23875e2f994dcd257e8ce98bf7bfd8ab0e5fa0`. Runtime derivative: 1920×1080, 24 fps, 337 frames, H.264 High Level 4.1 with four reference frames, yuv420p limited-range BT.709, no audio, 14.041667 s, 5,713,248 bytes, SHA-256 `6034f049e8ee25a412fdc1f8c7ccce1ab403a58eac9158e1d0b55a6bfa99260c`. The timeline begins at source 1.000 s and ends with an exact-endpoint 24-frame linear tail-to-head blend; the repaired wrap is 66.405% less discontinuous, and the fast-start film retains exact cadence and identical boundaries over three audited loops. |
+| Immediate menu fallback | Color-managed derivative of runtime video frame 0 | `public/images/menu/warpkeep-menu-poster-v2.webp` | 1920×1080 WebP, quality 84/method 6 with embedded sRGB ICC, 249,626 bytes, SHA-256 `d0fa4d4fbd893369a78d7ada828723e7612f95bbf4d8ee0eeef9858a33ce581c`. The tagged BT.709 frame is converted to sRGB; poster-to-video RGB mean absolute error measured 2.332/255 in Chromium and 2.173/255 through macOS ColorSync. |
 | Hegemony menu score | `Sunset Hegemony.mp3` | `public/audio/warpkeep-menu-theme.mp3` | Original bytes preserved: stereo 48 kHz MP3, 401.919979 s decoded program, 9,631,066 bytes, SHA-256 `ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917`. Runtime uses two cached elements and a 1.792 s equal-power overlap beginning at 400.128 s. |
 | Composition reference only | `warpkeep-main-menu-reference.png` | `docs/reference/menu/2026-07-10/warpkeep-main-menu-reference.png` | 1555×1011 PNG, 2,653,834 bytes, SHA-256 `dc7ad4319cf8d37e3e127a0954ac9ed982ed37031ac672ef614f84311c10277c`. Never served as the runtime page or poster; all menu lettering is live HTML/CSS. |
+
+The original 1280×720 runtime film and poster were superseded on 2026-07-11. Their filenames, hashes, and derivation details remain in the dated menu manifest as a historical record.
 
 ## Trademark and endorsement note
 

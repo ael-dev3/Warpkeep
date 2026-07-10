@@ -1,6 +1,7 @@
 {
   "archive": "warpkeep-menu-reference-2026-07-10",
   "recordedAt": "2026-07-10",
+  "lastRuntimeUpdate": "2026-07-11",
   "purpose": "Source archive and runtime-derivative provenance for the Warpkeep Hegemony menu",
   "source": "Ael-provided project attachments",
   "license": "CC0-1.0 under the repository project-owned media policy",
@@ -41,6 +42,8 @@
       "sharedH264StreamSha256": "69f2b9281701c3fcfabf163c9cf9d6db5ba96ddcdfd5bd81d5f5ae4d2535aeb4",
       "sharedDecodedRgbSha256": "2168930390eb856c67f4e3f72d33f917597530f52a74d0fc6276b930662ab05f",
       "runtime": {
+        "status": "superseded",
+        "removedFromPublicRuntimeAt": "2026-07-11",
         "filename": "public/video/warpkeep-menu-loop.mp4",
         "bytes": 4439356,
         "sha256": "75a6b3c8dd023f537b2b0889d0de0ee2ccd82483ec8913ea9626f0a2b3e5e303",
@@ -51,7 +54,7 @@
         "codec": "H.264 High, yuv420p limited-range BT.709, progressive",
         "audioStreams": 0,
         "derivation": "One-second end-to-head dissolve; timeline rotated to begin at source 1.000 seconds; CRF 18 slow encode; stream-copy tagging of limited-range BT.709 primaries, transfer, and matrix; faststart.",
-        "intendedUse": "Muted full-viewport Hegemony menu background"
+        "intendedUse": "Former muted full-viewport Hegemony menu background; retained here as a historical derivative record"
       }
     },
     {
@@ -70,7 +73,39 @@
       },
       "audioStreams": 0,
       "sha256": "5ef6c41af8231665dadd0c214e23875e2f994dcd257e8ce98bf7bfd8ab0e5fa0",
-      "runtime": null,
+      "runtime": {
+        "status": "current",
+        "filename": "public/video/warpkeep-menu-loop-v2.mp4",
+        "bytes": 5713248,
+        "sha256": "6034f049e8ee25a412fdc1f8c7ccce1ab403a58eac9158e1d0b55a6bfa99260c",
+        "width": 1920,
+        "height": 1080,
+        "framesPerSecond": 24,
+        "frames": 337,
+        "durationSeconds": 14.041667,
+        "codec": "H.264 High Level 4.1, yuv420p limited-range BT.709, progressive",
+        "referenceFrames": 4,
+        "videoBitRateBitsPerSecond": 3252184,
+        "audioStreams": 0,
+        "qualityAudit": {
+          "basis": "313 unchanged source-aligned frames outside the one-second seam repair",
+          "vmaf": 98.3015,
+          "ssim": 0.990383,
+          "psnrDb": 37.92984
+        },
+        "seamAuditAt640x360": {
+          "sourceBoundaryRgbMae": 5.392708,
+          "sourceBoundaryToMedianMotionRatio": 7.23568,
+          "runtimeBoundaryRgbMae": 1.811659,
+          "runtimeBoundaryToMedianMotionRatio": 2.46657,
+          "absoluteBoundaryReductionPercent": 66.405,
+          "threeLoopFrames": 1011,
+          "threeLoopDurationSeconds": 42.125,
+          "cadenceDrift": false
+        },
+        "derivation": "Timeline rotated to begin at source 1.000 seconds. The last 24 frames linearly blend source tail frames 337–360 with head frames 0–23 at weights from 1/24 through 24/24, reaching the complete head frame at the discrete endpoint. CRF 20 slow encode with four reference frames and Level 4.1 compatibility; explicit limited-range BT.709 primaries, transfer, and matrix; faststart.",
+        "intendedUse": "Muted full-viewport Hegemony menu background"
+      },
       "intendedUse": "Clean high-quality maximum-coverage 1080p menu-motion reference"
     },
     {
@@ -115,12 +150,34 @@
       "type": "runtimeDerivative",
       "source": "public/video/warpkeep-menu-loop.mp4 frame 0, color-managed BT.709 to sRGB",
       "runtime": {
+        "status": "superseded",
+        "removedFromPublicRuntimeAt": "2026-07-11",
         "filename": "public/images/menu/warpkeep-menu-poster.webp",
         "bytes": 122328,
         "sha256": "2280d6ef6b1f09e6b72d8b34dbecff2ee1e7e5c72dab17e1a8c8a22b9c01b53a",
         "width": 1280,
         "height": 720,
         "codec": "WebP quality 82 with embedded sRGB ICC",
+        "intendedUse": "Former immediate menu poster and video-failure fallback; retained here as a historical derivative record"
+      }
+    },
+    {
+      "type": "runtimeDerivative",
+      "source": "public/video/warpkeep-menu-loop-v2.mp4 frame 0, color-managed BT.709 to sRGB",
+      "runtime": {
+        "status": "current",
+        "filename": "public/images/menu/warpkeep-menu-poster-v2.webp",
+        "bytes": 249626,
+        "sha256": "d0fa4d4fbd893369a78d7ada828723e7612f95bbf4d8ee0eeef9858a33ce581c",
+        "width": 1920,
+        "height": 1080,
+        "codec": "WebP quality 84, method 6, with embedded sRGB ICC",
+        "decoderMatchAudit": {
+          "chromiumRgbMae": 2.332,
+          "chromiumPsnrDb": 37.67,
+          "macosColorSyncRgbMae": 2.173,
+          "absoluteMeanRgbShiftPerChannelLessThan": 0.13
+        },
         "intendedUse": "Immediate menu poster and video-failure fallback"
       }
     }

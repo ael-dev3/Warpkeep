@@ -38,12 +38,12 @@ export function resolveMenuAssetUrl(baseUrl: string, assetPath: string) {
 
 export const WARPKEEP_MENU_VIDEO_URL = resolveMenuAssetUrl(
   import.meta.env.BASE_URL,
-  'video/warpkeep-menu-loop.mp4'
+  'video/warpkeep-menu-loop-v2.mp4'
 );
 
 export const WARPKEEP_MENU_POSTER_URL = resolveMenuAssetUrl(
   import.meta.env.BASE_URL,
-  'images/menu/warpkeep-menu-poster.webp'
+  'images/menu/warpkeep-menu-poster-v2.webp'
 );
 
 function readReducedMotionPreference() {
@@ -345,6 +345,7 @@ export function WarpkeepMainMenu({
       </nav>
 
       <button
+        aria-label="Return to Title"
         className="warpkeep-menu-back"
         disabled={!interactive}
         onClick={onRequestReturn}
@@ -352,7 +353,7 @@ export function WarpkeepMainMenu({
         type="button"
       >
         <span aria-hidden="true" className="warpkeep-menu-back__arrow">←</span>
-        <span>Return to Title</span>
+        <span className="warpkeep-menu-back__label">Return to Title</span>
       </button>
 
       <p aria-live="polite" className="warpkeep-menu-live-region">
@@ -364,7 +365,7 @@ export function WarpkeepMainMenu({
           anchorElement={activeNotice.anchorElement}
           command={activeNotice.command}
           durationMs={noticeDurationMs}
-          key={activeNotice.command.id}
+          key={`${activeNotice.command.id}-${activeNotice.refreshKey}`}
           onDismiss={() => setActiveNotice(null)}
           refreshKey={activeNotice.refreshKey}
         />
