@@ -55,6 +55,25 @@
       }
     },
     {
+      "filename": "warpkeep-menu-loop-clean-hq-max-coverage-1080p-silent.mp4",
+      "originalAttachmentBasename": "warpkeep_menu_loop_clean_hq_max_coverage_1080p_no_audio.mp4",
+      "mediaType": "video/mp4",
+      "bytes": 7561210,
+      "durationSeconds": 15.041667,
+      "video": {
+        "codec": "H.264 / AVC",
+        "profile": "High",
+        "width": 1920,
+        "height": 1080,
+        "pixelFormat": "yuv420p",
+        "frameRate": "24/1"
+      },
+      "audioStreams": 0,
+      "sha256": "5ef6c41af8231665dadd0c214e23875e2f994dcd257e8ce98bf7bfd8ab0e5fa0",
+      "runtime": null,
+      "intendedUse": "Clean high-quality maximum-coverage 1080p menu-motion reference"
+    },
+    {
       "filename": "sunset-hegemony.mp3",
       "originalAttachmentBasenames": [
         "audio_ac578c8d7609.ogg",

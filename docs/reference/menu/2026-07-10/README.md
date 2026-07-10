@@ -7,6 +7,7 @@ This directory preserves the Ael-provided menu-development references byte-for-b
 ## Archived source media
 
 - [`warpkeep-menu-loop-silent.mp4`](warpkeep-menu-loop-silent.mp4) — 15.041667-second, 1280×720 H.264 High film at 24 fps with no audio stream.
+- [`warpkeep-menu-loop-clean-hq-max-coverage-1080p-silent.mp4`](warpkeep-menu-loop-clean-hq-max-coverage-1080p-silent.mp4) — clean high-quality maximum-coverage 15.041667-second, 1920×1080 H.264 High film at 24 fps with no audio stream.
 - [`sunset-hegemony.mp3`](sunset-hegemony.mp3) — 401.919979-second stereo 48 kHz MP3 with embedded cover art. The archived attachment arrived with an `.ogg` name, but its detected container and codec are MP3, so the repository filename uses `.mp3` without changing its bytes.
 - [`warpkeep-main-menu-reference.png`](warpkeep-main-menu-reference.png) — 1555×1011 composition reference.
 
@@ -27,7 +28,7 @@ The composition reference guides the castle-left/open-right hierarchy, antique-g
 
 - Source: Ael-provided project attachments.
 - Image attachment basename: `img_8be8dd61c97e.png` / `warpkeep-main-menu-reference.png`.
-- Video attachment basename: `warpkeep_menu_loop_no_audio.mp4`.
+- Video attachment basenames: `warpkeep_menu_loop_no_audio.mp4` and `warpkeep_menu_loop_clean_hq_max_coverage_1080p_no_audio.mp4`.
 - Audio attachment basename: `audio_ac578c8d7609.ogg` / `Sunset Hegemony.mp3`; detected as MP3.
 - Audio metadata: title `Sunset Hegemony`, artist `ael_dev7`, instrumental, made with Suno.
 - Licensing: covered by the repository's project-owned media policy in [`../../../../ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).
