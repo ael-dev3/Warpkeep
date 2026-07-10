@@ -9,7 +9,7 @@ export type GatewayInteractionDefaults = {
 
 export const gatewayInteractionDefaults: GatewayInteractionDefaults = {
   interactionRadiusRatio: 0.31,
-  surgeDurationSeconds: 1.2,
+  surgeDurationSeconds: 1.6,
   surgeAttackSeconds: 0.12,
   noticeGap: 14,
   noticeMargin: 16,

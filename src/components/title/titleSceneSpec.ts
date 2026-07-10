@@ -61,7 +61,7 @@ export const titleSceneSpec = {
     activePulsePeriodSeconds: 3,
     idleFlowRate: 0.22,
     activeFlowRate: 0.72,
-    surgeDurationSeconds: 1.2,
+    surgeDurationSeconds: 1.6,
     noticeDurationMs: 5_200,
     noticeGapPx: 16,
     viewportMarginPx: 16

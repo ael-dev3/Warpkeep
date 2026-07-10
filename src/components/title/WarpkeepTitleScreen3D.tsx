@@ -8,10 +8,30 @@ import { WarpkeepTitleScreenFallback } from './WarpkeepTitleScreenFallback';
 import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
 import { layoutBrutalistGlyphs } from './brutalistGlyphs';
 import {
-  calculateActivationSurge,
   calculateGatewayInteractionRadius,
   calculateGatewayProximity
 } from './gatewayInteraction';
+import {
+  createGatewayPointerProjectionScratch,
+  projectGatewayPointerToDisc,
+  type GatewayPointerProjection
+} from './gatewayPointerProjection';
+import {
+  createGatewayVfxAssembly,
+  type GatewayVfxAssembly,
+  type GatewayVfxFrameState
+} from './gatewayVfx';
+import {
+  calculateGatewayActivationEnvelope,
+  calculateGatewayVfxResponse,
+  gatewayActivationSpec,
+  gatewayVfxQualitySpecs,
+  gatewayVfxResponseSpec,
+  selectGatewayVfxQuality,
+  type GatewayActivationEnvelope,
+  type GatewayVfxQuality,
+  type GatewayVfxResponse
+} from './gatewayVfxSpec';
 import { dampValue, isMousePointerType, normalizePointerPosition } from './titleInteraction';
 import { createBrutalistGlyphGeometry } from './titleGeometry';
 import { createConcreteTextures, type ConcreteTextureSet } from './titleTextures';
@@ -32,8 +52,8 @@ type GalaxyAssembly = {
   gatewayAnchor: THREE.Object3D;
   stars: PointLayer;
   dust: PointLayer;
+  disc: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   discMaterial: THREE.ShaderMaterial;
-  coreMaterial: THREE.ShaderMaterial;
 };
 
 type TitleAssembly = {
@@ -67,7 +87,8 @@ function createPointMaterial(
   opacity: number,
   flickerSpeed: number,
   softness = 0,
-  coreFade = 0
+  coreFade = 0,
+  warpStrength = 0
 ) {
   return new THREE.ShaderMaterial({
     transparent: true,
@@ -83,8 +104,12 @@ function createPointMaterial(
       flickerSpeed: { value: flickerSpeed },
       softness: { value: softness },
       coreFade: { value: coreFade },
+      warpStrength: { value: warpStrength },
       galaxyRadius: { value: titleSceneSpec.galaxy.radius },
-      shadowRadius: { value: titleSceneSpec.core.shadowRadius }
+      shadowRadius: { value: titleSceneSpec.core.shadowRadius },
+      gatewayPointerLocal: { value: new THREE.Vector2() },
+      gatewayPointerValid: { value: 0 },
+      gatewayLocalDistortion: { value: 0 }
     },
     vertexShader: `
       attribute float phase;
@@ -100,21 +125,62 @@ function createPointMaterial(
       uniform float maxPointSize;
       uniform float flickerSpeed;
       uniform float coreFade;
+      uniform float warpStrength;
       uniform float galaxyRadius;
       uniform float shadowRadius;
+      uniform vec2 gatewayPointerLocal;
+      uniform float gatewayPointerValid;
+      uniform float gatewayLocalDistortion;
 
       void main() {
         vBrightness = brightness;
         vPhase = phase;
         vColor = color;
-        float normalizedRadius = length(position.xy) / galaxyRadius;
+        vec3 localPosition = position;
+        vec2 normalizedPosition = localPosition.xy / galaxyRadius;
+        float pointerLengthSquared = dot(gatewayPointerLocal, gatewayPointerLocal);
+        if (
+          warpStrength > 0.0 &&
+          gatewayPointerValid > 0.5 &&
+          gatewayLocalDistortion > 0.0
+        ) {
+          float along = clamp(
+            dot(normalizedPosition, gatewayPointerLocal) / max(0.0004, pointerLengthSquared),
+            0.0,
+            1.0
+          );
+          vec2 nearest = gatewayPointerLocal * along;
+          float fieldDistance = length(normalizedPosition - nearest);
+          float lineField = 1.0 - smoothstep(0.035, 0.18, fieldDistance);
+          lineField *= smoothstep(0.02, 0.22, along) *
+            (1.0 - smoothstep(0.78, 1.0, along));
+          float normalizedRadius = length(normalizedPosition);
+          float coreField = smoothstep(
+            shadowRadius * 0.72,
+            shadowRadius * 1.45,
+            normalizedRadius
+          ) * (1.0 - smoothstep(0.07, 0.24, normalizedRadius));
+          float centeredPointer = 1.0 - smoothstep(
+            0.018,
+            0.075,
+            sqrt(pointerLengthSquared)
+          );
+          float field = max(lineField, coreField * centeredPointer);
+          vec2 inward = -normalize(normalizedPosition + vec2(0.00001));
+          vec2 tangent = vec2(-inward.y, inward.x);
+          vec2 warp = (inward * 0.014 + tangent * 0.008) *
+            field * gatewayLocalDistortion * warpStrength;
+          localPosition.xy += warp * galaxyRadius;
+          normalizedPosition = localPosition.xy / galaxyRadius;
+        }
+        float normalizedRadius = length(normalizedPosition);
         float coreVisibility = smoothstep(
           shadowRadius * 0.72,
           shadowRadius * 2.2,
           normalizedRadius
         );
         vCoreFade = mix(1.0, coreVisibility, coreFade);
-        vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+        vec4 viewPosition = modelViewMatrix * vec4(localPosition, 1.0);
         float flicker = 0.94 + 0.06 * sin(time * flickerSpeed + phase);
         float perspectiveSize = size * pixelRatio * pointScale * flicker / max(7.0, -viewPosition.z);
         gl_PointSize = clamp(perspectiveSize, 1.0, maxPointSize);
@@ -194,8 +260,9 @@ function createBackgroundStars(count: number, pixelRatio: number): PointLayer {
   return { points, material };
 }
 
-function createGalaxyDiscMaterial(compactQuality: boolean) {
-  const fbmOctaves = compactQuality ? 3 : 5;
+function createGalaxyDiscMaterial(quality: GatewayVfxQuality) {
+  const compactQuality = quality !== 'high';
+  const fbmOctaves = gatewayVfxQualitySpecs[quality].noiseOctaves;
   const dustLaneNoise = compactQuality
     ? 'broadNoise'
     : 'fbm(point * 10.5 + vec2(4.3, -2.1))';
@@ -212,7 +279,7 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     blending: THREE.AdditiveBlending,
     uniforms: {
       time: { value: 0 },
@@ -228,7 +295,11 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
       gatewayFlowPhase: { value: 0 },
       gatewaySurge: { value: 0 },
       gatewaySurgeProgress: { value: 1 },
-      reducedMotion: { value: 0 }
+      reducedMotion: { value: 0 },
+      gatewayPointerLocal: { value: new THREE.Vector2() },
+      gatewayPointerValid: { value: 0 },
+      gatewayLocalDistortion: { value: 0 },
+      gatewayEyeFocus: { value: 0 }
     },
     vertexShader: `
       varying vec2 vUv;
@@ -254,6 +325,10 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
       uniform float gatewaySurge;
       uniform float gatewaySurgeProgress;
       uniform float reducedMotion;
+      uniform vec2 gatewayPointerLocal;
+      uniform float gatewayPointerValid;
+      uniform float gatewayLocalDistortion;
+      uniform float gatewayEyeFocus;
 
       const float TAU = 6.28318530718;
 
@@ -287,9 +362,42 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
       }
 
       void main() {
-        vec2 point = (vUv - vec2(0.5)) * 2.0;
+        vec2 rawPoint = (vUv - vec2(0.5)) * 2.0;
+        vec2 point = rawPoint;
+        float pointerLengthSquared = dot(gatewayPointerLocal, gatewayPointerLocal);
+        if (
+          gatewayPointerValid > 0.5 &&
+          gatewayLocalDistortion > 0.0
+        ) {
+          float along = clamp(
+            dot(point, gatewayPointerLocal) / max(0.0004, pointerLengthSquared),
+            0.0,
+            1.0
+          );
+          vec2 nearest = gatewayPointerLocal * along;
+          float fieldDistance = length(point - nearest);
+          float lineField = 1.0 - smoothstep(0.035, 0.19, fieldDistance);
+          lineField *= smoothstep(0.02, 0.2, along) *
+            (1.0 - smoothstep(0.8, 1.0, along));
+          float pointRadius = length(point);
+          float coreField = smoothstep(
+            shadowRadius * 0.72,
+            shadowRadius * 1.45,
+            pointRadius
+          ) * (1.0 - smoothstep(0.07, 0.24, pointRadius));
+          float centeredPointer = 1.0 - smoothstep(
+            0.018,
+            0.075,
+            sqrt(pointerLengthSquared)
+          );
+          float field = max(lineField, coreField * centeredPointer);
+          vec2 inward = -normalize(point + vec2(0.00001));
+          vec2 tangent = vec2(-inward.y, inward.x);
+          point += (inward * 0.026 + tangent * 0.016) * field * gatewayLocalDistortion;
+        }
         float radius = length(point);
-        if (radius > 1.045) discard;
+        float rawRadius = length(rawPoint);
+        if (rawRadius > 1.045) discard;
 
         float broadNoise = fbm(point * 4.8 + vec2(time * 0.002, -time * 0.0015));
         float fineNoise = fbm(point * 17.0 - vec2(time * 0.003, time * 0.001));
@@ -313,7 +421,7 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
         armDensity *= mix(1.0, 0.4, dustLane) * innerFade * edgeFade;
 
         float coreNoise = ${coreNoise};
-        float coreDistance = radius * (0.93 + coreNoise * 0.12);
+        float coreDistance = rawRadius * (0.985 + (coreNoise - 0.5) * 0.04);
         float gatewayActivity = clamp(gatewayProximity, 0.0, 1.0);
         float gatewayActivity2 = gatewayActivity * gatewayActivity;
         float gatewayPulse = mix(
@@ -322,9 +430,9 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
           1.0 - reducedMotion
         );
         float shadow = 1.0 - smoothstep(
-          shadowRadius * 0.38,
-          shadowRadius * (1.68 + coreNoise * 0.42),
-          coreDistance
+          shadowRadius * (0.84 - gatewayEyeFocus * 0.025),
+          shadowRadius * (1.16 - gatewayEyeFocus * 0.035),
+          rawRadius
         );
         float accretionWidth = 0.038 + coreNoise * 0.014;
         float accretion = exp(-pow((coreDistance - accretionRadius) / accretionWidth, 2.0));
@@ -397,101 +505,6 @@ function createGalaxyDiscMaterial(compactQuality: boolean) {
   });
 }
 
-function createCoreOcclusionMaterial() {
-  const coreExtent = titleSceneSpec.core.shadowRadius * 2.55;
-
-  return new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.NormalBlending,
-    uniforms: {
-      shadowRadius: { value: titleSceneSpec.core.shadowRadius },
-      coreExtent: { value: coreExtent },
-      gatewayProximity: { value: 0 },
-      gatewayPulsePhase: { value: 0 },
-      gatewayFlowPhase: { value: 0 },
-      gatewaySurge: { value: 0 },
-      gatewaySurgeProgress: { value: 1 },
-      reducedMotion: { value: 0 }
-    },
-    vertexShader: `
-      varying vec2 vUv;
-
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      varying vec2 vUv;
-      uniform float shadowRadius;
-      uniform float coreExtent;
-      uniform float gatewayProximity;
-      uniform float gatewayPulsePhase;
-      uniform float gatewayFlowPhase;
-      uniform float gatewaySurge;
-      uniform float gatewaySurgeProgress;
-      uniform float reducedMotion;
-
-      float hash21(vec2 point) {
-        point = fract(point * vec2(123.34, 456.21));
-        point += dot(point, point + 45.32);
-        return fract(point.x * point.y);
-      }
-
-      void main() {
-        vec2 point = (vUv - vec2(0.5)) * 2.0 * coreExtent;
-        float irregularity = mix(0.86, 1.14, hash21(floor(point * 88.0)));
-        float coreDistance = length(point) * irregularity;
-        float absorption = 1.0 - smoothstep(
-          shadowRadius * 0.46,
-          shadowRadius * 1.82,
-          coreDistance
-        );
-        float proximity = clamp(gatewayProximity, 0.0, 1.0);
-        float pulse = mix(
-          0.72,
-          0.5 + 0.5 * sin(gatewayPulsePhase),
-          1.0 - reducedMotion
-        );
-        float rimRadius = shadowRadius * (
-          1.52 + proximity * 0.07 + gatewaySurge * 0.08
-        );
-        float rimWidth = mix(0.011, 0.018, proximity) + gatewaySurge * 0.003;
-        float rim = exp(-pow((coreDistance - rimRadius) / rimWidth, 2.0));
-        float fragmentation = 0.72 + 0.28 * hash21(
-          floor(point * 108.0 + vec2(gatewayFlowPhase * 0.18, -gatewayFlowPhase * 0.11))
-        );
-        float rimEnergy = rim * fragmentation * (
-          0.2 + pulse * 0.11 + proximity * 0.28 + gatewaySurge * 0.12
-        );
-        float surgeRadius = mix(
-          shadowRadius * 1.55,
-          shadowRadius * 2.28,
-          clamp(gatewaySurgeProgress, 0.0, 1.0)
-        );
-        float surgeRing = exp(-pow(
-          (coreDistance - surgeRadius) / mix(0.008, 0.015, gatewaySurgeProgress),
-          2.0
-        )) * gatewaySurge * fragmentation * 0.24;
-        float energyAlpha = rimEnergy + surgeRing;
-        float alpha = max(absorption * 0.985, energyAlpha);
-        if (alpha < 0.006) discard;
-        vec3 coreColor = vec3(0.0006, 0.0008, 0.0018);
-        vec3 rimColor = mix(
-          vec3(0.16, 0.035, 0.28),
-          vec3(0.58, 0.24, 0.88),
-          0.42 + proximity * 0.38
-        );
-        vec3 color = mix(coreColor, rimColor, clamp(energyAlpha * 2.8, 0.0, 1.0));
-        gl_FragColor = vec4(color, alpha);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }
-    `
-  });
-}
-
 function createGalaxyDust(layout: ReturnType<typeof createSpiralGalaxyLayout>, pixelRatio: number): PointLayer {
   const sourceCount = layout.phases.length;
   const count = Math.max(1, Math.floor(sourceCount * 0.48));
@@ -531,14 +544,18 @@ function createGalaxyDust(layout: ReturnType<typeof createSpiralGalaxyLayout>, p
   geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
   geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
   geometry.setAttribute('brightness', new THREE.BufferAttribute(brightness, 1));
-  const material = createPointMaterial(pixelRatio, 112, 0.62, 0.16, 0.92, 1);
+  const material = createPointMaterial(pixelRatio, 112, 0.62, 0.16, 0.92, 1, 0.76);
   const points = new THREE.Points(geometry, material);
   points.frustumCulled = false;
   points.renderOrder = 1;
   return { points, material };
 }
 
-function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean): GalaxyAssembly {
+function createGalaxy(
+  count: number,
+  pixelRatio: number,
+  initialQuality: GatewayVfxQuality
+): GalaxyAssembly {
   const layout = createSpiralGalaxyLayout(count);
   const colors = new Float32Array(count * 3);
   const ivory = new THREE.Color('#e9e1eb');
@@ -563,14 +580,14 @@ function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean
   starGeometry.setAttribute('brightness', new THREE.BufferAttribute(layout.brightness, 1));
   starGeometry.computeBoundingSphere();
 
-  const starMaterial = createPointMaterial(pixelRatio, 96, 0.72, 0.3, 0, 1);
+  const starMaterial = createPointMaterial(pixelRatio, 96, 0.72, 0.3, 0, 1, 0.46);
   const starPoints = new THREE.Points(starGeometry, starMaterial);
   starPoints.frustumCulled = false;
   starPoints.renderOrder = 2;
   const stars = { points: starPoints, material: starMaterial };
   const dust = createGalaxyDust(layout, pixelRatio);
 
-  const discMaterial = createGalaxyDiscMaterial(compactQuality);
+  const discMaterial = createGalaxyDiscMaterial(initialQuality);
   const disc = new THREE.Mesh(
     new THREE.PlaneGeometry(titleSceneSpec.galaxy.radius * 2, titleSceneSpec.galaxy.radius * 2),
     discMaterial
@@ -578,21 +595,9 @@ function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean
   disc.position.z = -0.075;
   disc.renderOrder = 0;
 
-  const coreMaterial = createCoreOcclusionMaterial();
-  const coreExtent = titleSceneSpec.core.shadowRadius * 2.55;
-  const coreOccluder = new THREE.Mesh(
-    new THREE.PlaneGeometry(
-      titleSceneSpec.galaxy.radius * 2 * coreExtent,
-      titleSceneSpec.galaxy.radius * 2 * coreExtent
-    ),
-    coreMaterial
-  );
-  coreOccluder.position.z = 0.24;
-  coreOccluder.renderOrder = 4;
-
   const gatewayAnchor = new THREE.Object3D();
   gatewayAnchor.name = 'warpkeep-gateway-anchor';
-  gatewayAnchor.position.copy(coreOccluder.position);
+  gatewayAnchor.position.z = 0.24;
 
   const group = new THREE.Group();
   group.position.set(0, 1.55, -18);
@@ -601,7 +606,7 @@ function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean
   const tiltGroup = new THREE.Group();
   const spinGroup = new THREE.Group();
   tiltGroup.rotation.x = Math.acos(titleSceneSpec.galaxy.verticalScale);
-  spinGroup.add(disc, dust.points, stars.points, coreOccluder, gatewayAnchor);
+  spinGroup.add(disc, dust.points, stars.points, gatewayAnchor);
   tiltGroup.add(spinGroup);
   growthGroup.add(tiltGroup);
   parallaxGroup.add(growthGroup);
@@ -615,8 +620,8 @@ function createGalaxy(count: number, pixelRatio: number, compactQuality: boolean
     gatewayAnchor,
     stars,
     dust,
-    discMaterial,
-    coreMaterial
+    disc,
+    discMaterial
   };
 }
 
@@ -718,11 +723,13 @@ export function WarpkeepTitleScreen3D() {
   const gatewayRef = useRef<BlackHoleGatewayHandle>(null);
   const gatewayActivationSequenceRef = useRef(0);
   const gatewayFocusedRef = useRef(false);
+  const reducedActivationRenderRef = useRef<(() => void) | null>(null);
   const [fallback, setFallback] = useState(false);
 
   const handleGatewayActivate = useCallback(() => {
     // Future: navigate to the Warpkeep game menu once that destination exists.
     gatewayActivationSequenceRef.current += 1;
+    reducedActivationRenderRef.current?.();
   }, []);
 
   const handleGatewayFocusChange = useCallback((focused: boolean) => {
@@ -743,6 +750,7 @@ export function WarpkeepTitleScreen3D() {
 
     let renderer: THREE.WebGLRenderer | null = null;
     let scene: THREE.Scene | null = null;
+    let gatewayVfx: GatewayVfxAssembly | null = null;
     let animationFrame = 0;
     let resizeObserver: ResizeObserver | null = null;
     let pointerMoveHandler: ((event: PointerEvent) => void) | null = null;
@@ -751,6 +759,7 @@ export function WarpkeepTitleScreen3D() {
     let visibilityChangeHandler: (() => void) | null = null;
     let reducedMotionQuery: MediaQueryList | null = null;
     let reducedMotionChangeHandler: ((event: MediaQueryListEvent) => void) | null = null;
+    let reducedActivationTimer = 0;
     let disposed = false;
     const pointerTarget = { x: 0, y: 0 };
     const pointerCurrent = { x: 0, y: 0 };
@@ -762,6 +771,8 @@ export function WarpkeepTitleScreen3D() {
         return;
       }
       disposed = true;
+      window.clearTimeout(reducedActivationTimer);
+      reducedActivationRenderRef.current = null;
       resizeObserver?.disconnect();
       if (animationFrame) {
         window.cancelAnimationFrame(animationFrame);
@@ -782,6 +793,8 @@ export function WarpkeepTitleScreen3D() {
       if (reducedMotionQuery && reducedMotionChangeHandler) {
         reducedMotionQuery.removeEventListener('change', reducedMotionChangeHandler);
       }
+      gatewayVfx?.dispose();
+      gatewayVfx = null;
       if (scene && renderer) {
         disposeScene(scene, renderer, textures);
       }
@@ -794,8 +807,6 @@ export function WarpkeepTitleScreen3D() {
       let prefersReducedMotion = reducedMotionQuery.matches;
       const initialWidth = Math.max(1, Math.round(container.clientWidth));
       const initialHeight = Math.max(1, Math.round(container.clientHeight));
-      const initialPortrait = initialWidth / initialHeight < 0.78;
-      const compactGalaxyQuality = Math.min(initialWidth, initialHeight) < 720;
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.65);
 
       scene = new THREE.Scene();
@@ -815,6 +826,23 @@ export function WarpkeepTitleScreen3D() {
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.08;
       renderer.domElement.className = 'warpkeep-title-canvas';
+      const initialGatewayVfxQuality = selectGatewayVfxQuality({
+        viewportWidth: initialWidth,
+        viewportHeight: initialHeight,
+        reducedMotion: prefersReducedMotion,
+        rendererMaxTextureSize: renderer.capabilities.maxTextureSize,
+        supportsHighpFragment: renderer.capabilities.getMaxPrecision('highp') === 'highp'
+      });
+      let activeGatewayVfxQuality = initialGatewayVfxQuality;
+      const compactGalaxyQuality = initialGatewayVfxQuality !== 'high';
+      const initialSurfaceBounds = interactionSurface.getBoundingClientRect();
+      const pointerSurfaceBounds = {
+        left: initialSurfaceBounds.left,
+        top: initialSurfaceBounds.top,
+        width: Math.max(1, initialSurfaceBounds.width),
+        height: Math.max(1, initialSurfaceBounds.height)
+      };
+      renderer.domElement.dataset.gatewayVfxQuality = activeGatewayVfxQuality;
       container.appendChild(renderer.domElement);
       contextLostHandler = (event: Event) => {
         event.preventDefault();
@@ -833,16 +861,15 @@ export function WarpkeepTitleScreen3D() {
           if (!isMousePointerType(event.pointerType)) {
             return;
           }
-          const surfaceBounds = interactionSurface.getBoundingClientRect();
           const normalized = normalizePointerPosition(
             event.clientX,
             event.clientY,
-            surfaceBounds
+            pointerSurfaceBounds
           );
           pointerTarget.x = normalized.x;
           pointerTarget.y = normalized.y;
-          pointerScreen.x = event.clientX - surfaceBounds.left;
-          pointerScreen.y = event.clientY - surfaceBounds.top;
+          pointerScreen.x = event.clientX - pointerSurfaceBounds.left;
+          pointerScreen.y = event.clientY - pointerSurfaceBounds.top;
           pointerScreen.active = true;
         };
         pointerResetHandler = () => {
@@ -873,7 +900,7 @@ export function WarpkeepTitleScreen3D() {
       attachPointerInteraction();
 
       const backgroundStars = createBackgroundStars(
-        initialPortrait
+        compactGalaxyQuality
           ? titleSceneSpec.galaxy.mobileBackgroundStars
           : titleSceneSpec.galaxy.desktopBackgroundStars,
         pixelRatio
@@ -881,12 +908,57 @@ export function WarpkeepTitleScreen3D() {
       scene.add(backgroundStars.points);
 
       const galaxy = createGalaxy(
-        initialPortrait
+        compactGalaxyQuality
           ? titleSceneSpec.galaxy.mobileParticleCount
           : titleSceneSpec.galaxy.desktopParticleCount,
         pixelRatio,
-        compactGalaxyQuality
+        activeGatewayVfxQuality
       );
+      const webglRenderer = renderer;
+      const updateGatewayVfxDataset = (assembly: GatewayVfxAssembly) => {
+        webglRenderer.domElement.dataset.gatewayVfxQuality = assembly.stats.quality;
+        webglRenderer.domElement.dataset.gatewayVfxDrawCalls = String(assembly.stats.drawCalls);
+        webglRenderer.domElement.dataset.gatewayVfxIncrementalDrawCalls = String(
+          assembly.stats.incrementalDrawCalls
+        );
+        webglRenderer.domElement.dataset.gatewayVfxParticles = String(assembly.stats.particleCount);
+      };
+      const createGatewayAssembly = (
+        quality: GatewayVfxQuality,
+        nextPixelRatio: number
+      ) => {
+        const assembly = createGatewayVfxAssembly({
+          quality,
+          pixelRatio: nextPixelRatio,
+          galaxyRadius: titleSceneSpec.galaxy.radius,
+          shadowRadius: titleSceneSpec.core.shadowRadius,
+          accretionRadius: titleSceneSpec.core.accretionRadius,
+          lensRadius: titleSceneSpec.core.lensRadius
+        });
+        galaxy.spinGroup.add(assembly.group);
+        updateGatewayVfxDataset(assembly);
+        return assembly;
+      };
+      const syncGatewayQuality = (
+        quality: GatewayVfxQuality,
+        nextPixelRatio: number
+      ) => {
+        if (gatewayVfx && quality === activeGatewayVfxQuality) {
+          gatewayVfx.setPixelRatio(nextPixelRatio);
+          return;
+        }
+
+        gatewayVfx?.dispose();
+        if (quality !== activeGatewayVfxQuality) {
+          const previousDiscMaterial = galaxy.discMaterial;
+          galaxy.discMaterial = createGalaxyDiscMaterial(quality);
+          galaxy.disc.material = galaxy.discMaterial;
+          previousDiscMaterial.dispose();
+        }
+        activeGatewayVfxQuality = quality;
+        gatewayVfx = createGatewayAssembly(quality, nextPixelRatio);
+      };
+      gatewayVfx = createGatewayAssembly(activeGatewayVfxQuality, pixelRatio);
       scene.add(galaxy.group);
 
       const concreteTextures = createConcreteTextures();
@@ -942,12 +1014,17 @@ export function WarpkeepTitleScreen3D() {
 
         const width = Math.max(1, Math.round(container.clientWidth));
         const height = Math.max(1, Math.round(container.clientHeight));
+        const surfaceBounds = interactionSurface.getBoundingClientRect();
         const aspect = width / height;
         const portrait = aspect < 0.78;
         const shortLandscape = !portrait && height < 460;
         const nextPixelRatio = Math.min(window.devicePixelRatio || 1, 1.65);
         viewportWidth = width;
         viewportHeight = height;
+        pointerSurfaceBounds.left = surfaceBounds.left;
+        pointerSurfaceBounds.top = surfaceBounds.top;
+        pointerSurfaceBounds.width = Math.max(1, surfaceBounds.width);
+        pointerSurfaceBounds.height = Math.max(1, surfaceBounds.height);
         gatewayInteractionRadius = THREE.MathUtils.clamp(
           calculateGatewayInteractionRadius(
             width,
@@ -1010,27 +1087,89 @@ export function WarpkeepTitleScreen3D() {
         [backgroundStars.material, galaxy.stars.material, galaxy.dust.material].forEach((material) => {
           material.uniforms.pixelRatio.value = nextPixelRatio;
         });
+        const nextGatewayVfxQuality = selectGatewayVfxQuality({
+          viewportWidth: width,
+          viewportHeight: height,
+          reducedMotion: prefersReducedMotion,
+          rendererMaxTextureSize: renderer.capabilities.maxTextureSize,
+          supportsHighpFragment: renderer.capabilities.getMaxPrecision('highp') === 'highp'
+        });
+        syncGatewayQuality(nextGatewayVfxQuality, nextPixelRatio);
       };
 
       let previousFrameTime = performance.now();
       let visibleElapsed = 0;
       let pageVisible = !document.hidden;
-      visibilityChangeHandler = () => {
-        pageVisible = !document.hidden;
-        previousFrameTime = performance.now();
-      };
-      document.addEventListener('visibilitychange', visibilityChangeHandler);
       const titleRestPitch = THREE.MathUtils.degToRad(-2.1);
       const gatewayWorldPosition = new THREE.Vector3();
       const gatewayProjectedPosition = new THREE.Vector3();
+      const pointerProjectionScratch = createGatewayPointerProjectionScratch();
+      const pointerProjection: GatewayPointerProjection = { x: 0, y: 0, valid: false };
+      const pointerLocal = new THREE.Vector2();
+      const pointerDirection = new THREE.Vector2(1, 0);
+      let pointerProjectionInfluence = 0;
       let gatewayProximity = 0;
       let gatewayPulsePhase = 0.42;
       let gatewayFlowPhase = 0;
       let handledActivationSequence = gatewayActivationSequenceRef.current;
-      let surgeElapsed: number = titleSceneSpec.gateway.surgeDurationSeconds;
-      const gatewayMaterials = [galaxy.discMaterial, galaxy.coreMaterial];
-
+      let surgeElapsed: number = gatewayActivationSpec.durationSeconds;
+      const gatewayResponse: GatewayVfxResponse = {
+        proximity: 0,
+        proximitySquared: 0,
+        proximityCubed: 0,
+        brightness: 0.5,
+        rayThickness: 1,
+        orbitSpeed: 0.18,
+        turbulence: 0.025,
+        pointerBend: 0,
+        localDistortion: 0,
+        particleSpeed: 0.22,
+        highlightSpeed: 0.12,
+        eyeFocus: 0
+      };
+      const pointerGatewayResponse: GatewayVfxResponse = {
+        proximity: 0,
+        proximitySquared: 0,
+        proximityCubed: 0,
+        brightness: 0.5,
+        rayThickness: 1,
+        orbitSpeed: 0.18,
+        turbulence: 0.025,
+        pointerBend: 0,
+        localDistortion: 0,
+        particleSpeed: 0.22,
+        highlightSpeed: 0.12,
+        eyeFocus: 0
+      };
+      const activationEnvelope: GatewayActivationEnvelope = {
+        phase: 'idle',
+        progress: 1,
+        intake: 0,
+        focus: 0,
+        rupture: 0,
+        settle: 0,
+        compression: 0,
+        eyeFocus: 0,
+        shockwave: 0,
+        distortion: 0,
+        particlePeel: 0,
+        outerLuminanceScale: 1
+      };
+      const gatewayFrameState: GatewayVfxFrameState = {
+        time: 0,
+        delta: 0,
+        proximity: 0,
+        pulsePhase: gatewayPulsePhase,
+        flowPhase: gatewayFlowPhase,
+        response: gatewayResponse,
+        activation: activationEnvelope,
+        pointerLocal,
+        pointerDirection,
+        pointerValid: false,
+        reducedMotion: prefersReducedMotion
+      };
       const render = () => {
+        animationFrame = 0;
         if (!renderer || !scene || disposed) {
           return;
         }
@@ -1107,7 +1246,6 @@ export function WarpkeepTitleScreen3D() {
         keyLight.position.y = 5.8 + pointerCurrent.y * 1.15;
         violetRimLight.position.x = pointerCurrent.x * 2.6;
         violetRimLight.position.y = 1.3 + pointerCurrent.y * 1.2;
-        violetRimLight.intensity = 24 + Math.sin(shaderTime * 0.36) * 3;
         neutralFillLight.position.x = -6 + pointerCurrent.x * 0.65;
 
         camera.position.x =
@@ -1151,14 +1289,65 @@ export function WarpkeepTitleScreen3D() {
         const gatewayTarget = !prefersReducedMotion && gatewayFocusedRef.current
           ? Math.max(pointerProximity, 0.72)
           : pointerProximity;
-        const gatewayResponse = gatewayTarget > gatewayProximity
+        const gatewayDampingResponse = gatewayTarget > gatewayProximity
           ? titleSceneSpec.gateway.proximityRiseResponse
           : titleSceneSpec.gateway.proximitySettleResponse;
         gatewayProximity = prefersReducedMotion
           ? 0
-          : dampValue(gatewayProximity, gatewayTarget, dampingDelta, gatewayResponse);
+          : dampValue(gatewayProximity, gatewayTarget, dampingDelta, gatewayDampingResponse);
 
-        const gatewayActivity = gatewayProximity * gatewayProximity;
+        if (!prefersReducedMotion && pointerScreen.active) {
+          projectGatewayPointerToDisc(
+            pointerCurrent.x,
+            pointerCurrent.y,
+            camera,
+            galaxy.disc,
+            galaxy.spinGroup,
+            titleSceneSpec.galaxy.radius,
+            pointerProjection,
+            pointerProjectionScratch
+          );
+        } else {
+          pointerProjection.x = 0;
+          pointerProjection.y = 0;
+          pointerProjection.valid = false;
+        }
+        const projectedX = pointerProjection.valid
+          ? THREE.MathUtils.clamp(pointerProjection.x, -1.25, 1.25)
+          : 0;
+        const projectedY = pointerProjection.valid
+          ? THREE.MathUtils.clamp(pointerProjection.y, -1.25, 1.25)
+          : 0;
+        pointerLocal.x = dampValue(pointerLocal.x, projectedX, dampingDelta, 9.2);
+        pointerLocal.y = dampValue(pointerLocal.y, projectedY, dampingDelta, 9.2);
+        pointerProjectionInfluence = dampValue(
+          pointerProjectionInfluence,
+          pointerProjection.valid ? 1 : 0,
+          dampingDelta,
+          pointerProjection.valid ? 8.4 : 4.2
+        );
+        const pointerLocalLength = pointerLocal.length();
+        if (pointerLocalLength > 0.0001) {
+          pointerDirection.set(
+            pointerLocal.x / pointerLocalLength,
+            pointerLocal.y / pointerLocalLength
+          );
+        }
+
+        calculateGatewayVfxResponse(
+          gatewayProximity,
+          activeGatewayVfxQuality,
+          gatewayResponse
+        );
+        calculateGatewayVfxResponse(
+          pointerProximity,
+          activeGatewayVfxQuality,
+          pointerGatewayResponse
+        );
+        gatewayResponse.pointerBend = pointerGatewayResponse.pointerBend;
+        gatewayResponse.localDistortion = pointerGatewayResponse.localDistortion;
+
+        const gatewayActivity = gatewayResponse.proximitySquared;
         gatewayPulsePhase += visibleDelta * THREE.MathUtils.lerp(
           (Math.PI * 2) / titleSceneSpec.gateway.idlePulsePeriodSeconds,
           (Math.PI * 2) / titleSceneSpec.gateway.activePulsePeriodSeconds,
@@ -1172,40 +1361,91 @@ export function WarpkeepTitleScreen3D() {
 
         if (handledActivationSequence !== gatewayActivationSequenceRef.current) {
           handledActivationSequence = gatewayActivationSequenceRef.current;
-          surgeElapsed = 0;
+          surgeElapsed = prefersReducedMotion ? 0.16 : 0;
         } else if (!prefersReducedMotion) {
           surgeElapsed = Math.min(
-            titleSceneSpec.gateway.surgeDurationSeconds,
+            gatewayActivationSpec.durationSeconds,
             surgeElapsed + visibleDelta
           );
         }
-        const gatewaySurge = prefersReducedMotion
-          ? 0
-          : calculateActivationSurge(
-            surgeElapsed,
-            titleSceneSpec.gateway.surgeDurationSeconds
-          );
-        const gatewaySurgeProgress = THREE.MathUtils.clamp(
-          surgeElapsed / titleSceneSpec.gateway.surgeDurationSeconds,
-          0,
-          1
+        calculateGatewayActivationEnvelope(surgeElapsed, activationEnvelope);
+        const pointerValid = pointerProjectionInfluence > 0.015 &&
+          pointerProximity > gatewayVfxResponseSpec.pointerBendThreshold;
+        const localDistortion = Math.max(
+          gatewayResponse.localDistortion,
+          activationEnvelope.distortion * (activeGatewayVfxQuality === 'high' ? 0.16 : 0.09)
+        );
+        const activeQualitySpec = gatewayVfxQualitySpecs[activeGatewayVfxQuality];
+        const discPointerValid = pointerValid && activeQualitySpec.pointerDistortionEnabled;
+        const starPointerValid = pointerValid && activeQualitySpec.starDistortionEnabled;
+        const discMaterial = galaxy.discMaterial;
+        discMaterial.uniforms.gatewayProximity.value = gatewayProximity;
+        discMaterial.uniforms.gatewayPulsePhase.value = gatewayPulsePhase;
+        discMaterial.uniforms.gatewayFlowPhase.value = gatewayFlowPhase;
+        discMaterial.uniforms.gatewaySurge.value = activationEnvelope.rupture;
+        discMaterial.uniforms.gatewaySurgeProgress.value = activationEnvelope.progress;
+        discMaterial.uniforms.reducedMotion.value = prefersReducedMotion ? 1 : 0;
+        discMaterial.uniforms.gatewayPointerLocal.value.copy(pointerLocal);
+        discMaterial.uniforms.gatewayPointerValid.value = discPointerValid ? 1 : 0;
+        discMaterial.uniforms.gatewayLocalDistortion.value = discPointerValid
+          ? localDistortion
+          : 0;
+        galaxy.dust.material.uniforms.gatewayPointerLocal.value.copy(pointerLocal);
+        galaxy.dust.material.uniforms.gatewayPointerValid.value = discPointerValid ? 1 : 0;
+        galaxy.dust.material.uniforms.gatewayLocalDistortion.value = discPointerValid
+          ? localDistortion
+          : 0;
+        galaxy.stars.material.uniforms.gatewayPointerLocal.value.copy(pointerLocal);
+        galaxy.stars.material.uniforms.gatewayPointerValid.value = starPointerValid ? 1 : 0;
+        galaxy.stars.material.uniforms.gatewayLocalDistortion.value = starPointerValid
+          ? localDistortion
+          : 0;
+        galaxy.discMaterial.uniforms.gatewayEyeFocus.value = Math.min(
+          1,
+          gatewayResponse.eyeFocus + activationEnvelope.eyeFocus * 0.55
         );
 
-        for (let materialIndex = 0; materialIndex < gatewayMaterials.length; materialIndex += 1) {
-          const material = gatewayMaterials[materialIndex];
-          material.uniforms.gatewayProximity.value = gatewayProximity;
-          material.uniforms.gatewayPulsePhase.value = gatewayPulsePhase;
-          material.uniforms.gatewayFlowPhase.value = gatewayFlowPhase;
-          material.uniforms.gatewaySurge.value = gatewaySurge;
-          material.uniforms.gatewaySurgeProgress.value = gatewaySurgeProgress;
-          material.uniforms.reducedMotion.value = prefersReducedMotion ? 1 : 0;
-        }
+        gatewayFrameState.time = shaderTime;
+        gatewayFrameState.delta = visibleDelta;
+        gatewayFrameState.proximity = gatewayProximity;
+        gatewayFrameState.pulsePhase = gatewayPulsePhase;
+        gatewayFrameState.flowPhase = gatewayFlowPhase;
+        gatewayFrameState.pointerValid = pointerValid;
+        gatewayFrameState.reducedMotion = prefersReducedMotion;
+        gatewayVfx?.update(gatewayFrameState);
+
+        violetRimLight.intensity = 19.5 + Math.sin(shaderTime * 0.36) * 2 +
+          gatewayResponse.brightness * 5 + activationEnvelope.rupture * 3.2;
         renderer.render(scene, camera);
 
-        if (!prefersReducedMotion) {
+        if (!prefersReducedMotion && pageVisible) {
           animationFrame = window.requestAnimationFrame(render);
         }
       };
+
+      reducedActivationRenderRef.current = () => {
+        if (!prefersReducedMotion || disposed) {
+          return;
+        }
+        window.clearTimeout(reducedActivationTimer);
+        render();
+        reducedActivationTimer = window.setTimeout(() => {
+          if (disposed || !prefersReducedMotion) {
+            return;
+          }
+          surgeElapsed = gatewayActivationSpec.durationSeconds;
+          render();
+        }, 180);
+      };
+
+      visibilityChangeHandler = () => {
+        pageVisible = !document.hidden;
+        previousFrameTime = performance.now();
+        if (pageVisible && !prefersReducedMotion && !animationFrame) {
+          animationFrame = window.requestAnimationFrame(render);
+        }
+      };
+      document.addEventListener('visibilitychange', visibilityChangeHandler);
 
       const handleResize = () => {
         resize();
@@ -1220,8 +1460,10 @@ export function WarpkeepTitleScreen3D() {
         }
 
         prefersReducedMotion = event.matches;
+        window.clearTimeout(reducedActivationTimer);
+        reducedActivationTimer = 0;
         handledActivationSequence = gatewayActivationSequenceRef.current;
-        surgeElapsed = titleSceneSpec.gateway.surgeDurationSeconds;
+        surgeElapsed = gatewayActivationSpec.durationSeconds;
         previousFrameTime = performance.now();
         if (prefersReducedMotion) {
           detachPointerInteraction();
@@ -1229,8 +1471,10 @@ export function WarpkeepTitleScreen3D() {
             window.cancelAnimationFrame(animationFrame);
             animationFrame = 0;
           }
+          resize();
           render();
         } else {
+          resize();
           attachPointerInteraction();
           if (!animationFrame) {
             animationFrame = window.requestAnimationFrame(render);

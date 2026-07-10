@@ -176,7 +176,7 @@ describe('Warpkeep continuous architectural glyph system', () => {
     expect(signedArea(glyph.outer)).toBeLessThan(0);
 
     const fillRatio = Math.abs(signedArea(glyph.outer)) / glyph.width;
-    expect(fillRatio).toBeGreaterThan(0.49);
+    expect(fillRatio).toBeGreaterThan(0.56);
     expect(fillRatio).toBeLessThan(0.72);
 
     const centerX = glyph.width * 0.5;
@@ -184,13 +184,35 @@ describe('Warpkeep continuous architectural glyph system', () => {
       .map((y) => spanContaining(glyph.outer, y, centerX));
     const averageUpperBodyWidth = upperBodyWidths.reduce((sum, width) => sum + width, 0) /
       upperBodyWidths.length;
-    expect(averageUpperBodyWidth).toBeGreaterThan(0.22);
+    expect(averageUpperBodyWidth).toBeGreaterThan(0.31);
 
     const lowerSupportWidths = [0.28, 0.3, 0.32]
       .map((y) => spanContaining(glyph.outer, y, centerX));
     const averageLowerSupportWidth = lowerSupportWidths.reduce((sum, width) => sum + width, 0) /
       lowerSupportWidths.length;
     expect(averageLowerSupportWidth).toBeGreaterThan(0.55);
+  });
+
+  it('builds the K around a broad, balanced structural junction instead of a needle point', () => {
+    const glyph = getBrutalistGlyph('K');
+    expect('parts' in glyph).toBe(false);
+    expect(glyph.holes).toHaveLength(0);
+    expectSimpleLoop(glyph.outer);
+    expect(signedArea(glyph.outer)).toBeLessThan(0);
+
+    const fillRatio = Math.abs(signedArea(glyph.outer)) / glyph.width;
+    expect(fillRatio).toBeGreaterThan(0.64);
+    expect(fillRatio).toBeLessThan(0.78);
+
+    const junctionWidths = [0.46, 0.5, 0.54]
+      .map((y) => spanContaining(glyph.outer, y, glyph.width * 0.5));
+    expect(Math.min(...junctionWidths)).toBeGreaterThan(0.56);
+
+    [0.2, 0.25, 0.3].forEach((y) => {
+      const lowerArmWidth = spanContaining(glyph.outer, y, glyph.width * 0.5);
+      const upperArmWidth = spanContaining(glyph.outer, 1 - y, glyph.width * 0.5);
+      expect(lowerArmWidth).toBeCloseTo(upperArmWidth, 8);
+    });
   });
 
   it('applies the validated optical spacing schedule', () => {

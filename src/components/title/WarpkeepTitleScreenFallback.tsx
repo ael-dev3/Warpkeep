@@ -214,7 +214,12 @@ export function WarpkeepTitleScreenFallback() {
         ))}
       </div>
       <div className="warpkeep-fallback-galaxy" aria-hidden="true">
-        <div ref={coreRef} className="warpkeep-fallback-galaxy-core" />
+        <div ref={coreRef} className="warpkeep-fallback-galaxy-core">
+          <span className="warpkeep-fallback-lens warpkeep-fallback-lens--upper" />
+          <span className="warpkeep-fallback-lens warpkeep-fallback-lens--lower" />
+          <span className="warpkeep-fallback-ray warpkeep-fallback-ray--primary" />
+          <span className="warpkeep-fallback-ray warpkeep-fallback-ray--secondary" />
+        </div>
       </div>
       <div className="warpkeep-fallback-title-stage">
         <h1 className="sr-only">{titleTheme.title}</h1>
