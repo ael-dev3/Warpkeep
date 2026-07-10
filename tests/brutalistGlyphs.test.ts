@@ -51,8 +51,19 @@ function segmentsIntersect(
 
 function expectSimpleLoop(points: ReadonlyArray<BrutalistGlyphPoint>) {
   expect(points.length).toBeGreaterThanOrEqual(3);
+  expect(Math.abs(signedArea(points))).toBeGreaterThan(1e-8);
+  expect(new Set(points.map(([x, y]) => `${x},${y}`)).size).toBe(points.length);
   for (let first = 0; first < points.length; first += 1) {
+    const previous = (first - 1 + points.length) % points.length;
     const firstNext = (first + 1) % points.length;
+    const [startX, startY] = points[first];
+    const [endX, endY] = points[firstNext];
+    expect(Math.hypot(endX - startX, endY - startY)).toBeGreaterThan(1e-6);
+    if (orientation(points[previous], points[first], points[firstNext]) === 0) {
+      const previousVector = [points[previous][0] - startX, points[previous][1] - startY] as const;
+      const nextVector = [endX - startX, endY - startY] as const;
+      expect(previousVector[0] * nextVector[0] + previousVector[1] * nextVector[1]).toBeLessThanOrEqual(0);
+    }
     for (let second = first + 1; second < points.length; second += 1) {
       const secondNext = (second + 1) % points.length;
       const adjacent = first === second || firstNext === second || secondNext === first;
@@ -64,6 +75,25 @@ function expectSimpleLoop(points: ReadonlyArray<BrutalistGlyphPoint>) {
       }
     }
   }
+}
+
+function scanlineSegments(points: ReadonlyArray<BrutalistGlyphPoint>, y: number) {
+  const crossings: number[] = [];
+  points.forEach(([startX, startY], index) => {
+    const [endX, endY] = points[(index + 1) % points.length];
+    if ((startY > y) !== (endY > y)) {
+      crossings.push(startX + ((endX - startX) * (y - startY)) / (endY - startY));
+    }
+  });
+  crossings.sort((left, right) => left - right);
+  return Array.from({ length: crossings.length / 2 }, (_, index) =>
+    [crossings[index * 2], crossings[index * 2 + 1]] as const
+  );
+}
+
+function spanContaining(points: ReadonlyArray<BrutalistGlyphPoint>, y: number, x: number) {
+  const segment = scanlineSegments(points, y).find(([start, end]) => start <= x && x <= end);
+  return segment ? segment[1] - segment[0] : 0;
 }
 
 function pointInsideLoop([x, y]: BrutalistGlyphPoint, points: ReadonlyArray<BrutalistGlyphPoint>) {
@@ -136,6 +166,31 @@ describe('Warpkeep continuous architectural glyph system', () => {
         expect(y).toBeLessThanOrEqual(1);
       });
     });
+  });
+
+  it('builds the W as a full, load-bearing monolith instead of a narrow center wedge', () => {
+    const glyph = getBrutalistGlyph('W');
+    expect('parts' in glyph).toBe(false);
+    expect(glyph.holes).toHaveLength(0);
+    expectSimpleLoop(glyph.outer);
+    expect(signedArea(glyph.outer)).toBeLessThan(0);
+
+    const fillRatio = Math.abs(signedArea(glyph.outer)) / glyph.width;
+    expect(fillRatio).toBeGreaterThan(0.49);
+    expect(fillRatio).toBeLessThan(0.72);
+
+    const centerX = glyph.width * 0.5;
+    const upperBodyWidths = [0.48, 0.52, 0.56, 0.6, 0.64]
+      .map((y) => spanContaining(glyph.outer, y, centerX));
+    const averageUpperBodyWidth = upperBodyWidths.reduce((sum, width) => sum + width, 0) /
+      upperBodyWidths.length;
+    expect(averageUpperBodyWidth).toBeGreaterThan(0.22);
+
+    const lowerSupportWidths = [0.28, 0.3, 0.32]
+      .map((y) => spanContaining(glyph.outer, y, centerX));
+    const averageLowerSupportWidth = lowerSupportWidths.reduce((sum, width) => sum + width, 0) /
+      lowerSupportWidths.length;
+    expect(averageLowerSupportWidth).toBeGreaterThan(0.55);
   });
 
   it('applies the validated optical spacing schedule', () => {
