@@ -1,0 +1,19 @@
+{
+  "archive": "warpkeep-main-menu-reference-2026-07-10",
+  "purpose": "Visual reference for future Warpkeep menu development",
+  "source": "Ael-provided Discord attachment",
+  "license": "CC0-1.0 under the repository project-owned reference-media policy",
+  "usage": "Reference only; not a runtime application asset",
+  "assets": [
+    {
+      "filename": "warpkeep-main-menu-reference.png",
+      "original_attachment_basename": "img_8be8dd61c97e.png",
+      "media_type": "image/png",
+      "bytes": 2653834,
+      "width": 1555,
+      "height": 1011,
+      "color_type": "8-bit RGB",
+      "sha256": "dc7ad4319cf8d37e3e127a0954ac9ed982ed37031ac672ef614f84311c10277c"
+    }
+  ]
+}

@@ -20,6 +20,7 @@ This includes, unless separately noted:
 - `public/audio/warpkeep-title-theme-b.mp3`
 - `docs/reference/factions/**`
 - `docs/reference/castles/**`
+- `docs/reference/menu/**`
 - generated/reference images, audio, contact sheets, archive notes, and manifests committed to this repository
 
 To the extent the CC0 public-domain dedication is not legally effective in a jurisdiction, the project owner grants everyone a perpetual, worldwide, royalty-free, non-exclusive, irrevocable license to use, copy, modify, publish, distribute, sublicense, sell, and create derivative works from those project-owned materials for any purpose.

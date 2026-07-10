@@ -110,6 +110,7 @@ npm run build
 
 - Official faction logos and metadata are archived under `docs/reference/factions/`.
 - Castle reference art is archived under `docs/reference/castles/` for future visual direction.
+- Menu composition and navigation references are archived under `docs/reference/menu/` for future menu development.
 
 ## SpacetimeDB direction
 
