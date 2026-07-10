@@ -57,9 +57,15 @@ describe('WarpkeepMainMenu', () => {
 
     enterRealm.focus();
     fireEvent.click(enterRealm);
-    expect(screen.getByRole('status', { name: '' }).textContent).toContain('Hegemony campaign');
+    const firstNotice = screen.getByRole('status', { name: '' });
+    expect(firstNotice.textContent).toContain('Hegemony campaign');
     expect(document.activeElement).toBe(enterRealm);
     expect(enterRealm.getAttribute('aria-describedby')).toBe('warpkeep-menu-notice-enter-realm');
+
+    fireEvent.click(enterRealm);
+    const refreshedNotice = screen.getByRole('status', { name: '' });
+    expect(refreshedNotice).not.toBe(firstNotice);
+    expect(refreshedNotice.textContent).toContain('Hegemony campaign');
 
     settings.focus();
     fireEvent.click(settings);

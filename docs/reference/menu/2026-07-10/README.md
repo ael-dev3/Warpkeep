@@ -1,6 +1,6 @@
 # Hegemony main-menu archive and runtime record — 2026-07-10
 
-This directory preserves the Ael-provided menu-development references byte-for-byte and records the runtime derivatives used by the title-to-Hegemony-menu milestone.
+This directory preserves the Ael-provided menu-development references byte-for-byte and records the runtime derivatives used by the title-to-Hegemony-menu milestone. The runtime record was last updated on 2026-07-11 when the clean 1080p source replaced the original 720p menu film.
 
 ![Warpkeep main-menu reference](warpkeep-main-menu-reference.png)
 
@@ -19,8 +19,9 @@ The composition reference guides the castle-left/open-right hierarchy, antique-g
 
 ## Runtime media decisions
 
-- The original film wrap was 7.62× the median ordinary frame-to-frame change at analysis resolution. The runtime derivative uses a tested one-second tail-to-head dissolve and begins at source 1.000 seconds; across three decoded loops, its boundary is about 67.7% less discontinuous with no frame-cadence drift.
-- The runtime film explicitly declares limited-range BT.709 primaries, transfer, and matrix metadata. Its poster is a color-managed first-frame WebP with an embedded sRGB profile, keeping the poster and first decoded video frame visually aligned across the tested Chromium and macOS decode paths.
+- The current film is derived from the clean maximum-coverage 1920×1080 source. Its raw wrap was 7.23568× the median ordinary frame-to-frame change at analysis resolution. The runtime begins at source 1.000 seconds and finishes with an exact-endpoint 24-frame linear tail-to-head blend whose final frame is 100% of the opening head. Its boundary is 66.405% less discontinuous, and a three-loop decode preserved all 1,011 frames at exact 24 fps cadence with identical boundaries and no drift.
+- The runtime film uses a CRF 20 slow H.264 High encode constrained to Level 4.1 and four reference frames for broad hardware-decoder compatibility. The 313 unchanged source-aligned frames scored VMAF 98.3015, SSIM 0.990383, and PSNR 37.9298 dB. It explicitly declares limited-range BT.709 primaries, transfer, and matrix metadata and places its index before the media payload for fast-start delivery.
+- Its poster is a color-managed 1920×1080 quality-84 WebP with an embedded sRGB profile. Against the first decoded video frame, it measured 2.332/255 RGB mean absolute error in Chromium and 2.173/255 through macOS ColorSync, keeping the fallback-to-film handoff visually aligned.
 - The “Sunset Hegemony” MP3 is copied byte-for-byte into `public/audio/`. Its final cadence completes before a quiet release; the audio director starts the standby source at 0.000 seconds when the outgoing source reaches 400.128 seconds and performs a 1.792-second equal-power overlap through 401.920 seconds.
 - Files in this archive remain documentation assets. The application loads only the copies and derivatives identified under `public/` in `manifest.json`.
 

@@ -207,6 +207,35 @@ describe('WarpkeepExperience', () => {
     expect(window.location.hash).toBe('');
   });
 
+  it('reprojects the reverse veil from the readied title after a viewport change', async () => {
+    window.history.replaceState({}, '', '/#menu');
+    vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.classList.contains('warpkeep-title-screen')) {
+        return rectangle(0, 0, 390, 844);
+      }
+      if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
+        return rectangle(150, 275, 90, 40);
+      }
+      if (this.classList.contains('warpkeep-menu-command')) {
+        return rectangle(40, 420, 310, 44);
+      }
+      if (this.classList.contains('warpkeep-menu-notice')) {
+        return rectangle(0, 0, 340, 92);
+      }
+      return rectangle(0, 0, 0, 0);
+    });
+    render(<WarpkeepExperience />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
+    await act(async () => vi.advanceTimersByTime(1));
+
+    const overlay = screen.getByTestId('warp-transition-overlay');
+    expect(overlay.style.getPropertyValue('--warp-origin-x')).toBe('195px');
+    expect(overlay.style.getPropertyValue('--warp-origin-y')).toBe('295px');
+  });
+
   it('honors the latest hash when history changes during an in-flight entry transition', async () => {
     const { container } = render(<WarpkeepExperience />);
     const gateway = await settleInitialTitle();

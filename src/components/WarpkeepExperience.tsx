@@ -251,6 +251,9 @@ export function WarpkeepExperience() {
     }
 
     const beginPreparedTransition = () => {
+      const projection = titleRef.current?.getGatewayProjection()
+        ?? fallbackGatewayProjection();
+      setGatewayOrigin(safeGatewayOrigin(projection));
       setReturnPreparing(false);
       dispatch({ type: 'request-title' });
     };
