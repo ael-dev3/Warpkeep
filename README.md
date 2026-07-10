@@ -6,7 +6,7 @@ Warpkeep is an open-source Farcaster-native strategy game where each player can 
 
 **Live demo:** https://ael-dev3.github.io/Warpkeep/
 
-Current visual experiment: the live demo is a pure Three.js **WARPKEEP** title screen built around custom continuous architectural letterforms instead of a font. Every glyph is one coherent, deeply extruded brutalist structure with carved counters, controlled ivory-mineral concrete, darker side planes, optical pair spacing, pointer-responsive perspective, and a slow physical light sweep. Behind it, a larger five-arm galaxy uses one shared particle-and-shader coordinate system: its softened gravitational core, lensing glow, dust, and spiral structure move together under perspective instead of behaving like a separate black-hole badge. The galaxy completes a stately rotation every five minutes and grows gradually toward a restrained maximum while the screen remains visible. Motion is disabled for reduced-motion preferences, while the existing two-track soundtrack remains randomly selected and loops with sound enabled by default; browsers that block audible autoplay resume playback from the first click, tap, or key press anywhere on the page. The public site remains title-only with no gameplay controls or prompts.
+Current visual experiment: the live demo is a pure Three.js **WARPKEEP** title screen built around custom continuous architectural letterforms instead of a font. Every glyph is one coherent, deeply extruded brutalist structure with carved counters, controlled ivory-mineral concrete, darker side planes, optical pair spacing, pointer-responsive perspective, and a slow physical light sweep. Behind it, a larger five-arm galaxy uses one shared particle-and-shader coordinate system: its softened gravitational core, lensing glow, dust, and spiral structure move together under perspective instead of behaving like a separate black-hole badge. The galaxy completes a stately rotation every five minutes and grows gradually toward a restrained maximum while the screen remains visible. Motion is disabled for reduced-motion preferences, while the existing two-track soundtrack remains randomly selected and loops with sound enabled by default; browsers that block audible autoplay resume playback from the first click, tap, or key press anywhere on the page. The public site remains title-only with an interactive development notice, but no playable game menu or permanent navigation UI yet.
 
 Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
@@ -54,7 +54,7 @@ A Farcaster-native strategy game where your FID becomes a kingdom.
 The current public experience:
 
 1. The live site shows only a cinematic **WARPKEEP** title screen.
-2. There is no public game entry button yet.
+2. The central gateway is accessible and interactive, but it currently shows only a development notice instead of opening a game menu.
 3. The local development scaffold still contains a mocked castle dashboard for future gameplay work.
 
 ## Local development
@@ -90,8 +90,8 @@ npm run build
 
 ## What is implemented now
 
-- Current Three.js title-screen experiment with unified custom brutalist glyph outlines, deeply extruded premium ivory concrete, optical wordmark spacing, pointer-responsive physical lighting, a large slowly rotating and gradually growing five-arm galaxy with an integrated gravitational core, defined stars and dust, reduced-motion handling, a matching continuous-outline WebGL fallback, two random looping soundtracks, and GitHub Pages deployment.
-- Public site is title-screen-only; no live game entry button is exposed yet.
+- Current Three.js title-screen experiment with unified custom brutalist glyph outlines, deeply extruded premium ivory concrete, optical wordmark spacing, pointer-responsive physical lighting, a large slowly rotating and gradually growing five-arm galaxy with an integrated gravitational core, defined stars and dust, reduced-motion handling, a matching continuous-outline WebGL fallback, two random looping soundtracks, and GitHub Pages deployment. The central warp rift now acts as an accessible interactive gateway, responding to pointer proximity with smooth purple energy and displaying a temporary development notice on activation.
+- Public site is title-screen-only; the gateway currently shows an under-development notice and does not navigate to a game menu.
 - Local development scaffold includes a castle dashboard with player identity, buildings, resources, queues, nearby castles, court report, and activity log.
 - Deterministic resource collection, upgrade queue, training queue, and scouting report functions.
 - Vitest tests for the core game loop.

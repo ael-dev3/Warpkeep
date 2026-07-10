@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WarpkeepTitleScreenFallback } from '../src/components/title/WarpkeepTitleScreenFallback';
 
@@ -48,5 +48,59 @@ describe('Warpkeep continuous-outline fallback', () => {
       Number(face.getAttribute('d')!.match(/^M ([\d.]+)/)?.[1])
     );
     firstMoveXs.slice(1).forEach((x, index) => expect(x).toBeGreaterThan(firstMoveXs[index]));
+  });
+
+  it('keeps a semantic core gateway outside the decorative aria-hidden galaxy', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
+        return {
+          x: 600,
+          y: 190,
+          left: 600,
+          top: 190,
+          right: 752,
+          bottom: 246,
+          width: 152,
+          height: 56,
+          toJSON: () => ({})
+        } as DOMRect;
+      }
+
+      if (this.classList.contains('warpkeep-title-screen')) {
+        return {
+          x: 0,
+          y: 0,
+          left: 0,
+          top: 0,
+          right: 1280,
+          bottom: 720,
+          width: 1280,
+          height: 720,
+          toJSON: () => ({})
+        } as DOMRect;
+      }
+
+      return {
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 0,
+        toJSON: () => ({})
+      } as DOMRect;
+    });
+
+    render(<WarpkeepTitleScreenFallback />);
+    const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
+    expect(button.closest('[aria-hidden="true"]')).toBeNull();
+    expect((button as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(button);
+    expect(screen.getByRole('status').textContent).toContain(
+      'The Warpkeep gateway is still under development. Return soon.'
+    );
   });
 });

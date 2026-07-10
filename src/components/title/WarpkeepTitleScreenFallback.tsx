@@ -1,3 +1,8 @@
+import { useCallback, useEffect, useRef } from 'react';
+import {
+  BlackHoleGateway,
+  type BlackHoleGatewayHandle
+} from './BlackHoleGateway';
 import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
 import {
   layoutBrutalistGlyphs,
@@ -5,6 +10,7 @@ import {
   type BrutalistGlyphPoint
 } from './brutalistGlyphs';
 import { titleTheme } from './titleTheme';
+import { titleSceneSpec } from './titleSceneSpec';
 
 const fallbackStars = Array.from({ length: 48 }, (_, index) => ({
   id: `fallback-star-${index}`,
@@ -116,8 +122,82 @@ function MonumentWordmark() {
 }
 
 export function WarpkeepTitleScreenFallback() {
+  const screenRef = useRef<HTMLElement>(null);
+  const coreRef = useRef<HTMLDivElement>(null);
+  const gatewayRef = useRef<BlackHoleGatewayHandle>(null);
+  const surgeTimerRef = useRef(0);
+
+  const positionGateway = useCallback(() => {
+    const screen = screenRef.current;
+    const core = coreRef.current;
+    if (!screen || !core) {
+      return;
+    }
+
+    const screenBounds = screen.getBoundingClientRect();
+    const coreBounds = core.getBoundingClientRect();
+    const width = screenBounds.width || screen.clientWidth || window.innerWidth;
+    const height = screenBounds.height || screen.clientHeight || window.innerHeight;
+    const centerX = coreBounds.left - screenBounds.left + coreBounds.width * 0.5;
+    const centerY = coreBounds.top - screenBounds.top + coreBounds.height * 0.5;
+    gatewayRef.current?.setProjectedPosition(
+      centerX,
+      centerY,
+      width,
+      height,
+      coreBounds.width > 0 && coreBounds.height > 0
+    );
+  }, []);
+
+  const handleGatewayActivate = useCallback(() => {
+    // Future: navigate to the Warpkeep game menu once that destination exists.
+    const screen = screenRef.current;
+    if (!screen) {
+      return;
+    }
+
+    window.clearTimeout(surgeTimerRef.current);
+    screen.dataset.gatewaySurging = 'false';
+    void screen.offsetWidth;
+    screen.dataset.gatewaySurging = 'true';
+    surgeTimerRef.current = window.setTimeout(() => {
+      screen.dataset.gatewaySurging = 'false';
+    }, titleSceneSpec.gateway.surgeDurationSeconds * 1_000);
+  }, []);
+
+  useEffect(() => {
+    const screen = screenRef.current;
+    const core = coreRef.current;
+    if (!screen || !core) {
+      return undefined;
+    }
+
+    let resizeObserver: ResizeObserver | null = null;
+    const frame = window.setTimeout(positionGateway, 0);
+    window.addEventListener('resize', positionGateway);
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(positionGateway);
+      resizeObserver.observe(screen);
+      resizeObserver.observe(core);
+    }
+    positionGateway();
+
+    return () => {
+      window.clearTimeout(frame);
+      window.clearTimeout(surgeTimerRef.current);
+      window.removeEventListener('resize', positionGateway);
+      resizeObserver?.disconnect();
+      gatewayRef.current?.setProjectedPosition(0, 0, 0, 0, false);
+    };
+  }, [positionGateway]);
+
   return (
-    <main className="warpkeep-title-screen warpkeep-title-screen--fallback" aria-label="Warpkeep title screen">
+    <main
+      ref={screenRef}
+      className="warpkeep-title-screen warpkeep-title-screen--fallback"
+      aria-label="Warpkeep title screen"
+      data-gateway-surging="false"
+    >
       <div className="warpkeep-fallback-stars" aria-hidden="true">
         {fallbackStars.map((star) => (
           <span
@@ -134,12 +214,17 @@ export function WarpkeepTitleScreenFallback() {
         ))}
       </div>
       <div className="warpkeep-fallback-galaxy" aria-hidden="true">
-        <div className="warpkeep-fallback-galaxy-core" />
+        <div ref={coreRef} className="warpkeep-fallback-galaxy-core" />
       </div>
       <div className="warpkeep-fallback-title-stage">
         <h1 className="sr-only">{titleTheme.title}</h1>
         <MonumentWordmark />
       </div>
+      <BlackHoleGateway
+        ref={gatewayRef}
+        onActivate={handleGatewayActivate}
+        autoDismissMs={titleSceneSpec.gateway.noticeDurationMs}
+      />
       <div className="warpkeep-title-vignette" aria-hidden="true" />
       <WarpkeepTitleSoundtrack />
     </main>
