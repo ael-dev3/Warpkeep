@@ -10,11 +10,10 @@ import {
 } from 'react';
 import { calculateGatewayNoticePosition } from './gatewayInteraction';
 
-const defaultNotice = 'The Warpkeep gateway is still under development. Return soon.';
 const defaultAutoDismissMs = 5_500;
 const noticeRelayoutThreshold = 8;
 
-type GatewayProjection = {
+export type GatewayProjection = {
   x: number;
   y: number;
   viewportWidth: number;
@@ -35,15 +34,19 @@ export type BlackHoleGatewayHandle = {
     viewportHeight: number,
     visible?: boolean
   ) => void;
+  getProjectedPosition: () => GatewayProjection;
+  focus: () => void;
 };
 
 export type BlackHoleGatewayProps = {
-  onActivate?: () => void;
+  onActivate?: (input: 'keyboard' | 'pointer') => void;
   onFocusChange?: (focused: boolean) => void;
+  onMeaningfulInteraction?: () => void;
   autoDismissMs?: number | null;
   accessibleLabel?: string;
-  notice?: string;
+  notice?: string | null;
   className?: string;
+  disabled?: boolean;
 };
 
 function joinClassNames(...classNames: Array<string | undefined>) {
@@ -55,10 +58,12 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     {
       onActivate,
       onFocusChange,
+      onMeaningfulInteraction,
       autoDismissMs = defaultAutoDismissMs,
       accessibleLabel = 'Enter Warpkeep',
-      notice = defaultNotice,
-      className
+      notice = null,
+      className,
+      disabled = false
     },
     forwardedRef
   ) {
@@ -76,6 +81,7 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
     const noticeSizeRef = useRef({ width: 0, height: 0 });
     const noticeLayoutAnchorRef = useRef({ x: Number.NaN, y: Number.NaN });
     const noticeOpenRef = useRef(false);
+    const disabledRef = useRef(disabled);
     const [noticeState, setNoticeState] = useState<GatewayNoticeState>({
       open: false,
       version: 0
@@ -164,8 +170,9 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
       if (anchorElement.hidden === projectionVisible) {
         anchorElement.hidden = !projectionVisible;
       }
-      if (buttonElement.disabled !== !projectionVisible) {
-        buttonElement.disabled = !projectionVisible;
+      const buttonDisabled = !projectionVisible || disabledRef.current;
+      if (buttonElement.disabled !== buttonDisabled) {
+        buttonElement.disabled = buttonDisabled;
       }
       if (anchorElement.dataset.visible !== visibilityValue) {
         anchorElement.dataset.visible = visibilityValue;
@@ -193,7 +200,22 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
       }
     }, [positionNotice]);
 
-    useImperativeHandle(forwardedRef, () => ({ setProjectedPosition }), [setProjectedPosition]);
+    const getProjectedPosition = useCallback(() => ({ ...projectionRef.current }), []);
+    const focus = useCallback(() => buttonRef.current?.focus(), []);
+
+    useImperativeHandle(
+      forwardedRef,
+      () => ({ setProjectedPosition, getProjectedPosition, focus }),
+      [focus, getProjectedPosition, setProjectedPosition]
+    );
+
+    useLayoutEffect(() => {
+      disabledRef.current = disabled;
+      const button = buttonRef.current;
+      if (button) {
+        button.disabled = disabled || !projectionRef.current.visible;
+      }
+    }, [disabled]);
 
     useLayoutEffect(() => {
       setProjectedPosition(0, 0, 0, 0, false);
@@ -208,27 +230,17 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
       setNoticeState((current) => current.open ? { ...current, open: false } : current);
     }, []);
 
-    const activateGateway = useCallback(() => {
-      noticeOpenRef.current = true;
-      setNoticeState((current) => ({ open: true, version: current.version + 1 }));
-      onActivate?.();
-    }, [onActivate]);
-
-    const handleButtonKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
-      if (event.key === 'Enter' && !event.repeat) {
-        event.preventDefault();
-        activateGateway();
-      } else if (event.key === ' ') {
-        event.preventDefault();
+    const activateGateway = useCallback((input: 'keyboard' | 'pointer') => {
+      if (disabledRef.current || !projectionRef.current.visible) {
+        return;
       }
-    }, [activateGateway]);
-
-    const handleButtonKeyUp = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
-      if (event.key === ' ') {
-        event.preventDefault();
-        activateGateway();
+      if (notice) {
+        noticeOpenRef.current = true;
+        setNoticeState((current) => ({ open: true, version: current.version + 1 }));
       }
-    }, [activateGateway]);
+      onMeaningfulInteraction?.();
+      onActivate?.(input);
+    }, [notice, onActivate, onMeaningfulInteraction]);
 
     useEffect(() => {
       if (!noticeState.open) {
@@ -304,11 +316,14 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
             aria-label={accessibleLabel}
             aria-controls={noticeState.open ? noticeId : undefined}
             aria-describedby={noticeState.open ? noticeId : undefined}
-            aria-expanded={noticeState.open}
-            onClick={activateGateway}
-            onKeyDown={handleButtonKeyDown}
-            onKeyUp={handleButtonKeyUp}
-            onFocus={() => onFocusChange?.(true)}
+            aria-expanded={notice ? noticeState.open : undefined}
+            onClick={(event) => activateGateway(event.detail === 0 ? 'keyboard' : 'pointer')}
+            onPointerDown={onMeaningfulInteraction}
+            onKeyDown={onMeaningfulInteraction}
+            onFocus={() => {
+              onMeaningfulInteraction?.();
+              onFocusChange?.(true);
+            }}
             onBlur={() => onFocusChange?.(false)}
           />
           {noticeState.open ? (

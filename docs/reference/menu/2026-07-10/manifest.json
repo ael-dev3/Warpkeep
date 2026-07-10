@@ -1,0 +1,63 @@
+{
+  "recordedAt": "2026-07-10",
+  "provenance": "Project-provided media supplied for the public Warpkeep repository; no third-party ownership claim is made by this manifest.",
+  "assets": [
+    {
+      "sourceFilename": "warpkeep_menu_loop_no_audio.mp4",
+      "sourceBytes": 5142079,
+      "sourceSha256": "270b4ecc7fa69519a29eb743786a8c69d5062f5fc454d82f2bfd8094698f0542",
+      "sourceWidth": 1280,
+      "sourceHeight": 720,
+      "sourceFramesPerSecond": 24,
+      "sourceDurationSeconds": 15.041667,
+      "sourceCodec": "H.264 High, yuv420p, progressive",
+      "sourceAudioStreams": 0,
+      "runtimeFilename": "public/video/warpkeep-menu-loop.mp4",
+      "runtimeBytes": 4439356,
+      "runtimeSha256": "75a6b3c8dd023f537b2b0889d0de0ee2ccd82483ec8913ea9626f0a2b3e5e303",
+      "width": 1280,
+      "height": 720,
+      "framesPerSecond": 24,
+      "durationSeconds": 14.041667,
+      "codec": "H.264 High, yuv420p limited-range BT.709, progressive",
+      "audioStreams": 0,
+      "derivation": "One-second end-to-head dissolve; timeline rotated to begin at source 1.000 seconds; CRF 18 slow encode; stream-copy tagging of limited-range BT.709 primaries, transfer, and matrix; faststart.",
+      "intendedUse": "Muted full-viewport Hegemony menu background"
+    },
+    {
+      "sourceFilename": "public/video/warpkeep-menu-loop.mp4 frame 0, color-managed BT.709 to sRGB",
+      "runtimeFilename": "public/images/menu/warpkeep-menu-poster.webp",
+      "runtimeBytes": 122328,
+      "runtimeSha256": "2280d6ef6b1f09e6b72d8b34dbecff2ee1e7e5c72dab17e1a8c8a22b9c01b53a",
+      "width": 1280,
+      "height": 720,
+      "codec": "WebP quality 82 with embedded sRGB ICC",
+      "intendedUse": "Immediate menu poster and video-failure fallback"
+    },
+    {
+      "sourceFilename": "Sunset Hegemony.mp3",
+      "sourceBytes": 9631066,
+      "sourceSha256": "ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917",
+      "runtimeFilename": "public/audio/warpkeep-menu-theme.mp3",
+      "runtimeBytes": 9631066,
+      "runtimeSha256": "ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917",
+      "sampleRateHz": 48000,
+      "channels": 2,
+      "durationSeconds": 401.919979,
+      "codec": "MPEG-1 Layer III, VBR",
+      "derivation": "None; original bytes preserved. Runtime overlap is scheduled in the audio director.",
+      "intendedUse": "Hegemony main-menu soundtrack"
+    },
+    {
+      "sourceFilename": "warpkeep-main-menu-reference.png",
+      "sourceBytes": 2653834,
+      "sourceSha256": "dc7ad4319cf8d37e3e127a0954ac9ed982ed37031ac672ef614f84311c10277c",
+      "runtimeFilename": null,
+      "repositoryFilename": "docs/reference/menu/2026-07-10/warpkeep-main-menu-reference.png",
+      "width": 1555,
+      "height": 1011,
+      "codec": "PNG",
+      "intendedUse": "Composition reference only; never rendered as the runtime menu"
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+.warp-transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  isolation: isolate;
+  pointer-events: auto;
+  contain: strict;
+  background:
+    radial-gradient(
+      ellipse at var(--warp-origin-x) var(--warp-origin-y),
+      rgba(126, 64, 190, 0.72) 0%,
+      rgba(63, 25, 105, 0.8) 10%,
+      rgba(17, 6, 35, 0.975) 34%,
+      rgba(3, 2, 10, 0.995) 72%,
+      #010106 100%
+    );
+  clip-path: circle(0vmax at var(--warp-origin-x) var(--warp-origin-y));
+  will-change: clip-path, opacity;
+}
+
+.warp-transition-overlay[data-motion="standard"] {
+  animation: warpkeepVeilPassage var(--warp-transition-duration) cubic-bezier(0.62, 0, 0.16, 1) both;
+}
+
+.warp-transition-overlay__depth,
+.warp-transition-overlay__ribbons {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: var(--warp-origin-x) var(--warp-origin-y);
+}
+
+.warp-transition-overlay__depth {
+  background:
+    radial-gradient(
+      circle at var(--warp-origin-x) var(--warp-origin-y),
+      transparent 0 3%,
+      rgba(210, 166, 255, 0.13) 3.5%,
+      transparent 5.5% 12%,
+      rgba(116, 59, 177, 0.1) 13%,
+      transparent 19% 100%
+    );
+  filter: blur(1.5px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: warpkeepVeilDepth var(--warp-transition-duration) cubic-bezier(0.44, 0, 0.18, 1) both;
+}
+
+.warp-transition-overlay__ribbons {
+  background: conic-gradient(
+    from 18deg at var(--warp-origin-x) var(--warp-origin-y),
+    transparent 0deg 11deg,
+    rgba(170, 102, 230, 0.08) 16deg,
+    transparent 22deg 53deg,
+    rgba(224, 190, 255, 0.075) 58deg,
+    transparent 62deg 121deg,
+    rgba(95, 39, 157, 0.11) 126deg,
+    transparent 133deg 214deg,
+    rgba(182, 113, 238, 0.07) 219deg,
+    transparent 225deg 360deg
+  );
+  -webkit-mask-image: radial-gradient(
+    circle at var(--warp-origin-x) var(--warp-origin-y),
+    transparent 0 4%,
+    #000 7% 68%,
+    transparent 88%
+  );
+  mask-image: radial-gradient(
+    circle at var(--warp-origin-x) var(--warp-origin-y),
+    transparent 0 4%,
+    #000 7% 68%,
+    transparent 88%
+  );
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation: warpkeepVeilRibbons var(--warp-transition-duration) cubic-bezier(0.54, 0.02, 0.18, 1) both;
+}
+
+.warp-transition-overlay[data-direction="to-title"] .warp-transition-overlay__ribbons {
+  animation-direction: reverse;
+}
+
+.warp-transition-overlay__cover-signal {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  animation: warpkeepVeilCoverSignal 1ms linear var(--warp-cover-at) both;
+}
+
+.warp-transition-overlay[data-motion="reduced"] {
+  clip-path: none;
+  animation: warpkeepVeilReducedPassage var(--warp-transition-duration) ease-in-out both;
+}
+
+.warp-transition-overlay[data-motion="reduced"] .warp-transition-overlay__depth,
+.warp-transition-overlay[data-motion="reduced"] .warp-transition-overlay__ribbons {
+  display: none;
+}
+
+@keyframes warpkeepVeilPassage {
+  0% {
+    clip-path: circle(0vmax at var(--warp-origin-x) var(--warp-origin-y));
+  }
+  12% {
+    clip-path: circle(3.5vmax at var(--warp-origin-x) var(--warp-origin-y));
+  }
+  34% {
+    clip-path: circle(27vmax at var(--warp-origin-x) var(--warp-origin-y));
+  }
+  62%, 70% {
+    clip-path: circle(180vmax at var(--warp-origin-x) var(--warp-origin-y));
+  }
+  100% {
+    clip-path: circle(0vmax at var(--warp-origin-x) var(--warp-origin-y));
+  }
+}
+
+@keyframes warpkeepVeilDepth {
+  0% { opacity: 0; transform: scale(0.36); }
+  24% { opacity: 0.82; }
+  62% { opacity: 0.4; transform: scale(1.08); }
+  100% { opacity: 0; transform: scale(1.32); }
+}
+
+@keyframes warpkeepVeilRibbons {
+  0% { opacity: 0; transform: rotate(-16deg) scale(0.48); }
+  22% { opacity: 0.64; }
+  62% { opacity: 0.22; transform: rotate(28deg) scale(1.16); }
+  100% { opacity: 0; transform: rotate(42deg) scale(1.34); }
+}
+
+@keyframes warpkeepVeilReducedPassage {
+  0%, 100% { opacity: 0; }
+  48%, 58% { opacity: 1; }
+}
+
+@keyframes warpkeepVeilCoverSignal {
+  from { opacity: 0; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .warp-transition-overlay__depth,
+  .warp-transition-overlay__ribbons {
+    filter: none;
+  }
+}

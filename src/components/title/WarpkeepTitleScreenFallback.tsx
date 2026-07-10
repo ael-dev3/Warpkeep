@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useRef } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef
+} from 'react';
 import {
   BlackHoleGateway,
   type BlackHoleGatewayHandle
 } from './BlackHoleGateway';
-import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
 import {
   layoutBrutalistGlyphs,
   type BrutalistGlyphDefinition,
@@ -11,6 +16,11 @@ import {
 } from './brutalistGlyphs';
 import { titleTheme } from './titleTheme';
 import { titleSceneSpec } from './titleSceneSpec';
+import {
+  fallbackGatewayProjection,
+  type WarpkeepTitleScreenHandle,
+  type WarpkeepTitleScreenProps
+} from './titleScreenTypes';
 
 const fallbackStars = Array.from({ length: 48 }, (_, index) => ({
   id: `fallback-star-${index}`,
@@ -121,11 +131,26 @@ function MonumentWordmark() {
   );
 }
 
-export function WarpkeepTitleScreenFallback() {
+export const WarpkeepTitleScreenFallback = forwardRef<
+  WarpkeepTitleScreenHandle,
+  WarpkeepTitleScreenProps
+>(function WarpkeepTitleScreenFallback(
+  {
+    phase = 'active',
+    onRequestEnterMenu,
+    onReady,
+    onMeaningfulInteraction
+  },
+  forwardedRef
+) {
   const screenRef = useRef<HTMLElement>(null);
   const coreRef = useRef<HTMLDivElement>(null);
   const gatewayRef = useRef<BlackHoleGatewayHandle>(null);
   const surgeTimerRef = useRef(0);
+  const entryRequestedRef = useRef(false);
+  const readyNotifiedRef = useRef(false);
+  const callbacksRef = useRef({ onRequestEnterMenu, onReady, onMeaningfulInteraction });
+  callbacksRef.current = { onRequestEnterMenu, onReady, onMeaningfulInteraction };
 
   const positionGateway = useCallback(() => {
     const screen = screenRef.current;
@@ -147,23 +172,42 @@ export function WarpkeepTitleScreenFallback() {
       height,
       coreBounds.width > 0 && coreBounds.height > 0
     );
+    if (!readyNotifiedRef.current && coreBounds.width > 0 && coreBounds.height > 0) {
+      readyNotifiedRef.current = true;
+      callbacksRef.current.onReady?.();
+    }
   }, []);
 
-  const handleGatewayActivate = useCallback(() => {
-    // Future: navigate to the Warpkeep game menu once that destination exists.
-    const screen = screenRef.current;
-    if (!screen) {
+  const requestEnter = useCallback((input: 'keyboard' | 'pointer') => {
+    if (entryRequestedRef.current || phase !== 'active') {
       return;
     }
-
-    window.clearTimeout(surgeTimerRef.current);
-    screen.dataset.gatewaySurging = 'false';
-    void screen.offsetWidth;
-    screen.dataset.gatewaySurging = 'true';
-    surgeTimerRef.current = window.setTimeout(() => {
+    entryRequestedRef.current = true;
+    const screen = screenRef.current;
+    if (screen) {
+      window.clearTimeout(surgeTimerRef.current);
       screen.dataset.gatewaySurging = 'false';
-    }, titleSceneSpec.gateway.surgeDurationSeconds * 1_000);
-  }, []);
+      void screen.offsetWidth;
+      screen.dataset.gatewaySurging = 'true';
+      surgeTimerRef.current = window.setTimeout(() => {
+        screen.dataset.gatewaySurging = 'false';
+      }, titleSceneSpec.gateway.surgeDurationSeconds * 1_000);
+    }
+    callbacksRef.current.onMeaningfulInteraction?.();
+    const projection = gatewayRef.current?.getProjectedPosition() ?? fallbackGatewayProjection();
+    callbacksRef.current.onRequestEnterMenu?.(
+      projection.visible ? projection : fallbackGatewayProjection(),
+      input
+    );
+  }, [phase]);
+
+  useImperativeHandle(forwardedRef, () => ({
+    requestEnter,
+    focusGateway: () => gatewayRef.current?.focus(),
+    getGatewayProjection: () => (
+      gatewayRef.current?.getProjectedPosition() ?? fallbackGatewayProjection()
+    )
+  }), [requestEnter]);
 
   useEffect(() => {
     const screen = screenRef.current;
@@ -197,6 +241,7 @@ export function WarpkeepTitleScreenFallback() {
       className="warpkeep-title-screen warpkeep-title-screen--fallback"
       aria-label="Warpkeep title screen"
       data-gateway-surging="false"
+      data-title-phase={phase}
     >
       <div className="warpkeep-fallback-stars" aria-hidden="true">
         {fallbackStars.map((star) => (
@@ -227,11 +272,11 @@ export function WarpkeepTitleScreenFallback() {
       </div>
       <BlackHoleGateway
         ref={gatewayRef}
-        onActivate={handleGatewayActivate}
-        autoDismissMs={titleSceneSpec.gateway.noticeDurationMs}
+        onActivate={requestEnter}
+        onMeaningfulInteraction={onMeaningfulInteraction}
+        disabled={phase !== 'active'}
       />
       <div className="warpkeep-title-vignette" aria-hidden="true" />
-      <WarpkeepTitleSoundtrack />
     </main>
   );
-}
+});

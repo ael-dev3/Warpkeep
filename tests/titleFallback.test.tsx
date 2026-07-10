@@ -59,6 +59,7 @@ describe('Warpkeep continuous-outline fallback', () => {
   });
 
   it('keeps a semantic core gateway outside the decorative aria-hidden galaxy', () => {
+    const onRequestEnterMenu = vi.fn();
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
         return {
@@ -101,15 +102,23 @@ describe('Warpkeep continuous-outline fallback', () => {
       } as DOMRect;
     });
 
-    const { container } = render(<WarpkeepTitleScreenFallback />);
+    const { container } = render(
+      <WarpkeepTitleScreenFallback onRequestEnterMenu={onRequestEnterMenu} />
+    );
     const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
     expect(button.closest('[aria-hidden="true"]')).toBeNull();
     expect((button as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(button);
     expect(container.querySelector('.warpkeep-title-screen')?.getAttribute('data-gateway-surging')).toBe('true');
-    expect(screen.getByRole('status').textContent).toContain(
-      'The Warpkeep gateway is still under development. Return soon.'
-    );
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(onRequestEnterMenu).toHaveBeenCalledTimes(1);
+    expect(onRequestEnterMenu.mock.calls[0][0]).toMatchObject({
+      x: 676,
+      y: 218,
+      viewportWidth: 1280,
+      viewportHeight: 720,
+      visible: true
+    });
   });
 });

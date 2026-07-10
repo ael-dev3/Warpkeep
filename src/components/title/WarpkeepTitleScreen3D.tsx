@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState
+} from 'react';
 import * as THREE from 'three';
 import {
   BlackHoleGateway,
   type BlackHoleGatewayHandle
 } from './BlackHoleGateway';
 import { WarpkeepTitleScreenFallback } from './WarpkeepTitleScreenFallback';
-import { WarpkeepTitleSoundtrack } from './WarpkeepTitleSoundtrack';
 import { layoutBrutalistGlyphs } from './brutalistGlyphs';
 import {
   calculateGatewayInteractionRadius,
@@ -37,6 +43,11 @@ import { createBrutalistGlyphGeometry } from './titleGeometry';
 import { createConcreteTextures, type ConcreteTextureSet } from './titleTextures';
 import { calculateTitleResponsiveLayout } from './titleLayout';
 import { calculateGalaxyGrowth, createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
+import {
+  fallbackGatewayProjection,
+  type WarpkeepTitleScreenHandle,
+  type WarpkeepTitleScreenProps
+} from './titleScreenTypes';
 import './WarpkeepTitleScreen.css';
 
 type PointLayer = {
@@ -717,20 +728,61 @@ function disposeScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, texture
   renderer.dispose();
 }
 
-export function WarpkeepTitleScreen3D() {
+export const WarpkeepTitleScreen3D = forwardRef<
+  WarpkeepTitleScreenHandle,
+  WarpkeepTitleScreenProps
+>(function WarpkeepTitleScreen3D(
+  {
+    phase = 'active',
+    onRequestEnterMenu,
+    onReady,
+    onMeaningfulInteraction
+  },
+  forwardedRef
+) {
   const screenRef = useRef<HTMLElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const gatewayRef = useRef<BlackHoleGatewayHandle>(null);
+  const fallbackRef = useRef<WarpkeepTitleScreenHandle>(null);
   const gatewayActivationSequenceRef = useRef(0);
   const gatewayFocusedRef = useRef(false);
   const reducedActivationRenderRef = useRef<(() => void) | null>(null);
+  const phaseRef = useRef(phase);
+  const entryRequestedRef = useRef(false);
+  const readyNotifiedRef = useRef(false);
+  const callbacksRef = useRef({ onRequestEnterMenu, onReady, onMeaningfulInteraction });
   const [fallback, setFallback] = useState(false);
+  phaseRef.current = phase;
+  callbacksRef.current = { onRequestEnterMenu, onReady, onMeaningfulInteraction };
 
-  const handleGatewayActivate = useCallback(() => {
-    // Future: navigate to the Warpkeep game menu once that destination exists.
+  const requestEnter = useCallback((input: 'keyboard' | 'pointer') => {
+    if (fallbackRef.current) {
+      fallbackRef.current.requestEnter(input);
+      return;
+    }
+    if (entryRequestedRef.current || phaseRef.current !== 'active') {
+      return;
+    }
+    entryRequestedRef.current = true;
     gatewayActivationSequenceRef.current += 1;
     reducedActivationRenderRef.current?.();
+    callbacksRef.current.onMeaningfulInteraction?.();
+    const projection = gatewayRef.current?.getProjectedPosition() ?? fallbackGatewayProjection();
+    callbacksRef.current.onRequestEnterMenu?.(
+      projection.visible ? projection : fallbackGatewayProjection(),
+      input
+    );
   }, []);
+
+  useImperativeHandle(forwardedRef, () => ({
+    requestEnter,
+    focusGateway: () => (fallbackRef.current?.focusGateway() ?? gatewayRef.current?.focus()),
+    getGatewayProjection: () => (
+      fallbackRef.current?.getGatewayProjection() ??
+      gatewayRef.current?.getProjectedPosition() ??
+      fallbackGatewayProjection()
+    )
+  }), [requestEnter]);
 
   const handleGatewayFocusChange = useCallback((focused: boolean) => {
     gatewayFocusedRef.current = focused;
@@ -858,7 +910,7 @@ export function WarpkeepTitleScreen3D() {
         }
 
         pointerMoveHandler = (event: PointerEvent) => {
-          if (!isMousePointerType(event.pointerType)) {
+          if (phaseRef.current !== 'active' || !isMousePointerType(event.pointerType)) {
             return;
           }
           const normalized = normalizePointerPosition(
@@ -996,6 +1048,7 @@ export function WarpkeepTitleScreen3D() {
       let cameraTargetY = -0.42;
       let titleRestYaw = THREE.MathUtils.degToRad(-1.1);
       let cameraDriftX = 0.1;
+      let titleLayoutScale = 1;
       let viewportWidth = initialWidth;
       let viewportHeight = initialHeight;
       let gatewayInteractionRadius = THREE.MathUtils.clamp(
@@ -1048,7 +1101,8 @@ export function WarpkeepTitleScreen3D() {
           titleVisibleWidth,
           title.safeWidth
         );
-        title.group.scale.setScalar(titleLayout.scale);
+        titleLayoutScale = titleLayout.scale;
+        title.group.scale.setScalar(titleLayoutScale);
         titleBaseY = titleLayout.baseY;
         cameraTargetY = titleLayout.cameraTargetY;
         titleRestYaw = titleLayout.restYawRadians;
@@ -1113,6 +1167,7 @@ export function WarpkeepTitleScreen3D() {
       let gatewayFlowPhase = 0;
       let handledActivationSequence = gatewayActivationSequenceRef.current;
       let surgeElapsed: number = gatewayActivationSpec.durationSeconds;
+      let departureStartedAt: number | null = null;
       const gatewayResponse: GatewayVfxResponse = {
         proximity: 0,
         proximitySquared: 0,
@@ -1183,6 +1238,21 @@ export function WarpkeepTitleScreen3D() {
         const dampingDelta = Math.min(0.05, visibleDelta);
         visibleElapsed += visibleDelta;
         const shaderTime = prefersReducedMotion ? 7.5 : visibleElapsed;
+        const departing = phaseRef.current === 'departing';
+        if (departing && departureStartedAt === null) {
+          departureStartedAt = visibleElapsed;
+        }
+        if (departing) {
+          pointerTarget.x = 0;
+          pointerTarget.y = 0;
+          pointerScreen.active = false;
+        } else if (!departing) {
+          departureStartedAt = null;
+        }
+        const departureProgress = departureStartedAt === null || prefersReducedMotion
+          ? 0
+          : THREE.MathUtils.clamp((visibleElapsed - departureStartedAt) / 1.45, 0, 1);
+        const warpPull = departureProgress * departureProgress * (3 - 2 * departureProgress);
 
         if (!prefersReducedMotion) {
           pointerCurrent.x = dampValue(
@@ -1210,7 +1280,9 @@ export function WarpkeepTitleScreen3D() {
 
         galaxy.spinGroup.rotation.z = -0.13 +
           visibleElapsed * (Math.PI * 2) / titleSceneSpec.galaxy.rotationPeriodSeconds;
-        galaxy.growthGroup.scale.setScalar(calculateGalaxyGrowth(visibleElapsed));
+        galaxy.growthGroup.scale.setScalar(
+          calculateGalaxyGrowth(visibleElapsed) * (1 + warpPull * 0.92)
+        );
         galaxy.parallaxGroup.rotation.x =
           pointerCurrent.y * titleSceneSpec.interaction.galaxyRotationX;
         galaxy.parallaxGroup.rotation.y =
@@ -1221,6 +1293,7 @@ export function WarpkeepTitleScreen3D() {
         galaxy.group.position.y =
           galaxyBaseY + pointerCurrent.y * titleSceneSpec.interaction.galaxyTravelY;
 
+        title.group.scale.setScalar(titleLayoutScale * (1 - warpPull * 0.08));
         title.group.rotation.y =
           titleRestYaw + Math.sin(visibleElapsed * 0.1) * 0.008 +
           pointerCurrent.x * titleSceneSpec.interaction.titleRotationY;
@@ -1254,10 +1327,15 @@ export function WarpkeepTitleScreen3D() {
         camera.position.y =
           0.18 + Math.cos(visibleElapsed * 0.046) * 0.04 +
           pointerCurrent.y * titleSceneSpec.interaction.cameraTravelY;
+        camera.position.z = 10.8 - warpPull * 17.5;
         camera.lookAt(
           pointerCurrent.x * titleSceneSpec.interaction.cameraTargetX,
-          cameraTargetY + pointerCurrent.y * titleSceneSpec.interaction.cameraTargetY,
-          -1.4
+          THREE.MathUtils.lerp(
+            cameraTargetY + pointerCurrent.y * titleSceneSpec.interaction.cameraTargetY,
+            galaxyBaseY,
+            warpPull * 0.68
+          ),
+          THREE.MathUtils.lerp(-1.4, -18, warpPull * 0.74)
         );
 
         scene.updateMatrixWorld(true);
@@ -1276,6 +1354,10 @@ export function WarpkeepTitleScreen3D() {
           viewportHeight,
           gatewayVisible
         );
+        if (gatewayVisible && !readyNotifiedRef.current) {
+          readyNotifiedRef.current = true;
+          callbacksRef.current.onReady?.();
+        }
 
         const pointerProximity = !prefersReducedMotion && pointerScreen.active
           ? calculateGatewayProximity(
@@ -1498,21 +1580,34 @@ export function WarpkeepTitleScreen3D() {
   }, []);
 
   if (fallback) {
-    return <WarpkeepTitleScreenFallback />;
+    return (
+      <WarpkeepTitleScreenFallback
+        ref={fallbackRef}
+        phase={phase}
+        onRequestEnterMenu={onRequestEnterMenu}
+        onReady={onReady}
+        onMeaningfulInteraction={onMeaningfulInteraction}
+      />
+    );
   }
 
   return (
-    <main ref={screenRef} className="warpkeep-title-screen" aria-label="Warpkeep title screen">
+    <main
+      ref={screenRef}
+      className="warpkeep-title-screen"
+      aria-label="Warpkeep title screen"
+      data-title-phase={phase}
+    >
       <div ref={mountRef} className="warpkeep-title-canvas-shell" aria-hidden="true" />
       <h1 className="sr-only">{titleSceneSpec.title.text}</h1>
       <BlackHoleGateway
         ref={gatewayRef}
-        onActivate={handleGatewayActivate}
+        onActivate={requestEnter}
         onFocusChange={handleGatewayFocusChange}
-        autoDismissMs={titleSceneSpec.gateway.noticeDurationMs}
+        onMeaningfulInteraction={onMeaningfulInteraction}
+        disabled={phase !== 'active'}
       />
       <div className="warpkeep-title-vignette" aria-hidden="true" />
-      <WarpkeepTitleSoundtrack />
     </main>
   );
-}
+});
