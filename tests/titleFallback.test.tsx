@@ -50,6 +50,14 @@ describe('Warpkeep continuous-outline fallback', () => {
     firstMoveXs.slice(1).forEach((x, index) => expect(x).toBeGreaterThan(firstMoveXs[index]));
   });
 
+  it('uses lightweight eye-lens crescents and localized rays in the decorative fallback', () => {
+    const { container } = render(<WarpkeepTitleScreenFallback />);
+    const decorativeGalaxy = container.querySelector('.warpkeep-fallback-galaxy');
+    expect(decorativeGalaxy?.getAttribute('aria-hidden')).toBe('true');
+    expect(decorativeGalaxy?.querySelectorAll('.warpkeep-fallback-lens')).toHaveLength(2);
+    expect(decorativeGalaxy?.querySelectorAll('.warpkeep-fallback-ray')).toHaveLength(2);
+  });
+
   it('keeps a semantic core gateway outside the decorative aria-hidden galaxy', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       if (this.classList.contains('warpkeep-fallback-galaxy-core')) {
@@ -93,12 +101,13 @@ describe('Warpkeep continuous-outline fallback', () => {
       } as DOMRect;
     });
 
-    render(<WarpkeepTitleScreenFallback />);
+    const { container } = render(<WarpkeepTitleScreenFallback />);
     const button = screen.getByRole('button', { name: 'Enter Warpkeep' });
     expect(button.closest('[aria-hidden="true"]')).toBeNull();
     expect((button as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(button);
+    expect(container.querySelector('.warpkeep-title-screen')?.getAttribute('data-gateway-surging')).toBe('true');
     expect(screen.getByRole('status').textContent).toContain(
       'The Warpkeep gateway is still under development. Return soon.'
     );

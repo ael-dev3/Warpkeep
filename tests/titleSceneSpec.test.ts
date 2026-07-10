@@ -77,7 +77,7 @@ describe('Warpkeep brutalist galaxy title specification', () => {
     expect(gateway.proximityRiseResponse).toBeGreaterThan(gateway.proximitySettleResponse);
     expect(gateway.idlePulsePeriodSeconds).toBeGreaterThan(gateway.activePulsePeriodSeconds);
     expect(gateway.surgeDurationSeconds).toBeGreaterThanOrEqual(0.8);
-    expect(gateway.surgeDurationSeconds).toBeLessThanOrEqual(1.5);
+    expect(gateway.surgeDurationSeconds).toBeLessThanOrEqual(1.7);
     expect(gateway.noticeDurationMs).toBeGreaterThanOrEqual(4_000);
     expect(gateway.noticeDurationMs).toBeLessThanOrEqual(6_000);
   });

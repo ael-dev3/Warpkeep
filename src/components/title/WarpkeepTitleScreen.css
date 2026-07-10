@@ -251,50 +251,94 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 13%;
-  aspect-ratio: 2.8;
+  width: 11.5%;
+  aspect-ratio: 3.15;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  background: radial-gradient(ellipse, rgba(0, 1, 5, 0.98) 0 25%, rgba(8, 4, 12, 0.94) 38%, rgba(19, 10, 28, 0.62) 55%, transparent 76%);
-  filter: blur(1.2px);
+  background:
+    radial-gradient(ellipse, #000107 0 42%, rgba(3, 2, 10, 0.985) 55%, rgba(23, 7, 38, 0.48) 67%, transparent 78%);
+  filter: drop-shadow(0 0 7px rgba(74, 31, 120, 0.38));
   animation: warpkeepFallbackCoreBreathe 13s ease-in-out infinite;
 }
 
 .warpkeep-fallback-galaxy-core::before {
   position: absolute;
-  inset: -72%;
+  inset: -84% -58%;
   border-radius: 50%;
   content: "";
-  background: radial-gradient(ellipse, transparent 0 32%, rgba(205, 175, 225, 0.42) 42%, rgba(103, 63, 142, 0.16) 55%, transparent 72%);
+  background:
+    radial-gradient(ellipse, transparent 0 38%, rgba(128, 64, 196, 0.15) 48%, transparent 66%);
   mix-blend-mode: screen;
   animation: warpkeepFallbackGatewayPulse 7.4s ease-in-out infinite;
 }
 
 .warpkeep-fallback-galaxy-core::after {
   position: absolute;
-  inset: -165%;
+  inset: -190% -135%;
   border-radius: 50%;
   content: "";
-  background:
-    repeating-conic-gradient(
-      from 18deg,
-      transparent 0deg 24deg,
-      rgba(156, 91, 219, 0.2) 30deg,
-      rgba(217, 184, 255, 0.08) 34deg,
-      transparent 43deg 69deg
-    ),
-    repeating-radial-gradient(
-      ellipse,
-      transparent 0 18%,
-      rgba(117, 60, 180, 0.13) 23%,
-      transparent 29% 41%
-    );
-  filter: blur(5px);
+  background: radial-gradient(ellipse, transparent 0 48%, rgba(187, 128, 244, 0.22) 50%, transparent 53%);
+  filter: blur(2px);
   mix-blend-mode: screen;
-  opacity: 0.28;
-  -webkit-mask-image: radial-gradient(ellipse, transparent 0 18%, #000 29% 62%, transparent 78%);
-  mask-image: radial-gradient(ellipse, transparent 0 18%, #000 29% 62%, transparent 78%);
-  animation: warpkeepFallbackGatewayResidue 30s linear infinite;
+  opacity: 0.12;
+}
+
+.warpkeep-fallback-lens,
+.warpkeep-fallback-ray {
+  position: absolute;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.warpkeep-fallback-lens {
+  top: 50%;
+  left: 50%;
+  width: 178%;
+  height: 172%;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotate(-3deg);
+}
+
+.warpkeep-fallback-lens--upper {
+  border-top-color: rgba(224, 193, 255, 0.76);
+  filter: drop-shadow(0 -1px 4px rgba(132, 65, 204, 0.72));
+  animation: warpkeepFallbackLensUpper 8.2s ease-in-out infinite;
+}
+
+.warpkeep-fallback-lens--lower {
+  width: 164%;
+  height: 154%;
+  border-bottom-color: rgba(154, 94, 216, 0.58);
+  filter: drop-shadow(0 1px 3px rgba(86, 37, 148, 0.6));
+  opacity: 0.72;
+  animation: warpkeepFallbackLensLower 9.7s ease-in-out infinite;
+}
+
+.warpkeep-fallback-ray {
+  inset: -235% -170%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 24deg,
+    transparent 0deg 18deg,
+    rgba(143, 70, 218, 0.08) 26deg,
+    rgba(226, 191, 255, 0.44) 29deg,
+    rgba(104, 43, 174, 0.1) 34deg,
+    transparent 43deg 360deg
+  );
+  -webkit-mask-image: radial-gradient(ellipse, transparent 0 39%, #000 46% 57%, transparent 67%);
+  mask-image: radial-gradient(ellipse, transparent 0 39%, #000 46% 57%, transparent 67%);
+}
+
+.warpkeep-fallback-ray--primary {
+  animation: warpkeepFallbackRayPrimary 19s linear infinite;
+}
+
+.warpkeep-fallback-ray--secondary {
+  inset: -190% -145%;
+  opacity: 0.54;
+  transform: rotate(151deg) scale(0.86);
+  animation: warpkeepFallbackRaySecondary 31s linear infinite reverse;
 }
 
 .warpkeep-title-screen--fallback:has(.warpkeep-gateway-button:hover) .warpkeep-fallback-galaxy-core::before,
@@ -303,12 +347,27 @@
   opacity: 1;
 }
 
+.warpkeep-title-screen--fallback:has(.warpkeep-gateway-button:hover) .warpkeep-fallback-lens,
+.warpkeep-title-screen--fallback:has(.warpkeep-gateway-button:focus-visible) .warpkeep-fallback-lens,
+.warpkeep-title-screen--fallback:has(.warpkeep-gateway-button:hover) .warpkeep-fallback-ray,
+.warpkeep-title-screen--fallback:has(.warpkeep-gateway-button:focus-visible) .warpkeep-fallback-ray {
+  filter: brightness(1.32) saturate(1.18);
+}
+
 .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-galaxy-core::before {
-  animation: warpkeepFallbackGatewaySurge 1.2s ease-out both;
+  animation: warpkeepFallbackGatewaySurge 1.6s ease-out both;
 }
 
 .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-galaxy-core::after {
-  animation: warpkeepFallbackGatewayResidueSurge 1.2s ease-out both;
+  animation: warpkeepFallbackGatewayResidueSurge 1.6s ease-out both;
+}
+
+.warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-lens {
+  animation: warpkeepFallbackLensSurge 1.6s ease-out both;
+}
+
+.warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-ray {
+  animation-duration: 1.6s;
 }
 
 .warpkeep-fallback-title-stage {
@@ -353,8 +412,8 @@
 }
 
 @keyframes warpkeepFallbackCoreBreathe {
-  0%, 100% { opacity: 0.72; filter: blur(1.2px) brightness(0.86); }
-  50% { opacity: 0.94; filter: blur(1.5px) brightness(1.06); }
+  0%, 100% { opacity: 0.78; filter: drop-shadow(0 0 6px rgba(74, 31, 120, 0.34)) brightness(0.9); }
+  50% { opacity: 0.98; filter: drop-shadow(0 0 9px rgba(94, 42, 148, 0.48)) brightness(1.05); }
 }
 
 @keyframes warpkeepFallbackGatewayPulse {
@@ -362,10 +421,25 @@
   52% { opacity: 0.88; transform: scale(1.06); }
 }
 
-@keyframes warpkeepFallbackGatewayResidue {
-  from { transform: rotate(0deg) scale(0.98); }
-  50% { opacity: 0.38; }
-  to { transform: rotate(360deg) scale(1.04); }
+@keyframes warpkeepFallbackLensUpper {
+  0%, 100% { opacity: 0.58; transform: translate(-50%, -50%) rotate(-4deg) scaleX(0.95); }
+  52% { opacity: 0.9; transform: translate(-50%, -50%) rotate(2deg) scaleX(1.04); }
+}
+
+@keyframes warpkeepFallbackLensLower {
+  0%, 100% { opacity: 0.42; transform: translate(-50%, -50%) rotate(2deg) scaleX(1.02); }
+  48% { opacity: 0.74; transform: translate(-50%, -50%) rotate(-3deg) scaleX(0.94); }
+}
+
+@keyframes warpkeepFallbackRayPrimary {
+  from { transform: rotate(0deg) scale(0.96); }
+  50% { opacity: 0.82; }
+  to { transform: rotate(360deg) scale(1.03); }
+}
+
+@keyframes warpkeepFallbackRaySecondary {
+  from { transform: rotate(151deg) scale(0.84); }
+  to { transform: rotate(511deg) scale(0.9); }
 }
 
 @keyframes warpkeepFallbackGatewaySurge {
@@ -375,9 +449,16 @@
 }
 
 @keyframes warpkeepFallbackGatewayResidueSurge {
-  0% { opacity: 0.28; transform: rotate(0deg) scale(0.92); }
-  24% { opacity: 0.62; }
-  100% { opacity: 0.2; transform: rotate(24deg) scale(1.22); }
+  0% { opacity: 0.08; transform: scale(0.62); }
+  30% { opacity: 0.62; }
+  100% { opacity: 0; transform: scale(1.34); }
+}
+
+@keyframes warpkeepFallbackLensSurge {
+  0% { opacity: 0.6; transform: translate(-50%, -50%) scaleX(0.82); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scaleX(1.08); }
+  58% { opacity: 0.82; transform: translate(-50%, -50%) scaleX(1.18); }
+  100% { opacity: 0.66; transform: translate(-50%, -50%) scaleX(1); }
 }
 
 @keyframes warpkeepFallbackTitleLight {
@@ -435,6 +516,8 @@
   .warpkeep-fallback-galaxy-core,
   .warpkeep-fallback-galaxy-core::before,
   .warpkeep-fallback-galaxy-core::after,
+  .warpkeep-fallback-lens,
+  .warpkeep-fallback-ray,
   .warpkeep-fallback-wordmark {
     animation: none;
   }
@@ -445,13 +528,25 @@
   }
 
   .warpkeep-fallback-galaxy-core::after {
-    opacity: 0.28;
-    transform: rotate(18deg);
+    opacity: 0.12;
+    transform: scale(1);
   }
 
   .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-galaxy-core::before,
-  .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-galaxy-core::after {
+  .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-galaxy-core::after,
+  .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-lens,
+  .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-ray {
     animation: none;
+  }
+
+  .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-galaxy-core::before {
+    filter: brightness(1.16);
+    opacity: 0.9;
+  }
+
+  .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-lens,
+  .warpkeep-title-screen--fallback[data-gateway-surging="true"] .warpkeep-fallback-ray {
+    filter: brightness(1.12) saturate(1.06);
   }
 
   .warpkeep-gateway-button::before,
