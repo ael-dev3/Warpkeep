@@ -190,7 +190,7 @@ describe('WarpkeepExperience', () => {
     expect(experience.getAttribute('data-transition-sequence')).toBe('1');
   });
 
-  it('returns through Escape, restores the gateway focus, and keeps notices ahead of return', async () => {
+  it('opens and closes the dramatic credits roll before Escape returns through the menu', async () => {
     const { container } = render(<WarpkeepExperience />);
     const gateway = await settleInitialTitle();
     fireEvent.click(gateway);
@@ -198,9 +198,9 @@ describe('WarpkeepExperience', () => {
 
     const credits = screen.getByRole('button', { name: 'CREDITS' });
     fireEvent.click(credits);
-    expect(container.querySelector('.warpkeep-menu-notice')).not.toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Warpkeep credits' })).not.toBeNull();
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(container.querySelector('.warpkeep-menu-notice')).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Warpkeep credits' })).toBeNull();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
 
     fireEvent.keyDown(document, { key: 'Escape' });

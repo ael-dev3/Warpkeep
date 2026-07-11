@@ -14,6 +14,7 @@ import type {
   FarcasterAuthViewState,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
+import { CreditsRoll } from './CreditsRoll';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
 import { menuCommands, type MenuCommand, type MenuCommandId } from './menuCommands';
 import './WarpkeepMainMenu.css';
@@ -57,7 +58,7 @@ type ActiveNotice = {
   refreshKey: number;
 };
 
-type MenuSurface = 'commands' | 'farcaster-auth';
+type MenuSurface = 'commands' | 'farcaster-auth' | 'credits';
 
 const ANONYMOUS_AUTH_STATE: FarcasterAuthViewState = Object.freeze({
   phase: 'anonymous'
@@ -313,6 +314,18 @@ export function WarpkeepMainMenu({
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
+  const openCredits = useCallback(() => {
+    setActiveNotice(null);
+    setSurface('credits');
+  }, []);
+
+  const closeCredits = useCallback((restoreKeyboardFocus = false) => {
+    setSurface('commands');
+    if (restoreKeyboardFocus) {
+      restoreFirstCommandFocus();
+    }
+  }, [restoreFirstCommandFocus]);
+
   const closeAuthPanel = useCallback((restoreKeyboardFocus = false) => {
     onCancelFarcasterSignIn?.();
     setSurface('commands');
@@ -388,6 +401,8 @@ export function WarpkeepMainMenu({
         setActiveNotice(null);
       } else if (authPanelOpen) {
         closeAuthPanel(true);
+      } else if (surface === 'credits') {
+        closeCredits(true);
       } else {
         handleRequestReturn();
       }
@@ -395,7 +410,7 @@ export function WarpkeepMainMenu({
 
     document.addEventListener('keydown', handleEscape, true);
     return () => document.removeEventListener('keydown', handleEscape, true);
-  }, [activeNotice, authPanelOpen, closeAuthPanel, handleRequestReturn, interactive]);
+  }, [activeNotice, authPanelOpen, closeAuthPanel, closeCredits, handleRequestReturn, interactive, surface]);
 
   const handleVideoReady = useCallback(() => {
     setVideoState('ready');
@@ -484,6 +499,11 @@ export function WarpkeepMainMenu({
     anchorElement: HTMLButtonElement,
     keyboardDriven: boolean
   ) => {
+    if (command.id === 'credits') {
+      openCredits();
+      return;
+    }
+
     if (command.id === 'enter-realm' && farcasterAuthEnabled) {
       if (authenticatedIdentity) {
         onRequestAuthenticatedRealm?.(authenticatedIdentity);
@@ -507,6 +527,7 @@ export function WarpkeepMainMenu({
     onRequestEnterRealm,
     onRequestFarcasterSignIn,
     openAuthPanel,
+    openCredits,
     openNotice
   ]);
 
@@ -582,15 +603,16 @@ export function WarpkeepMainMenu({
   ].filter(Boolean).join(' ');
 
   return (
-    <main
-      aria-hidden={!interactive}
+    <>
+      <main
+      aria-hidden={!interactive || surface === 'credits'}
       aria-labelledby="warpkeep-menu-title"
       className={rootClassName}
       data-active={active ? 'true' : 'false'}
       data-menu-surface={surface}
       data-media-state={reducedMotion ? 'static' : videoState}
       data-visible={visible ? 'true' : 'false'}
-      inert={!interactive ? true : undefined}
+      inert={!interactive || surface === 'credits' ? true : undefined}
       onKeyDownCapture={() => {
         lastActionModalityRef.current = 'keyboard';
       }}
@@ -763,7 +785,11 @@ export function WarpkeepMainMenu({
           refreshKey={activeNotice.refreshKey}
         />
       ) : null}
-    </main>
+      </main>
+      {surface === 'credits' && interactive ? (
+        <CreditsRoll onClose={() => closeCredits(true)} />
+      ) : null}
+    </>
   );
 }
 

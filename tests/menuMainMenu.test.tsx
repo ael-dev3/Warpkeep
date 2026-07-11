@@ -94,20 +94,23 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(settings);
   });
 
-  it('dismisses a notice before returning on Escape, and dismisses on outside pointer input', () => {
+  it('opens the dramatic credits roll and uses Escape/back to return without leaving the menu notice open', () => {
     const onRequestReturn = vi.fn();
     render(<WarpkeepMainMenu active onRequestReturn={onRequestReturn} />);
     const credits = screen.getByRole('button', { name: 'CREDITS' });
 
     fireEvent.click(credits);
-    expect(document.querySelector('.warpkeep-menu-notice')).not.toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Warpkeep credits' })).not.toBeNull();
+    const menu = document.querySelector('main.warpkeep-menu');
+    expect(menu?.getAttribute('aria-hidden')).toBe('true');
+    expect(menu?.hasAttribute('inert')).toBe(true);
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(document.querySelector('.warpkeep-menu-notice')).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Warpkeep credits' })).toBeNull();
     expect(onRequestReturn).not.toHaveBeenCalled();
 
     fireEvent.click(credits);
-    fireEvent.pointerDown(document.body);
-    expect(document.querySelector('.warpkeep-menu-notice')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Back to Main Menu/i }));
+    expect(screen.queryByRole('dialog', { name: 'Warpkeep credits' })).toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onRequestReturn).toHaveBeenCalledTimes(1);
