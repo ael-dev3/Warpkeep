@@ -6,7 +6,7 @@ Warpkeep is an open-source Farcaster-native strategy game where each player can 
 
 **Live demo:** https://ael-dev3.github.io/Warpkeep/
 
-Current public prototype: the live demo opens on a pure Three.js **WARPKEEP** title screen built around custom continuous architectural letterforms, a slowly rotating five-arm galaxy, and an accessible eye-like gravitational gateway. Activating the galactic core now pulls the scene through a violet warp passage into a live Hegemony main menu. That menu uses a repaired clean 1080p castle-and-sunset film, the project-provided “Sunset Hegemony” score, antique-gold semantic HTML controls, keyboard/touch navigation, a static reduced-motion treatment, and a clean return path to the title. `ENTER REALM` now opens an early deterministic Hegemony Lowlands terrain foundation: one continuous 19-cell pointy-top region generated from a stable seed with shared-edge geometry, procedural surface variation, hover/selection, and a WebGL fallback. It is not a game loop yet; keeps, resources, units, combat, persistence, Farcaster auth, and SpacetimeDB remain future work.
+Current public prototype: the live demo opens on a pure Three.js **WARPKEEP** title screen built around custom continuous architectural letterforms, a slowly rotating five-arm galaxy, and an accessible eye-like gravitational gateway. Activating the galactic core pulls the scene through a violet warp passage into a live Hegemony main menu. `ENTER REALM` is the explicit start of a standard web Sign In with Farcaster QR flow: the browser creates a channel with the official Farcaster Auth relay, renders the returned sign-in URL, polls for approval, verifies the signed message, and exposes the verified FID/profile to the prototype. After identity confirmation, the existing Hegemony Lowlands terrain foundation remains the current realm destination. This is not a persistent game loop yet; keeps, resources, units, combat, trusted persistence, and SpacetimeDB remain future work.
 
 Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
@@ -20,7 +20,7 @@ Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farca
 
 Warpkeep aims for the feel of a grand fantasy 4X strategy game: vast realms, distant battles, player-built keeps, alliances, conquest, and magical warping across the map.
 
-Current status: **initial seed / scaffold with title-to-menu presentation and an early deterministic realm-terrain prototype**. The repo still contains a local mocked castle dashboard and deterministic state scaffold for development, but that dashboard is not exposed by the public menu. SpacetimeDB, gameplay, persistence, and real Farcaster auth are planned, not complete.
+Current status: **presentation, verified browser identity, and early deterministic realm-terrain prototype**. The repository also contains a local mocked castle dashboard and deterministic state scaffold for development, but that dashboard is not exposed by the public menu. The SIWF session is intentionally browser-memory-only and is not authority for permanent keep ownership. SpacetimeDB, gameplay, trusted persistence, and server-issued sessions are planned, not complete.
 
 ## Current direction
 
@@ -57,10 +57,12 @@ The current public experience:
 
 1. A cinematic **WARPKEEP** title screen establishes the cosmic world.
 2. Click/tap the central gateway, or press Enter/Space, to enter the Hegemony menu through a gateway-centered transition.
-3. **Enter Realm** opens the early deterministic Hegemony Lowlands prototype: a seamless-data 19-cell pointy-top terrain foundation with basic camera, hover, selection, and an accessible WebGL fallback.
-4. Continue, Settings, Credits, and Exit retain their honest development notices.
-5. Return to Menu, Escape, and browser Back preserve the title/menu history path without a page reload.
-6. The local mocked castle dashboard remains a future-development scaffold and is not a playable public destination.
+3. **Enter Realm** explicitly opens Warpkeep's standard web Farcaster QR panel; no auth channel or QR is created on the title screen or initial page load.
+4. Scan with Farcaster, or use **Open in Farcaster** on a mobile website, to approve the request. Warpkeep verifies the signed message and matching FID before showing identity confirmation.
+5. Authenticated **Enter Realm** opens the early deterministic Hegemony Lowlands prototype: a seamless-data 19-cell pointy-top terrain foundation with basic camera, hover, selection, and an accessible WebGL fallback.
+6. Continue, Settings, Credits, and Exit retain their honest development notices.
+7. Return to Menu, Escape, and browser Back preserve the title/menu history path without a page reload.
+8. The local mocked castle dashboard remains a future-development scaffold and is not a playable public destination.
 
 ## Local development
 
@@ -70,7 +72,11 @@ npm run dev
 npm test
 npm run typecheck
 npm run build
+GITHUB_PAGES=true npm run build
+npm audit
 ```
+
+For a real relay check, run `npm run dev`, reach the Hegemony menu, select `ENTER REALM`, and approve the QR/deep link in a Farcaster client. Unit tests use injected clients and never contact the live relay. Do not publish a live QR, raw relay response, console dump, or HAR file: those may expose active channel or proof material. See [`docs/farcaster-integration.md`](docs/farcaster-integration.md) for the complete security boundary and QA checklist.
 
 ## Architecture overview
 
@@ -78,7 +84,8 @@ npm run build
 - Deterministic game logic in `src/game/systems/gameLoop.ts`.
 - Renderer-independent axial terrain generation in `src/game/map/` with a direct Three.js realm surface in `src/components/realm/`.
 - Models in `src/game/models/types.ts`.
-- Mock Farcaster identity in `src/farcaster/farcasterAuth.ts`.
+- Standard web SIWF authority, typed state machine, and proof-free React view state in `src/farcaster/`.
+- Custom Hegemony QR/identity presentation in `src/components/auth/`; no stock auth modal is used.
 - Mock nearby castles in `src/game/mockData/mockCastle.ts`.
 - SpacetimeDB schema/reducer direction in `src/spacetime/schemaDraft.ts` and `docs/spacetime-db-plan.md`.
 - AI court report interface in `src/ai/courtReport.ts`.
@@ -99,6 +106,7 @@ npm run build
 - Current Three.js title-screen experiment with unified custom brutalist glyph outlines, refined load-bearing W and K silhouettes, deeply extruded premium ivory concrete, optical wordmark spacing, pointer-responsive physical lighting, and a large slowly rotating and gradually growing five-arm galaxy. Its integrated eye-lens gateway layers sharp reflective violet ribbons, filamentary energy, GPU residue, local galaxy/star distortion, adaptive quality, reduced-motion handling, a lightweight matching fallback, and controlled activation choreography.
 - Reducer-driven title → menu → title flow with a gateway-origin warp veil, Three.js camera pull, five-second entry hint, global Enter/Space shortcuts, history/hash support, focus restoration, and a short reduced-motion path.
 - Hegemony main-menu prototype with live HTML/CSS typography and commands over a responsive clean 1080p no-audio castle film, color-matched poster fallback, one stable crossfading audio director, a measured OST loop overlap, unique anchored notices, and keyboard/touch behavior.
+- On-demand standard web Sign In with Farcaster from `ENTER REALM`, backed by `@farcaster/auth-client`, `viem`, the official relay, and a custom `qrcode` rendering path. The verified FID is the stable prototype identity key; usernames and profile images are display metadata only.
 - Public menu destinations are presentation-only; they do not expose gameplay or the local mocked dashboard.
 - Local development scaffold includes a castle dashboard with player identity, buildings, resources, queues, nearby castles, court report, and activity log.
 - Deterministic resource collection, upgrade queue, training queue, and scouting report functions.
@@ -107,7 +115,7 @@ npm run build
 
 ## What is intentionally not implemented yet
 
-- Real Farcaster auth.
+- Trusted backend-issued authentication sessions and permanent keep ownership.
 - Real SpacetimeDB module or hosted multiplayer backend.
 - Combat or raid resolution.
 - Token mechanics.
@@ -127,15 +135,19 @@ SpacetimeDB should become the authoritative multiplayer/game-state backend for p
 
 Read `docs/spacetime-db-plan.md` before implementing multiplayer.
 
-## Farcaster direction
+## Farcaster authentication boundary
 
-Farcaster Sign In should become the primary identity path. Each FID gets one castle. Handles are display names only. Farcaster social graph and casts can later power nearby castles, alliances, invitations, diplomacy, public battle reports, recruitment posts, and season recaps.
+`ENTER REALM` now opens a standard website SIWF QR flow. Warpkeep uses the official public relay at `https://relay.farcaster.xyz`, `@farcaster/auth-client`, `viemConnector` with the public Optimism RPC at `https://mainnet.optimism.io`, and `qrcode`. The canonical SIWF URI is derived from the current origin plus Vite's base path: localhost uses the local origin root, while the Pages build uses `https://ael-dev3.github.io/Warpkeep/`. Menu hashes are never part of the signed URI.
 
-Read `docs/farcaster-integration.md` before implementing auth.
+The verified FID is the stable identity key. Username, display name, avatar, custody address, and verification-address lists are profile/display data, not ownership proof. The authenticated session lives only in memory: it survives title/menu/realm transitions while the app remains mounted, but a full refresh requires another sign-in.
+
+Warpkeep does not implement a Farcaster Mini App, Quick Auth, wallet connection, transactions, or a persistent “remember me” session. Outside the relay-returned URL required for the QR/deep link, the standalone channel token and nonce are not separately rendered; token, nonce, SIWF message, and signature data are never written to storage, app history, or logs. Terminal states and cancellation clear the controller's private references and ignore late results. The SDK exposes no abort signal, so an already in-flight call may retain its local request material until it settles. This client-only milestone can gate prototype UI, but it cannot authorize permanent keeps, resources, combat, rankings, or SpacetimeDB writes.
+
+Read [`docs/farcaster-integration.md`](docs/farcaster-integration.md) for implementation details, local/Pages configuration, testing, and the trusted-backend migration path.
 
 ## Future roadmap
 
-- Replace placeholder auth with Sign In With Farcaster.
+- Replace browser-only verification with a trusted backend-issued Secure HttpOnly SameSite session.
 - Implement SpacetimeDB module tables and reducers.
 - Add generated TypeScript client bindings.
 - Move timers and resource calculations server-side.
