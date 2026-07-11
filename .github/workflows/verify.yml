@@ -86,7 +86,7 @@ jobs:
 
       - name: Install pinned SpacetimeDB CLI
         run: |
-          curl -sSf https://install.spacetimedb.com | sh
+          curl -sSf https://install.spacetimedb.com | sh -s -- --yes
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           "$HOME/.local/bin/spacetime" version install 2.6.1 --use --yes
 
