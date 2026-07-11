@@ -2,7 +2,10 @@
 
 This Cloudflare Worker verifies completed Farcaster SIWF proofs and issues ES256 OIDC JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the static browser app: browser code never receives a signing key, admin secret, Optimism RPC URL, or auth-epoch resolver secret.
 
-There is intentionally no default public issuer. The Worker fails closed until a stable HTTPS issuer and all required configuration are provided. This directory does not deploy a Worker or activate frontend OIDC.
+The checked-in Worker configuration reserves the intended production origin,
+`https://auth.warpkeep.com`, but it is not a live deployment. The Worker still
+fails closed until its managed secrets and private auth-epoch authority are
+configured. This directory never activates frontend OIDC by itself.
 
 ## Endpoints
 
@@ -35,15 +38,15 @@ The challenge store has `put`, `get`, and atomic `consume`. Production uses one 
 
 Player JWT claims include `iss`, `sub: farcaster:<verified decimal fid>`, `aud: ["warpkeep-spacetimedb"]`, `token_type: "spacetime-access"`, verified decimal `fid`, current `auth_epoch`, empty `roles`, `iat`, `nbf`, 30-day `exp`, and a random `jti`. Admin JWTs use `sub: "service:hermes"`, `roles: ["warpkeep-admin"]`, a five-minute expiry, and response metadata `tokenType: "spacetime-access"`.
 
-`auth_epoch` is never a browser field and is not hardcoded. Before every player token, an `AuthEpochResolver` reads current authoritative `allowed_fid.authEpoch` for the verified FID. The default server-to-server contract is `GET <AUTH_EPOCH_RESOLVER_URL>?fid=<verified decimal fid>` with `Authorization: Bearer <AUTH_EPOCH_RESOLVER_TOKEN>`, returning `{ "authEpoch": <non-negative safe integer> }`.
+`auth_epoch` is never a browser field and is not hardcoded. Before every player token, an `AuthEpochResolver` reads current authoritative `allowed_fid.authEpoch` for the verified FID. The default server-to-server contract is `GET <AUTH_EPOCH_RESOLVER_URL>?fid=<verified decimal fid>` with `Authorization: Bearer <AUTH_EPOCH_RESOLVER_TOKEN>`, returning exactly `{ "authEpoch": <unsigned 32-bit integer> }`.
 
-That resolver must use trusted module/server credentials and must not trust browser input. Missing, malformed, or unavailable resolution causes `503 authorization_unavailable` and no player JWT is issued. This is the revocation boundary after an admin auth-epoch bump. A Service Binding or direct trusted server client may implement the same `AuthEpochResolver` interface.
+That resolver must use trusted module/server credentials and must not trust browser input. The bridge rejects redirects, disables caching, bounds the response to 1 KiB, requires a JSON object containing only `authEpoch`, and aborts an unresolved lookup after five seconds. Missing, malformed, timed-out, or unavailable resolution causes `503 authorization_unavailable` and no player JWT is issued. This is the revocation boundary after an admin auth-epoch bump. A Service Binding or direct trusted server client may implement the same `AuthEpochResolver` interface.
 
 > The 30-day browser-stored OIDC bearer token is a closed-alpha convenience. Production should use short-lived access tokens plus a trusted HttpOnly refresh/session flow.
 
 ## Required configuration
 
-`wrangler.toml` intentionally contains only the Durable Object binding and a non-secret audience. Configure `ISSUER` (exact stable public HTTPS origin), `ALLOWED_ORIGINS` (comma-separated exact origins, no paths/wildcards), `FARCASTER_DOMAIN`, `FARCASTER_SIWE_URI` (exact URI whose origin is allowed), `FARCASTER_RPC_URL` (managed secret), `OIDC_AUDIENCE`, `OIDC_KEY_ID`, `SIGNING_KEY_JWK` (managed private P-256 JWK including `d`), `ADMIN_TOKEN_SECRET` (managed secret), `AUTH_EPOCH_RESOLVER_URL`, and `AUTH_EPOCH_RESOLVER_TOKEN` (managed secret). The `CHALLENGE_REPLAY_GUARD` Durable Object binding is declared in the config.
+`wrangler.toml` declares `workers_dev = false`, the `auth.warpkeep.com` custom-domain route, and the stable non-secret production contract: `ENVIRONMENT`, `ISSUER`, `ALLOWED_ORIGINS`, `FARCASTER_DOMAIN`, `FARCASTER_SIWE_URI`, `OIDC_AUDIENCE`, and `OIDC_KEY_ID`. Configure `FARCASTER_RPC_URL`, `SIGNING_KEY_JWK` (managed private P-256 JWK including `d`), `ADMIN_TOKEN_SECRET`, `AUTH_EPOCH_RESOLVER_URL`, and `AUTH_EPOCH_RESOLVER_TOKEN` as managed secrets/variables before deployment. The `CHALLENGE_REPLAY_GUARD` Durable Object binding is declared in the config.
 
 Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use separate development keys. Set real secrets through Cloudflare secret management, never Vite variables or committed config. Do not deploy/activate frontend OIDC until public discovery/JWKS, strict CORS, auth-epoch resolver, and module JWT validation all pass on the final issuer.
 

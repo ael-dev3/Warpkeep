@@ -8,6 +8,7 @@
 - Auth: standard web SIWF client, a trusted Farcaster-to-OIDC bridge, and a proof-free browser presentation state in `src/farcaster`.
 - Game logic: pure TypeScript reducers in `src/game/systems`.
 - Multiplayer alpha: generated SpacetimeDB client bindings in `src/spacetime`, a server module in `spacetimedb/`, and the private-FID admission design in `docs/spacetime-db-plan.md`.
+- Release identity: the package version is the product source of truth; the browser receives an immutable build SHA through `src/build` and the policy lives in `docs/releases/versioning.md`.
 - AI direction: typed flavor interface in `src/ai`.
 
 ## Folder map
@@ -30,7 +31,7 @@
 
 ## State rule
 
-Frontend state is temporary. The closed-alpha SpacetimeDB module already owns admitted player/castle/world authority; future gameplay reducers will own resources and timers as well. The frontend sends intents and never decides final resource totals, keep ownership, or timer completion.
+Frontend state is temporary. The closed-alpha SpacetimeDB module already owns admitted player/castle/world authority; future gameplay reducers will own resources and timers as well. The frontend sends intents and never decides final resource totals, keep ownership, or timer completion. Its shared-alpha kill switch defaults off and requires an exact public bridge/issuer configuration before it creates any SIWF or SpacetimeDB activity.
 
 ## Determinism rule
 

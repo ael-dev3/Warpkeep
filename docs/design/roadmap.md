@@ -1,6 +1,6 @@
 # Warpkeep roadmap
 
-## Current milestone — Farcaster-gated shared Lowlands alpha
+## Current milestone — Warpkeep Alpha 0.2.0 activation candidate
 
 Implemented in the repository, but intentionally not activated on the public Pages deployment until infrastructure is real:
 
@@ -11,8 +11,9 @@ Implemented in the repository, but intentionally not activated on the public Pag
 - narrow shared subscriptions after admission only; server castle name/level/coordinates replace the old fixed-center authority while peer keeps stay lightweight;
 - an empty initial whitelist and the Hegemony request-access panel for valid but unadmitted users;
 - protected Hermes operations, generated-binding CI verification, bridge tests, and fail-closed deployment guards.
+- a semantic product version, exact build-SHA menu stamp, canonical-domain build policy, and a default-off shared-alpha switch.
 
-The public Pages experience does not currently claim a permanent keep. Without a configured bridge/issuer it remains title/menu-safe and performs no shared database I/O.
+The public Pages experience does not currently claim a permanent keep. `warpkeep.com` is the canonical target, but the verification TXT is the only live DNS record at this stage; the DNS apex, Worker issuer, resolver, and module publish remain activation gates. Without a configured bridge/issuer it remains title/menu-safe and performs no shared database I/O.
 
 ## Activation gate
 

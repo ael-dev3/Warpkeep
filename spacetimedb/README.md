@@ -100,6 +100,18 @@ After `admin_bump_auth_epoch`, continuing to mint a hard-coded `auth_epoch: 0`
 correctly leaves that player denied; the resolver is the bridge's revocation
 handoff, not a client-side convenience.
 
+## Backend compatibility metadata
+
+`WARPKEEP_BACKEND_PROTOCOL_VERSION` is the internal backend wire contract and
+currently equals `1`. It is intentionally separate from the player-facing
+release version and the `GENESIS 001` Lowlands label.
+`get_alpha_backend_info` is available to any valid Warpkeep JWT connection,
+including an unadmitted player, and returns only static compatibility metadata:
+protocol version, the internal `HEGEMONY_GENESIS_001` seed label, and its
+deterministic unsigned world seed. The browser compares that information before
+admission, bootstrap, or public-table subscription. It exposes no whitelist,
+identity, audit, or live aggregate state.
+
 ## Closed-alpha token warning
 
 The 30-day browser-stored OIDC bearer token is a closed-alpha convenience.

@@ -17,14 +17,14 @@ browser creates a normal Farcaster SIWF channel
 
 The bridge, not the browser, establishes `sub: farcaster:<fid>`. Usernames, display names, avatars, custody addresses, and verification addresses are display metadata; they never decide account ownership.
 
-The bridge only accepts the configured `FARCASTER_DOMAIN` and exact `FARCASTER_SIWE_URI`. Production values are:
+The bridge only accepts the configured `FARCASTER_DOMAIN` and exact `FARCASTER_SIWE_URI`. The intended production values are:
 
 ```txt
-domain: ael-dev3.github.io
-siweUri: https://ael-dev3.github.io/Warpkeep/
+domain: warpkeep.com
+siweUri: https://warpkeep.com/
 ```
 
-Localhost SIWF values are accepted only for an explicitly configured development bridge. A production Pages bundle accepts only HTTPS bridge/issuer URLs; it does not fall back to a local or anonymous database identity.
+Localhost SIWF values are accepted only for an explicitly configured development bridge. A production Pages bundle accepts only HTTPS bridge/issuer URLs; it does not fall back to a local or anonymous database identity. The legacy `ael-dev3.github.io/Warpkeep/` origin has separate browser storage, so its remembered records cannot become authority on `warpkeep.com`.
 
 ## Browser flow and privacy
 
@@ -71,12 +71,13 @@ The static browser only receives public values:
 ```dotenv
 VITE_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
 VITE_SPACETIMEDB_DATABASE=warpkeep-89e4u
+VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false
 VITE_WARPKEEP_AUTH_BRIDGE_URL=https://auth.example.com
 VITE_WARPKEEP_OIDC_ISSUER=https://auth.example.com
 VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 ```
 
-The Worker receives secrets and server-only configuration described in [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its `AUTH_EPOCH_RESOLVER_URL` must be a trusted private service that reads `admin_get_fid_auth_epoch` with Hermes authority; it must not be callable from the browser. Until this resolver, public discovery/JWKS, and the corresponding SpacetimeDB issuer are deployed, the bridge fails closed and frontend activation remains off.
+The Worker receives secrets and server-only configuration described in [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its `AUTH_EPOCH_RESOLVER_URL` must be a trusted private service that reads `admin_get_fid_auth_epoch` with Hermes authority; it must not be callable from the browser. `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` is an explicit default-false kill switch: until the resolver, public discovery/JWKS, and the corresponding SpacetimeDB issuer are deployed, it remains off and the frontend never creates a SIWF channel for shared admission.
 
 ## Tests and manual QA
 
@@ -84,7 +85,7 @@ Automated tests use injected Farcaster authorities and bridge clients; they neve
 
 When infrastructure is live, perform a user-controlled manual check:
 
-1. Open `https://ael-dev3.github.io/Warpkeep/#menu` and confirm no relay or database connection occurs before **ENTER REALM**.
+1. After canonical deployment, open `https://warpkeep.com/#menu` and confirm no relay or database connection occurs before **ENTER REALM**.
 2. Complete Farcaster approval and confirm the displayed FID is the approving identity.
 3. With the intentionally empty whitelist, confirm the exact Hegemony denial panel, request-access link, and no RealmMapScreen mount.
 4. Confirm Check Again does not open a new QR/deep link, and Sign Out removes the remembered v2 session and closes the database connection.

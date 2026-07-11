@@ -1,4 +1,4 @@
-# Warpkeep
+# Warpkeep — Alpha 0.2.0
 
 **Every FID has a castle — once the Hegemony admits it.**
 
@@ -34,13 +34,15 @@ The initial real whitelist must remain empty. A valid but unadmitted identity se
 
 > This Farcaster identity is not yet admitted to the Hegemony frontier.
 
-The panel displays the active FID and provides **REQUEST ACCESS**, **CHECK AGAIN**, and **SIGN OUT**. Check Again reuses the existing valid session and never creates a new QR/deep link.
+The panel displays the active FID and provides **REQUEST ACCESS**, **CHECK AGAIN**, and **SIGN OUT**. The request action is the semantic, privacy-preserving [@0xael.eth Farcaster link](https://farcaster.xyz/0xael.eth). Check Again reuses the existing valid session and never creates a new QR/deep link.
 
-## Deployment status
+## Alpha activation status
 
-The repository uses the fail-closed issuer `https://auth.warpkeep.invalid` until a real public OIDC bridge, resolver, and Maincloud module are verified. The GitHub Pages verification TXT for `warpkeep.com` exists, but the custom-domain DNS/certificate and Worker activation still require remote confirmation. No bridge, module publish, allowlist row, player, or castle has been created by this branch.
+The repository uses the fail-closed issuer `https://auth.warpkeep.invalid` until a real public OIDC bridge, resolver, and Maincloud module are verified. The GitHub Pages verification TXT for `warpkeep.com` exists, but the apex DNS records, custom-domain certificate, Cloudflare Worker credentials, and public issuer are still pending. No bridge, module publish, allowlist row, player, or castle has been created by this branch.
 
 The known Maincloud development database is `warpkeep-89e4u` at `https://maincloud.spacetimedb.com`. It must be inspected before every mutation and never cleared or seeded with a real FID during activation.
+
+Before activation, deploy a stable HTTPS bridge whose discovery and JWKS endpoints are public, configure a trusted auth-epoch resolver, replace the module placeholder with that exact issuer, publish non-destructively, seed only the world tiles, and verify the empty-whitelist denial path. The release policy is in [versioning](docs/releases/versioning.md); the operator sequence is in the [alpha activation runbook](docs/operations/alpha-activation.md).
 
 ## Local development
 
@@ -77,7 +79,7 @@ VITE_WARPKEEP_OIDC_ISSUER=https://auth.example.com
 VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 ```
 
-Never put signing keys, RPC URLs, admin secrets, resolver credentials, or admin JWTs in a `VITE_` variable.
+The kill switch is `false` by default. Never put signing keys, RPC URLs, admin secrets, resolver credentials, or admin JWTs in a `VITE_` variable.
 
 ## Module, bridge, and operations
 
@@ -101,6 +103,7 @@ For architecture and activation boundaries, see:
 - [SpacetimeDB plan](docs/spacetime-db-plan.md)
 - [Architecture](docs/technical-architecture.md)
 - [Roadmap](docs/design/roadmap.md)
+- [Alpha 0.2.0 release notes](docs/releases/alpha-0.2.0.md)
 - [Project direction](docs/design/warpkeep-direction.md)
 
 ## License

@@ -25,6 +25,15 @@ Connection lifecycle validates:
 - unsigned 32-bit `auth_epoch`;
 - strict `service:hermes` / `roles: ["warpkeep-admin"]` shape for admin tokens.
 
+`WARPKEEP_BACKEND_PROTOCOL_VERSION = 1` is a backend-only compatibility
+contract, separate from the player-facing `ALPHA 0.2.0` release and the
+player-facing `GENESIS 001` realm label (`HEGEMONY_GENESIS_001` internally).
+A valid player or Hermes connection may call `get_alpha_backend_info` to read
+only static protocol/world-seed metadata before using the shared realm; the
+browser rejects a protocol/seed mismatch before admission, bootstrap, or public
+table subscription. It does not expose private admission data or live player
+aggregates.
+
 Anonymous/no-token connections are rejected. Valid but unadmitted player JWTs may connect solely so `get_my_admission_status` can return a private, caller-specific status. Every gameplay reducer independently enforces the whitelist and auth epoch.
 
 ## Schema
