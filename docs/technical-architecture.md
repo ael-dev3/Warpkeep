@@ -5,7 +5,7 @@
 - Frontend: Vite, React, TypeScript.
 - Styling: plain CSS with desktop-first responsive layouts.
 - Tests: Vitest for deterministic game logic.
-- Auth: Farcaster Sign In placeholder in `src/farcaster`.
+- Auth: standard web Sign In with Farcaster (SIWF) relay client and proof-free browser session state in `src/farcaster`.
 - Game logic: pure TypeScript reducers in `src/game/systems`.
 - Multiplayer direction: SpacetimeDB schema/reducer draft in `src/spacetime` and `docs/spacetime-db-plan.md`.
 - AI direction: typed flavor interface in `src/ai`.
@@ -16,7 +16,7 @@
 /src
   /ai              future AI flavor interfaces
   /components      React UI panels
-  /farcaster       Farcaster identity placeholder
+  /farcaster       SIWF request, verification, and ephemeral identity state
   /game
     /constants     resource/unit/building constants
     /mockData      mocked nearby castles and seed player

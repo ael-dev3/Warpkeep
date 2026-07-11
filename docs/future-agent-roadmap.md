@@ -22,7 +22,7 @@ AI must not be trusted with authoritative game state. AI should produce flavor, 
 
 ## Recommended expansion sequence
 
-1. Replace placeholder Farcaster auth with SIWF.
+1. Move browser-only SIWF verification behind a trusted backend-issued session with replay protection.
 2. Build the SpacetimeDB module and generated TS bindings.
 3. Add server-authoritative timers and queue completion.
 4. Add map/nearby subscriptions.

@@ -19,6 +19,22 @@ Title screen
 
 The title screen and passive menu load do not create a relay channel or display a QR code. Continue, Settings, Credits, and Exit remain development-notice actions. On mobile web, the same relay-returned channel URL is also exposed as **Open in Farcaster**, so the player does not need to scan their own screen.
 
+## Realm route gate
+
+`#realm` is a convenience route, never a credential. An anonymous direct load, refresh, Back, or Forward navigation to `#realm` follows this sequence:
+
+```text
+#realm
+→ replace the visible route with #menu
+→ keep `realm` only as an in-memory pending destination
+→ open the native right-side Farcaster authentication rail
+→ create one fresh on-demand relay channel
+→ show verified identity confirmation
+→ let the player choose ENTER REALM
+```
+
+The pending destination remains through creation, waiting, verification, expiry/error, retry, and the verified confirmation. It is cleared if the player cancels or goes back to the title, signs out, or actually enters the realm. An ordinary direct `#menu` remains passive and does not create a channel. An already authenticated session may still use `#realm` during the same mounted app session. Because the session is memory-only, refresh always starts anonymous and therefore takes the gate again.
+
 ## Implementation
 
 The low-level implementation uses:
@@ -56,7 +72,7 @@ The implemented relay flow is:
 
 The live relay currently returns `url` as an official `https://farcaster.xyz/~/siwf` universal link with an opaque short channel token, and also includes a legacy `connectUri` field that is not declared by `@farcaster/auth-client` 0.7.1. Warpkeep deliberately encodes the documented `url` field, validates its exact official host/path and token binding, and keeps compatibility with the package's earlier `farcaster://connect` URL shape. It does not depend on or expose the undeclared `connectUri` field.
 
-The QR is rendered as a dark-on-ivory SVG with a four-module quiet zone and no logo or animation. The auth and QR packages are loaded from the explicit `ENTER REALM` path so the title screen does not pay their full startup cost.
+The QR is rendered as a dark-on-ivory SVG with a four-module quiet zone and no logo or animation. The custom auth presentation, official SDK/verification transitives, and QR encoder are deferred from the explicit `ENTER REALM` path. A small provider/client wrapper remains in the startup bundle, but the title screen and ordinary menu do not pay the full auth/UI stack cost.
 
 ## Domain and canonical SIWF URI
 
@@ -153,15 +169,16 @@ git diff --check
 
 The test suite covers runtime context construction, secure request material, relay-response validation, signature/FID binding, proof-free state transitions, stale generations, cancellation, QR presentation, and accessibility. Polling/provider integration tests should use fake timers and deferred promises rather than real network calls.
 
-For real relay QA:
+For noninteractive real relay QA, verify that a freshly created relay channel reaches the pending state, then cancel it without publishing its QR or URL. Do not make a live account approval a prerequisite for deployment.
 
-1. Run `npm run dev` and open the title screen; confirm no relay request or auth QR appears.
-2. Reach the Hegemony menu and select `ENTER REALM`; confirm one QR/channel is created.
-3. Scan from desktop with a Farcaster client and approve; confirm the displayed FID matches the account.
-4. Verify sign out, cancellation, retry, browser Back, and the full five-minute timeout.
-5. On mobile web, select **Open in Farcaster**, approve, return to the browser, and confirm polling resumes.
-6. Test custody and approved auth-address flows when suitable accounts are available.
-7. Repeat against the deployed Pages build and verify the signed URI is `https://ael-dev3.github.io/Warpkeep/`.
+After deployment, a player can perform this remote manual check on their own schedule:
+
+1. Open `https://ael-dev3.github.io/Warpkeep/#menu`; confirm no QR or relay request appears before selecting **ENTER REALM**.
+2. Select **ENTER REALM**; confirm a fresh QR/deep link appears, then scan or select **Open in Farcaster** on mobile.
+3. Approve in Farcaster and confirm the displayed FID is the approving account before selecting the confirmation's **ENTER REALM**.
+4. Open `https://ael-dev3.github.io/Warpkeep/#realm` anonymously (or refresh while there); confirm it becomes `#menu`, opens the same rail, and does not mount Hegemony Lowlands until approval.
+5. Verify cancellation, retry, sign out, browser Back/Forward, and the full five-minute timeout. On mobile, return from Farcaster and confirm polling resumes.
+6. Test custody and approved auth-address flows when suitable accounts are available. The deployed signed URI must be `https://ael-dev3.github.io/Warpkeep/`.
 
 Do not enable raw-response logging for QA. Do not share a live QR screenshot, console/network dump, or exported HAR; these can retain active channel data or proof material. Record only sanitized phase/result information. Real QR approval, mobile deep linking, custody/auth-address coverage, browser compatibility, and deployment verification require a user-controlled Farcaster account and device.
 

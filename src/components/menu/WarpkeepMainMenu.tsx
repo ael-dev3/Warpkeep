@@ -1,18 +1,19 @@
 import {
+  Suspense,
   useCallback,
   useEffect,
+  lazy,
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent as ReactKeyboardEvent
+  type KeyboardEvent as ReactKeyboardEvent,
+  type Ref
 } from 'react';
 
 import type {
   FarcasterAuthViewState,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
-import { FarcasterIdentityBadge } from '../auth/FarcasterIdentityBadge';
-import { FarcasterQrAuthPanel } from '../auth/FarcasterQrAuthPanel';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
 import { menuCommands, type MenuCommand, type MenuCommandId } from './menuCommands';
 import './WarpkeepMainMenu.css';
@@ -29,9 +30,16 @@ export type WarpkeepMainMenuProps = {
   authState?: FarcasterAuthViewState;
   onRequestFarcasterSignIn?: () => void;
   onCancelFarcasterSignIn?: () => void;
+  /** Lifecycle-only cancellation; unlike a player cancellation it preserves a route intent. */
+  onDisposeFarcasterSignIn?: () => void;
   onRetryFarcasterSignIn?: () => void;
   onSignOut?: () => void;
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
+  /**
+   * A guarded anonymous `#realm` route asks the menu to show its native auth
+   * rail and create one fresh request after the provider is mounted.
+   */
+  openFarcasterAuthPanel?: boolean;
   inputModality?: MenuInputModality;
   focusFirstCommand?: boolean;
   onVideoReady?: () => void;
@@ -50,6 +58,58 @@ type MenuSurface = 'commands' | 'farcaster-auth';
 const ANONYMOUS_AUTH_STATE: FarcasterAuthViewState = Object.freeze({
   phase: 'anonymous'
 });
+
+const FarcasterIdentityBadge = lazy(async () => {
+  const module = await import('../auth/FarcasterIdentityBadge');
+  return { default: module.FarcasterIdentityBadge };
+});
+
+const FarcasterQrAuthPanel = lazy(async () => {
+  const module = await import('../auth/FarcasterQrAuthPanel');
+  return { default: module.FarcasterQrAuthPanel };
+});
+
+function FarcasterAuthPanelFallback({
+  headingRef,
+  primaryActionRef,
+  onCancel
+}: {
+  headingRef: Ref<HTMLHeadingElement>;
+  primaryActionRef: Ref<HTMLButtonElement>;
+  onCancel: () => void;
+}) {
+  return (
+    <section
+      aria-busy="true"
+      aria-label="Farcaster sign-in"
+      className="farcaster-auth-panel farcaster-auth-panel--creating-channel"
+      data-phase="creating-channel"
+    >
+      <div aria-hidden="true" className="farcaster-auth-panel__ornament">
+        <span />
+        <i />
+        <span />
+      </div>
+      <header className="farcaster-auth-panel__header">
+        <p className="farcaster-auth-panel__eyebrow">FARCASTER SIGN-IN</p>
+        <h2 ref={headingRef} tabIndex={-1}>CLAIM YOUR KEEP</h2>
+      </header>
+      <p aria-live="polite" className="farcaster-auth-panel__live-region" role="status">
+        Preparing sign-in
+      </p>
+      <div className="farcaster-auth-panel__actions farcaster-auth-panel__actions--quiet">
+        <button
+          className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
+          onClick={onCancel}
+          ref={primaryActionRef}
+          type="button"
+        >
+          CANCEL
+        </button>
+      </div>
+    </section>
+  );
+}
 
 export function resolveMenuAssetUrl(baseUrl: string, assetPath: string) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -108,9 +168,11 @@ export function WarpkeepMainMenu({
   authState = ANONYMOUS_AUTH_STATE,
   onRequestFarcasterSignIn,
   onCancelFarcasterSignIn,
+  onDisposeFarcasterSignIn,
   onRetryFarcasterSignIn,
   onSignOut,
   onRequestAuthenticatedRealm,
+  openFarcasterAuthPanel = false,
   inputModality = 'unknown',
   focusFirstCommand,
   onVideoReady,
@@ -129,6 +191,8 @@ export function WarpkeepMainMenu({
   const authWasKeyboardDrivenRef = useRef(false);
   const previousAuthPhaseRef = useRef(authState.phase);
   const lastActionModalityRef = useRef<MenuInputModality>(inputModality);
+  const routeAuthStartQueuedRef = useRef(false);
+  const routeAuthStartVersionRef = useRef(0);
   const [videoState, setVideoState] = useState<'waiting' | 'ready' | 'error'>('waiting');
   const [activeNotice, setActiveNotice] = useState<ActiveNotice | null>(null);
   const [surface, setSurface] = useState<MenuSurface>('commands');
@@ -222,10 +286,14 @@ export function WarpkeepMainMenu({
   useEffect(() => {
     const previousPhase = previousAuthPhaseRef.current;
     previousAuthPhaseRef.current = authState.phase;
-    if (previousPhase !== 'anonymous' && authState.phase === 'anonymous') {
+    if (
+      previousPhase !== 'anonymous'
+      && authState.phase === 'anonymous'
+      && !openFarcasterAuthPanel
+    ) {
       setSurface('commands');
     }
-  }, [authState.phase]);
+  }, [authState.phase, openFarcasterAuthPanel]);
 
   const restoreFirstCommandFocus = useCallback(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -259,6 +327,15 @@ export function WarpkeepMainMenu({
     return () => window.cancelAnimationFrame(frame);
   }, [authPanelOpen, interactive]);
 
+  const handleAuthPanelPresentationReady = useCallback(() => {
+    if (!interactive || !authPanelOpen) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      authHeadingRef.current?.focus({ preventScroll: true });
+    });
+  }, [authPanelOpen, interactive]);
+
   useEffect(() => {
     if (
       !interactive
@@ -280,8 +357,8 @@ export function WarpkeepMainMenu({
   }, [authPanelOpen, authState.phase, interactive]);
 
   useEffect(() => () => {
-    onCancelFarcasterSignIn?.();
-  }, [onCancelFarcasterSignIn]);
+    (onDisposeFarcasterSignIn ?? onCancelFarcasterSignIn)?.();
+  }, [onCancelFarcasterSignIn, onDisposeFarcasterSignIn]);
 
   useEffect(() => {
     if (!interactive) {
@@ -340,6 +417,56 @@ export function WarpkeepMainMenu({
     setActiveNotice(null);
     setSurface('farcaster-auth');
   }, []);
+
+  useEffect(() => {
+    if (!openFarcasterAuthPanel || !interactive || !farcasterAuthEnabled) {
+      routeAuthStartVersionRef.current += 1;
+      routeAuthStartQueuedRef.current = false;
+      return;
+    }
+
+    if (!authPanelOpen) {
+      openAuthPanel(false);
+    }
+    if (authState.phase !== 'anonymous') {
+      routeAuthStartVersionRef.current += 1;
+      routeAuthStartQueuedRef.current = false;
+      return;
+    }
+
+    if (routeAuthStartQueuedRef.current) {
+      return;
+    }
+
+    // A direct `#realm` load mounts the menu below the provider. Queue this
+    // one explicit route-gated request until all mount effects have run, which
+    // also keeps StrictMode's effect probe from creating a duplicate channel.
+    routeAuthStartQueuedRef.current = true;
+    const requestVersion = routeAuthStartVersionRef.current;
+    void Promise.resolve().then(() => {
+      if (
+        routeAuthStartVersionRef.current !== requestVersion
+        || !routeAuthStartQueuedRef.current
+      ) {
+        return;
+      }
+      onRequestFarcasterSignIn?.();
+    });
+    return () => {
+      if (routeAuthStartVersionRef.current === requestVersion) {
+        routeAuthStartVersionRef.current += 1;
+      }
+      routeAuthStartQueuedRef.current = false;
+    };
+  }, [
+    authPanelOpen,
+    authState.phase,
+    farcasterAuthEnabled,
+    interactive,
+    onRequestFarcasterSignIn,
+    openAuthPanel,
+    openFarcasterAuthPanel
+  ]);
 
   const handleCommandClick = useCallback((
     command: MenuCommand,
@@ -505,13 +632,15 @@ export function WarpkeepMainMenu({
         <>
           {authenticatedIdentity ? (
             <div className="warpkeep-menu-identity">
-              <FarcasterIdentityBadge
-                compact
-                identity={authenticatedIdentity}
-                onActivate={() => openAuthPanel(
-                  lastActionModalityRef.current === 'keyboard'
-                )}
-              />
+              <Suspense fallback={null}>
+                <FarcasterIdentityBadge
+                  compact
+                  identity={authenticatedIdentity}
+                  onActivate={() => openAuthPanel(
+                    lastActionModalityRef.current === 'keyboard'
+                  )}
+                />
+              </Suspense>
             </div>
           ) : null}
 
@@ -549,30 +678,41 @@ export function WarpkeepMainMenu({
         </>
       ) : (
         <div className="warpkeep-menu-auth-rail">
-          <FarcasterQrAuthPanel
-            channelUrl={authState.phase === 'awaiting-approval'
-              ? authState.channelUrl
-              : undefined}
-            errorMessage={authState.phase === 'error' || authState.phase === 'expired'
-              ? authState.error.message
-              : undefined}
-            headingRef={authHeadingRef}
-            identity={authenticatedIdentity}
-            onBackToMenu={handleBackToCommands}
-            onCancel={() => closeAuthPanel(
-              lastActionModalityRef.current === 'keyboard'
-            )}
-            onEnterRealm={handleAuthenticatedRealmEntry}
-            onRetry={handleRetrySignIn}
-            onSignOut={handleSignOut}
-            phase={authState.phase === 'anonymous'
-              ? 'creating-channel'
-              : authState.phase}
-            primaryActionRef={authPrimaryActionRef}
-            qrDataUrl={authState.phase === 'awaiting-approval'
-              ? authState.qrDataUrl
-              : undefined}
-          />
+          <Suspense fallback={
+            <FarcasterAuthPanelFallback
+              headingRef={authHeadingRef}
+              onCancel={() => closeAuthPanel(
+                lastActionModalityRef.current === 'keyboard'
+              )}
+              primaryActionRef={authPrimaryActionRef}
+            />
+          }>
+            <FarcasterQrAuthPanel
+              channelUrl={authState.phase === 'awaiting-approval'
+                ? authState.channelUrl
+                : undefined}
+              errorMessage={authState.phase === 'error' || authState.phase === 'expired'
+                ? authState.error.message
+                : undefined}
+              headingRef={authHeadingRef}
+              identity={authenticatedIdentity}
+              onPresentationReady={handleAuthPanelPresentationReady}
+              onBackToMenu={handleBackToCommands}
+              onCancel={() => closeAuthPanel(
+                lastActionModalityRef.current === 'keyboard'
+              )}
+              onEnterRealm={handleAuthenticatedRealmEntry}
+              onRetry={handleRetrySignIn}
+              onSignOut={handleSignOut}
+              phase={authState.phase === 'anonymous'
+                ? 'creating-channel'
+                : authState.phase}
+              primaryActionRef={authPrimaryActionRef}
+              qrDataUrl={authState.phase === 'awaiting-approval'
+                ? authState.qrDataUrl
+                : undefined}
+            />
+          </Suspense>
         </div>
       )}
 

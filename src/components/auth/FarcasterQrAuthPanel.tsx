@@ -1,4 +1,4 @@
-import { useId, type Ref } from 'react';
+import { useEffect, useId, type Ref } from 'react';
 
 import type {
   FarcasterAuthPhase,
@@ -16,6 +16,7 @@ export type FarcasterQrAuthPanelProps = {
   className?: string;
   headingRef?: Ref<HTMLHeadingElement>;
   primaryActionRef?: Ref<HTMLButtonElement>;
+  onPresentationReady?: () => void;
   onCancel: () => void;
   onRetry: () => void;
   onBackToMenu: () => void;
@@ -122,6 +123,7 @@ export function FarcasterQrAuthPanel({
   className,
   headingRef,
   primaryActionRef,
+  onPresentationReady,
   onCancel,
   onRetry,
   onBackToMenu,
@@ -138,6 +140,10 @@ export function FarcasterQrAuthPanel({
     `farcaster-auth-panel--${phase}`,
     className
   ].filter(Boolean).join(' ');
+
+  useEffect(() => {
+    onPresentationReady?.();
+  }, [onPresentationReady]);
 
   return (
     <section

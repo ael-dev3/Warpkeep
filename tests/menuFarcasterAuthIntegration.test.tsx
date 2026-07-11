@@ -51,13 +51,15 @@ function createMenuCallbacks() {
 function menu(
   callbacks: MenuCallbacks,
   authState: FarcasterAuthViewState = anonymousState,
-  inputModality: MenuInputModality = 'unknown'
+  inputModality: MenuInputModality = 'unknown',
+  openFarcasterAuthPanel = false
 ) {
   return (
     <WarpkeepMainMenu
       active
       authState={authState}
       inputModality={inputModality}
+      openFarcasterAuthPanel={openFarcasterAuthPanel}
       onCancelFarcasterSignIn={callbacks.cancel}
       onRequestAuthenticatedRealm={callbacks.enterRealm}
       onRequestFarcasterSignIn={callbacks.begin}
@@ -79,7 +81,23 @@ function flushAnimationFrames() {
   });
 }
 
-beforeEach(() => {
+async function settleDeferredPresentation() {
+  await act(async () => {
+    for (let round = 0; round < 8; round += 1) {
+      await Promise.resolve();
+    }
+  });
+}
+
+async function preloadFarcasterPresentation() {
+  await Promise.all([
+    import('../src/components/auth/FarcasterIdentityBadge'),
+    import('../src/components/auth/FarcasterQrAuthPanel')
+  ]);
+  await settleDeferredPresentation();
+}
+
+beforeEach(async () => {
   animationFrames = new Map();
   nextAnimationFrameId = 0;
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
@@ -102,6 +120,7 @@ beforeEach(() => {
   }));
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+  await preloadFarcasterPresentation();
 });
 
 afterEach(() => {
@@ -121,7 +140,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 
-  it('opens auth and begins exactly once while preserving other command notices', () => {
+  it('opens auth and begins exactly once while preserving other command notices', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks));
 
@@ -131,6 +150,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
     fireEvent.click(enterRealm, { detail: 0 });
+    await settleDeferredPresentation();
     flushAnimationFrames();
 
     expect(callbacks.begin).toHaveBeenCalledTimes(1);
@@ -140,6 +160,32 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     );
     expect(screen.queryByRole('navigation', { name: 'Hegemony main menu' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'SETTINGS' })).toBeNull();
+  });
+
+  it('opens one native auth rail for a guarded anonymous realm route', async () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(callbacks, anonymousState, 'unknown', true));
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await settleDeferredPresentation();
+
+    expect(callbacks.begin).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Hegemony main menu' })).toBeNull();
+  });
+
+  it('does not start a queued guarded-route request after the menu unmounts', async () => {
+    const callbacks = createMenuCallbacks();
+    const rendered = render(menu(callbacks, anonymousState, 'unknown', true));
+
+    rendered.unmount();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(callbacks.begin).not.toHaveBeenCalled();
   });
 
   it('uses Escape to cancel back to commands before returning to title', () => {
@@ -173,12 +219,13 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.begin).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the awaiting QR and the exact Farcaster deep link', () => {
+  it('renders the awaiting QR and the exact Farcaster deep link', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks));
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
 
     result.rerender(menu(callbacks, awaitingState));
+    await settleDeferredPresentation();
 
     const qr = screen.getByRole('img', { name: 'Sign in with Farcaster QR code' });
     expect(qr.getAttribute('src')).toBe(awaitingState.qrDataUrl);
@@ -191,12 +238,13 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.queryByRole('navigation', { name: 'Hegemony main menu' })).toBeNull();
   });
 
-  it('shows keyboard-focused identity confirmation, then a compact authenticated badge', () => {
+  it('shows keyboard-focused identity confirmation, then a compact authenticated badge', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks, anonymousState, 'keyboard'));
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }), { detail: 0 });
 
     result.rerender(menu(callbacks, authenticatedState, 'keyboard'));
+    await settleDeferredPresentation();
     flushAnimationFrames();
 
     expect(screen.getByRole('heading', {
@@ -209,6 +257,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' });
     flushAnimationFrames();
+    await settleDeferredPresentation();
 
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
     expect(screen.getByRole('button', {
@@ -217,10 +266,11 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.begin).toHaveBeenCalledTimes(1);
   });
 
-  it('invokes the typed realm callback for an authenticated command without beginning again', () => {
+  it('invokes the typed realm callback for an authenticated command without beginning again', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks, authenticatedState));
 
+    await settleDeferredPresentation();
     expect(screen.getByRole('button', {
       name: 'Open Farcaster identity, FID 12345'
     })).not.toBeNull();
@@ -231,7 +281,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.begin).not.toHaveBeenCalled();
   });
 
-  it('focuses retry after a keyboard-driven error', () => {
+  it('focuses retry after a keyboard-driven error', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks, anonymousState, 'keyboard'));
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }), { detail: 0 });
@@ -243,6 +293,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
         message: 'The Farcaster relay could not verify this request.'
       }
     }, 'keyboard'));
+    await settleDeferredPresentation();
     flushAnimationFrames();
 
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'TRY AGAIN' }));
@@ -260,6 +311,33 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     }));
   });
 
+  it('preserves keyboard retry focus while a guarded route keeps its auth rail open', async () => {
+    const callbacks = createMenuCallbacks();
+    const errorState: FarcasterAuthViewState = {
+      phase: 'error',
+      error: {
+        code: 'relay',
+        message: 'The Farcaster relay could not verify this request.'
+      }
+    };
+    const result = render(menu(callbacks, errorState, 'keyboard', true));
+    await settleDeferredPresentation();
+
+    const retry = screen.getByRole('button', { name: 'TRY AGAIN' });
+    fireEvent.keyDown(retry, { key: 'Enter' });
+    fireEvent.click(retry, { detail: 0 });
+    result.rerender(menu(callbacks, { phase: 'creating-channel' }, 'keyboard', true));
+    await settleDeferredPresentation();
+    flushAnimationFrames();
+
+    result.rerender(menu(callbacks, errorState, 'keyboard', true));
+    await settleDeferredPresentation();
+    flushAnimationFrames();
+
+    expect(callbacks.retry).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'TRY AGAIN' }));
+  });
+
   it('closes a stale auth surface after an external cancellation', () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks, anonymousState));
@@ -273,9 +351,10 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 
-  it('signs out to anonymous commands and restores keyboard focus', () => {
+  it('signs out to anonymous commands and restores keyboard focus', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks, authenticatedState, 'keyboard'));
+    await settleDeferredPresentation();
     fireEvent.click(screen.getByRole('button', {
       name: 'Open Farcaster identity, FID 12345'
     }), { detail: 0 });

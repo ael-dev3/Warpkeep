@@ -451,6 +451,7 @@ describe('Farcaster channel status', () => {
   });
 
   it.each([
+    ['nonce', undefined],
     ['message', undefined],
     ['signature', undefined],
     ['fid', undefined],

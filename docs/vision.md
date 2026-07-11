@@ -5,8 +5,8 @@ Warpkeep is a Farcaster-native asynchronous strategy game where every Farcaster 
 The seed experience is intentionally small:
 
 1. Land on a premium, desktop-first game page.
-2. Sign in with Farcaster, currently represented by a placeholder session.
-3. Enter a castle dashboard tied to one FID.
+2. Select **Enter Realm** from the Hegemony menu and verify a Farcaster FID through the standard web SIWF QR/deep-link flow.
+3. Enter the deterministic Hegemony Lowlands prototype tied to that in-memory verified FID; the local dashboard remains a development scaffold.
 4. Collect resources, upgrade buildings, train units, and scout nearby FID castles.
 5. Understand that multiplayer state is intended to become server-authoritative through SpacetimeDB.
 

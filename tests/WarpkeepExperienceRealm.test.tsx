@@ -5,6 +5,7 @@ import {
   render as testingLibraryRender,
   screen
 } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepExperience } from '../src/components/WarpkeepExperience';
@@ -61,9 +62,9 @@ function createTestAuthority() {
   } satisfies FarcasterSessionAuthority;
 }
 
-function renderExperience() {
+function renderExperience({ strict = false }: { strict?: boolean } = {}) {
   const authority = createTestAuthority();
-  const rendered = testingLibraryRender(
+  const experience = (
     <FarcasterAuthProvider
       encodeQrCode={async () => 'data:image/svg+xml,TEST_QR'}
       loadAuthority={async () => authority}
@@ -72,6 +73,7 @@ function renderExperience() {
       <WarpkeepExperience />
     </FarcasterAuthProvider>
   );
+  const rendered = testingLibraryRender(strict ? <StrictMode>{experience}</StrictMode> : experience);
   return { ...rendered, authority };
 }
 
@@ -81,6 +83,14 @@ async function settleAuth() {
       await Promise.resolve();
     }
   });
+}
+
+async function preloadFarcasterPresentation() {
+  await Promise.all([
+    import('../src/components/auth/FarcasterIdentityBadge'),
+    import('../src/components/auth/FarcasterQrAuthPanel')
+  ]);
+  await settleAuth();
 }
 
 function installBrowserStubs() {
@@ -105,7 +115,8 @@ function installBrowserStubs() {
   vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await preloadFarcasterPresentation();
   vi.useFakeTimers();
   window.history.replaceState({ warpkeepMenu: true }, '', '/#menu');
   installBrowserStubs();
@@ -150,17 +161,60 @@ describe('Warpkeep realm entry', () => {
     expect(screen.getByText('FID 12345')).not.toBeNull();
   });
 
-  it('blocks an anonymous direct #realm load without creating an auth channel', () => {
+  it('normalizes an anonymous direct #realm load to its one-shot Farcaster gate', async () => {
     window.localStorage.setItem('fid', '12345');
     window.sessionStorage.setItem('farcasterIdentity', JSON.stringify(VERIFIED_IDENTITY));
     window.history.replaceState({}, '', '/?fid=12345#realm');
-    const { container, authority } = renderExperience();
+    const { container, authority } = renderExperience({ strict: true });
 
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(window.location.hash).toBe('#menu');
     expect(screen.queryByRole('heading', { level: 1, name: 'Hegemony Lowlands' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'ENTER REALM' })).not.toBeNull();
+    await settleAuth();
+
+    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'CLAIM YOUR KEEP' })).not.toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Hegemony main menu' })).toBeNull();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    await settleAuth();
+    expect(screen.getByText('FID 12345')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+    expect(screen.getByRole('heading', { level: 1, name: 'Hegemony Lowlands' })).not.toBeNull();
+  });
+
+  it('gates an anonymous Back or Forward visit to #realm and lets cancellation stay cancelled', async () => {
+    const { container, authority } = renderExperience();
+
     expect(authority.beginSignIn).not.toHaveBeenCalled();
+    act(() => {
+      window.history.replaceState({}, '', '/#realm');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await settleAuth();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(window.location.hash).toBe('#menu');
+    expect(screen.queryByRole('heading', { level: 1, name: 'Hegemony Lowlands' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }));
+    await settleAuth();
+    expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(10);
+    });
+    await settleAuth();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the verified FID across title/menu transitions without another channel', async () => {

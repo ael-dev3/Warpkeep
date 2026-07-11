@@ -36,6 +36,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Audit dependencies
+        run: npm audit
+
       - name: Build
         run: npm run build
         env:

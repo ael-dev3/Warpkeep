@@ -63,8 +63,8 @@ function hasRealmHash() {
 
 function initialStablePhase(): WarpkeepStableExperiencePhase {
   // A refreshed/direct realm URL has no trusted in-memory session. Start on
-  // the menu without flashing the realm; authenticated in-app navigation is
-  // handled by the history synchronizer below.
+  // the menu without flashing the realm; its pending route intent opens the
+  // native identity rail after the menu is interactive.
   if (hasRealmHash()) return 'menu';
   return hasMenuHash() ? 'menu' : 'title';
 }
@@ -145,6 +145,9 @@ export function WarpkeepExperience() {
   const [presentedScreen, setPresentedScreen] = useState<WarpkeepStableExperiencePhase>(
     initialPhase
   );
+  const [pendingDestination, setPendingDestination] = useState<'realm' | null>(() => (
+    hasRealmHash() ? 'realm' : null
+  ));
   const [gatewayOrigin, setGatewayOrigin] = useState<WarpTransitionOrigin>(() => ({
     x: typeof window === 'undefined' ? 640 : window.innerWidth * 0.5,
     y: typeof window === 'undefined' ? 280 : window.innerHeight * 0.36
@@ -180,17 +183,42 @@ export function WarpkeepExperience() {
     ? farcasterAuthState.identity
     : null;
 
+  const clearPendingRealmDestination = useCallback(() => {
+    setPendingDestination(null);
+  }, []);
+
+  const cancelFarcasterSignInAndClearDestination = useCallback(() => {
+    clearPendingRealmDestination();
+    cancelFarcasterSignIn();
+  }, [cancelFarcasterSignIn, clearPendingRealmDestination]);
+
+  const gateAnonymousRealmRoute = useCallback(() => {
+    // A hash is not a credential. Preserve the player's intended realm
+    // destination privately, but normalize the visible URL to the menu before
+    // the menu opens its own on-demand Farcaster identity rail.
+    setPendingDestination('realm');
+    cancelFarcasterSignIn();
+    if (hasRealmHash()) {
+      window.history.replaceState(
+        menuHistoryState(),
+        '',
+        `${pageUrlWithoutHash()}${MENU_HASH}`
+      );
+    }
+  }, [cancelFarcasterSignIn]);
+
+  const handleSignOut = useCallback(() => {
+    clearPendingRealmDestination();
+    signOutFarcaster();
+  }, [clearPendingRealmDestination, signOutFarcaster]);
+
   useLayoutEffect(() => {
     if (!blockedInitialRealmRef.current || !hasRealmHash()) {
       return;
     }
     blockedInitialRealmRef.current = false;
-    window.history.replaceState(
-      menuHistoryState(),
-      '',
-      `${pageUrlWithoutHash()}${MENU_HASH}`
-    );
-  }, []);
+    gateAnonymousRealmRoute();
+  }, [gateAnonymousRealmRoute]);
 
   const audioScene: AudioScene = !returnPreparing && (
     experience.phase === 'menu'
@@ -274,19 +302,21 @@ export function WarpkeepExperience() {
       return;
     }
 
+    clearPendingRealmDestination();
     blurActiveElement();
     if (!hasRealmHash()) {
       window.history.pushState(realmHistoryState(), '', `${pageUrlWithoutHash()}${REALM_HASH}`);
     }
     setPresentedScreen('realm');
     dispatch({ type: 'request-realm' });
-  }, []);
+  }, [clearPendingRealmDestination]);
 
   const returnRealmToMenu = useCallback(() => {
     if (phaseRef.current !== 'realm') {
       return;
     }
 
+    clearPendingRealmDestination();
     blurActiveElement();
     const state = window.history.state as WarpkeepHistoryState | null;
     const canReturnThroughHistory = hasRealmHash() && state?.[REALM_HISTORY_KEY] === true;
@@ -297,7 +327,7 @@ export function WarpkeepExperience() {
     } else {
       window.history.replaceState(menuHistoryState(), '', `${pageUrlWithoutHash()}${MENU_HASH}`);
     }
-  }, []);
+  }, [clearPendingRealmDestination]);
 
   const beginTitleTransition = useCallback((historyMode: 'back' | 'replace' | 'none') => {
     if (
@@ -309,7 +339,7 @@ export function WarpkeepExperience() {
     }
 
     entryLockedRef.current = true;
-    cancelFarcasterSignIn();
+    cancelFarcasterSignInAndClearDestination();
     setShowTitleHint(false);
     setTitleReady(false);
     setReturnPreparing(true);
@@ -326,7 +356,7 @@ export function WarpkeepExperience() {
       delete nextState[MENU_HISTORY_KEY];
       window.history.replaceState(nextState, '', pageUrlWithoutHash());
     }
-  }, [cancelFarcasterSignIn]);
+  }, [cancelFarcasterSignInAndClearDestination]);
 
   const cancelPreparedReturn = useCallback(() => {
     setReturnPreparing(false);
@@ -387,17 +417,13 @@ export function WarpkeepExperience() {
     if (direction === 'to-menu') {
       if (hasRealmHash()) {
         if (verifiedIdentityRef.current) {
+          clearPendingRealmDestination();
           setPresentedScreen('realm');
           dispatch({ type: 'complete-menu' });
           dispatch({ type: 'request-realm' });
           return;
         }
-        cancelFarcasterSignIn();
-        window.history.replaceState(
-          menuHistoryState(),
-          '',
-          `${pageUrlWithoutHash()}${MENU_HASH}`
-        );
+        gateAnonymousRealmRoute();
       }
       if (!hasMenuHash()) {
         setTitleReady(false);
@@ -410,7 +436,7 @@ export function WarpkeepExperience() {
       dispatch({ type: 'complete-title' });
       entryLockedRef.current = false;
     }
-  }, [cancelFarcasterSignIn, markTransitionCovered]);
+  }, [clearPendingRealmDestination, gateAnonymousRealmRoute, markTransitionCovered]);
 
   useEffect(() => {
     if (
@@ -518,12 +544,7 @@ export function WarpkeepExperience() {
     const synchronizeHistory = () => {
       const phase = phaseRef.current;
       if (hasRealmHash() && !verifiedIdentityRef.current) {
-        cancelFarcasterSignIn();
-        window.history.replaceState(
-          menuHistoryState(),
-          '',
-          `${pageUrlWithoutHash()}${MENU_HASH}`
-        );
+        gateAnonymousRealmRoute();
       }
       if (returnPreparingRef.current && hasMenuHash()) {
         cancelPreparedReturn();
@@ -586,7 +607,7 @@ export function WarpkeepExperience() {
     beginMenuTransition,
     beginTitleTransition,
     cancelPreparedReturn,
-    cancelFarcasterSignIn
+    gateAnonymousRealmRoute
   ]);
 
   useEffect(() => {
@@ -595,18 +616,15 @@ export function WarpkeepExperience() {
     }
 
     if (experience.phase === 'menu') {
-      if (!hasMenuHash() && !hasRealmHash()) {
+      if (hasRealmHash() && !verifiedIdentityRef.current) {
+        gateAnonymousRealmRoute();
+      } else if (!hasMenuHash() && !hasRealmHash()) {
         entryLockedRef.current = false;
         beginTitleTransition('none');
       }
     } else if (experience.phase === 'title' && (hasMenuHash() || hasRealmHash())) {
       if (hasRealmHash() && !verifiedIdentityRef.current) {
-        cancelFarcasterSignIn();
-        window.history.replaceState(
-          menuHistoryState(),
-          '',
-          `${pageUrlWithoutHash()}${MENU_HASH}`
-        );
+        gateAnonymousRealmRoute();
       }
       entryLockedRef.current = false;
       if (titleRef.current) {
@@ -618,8 +636,8 @@ export function WarpkeepExperience() {
   }, [
     beginMenuTransition,
     beginTitleTransition,
-    cancelFarcasterSignIn,
     experience.phase,
+    gateAnonymousRealmRoute,
     returnPreparing
   ]);
 
@@ -764,12 +782,14 @@ export function WarpkeepExperience() {
             interactive={menuInteractive}
             inputModality={menuInteractive ? inputModality : 'unknown'}
             focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
-            onCancelFarcasterSignIn={cancelFarcasterSignIn}
+            openFarcasterAuthPanel={pendingDestination === 'realm'}
+            onCancelFarcasterSignIn={cancelFarcasterSignInAndClearDestination}
+            onDisposeFarcasterSignIn={cancelFarcasterSignIn}
             onRequestAuthenticatedRealm={beginRealmEntry}
             onRequestFarcasterSignIn={beginFarcasterSignIn}
             onRequestReturn={handleExplicitReturn}
             onRetryFarcasterSignIn={retryFarcasterSignIn}
-            onSignOut={signOutFarcaster}
+            onSignOut={handleSignOut}
           />
         </div>
       ) : null}
