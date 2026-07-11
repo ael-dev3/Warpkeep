@@ -46,6 +46,18 @@ describe('Warpkeep experience transitions', () => {
     });
   });
 
+  it('supports a stable realm phase without confusing it with the title-to-menu transition', () => {
+    const menu = createExperienceState('menu');
+    const realm = experienceTransitionReducer(menu, { type: 'request-realm' });
+
+    expect(realm).toEqual({ phase: 'realm', transitionSequence: 1 });
+    expect(experienceTransitionReducer(realm, { type: 'request-title' })).toBe(realm);
+    expect(experienceTransitionReducer(realm, { type: 'return-menu' })).toEqual({
+      phase: 'menu',
+      transitionSequence: 1
+    });
+  });
+
   it('ignores impossible and stale transitions without corrupting state', () => {
     const title = createExperienceState();
     expect(experienceTransitionReducer(title, { type: 'complete-menu' })).toBe(title);

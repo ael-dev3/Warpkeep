@@ -50,6 +50,24 @@ describe('WarpkeepMainMenu', () => {
     expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
   });
 
+  it('routes ENTER REALM to its live callback while preserving notices for other commands', () => {
+    const onRequestEnterRealm = vi.fn();
+    render(
+      <WarpkeepMainMenu
+        active
+        onRequestEnterRealm={onRequestEnterRealm}
+        onRequestReturn={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(onRequestEnterRealm).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('status')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'CONTINUE' }));
+    expect(screen.getByRole('status').textContent).toContain('Campaign');
+  });
+
   it('shows distinct anchored notices one at a time without stealing focus', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });

@@ -25,6 +25,7 @@
   z-index: 2;
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .warpkeep-experience__screen--title > .warpkeep-title-screen {
@@ -32,8 +33,28 @@
   height: 100%;
 }
 
+.warpkeep-experience__screen--realm[data-presented="true"] {
+  animation: warpkeep-realm-entry 340ms ease-out both;
+}
+
+@keyframes warpkeep-realm-entry {
+  from {
+    opacity: 0;
+    filter: brightness(0.48) saturate(0.72);
+  }
+
+  to {
+    opacity: 1;
+    filter: brightness(1) saturate(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .warpkeep-experience__screen {
     transition: none;
+  }
+
+  .warpkeep-experience__screen--realm[data-presented="true"] {
+    animation: none;
   }
 }

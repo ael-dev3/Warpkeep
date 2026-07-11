@@ -1,0 +1,208 @@
+.realm-map-screen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  color: #f2ead8;
+  background: #818b67;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.realm-map-screen__canvas,
+.realm-map-screen__fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.realm-map-screen__canvas {
+  display: block;
+  cursor: grab;
+  touch-action: none;
+}
+
+.realm-map-screen__fallback {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 35%, rgb(176 181 131 / 48%), transparent 40%),
+    linear-gradient(145deg, #79815a, #596640 72%, #6d7047);
+}
+
+.realm-map-screen__fallback-map {
+  width: min(86vw, 86vh);
+  height: min(86vw, 86vh);
+  filter: saturate(0.8) contrast(0.96);
+}
+
+.realm-map-screen__fallback-copy {
+  position: absolute;
+  inset-inline: 50% auto;
+  bottom: 1.25rem;
+  width: min(32rem, calc(100vw - 2rem));
+  margin: 0;
+  transform: translateX(-50%);
+  color: #e9e3c8;
+  font-size: 0.77rem;
+  line-height: 1.4;
+  text-align: center;
+  text-shadow: 0 1px 8px #293018;
+}
+
+.realm-map-screen__hud {
+  position: absolute;
+  z-index: 2;
+  top: clamp(1rem, 3vw, 2.5rem);
+  left: clamp(1rem, 3vw, 2.5rem);
+  display: grid;
+  gap: 0.85rem;
+  width: min(27rem, calc(100vw - 2rem));
+  padding: 1rem 1.1rem;
+  border: 1px solid rgb(231 220 177 / 30%);
+  border-radius: 0.35rem;
+  background: linear-gradient(135deg, rgb(24 27 22 / 84%), rgb(38 35 31 / 72%));
+  box-shadow: 0 0.7rem 2.5rem rgb(22 26 15 / 30%);
+  backdrop-filter: blur(9px);
+}
+
+.realm-map-screen__heading > span,
+.realm-map-screen__selected > span {
+  color: #c7ad73;
+  font-size: 0.63rem;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+}
+
+.realm-map-screen__heading h1 {
+  margin: 0.18rem 0 0;
+  color: #f6efd8;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(1.55rem, 3vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: 0.025em;
+}
+
+.realm-map-screen__heading p,
+.realm-map-screen__actions > span {
+  margin: 0.25rem 0 0;
+  color: #d7d5bd;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.realm-map-screen__selected {
+  display: grid;
+  gap: 0.26rem;
+  padding-top: 0.78rem;
+  border-top: 1px solid rgb(231 220 177 / 20%);
+}
+
+.realm-map-screen__selected strong {
+  color: #f1e9cf;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.realm-map-screen__selected small {
+  color: #bebda7;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.realm-map-screen__actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.realm-map-screen__return,
+.realm-map-screen__cell-button {
+  border: 1px solid rgb(226 199 130 / 53%);
+  background: rgb(64 51 39 / 74%);
+  color: #f5ecd3;
+  font: inherit;
+  cursor: pointer;
+}
+
+.realm-map-screen__return {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 0.18rem;
+  font-size: 0.74rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.realm-map-screen__return:hover,
+.realm-map-screen__return:focus-visible {
+  border-color: #e7c878;
+  background: rgb(111 80 47 / 86%);
+  outline: 2px solid #e7c878;
+  outline-offset: 2px;
+}
+
+.realm-map-screen__cell-list {
+  position: absolute;
+  z-index: 2;
+  right: clamp(0.7rem, 2vw, 1.5rem);
+  bottom: clamp(0.7rem, 2vw, 1.5rem);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(2.75rem, 1fr));
+  gap: 0.28rem;
+  width: min(18rem, calc(100vw - 1.4rem));
+  padding: 0.45rem;
+  border: 1px solid rgb(231 220 177 / 25%);
+  border-radius: 0.28rem;
+  background: rgb(20 23 18 / 72%);
+  backdrop-filter: blur(7px);
+}
+
+.realm-map-screen__cell-button {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border-color: rgb(226 199 130 / 22%);
+  border-radius: 0.12rem;
+  background: rgb(75 87 52 / 60%);
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.realm-map-screen__cell-button[aria-pressed='true'] {
+  border-color: #b79bcf;
+  background: rgb(112 84 127 / 82%);
+}
+
+.realm-map-screen__cell-button:hover,
+.realm-map-screen__cell-button:focus-visible {
+  border-color: #e3c575;
+  outline: 2px solid #e3c575;
+  outline-offset: 1px;
+}
+
+@media (max-width: 680px) {
+  .realm-map-screen__hud {
+    top: 0.75rem;
+    left: 0.75rem;
+    width: calc(100vw - 1.5rem);
+    padding: 0.78rem 0.85rem;
+  }
+
+  .realm-map-screen__heading p,
+  .realm-map-screen__actions > span {
+    font-size: 0.66rem;
+  }
+
+  .realm-map-screen__cell-list {
+    grid-template-columns: repeat(5, minmax(2.55rem, 1fr));
+    width: min(16rem, calc(100vw - 1.4rem));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .realm-map-screen__canvas {
+    cursor: default;
+  }
+}

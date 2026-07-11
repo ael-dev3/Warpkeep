@@ -17,6 +17,7 @@ import {
   WARPKEEP_MENU_VIDEO_URL,
   type MenuInputModality
 } from './menu/WarpkeepMainMenu';
+import { RealmMapScreen } from './realm/RealmMapScreen';
 import {
   WarpTransitionOverlay,
   type WarpTransitionOrigin
@@ -39,18 +40,26 @@ import {
 import './WarpkeepExperience.css';
 
 const MENU_HASH = '#menu';
+const REALM_HASH = '#realm';
 const MENU_HISTORY_KEY = 'warpkeepMenu';
+const REALM_HISTORY_KEY = 'warpkeepRealm';
 const TITLE_HINT_DELAY_MS = 5_000;
 
 type WarpkeepHistoryState = Record<string, unknown> & {
   [MENU_HISTORY_KEY]?: true;
+  [REALM_HISTORY_KEY]?: true;
 };
 
 function hasMenuHash() {
   return typeof window !== 'undefined' && window.location.hash === MENU_HASH;
 }
 
+function hasRealmHash() {
+  return typeof window !== 'undefined' && window.location.hash === REALM_HASH;
+}
+
 function initialStablePhase(): WarpkeepStableExperiencePhase {
+  if (hasRealmHash()) return 'realm';
   return hasMenuHash() ? 'menu' : 'title';
 }
 
@@ -89,7 +98,17 @@ function menuHistoryState() {
   const safeCurrent = current && typeof current === 'object'
     ? current as Record<string, unknown>
     : {};
-  return { ...safeCurrent, [MENU_HISTORY_KEY]: true } satisfies WarpkeepHistoryState;
+  const nextState = { ...safeCurrent, [MENU_HISTORY_KEY]: true } as WarpkeepHistoryState;
+  delete nextState[REALM_HISTORY_KEY];
+  return nextState;
+}
+
+function realmHistoryState() {
+  const current = window.history.state;
+  const safeCurrent = current && typeof current === 'object'
+    ? current as Record<string, unknown>
+    : {};
+  return { ...safeCurrent, [REALM_HISTORY_KEY]: true } satisfies WarpkeepHistoryState;
 }
 
 function pageUrlWithoutHash() {
@@ -119,10 +138,10 @@ export function WarpkeepExperience() {
   }));
   const [inputModality, setInputModality] = useState<MenuInputModality>('unknown');
   const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
-  const [titleReady, setTitleReady] = useState(initialPhase === 'menu');
+  const [titleReady, setTitleReady] = useState(initialPhase !== 'title');
   const [showTitleHint, setShowTitleHint] = useState(false);
   const [hintUsesTouchCopy, setHintUsesTouchCopy] = useState(false);
-  const [menuPreloadReady, setMenuPreloadReady] = useState(initialPhase === 'menu');
+  const [menuPreloadReady, setMenuPreloadReady] = useState(initialPhase !== 'title');
   const [returnPreparing, setReturnPreparing] = useState(false);
   const titleRef = useRef<WarpkeepTitleScreenHandle>(null);
   const audioDirectorRef = useRef<WarpkeepAudioDirectorHandle>(null);
@@ -141,6 +160,7 @@ export function WarpkeepExperience() {
 
   const audioScene: AudioScene = !returnPreparing && (
     experience.phase === 'menu'
+    || experience.phase === 'realm'
     || experience.phase === 'transitioning-to-menu'
   )
     ? 'menu'
@@ -159,6 +179,7 @@ export function WarpkeepExperience() {
       experience.phase === 'transitioning-to-title'
       && presentedScreen === 'menu'
     );
+  const realmMounted = experience.phase === 'realm';
   const titleInteractive = experience.phase === 'title';
   const menuInteractive = experience.phase === 'menu' && !returnPreparing;
   const menuMediaActive = menuMounted;
@@ -208,6 +229,36 @@ export function WarpkeepExperience() {
   ) => {
     beginMenuTransition(projection, input, true);
   }, [beginMenuTransition]);
+
+  const beginRealmEntry = useCallback(() => {
+    if (phaseRef.current !== 'menu' || returnPreparingRef.current) {
+      return;
+    }
+
+    blurActiveElement();
+    if (!hasRealmHash()) {
+      window.history.pushState(realmHistoryState(), '', `${pageUrlWithoutHash()}${REALM_HASH}`);
+    }
+    setPresentedScreen('realm');
+    dispatch({ type: 'request-realm' });
+  }, []);
+
+  const returnRealmToMenu = useCallback(() => {
+    if (phaseRef.current !== 'realm') {
+      return;
+    }
+
+    blurActiveElement();
+    const state = window.history.state as WarpkeepHistoryState | null;
+    const canReturnThroughHistory = hasRealmHash() && state?.[REALM_HISTORY_KEY] === true;
+    setPresentedScreen('menu');
+    dispatch({ type: 'return-menu' });
+    if (canReturnThroughHistory) {
+      window.history.back();
+    } else {
+      window.history.replaceState(menuHistoryState(), '', `${pageUrlWithoutHash()}${MENU_HASH}`);
+    }
+  }, []);
 
   const beginTitleTransition = useCallback((historyMode: 'back' | 'replace' | 'none') => {
     if (
@@ -416,15 +467,35 @@ export function WarpkeepExperience() {
         cancelPreparedReturn();
         return;
       }
-      if (hasMenuHash() && phase === 'title') {
-        const projection = titleRef.current?.getGatewayProjection()
-          ?? fallbackGatewayProjection();
-        titleRef.current?.requestEnter('keyboard');
-        if (phaseRef.current === 'title' && !entryLockedRef.current) {
-          beginMenuTransition(projection, 'unknown', false);
+      if (hasRealmHash()) {
+        if (phase === 'menu') {
+          setPresentedScreen('realm');
+          dispatch({ type: 'request-realm' });
         }
-      } else if (!hasMenuHash() && phase === 'menu') {
+        return;
+      }
+      if (hasMenuHash()) {
+        if (phase === 'title') {
+          const projection = titleRef.current?.getGatewayProjection()
+            ?? fallbackGatewayProjection();
+          titleRef.current?.requestEnter('keyboard');
+          if (phaseRef.current === 'title' && !entryLockedRef.current) {
+            beginMenuTransition(projection, 'unknown', false);
+          }
+        } else if (phase === 'realm') {
+          setPresentedScreen('menu');
+          dispatch({ type: 'return-menu' });
+        }
+        return;
+      }
+      if (phase === 'menu') {
         beginTitleTransition('none');
+      } else if (phase === 'realm') {
+        // A direct #realm visit has no preceding menu entry. Preserve a useful
+        // in-app route rather than exposing a blank phase on browser Back.
+        setPresentedScreen('menu');
+        window.history.replaceState(menuHistoryState(), '', `${pageUrlWithoutHash()}${MENU_HASH}`);
+        dispatch({ type: 'return-menu' });
       }
     };
 
@@ -441,7 +512,7 @@ export function WarpkeepExperience() {
       return;
     }
 
-    if (experience.phase === 'menu' && !hasMenuHash()) {
+    if (experience.phase === 'menu' && !hasMenuHash() && !hasRealmHash()) {
       entryLockedRef.current = false;
       beginTitleTransition('none');
     } else if (experience.phase === 'title' && hasMenuHash()) {
@@ -594,8 +665,20 @@ export function WarpkeepExperience() {
             interactive={menuInteractive}
             inputModality={menuInteractive ? inputModality : 'unknown'}
             focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
+            onRequestEnterRealm={beginRealmEntry}
             onRequestReturn={handleExplicitReturn}
           />
+        </div>
+      ) : null}
+
+      {realmMounted ? (
+        <div
+          className="warpkeep-experience__screen warpkeep-experience__screen--realm"
+          data-presented={presentedScreen === 'realm' ? 'true' : 'false'}
+          aria-hidden={experience.phase !== 'realm'}
+          inert={experience.phase !== 'realm' ? true : undefined}
+        >
+          <RealmMapScreen onRequestReturn={returnRealmToMenu} />
         </div>
       ) : null}
 

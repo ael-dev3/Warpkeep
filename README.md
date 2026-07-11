@@ -6,7 +6,7 @@ Warpkeep is an open-source Farcaster-native strategy game where each player can 
 
 **Live demo:** https://ael-dev3.github.io/Warpkeep/
 
-Current public prototype: the live demo opens on a pure Three.js **WARPKEEP** title screen built around custom continuous architectural letterforms, a slowly rotating five-arm galaxy, and an accessible eye-like gravitational gateway. Activating the galactic core now pulls the scene through a violet warp passage into a live Hegemony main menu. That menu uses a repaired clean 1080p castle-and-sunset film, the project-provided “Sunset Hegemony” score, antique-gold semantic HTML controls, command-specific development notices, keyboard/touch navigation, a static reduced-motion treatment, and a clean return path to the title. The five menu destinations remain prototypes—no playable campaign, saved realm, settings, credits, or exit destination is implemented yet.
+Current public prototype: the live demo opens on a pure Three.js **WARPKEEP** title screen built around custom continuous architectural letterforms, a slowly rotating five-arm galaxy, and an accessible eye-like gravitational gateway. Activating the galactic core now pulls the scene through a violet warp passage into a live Hegemony main menu. That menu uses a repaired clean 1080p castle-and-sunset film, the project-provided “Sunset Hegemony” score, antique-gold semantic HTML controls, keyboard/touch navigation, a static reduced-motion treatment, and a clean return path to the title. `ENTER REALM` now opens an early deterministic Hegemony Lowlands terrain foundation: one continuous 19-cell pointy-top region generated from a stable seed with shared-edge geometry, procedural surface variation, hover/selection, and a WebGL fallback. It is not a game loop yet; keeps, resources, units, combat, persistence, Farcaster auth, and SpacetimeDB remain future work.
 
 Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farcaster FID maps to a persistent castle profile. It is inspired by old-school asynchronous strategy loops like building, training, scouting, raiding, alliances, and seasonal realm politics, but it is designed as an original Farcaster-native game foundation.
 
@@ -20,7 +20,7 @@ Warpkeep is a Farcaster-native asynchronous strategy game seed where every Farca
 
 Warpkeep aims for the feel of a grand fantasy 4X strategy game: vast realms, distant battles, player-built keeps, alliances, conquest, and magical warping across the map.
 
-Current status: **initial seed / scaffold with title-to-menu presentation prototype**. The repo still contains a local mocked castle dashboard and deterministic state scaffold for development, but that dashboard is not exposed by the public menu. SpacetimeDB, gameplay, persistence, and real Farcaster auth are planned, not complete.
+Current status: **initial seed / scaffold with title-to-menu presentation and an early deterministic realm-terrain prototype**. The repo still contains a local mocked castle dashboard and deterministic state scaffold for development, but that dashboard is not exposed by the public menu. SpacetimeDB, gameplay, persistence, and real Farcaster auth are planned, not complete.
 
 ## Current direction
 
@@ -31,6 +31,7 @@ Long-term, Warpkeep may explore distinct faction economies: a regulated Hegemony
 Read more:
 
 - [`docs/design/warpkeep-direction.md`](docs/design/warpkeep-direction.md)
+- [`docs/design/hegemony-lowlands-terrain.md`](docs/design/hegemony-lowlands-terrain.md)
 - [`docs/design/roadmap.md`](docs/design/roadmap.md)
 
 ## Official faction art
@@ -55,9 +56,10 @@ The current public experience:
 
 1. A cinematic **WARPKEEP** title screen establishes the cosmic world.
 2. Click/tap the central gateway, or press Enter/Space, to enter the Hegemony menu through a gateway-centered transition.
-3. The live menu presents the five planned destinations—Enter Realm, Continue, Settings, Credits, and Exit—but each currently gives an honest development notice.
-4. Escape, browser Back, or the separate Return to Title control returns without a page reload.
-5. The local mocked castle dashboard remains a future-development scaffold and is not a playable public destination.
+3. **Enter Realm** opens the early deterministic Hegemony Lowlands prototype: a seamless-data 19-cell pointy-top terrain foundation with basic camera, hover, selection, and an accessible WebGL fallback.
+4. Continue, Settings, Credits, and Exit retain their honest development notices.
+5. Return to Menu, Escape, and browser Back preserve the title/menu history path without a page reload.
+6. The local mocked castle dashboard remains a future-development scaffold and is not a playable public destination.
 
 ## Local development
 
@@ -73,6 +75,7 @@ npm run build
 
 - Vite + React + TypeScript frontend.
 - Deterministic game logic in `src/game/systems/gameLoop.ts`.
+- Renderer-independent axial terrain generation in `src/game/map/` with a direct Three.js realm surface in `src/components/realm/`.
 - Models in `src/game/models/types.ts`.
 - Mock Farcaster identity in `src/farcaster/farcasterAuth.ts`.
 - Mock nearby castles in `src/game/mockData/mockCastle.ts`.
