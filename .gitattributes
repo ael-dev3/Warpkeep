@@ -1,0 +1,3 @@
+# SpacetimeDB CLI 2.6.1 emits a terminal blank line in these generated files.
+# Keep the CLI output byte-for-byte verifiable without treating it as hand-written whitespace.
+src/spacetime/module_bindings/** whitespace=-blank-at-eof

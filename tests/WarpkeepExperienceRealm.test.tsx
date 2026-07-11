@@ -5,23 +5,44 @@ import {
   render as testingLibraryRender,
   screen
 } from '@testing-library/react';
-import { StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepExperience } from '../src/components/WarpkeepExperience';
 import { FarcasterAuthProvider } from '../src/farcaster/FarcasterAuthProvider';
 import {
-  FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS,
   getFarcasterDeviceSessionStorageKey,
   persistFarcasterRememberedDeviceSession,
   type FarcasterDeviceSessionEnvironment,
   type FarcasterDeviceSessionStorage
 } from '../src/farcaster/farcasterDeviceSession';
 import type {
+  FarcasterBridgeChallenge,
+  FarcasterOidcBridgeClient,
+  FarcasterOidcSession,
   FarcasterSessionAuthority,
   FarcasterSignInChannel,
   VerifiedFarcasterIdentity
 } from '../src/farcaster/farcasterAuthTypes';
+import {
+  WarpkeepSpacetimeProvider,
+  type WarpkeepBackendRuntime
+} from '../src/spacetime/WarpkeepSpacetimeProvider';
+import type {
+  WarpkeepAdmissionStatus,
+  WarpkeepRealmSnapshot
+} from '../src/spacetime/warpkeepBackendTypes';
+import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
+
+const TEST_NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
+const TEST_ISSUER = 'https://auth.warpkeep.example';
+const TEST_AUDIENCE = 'warpkeep-spacetimedb';
+const TEST_CONFIG: WarpkeepRuntimeConfig = Object.freeze({
+  spacetimeUri: 'https://maincloud.spacetimedb.com',
+  spacetimeDatabase: 'warpkeep-89e4u',
+  bridgeUrl: TEST_ISSUER,
+  issuer: TEST_ISSUER,
+  audience: TEST_AUDIENCE
+});
 
 const VERIFIED_IDENTITY: VerifiedFarcasterIdentity = Object.freeze({
   fid: 12_345,
@@ -29,10 +50,42 @@ const VERIFIED_IDENTITY: VerifiedFarcasterIdentity = Object.freeze({
   displayName: 'Warp Keeper',
   verifications: Object.freeze([]),
   authMethod: 'authAddress',
-  verifiedAt: 10_000
+  verifiedAt: TEST_NOW - 10_000
 });
 
-const REMEMBERED_SESSION_NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
+const SHARED_REALM: WarpkeepRealmSnapshot = Object.freeze({
+  tiles: Object.freeze([]),
+  players: Object.freeze([]),
+  castles: Object.freeze([
+    Object.freeze({
+      castleId: 1,
+      ownerFid: VERIFIED_IDENTITY.fid,
+      tileKey: '1,-1',
+      q: 1,
+      r: -1,
+      level: 2,
+      name: 'Warpkeeper Bastion'
+    }),
+    Object.freeze({
+      castleId: 2,
+      ownerFid: 77,
+      tileKey: '-1,1',
+      q: -1,
+      r: 1,
+      level: 1,
+      name: 'Peer Watch'
+    })
+  ]),
+  ownCastle: Object.freeze({
+    castleId: 1,
+    ownerFid: VERIFIED_IDENTITY.fid,
+    tileKey: '1,-1',
+    q: 1,
+    r: -1,
+    level: 2,
+    name: 'Warpkeeper Bastion'
+  })
+});
 
 class TestDeviceStorage implements FarcasterDeviceSessionStorage {
   private readonly values = new Map<string, string>();
@@ -52,7 +105,7 @@ class TestDeviceStorage implements FarcasterDeviceSessionStorage {
 
 function createDeviceSessionEnvironment(
   storage: FarcasterDeviceSessionStorage,
-  now = REMEMBERED_SESSION_NOW
+  now = TEST_NOW
 ): FarcasterDeviceSessionEnvironment {
   return {
     storage,
@@ -62,86 +115,159 @@ function createDeviceSessionEnvironment(
   };
 }
 
-function createTestAuthority(now: () => number = Date.now) {
-  const createdAt = now();
-  const channel: FarcasterSignInChannel = {
-    channelToken: 'PRIVATE_TEST_CHANNEL_TOKEN_123456',
-    url: 'farcaster://connect?channelToken=PRIVATE_TEST_CHANNEL_TOKEN_123456',
-    nonce: 'TestNonce1234567890',
-    requestId: 'test-request-id',
-    domain: 'localhost',
-    siweUri: 'http://localhost/',
-    createdAt,
-    expiresAt: createdAt + 300_000
-  };
+function encodeJwtSegment(value: unknown) {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function createOidcSession(
+  fid = VERIFIED_IDENTITY.fid,
+  now = TEST_NOW
+): FarcasterOidcSession {
+  const issuedAt = Math.floor(now / 1_000);
+  const expiresAt = now + 30 * 24 * 60 * 60 * 1_000;
+  const jwt = `${encodeJwtSegment({ alg: 'ES256', typ: 'JWT', kid: 'test-key' })}.${encodeJwtSegment({
+    iss: TEST_ISSUER,
+    sub: `farcaster:${fid}`,
+    aud: [TEST_AUDIENCE],
+    token_type: 'spacetime-access',
+    fid: String(fid),
+    auth_epoch: 0,
+    roles: [],
+    iat: issuedAt,
+    nbf: issuedAt,
+    exp: Math.floor(expiresAt / 1_000),
+    jti: `test-${fid}-${issuedAt}`
+  })}.test_signature`;
+  return Object.freeze({ jwt, issuer: TEST_ISSUER, audience: TEST_AUDIENCE, expiresAt });
+}
+
+function createTestAuthority(now: () => number) {
+  let activeChannel: FarcasterSignInChannel | undefined;
   return {
-    beginSignIn: vi.fn(async () => channel),
-    getStatus: vi.fn(async () => ({
-      state: 'completed' as const,
-      nonce: channel.nonce,
-      message: 'PRIVATE_TEST_MESSAGE',
-      signature: `0x${'ab'.repeat(65)}` as const,
-      fid: VERIFIED_IDENTITY.fid,
-      signatureParams: {
-        siweUri: channel.siweUri,
-        domain: channel.domain,
-        nonce: channel.nonce,
-        expirationTime: new Date(channel.expiresAt).toISOString(),
-        requestId: channel.requestId
-      },
-      acceptAuthAddress: true as const,
-      username: VERIFIED_IDENTITY.username,
-      displayName: VERIFIED_IDENTITY.displayName,
-      verifications: [],
-      authMethod: 'authAddress' as const
-    })),
+    beginSignIn: vi.fn(async (context, challenge?: FarcasterBridgeChallenge) => {
+      const createdAt = challenge?.createdAt ?? now();
+      activeChannel = {
+        channelToken: 'PRIVATE_TEST_CHANNEL_TOKEN_123456',
+        url: 'farcaster://connect?channelToken=PRIVATE_TEST_CHANNEL_TOKEN_123456',
+        nonce: challenge?.nonce ?? 'TestNonce1234567890',
+        requestId: challenge?.requestId ?? 'test-request-id',
+        domain: context?.domain ?? 'localhost',
+        siweUri: context?.siweUri ?? 'http://localhost/',
+        createdAt,
+        expiresAt: challenge?.expiresAt ?? createdAt + 300_000
+      };
+      return activeChannel;
+    }),
+    getStatus: vi.fn(async () => {
+      if (!activeChannel) throw new Error('No active test channel');
+      return {
+        state: 'completed' as const,
+        nonce: activeChannel.nonce,
+        message: 'PRIVATE_TEST_MESSAGE',
+        signature: `0x${'ab'.repeat(65)}` as const,
+        fid: VERIFIED_IDENTITY.fid,
+        signatureParams: {
+          siweUri: activeChannel.siweUri,
+          domain: activeChannel.domain,
+          nonce: activeChannel.nonce,
+          expirationTime: new Date(activeChannel.expiresAt).toISOString(),
+          requestId: activeChannel.requestId
+        },
+        acceptAuthAddress: true as const,
+        username: VERIFIED_IDENTITY.username,
+        displayName: VERIFIED_IDENTITY.displayName,
+        verifications: [],
+        authMethod: 'authAddress' as const
+      };
+    }),
     verifyCompletedRequest: vi.fn(async () => VERIFIED_IDENTITY)
   } satisfies FarcasterSessionAuthority;
 }
 
+function createBridge(session: FarcasterOidcSession, now: () => number) {
+  return {
+    createChallenge: vi.fn(async () => {
+      const createdAt = now();
+      return {
+        nonce: 'ab'.repeat(24),
+        requestId: 'bridge-request-1234',
+        createdAt,
+        expiresAt: createdAt + 300_000
+      };
+    }),
+    exchangeCompletedSignIn: vi.fn(async () => session)
+  } satisfies FarcasterOidcBridgeClient;
+}
+
+function createBackendRuntime(
+  admissionSequence: readonly WarpkeepAdmissionStatus[] = ['ready'],
+  realm: WarpkeepRealmSnapshot = SHARED_REALM
+) {
+  const connection = {
+    isDisconnectRequested: false,
+    disconnect: vi.fn()
+  };
+  let admissionIndex = 0;
+  const unsubscribe = vi.fn();
+  const runtime = {
+    connect: vi.fn(async () => connection),
+    disconnect: vi.fn((candidate) => {
+      candidate?.disconnect();
+    }),
+    readAdmission: vi.fn(async () => admissionSequence[Math.min(
+      admissionIndex++,
+      admissionSequence.length - 1
+    )]!),
+    bootstrapPlayer: vi.fn(async () => undefined),
+    observeRealm: vi.fn(() => vi.fn()),
+    readRealmSnapshot: vi.fn(() => realm),
+    subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
+      onApplied();
+      return { unsubscribe };
+    })
+  } as unknown as WarpkeepBackendRuntime;
+  return { runtime, connection, unsubscribe };
+}
+
 type RenderExperienceOptions = {
-  strict?: boolean;
   deviceSessionEnvironment?: FarcasterDeviceSessionEnvironment;
   now?: () => number;
-  encodeQrCode?: (channelUrl: string) => Promise<string>;
+  runtime?: WarpkeepBackendRuntime;
+  bridge?: FarcasterOidcBridgeClient;
 };
 
 function renderExperience({
-  strict = false,
   deviceSessionEnvironment,
-  now = Date.now,
-  encodeQrCode = vi.fn(async () => 'data:image/svg+xml,TEST_QR')
+  now = () => TEST_NOW,
+  runtime = createBackendRuntime().runtime,
+  bridge = createBridge(createOidcSession(VERIFIED_IDENTITY.fid, now()), now)
 }: RenderExperienceOptions = {}) {
   const authority = createTestAuthority(now);
-  const experience = (
+  const rendered = testingLibraryRender(
     <FarcasterAuthProvider
       deviceSessionEnvironment={deviceSessionEnvironment}
-      encodeQrCode={encodeQrCode}
+      encodeQrCode={vi.fn(async () => 'data:image/svg+xml,TEST_QR')}
       loadAuthority={async () => authority}
+      loadBridgeClient={async () => bridge}
       now={now}
       pollIntervalMs={1}
     >
-      <WarpkeepExperience />
+      <WarpkeepSpacetimeProvider config={TEST_CONFIG} runtime={runtime}>
+        <WarpkeepExperience />
+      </WarpkeepSpacetimeProvider>
     </FarcasterAuthProvider>
   );
-  const rendered = testingLibraryRender(strict ? <StrictMode>{experience}</StrictMode> : experience);
-  return { ...rendered, authority, encodeQrCode };
+  return { ...rendered, authority, bridge };
 }
 
-async function settleAuth() {
+async function settle() {
   await act(async () => {
-    for (let round = 0; round < 12; round += 1) {
+    for (let round = 0; round < 16; round += 1) {
       await Promise.resolve();
     }
   });
-}
-
-async function preloadFarcasterPresentation() {
-  await Promise.all([
-    import('../src/components/auth/FarcasterIdentityBadge'),
-    import('../src/components/auth/FarcasterQrAuthPanel')
-  ]);
-  await settleAuth();
 }
 
 function installBrowserStubs() {
@@ -169,8 +295,11 @@ function installBrowserStubs() {
 beforeEach(async () => {
   window.localStorage.clear();
   window.sessionStorage.clear();
-  await preloadFarcasterPresentation();
-  vi.useFakeTimers();
+  await Promise.all([
+    import('../src/components/auth/FarcasterIdentityBadge'),
+    import('../src/components/auth/FarcasterQrAuthPanel')
+  ]);
+  vi.useFakeTimers({ now: TEST_NOW });
   window.history.replaceState({ warpkeepMenu: true }, '', '/#menu');
   installBrowserStubs();
 });
@@ -184,325 +313,129 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('Warpkeep realm entry', () => {
-  it('authenticates through ENTER REALM, opens the deterministic realm, and keeps the session', async () => {
-    const { container, authority } = renderExperience();
-    const experience = container.querySelector('.warpkeep-experience')!;
+describe('Warpkeep shared realm admission', () => {
+  it('exchanges Farcaster proof with the bridge, then uses the server castle instead of local keep authority', async () => {
+    const backend = createBackendRuntime();
+    const { container, authority, bridge } = renderExperience({ runtime: backend.runtime });
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(screen.getByRole('heading', { level: 2, name: 'CLAIM YOUR KEEP' })).not.toBeNull();
-    expect(experience.getAttribute('data-phase')).toBe('menu');
-    await settleAuth();
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-    });
-    await settleAuth();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
 
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
     expect(authority.verifyCompletedRequest).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('FID 12345')).not.toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(experience.getAttribute('data-phase')).toBe('realm');
-    expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('heading', { level: 1, name: '@warpkeeper Keep' })).not.toBeNull();
-    expect(screen.getByText('Hegemony Frontier Keep')).not.toBeNull();
-    expect(screen.getByText(
-      /Surveyors are preparing the frontier keep|frontier marker is holding|frontier keep .* expedition|center holding/i
-    )).not.toBeNull();
+    expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_CHANNEL_TOKEN_123456');
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_MESSAGE');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
-    await act(async () => {});
-    expect(experience.getAttribute('data-phase')).toBe('menu');
-    expect(screen.getByRole('button', { name: 'ENTER REALM' })).not.toBeNull();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
-  });
-
-  it('opens a valid remembered device directly at #realm without a channel or QR', async () => {
-    const storage = new TestDeviceStorage();
-    const environment = createDeviceSessionEnvironment(storage);
-    const rememberedIdentity: VerifiedFarcasterIdentity = {
-      ...VERIFIED_IDENTITY,
-      verifiedAt: REMEMBERED_SESSION_NOW - 60_000
-    };
-    const session = persistFarcasterRememberedDeviceSession(
-      rememberedIdentity,
-      environment
-    );
-    expect(session).toBeDefined();
-    window.history.replaceState({}, '', '/#realm');
-
-    const { container, authority, encodeQrCode } = renderExperience({
-      deviceSessionEnvironment: environment,
-      now: environment.now
-    });
-    const experience = container.querySelector('.warpkeep-experience')!;
-
-    // The synchronous restored auth state decides the initial phase before a
-    // relay request or QR encoder can begin.
-    expect(experience.getAttribute('data-phase')).toBe('realm');
-    expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('heading', { level: 1, name: '@warpkeeper Keep' })).not.toBeNull();
-    expect(authority.beginSignIn).not.toHaveBeenCalled();
-    expect(encodeQrCode).not.toHaveBeenCalled();
-
-    await act(async () => {});
-    const realmAudio = Array.from(
-      container.querySelectorAll<HTMLAudioElement>('audio[data-audio-role^="realm"]')
-    );
-    expect(realmAudio).toHaveLength(2);
-    expect(realmAudio.every((audio) => (
-      audio.getAttribute('src')?.includes('audio/warpkeep-lowlands-theme.mp3')
-    ))).toBe(true);
-  });
-
-  it('fails closed for an expired device record and gates a direct #realm load', async () => {
-    const storage = new TestDeviceStorage();
-    const issuedEnvironment = createDeviceSessionEnvironment(storage);
-    const rememberedIdentity: VerifiedFarcasterIdentity = {
-      ...VERIFIED_IDENTITY,
-      verifiedAt: REMEMBERED_SESSION_NOW - 60_000
-    };
-    expect(persistFarcasterRememberedDeviceSession(
-      rememberedIdentity,
-      issuedEnvironment
-    )).toBeDefined();
-    const expiredEnvironment = createDeviceSessionEnvironment(
-      storage,
-      REMEMBERED_SESSION_NOW + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
-    );
-    window.history.replaceState({}, '', '/#realm');
-
-    const { container, authority } = renderExperience({
-      deviceSessionEnvironment: expiredEnvironment,
-      now: expiredEnvironment.now
-    });
-
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
-    expect(window.location.hash).toBe('#menu');
-    expect(screen.queryByRole('heading', { level: 1, name: '@warpkeeper Keep' })).toBeNull();
-    expect(storage.getItem(getFarcasterDeviceSessionStorageKey('/')!)).toBeNull();
-    expect(Array.from(
-      container.querySelectorAll<HTMLAudioElement>('audio[data-audio-role^="realm"]')
-    ).every((audio) => !audio.hasAttribute('src'))).toBe(true);
-
-    await settleAuth();
-    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
-  });
-
-  it('normalizes a remembered #realm route when another tab forgets the device', async () => {
-    const storage = new TestDeviceStorage();
-    const environment = createDeviceSessionEnvironment(storage);
-    const rememberedIdentity: VerifiedFarcasterIdentity = {
-      ...VERIFIED_IDENTITY,
-      verifiedAt: REMEMBERED_SESSION_NOW - 60_000
-    };
-    expect(persistFarcasterRememberedDeviceSession(
-      rememberedIdentity,
-      environment
-    )).toBeDefined();
-    const storageKey = getFarcasterDeviceSessionStorageKey('/')!;
-    window.history.replaceState({}, '', '/#realm');
-    const { container, authority } = renderExperience({
-      deviceSessionEnvironment: environment,
-      now: environment.now
-    });
-
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
-    storage.removeItem(storageKey);
-    act(() => {
-      window.dispatchEvent(new StorageEvent('storage', { key: storageKey, newValue: null }));
-    });
-    await settleAuth();
-
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
-    expect(window.location.hash).toBe('#menu');
-    expect(screen.queryByRole('heading', { level: 1, name: '@warpkeeper Keep' })).toBeNull();
-    expect(authority.beginSignIn).not.toHaveBeenCalled();
-  });
-
-  it('normalizes an anonymous direct #realm load to its one-shot Farcaster gate', async () => {
-    window.localStorage.setItem('fid', '12345');
-    window.sessionStorage.setItem('farcasterIdentity', JSON.stringify(VERIFIED_IDENTITY));
-    window.history.replaceState({}, '', '/?fid=12345#realm');
-    const { container, authority } = renderExperience({ strict: true });
-
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
-    expect(window.location.hash).toBe('#menu');
-    expect(screen.queryByRole('heading', { level: 1, name: '@warpkeeper Keep' })).toBeNull();
-    await settleAuth();
-
-    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
-    expect(screen.getByRole('heading', { level: 2, name: 'CLAIM YOUR KEEP' })).not.toBeNull();
-    expect(screen.queryByRole('navigation', { name: 'Hegemony main menu' })).toBeNull();
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-    });
-    await settleAuth();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
-
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
-    expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('heading', { level: 1, name: '@warpkeeper Keep' })).not.toBeNull();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
+    expect(screen.getByText('LEVEL 2')).not.toBeNull();
   });
 
-  it('gates an anonymous Back or Forward visit to #realm and lets cancellation stay cancelled', async () => {
-    const { container, authority } = renderExperience();
+  it('restores a valid v2 bridge session, rechecks admission, and does not create a new Farcaster channel', async () => {
+    const storage = new TestDeviceStorage();
+    const environment = createDeviceSessionEnvironment(storage);
+    expect(persistFarcasterRememberedDeviceSession(
+      VERIFIED_IDENTITY,
+      createOidcSession(VERIFIED_IDENTITY.fid, TEST_NOW),
+      environment
+    )).toBeDefined();
+    window.history.replaceState({}, '', '/#realm');
+    const backend = createBackendRuntime();
+    const { authority } = renderExperience({
+      deviceSessionEnvironment: environment,
+      now: environment.now,
+      runtime: backend.runtime
+    });
 
+    await settle();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
-    act(() => {
-      window.history.replaceState({}, '', '/#realm');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    });
-    await settleAuth();
-
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
-    expect(window.location.hash).toBe('#menu');
-    expect(screen.queryByRole('heading', { level: 1, name: '@warpkeeper Keep' })).toBeNull();
-    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }));
-    await settleAuth();
-    expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      vi.advanceTimersByTime(10);
-    });
-    await settleAuth();
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps the verified FID across title/menu transitions without another channel', async () => {
-    window.history.replaceState({}, '', '/#menu');
-    const { container, authority } = renderExperience();
-
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    await settleAuth();
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-    });
-    await settleAuth();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
-
-    fireEvent.keyDown(document, { key: 'Escape' });
-    await settleAuth();
-    expect(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
-    })).not.toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
-    await act(async () => {
-      vi.advanceTimersByTime(901);
-    });
-    await act(async () => {
-      vi.advanceTimersByTime(2_250);
-    });
-    await act(async () => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase'))
-      .toBe('title');
-
-    fireEvent.keyDown(document.body, { key: 'Enter' });
-    await act(async () => {
-      vi.advanceTimersByTime(2_250);
-    });
-    await settleAuth();
-    expect(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
-    })).not.toBeNull();
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase'))
-      .toBe('realm');
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
-  });
-
-  it('honors an authenticated Forward to #realm during the title-to-menu transition', async () => {
-    const { container } = renderExperience();
-    const experience = container.querySelector('.warpkeep-experience')!;
-
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    await settleAuth();
-    await act(async () => vi.advanceTimersByTime(1));
-    await settleAuth();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(experience.getAttribute('data-phase')).toBe('realm');
-
-    act(() => {
-      window.history.replaceState({ warpkeepMenu: true }, '', '/#menu');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    });
-    await act(async () => {});
-    expect(experience.getAttribute('data-phase')).toBe('menu');
-    act(() => {
-      window.history.replaceState({}, '', '/');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    });
-    await act(async () => vi.advanceTimersByTime(901));
-    await act(async () => vi.advanceTimersByTime(2_250));
-    expect(experience.getAttribute('data-phase')).toBe('title');
-
-    act(() => {
-      window.history.replaceState({ warpkeepMenu: true }, '', '/#menu');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    });
-    expect(experience.getAttribute('data-phase')).toBe('transitioning-to-menu');
-    act(() => {
-      window.history.replaceState({ warpkeepRealm: true }, '', '/#realm');
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    });
-    await act(async () => vi.advanceTimersByTime(2_250));
-
-    expect(experience.getAttribute('data-phase')).toBe('realm');
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
     expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('heading', { level: 1, name: '@warpkeeper Keep' })).not.toBeNull();
   });
 
-  it('does not permit later realm entry after the in-memory identity signs out', async () => {
-    const { container, authority } = renderExperience();
-    const experience = container.querySelector('.warpkeep-experience')!;
-
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    await settleAuth();
-    await act(async () => vi.advanceTimersByTime(1));
-    await settleAuth();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    expect(experience.getAttribute('data-phase')).toBe('realm');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
-    await act(async () => {});
-    fireEvent.click(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+  it('purges a legacy public-identity record and never lets it mount the shared realm', async () => {
+    const storage = new TestDeviceStorage();
+    const environment = createDeviceSessionEnvironment(storage);
+    storage.setItem('warpkeep:/:farcaster-device-session:v1', JSON.stringify({
+      version: 1,
+      kind: 'remembered-device-prototype',
+      origin: window.location.origin,
+      basePath: '/',
+      identity: { fid: VERIFIED_IDENTITY.fid },
+      verifiedAt: TEST_NOW - 1_000,
+      rememberedAt: TEST_NOW - 1_000,
+      expiresAt: TEST_NOW + 60_000
     }));
-    fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT & FORGET DEVICE' }));
+    window.history.replaceState({}, '', '/#realm');
+    const backend = createBackendRuntime();
+    const { authority } = renderExperience({
+      deviceSessionEnvironment: environment,
+      runtime: backend.runtime
+    });
 
-    expect(screen.queryByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
-    })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
-    await settleAuth();
-
-    expect(experience.getAttribute('data-phase')).toBe('menu');
-    expect(screen.queryByRole('heading', { level: 1, name: '@warpkeeper Keep' })).toBeNull();
-    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(2);
+    await settle();
+    expect(storage.getItem('warpkeep:/:farcaster-device-session:v1')).toBeNull();
+    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves the other menu commands as their existing development notices', () => {
-    renderExperience();
+  it('shows the precise denied panel and Check Again reuses the existing bridge session without a new QR flow', async () => {
+    const backend = createBackendRuntime(['not_admitted', 'ready']);
+    const { authority, bridge, container } = renderExperience({ runtime: backend.runtime });
 
-    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }));
-    expect(screen.getByRole('status').textContent).toContain('war council');
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(screen.getByText('This Farcaster identity is not yet admitted to the Hegemony frontier.')).not.toBeNull();
+    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    const requestAccess = screen.getByRole('link', {
+      name: 'Open @0xael.eth on Farcaster to request Warpkeep access'
+    });
+    expect(requestAccess).toHaveProperty('href', 'https://farcaster.xyz/0xael.eth');
+
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    await settle();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+  });
+
+  it('does not connect anonymous title/menu visitors and sign-out tears down backend state', async () => {
+    const backend = createBackendRuntime(['not_admitted']);
+    const { authority } = renderExperience({ runtime: backend.runtime });
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+    expect(screen.getByText('This Farcaster identity is not yet admitted to the Hegemony frontier.')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
+    await settle();
+    expect(backend.runtime.disconnect).toHaveBeenCalled();
+    expect(screen.queryByText('This Farcaster identity is not yet admitted to the Hegemony frontier.')).toBeNull();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(window.localStorage.getItem(getFarcasterDeviceSessionStorageKey('/')!)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(2);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
   });
 });

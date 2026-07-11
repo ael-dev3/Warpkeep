@@ -8,6 +8,7 @@ import {
   type FarcasterAuthProviderProps
 } from '../src/farcaster/FarcasterAuthProvider';
 import { FARCASTER_AUTH_REQUEST_TTL_MS } from '../src/farcaster/farcasterAuthContext';
+import { FarcasterOidcBridgeClientError } from '../src/farcaster/farcasterOidcBridgeClient';
 import {
   FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS,
   getFarcasterDeviceSessionStorageKey,
@@ -17,6 +18,8 @@ import {
 import type {
   FarcasterChannelStatus,
   FarcasterCompletedChannelStatus,
+  FarcasterOidcBridgeClient,
+  FarcasterOidcSession,
   FarcasterSessionAuthority,
   FarcasterSignInChannel,
   VerifiedFarcasterIdentity
@@ -89,6 +92,49 @@ function createIdentity(verifiedAt = Date.now()): VerifiedFarcasterIdentity {
     verifications: [],
     authMethod: 'authAddress',
     verifiedAt
+  };
+}
+
+function encodeSegment(value: unknown) {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function createOidcSession(
+  fid = 12_345,
+  now = Date.now(),
+  expiresAt = now + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+): FarcasterOidcSession {
+  const issuedAt = Math.floor(now / 1_000) * 1_000;
+  const normalizedExpiresAt = Math.floor(expiresAt / 1_000) * 1_000;
+  const jwt = `${encodeSegment({ alg: 'ES256', typ: 'JWT', kid: 'test-key' })}.${encodeSegment({
+    iss: 'https://auth.warpkeep.example',
+    sub: `farcaster:${fid}`,
+    aud: ['warpkeep-spacetimedb'],
+    token_type: 'spacetime-access',
+    fid: String(fid),
+    auth_epoch: 0,
+    roles: [],
+    iat: issuedAt / 1_000,
+    nbf: issuedAt / 1_000,
+    exp: normalizedExpiresAt / 1_000,
+    jti: `test-${fid}-${now}`
+  })}.test_signature`;
+  return {
+    jwt,
+    issuer: 'https://auth.warpkeep.example',
+    audience: 'warpkeep-spacetimedb',
+    expiresAt: normalizedExpiresAt
+  };
+}
+
+function createBridge(
+  overrides: Partial<FarcasterOidcBridgeClient> = {}
+): FarcasterOidcBridgeClient {
+  return {
+    exchangeCompletedSignIn: vi.fn(async (request) => createOidcSession(request.fid)),
+    ...overrides
   };
 }
 
@@ -174,10 +220,11 @@ type RenderProviderOptions = Omit<FarcasterAuthProviderProps, 'children'> & {
 function renderProvider({
   children = <AuthHarness />,
   strict = false,
+  loadBridgeClient = vi.fn(async () => createBridge()),
   ...providerProps
 }: RenderProviderOptions) {
   const provider = (
-    <FarcasterAuthProvider {...providerProps}>
+    <FarcasterAuthProvider {...providerProps} loadBridgeClient={loadBridgeClient}>
       {children}
     </FarcasterAuthProvider>
   );
@@ -215,6 +262,27 @@ afterEach(() => {
 });
 
 describe('FarcasterAuthProvider session lifecycle', () => {
+  it('fails closed before creating a Farcaster channel when no bridge is configured', async () => {
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => createChannel('MUST_NOT_OPEN'))
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => {
+        throw new FarcasterOidcBridgeClientError('configuration intentionally absent');
+      })
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+
+    expect(readPublicState()).toMatchObject({
+      phase: 'error',
+      error: { code: 'bridge' }
+    });
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+  });
+
   it('does no auth work on mount and synchronously deduplicates begin under StrictMode', async () => {
     const pendingChannel = deferred<FarcasterSignInChannel>();
     const authority = createAuthority({
@@ -371,24 +439,26 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     await advanceTime(10);
 
     expect(authority.verifyCompletedRequest).toHaveBeenCalledTimes(1);
-    expect(readPublicState()).toEqual({
+    expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
       identity,
-      assurance: 'live-client-verified'
+      assurance: 'bridge-oidc-alpha',
+      expiresAt: expect.any(Number)
     });
     expect(JSON.stringify(readPublicState())).not.toContain('PRIVATE_MESSAGE_COMPLETE');
     expect(JSON.stringify(readPublicState())).not.toContain(channel.channelToken);
     await advanceTime(50_000);
     expect(authority.getStatus).toHaveBeenCalledTimes(1);
-    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle child' }));
     expect(screen.queryByTestId('auth-state')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Toggle child' }));
-    expect(readPublicState()).toEqual({
+    expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
       identity,
-      assurance: 'live-client-verified'
+      assurance: 'bridge-oidc-alpha',
+      expiresAt: expect.any(Number)
     });
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
 
@@ -396,7 +466,55 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
   });
 
-  it('persists, restores, and forgets a remembered-device prototype session through injected storage', async () => {
+  it('exchanges only the verified SIWF envelope with an injected bridge and keeps its JWT out of view state', async () => {
+    vi.useFakeTimers({ now: 52_000 });
+    const channel = createChannel('EXCHANGE');
+    const completed = createCompletedStatus(channel.nonce, 'EXCHANGE');
+    const verifiedIdentity = createIdentity(Date.now() - 1);
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => completed),
+      verifyCompletedRequest: vi.fn(async () => verifiedIdentity)
+    });
+    const bridge = createBridge();
+    const loadBridgeClient = vi.fn(async () => bridge);
+
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient,
+      encodeQrCode: vi.fn(async () => 'data:image/svg+xml,unused'),
+      now: Date.now,
+      pollIntervalMs: 10
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+
+    expect(loadBridgeClient).toHaveBeenCalledTimes(1);
+    expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledTimes(1);
+    const [request] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
+    expect(request).toMatchObject({
+      message: completed.message,
+      signature: completed.signature,
+      nonce: channel.nonce,
+      fid: verifiedIdentity.fid,
+      requestId: channel.requestId,
+      domain: channel.domain,
+      siweUri: channel.siweUri,
+      expirationTime: new Date(channel.expiresAt).toISOString(),
+      expiresAt: channel.expiresAt,
+      identity: {
+        fid: verifiedIdentity.fid,
+        username: verifiedIdentity.username,
+        displayName: verifiedIdentity.displayName
+      }
+    });
+    expect(request).not.toHaveProperty('channelToken');
+    expect(JSON.stringify(request)).not.toContain(channel.channelToken);
+    expect(JSON.stringify(readPublicState())).not.toContain(createOidcSession().jwt);
+  });
+
+  it('persists, restores, and forgets a bridge-OIDC session through injected storage', async () => {
     vi.useFakeTimers({ now: 55_000 });
     const storage = new MemoryDeviceSessionStorage();
     const sessionEnvironment = deviceSessionEnvironment(storage);
@@ -421,10 +539,13 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     await settleAsyncWork();
     await advanceTime(10);
 
-    expect(readPublicState()).toEqual({
+    expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
       identity: verifiedIdentity,
-      assurance: 'live-client-verified'
+      assurance: 'bridge-oidc-alpha',
+      expiresAt: Math.floor(
+        (Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS) / 1_000
+      ) * 1_000
     });
     expect(screen.getByTestId('has-remembered-device').textContent).toBe('true');
     const serialized = storage.values.get(deviceSessionStorageKey());
@@ -436,7 +557,9 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(JSON.parse(serialized!)).toMatchObject({
       origin: DEVICE_SESSION_ORIGIN,
       basePath: DEVICE_SESSION_BASE_PATH,
-      expiresAt: Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+      expiresAt: Math.floor(
+        (Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS) / 1_000
+      ) * 1_000
     });
 
     liveRender.unmount();
@@ -457,8 +580,10 @@ describe('FarcasterAuthProvider session lifecycle', () => {
         verifications: [],
         verifiedAt: verifiedIdentity.verifiedAt
       },
-      assurance: 'remembered-device-prototype',
-      expiresAt: Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+      assurance: 'bridge-oidc-alpha',
+      expiresAt: Math.floor(
+        (Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS) / 1_000
+      ) * 1_000
     });
     expect(restoredAuthority.beginSignIn).not.toHaveBeenCalled();
     expect(screen.getByTestId('has-remembered-device').textContent).toBe('true');
@@ -495,7 +620,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
 
     expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
-      assurance: 'live-client-verified'
+      assurance: 'bridge-oidc-alpha'
     });
     expect(screen.getByTestId('has-remembered-device').textContent).toBe('false');
     expect(storage.values.has(deviceSessionStorageKey())).toBe(false);

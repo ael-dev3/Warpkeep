@@ -276,7 +276,7 @@ describe('farcasterAuthMachineReducer', () => {
           verifications: [],
           verifiedAt: identity.verifiedAt
         },
-        assurance: 'remembered-device-prototype',
+        assurance: 'bridge-oidc-alpha',
         expiresAt
       }
     });

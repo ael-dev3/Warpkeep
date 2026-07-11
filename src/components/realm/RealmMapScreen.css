@@ -195,6 +195,15 @@
   line-height: 1.42;
 }
 
+.realm-hud__shared-state {
+  margin: -0.08rem 0 0;
+  color: #b9c8a9;
+  font-size: 0.5rem;
+  font-weight: 740;
+  letter-spacing: 0.105em;
+  line-height: 1.4;
+}
+
 .realm-hud__actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

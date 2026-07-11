@@ -6,6 +6,7 @@ import type {
 } from './farcasterAuthTypes';
 
 export type FarcasterRememberedMachineSession = Readonly<{
+  /** Derived only from a validated v2 bridge-OIDC device record. */
   identity: VerifiedFarcasterIdentity;
   expiresAt: number;
 }>;
@@ -41,6 +42,13 @@ export type FarcasterAuthMachineAction =
       generation: number;
       identity: VerifiedFarcasterIdentity;
       assurance: 'live-client-verified';
+    }>
+  | Readonly<{
+      type: 'authenticated';
+      generation: number;
+      identity: VerifiedFarcasterIdentity;
+      assurance: 'bridge-oidc-alpha';
+      expiresAt: number;
     }>
   | Readonly<{
       type: 'restore';
@@ -148,7 +156,7 @@ function rememberedView(
   return {
     phase: 'authenticated',
     identity: publicIdentity(session.identity),
-    assurance: 'remembered-device-prototype',
+    assurance: 'bridge-oidc-alpha',
     expiresAt: session.expiresAt
   };
 }
@@ -268,8 +276,11 @@ export function farcasterAuthMachineReducer(
       if (
         state.view.phase !== 'verifying'
         || !isCurrentGeneration(state, action.generation)
-        || action.assurance !== 'live-client-verified'
         || !isValidIdentity(action.identity)
+        || (
+          action.assurance === 'bridge-oidc-alpha'
+          && !isValidRememberedExpiry(action.identity, action.expiresAt)
+        )
       ) {
         return state;
       }
@@ -278,7 +289,10 @@ export function farcasterAuthMachineReducer(
         view: {
           phase: 'authenticated',
           identity: publicIdentity(action.identity),
-          assurance: action.assurance
+          assurance: action.assurance,
+          ...(action.assurance === 'bridge-oidc-alpha'
+            ? { expiresAt: action.expiresAt }
+            : {})
         }
       };
 

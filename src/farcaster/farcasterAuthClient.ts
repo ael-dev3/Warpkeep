@@ -1,13 +1,16 @@
 import {
+  FARCASTER_AUTH_REQUEST_TTL_MS,
   createFarcasterRequestMaterial,
   getBrowserFarcasterAuthContext,
   type FarcasterSecureRandomSource
 } from './farcasterAuthContext';
+import { FarcasterOidcBridgeClientError } from './farcasterOidcBridgeClient';
 import type {
   FarcasterAuthContext,
   FarcasterAuthError,
   FarcasterAuthErrorCode,
   FarcasterAuthMethod,
+  FarcasterBridgeChallenge,
   FarcasterChannelStatus,
   FarcasterCompletedChannelStatus,
   FarcasterExpectedSignInRequest,
@@ -150,9 +153,48 @@ export function toFarcasterAuthError(error: unknown): FarcasterAuthError {
   if (error instanceof FarcasterAuthClientError) {
     return Object.freeze({ code: error.code, message: error.message });
   }
+  if (error instanceof FarcasterOidcBridgeClientError) {
+    return Object.freeze({
+      code: 'bridge',
+      message: 'The Hegemony verification service could not confirm this sign-in.'
+    });
+  }
   return Object.freeze({
     code: 'unknown',
     message: 'Farcaster authentication could not be completed.'
+  });
+}
+
+function requestFromBridgeChallenge(
+  challenge: FarcasterBridgeChallenge | undefined,
+  now: number
+) {
+  if (!challenge) {
+    return undefined;
+  }
+  if (
+    typeof challenge.nonce !== 'string'
+    || !isNonce(challenge.nonce)
+    || typeof challenge.requestId !== 'string'
+    || !/^[A-Za-z0-9._~-]{8,256}$/.test(challenge.requestId)
+    || !Number.isSafeInteger(challenge.createdAt)
+    || !Number.isSafeInteger(challenge.expiresAt)
+    || challenge.createdAt < 0
+    || challenge.createdAt > now + 60_000
+    || challenge.expiresAt <= now
+    || challenge.expiresAt <= challenge.createdAt
+    || challenge.expiresAt - challenge.createdAt > FARCASTER_AUTH_REQUEST_TTL_MS
+    || challenge.expiresAt > 8.64e15
+  ) {
+    return invalidResponse('Warpkeep could not validate its Farcaster bridge challenge.');
+  }
+
+  return Object.freeze({
+    nonce: challenge.nonce,
+    requestId: challenge.requestId,
+    createdAt: challenge.createdAt,
+    expiresAt: challenge.expiresAt,
+    expirationTime: new Date(challenge.expiresAt).toISOString()
   });
 }
 
@@ -552,9 +594,14 @@ export function createFarcasterSessionAuthority(
   };
 
   return Object.freeze({
-    async beginSignIn(context = resolveContext()) {
+    async beginSignIn(
+      context = resolveContext(),
+      bridgeChallenge: FarcasterBridgeChallenge | undefined = undefined
+    ) {
       validateAuthContext(context);
-      const request = createFarcasterRequestMaterial(now(), options.randomSource);
+      const requestNow = Math.floor(now());
+      const request = requestFromBridgeChallenge(bridgeChallenge, requestNow)
+        ?? createFarcasterRequestMaterial(requestNow, options.randomSource);
       const appClient = await callClient('create-channel', client);
       const response = await callClient(
         'create-channel',

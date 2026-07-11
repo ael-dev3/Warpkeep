@@ -81,6 +81,49 @@ describe('RealmMapScreen', () => {
     expect(screen.getByText('LEVEL 1')).not.toBeNull();
   });
 
+  it('uses the authoritative own-castle projection and exposes the narrow shared snapshot', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    render(
+      <RealmMapScreen
+        identity={VERIFIED_REALM_IDENTITY}
+        ownCastle={{
+          castleId: 9,
+          ownerFid: VERIFIED_REALM_IDENTITY.fid,
+          q: 1,
+          r: -1,
+          level: 3,
+          name: 'Server Bastion'
+        }}
+        otherCastles={[{
+          castleId: 10,
+          ownerFid: 77,
+          q: -1,
+          r: 1,
+          level: 1,
+          name: 'Peer Watch'
+        }]}
+        sharedTiles={Array.from({ length: 61 }, (_, index) => ({
+          key: `${index},0`,
+          q: index,
+          r: 0,
+          biome: 'temperate-lowland',
+          terrainSeed: index
+        }))}
+        sharedPlayers={[
+          { fid: VERIFIED_REALM_IDENTITY.fid, status: 'active' },
+          { fid: 77, status: 'active' }
+        ]}
+        onRequestReturn={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Server Bastion' })).not.toBeNull();
+    expect(screen.getByText('LEVEL 3')).not.toBeNull();
+    expect(screen.getByText('Selected cell 1, -1')).not.toBeNull();
+    expect(screen.getByLabelText('Shared realm state').textContent)
+      .toContain('61 TILES // 2 KEEPERS // 2 KEEPS');
+  });
+
   it('returns focus to the realm after compact navigator selection so arrow navigation works', () => {
     renderFallbackRealm();
     const realm = screen.getByRole('main');

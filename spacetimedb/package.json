@@ -1,0 +1,23 @@
+{
+  "name": "warpkeep-spacetimedb-module",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "description": "Warpkeep's closed-alpha SpacetimeDB authority module.",
+  "scripts": {
+    "stdb:version": "spacetime --version",
+    "stdb:build": "spacetime build --module-path .",
+    "typecheck": "tsc --noEmit",
+    "test:pure": "tsx --test tests/*.test.ts",
+    "verify": "pnpm run typecheck && pnpm run test:pure && pnpm run stdb:build",
+    "stdb:publish:dev": "node ./scripts/refuse-unconfigured-publish.mjs"
+  },
+  "dependencies": {
+    "spacetimedb": "2.6.1"
+  },
+  "devDependencies": {
+    "tsx": "4.20.6",
+    "typescript": "5.6.3"
+  }
+}

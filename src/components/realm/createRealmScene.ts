@@ -2,7 +2,6 @@ import * as THREE from 'three';
 
 import { axialToWorld, worldToNearestAxial, type HexCoord } from '../../game/map/hexCoordinates';
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
-import { HEGEMONY_KEEP_PLACEMENT } from '../../game/map/terrainPlacements';
 import { isPlayableRealmCoord, type RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
 import { createTerrainDecorationLayers } from './createTerrainDecorations';
@@ -21,8 +20,13 @@ import { resolveRealmPixelRatio, type RealmQualitySpec } from './realmQuality';
 import type { KeepLoadStatus } from './realmTypes';
 
 const HEX_SIZE = 1;
-const KEEP_COORD = HEGEMONY_KEEP_PLACEMENT.coord;
 const OVERLAY_LIFT = 0.026;
+
+export type RealmPeerCastleMarker = Readonly<{
+  castleId: number;
+  q: number;
+  r: number;
+}>;
 
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
@@ -36,6 +40,8 @@ export type RealmSceneHandle = Readonly<{
 export type CreateRealmSceneOptions = Readonly<{
   canvas: HTMLCanvasElement;
   surface: RealmTerrainSurface;
+  keepCoord: HexCoord;
+  otherCastles: readonly RealmPeerCastleMarker[];
   quality: RealmQualitySpec;
   reducedMotion: boolean;
   baseUrl: string;
@@ -217,12 +223,38 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   const selectedOverlay = createOverlay('#fff1b8', 1);
   scene.add(hoverOverlay, selectedOverlay);
 
-  const keepWorld = axialToWorld(KEEP_COORD, HEX_SIZE);
+  const keepWorld = axialToWorld(options.keepCoord, HEX_SIZE);
   const keepGroundY = terrainHeightAtWorld(options.surface.renderMap, keepWorld, HEX_SIZE);
   const keepAnchor = new THREE.Group();
   keepAnchor.name = 'hegemony-keep-anchor';
   keepAnchor.position.set(keepWorld.x, keepGroundY + 0.006, keepWorld.z);
   scene.add(keepAnchor);
+
+  // Shared-state peers intentionally remain lightweight markers; only the
+  // authenticated player's own keep loads the detailed GLB.
+  const peerMarkerGroup = new THREE.Group();
+  peerMarkerGroup.name = 'hegemony-peer-castle-markers';
+  const peerMarkerGeometry = new THREE.ConeGeometry(0.13, 0.36, 5);
+  const peerMarkerMaterial = new THREE.MeshStandardMaterial({
+    color: '#8f58a2',
+    emissive: '#341946',
+    emissiveIntensity: 0.18,
+    roughness: 0.78,
+    metalness: 0.04
+  });
+  for (const castle of options.otherCastles) {
+    const world = axialToWorld({ q: castle.q, r: castle.r }, HEX_SIZE);
+    const marker = new THREE.Mesh(peerMarkerGeometry, peerMarkerMaterial);
+    marker.name = `peer-castle-${castle.castleId}`;
+    marker.position.set(
+      world.x,
+      terrainHeightAtWorld(options.surface.renderMap, world, HEX_SIZE) + 0.2,
+      world.z
+    );
+    marker.rotation.y = Math.PI / 5;
+    peerMarkerGroup.add(marker);
+  }
+  scene.add(peerMarkerGroup);
 
   const contactShadow = new THREE.Mesh(
     new THREE.CircleGeometry(0.69, 40),
@@ -279,7 +311,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     const intersections = raycaster.intersectObjects([keepAnchor, terrain], true);
     for (const intersection of intersections) {
       if (isDescendantOf(intersection.object, keepAnchor)) {
-        return { coord: KEEP_COORD, keep: true };
+        return { coord: options.keepCoord, keep: true };
       }
       if (intersection.object === terrain) {
         const coord = worldToNearestAxial(
@@ -464,6 +496,8 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     disposeOverlay(hoverOverlay);
     disposeOverlay(selectedOverlay);
     disposeRealmObject(keepObject);
+    peerMarkerGeometry.dispose();
+    peerMarkerMaterial.dispose();
     contactShadow.geometry.dispose();
     (contactShadow.material as THREE.Material).dispose();
     renderer.dispose();

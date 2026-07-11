@@ -14,8 +14,10 @@ import {
 import {
   clearFarcasterRememberedDeviceSession,
   getFarcasterDeviceSessionStorageKey,
+  getLegacyFarcasterDeviceSessionStorageKey,
   persistFarcasterRememberedDeviceSession,
   restoreFarcasterRememberedDeviceSession,
+  toFarcasterOidcSession,
   type FarcasterDeviceSessionEnvironment,
   type FarcasterRememberedDeviceSession
 } from './farcasterDeviceSession';
@@ -30,24 +32,38 @@ import {
   getDefaultFarcasterSessionAuthority,
   toFarcasterAuthError
 } from './farcasterAuthClient';
-import { FARCASTER_AUTH_REQUEST_TTL_MS } from './farcasterAuthContext';
+import {
+  FARCASTER_AUTH_REQUEST_TTL_MS,
+  getBrowserFarcasterAuthContext
+} from './farcasterAuthContext';
+import { getDefaultFarcasterOidcBridgeClient } from './farcasterOidcBridgeClient';
+import { validateFarcasterOidcSessionForIdentity } from './farcasterOidcSession';
 import type {
   FarcasterAuthError,
+  FarcasterAuthContext,
   FarcasterAuthPhase,
   FarcasterAuthViewState,
+  FarcasterOidcBridgeClient,
+  FarcasterOidcSession,
   FarcasterSessionAuthority,
   FarcasterSignInChannel,
   VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';
 
 export const FARCASTER_AUTH_POLL_INTERVAL_MS = 1_500;
+const MAX_BROWSER_TIMER_DELAY_MS = 2_147_000_000;
 
 export type FarcasterAuthorityLoader = () => Promise<FarcasterSessionAuthority>;
+export type FarcasterOidcBridgeLoader = () => Promise<FarcasterOidcBridgeClient>;
 export type FarcasterQrEncoder = (channelUrl: string) => Promise<string>;
 
 export type FarcasterAuthProviderProps = Readonly<{
   children: ReactNode;
   loadAuthority?: FarcasterAuthorityLoader;
+  /** Lazy injection seam for the trusted Farcaster → OIDC bridge. */
+  loadBridgeClient?: FarcasterOidcBridgeLoader;
+  /** Kept injectable so a challenge and SIWF request share one exact context. */
+  resolveAuthContext?: () => FarcasterAuthContext;
   encodeQrCode?: FarcasterQrEncoder;
   now?: () => number;
   pollIntervalMs?: number;
@@ -57,6 +73,8 @@ export type FarcasterAuthProviderProps = Readonly<{
 
 export type FarcasterAuthControllerValue = Readonly<{
   state: FarcasterAuthViewState;
+  /** Bearer material is intentionally separate from presentation state. */
+  oidcSession: FarcasterOidcSession | undefined;
   beginSignIn: () => void;
   cancelSignIn: () => void;
   retrySignIn: () => void;
@@ -69,10 +87,15 @@ export type FarcasterAuthControllerValue = Readonly<{
 
 type ControllerConfig = {
   loadAuthority: FarcasterAuthorityLoader;
+  loadBridgeClient: FarcasterOidcBridgeLoader;
+  resolveAuthContext: () => FarcasterAuthContext;
   encodeQrCode: FarcasterQrEncoder;
   now: () => number;
   pollIntervalMs: number;
-  onLiveAuthenticated: (identity: VerifiedFarcasterIdentity) => void;
+  onBridgeAuthenticated: (
+    identity: VerifiedFarcasterIdentity,
+    session: FarcasterOidcSession
+  ) => void;
   onSignOut: () => void;
 };
 
@@ -168,6 +191,7 @@ class FarcasterAuthController {
   private pollTimer: number | undefined;
   private expiryTimer: number | undefined;
   private authorityPromise: Promise<FarcasterSessionAuthority> | undefined;
+  private bridgeClientPromise: Promise<FarcasterOidcBridgeClient> | undefined;
 
   constructor(
     private readonly dispatch: Dispatch<FarcasterAuthMachineAction>,
@@ -347,6 +371,19 @@ class FarcasterAuthController {
     return this.authorityPromise;
   }
 
+  private async getBridgeClient() {
+    if (!this.bridgeClientPromise) {
+      const bridgeClientPromise = Promise.resolve().then(() => this.config.loadBridgeClient());
+      this.bridgeClientPromise = bridgeClientPromise;
+      void bridgeClientPromise.catch(() => {
+        if (this.bridgeClientPromise === bridgeClientPromise) {
+          this.bridgeClientPromise = undefined;
+        }
+      });
+    }
+    return this.bridgeClientPromise;
+  }
+
   private scheduleExpiry(generation: number, expiresAt: number) {
     this.clearExpiryTimer();
     const delay = expiresAt - this.readNow();
@@ -381,13 +418,17 @@ class FarcasterAuthController {
   private finish(
     generation: number,
     phase: 'authenticated' | 'expired' | 'error',
-    action: FarcasterAuthMachineAction
+    action: FarcasterAuthMachineAction,
+    oidcSession?: FarcasterOidcSession
   ) {
     if (!this.isCurrent(generation)) {
       return;
     }
     if (action.type === 'authenticated') {
-      this.config.onLiveAuthenticated(action.identity);
+      if (!oidcSession) {
+        return;
+      }
+      this.config.onBridgeAuthenticated(action.identity, oidcSession);
     }
     this.invalidatePrivateRequest();
     this.phase = phase;
@@ -424,8 +465,15 @@ class FarcasterAuthController {
 
   private async createChannel(generation: number) {
     let authority: FarcasterSessionAuthority;
+    let bridgeClient: FarcasterOidcBridgeClient;
+    let context: FarcasterAuthContext;
     try {
       authority = await this.getAuthority();
+      if (!this.isCurrent(generation)) {
+        return;
+      }
+      context = this.config.resolveAuthContext();
+      bridgeClient = await this.getBridgeClient();
       if (!this.isCurrent(generation)) {
         return;
       }
@@ -436,7 +484,13 @@ class FarcasterAuthController {
 
     let channel: FarcasterSignInChannel;
     try {
-      channel = await authority.beginSignIn();
+      const challenge = bridgeClient.createChallenge
+        ? await bridgeClient.createChallenge(context)
+        : undefined;
+      if (!this.isCurrent(generation)) {
+        return;
+      }
+      channel = await authority.beginSignIn(context, challenge);
       if (!this.isCurrent(generation)) {
         return;
       }
@@ -566,12 +620,55 @@ class FarcasterAuthController {
         return;
       }
 
+      // The relay's FID is never allowed to replace the independently
+      // verified identity. A disagreement fails before any proof reaches the
+      // bridge.
+      if (identity.fid !== status.fid) {
+        this.fail(generation, undefined, invalidStatusError);
+        return;
+      }
+
+      const bridgeClient = await this.getBridgeClient();
+      if (!this.isCurrent(generation)) {
+        return;
+      }
+      const bridgeSession = await bridgeClient.exchangeCompletedSignIn({
+        message: status.message,
+        signature: status.signature,
+        nonce: channel.nonce,
+        fid: identity.fid,
+        requestId: channel.requestId,
+        domain: channel.domain,
+        siweUri: channel.siweUri,
+        expirationTime: new Date(channel.expiresAt).toISOString(),
+        expiresAt: channel.expiresAt,
+        identity: {
+          fid: identity.fid,
+          ...(identity.username === undefined ? {} : { username: identity.username }),
+          ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
+          ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl })
+        }
+      });
+      if (!this.isCurrent(generation)) {
+        return;
+      }
+      const parsedBridgeSession = validateFarcasterOidcSessionForIdentity(
+        bridgeSession,
+        identity.fid,
+        { now: Math.floor(this.readNow()) }
+      );
+      if (!parsedBridgeSession) {
+        this.fail(generation, undefined, invalidStatusError);
+        return;
+      }
+
       this.finish(generation, 'authenticated', {
         type: 'authenticated',
         generation,
         identity,
-        assurance: 'live-client-verified'
-      });
+        assurance: 'bridge-oidc-alpha',
+        expiresAt: parsedBridgeSession.session.expiresAt
+      }, parsedBridgeSession.session);
     } catch (error) {
       this.fail(generation, error);
     } finally {
@@ -617,6 +714,8 @@ const FarcasterAuthReactContext = createContext<FarcasterAuthControllerValue | u
 export function FarcasterAuthProvider({
   children,
   loadAuthority = getDefaultFarcasterSessionAuthority,
+  loadBridgeClient = getDefaultFarcasterOidcBridgeClient,
+  resolveAuthContext = getBrowserFarcasterAuthContext,
   encodeQrCode = defaultEncodeQrCode,
   now = Date.now,
   pollIntervalMs,
@@ -630,39 +729,61 @@ export function FarcasterAuthProvider({
     rememberedMachineSession(initialRememberedSession),
     createFarcasterAuthMachineState
   );
+  const [oidcSession, setOidcSession] = useState<FarcasterOidcSession | undefined>(() => (
+    initialRememberedSession
+      ? toFarcasterOidcSession(initialRememberedSession)
+      : undefined
+  ));
   const [rememberDevice, setRememberDeviceState] = useState(true);
   const [hasRememberedDevice, setHasRememberedDevice] = useState(Boolean(initialRememberedSession));
   const controllerRef = useRef<FarcasterAuthController | undefined>(undefined);
   const machineRef = useRef(machine);
   const rememberDeviceRef = useRef(rememberDevice);
+  const oidcSessionRef = useRef(oidcSession);
+  const sessionOriginRef = useRef<'live' | 'restored' | undefined>(
+    initialRememberedSession ? 'restored' : undefined
+  );
   machineRef.current = machine;
   rememberDeviceRef.current = rememberDevice;
+  oidcSessionRef.current = oidcSession;
 
   const clearRememberedDevice = useCallback(() => {
     clearFarcasterRememberedDeviceSession({ ...deviceSessionEnvironment, now });
     setHasRememberedDevice(false);
   }, [deviceSessionEnvironment, now]);
 
-  const persistLiveIdentity = useCallback((identity: VerifiedFarcasterIdentity) => {
+  const clearAuthoritativeSession = useCallback(() => {
+    clearRememberedDevice();
+    sessionOriginRef.current = undefined;
+    setOidcSession(undefined);
+  }, [clearRememberedDevice]);
+
+  const persistBridgeSession = useCallback((
+    identity: VerifiedFarcasterIdentity,
+    session: FarcasterOidcSession
+  ) => {
+    sessionOriginRef.current = 'live';
+    setOidcSession(session);
     if (!rememberDeviceRef.current) {
-      clearFarcasterRememberedDeviceSession({ ...deviceSessionEnvironment, now });
-      setHasRememberedDevice(false);
+      clearRememberedDevice();
       return;
     }
-    const session = persistFarcasterRememberedDeviceSession(identity, {
+    const rememberedSession = persistFarcasterRememberedDeviceSession(identity, session, {
       ...deviceSessionEnvironment,
       now
     });
-    setHasRememberedDevice(Boolean(session));
-  }, [deviceSessionEnvironment, now]);
+    setHasRememberedDevice(Boolean(rememberedSession));
+  }, [clearRememberedDevice, deviceSessionEnvironment, now]);
 
   const config: ControllerConfig = {
     loadAuthority,
+    loadBridgeClient,
+    resolveAuthContext,
     encodeQrCode,
     now,
     pollIntervalMs: normalizePollInterval(pollIntervalMs),
-    onLiveAuthenticated: persistLiveIdentity,
-    onSignOut: clearRememberedDevice
+    onBridgeAuthenticated: persistBridgeSession,
+    onSignOut: clearAuthoritativeSession
   };
 
   if (!controllerRef.current) {
@@ -683,11 +804,20 @@ export function FarcasterAuthProvider({
     }
 
     const current = machineRef.current.view;
-    if (current.phase === 'authenticated') {
-      const session = persistFarcasterRememberedDeviceSession(current.identity, {
-        ...deviceSessionEnvironment,
-        now
-      });
+    const currentOidcSession = oidcSessionRef.current;
+    if (
+      current.phase === 'authenticated'
+      && current.assurance === 'bridge-oidc-alpha'
+      && currentOidcSession
+    ) {
+      const session = persistFarcasterRememberedDeviceSession(
+        current.identity,
+        currentOidcSession,
+        {
+          ...deviceSessionEnvironment,
+          now
+        }
+      );
       setHasRememberedDevice(Boolean(session));
     }
   }, [clearRememberedDevice, deviceSessionEnvironment, now]);
@@ -696,31 +826,46 @@ export function FarcasterAuthProvider({
     const current = machine.view;
     if (
       current.phase !== 'authenticated'
-      || current.assurance !== 'remembered-device-prototype'
+      || current.assurance !== 'bridge-oidc-alpha'
       || current.expiresAt === undefined
     ) {
       return undefined;
     }
-    const currentTime = readProviderNow(now);
-    const delay = currentTime === undefined ? Number.NaN : current.expiresAt - currentTime;
     const expireRememberedSession = () => {
-      clearRememberedDevice();
+      clearAuthoritativeSession();
       dispatch({ type: 'sign-out', generation: machine.generation });
     };
-    if (!Number.isFinite(delay) || delay <= 0 || typeof window === 'undefined') {
+    if (typeof window === 'undefined') {
       expireRememberedSession();
       return undefined;
     }
-    const timer = window.setTimeout(expireRememberedSession, delay);
-    return () => window.clearTimeout(timer);
-  }, [clearRememberedDevice, machine, now]);
+    let timer: number | undefined;
+    const scheduleExpiryCheck = () => {
+      const currentTime = readProviderNow(now);
+      const delay = currentTime === undefined ? Number.NaN : current.expiresAt! - currentTime;
+      if (!Number.isFinite(delay) || delay <= 0) {
+        expireRememberedSession();
+        return;
+      }
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        scheduleExpiryCheck();
+      }, Math.min(delay, MAX_BROWSER_TIMER_DELAY_MS));
+    };
+    scheduleExpiryCheck();
+    return () => {
+      if (timer !== undefined) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [clearAuthoritativeSession, machine, now]);
 
   useEffect(() => {
     const current = machine.view;
     if (
       typeof document === 'undefined'
       || current.phase !== 'authenticated'
-      || current.assurance !== 'remembered-device-prototype'
+      || current.assurance !== 'bridge-oidc-alpha'
       || current.expiresAt === undefined
     ) {
       return undefined;
@@ -732,7 +877,7 @@ export function FarcasterAuthProvider({
       }
       const currentTime = readProviderNow(now);
       if (currentTime !== undefined && currentTime >= current.expiresAt!) {
-        clearRememberedDevice();
+        clearAuthoritativeSession();
         dispatch({ type: 'sign-out', generation: machine.generation });
       }
     };
@@ -744,16 +889,17 @@ export function FarcasterAuthProvider({
       document.removeEventListener('visibilitychange', reconcileRememberedExpiry);
       window.removeEventListener('focus', reconcileRememberedExpiry);
     };
-  }, [clearRememberedDevice, machine, now]);
+  }, [clearAuthoritativeSession, machine, now]);
 
   useEffect(() => {
     const key = getFarcasterDeviceSessionStorageKey(deviceSessionEnvironment?.basePath);
+    const legacyKey = getLegacyFarcasterDeviceSessionStorageKey(deviceSessionEnvironment?.basePath);
     if (typeof window === 'undefined' || !key) {
       return undefined;
     }
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== key) {
+      if (event.key !== null && event.key !== key && event.key !== legacyKey) {
         return;
       }
       const restored = restoreFarcasterRememberedDeviceSession({
@@ -765,8 +911,11 @@ export function FarcasterAuthProvider({
         setHasRememberedDevice(false);
         if (
           current.view.phase === 'authenticated'
-          && current.view.assurance === 'remembered-device-prototype'
+          && current.view.assurance === 'bridge-oidc-alpha'
+          && sessionOriginRef.current === 'restored'
         ) {
+          sessionOriginRef.current = undefined;
+          setOidcSession(undefined);
           dispatch({ type: 'sign-out', generation: current.generation });
         }
         return;
@@ -776,6 +925,8 @@ export function FarcasterAuthProvider({
       if (current.view.phase === 'anonymous') {
         const restoredSession = rememberedMachineSession(restored);
         if (restoredSession) {
+          sessionOriginRef.current = 'restored';
+          setOidcSession(toFarcasterOidcSession(restored));
           dispatch({
             type: 'restore',
             identity: restoredSession.identity,
@@ -791,6 +942,7 @@ export function FarcasterAuthProvider({
 
   const value = useMemo<FarcasterAuthControllerValue>(() => ({
     state: machine.view,
+    oidcSession,
     beginSignIn: controller.beginSignIn,
     cancelSignIn: controller.cancelSignIn,
     retrySignIn: controller.retrySignIn,
@@ -803,6 +955,7 @@ export function FarcasterAuthProvider({
     controller,
     hasRememberedDevice,
     machine.view,
+    oidcSession,
     rememberDevice,
     setRememberDevice
   ]);

@@ -3,6 +3,23 @@ export {
   FarcasterAuthProvider,
   useFarcasterAuth
 } from './FarcasterAuthProvider';
+export type {
+  FarcasterAuthorityLoader,
+  FarcasterAuthControllerValue,
+  FarcasterOidcBridgeLoader
+} from './FarcasterAuthProvider';
+export {
+  FARCASTER_OIDC_DEFAULT_AUDIENCE,
+  FARCASTER_OIDC_PLAYER_TOKEN_TYPE,
+  parseFarcasterOidcJwt,
+  validateFarcasterOidcSession,
+  validateFarcasterOidcSessionForIdentity
+} from './farcasterOidcSession';
+export {
+  FarcasterOidcBridgeClientError,
+  createFarcasterOidcBridgeClient,
+  getDefaultFarcasterOidcBridgeClient
+} from './farcasterOidcBridgeClient';
 export {
   FARCASTER_AUTH_RELAY_URL,
   FARCASTER_OPTIMISM_RPC_URL
@@ -15,5 +32,11 @@ export type {
   FarcasterAuthViewState,
   FarcasterQrState,
   FarcasterSessionAssurance,
+  FarcasterBridgeChallenge,
+  FarcasterBridgeChallengeRequest,
+  FarcasterBridgeDisplayIdentity,
+  FarcasterBridgeExchangeRequest,
+  FarcasterOidcBridgeClient,
+  FarcasterOidcSession,
   VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';

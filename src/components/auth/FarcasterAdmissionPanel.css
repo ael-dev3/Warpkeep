@@ -1,0 +1,60 @@
+.farcaster-admission-panel {
+  --farcaster-auth-qr-size: 0px;
+}
+
+.farcaster-admission-panel__body {
+  min-height: 8.5rem;
+  align-content: center;
+}
+
+.farcaster-admission-panel__status,
+.farcaster-admission-panel__lead,
+.farcaster-admission-panel__support {
+  max-width: 22rem;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.farcaster-admission-panel__status {
+  color: #c9afdc;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.farcaster-admission-panel__lead {
+  color: #f0d9ad;
+  font-size: clamp(0.92rem, 1.16vw, 1.08rem);
+  letter-spacing: 0.035em;
+  line-height: 1.52;
+}
+
+.farcaster-admission-panel__support {
+  color: #cbb897;
+  font-size: 0.79rem;
+  letter-spacing: 0.035em;
+  line-height: 1.52;
+}
+
+.farcaster-admission-panel__identity {
+  margin-top: 0.25rem;
+  text-align: left;
+}
+
+.farcaster-admission-panel__actions {
+  margin-top: 0.8rem;
+}
+
+.farcaster-admission-panel--connecting .farcaster-auth-panel__seal-spinner,
+.farcaster-admission-panel--checking-admission .farcaster-auth-panel__seal-spinner,
+.farcaster-admission-panel--bootstrapping .farcaster-auth-panel__seal-spinner {
+  margin-bottom: 0.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farcaster-admission-panel .farcaster-auth-panel__seal-spinner {
+    animation: none;
+  }
+}

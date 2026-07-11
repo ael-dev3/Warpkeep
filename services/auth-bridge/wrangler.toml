@@ -1,0 +1,19 @@
+# This file intentionally contains no issuer URL, key material, RPC endpoint, or
+# admin secret. Configure those through Cloudflare Worker secrets/variables before
+# deploying; the bridge fails closed until every required value is present.
+name = "warpkeep-auth-bridge"
+main = "src/index.ts"
+compatibility_date = "2026-07-11"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+OIDC_AUDIENCE = "warpkeep-spacetimedb"
+
+[[durable_objects.bindings]]
+name = "CHALLENGE_REPLAY_GUARD"
+class_name = "ChallengeReplayGuard"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ChallengeReplayGuard"]

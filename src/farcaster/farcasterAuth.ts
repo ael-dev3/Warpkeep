@@ -11,5 +11,11 @@ export type {
   FarcasterAuthViewState,
   FarcasterQrState,
   FarcasterSessionAssurance,
+  FarcasterBridgeChallenge,
+  FarcasterBridgeChallengeRequest,
+  FarcasterBridgeDisplayIdentity,
+  FarcasterBridgeExchangeRequest,
+  FarcasterOidcBridgeClient,
+  FarcasterOidcSession,
   VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';

@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   type Ref
 } from 'react';
 
@@ -40,6 +41,8 @@ export type WarpkeepMainMenuProps = {
   hasRememberedDevice?: boolean;
   onRememberDeviceChange?: (remember: boolean) => void;
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
+  /** Replaces the QR rail after Farcaster has yielded an authoritative session. */
+  authRailContent?: ReactNode;
   /**
    * A guarded anonymous `#realm` route asks the menu to show its native auth
    * rail and create one fresh request after the provider is mounted.
@@ -181,6 +184,7 @@ export function WarpkeepMainMenu({
   hasRememberedDevice = false,
   onRememberDeviceChange,
   onRequestAuthenticatedRealm,
+  authRailContent,
   openFarcasterAuthPanel = false,
   inputModality = 'unknown',
   focusFirstCommand,
@@ -506,6 +510,7 @@ export function WarpkeepMainMenu({
 
     if (command.id === 'enter-realm' && farcasterAuthEnabled) {
       if (authenticatedIdentity) {
+        openAuthPanel(keyboardDriven);
         onRequestAuthenticatedRealm?.(authenticatedIdentity);
       } else {
         openAuthPanel(keyboardDriven);
@@ -725,36 +730,38 @@ export function WarpkeepMainMenu({
               primaryActionRef={authPrimaryActionRef}
             />
           }>
-            <FarcasterQrAuthPanel
-              channelUrl={authState.phase === 'awaiting-approval'
-                ? authState.channelUrl
-                : undefined}
-              assurance={authenticatedAssurance}
-              errorMessage={authState.phase === 'error' || authState.phase === 'expired'
-                ? authState.error.message
-                : undefined}
-              hasRememberedDevice={hasRememberedDevice}
-              headingRef={authHeadingRef}
-              identity={authenticatedIdentity}
-              onPresentationReady={handleAuthPanelPresentationReady}
-              onBackToMenu={handleBackToCommands}
-              onCancel={() => closeAuthPanel(
-                lastActionModalityRef.current === 'keyboard'
-              )}
-              onEnterRealm={handleAuthenticatedRealmEntry}
-              onPrepareQrCode={onPrepareFarcasterQrCode}
-              onRememberDeviceChange={onRememberDeviceChange}
-              onRetry={handleRetrySignIn}
-              onSignOut={handleSignOut}
-              phase={authState.phase === 'anonymous'
-                ? 'creating-channel'
-                : authState.phase}
-              primaryActionRef={authPrimaryActionRef}
-              qr={authState.phase === 'awaiting-approval'
-                ? authState.qr
-                : undefined}
-              rememberDevice={rememberDevice}
-            />
+            {authRailContent ?? (
+              <FarcasterQrAuthPanel
+                channelUrl={authState.phase === 'awaiting-approval'
+                  ? authState.channelUrl
+                  : undefined}
+                assurance={authenticatedAssurance}
+                errorMessage={authState.phase === 'error' || authState.phase === 'expired'
+                  ? authState.error.message
+                  : undefined}
+                hasRememberedDevice={hasRememberedDevice}
+                headingRef={authHeadingRef}
+                identity={authenticatedIdentity}
+                onPresentationReady={handleAuthPanelPresentationReady}
+                onBackToMenu={handleBackToCommands}
+                onCancel={() => closeAuthPanel(
+                  lastActionModalityRef.current === 'keyboard'
+                )}
+                onEnterRealm={handleAuthenticatedRealmEntry}
+                onPrepareQrCode={onPrepareFarcasterQrCode}
+                onRememberDeviceChange={onRememberDeviceChange}
+                onRetry={handleRetrySignIn}
+                onSignOut={handleSignOut}
+                phase={authState.phase === 'anonymous'
+                  ? 'creating-channel'
+                  : authState.phase}
+                primaryActionRef={authPrimaryActionRef}
+                qr={authState.phase === 'awaiting-approval'
+                  ? authState.qr
+                  : undefined}
+                rememberDevice={rememberDevice}
+              />
+            )}
           </Suspense>
         </div>
       )}

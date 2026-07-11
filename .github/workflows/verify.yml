@@ -39,3 +39,58 @@ jobs:
 
       - name: Audit dependencies
         run: npm audit
+
+  auth-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install bridge dependencies
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile
+
+      - name: Verify bridge
+        run: pnpm --dir services/auth-bridge run check
+
+  spacetimedb-module:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Install root dependencies for generated client verification
+        run: npm ci
+
+      - name: Install module dependencies
+        run: pnpm --dir spacetimedb install --frozen-lockfile
+
+      - name: Install pinned SpacetimeDB CLI
+        run: |
+          curl -sSf https://install.spacetimedb.com | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/spacetime" version install 2.6.1 --use --yes
+
+      - name: Verify module and generated bindings
+        run: |
+          PATH="$HOME/.local/bin:$PATH" pnpm --dir spacetimedb run verify
+          PATH="$HOME/.local/bin:$PATH" npm run stdb:verify-bindings

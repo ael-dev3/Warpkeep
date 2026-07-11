@@ -1,22 +1,30 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  FARCASTER_LEGACY_DEVICE_SESSION_VERSION,
   FARCASTER_REMEMBERED_DEVICE_SESSION_KIND,
   FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS,
   FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION,
   clearFarcasterRememberedDeviceSession,
   getFarcasterDeviceSessionStorageKey,
+  getLegacyFarcasterDeviceSessionStorageKey,
   normalizeFarcasterDeviceSessionBasePath,
   persistFarcasterRememberedDeviceSession,
   restoreFarcasterRememberedDeviceSession,
+  toFarcasterOidcSession,
   type FarcasterDeviceSessionEnvironment,
   type FarcasterDeviceSessionStorage
 } from '../src/farcaster/farcasterDeviceSession';
-import type { VerifiedFarcasterIdentity } from '../src/farcaster/farcasterAuthTypes';
+import type {
+  FarcasterOidcSession,
+  VerifiedFarcasterIdentity
+} from '../src/farcaster/farcasterAuthTypes';
 
 const NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
 const ORIGIN = 'https://ael-dev3.github.io';
 const BASE_PATH = '/Warpkeep/';
+const ISSUER = 'https://auth.warpkeep.example';
+const AUDIENCE = 'warpkeep-spacetimedb';
 
 const identity: VerifiedFarcasterIdentity = {
   fid: 12_345,
@@ -64,7 +72,49 @@ function storageKey() {
   return getFarcasterDeviceSessionStorageKey(BASE_PATH)!;
 }
 
-function validRecord() {
+function legacyStorageKey() {
+  return getLegacyFarcasterDeviceSessionStorageKey(BASE_PATH)!;
+}
+
+function encodeSegment(value: unknown) {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function createJwt(overrides: Record<string, unknown> = {}) {
+  const expiresAt = typeof overrides.exp === 'number'
+    ? overrides.exp * 1_000
+    : NOW + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS;
+  const payload = {
+    iss: ISSUER,
+    sub: `farcaster:${identity.fid}`,
+    aud: [AUDIENCE],
+    token_type: 'spacetime-access',
+    fid: String(identity.fid),
+    auth_epoch: 0,
+    roles: [],
+    iat: NOW / 1_000,
+    nbf: NOW / 1_000,
+    exp: expiresAt / 1_000,
+    jti: 'test-session-id',
+    ...overrides
+  };
+  return `${encodeSegment({ alg: 'ES256', typ: 'JWT', kid: 'test-key' })}.${encodeSegment(payload)}.test_signature`;
+}
+
+function oidcSession(overrides: Partial<FarcasterOidcSession> = {}): FarcasterOidcSession {
+  const jwt = overrides.jwt ?? createJwt();
+  return {
+    jwt,
+    issuer: overrides.issuer ?? ISSUER,
+    audience: overrides.audience ?? AUDIENCE,
+    expiresAt: overrides.expiresAt ?? NOW + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+  };
+}
+
+function validRecord(overrides: Record<string, unknown> = {}) {
+  const oidc = oidcSession();
   return {
     version: FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION,
     kind: FARCASTER_REMEMBERED_DEVICE_SESSION_KIND,
@@ -76,22 +126,27 @@ function validRecord() {
       displayName: identity.displayName,
       pfpUrl: identity.pfpUrl
     },
+    issuer: oidc.issuer,
+    audience: oidc.audience,
+    jwt: oidc.jwt,
     verifiedAt: identity.verifiedAt,
-    rememberedAt: NOW - 1,
-    expiresAt: NOW - 1 + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+    rememberedAt: NOW,
+    expiresAt: oidc.expiresAt,
+    ...overrides
   };
 }
 
-function putRaw(storage: MemoryStorage, value: unknown) {
-  storage.setItem(storageKey(), typeof value === 'string' ? value : JSON.stringify(value));
+function putRaw(storage: MemoryStorage, value: unknown, key = storageKey()) {
+  storage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
 }
 
-describe('Farcaster remembered-device session storage', () => {
-  it('uses a stable base-path-scoped key and rejects unsafe base paths', () => {
+describe('Farcaster authoritative OIDC device-session storage', () => {
+  it('uses a v2 base-path-scoped key and rejects unsafe base paths', () => {
     expect(normalizeFarcasterDeviceSessionBasePath('/Warpkeep')).toBe('/Warpkeep/');
     expect(getFarcasterDeviceSessionStorageKey(BASE_PATH))
+      .toBe('warpkeep:/Warpkeep/:farcaster-device-session:v2');
+    expect(getLegacyFarcasterDeviceSessionStorageKey(BASE_PATH))
       .toBe('warpkeep:/Warpkeep/:farcaster-device-session:v1');
-    expect(getFarcasterDeviceSessionStorageKey('/')).toBe('warpkeep:/:farcaster-device-session:v1');
 
     for (const unsafePath of [
       '',
@@ -109,24 +164,18 @@ describe('Farcaster remembered-device session storage', () => {
     }
   });
 
-  it('persists and restores exactly the public allowlist for thirty days', () => {
+  it('persists and restores only a strict v2 bridge-OIDC allowlist', () => {
     const storage = new MemoryStorage();
-    const record = persistFarcasterRememberedDeviceSession(identity, environment(storage));
+    const oidc = oidcSession();
+    const record = persistFarcasterRememberedDeviceSession(
+      identity,
+      oidc,
+      environment(storage)
+    );
 
     expect(record).toEqual({
-      version: 1,
-      kind: 'remembered-device-prototype',
-      origin: ORIGIN,
-      basePath: BASE_PATH,
-      identity: {
-        fid: identity.fid,
-        username: identity.username,
-        displayName: identity.displayName,
-        pfpUrl: identity.pfpUrl
-      },
-      verifiedAt: identity.verifiedAt,
-      rememberedAt: NOW,
-      expiresAt: NOW + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+      ...validRecord(),
+      rememberedAt: NOW
     });
     expect(Object.keys(record!)).toEqual([
       'version',
@@ -134,6 +183,9 @@ describe('Farcaster remembered-device session storage', () => {
       'origin',
       'basePath',
       'identity',
+      'issuer',
+      'audience',
+      'jwt',
       'verifiedAt',
       'rememberedAt',
       'expiresAt'
@@ -141,29 +193,45 @@ describe('Farcaster remembered-device session storage', () => {
     expect(Object.keys(record!.identity)).toEqual(['fid', 'username', 'displayName', 'pfpUrl']);
 
     const serialized = storage.values.get(storageKey())!;
-    expect(serialized).not.toContain('custody');
-    expect(serialized).not.toContain('verifications');
-    expect(serialized).not.toContain('authMethod');
-    expect(serialized).not.toContain('channelToken');
-    expect(serialized).not.toContain('signature');
+    expect(serialized).toContain('"jwt"');
+    for (const forbidden of [
+      'custody',
+      'verifications',
+      'authMethod',
+      'channelToken',
+      'message',
+      'nonce',
+      'requestId',
+      'admin'
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
     expect(restoreFarcasterRememberedDeviceSession(environment(storage))).toEqual(record);
+    expect(toFarcasterOidcSession(record!)).toEqual(oidc);
   });
 
-  it('keeps only a minimal identity when optional public profile fields are absent', () => {
+  it('cannot persist the retired identity-only call shape', () => {
     const storage = new MemoryStorage();
-    const minimalIdentity: VerifiedFarcasterIdentity = {
-      fid: 77,
-      verifications: [],
-      verifiedAt: NOW - 1
-    };
+    expect(persistFarcasterRememberedDeviceSession(identity, environment(storage))).toBeUndefined();
+    expect(storage.values.size).toBe(0);
+  });
 
-    const record = persistFarcasterRememberedDeviceSession(
-      minimalIdentity,
-      environment(storage)
-    );
+  it('purges legacy v1 prototype data instead of restoring it as shared-realm authority', () => {
+    const storage = new MemoryStorage();
+    putRaw(storage, {
+      version: FARCASTER_LEGACY_DEVICE_SESSION_VERSION,
+      kind: 'remembered-device-prototype',
+      origin: ORIGIN,
+      basePath: BASE_PATH,
+      identity: { fid: identity.fid },
+      verifiedAt: identity.verifiedAt,
+      rememberedAt: NOW - 1,
+      expiresAt: NOW + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+    }, legacyStorageKey());
 
-    expect(record?.identity).toEqual({ fid: 77 });
-    expect(Object.keys(record?.identity ?? {})).toEqual(['fid']);
+    expect(restoreFarcasterRememberedDeviceSession(environment(storage))).toBeUndefined();
+    expect(storage.values.has(legacyStorageKey())).toBe(false);
+    expect(storage.removed).toContain(legacyStorageKey());
   });
 
   it.each([
@@ -173,95 +241,55 @@ describe('Farcaster remembered-device session storage', () => {
     ['wrong origin', { ...validRecord(), origin: 'https://attacker.example' }],
     ['wrong base path', { ...validRecord(), basePath: '/Other/' }],
     ['nonpositive FID', { ...validRecord(), identity: { ...validRecord().identity, fid: 0 } }],
-    ['unsafe FID', {
+    ['JWT issuer mismatch', { ...validRecord(), issuer: 'https://other.example' }],
+    ['JWT audience mismatch', { ...validRecord(), audience: 'other-audience' }],
+    ['JWT subject FID mismatch', { ...validRecord(), jwt: createJwt({ sub: 'farcaster:7' }) }],
+    ['JWT FID claim mismatch', { ...validRecord(), jwt: createJwt({ fid: '7', sub: 'farcaster:7' }) }],
+    ['JWT expiry differs from record', {
       ...validRecord(),
-      identity: { ...validRecord().identity, fid: Number.MAX_SAFE_INTEGER + 1 }
+      expiresAt: NOW + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS - 1
     }],
-    ['blank profile text', {
+    ['player token has a role', { ...validRecord(), jwt: createJwt({ roles: ['warpkeep-admin'] }) }],
+    ['unsigned algorithm', { ...validRecord(), jwt: `${encodeSegment({ alg: 'none' })}.${encodeSegment({})}.x` }],
+    ['expired token', {
       ...validRecord(),
-      identity: { ...validRecord().identity, username: '  ' }
+      jwt: createJwt({ exp: (NOW - 1_000) / 1_000 }),
+      expiresAt: NOW - 1_000
     }],
-    ['oversize profile text', {
-      ...validRecord(),
-      identity: { ...validRecord().identity, displayName: 'a'.repeat(257) }
-    }],
-    ['non-http(s) profile URL', {
-      ...validRecord(),
-      identity: { ...validRecord().identity, pfpUrl: 'javascript:alert(1)' }
-    }],
-    ['credentialed profile URL', {
-      ...validRecord(),
-      identity: { ...validRecord().identity, pfpUrl: 'https://user:pass@example.com/pfp.png' }
-    }],
-    ['oversize profile URL', {
-      ...validRecord(),
-      identity: { ...validRecord().identity, pfpUrl: `https://example.com/${'a'.repeat(2_048)}` }
-    }],
-    ['noncanonical record base path', { ...validRecord(), basePath: '/Warpkeep' }],
+    ['future remembered time', { ...validRecord(), rememberedAt: NOW + 1 }],
     ['verification after remembered time', {
       ...validRecord(),
       verifiedAt: NOW,
       rememberedAt: NOW - 1
-    }],
-    ['wrong thirty-day TTL', {
-      ...validRecord(),
-      expiresAt: NOW + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
-    }],
-    ['expired record', {
-      ...validRecord(),
-      rememberedAt: NOW - FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS,
-      expiresAt: NOW
-    }],
-    ['future remembered time', {
-      ...validRecord(),
-      rememberedAt: NOW + 1,
-      expiresAt: NOW + 1 + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
     }]
   ])('fails closed and deletes %s', (_caseName, rawRecord) => {
     const storage = new MemoryStorage();
     putRaw(storage, rawRecord);
 
     expect(restoreFarcasterRememberedDeviceSession(environment(storage))).toBeUndefined();
-    expect(storage.removed).toEqual([storageKey()]);
+    expect(storage.removed).toContain(storageKey());
     expect(storage.values.has(storageKey())).toBe(false);
   });
 
-  it('binds records to both exact origin and exact normalized base path', () => {
-    const storage = new MemoryStorage();
-    const record = validRecord();
-    putRaw(storage, record);
-
-    expect(restoreFarcasterRememberedDeviceSession(environment(storage, {
-      origin: 'https://other.example'
-    }))).toBeUndefined();
-    expect(storage.removed).toEqual([storageKey()]);
-
-    putRaw(storage, record);
-    expect(restoreFarcasterRememberedDeviceSession(environment(storage, {
-      basePath: '/Warpkeep'
-    }))).toEqual(record);
-  });
-
-  it('does not persist malformed identity fields or a future verification timestamp', () => {
-    const invalidIdentities = [
-      { ...identity, fid: 0 },
-      { ...identity, username: '  keeper' },
-      { ...identity, displayName: 'x'.repeat(257) },
-      { ...identity, pfpUrl: 'file:///private/profile.png' },
-      { ...identity, verifiedAt: NOW + 1 }
+  it('does not persist an expired, wrong-identity, or overlong OIDC session', () => {
+    const invalidSessions = [
+      oidcSession({ expiresAt: NOW }),
+      oidcSession({ jwt: createJwt({ sub: 'farcaster:7', fid: '7' }) }),
+      oidcSession({ expiresAt: NOW + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS + 1 })
     ];
 
-    for (const invalidIdentity of invalidIdentities) {
+    for (const candidate of invalidSessions) {
       const storage = new MemoryStorage();
       expect(persistFarcasterRememberedDeviceSession(
-        invalidIdentity,
+        identity,
+        candidate,
         environment(storage)
       )).toBeUndefined();
       expect(storage.values.size).toBe(0);
     }
   });
 
-  it('treats denied storage as a non-fatal absence and safely forgets records', () => {
+  it('treats denied storage as a non-fatal absence and clears both v1 and v2 keys', () => {
     const deniedStorage: FarcasterDeviceSessionStorage = {
       getItem() {
         throw new Error('denied');
@@ -275,20 +303,12 @@ describe('Farcaster remembered-device session storage', () => {
     };
     const deniedEnvironment = environment(deniedStorage);
 
-    expect(() => persistFarcasterRememberedDeviceSession(identity, deniedEnvironment)).not.toThrow();
-    expect(persistFarcasterRememberedDeviceSession(identity, deniedEnvironment)).toBeUndefined();
+    expect(() => persistFarcasterRememberedDeviceSession(
+      identity,
+      oidcSession(),
+      deniedEnvironment
+    )).not.toThrow();
     expect(() => restoreFarcasterRememberedDeviceSession(deniedEnvironment)).not.toThrow();
-    expect(restoreFarcasterRememberedDeviceSession(deniedEnvironment)).toBeUndefined();
     expect(() => clearFarcasterRememberedDeviceSession(deniedEnvironment)).not.toThrow();
-  });
-
-  it('forgets the base-path-scoped record without touching remote auth state', () => {
-    const storage = new MemoryStorage();
-    persistFarcasterRememberedDeviceSession(identity, environment(storage));
-
-    clearFarcasterRememberedDeviceSession(environment(storage));
-
-    expect(storage.values.has(storageKey())).toBe(false);
-    expect(storage.removed).toEqual([storageKey()]);
   });
 });

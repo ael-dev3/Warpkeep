@@ -1,64 +1,56 @@
-# Warpkeep Public Roadmap
+# Warpkeep roadmap
 
-This roadmap keeps the first playable version small while preserving the longer faction and social-strategy direction described in [`warpkeep-direction.md`](./warpkeep-direction.md).
+## Current milestone — Farcaster-gated shared Lowlands alpha
 
-## Current presentation milestone: Hegemony gateway
+Implemented in the repository, but intentionally not activated on the public Pages deployment until infrastructure is real:
 
-The public prototype now connects the cosmic Three.js title to a responsive Hegemony main menu with a gateway-centered transition, authored background film, menu score, accessibility paths, and honest development notices. This is a presentation/navigation milestone, not completion of a playable destination. The five menu commands remain intentionally nonfunctional until their corresponding product systems exist.
+- cinematic title, menu, credits, audio scenes, mobile deep-link-first SIWF, and accessible route transitions;
+- 61 playable Lowlands hexes with a separate 30-cell visual apron, high/compact keep LODs, and a close keep camera;
+- Farcaster SIWF → independently verified bridge proof → ES256 OIDC JWT with stable `farcaster:<fid>` subject;
+- private `allowed_fid` plus auth-epoch revocation, public player/castle/world state, and real generated SpacetimeDB bindings;
+- narrow shared subscriptions after admission only; server castle name/level/coordinates replace the old fixed-center authority while peer keeps stay lightweight;
+- an empty initial whitelist and the Hegemony request-access panel for valid but unadmitted users;
+- protected Hermes operations, generated-binding CI verification, bridge tests, and fail-closed deployment guards.
 
-## MVP: Hegemony Genesis
+The public Pages experience does not currently claim a permanent keep. Without a configured bridge/issuer it remains title/menu-safe and performs no shared database I/O.
 
-Goal: prove the smallest Farcaster-native keep loop.
+## Activation gate
 
-- Farcaster/FID-based player identity.
-- Claim or create one keep per FID.
-- Passive resource generation.
-- Building upgrades and training queues.
-- A small Hegemony-versus-Core PvE loop.
-- Core enemy targets and deterministic battle reports.
-- Activity log and shareable public reports.
-- Simple seasonal contribution ranking.
+Before merging active frontend configuration or publishing a real module:
 
-Not in MVP:
+1. Provision a stable HTTPS OIDC issuer with public discovery/JWKS and a managed ES256 private key.
+2. Deploy the Worker with exact Pages CORS/SIWF values and a protected auth-epoch resolver that reads current module epoch state with Hermes authority.
+3. Replace the module's `.invalid` issuer, build with pinned `2.6.1`, publish to `warpkeep-89e4u` non-destructively, and seed exactly 61 world rows.
+4. Keep all real FIDs out of `allowed_fid`; test a valid Farcaster login through the clean denial panel first.
+5. Configure public Vite values, deploy Pages, and verify anonymous visitors create neither relay nor SpacetimeDB identities.
 
-- unrestricted PvP,
-- multiple human factions,
-- full world map/pathfinding,
-- token purchases,
-- player-to-player trading,
-- monetization-first systems.
+## Next vertical slice — admitted shared realm
 
-## Phase 2: Stronger PvE and social reporting
+After activation QA, admit a deliberately chosen user through Hermes and prove:
 
-Goal: make the world feel alive before adding complex player conflict.
+- one persistent player and one level-one castle bootstrap atomically;
+- server-owned castle location/name/level render after reload;
+- a second admitted fixture appears as a lightweight peer marker;
+- disable/auth-epoch bump revokes gameplay authorization immediately;
+- public world/player/castle updates are realtime and private tables never reach browser bindings.
 
-- More Core events and target types.
-- Better scouting and battle reports.
-- Core counter-pressure and defensive moments.
-- Early alliance-like coordination.
-- Farcaster-native sharing surfaces for reports, ranks, and events.
-- More tests for resource, queue, combat, and season rules.
+This requires isolated local module integration coverage before any real-user admission.
 
-## Phase 3: Ouster Contact
+## Subsequent gameplay slices
 
-Goal: introduce the second human faction only after the core loop works.
+1. Server-derived resources and building queues.
+2. Unit training, scouting, map visibility, and public reports.
+3. Deterministic travel, raids, and combat resolution.
+4. Alliances, diplomacy, season rules, and community realm governance.
+5. Optional original faction economies and social mechanics, never as authentication inputs or pay-to-win shortcuts.
 
-- Ousters as a later playable human faction.
-- Clear Hegemony versus Ouster faction contrast.
-- Social reputation events.
-- Limited/controlled PvP.
-- Public faction conflict logs.
-- Safeguards for griefing, retaliation, exile, and new-player protection.
+AI remains a presentation layer for court reports, lore, summaries, and quest copy. Reducers remain the only authority for resources, progression, combat, and social state.
 
-## Later experimental modules
+## Non-goals for this alpha
 
-These should come after core PvE, faction choice, basic PvP, and anti-abuse rules are stable.
-
-- Seasonal rule variants.
-- Community realms and modding hooks.
-- Faction laws and deeper diplomacy.
-- Experimental Hegemony economy using official currency rails such as Hypersnap `$SNAP`.
-- Experimental Ouster economy based on free player-to-player trade and social trust.
-- Economy caps, trade logs, audits, bot protection, and resource sinks.
-
-Token or faction-economy work is post-MVP and should remain optional. Warpkeep should be fun without any token integration.
+- resources, building upgrades, units, combat, alliances, chat, tokens, or multiple authoritative realms;
+- authoritative visual-apron cells;
+- Mini App/Quick Auth/wallet connectivity;
+- a production refresh-token architecture;
+- any automatic owner, QA, or synthetic FID allowlisting;
+- new title/menu/terrain art unrelated to the shared-state proof.
