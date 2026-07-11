@@ -8,6 +8,12 @@ import {
   type FarcasterAuthProviderProps
 } from '../src/farcaster/FarcasterAuthProvider';
 import { FARCASTER_AUTH_REQUEST_TTL_MS } from '../src/farcaster/farcasterAuthContext';
+import {
+  FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS,
+  getFarcasterDeviceSessionStorageKey,
+  type FarcasterDeviceSessionEnvironment,
+  type FarcasterDeviceSessionStorage
+} from '../src/farcaster/farcasterDeviceSession';
 import type {
   FarcasterChannelStatus,
   FarcasterCompletedChannelStatus,
@@ -95,6 +101,39 @@ function createAuthority(overrides: Partial<FarcasterSessionAuthority> = {}) {
   } satisfies FarcasterSessionAuthority;
 }
 
+class MemoryDeviceSessionStorage implements FarcasterDeviceSessionStorage {
+  readonly values = new Map<string, string>();
+
+  getItem(key: string) {
+    return this.values.get(key) ?? null;
+  }
+
+  setItem(key: string, value: string) {
+    this.values.set(key, value);
+  }
+
+  removeItem(key: string) {
+    this.values.delete(key);
+  }
+}
+
+const DEVICE_SESSION_ORIGIN = 'https://example.com';
+const DEVICE_SESSION_BASE_PATH = '/Warpkeep/';
+
+function deviceSessionEnvironment(
+  storage: FarcasterDeviceSessionStorage
+): FarcasterDeviceSessionEnvironment {
+  return {
+    storage,
+    origin: DEVICE_SESSION_ORIGIN,
+    basePath: DEVICE_SESSION_BASE_PATH
+  };
+}
+
+function deviceSessionStorageKey() {
+  return getFarcasterDeviceSessionStorageKey(DEVICE_SESSION_BASE_PATH)!;
+}
+
 function AuthHarness({ duplicateBegin = false }: { duplicateBegin?: boolean }) {
   const auth = useFarcasterAuth();
   return (
@@ -113,7 +152,16 @@ function AuthHarness({ duplicateBegin = false }: { duplicateBegin?: boolean }) {
       </button>
       <button onClick={auth.cancelSignIn} type="button">Cancel</button>
       <button onClick={auth.retrySignIn} type="button">Retry</button>
+      <button onClick={auth.prepareQrCode} type="button">Prepare QR</button>
       <button onClick={auth.signOut} type="button">Sign out</button>
+      <button
+        onClick={() => auth.setRememberDevice(!auth.rememberDevice)}
+        type="button"
+      >
+        Toggle remember device
+      </button>
+      <output data-testid="remember-device">{String(auth.rememberDevice)}</output>
+      <output data-testid="has-remembered-device">{String(auth.hasRememberedDevice)}</output>
     </div>
   );
 }
@@ -161,6 +209,7 @@ async function advanceTime(milliseconds: number) {
 
 afterEach(() => {
   cleanup();
+  window.localStorage.clear();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -194,15 +243,23 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     pendingChannel.resolve(channel);
     await settleAsyncWork();
 
+    expect(readPublicState()).toMatchObject({
+      phase: 'awaiting-approval',
+      channelUrl: channel.url,
+      qr: { state: 'not-requested' }
+    });
+    expect(encodeQrCode).not.toHaveBeenCalled();
+    expect(readPublicState()).not.toHaveProperty('channelToken');
+    expect(readPublicState()).not.toHaveProperty('nonce');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare QR' }));
+    await settleAsyncWork();
     expect(encodeQrCode).toHaveBeenCalledTimes(1);
     expect(encodeQrCode).toHaveBeenCalledWith(channel.url);
     expect(readPublicState()).toMatchObject({
       phase: 'awaiting-approval',
-      channelUrl: channel.url,
-      qrDataUrl: 'data:image/svg+xml,qr'
+      qr: { state: 'ready', dataUrl: 'data:image/svg+xml,qr' }
     });
-    expect(readPublicState()).not.toHaveProperty('channelToken');
-    expect(readPublicState()).not.toHaveProperty('nonce');
   });
 
   it('uses one-shot polling at the requested cadence and never overlaps slow status calls', async () => {
@@ -241,7 +298,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(authority.getStatus).toHaveBeenCalledTimes(2);
   });
 
-  it('pauses a scheduled poll while hidden and resumes immediately without duplicate requests', async () => {
+  it('reconciles visibility, focus, and pageshow returns immediately without duplicate polls', async () => {
     vi.useFakeTimers({ now: 25_000 });
     let hidden = false;
     vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
@@ -267,8 +324,10 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(authority.getStatus).not.toHaveBeenCalled();
 
     hidden = false;
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('pageshow'));
     fireEvent(document, new Event('visibilitychange'));
-    fireEvent(document, new Event('visibilitychange'));
+    fireEvent(window, new Event('focus'));
     await settleAsyncWork();
     expect(authority.getStatus).toHaveBeenCalledTimes(1);
 
@@ -312,7 +371,11 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     await advanceTime(10);
 
     expect(authority.verifyCompletedRequest).toHaveBeenCalledTimes(1);
-    expect(readPublicState()).toEqual({ phase: 'authenticated', identity });
+    expect(readPublicState()).toEqual({
+      phase: 'authenticated',
+      identity,
+      assurance: 'live-client-verified'
+    });
     expect(JSON.stringify(readPublicState())).not.toContain('PRIVATE_MESSAGE_COMPLETE');
     expect(JSON.stringify(readPublicState())).not.toContain(channel.channelToken);
     await advanceTime(50_000);
@@ -322,11 +385,120 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle child' }));
     expect(screen.queryByTestId('auth-state')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Toggle child' }));
-    expect(readPublicState()).toEqual({ phase: 'authenticated', identity });
+    expect(readPublicState()).toEqual({
+      phase: 'authenticated',
+      identity,
+      assurance: 'live-client-verified'
+    });
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
+  });
+
+  it('persists, restores, and forgets a remembered-device prototype session through injected storage', async () => {
+    vi.useFakeTimers({ now: 55_000 });
+    const storage = new MemoryDeviceSessionStorage();
+    const sessionEnvironment = deviceSessionEnvironment(storage);
+    const channel = createChannel('REMEMBERED');
+    const verifiedIdentity = createIdentity(Date.now() - 1_000);
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'REMEMBERED')),
+      verifyCompletedRequest: vi.fn(async () => verifiedIdentity)
+    });
+    const liveRender = renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      encodeQrCode: vi.fn(async () => 'data:image/svg+xml,unused'),
+      now: Date.now,
+      pollIntervalMs: 10,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+
+    expect(screen.getByTestId('remember-device').textContent).toBe('true');
+    expect(screen.getByTestId('has-remembered-device').textContent).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+
+    expect(readPublicState()).toEqual({
+      phase: 'authenticated',
+      identity: verifiedIdentity,
+      assurance: 'live-client-verified'
+    });
+    expect(screen.getByTestId('has-remembered-device').textContent).toBe('true');
+    const serialized = storage.values.get(deviceSessionStorageKey());
+    expect(serialized).toBeTruthy();
+    expect(serialized).not.toContain(channel.channelToken);
+    expect(serialized).not.toContain('PRIVATE_MESSAGE_REMEMBERED');
+    expect(serialized).not.toContain('authMethod');
+    expect(window.localStorage.getItem(deviceSessionStorageKey())).toBeNull();
+    expect(JSON.parse(serialized!)).toMatchObject({
+      origin: DEVICE_SESSION_ORIGIN,
+      basePath: DEVICE_SESSION_BASE_PATH,
+      expiresAt: Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+    });
+
+    liveRender.unmount();
+    const restoredAuthority = createAuthority();
+    renderProvider({
+      loadAuthority: vi.fn(async () => restoredAuthority),
+      encodeQrCode: vi.fn(async () => 'data:image/svg+xml,unused'),
+      now: Date.now,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+
+    expect(readPublicState()).toEqual({
+      phase: 'authenticated',
+      identity: {
+        fid: verifiedIdentity.fid,
+        username: verifiedIdentity.username,
+        displayName: verifiedIdentity.displayName,
+        verifications: [],
+        verifiedAt: verifiedIdentity.verifiedAt
+      },
+      assurance: 'remembered-device-prototype',
+      expiresAt: Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+    });
+    expect(restoredAuthority.beginSignIn).not.toHaveBeenCalled();
+    expect(screen.getByTestId('has-remembered-device').textContent).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await settleAsyncWork();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(screen.getByTestId('has-remembered-device').textContent).toBe('false');
+    expect(storage.values.has(deviceSessionStorageKey())).toBe(false);
+  });
+
+  it('does not remember a live identity when the explicit device preference is disabled', async () => {
+    vi.useFakeTimers({ now: 60_000 });
+    const storage = new MemoryDeviceSessionStorage();
+    const channel = createChannel('NO_REMEMBER');
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'NO_REMEMBER')),
+      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      encodeQrCode: vi.fn(async () => 'data:image/svg+xml,unused'),
+      now: Date.now,
+      pollIntervalMs: 10,
+      deviceSessionEnvironment: deviceSessionEnvironment(storage)
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle remember device' }));
+    expect(screen.getByTestId('remember-device').textContent).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      assurance: 'live-client-verified'
+    });
+    expect(screen.getByTestId('has-remembered-device').textContent).toBe('false');
+    expect(storage.values.has(deviceSessionStorageKey())).toBe(false);
   });
 
   it('ignores a late channel from a cancelled generation while a retry proceeds', async () => {
@@ -367,7 +539,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       phase: 'awaiting-approval',
       channelUrl: freshChannel.url
     });
-    expect(encodeQrCode).toHaveBeenCalledTimes(1);
+    expect(encodeQrCode).not.toHaveBeenCalled();
     expect(encodeQrCode).not.toHaveBeenCalledWith(staleChannel.url);
   });
 
@@ -544,7 +716,8 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('publishes only sanitized errors from authority and QR failures', async () => {
+  it('publishes only sanitized authority errors and keeps QR failure on the active channel', async () => {
+    vi.useFakeTimers({ now: 175_000 });
     const privateSentinel = 'PRIVATE_TOKEN_AND_SIGNATURE_SENTINEL';
     const failingAuthority = createAuthority({
       beginSignIn: vi.fn(async () => {
@@ -563,22 +736,46 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     firstRender.unmount();
 
     const channel = createChannel('QR_FAIL');
-    const authority = createAuthority({ beginSignIn: vi.fn(async () => channel) });
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => ({ state: 'pending' as const, nonce: channel.nonce }))
+    });
+    const encodeQrCode = vi.fn()
+      .mockRejectedValueOnce(new Error(privateSentinel))
+      .mockResolvedValueOnce('data:image/svg+xml,qr-retry');
     renderProvider({
       loadAuthority: vi.fn(async () => authority),
-      encodeQrCode: vi.fn(async () => {
-        throw new Error(privateSentinel);
-      })
+      encodeQrCode,
+      now: Date.now,
+      pollIntervalMs: 10
     });
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
-    expect(readPublicState()).toEqual({
-      phase: 'error',
-      error: {
-        code: 'qr',
-        message: 'Warpkeep could not prepare the Farcaster QR code.'
-      }
+    expect(readPublicState()).toMatchObject({
+      phase: 'awaiting-approval',
+      channelUrl: channel.url,
+      qr: { state: 'not-requested' }
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare QR' }));
+    await settleAsyncWork();
+    expect(encodeQrCode).toHaveBeenCalledTimes(1);
+    expect(readPublicState()).toMatchObject({
+      phase: 'awaiting-approval',
+      qr: { state: 'error' }
     });
     expect(JSON.stringify(readPublicState())).not.toContain(privateSentinel);
+
+    await advanceTime(10);
+    expect(authority.getStatus).toHaveBeenCalledTimes(1);
+    expect(readPublicState().phase).toBe('awaiting-approval');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare QR' }));
+    await settleAsyncWork();
+    expect(encodeQrCode).toHaveBeenCalledTimes(2);
+    expect(readPublicState()).toMatchObject({
+      phase: 'awaiting-approval',
+      qr: { state: 'ready', dataUrl: 'data:image/svg+xml,qr-retry' }
+    });
   });
 });

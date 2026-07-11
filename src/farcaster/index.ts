@@ -10,7 +10,10 @@ export {
 export type {
   FarcasterAuthError,
   FarcasterAuthErrorCode,
+  FarcasterAuthPresentation,
   FarcasterAuthPhase,
   FarcasterAuthViewState,
+  FarcasterQrState,
+  FarcasterSessionAssurance,
   VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';

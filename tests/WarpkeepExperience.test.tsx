@@ -127,7 +127,8 @@ describe('WarpkeepExperience', () => {
     expect(window.location.hash).toBe('#menu');
     expect(screen.getByRole('heading', { level: 1, name: 'WARPKEEP' })).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Enter Warpkeep' })).toBeNull();
-    expect(container.querySelectorAll('audio[data-audio-role]')).toHaveLength(3);
+    expect(container.querySelectorAll('audio[data-audio-role]')).toHaveLength(5);
+    expect(container.querySelectorAll('audio[data-audio-role^="realm"][src]')).toHaveLength(0);
   });
 
   it('shows the entry hint five seconds after title readiness and dismisses it permanently', async () => {
@@ -336,7 +337,8 @@ describe('WarpkeepExperience', () => {
     );
 
     expect(container.querySelectorAll('.warpkeep-experience')).toHaveLength(1);
-    expect(container.querySelectorAll('audio[data-audio-role]')).toHaveLength(3);
+    expect(container.querySelectorAll('audio[data-audio-role]')).toHaveLength(5);
+    expect(container.querySelectorAll('audio[data-audio-role^="realm"][src]')).toHaveLength(0);
     expect(container.querySelectorAll('video.warpkeep-menu-background')).toHaveLength(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));

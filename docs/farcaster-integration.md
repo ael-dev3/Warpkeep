@@ -11,13 +11,13 @@ Title screen
 → galaxy gateway
 → Hegemony main menu
 → ENTER REALM
-→ Farcaster QR/deep link
+→ Farcaster universal link or optional QR
 → verified FID and profile
 → authenticated Hegemony confirmation
 → current prototype realm-entry callback
 ```
 
-The title screen and passive menu load do not create a relay channel or display a QR code. Continue, Settings, Credits, and Exit remain development-notice actions. On mobile web, the same relay-returned channel URL is also exposed as **Open in Farcaster**, so the player does not need to scan their own screen.
+The title screen and passive menu load do not create a relay channel or display a QR code. Continue, Settings, Credits, and Exit remain development-notice actions. On a narrow coarse/touch-capable mobile layout, the relay-returned official URL is the primary **Open Farcaster** action, so the player never has to scan a QR code displayed on the same phone. QR remains an explicit **Show QR instead** fallback. Desktop remains QR-first.
 
 ## Realm route gate
 
@@ -33,7 +33,7 @@ The title screen and passive menu load do not create a relay channel or display 
 → let the player choose ENTER REALM
 ```
 
-The pending destination remains through creation, waiting, verification, expiry/error, retry, and the verified confirmation. It is cleared if the player cancels or goes back to the title, signs out, or actually enters the realm. An ordinary direct `#menu` remains passive and does not create a channel. An already authenticated session may still use `#realm` during the same mounted app session. Because the session is memory-only, refresh always starts anonymous and therefore takes the gate again.
+The pending destination remains through creation, waiting, verification, expiry/error, retry, and the verified confirmation. It is cleared if the player cancels or goes back to the title, signs out, or actually enters the realm. An ordinary direct `#menu` remains passive and does not create a channel. A valid, unexpired remembered-device prototype record restores synchronously, so a direct `#realm` can enter the client-only Lowlands without creating a channel or QR. An expired, malformed, foreign-origin, or missing record takes the anonymous gate instead.
 
 ## Implementation
 
@@ -62,17 +62,17 @@ The implemented relay flow is:
 1. Generate a cryptographically secure request ID and 24-byte nonce with Web Crypto.
 2. Set an absolute five-minute expiration.
 3. Call `createChannel` with the canonical domain/SIWF URI and `acceptAuthAddress: true`.
-4. Encode only the relay-returned channel URL as a high-contrast SVG QR code.
-5. Keep the standalone channel token in the private controller and use it with `status` polling.
+4. Expose the validated relay-returned URL as the Farcaster universal link immediately, then keep the standalone channel token only in the private controller for `status` polling.
+5. On desktop, encode that URL as a high-contrast SVG QR code; on mobile, defer the encoder until the player explicitly chooses **Show QR instead**.
 6. Require a completed status containing the nonce, SIWF message, signature, and finite positive FID.
 7. Call `verifySignInMessage` with the expected nonce/domain and `acceptAuthAddress: true`.
-8. Accept the browser session only when verification succeeds and its FID exactly matches the completed relay FID.
+8. Accept a live browser session only when verification succeeds and its FID exactly matches the completed relay FID.
 
 `acceptAuthAddress: true` permits an approved Farcaster auth address as well as the custody address. This is signature authentication only; Warpkeep does not connect a wallet, request a transaction, or infer token/NFT ownership.
 
 The live relay currently returns `url` as an official `https://farcaster.xyz/~/siwf` universal link with an opaque short channel token, and also includes a legacy `connectUri` field that is not declared by `@farcaster/auth-client` 0.7.1. Warpkeep deliberately encodes the documented `url` field, validates its exact official host/path and token binding, and keeps compatibility with the package's earlier `farcaster://connect` URL shape. It does not depend on or expose the undeclared `connectUri` field.
 
-The QR is rendered as a dark-on-ivory SVG with a four-module quiet zone and no logo or animation. The custom auth presentation, official SDK/verification transitives, and QR encoder are deferred from the explicit `ENTER REALM` path. A small provider/client wrapper remains in the startup bundle, but the title screen and ordinary menu do not pay the full auth/UI stack cost.
+The QR is rendered as a dark-on-ivory SVG with a four-module quiet zone and no logo or animation. The custom auth presentation and official SDK/verification transitives are deferred from the explicit `ENTER REALM` path; the QR encoder is additionally deferred on a mobile deep-link-first flow. A small provider/client wrapper remains in the startup bundle, but the title screen and ordinary menu do not pay the full auth/UI stack cost.
 
 ## Domain and canonical SIWF URI
 
@@ -99,17 +99,29 @@ The controller uses a cancellable, generation-tagged polling loop rather than a 
 
 - pending requests poll at approximately 1.5-second intervals;
 - only one status request and one timer may be active;
-- polling pauses while the document is hidden and resumes immediately when visible;
+- polling pauses while the document is hidden and immediately reconciles when the page becomes visible, receives focus, or is restored with `pageshow`;
 - the absolute five-minute deadline is checked independently of browser timer throttling;
 - leaving the panel/menu, returning to title, generating a replacement QR, signing out, or unmounting cancels the active generation;
 - responses from cancelled or superseded generations are ignored;
 - duplicate `ENTER REALM` activation cannot create racing channels.
 
-The visibility behavior is especially important on mobile: opening Farcaster hides the browser page, and returning to the browser resumes status checking without starting another channel.
+The return behavior is especially important on mobile: opening Farcaster hides the browser page, and returning to the browser starts one guarded immediate status check without starting another channel or overlapping an in-flight poll.
 
 ## Session and proof handling
 
-The authenticated session is intentionally in memory. It survives closing the confirmation and normal title/menu/realm transitions while the React app remains mounted. A full refresh, closed tab, or new browser session requires another sign-in. Warpkeep does not implement “remember me” and does not restore an authenticated session from `localStorage` or `sessionStorage`.
+Fresh SIWF success is labeled **live-client-verified**. It survives ordinary title/menu/realm transitions while the React app remains mounted. By default, a player may also choose **Remember this device for 30 days**. That creates a deliberately limited **remembered-device-prototype** record in `localStorage`, scoped to origin and Vite base path (`warpkeep:/Warpkeep/:farcaster-device-session:v1` in the Pages build). It is a prototype convenience gate, not a server session, credential, proof, or permanent-ownership claim.
+
+The remembered record contains exactly:
+
+```text
+version, kind, origin, basePath,
+identity { fid, username?, displayName?, pfpUrl? },
+verifiedAt, rememberedAt, expiresAt
+```
+
+It never contains a channel token or URL, QR data, nonce, request ID, raw SIWF message/signature, custody address, verification addresses, reported auth method, relay metadata, IP address, user agent, wallet data, or other credential material. Parsing fails closed: malformed JSON/schema, unknown keys, invalid FID/profile URL/timestamps, foreign origin/base path, and expired records are removed best-effort and treated as anonymous. Storage-denied/private-browser failures simply leave a live verified session in memory.
+
+Remembered sessions restore synchronously before the UI renders. They are always visibly distinguished as **HEGEMONY RECORD REMEMBERED** / **Remembered on this device**, whereas a fresh proof reads **HEGEMONY RECORD VERIFIED** / **Verified through Farcaster**. Both may enter the current client-only Lowlands prototype; neither authorizes trusted gameplay.
 
 Private request/proof material is separated from the React view state:
 
@@ -123,13 +135,13 @@ Private request/proof material is separated from the React view state:
 
 The relay-returned channel URL is necessarily present while awaiting approval because it is the QR/deep-link payload. Treat an active QR as ephemeral: do not publish or archive it. The standalone status token and raw proof are not separately rendered, logged, persisted, or exposed through public component props.
 
-Sign out clears only Warpkeep's in-memory identity and active request. It does not attempt to sign the player out of the Farcaster app.
+Sign out uses **SIGN OUT & FORGET DEVICE** whenever a remembered record exists: it clears the in-memory identity and the scoped device record, then normalizes a currently open `#realm` back to `#menu`. A storage removal in another tab likewise signs out a remembered session there; a valid new record may restore an anonymous Warpkeep tab but never overwrites a live client-verified session. Sign out does not attempt to sign the player out of the Farcaster app.
 
 ## Security boundary
 
 The official client verifies the SIWF signature/signer against the expected domain and nonce, including approved auth-address signers, and returns the signed FID/auth method. Warpkeep then binds the verified message to the expected URI, request ID, expiration, Optimism chain, and FID resource; rechecks the local deadline; and requires the relay FID to match the cryptographically verified FID. That is sufficient for demonstrating the QR flow, displaying a verified FID/profile, and gating prototype UI in this static GitHub Pages deployment.
 
-It is not server authority. A player controls the browser and can modify JavaScript memory or client-side game state. The current session must not authorize:
+It is not server authority. A player controls the browser and can modify JavaScript memory, `localStorage`, or client-side game state; a remembered-device record is therefore intentionally spoofable and must never be treated as durable authentication. The current session must not authorize:
 
 - permanent keep ownership;
 - resources, upgrades, queues, or units;
@@ -167,18 +179,19 @@ npm audit
 git diff --check
 ```
 
-The test suite covers runtime context construction, secure request material, relay-response validation, signature/FID binding, proof-free state transitions, stale generations, cancellation, QR presentation, and accessibility. Polling/provider integration tests should use fake timers and deferred promises rather than real network calls.
+The test suite covers runtime context construction, secure request material, relay-response validation, signature/FID binding, proof-free state transitions, stale generations, cancellation, desktop QR and mobile deep-link-first presentation, guarded app-return polling, remembered-device allowlisting/expiry/cross-tab behavior, direct realm routing, and accessibility. Polling/provider integration tests use fake timers and deferred promises rather than real network calls.
 
 For noninteractive real relay QA, verify that a freshly created relay channel reaches the pending state, then cancel it without publishing its QR or URL. Do not make a live account approval a prerequisite for deployment.
 
 After deployment, a player can perform this remote manual check on their own schedule:
 
-1. Open `https://ael-dev3.github.io/Warpkeep/#menu`; confirm no QR or relay request appears before selecting **ENTER REALM**.
-2. Select **ENTER REALM**; confirm a fresh QR/deep link appears, then scan or select **Open in Farcaster** on mobile.
+1. Open `https://ael-dev3.github.io/Warpkeep/#menu`; confirm no QR, Lowlands audio download, or relay request appears before selecting **ENTER REALM**.
+2. On desktop, select **ENTER REALM** and confirm a QR plus **Open in Farcaster** appears. On a mobile/coarse-pointer layout, confirm **Open Farcaster** is primary and the QR is absent until **Show QR instead**.
 3. Approve in Farcaster and confirm the displayed FID is the approving account before selecting the confirmation's **ENTER REALM**.
-4. Open `https://ael-dev3.github.io/Warpkeep/#realm` anonymously (or refresh while there); confirm it becomes `#menu`, opens the same rail, and does not mount Hegemony Lowlands until approval.
-5. Verify cancellation, retry, sign out, browser Back/Forward, and the full five-minute timeout. On mobile, return from Farcaster and confirm polling resumes.
-6. Test custody and approved auth-address flows when suitable accounts are available. The deployed signed URI must be `https://ael-dev3.github.io/Warpkeep/`.
+4. With the default remember checkbox enabled, reload and confirm the UI says **Remembered on this device**; direct `#realm` should enter the prototype without a relay request. Sign out and confirm it returns to `#menu` and removes the remembered state.
+5. Open `https://ael-dev3.github.io/Warpkeep/#realm` anonymously (or after expiry/sign-out); confirm it becomes `#menu`, opens the same rail, and does not mount Hegemony Lowlands until approval.
+6. Verify cancellation, retry, browser Back/Forward, and the full five-minute request timeout. On mobile, return from Farcaster and confirm one immediate guarded poll resumes.
+7. Test custody and approved auth-address flows when suitable accounts are available. The deployed signed URI must be `https://ael-dev3.github.io/Warpkeep/`.
 
 Do not enable raw-response logging for QA. Do not share a live QR screenshot, console/network dump, or exported HAR; these can retain active channel data or proof material. Record only sanitized phase/result information. Real QR approval, mobile deep linking, custody/auth-address coverage, browser compatibility, and deployment verification require a user-controlled Farcaster account and device.
 
@@ -197,6 +210,7 @@ Farcaster social graph and cast-native mechanics can later influence nearby cast
 
 ## Official references
 
+- [Sign In Button behavior](https://docs.farcaster.xyz/auth-kit/sign-in-button)
 - [Farcaster Auth client introduction](https://docs.farcaster.xyz/auth-kit/client/introduction)
 - [Create a channel](https://docs.farcaster.xyz/auth-kit/client/app/create-channel)
 - [Read channel status](https://docs.farcaster.xyz/auth-kit/client/app/status)

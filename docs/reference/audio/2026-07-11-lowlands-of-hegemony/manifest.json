@@ -1,0 +1,75 @@
+{
+  "archive": "warpkeep-lowlands-of-hegemony-2026-07-11",
+  "recordedAt": "2026-07-11",
+  "purpose": "Exact source archive and cleaned runtime soundtrack record for the authenticated Hegemony Lowlands",
+  "source": "Ael-provided project attachment",
+  "license": "CC0-1.0 under the repository project-owned media policy",
+  "sourceAsset": {
+    "filename": "Lowlands Of Hegemony.mp3",
+    "originalAttachmentBasename": "Lowlands Of Hegemony.mp3",
+    "mediaType": "audio/mpeg",
+    "bytes": 5722488,
+    "sha256": "3a04a006e10771c738edacd47150d6039a4eda4faee6bf47f64813b134f81908",
+    "durationSeconds": 244.919979,
+    "audio": {
+      "codec": "MP3",
+      "sampleRateHz": 48000,
+      "channels": 2,
+      "channelLayout": "stereo",
+      "bitRateBitsPerSecond": 186917
+    },
+    "embeddedArtwork": {
+      "codec": "MJPEG",
+      "width": 360,
+      "height": 360,
+      "title": "Cover",
+      "comment": "Cover (front)"
+    },
+    "metadata": {
+      "title": "Lowlands Of Hegemony",
+      "artist": "ael_dev7"
+    },
+    "loudnessAudit": {
+      "integratedLufs": -13.9,
+      "loudnessRangeLu": 8.6,
+      "truePeakDbfs": 0
+    },
+    "intendedUse": "Immutable source archive; never served by the application"
+  },
+  "runtimeDerivative": {
+    "filename": "public/audio/warpkeep-lowlands-theme.mp3",
+    "mediaType": "audio/mpeg",
+    "bytes": 5704657,
+    "sha256": "d75a8865eda00c808c472d438240a5f645173dead353d44925f34cee500fa13c",
+    "durationSeconds": 244.919979,
+    "audio": {
+      "codec": "MP3",
+      "sampleRateHz": 48000,
+      "channels": 2,
+      "channelLayout": "stereo",
+      "bitRateBitsPerSecond": 186335
+    },
+    "metadata": {
+      "title": "Lowlands of Hegemony",
+      "artist": "ael_dev7"
+    },
+    "streams": 1,
+    "embeddedArtwork": false,
+    "derivation": "ffmpeg stream copy of source audio stream only; map_metadata -1; clean title/artist ID3v2.3 metadata; no audio re-encode, normalization, cover art, source generator comment, or internal ID copied.",
+    "intendedUse": "Dedicated looping soundtrack for authenticated Hegemony Lowlands; source is assigned only after realm preparation"
+  },
+  "runtimePlayback": {
+    "targetGain": 0.37,
+    "loop": {
+      "crossfadeStartSeconds": 236,
+      "endSeconds": 244.919979,
+      "overlapSeconds": 8.919979,
+      "curve": "equal-power"
+    },
+    "sceneTransitions": {
+      "titleToMenuMilliseconds": 1700,
+      "menuToRealmMilliseconds": 2300,
+      "realmToMenuMilliseconds": 1900
+    }
+  }
+}

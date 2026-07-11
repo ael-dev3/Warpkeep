@@ -1,19 +1,30 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useReducer,
   useRef,
+  useState,
   type Dispatch,
   type ReactNode
 } from 'react';
 
 import {
+  clearFarcasterRememberedDeviceSession,
+  getFarcasterDeviceSessionStorageKey,
+  persistFarcasterRememberedDeviceSession,
+  restoreFarcasterRememberedDeviceSession,
+  type FarcasterDeviceSessionEnvironment,
+  type FarcasterRememberedDeviceSession
+} from './farcasterDeviceSession';
+import {
   createFarcasterAuthMachineState,
   farcasterAuthMachineReducer,
   type FarcasterAuthMachineAction,
-  type FarcasterAuthMachineState
+  type FarcasterAuthMachineState,
+  type FarcasterRememberedMachineSession
 } from './farcasterAuthMachine';
 import {
   getDefaultFarcasterSessionAuthority,
@@ -40,6 +51,8 @@ export type FarcasterAuthProviderProps = Readonly<{
   encodeQrCode?: FarcasterQrEncoder;
   now?: () => number;
   pollIntervalMs?: number;
+  /** Injection seam for storage-denied and cross-tab lifecycle tests. */
+  deviceSessionEnvironment?: FarcasterDeviceSessionEnvironment;
 }>;
 
 export type FarcasterAuthControllerValue = Readonly<{
@@ -47,7 +60,11 @@ export type FarcasterAuthControllerValue = Readonly<{
   beginSignIn: () => void;
   cancelSignIn: () => void;
   retrySignIn: () => void;
+  prepareQrCode: () => void;
   signOut: () => void;
+  rememberDevice: boolean;
+  setRememberDevice: (remember: boolean) => void;
+  hasRememberedDevice: boolean;
 }>;
 
 type ControllerConfig = {
@@ -55,6 +72,8 @@ type ControllerConfig = {
   encodeQrCode: FarcasterQrEncoder;
   now: () => number;
   pollIntervalMs: number;
+  onLiveAuthenticated: (identity: VerifiedFarcasterIdentity) => void;
+  onSignOut: () => void;
 };
 
 type ActiveRequest = {
@@ -62,6 +81,7 @@ type ActiveRequest = {
   expiresAt: number;
   channel?: FarcasterSignInChannel;
   pollInFlight: boolean;
+  qrInFlight: boolean;
 };
 
 const expiredError: FarcasterAuthError = Object.freeze({
@@ -72,11 +92,6 @@ const expiredError: FarcasterAuthError = Object.freeze({
 const invalidStatusError: FarcasterAuthError = Object.freeze({
   code: 'invalid-response',
   message: 'The Farcaster relay returned an invalid response.'
-});
-
-const qrError: FarcasterAuthError = Object.freeze({
-  code: 'qr',
-  message: 'Warpkeep could not prepare the Farcaster QR code.'
 });
 
 function defaultEncodeQrCode(channelUrl: string) {
@@ -99,6 +114,48 @@ function isActivePhase(phase: FarcasterAuthPhase) {
 
 function canBeginFrom(phase: FarcasterAuthPhase) {
   return phase === 'anonymous' || phase === 'expired' || phase === 'error';
+}
+
+function readProviderNow(now: () => number) {
+  try {
+    const value = now();
+    return Number.isFinite(value) && value >= 0 ? Math.floor(value) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isUsableVerifiedIdentity(identity: VerifiedFarcasterIdentity) {
+  return Number.isSafeInteger(identity.fid)
+    && identity.fid > 0
+    && Number.isFinite(identity.verifiedAt)
+    && Array.isArray(identity.verifications);
+}
+
+function rememberedMachineSession(
+  session: FarcasterRememberedDeviceSession | undefined
+): FarcasterRememberedMachineSession | undefined {
+  if (!session) {
+    return undefined;
+  }
+
+  return {
+    identity: {
+      fid: session.identity.fid,
+      ...(session.identity.username === undefined
+        ? {}
+        : { username: session.identity.username }),
+      ...(session.identity.displayName === undefined
+        ? {}
+        : { displayName: session.identity.displayName }),
+      ...(session.identity.pfpUrl === undefined
+        ? {}
+        : { pfpUrl: session.identity.pfpUrl }),
+      verifications: [],
+      verifiedAt: session.verifiedAt
+    },
+    expiresAt: session.expiresAt
+  };
 }
 
 class FarcasterAuthController {
@@ -134,10 +191,18 @@ class FarcasterAuthController {
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.handleVisibilityChange);
     }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', this.reconcileAfterFarcasterReturn);
+      window.addEventListener('pageshow', this.reconcileAfterFarcasterReturn);
+    }
 
     return () => {
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+      }
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', this.reconcileAfterFarcasterReturn);
+        window.removeEventListener('pageshow', this.reconcileAfterFarcasterReturn);
       }
       this.mounted = false;
       this.invalidatePrivateRequest();
@@ -151,7 +216,12 @@ class FarcasterAuthController {
 
     const generation = this.nextGeneration();
     const expiresAt = this.readNow() + FARCASTER_AUTH_REQUEST_TTL_MS;
-    this.activeRequest = { generation, expiresAt, pollInFlight: false };
+    this.activeRequest = {
+      generation,
+      expiresAt,
+      pollInFlight: false,
+      qrInFlight: false
+    };
     this.phase = 'creating-channel';
     this.machineGeneration = generation;
     this.dispatch({ type: 'begin', generation });
@@ -191,7 +261,29 @@ class FarcasterAuthController {
     const generation = this.machineGeneration;
     this.invalidatePrivateRequest();
     this.phase = 'anonymous';
+    this.config.onSignOut();
     this.dispatch({ type: 'sign-out', generation });
+  };
+
+  /** Lazily load the QR encoder while a valid SIWF channel keeps polling. */
+  readonly prepareQrCode = () => {
+    const activeRequest = this.activeRequest;
+    const channel = activeRequest?.channel;
+    if (
+      !this.mounted
+      || !activeRequest
+      || !channel
+      || activeRequest.qrInFlight
+      || this.phase !== 'awaiting-approval'
+      || this.readNow() >= activeRequest.expiresAt
+    ) {
+      return;
+    }
+
+    activeRequest.qrInFlight = true;
+    const generation = activeRequest.generation;
+    this.dispatch({ type: 'qr-loading', generation });
+    void this.encodeQrCode(generation, channel.url);
   };
 
   private nextGeneration() {
@@ -294,6 +386,9 @@ class FarcasterAuthController {
     if (!this.isCurrent(generation)) {
       return;
     }
+    if (action.type === 'authenticated') {
+      this.config.onLiveAuthenticated(action.identity);
+    }
     this.invalidatePrivateRequest();
     this.phase = phase;
     this.dispatch(action);
@@ -363,36 +458,47 @@ class FarcasterAuthController {
 
     activeRequest.channel = channel;
     this.scheduleExpiry(generation, expiresAt);
-
-    let qrDataUrl: string;
-    try {
-      qrDataUrl = await this.config.encodeQrCode(channel.url);
-      if (!this.isCurrent(generation)) {
-        return;
-      }
-    } catch (error) {
-      this.fail(generation, error, qrError);
-      return;
-    }
-
-    if (typeof qrDataUrl !== 'string' || !qrDataUrl.trim()) {
-      this.fail(generation, undefined, qrError);
-      return;
-    }
-    if (this.readNow() >= expiresAt) {
-      this.expire(generation);
-      return;
-    }
-
     this.phase = 'awaiting-approval';
     this.dispatch({
       type: 'channel-ready',
       generation,
       channelUrl: channel.url,
-      qrDataUrl,
       expiresAt
     });
     this.schedulePoll(generation);
+  }
+
+  private async encodeQrCode(generation: number, channelUrl: string) {
+    try {
+      const dataUrl = await this.config.encodeQrCode(channelUrl);
+      if (!this.isCurrent(generation)) {
+        return;
+      }
+      const activeRequest = this.activeRequest;
+      if (
+        !activeRequest
+        || this.phase !== 'awaiting-approval'
+        || this.readNow() >= activeRequest.expiresAt
+        || typeof dataUrl !== 'string'
+        || !dataUrl.trim()
+      ) {
+        if (activeRequest && this.readNow() >= activeRequest.expiresAt) {
+          this.expire(generation);
+        } else {
+          this.dispatch({ type: 'qr-failed', generation });
+        }
+        return;
+      }
+      this.dispatch({ type: 'qr-ready', generation, dataUrl });
+    } catch {
+      if (this.isCurrent(generation)) {
+        this.dispatch({ type: 'qr-failed', generation });
+      }
+    } finally {
+      if (this.activeRequest?.generation === generation) {
+        this.activeRequest.qrInFlight = false;
+      }
+    }
   }
 
   private async poll(generation: number) {
@@ -455,11 +561,16 @@ class FarcasterAuthController {
         this.expire(generation);
         return;
       }
+      if (!isUsableVerifiedIdentity(identity)) {
+        this.fail(generation, undefined, invalidStatusError);
+        return;
+      }
 
       this.finish(generation, 'authenticated', {
         type: 'authenticated',
         generation,
-        identity
+        identity,
+        assurance: 'live-client-verified'
       });
     } catch (error) {
       this.fail(generation, error);
@@ -470,13 +581,12 @@ class FarcasterAuthController {
     }
   }
 
-  private readonly handleVisibilityChange = () => {
+  private readonly reconcileAfterFarcasterReturn = () => {
     const activeRequest = this.activeRequest;
     const channel = activeRequest?.channel;
     if (!activeRequest || !channel || this.phase !== 'awaiting-approval') {
       return;
     }
-
     if (this.isDocumentHidden()) {
       this.clearPollTimer();
       return;
@@ -490,6 +600,14 @@ class FarcasterAuthController {
       void this.poll(activeRequest.generation);
     }
   };
+
+  private readonly handleVisibilityChange = () => {
+    if (this.isDocumentHidden()) {
+      this.clearPollTimer();
+      return;
+    }
+    this.reconcileAfterFarcasterReturn();
+  };
 }
 
 const FarcasterAuthReactContext = createContext<FarcasterAuthControllerValue | undefined>(
@@ -501,19 +619,50 @@ export function FarcasterAuthProvider({
   loadAuthority = getDefaultFarcasterSessionAuthority,
   encodeQrCode = defaultEncodeQrCode,
   now = Date.now,
-  pollIntervalMs
+  pollIntervalMs,
+  deviceSessionEnvironment
 }: FarcasterAuthProviderProps) {
+  const [initialRememberedSession] = useState(() => (
+    restoreFarcasterRememberedDeviceSession({ ...deviceSessionEnvironment, now })
+  ));
   const [machine, dispatch] = useReducer(
     farcasterAuthMachineReducer,
-    undefined,
+    rememberedMachineSession(initialRememberedSession),
     createFarcasterAuthMachineState
   );
+  const [rememberDevice, setRememberDeviceState] = useState(true);
+  const [hasRememberedDevice, setHasRememberedDevice] = useState(Boolean(initialRememberedSession));
   const controllerRef = useRef<FarcasterAuthController | undefined>(undefined);
+  const machineRef = useRef(machine);
+  const rememberDeviceRef = useRef(rememberDevice);
+  machineRef.current = machine;
+  rememberDeviceRef.current = rememberDevice;
+
+  const clearRememberedDevice = useCallback(() => {
+    clearFarcasterRememberedDeviceSession({ ...deviceSessionEnvironment, now });
+    setHasRememberedDevice(false);
+  }, [deviceSessionEnvironment, now]);
+
+  const persistLiveIdentity = useCallback((identity: VerifiedFarcasterIdentity) => {
+    if (!rememberDeviceRef.current) {
+      clearFarcasterRememberedDeviceSession({ ...deviceSessionEnvironment, now });
+      setHasRememberedDevice(false);
+      return;
+    }
+    const session = persistFarcasterRememberedDeviceSession(identity, {
+      ...deviceSessionEnvironment,
+      now
+    });
+    setHasRememberedDevice(Boolean(session));
+  }, [deviceSessionEnvironment, now]);
+
   const config: ControllerConfig = {
     loadAuthority,
     encodeQrCode,
     now,
-    pollIntervalMs: normalizePollInterval(pollIntervalMs)
+    pollIntervalMs: normalizePollInterval(pollIntervalMs),
+    onLiveAuthenticated: persistLiveIdentity,
+    onSignOut: clearRememberedDevice
   };
 
   if (!controllerRef.current) {
@@ -525,13 +674,138 @@ export function FarcasterAuthProvider({
 
   useEffect(() => controller.mount(), [controller]);
 
+  const setRememberDevice = useCallback((remember: boolean) => {
+    const nextValue = Boolean(remember);
+    setRememberDeviceState(nextValue);
+    if (!nextValue) {
+      clearRememberedDevice();
+      return;
+    }
+
+    const current = machineRef.current.view;
+    if (current.phase === 'authenticated') {
+      const session = persistFarcasterRememberedDeviceSession(current.identity, {
+        ...deviceSessionEnvironment,
+        now
+      });
+      setHasRememberedDevice(Boolean(session));
+    }
+  }, [clearRememberedDevice, deviceSessionEnvironment, now]);
+
+  useEffect(() => {
+    const current = machine.view;
+    if (
+      current.phase !== 'authenticated'
+      || current.assurance !== 'remembered-device-prototype'
+      || current.expiresAt === undefined
+    ) {
+      return undefined;
+    }
+    const currentTime = readProviderNow(now);
+    const delay = currentTime === undefined ? Number.NaN : current.expiresAt - currentTime;
+    const expireRememberedSession = () => {
+      clearRememberedDevice();
+      dispatch({ type: 'sign-out', generation: machine.generation });
+    };
+    if (!Number.isFinite(delay) || delay <= 0 || typeof window === 'undefined') {
+      expireRememberedSession();
+      return undefined;
+    }
+    const timer = window.setTimeout(expireRememberedSession, delay);
+    return () => window.clearTimeout(timer);
+  }, [clearRememberedDevice, machine, now]);
+
+  useEffect(() => {
+    const current = machine.view;
+    if (
+      typeof document === 'undefined'
+      || current.phase !== 'authenticated'
+      || current.assurance !== 'remembered-device-prototype'
+      || current.expiresAt === undefined
+    ) {
+      return undefined;
+    }
+
+    const reconcileRememberedExpiry = () => {
+      if (document.hidden) {
+        return;
+      }
+      const currentTime = readProviderNow(now);
+      if (currentTime !== undefined && currentTime >= current.expiresAt!) {
+        clearRememberedDevice();
+        dispatch({ type: 'sign-out', generation: machine.generation });
+      }
+    };
+
+    document.addEventListener('visibilitychange', reconcileRememberedExpiry);
+    window.addEventListener('focus', reconcileRememberedExpiry);
+    reconcileRememberedExpiry();
+    return () => {
+      document.removeEventListener('visibilitychange', reconcileRememberedExpiry);
+      window.removeEventListener('focus', reconcileRememberedExpiry);
+    };
+  }, [clearRememberedDevice, machine, now]);
+
+  useEffect(() => {
+    const key = getFarcasterDeviceSessionStorageKey(deviceSessionEnvironment?.basePath);
+    if (typeof window === 'undefined' || !key) {
+      return undefined;
+    }
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== key) {
+        return;
+      }
+      const restored = restoreFarcasterRememberedDeviceSession({
+        ...deviceSessionEnvironment,
+        now
+      });
+      const current = machineRef.current;
+      if (!restored) {
+        setHasRememberedDevice(false);
+        if (
+          current.view.phase === 'authenticated'
+          && current.view.assurance === 'remembered-device-prototype'
+        ) {
+          dispatch({ type: 'sign-out', generation: current.generation });
+        }
+        return;
+      }
+
+      setHasRememberedDevice(true);
+      if (current.view.phase === 'anonymous') {
+        const restoredSession = rememberedMachineSession(restored);
+        if (restoredSession) {
+          dispatch({
+            type: 'restore',
+            identity: restoredSession.identity,
+            expiresAt: restoredSession.expiresAt
+          });
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [deviceSessionEnvironment, now]);
+
   const value = useMemo<FarcasterAuthControllerValue>(() => ({
     state: machine.view,
     beginSignIn: controller.beginSignIn,
     cancelSignIn: controller.cancelSignIn,
     retrySignIn: controller.retrySignIn,
-    signOut: controller.signOut
-  }), [controller, machine.view]);
+    prepareQrCode: controller.prepareQrCode,
+    signOut: controller.signOut,
+    rememberDevice,
+    setRememberDevice,
+    hasRememberedDevice
+  }), [
+    controller,
+    hasRememberedDevice,
+    machine.view,
+    rememberDevice,
+    setRememberDevice
+  ]);
 
   return (
     <FarcasterAuthReactContext.Provider value={value}>

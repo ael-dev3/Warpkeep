@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { Profiler } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
@@ -61,13 +62,14 @@ describe('RealmMapScreen', () => {
     expect(screen.queryByRole('button', { name: /Place Frontier Keep/i })).toBeNull();
     fireEvent.click(within(selector).getByRole('button', { name: 'Select cell 1,0' }));
 
-    expect(screen.getByText('Cell 1, 0')).not.toBeNull();
+    expect(screen.getByText('Selected cell 1, 0')).not.toBeNull();
     expect(marker.getAttribute('transform')).toBe(centerTransform);
-    expect(screen.getByText(/Olive grass/i)).not.toBeNull();
+    expect(screen.getByText('Olive grass · open ground · calm terrain.')).not.toBeNull();
+    expect(screen.queryByText(/elevation|soil/i)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Select your Hegemony keep' }));
-    expect(screen.getByText('Cell 0, 0')).not.toBeNull();
-    expect(screen.getByText(/Session-bound prototype/i)).not.toBeNull();
+    expect(screen.getByText('Selected cell 0, 0')).not.toBeNull();
+    expect(screen.getByText(/frontier marker is holding/i)).not.toBeNull();
     expect(marker.getAttribute('transform')).toBe(centerTransform);
   });
 
@@ -90,7 +92,30 @@ describe('RealmMapScreen', () => {
     expect(document.activeElement).toBe(realm);
 
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
-    expect(screen.getByText('Cell 1, 0')).not.toBeNull();
+    expect(screen.getByText('Selected cell 1, 0')).not.toBeNull();
+  });
+
+  it('does not rerender the realm for repeated hover updates on the same cell', () => {
+    const onRender = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    render(
+      <Profiler id="realm-hover" onRender={onRender}>
+        <RealmMapScreen
+          identity={VERIFIED_REALM_IDENTITY}
+          onRequestReturn={vi.fn()}
+        />
+      </Profiler>
+    );
+
+    const selector = openPlayableCellNavigator();
+    const cell = within(selector).getByRole('button', { name: 'Select cell 1,0' });
+    const rendersBeforeFirstHover = onRender.mock.calls.length;
+    fireEvent.focus(cell);
+    const rendersAfterFirstHover = onRender.mock.calls.length;
+    expect(rendersAfterFirstHover).toBeGreaterThan(rendersBeforeFirstHover);
+
+    fireEvent.focus(cell);
+    expect(onRender).toHaveBeenCalledTimes(rendersAfterFirstHover);
   });
 
   it('provides visible Return and Recenter actions and returns on Escape', () => {
