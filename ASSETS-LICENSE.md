@@ -21,6 +21,7 @@ This includes, unless separately noted:
 - `public/audio/warpkeep-menu-theme.mp3`
 - `public/video/warpkeep-menu-loop-v2.mp4`
 - `public/images/menu/warpkeep-menu-poster-v2.webp`
+- `public/models/hegemony/**`
 - `docs/reference/factions/**`
 - `docs/reference/castles/**`
 - `docs/reference/terrain/**`
@@ -41,6 +42,18 @@ The 2026-07-10 title-to-menu milestone uses project-provided media supplied for 
 | Composition reference only | `warpkeep-main-menu-reference.png` | `docs/reference/menu/2026-07-10/warpkeep-main-menu-reference.png` | 1555×1011 PNG, 2,653,834 bytes, SHA-256 `dc7ad4319cf8d37e3e127a0954ac9ed982ed37031ac672ef614f84311c10277c`. Never served as the runtime page or poster; all menu lettering is live HTML/CSS. |
 
 The original 1280×720 runtime film and poster were superseded on 2026-07-11. Their filenames, hashes, and derivation details remain in the dated menu manifest as a historical record.
+
+## Hegemony Frontier Keep provenance
+
+The archived Hegemony Frontier Keep and its runtime derivatives are project-provided media supplied for this repository. The source remains byte-for-byte intact under `docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/`; the public models are generated derivatives covered by the same CC0 project-media policy.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Archived source | `docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb` | 63,263,296 bytes, SHA-256 `fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d`, 941,298 source triangles, four embedded JPEG textures. Never served at runtime. |
+| High runtime keep | `public/models/hegemony/hegemony-frontier-keep-high.glb` | 2,256,092 bytes, SHA-256 `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c`, 56,466 triangles, four 2048×2048 WebP textures, Meshopt compression. |
+| Compact runtime keep | `public/models/hegemony/hegemony-frontier-keep-compact.glb` | 760,916 bytes, SHA-256 `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b`, 17,536 triangles, four 1024×1024 WebP textures, Meshopt compression. |
+
+Both runtime files are reproducible with `npm run prepare:hegemony-keep`. The pinned preparation pipeline and complete technical metadata are recorded in the dated castle archive.
 
 ## Trademark and endorsement note
 

@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "prepare:hegemony-keep": "node scripts/prepare-hegemony-frontier-keep.mjs",
     "test": "vitest --run",
     "typecheck": "tsc -b"
   },

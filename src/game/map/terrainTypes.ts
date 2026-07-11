@@ -21,10 +21,3 @@ export type RealmTerrainMap = Readonly<{
   radius: number;
   cells: readonly TerrainCell[];
 }>;
-
-export type TerrainQuality = 'high' | 'compact' | 'reduced';
-
-export type TerrainQualitySpec = Readonly<{
-  subdivisionsPerEdge: number;
-  pixelRatioCap: number;
-}>;

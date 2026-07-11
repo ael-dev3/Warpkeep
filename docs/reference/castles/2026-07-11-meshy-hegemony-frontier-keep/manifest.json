@@ -1,30 +1,64 @@
 {
   "archive_purpose": "Ael-supplied source archive and provenance record for the Hegemony Frontier Keep runtime landmark",
   "reference_only": true,
-  "runtime_dependency": {
-    "path": "public/models/hegemony-frontier-keep.runtime.glb",
+  "runtime_derivatives": {
     "lazy_loaded_after": "authenticated Realm mount only",
     "derived_from": "Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb",
-    "bytes": 1139756,
-    "sha256": "b350421e8fd64b59f1c10ae1191454b99799d1c978dac45f9e24d67907691163",
     "generator": "gltf-transform v4.4.1",
-    "transform": {
-      "command": "gltf-transform optimize",
-      "mesh_compression": "meshopt high",
-      "simplify_ratio": 0.08,
-      "simplify_error": 0.012,
-      "texture_compression": "webp",
-      "texture_size_cap": 1024,
+    "preparation_script": "scripts/prepare-hegemony-frontier-keep.mjs",
+    "pipeline": {
+      "commands": [
+        "optimize --compress false --texture-compress webp --flatten true --join true --weld true --prune true",
+        "tangents",
+        "meshopt --level high --quantize-position 14 --quantize-normal 10 --quantize-texcoord 12",
+        "validate"
+      ],
+      "texture_compression": "WebP",
+      "mesh_compression": "Meshopt high",
+      "tangent_space": "MikkTSpace",
       "flatten": true,
       "join": true,
       "weld": true,
       "prune": true
     },
-    "gltf": {
-      "extensions_required": ["EXT_meshopt_compression", "EXT_texture_webp", "KHR_mesh_quantization"],
-      "triangles": 75278,
-      "upload_vertices": 65554,
-      "texture_resolution": [1024, 1024]
+    "extensions_required": ["EXT_meshopt_compression", "EXT_texture_webp", "KHR_mesh_quantization"],
+    "high": {
+      "path": "public/models/hegemony/hegemony-frontier-keep-high.glb",
+      "bytes": 2256092,
+      "sha256": "ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c",
+      "simplify_ratio": 0.06,
+      "simplify_error": 0.008,
+      "triangles": 56466,
+      "upload_vertices": 55704,
+      "materials": 1,
+      "textures": 4,
+      "texture_resolution": [2048, 2048],
+      "position_bounds": {
+        "min": [-0.94968, -0.67927, -0.66523],
+        "max": [0.94756, 0.67433, 0.6629]
+      }
+    },
+    "compact": {
+      "path": "public/models/hegemony/hegemony-frontier-keep-compact.glb",
+      "bytes": 760916,
+      "sha256": "9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b",
+      "simplify_ratio": 0.018,
+      "simplify_error": 0.018,
+      "triangles": 17536,
+      "upload_vertices": 24766,
+      "materials": 1,
+      "textures": 4,
+      "texture_resolution": [1024, 1024],
+      "position_bounds": {
+        "min": [-0.94505, -0.67889, -0.66423],
+        "max": [0.93605, 0.64874, 0.6627]
+      }
+    },
+    "runtime_transform": {
+      "target_footprint_diameter": 1.48,
+      "target_hex_diameter_fraction": 0.74,
+      "gate_facing_axis": "+Z",
+      "yaw_radians": 0
     }
   },
   "source": {

@@ -1,12 +1,16 @@
-import { hegemonyLowlandsSpec } from '../../game/map/hegemonyLowlandsSpec';
 import { axialToWorld, type HexCoord, type HexWorldPosition } from '../../game/map/hexCoordinates';
-import { deriveChannelSeed, seededUnitFloat } from '../../game/map/realmSeed';
+import { sampleLowlandsColor } from '../../game/map/terrainColor';
 import { terrainHeightForCell } from '../../game/map/terrainHeight';
+import {
+  HEGEMONY_TERRAIN_PLACEMENTS,
+  type TerrainStructurePlacement
+} from '../../game/map/terrainPlacements';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
 
 const SQRT_3 = Math.sqrt(3);
 const CORNER_COUNT = 6;
 export const DEFAULT_TERRAIN_SUBDIVISIONS = 8;
+export { sampleLowlandsColor };
 
 export type TerrainBounds = Readonly<{
   minX: number;
@@ -31,8 +35,6 @@ export type TerrainGeometryData = Readonly<{
   subdivisionsPerEdge: number;
 }>;
 
-type Rgb = Readonly<{ r: number; g: number; b: number }>;
-
 type MutableTerrainBounds = {
   minX: number;
   maxX: number;
@@ -41,50 +43,6 @@ type MutableTerrainBounds = {
   minZ: number;
   maxZ: number;
 };
-
-function clamp(value: number, minimum: number, maximum: number) {
-  return Math.min(maximum, Math.max(minimum, value));
-}
-
-function smoothstep(edge0: number, edge1: number, value: number) {
-  const normalized = clamp((value - edge0) / (edge1 - edge0), 0, 1);
-  return normalized * normalized * (3 - normalized * 2);
-}
-
-function mixColor(first: Rgb, second: Rgb, amount: number): Rgb {
-  const blend = clamp(amount, 0, 1);
-  return {
-    r: first.r + (second.r - first.r) * blend,
-    g: first.g + (second.g - first.g) * blend,
-    b: first.b + (second.b - first.b) * blend
-  };
-}
-
-function worldSurfaceSignal(worldSeed: number, world: HexWorldPosition, channel: string, scale: number) {
-  const phase = seededUnitFloat(deriveChannelSeed(worldSeed, 0, 0, `${channel}-phase`)) * Math.PI * 2;
-  const skew = seededUnitFloat(deriveChannelSeed(worldSeed, 0, 0, `${channel}-skew`)) * 0.6 + 0.35;
-  return Math.sin(world.x * scale + world.z * skew * scale + phase) * 0.5
-    + Math.cos(world.z * scale * 0.71 - world.x * scale * 0.23 + phase * 0.73) * 0.5;
-}
-
-/** Continuous, low-contrast vertex color without a tile or reference-image lookup. */
-export function sampleLowlandsColor(worldSeed: number, world: HexWorldPosition): Rgb {
-  const broad = worldSurfaceSignal(worldSeed, world, 'grass-broad', 0.82) * 0.5 + 0.5;
-  const fine = worldSurfaceSignal(worldSeed, world, 'grass-fine', 2.1) * 0.5 + 0.5;
-  const soilSignal = worldSurfaceSignal(worldSeed, world, 'soil', 0.98) * 0.5 + 0.5;
-  const soilAmount = smoothstep(0.68, 0.88, soilSignal * 0.72 + fine * 0.28);
-  const dryAmount = smoothstep(0.86, 0.98, broad * 0.74 + fine * 0.26) * (1 - soilAmount) * 0.22;
-  const grass = mixColor(
-    hegemonyLowlandsSpec.palette.grassCool,
-    hegemonyLowlandsSpec.palette.grassBase,
-    broad * 0.62 + 0.24
-  );
-  return mixColor(
-    mixColor(grass, hegemonyLowlandsSpec.palette.soil, soilAmount * 0.56),
-    hegemonyLowlandsSpec.palette.dryGrass,
-    dryAmount
-  );
-}
 
 export function pointyHexCorners(coord: HexCoord, hexSize: number): HexWorldPosition[] {
   const center = axialToWorld(coord, hexSize);
@@ -154,9 +112,17 @@ function interpolateTriangle(
 export function createTerrainGeometryData(
   map: RealmTerrainMap,
   hexSize: number,
-  subdivisionsPerEdge = DEFAULT_TERRAIN_SUBDIVISIONS
+  subdivisionsOrOptions: number | Readonly<{
+    subdivisionsPerEdge?: number;
+    playableRadius?: number;
+    placements?: readonly TerrainStructurePlacement[];
+  }> = DEFAULT_TERRAIN_SUBDIVISIONS
 ): TerrainGeometryData {
-  const subdivisions = safeSubdivisionCount(subdivisionsPerEdge);
+  const options = typeof subdivisionsOrOptions === 'number'
+    ? { subdivisionsPerEdge: subdivisionsOrOptions }
+    : subdivisionsOrOptions;
+  const placements = options.placements ?? HEGEMONY_TERRAIN_PLACEMENTS;
+  const subdivisions = safeSubdivisionCount(options.subdivisionsPerEdge ?? DEFAULT_TERRAIN_SUBDIVISIONS);
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
@@ -171,13 +137,24 @@ export function createTerrainGeometryData(
     maxZ: Number.NEGATIVE_INFINITY
   };
 
-  const addVertex = (key: string, world: HexWorldPosition, height: number) => {
+  const addVertex = (
+    key: string,
+    world: HexWorldPosition,
+    height: number,
+    cell: RealmTerrainMap['cells'][number]
+  ) => {
     const existing = vertices.get(key);
     if (existing !== undefined) {
       sharedVertexReuseCount += 1;
       return existing;
     }
-    const color = sampleLowlandsColor(map.worldSeed, world);
+    const color = sampleLowlandsColor(map.worldSeed, world, {
+      cell,
+      hexSize,
+      playableRadius: options.playableRadius ?? Math.max(0, map.radius - 1),
+      renderRadius: map.radius,
+      placements
+    });
     const index = positions.length / 3;
     vertices.set(key, index);
     positions.push(world.x, height, world.z);
@@ -211,7 +188,8 @@ export function createTerrainGeometryData(
           rows[first][second] = addVertex(
             `surface:${pointKey(world)}`,
             world,
-            terrainHeightForCell(map.worldSeed, cell, world, hexSize)
+            terrainHeightForCell(map.worldSeed, cell, world, hexSize, placements),
+            cell
           );
         }
       }
