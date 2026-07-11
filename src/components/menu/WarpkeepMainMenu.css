@@ -231,7 +231,9 @@
 }
 
 .warpkeep-menu-identity {
-  display: flex;
+  display: grid;
+  justify-items: end;
+  gap: 0.42rem;
   position: absolute;
   z-index: 5;
   top: 38.5%;
@@ -241,6 +243,18 @@
   opacity: 0;
   transform: translate3d(0.6rem, 0, 0);
   transition: opacity 420ms 260ms ease, transform 620ms 220ms ease;
+}
+
+.warpkeep-menu-identity__assurance {
+  padding: 0.24rem 0.42rem;
+  border: 1px solid rgba(202, 156, 83, 0.32);
+  color: rgba(238, 208, 148, 0.88);
+  background: rgba(13, 8, 16, 0.54);
+  font-size: 0.54rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 .warpkeep-menu--visible .warpkeep-menu-identity {

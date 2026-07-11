@@ -63,7 +63,8 @@ function clamp(value: number, minimum: number, maximum: number) {
 }
 
 function sameCoord(first: HexCoord | null, second: HexCoord | null) {
-  return first?.q === second?.q && first?.r === second?.r;
+  if (first === null || second === null) return first === second;
+  return first.q === second.q && first.r === second.r;
 }
 
 function directionForKey(key: string): HexCoord | null {
@@ -165,9 +166,11 @@ export function RealmMapScreen({
   const [cameraMode, setCameraMode] = useState<RealmCameraMode>('realm');
   const [selectedCoord, setSelectedCoord] = useState<HexCoord>(KEEP_COORD);
   const [hoveredCoord, setHoveredCoord] = useState<HexCoord | null>(null);
+  const hoveredCoordRef = useRef<HexCoord | null>(null);
   const reducedMotion = useMemo(readReducedMotion, []);
   const viewBox = useMemo(() => viewBoxForSurface(surface), [surface]);
   const selectedCell = selectedCellFor(surface, selectedCoord);
+  const hoveredCell = hoveredCoord ? selectedCellFor(surface, hoveredCoord) : null;
   const selectedIsKeep = sameCoord(selectedCoord, KEEP_COORD);
 
   const selectCoord = useCallback((coord: HexCoord) => {
@@ -178,6 +181,15 @@ export function RealmMapScreen({
   const markRendererUnavailable = useCallback(() => {
     setRendererMode('fallback');
     setKeepLoadStatus('fallback');
+  }, []);
+
+  const updateHoveredCoord = useCallback((coord: HexCoord | null) => {
+    // Keep the WebGL overlay responsive to every pointer event, while avoiding
+    // redundant React work when the pointer remains over the same territory.
+    sceneRef.current?.setHovered(coord);
+    if (sameCoord(hoveredCoordRef.current, coord)) return;
+    hoveredCoordRef.current = coord;
+    setHoveredCoord(coord);
   }, []);
 
   useEffect(() => {
@@ -196,13 +208,14 @@ export function RealmMapScreen({
         reducedMotion,
         baseUrl: import.meta.env.BASE_URL || '/',
         onCameraModeChange: setCameraMode,
-        onHover: setHoveredCoord,
+        onHover: updateHoveredCoord,
         onKeepStatusChange: setKeepLoadStatus,
         onRendererUnavailable: markRendererUnavailable,
         onSelect: selectCoord
       });
       sceneRef.current = scene;
       scene.setSelected(KEEP_COORD);
+      scene.setHovered(hoveredCoordRef.current);
       setRendererMode('webgl');
     } catch {
       markRendererUnavailable();
@@ -212,15 +225,11 @@ export function RealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [markRendererUnavailable, qualitySpec, reducedMotion, selectCoord, surface]);
+  }, [markRendererUnavailable, qualitySpec, reducedMotion, selectCoord, surface, updateHoveredCoord]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);
   }, [selectedCoord]);
-
-  useEffect(() => {
-    sceneRef.current?.setHovered(hoveredCoord);
-  }, [hoveredCoord]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -343,10 +352,9 @@ export function RealmMapScreen({
       <RealmHud
         identity={identity}
         selectedCell={selectedCell}
-        selectedIsKeep={selectedIsKeep}
+        hoveredCell={hoveredCell}
         keepLoadStatus={keepLoadStatus}
         cameraMode={cameraMode}
-        quality={quality}
         onFocusKeep={focusKeep}
         onRecenterKeep={recenterKeep}
         onShowRealm={showRealm}
@@ -356,7 +364,7 @@ export function RealmMapScreen({
       <RealmAccessibilityControls
         cells={surface.playableMap.cells}
         selectedCoord={selectedCoord}
-        onHover={setHoveredCoord}
+        onHover={updateHoveredCoord}
         onSelect={selectFromNavigator}
       />
     </main>

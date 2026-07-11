@@ -9,6 +9,7 @@ import {
 } from '../src/components/auth/FarcasterIdentityBadge';
 import {
   FarcasterQrAuthPanel,
+  getFarcasterAuthPresentation,
   getSafeFarcasterChannelUrl,
   type FarcasterQrAuthPanelProps
 } from '../src/components/auth/FarcasterQrAuthPanel';
@@ -34,6 +35,8 @@ function renderPanel(props: RenderPanelProps) {
     onRetry: vi.fn(),
     onBackToMenu: vi.fn(),
     onEnterRealm: vi.fn(),
+    onPrepareQrCode: vi.fn(),
+    onRememberDeviceChange: vi.fn(),
     onSignOut: vi.fn()
   };
 
@@ -47,11 +50,17 @@ function renderPanel(props: RenderPanelProps) {
       onBackToMenu={props.onBackToMenu ?? callbacks.onBackToMenu}
       onCancel={props.onCancel ?? callbacks.onCancel}
       onEnterRealm={props.onEnterRealm ?? callbacks.onEnterRealm}
+      onPrepareQrCode={props.onPrepareQrCode ?? callbacks.onPrepareQrCode}
+      onPresentationReady={props.onPresentationReady}
+      onRememberDeviceChange={props.onRememberDeviceChange ?? callbacks.onRememberDeviceChange}
       onRetry={props.onRetry ?? callbacks.onRetry}
       onSignOut={props.onSignOut ?? callbacks.onSignOut}
       phase={props.phase}
       primaryActionRef={props.primaryActionRef}
-      qrDataUrl={props.qrDataUrl}
+      qr={props.qr}
+      assurance={props.assurance}
+      rememberDevice={props.rememberDevice}
+      hasRememberedDevice={props.hasRememberedDevice}
     />
   );
 
@@ -61,16 +70,35 @@ function renderPanel(props: RenderPanelProps) {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('FarcasterQrAuthPanel', () => {
-  it('renders an accessible QR flow with instructions, a deep link, and cancellation', () => {
+  it('selects presentation by interaction capabilities, never a user agent', () => {
+    expect(getFarcasterAuthPresentation({
+      width: 1440,
+      coarsePointer: false,
+      maxTouchPoints: 0
+    })).toBe('qr-first');
+    expect(getFarcasterAuthPresentation({
+      width: 390,
+      coarsePointer: true,
+      maxTouchPoints: 5
+    })).toBe('deep-link-first');
+    expect(getFarcasterAuthPresentation({
+      width: 390,
+      coarsePointer: false,
+      maxTouchPoints: 0
+    })).toBe('qr-first');
+  });
+
+  it('renders an accessible desktop QR flow with instructions, a deep link, and cancellation', () => {
     const channelUrl = 'farcaster://connect?channelToken=ephemeral-secret';
     const qrDataUrl = 'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22/%3E';
     const { container, callbacks } = renderPanel({
       phase: 'awaiting-approval',
       channelUrl,
-      qrDataUrl
+      qr: { state: 'ready', dataUrl: qrDataUrl }
     });
 
     expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
@@ -88,12 +116,59 @@ describe('FarcasterQrAuthPanel', () => {
     expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it('prepares a QR lazily for QR-first presentation when a channel is ready', () => {
+    const { callbacks } = renderPanel({
+      phase: 'awaiting-approval',
+      channelUrl: 'farcaster://connect?channelToken=ephemeral-secret',
+      qr: { state: 'not-requested' }
+    });
+
+    expect(callbacks.onPrepareQrCode).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('img', { name: 'Sign in with Farcaster QR code' })).toBeNull();
+    expect(screen.getByText('Preparing QR code')).not.toBeNull();
+  });
+
+  it('keeps a mobile player on the deep-link path until they explicitly request a QR', () => {
+    const originalInnerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    const originalMaxTouchPoints = Object.getOwnPropertyDescriptor(navigator, 'maxTouchPoints');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 5 });
+    const matchMedia = vi.fn().mockReturnValue({ matches: true });
+    vi.stubGlobal('matchMedia', matchMedia);
+
+    try {
+      const { callbacks } = renderPanel({
+        phase: 'awaiting-approval',
+        channelUrl: 'farcaster://connect?channelToken=ephemeral-secret',
+        qr: { state: 'not-requested' }
+      });
+
+      expect(screen.getByRole('region', { name: 'Farcaster sign-in' })
+        .getAttribute('data-presentation')).toBe('deep-link-first');
+      expect(screen.queryByRole('img', { name: 'Sign in with Farcaster QR code' })).toBeNull();
+      expect(callbacks.onPrepareQrCode).not.toHaveBeenCalled();
+      expect(screen.getByRole('link', { name: 'OPEN FARCASTER' })
+        .getAttribute('href')).toBe('farcaster://connect?channelToken=ephemeral-secret');
+
+      fireEvent.click(screen.getByRole('button', { name: 'SHOW QR INSTEAD' }));
+      expect(callbacks.onPrepareQrCode).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Preparing QR code')).not.toBeNull();
+    } finally {
+      if (originalInnerWidth) {
+        Object.defineProperty(window, 'innerWidth', originalInnerWidth);
+      }
+      if (originalMaxTouchPoints) {
+        Object.defineProperty(navigator, 'maxTouchPoints', originalMaxTouchPoints);
+      }
+    }
+  });
+
   it('fails closed for unsafe channel URLs without displaying the URL', () => {
     const unsafeChannelUrl = 'javascript:alert("channel-token")';
     const { container } = renderPanel({
       phase: 'awaiting-approval',
       channelUrl: unsafeChannelUrl,
-      qrDataUrl: 'data:image/png;base64,AA=='
+      qr: { state: 'ready', dataUrl: 'data:image/png;base64,AA==' }
     });
 
     expect(screen.queryByRole('link', { name: 'OPEN IN FARCASTER' })).toBeNull();
@@ -123,7 +198,7 @@ describe('FarcasterQrAuthPanel', () => {
 
   it('offers retry and menu actions for expired and sanitized error states', () => {
     const expired = renderPanel({ phase: 'expired' });
-    fireEvent.click(screen.getByRole('button', { name: 'GENERATE NEW QR' }));
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     expect(expired.callbacks.onRetry).toHaveBeenCalledTimes(1);
     expect(expired.callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
@@ -138,21 +213,47 @@ describe('FarcasterQrAuthPanel', () => {
     expect(failed.callbacks.onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it('renders verified identity metadata and invokes realm entry and sign-out actions', () => {
+  it('renders live verification assurance, remembers an explicit device choice, and enters the realm', () => {
     const { callbacks } = renderPanel({
       phase: 'authenticated',
-      identity: verifiedIdentity
+      identity: verifiedIdentity,
+      assurance: 'live-client-verified',
+      rememberDevice: true
     });
 
     expect(screen.getByRole('heading', { name: 'HEGEMONY RECORD VERIFIED' })).not.toBeNull();
     expect(screen.getByText('@keeper')).not.toBeNull();
     expect(screen.getByText('The Keeper')).not.toBeNull();
     expect(screen.getByText('FID 12345')).not.toBeNull();
-    expect(screen.getByRole('status').textContent).toBe('Signed in as @keeper, FID 12345');
+    expect(screen.getByText(
+      'Verified through Farcaster. Your identity is recognized by the realm.'
+    )).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('Verified through Farcaster: @keeper, FID 12345');
+    const remember = screen.getByRole('checkbox', { name: 'Remember this device for 30 days' });
+    expect((remember as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(remember);
+    expect(callbacks.onRememberDeviceChange).toHaveBeenCalledWith(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(callbacks.onEnterRealm).toHaveBeenCalledWith(verifiedIdentity);
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
+    expect(callbacks.onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('clearly marks a restored prototype session and offers to forget the remembered device', () => {
+    const { callbacks } = renderPanel({
+      phase: 'authenticated',
+      identity: verifiedIdentity,
+      assurance: 'remembered-device-prototype',
+      rememberDevice: true,
+      hasRememberedDevice: true
+    });
+
+    expect(screen.getByRole('heading', { name: 'HEGEMONY RECORD REMEMBERED' })).not.toBeNull();
+    expect(screen.getByText(
+      'Remembered on this device. Reconfirm in Farcaster whenever you need a fresh proof.'
+    )).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT & FORGET DEVICE' }));
     expect(callbacks.onSignOut).toHaveBeenCalledTimes(1);
   });
 

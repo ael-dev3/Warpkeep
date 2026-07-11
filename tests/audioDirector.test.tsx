@@ -5,12 +5,19 @@ import {
   WARPKEEP_AUDIO_LEVELS,
   WARPKEEP_AUDIO_TRANSITION_MS,
   WARPKEEP_MENU_LOOP,
+  WARPKEEP_MENU_TO_REALM_TRANSITION_MS,
+  WARPKEEP_REALM_LOOP,
+  WARPKEEP_REALM_TO_MENU_TRANSITION_MS,
   WarpkeepAudioDirector,
   clampUnit,
   getEqualPowerGains,
+  getLoopSchedule,
   getMenuLoopSchedule,
+  getRealmLoopSchedule,
+  getOtherSource,
   getOtherMenuSource,
   getScenePlaybackPlan,
+  getSceneTransitionDuration,
   type WarpkeepAudioDirectorHandle
 } from '../src/components/audio';
 
@@ -56,7 +63,14 @@ describe('audio director helpers', () => {
   it('keeps the experience crossfade inside the requested 1.4–2.0 second window', () => {
     expect(WARPKEEP_AUDIO_TRANSITION_MS).toBeGreaterThanOrEqual(1_400);
     expect(WARPKEEP_AUDIO_TRANSITION_MS).toBeLessThanOrEqual(2_000);
-    expect(WARPKEEP_AUDIO_LEVELS).toEqual({ title: 0.58, menu: 0.48 });
+    expect(WARPKEEP_AUDIO_LEVELS).toEqual({ title: 0.58, menu: 0.48, realm: 0.37 });
+    expect(getSceneTransitionDuration('title', 'menu')).toBe(WARPKEEP_AUDIO_TRANSITION_MS);
+    expect(getSceneTransitionDuration('menu', 'realm')).toBe(
+      WARPKEEP_MENU_TO_REALM_TRANSITION_MS
+    );
+    expect(getSceneTransitionDuration('realm', 'menu')).toBe(
+      WARPKEEP_REALM_TO_MENU_TRANSITION_MS
+    );
   });
 
   it('clamps unsafe values and produces equal-power crossfade gains', () => {
@@ -99,24 +113,68 @@ describe('audio director helpers', () => {
     expect(midpoint.delayMs).toBe(0);
     expect(midpoint.crossfadeProgress).toBeCloseTo(0.5, 8);
     expect(getMenuLoopSchedule(401.92, false).crossfadeProgress).toBe(1);
+    expect(getOtherSource(0)).toBe(1);
+    expect(getOtherSource(1)).toBe(0);
     expect(getOtherMenuSource(0)).toBe(1);
     expect(getOtherMenuSource(1)).toBe(0);
   });
 
+  it('uses the documented Lowlands overlap and exposes it through generic scheduling', () => {
+    expect(WARPKEEP_REALM_LOOP).toEqual({
+      crossfadeStartSeconds: 236,
+      endSeconds: 244.919979,
+      overlapSeconds: 8.919979
+    });
+
+    const midpoint = getRealmLoopSchedule(
+      WARPKEEP_REALM_LOOP.crossfadeStartSeconds + WARPKEEP_REALM_LOOP.overlapSeconds / 2,
+      false
+    );
+    expect(midpoint.shouldCrossfadeNow).toBe(true);
+    expect(midpoint.crossfadeProgress).toBeCloseTo(0.5, 8);
+    expect(
+      getLoopSchedule(WARPKEEP_REALM_LOOP, WARPKEEP_REALM_LOOP.crossfadeStartSeconds - 1, false)
+    ).toEqual({
+      crossfadeProgress: 0,
+      delayMs: 1_000,
+      shouldCrossfadeNow: false
+    });
+  });
+
   it('makes hidden and inactive playback decisions explicit', () => {
-    expect(getScenePlaybackPlan('title', false)).toEqual({ title: true, menu: false });
-    expect(getScenePlaybackPlan('menu', false)).toEqual({ title: false, menu: true });
-    expect(getScenePlaybackPlan('menu', true)).toEqual({ title: false, menu: false });
+    expect(getScenePlaybackPlan('title', false)).toEqual({
+      title: true,
+      menu: false,
+      realm: false
+    });
+    expect(getScenePlaybackPlan('menu', false)).toEqual({
+      title: false,
+      menu: true,
+      realm: false
+    });
+    expect(getScenePlaybackPlan('realm', false)).toEqual({
+      title: false,
+      menu: false,
+      realm: true
+    });
+    expect(getScenePlaybackPlan('menu', true)).toEqual({
+      title: false,
+      menu: false,
+      realm: false
+    });
   });
 });
 
 describe('WarpkeepAudioDirector', () => {
-  it('retains one random title theme and caches two menu sources at BASE_URL', () => {
+  it('retains one random title theme, caches the menu pair, and keeps the realm pair source-free', () => {
     const { container } = render(<WarpkeepAudioDirector />);
     const title = getAudio(container, 'title');
     const primary = getAudio(container, 'menu-primary');
     const standby = getAudio(container, 'menu-standby');
+    const realmPrimary = getAudio(container, 'realm-primary');
+    const realmStandby = getAudio(container, 'realm-standby');
 
+    expect(container.querySelectorAll('audio')).toHaveLength(5);
     expect(title.src).toMatch(/\/audio\/warpkeep-title-theme-[ab]\.mp3$/);
     expect(title.dataset.track).toMatch(/^theme-[ab]$/);
     expect(title.loop).toBe(true);
@@ -127,6 +185,10 @@ describe('WarpkeepAudioDirector', () => {
     expect(title.preload).toBe('auto');
     expect(primary.preload).toBe('auto');
     expect(standby.preload).toBe('none');
+    expect(realmPrimary.getAttribute('src')).toBeNull();
+    expect(realmStandby.getAttribute('src')).toBeNull();
+    expect(realmPrimary.preload).toBe('none');
+    expect(realmStandby.preload).toBe('none');
   });
 
   it('preloads only the primary menu source until the standby is needed', () => {
@@ -155,6 +217,89 @@ describe('WarpkeepAudioDirector', () => {
     expect(title.preload).toBe('auto');
     expect(primary.preload).toBe('none');
     expect(standby.preload).toBe('none');
+  });
+
+  it('does not attach or request Lowlands until an explicit realm preparation gesture', () => {
+    const directorRef = createRef<WarpkeepAudioDirectorHandle>();
+    const { container, rerender } = render(
+      <WarpkeepAudioDirector ref={directorRef} scene="realm" />
+    );
+    const realmPrimary = getAudio(container, 'realm-primary');
+    const realmStandby = getAudio(container, 'realm-standby');
+    const playSpy = vi.mocked(HTMLMediaElement.prototype.play);
+
+    expect(realmPrimary.getAttribute('src')).toBeNull();
+    expect(realmStandby.getAttribute('src')).toBeNull();
+    expect(playSpy.mock.instances).not.toContain(realmPrimary);
+
+    act(() => directorRef.current?.prepareScene('realm'));
+    expect(realmPrimary.src).toMatch(/\/audio\/warpkeep-lowlands-theme\.mp3$/);
+    expect(realmStandby.src).toBe(realmPrimary.src);
+    expect(realmPrimary.preload).toBe('auto');
+    expect(realmStandby.preload).toBe('none');
+
+    // A declarative realm scene starts only after the explicit preparation,
+    // preserving the no-anonymous-request contract for direct routing.
+    rerender(<WarpkeepAudioDirector ref={directorRef} scene="realm" />);
+    act(() => directorRef.current?.ensurePlaybackFromGesture());
+    expect(playSpy.mock.instances).toContain(realmPrimary);
+  });
+
+  it('crossfades from the retained menu position into Lowlands and back', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1_000);
+    const directorRef = createRef<WarpkeepAudioDirectorHandle>();
+    const { container } = render(<WarpkeepAudioDirector ref={directorRef} scene="menu" />);
+    const menu = getAudio(container, 'menu-primary');
+    const realm = getAudio(container, 'realm-primary');
+    const playSpy = vi.mocked(HTMLMediaElement.prototype.play);
+
+    menu.currentTime = 128.5;
+    act(() => directorRef.current?.prepareScene('realm'));
+    playSpy.mockClear();
+    act(() => directorRef.current?.transitionTo('realm'));
+    expect(playSpy.mock.instances).toContain(realm);
+
+    const intoRealmMidpoint = animationFrameCallbacks.shift()!;
+    act(() => intoRealmMidpoint(2_150));
+    expect(menu.volume).toBeCloseTo(WARPKEEP_AUDIO_LEVELS.menu * Math.SQRT1_2, 5);
+    expect(realm.volume).toBeCloseTo(WARPKEEP_AUDIO_LEVELS.realm * Math.SQRT1_2, 5);
+
+    const intoRealmFinal = animationFrameCallbacks.shift()!;
+    act(() => intoRealmFinal(3_300));
+    expect(menu.paused).toBe(true);
+    expect(menu.currentTime).toBe(128.5);
+    expect(realm.volume).toBe(WARPKEEP_AUDIO_LEVELS.realm);
+
+    vi.spyOn(performance, 'now').mockReturnValue(4_000);
+    playSpy.mockClear();
+    act(() => directorRef.current?.transitionTo('menu'));
+    expect(playSpy.mock.instances).toContain(menu);
+    expect(menu.currentTime).toBe(128.5);
+
+    const backToMenuMidpoint = animationFrameCallbacks.shift()!;
+    act(() => backToMenuMidpoint(4_950));
+    expect(menu.volume).toBeCloseTo(WARPKEEP_AUDIO_LEVELS.menu * Math.SQRT1_2, 5);
+    expect(realm.volume).toBeCloseTo(WARPKEEP_AUDIO_LEVELS.realm * Math.SQRT1_2, 5);
+  });
+
+  it('resets an already prepared realm pair without creating a source on anonymous pages', () => {
+    const directorRef = createRef<WarpkeepAudioDirectorHandle>();
+    const { container } = render(<WarpkeepAudioDirector ref={directorRef} />);
+    const realmPrimary = getAudio(container, 'realm-primary');
+    const realmStandby = getAudio(container, 'realm-standby');
+
+    act(() => directorRef.current?.resetScene());
+    expect(realmPrimary.getAttribute('src')).toBeNull();
+    expect(realmStandby.getAttribute('src')).toBeNull();
+
+    act(() => directorRef.current?.prepareScene('realm'));
+    realmPrimary.currentTime = 72;
+    realmStandby.currentTime = 4;
+    act(() => directorRef.current?.resetScene('realm'));
+    expect(realmPrimary.currentTime).toBe(0);
+    expect(realmStandby.currentTime).toBe(0);
+    expect(realmPrimary.preload).toBe('auto');
+    expect(realmStandby.preload).toBe('none');
   });
 
   it('starts the menu source synchronously and equal-power fades before pausing title', () => {

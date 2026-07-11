@@ -4,17 +4,23 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
-  useRef
+  useRef,
+  useState
 } from 'react';
 import {
   WARPKEEP_AUDIO_LEVELS,
-  WARPKEEP_AUDIO_TRANSITION_MS,
   WARPKEEP_MENU_LOOP,
+  WARPKEEP_REALM_LOOP,
   getEqualPowerGains,
-  getMenuLoopSchedule,
-  getOtherMenuSource,
+  getLoopSchedule,
+  getOtherSource,
+  getSceneMix,
+  getSceneTransitionDuration,
+  type AudioLoopDefinition,
+  type AudioLoopScene,
   type AudioScene,
-  type MenuSourceIndex
+  type AudioSourceIndex,
+  type SceneMix
 } from './audioDirector';
 
 const titleSoundtracks = [
@@ -30,14 +36,31 @@ const titleSoundtracks = [
   }
 ] as const;
 
-const menuSoundtrackPath = 'audio/warpkeep-menu-theme.mp3';
+const loopScenes = ['menu', 'realm'] as const satisfies readonly AudioLoopScene[];
+
+interface LoopSceneDefinition {
+  level: number;
+  loop: AudioLoopDefinition;
+  path: string;
+}
+
+const loopSceneDefinitions: Record<AudioLoopScene, LoopSceneDefinition> = {
+  menu: {
+    level: WARPKEEP_AUDIO_LEVELS.menu,
+    loop: WARPKEEP_MENU_LOOP,
+    path: 'audio/warpkeep-menu-theme.mp3'
+  },
+  realm: {
+    level: WARPKEEP_AUDIO_LEVELS.realm,
+    loop: WARPKEEP_REALM_LOOP,
+    path: 'audio/warpkeep-lowlands-theme.mp3'
+  }
+};
+
 const playbackGestureEvents = ['pointerdown', 'pointerup', 'click', 'touchstart', 'keydown'] as const;
 const volumeEpsilon = 0.0001;
 
-interface SceneMix {
-  menu: number;
-  title: number;
-}
+type AudioPair = [HTMLAudioElement | null, HTMLAudioElement | null];
 
 interface SceneTransition {
   durationMs: number;
@@ -46,19 +69,34 @@ interface SceneTransition {
   to: SceneMix;
 }
 
-interface MenuLoopState {
-  activeIndex: MenuSourceIndex;
+interface LoopState {
+  activeIndex: AudioSourceIndex;
   phase: 'stable' | 'crossfading';
 }
 
-export interface WarpkeepAudioDirectorHandle {
-  ensurePlaybackFromGesture: () => void;
-  transitionTo: (scene: AudioScene) => void;
+type LoopStateMap = Record<AudioLoopScene, LoopState>;
+type LoopGainsMap = Record<AudioLoopScene, [number, number]>;
+type LoopTimerMap = Record<AudioLoopScene, number | null>;
+
+function createLoopStates(): LoopStateMap {
+  return {
+    menu: { activeIndex: 0, phase: 'stable' },
+    realm: { activeIndex: 0, phase: 'stable' }
+  };
 }
 
-export interface WarpkeepAudioDirectorProps {
-  scene?: AudioScene;
-  preloadMenu?: boolean;
+function createLoopGains(): LoopGainsMap {
+  return {
+    menu: [1, 0],
+    realm: [1, 0]
+  };
+}
+
+function createLoopTimers(): LoopTimerMap {
+  return {
+    menu: null,
+    realm: null
+  };
 }
 
 function getRandomTrackIndex() {
@@ -71,8 +109,8 @@ function getRandomTrackIndex() {
   return Math.floor(Math.random() * titleSoundtracks.length);
 }
 
-function getSceneMix(scene: AudioScene): SceneMix {
-  return scene === 'menu' ? { menu: 1, title: 0 } : { menu: 0, title: 1 };
+function isLoopScene(scene: AudioScene): scene is AudioLoopScene {
+  return scene !== 'title';
 }
 
 function setCurrentTime(audio: HTMLAudioElement, nextTime: number) {
@@ -85,15 +123,11 @@ function setCurrentTime(audio: HTMLAudioElement, nextTime: number) {
 }
 
 function pauseMedia(audio: HTMLAudioElement | null) {
-  if (!audio) {
-    return;
-  }
-
-  audio.pause();
+  audio?.pause();
 }
 
 function playMedia(audio: HTMLAudioElement | null, onBlocked?: () => void) {
-  if (!audio || audio.error) {
+  if (!audio || audio.error || !audio.hasAttribute('src')) {
     return false;
   }
 
@@ -111,29 +145,58 @@ function playMedia(audio: HTMLAudioElement | null, onBlocked?: () => void) {
   }
 }
 
+export interface WarpkeepAudioDirectorHandle {
+  ensurePlaybackFromGesture: () => void;
+  prepareScene: (scene: AudioLoopScene) => void;
+  resetScene: (scene?: AudioLoopScene) => void;
+  transitionTo: (scene: AudioScene) => void;
+}
+
+export interface WarpkeepAudioDirectorProps {
+  scene?: AudioScene;
+  preloadMenu?: boolean;
+}
+
+/**
+ * Keeps the title and the two looping soundscapes in one equal-power mixer.
+ * The realm pair deliberately renders without a source until prepareScene()
+ * is invoked by an authenticated entry gesture.
+ */
 export const WarpkeepAudioDirector = forwardRef<
   WarpkeepAudioDirectorHandle,
   WarpkeepAudioDirectorProps
 >(function WarpkeepAudioDirector({ scene = 'title', preloadMenu = true }, forwardedRef) {
+  const baseUrl = import.meta.env.BASE_URL;
+  const soundtrackUrls = useMemo(
+    () => ({
+      menu: `${baseUrl}${loopSceneDefinitions.menu.path}`,
+      realm: `${baseUrl}${loopSceneDefinitions.realm.path}`
+    }),
+    [baseUrl]
+  );
   const titleTrack = useMemo(() => titleSoundtracks[getRandomTrackIndex()], []);
   const initialSceneRef = useRef(scene);
+  const preloadMenuRef = useRef(preloadMenu);
   const titleAudioRef = useRef<HTMLAudioElement>(null);
-  const menuAudioRefs = useRef<[HTMLAudioElement | null, HTMLAudioElement | null]>([
-    null,
-    null
-  ]);
+  const loopAudioRefs = useRef<Record<AudioLoopScene, AudioPair>>({
+    menu: [null, null],
+    realm: [null, null]
+  });
+  const [realmPrepared, setRealmPrepared] = useState(false);
+  const preparedLoopScenesRef = useRef<Record<AudioLoopScene, boolean>>({
+    menu: true,
+    realm: false
+  });
   const disposedRef = useRef(false);
-  const hiddenRef = useRef(
-    typeof document === 'undefined' ? false : document.hidden
-  );
+  const hiddenRef = useRef(typeof document === 'undefined' ? false : document.hidden);
   const requestedSceneRef = useRef<AudioScene>(scene);
   const sceneMixRef = useRef<SceneMix>(getSceneMix(scene));
   const sceneTransitionRef = useRef<SceneTransition | null>(null);
   const sceneAnimationFrameRef = useRef<number | null>(null);
-  const loopAnimationFrameRef = useRef<number | null>(null);
-  const loopScheduleTimerRef = useRef<number | null>(null);
-  const loopStateRef = useRef<MenuLoopState>({ activeIndex: 0, phase: 'stable' });
-  const loopGainsRef = useRef<[number, number]>([1, 0]);
+  const loopStateRef = useRef<LoopStateMap>(createLoopStates());
+  const loopGainsRef = useRef<LoopGainsMap>(createLoopGains());
+  const loopScheduleTimerRef = useRef<LoopTimerMap>(createLoopTimers());
+  const loopAnimationFrameRef = useRef<LoopTimerMap>(createLoopTimers());
 
   const markPlaybackBlocked = useCallback(() => {
     // Gesture listeners remain registered for the director's lifetime. They do
@@ -141,296 +204,440 @@ export const WarpkeepAudioDirector = forwardRef<
     // is retried by the next real interaction without accumulating listeners.
   }, []);
 
+  const getLoopPair = useCallback((loopScene: AudioLoopScene) => {
+    return loopAudioRefs.current[loopScene];
+  }, []);
+
+  const getActiveLoopAudio = useCallback(
+    (loopScene: AudioLoopScene) => {
+      const { activeIndex } = loopStateRef.current[loopScene];
+      return getLoopPair(loopScene)[activeIndex];
+    },
+    [getLoopPair]
+  );
+
+  const getAllAudio = useCallback(() => {
+    const title = titleAudioRef.current;
+    const loops = loopScenes.flatMap((loopScene) => getLoopPair(loopScene));
+    return [title, ...loops].filter((audio): audio is HTMLAudioElement => audio !== null);
+  }, [getLoopPair]);
+
   const applyVolumes = useCallback(() => {
     const titleAudio = titleAudioRef.current;
-    const [menuAudioA, menuAudioB] = menuAudioRefs.current;
     const sceneMix = sceneMixRef.current;
-    const loopGains = loopGainsRef.current;
 
     if (titleAudio) {
       titleAudio.volume = WARPKEEP_AUDIO_LEVELS.title * sceneMix.title;
     }
 
-    if (menuAudioA) {
-      menuAudioA.volume = WARPKEEP_AUDIO_LEVELS.menu * sceneMix.menu * loopGains[0];
-    }
+    loopScenes.forEach((loopScene) => {
+      const pair = getLoopPair(loopScene);
+      const gains = loopGainsRef.current[loopScene];
+      const level = loopSceneDefinitions[loopScene].level * sceneMix[loopScene];
 
-    if (menuAudioB) {
-      menuAudioB.volume = WARPKEEP_AUDIO_LEVELS.menu * sceneMix.menu * loopGains[1];
-    }
-  }, []);
+      pair.forEach((audio, index) => {
+        if (audio) {
+          audio.volume = level * gains[index];
+        }
+      });
+    });
+  }, [getLoopPair]);
 
-  const clearLoopSchedule = useCallback(() => {
-    if (loopScheduleTimerRef.current !== null) {
-      window.clearTimeout(loopScheduleTimerRef.current);
-      loopScheduleTimerRef.current = null;
-    }
-  }, []);
-
-  const clearLoopAnimation = useCallback(() => {
-    if (loopAnimationFrameRef.current !== null) {
-      window.cancelAnimationFrame(loopAnimationFrameRef.current);
-      loopAnimationFrameRef.current = null;
+  const clearLoopSchedule = useCallback((loopScene: AudioLoopScene) => {
+    const timer = loopScheduleTimerRef.current[loopScene];
+    if (timer !== null) {
+      window.clearTimeout(timer);
+      loopScheduleTimerRef.current[loopScene] = null;
     }
   }, []);
 
-  const scheduleMenuLoopRef = useRef<() => void>(() => undefined);
-  const beginMenuLoopCrossfadeRef = useRef<() => void>(() => undefined);
-
-  const finishMenuLoopCrossfade = useCallback(() => {
-    clearLoopAnimation();
-
-    const previousIndex = loopStateRef.current.activeIndex;
-    const nextIndex = getOtherMenuSource(previousIndex);
-    const previousAudio = menuAudioRefs.current[previousIndex];
-    const nextAudio = menuAudioRefs.current[nextIndex];
-
-    pauseMedia(previousAudio);
-    if (previousAudio) {
-      setCurrentTime(previousAudio, 0);
-      previousAudio.preload = 'none';
+  const clearLoopAnimation = useCallback((loopScene: AudioLoopScene) => {
+    const frame = loopAnimationFrameRef.current[loopScene];
+    if (frame !== null) {
+      window.cancelAnimationFrame(frame);
+      loopAnimationFrameRef.current[loopScene] = null;
     }
-    if (nextAudio) {
-      nextAudio.preload = 'auto';
-    }
+  }, []);
 
-    loopStateRef.current = { activeIndex: nextIndex, phase: 'stable' };
-    loopGainsRef.current = nextIndex === 0 ? [1, 0] : [0, 1];
-    applyVolumes();
-    scheduleMenuLoopRef.current();
-  }, [applyVolumes, clearLoopAnimation]);
+  const ensureLoopSources = useCallback(
+    (loopScene: AudioLoopScene) => {
+      const sourceUrl = soundtrackUrls[loopScene];
+      getLoopPair(loopScene).forEach((audio) => {
+        if (audio && !audio.hasAttribute('src')) {
+          audio.setAttribute('src', sourceUrl);
+        }
+      });
+    },
+    [getLoopPair, soundtrackUrls]
+  );
 
-  const beginMenuLoopCrossfade = useCallback(() => {
-    if (
-      disposedRef.current ||
-      hiddenRef.current ||
-      requestedSceneRef.current !== 'menu' ||
-      loopStateRef.current.phase === 'crossfading'
-    ) {
-      return;
-    }
-
-    const activeIndex = loopStateRef.current.activeIndex;
-    const standbyIndex = getOtherMenuSource(activeIndex);
-    const activeAudio = menuAudioRefs.current[activeIndex];
-    const standbyAudio = menuAudioRefs.current[standbyIndex];
-
-    if (!activeAudio || !standbyAudio || activeAudio.paused) {
-      return;
-    }
-
-    clearLoopSchedule();
-    const initialSchedule = getMenuLoopSchedule(
-      activeAudio.currentTime,
-      activeAudio.paused,
-      activeAudio.playbackRate
-    );
-    const initialProgress = initialSchedule.crossfadeProgress;
-    const initialGains = getEqualPowerGains(initialProgress);
-
-    loopStateRef.current = { activeIndex, phase: 'crossfading' };
-    standbyAudio.preload = 'auto';
-    setCurrentTime(standbyAudio, initialProgress * WARPKEEP_MENU_LOOP.overlapSeconds);
-    loopGainsRef.current[activeIndex] = initialGains.outgoing;
-    loopGainsRef.current[standbyIndex] = initialGains.incoming;
-    applyVolumes();
-    const restoreActiveSource = () => {
-      if (
-        disposedRef.current ||
-        loopStateRef.current.phase !== 'crossfading' ||
-        loopStateRef.current.activeIndex !== activeIndex
-      ) {
+  const prepareScene = useCallback(
+    (loopScene: AudioLoopScene) => {
+      if (disposedRef.current) {
         return;
       }
 
-      clearLoopAnimation();
+      const wasPrepared = preparedLoopScenesRef.current[loopScene];
+      preparedLoopScenesRef.current[loopScene] = true;
+      ensureLoopSources(loopScene);
+
+      const pair = getLoopPair(loopScene);
+      const activeIndex = loopStateRef.current[loopScene].activeIndex;
+      pair.forEach((audio, index) => {
+        if (audio) {
+          audio.preload = index === activeIndex ? 'auto' : 'none';
+        }
+      });
+
+      if (loopScene === 'realm' && !wasPrepared) {
+        setRealmPrepared(true);
+      }
+    },
+    [ensureLoopSources, getLoopPair]
+  );
+
+  const scheduleLoopRef = useRef<(loopScene: AudioLoopScene) => void>(() => undefined);
+  const beginLoopCrossfadeRef = useRef<(loopScene: AudioLoopScene) => void>(() => undefined);
+
+  const stabilizeLoopPair = useCallback(
+    (loopScene: AudioLoopScene) => {
+      const state = loopStateRef.current[loopScene];
+      if (state.phase !== 'crossfading') {
+        return;
+      }
+
+      const activeIndex = state.activeIndex;
+      const standbyIndex = getOtherSource(activeIndex);
+      const [activeAudio, standbyAudio] = [
+        getLoopPair(loopScene)[activeIndex],
+        getLoopPair(loopScene)[standbyIndex]
+      ];
+
       pauseMedia(standbyAudio);
-      setCurrentTime(standbyAudio, 0);
-      standbyAudio.preload = 'none';
-      activeAudio.preload = 'auto';
-      loopStateRef.current = { activeIndex, phase: 'stable' };
-      loopGainsRef.current[activeIndex] = 1;
-      loopGainsRef.current[standbyIndex] = 0;
+      if (standbyAudio) {
+        setCurrentTime(standbyAudio, 0);
+        standbyAudio.preload = 'none';
+      }
+      if (activeAudio) {
+        activeAudio.preload = 'auto';
+      }
+
+      loopStateRef.current[loopScene] = { activeIndex, phase: 'stable' };
+      loopGainsRef.current[loopScene] = activeIndex === 0 ? [1, 0] : [0, 1];
       applyVolumes();
-      markPlaybackBlocked();
-    };
-    const playbackAttempted = playMedia(standbyAudio, restoreActiveSource);
+    },
+    [applyVolumes, getLoopPair]
+  );
 
-    if (!playbackAttempted) {
-      restoreActiveSource();
-      return;
-    }
+  const pauseLoopScene = useCallback(
+    (loopScene: AudioLoopScene) => {
+      clearLoopSchedule(loopScene);
+      clearLoopAnimation(loopScene);
+      stabilizeLoopPair(loopScene);
+      getLoopPair(loopScene).forEach(pauseMedia);
+    },
+    [clearLoopAnimation, clearLoopSchedule, getLoopPair, stabilizeLoopPair]
+  );
 
-    const updateLoopCrossfade = () => {
-      loopAnimationFrameRef.current = null;
+  const resetLoopScene = useCallback(
+    (loopScene: AudioLoopScene) => {
+      clearLoopSchedule(loopScene);
+      clearLoopAnimation(loopScene);
 
+      const prepared = preparedLoopScenesRef.current[loopScene];
+      const initialPreload =
+        loopScene === 'menu' ? (preloadMenuRef.current ? 'auto' : 'none') : 'auto';
+
+      getLoopPair(loopScene).forEach((audio, index) => {
+        pauseMedia(audio);
+        if (audio) {
+          setCurrentTime(audio, 0);
+          audio.preload = prepared && index === 0 ? initialPreload : 'none';
+        }
+      });
+
+      loopStateRef.current[loopScene] = { activeIndex: 0, phase: 'stable' };
+      loopGainsRef.current[loopScene] = [1, 0];
+      applyVolumes();
+    },
+    [applyVolumes, clearLoopAnimation, clearLoopSchedule, getLoopPair]
+  );
+
+  const finishLoopCrossfade = useCallback(
+    (loopScene: AudioLoopScene) => {
+      clearLoopAnimation(loopScene);
+
+      const previousIndex = loopStateRef.current[loopScene].activeIndex;
+      const nextIndex = getOtherSource(previousIndex);
+      const [previousAudio, nextAudio] = [
+        getLoopPair(loopScene)[previousIndex],
+        getLoopPair(loopScene)[nextIndex]
+      ];
+
+      pauseMedia(previousAudio);
+      if (previousAudio) {
+        setCurrentTime(previousAudio, 0);
+        previousAudio.preload = 'none';
+      }
+      if (nextAudio) {
+        nextAudio.preload = 'auto';
+      }
+
+      loopStateRef.current[loopScene] = { activeIndex: nextIndex, phase: 'stable' };
+      loopGainsRef.current[loopScene] = nextIndex === 0 ? [1, 0] : [0, 1];
+      applyVolumes();
+      scheduleLoopRef.current(loopScene);
+    },
+    [applyVolumes, clearLoopAnimation, getLoopPair]
+  );
+
+  const beginLoopCrossfade = useCallback(
+    (loopScene: AudioLoopScene) => {
+      const state = loopStateRef.current[loopScene];
       if (
         disposedRef.current ||
         hiddenRef.current ||
-        requestedSceneRef.current !== 'menu' ||
-        loopStateRef.current.phase !== 'crossfading'
+        requestedSceneRef.current !== loopScene ||
+        !preparedLoopScenesRef.current[loopScene] ||
+        state.phase === 'crossfading'
       ) {
         return;
       }
 
-      const schedule = getMenuLoopSchedule(
+      const activeIndex = state.activeIndex;
+      const standbyIndex = getOtherSource(activeIndex);
+      const [activeAudio, standbyAudio] = [
+        getLoopPair(loopScene)[activeIndex],
+        getLoopPair(loopScene)[standbyIndex]
+      ];
+
+      if (!activeAudio || !standbyAudio || activeAudio.paused) {
+        return;
+      }
+
+      clearLoopSchedule(loopScene);
+      const definition = loopSceneDefinitions[loopScene];
+      const initialSchedule = getLoopSchedule(
+        definition.loop,
         activeAudio.currentTime,
         activeAudio.paused,
         activeAudio.playbackRate
       );
-      const gains = getEqualPowerGains(schedule.crossfadeProgress);
+      const initialProgress = initialSchedule.crossfadeProgress;
+      const initialGains = getEqualPowerGains(initialProgress);
 
-      loopGainsRef.current[activeIndex] = gains.outgoing;
-      loopGainsRef.current[standbyIndex] = gains.incoming;
+      loopStateRef.current[loopScene] = { activeIndex, phase: 'crossfading' };
+      standbyAudio.preload = 'auto';
+      setCurrentTime(standbyAudio, initialProgress * definition.loop.overlapSeconds);
+      loopGainsRef.current[loopScene][activeIndex] = initialGains.outgoing;
+      loopGainsRef.current[loopScene][standbyIndex] = initialGains.incoming;
       applyVolumes();
 
-      if (
-        schedule.crossfadeProgress >= 1 ||
-        activeAudio.ended ||
-        activeAudio.currentTime >= WARPKEEP_MENU_LOOP.endSeconds
-      ) {
-        finishMenuLoopCrossfade();
+      const restoreActiveSource = () => {
+        const currentState = loopStateRef.current[loopScene];
+        if (
+          disposedRef.current ||
+          currentState.phase !== 'crossfading' ||
+          currentState.activeIndex !== activeIndex
+        ) {
+          return;
+        }
+
+        clearLoopAnimation(loopScene);
+        pauseMedia(standbyAudio);
+        setCurrentTime(standbyAudio, 0);
+        standbyAudio.preload = 'none';
+        activeAudio.preload = 'auto';
+        loopStateRef.current[loopScene] = { activeIndex, phase: 'stable' };
+        loopGainsRef.current[loopScene] = activeIndex === 0 ? [1, 0] : [0, 1];
+        applyVolumes();
+        markPlaybackBlocked();
+      };
+
+      if (!playMedia(standbyAudio, restoreActiveSource)) {
+        restoreActiveSource();
         return;
       }
 
-      if (!activeAudio.paused) {
-        loopAnimationFrameRef.current = window.requestAnimationFrame(updateLoopCrossfade);
+      const updateLoopCrossfade = () => {
+        loopAnimationFrameRef.current[loopScene] = null;
+
+        if (
+          disposedRef.current ||
+          hiddenRef.current ||
+          requestedSceneRef.current !== loopScene ||
+          loopStateRef.current[loopScene].phase !== 'crossfading'
+        ) {
+          return;
+        }
+
+        const schedule = getLoopSchedule(
+          definition.loop,
+          activeAudio.currentTime,
+          activeAudio.paused,
+          activeAudio.playbackRate
+        );
+        const gains = getEqualPowerGains(schedule.crossfadeProgress);
+        loopGainsRef.current[loopScene][activeIndex] = gains.outgoing;
+        loopGainsRef.current[loopScene][standbyIndex] = gains.incoming;
+        applyVolumes();
+
+        if (
+          schedule.crossfadeProgress >= 1 ||
+          activeAudio.ended ||
+          activeAudio.currentTime >= definition.loop.endSeconds
+        ) {
+          finishLoopCrossfade(loopScene);
+          return;
+        }
+
+        if (!activeAudio.paused) {
+          loopAnimationFrameRef.current[loopScene] = window.requestAnimationFrame(updateLoopCrossfade);
+        }
+      };
+
+      loopAnimationFrameRef.current[loopScene] = window.requestAnimationFrame(updateLoopCrossfade);
+    },
+    [
+      applyVolumes,
+      clearLoopAnimation,
+      clearLoopSchedule,
+      finishLoopCrossfade,
+      getLoopPair,
+      markPlaybackBlocked
+    ]
+  );
+
+  beginLoopCrossfadeRef.current = beginLoopCrossfade;
+
+  const scheduleLoop = useCallback(
+    (loopScene: AudioLoopScene) => {
+      clearLoopSchedule(loopScene);
+
+      if (
+        disposedRef.current ||
+        hiddenRef.current ||
+        requestedSceneRef.current !== loopScene ||
+        !preparedLoopScenesRef.current[loopScene] ||
+        loopStateRef.current[loopScene].phase === 'crossfading'
+      ) {
+        return;
       }
-    };
 
-    loopAnimationFrameRef.current = window.requestAnimationFrame(updateLoopCrossfade);
-  }, [
-    applyVolumes,
-    clearLoopAnimation,
-    clearLoopSchedule,
-    finishMenuLoopCrossfade,
-    markPlaybackBlocked
-  ]);
-
-  beginMenuLoopCrossfadeRef.current = beginMenuLoopCrossfade;
-
-  const scheduleMenuLoop = useCallback(() => {
-    clearLoopSchedule();
-
-    if (
-      disposedRef.current ||
-      hiddenRef.current ||
-      requestedSceneRef.current !== 'menu' ||
-      loopStateRef.current.phase === 'crossfading'
-    ) {
-      return;
-    }
-
-    const activeAudio = menuAudioRefs.current[loopStateRef.current.activeIndex];
-    if (!activeAudio || activeAudio.paused) {
-      return;
-    }
-
-    const schedule = getMenuLoopSchedule(
-      activeAudio.currentTime,
-      activeAudio.paused,
-      activeAudio.playbackRate
-    );
-
-    if (schedule.shouldCrossfadeNow) {
-      beginMenuLoopCrossfadeRef.current();
-      return;
-    }
-
-    if (schedule.delayMs !== null) {
-      loopScheduleTimerRef.current = window.setTimeout(() => {
-        loopScheduleTimerRef.current = null;
-        beginMenuLoopCrossfadeRef.current();
-      }, schedule.delayMs);
-    }
-  }, [clearLoopSchedule]);
-
-  scheduleMenuLoopRef.current = scheduleMenuLoop;
-
-  const resetMenuToOpening = useCallback(() => {
-    clearLoopSchedule();
-    clearLoopAnimation();
-
-    menuAudioRefs.current.forEach((audio) => {
-      pauseMedia(audio);
-      if (audio) {
-        setCurrentTime(audio, 0);
-        audio.preload = 'none';
+      const activeAudio = getActiveLoopAudio(loopScene);
+      if (!activeAudio || activeAudio.paused) {
+        return;
       }
-    });
 
-    loopStateRef.current = { activeIndex: 0, phase: 'stable' };
-    loopGainsRef.current = [1, 0];
-    applyVolumes();
-  }, [applyVolumes, clearLoopAnimation, clearLoopSchedule]);
+      const schedule = getLoopSchedule(
+        loopSceneDefinitions[loopScene].loop,
+        activeAudio.currentTime,
+        activeAudio.paused,
+        activeAudio.playbackRate
+      );
 
-  const restartEndedMenuSource = useCallback((activeAudio: HTMLAudioElement) => {
-    if (
-      disposedRef.current
-      || hiddenRef.current
-      || requestedSceneRef.current !== 'menu'
-    ) {
-      return;
-    }
+      if (schedule.shouldCrossfadeNow) {
+        beginLoopCrossfadeRef.current(loopScene);
+        return;
+      }
 
-    clearLoopSchedule();
-    clearLoopAnimation();
+      if (schedule.delayMs !== null) {
+        loopScheduleTimerRef.current[loopScene] = window.setTimeout(() => {
+          loopScheduleTimerRef.current[loopScene] = null;
+          beginLoopCrossfadeRef.current(loopScene);
+        }, schedule.delayMs);
+      }
+    },
+    [clearLoopSchedule, getActiveLoopAudio]
+  );
 
-    const activeIndex = loopStateRef.current.activeIndex;
-    const standbyIndex = getOtherMenuSource(activeIndex);
-    const standbyAudio = menuAudioRefs.current[standbyIndex];
+  scheduleLoopRef.current = scheduleLoop;
 
-    pauseMedia(standbyAudio);
-    if (standbyAudio) {
-      setCurrentTime(standbyAudio, 0);
-      standbyAudio.preload = 'none';
-    }
+  const restartEndedLoopSource = useCallback(
+    (loopScene: AudioLoopScene, activeAudio: HTMLAudioElement) => {
+      if (
+        disposedRef.current ||
+        hiddenRef.current ||
+        requestedSceneRef.current !== loopScene ||
+        !preparedLoopScenesRef.current[loopScene]
+      ) {
+        return;
+      }
 
-    loopStateRef.current = { activeIndex, phase: 'stable' };
-    loopGainsRef.current = activeIndex === 0 ? [1, 0] : [0, 1];
-    activeAudio.preload = 'auto';
-    setCurrentTime(activeAudio, 0);
-    applyVolumes();
-    playMedia(activeAudio, () => {
-      clearLoopSchedule();
-      markPlaybackBlocked();
-    });
-  }, [
-    applyVolumes,
-    clearLoopAnimation,
-    clearLoopSchedule,
-    markPlaybackBlocked
-  ]);
+      clearLoopSchedule(loopScene);
+      clearLoopAnimation(loopScene);
+
+      const activeIndex = loopStateRef.current[loopScene].activeIndex;
+      const standbyIndex = getOtherSource(activeIndex);
+      const standbyAudio = getLoopPair(loopScene)[standbyIndex];
+
+      pauseMedia(standbyAudio);
+      if (standbyAudio) {
+        setCurrentTime(standbyAudio, 0);
+        standbyAudio.preload = 'none';
+      }
+
+      loopStateRef.current[loopScene] = { activeIndex, phase: 'stable' };
+      loopGainsRef.current[loopScene] = activeIndex === 0 ? [1, 0] : [0, 1];
+      activeAudio.preload = 'auto';
+      setCurrentTime(activeAudio, 0);
+      applyVolumes();
+      playMedia(activeAudio, () => {
+        clearLoopSchedule(loopScene);
+        markPlaybackBlocked();
+      });
+    },
+    [
+      applyVolumes,
+      clearLoopAnimation,
+      clearLoopSchedule,
+      getLoopPair,
+      markPlaybackBlocked
+    ]
+  );
 
   const playIntendedSources = useCallback(() => {
     if (disposedRef.current || hiddenRef.current) {
       return;
     }
 
-    const titleAudio = titleAudioRef.current;
     const sceneMix = sceneMixRef.current;
-    const activeMenuAudio = menuAudioRefs.current[loopStateRef.current.activeIndex];
-
+    const titleAudio = titleAudioRef.current;
     if (sceneMix.title > volumeEpsilon && titleAudio?.paused) {
       playMedia(titleAudio, markPlaybackBlocked);
     }
 
-    if (sceneMix.menu > volumeEpsilon && activeMenuAudio?.paused) {
-      activeMenuAudio.preload = 'auto';
-      playMedia(activeMenuAudio, markPlaybackBlocked);
+    loopScenes.forEach((loopScene) => {
+      if (
+        sceneMix[loopScene] <= volumeEpsilon ||
+        !preparedLoopScenesRef.current[loopScene]
+      ) {
+        return;
+      }
+
+      const activeAudio = getActiveLoopAudio(loopScene);
+      if (activeAudio?.paused) {
+        activeAudio.preload = 'auto';
+        playMedia(activeAudio, markPlaybackBlocked);
+      }
+    });
+
+    const requestedScene = requestedSceneRef.current;
+    if (!isLoopScene(requestedScene) || !preparedLoopScenesRef.current[requestedScene]) {
+      return;
     }
 
-    if (loopStateRef.current.phase === 'crossfading') {
-      const standbyIndex = getOtherMenuSource(loopStateRef.current.activeIndex);
-      const standbyAudio = menuAudioRefs.current[standbyIndex];
+    const state = loopStateRef.current[requestedScene];
+    if (state.phase === 'crossfading') {
+      const standbyAudio = getLoopPair(requestedScene)[getOtherSource(state.activeIndex)];
       if (standbyAudio?.paused) {
         playMedia(standbyAudio, markPlaybackBlocked);
       }
-      beginMenuLoopCrossfadeRef.current();
-    } else if (requestedSceneRef.current === 'menu') {
-      scheduleMenuLoopRef.current();
+      return;
     }
-  }, [markPlaybackBlocked]);
+
+    scheduleLoopRef.current(requestedScene);
+  }, [getActiveLoopAudio, getLoopPair, markPlaybackBlocked]);
 
   const finishSceneTransition = useCallback(() => {
     const targetScene = requestedSceneRef.current;
@@ -439,15 +646,18 @@ export const WarpkeepAudioDirector = forwardRef<
     sceneMixRef.current = getSceneMix(targetScene);
     applyVolumes();
 
-    if (targetScene === 'menu') {
-      pauseMedia(titleAudioRef.current);
-      scheduleMenuLoopRef.current();
-    } else {
-      clearLoopSchedule();
-      clearLoopAnimation();
-      menuAudioRefs.current.forEach(pauseMedia);
+    if (targetScene === 'title') {
+      loopScenes.forEach(pauseLoopScene);
+      return;
     }
-  }, [applyVolumes, clearLoopAnimation, clearLoopSchedule]);
+
+    pauseMedia(titleAudioRef.current);
+    const inactiveLoopScene = targetScene === 'menu' ? 'realm' : 'menu';
+    pauseLoopScene(inactiveLoopScene);
+    if (preparedLoopScenesRef.current[targetScene]) {
+      scheduleLoopRef.current(targetScene);
+    }
+  }, [applyVolumes, pauseLoopScene]);
 
   const runSceneTransition = useCallback(
     (timestamp: number) => {
@@ -468,9 +678,9 @@ export const WarpkeepAudioDirector = forwardRef<
         Math.max(0, (timestamp - transition.startedAt) / transition.durationMs)
       );
       const gains = getEqualPowerGains(progress);
-
       sceneMixRef.current = {
         menu: transition.from.menu * gains.outgoing + transition.to.menu * gains.incoming,
+        realm: transition.from.realm * gains.outgoing + transition.to.realm * gains.incoming,
         title: transition.from.title * gains.outgoing + transition.to.title * gains.incoming
       };
       applyVolumes();
@@ -487,7 +697,11 @@ export const WarpkeepAudioDirector = forwardRef<
 
   const transitionTo = useCallback(
     (nextScene: AudioScene) => {
-      if (disposedRef.current || nextScene === requestedSceneRef.current) {
+      if (disposedRef.current) {
+        return;
+      }
+
+      if (nextScene === requestedSceneRef.current) {
         playIntendedSources();
         return;
       }
@@ -495,12 +709,11 @@ export const WarpkeepAudioDirector = forwardRef<
       const previousScene = requestedSceneRef.current;
       requestedSceneRef.current = nextScene;
 
-      if (nextScene === 'menu') {
-        if (previousScene !== 'menu') {
-          resetMenuToOpening();
-        }
-      } else {
-        clearLoopSchedule();
+      if (isLoopScene(previousScene) && previousScene !== nextScene) {
+        clearLoopSchedule(previousScene);
+      }
+      if (nextScene === 'menu' && previousScene === 'title') {
+        resetLoopScene('menu');
       }
 
       if (sceneAnimationFrameRef.current !== null) {
@@ -509,28 +722,26 @@ export const WarpkeepAudioDirector = forwardRef<
       }
 
       if (hiddenRef.current) {
-        clearLoopSchedule();
-        clearLoopAnimation();
         sceneTransitionRef.current = null;
         sceneMixRef.current = getSceneMix(nextScene);
         applyVolumes();
         pauseMedia(titleAudioRef.current);
-        menuAudioRefs.current.forEach(pauseMedia);
+        loopScenes.forEach(pauseLoopScene);
         return;
       }
 
-      if (nextScene === 'menu') {
-        const activeMenuAudio = menuAudioRefs.current[loopStateRef.current.activeIndex];
-        if (activeMenuAudio) {
-          activeMenuAudio.preload = 'auto';
-        }
-        playMedia(activeMenuAudio, markPlaybackBlocked);
-      } else {
+      if (nextScene === 'title') {
         playMedia(titleAudioRef.current, markPlaybackBlocked);
+      } else if (preparedLoopScenesRef.current[nextScene]) {
+        const activeAudio = getActiveLoopAudio(nextScene);
+        if (activeAudio) {
+          activeAudio.preload = 'auto';
+        }
+        playMedia(activeAudio, markPlaybackBlocked);
       }
 
       sceneTransitionRef.current = {
-        durationMs: WARPKEEP_AUDIO_TRANSITION_MS,
+        durationMs: getSceneTransitionDuration(previousScene, nextScene),
         from: { ...sceneMixRef.current },
         startedAt: performance.now(),
         to: getSceneMix(nextScene)
@@ -539,22 +750,32 @@ export const WarpkeepAudioDirector = forwardRef<
     },
     [
       applyVolumes,
-      clearLoopAnimation,
       clearLoopSchedule,
+      getActiveLoopAudio,
       markPlaybackBlocked,
+      pauseLoopScene,
       playIntendedSources,
-      resetMenuToOpening,
+      resetLoopScene,
       runSceneTransition
     ]
+  );
+
+  const resetScene = useCallback(
+    (loopScene: AudioLoopScene = 'realm') => {
+      resetLoopScene(loopScene);
+    },
+    [resetLoopScene]
   );
 
   useImperativeHandle(
     forwardedRef,
     () => ({
       ensurePlaybackFromGesture: playIntendedSources,
+      prepareScene,
+      resetScene,
       transitionTo
     }),
-    [playIntendedSources, transitionTo]
+    [playIntendedSources, prepareScene, resetScene, transitionTo]
   );
 
   useEffect(() => {
@@ -567,22 +788,19 @@ export const WarpkeepAudioDirector = forwardRef<
     sceneMixRef.current = getSceneMix(initialSceneRef.current);
 
     const titleAudio = titleAudioRef.current;
-    const menuAudios = menuAudioRefs.current;
-    const allAudio = [titleAudio, ...menuAudios].filter(
-      (audio): audio is HTMLAudioElement => audio !== null
-    );
-
+    const allAudio = getAllAudio();
     titleAudio!.loop = true;
     allAudio.forEach((audio) => {
       audio.muted = false;
     });
     titleAudio!.preload = 'auto';
-    if (menuAudios[0]) {
-      menuAudios[0].preload = preloadMenu ? 'auto' : 'none';
-    }
-    if (menuAudios[1]) {
-      menuAudios[1].preload = 'none';
-    }
+    getLoopPair('menu')[0] && (getLoopPair('menu')[0]!.preload = preloadMenuRef.current ? 'auto' : 'none');
+    getLoopPair('menu')[1] && (getLoopPair('menu')[1]!.preload = 'none');
+    getLoopPair('realm').forEach((audio) => {
+      if (audio) {
+        audio.preload = 'none';
+      }
+    });
     applyVolumes();
 
     const handleGesture = () => {
@@ -593,15 +811,11 @@ export const WarpkeepAudioDirector = forwardRef<
       hiddenRef.current = document.hidden;
 
       if (document.hidden) {
-        if (loopStateRef.current.phase === 'crossfading') {
-          finishMenuLoopCrossfade();
-        }
-        clearLoopSchedule();
-        clearLoopAnimation();
         if (sceneAnimationFrameRef.current !== null) {
           window.cancelAnimationFrame(sceneAnimationFrameRef.current);
           sceneAnimationFrameRef.current = null;
         }
+        loopScenes.forEach(pauseLoopScene);
         allAudio.forEach(pauseMedia);
         return;
       }
@@ -612,48 +826,52 @@ export const WarpkeepAudioDirector = forwardRef<
       playIntendedSources();
     };
 
-    const handleMenuPlaybackProgress = () => {
-      if (requestedSceneRef.current === 'menu') {
-        scheduleMenuLoopRef.current();
-      }
-    };
+    const playbackListeners = loopScenes.map((loopScene) => {
+      const handleProgress = () => {
+        if (requestedSceneRef.current === loopScene) {
+          scheduleLoopRef.current(loopScene);
+        }
+      };
+      const handleEnded = (event: Event) => {
+        const activeAudio = getActiveLoopAudio(loopScene);
+        if (
+          !activeAudio ||
+          event.currentTarget !== activeAudio ||
+          requestedSceneRef.current !== loopScene
+        ) {
+          return;
+        }
 
-    const handleActiveMenuEnded = (event: Event) => {
-      const activeAudio = menuAudioRefs.current[loopStateRef.current.activeIndex];
-      if (
-        !activeAudio
-        || event.currentTarget !== activeAudio
-        || requestedSceneRef.current !== 'menu'
-      ) {
-        return;
-      }
+        if (loopStateRef.current[loopScene].phase === 'crossfading') {
+          finishLoopCrossfade(loopScene);
+        } else {
+          restartEndedLoopSource(loopScene, activeAudio);
+        }
+      };
 
-      if (loopStateRef.current.phase === 'crossfading') {
-        finishMenuLoopCrossfade();
-      } else {
-        restartEndedMenuSource(activeAudio);
-      }
-    };
+      getLoopPair(loopScene).forEach((audio) => {
+        audio?.addEventListener('play', handleProgress);
+        audio?.addEventListener('timeupdate', handleProgress);
+        audio?.addEventListener('ratechange', handleProgress);
+        audio?.addEventListener('seeked', handleProgress);
+        audio?.addEventListener('ended', handleEnded);
+      });
+
+      return { handleEnded, handleProgress, loopScene };
+    });
 
     playbackGestureEvents.forEach((eventName) => {
       window.addEventListener(eventName, handleGesture, { capture: true, passive: true });
     });
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    menuAudios.forEach((audio) => {
-      audio?.addEventListener('play', handleMenuPlaybackProgress);
-      audio?.addEventListener('timeupdate', handleMenuPlaybackProgress);
-      audio?.addEventListener('ratechange', handleMenuPlaybackProgress);
-      audio?.addEventListener('seeked', handleMenuPlaybackProgress);
-      audio?.addEventListener('ended', handleActiveMenuEnded);
-    });
-
     playIntendedSources();
 
     return () => {
       disposedRef.current = true;
-      clearLoopSchedule();
-      clearLoopAnimation();
-
+      loopScenes.forEach((loopScene) => {
+        clearLoopSchedule(loopScene);
+        clearLoopAnimation(loopScene);
+      });
       if (sceneAnimationFrameRef.current !== null) {
         window.cancelAnimationFrame(sceneAnimationFrameRef.current);
         sceneAnimationFrameRef.current = null;
@@ -663,12 +881,14 @@ export const WarpkeepAudioDirector = forwardRef<
         window.removeEventListener(eventName, handleGesture, true);
       });
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      menuAudios.forEach((audio) => {
-        audio?.removeEventListener('play', handleMenuPlaybackProgress);
-        audio?.removeEventListener('timeupdate', handleMenuPlaybackProgress);
-        audio?.removeEventListener('ratechange', handleMenuPlaybackProgress);
-        audio?.removeEventListener('seeked', handleMenuPlaybackProgress);
-        audio?.removeEventListener('ended', handleActiveMenuEnded);
+      playbackListeners.forEach(({ handleEnded, handleProgress, loopScene }) => {
+        getLoopPair(loopScene).forEach((audio) => {
+          audio?.removeEventListener('play', handleProgress);
+          audio?.removeEventListener('timeupdate', handleProgress);
+          audio?.removeEventListener('ratechange', handleProgress);
+          audio?.removeEventListener('seeked', handleProgress);
+          audio?.removeEventListener('ended', handleEnded);
+        });
       });
       allAudio.forEach(pauseMedia);
       sceneTransitionRef.current = null;
@@ -677,24 +897,26 @@ export const WarpkeepAudioDirector = forwardRef<
     applyVolumes,
     clearLoopAnimation,
     clearLoopSchedule,
-    finishMenuLoopCrossfade,
+    finishLoopCrossfade,
     finishSceneTransition,
+    getActiveLoopAudio,
+    getAllAudio,
+    getLoopPair,
+    pauseLoopScene,
     playIntendedSources,
-    restartEndedMenuSource
+    restartEndedLoopSource
   ]);
 
   useEffect(() => {
-    const [primaryAudio, standbyAudio] = menuAudioRefs.current;
-    if (primaryAudio && loopStateRef.current.activeIndex === 0) {
+    preloadMenuRef.current = preloadMenu;
+    const [primaryAudio, standbyAudio] = getLoopPair('menu');
+    if (primaryAudio && loopStateRef.current.menu.activeIndex === 0) {
       primaryAudio.preload = preloadMenu ? 'auto' : 'none';
     }
-    if (standbyAudio && loopStateRef.current.activeIndex !== 1) {
+    if (standbyAudio && loopStateRef.current.menu.activeIndex !== 1) {
       standbyAudio.preload = 'none';
     }
-  }, [preloadMenu]);
-
-  const baseUrl = import.meta.env.BASE_URL;
-  const menuSoundtrackUrl = `${baseUrl}${menuSoundtrackPath}`;
+  }, [getLoopPair, preloadMenu]);
 
   return (
     <div data-warpkeep-audio-director="true" hidden aria-hidden="true">
@@ -712,20 +934,40 @@ export const WarpkeepAudioDirector = forwardRef<
       />
       <audio
         ref={(audio) => {
-          menuAudioRefs.current[0] = audio;
+          loopAudioRefs.current.menu[0] = audio;
         }}
         data-audio-role="menu-primary"
-        src={menuSoundtrackUrl}
+        src={soundtrackUrls.menu}
         preload={preloadMenu ? 'auto' : 'none'}
         aria-hidden="true"
         tabIndex={-1}
       />
       <audio
         ref={(audio) => {
-          menuAudioRefs.current[1] = audio;
+          loopAudioRefs.current.menu[1] = audio;
         }}
         data-audio-role="menu-standby"
-        src={menuSoundtrackUrl}
+        src={soundtrackUrls.menu}
+        preload="none"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+      <audio
+        ref={(audio) => {
+          loopAudioRefs.current.realm[0] = audio;
+        }}
+        data-audio-role="realm-primary"
+        src={realmPrepared ? soundtrackUrls.realm : undefined}
+        preload={realmPrepared ? 'auto' : 'none'}
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+      <audio
+        ref={(audio) => {
+          loopAudioRefs.current.realm[1] = audio;
+        }}
+        data-audio-role="realm-standby"
+        src={realmPrepared ? soundtrackUrls.realm : undefined}
         preload="none"
         aria-hidden="true"
         tabIndex={-1}

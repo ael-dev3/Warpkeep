@@ -27,6 +27,28 @@ export type FarcasterAuthMethod = 'custody' | 'authAddress';
 
 export type FarcasterHex = `0x${string}`;
 
+/** The presentation that best fits the player's current device. */
+export type FarcasterAuthPresentation = 'qr-first' | 'deep-link-first';
+
+/**
+ * QR encoding is intentionally independent from a live SIWF channel. A
+ * mobile player can use the relay-provided universal link without loading the
+ * QR encoder or exposing an image on their own screen.
+ */
+export type FarcasterQrState =
+  | Readonly<{ state: 'not-requested' }>
+  | Readonly<{ state: 'loading' }>
+  | Readonly<{ state: 'ready'; dataUrl: string }>
+  | Readonly<{ state: 'error' }>;
+
+/**
+ * A restored device record is deliberately less authoritative than a live
+ * signature verification. It is a local prototype convenience only.
+ */
+export type FarcasterSessionAssurance =
+  | 'live-client-verified'
+  | 'remembered-device-prototype';
+
 /**
  * The verified FID is the stable identity key. Every other field is optional,
  * untrusted display metadata returned by the relay.
@@ -49,7 +71,7 @@ export type FarcasterAuthViewState =
   | Readonly<{
       phase: 'awaiting-approval';
       channelUrl: string;
-      qrDataUrl: string;
+      qr: FarcasterQrState;
       expiresAt: number;
     }>
   | Readonly<{
@@ -59,6 +81,9 @@ export type FarcasterAuthViewState =
   | Readonly<{
       phase: 'authenticated';
       identity: VerifiedFarcasterIdentity;
+      assurance: FarcasterSessionAssurance;
+      /** Present only for a locally remembered-device prototype session. */
+      expiresAt?: number;
     }>
   | Readonly<{
       phase: 'expired';

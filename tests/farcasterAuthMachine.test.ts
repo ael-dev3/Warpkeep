@@ -53,7 +53,6 @@ function awaiting(generation = 1): FarcasterAuthMachineState {
     type: 'channel-ready',
     generation,
     channelUrl: 'https://farcaster.example/sign-in/channel',
-    qrDataUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
     expiresAt
   });
 }
@@ -62,6 +61,15 @@ function verifying(generation = 1): FarcasterAuthMachineState {
   return farcasterAuthMachineReducer(awaiting(generation), {
     type: 'verifying',
     generation
+  });
+}
+
+function liveAuthenticated(generation = 1) {
+  return farcasterAuthMachineReducer(verifying(generation), {
+    type: 'authenticated',
+    generation,
+    identity,
+    assurance: 'live-client-verified'
   });
 }
 
@@ -76,7 +84,7 @@ describe('farcasterAuthMachineReducer', () => {
     expect(Object.keys(state.view)).toEqual(['phase']);
   });
 
-  it('performs the complete legal authentication path', () => {
+  it('performs the legal live-authentication path with lazy QR presentation', () => {
     const creating = begin();
     expect(creating).toEqual({
       generation: 1,
@@ -87,7 +95,6 @@ describe('farcasterAuthMachineReducer', () => {
       type: 'channel-ready',
       generation: 1,
       channelUrl: 'https://farcaster.example/sign-in/channel',
-      qrDataUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
       expiresAt
     });
     expect(waiting).toEqual({
@@ -95,12 +102,26 @@ describe('farcasterAuthMachineReducer', () => {
       view: {
         phase: 'awaiting-approval',
         channelUrl: 'https://farcaster.example/sign-in/channel',
-        qrDataUrl: 'data:image/svg+xml;base64,PHN2Zy8+',
+        qr: { state: 'not-requested' },
         expiresAt
       }
     });
 
-    const checking = farcasterAuthMachineReducer(waiting, {
+    const loadingQr = farcasterAuthMachineReducer(waiting, {
+      type: 'qr-loading',
+      generation: 1
+    });
+    const readyQr = farcasterAuthMachineReducer(loadingQr, {
+      type: 'qr-ready',
+      generation: 1,
+      dataUrl: 'data:image/svg+xml;base64,PHN2Zy8+'
+    });
+    expect(readyQr.view).toMatchObject({
+      phase: 'awaiting-approval',
+      qr: { state: 'ready', dataUrl: 'data:image/svg+xml;base64,PHN2Zy8+' }
+    });
+
+    const checking = farcasterAuthMachineReducer(readyQr, {
       type: 'verifying',
       generation: 1
     });
@@ -112,11 +133,48 @@ describe('farcasterAuthMachineReducer', () => {
     const authenticated = farcasterAuthMachineReducer(checking, {
       type: 'authenticated',
       generation: 1,
-      identity
+      identity,
+      assurance: 'live-client-verified'
     });
     expect(authenticated).toEqual({
       generation: 1,
-      view: { phase: 'authenticated', identity }
+      view: {
+        phase: 'authenticated',
+        identity,
+        assurance: 'live-client-verified'
+      }
+    });
+  });
+
+  it('keeps a valid channel awaiting approval when QR rendering fails or retries', () => {
+    const loading = farcasterAuthMachineReducer(awaiting(), {
+      type: 'qr-loading',
+      generation: 1
+    });
+    const failed = farcasterAuthMachineReducer(loading, {
+      type: 'qr-failed',
+      generation: 1
+    });
+    expect(failed.view).toMatchObject({
+      phase: 'awaiting-approval',
+      qr: { state: 'error' }
+    });
+
+    const retrying = farcasterAuthMachineReducer(failed, {
+      type: 'qr-loading',
+      generation: 1
+    });
+    expect(retrying.view).toMatchObject({
+      phase: 'awaiting-approval',
+      qr: { state: 'loading' }
+    });
+    expect(farcasterAuthMachineReducer(retrying, {
+      type: 'qr-ready',
+      generation: 1,
+      dataUrl: 'data:image/png;base64,qr'
+    }).view).toMatchObject({
+      phase: 'awaiting-approval',
+      qr: { state: 'ready', dataUrl: 'data:image/png;base64,qr' }
     });
   });
 
@@ -186,22 +244,47 @@ describe('farcasterAuthMachineReducer', () => {
     });
   });
 
-  it('signs out only from authenticated and clears the identity', () => {
-    const authenticated = farcasterAuthMachineReducer(verifying(), {
-      type: 'authenticated',
-      generation: 1,
-      identity
+  it('distinguishes a live verification from an explicitly restored device record', () => {
+    const live = liveAuthenticated();
+    expect(live.view).toMatchObject({
+      phase: 'authenticated',
+      assurance: 'live-client-verified'
     });
-    const signedOut = farcasterAuthMachineReducer(authenticated, {
-      type: 'sign-out',
-      generation: 1
+    expect(live.view).not.toHaveProperty('expiresAt');
+
+    const restored = farcasterAuthMachineReducer(createFarcasterAuthMachineState(), {
+      type: 'restore',
+      identity: {
+        fid: identity.fid,
+        username: identity.username,
+        displayName: identity.displayName,
+        pfpUrl: identity.pfpUrl,
+        verifications: [],
+        verifiedAt: identity.verifiedAt
+      },
+      expiresAt
+    });
+    expect(restored).toEqual({
+      generation: 0,
+      view: {
+        phase: 'authenticated',
+        identity: {
+          fid: identity.fid,
+          username: identity.username,
+          displayName: identity.displayName,
+          pfpUrl: identity.pfpUrl,
+          verifications: [],
+          verifiedAt: identity.verifiedAt
+        },
+        assurance: 'remembered-device-prototype',
+        expiresAt
+      }
     });
 
-    expect(signedOut).toEqual({
-      generation: 1,
-      view: { phase: 'anonymous' }
-    });
-    expect(JSON.stringify(signedOut)).not.toContain(String(identity.fid));
+    expect(farcasterAuthMachineReducer(restored, {
+      type: 'sign-out',
+      generation: 0
+    })).toEqual({ generation: 0, view: { phase: 'anonymous' } });
   });
 
   it('ignores stale results from superseded request generations', () => {
@@ -218,11 +301,18 @@ describe('farcasterAuthMachineReducer', () => {
         type: 'channel-ready',
         generation: 1,
         channelUrl: 'https://stale.example',
-        qrDataUrl: 'data:image/png;base64,stale',
         expiresAt
       },
+      { type: 'qr-loading', generation: 1 },
+      { type: 'qr-ready', generation: 1, dataUrl: 'data:image/png;base64,stale' },
+      { type: 'qr-failed', generation: 1 },
       { type: 'verifying', generation: 1 },
-      { type: 'authenticated', generation: 1, identity },
+      {
+        type: 'authenticated',
+        generation: 1,
+        identity,
+        assurance: 'live-client-verified'
+      },
       { type: 'expired', generation: 1, error: expiredError },
       { type: 'failed', generation: 1, error: relayError },
       { type: 'cancel', generation: 1 },
@@ -278,16 +368,17 @@ describe('farcasterAuthMachineReducer', () => {
     const anonymous = createFarcasterAuthMachineState();
     const creating = begin();
     const waiting = awaiting();
-    const authenticated = farcasterAuthMachineReducer(verifying(), {
-      type: 'authenticated',
-      generation: 1,
-      identity
-    });
+    const authenticated = liveAuthenticated();
 
     const cases: ReadonlyArray<readonly [FarcasterAuthMachineState, FarcasterAuthMachineAction]> = [
       [anonymous, { type: 'verifying', generation: 0 }],
       [creating, { type: 'verifying', generation: 1 }],
-      [waiting, { type: 'authenticated', generation: 1, identity }],
+      [waiting, {
+        type: 'authenticated',
+        generation: 1,
+        identity,
+        assurance: 'live-client-verified'
+      }],
       [authenticated, { type: 'cancel', generation: 1 }],
       [authenticated, { type: 'failed', generation: 1, error: relayError }],
       [anonymous, { type: 'sign-out', generation: 0 }]
@@ -298,7 +389,7 @@ describe('farcasterAuthMachineReducer', () => {
     });
   });
 
-  it('rejects invalid generations and malformed channel presentation data', () => {
+  it('rejects invalid generations and malformed public channel or QR presentation data', () => {
     const initial = createFarcasterAuthMachineState();
     for (const generation of [-1, 0, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(farcasterAuthMachineReducer(initial, {
@@ -313,21 +404,12 @@ describe('farcasterAuthMachineReducer', () => {
         type: 'channel-ready',
         generation: 1,
         channelUrl: '',
-        qrDataUrl: 'data:image/png;base64,qr',
         expiresAt
       },
       {
         type: 'channel-ready',
         generation: 1,
         channelUrl: 'https://farcaster.example/sign-in/channel',
-        qrDataUrl: '',
-        expiresAt
-      },
-      {
-        type: 'channel-ready',
-        generation: 1,
-        channelUrl: 'https://farcaster.example/sign-in/channel',
-        qrDataUrl: 'data:image/png;base64,qr',
         expiresAt: Number.NaN
       }
     ];
@@ -335,6 +417,22 @@ describe('farcasterAuthMachineReducer', () => {
     malformedActions.forEach((action) => {
       expect(farcasterAuthMachineReducer(creating, action)).toBe(creating);
     });
+
+    const waiting = awaiting();
+    expect(farcasterAuthMachineReducer(waiting, {
+      type: 'qr-ready',
+      generation: 1,
+      dataUrl: 'data:image/png;base64,qr'
+    })).toBe(waiting);
+    const loading = farcasterAuthMachineReducer(waiting, {
+      type: 'qr-loading',
+      generation: 1
+    });
+    expect(farcasterAuthMachineReducer(loading, {
+      type: 'qr-ready',
+      generation: 1,
+      dataUrl: ''
+    })).toBe(loading);
   });
 
   it('does not authenticate malformed identities', () => {
@@ -351,18 +449,18 @@ describe('farcasterAuthMachineReducer', () => {
       expect(farcasterAuthMachineReducer(checking, {
         type: 'authenticated',
         generation: 1,
-        identity: malformedIdentity as unknown as VerifiedFarcasterIdentity
+        identity: malformedIdentity as unknown as VerifiedFarcasterIdentity,
+        assurance: 'live-client-verified'
       })).toBe(checking);
     });
   });
 
-  it('copies only the proof-free channel view fields into public state', () => {
+  it('copies only proof-free public fields into channel, QR, identity, and error state', () => {
     const secret = 'SECRET_PROOF_SENTINEL';
     const actionWithPrivateExtras = {
       type: 'channel-ready',
       generation: 1,
       channelUrl: 'https://farcaster.example/sign-in/channel',
-      qrDataUrl: 'data:image/png;base64,public-qr',
       expiresAt,
       channelToken: secret,
       nonce: secret,
@@ -374,10 +472,30 @@ describe('farcasterAuthMachineReducer', () => {
     expect(waiting.view).toEqual({
       phase: 'awaiting-approval',
       channelUrl: 'https://farcaster.example/sign-in/channel',
-      qrDataUrl: 'data:image/png;base64,public-qr',
+      qr: { state: 'not-requested' },
       expiresAt
     });
     expect(JSON.stringify(waiting)).not.toContain(secret);
+
+    const qrReadyWithPrivateExtras = {
+      type: 'qr-ready',
+      generation: 1,
+      dataUrl: 'data:image/png;base64,public-qr',
+      channelToken: secret,
+      nonce: secret,
+      message: secret,
+      signature: secret
+    } as unknown as FarcasterAuthMachineAction;
+    const readyQr = reduce(
+      waiting,
+      { type: 'qr-loading', generation: 1 },
+      qrReadyWithPrivateExtras
+    );
+    expect(readyQr.view).toMatchObject({
+      phase: 'awaiting-approval',
+      qr: { state: 'ready', dataUrl: 'data:image/png;base64,public-qr' }
+    });
+    expect(JSON.stringify(readyQr)).not.toContain(secret);
 
     const identityWithPrivateExtras = {
       ...identity,
@@ -388,13 +506,18 @@ describe('farcasterAuthMachineReducer', () => {
       signature: secret
     } as unknown as VerifiedFarcasterIdentity;
     const authenticated = reduce(
-      waiting,
+      readyQr,
       { type: 'verifying', generation: 1 },
-      { type: 'authenticated', generation: 1, identity: identityWithPrivateExtras }
+      {
+        type: 'authenticated',
+        generation: 1,
+        identity: identityWithPrivateExtras,
+        assurance: 'live-client-verified'
+      }
     );
-    expect(Object.keys(authenticated.view).sort()).toEqual(['identity', 'phase']);
+    expect(Object.keys(authenticated.view).sort()).toEqual(['assurance', 'identity', 'phase']);
     expect(JSON.stringify(authenticated)).not.toContain('channelUrl');
-    expect(JSON.stringify(authenticated)).not.toContain('qrDataUrl');
+    expect(JSON.stringify(authenticated)).not.toContain('data:image');
     expect(JSON.stringify(authenticated)).not.toContain(secret);
 
     const errorWithPrivateExtras = {

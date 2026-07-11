@@ -173,6 +173,34 @@
   text-transform: uppercase;
 }
 
+.farcaster-auth-panel__qr-loading {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #5b356b;
+}
+
+.farcaster-auth-panel__qr-loading .farcaster-auth-panel__seal-spinner {
+  width: 2.55rem;
+  height: 2.55rem;
+}
+
+.farcaster-auth-panel__deep-link-seal {
+  display: grid;
+  place-items: center;
+  width: 4.45rem;
+  height: 4.45rem;
+  border: 1px solid rgba(225, 190, 125, 0.62);
+  color: #edcf95;
+  background:
+    radial-gradient(circle, rgba(143, 73, 177, 0.34), rgba(34, 14, 42, 0.34) 58%, transparent 60%);
+  box-shadow: 0 0 1.8rem rgba(126, 54, 160, 0.22), inset 0 0 1.2rem rgba(204, 154, 85, 0.12);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2rem;
+  line-height: 1;
+}
+
 .farcaster-auth-panel__instruction {
   color: #efd9ac;
   font-size: clamp(0.92rem, 1.16vw, 1.08rem);
@@ -225,6 +253,30 @@
 
 .farcaster-auth-panel__actions--quiet {
   margin-top: 0.6rem;
+}
+
+.farcaster-auth-panel__remember {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.52rem;
+  max-width: 22rem;
+  color: #cbb897;
+  font-size: 0.69rem;
+  letter-spacing: 0.075em;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.farcaster-auth-panel__remember input {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: 0;
+  accent-color: #c79b54;
+}
+
+.farcaster-auth-panel__remember:focus-within {
+  color: #f5dfad;
 }
 
 .farcaster-auth-panel__action {

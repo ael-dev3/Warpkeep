@@ -33,7 +33,11 @@ export type WarpkeepMainMenuProps = {
   /** Lifecycle-only cancellation; unlike a player cancellation it preserves a route intent. */
   onDisposeFarcasterSignIn?: () => void;
   onRetryFarcasterSignIn?: () => void;
+  onPrepareFarcasterQrCode?: () => void;
   onSignOut?: () => void;
+  rememberDevice?: boolean;
+  hasRememberedDevice?: boolean;
+  onRememberDeviceChange?: (remember: boolean) => void;
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
   /**
    * A guarded anonymous `#realm` route asks the menu to show its native auth
@@ -170,7 +174,11 @@ export function WarpkeepMainMenu({
   onCancelFarcasterSignIn,
   onDisposeFarcasterSignIn,
   onRetryFarcasterSignIn,
+  onPrepareFarcasterQrCode,
   onSignOut,
+  rememberDevice = true,
+  hasRememberedDevice = false,
+  onRememberDeviceChange,
   onRequestAuthenticatedRealm,
   openFarcasterAuthPanel = false,
   inputModality = 'unknown',
@@ -202,6 +210,9 @@ export function WarpkeepMainMenu({
   const authPanelOpen = surface === 'farcaster-auth';
   const authenticatedIdentity = authState.phase === 'authenticated'
     ? authState.identity
+    : undefined;
+  const authenticatedAssurance = authState.phase === 'authenticated'
+    ? authState.assurance
     : undefined;
   const farcasterAuthEnabled = Boolean(
     onRequestFarcasterSignIn
@@ -641,6 +652,11 @@ export function WarpkeepMainMenu({
                   )}
                 />
               </Suspense>
+              <span className="warpkeep-menu-identity__assurance">
+                {authenticatedAssurance === 'remembered-device-prototype'
+                  ? 'REMEMBERED DEVICE'
+                  : 'FARCASTER VERIFIED'}
+              </span>
             </div>
           ) : null}
 
@@ -691,9 +707,11 @@ export function WarpkeepMainMenu({
               channelUrl={authState.phase === 'awaiting-approval'
                 ? authState.channelUrl
                 : undefined}
+              assurance={authenticatedAssurance}
               errorMessage={authState.phase === 'error' || authState.phase === 'expired'
                 ? authState.error.message
                 : undefined}
+              hasRememberedDevice={hasRememberedDevice}
               headingRef={authHeadingRef}
               identity={authenticatedIdentity}
               onPresentationReady={handleAuthPanelPresentationReady}
@@ -702,15 +720,18 @@ export function WarpkeepMainMenu({
                 lastActionModalityRef.current === 'keyboard'
               )}
               onEnterRealm={handleAuthenticatedRealmEntry}
+              onPrepareQrCode={onPrepareFarcasterQrCode}
+              onRememberDeviceChange={onRememberDeviceChange}
               onRetry={handleRetrySignIn}
               onSignOut={handleSignOut}
               phase={authState.phase === 'anonymous'
                 ? 'creating-channel'
                 : authState.phase}
               primaryActionRef={authPrimaryActionRef}
-              qrDataUrl={authState.phase === 'awaiting-approval'
-                ? authState.qrDataUrl
+              qr={authState.phase === 'awaiting-approval'
+                ? authState.qr
                 : undefined}
+              rememberDevice={rememberDevice}
             />
           </Suspense>
         </div>

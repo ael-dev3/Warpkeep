@@ -11,6 +11,7 @@ import { useFarcasterAuth } from '../farcaster/FarcasterAuthProvider';
 import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
 import {
   WarpkeepAudioDirector,
+  WARPKEEP_REALM_TO_MENU_TRANSITION_MS,
   type AudioScene,
   type WarpkeepAudioDirectorHandle
 } from './audio';
@@ -61,10 +62,11 @@ function hasRealmHash() {
   return typeof window !== 'undefined' && window.location.hash === REALM_HASH;
 }
 
-function initialStablePhase(): WarpkeepStableExperiencePhase {
-  // A refreshed/direct realm URL has no trusted in-memory session. Start on
-  // the menu without flashing the realm; its pending route intent opens the
-  // native identity rail after the menu is interactive.
+function initialStablePhase(hasAuthenticatedIdentity: boolean): WarpkeepStableExperiencePhase {
+  // A valid remembered-device record is synchronously restored by the auth
+  // provider, so an intentional #realm revisit can open directly without an
+  // anonymous flash or a new relay channel. A hash alone remains no credential.
+  if (hasRealmHash() && hasAuthenticatedIdentity) return 'realm';
   if (hasRealmHash()) return 'menu';
   return hasMenuHash() ? 'menu' : 'title';
 }
@@ -134,9 +136,19 @@ export function WarpkeepExperience() {
     beginSignIn: beginFarcasterSignIn,
     cancelSignIn: cancelFarcasterSignIn,
     retrySignIn: retryFarcasterSignIn,
-    signOut: signOutFarcaster
+    prepareQrCode: prepareFarcasterQrCode,
+    signOut: signOutFarcaster,
+    rememberDevice,
+    setRememberDevice,
+    hasRememberedDevice
   } = useFarcasterAuth();
-  const initialPhase = useMemo(initialStablePhase, []);
+  const initiallyAuthenticated = farcasterAuthState.phase === 'authenticated';
+  const initialPhase = useMemo(
+    () => initialStablePhase(initiallyAuthenticated),
+    // Restoration is synchronous; the first render intentionally determines
+    // the initial route without responding to later auth transitions.
+    []
+  );
   const [experience, dispatch] = useReducer(
     experienceTransitionReducer,
     initialPhase,
@@ -146,7 +158,7 @@ export function WarpkeepExperience() {
     initialPhase
   );
   const [pendingDestination, setPendingDestination] = useState<'realm' | null>(() => (
-    hasRealmHash() ? 'realm' : null
+    hasRealmHash() && !initiallyAuthenticated ? 'realm' : null
   ));
   const [gatewayOrigin, setGatewayOrigin] = useState<WarpTransitionOrigin>(() => ({
     x: typeof window === 'undefined' ? 640 : window.innerWidth * 0.5,
@@ -170,7 +182,8 @@ export function WarpkeepExperience() {
   const completedSequenceRef = useRef(-1);
   const lastPointerTypeRef = useRef<string>('mouse');
   const restoreTitleFocusRef = useRef(false);
-  const blockedInitialRealmRef = useRef(hasRealmHash());
+  const blockedInitialRealmRef = useRef(hasRealmHash() && !initiallyAuthenticated);
+  const realmAudioResetTimerRef = useRef<number | null>(null);
   const verifiedIdentityRef = useRef<VerifiedFarcasterIdentity | null>(
     farcasterAuthState.phase === 'authenticated'
       ? farcasterAuthState.identity
@@ -207,10 +220,31 @@ export function WarpkeepExperience() {
     }
   }, [cancelFarcasterSignIn]);
 
+  const fadeRealmAudioToMenuAndReset = useCallback(() => {
+    const audioDirector = audioDirectorRef.current;
+    if (!audioDirector) {
+      return;
+    }
+    audioDirector.prepareScene('menu');
+    audioDirector.transitionTo('menu');
+    if (realmAudioResetTimerRef.current !== null) {
+      window.clearTimeout(realmAudioResetTimerRef.current);
+    }
+    realmAudioResetTimerRef.current = window.setTimeout(() => {
+      realmAudioResetTimerRef.current = null;
+      audioDirectorRef.current?.resetScene('realm');
+    }, WARPKEEP_REALM_TO_MENU_TRANSITION_MS);
+  }, []);
+
   const handleSignOut = useCallback(() => {
     clearPendingRealmDestination();
+    if (phaseRef.current === 'realm') {
+      fadeRealmAudioToMenuAndReset();
+    } else {
+      audioDirectorRef.current?.resetScene('realm');
+    }
     signOutFarcaster();
-  }, [clearPendingRealmDestination, signOutFarcaster]);
+  }, [clearPendingRealmDestination, fadeRealmAudioToMenuAndReset, signOutFarcaster]);
 
   useLayoutEffect(() => {
     if (!blockedInitialRealmRef.current || !hasRealmHash()) {
@@ -220,13 +254,47 @@ export function WarpkeepExperience() {
     gateAnonymousRealmRoute();
   }, [gateAnonymousRealmRoute]);
 
-  const audioScene: AudioScene = !returnPreparing && (
-    experience.phase === 'menu'
-    || experience.phase === 'realm'
-    || experience.phase === 'transitioning-to-menu'
-  )
-    ? 'menu'
-    : 'title';
+  useEffect(() => () => {
+    if (realmAudioResetTimerRef.current !== null) {
+      window.clearTimeout(realmAudioResetTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (farcasterAuthState.phase === 'authenticated') {
+      return;
+    }
+    if (!hasRealmHash() && phaseRef.current !== 'realm') {
+      return;
+    }
+
+    clearPendingRealmDestination();
+    if (hasRealmHash()) {
+      window.history.replaceState(
+        menuHistoryState(),
+        '',
+        `${pageUrlWithoutHash()}${MENU_HASH}`
+      );
+    }
+    if (phaseRef.current === 'realm') {
+      fadeRealmAudioToMenuAndReset();
+      setPresentedScreen('menu');
+      dispatch({ type: 'return-menu' });
+    }
+  }, [
+    clearPendingRealmDestination,
+    farcasterAuthState.phase,
+    fadeRealmAudioToMenuAndReset
+  ]);
+
+  const audioScene: AudioScene = !returnPreparing && experience.phase === 'realm'
+    ? 'realm'
+    : !returnPreparing && (
+      experience.phase === 'menu'
+      || experience.phase === 'transitioning-to-menu'
+    )
+      ? 'menu'
+      : 'title';
   const transitionDirection = getWarpTransitionDirection(experience.phase);
   const titleMounted = returnPreparing
     || experience.phase === 'title'
@@ -252,6 +320,17 @@ export function WarpkeepExperience() {
   const titleInteractive = experience.phase === 'title';
   const menuInteractive = experience.phase === 'menu' && !returnPreparing;
   const menuMediaActive = menuMounted;
+
+  useEffect(() => {
+    if (!realmMounted) {
+      return;
+    }
+    // Covers a direct #realm restoration, which has no click gesture. Browsers
+    // may still block playback, but the authenticated realm source is ready
+    // for the next real interaction and anonymous views never prepare it.
+    audioDirectorRef.current?.prepareScene('realm');
+    audioDirectorRef.current?.transitionTo('realm');
+  }, [realmMounted]);
 
   const dismissTitleHint = useCallback(() => {
     hintDismissedRef.current = true;
@@ -311,6 +390,15 @@ export function WarpkeepExperience() {
 
     clearPendingRealmDestination();
     blurActiveElement();
+    if (realmAudioResetTimerRef.current !== null) {
+      window.clearTimeout(realmAudioResetTimerRef.current);
+      realmAudioResetTimerRef.current = null;
+    }
+    // Start source preparation and the spatial music handoff inside the
+    // authenticated player gesture, before the route can unmount the menu.
+    audioDirectorRef.current?.ensurePlaybackFromGesture();
+    audioDirectorRef.current?.prepareScene('realm');
+    audioDirectorRef.current?.transitionTo('realm');
     if (!hasRealmHash()) {
       window.history.pushState(realmHistoryState(), '', `${pageUrlWithoutHash()}${REALM_HASH}`);
     }
@@ -325,6 +413,9 @@ export function WarpkeepExperience() {
 
     clearPendingRealmDestination();
     blurActiveElement();
+    audioDirectorRef.current?.ensurePlaybackFromGesture();
+    audioDirectorRef.current?.prepareScene('menu');
+    audioDirectorRef.current?.transitionTo('menu');
     const state = window.history.state as WarpkeepHistoryState | null;
     const canReturnThroughHistory = hasRealmHash() && state?.[REALM_HISTORY_KEY] === true;
     setPresentedScreen('menu');
@@ -794,9 +885,13 @@ export function WarpkeepExperience() {
             onDisposeFarcasterSignIn={cancelFarcasterSignIn}
             onRequestAuthenticatedRealm={beginRealmEntry}
             onRequestFarcasterSignIn={beginFarcasterSignIn}
+            onPrepareFarcasterQrCode={prepareFarcasterQrCode}
             onRequestReturn={handleExplicitReturn}
+            onRememberDeviceChange={setRememberDevice}
             onRetryFarcasterSignIn={retryFarcasterSignIn}
             onSignOut={handleSignOut}
+            hasRememberedDevice={hasRememberedDevice}
+            rememberDevice={rememberDevice}
           />
         </div>
       ) : null}
