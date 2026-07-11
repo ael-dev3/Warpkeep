@@ -1,6 +1,4 @@
-// @ts-expect-error -- Vitest executes these integrity checks in Node; app code remains browser-only.
 import { createHash } from 'node:crypto';
-// @ts-expect-error -- Vitest executes these integrity checks in Node; app code remains browser-only.
 import { existsSync, readFileSync } from 'node:fs';
 
 import { cleanup, fireEvent, render } from '@testing-library/react';

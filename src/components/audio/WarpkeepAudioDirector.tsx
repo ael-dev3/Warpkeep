@@ -131,7 +131,7 @@ export const WarpkeepAudioDirector = forwardRef<
   const sceneTransitionRef = useRef<SceneTransition | null>(null);
   const sceneAnimationFrameRef = useRef<number | null>(null);
   const loopAnimationFrameRef = useRef<number | null>(null);
-  const loopScheduleTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const loopScheduleTimerRef = useRef<number | null>(null);
   const loopStateRef = useRef<MenuLoopState>({ activeIndex: 0, phase: 'stable' });
   const loopGainsRef = useRef<[number, number]>([1, 0]);
 

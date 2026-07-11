@@ -34,5 +34,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Audit high severity vulnerabilities
-        run: npm audit --audit-level=high
+      - name: Build GitHub Pages variant
+        run: GITHUB_PAGES=true npm run build
+
+      - name: Audit dependencies
+        run: npm audit
