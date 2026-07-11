@@ -1,40 +1,32 @@
-# Warpkeep Licensing Notes
+# Warpkeep Asset Licensing and Provenance
 
-Warpkeep uses maximum-freedom public licensing by default.
+This file records the license and provenance status of runtime media, archived references, generated derivatives, and asset manifests. Repository presence or delivery by Ael does not by itself establish copyright ownership or transferable licensing authority.
+
+## Policy transition
+
+Through v0.2.0, confirmed project-owned creative material was made available under the historical `CC0-1.0` policy. Beginning with v0.3.0, new or modified confirmed project-owned creative material is intended to be `CC-BY-4.0`.
+
+Historical CC0 versions remain available under CC0-1.0. Third-party and externally governed assets remain under their original terms. No future license is assigned to an asset whose authority is incomplete or ambiguous.
+
+## Classification rules
+
+- **Project-owned:** the provenance record expressly identifies the material as project-owned and records the authority supporting that classification. This status must be confirmed again before future modifications.
+- **Project-provided:** an asset was supplied to the repository, but supply does not prove ownership. Treat it as externally governed or unresolved unless the record establishes the right to license it.
+- **Generated derivative:** a transformed or generated output inherits the source-rights question; generation does not automatically create a new Warpkeep license.
+- **Reference-only:** archived for art direction or provenance and not a runtime dependency.
+- **Metadata:** manifests and technical records are project-authored documentation, but they do not change the license of the media they describe.
 
 ## Software license
 
-Source code, scripts, configuration, tests, and other software files are licensed under the Zero-Clause BSD license (`0BSD`). See [`LICENSE`](LICENSE).
+Source code, scripts, configuration, tests, and other software files remain under the active historical Zero-Clause BSD license (`0BSD`) through v0.2.0. See [`LICENSE`](LICENSE). The first v0.3.0 cutover will move new or modified Warpkeep software to Apache-2.0; it must not relicense dependencies or upstream tools.
 
-`0BSD` is intentionally permissive: it allows use, copying, modification, distribution, sublicensing, private use, commercial use, and resale with minimal friction.
+## Documentation, lore, and manifests
 
-## Documentation, lore, and project-owned media
-
-Markdown documentation, design notes, lore text, manifests, and project-owned visual/media assets are dedicated under CC0 1.0 Universal unless a file explicitly says otherwise. See [`LICENSE-CC0`](LICENSE-CC0).
-
-This includes, unless separately noted:
-
-- `public/images/warpkeep-cover.png`
-- `public/images/factions/**`
-- `public/audio/warpkeep-title-theme-a.mp3`
-- `public/audio/warpkeep-title-theme-b.mp3`
-- `public/audio/warpkeep-menu-theme.mp3`
-- `public/audio/warpkeep-lowlands-theme.mp3`
-- `public/video/warpkeep-menu-loop-v2.mp4`
-- `public/images/menu/warpkeep-menu-poster-v2.webp`
-- `public/models/hegemony/**`
-- `docs/reference/factions/**`
-- `docs/reference/castles/**`
-- `docs/reference/terrain/**`
-- `docs/reference/menu/**`
-- `docs/reference/audio/**`
-- generated/reference images, audio, contact sheets, archive notes, and manifests committed to this repository
-
-To the extent the CC0 public-domain dedication is not legally effective in a jurisdiction, the project owner grants everyone a perpetual, worldwide, royalty-free, non-exclusive, irrevocable license to use, copy, modify, publish, distribute, sublicense, sell, and create derivative works from those project-owned materials for any purpose.
+Project-authored documentation, design notes, lore, and manifests follow the historical `CC0-1.0` policy through v0.2.0 and the future `CC-BY-4.0` policy for new or modified confirmed project-owned material from v0.3.0. Documentation that records external source terms does not grant those terms away.
 
 ## Hegemony menu media provenance
 
-The 2026-07-10 title-to-menu milestone uses project-provided media supplied for this repository. This record describes the files and transformations; it does not assert ownership by any third party.
+The 2026-07-10 title-to-menu milestone uses project-provided media supplied for this repository. This record preserves the files and transformations; it does not establish copyright ownership, upstream permissions, or a future CC-BY-4.0 grant for the source media or its derivatives.
 
 | Intended use | Project-provided source | Repository file | Technical record |
 | --- | --- | --- | --- |
@@ -48,7 +40,7 @@ The original 1280×720 runtime film and poster were superseded on 2026-07-11. Th
 
 ## Hegemony Frontier Keep provenance
 
-The archived Hegemony Frontier Keep and its runtime derivatives are project-provided media supplied for this repository. The source remains byte-for-byte intact under `docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/`; the public models are generated derivatives covered by the same CC0 project-media policy.
+The archived Hegemony Frontier Keep and its runtime derivatives are project-provided media supplied for this repository. The source remains byte-for-byte intact under `docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/`; the public models are generated derivatives whose future license follows the source-rights determination, not the fact of conversion.
 
 | Intended use | Repository file | Technical record |
 | --- | --- | --- |
@@ -60,4 +52,4 @@ Both runtime files are reproducible with `npm run prepare:hegemony-keep`. The pi
 
 ## Trademark and endorsement note
 
-These licenses do not grant trademark rights or imply endorsement by the project owner. Forks, mods, and community realms should avoid presenting themselves as the canonical Warpkeep deployment unless explicitly authorized.
+These licenses do not grant trademark rights or imply endorsement by the project. Forks, mods, and community realms should avoid presenting themselves as the canonical Warpkeep deployment unless explicitly authorized; see [`TRADEMARKS.md`](TRADEMARKS.md).

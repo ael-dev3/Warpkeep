@@ -23,4 +23,4 @@ This realm scene crossfades title/menu → realm over 2.3 seconds and realm → 
 
 ## Provenance and license
 
-Source: Ael-provided project attachment. It is covered by Warpkeep's project-owned media policy and CC0 treatment in [`ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md). The full machine-readable technical record is in [`manifest.json`](manifest.json).
+Source: Ael-provided project attachment. Ownership and original terms are not independently established, so the source and runtime derivative are not assigned a new license by assumption. See [`ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md) and the full machine-readable technical record in [`manifest.json`](manifest.json).

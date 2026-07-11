@@ -35,6 +35,6 @@ The composition reference guides the castle-left/open-right hierarchy, antique-g
 - Audio attachment basename: `audio_ac578c8d7609.ogg` / `Sunset Hegemony.mp3`; detected as MP3.
 - Additional audio attachment basename: `audio_edca1cdc8d6d.ogg` / `Lowlands_Of_Hegemony.mp3`; detected as MP3 with an embedded 360×360 MJPEG cover image.
 - Audio metadata: title `Sunset Hegemony`, artist `ael_dev7`, instrumental, made with Suno.
-- Licensing: covered by the repository's project-owned media policy in [`../../../../ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).
+- Licensing: Ael-provided source media with item-specific terms not independently verified; see [`../../../../ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).
 
 See [`manifest.json`](manifest.json) for exact archive/runtime filenames, hashes, dimensions, durations, codecs, bytes, transformations, and intended uses.

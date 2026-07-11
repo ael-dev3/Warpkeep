@@ -13,4 +13,4 @@ Use the wordmark when there is enough room for the full Hegemony identity. Use t
 
 ## License and provenance
 
-These are project-provided, project-owned PNG media assets. They are dedicated under CC0 1.0 Universal via [`ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).
+These are project-provided PNG media assets. The existing record applies historical CC0 treatment, but source authority is not independently evidenced; do not assign a new license by assumption. See [`ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).
