@@ -64,7 +64,7 @@ not_admitted | admitted_needs_bootstrap | ready | disabled
 4. allocate the first deterministic unoccupied canonical tile (`0,0` first);
 5. insert player and level-one castle, then atomically mark tile occupancy.
 
-No denied call creates a player or castle. A changed auth epoch invalidates old player tokens at the module authorization layer. The bridge must resolve the current epoch from trusted server state before minting a new player token.
+No denied call creates a player or castle. A changed auth epoch invalidates old player tokens at the module authorization layer. Before minting a new player token, the bridge resolves the current epoch through the documented private HTTP procedure `POST /v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch`, authenticated by a fresh approximately 60-second Hermes OIDC JWT.
 
 ## Hermes-only operations
 
@@ -79,7 +79,7 @@ admin_bump_auth_epoch
 
 `admin_seed_world` is idempotent and refuses to overwrite a conflicting pre-existing world row. `admin_allow_fid` is idempotent; `admin_disable_fid` blocks gameplay immediately; `admin_bump_auth_epoch` revokes prior player tokens.
 
-The admin-only procedures `admin_get_alpha_status` and `admin_get_fid_auth_epoch({ fid })` expose only aggregate counts or the current epoch needed by trusted Hermes/bridge services. They do not make the whitelist public.
+The admin-only procedures `admin_get_alpha_status` and `admin_get_fid_auth_epoch({ fid })` expose only aggregate counts or the current epoch needed by trusted Hermes/bridge services. The bridge calls the latter through the documented Maincloud HTTP `call` endpoint with a JSON `[fid]` argument and accepts only its raw unsigned 32-bit epoch result. They do not make the whitelist public.
 
 Use the root Hermes wrapper only after bridge deployment:
 

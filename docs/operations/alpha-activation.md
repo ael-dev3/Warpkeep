@@ -8,7 +8,7 @@ This runbook activates the closed alpha without weakening its admission boundary
 - Never use `--delete-data`, `--break-clients`, database recreation, or a real/synthetic FID during activation.
 - Keep final aggregate state at **61 world tiles / 0 allowlist rows / 0 enabled allowlist rows / 0 players / 0 castles**.
 - Keep secrets out of the repository, `VITE_` variables, shell history, logs, and support screenshots.
-- Leave `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false` until the bridge, resolver, and module prove healthy.
+- Leave `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false` until the bridge, its direct private Maincloud auth-epoch procedure call, and the module prove healthy.
 
 ## 1. Domain and GitHub Pages
 
@@ -22,7 +22,7 @@ A      @      185.199.111.153
 CNAME  www    ael-dev3.github.io
 ```
 
-Do not add a wildcard or proxy the apex. Remove only a documented conflicting placeholder. Once GitHub profile verification is confirmed, set the repository Pages custom domain to `warpkeep.com` in Pages settings (the Actions deployment does not use a repository `CNAME` file). Enable HTTPS only after GitHub reports its certificate ready. Verify apex, `www` redirect, and the legacy GitHub URL.
+Do not add a wildcard or proxy the apex. Remove only a documented conflicting placeholder. The repository Pages custom domain is already `warpkeep.com`, its certificate is ready, and HTTPS is enforced; do not change its DNS, custom-domain, or proxy settings during this activation. Verify apex, `www` redirect, and the legacy GitHub URL.
 
 ## 2. Bridge deployment
 
@@ -39,11 +39,9 @@ Required Worker secret names are:
 SIGNING_KEY_JWK
 ADMIN_TOKEN_SECRET
 FARCASTER_RPC_URL
-AUTH_EPOCH_RESOLVER_URL
-AUTH_EPOCH_RESOLVER_TOKEN
 ```
 
-Generate ES256 P-256 key material and the Hermes secret with a secure local mechanism; do not print them. Keep the recoverable Hermes secret in the owner Mac’s Keychain under a private operations service name. The Worker secret store may hold the signing key because rotation is supported. Configure no browser CORS on `/v1/admin/token`.
+The Worker also receives these public, non-secret values: `SPACETIMEDB_URI=https://maincloud.spacetimedb.com` and `SPACETIMEDB_DATABASE=warpkeep-89e4u`. Generate ES256 P-256 key material and the Hermes secret with a secure local mechanism; do not print them. Keep the recoverable Hermes secret in the owner Mac’s Keychain under a private operations service name. The Worker secret store may hold the signing key because rotation is supported. Configure no browser CORS on `/v1/admin/token`.
 
 Verify these public endpoints before continuing:
 
@@ -55,11 +53,21 @@ https://auth.warpkeep.com/.well-known/jwks.json
 
 Discovery must name `https://auth.warpkeep.com` exactly; JWKS must contain one public ES256/P-256 key with no `d` member.
 
-## 3. Auth-epoch resolver
+## 3. Private auth-epoch procedure call
 
-The bridge calls a private server-to-server resolver for `admin_get_fid_auth_epoch`. The resolver accepts a validated FID and returns only `{ "authEpoch": <unsigned integer> }`; a missing whitelist row returns `0`. It must time out, fail closed, have no browser CORS, and never log FIDs/tokens. Do not replace it with browser authority or an undocumented SpacetimeDB HTTP-auth shortcut.
+For each successful Farcaster proof exchange, the Worker mints one in-memory, approximately 60-second Hermes admin OIDC JWT. Its claims are the configured issuer, `sub: service:hermes`, `aud: ["warpkeep-spacetimedb"]`, `token_type: "spacetime-access"`, and `roles: ["warpkeep-admin"]`. It is never persisted, returned, or logged.
 
-The present bridge supports a protected HTTP resolver contract. A direct Worker-to-Maincloud implementation requires a proven Cloudflare WebSocket adapter and local disposable-module integration test before it can replace that contract.
+The Worker then uses the documented low-frequency SpacetimeDB HTTP API:
+
+```txt
+POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch
+Authorization: Bearer <ephemeral Hermes JWT>
+Content-Type: application/json
+Accept: application/json
+body: ["<verified decimal fid>"]
+```
+
+The fixed procedure returns the raw unsigned 32-bit epoch (`0` for a missing whitelist row). The Worker validates that raw result as a non-negative `u32`, caps the response, rejects redirects and malformed/non-2xx responses, uses a timeout no greater than five seconds, and fails closed with `503 authorization_unavailable`. There is no separate resolver hostname, resolver URL, resolver token, browser lookup, anonymous SpacetimeDB call, or public allowlist access.
 
 ## 4. Non-destructive module publish and seed
 

@@ -13,14 +13,14 @@ Implemented in the repository, but intentionally not activated on the public Pag
 - protected Hermes operations, generated-binding CI verification, bridge tests, and fail-closed deployment guards.
 - a semantic product version, exact build-SHA menu stamp, canonical-domain build policy, and a default-off shared-alpha switch.
 
-The public Pages experience does not currently claim a permanent keep. `warpkeep.com` is the canonical target; its Pages domain is verified and public resolvers see the required apex/`www` DNS, while GitHub’s HTTPS certificate, Worker issuer, resolver, and module publish remain activation gates. Without a configured bridge/issuer it remains title/menu-safe and performs no shared database I/O.
+The public Pages experience does not currently claim a permanent keep. `warpkeep.com` is the canonical target; its Pages domain is verified, HTTPS is enforced, and public resolvers see the required apex/`www` DNS. The Worker issuer, private direct Maincloud auth-epoch procedure call, and module publish remain activation gates. Without a configured bridge/issuer it remains title/menu-safe and performs no shared database I/O.
 
 ## Activation gate
 
 Before merging active frontend configuration or publishing a real module:
 
 1. Provision a stable HTTPS OIDC issuer with public discovery/JWKS and a managed ES256 private key.
-2. Deploy the Worker with exact Pages CORS/SIWF values and a protected auth-epoch resolver that reads current module epoch state with Hermes authority.
+2. Deploy the Worker with exact Pages CORS/SIWF values and a private documented `admin_get_fid_auth_epoch` SpacetimeDB HTTP procedure call authenticated by a fresh short-lived Hermes OIDC JWT.
 3. Replace the module's `.invalid` issuer, build with pinned `2.6.1`, publish to `warpkeep-89e4u` non-destructively, and seed exactly 61 world rows.
 4. Keep all real FIDs out of `allowed_fid`; test a valid Farcaster login through the clean denial panel first.
 5. Configure public Vite values, deploy Pages, and verify anonymous visitors create neither relay nor SpacetimeDB identities.

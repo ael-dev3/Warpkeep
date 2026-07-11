@@ -12,6 +12,10 @@ import {
 import { DurableObjectChallengeStore } from './challengeStore'
 import { createOfficialFarcasterVerifier } from './farcaster'
 import { adminClaims, playerClaims, randomId, randomSiweNonce, signEs256Jwt } from './jwt'
+import {
+  AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
+  SpacetimeHttpAuthEpochResolver,
+} from './spacetimeAuthEpochResolver'
 import type {
   AuthEpochResolver,
   BridgeFetchHandler,
@@ -352,128 +356,18 @@ function rejectAdminBody(request: Request): void {
   }
 }
 
-class MissingAuthEpochResolver implements AuthEpochResolver {
-  async resolve(): Promise<number> {
-    throw new Error('Auth epoch resolver is not configured.')
-  }
-}
-
-export const AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS = 5_000
-const MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES = 1_024
-const MAX_SUPPORTED_RESOLVER_FID = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_AUTH_EPOCH = 0xffff_ffff
 
-function isSupportedResolverFid(fid: string): boolean {
-  if (!/^[1-9]\d{0,15}$/.test(fid)) return false
-  try {
-    return BigInt(fid) <= MAX_SUPPORTED_RESOLVER_FID
-  } catch {
-    return false
-  }
-}
-
-function readAuthEpochResolverResponse(raw: string, contentType: string | null): number {
-  if (!contentType?.toLowerCase().startsWith('application/json')) {
-    throw new Error('Auth epoch resolver returned invalid data.')
-  }
-  if (new TextEncoder().encode(raw).byteLength > MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES) {
-    throw new Error('Auth epoch resolver returned invalid data.')
-  }
-
-  let value: unknown
-  try {
-    value = JSON.parse(raw)
-  } catch {
-    throw new Error('Auth epoch resolver returned invalid data.')
-  }
-
-  if (
-    !value
-    || typeof value !== 'object'
-    || Array.isArray(value)
-    || Object.keys(value).length !== 1
-    || Object.keys(value)[0] !== 'authEpoch'
-    || !Number.isSafeInteger((value as { authEpoch?: unknown }).authEpoch)
-  ) {
-    throw new Error('Auth epoch resolver returned invalid data.')
-  }
-
-  return requireEpoch((value as { authEpoch: number }).authEpoch)
-}
-
-/**
- * Contract for a private server-to-server resolver. It must read the
- * authoritative `allowed_fid.authEpoch` from the Warpkeep module and return
- * exactly `{ "authEpoch": <non-negative safe integer> }`. It must never accept
- * a browser-supplied epoch or be exposed through public CORS. Resolver calls
- * are uncacheable, reject redirects, and have a bounded cancellation deadline.
- */
-export class HttpAuthEpochResolver implements AuthEpochResolver {
-  constructor(
-    private readonly endpoint: string,
-    private readonly secret: string,
-    private readonly fetcher: typeof fetch = fetch,
-    private readonly timeoutMilliseconds = AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
-  ) {}
-
-  async resolve(fid: string): Promise<number> {
-    if (!isSupportedResolverFid(fid)) {
-      throw new Error('Auth epoch resolver received an invalid FID.')
-    }
-    if (!Number.isSafeInteger(this.timeoutMilliseconds) || this.timeoutMilliseconds <= 0) {
-      throw new Error('Auth epoch resolver timeout is invalid.')
-    }
-
-    const url = new URL(this.endpoint)
-    url.searchParams.set('fid', fid)
-
-    const controller = new AbortController()
-    let timedOut = false
-    let timeout: ReturnType<typeof setTimeout> | undefined
-    const timeoutError = new Error('Auth epoch resolver timed out.')
-    const deadline = new Promise<never>((_resolve, reject) => {
-      timeout = setTimeout(() => {
-        timedOut = true
-        controller.abort()
-        reject(timeoutError)
-      }, this.timeoutMilliseconds)
-    })
-
-    try {
-      return await Promise.race([
-        (async () => {
-          const response = await this.fetcher(url, {
-            method: 'GET',
-            headers: { authorization: `Bearer ${this.secret}`, accept: 'application/json' },
-            cache: 'no-store',
-            redirect: 'error',
-            signal: controller.signal,
-          })
-          if (!response.ok) throw new Error('Auth epoch resolver is unavailable.')
-          return readAuthEpochResolverResponse(
-            await response.text(),
-            response.headers.get('content-type'),
-          )
-        })(),
-        deadline,
-      ])
-    } catch {
-      if (timedOut) {
-        throw timeoutError
-      }
-      throw new Error('Auth epoch resolver is unavailable.')
-    } finally {
-      if (timeout !== undefined) clearTimeout(timeout)
-      controller.abort()
-    }
-  }
-}
-
 function defaultAuthEpochResolver(config: BridgeConfig): AuthEpochResolver {
-  if (config.authEpochResolverUrl && config.authEpochResolverToken) {
-    return new HttpAuthEpochResolver(config.authEpochResolverUrl, config.authEpochResolverToken)
-  }
-  return new MissingAuthEpochResolver()
+  return new SpacetimeHttpAuthEpochResolver({
+    uri: config.spacetimeDbUri,
+    database: config.spacetimeDbDatabase,
+    issuer: config.issuer,
+    audience: config.audience,
+    timeoutMs: AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
+  }, {
+    signer: claims => signEs256Jwt(config, claims),
+  })
 }
 
 function defaultChallengeStore(env: WorkerEnv): ChallengeStore {
@@ -590,9 +484,10 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           try {
             authEpoch = requireEpoch(await (dependencies.authEpochResolver ?? defaultAuthEpochResolver(config)).resolve(verifiedFid))
           } catch {
-            logger.event('internal_error')
+            logger.event('auth_epoch_failed')
             throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
           }
+          logger.event('auth_epoch_resolved')
 
           const issuedAt = Math.floor(currentTime / 1000)
           let token: string

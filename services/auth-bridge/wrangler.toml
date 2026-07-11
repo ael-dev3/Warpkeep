@@ -16,6 +16,8 @@ FARCASTER_DOMAIN = "warpkeep.com"
 FARCASTER_SIWE_URI = "https://warpkeep.com/"
 OIDC_AUDIENCE = "warpkeep-spacetimedb"
 OIDC_KEY_ID = "warpkeep-alpha-2026-07-01"
+SPACETIMEDB_URI = "https://maincloud.spacetimedb.com"
+SPACETIMEDB_DATABASE = "warpkeep-89e4u"
 
 [[routes]]
 pattern = "auth.warpkeep.com"

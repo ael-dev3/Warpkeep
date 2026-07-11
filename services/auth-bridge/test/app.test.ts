@@ -1,6 +1,6 @@
 import { createSiweMessage } from 'viem/siwe'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { HttpAuthEpochResolver, createAuthBridge } from '../src/app'
+import { createAuthBridge } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
 import type { AuthEpochResolver, FarcasterVerifier, SafeLogEvent, WorkerEnv } from '../src/types'
 
@@ -24,6 +24,8 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     FARCASTER_RPC_URL: 'https://optimism-rpc.internal.example',
     OIDC_AUDIENCE: 'warpkeep-spacetimedb',
     OIDC_KEY_ID: 'test-es256-2026',
+    SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+    SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
     SIGNING_KEY_JWK: JSON.stringify(privateJwk),
     ADMIN_TOKEN_SECRET: 'correct-horse-battery-staple',
     ENVIRONMENT: 'production',
@@ -123,7 +125,7 @@ function proofFor(challenge: Record<string, unknown>, overrides: Record<string, 
 describe('Warpkeep auth bridge', () => {
   beforeEach(() => vi.restoreAllMocks())
 
-  it('publishes an exact OIDC issuer and a public-only ES256 JWKS', async () => {
+  it('publishes an exact OIDC issuer and a public-only ES256 JWKS without an external resolver configuration', async () => {
     const h = harness()
     const discovery = await h.app.fetch(request('/.well-known/openid-configuration'), env())
     expect(discovery.status).toBe(200)
@@ -168,6 +170,7 @@ describe('Warpkeep auth bridge', () => {
     expect(Number(claims.exp) - Number(claims.iat)).toBe(30 * 24 * 60 * 60)
     expect(h.verifier.verify).toHaveBeenCalledWith(expect.objectContaining({ acceptAuthAddress: true, nonce: challenge.nonce }))
     expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
+    expect(h.events).toContain('auth_epoch_resolved')
 
     const jwks = await h.app.fetch(request('/.well-known/jwks.json'), env())
     const publicKey = await crypto.subtle.importKey(
@@ -190,22 +193,7 @@ describe('Warpkeep auth bridge', () => {
     await expect(replay.json()).resolves.toMatchObject({ error: { code: 'challenge_not_found' } })
   })
 
-  it('accepts only an exact bounded resolver response and preserves the missing-row epoch zero baseline', async () => {
-    const fetcher = vi.fn(async () => new Response('{"authEpoch":0}', {
-      headers: { 'content-type': 'application/json; charset=utf-8' },
-    }))
-    const resolver = new HttpAuthEpochResolver(
-      'https://resolver.internal.example/warpkeep/auth-epoch',
-      'resolver-test-secret',
-      fetcher as typeof fetch,
-    )
-
-    await expect(resolver.resolve(FID)).resolves.toBe(0)
-    const [requestedUrl, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit]
-    expect(requestedUrl.toString()).toBe('https://resolver.internal.example/warpkeep/auth-epoch?fid=12345')
-    expect(init).toMatchObject({ method: 'GET', cache: 'no-store', redirect: 'error' })
-    expect(init.signal).toBeInstanceOf(AbortSignal)
-
+  it('preserves the missing-row epoch zero baseline', async () => {
     const h = harness({ epoch: 0 })
     const challenge = await issueChallenge(h)
     const exchange = await h.app.fetch(
@@ -216,70 +204,13 @@ describe('Warpkeep auth bridge', () => {
     expect(decodeJwtPayload(String((await json(exchange)).token)).auth_epoch).toBe(0)
   })
 
-  it('fails closed when a resolver response is malformed, over-privileged, or not an unsigned 32-bit integer', async () => {
-    const invalidResponses = [
-      new Response('{}', { headers: { 'content-type': 'application/json' } }),
-      new Response('{"authEpoch":0,"extra":true}', { headers: { 'content-type': 'application/json' } }),
-      new Response('{"authEpoch":0.5}', { headers: { 'content-type': 'application/json' } }),
-      new Response('{"authEpoch":4294967296}', { headers: { 'content-type': 'application/json' } }),
-      new Response('{"authEpoch":0}', { headers: { 'content-type': 'text/plain' } }),
-    ]
-
-    for (const response of invalidResponses) {
-      const resolver = new HttpAuthEpochResolver(
-        'https://resolver.internal.example/warpkeep/auth-epoch',
-        'resolver-test-secret',
-        async () => response,
-      )
-      await expect(resolver.resolve(FID)).rejects.toThrow('Auth epoch resolver is unavailable.')
-    }
-
-    const fetcher = vi.fn(async () => new Response('{"authEpoch":0}', {
-      headers: { 'content-type': 'application/json' },
-    }))
-    const resolver = new HttpAuthEpochResolver(
-      'https://resolver.internal.example/warpkeep/auth-epoch',
-      'resolver-test-secret',
-      fetcher as typeof fetch,
-    )
-    await expect(resolver.resolve('001')).rejects.toThrow('invalid FID')
-    expect(fetcher).not.toHaveBeenCalled()
-  })
-
-  it('cancels an unresolved auth-epoch lookup at its deadline', async () => {
-    let signal: AbortSignal | undefined
-    const resolver = new HttpAuthEpochResolver(
-      'https://resolver.internal.example/warpkeep/auth-epoch',
-      'resolver-test-secret',
-      (_input, init) => {
-        signal = init?.signal ?? undefined
-        return new Promise<Response>(() => {})
-      },
-      5,
-    )
-
-    await expect(resolver.resolve(FID)).rejects.toThrow('Auth epoch resolver timed out.')
-    expect(signal?.aborted).toBe(true)
-  })
-
-  it('does not issue a player JWT when the server-side auth epoch resolver is absent', async () => {
+  it('does not issue a player JWT when the server-side auth epoch lookup fails', async () => {
     const h = harness({ resolver: { resolve: async () => { throw new Error('offline') } } })
     const challenge = await issueChallenge(h)
     const exchange = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(exchange.status).toBe(503)
     await expect(exchange.json()).resolves.toMatchObject({ error: { code: 'authorization_unavailable' } })
-  })
-
-  it('fails closed with the production default when no auth epoch resolver is configured', async () => {
-    const verifier = { verify: vi.fn(async () => ({ fid: FID })) }
-    const app = createAuthBridge({ challengeStore: new MemoryChallengeStore(), verifier })
-    const challengeResponse = await app.fetch(request('/v1/farcaster/challenge', {
-      domain: DOMAIN, siweUri: SIWE_URI,
-    }, { headers: { origin: ORIGIN } }), env())
-    const challenge = await json(challengeResponse)
-    const response = await app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
-    expect(response.status).toBe(503)
-    await expect(response.json()).resolves.toMatchObject({ error: { code: 'authorization_unavailable' } })
+    expect(h.events).toContain('auth_epoch_failed')
   })
 
   it('rejects arbitrary SIWF context, invalid proof signatures, and FID mismatches', async () => {
@@ -362,6 +293,16 @@ describe('Warpkeep auth bridge', () => {
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
   })
 
+  it('requires the non-secret direct Maincloud configuration in production', async () => {
+    const h = harness()
+    const missing = await h.app.fetch(request('/healthz'), env({ SPACETIMEDB_URI: undefined }))
+    expect(missing.status).toBe(503)
+    const insecure = await h.app.fetch(request('/healthz'), env({ SPACETIMEDB_URI: 'http://maincloud.spacetimedb.com' }))
+    expect(insecure.status).toBe(503)
+    const malformedDatabase = await h.app.fetch(request('/healthz'), env({ SPACETIMEDB_DATABASE: 'warpkeep/unsafe' }))
+    expect(malformedDatabase.status).toBe(503)
+  })
+
   it('never places proof material in the default logger output', async () => {
     const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
     const verifier = { verify: vi.fn(async () => ({ fid: FID })) }
@@ -384,5 +325,6 @@ describe('Warpkeep auth bridge', () => {
     expect(output).not.toContain(String(proof.signature))
     expect(output).not.toContain(String(proof.nonce))
     expect(output).not.toContain(String(proof.requestId))
+    expect(output).not.toContain(FID)
   })
 })

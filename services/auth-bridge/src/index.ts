@@ -4,7 +4,7 @@ import { createAuthBridge } from './app'
 export { ChallengeReplayGuard }
 export { createAuthBridge } from './app'
 export { DurableObjectChallengeStore, MemoryChallengeStore } from './challengeStore'
-export { HttpAuthEpochResolver } from './app'
+export { SpacetimeHttpAuthEpochResolver } from './spacetimeAuthEpochResolver'
 export type * from './types'
 
 export default createAuthBridge()

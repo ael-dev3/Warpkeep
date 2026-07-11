@@ -121,8 +121,20 @@ function connect(uri: string, database: string, token: string): Promise<DbConnec
   });
 }
 
-async function readStatus(connection: DbConnection) {
+async function readStatus(connection: DbConnection, machineReadable = false) {
   const status = await connection.procedures.adminGetAlphaStatus({});
+  if (machineReadable) {
+    // Keep the verifier contract deliberately narrow: it needs aggregate
+    // activation state, never audit records, targets, identities, or tokens.
+    console.log(JSON.stringify(printable({
+      worldTiles: status.worldTiles,
+      allowedFids: status.allowedFids,
+      enabledAllowedFids: status.enabledAllowedFids,
+      players: status.players,
+      castles: status.castles,
+    })));
+    return;
+  }
   console.log(JSON.stringify(printable(status)));
 }
 
@@ -130,6 +142,7 @@ async function main() {
   const positional = process.argv.slice(2).filter((argument) => !argument.startsWith('--'));
   const command = commandFrom(positional[0]);
   const dryRun = process.argv.includes('--dry-run');
+  const machineReadableInspection = command === 'inspect-alpha' && process.argv.includes('--json');
   const confirmed = process.argv.includes('--confirm') || process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes';
   const mutation = command !== 'inspect-alpha';
   const database = readDatabase(process.env.WARPKEEP_SPACETIMEDB_DATABASE);
@@ -144,7 +157,9 @@ async function main() {
       ? sanitizeNote(positional[2], 'auth epoch rotation')
       : undefined;
 
-  console.log(`Warpkeep Hermes target: ${database} at ${uri}`);
+  if (!machineReadableInspection) {
+    console.log(`Warpkeep Hermes target: ${database} at ${uri}`);
+  }
   if (dryRun) {
     console.log(JSON.stringify(printable({ command, fid, note, mutation, dryRun: true })));
     return;
@@ -168,7 +183,7 @@ async function main() {
     } else if (command === 'bump-auth-epoch' && fid !== undefined && note !== undefined) {
       await connection.reducers.adminBumpAuthEpoch({ fid, note });
     }
-    await readStatus(connection);
+    await readStatus(connection, machineReadableInspection);
   } finally {
     connection.disconnect();
   }

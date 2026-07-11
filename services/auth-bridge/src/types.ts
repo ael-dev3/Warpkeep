@@ -41,10 +41,10 @@ export interface WorkerEnv {
   SIGNING_KEY_JWK?: string
   /** Cloudflare managed secret for the server-only admin endpoint. */
   ADMIN_TOKEN_SECRET?: string
-  /** Internal, server-only endpoint that reads current allowed_fid.authEpoch. */
-  AUTH_EPOCH_RESOLVER_URL?: string
-  /** Managed secret presented only to the internal epoch resolver. */
-  AUTH_EPOCH_RESOLVER_TOKEN?: string
+  /** Non-secret Maincloud origin used only by the Worker auth-epoch lookup. */
+  SPACETIMEDB_URI?: string
+  /** Non-secret database name used only by the Worker auth-epoch lookup. */
+  SPACETIMEDB_DATABASE?: string
   ENVIRONMENT?: string
   CHALLENGE_REPLAY_GUARD?: DurableObjectNamespace
 }
@@ -63,6 +63,8 @@ export type SafeLogEvent =
   | 'exchange_rejected'
   | 'admin_token_issued'
   | 'admin_token_rejected'
+  | 'auth_epoch_resolved'
+  | 'auth_epoch_failed'
   | 'configuration_error'
   | 'internal_error'
 

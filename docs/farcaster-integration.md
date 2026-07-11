@@ -10,7 +10,7 @@ browser creates a normal Farcaster SIWF channel
   -> browser verifies the completed proof for UI consistency
   -> browser sends only the completed proof envelope to Warpkeep's bridge
   -> bridge independently verifies SIWF and consumes its one-time challenge
-  -> bridge resolves authoritative auth_epoch server-to-server
+  -> bridge resolves authoritative auth_epoch through a private documented SpacetimeDB procedure call
   -> bridge returns an ES256 OIDC player token
   -> browser connects to SpacetimeDB with that token
 ```
@@ -77,7 +77,7 @@ VITE_WARPKEEP_OIDC_ISSUER=https://auth.example.com
 VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 ```
 
-The Worker receives secrets and server-only configuration described in [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its `AUTH_EPOCH_RESOLVER_URL` must be a trusted private service that reads `admin_get_fid_auth_epoch` with Hermes authority; it must not be callable from the browser. `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` is an explicit default-false kill switch: until the resolver, public discovery/JWKS, and the corresponding SpacetimeDB issuer are deployed, it remains off and the frontend never creates a SIWF channel for shared admission.
+The Worker receives secrets and server-only configuration described in [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). For each verified proof it mints an ephemeral, approximately 60-second Hermes admin OIDC JWT and calls the fixed documented endpoint `POST /v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch` on Maincloud with JSON `[fid]`. The raw `u32` epoch result is private Worker state, never browser authority. `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` is an explicit default-false kill switch: until the direct procedure call, public discovery/JWKS, and the corresponding SpacetimeDB issuer are deployed and verified, it remains off and the frontend never creates a SIWF channel for shared admission.
 
 ## Tests and manual QA
 

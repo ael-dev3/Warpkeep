@@ -16,4 +16,4 @@
 
 ## Activation condition
 
-The release tag is created only after the canonical domain, bridge discovery/JWKS, auth-epoch resolver, non-destructive module publish, 61-cell seed, empty whitelist verification, and remote denial test all pass. Until then, the shared-alpha kill switch remains disabled and the public experience stays menu-safe.
+The canonical Pages domain and HTTPS are ready. The release tag is created only after bridge discovery/JWKS, the private direct Maincloud auth-epoch procedure call, non-destructive module publish, 61-cell seed, empty whitelist verification, and remote denial test all pass. Until then, the shared-alpha kill switch remains disabled and the public experience stays menu-safe.

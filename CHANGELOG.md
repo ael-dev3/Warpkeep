@@ -4,7 +4,7 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-- Activation remains fail-closed until `warpkeep.com`, `auth.warpkeep.com`, the auth-epoch resolver, and the non-destructively published Maincloud module pass their remote gates.
+- `https://warpkeep.com/` is live with GitHub Pages HTTPS enforced; activation remains fail-closed until `auth.warpkeep.com`, the private Worker-to-Maincloud auth-epoch procedure call, and the non-destructively published Maincloud module pass their remote gates.
 
 ## [0.2.0] — Alpha candidate
 

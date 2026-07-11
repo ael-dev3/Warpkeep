@@ -2,6 +2,7 @@ import type { WorkerEnv } from './types'
 
 export const PLAYER_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 export const ADMIN_TOKEN_TTL_SECONDS = 5 * 60
+export const INTERNAL_ADMIN_TOKEN_TTL_SECONDS = 60
 export const CHALLENGE_TTL_MILLISECONDS = 5 * 60 * 1000
 export const MAX_REQUEST_BYTES = 16 * 1024
 
@@ -16,8 +17,8 @@ export interface BridgeConfig {
   keyId: string
   privateJwk: PrivateEcJwk
   adminTokenSecret: string
-  authEpochResolverUrl?: string
-  authEpochResolverToken?: string
+  spacetimeDbUri: string
+  spacetimeDbDatabase: string
   environment: 'development' | 'production'
 }
 
@@ -116,6 +117,28 @@ function parseKeyId(value: string): string {
   return value
 }
 
+function parseSpacetimeDbUri(value: string, production: boolean): string {
+  const url = parseAbsoluteUrl(value)
+  if (
+    (production && url.protocol !== 'https:')
+    || url.username
+    || url.password
+    || (url.pathname !== '/' && url.pathname !== '')
+    || url.search
+    || url.hash
+  ) {
+    throw new ConfigurationError()
+  }
+  return url.origin
+}
+
+function parseSpacetimeDbDatabase(value: string): string {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+    throw new ConfigurationError()
+  }
+  return value
+}
+
 export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   const environment: 'development' | 'production' = env.ENVIRONMENT === 'development'
     ? 'development'
@@ -142,19 +165,12 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     throw new ConfigurationError()
   }
 
-  const authEpochResolverUrl = env.AUTH_EPOCH_RESOLVER_URL?.trim() || undefined
-  const authEpochResolverToken = env.AUTH_EPOCH_RESOLVER_TOKEN?.trim() || undefined
-  if (Boolean(authEpochResolverUrl) !== Boolean(authEpochResolverToken)) {
-    throw new ConfigurationError()
-  }
-  if (authEpochResolverUrl) {
-    const resolverUrl = parseAbsoluteUrl(authEpochResolverUrl)
-    if (production && resolverUrl.protocol !== 'https:') throw new ConfigurationError()
-  }
-
   const farcasterRpcUrl = required(env, 'FARCASTER_RPC_URL')
   const rpcUrl = parseAbsoluteUrl(farcasterRpcUrl)
   if (production && rpcUrl.protocol !== 'https:') throw new ConfigurationError()
+
+  const spacetimeDbUri = parseSpacetimeDbUri(required(env, 'SPACETIMEDB_URI'), production)
+  const spacetimeDbDatabase = parseSpacetimeDbDatabase(required(env, 'SPACETIMEDB_DATABASE'))
 
   return {
     issuer,
@@ -167,8 +183,8 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     keyId: parseKeyId(configuredKid),
     privateJwk,
     adminTokenSecret: required(env, 'ADMIN_TOKEN_SECRET'),
-    authEpochResolverUrl,
-    authEpochResolverToken,
+    spacetimeDbUri,
+    spacetimeDbDatabase,
     environment,
   }
 }

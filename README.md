@@ -38,11 +38,11 @@ The panel displays the active FID and provides **REQUEST ACCESS**, **CHECK AGAIN
 
 ## Alpha activation status
 
-The repository uses the fail-closed issuer `https://auth.warpkeep.invalid` until a real public OIDC bridge, resolver, and Maincloud module are verified. The GitHub Pages domain is verified and public DNS resolvers now see the correct apex and `www` records, but the GitHub Pages HTTPS certificate, Cloudflare Worker credentials, and public issuer are still pending. No bridge, module publish, allowlist row, player, or castle has been created by this branch.
+The canonical GitHub Pages custom domain is live and HTTPS is enforced at `https://warpkeep.com/`. The repository still uses the fail-closed issuer `https://auth.warpkeep.invalid` until the public OIDC bridge, its private direct Maincloud auth-epoch procedure call, and the Maincloud module are verified. The Worker, module publish, world seed, frontend shared-alpha activation, allowlist row, player, and castle remain pending; none is represented as live by this branch.
 
 The known Maincloud development database is `warpkeep-89e4u` at `https://maincloud.spacetimedb.com`. It must be inspected before every mutation and never cleared or seeded with a real FID during activation.
 
-Before activation, deploy a stable HTTPS bridge whose discovery and JWKS endpoints are public, configure a trusted auth-epoch resolver, replace the module placeholder with that exact issuer, publish non-destructively, seed only the world tiles, and verify the empty-whitelist denial path. The release policy is in [versioning](docs/releases/versioning.md); the operator sequence is in the [alpha activation runbook](docs/operations/alpha-activation.md).
+Before activation, deploy a stable HTTPS bridge whose discovery and JWKS endpoints are public. For each proof exchange, the Worker must mint a short-lived private Hermes OIDC JWT and call the documented SpacetimeDB HTTP procedure `POST /v1/database/:database/call/admin_get_fid_auth_epoch`; no separate public resolver service is used. Then replace the module placeholder with that exact issuer, publish non-destructively, seed only the world tiles, and verify the empty-whitelist denial path. The release policy is in [versioning](docs/releases/versioning.md); the operator sequence is in the [alpha activation runbook](docs/operations/alpha-activation.md).
 
 ## Local development
 
@@ -79,7 +79,7 @@ VITE_WARPKEEP_OIDC_ISSUER=https://auth.example.com
 VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 ```
 
-The kill switch is `false` by default. Never put signing keys, RPC URLs, admin secrets, resolver credentials, or admin JWTs in a `VITE_` variable.
+The kill switch is `false` by default. Never put signing keys, RPC URLs, admin secrets, private procedure JWTs, or Maincloud credentials in a `VITE_` variable.
 
 ## Module, bridge, and operations
 
@@ -95,7 +95,7 @@ npm run stdb:inspect-alpha
 
 Hermes requests a short-lived admin JWT only at runtime. Mutations require `--confirm`; do not run `allow-fid` for an owner, QA account, or real user during activation.
 
-The bridge has discovery, public-only JWKS, durable replay protection, strict CORS/body limits, and a server-only admin endpoint. Its resolver is never a browser endpoint; resolver failure produces a safe `503 authorization_unavailable` rather than a client-side fallback.
+The bridge has discovery, public-only JWKS, durable replay protection, strict CORS/body limits, and a server-only admin endpoint. Its internal auth-epoch lookup is a private Worker-to-SpacetimeDB HTTP procedure call, never a browser endpoint; lookup failure produces a safe `503 authorization_unavailable` rather than a client-side fallback.
 
 For architecture and activation boundaries, see:
 

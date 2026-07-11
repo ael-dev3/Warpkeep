@@ -1,5 +1,5 @@
 import type { AdminTokenClaims, PlayerTokenClaims } from './types'
-import type { BridgeConfig } from './config'
+import { ADMIN_TOKEN_TTL_SECONDS, INTERNAL_ADMIN_TOKEN_TTL_SECONDS, type BridgeConfig } from './config'
 
 const encoder = new TextEncoder()
 
@@ -76,16 +76,31 @@ export function playerClaims(
   }
 }
 
-export function adminClaims(config: BridgeConfig, nowSeconds: number): AdminTokenClaims {
+function hermesAdminClaims(
+  issuer: string,
+  audience: string,
+  nowSeconds: number,
+  ttlSeconds: number,
+): AdminTokenClaims {
   return {
-    iss: config.issuer,
+    iss: issuer,
     sub: 'service:hermes',
-    aud: [config.audience],
+    aud: [audience],
     token_type: 'spacetime-access',
     roles: ['warpkeep-admin'],
     iat: nowSeconds,
     nbf: nowSeconds,
-    exp: nowSeconds + 5 * 60,
+    exp: nowSeconds + ttlSeconds,
     jti: randomId(),
   }
+}
+
+/** Five-minute external Hermes token for the server-only admin endpoint. */
+export function adminClaims(config: BridgeConfig, nowSeconds: number): AdminTokenClaims {
+  return hermesAdminClaims(config.issuer, config.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS)
+}
+
+/** Fresh, non-persisted 60-second token for one private epoch lookup. */
+export function internalAdminClaims(issuer: string, audience: string, nowSeconds: number): AdminTokenClaims {
+  return hermesAdminClaims(issuer, audience, nowSeconds, INTERNAL_ADMIN_TOKEN_TTL_SECONDS)
 }
