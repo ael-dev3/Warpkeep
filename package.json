@@ -12,14 +12,18 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@farcaster/auth-client": "^0.7.1",
+    "qrcode": "^1.5.4",
     "react": "latest",
     "react-dom": "latest",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "viem": "^2.55.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "latest",
     "@testing-library/react": "latest",
     "@types/node": "^26.1.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@types/three": "^0.185.0",
