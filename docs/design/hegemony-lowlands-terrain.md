@@ -19,7 +19,7 @@ The extracted rules are:
 - calm neutral-daylight readability suitable for strategy pieces;
 - no literal raised-board edges, cast shadows, tile seams, or fixed soil patterns.
 
-The initial runtime applies authored procedural vertex colors only. No reference image is archived in this change because no user-provided source asset is committed here.
+The supplied seven-hex plains image was used as **art direction only** and is now archived at [`docs/reference/terrain/2026-07-11-hegemony-lowlands-tile-reference/`](../reference/terrain/2026-07-11-hegemony-lowlands-tile-reference/). The runtime does not load it, crop it, trace it, derive a texture from it, or depend on it.
 
 ## Coordinate and seed contract
 

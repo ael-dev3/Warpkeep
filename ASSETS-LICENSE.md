@@ -23,6 +23,7 @@ This includes, unless separately noted:
 - `public/images/menu/warpkeep-menu-poster-v2.webp`
 - `docs/reference/factions/**`
 - `docs/reference/castles/**`
+- `docs/reference/terrain/**`
 - `docs/reference/menu/**`
 - generated/reference images, audio, contact sheets, archive notes, and manifests committed to this repository
 
