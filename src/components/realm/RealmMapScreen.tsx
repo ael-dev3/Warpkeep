@@ -160,6 +160,7 @@ export function RealmMapScreen({ map: suppliedMap, onRequestReturn }: RealmMapSc
     let hoverLine: THREE.LineLoop | null = null;
     let selectionLine: THREE.LineLoop | null = null;
     let camera: THREE.OrthographicCamera | null = null;
+    let onContextLost: EventListener | undefined;
 
     try {
       const scene = new THREE.Scene();
@@ -176,6 +177,15 @@ export function RealmMapScreen({ map: suppliedMap, onRequestReturn }: RealmMapSc
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 0.92;
       renderer.shadowMap.enabled = false;
+
+      onContextLost = (event: Event) => {
+        event.preventDefault();
+        if (disposed) return;
+        disposed = true;
+        sceneHandleRef.current = null;
+        setRendererMode('fallback');
+      };
+      canvas.addEventListener('webglcontextlost', onContextLost);
 
       const geometryData = createTerrainGeometryData(map, HEX_SIZE);
       const geometry = new THREE.BufferGeometry();
@@ -314,6 +324,9 @@ export function RealmMapScreen({ map: suppliedMap, onRequestReturn }: RealmMapSc
         canvas.removeEventListener('pointerup', onPointerUp);
         canvas.removeEventListener('pointerleave', onPointerLeave);
         canvas.removeEventListener('wheel', onWheel);
+        if (onContextLost) {
+          canvas.removeEventListener('webglcontextlost', onContextLost);
+        }
         hoverLine?.geometry.dispose();
         selectionLine?.geometry.dispose();
         (hoverLine?.material as THREE.Material | undefined)?.dispose();
@@ -324,6 +337,9 @@ export function RealmMapScreen({ map: suppliedMap, onRequestReturn }: RealmMapSc
         renderer?.forceContextLoss();
       };
     } catch {
+      if (onContextLost) {
+        canvas.removeEventListener('webglcontextlost', onContextLost);
+      }
       sceneHandleRef.current = null;
       renderer?.dispose();
       renderer?.forceContextLoss();
