@@ -2,15 +2,18 @@ export type WarpkeepExperiencePhase =
   | 'title'
   | 'transitioning-to-menu'
   | 'menu'
+  | 'realm'
   | 'transitioning-to-title';
 
 export type WarpkeepExperienceAction =
   | { type: 'request-menu' }
   | { type: 'complete-menu' }
+  | { type: 'request-realm' }
+  | { type: 'return-menu' }
   | { type: 'request-title' }
   | { type: 'complete-title' };
 
-export type WarpkeepStableExperiencePhase = Extract<WarpkeepExperiencePhase, 'title' | 'menu'>;
+export type WarpkeepStableExperiencePhase = Extract<WarpkeepExperiencePhase, 'title' | 'menu' | 'realm'>;
 
 export type WarpTransitionDirection = 'to-menu' | 'to-title';
 
@@ -71,6 +74,17 @@ export function experienceTransitionReducer(
 
     case 'complete-menu':
       if (state.phase !== 'transitioning-to-menu') return state;
+      return { ...state, phase: 'menu' };
+
+    case 'request-realm':
+      if (state.phase !== 'menu') return state;
+      return {
+        phase: 'realm',
+        transitionSequence: state.transitionSequence + 1
+      };
+
+    case 'return-menu':
+      if (state.phase !== 'realm') return state;
       return { ...state, phase: 'menu' };
 
     case 'request-title':

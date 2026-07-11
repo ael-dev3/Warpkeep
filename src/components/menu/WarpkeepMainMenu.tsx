@@ -18,6 +18,8 @@ export type WarpkeepMainMenuProps = {
   visible?: boolean;
   interactive?: boolean;
   onRequestReturn: () => void;
+  /** When supplied, ENTER REALM opens the live realm foundation instead of its legacy notice. */
+  onRequestEnterRealm?: () => void;
   inputModality?: MenuInputModality;
   focusFirstCommand?: boolean;
   onVideoReady?: () => void;
@@ -84,6 +86,7 @@ export function WarpkeepMainMenu({
   visible = active,
   interactive: interactiveOverride,
   onRequestReturn,
+  onRequestEnterRealm,
   inputModality = 'unknown',
   focusFirstCommand,
   onVideoReady,
@@ -223,6 +226,15 @@ export function WarpkeepMainMenu({
     });
   }, []);
 
+  const handleCommandClick = useCallback((command: MenuCommand, anchorElement: HTMLButtonElement) => {
+    if (command.id === 'enter-realm' && onRequestEnterRealm) {
+      setActiveNotice(null);
+      onRequestEnterRealm();
+      return;
+    }
+    openNotice(command, anchorElement);
+  }, [onRequestEnterRealm, openNotice]);
+
   const handleNavigationKeyDown = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
     if (!interactive) {
       return;
@@ -330,7 +342,7 @@ export function WarpkeepMainMenu({
                 data-command={command.id}
                 data-prominent={commandIndex === 0 ? 'true' : undefined}
                 disabled={!interactive}
-                onClick={(event) => openNotice(command, event.currentTarget)}
+                onClick={(event) => handleCommandClick(command, event.currentTarget)}
                 ref={(button) => {
                   commandRefs.current[commandIndex] = button;
                 }}

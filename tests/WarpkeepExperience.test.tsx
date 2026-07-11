@@ -165,8 +165,10 @@ describe('WarpkeepExperience', () => {
       bubbles: true,
       cancelable: true
     });
-    document.body.dispatchEvent(spaceEvent);
-    fireEvent.keyDown(document.body, { key: 'Enter' });
+    act(() => {
+      document.body.dispatchEvent(spaceEvent);
+      fireEvent.keyDown(document.body, { key: 'Enter' });
+    });
     expect(spaceEvent.defaultPrevented).toBe(true);
     expect(experience.getAttribute('data-phase')).toBe('transitioning-to-menu');
     expect(experience.getAttribute('data-transition-sequence')).toBe('1');
