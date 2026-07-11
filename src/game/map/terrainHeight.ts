@@ -6,6 +6,11 @@ import {
 } from './hexCoordinates';
 import { terrainCellByCoord } from './generateTerrainMap';
 import { deriveChannelSeed, seededSignedFloat, seededUnitFloat } from './realmSeed';
+import {
+  HEGEMONY_TERRAIN_PLACEMENTS,
+  placementInfluenceAtWorld,
+  type TerrainStructurePlacement
+} from './terrainPlacements';
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
 
 const SQRT_3 = Math.sqrt(3);
@@ -93,7 +98,7 @@ export function pointyHexBoundaryDistance(local: HexWorldPosition, hexSize: numb
 export function cellInteriorEdgeFalloff(
   local: HexWorldPosition,
   hexSize: number,
-  boundarySafeRatio = hegemonyLowlandsSurfaceSpec.boundarySafeRatio
+  boundarySafeRatio: number = hegemonyLowlandsSurfaceSpec.boundarySafeRatio
 ): number {
   const boundaryDistance = pointyHexBoundaryDistance(local, hexSize);
   const margin = clamp(finite(boundarySafeRatio, 0.16), 0.01, 0.49);
@@ -125,21 +130,36 @@ export function terrainHeightForCell(
   worldSeed: number,
   cell: TerrainCell,
   world: HexWorldPosition,
-  hexSize: number
+  hexSize: number,
+  placements: readonly TerrainStructurePlacement[] = HEGEMONY_TERRAIN_PLACEMENTS
 ): number {
   const center = axialToWorld(cell.coord, hexSize);
   const local = { x: finite(world.x) - center.x, z: finite(world.z) - center.z };
-  return globalLowlandHeight(worldSeed, world) + cellInteriorDetail(cell, local, hexSize);
+  const naturalHeight = globalLowlandHeight(worldSeed, world) + cellInteriorDetail(cell, local, hexSize);
+  let height = naturalHeight;
+
+  placements.forEach((placement) => {
+    if (placement.coord.q !== cell.coord.q || placement.coord.r !== cell.coord.r) return;
+    const influence = placementInfluenceAtWorld(placement, world, hexSize);
+    if (influence <= 0) return;
+    const placementCenter = axialToWorld(placement.coord, hexSize);
+    const targetLocal = { x: 0, z: 0 };
+    const targetHeight = globalLowlandHeight(worldSeed, placementCenter)
+      + cellInteriorDetail(cell, targetLocal, hexSize);
+    height += (targetHeight - height) * influence;
+  });
+  return height;
 }
 
 export function terrainHeightAtWorld(
   map: RealmTerrainMap,
   world: HexWorldPosition,
-  hexSize = hegemonyLowlandsSurfaceSpec.hexSize
+  hexSize: number = hegemonyLowlandsSurfaceSpec.hexSize,
+  placements: readonly TerrainStructurePlacement[] = HEGEMONY_TERRAIN_PLACEMENTS
 ): number {
   const nearest = worldToNearestAxial(world, hexSize);
   const cell = terrainCellByCoord(map, nearest);
   return cell
-    ? terrainHeightForCell(map.worldSeed, cell, world, hexSize)
+    ? terrainHeightForCell(map.worldSeed, cell, world, hexSize, placements)
     : globalLowlandHeight(map.worldSeed, world);
 }

@@ -152,7 +152,11 @@ describe('Warpkeep realm entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(experience.getAttribute('data-phase')).toBe('realm');
     expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('heading', { level: 1, name: 'Hegemony Lowlands' })).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: '@warpkeeper Keep' })).not.toBeNull();
+    expect(screen.getByText('Hegemony Frontier Keep')).not.toBeNull();
+    expect(screen.getByText(/Session-bound prototype/i)).not.toBeNull();
+    expect(container.innerHTML).not.toContain('PRIVATE_TEST_CHANNEL_TOKEN_123456');
+    expect(container.innerHTML).not.toContain('PRIVATE_TEST_MESSAGE');
 
     fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
     await act(async () => {});
@@ -169,7 +173,7 @@ describe('Warpkeep realm entry', () => {
 
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(window.location.hash).toBe('#menu');
-    expect(screen.queryByRole('heading', { level: 1, name: 'Hegemony Lowlands' })).toBeNull();
+    expect(screen.queryByRole('heading', { level: 1, name: '@warpkeeper Keep' })).toBeNull();
     await settleAuth();
 
     expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
@@ -186,7 +190,8 @@ describe('Warpkeep realm entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('heading', { level: 1, name: 'Hegemony Lowlands' })).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: '@warpkeeper Keep' })).not.toBeNull();
+    expect(screen.getByText('FID 12345')).not.toBeNull();
   });
 
   it('gates an anonymous Back or Forward visit to #realm and lets cancellation stay cancelled', async () => {
@@ -201,7 +206,7 @@ describe('Warpkeep realm entry', () => {
 
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(window.location.hash).toBe('#menu');
-    expect(screen.queryByRole('heading', { level: 1, name: 'Hegemony Lowlands' })).toBeNull();
+    expect(screen.queryByRole('heading', { level: 1, name: '@warpkeeper Keep' })).toBeNull();
     expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
 
@@ -300,7 +305,37 @@ describe('Warpkeep realm entry', () => {
 
     expect(experience.getAttribute('data-phase')).toBe('realm');
     expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('heading', { level: 1, name: 'Hegemony Lowlands' })).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: '@warpkeeper Keep' })).not.toBeNull();
+  });
+
+  it('does not permit later realm entry after the in-memory identity signs out', async () => {
+    const { container, authority } = renderExperience();
+    const experience = container.querySelector('.warpkeep-experience')!;
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settleAuth();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settleAuth();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(experience.getAttribute('data-phase')).toBe('realm');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+    await act(async () => {});
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Farcaster identity, FID 12345'
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
+
+    expect(screen.queryByRole('button', {
+      name: 'Open Farcaster identity, FID 12345'
+    })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settleAuth();
+
+    expect(experience.getAttribute('data-phase')).toBe('menu');
+    expect(screen.queryByRole('heading', { level: 1, name: '@warpkeeper Keep' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(2);
   });
 
   it('leaves the other menu commands as their existing development notices', () => {

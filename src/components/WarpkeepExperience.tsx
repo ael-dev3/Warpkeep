@@ -241,7 +241,14 @@ export function WarpkeepExperience() {
       experience.phase === 'transitioning-to-title'
       && presentedScreen === 'menu'
     );
-  const realmMounted = experience.phase === 'realm';
+  const realmIdentity = farcasterAuthState.phase === 'authenticated'
+    ? {
+        fid: farcasterAuthState.identity.fid,
+        username: farcasterAuthState.identity.username,
+        displayName: farcasterAuthState.identity.displayName
+      }
+    : null;
+  const realmMounted = experience.phase === 'realm' && realmIdentity !== null;
   const titleInteractive = experience.phase === 'title';
   const menuInteractive = experience.phase === 'menu' && !returnPreparing;
   const menuMediaActive = menuMounted;
@@ -801,7 +808,10 @@ export function WarpkeepExperience() {
           aria-hidden={experience.phase !== 'realm'}
           inert={experience.phase !== 'realm' ? true : undefined}
         >
-          <RealmMapScreen onRequestReturn={returnRealmToMenu} />
+          <RealmMapScreen
+            identity={realmIdentity}
+            onRequestReturn={returnRealmToMenu}
+          />
         </div>
       ) : null}
 

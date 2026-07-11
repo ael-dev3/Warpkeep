@@ -20,17 +20,32 @@ Ael-supplied GLB source archive for Warpkeep Hegemony castle art direction and t
 - No animations or cameras
 - Position bounds: `[-0.950408, -0.679886, -0.665247]` to `[0.948223, 0.674411, 0.663394]`
 
-## Runtime derivative
+## Runtime derivatives
 
-The original archive is intentionally **not** loaded by the runtime. A separate, optimized derivative is served only after an authenticated player enters the Realm:
+The original archive is intentionally **not** loaded by the runtime. Two optimized derivatives are available, and the selected Realm quality profile fetches exactly one only after an authenticated player enters the Realm:
 
-- **Runtime file:** [`public/models/hegemony-frontier-keep.runtime.glb`](../../../../public/models/hegemony-frontier-keep.runtime.glb)
-- **Bytes / SHA-256:** 1,139,756 bytes / `b350421e8fd64b59f1c10ae1191454b99799d1c978dac45f9e24d67907691163`
-- **Model budget:** 75,278 triangles, 65,554 uploaded vertices, 1024×1024 WebP textures
-- **Required glTF extensions:** `EXT_meshopt_compression`, `EXT_texture_webp`, `KHR_mesh_quantization`
-- **Transform:** `gltf-transform optimize` with Meshopt high compression, a 0.08 simplify ratio / 0.012 simplify error, WebP conversion, 1024 texture cap, flatten/join/weld/prune.
+| Profile | Runtime file | Bytes | Triangles | Uploaded vertices | Textures | SHA-256 |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| High | [`hegemony-frontier-keep-high.glb`](../../../../public/models/hegemony/hegemony-frontier-keep-high.glb) | 2,256,092 | 56,466 | 55,704 | four 2048×2048 WebP maps | `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c` |
+| Compact | [`hegemony-frontier-keep-compact.glb`](../../../../public/models/hegemony/hegemony-frontier-keep-compact.glb) | 760,916 | 17,536 | 24,766 | four 1024×1024 WebP maps | `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b` |
 
-`RealmMapScreen` dynamically imports `GLTFLoader` and the Meshopt decoder, then grounds the model to terrain with a local six-sided foundation. The title, menu, and authentication flow never fetch this model.
+Both models contain one mesh, one primitive, one material, and base-color, metallic-roughness, normal, and restrained emissive maps. They require `EXT_meshopt_compression`, `EXT_texture_webp`, and `KHR_mesh_quantization`. High quality uses the 2K/56K-triangle derivative; compact and reduced quality use the 1K/17K-triangle derivative.
+
+`loadHegemonyKeep` dynamically imports `GLTFLoader` and the Meshopt decoder, chooses the quality-appropriate URL beneath Vite's active `BASE_URL`, generates no duplicate fetch, and normalizes the model to a 1.48-unit footprint. The keep's closed gate faces `+Z` at yaw `0`, toward the default strategy camera. Its lowest foundation point is grounded to the placement surface and its horizontal bounds are centered before placement. The title, menu, and authentication flow never fetch either model.
+
+## Reproducible preparation
+
+Run the checked-in development script from the repository root:
+
+```sh
+npm run prepare:hegemony-keep
+```
+
+The script pins `@gltf-transform/cli` 4.4.1, verifies the untouched source hash and byte length, builds both outputs in a temporary directory, generates MikkTSpace tangents, applies high-level Meshopt compression and 14/10/12-bit position/normal/UV quantization, validates the outputs, and checks their exact bytes, hashes, triangle counts, uploaded vertex counts, image counts, and required extensions before copying them into `public/models/hegemony/`.
+
+High uses a `0.06` simplification ratio, `0.008` simplification error, and 2048-pixel texture cap. Compact uses `0.018`, `0.018`, and 1024 pixels. Both use WebP textures plus flatten, join, weld, and prune transforms. The exact arguments and expected hashes are recorded in [`scripts/prepare-hegemony-frontier-keep.mjs`](../../../../scripts/prepare-hegemony-frontier-keep.mjs) and [`manifest.json`](manifest.json).
+
+The source normal map does not include authored tangents. Generating MikkTSpace tangents removes the glTF validator's generated-tangent-space warning and gives the close camera a stable normal-map basis.
 
 ## Archive boundary
 
