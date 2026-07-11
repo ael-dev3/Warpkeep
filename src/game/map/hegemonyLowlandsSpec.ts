@@ -6,19 +6,19 @@
 export const hegemonyLowlandsSpec = {
   biome: 'temperate-lowland',
   palette: {
-    grassBase: { r: 0.292, g: 0.365, b: 0.176 },
-    grassCool: { r: 0.192, g: 0.268, b: 0.146 },
-    soil: { r: 0.46, g: 0.359, b: 0.188 },
-    dryGrass: { r: 0.575, g: 0.47, b: 0.225 },
-    stone: { r: 0.39, g: 0.39, b: 0.34 }
+    grassBase: { r: 0.385, g: 0.47, b: 0.245 },
+    grassCool: { r: 0.245, g: 0.345, b: 0.19 },
+    soil: { r: 0.49, g: 0.372, b: 0.192 },
+    dryGrass: { r: 0.625, g: 0.508, b: 0.255 },
+    stone: { r: 0.43, g: 0.425, b: 0.365 }
   },
   surface: {
     hexSize: 1,
     soilCoverageTarget: 0.17,
     boundarySafeRatio: 0.16,
     centerClearRatio: 0.34,
-    globalReliefAmplitude: 0.052,
-    localReliefAmplitude: 0.022,
+    globalReliefAmplitude: 0.18,
+    localReliefAmplitude: 0.07,
     globalWavelength: 5.6,
     secondaryWavelength: 2.9
   }

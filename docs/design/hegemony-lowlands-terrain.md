@@ -1,25 +1,10 @@
-# Hegemony Lowlands Terrain Foundation
+# Hegemony Lowlands Terrain and Frontier Keep
 
 ## Purpose and scope
 
-`ENTER REALM` now opens an early deterministic Hegemony Lowlands terrain prototype: a radius-two, pointy-top axial hex disc with 19 logical gameplay cells. It is a terrain and interaction foundation, not a playable campaign.
+`ENTER REALM` opens a deterministic Hegemony Lowlands presentation slice: a radius-five pointy-top axial disc with **91 logical gameplay cells**. It is still not a persistent campaign, but it is intentionally large enough to read as a place rather than a single tactical board.
 
-This slice intentionally does **not** contain keeps, resources, roads, farms, units, combat, ownership, fog of war, persistence, pathfinding, server state, or alternate biomes.
-
-## Reference role
-
-The supplied seven-hex plains image was used as **art direction only**. The runtime does not load it, crop it, trace it, derive a texture from it, or depend on it.
-
-The extracted rules are:
-
-- muted olive and moss-green dominant grass;
-- restrained warm ochre/umber soil rather than bright dirt paths;
-- sparse neutral gray-brown stone scale for a later decoration layer;
-- sparse, desaturated dried-gold accents for a later decoration layer;
-- calm neutral-daylight readability suitable for strategy pieces;
-- no literal raised-board edges, cast shadows, tile seams, or fixed soil patterns.
-
-The supplied seven-hex plains image was used as **art direction only** and is now archived at [`docs/reference/terrain/2026-07-11-hegemony-lowlands-tile-reference/`](../reference/terrain/2026-07-11-hegemony-lowlands-tile-reference/). The runtime does not load it, crop it, trace it, derive a texture from it, or depend on it.
+The slice includes a contiguous sunlit terrain surface, selection/navigation, a local visual placement interaction for the Hegemony Frontier Keep, and an accessible SVG fallback. It does not yet persist keeps, resources, roads, farms, units, combat, ownership, fog of war, pathfinding, server state, or alternate biomes.
 
 ## Coordinate and seed contract
 
@@ -31,53 +16,63 @@ z = size × 1.5 × r
 s = -q - r
 ```
 
-Cells use stable `q,r` keys. A radius-two disc enumerates 19 unique cells; the same helpers support radius four (61 cells) without changing the data contract.
+Cells use stable `q,r` keys. A radius-five disc enumerates 91 unique cells. `HEGEMONY_GENESIS_001` is the canonical first seed and is hashed to an unsigned 32-bit value using a documented FNV-1a variant. Independent `(world seed, q, r, channel, index)` hashes create cell fields; generation has no mutable RNG state and never uses `Math.random()`.
 
-`HEGEMONY_GENESIS_001` is the canonical first seed. It is hashed to an unsigned 32-bit value using a documented FNV-1a variant. Independent `(world seed, q, r, channel, index)` hashes create all cell fields. Generation has no mutable RNG state and never uses `Math.random()`.
+The map generator remains renderer-independent and still defaults to radius two for small unit fixtures. The public Realm view explicitly requests radius five.
 
-## Seam strategy
+## Surface and seam strategy
 
 Terrain height combines:
 
 1. a broad continuous world-space value-noise field; and
-2. small cell-local micro-relief multiplied by a pointy-hex interior mask.
+2. cell-local micro-relief multiplied by a pointy-hex interior mask.
 
-The interior mask is exactly zero on a cell border. Thus two neighbors can use different cell seeds without creating a height discontinuity on their shared edge or corners.
+The interior mask is exactly zero on a cell border. Therefore differently seeded neighboring cells cannot create a height discontinuity on shared edges or corners.
 
-The renderer consumes a single combined indexed `BufferGeometry` data set. Shared world-space corners are deduplicated, border heights are global-only, and normals are computed after all cells are assembled. The first mesh uses six fan triangles per cell as a conservative foundation; later subdivision can increase surface detail without changing the coordinate or seed APIs.
+The Realm renderer converts each of the six radial hex wedges into an eight-subdivision triangular lattice. All generated positions are keyed in world space and emitted into one indexed `BufferGeometry`; shared borders and wedge seams reuse the same vertex. The live radius-five surface contains **34,944 non-degenerate triangles** (`91 × 6 × 8²`) in one terrain draw call, so the existing deterministic height/color functions are visible rather than reduced to six broad facets per cell.
 
-## Material and visual rules
+## Lighting and terrain direction
 
-The first surface uses live Three.js lighting with a high-roughness `MeshStandardMaterial`, continuous procedural vertex colors, a neutral-blue hemisphere fill, and warm-neutral directional daylight. It has no texture lookup, permanent cell border, raised tile thickness, or baked shadow.
+The terrain is intentionally brighter and more legible than the original technical slice while remaining grounded:
 
-The typed visual contract lives in `src/game/map/hegemonyLowlandsSpec.ts`:
+- cool daylight hemisphere fill with a soft cool directional fill;
+- warm sun with a bounded PCF shadow map;
+- terrain receives the keep’s shadows rather than using baked imagery;
+- muted moss, dry grass, ochre soil, and stone colors are sampled procedurally in world space;
+- a wider blue-green atmosphere and orthographic camera fit the generated terrain bounds instead of a fixed 19-cell viewbox.
 
-- target soil coverage: 0.17;
-- boundary-safe ratio: 0.16;
-- intended center-clear ratio for future decoration placement: 0.34;
-- global relief amplitude: 0.052;
-- local relief amplitude: 0.022.
+There is no reference-image texture, fixed tile pattern, raised board, or permanent cell border in the WebGL terrain. Hover and selected outlines are separate transient lines.
 
-## Interaction and rendering budget
+## Frontier Keep landmark
 
-The realm screen provides:
+The Hegemony Frontier Keep starts at `q:0, r:0`. Selecting another cell and choosing **Place Frontier Keep** moves the visible landmark locally for this browser session; it is deliberately not stored as ownership or a game write.
 
-- an orthographic strategy camera;
-- bounded wheel zoom and pointer drag pan;
-- separate hover gold and selection violet outline overlays;
-- accessible cell buttons and selected-cell status;
-- Escape and Return to Menu behavior;
-- a static SVG/CSS fallback generated from the same 19-cell map when WebGL2 is unavailable.
+The original Ael-supplied Meshy GLB remains archived byte-for-byte in [`docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/`](../reference/castles/2026-07-11-meshy-hegemony-frontier-keep/). It is 63,263,296 bytes and roughly 941k triangles, so it is not served by the Realm.
 
-Current terrain-specific scene budget:
+Instead, the Realm lazy-loads [`public/models/hegemony-frontier-keep.runtime.glb`](../../public/models/hegemony-frontier-keep.runtime.glb) only after the authenticated Realm mounts. The derived runtime model is 1,139,756 bytes, uses Meshopt-compressed geometry plus WebP textures, and has 75,278 triangles. `GLTFLoader` and the Meshopt decoder are dynamically imported with the Realm, keeping title, menu, and QR authentication flows free of the model download. The loader normalizes the model to a small hex foundation, grounds it with `terrainHeightAtWorld`, enables cast/receive shadows, and disposes model resources when the Realm unmounts.
 
-- terrain surface: one mesh / one draw call;
-- hover outline: one line object only when active;
-- selection outline: one line object only when active;
-- decorations: none in this core slice.
+## Interaction and fallback
 
-The current mesh contains 114 triangles (`19 × 6`). Fine grass, dry tufts, stone instancing, richer subdivision, quality profiles, and camera polish belong to follow-up visual terrain work.
+The Realm provides:
+
+- an orthographic strategy camera fitted to generated terrain bounds;
+- pointer drag pan bounded around the landscape and wheel zoom;
+- keyboard cell selection with arrow keys;
+- separate gold hover and violet selected-cell outlines;
+- a compact, scrollable 91-cell navigator with an explicit keep indicator;
+- Escape and Return to Menu behavior; and
+- a colored SVG/CSS fallback generated from the same map, including a keep marker when WebGL2 is unavailable.
+
+## Rendering budget
+
+Current realm-specific budget:
+
+- terrain: one indexed mesh / one draw call / 34,944 triangles at high quality;
+- hover and selection: one line object each when active;
+- one dynamic 3D keep plus a six-sided stone foundation, loaded only in Realm;
+- one shadow-casting sun and one terrain receiver;
+- no terrain texture atlas, vegetation instancing, units, or persistent structure layer yet.
 
 ## Future overlays
 
-The base map API remains renderer-independent so future layers can add roads, farms, resource markers, keeps, units, ownership, corruption, fog, rivers, forests, and server persistence without baking identity into the neutral lowlands surface.
+The base terrain API remains renderer-independent. Future layers can add roads, farms, resource markers, additional keeps, units, ownership, corruption, fog, rivers, forests, and server persistence without baking identity into the neutral lowlands surface.

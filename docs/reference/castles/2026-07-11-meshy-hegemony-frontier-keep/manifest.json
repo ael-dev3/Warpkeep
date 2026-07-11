@@ -1,7 +1,32 @@
 {
-  "archive_purpose": "Ael-supplied 3D castle reference for future Hegemony art direction",
+  "archive_purpose": "Ael-supplied source archive and provenance record for the Hegemony Frontier Keep runtime landmark",
   "reference_only": true,
-  "runtime_dependency": false,
+  "runtime_dependency": {
+    "path": "public/models/hegemony-frontier-keep.runtime.glb",
+    "lazy_loaded_after": "authenticated Realm mount only",
+    "derived_from": "Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb",
+    "bytes": 1139756,
+    "sha256": "b350421e8fd64b59f1c10ae1191454b99799d1c978dac45f9e24d67907691163",
+    "generator": "gltf-transform v4.4.1",
+    "transform": {
+      "command": "gltf-transform optimize",
+      "mesh_compression": "meshopt high",
+      "simplify_ratio": 0.08,
+      "simplify_error": 0.012,
+      "texture_compression": "webp",
+      "texture_size_cap": 1024,
+      "flatten": true,
+      "join": true,
+      "weld": true,
+      "prune": true
+    },
+    "gltf": {
+      "extensions_required": ["EXT_meshopt_compression", "EXT_texture_webp", "KHR_mesh_quantization"],
+      "triangles": 75278,
+      "upload_vertices": 65554,
+      "texture_resolution": [1024, 1024]
+    }
+  },
   "source": {
     "platform": "Discord",
     "guild_id": "1483857530282053754",
@@ -13,7 +38,7 @@
   },
   "license_policy": {
     "policy": "CC0-1.0 under Warpkeep's project-owned reference media policy",
-    "note": "Ael supplied this project reference; it is archived for Warpkeep art direction and is not a runtime asset."
+    "note": "Ael supplied this project asset. The original remains archived for provenance; the named optimized derivative is used as the Realm landmark."
   },
   "file": {
     "filename": "Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb",

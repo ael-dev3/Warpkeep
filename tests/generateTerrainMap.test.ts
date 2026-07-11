@@ -28,6 +28,15 @@ describe('Hegemony Lowlands terrain-map generation', () => {
     );
   });
 
+  it('supports the expanded radius-five runtime realm without changing the serialized contract', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 5);
+    const keys = map.cells.map((cell) => hexKey(cell.coord));
+
+    expect(map).toMatchObject({ version: 1, radius: 5 });
+    expect(map.cells).toHaveLength(91);
+    expect(new Set(keys).size).toBe(91);
+  });
+
   it('keeps every serializable terrain attribute finite and bounded', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 2);
 

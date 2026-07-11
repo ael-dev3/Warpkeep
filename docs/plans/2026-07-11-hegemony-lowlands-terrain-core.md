@@ -1,4 +1,6 @@
-# Hegemony Lowlands Terrain Core Implementation Plan
+# Hegemony Lowlands Terrain Core Implementation Plan (Historical)
+
+> This record describes the first 19-cell terrain-core milestone. It was superseded by the radius-five Terrain and Frontier Keep pass documented in [`../design/hegemony-lowlands-terrain.md`](../design/hegemony-lowlands-terrain.md).
 
 > **For Hermes:** Execute task-by-task with the subagent-driven-development and test-driven-development workflows.
 

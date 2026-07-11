@@ -1,6 +1,6 @@
-# Hegemony Frontier Keep — 3D Castle Reference
+# Hegemony Frontier Keep — Source Archive and Runtime Derivative
 
-Ael-supplied GLB reference asset for future Warpkeep Hegemony castle art direction.
+Ael-supplied GLB source archive for Warpkeep Hegemony castle art direction and the derived public Realm landmark.
 
 ## Provenance
 
@@ -20,9 +20,19 @@ Ael-supplied GLB reference asset for future Warpkeep Hegemony castle art directi
 - No animations or cameras
 - Position bounds: `[-0.950408, -0.679886, -0.665247]` to `[0.948223, 0.674411, 0.663394]`
 
-## Usage boundary
+## Runtime derivative
 
-This file is archived as a **reference asset only**. It is not loaded by the Warpkeep runtime, used as a terrain texture, or treated as a gameplay model. Future castle work may extract broad silhouette/material/art-direction cues without making this archive a runtime dependency.
+The original archive is intentionally **not** loaded by the runtime. A separate, optimized derivative is served only after an authenticated player enters the Realm:
+
+- **Runtime file:** [`public/models/hegemony-frontier-keep.runtime.glb`](../../../../public/models/hegemony-frontier-keep.runtime.glb)
+- **Bytes / SHA-256:** 1,139,756 bytes / `b350421e8fd64b59f1c10ae1191454b99799d1c978dac45f9e24d67907691163`
+- **Model budget:** 75,278 triangles, 65,554 uploaded vertices, 1024×1024 WebP textures
+- **Required glTF extensions:** `EXT_meshopt_compression`, `EXT_texture_webp`, `KHR_mesh_quantization`
+- **Transform:** `gltf-transform optimize` with Meshopt high compression, a 0.08 simplify ratio / 0.012 simplify error, WebP conversion, 1024 texture cap, flatten/join/weld/prune.
+
+`RealmMapScreen` dynamically imports `GLTFLoader` and the Meshopt decoder, then grounds the model to terrain with a local six-sided foundation. The title, menu, and authentication flow never fetch this model.
+
+## Archive boundary
 
 The unchanged original GLB is preserved byte-for-byte. No preview render, conversion, recompression, or metadata stripping was applied.
 

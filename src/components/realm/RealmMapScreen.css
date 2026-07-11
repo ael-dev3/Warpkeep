@@ -3,8 +3,8 @@
   inset: 0;
   overflow: hidden;
   isolation: isolate;
-  color: #f2ead8;
-  background: #818b67;
+  color: #f7f0dc;
+  background: #9eb9b7;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -26,25 +26,29 @@
   display: grid;
   place-items: center;
   background:
-    radial-gradient(circle at 50% 35%, rgb(176 181 131 / 48%), transparent 40%),
-    linear-gradient(145deg, #79815a, #596640 72%, #6d7047);
+    radial-gradient(circle at 50% 27%, rgb(232 235 194 / 45%), transparent 36%),
+    linear-gradient(155deg, #a0bab8, #788f63 62%, #596642);
 }
 
 .realm-map-screen__fallback-map {
-  width: min(86vw, 86vh);
-  height: min(86vw, 86vh);
-  filter: saturate(0.8) contrast(0.96);
+  width: min(92vw, 92vh);
+  height: min(92vw, 92vh);
+  filter: saturate(1.04) contrast(1.02) drop-shadow(0 1.25rem 1.8rem rgb(30 43 24 / 26%));
+}
+
+.realm-map-screen__fallback-keep {
+  filter: drop-shadow(0 0.13rem 0.1rem rgb(29 23 33 / 45%));
 }
 
 .realm-map-screen__fallback-copy {
   position: absolute;
   inset-inline: 50% auto;
-  bottom: 1.25rem;
-  width: min(32rem, calc(100vw - 2rem));
+  bottom: 1.1rem;
+  width: min(38rem, calc(100vw - 2rem));
   margin: 0;
   transform: translateX(-50%);
-  color: #e9e3c8;
-  font-size: 0.77rem;
+  color: #f2eedb;
+  font-size: 0.76rem;
   line-height: 1.4;
   text-align: center;
   text-shadow: 0 1px 8px #293018;
@@ -53,151 +57,206 @@
 .realm-map-screen__hud {
   position: absolute;
   z-index: 2;
-  top: clamp(1rem, 3vw, 2.5rem);
-  left: clamp(1rem, 3vw, 2.5rem);
+  top: clamp(0.8rem, 2.6vw, 2.25rem);
+  left: clamp(0.8rem, 2.6vw, 2.25rem);
   display: grid;
-  gap: 0.85rem;
-  width: min(27rem, calc(100vw - 2rem));
+  gap: 0.72rem;
+  width: min(29rem, calc(100vw - 2rem));
   padding: 1rem 1.1rem;
-  border: 1px solid rgb(231 220 177 / 30%);
-  border-radius: 0.35rem;
-  background: linear-gradient(135deg, rgb(24 27 22 / 84%), rgb(38 35 31 / 72%));
-  box-shadow: 0 0.7rem 2.5rem rgb(22 26 15 / 30%);
-  backdrop-filter: blur(9px);
+  border: 1px solid rgb(246 226 169 / 36%);
+  border-radius: 0.34rem;
+  background:
+    linear-gradient(135deg, rgb(19 30 25 / 88%), rgb(35 36 28 / 76%)),
+    rgb(24 31 24 / 76%);
+  box-shadow: 0 0.9rem 2.75rem rgb(20 28 19 / 33%);
+  backdrop-filter: blur(10px);
 }
 
 .realm-map-screen__heading > span,
-.realm-map-screen__selected > span {
-  color: #c7ad73;
-  font-size: 0.63rem;
-  font-weight: 750;
-  letter-spacing: 0.13em;
+.realm-map-screen__selected > span,
+.realm-map-screen__keep-status > span {
+  color: #dfbf76;
+  font-size: 0.62rem;
+  font-weight: 760;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .realm-map-screen__heading h1 {
   margin: 0.18rem 0 0;
-  color: #f6efd8;
+  color: #fbf2d9;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(1.55rem, 3vw, 2.25rem);
+  font-size: clamp(1.48rem, 2.75vw, 2.2rem);
   font-weight: 500;
-  letter-spacing: 0.025em;
+  letter-spacing: 0.024em;
 }
 
 .realm-map-screen__heading p,
 .realm-map-screen__actions > span {
   margin: 0.25rem 0 0;
-  color: #d7d5bd;
-  font-size: 0.75rem;
-  line-height: 1.4;
+  color: #d4ddca;
+  font-size: 0.73rem;
+  line-height: 1.42;
 }
 
-.realm-map-screen__selected {
+.realm-map-screen__selected,
+.realm-map-screen__keep-status {
   display: grid;
-  gap: 0.26rem;
-  padding-top: 0.78rem;
-  border-top: 1px solid rgb(231 220 177 / 20%);
+  gap: 0.25rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgb(235 223 182 / 21%);
 }
 
-.realm-map-screen__selected strong {
-  color: #f1e9cf;
-  font-size: 0.92rem;
+.realm-map-screen__selected strong,
+.realm-map-screen__keep-status strong {
+  color: #f4ead0;
+  font-size: 0.9rem;
   font-weight: 650;
 }
 
-.realm-map-screen__selected small {
-  color: #bebda7;
-  font-size: 0.72rem;
-  line-height: 1.45;
+.realm-map-screen__selected small,
+.realm-map-screen__keep-status small {
+  color: #c8cfba;
+  font-size: 0.7rem;
+  line-height: 1.42;
 }
 
 .realm-map-screen__actions {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.65rem;
-  align-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.realm-map-screen__actions > span {
+  grid-column: 1 / -1;
+  margin-top: 0.08rem;
 }
 
 .realm-map-screen__return,
+.realm-map-screen__place-keep,
 .realm-map-screen__cell-button {
-  border: 1px solid rgb(226 199 130 / 53%);
-  background: rgb(64 51 39 / 74%);
-  color: #f5ecd3;
+  border: 1px solid rgb(230 201 127 / 52%);
+  background: rgb(66 56 39 / 78%);
+  color: #fbf1d8;
   font: inherit;
   cursor: pointer;
 }
 
-.realm-map-screen__return {
-  min-height: 2.75rem;
-  padding: 0.55rem 0.8rem;
-  border-radius: 0.18rem;
-  font-size: 0.74rem;
-  font-weight: 750;
-  letter-spacing: 0.08em;
+.realm-map-screen__return,
+.realm-map-screen__place-keep {
+  min-height: 2.58rem;
+  padding: 0.52rem 0.64rem;
+  border-radius: 0.16rem;
+  font-size: 0.68rem;
+  font-weight: 760;
+  letter-spacing: 0.075em;
   text-transform: uppercase;
 }
 
+.realm-map-screen__place-keep {
+  border-color: rgb(191 157 223 / 68%);
+  background: linear-gradient(135deg, rgb(88 61 108 / 86%), rgb(55 47 72 / 82%));
+}
+
 .realm-map-screen__return:hover,
-.realm-map-screen__return:focus-visible {
-  border-color: #e7c878;
-  background: rgb(111 80 47 / 86%);
-  outline: 2px solid #e7c878;
+.realm-map-screen__return:focus-visible,
+.realm-map-screen__place-keep:hover:not(:disabled),
+.realm-map-screen__place-keep:focus-visible:not(:disabled) {
+  border-color: #f0d27e;
+  background: rgb(112 80 46 / 92%);
+  outline: 2px solid #f0d27e;
   outline-offset: 2px;
+}
+
+.realm-map-screen__place-keep:hover:not(:disabled),
+.realm-map-screen__place-keep:focus-visible:not(:disabled) {
+  background: linear-gradient(135deg, rgb(114 82 143 / 96%), rgb(73 61 100 / 94%));
+}
+
+.realm-map-screen__place-keep:disabled {
+  border-color: rgb(203 193 174 / 25%);
+  background: rgb(56 58 47 / 65%);
+  color: #a9af9c;
+  cursor: default;
 }
 
 .realm-map-screen__cell-list {
   position: absolute;
   z-index: 2;
-  right: clamp(0.7rem, 2vw, 1.5rem);
-  bottom: clamp(0.7rem, 2vw, 1.5rem);
+  right: clamp(0.7rem, 2vw, 1.45rem);
+  bottom: clamp(0.7rem, 2vw, 1.45rem);
   display: grid;
-  grid-template-columns: repeat(5, minmax(2.75rem, 1fr));
-  gap: 0.28rem;
-  width: min(18rem, calc(100vw - 1.4rem));
-  padding: 0.45rem;
-  border: 1px solid rgb(231 220 177 / 25%);
+  grid-template-columns: repeat(7, minmax(2.45rem, 1fr));
+  gap: 0.24rem;
+  width: min(22rem, calc(100vw - 1.4rem));
+  max-height: min(32vh, 12rem);
+  padding: 0.44rem;
+  overflow-y: auto;
+  border: 1px solid rgb(231 220 177 / 29%);
   border-radius: 0.28rem;
-  background: rgb(20 23 18 / 72%);
-  backdrop-filter: blur(7px);
+  background: rgb(17 27 20 / 78%);
+  box-shadow: 0 0.5rem 1.8rem rgb(26 31 18 / 22%);
+  backdrop-filter: blur(8px);
 }
 
 .realm-map-screen__cell-button {
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-  border-color: rgb(226 199 130 / 22%);
-  border-radius: 0.12rem;
-  background: rgb(75 87 52 / 60%);
-  font-size: 0.65rem;
+  min-width: 2.45rem;
+  min-height: 2.08rem;
+  border-color: rgb(219 205 150 / 23%);
+  border-radius: 0.1rem;
+  background: rgb(76 101 58 / 68%);
+  color: #e9ebd2;
+  font-size: 0.61rem;
   font-variant-numeric: tabular-nums;
 }
 
+.realm-map-screen__cell-button[data-has-keep='true'] {
+  border-color: rgb(216 184 98 / 68%);
+  color: #f5dc9a;
+}
+
 .realm-map-screen__cell-button[aria-pressed='true'] {
-  border-color: #b79bcf;
-  background: rgb(112 84 127 / 82%);
+  border-color: #c5a1e5;
+  background: rgb(108 78 129 / 88%);
 }
 
 .realm-map-screen__cell-button:hover,
 .realm-map-screen__cell-button:focus-visible {
-  border-color: #e3c575;
-  outline: 2px solid #e3c575;
+  border-color: #f3d680;
+  outline: 2px solid #f3d680;
   outline-offset: 1px;
 }
 
 @media (max-width: 680px) {
   .realm-map-screen__hud {
-    top: 0.75rem;
-    left: 0.75rem;
-    width: calc(100vw - 1.5rem);
-    padding: 0.78rem 0.85rem;
+    top: 0.65rem;
+    left: 0.65rem;
+    width: calc(100vw - 1.3rem);
+    gap: 0.55rem;
+    padding: 0.72rem 0.8rem;
+  }
+
+  .realm-map-screen__heading h1 {
+    font-size: 1.35rem;
   }
 
   .realm-map-screen__heading p,
-  .realm-map-screen__actions > span {
-    font-size: 0.66rem;
+  .realm-map-screen__actions > span,
+  .realm-map-screen__selected small,
+  .realm-map-screen__keep-status small {
+    font-size: 0.64rem;
   }
 
   .realm-map-screen__cell-list {
-    grid-template-columns: repeat(5, minmax(2.55rem, 1fr));
-    width: min(16rem, calc(100vw - 1.4rem));
+    grid-template-columns: repeat(6, minmax(2.2rem, 1fr));
+    width: min(18rem, calc(100vw - 1.3rem));
+    max-height: min(25vh, 9rem);
+  }
+
+  .realm-map-screen__cell-button {
+    min-width: 2.2rem;
+    min-height: 1.9rem;
   }
 }
 

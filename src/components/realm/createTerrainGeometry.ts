@@ -1,11 +1,12 @@
 import { hegemonyLowlandsSpec } from '../../game/map/hegemonyLowlandsSpec';
 import { axialToWorld, type HexCoord, type HexWorldPosition } from '../../game/map/hexCoordinates';
 import { deriveChannelSeed, seededUnitFloat } from '../../game/map/realmSeed';
-import { globalLowlandHeight, terrainHeightForCell } from '../../game/map/terrainHeight';
+import { terrainHeightForCell } from '../../game/map/terrainHeight';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
 
 const SQRT_3 = Math.sqrt(3);
 const CORNER_COUNT = 6;
+export const DEFAULT_TERRAIN_SUBDIVISIONS = 8;
 
 export type TerrainBounds = Readonly<{
   minX: number;
@@ -27,6 +28,7 @@ export type TerrainGeometryData = Readonly<{
   degenerateTriangleCount: number;
   sharedVertexReuseCount: number;
   surfaceCellCount: number;
+  subdivisionsPerEdge: number;
 }>;
 
 type Rgb = Readonly<{ r: number; g: number; b: number }>;
@@ -122,12 +124,39 @@ function calculateTriangleArea(
   return Math.hypot(crossX, crossY, crossZ) * 0.5;
 }
 
+function safeSubdivisionCount(value: number) {
+  if (!Number.isFinite(value)) return DEFAULT_TERRAIN_SUBDIVISIONS;
+  return Math.min(16, Math.max(1, Math.trunc(value)));
+}
+
+function interpolateTriangle(
+  center: HexWorldPosition,
+  firstCorner: HexWorldPosition,
+  secondCorner: HexWorldPosition,
+  firstWeight: number,
+  secondWeight: number
+): HexWorldPosition {
+  const centerWeight = 1 - firstWeight - secondWeight;
+  return {
+    x: center.x * centerWeight + firstCorner.x * firstWeight + secondCorner.x * secondWeight,
+    z: center.z * centerWeight + firstCorner.z * firstWeight + secondCorner.z * secondWeight
+  };
+}
+
 /**
- * Construct one indexed fan surface for every logical cell. Neighboring cells
- * share corner vertices and their global-only border heights, so this is one
- * continuous terrain mesh rather than separate raised pieces.
+ * Construct one tessellated indexed surface for every logical cell.
+ *
+ * Each logical hex remains a single gameplay cell, but each of its six radial
+ * wedges is subdivided into a triangular lattice. Vertices are keyed in world
+ * space so shared cell borders use the same point and the existing boundary
+ * falloff keeps their height exactly continuous.
  */
-export function createTerrainGeometryData(map: RealmTerrainMap, hexSize: number): TerrainGeometryData {
+export function createTerrainGeometryData(
+  map: RealmTerrainMap,
+  hexSize: number,
+  subdivisionsPerEdge = DEFAULT_TERRAIN_SUBDIVISIONS
+): TerrainGeometryData {
+  const subdivisions = safeSubdivisionCount(subdivisionsPerEdge);
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
@@ -164,22 +193,43 @@ export function createTerrainGeometryData(map: RealmTerrainMap, hexSize: number)
 
   map.cells.forEach((cell) => {
     const center = axialToWorld(cell.coord, hexSize);
-    const centerIndex = addVertex(
-      `center:${cell.coord.q},${cell.coord.r}`,
-      center,
-      terrainHeightForCell(map.worldSeed, cell, center, hexSize)
-    );
     const corners = pointyHexCorners(cell.coord, hexSize);
-    const cornerIndices = corners.map((corner) => addVertex(
-      `corner:${pointKey(corner)}`,
-      corner,
-      globalLowlandHeight(map.worldSeed, corner)
-    ));
+    corners.forEach((corner, cornerIndex) => {
+      const nextCorner = corners[(cornerIndex + 1) % corners.length];
+      const rows: number[][] = [];
 
-    cornerIndices.forEach((cornerIndex, index) => {
-      const nextCorner = cornerIndices[(index + 1) % cornerIndices.length];
-      // Reverse the x/z winding to point normals upward along Three.js's +y axis.
-      indices.push(centerIndex, nextCorner, cornerIndex);
+      for (let first = 0; first <= subdivisions; first += 1) {
+        rows[first] = [];
+        for (let second = 0; second <= subdivisions - first; second += 1) {
+          const world = interpolateTriangle(
+            center,
+            nextCorner,
+            corner,
+            first / subdivisions,
+            second / subdivisions
+          );
+          rows[first][second] = addVertex(
+            `surface:${pointKey(world)}`,
+            world,
+            terrainHeightForCell(map.worldSeed, cell, world, hexSize)
+          );
+        }
+      }
+
+      for (let first = 0; first < subdivisions; first += 1) {
+        for (let second = 0; second < subdivisions - first; second += 1) {
+          const origin = rows[first][second];
+          const alongFirst = rows[first + 1][second];
+          const alongSecond = rows[first][second + 1];
+          // This x/z winding points normals upward along Three.js's +y axis.
+          indices.push(origin, alongFirst, alongSecond);
+
+          if (first + second < subdivisions - 1) {
+            const opposite = rows[first + 1][second + 1];
+            indices.push(alongFirst, opposite, alongSecond);
+          }
+        }
+      }
     });
   });
 
@@ -201,7 +251,8 @@ export function createTerrainGeometryData(map: RealmTerrainMap, hexSize: number)
     triangleCount: indices.length / 3,
     degenerateTriangleCount,
     sharedVertexReuseCount,
-    surfaceCellCount: map.cells.length
+    surfaceCellCount: map.cells.length,
+    subdivisionsPerEdge: subdivisions
   };
 }
 
