@@ -1,9 +1,17 @@
 import { SenderError, t } from 'spacetimedb/server';
 
-import { MAX_AUTH_EPOCH } from '../config';
-import { requireAdmin, requireSupportedFid } from '../auth';
+import {
+  MAX_AUTH_EPOCH,
+  WARPKEEP_BACKEND_PROTOCOL_VERSION,
+} from '../config';
+import {
+  requireAdmin,
+  requireSupportedFid,
+  requireWarpkeepConnection,
+} from '../auth';
 import warpkeep from '../schema';
 import { seedCanonicalWorld } from './worldSeed';
+import { HEGEMONY_GENESIS_001, HEGEMONY_WORLD_SEED } from '../world';
 
 function cleanAdminNote(note: string): string {
   const trimmed = note.trim();
@@ -38,6 +46,31 @@ const adminAlphaStatus = t.object('AdminAlphaStatus', {
   enabledAllowedFids: t.u64(),
   auditEntries: t.u64(),
 });
+
+const alphaBackendInfo = t.object('AlphaBackendInfo', {
+  protocolVersion: t.u32(),
+  worldSeed: t.u32(),
+  worldSeedName: t.string(),
+});
+
+/**
+ * Safe for any authenticated Warpkeep connection, including a valid but
+ * unadmitted player. It exposes static compatibility metadata only: no
+ * whitelist rows, identities, audit entries, or live aggregate counts.
+ */
+export const getAlphaBackendInfo = warpkeep.procedure(
+  { name: 'get_alpha_backend_info' },
+  alphaBackendInfo,
+  ctx =>
+    ctx.withTx(tx => {
+      requireWarpkeepConnection(tx);
+      return {
+        protocolVersion: WARPKEEP_BACKEND_PROTOCOL_VERSION,
+        worldSeed: HEGEMONY_WORLD_SEED,
+        worldSeedName: HEGEMONY_GENESIS_001,
+      };
+    }),
+);
 
 /**
  * Hermes-only inspection surface. It reports aggregate counts only, never

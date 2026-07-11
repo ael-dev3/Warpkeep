@@ -37,6 +37,9 @@ jobs:
       - name: Build GitHub Pages variant
         run: GITHUB_PAGES=true npm run build
 
+      - name: Build canonical custom-domain Pages variant
+        run: GITHUB_PAGES=true DEPLOY_BASE=/ npm run build
+
       - name: Audit dependencies
         run: npm audit
 

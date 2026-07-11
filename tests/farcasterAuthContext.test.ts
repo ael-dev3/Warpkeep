@@ -26,7 +26,7 @@ function deterministicRandomSource(
 }
 
 describe('Farcaster auth runtime context', () => {
-  it('derives localhost and GitHub Pages SIWF values without a route hash', () => {
+  it('derives localhost, legacy Pages, and canonical-domain SIWF values without a route hash', () => {
     expect(resolveFarcasterAuthContext({
       origin: 'http://localhost:5173',
       host: 'localhost:5173',
@@ -49,6 +49,15 @@ describe('Farcaster auth runtime context', () => {
       origin: 'https://ael-dev3.github.io',
       host: 'ael-dev3.github.io'
     }).siweUri).toBe('https://ael-dev3.github.io/Warpkeep/');
+
+    expect(resolveFarcasterAuthContext({
+      origin: 'https://warpkeep.com',
+      host: 'warpkeep.com',
+      baseUrl: '/'
+    })).toEqual({
+      domain: 'warpkeep.com',
+      siweUri: 'https://warpkeep.com/'
+    });
   });
 
   it('rejects cross-origin, credentialed, queried, and traversal-shaped inputs', () => {

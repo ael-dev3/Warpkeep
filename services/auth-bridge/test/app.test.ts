@@ -1,6 +1,6 @@
 import { createSiweMessage } from 'viem/siwe'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAuthBridge } from '../src/app'
+import { HttpAuthEpochResolver, createAuthBridge } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
 import type { AuthEpochResolver, FarcasterVerifier, SafeLogEvent, WorkerEnv } from '../src/types'
 
@@ -188,6 +188,78 @@ describe('Warpkeep auth bridge', () => {
     const replay = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(replay.status).toBe(401)
     await expect(replay.json()).resolves.toMatchObject({ error: { code: 'challenge_not_found' } })
+  })
+
+  it('accepts only an exact bounded resolver response and preserves the missing-row epoch zero baseline', async () => {
+    const fetcher = vi.fn(async () => new Response('{"authEpoch":0}', {
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+    }))
+    const resolver = new HttpAuthEpochResolver(
+      'https://resolver.internal.example/warpkeep/auth-epoch',
+      'resolver-test-secret',
+      fetcher as typeof fetch,
+    )
+
+    await expect(resolver.resolve(FID)).resolves.toBe(0)
+    const [requestedUrl, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(requestedUrl.toString()).toBe('https://resolver.internal.example/warpkeep/auth-epoch?fid=12345')
+    expect(init).toMatchObject({ method: 'GET', cache: 'no-store', redirect: 'error' })
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+
+    const h = harness({ epoch: 0 })
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(
+      request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }),
+      env(),
+    )
+    expect(exchange.status).toBe(200)
+    expect(decodeJwtPayload(String((await json(exchange)).token)).auth_epoch).toBe(0)
+  })
+
+  it('fails closed when a resolver response is malformed, over-privileged, or not an unsigned 32-bit integer', async () => {
+    const invalidResponses = [
+      new Response('{}', { headers: { 'content-type': 'application/json' } }),
+      new Response('{"authEpoch":0,"extra":true}', { headers: { 'content-type': 'application/json' } }),
+      new Response('{"authEpoch":0.5}', { headers: { 'content-type': 'application/json' } }),
+      new Response('{"authEpoch":4294967296}', { headers: { 'content-type': 'application/json' } }),
+      new Response('{"authEpoch":0}', { headers: { 'content-type': 'text/plain' } }),
+    ]
+
+    for (const response of invalidResponses) {
+      const resolver = new HttpAuthEpochResolver(
+        'https://resolver.internal.example/warpkeep/auth-epoch',
+        'resolver-test-secret',
+        async () => response,
+      )
+      await expect(resolver.resolve(FID)).rejects.toThrow('Auth epoch resolver is unavailable.')
+    }
+
+    const fetcher = vi.fn(async () => new Response('{"authEpoch":0}', {
+      headers: { 'content-type': 'application/json' },
+    }))
+    const resolver = new HttpAuthEpochResolver(
+      'https://resolver.internal.example/warpkeep/auth-epoch',
+      'resolver-test-secret',
+      fetcher as typeof fetch,
+    )
+    await expect(resolver.resolve('001')).rejects.toThrow('invalid FID')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('cancels an unresolved auth-epoch lookup at its deadline', async () => {
+    let signal: AbortSignal | undefined
+    const resolver = new HttpAuthEpochResolver(
+      'https://resolver.internal.example/warpkeep/auth-epoch',
+      'resolver-test-secret',
+      (_input, init) => {
+        signal = init?.signal ?? undefined
+        return new Promise<Response>(() => {})
+      },
+      5,
+    )
+
+    await expect(resolver.resolve(FID)).rejects.toThrow('Auth epoch resolver timed out.')
+    expect(signal?.aborted).toBe(true)
   })
 
   it('does not issue a player JWT when the server-side auth epoch resolver is absent', async () => {

@@ -89,6 +89,8 @@ export function calculateMenuNoticePosition({
 type MenuDevelopmentNoticeProps = {
   command: MenuCommand;
   anchorElement: HTMLElement;
+  /** A runtime-safe override for an unavailable backend entry; never a command label. */
+  notice?: string;
   refreshKey: number;
   onDismiss: () => void;
   durationMs?: number;
@@ -97,6 +99,7 @@ type MenuDevelopmentNoticeProps = {
 export function MenuDevelopmentNotice({
   command,
   anchorElement,
+  notice,
   refreshKey,
   onDismiss,
   durationMs = 5600
@@ -194,7 +197,7 @@ export function MenuDevelopmentNotice({
     >
       <span aria-hidden="true" className="warpkeep-menu-notice__crest" />
       <span className="warpkeep-menu-notice__eyebrow">HEGEMONY DECREE</span>
-      <span className="warpkeep-menu-notice__copy">{command.notice}</span>
+      <span className="warpkeep-menu-notice__copy">{notice ?? command.notice}</span>
     </div>
   );
 }

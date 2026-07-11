@@ -41,7 +41,8 @@ const TEST_CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeDatabase: 'warpkeep-89e4u',
   bridgeUrl: TEST_ISSUER,
   issuer: TEST_ISSUER,
-  audience: TEST_AUDIENCE
+  audience: TEST_AUDIENCE,
+  sharedAlphaEnabled: true
 });
 
 const VERIFIED_IDENTITY: VerifiedFarcasterIdentity = Object.freeze({
@@ -203,7 +204,12 @@ function createBridge(session: FarcasterOidcSession, now: () => number) {
 
 function createBackendRuntime(
   admissionSequence: readonly WarpkeepAdmissionStatus[] = ['ready'],
-  realm: WarpkeepRealmSnapshot = SHARED_REALM
+  realm: WarpkeepRealmSnapshot = SHARED_REALM,
+  backendInfo: unknown = {
+    protocolVersion: 1,
+    worldSeed: 3_445_214_658,
+    worldSeedName: 'HEGEMONY_GENESIS_001'
+  }
 ) {
   const connection = {
     isDisconnectRequested: false,
@@ -216,6 +222,7 @@ function createBackendRuntime(
     disconnect: vi.fn((candidate) => {
       candidate?.disconnect();
     }),
+    readBackendInfo: vi.fn(async () => backendInfo),
     readAdmission: vi.fn(async () => admissionSequence[Math.min(
       admissionIndex++,
       admissionSequence.length - 1
@@ -236,13 +243,15 @@ type RenderExperienceOptions = {
   now?: () => number;
   runtime?: WarpkeepBackendRuntime;
   bridge?: FarcasterOidcBridgeClient;
+  config?: WarpkeepRuntimeConfig;
 };
 
 function renderExperience({
   deviceSessionEnvironment,
   now = () => TEST_NOW,
   runtime = createBackendRuntime().runtime,
-  bridge = createBridge(createOidcSession(VERIFIED_IDENTITY.fid, now()), now)
+  bridge = createBridge(createOidcSession(VERIFIED_IDENTITY.fid, now()), now),
+  config = TEST_CONFIG
 }: RenderExperienceOptions = {}) {
   const authority = createTestAuthority(now);
   const rendered = testingLibraryRender(
@@ -254,7 +263,7 @@ function renderExperience({
       now={now}
       pollIntervalMs={1}
     >
-      <WarpkeepSpacetimeProvider config={TEST_CONFIG} runtime={runtime}>
+      <WarpkeepSpacetimeProvider config={config} runtime={runtime}>
         <WarpkeepExperience />
       </WarpkeepSpacetimeProvider>
     </FarcasterAuthProvider>
@@ -437,5 +446,43 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
     expect(authority.beginSignIn).toHaveBeenCalledTimes(2);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps shared alpha fail-closed without opening a Farcaster channel when the kill switch is off', async () => {
+    const backend = createBackendRuntime();
+    const { authority } = renderExperience({
+      runtime: backend.runtime,
+      config: { ...TEST_CONFIG, sharedAlphaEnabled: false }
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settle();
+
+    expect(screen.getByRole('status').textContent).toContain(
+      'The shared Hegemony frontier is not currently available.'
+    );
+    expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+  });
+
+  it('does not check admission or mount the realm when the backend protocol is incompatible', async () => {
+    const backend = createBackendRuntime(['ready'], SHARED_REALM, {
+      protocolVersion: 2,
+      worldSeed: 3_445_214_658,
+      worldSeedName: 'HEGEMONY_GENESIS_001'
+    });
+    const { authority } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readBackendInfo).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+    expect(screen.getByText('The Hegemony records are temporarily unreachable.')).toBeTruthy();
   });
 });

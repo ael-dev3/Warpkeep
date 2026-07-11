@@ -13,6 +13,8 @@ export const WARPKEEP_OIDC_AUDIENCE = 'warpkeep-spacetimedb';
 export const WARPKEEP_TOKEN_TYPE = 'spacetime-access';
 export const WARPKEEP_ADMIN_ROLE = 'warpkeep-admin';
 export const WARPKEEP_HERMES_SUBJECT = 'service:hermes';
+/** Internal wire contract, intentionally separate from the player-facing app version. */
+export const WARPKEEP_BACKEND_PROTOCOL_VERSION = 1;
 
 export const MAX_SUPPORTED_FID = BigInt(Number.MAX_SAFE_INTEGER);
 export const MAX_AUTH_EPOCH = 0xffff_ffff;

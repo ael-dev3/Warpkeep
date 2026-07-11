@@ -1,10 +1,69 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
-const isGitHubPages = process.env.GITHUB_PAGES === 'true';
+type DeploymentEnvironment = Readonly<Record<string, string | undefined>>;
+
+const SEMANTIC_VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+
+function readWarpkeepPackageVersion() {
+  const packageJson = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')
+  ) as { version?: unknown };
+  if (typeof packageJson.version !== 'string' || !SEMANTIC_VERSION_PATTERN.test(packageJson.version)) {
+    throw new Error('Warpkeep package.json must contain a semantic product version.');
+  }
+  return packageJson.version;
+}
+
+function normalizeDeploymentBase(value: string) {
+  if (
+    value.length === 0
+    || !value.startsWith('/')
+    || value.startsWith('//')
+    || value.includes('\\')
+    || value.includes('?')
+    || value.includes('#')
+  ) {
+    throw new Error('DEPLOY_BASE must be an absolute application path.');
+  }
+
+  const segments = value.split('/');
+  for (const segment of segments) {
+    if (segment === '') continue;
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(segment);
+    } catch {
+      throw new Error('DEPLOY_BASE must not contain invalid encoded segments.');
+    }
+    if (!decoded || decoded === '.' || decoded === '..' || decoded.includes('/')) {
+      throw new Error('DEPLOY_BASE must not contain traversal segments.');
+    }
+  }
+
+  return value.endsWith('/') ? value : `${value}/`;
+}
+
+/**
+ * Custom-domain deployments explicitly pass `/`; legacy project Pages builds
+ * retain `/Warpkeep/` until the canonical-domain cutover is complete.
+ */
+export function resolveDeploymentBase(environment: DeploymentEnvironment = process.env) {
+  const requestedBase = environment.DEPLOY_BASE
+    ?? (environment.GITHUB_PAGES === 'true' ? '/Warpkeep/' : '/');
+  return normalizeDeploymentBase(requestedBase);
+}
+
+const deploymentBase = resolveDeploymentBase();
+const productVersion = readWarpkeepPackageVersion();
 
 export default defineConfig({
-  base: isGitHubPages ? '/Warpkeep/' : '/',
+  base: deploymentBase,
+  define: {
+    __WARPKEEP_PRODUCT_VERSION__: JSON.stringify(productVersion)
+  },
   plugins: [react()],
   test: {
     environment: 'jsdom',

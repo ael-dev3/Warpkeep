@@ -9,7 +9,10 @@ import {
 } from 'react';
 import { useFarcasterAuth } from '../farcaster/FarcasterAuthProvider';
 import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
-import { useWarpkeepBackend } from '../spacetime';
+import {
+  useWarpkeepBackend,
+  WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE
+} from '../spacetime';
 import {
   WarpkeepAudioDirector,
   WARPKEEP_REALM_TO_MENU_TRANSITION_MS,
@@ -214,9 +217,9 @@ export function WarpkeepExperience() {
 
   const gateAnonymousRealmRoute = useCallback(() => {
     // A hash is not a credential. Preserve the player's intended realm
-    // destination privately, but normalize the visible URL to the menu before
-    // the menu opens its own on-demand Farcaster identity rail.
-    setPendingDestination('realm');
+    // destination privately only while the public shared-alpha path is live.
+    // A disabled release must not create a SIWF request that cannot exchange.
+    setPendingDestination(backend.sharedAlphaAvailable ? 'realm' : null);
     cancelFarcasterSignIn();
     if (hasRealmHash()) {
       window.history.replaceState(
@@ -225,7 +228,7 @@ export function WarpkeepExperience() {
         `${pageUrlWithoutHash()}${MENU_HASH}`
       );
     }
-  }, [cancelFarcasterSignIn]);
+  }, [backend.sharedAlphaAvailable, cancelFarcasterSignIn]);
 
   const fadeRealmAudioToMenuAndReset = useCallback(() => {
     const audioDirector = audioDirectorRef.current;
@@ -402,7 +405,11 @@ export function WarpkeepExperience() {
   }, [beginMenuTransition]);
 
   const beginRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
-    if (phaseRef.current !== 'menu' || returnPreparingRef.current) {
+    if (
+      !backend.sharedAlphaAvailable
+      || phaseRef.current !== 'menu'
+      || returnPreparingRef.current
+    ) {
       return;
     }
 
@@ -940,7 +947,11 @@ export function WarpkeepExperience() {
             inputModality={menuInteractive ? inputModality : 'unknown'}
             focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
             authRailContent={admissionPanel}
-            openFarcasterAuthPanel={pendingDestination === 'realm' || admissionPanel !== undefined}
+            backendUnavailableMessage={backend.sharedAlphaAvailable
+              ? undefined
+              : WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE}
+            openFarcasterAuthPanel={backend.sharedAlphaAvailable
+              && (pendingDestination === 'realm' || admissionPanel !== undefined)}
             onCancelFarcasterSignIn={cancelFarcasterSignInAndClearDestination}
             onDisposeFarcasterSignIn={cancelFarcasterSignIn}
             onRequestAuthenticatedRealm={beginRealmEntry}

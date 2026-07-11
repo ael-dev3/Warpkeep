@@ -234,6 +234,26 @@ describe('Farcaster authoritative OIDC device-session storage', () => {
     expect(storage.removed).toContain(legacyStorageKey());
   });
 
+  it('does not let a legacy GitHub Pages remembered session authorize the canonical origin', () => {
+    const storage = new MemoryStorage();
+    const legacyPagesEnvironment = environment(storage, {
+      origin: 'https://ael-dev3.github.io',
+      basePath: '/Warpkeep/'
+    });
+    expect(persistFarcasterRememberedDeviceSession(
+      identity,
+      oidcSession(),
+      legacyPagesEnvironment
+    )).toBeDefined();
+
+    expect(restoreFarcasterRememberedDeviceSession({
+      storage,
+      origin: 'https://warpkeep.com',
+      basePath: '/',
+      now: () => NOW
+    })).toBeUndefined();
+  });
+
   it.each([
     ['malformed JSON', '{not json'],
     ['unknown record key', { ...validRecord(), channelToken: 'never-store-this' }],

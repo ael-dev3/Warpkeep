@@ -3,10 +3,13 @@ import test from 'node:test';
 
 import {
   CANONICAL_WORLD_TILES,
+  HEGEMONY_GENESIS_001,
+  HEGEMONY_WORLD_SEED,
   LOWLANDS_RADIUS,
   canonicalTileForKey,
   matchesCanonicalTerrain,
 } from '../src/world';
+import { WARPKEEP_BACKEND_PROTOCOL_VERSION } from '../src/config';
 
 test('the authoritative Lowlands disc contains exactly 61 unique radius-four tiles', () => {
   assert.equal(CANONICAL_WORLD_TILES.length, 61);
@@ -27,4 +30,10 @@ test('canonical terrain checks reject a coordinate or seed mismatch', () => {
   assert.equal(matchesCanonicalTerrain(center), true);
   assert.equal(matchesCanonicalTerrain({ ...center, terrainSeed: center.terrainSeed ^ 1 }), false);
   assert.equal(matchesCanonicalTerrain({ ...center, key: '4,4' }), false);
+});
+
+test('backend compatibility metadata is stable and distinct from the player-facing release version', () => {
+  assert.equal(WARPKEEP_BACKEND_PROTOCOL_VERSION, 1);
+  assert.equal(HEGEMONY_GENESIS_001, 'HEGEMONY_GENESIS_001');
+  assert.equal(HEGEMONY_WORLD_SEED, 3_445_214_658);
 });

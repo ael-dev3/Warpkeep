@@ -27,7 +27,11 @@ async function validateIssuerDeployment(issuer) {
   });
   if (!discovery.ok) throw new Error('OIDC discovery is not reachable.');
   const configuration = await discovery.json();
-  if (!configuration || configuration.issuer !== issuer || typeof configuration.jwks_uri !== 'string') {
+  if (
+    !configuration
+    || configuration.issuer !== issuer
+    || configuration.jwks_uri !== `${issuer}/.well-known/jwks.json`
+  ) {
     throw new Error('OIDC discovery does not describe the configured issuer.');
   }
   const jwks = await fetch(configuration.jwks_uri, {
@@ -36,7 +40,20 @@ async function validateIssuerDeployment(issuer) {
   });
   if (!jwks.ok) throw new Error('OIDC JWKS is not reachable.');
   const document = await jwks.json();
-  if (!Array.isArray(document?.keys) || document.keys.length === 0 || document.keys.some((key) => 'd' in key)) {
+  if (
+    !Array.isArray(document?.keys)
+    || document.keys.length !== 1
+    || document.keys.some(key => (
+      !key
+      || typeof key !== 'object'
+      || 'd' in key
+      || key.kty !== 'EC'
+      || key.crv !== 'P-256'
+      || key.alg !== 'ES256'
+      || typeof key.kid !== 'string'
+      || key.kid.length === 0
+    ))
+  ) {
     throw new Error('OIDC JWKS is missing a public-only signing key.');
   }
 }
@@ -57,7 +74,8 @@ async function main() {
     throw new Error('The module source issuer must exactly match WARPKEEP_OIDC_ISSUER before publishing.');
   }
   if (dryRun) {
-    console.log(`Dry run: would verify ${issuer} and publish ${database} without deleting data.`);
+    await validateIssuerDeployment(issuer);
+    console.log(`Dry run: verified ${issuer}; would publish ${database} without deleting data.`);
     return;
   }
   if (process.env.WARPKEEP_PUBLISH_CONFIRM !== database) {

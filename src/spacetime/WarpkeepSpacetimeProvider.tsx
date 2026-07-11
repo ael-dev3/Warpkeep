@@ -17,6 +17,7 @@ import {
   connectWarpkeep,
   disconnectWarpkeep,
   observeWarpkeepRealm,
+  readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
@@ -31,9 +32,12 @@ import {
   readWarpkeepRuntimeConfig,
   type WarpkeepRuntimeConfig
 } from './warpkeepConfig';
+import { readCompatibleWarpkeepBackendInfo } from './warpkeepProtocol';
 
 export type WarpkeepBackendControllerValue = Readonly<{
   state: WarpkeepBackendState;
+  /** True only when the explicit kill switch and all public bridge values are valid. */
+  sharedAlphaAvailable: boolean;
   /** Recheck admission with the current, still-valid bridge session. */
   checkAgain: () => void;
   /** Disconnect immediately; the Farcaster provider clears credentials separately. */
@@ -48,6 +52,7 @@ export type WarpkeepBackendControllerValue = Readonly<{
 export type WarpkeepBackendRuntime = Readonly<{
   connect: typeof connectWarpkeep;
   disconnect: typeof disconnectWarpkeep;
+  readBackendInfo: typeof readWarpkeepBackendInfo;
   readAdmission: typeof readWarpkeepAdmissionStatus;
   bootstrapPlayer: typeof bootstrapWarpkeepPlayer;
   observeRealm: typeof observeWarpkeepRealm;
@@ -58,6 +63,7 @@ export type WarpkeepBackendRuntime = Readonly<{
 const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.freeze({
   connect: connectWarpkeep,
   disconnect: disconnectWarpkeep,
+  readBackendInfo: readWarpkeepBackendInfo,
   readAdmission: readWarpkeepAdmissionStatus,
   bootstrapPlayer: bootstrapWarpkeepPlayer,
   observeRealm: observeWarpkeepRealm,
@@ -118,6 +124,7 @@ export function WarpkeepSpacetimeProvider({
   ), [farcaster.oidcSession]);
   const bridgeFid = parsedSession?.claims.fid;
   const identity = presentationIdentity(farcaster.state, bridgeFid);
+  const sharedAlphaAvailable = hasUsableWarpkeepBridge(config);
   const [state, setState] = useState<WarpkeepBackendState>(IDLE_WARPKEEP_BACKEND_STATE);
   const [checkSequence, setCheckSequence] = useState(0);
   const connectionRef = useRef<WarpkeepConnection | undefined>(undefined);
@@ -131,11 +138,16 @@ export function WarpkeepSpacetimeProvider({
   }, [runtime]);
 
   const checkAgain = useCallback(() => {
-    if (!identity || !farcaster.oidcSession || farcaster.oidcSession.expiresAt <= Date.now()) {
+    if (
+      !sharedAlphaAvailable
+      || !identity
+      || !farcaster.oidcSession
+      || farcaster.oidcSession.expiresAt <= Date.now()
+    ) {
       return;
     }
     setCheckSequence((sequence) => sequence + 1);
-  }, [farcaster.oidcSession, identity]);
+  }, [farcaster.oidcSession, identity, sharedAlphaAvailable]);
 
   useEffect(() => {
     generationRef.current += 1;
@@ -144,14 +156,13 @@ export function WarpkeepSpacetimeProvider({
     connectionRef.current = undefined;
     runtime.disconnect(previous);
 
-    if (!identity || !farcaster.oidcSession) {
+    if (!sharedAlphaAvailable || !identity || !farcaster.oidcSession) {
       setState(IDLE_WARPKEEP_BACKEND_STATE);
       return undefined;
     }
 
     if (
       farcaster.oidcSession.expiresAt <= Date.now()
-      || !hasUsableWarpkeepBridge(config)
       || farcaster.oidcSession.issuer !== config.issuer
       || farcaster.oidcSession.audience !== config.audience
     ) {
@@ -184,6 +195,10 @@ export function WarpkeepSpacetimeProvider({
         }
         connection = activeConnection;
         connectionRef.current = activeConnection;
+        // Validate here as well as at the generated-binding boundary so an
+        // injected/test runtime can never accidentally bypass compatibility.
+        readCompatibleWarpkeepBackendInfo(await runtime.readBackendInfo(activeConnection));
+        if (!current()) return;
         setState({ phase: 'checking-admission', identity });
         let admission = await runtime.readAdmission(activeConnection);
         if (!current()) return;
@@ -234,13 +249,22 @@ export function WarpkeepSpacetimeProvider({
         connectionRef.current = undefined;
       }
     };
-  }, [bridgeFid, checkSequence, config, farcaster.oidcSession, identity, runtime]);
+  }, [
+    bridgeFid,
+    checkSequence,
+    config,
+    farcaster.oidcSession,
+    identity,
+    runtime,
+    sharedAlphaAvailable
+  ]);
 
   const value = useMemo<WarpkeepBackendControllerValue>(() => ({
     state,
+    sharedAlphaAvailable,
     checkAgain,
     disconnect
-  }), [checkAgain, disconnect, state]);
+  }), [checkAgain, disconnect, sharedAlphaAvailable, state]);
 
   return (
     <WarpkeepBackendContext.Provider value={value}>

@@ -12,13 +12,15 @@ describe('Warpkeep runtime configuration', () => {
     const config = readWarpkeepRuntimeConfig({});
     expect(config.spacetimeUri).toBe(DEFAULT_SPACETIMEDB_URI);
     expect(config.spacetimeDatabase).toBe(DEFAULT_SPACETIMEDB_DATABASE);
+    expect(config.sharedAlphaEnabled).toBe(false);
     expect(hasUsableWarpkeepBridge(config)).toBe(false);
   });
 
   it('accepts only an explicit development localhost bridge, never production localhost HTTP', () => {
     const local = {
       VITE_WARPKEEP_AUTH_BRIDGE_URL: 'http://localhost:8787',
-      VITE_WARPKEEP_OIDC_ISSUER: 'http://localhost:8787'
+      VITE_WARPKEEP_OIDC_ISSUER: 'http://localhost:8787',
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'true'
     } as const;
 
     const production = readWarpkeepRuntimeConfig({ ...local, DEV: false });
@@ -32,11 +34,31 @@ describe('Warpkeep runtime configuration', () => {
     expect(hasUsableWarpkeepBridge(development)).toBe(true);
   });
 
+  it('requires the explicit kill switch and one exact bridge/issuer endpoint', () => {
+    const complete = {
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'TRUE',
+      VITE_WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',
+      VITE_WARPKEEP_OIDC_ISSUER: 'https://auth.warpkeep.com',
+      VITE_WARPKEEP_OIDC_AUDIENCE: 'warpkeep-spacetimedb'
+    } as const;
+
+    expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig(complete))).toBe(true);
+    expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig({
+      ...complete,
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'false'
+    }))).toBe(false);
+    expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig({
+      ...complete,
+      VITE_WARPKEEP_OIDC_ISSUER: 'https://other-auth.warpkeep.com'
+    }))).toBe(false);
+  });
+
   it('never activates the checked-in invalid issuer placeholder', () => {
     expect(hasUsableWarpkeepBridge({
       spacetimeUri: DEFAULT_SPACETIMEDB_URI,
       spacetimeDatabase: DEFAULT_SPACETIMEDB_DATABASE,
       audience: 'warpkeep-spacetimedb',
+      sharedAlphaEnabled: true,
       bridgeUrl: 'https://auth.warpkeep.invalid',
       issuer: 'https://auth.warpkeep.invalid'
     })).toBe(false);

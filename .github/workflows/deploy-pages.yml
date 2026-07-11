@@ -17,6 +17,18 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_BASE: '/'
+      VITE_WARPKEEP_RELEASE_CHANNEL: alpha
+      VITE_WARPKEEP_BUILD_SHA: ${{ github.sha }}
+      VITE_WARPKEEP_REPOSITORY_URL: https://github.com/ael-dev3/Warpkeep
+      VITE_WARPKEEP_CANONICAL_ORIGIN: https://warpkeep.com
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED || 'false' }}
+      VITE_WARPKEEP_AUTH_BRIDGE_URL: ${{ vars.WARPKEEP_AUTH_BRIDGE_URL || '' }}
+      VITE_WARPKEEP_OIDC_ISSUER: ${{ vars.WARPKEEP_OIDC_ISSUER || '' }}
+      VITE_WARPKEEP_OIDC_AUDIENCE: ${{ vars.WARPKEEP_OIDC_AUDIENCE || 'warpkeep-spacetimedb' }}
+      VITE_SPACETIMEDB_URI: ${{ vars.WARPKEEP_SPACETIMEDB_URI || 'https://maincloud.spacetimedb.com' }}
+      VITE_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_SPACETIMEDB_DATABASE || 'warpkeep-89e4u' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,6 +50,9 @@ jobs:
 
       - name: Audit dependencies
         run: npm audit
+
+      - name: Validate public deployment configuration
+        run: npm run validate:pages-config
 
       - name: Build
         run: npm run build

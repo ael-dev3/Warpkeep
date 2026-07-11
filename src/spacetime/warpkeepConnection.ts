@@ -11,6 +11,10 @@ import type {
   WarpkeepWorldTile
 } from './warpkeepBackendTypes';
 import type { WarpkeepRuntimeConfig } from './warpkeepConfig';
+import {
+  readCompatibleWarpkeepBackendInfo,
+  type WarpkeepBackendInfo
+} from './warpkeepProtocol';
 
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
@@ -107,6 +111,14 @@ export async function readWarpkeepAdmissionStatus(connection: WarpkeepConnection
     throw new Error('Warpkeep returned an invalid admission status.');
   }
   return status as WarpkeepAdmissionStatus;
+}
+
+/** Read and validate static protocol metadata before admission or subscription. */
+export async function readWarpkeepBackendInfo(
+  connection: WarpkeepConnection
+): Promise<WarpkeepBackendInfo> {
+  const info = await connection.procedures.getAlphaBackendInfo({});
+  return readCompatibleWarpkeepBackendInfo(info);
 }
 
 export async function bootstrapWarpkeepPlayer(connection: WarpkeepConnection) {

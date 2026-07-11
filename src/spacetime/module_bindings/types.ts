@@ -40,6 +40,13 @@ export const AllowedFid = __t.object("AllowedFid", {
 });
 export type AllowedFid = __Infer<typeof AllowedFid>;
 
+export const AlphaBackendInfo = __t.object("AlphaBackendInfo", {
+  protocolVersion: __t.u32(),
+  worldSeed: __t.u32(),
+  worldSeedName: __t.string(),
+});
+export type AlphaBackendInfo = __Infer<typeof AlphaBackendInfo>;
+
 export const Castle = __t.object("Castle", {
   castleId: __t.u64(),
   ownerFid: __t.u64(),

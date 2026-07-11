@@ -10,6 +10,10 @@ import {
   readSafeFarcasterOidcAudience,
   readSafeFarcasterOidcIssuer
 } from './farcasterOidcSession';
+import {
+  hasUsableWarpkeepBridge,
+  readWarpkeepRuntimeConfig
+} from '../spacetime/warpkeepConfig';
 
 const MAX_RESPONSE_LENGTH = 32_768;
 const MAX_PROOF_MESSAGE_LENGTH = 65_536;
@@ -351,10 +355,21 @@ let defaultBridgeClient: FarcasterOidcBridgeClient | undefined;
 
 /** Lazy default so anonymous title/menu visitors never touch bridge config or network. */
 export async function getDefaultFarcasterOidcBridgeClient() {
+  const runtimeConfig = readWarpkeepRuntimeConfig();
+  // Defense in depth for callers outside the menu: a configured URL is not
+  // sufficient to begin SIWF. The default bridge loader refuses before any
+  // Farcaster channel is created unless the explicit shared-alpha switch and
+  // exact public bridge/issuer configuration are active.
+  if (!hasUsableWarpkeepBridge(runtimeConfig)) {
+    throw new FarcasterOidcBridgeClientError(
+      'The shared Hegemony frontier is not enabled for this deployment.'
+    );
+  }
   defaultBridgeClient ??= createFarcasterOidcBridgeClient({
-    bridgeUrl: import.meta.env.VITE_WARPKEEP_AUTH_BRIDGE_URL,
-    issuer: import.meta.env.VITE_WARPKEEP_OIDC_ISSUER,
-    audience: import.meta.env.VITE_WARPKEEP_OIDC_AUDIENCE
+    bridgeUrl: runtimeConfig.bridgeUrl,
+    issuer: runtimeConfig.issuer,
+    audience: runtimeConfig.audience,
+    allowLocalHttp: runtimeConfig.allowLocalHttp
   });
   return defaultBridgeClient;
 }

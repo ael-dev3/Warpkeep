@@ -5,6 +5,7 @@ import {
   connectWarpkeep,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
+  readWarpkeepBackendInfo,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
   type WarpkeepConnection
@@ -16,7 +17,8 @@ const config: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeDatabase: 'warpkeep-89e4u',
   bridgeUrl: 'https://auth.warpkeep.example',
   issuer: 'https://auth.warpkeep.example',
-  audience: 'warpkeep-spacetimedb'
+  audience: 'warpkeep-spacetimedb',
+  sharedAlphaEnabled: true
 });
 
 function builderDouble() {
@@ -103,6 +105,24 @@ describe('Warpkeep authenticated connection boundary', () => {
       tables.player,
       tables.castle
     ]);
+  });
+
+  it('rejects an incompatible backend before gameplay admission or subscriptions', async () => {
+    const compatible = {
+      protocolVersion: 1,
+      worldSeed: 3_445_214_658,
+      worldSeedName: 'HEGEMONY_GENESIS_001'
+    };
+    const connection = {
+      procedures: { getAlphaBackendInfo: vi.fn(async () => compatible) }
+    } as unknown as WarpkeepConnection;
+    await expect(readWarpkeepBackendInfo(connection)).resolves.toEqual(compatible);
+
+    connection.procedures.getAlphaBackendInfo = vi.fn(async () => ({
+      ...compatible,
+      protocolVersion: 2
+    }));
+    await expect(readWarpkeepBackendInfo(connection)).rejects.toThrow(/protocol is incompatible/i);
   });
 
   it('derives the own castle from the bridge-token FID passed by the provider', () => {

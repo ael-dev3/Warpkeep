@@ -1,14 +1,25 @@
-# This file intentionally contains no issuer URL, key material, RPC endpoint, or
-# admin secret. Configure those through Cloudflare Worker secrets/variables before
-# deploying; the bridge fails closed until every required value is present.
+# This file prepares the stable public bridge contract but intentionally contains
+# no key material, RPC endpoint, admin secret, or resolver credential. Configure
+# those as managed Worker secrets before deploying; the bridge fails closed until
+# every required value is present.
 name = "warpkeep-auth-bridge"
 main = "src/index.ts"
 compatibility_date = "2026-07-11"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = false
 
 [vars]
 ENVIRONMENT = "production"
+ISSUER = "https://auth.warpkeep.com"
+ALLOWED_ORIGINS = "https://warpkeep.com"
+FARCASTER_DOMAIN = "warpkeep.com"
+FARCASTER_SIWE_URI = "https://warpkeep.com/"
 OIDC_AUDIENCE = "warpkeep-spacetimedb"
+OIDC_KEY_ID = "warpkeep-alpha-2026-07-01"
+
+[[routes]]
+pattern = "auth.warpkeep.com"
+custom_domain = true
 
 [[durable_objects.bindings]]
 name = "CHALLENGE_REPLAY_GUARD"

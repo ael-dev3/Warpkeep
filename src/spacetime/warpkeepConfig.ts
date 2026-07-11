@@ -5,6 +5,8 @@
 export const DEFAULT_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com';
 export const DEFAULT_SPACETIMEDB_DATABASE = 'warpkeep-89e4u';
 export const DEFAULT_WARPKEEP_OIDC_AUDIENCE = 'warpkeep-spacetimedb';
+export const WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE =
+  'The shared Hegemony frontier is not currently available.';
 
 export type WarpkeepRuntimeEnvironment = Readonly<{
   DEV?: boolean;
@@ -13,12 +15,15 @@ export type WarpkeepRuntimeEnvironment = Readonly<{
   VITE_WARPKEEP_AUTH_BRIDGE_URL?: string;
   VITE_WARPKEEP_OIDC_ISSUER?: string;
   VITE_WARPKEEP_OIDC_AUDIENCE?: string;
+  VITE_WARPKEEP_SHARED_ALPHA_ENABLED?: string;
 }>;
 
 export type WarpkeepRuntimeConfig = Readonly<{
   spacetimeUri: string;
   spacetimeDatabase: string;
   audience: string;
+  /** Explicit public kill switch. Shared alpha remains off unless this is true. */
+  sharedAlphaEnabled: boolean;
   /** A public HTTPS bridge base. Undefined means shared-alpha activation is off. */
   bridgeUrl?: string;
   /** Exact OIDC issuer that the bridge and SpacetimeDB module must agree on. */
@@ -79,6 +84,10 @@ function normalizeAudience(value: string | undefined) {
     : DEFAULT_WARPKEEP_OIDC_AUDIENCE;
 }
 
+function readSharedAlphaEnabled(value: string | undefined) {
+  return value?.trim().toLowerCase() === 'true';
+}
+
 /**
  * Does not throw for malformed public configuration. A malformed bridge
  * configuration must leave title/menu usable and disable all shared-state I/O.
@@ -98,6 +107,7 @@ export function readWarpkeepRuntimeConfig(
     spacetimeUri: configuredSpacetimeUri ?? DEFAULT_SPACETIMEDB_URI,
     spacetimeDatabase: normalizeDatabaseName(environment.VITE_SPACETIMEDB_DATABASE),
     audience: normalizeAudience(environment.VITE_WARPKEEP_OIDC_AUDIENCE),
+    sharedAlphaEnabled: readSharedAlphaEnabled(environment.VITE_WARPKEEP_SHARED_ALPHA_ENABLED),
     ...(bridgeUrl ? { bridgeUrl } : {}),
     ...(issuer ? { issuer } : {}),
     ...(allowLocalHttp ? { allowLocalHttp: true } : {})
@@ -110,7 +120,7 @@ export function readWarpkeepRuntimeConfig(
  * HTTP is accepted only for an explicit localhost Worker during development.
  */
 export function hasUsableWarpkeepBridge(config: WarpkeepRuntimeConfig) {
-  if (!config.bridgeUrl || !config.issuer) {
+  if (!config.sharedAlphaEnabled || !config.bridgeUrl || !config.issuer) {
     return false;
   }
 
@@ -128,7 +138,8 @@ export function hasUsableWarpkeepBridge(config: WarpkeepRuntimeConfig) {
     return !bridge.hostname.endsWith('.invalid')
       && !issuer.hostname.endsWith('.invalid')
       && bridgeIsSafe
-      && issuerIsSafe;
+      && issuerIsSafe
+      && bridge.toString() === issuer.toString();
   } catch {
     return false;
   }
