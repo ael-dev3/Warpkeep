@@ -13,7 +13,7 @@ Implemented in the repository, but intentionally not activated on the public Pag
 - protected Hermes operations, generated-binding CI verification, bridge tests, and fail-closed deployment guards.
 - a semantic product version, exact build-SHA menu stamp, canonical-domain build policy, and a default-off shared-alpha switch.
 
-The public Pages experience does not currently claim a permanent keep. `warpkeep.com` is the canonical target, but the verification TXT is the only live DNS record at this stage; the DNS apex, Worker issuer, resolver, and module publish remain activation gates. Without a configured bridge/issuer it remains title/menu-safe and performs no shared database I/O.
+The public Pages experience does not currently claim a permanent keep. `warpkeep.com` is the canonical target; its Pages domain is verified and public resolvers see the required apex/`www` DNS, while GitHub’s HTTPS certificate, Worker issuer, resolver, and module publish remain activation gates. Without a configured bridge/issuer it remains title/menu-safe and performs no shared database I/O.
 
 ## Activation gate
 

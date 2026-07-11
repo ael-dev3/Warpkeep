@@ -38,7 +38,7 @@ The panel displays the active FID and provides **REQUEST ACCESS**, **CHECK AGAIN
 
 ## Alpha activation status
 
-The repository uses the fail-closed issuer `https://auth.warpkeep.invalid` until a real public OIDC bridge, resolver, and Maincloud module are verified. The GitHub Pages verification TXT for `warpkeep.com` exists, but the apex DNS records, custom-domain certificate, Cloudflare Worker credentials, and public issuer are still pending. No bridge, module publish, allowlist row, player, or castle has been created by this branch.
+The repository uses the fail-closed issuer `https://auth.warpkeep.invalid` until a real public OIDC bridge, resolver, and Maincloud module are verified. The GitHub Pages domain is verified and public DNS resolvers now see the correct apex and `www` records, but the GitHub Pages HTTPS certificate, Cloudflare Worker credentials, and public issuer are still pending. No bridge, module publish, allowlist row, player, or castle has been created by this branch.
 
 The known Maincloud development database is `warpkeep-89e4u` at `https://maincloud.spacetimedb.com`. It must be inspected before every mutation and never cleared or seeded with a real FID during activation.
 
