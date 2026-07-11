@@ -1,9 +1,24 @@
-import { StrictMode } from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { StrictMode, type ReactElement } from 'react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render as testingLibraryRender,
+  screen
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WarpkeepExperience } from '../src/components/WarpkeepExperience';
+import { FarcasterAuthProvider } from '../src/farcaster/FarcasterAuthProvider';
 
 const mediaPaused = new WeakMap<HTMLMediaElement, boolean>();
+
+function render(ui: ReactElement) {
+  return testingLibraryRender(
+    <FarcasterAuthProvider>
+      {ui}
+    </FarcasterAuthProvider>
+  );
+}
 
 function rectangle(left: number, top: number, width: number, height: number): DOMRect {
   return {

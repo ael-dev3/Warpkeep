@@ -7,6 +7,12 @@ import {
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react';
 
+import type {
+  FarcasterAuthViewState,
+  VerifiedFarcasterIdentity
+} from '../../farcaster/farcasterAuthTypes';
+import { FarcasterIdentityBadge } from '../auth/FarcasterIdentityBadge';
+import { FarcasterQrAuthPanel } from '../auth/FarcasterQrAuthPanel';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
 import { menuCommands, type MenuCommand, type MenuCommandId } from './menuCommands';
 import './WarpkeepMainMenu.css';
@@ -20,6 +26,12 @@ export type WarpkeepMainMenuProps = {
   onRequestReturn: () => void;
   /** When supplied, ENTER REALM opens the live realm foundation instead of its legacy notice. */
   onRequestEnterRealm?: () => void;
+  authState?: FarcasterAuthViewState;
+  onRequestFarcasterSignIn?: () => void;
+  onCancelFarcasterSignIn?: () => void;
+  onRetryFarcasterSignIn?: () => void;
+  onSignOut?: () => void;
+  onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
   inputModality?: MenuInputModality;
   focusFirstCommand?: boolean;
   onVideoReady?: () => void;
@@ -32,6 +44,12 @@ type ActiveNotice = {
   anchorElement: HTMLButtonElement;
   refreshKey: number;
 };
+
+type MenuSurface = 'commands' | 'farcaster-auth';
+
+const ANONYMOUS_AUTH_STATE: FarcasterAuthViewState = Object.freeze({
+  phase: 'anonymous'
+});
 
 export function resolveMenuAssetUrl(baseUrl: string, assetPath: string) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -87,6 +105,12 @@ export function WarpkeepMainMenu({
   interactive: interactiveOverride,
   onRequestReturn,
   onRequestEnterRealm,
+  authState = ANONYMOUS_AUTH_STATE,
+  onRequestFarcasterSignIn,
+  onCancelFarcasterSignIn,
+  onRetryFarcasterSignIn,
+  onSignOut,
+  onRequestAuthenticatedRealm,
   inputModality = 'unknown',
   focusFirstCommand,
   onVideoReady,
@@ -95,16 +119,33 @@ export function WarpkeepMainMenu({
 }: WarpkeepMainMenuProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const commandRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const authHeadingRef = useRef<HTMLHeadingElement>(null);
+  const authPrimaryActionRef = useRef<HTMLButtonElement>(null);
   const noticeSequenceRef = useRef(0);
   const didFocusOnRevealRef = useRef(false);
   const playbackBlockedRef = useRef(false);
   const didReportVideoReadyRef = useRef(false);
   const didReportVideoErrorRef = useRef(false);
+  const authWasKeyboardDrivenRef = useRef(false);
+  const previousAuthPhaseRef = useRef(authState.phase);
+  const lastActionModalityRef = useRef<MenuInputModality>(inputModality);
   const [videoState, setVideoState] = useState<'waiting' | 'ready' | 'error'>('waiting');
   const [activeNotice, setActiveNotice] = useState<ActiveNotice | null>(null);
+  const [surface, setSurface] = useState<MenuSurface>('commands');
   const reducedMotion = useReducedMotionPreference();
   const interactive = interactiveOverride ?? (active && visible);
   const shouldFocusFirstCommand = focusFirstCommand ?? inputModality === 'keyboard';
+  const authPanelOpen = surface === 'farcaster-auth';
+  const authenticatedIdentity = authState.phase === 'authenticated'
+    ? authState.identity
+    : undefined;
+  const farcasterAuthEnabled = Boolean(
+    onRequestFarcasterSignIn
+    && onCancelFarcasterSignIn
+    && onRetryFarcasterSignIn
+    && onSignOut
+    && onRequestAuthenticatedRealm
+  );
 
   const attemptVideoPlayback = useCallback(() => {
     const video = videoRef.current;
@@ -167,6 +208,7 @@ export function WarpkeepMainMenu({
   useEffect(() => {
     if (!interactive) {
       setActiveNotice(null);
+      setSurface('commands');
       didFocusOnRevealRef.current = false;
       return;
     }
@@ -176,6 +218,70 @@ export function WarpkeepMainMenu({
       commandRefs.current[0]?.focus({ preventScroll: true });
     }
   }, [interactive, shouldFocusFirstCommand]);
+
+  useEffect(() => {
+    const previousPhase = previousAuthPhaseRef.current;
+    previousAuthPhaseRef.current = authState.phase;
+    if (previousPhase !== 'anonymous' && authState.phase === 'anonymous') {
+      setSurface('commands');
+    }
+  }, [authState.phase]);
+
+  const restoreFirstCommandFocus = useCallback(() => {
+    const frame = window.requestAnimationFrame(() => {
+      commandRefs.current[0]?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  const closeAuthPanel = useCallback((restoreKeyboardFocus = false) => {
+    onCancelFarcasterSignIn?.();
+    setSurface('commands');
+    if (restoreKeyboardFocus) {
+      restoreFirstCommandFocus();
+    }
+  }, [onCancelFarcasterSignIn, restoreFirstCommandFocus]);
+
+  const handleRequestReturn = useCallback(() => {
+    onCancelFarcasterSignIn?.();
+    setSurface('commands');
+    onRequestReturn();
+  }, [onCancelFarcasterSignIn, onRequestReturn]);
+
+  useEffect(() => {
+    if (!interactive || !authPanelOpen) {
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      authHeadingRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [authPanelOpen, interactive]);
+
+  useEffect(() => {
+    if (
+      !interactive
+      || !authPanelOpen
+      || !authWasKeyboardDrivenRef.current
+      || (
+        authState.phase !== 'authenticated'
+        && authState.phase !== 'expired'
+        && authState.phase !== 'error'
+      )
+    ) {
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      authPrimaryActionRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [authPanelOpen, authState.phase, interactive]);
+
+  useEffect(() => () => {
+    onCancelFarcasterSignIn?.();
+  }, [onCancelFarcasterSignIn]);
 
   useEffect(() => {
     if (!interactive) {
@@ -189,16 +295,19 @@ export function WarpkeepMainMenu({
 
       event.preventDefault();
       event.stopPropagation();
+      lastActionModalityRef.current = 'keyboard';
       if (activeNotice) {
         setActiveNotice(null);
+      } else if (authPanelOpen) {
+        closeAuthPanel(true);
       } else {
-        onRequestReturn();
+        handleRequestReturn();
       }
     };
 
     document.addEventListener('keydown', handleEscape, true);
     return () => document.removeEventListener('keydown', handleEscape, true);
-  }, [activeNotice, interactive, onRequestReturn]);
+  }, [activeNotice, authPanelOpen, closeAuthPanel, handleRequestReturn, interactive]);
 
   const handleVideoReady = useCallback(() => {
     setVideoState('ready');
@@ -226,14 +335,71 @@ export function WarpkeepMainMenu({
     });
   }, []);
 
-  const handleCommandClick = useCallback((command: MenuCommand, anchorElement: HTMLButtonElement) => {
+  const openAuthPanel = useCallback((keyboardDriven: boolean) => {
+    authWasKeyboardDrivenRef.current = keyboardDriven;
+    setActiveNotice(null);
+    setSurface('farcaster-auth');
+  }, []);
+
+  const handleCommandClick = useCallback((
+    command: MenuCommand,
+    anchorElement: HTMLButtonElement,
+    keyboardDriven: boolean
+  ) => {
+    if (command.id === 'enter-realm' && farcasterAuthEnabled) {
+      if (authenticatedIdentity) {
+        onRequestAuthenticatedRealm?.(authenticatedIdentity);
+      } else {
+        openAuthPanel(keyboardDriven);
+        onRequestFarcasterSignIn?.();
+      }
+      return;
+    }
+
     if (command.id === 'enter-realm' && onRequestEnterRealm) {
       setActiveNotice(null);
       onRequestEnterRealm();
       return;
     }
     openNotice(command, anchorElement);
-  }, [onRequestEnterRealm, openNotice]);
+  }, [
+    authenticatedIdentity,
+    farcasterAuthEnabled,
+    onRequestAuthenticatedRealm,
+    onRequestEnterRealm,
+    onRequestFarcasterSignIn,
+    openAuthPanel,
+    openNotice
+  ]);
+
+  const handleRetrySignIn = useCallback(() => {
+    const keyboardDriven = lastActionModalityRef.current === 'keyboard';
+    authWasKeyboardDrivenRef.current = keyboardDriven;
+    onRetryFarcasterSignIn?.();
+    if (keyboardDriven) {
+      window.requestAnimationFrame(() => {
+        authHeadingRef.current?.focus({ preventScroll: true });
+      });
+    }
+  }, [onRetryFarcasterSignIn]);
+
+  const handleBackToCommands = useCallback(() => {
+    closeAuthPanel(lastActionModalityRef.current === 'keyboard');
+  }, [closeAuthPanel]);
+
+  const handleSignOut = useCallback(() => {
+    const restoreKeyboardFocus = lastActionModalityRef.current === 'keyboard';
+    onSignOut?.();
+    setSurface('commands');
+    if (restoreKeyboardFocus) {
+      restoreFirstCommandFocus();
+    }
+  }, [onSignOut, restoreFirstCommandFocus]);
+
+  const handleAuthenticatedRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
+    setSurface('commands');
+    onRequestAuthenticatedRealm?.(identity);
+  }, [onRequestAuthenticatedRealm]);
 
   const handleNavigationKeyDown = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
     if (!interactive) {
@@ -283,9 +449,16 @@ export function WarpkeepMainMenu({
       aria-labelledby="warpkeep-menu-title"
       className={rootClassName}
       data-active={active ? 'true' : 'false'}
+      data-menu-surface={surface}
       data-media-state={reducedMotion ? 'static' : videoState}
       data-visible={visible ? 'true' : 'false'}
       inert={!interactive ? true : undefined}
+      onKeyDownCapture={() => {
+        lastActionModalityRef.current = 'keyboard';
+      }}
+      onPointerDownCapture={(event) => {
+        lastActionModalityRef.current = event.pointerType === 'touch' ? 'touch' : 'pointer';
+      }}
     >
       <div
         aria-hidden="true"
@@ -328,39 +501,86 @@ export function WarpkeepMainMenu({
         </p>
       </header>
 
-      <nav
-        aria-label="Hegemony main menu"
-        className="warpkeep-menu-nav"
-        onKeyDown={handleNavigationKeyDown}
-      >
-        <ol className="warpkeep-menu-command-list">
-          {menuCommands.map((command, commandIndex) => (
-            <li className="warpkeep-menu-command-item" key={command.id}>
-              <button
-                aria-describedby={activeNotice?.command.id === command.id ? describedNoticeId : undefined}
-                className="warpkeep-menu-command"
-                data-command={command.id}
-                data-prominent={commandIndex === 0 ? 'true' : undefined}
-                disabled={!interactive}
-                onClick={(event) => handleCommandClick(command, event.currentTarget)}
-                ref={(button) => {
-                  commandRefs.current[commandIndex] = button;
-                }}
-                tabIndex={interactive ? 0 : -1}
-                type="button"
-              >
-                <span>{command.label}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </nav>
+      {!authPanelOpen ? (
+        <>
+          {authenticatedIdentity ? (
+            <div className="warpkeep-menu-identity">
+              <FarcasterIdentityBadge
+                compact
+                identity={authenticatedIdentity}
+                onActivate={() => openAuthPanel(
+                  lastActionModalityRef.current === 'keyboard'
+                )}
+              />
+            </div>
+          ) : null}
+
+          <nav
+            aria-label="Hegemony main menu"
+            className="warpkeep-menu-nav"
+            onKeyDown={handleNavigationKeyDown}
+          >
+            <ol className="warpkeep-menu-command-list">
+              {menuCommands.map((command, commandIndex) => (
+                <li className="warpkeep-menu-command-item" key={command.id}>
+                  <button
+                    aria-describedby={activeNotice?.command.id === command.id ? describedNoticeId : undefined}
+                    className="warpkeep-menu-command"
+                    data-command={command.id}
+                    data-prominent={commandIndex === 0 ? 'true' : undefined}
+                    disabled={!interactive}
+                    onClick={(event) => handleCommandClick(
+                      command,
+                      event.currentTarget,
+                      event.detail === 0
+                    )}
+                    ref={(button) => {
+                      commandRefs.current[commandIndex] = button;
+                    }}
+                    tabIndex={interactive ? 0 : -1}
+                    type="button"
+                  >
+                    <span>{command.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </>
+      ) : (
+        <div className="warpkeep-menu-auth-rail">
+          <FarcasterQrAuthPanel
+            channelUrl={authState.phase === 'awaiting-approval'
+              ? authState.channelUrl
+              : undefined}
+            errorMessage={authState.phase === 'error' || authState.phase === 'expired'
+              ? authState.error.message
+              : undefined}
+            headingRef={authHeadingRef}
+            identity={authenticatedIdentity}
+            onBackToMenu={handleBackToCommands}
+            onCancel={() => closeAuthPanel(
+              lastActionModalityRef.current === 'keyboard'
+            )}
+            onEnterRealm={handleAuthenticatedRealmEntry}
+            onRetry={handleRetrySignIn}
+            onSignOut={handleSignOut}
+            phase={authState.phase === 'anonymous'
+              ? 'creating-channel'
+              : authState.phase}
+            primaryActionRef={authPrimaryActionRef}
+            qrDataUrl={authState.phase === 'awaiting-approval'
+              ? authState.qrDataUrl
+              : undefined}
+          />
+        </div>
+      )}
 
       <button
         aria-label="Return to Title"
         className="warpkeep-menu-back"
         disabled={!interactive}
-        onClick={onRequestReturn}
+        onClick={handleRequestReturn}
         tabIndex={interactive ? 0 : -1}
         type="button"
       >
@@ -369,7 +589,7 @@ export function WarpkeepMainMenu({
       </button>
 
       <p aria-live="polite" className="warpkeep-menu-live-region">
-        {interactive ? 'Main menu' : ''}
+        {interactive && !authPanelOpen ? 'Main menu' : ''}
       </p>
 
       {activeNotice ? (

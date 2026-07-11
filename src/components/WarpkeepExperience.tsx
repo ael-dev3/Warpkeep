@@ -1,11 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
   useState
 } from 'react';
+import { useFarcasterAuth } from '../farcaster/FarcasterAuthProvider';
+import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
 import {
   WarpkeepAudioDirector,
   type AudioScene,
@@ -59,7 +62,10 @@ function hasRealmHash() {
 }
 
 function initialStablePhase(): WarpkeepStableExperiencePhase {
-  if (hasRealmHash()) return 'realm';
+  // A refreshed/direct realm URL has no trusted in-memory session. Start on
+  // the menu without flashing the realm; authenticated in-app navigation is
+  // handled by the history synchronizer below.
+  if (hasRealmHash()) return 'menu';
   return hasMenuHash() ? 'menu' : 'title';
 }
 
@@ -123,6 +129,13 @@ function blurActiveElement() {
 }
 
 export function WarpkeepExperience() {
+  const {
+    state: farcasterAuthState,
+    beginSignIn: beginFarcasterSignIn,
+    cancelSignIn: cancelFarcasterSignIn,
+    retrySignIn: retryFarcasterSignIn,
+    signOut: signOutFarcaster
+  } = useFarcasterAuth();
   const initialPhase = useMemo(initialStablePhase, []);
   const [experience, dispatch] = useReducer(
     experienceTransitionReducer,
@@ -154,9 +167,30 @@ export function WarpkeepExperience() {
   const completedSequenceRef = useRef(-1);
   const lastPointerTypeRef = useRef<string>('mouse');
   const restoreTitleFocusRef = useRef(false);
+  const blockedInitialRealmRef = useRef(hasRealmHash());
+  const verifiedIdentityRef = useRef<VerifiedFarcasterIdentity | null>(
+    farcasterAuthState.phase === 'authenticated'
+      ? farcasterAuthState.identity
+      : null
+  );
   const returnPreparingRef = useRef(returnPreparing);
   phaseRef.current = experience.phase;
   returnPreparingRef.current = returnPreparing;
+  verifiedIdentityRef.current = farcasterAuthState.phase === 'authenticated'
+    ? farcasterAuthState.identity
+    : null;
+
+  useLayoutEffect(() => {
+    if (!blockedInitialRealmRef.current || !hasRealmHash()) {
+      return;
+    }
+    blockedInitialRealmRef.current = false;
+    window.history.replaceState(
+      menuHistoryState(),
+      '',
+      `${pageUrlWithoutHash()}${MENU_HASH}`
+    );
+  }, []);
 
   const audioScene: AudioScene = !returnPreparing && (
     experience.phase === 'menu'
@@ -230,8 +264,13 @@ export function WarpkeepExperience() {
     beginMenuTransition(projection, input, true);
   }, [beginMenuTransition]);
 
-  const beginRealmEntry = useCallback(() => {
+  const beginRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
     if (phaseRef.current !== 'menu' || returnPreparingRef.current) {
+      return;
+    }
+
+    const verifiedIdentity = verifiedIdentityRef.current;
+    if (!verifiedIdentity || verifiedIdentity.fid !== identity.fid) {
       return;
     }
 
@@ -270,6 +309,7 @@ export function WarpkeepExperience() {
     }
 
     entryLockedRef.current = true;
+    cancelFarcasterSignIn();
     setShowTitleHint(false);
     setTitleReady(false);
     setReturnPreparing(true);
@@ -286,7 +326,7 @@ export function WarpkeepExperience() {
       delete nextState[MENU_HISTORY_KEY];
       window.history.replaceState(nextState, '', pageUrlWithoutHash());
     }
-  }, []);
+  }, [cancelFarcasterSignIn]);
 
   const cancelPreparedReturn = useCallback(() => {
     setReturnPreparing(false);
@@ -345,6 +385,20 @@ export function WarpkeepExperience() {
     markTransitionCovered(sequence, direction);
 
     if (direction === 'to-menu') {
+      if (hasRealmHash()) {
+        if (verifiedIdentityRef.current) {
+          setPresentedScreen('realm');
+          dispatch({ type: 'complete-menu' });
+          dispatch({ type: 'request-realm' });
+          return;
+        }
+        cancelFarcasterSignIn();
+        window.history.replaceState(
+          menuHistoryState(),
+          '',
+          `${pageUrlWithoutHash()}${MENU_HASH}`
+        );
+      }
       if (!hasMenuHash()) {
         setTitleReady(false);
         setReturnPreparing(true);
@@ -356,7 +410,7 @@ export function WarpkeepExperience() {
       dispatch({ type: 'complete-title' });
       entryLockedRef.current = false;
     }
-  }, [markTransitionCovered]);
+  }, [cancelFarcasterSignIn, markTransitionCovered]);
 
   useEffect(() => {
     if (
@@ -463,11 +517,34 @@ export function WarpkeepExperience() {
   useEffect(() => {
     const synchronizeHistory = () => {
       const phase = phaseRef.current;
+      if (hasRealmHash() && !verifiedIdentityRef.current) {
+        cancelFarcasterSignIn();
+        window.history.replaceState(
+          menuHistoryState(),
+          '',
+          `${pageUrlWithoutHash()}${MENU_HASH}`
+        );
+      }
       if (returnPreparingRef.current && hasMenuHash()) {
         cancelPreparedReturn();
         return;
       }
       if (hasRealmHash()) {
+        if (returnPreparingRef.current) {
+          cancelPreparedReturn();
+          setPresentedScreen('realm');
+          dispatch({ type: 'request-realm' });
+          return;
+        }
+        if (phase === 'title') {
+          const projection = titleRef.current?.getGatewayProjection()
+            ?? fallbackGatewayProjection();
+          titleRef.current?.requestEnter('keyboard');
+          if (phaseRef.current === 'title' && !entryLockedRef.current) {
+            beginMenuTransition(projection, 'unknown', false);
+          }
+          return;
+        }
         if (phase === 'menu') {
           setPresentedScreen('realm');
           dispatch({ type: 'request-realm' });
@@ -505,17 +582,32 @@ export function WarpkeepExperience() {
       window.removeEventListener('popstate', synchronizeHistory);
       window.removeEventListener('hashchange', synchronizeHistory);
     };
-  }, [beginMenuTransition, beginTitleTransition, cancelPreparedReturn]);
+  }, [
+    beginMenuTransition,
+    beginTitleTransition,
+    cancelPreparedReturn,
+    cancelFarcasterSignIn
+  ]);
 
   useEffect(() => {
     if (returnPreparing) {
       return;
     }
 
-    if (experience.phase === 'menu' && !hasMenuHash() && !hasRealmHash()) {
-      entryLockedRef.current = false;
-      beginTitleTransition('none');
-    } else if (experience.phase === 'title' && hasMenuHash()) {
+    if (experience.phase === 'menu') {
+      if (!hasMenuHash() && !hasRealmHash()) {
+        entryLockedRef.current = false;
+        beginTitleTransition('none');
+      }
+    } else if (experience.phase === 'title' && (hasMenuHash() || hasRealmHash())) {
+      if (hasRealmHash() && !verifiedIdentityRef.current) {
+        cancelFarcasterSignIn();
+        window.history.replaceState(
+          menuHistoryState(),
+          '',
+          `${pageUrlWithoutHash()}${MENU_HASH}`
+        );
+      }
       entryLockedRef.current = false;
       if (titleRef.current) {
         titleRef.current.requestEnter('keyboard');
@@ -523,7 +615,13 @@ export function WarpkeepExperience() {
         beginMenuTransition(fallbackGatewayProjection(), 'unknown', false);
       }
     }
-  }, [beginMenuTransition, beginTitleTransition, experience.phase, returnPreparing]);
+  }, [
+    beginMenuTransition,
+    beginTitleTransition,
+    cancelFarcasterSignIn,
+    experience.phase,
+    returnPreparing
+  ]);
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') {
@@ -661,12 +759,17 @@ export function WarpkeepExperience() {
         >
           <WarpkeepMainMenu
             active={menuMediaActive}
+            authState={farcasterAuthState}
             visible={presentedScreen === 'menu'}
             interactive={menuInteractive}
             inputModality={menuInteractive ? inputModality : 'unknown'}
             focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
-            onRequestEnterRealm={beginRealmEntry}
+            onCancelFarcasterSignIn={cancelFarcasterSignIn}
+            onRequestAuthenticatedRealm={beginRealmEntry}
+            onRequestFarcasterSignIn={beginFarcasterSignIn}
             onRequestReturn={handleExplicitReturn}
+            onRetryFarcasterSignIn={retryFarcasterSignIn}
+            onSignOut={signOutFarcaster}
           />
         </div>
       ) : null}
