@@ -147,6 +147,39 @@
       }
     },
     {
+      "filename": "lowlands-of-hegemony.mp3",
+      "originalAttachmentBasename": "Lowlands_Of_Hegemony.mp3",
+      "ingestedCacheBasename": "audio_edca1cdc8d6d.ogg",
+      "mediaType": "audio/mpeg",
+      "bytes": 5722488,
+      "durationSeconds": 244.919979,
+      "audio": {
+        "codec": "MP3",
+        "sampleRateHz": 48000,
+        "channels": 2,
+        "channelLayout": "stereo",
+        "bitRateBitsPerSecond": 186301
+      },
+      "embeddedCover": {
+        "codec": "MJPEG",
+        "width": 360,
+        "height": 360,
+        "title": "Cover",
+        "comment": "Cover (front)"
+      },
+      "metadata": {
+        "title": "Lowlands Of Hegemony",
+        "artist": "ael_dev7",
+        "type": "instrumental",
+        "generator": "Suno",
+        "createdAt": "2026-07-11T15:59:56.013049Z",
+        "generationId": "27307341-82a6-429e-abe2-53bc1cd88c1d"
+      },
+      "sha256": "3a04a006e10771c738edacd47150d6039a4eda4faee6bf47f64813b134f81908",
+      "runtime": null,
+      "intendedUse": "Additional soundtrack reference for future Hegemony and Lowlands direction"
+    },
+    {
       "type": "runtimeDerivative",
       "source": "public/video/warpkeep-menu-loop.mp4 frame 0, color-managed BT.709 to sRGB",
       "runtime": {

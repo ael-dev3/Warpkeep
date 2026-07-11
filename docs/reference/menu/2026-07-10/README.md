@@ -9,6 +9,7 @@ This directory preserves the Ael-provided menu-development references byte-for-b
 - [`warpkeep-menu-loop-silent.mp4`](warpkeep-menu-loop-silent.mp4) — 15.041667-second, 1280×720 H.264 High film at 24 fps with no audio stream.
 - [`warpkeep-menu-loop-clean-hq-max-coverage-1080p-silent.mp4`](warpkeep-menu-loop-clean-hq-max-coverage-1080p-silent.mp4) — clean high-quality maximum-coverage 15.041667-second, 1920×1080 H.264 High film at 24 fps with no audio stream.
 - [`sunset-hegemony.mp3`](sunset-hegemony.mp3) — 401.919979-second stereo 48 kHz MP3 with embedded cover art. The archived attachment arrived with an `.ogg` name, but its detected container and codec are MP3, so the repository filename uses `.mp3` without changing its bytes.
+- [`lowlands-of-hegemony.mp3`](lowlands-of-hegemony.mp3) — 244.919979-second stereo 48 kHz MP3 with a 360×360 embedded front-cover image, archived as an additional soundtrack reference.
 - [`warpkeep-main-menu-reference.png`](warpkeep-main-menu-reference.png) — 1555×1011 composition reference.
 
 The film container supplied with the implementation prompt has a different container-level hash from the archived Discord attachment, but both contain the same H.264 video bitstream and decode to the same pixels. The manifest records both container hashes and the shared stream hash.
@@ -23,6 +24,7 @@ The composition reference guides the castle-left/open-right hierarchy, antique-g
 - The runtime film uses a CRF 20 slow H.264 High encode constrained to Level 4.1 and four reference frames for broad hardware-decoder compatibility. The 313 unchanged source-aligned frames scored VMAF 98.3015, SSIM 0.990383, and PSNR 37.9298 dB. It explicitly declares limited-range BT.709 primaries, transfer, and matrix metadata and places its index before the media payload for fast-start delivery.
 - Its poster is a color-managed 1920×1080 quality-84 WebP with an embedded sRGB profile. Against the first decoded video frame, it measured 2.332/255 RGB mean absolute error in Chromium and 2.173/255 through macOS ColorSync, keeping the fallback-to-film handoff visually aligned.
 - The “Sunset Hegemony” MP3 is copied byte-for-byte into `public/audio/`. Its final cadence completes before a quiet release; the audio director starts the standby source at 0.000 seconds when the outgoing source reaches 400.128 seconds and performs a 1.792-second equal-power overlap through 401.920 seconds.
+- “Lowlands Of Hegemony” is an additional archive-only soundtrack reference. It remains under `docs/reference/menu/` and is not wired into the public runtime by this deposit request.
 - Files in this archive remain documentation assets. The application loads only the copies and derivatives identified under `public/` in `manifest.json`.
 
 ## Provenance
@@ -31,6 +33,7 @@ The composition reference guides the castle-left/open-right hierarchy, antique-g
 - Image attachment basename: `img_8be8dd61c97e.png` / `warpkeep-main-menu-reference.png`.
 - Video attachment basenames: `warpkeep_menu_loop_no_audio.mp4` and `warpkeep_menu_loop_clean_hq_max_coverage_1080p_no_audio.mp4`.
 - Audio attachment basename: `audio_ac578c8d7609.ogg` / `Sunset Hegemony.mp3`; detected as MP3.
+- Additional audio attachment basename: `audio_edca1cdc8d6d.ogg` / `Lowlands_Of_Hegemony.mp3`; detected as MP3 with an embedded 360×360 MJPEG cover image.
 - Audio metadata: title `Sunset Hegemony`, artist `ael_dev7`, instrumental, made with Suno.
 - Licensing: covered by the repository's project-owned media policy in [`../../../../ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).
 
