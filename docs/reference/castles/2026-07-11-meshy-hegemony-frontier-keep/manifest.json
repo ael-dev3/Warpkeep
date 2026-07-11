@@ -1,0 +1,52 @@
+{
+  "archive_purpose": "Ael-supplied 3D castle reference for future Hegemony art direction",
+  "reference_only": true,
+  "runtime_dependency": false,
+  "source": {
+    "platform": "Discord",
+    "guild_id": "1483857530282053754",
+    "channel_id": "1524505797797744742",
+    "message_id": "1525459351110680616",
+    "attachment_id": "1525459350771077171",
+    "message_url": "https://discord.com/channels/1483857530282053754/1524505797797744742/1525459351110680616",
+    "original_filename": "Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb"
+  },
+  "license_policy": {
+    "policy": "CC0-1.0 under Warpkeep's project-owned reference media policy",
+    "note": "Ael supplied this project reference; it is archived for Warpkeep art direction and is not a runtime asset."
+  },
+  "file": {
+    "filename": "Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb",
+    "media_type": "model/gltf-binary",
+    "bytes": 63263296,
+    "sha256": "fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d"
+  },
+  "gltf": {
+    "container": "GLB",
+    "version": 2,
+    "asset_version": "2.0",
+    "generator": "pygltflib@v1.16.5",
+    "declared_length": 63263296,
+    "chunks": [
+      {"type": "JSON", "bytes": 2484},
+      {"type": "BIN", "trailing_byte": "0x00", "bytes": 63260784}
+    ],
+    "scenes": 1,
+    "default_scene": 0,
+    "nodes": 1,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "textures": 4,
+    "images": 4,
+    "animations": 0,
+    "cameras": 0,
+    "accessors": 4,
+    "buffers": 1,
+    "position_vertices": 534919,
+    "position_bounds": {
+      "min": [-0.9504079818725586, -0.679885983467102, -0.6652470231056213],
+      "max": [0.9482229948043823, 0.6744109988212585, 0.6633939743041992]
+    }
+  }
+}

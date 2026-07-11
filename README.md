@@ -33,6 +33,7 @@ Read more:
 - [`docs/design/warpkeep-direction.md`](docs/design/warpkeep-direction.md)
 - [`docs/design/hegemony-lowlands-terrain.md`](docs/design/hegemony-lowlands-terrain.md)
 - [`docs/design/roadmap.md`](docs/design/roadmap.md)
+- [`docs/reference/castles/`](docs/reference/castles/) — archived castle art-direction references
 
 ## Official faction art
 
