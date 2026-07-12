@@ -27,6 +27,14 @@ custom_domain = true
 name = "CHALLENGE_REPLAY_GUARD"
 class_name = "ChallengeReplayGuard"
 
+[[durable_objects.bindings]]
+name = "AUTH_RATE_LIMITER"
+class_name = "AuthRateLimiter"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ChallengeReplayGuard"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["AuthRateLimiter"]

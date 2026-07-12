@@ -8,6 +8,14 @@ export interface DurableObjectStorage {
   delete(key: string): Promise<boolean>
   deleteAll(): Promise<void>
   setAlarm(scheduledTime: number | Date): Promise<void>
+  transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T>
+}
+
+export interface DurableObjectTransaction {
+  get<T>(key: string): Promise<T | undefined>
+  put<T>(key: string, value: T): Promise<void>
+  delete(key: string): Promise<boolean>
+  setAlarm(scheduledTime: number | Date): Promise<void>
 }
 
 export interface DurableObjectState {
@@ -49,6 +57,7 @@ export interface WorkerEnv {
   SPACETIMEDB_DATABASE?: string
   ENVIRONMENT?: string
   CHALLENGE_REPLAY_GUARD?: DurableObjectNamespace
+  AUTH_RATE_LIMITER?: DurableObjectNamespace
 }
 
 export interface ExecutionContextLike {
@@ -67,6 +76,8 @@ export type SafeLogEvent =
   | 'admin_token_rejected'
   | 'auth_epoch_resolved'
   | 'auth_epoch_failed'
+  | 'rate_limited'
+  | 'rate_limit_failed'
   | 'configuration_error'
   | 'internal_error'
 
@@ -120,6 +131,16 @@ export interface FarcasterVerifier {
  */
 export interface AuthEpochResolver {
   resolve(fid: string): Promise<number>
+}
+
+export type RateLimitAction = 'challenge' | 'exchange' | 'admin-token'
+
+export type RateLimitResult =
+  | { allowed: true }
+  | { allowed: false; retryAfterSeconds: number }
+
+export interface RateLimiter {
+  check(request: Request, action: RateLimitAction): Promise<RateLimitResult>
 }
 
 export interface PublicIdentity {

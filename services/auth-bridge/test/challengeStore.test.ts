@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChallengeReplayGuard } from '../src/challengeStore'
-import type { ChallengeRecord, DurableObjectState, DurableObjectStorage } from '../src/types'
+import type {
+  ChallengeRecord,
+  DurableObjectState,
+  DurableObjectStorage,
+  DurableObjectTransaction,
+} from '../src/types'
 
 const NOW = 1_800_000_000_000
 const RECORD_KEY = 'challenge'
@@ -43,6 +48,10 @@ class FakeStorage implements DurableObjectStorage {
 
   async setAlarm(scheduledTime: number | Date): Promise<void> {
     this.alarm = scheduledTime
+  }
+
+  async transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
+    return closure(this)
   }
 }
 

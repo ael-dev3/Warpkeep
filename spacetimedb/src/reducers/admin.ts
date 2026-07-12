@@ -1,5 +1,6 @@
 import { SenderError, t } from 'spacetimedb/server';
 
+import { AuthEpochExhaustedError, executeAllowFidTransition } from '../adminPolicy';
 import {
   MAX_AUTH_EPOCH,
   WARPKEEP_BACKEND_PROTOCOL_VERSION,
@@ -126,8 +127,8 @@ export const adminSeedWorld = warpkeep.reducer(
 );
 
 /**
- * A repeated allow call is intentionally safe. It can re-enable an existing
- * invite but preserves its auth epoch, so a new epoch is always explicit.
+ * First admission preserves epoch 0. Repeating an enabled allow is idempotent,
+ * while re-enabling a disabled row rotates exactly once before it becomes live.
  */
 export const adminAllowFid = warpkeep.reducer(
   { name: 'admin_allow_fid' },
@@ -137,25 +138,46 @@ export const adminAllowFid = warpkeep.reducer(
     requireSupportedFid(fid);
     const cleanNote = cleanAdminNote(note);
     const existing = ctx.db.allowedFid.fid.find(fid);
-
-    if (existing === null) {
-      ctx.db.allowedFid.insert({
-        fid,
-        enabled: true,
-        authEpoch: 0,
-        invitedAt: ctx.timestamp,
-        invitedBy: admin.subject,
-        note: cleanNote,
+    // Exhaustion must fail before any table or audit callback runs.
+    try {
+      executeAllowFidTransition(existing, {
+        insert: plan => {
+          ctx.db.allowedFid.insert({
+            fid,
+            enabled: plan.enabled,
+            authEpoch: plan.authEpoch,
+            invitedAt: ctx.timestamp,
+            invitedBy: admin.subject,
+            note: cleanNote,
+          });
+        },
+        enabled: plan => {
+          if (existing !== null && existing.note !== cleanNote) {
+            ctx.db.allowedFid.fid.update({
+              ...existing,
+              enabled: plan.enabled,
+              authEpoch: plan.authEpoch,
+              note: cleanNote,
+            });
+          }
+        },
+        reenabled: plan => {
+          if (existing === null) throw new Error('ALLOW_FID_POLICY_INVARIANT');
+          ctx.db.allowedFid.fid.update({
+            ...existing,
+            enabled: plan.enabled,
+            authEpoch: plan.authEpoch,
+            note: cleanNote,
+          });
+        },
+        audit: () => audit(ctx, 'allow_fid', fid, admin.subject, cleanNote),
       });
-    } else if (!existing.enabled || existing.note !== cleanNote) {
-      ctx.db.allowedFid.fid.update({
-        ...existing,
-        enabled: true,
-        note: cleanNote,
-      });
+    } catch (error) {
+      if (error instanceof AuthEpochExhaustedError) {
+        throw new SenderError(error.message);
+      }
+      throw error;
     }
-
-    audit(ctx, 'allow_fid', fid, admin.subject, cleanNote);
   },
 );
 

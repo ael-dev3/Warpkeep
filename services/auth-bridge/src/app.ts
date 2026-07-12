@@ -12,6 +12,7 @@ import {
 import { DurableObjectChallengeStore } from './challengeStore'
 import { FarcasterVerifierUnavailableError, createOfficialFarcasterVerifier } from './farcaster'
 import { adminClaims, playerClaims, randomId, randomSiweNonce, signEs256Jwt } from './jwt'
+import { DurableObjectRateLimiter } from './rateLimit'
 import {
   AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
   SpacetimeHttpAuthEpochResolver,
@@ -23,6 +24,8 @@ import type {
   ChallengeStore,
   FarcasterVerifier,
   PublicIdentity,
+  RateLimitAction,
+  RateLimiter,
   SafeLogEvent,
   SafeLogger,
   WorkerEnv,
@@ -44,6 +47,7 @@ class HttpError extends Error {
     readonly status: number,
     readonly code: string,
     readonly publicMessage: string,
+    readonly responseHeaders: HeadersInit = {},
   ) {
     super(publicMessage)
   }
@@ -53,6 +57,7 @@ export interface AuthBridgeDependencies {
   challengeStore?: ChallengeStore
   verifier?: FarcasterVerifier
   authEpochResolver?: AuthEpochResolver
+  rateLimiter?: RateLimiter
   configReader?: (env: WorkerEnv) => BridgeConfig
   logger?: SafeLogger
   now?: () => number
@@ -74,7 +79,10 @@ function json(value: unknown, status = 200, headers: HeadersInit = {}): Response
 }
 
 function errorResponse(error: HttpError, headers: HeadersInit = {}): Response {
-  return json({ error: { code: error.code, message: error.publicMessage } }, error.status, headers)
+  const merged: Record<string, string> = {}
+  new Headers(headers).forEach((value, name) => { merged[name] = value })
+  new Headers(error.responseHeaders).forEach((value, name) => { merged[name] = value })
+  return json({ error: { code: error.code, message: error.publicMessage } }, error.status, merged)
 }
 
 function corsHeaders(origin: string): HeadersInit {
@@ -440,6 +448,33 @@ function defaultChallengeStore(env: WorkerEnv): ChallengeStore {
   return new DurableObjectChallengeStore(env.CHALLENGE_REPLAY_GUARD)
 }
 
+function defaultRateLimiter(env: WorkerEnv): RateLimiter {
+  if (!env.AUTH_RATE_LIMITER) throw new ConfigurationError()
+  return new DurableObjectRateLimiter(env.AUTH_RATE_LIMITER)
+}
+
+async function enforceRateLimit(
+  request: Request,
+  action: RateLimitAction,
+  env: WorkerEnv,
+  configured: RateLimiter | undefined,
+  logger: SafeLogger,
+): Promise<void> {
+  let result
+  try {
+    result = await (configured ?? defaultRateLimiter(env)).check(request, action)
+  } catch {
+    logger.event('rate_limit_failed')
+    throw new HttpError(503, 'rate_limit_unavailable', 'Authentication rate control is temporarily unavailable.')
+  }
+  if (!result.allowed) {
+    logger.event('rate_limited')
+    throw new HttpError(429, 'rate_limited', 'Too many authentication requests.', {
+      'retry-after': String(result.retryAfterSeconds),
+    })
+  }
+}
+
 /**
  * A Fetch-API-only bridge suitable for Cloudflare Workers. Dependency injection
  * keeps proof, replay, and auth-epoch behavior independently testable.
@@ -487,6 +522,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         }
 
         if (request.method === 'POST' && url.pathname === '/v1/farcaster/challenge') {
+          await enforceRateLimit(request, 'challenge', env, dependencies.rateLimiter, logger)
           const origin = requireAllowedBrowserOrigin(request, config)
           const body = await parseObjectBody(request)
           parseChallengeRequest(body, config)
@@ -517,6 +553,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         }
 
         if (request.method === 'POST' && url.pathname === '/v1/farcaster/exchange') {
+          await enforceRateLimit(request, 'exchange', env, dependencies.rateLimiter, logger)
           const origin = requireAllowedBrowserOrigin(request, config)
           const body = await parseObjectBody(request)
           const input = parseExchangeRequest(body)
@@ -589,6 +626,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         }
 
         if (request.method === 'POST' && url.pathname === '/v1/admin/token') {
+          await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)
           requireAdminNoOrigin(request)
           rejectAdminBody(request)
           const credential = adminCredential(request)

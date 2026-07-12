@@ -14,6 +14,7 @@ import {
   readFreshWarpkeepPlayerJwt,
   readWarpkeepBaseJwt,
 } from './claims';
+import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
 import type warpkeep from './schema';
 
@@ -86,16 +87,17 @@ export function requireAllowedFid(ctx: WarpkeepReducerContext): {
 } {
   const claims = requireWarpkeepJwt(ctx);
   const allowed = ctx.db.allowedFid.fid.find(claims.fid);
+  const decision = evaluateAdmissionEpoch(allowed, claims.authEpoch);
 
-  if (allowed === null || !allowed.enabled) {
+  if (decision === 'missing' || decision === 'disabled') {
     throw new SenderError('NOT_ADMITTED');
   }
 
-  if (allowed.authEpoch !== claims.authEpoch) {
+  if (decision === 'epoch_mismatch') {
     throw new SenderError('AUTH_EPOCH_MISMATCH');
   }
 
-  return { claims, allowed };
+  return { claims, allowed: allowed! };
 }
 
 export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {

@@ -3,7 +3,13 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAuthBridge } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
-import type { AuthEpochResolver, FarcasterVerifier, SafeLogEvent, WorkerEnv } from '../src/types'
+import type {
+  AuthEpochResolver,
+  FarcasterVerifier,
+  RateLimiter,
+  SafeLogEvent,
+  WorkerEnv,
+} from '../src/types'
 
 const ORIGIN = 'https://ael-dev3.github.io'
 const DOMAIN = 'ael-dev3.github.io'
@@ -40,7 +46,7 @@ function request(path: string, body?: unknown, init: RequestInit = {}): Request 
   if (body !== undefined && !headers.has('content-type')) headers.set('content-type', 'application/json')
   return new Request(`https://bridge.warpkeep.example${path}`, {
     ...init,
-    method: body === undefined ? 'GET' : 'POST',
+    method: init.method ?? (body === undefined ? 'GET' : 'POST'),
     headers,
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
@@ -68,7 +74,12 @@ interface Harness {
   now: number
 }
 
-function harness(options: { epoch?: number; resolver?: AuthEpochResolver; verifier?: FarcasterVerifier } = {}): Harness {
+function harness(options: {
+  epoch?: number
+  resolver?: AuthEpochResolver
+  verifier?: FarcasterVerifier
+  rateLimiter?: RateLimiter
+} = {}): Harness {
   const verifier = options.verifier ?? {
     verify: vi.fn(async () => ({ fid: FID })),
   }
@@ -81,6 +92,7 @@ function harness(options: { epoch?: number; resolver?: AuthEpochResolver; verifi
     challengeStore: new MemoryChallengeStore(),
     verifier,
     authEpochResolver: resolver,
+    rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
     now: () => now,
     logger: { event: (event) => events.push(event) },
   })
@@ -132,6 +144,105 @@ function proofFor(challenge: Record<string, unknown>, overrides: Record<string, 
 
 describe('Warpkeep auth bridge', () => {
   beforeEach(() => vi.restoreAllMocks())
+
+  it('rate-limits credential-bearing POST routes without affecting health or preflight', async () => {
+    const check = vi.fn(async (_request: Request, action: string) => (
+      action === 'challenge'
+        ? { allowed: false as const, retryAfterSeconds: 17 }
+        : { allowed: true as const }
+    ))
+    const h = harness({ rateLimiter: { check } })
+
+    expect((await h.app.fetch(request('/healthz'), env())).status).toBe(200)
+    expect((await h.app.fetch(request('/v1/farcaster/challenge', undefined, {
+      method: 'OPTIONS',
+      headers: { origin: ORIGIN, 'access-control-request-method': 'POST' },
+    }), env())).status).toBe(204)
+    expect(check).not.toHaveBeenCalled()
+
+    const limited = await h.app.fetch(request('/v1/farcaster/challenge', {}, {
+      headers: { origin: ORIGIN, 'cf-connecting-ip': '203.0.113.7' },
+    }), env())
+    expect(limited.status).toBe(429)
+    expect(limited.headers.get('retry-after')).toBe('17')
+    expect(limited.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+    expect(check).toHaveBeenCalledTimes(1)
+    expect(check.mock.calls[0]?.[1]).toBe('challenge')
+    expect(h.events).toContain('rate_limited')
+  })
+
+  it('rate-limits the admin token path without adding browser CORS', async () => {
+    const h = harness({
+      rateLimiter: { check: async () => ({ allowed: false, retryAfterSeconds: 29 }) },
+    })
+    const limited = await h.app.fetch(request('/v1/admin/token', {}, {
+      headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+    expect(limited.status).toBe(429)
+    expect(limited.headers.get('retry-after')).toBe('29')
+    expect(limited.headers.has('access-control-allow-origin')).toBe(false)
+  })
+
+  it('fails closed when distributed rate control is unavailable', async () => {
+    const h = harness({
+      rateLimiter: { check: async () => { throw new Error('offline') } },
+    })
+    const response = await h.app.fetch(request('/v1/farcaster/challenge', {}, {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(response.status).toBe(503)
+    expect(h.events).toContain('rate_limit_failed')
+  })
+
+  it('fails closed when CF-Connecting-IP is missing or malformed and never trusts X-Forwarded-For', async () => {
+    const events: SafeLogEvent[] = []
+    const namespace = {
+      idFromName: vi.fn(),
+      get: vi.fn(),
+    }
+    const app = createAuthBridge({
+      challengeStore: new MemoryChallengeStore(),
+      verifier: { verify: vi.fn(async () => ({ fid: FID })) },
+      authEpochResolver: { resolve: vi.fn(async () => 0) },
+      logger: { event: (event) => events.push(event) },
+    })
+    const headerCases: HeadersInit[] = [
+      { origin: ORIGIN },
+      { origin: ORIGIN, 'x-forwarded-for': '203.0.113.7' },
+      { origin: ORIGIN, 'cf-connecting-ip': 'bad', 'x-forwarded-for': '203.0.113.7' },
+    ]
+    for (const headers of headerCases) {
+      const response = await app.fetch(request('/v1/farcaster/challenge', {}, { headers }), env({
+        AUTH_RATE_LIMITER: namespace as never,
+      }))
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'rate_limit_unavailable' } })
+    }
+    expect(namespace.idFromName).not.toHaveBeenCalled()
+    expect(events.filter((event) => event === 'rate_limit_failed')).toHaveLength(3)
+  })
+
+  it('does not consume a challenge when exchange is rate-limited', async () => {
+    const check = vi.fn()
+      .mockResolvedValueOnce({ allowed: true })
+      .mockResolvedValueOnce({ allowed: false, retryAfterSeconds: 11 })
+      .mockResolvedValueOnce({ allowed: true })
+    const h = harness({ rateLimiter: { check } })
+    const challenge = await issueChallenge(h)
+    const proof = proofFor(challenge)
+
+    const blocked = await h.app.fetch(request('/v1/farcaster/exchange', proof, {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(blocked.status).toBe(429)
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+
+    const retry = await h.app.fetch(request('/v1/farcaster/exchange', proof, {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(retry.status).toBe(200)
+    expect(h.verifier.verify).toHaveBeenCalledTimes(1)
+  })
 
   it('publishes an exact OIDC issuer and a public-only ES256 JWKS without an external resolver configuration', async () => {
     const h = harness()
@@ -317,7 +428,7 @@ describe('Warpkeep auth bridge', () => {
       cancel() {
         cancelled = true
       },
-    })
+    }, { highWaterMark: 0 })
     const oversized = new Request('https://bridge.warpkeep.example/v1/farcaster/challenge', {
       method: 'POST',
       headers: { origin: ORIGIN, 'content-type': 'application/json' },
@@ -395,6 +506,7 @@ describe('Warpkeep auth bridge', () => {
       challengeStore: new MemoryChallengeStore(),
       verifier,
       authEpochResolver: resolver,
+      rateLimiter: { check: async () => ({ allowed: true }) },
     })
     const challengeResponse = await app.fetch(request('/v1/farcaster/challenge', {
       domain: DOMAIN, siweUri: SIWE_URI,
