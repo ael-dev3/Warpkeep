@@ -147,9 +147,10 @@ not verify:
 - a real Farcaster approval or owner-only denial flow.
 
 Repository APIs showed secret scanning and push protection enabled, while
-private vulnerability reporting and branch protection were not enabled. Alert
-endpoints were unavailable/inaccessible, so this report does not claim zero
-alerts.
+private vulnerability reporting and branch protection were not enabled. The
+final branch-specific CodeQL query returned zero open alerts; dependency and
+secret alert endpoints remained unavailable/inaccessible, so this report does
+not make a broader zero-alert claim.
 
 PR #15's license-policy verifier and CI changes were reviewed separately. Its
 local license verification passed, it introduced no auth/secret/network/runtime
@@ -199,11 +200,19 @@ Security tests now cover:
   job permissions/timeouts, stacked-PR triggers, and non-executing CodeQL mode;
 - real SpacetimeDB 2.6.1 module build and generated binding equivalence.
 
-At report drafting time, focused follow-up checks passed: 121 root tests, 29
-Worker tests, 15 module tests, all relevant typechecks, module build, binding
-verification, workflow YAML parsing, and `git diff --check`. The final rebased
-full matrix and hosted CodeQL result are recorded in the draft PR and final
-handoff.
+The final clean, rebased matrix passed: 56 root test files / 383 tests, 29
+Worker tests, 15 module tests, all typechecks, three root production build
+variants, real SpacetimeDB 2.6.1 module build, generated-binding equivalence,
+workflow YAML parsing, and `git diff --check`. Root, Worker, and module audits
+reported no known vulnerabilities; 182 registry signatures and 55 attestations
+verified. Hosted Verify, Worker, module, CodeQL analysis, and CodeQL result
+checks all passed, with zero open CodeQL alerts for the security branch.
+
+The final shipped build was byte-for-byte equal to the PR #11 baseline: zero
+total-byte and zero main-JavaScript-byte delta while the shared-alpha switch is
+off. The GitHub runner emitted non-blocking Node 20 action deprecation notices;
+the pinned action majors should be upgraded only after a separate compatibility
+review.
 
 The redacted full-history secret scan found one deterministic mocked test
 fixture false positive and no real secret. Root, Worker, and module package
@@ -214,14 +223,15 @@ audits reported no known vulnerabilities at the audited locks.
 **CONDITIONAL PASS** for a small closed alpha. There is no remaining confirmed
 Critical/High code blocker on the security branch.
 
-Conditions before enabling shared alpha:
+PR #11 remained at the audit-base SHA. The security branch was rebased onto
+that exact latest head (a no-op), and the complete local/hosted matrix passed.
 
-1. rebase this branch onto the final PR #11 head and pass the complete matrix;
-2. obtain a clean hosted CodeQL/check result;
-3. verify the live issuer, discovery/JWKS, exact CORS, module trust, and private
+Remaining conditions before enabling shared alpha:
+
+1. verify the live issuer, discovery/JWKS, exact CORS, module trust, and private
    epoch procedure on the final deployment;
-4. verify edge rate controls/monitoring and the empty-whitelist denial path;
-5. explicitly accept or change the pre-admission/re-enable epoch policy;
-6. keep the shared-alpha switch off if any identity-chain coordinate disagrees.
+2. verify edge rate controls/monitoring and the empty-whitelist denial path;
+3. explicitly accept or change the pre-admission/re-enable epoch policy;
+4. keep the shared-alpha switch off if any identity-chain coordinate disagrees.
 
 This recommendation is not `PASS FOR PRODUCTION`.
