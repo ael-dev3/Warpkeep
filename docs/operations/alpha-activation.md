@@ -4,12 +4,14 @@ This runbook activates the closed alpha without weakening its admission boundary
 
 ## Verified activation record
 
-The production bridge, discovery/JWKS, distributed rate control, direct private auth-epoch procedure, and production-issuer module are live. The module was published non-destructively. Protected inspection reports exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players, and zero castles. A second seed remained at 61. No real FID was admitted; owner denial QA is still pending.
+The production bridge through Worker source `63336dd` and Pages head `83bc36c`, discovery/JWKS, distributed rate control, direct private auth-epoch procedure, and production-issuer module are live. The module was published non-destructively. Protected inspection reports exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players, and zero castles. A second seed remained at 61. No real FID was admitted; owner denial QA is still pending. Later assurance fixes must not be described as live until their own exact consolidated head is deployed and this verification is repeated.
 
 ## Safety invariants
 
 - Preserve `_github-pages-challenge-ael-dev3.warpkeep.com` exactly as supplied by GitHub.
-- Never use `--delete-data`, `--break-clients`, database recreation, or a real/synthetic FID during activation.
+- Never permit data deletion: the guarded publish must use
+  `--delete-data=never`; never use `--delete-data=always`, `--break-clients`,
+  database recreation, or a real/synthetic FID during activation.
 - Keep final aggregate state at **61 world tiles / 0 allowlist rows / 0 enabled allowlist rows / 0 players / 0 castles**.
 - Keep secrets out of the repository, `VITE_` variables, shell history, logs, and support screenshots.
 - Enable `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` only through the reviewed exact-head Pages workflow after the bridge, private Maincloud auth-epoch call, and module prove healthy. Set it back to `false` for rollback.
@@ -57,6 +59,13 @@ https://auth.warpkeep.com/.well-known/jwks.json
 
 Discovery must name `https://auth.warpkeep.com` exactly; JWKS must contain one public ES256/P-256 key with no `d` member.
 
+Confirm the deployed Worker includes both SQLite Durable Object bindings and
+the reviewed distributed rolling windows for challenge, exchange, and admin
+token issuance. Browser trust gates must precede quota consumption; IPv6 must
+bucket by `/64`; limiter failures must fail closed; `Retry-After` must stay
+bounded; and expiry alarms must deallocate objects with `deleteAll()`. Review
+configuration and a staged/preview check only—do not exhaust production quotas.
+
 ## 3. Private auth-epoch procedure call
 
 For each successful Farcaster proof exchange, the Worker mints one in-memory, approximately 60-second Hermes admin OIDC JWT. Its claims are the configured issuer, `sub: service:hermes`, `aud: ["warpkeep-spacetimedb"]`, `token_type: "spacetime-access"`, and `roles: ["warpkeep-admin"]`. It is never persisted, returned, or logged.
@@ -82,6 +91,12 @@ WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
 WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
 npm run stdb:publish:dev
 ```
+
+The guard rejects redirects, non-JSON or oversized discovery/JWKS documents,
+an incomplete public key, and a source/config mismatch. Its dry run succeeds
+only after the complete public issuer check. The publish subprocess has a hard
+deadline; if it times out, treat the result as indeterminate and inspect
+Maincloud before any retry.
 
 Then, with local Hermes authority configured, seed exactly once and inspect only aggregate-safe counts:
 
@@ -117,10 +132,22 @@ The Pages workflow validates the root deployment base, canonical origin, build S
 Run public verification after DNS/cert propagation:
 
 ```sh
-npm run verify:alpha-production
+WARPKEEP_EXPECTED_DEPLOYED_SHA='<full SHA from the successful Pages run>' \
+  npm run verify:alpha-production -- --require-protected-aggregate
 ```
 
-If the local Hermes secret is available, the script also runs the protected aggregate inspection without printing a token. The one owner-only Farcaster check, after deployment, is:
+Read the full deployed SHA from the successful Pages workflow run and verify it
+against the intended source branch. Do not assume `origin/main` while an
+activation branch is intentionally deployed before merge. After the final main
+deployment, `git fetch origin main` plus `git rev-parse --verify
+'origin/main^{commit}'` is valid only when the Pages run reports that same SHA.
+Omitting the full SHA skips artifact/source equality and is not an activation
+gate. Load the local Hermes credential through the approved non-logging secret
+handoff before this command; required aggregate mode exits nonzero if it is
+absent.
+
+The script runs the protected aggregate inspection without printing a token.
+The one owner-only Farcaster check, after deployment, is:
 
 1. Open `https://warpkeep.com/#menu`.
 2. Select **ENTER REALM** and approve through Farcaster.
@@ -137,3 +164,9 @@ npm run stdb:allow-fid -- 12345 "invited through Farcaster DM" --confirm
 ```
 
 Use `npm run stdb:disable-fid` and `npm run stdb:bump-auth-epoch` for revocation. Rotate the ES256 key by publishing a new JWKS `kid`, updating the module issuer trust only if the issuer changes, and allowing old tokens to expire; rotate the Hermes secret separately. Create annotated `v0.2.0` and the matching GitHub Release only after merge and deployed-build verification.
+
+Admission epoch behavior is deliberate: the first allow retains epoch `0` so
+the pending user's **CHECK AGAIN** can reuse the verified session; repeating an
+already-enabled allow is idempotent; re-enabling a disabled row increments
+exactly once; and a maximum-epoch re-enable fails transactionally before state
+or audit mutation.
