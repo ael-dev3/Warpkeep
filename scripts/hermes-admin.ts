@@ -1,3 +1,6 @@
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 import { DbConnection } from '../src/spacetime/module_bindings';
 import { configureHermesMachineOutput } from './hermes-machine-output';
 
@@ -8,6 +11,7 @@ const DEFAULT_URI = 'https://maincloud.spacetimedb.com';
 const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
 const CONNECT_TIMEOUT_MS = 10_000;
 const OPERATION_TIMEOUT_MS = 15_000;
+const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 
 function fail(message: string): never {
   throw new Error(message);
@@ -82,10 +86,63 @@ function printable(value: unknown): unknown {
   return value;
 }
 
-async function requestAdminToken(bridgeUrl: string, secret: string) {
+async function readBoundedAdminResponse(response: Response): Promise<unknown> {
+  if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(response.headers.get('content-type') ?? '')) {
+    fail('The Warpkeep admin bridge returned an invalid response.');
+  }
+  const advertisedLength = response.headers.get('content-length');
+  if (
+    advertisedLength
+    && (!/^\d+$/.test(advertisedLength) || Number(advertisedLength) > MAX_ADMIN_TOKEN_RESPONSE_BYTES)
+  ) {
+    fail('The Warpkeep admin bridge returned an invalid response.');
+  }
+  if (!response.body) fail('The Warpkeep admin bridge returned an invalid response.');
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  let exceededLimit = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_ADMIN_TOKEN_RESPONSE_BYTES) {
+        try { await reader.cancel(); } catch { /* Keep the rejection generic. */ }
+        exceededLimit = true;
+        break;
+      }
+      chunks.push(value);
+    }
+  } catch {
+    fail('The Warpkeep admin bridge returned an invalid response.');
+  } finally {
+    try { reader.releaseLock(); } catch { /* Keep the rejection generic. */ }
+  }
+  if (exceededLimit) fail('The Warpkeep admin bridge returned an invalid response.');
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch {
+    fail('The Warpkeep admin bridge returned an invalid response.');
+  }
+}
+
+export async function requestAdminToken(
+  bridgeUrl: string,
+  secret: string,
+  fetchImpl: typeof fetch = fetch,
+) {
   let response: Response;
   try {
-    response = await fetch(new URL('v1/admin/token', `${bridgeUrl}/`), {
+    response = await fetchImpl(new URL('v1/admin/token', `${bridgeUrl}/`), {
       method: 'POST',
       headers: {
         authorization: `Bearer ${secret}`,
@@ -100,21 +157,21 @@ async function requestAdminToken(bridgeUrl: string, secret: string) {
     fail('Could not reach the Warpkeep admin bridge.');
   }
   if (!response.ok) fail('The Warpkeep admin bridge rejected the request.');
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    fail('The Warpkeep admin bridge returned an invalid response.');
-  }
+  const body = await readBoundedAdminResponse(response);
+  const token = body && typeof body === 'object' ? (body as { token?: unknown }).token : undefined;
   if (
     !body
     || typeof body !== 'object'
-    || typeof (body as { token?: unknown }).token !== 'string'
+    || typeof token !== 'string'
+    || token.length < 24
+    || token.length > 16_384
+    || token.split('.').length !== 3
+    || token.split('.').some(part => !/^[A-Za-z0-9_-]+$/.test(part))
     || (body as { tokenType?: unknown }).tokenType !== 'spacetime-access'
   ) {
     fail('The Warpkeep admin bridge returned an invalid session.');
   }
-  return (body as { token: string }).token;
+  return token;
 }
 
 function requireCredentialedProductionTarget(uri: string, database: string, bridgeUrl: string): void {
@@ -135,9 +192,21 @@ function withOperationTimeout<T>(operation: Promise<T>): Promise<T> {
   });
 }
 
-function connect(uri: string, database: string, token: string): Promise<DbConnection> {
+function disconnectSilently(connection: DbConnection | undefined): void {
+  if (!connection || connection.isDisconnectRequested) return;
+  try { connection.disconnect(); } catch { /* Preserve the generic connection boundary. */ }
+}
+
+export function connect(
+  uri: string,
+  database: string,
+  token: string,
+  builderFactory: () => ReturnType<typeof DbConnection.builder> = () => DbConnection.builder(),
+): Promise<DbConnection> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let failed = false;
+    let pendingConnection: DbConnection | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const settle = (callback: () => void) => {
       if (settled) return false;
@@ -146,21 +215,31 @@ function connect(uri: string, database: string, token: string): Promise<DbConnec
       callback();
       return true;
     };
+    const rejectUnavailable = () => {
+      if (!settle(() => reject(new Error('Could not connect to the Warpkeep database.')))) return false;
+      failed = true;
+      disconnectSilently(pendingConnection);
+      pendingConnection = undefined;
+      return true;
+    };
     timer = setTimeout(() => {
-      settle(() => reject(new Error('Could not connect to the Warpkeep database.')));
+      rejectUnavailable();
     }, CONNECT_TIMEOUT_MS);
     try {
-      DbConnection.builder()
+      const builder = builderFactory()
         .withUri(uri)
         .withDatabaseName(database)
         .withToken(token)
         .onConnect((connection) => {
-          if (!settle(() => resolve(connection))) connection.disconnect();
+          if (settle(() => resolve(connection))) pendingConnection = undefined;
+          else disconnectSilently(connection);
         })
-        .onConnectError(() => settle(() => reject(new Error('Could not connect to the Warpkeep database.'))))
-        .build();
+        .onConnectError(() => rejectUnavailable());
+      const builtConnection = builder.build();
+      if (failed) disconnectSilently(builtConnection);
+      else if (!settled) pendingConnection = builtConnection;
     } catch {
-      settle(() => reject(new Error('Could not connect to the Warpkeep database.')));
+      rejectUnavailable();
     }
   });
 }
@@ -234,9 +313,11 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  // Error messages are intentionally generic and never include a bridge token,
-  // secret, request body, or server response body.
-  console.error(error instanceof Error ? error.message : 'Hermes command failed.');
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main().catch((error) => {
+    // Error messages are intentionally generic and never include a bridge token,
+    // secret, request body, or server response body.
+    console.error(error instanceof Error ? error.message : 'Hermes command failed.');
+    process.exitCode = 1;
+  });
+}
