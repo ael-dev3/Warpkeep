@@ -2,6 +2,7 @@ import type { FarcasterOidcSession } from './farcasterAuthTypes';
 
 export const FARCASTER_OIDC_PLAYER_TOKEN_TYPE = 'spacetime-access' as const;
 export const FARCASTER_OIDC_DEFAULT_AUDIENCE = 'warpkeep-spacetimedb' as const;
+export const FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 
 const MAX_JWT_LENGTH = 16_384;
 const MAX_ISSUER_LENGTH = 2_048;
@@ -182,6 +183,7 @@ function readPlayerClaims(
     || expiresAt === undefined
     || issuedAt > notBefore
     || notBefore >= expiresAt
+    || BigInt(expiresAt) - BigInt(issuedAt) > BigInt(FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS)
   ) {
     return undefined;
   }

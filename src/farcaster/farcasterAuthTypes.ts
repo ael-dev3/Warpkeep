@@ -81,6 +81,13 @@ export type VerifiedFarcasterIdentity = Readonly<{
   verifiedAt: number;
 }>;
 
+/** Presentation-only identity. Verification addresses and method never enter React state. */
+export type PublicFarcasterIdentity = Readonly<
+  Omit<VerifiedFarcasterIdentity, 'custody' | 'verifications' | 'authMethod'> & {
+    verifications: readonly [];
+  }
+>;
+
 /** Public state safe to expose to React presentation components. */
 export type FarcasterAuthViewState =
   | Readonly<{ phase: 'anonymous' }>
@@ -97,7 +104,7 @@ export type FarcasterAuthViewState =
     }>
   | Readonly<{
       phase: 'authenticated';
-      identity: VerifiedFarcasterIdentity;
+      identity: PublicFarcasterIdentity;
       assurance: FarcasterSessionAssurance;
       /** Present for an expiring restored authoritative session. */
       expiresAt?: number;

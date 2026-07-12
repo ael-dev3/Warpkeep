@@ -37,10 +37,10 @@ function createJwt(overrides: Record<string, unknown> = {}) {
 }
 
 function response(body: unknown, ok = true) {
-  return {
-    ok,
-    text: async () => JSON.stringify(body)
-  };
+  return new Response(JSON.stringify(body), {
+    status: ok ? 200 : 500,
+    headers: { 'content-type': 'application/json; charset=utf-8' }
+  });
 }
 
 function exchangeRequest(): FarcasterBridgeExchangeRequest {
@@ -132,8 +132,11 @@ describe('Farcaster OIDC bridge client', () => {
     expect(init).toMatchObject({
       method: 'POST',
       credentials: 'omit',
-      referrerPolicy: 'no-referrer'
+      referrerPolicy: 'no-referrer',
+      redirect: 'error',
+      cache: 'no-store'
     });
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
     expect(JSON.parse(String(init?.body))).toEqual({
       domain: 'ael-dev3.github.io',
       siweUri: 'https://ael-dev3.github.io/Warpkeep/'
@@ -188,5 +191,26 @@ describe('Farcaster OIDC bridge client', () => {
 
     await expect(bridge.exchangeCompletedSignIn(exchangeRequest()))
       .rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+  });
+
+  it('rejects non-JSON and oversized bridge responses before parsing', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const nonJson = vi.fn(async () => new Response('{}', {
+      headers: { 'content-type': 'application/jsonp' }
+    })) as unknown as FarcasterOidcBridgeFetch;
+    const oversized = vi.fn(async () => new Response('x'.repeat(32_769), {
+      headers: { 'content-type': 'application/json' }
+    })) as unknown as FarcasterOidcBridgeFetch;
+
+    for (const fetch of [nonJson, oversized]) {
+      const bridge = createFarcasterOidcBridgeClient({
+        bridgeUrl: 'https://bridge.warpkeep.example',
+        issuer: ISSUER,
+        audience: AUDIENCE,
+        fetch
+      });
+      await expect(bridge.exchangeCompletedSignIn(exchangeRequest()))
+        .rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    }
   });
 });

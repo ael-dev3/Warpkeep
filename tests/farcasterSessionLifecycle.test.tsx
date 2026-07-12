@@ -11,6 +11,7 @@ import { FARCASTER_AUTH_REQUEST_TTL_MS } from '../src/farcaster/farcasterAuthCon
 import { FarcasterOidcBridgeClientError } from '../src/farcaster/farcasterOidcBridgeClient';
 import {
   FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS,
+  getFarcasterDeviceSessionControlKey,
   getFarcasterDeviceSessionStorageKey,
   type FarcasterDeviceSessionEnvironment,
   type FarcasterDeviceSessionStorage
@@ -92,6 +93,17 @@ function createIdentity(verifiedAt = Date.now()): VerifiedFarcasterIdentity {
     verifications: [],
     authMethod: 'authAddress',
     verifiedAt
+  };
+}
+
+function publicIdentity(identity: VerifiedFarcasterIdentity) {
+  return {
+    fid: identity.fid,
+    ...(identity.username === undefined ? {} : { username: identity.username }),
+    ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
+    ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl }),
+    verifications: [],
+    verifiedAt: identity.verifiedAt
   };
 }
 
@@ -208,6 +220,7 @@ function AuthHarness({ duplicateBegin = false }: { duplicateBegin?: boolean }) {
       </button>
       <output data-testid="remember-device">{String(auth.rememberDevice)}</output>
       <output data-testid="has-remembered-device">{String(auth.hasRememberedDevice)}</output>
+      <output data-testid="has-oidc-session">{String(Boolean(auth.oidcSession))}</output>
     </div>
   );
 }
@@ -441,7 +454,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(authority.verifyCompletedRequest).toHaveBeenCalledTimes(1);
     expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
-      identity,
+      identity: publicIdentity(identity),
       assurance: 'bridge-oidc-alpha',
       expiresAt: expect.any(Number)
     });
@@ -456,7 +469,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle child' }));
     expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
-      identity,
+      identity: publicIdentity(identity),
       assurance: 'bridge-oidc-alpha',
       expiresAt: expect.any(Number)
     });
@@ -541,7 +554,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
 
     expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
-      identity: verifiedIdentity,
+      identity: publicIdentity(verifiedIdentity),
       assurance: 'bridge-oidc-alpha',
       expiresAt: Math.floor(
         (Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS) / 1_000
@@ -624,6 +637,47 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     });
     expect(screen.getByTestId('has-remembered-device').textContent).toBe('false');
     expect(storage.values.has(deviceSessionStorageKey())).toBe(false);
+  });
+
+  it('terminates a live persisted bearer when another tab emits logout', async () => {
+    vi.useFakeTimers({ now: 65_000 });
+    const channel = createChannel('CROSS_TAB_LOGOUT');
+    const privateIdentity: VerifiedFarcasterIdentity = {
+      ...createIdentity(Date.now() - 1),
+      custody: '0x1111111111111111111111111111111111111111',
+      verifications: ['0x2222222222222222222222222222222222222222'],
+      authMethod: 'authAddress'
+    };
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'CROSS_TAB_LOGOUT')),
+      verifyCompletedRequest: vi.fn(async () => privateIdentity)
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      now: Date.now,
+      pollIntervalMs: 10
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: publicIdentity(privateIdentity)
+    });
+    expect(JSON.stringify(readPublicState())).not.toContain(privateIdentity.custody);
+    expect(JSON.stringify(readPublicState())).not.toContain(privateIdentity.authMethod);
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+
+    fireEvent(window, new StorageEvent('storage', {
+      key: getFarcasterDeviceSessionControlKey('/'),
+      newValue: `logout-v1:${Date.now()}`
+    }));
+    await settleAsyncWork();
+
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
   });
 
   it('ignores a late channel from a cancelled generation while a retry proceeds', async () => {

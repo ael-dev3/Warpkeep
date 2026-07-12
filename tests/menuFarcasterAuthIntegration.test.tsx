@@ -7,17 +7,15 @@ import {
 } from '../src/components/menu/WarpkeepMainMenu';
 import type {
   FarcasterAuthViewState,
-  VerifiedFarcasterIdentity
+  PublicFarcasterIdentity
 } from '../src/farcaster/farcasterAuthTypes';
 
-const identity: VerifiedFarcasterIdentity = {
+const identity: PublicFarcasterIdentity = {
   fid: 12_345,
   username: 'keeper',
   displayName: 'The Keeper',
   pfpUrl: 'https://images.example/keeper.png',
-  custody: '0x1234',
-  verifications: ['0xabcd'],
-  authMethod: 'authAddress',
+  verifications: [],
   verifiedAt: 1_750_000_000_000
 };
 

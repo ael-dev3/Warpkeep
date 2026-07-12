@@ -271,11 +271,11 @@ describe('FarcasterQrAuthPanel', () => {
 });
 
 describe('FarcasterIdentityBadge', () => {
-  it('accepts only credential-free HTTP(S) profile image URLs', () => {
+  it('accepts only credential-free HTTPS profile image URLs', () => {
     expect(getSafeFarcasterProfileImageUrl('https://images.example/pfp.png'))
       .toBe('https://images.example/pfp.png');
     expect(getSafeFarcasterProfileImageUrl('http://images.example/pfp.png'))
-      .toBe('http://images.example/pfp.png');
+      .toBeUndefined();
     expect(getSafeFarcasterProfileImageUrl('https://user:pass@images.example/pfp.png'))
       .toBeUndefined();
     expect(getSafeFarcasterProfileImageUrl('javascript:alert(1)')).toBeUndefined();

@@ -10,6 +10,7 @@ export type {
 } from './FarcasterAuthProvider';
 export {
   FARCASTER_OIDC_DEFAULT_AUDIENCE,
+  FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS,
   FARCASTER_OIDC_PLAYER_TOKEN_TYPE,
   parseFarcasterOidcJwt,
   validateFarcasterOidcSession,
@@ -38,5 +39,6 @@ export type {
   FarcasterBridgeExchangeRequest,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
+  PublicFarcasterIdentity,
   VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';

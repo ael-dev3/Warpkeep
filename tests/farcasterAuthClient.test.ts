@@ -503,6 +503,9 @@ describe('Farcaster channel status', () => {
     ['fid', undefined],
     ['fid', 0],
     ['signature', 'not-a-signature'],
+    ['signature', `0x${'ab'.repeat(64)}`],
+    ['signature', `0x${'ab'.repeat(66)}`],
+    ['message', 'x'.repeat(8 * 1_024 + 1)],
     ['signatureParams', undefined],
     ['acceptAuthAddress', false]
   ])('rejects a completed response with invalid %s', async (field, value) => {

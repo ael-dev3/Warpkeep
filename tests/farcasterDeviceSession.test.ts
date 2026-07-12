@@ -6,11 +6,13 @@ import {
   FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS,
   FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION,
   clearFarcasterRememberedDeviceSession,
+  getFarcasterDeviceSessionControlKey,
   getFarcasterDeviceSessionStorageKey,
   getLegacyFarcasterDeviceSessionStorageKey,
   normalizeFarcasterDeviceSessionBasePath,
   persistFarcasterRememberedDeviceSession,
   restoreFarcasterRememberedDeviceSession,
+  signalFarcasterSessionTermination,
   toFarcasterOidcSession,
   type FarcasterDeviceSessionEnvironment,
   type FarcasterDeviceSessionStorage
@@ -147,6 +149,8 @@ describe('Farcaster authoritative OIDC device-session storage', () => {
       .toBe('warpkeep:/Warpkeep/:farcaster-device-session:v2');
     expect(getLegacyFarcasterDeviceSessionStorageKey(BASE_PATH))
       .toBe('warpkeep:/Warpkeep/:farcaster-device-session:v1');
+    expect(getFarcasterDeviceSessionControlKey(BASE_PATH))
+      .toBe('warpkeep:/Warpkeep/:farcaster-session-control:v1');
 
     for (const unsafePath of [
       '',
@@ -161,6 +165,7 @@ describe('Farcaster authoritative OIDC device-session storage', () => {
     ]) {
       expect(normalizeFarcasterDeviceSessionBasePath(unsafePath)).toBeUndefined();
       expect(getFarcasterDeviceSessionStorageKey(unsafePath)).toBeUndefined();
+      expect(getFarcasterDeviceSessionControlKey(unsafePath)).toBeUndefined();
     }
   });
 
@@ -260,6 +265,10 @@ describe('Farcaster authoritative OIDC device-session storage', () => {
     ['unknown identity key', { ...validRecord(), identity: { ...validRecord().identity, custody: '0xabc' } }],
     ['wrong origin', { ...validRecord(), origin: 'https://attacker.example' }],
     ['wrong base path', { ...validRecord(), basePath: '/Other/' }],
+    ['insecure profile URL', {
+      ...validRecord(),
+      identity: { ...validRecord().identity, pfpUrl: 'http://example.com/keeper.png' }
+    }],
     ['nonpositive FID', { ...validRecord(), identity: { ...validRecord().identity, fid: 0 } }],
     ['JWT issuer mismatch', { ...validRecord(), issuer: 'https://other.example' }],
     ['JWT audience mismatch', { ...validRecord(), audience: 'other-audience' }],
@@ -307,6 +316,14 @@ describe('Farcaster authoritative OIDC device-session storage', () => {
       )).toBeUndefined();
       expect(storage.values.size).toBe(0);
     }
+  });
+
+  it('emits only a non-sensitive base-path-scoped logout signal', () => {
+    const storage = new MemoryStorage();
+    expect(signalFarcasterSessionTermination(environment(storage))).toBe(true);
+    expect(storage.values.get(getFarcasterDeviceSessionControlKey(BASE_PATH)!))
+      .toBe(`logout-v1:${NOW}`);
+    expect(JSON.stringify(storage.values)).not.toContain(createJwt());
   });
 
   it('treats denied storage as a non-fatal absence and clears both v1 and v2 keys', () => {

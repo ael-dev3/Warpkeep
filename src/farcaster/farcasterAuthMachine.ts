@@ -2,6 +2,7 @@ import type {
   FarcasterAuthError,
   FarcasterAuthViewState,
   FarcasterQrState,
+  PublicFarcasterIdentity,
   VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';
 
@@ -119,15 +120,13 @@ function isValidRememberedExpiry(identity: VerifiedFarcasterIdentity, expiresAt:
 
 function publicIdentity(
   identity: VerifiedFarcasterIdentity
-): VerifiedFarcasterIdentity {
+): PublicFarcasterIdentity {
   return {
     fid: identity.fid,
     ...(identity.username === undefined ? {} : { username: identity.username }),
     ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
     ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl }),
-    ...(identity.custody === undefined ? {} : { custody: identity.custody }),
-    verifications: [...identity.verifications],
-    ...(identity.authMethod === undefined ? {} : { authMethod: identity.authMethod }),
+    verifications: Object.freeze([]) as readonly [],
     verifiedAt: identity.verifiedAt
   };
 }
