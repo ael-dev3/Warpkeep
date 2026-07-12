@@ -175,6 +175,21 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     }
   })
 
+  it('invokes the runtime fetch function without rebinding its receiver', async () => {
+    let receivedThis: unknown = 'not-called'
+    const runtimeFetch = async function (this: unknown): Promise<Response> {
+      receivedThis = this
+      if (this !== undefined) {
+        throw new TypeError('Illegal invocation: function called with incorrect this reference')
+      }
+      return jsonResponse('0')
+    }
+    const resolver = createResolver(runtimeFetch)
+
+    await expect(resolver.resolve(FID)).resolves.toBe(0)
+    expect(receivedThis).toBeUndefined()
+  })
+
   it('does not fabricate a closed stage for an unexpected resolver implementation bug', async () => {
     const sensitive = 'unexpected-sensitive-response-contract-detail'
     const malformedResponse = {

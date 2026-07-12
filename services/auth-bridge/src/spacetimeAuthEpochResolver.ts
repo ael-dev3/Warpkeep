@@ -239,11 +239,14 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
         return resolverFailure('signing')
       }
 
+      // Runtime-provided functions must not inherit the resolver instance as
+      // their receiver. Calling through a local binding preserves fetch().
+      const fetcher = this.fetcher
       return await Promise.race([
         (async () => {
           let response: Response
           try {
-            response = await this.fetcher(this.procedureEndpoint, {
+            response = await fetcher(this.procedureEndpoint, {
               method: 'POST',
               headers: new Headers({
                 authorization: `Bearer ${token}`,
