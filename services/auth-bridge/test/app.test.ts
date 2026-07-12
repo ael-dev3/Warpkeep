@@ -610,6 +610,36 @@ describe('Warpkeep auth bridge', () => {
     expect(h.events).not.toContain('auth_epoch_probe_failed')
   })
 
+  it('keeps an unexpected production-resolver contract bug untyped and private', async () => {
+    const sensitive = 'unexpected-sensitive-production-response-contract-detail'
+    const malformedResponse = {
+      get ok(): boolean {
+        throw new Error(sensitive)
+      },
+    } as Response
+    const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(malformedResponse)
+    const events: SafeLogEvent[] = []
+    const app = createAuthBridge({
+      rateLimiter: { check: async () => ({ allowed: true }) },
+      logger: { event: (event) => events.push(event) },
+    })
+    const response = await app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+
+    expect(response.status).toBe(500)
+    const responseText = await response.text()
+    expect(JSON.parse(responseText)).toEqual({
+      error: { code: 'internal_error', message: 'Authentication service failed.' },
+    })
+    expect(responseText).not.toContain(sensitive)
+    expect(response.headers.has('access-control-allow-origin')).toBe(false)
+    expect(upstream).toHaveBeenCalledOnce()
+    expect(events).toContain('internal_error')
+    expect(events).not.toContain('auth_epoch_probe_failed')
+  })
+
   it('keeps the synthetic probe server-only, input-free, rate-limited, and CORS-free', async () => {
     const resolve = vi.fn(async () => 0)
     const h = harness({ resolver: { resolve } })
@@ -628,6 +658,18 @@ describe('Warpkeep auth bridge', () => {
     }), env())
     expect(missing.status).toBe(401)
     expect(missing.headers.has('access-control-allow-origin')).toBe(false)
+
+    const wrongCredential = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${'Z'.repeat(ADMIN_SECRET.length)}` },
+    }), env())
+    expect(wrongCredential.status).toBe(401)
+    await expect(wrongCredential.json()).resolves.toEqual({
+      error: { code: 'invalid_admin_credentials', message: 'Admin credentials are invalid.' },
+    })
+    expect(wrongCredential.headers.has('access-control-allow-origin')).toBe(false)
+    expect(resolve).not.toHaveBeenCalled()
+    expect(h.events.filter((event) => event === 'admin_probe_rejected')).toHaveLength(2)
 
     const browser = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { evaluateAdmissionEpoch } from '../src/admissionPolicy';
@@ -96,4 +97,19 @@ test('a retained token from before re-enable resolves to AUTH_EPOCH_MISMATCH', (
     evaluateAdmissionEpoch({ enabled: true, authEpoch: reenabled.authEpoch }, reenabled.authEpoch),
     'current',
   );
+});
+
+test('the auth-epoch procedure remains a read-only lookup with no audit mutation', () => {
+  const source = readFileSync(new URL('../src/reducers/admin.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('export const adminGetFidAuthEpoch');
+  const end = source.indexOf('/** Protected and idempotent canonical world seeding.', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const procedure = source.slice(start, end);
+
+  assert.match(procedure, /requireAdmin\(tx\)/);
+  assert.match(procedure, /requireSupportedFid\(fid\)/);
+  assert.match(procedure, /allowedFid\.fid\.find\(fid\)\?\.authEpoch \?\? 0/);
+  assert.doesNotMatch(procedure, /\.(?:insert|update|delete)\s*\(/);
+  assert.doesNotMatch(procedure, /\baudit\s*\(/);
 });

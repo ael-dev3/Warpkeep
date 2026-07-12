@@ -268,15 +268,14 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
             )
           } catch (error) {
             if (timedOut) return resolverFailure('timeout')
-            if (error instanceof AuthEpochResolverFailure) throw error
-            return resolverFailure('response_validation')
+            throw error
           }
         })(),
         deadline,
       ])
     } catch (error) {
-      if (error instanceof AuthEpochResolverFailure) throw error
-      return resolverFailure(timedOut ? 'timeout' : 'fetch')
+      if (timedOut) return resolverFailure('timeout')
+      throw error
     } finally {
       if (timeout !== undefined) clearTimeout(timeout)
       controller.abort()

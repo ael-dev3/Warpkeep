@@ -162,6 +162,25 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     }
   })
 
+  it('does not fabricate a closed stage for an unexpected resolver implementation bug', async () => {
+    const sensitive = 'unexpected-sensitive-response-contract-detail'
+    const malformedResponse = {
+      get ok(): boolean {
+        throw new Error(sensitive)
+      },
+    } as Response
+    const resolver = createResolver(async () => malformedResponse)
+
+    try {
+      await resolver.resolve(FID)
+      throw new Error('Expected the resolver to fail.')
+    } catch (error) {
+      expect(error).not.toBeInstanceOf(AuthEpochResolverFailure)
+      expect(error).toMatchObject({ message: sensitive })
+      expect(authEpochResolverFailureStage(error)).toBeNull()
+    }
+  })
+
   it('classifies a 2xx response stream failure as fetch', async () => {
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
