@@ -136,11 +136,13 @@ creation, and world state. Anonymous visitors do not open a database connection.
 
 - Challenges are random, expire, and are atomically claimed before expensive
   verification, database lookup, or signing.
-- A successful or invalid exchange consumes the challenge. A retryable upstream
-  failure restores only a still-live challenge.
+- A successful or definitively invalid exchange consumes the challenge. Only
+  an explicitly retryable verifier outage, epoch lookup failure, or signing
+  failure restores a still-live challenge.
 - Durable Object storage is alarm-cleaned and deallocated after use or expiry.
 - Request and response bodies are streamed through byte bounds with strict text
-  decoding; external calls and local admin operations use explicit deadlines.
+  decoding. The browser bridge exchange, Worker epoch lookup, and local Hermes
+  connection/operation paths use explicit deadlines.
 - Distributed sequential abuse still requires deployment-level rate limiting
   and monitoring before wider availability.
 
@@ -151,7 +153,10 @@ creation, and world state. Anonymous visitors do not open a database connection.
   connection is authenticated. The module then validates issuer, audience,
   token type, subject, roles, FID, and epoch. A player cannot use an admin
   surface and an admin token cannot bootstrap as a player.
-- Admin reducer/procedure entry points recheck the original admin JWT expiry
+- Signed `session_iat`/`session_exp` claims preserve the original player-session
+  window across SpacetimeDB's temporary connection-token exchange. Every player
+  module call rechecks that maximum-30-day absolute deadline against module time.
+- Admin reducer/procedure entry points recheck the connection JWT expiry
   against authoritative reducer time, even when a WebSocket outlives token
   expiry.
 - Player admission and the authorization epoch are module-authoritative.
@@ -194,7 +199,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | --- | --- | --- |
 | Client chooses or substitutes another FID | Independent SIWF verification and exact FID agreement | Treat verifier/RPC compromise as an external dependency incident. |
 | Proof replay or parallel exchange | Expiring Durable Object challenge and atomic pre-work claim | Add edge/Worker rate limits for distributed sequential abuse. |
-| Stolen browser bearer | Exact claims, maximum lifetime, epoch checks, disconnect/logout handling | Accepted closed-alpha risk; move to short-lived access plus trusted HttpOnly refresh for production. |
+| Stolen browser bearer | Exact claims, module-enforced absolute lifetime, epoch checks, disconnect/logout handling | Accepted closed-alpha risk; move to short-lived access plus trusted HttpOnly refresh for production. |
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
 | Whitelist bypass or private-row disclosure | Module-side admission on every protected operation; private tables/bindings | Public world/player/castle projections remain intentionally observable. |
@@ -208,10 +213,13 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - The 30-day bearer in localStorage is vulnerable to origin-level script,
   extension, or device compromise and lacks an HttpOnly refresh/session tier.
 - A copied self-contained player token is not revoked by browser logout. Epoch
-  bump, key response, and expiration are the available controls.
-- Re-enabling a previously disabled admission record without changing its epoch
-  can make an older same-epoch token usable again. Changing that behavior is a
-  whitelist-policy decision and should be resolved before broader access.
+  bump, key response, and the module-enforced absolute expiration are the
+  available controls.
+- A baseline-epoch token obtained before first admission can become usable when
+  that FID is first allowed. Re-enabling a disabled record without changing its
+  epoch can likewise reactivate an older same-epoch token. Changing either
+  behavior is a whitelist-policy decision and should be resolved before broader
+  access.
 - Public game projections allow any connected authenticated client, including
   an unadmitted player using a custom client, to observe world/player/castle
   data by design; privacy classification must be revisited as state expands.
@@ -222,6 +230,9 @@ creation, and world state. Anonymous visitors do not open a database connection.
   production requirement.
 - Edge rate limiting, alerting, key-rotation drills, incident response, and
   operational history are not yet mature enough for production assurance.
+- The GitHub `main` branch currently has no protection or ruleset. Required
+  reviews/checks and tightly scoped bypass permissions remain owner-side release
+  controls even with hardened workflows.
 
 ## Assumptions and operational dependencies
 
