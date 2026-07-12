@@ -203,7 +203,8 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
             body: JSON.stringify([fidArgument]),
             cache: 'no-store',
             credentials: 'omit',
-            redirect: 'error',
+            // Workerd rejects `error`; `manual` surfaces 3xx to the non-2xx guard below.
+            redirect: 'manual',
             signal: controller.signal,
           })
           if (!response.ok) throw new Error('Auth epoch resolver is unavailable.')
