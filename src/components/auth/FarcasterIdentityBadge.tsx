@@ -28,7 +28,7 @@ export function getSafeFarcasterProfileImageUrl(profileImageUrl: string | undefi
   try {
     const parsedUrl = new URL(profileImageUrl);
     if (
-      (parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'http:')
+      parsedUrl.protocol === 'https:'
       && !parsedUrl.username
       && !parsedUrl.password
     ) {

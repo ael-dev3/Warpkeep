@@ -9,13 +9,16 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WarpkeepExperience } from '../src/components/WarpkeepExperience';
 import { FarcasterAuthProvider } from '../src/farcaster/FarcasterAuthProvider';
+import { WarpkeepSpacetimeProvider } from '../src/spacetime/WarpkeepSpacetimeProvider';
 
 const mediaPaused = new WeakMap<HTMLMediaElement, boolean>();
 
 function render(ui: ReactElement) {
   return testingLibraryRender(
     <FarcasterAuthProvider>
-      {ui}
+      <WarpkeepSpacetimeProvider>
+        {ui}
+      </WarpkeepSpacetimeProvider>
     </FarcasterAuthProvider>
   );
 }

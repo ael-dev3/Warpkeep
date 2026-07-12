@@ -1,49 +1,48 @@
-# Warpkeep
+# Warpkeep — Alpha 0.2.0
 
-**Every FID has a castle.**
+**Every FID has a castle — once the Hegemony admits it.**
 
-[Play the live build at warpkeep.com](https://warpkeep.com/)
+[Canonical player domain](https://warpkeep.com/) · [Legacy Pages presentation](https://ael-dev3.github.io/Warpkeep/) · [Farcaster access contact](https://farcaster.xyz/0xael.eth) · [Closed-alpha PR](https://github.com/ael-dev3/Warpkeep/pull/11)
 
-Warpkeep is an open-source, Farcaster-native castle strategy game under active public development. The current build is a live, playable vertical slice: it establishes the world, verifies a Farcaster identity, and opens the first Hegemony realm experience while the persistent strategy systems are being built.
+Warpkeep is an open-source, Farcaster-native castle strategy game under active public development. The public presentation contains the cinematic gateway, Hegemony menu, Lowlands realm, soundtrack, and Credits; its shared realm is implemented behind a deliberately closed admission boundary.
 
-## Current build
+## Current public build
 
-The public build currently includes:
+- A cinematic Three.js title screen and gateway transition into the Hegemony menu.
+- Standard website Sign In with Farcaster, with QR-first desktop and deep-link-first mobile presentation.
+- A deterministic Hegemony Lowlands presentation with 61 playable cells, 91 rendered cells, a Frontier Keep, procedural terrain, camera movement, and accessible fallback controls.
+- Lowlands music, reduced-motion support, responsive layouts, and WebGL/model-load fallbacks.
+- A cinematic Credits roll and honest notices for systems outside the current alpha slice.
 
-- A cinematic Three.js title screen with a gateway transition into the Hegemony menu.
-- Standard web Sign In with Farcaster using the official relay, with QR-first desktop flow and deep-link-first mobile flow.
-- Verified FID and profile presentation, plus an optional 30-day remembered-device convenience for this client-only milestone.
-- A deterministic Hegemony Lowlands realm with 61 playable cells and 91 rendered cells, a fixed Frontier Keep, procedural terrain details, camera movement, and accessible fallback controls.
-- Lowlands music, responsive desktop/mobile presentation, reduced-motion support, and WebGL/model-load fallbacks.
-- A cinematic credits roll and honest development notices for menu systems that are not live yet.
+The shared-realm authority is live behind an intentionally empty admission list. A remembered device record is not proof of permanent ownership, and no real player or castle exists until the Hegemony explicitly admits a FID after owner QA.
 
-The current realm is session-bound and client-only. A remembered device record is not a server session or proof of ownership.
+## Closed-alpha architecture
 
-## What is being built next
+```text
+Farcaster SIWF approval
+  -> Warpkeep auth bridge independently verifies the proof
+  -> ES256 OIDC JWT (sub = farcaster:<fid>)
+  -> SpacetimeDB connection with .withToken(jwt)
+  -> Maincloud validates issuer discovery/JWKS
+  -> Warpkeep module validates claims, auth epoch, and private allowed_fid
+  -> admitted users receive one player, one castle, and shared Lowlands state
+```
 
-Warpkeep is not a finished release or a marketing demo. It is a live public game build being developed in the open. The current vertical slice focuses on presentation, identity, and the first realm; the core asynchronous strategy loop is next.
+Anonymous title and menu visitors never open a SpacetimeDB connection or receive an anonymous database identity. The module has private `allowed_fid`/`admin_audit` tables, public 61-tile/player/castle projections, and browser bindings that exclude private tables.
 
-Not shipped yet:
+The initial real whitelist must remain empty. A valid but unadmitted identity sees:
 
-- Trusted backend sessions and permanent keep ownership.
-- A production SpacetimeDB module, subscriptions, and server-authoritative multiplayer state.
-- Persistent resources, buildings, units, queues, combat, raids, alliances, and seasons.
-- Token mechanics or financialized progression.
-- AI-generated changes to authoritative game state.
+> This Farcaster identity is not yet admitted to the Hegemony frontier.
 
-The repository also contains a local mocked castle dashboard and deterministic reducer scaffold for development. Those systems are not exposed as public gameplay yet.
+The panel displays the active FID and provides **REQUEST ACCESS**, **CHECK AGAIN**, and **SIGN OUT**. The request action is the semantic, privacy-preserving [@0xael.eth Farcaster link](https://farcaster.xyz/0xael.eth). Check Again reuses the existing valid session and never creates a new QR/deep link.
 
-## Product direction
+## Alpha activation status
 
-Warpkeep starts with a focused Hegemony-versus-Core campaign: one clear human faction, a persistent keep, deterministic progression, PvE pressure, public reports, and seasonal strategy. Farcaster identity and social context can become the map; SpacetimeDB will eventually own authoritative multiplayer state; AI can add lore and court flavor without deciding game outcomes.
+The canonical Pages domain and `https://auth.warpkeep.com` are live over HTTPS. OIDC discovery and public-only JWKS, exact browser CORS, distributed rolling-window rate control, and the private direct Maincloud auth-epoch procedure path are active. The module trusts that exact issuer and was published non-destructively.
 
-Read the project direction and roadmap:
+Maincloud contains exactly 61 canonical world cells, zero allowlist rows, zero enabled FIDs, zero players, and zero castles. No real FID was admitted. The production Pages switch is controlled only by the reviewed exact-head deployment workflow; owner-controlled empty-whitelist denial QA is still pending before any admission.
 
-- [`docs/vision.md`](docs/vision.md)
-- [`docs/design/warpkeep-direction.md`](docs/design/warpkeep-direction.md)
-- [`docs/design/roadmap.md`](docs/design/roadmap.md)
-- [`docs/design/hegemony-lowlands-terrain.md`](docs/design/hegemony-lowlands-terrain.md)
-- [`docs/design/lowlands-audio.md`](docs/design/lowlands-audio.md)
+For each verified proof exchange, the Worker mints a short-lived private Hermes OIDC JWT and calls the documented SpacetimeDB HTTP procedure `POST /v1/database/:database/call/admin_get_fid_auth_epoch`; no separate public resolver service is used. The release policy is in [versioning](docs/releases/versioning.md); the operator and rollback sequence is in the [alpha activation runbook](docs/operations/alpha-activation.md).
 
 ## Local development
 
@@ -54,44 +53,63 @@ npm ci
 npm run dev
 ```
 
-Open the local Vite URL. The normal route opens the title screen; `#menu` opens the Hegemony menu directly for development and accessibility testing.
-
-Run the verification suite:
+The normal route opens the title screen; `#menu` opens the Hegemony menu directly for development and accessibility checks. Run the full verification suite with:
 
 ```bash
 npm test
 npm run typecheck
 npm run build
 GITHUB_PAGES=true npm run build
+GITHUB_PAGES=true DEPLOY_BASE=/ npm run build
 npm audit --audit-level=high
 ```
 
-For a real identity-flow check, choose **ENTER REALM** from the menu and approve the QR code or Farcaster deep link in a Farcaster client. Tests use injected clients and do not contact the live relay. Do not publish live QR data, channel tokens, proof material, console dumps, or HAR files.
+The default local experience remains title/menu-safe. A production bridge is never inferred from a browser identity; local HTTP is allowed only for an explicitly configured localhost development bridge.
 
-## Architecture
+### Browser-safe configuration
 
-- **Frontend:** Vite, React, TypeScript, and plain responsive CSS.
-- **Rendering:** Direct Three.js title and realm surfaces with reduced-motion and fallback paths.
-- **Identity:** Standard web Sign In with Farcaster in `src/farcaster/`.
-- **Game foundations:** Deterministic models, map generation, and reducer-style logic in `src/game/`.
-- **Multiplayer direction:** SpacetimeDB schema and reducer plan in `src/spacetime/` and [`docs/spacetime-db-plan.md`](docs/spacetime-db-plan.md).
-- **AI boundary:** Read-only court-report interfaces in `src/ai/`; AI does not mutate authoritative state.
+Copy `.env.example` to an untracked local `.env` only when working with a real or local bridge. These are public build values, never secrets:
 
-## Reference material
+```dotenv
+VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false
+VITE_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
+VITE_SPACETIMEDB_DATABASE=warpkeep-89e4u
+VITE_WARPKEEP_AUTH_BRIDGE_URL=https://auth.example.com
+VITE_WARPKEEP_OIDC_ISSUER=https://auth.example.com
+VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
+```
 
-Design and provenance archives are kept separate from runtime code:
+The kill switch is `false` by default. Never put signing keys, RPC URLs, admin secrets, private procedure JWTs, or Maincloud credentials in a `VITE_` variable.
 
-- [`docs/reference/castles/`](docs/reference/castles/)
-- [`docs/reference/terrain/`](docs/reference/terrain/)
-- [`docs/reference/menu/`](docs/reference/menu/)
-- [`docs/reference/factions/`](docs/reference/factions/)
-- [`ASSETS-LICENSE.md`](ASSETS-LICENSE.md)
+## Module, bridge, and operations
+
+The SpacetimeDB TypeScript module is pinned to `2.6.1`; committed bindings are generated by CLI `2.6.1`, not hand-authored. Useful local commands are:
+
+```sh
+npm run stdb:version
+npm run stdb:build
+npm run stdb:generate
+npm run stdb:verify-bindings
+npm run stdb:inspect-alpha
+```
+
+Hermes requests a short-lived admin JWT only at runtime. Mutations require `--confirm`; do not run `allow-fid` for an owner, QA account, or real user during activation.
+
+The bridge has discovery, public-only JWKS, durable replay protection,
+distributed per-client rate control, strict CORS/body limits, and a server-only
+admin endpoint. Its internal auth-epoch lookup is a private Worker-to-SpacetimeDB
+HTTP procedure call, never a browser endpoint; lookup failure produces a safe
+`503 authorization_unavailable` rather than a client-side fallback.
+
+For architecture and activation boundaries, see:
+
+- [Farcaster integration](docs/farcaster-integration.md)
+- [SpacetimeDB plan](docs/spacetime-db-plan.md)
+- [Architecture](docs/technical-architecture.md)
+- [Roadmap](docs/design/roadmap.md)
+- [Alpha 0.2.0 release notes](docs/releases/alpha-0.2.0.md)
+- [Project direction](docs/design/warpkeep-direction.md)
 
 ## License
 
-Warpkeep is licensed for maximum reuse freedom:
-
-- Software code: Zero-Clause BSD (`0BSD`). See [`LICENSE`](LICENSE).
-- Documentation, lore, manifests, and project-owned media/reference assets: CC0 1.0 Universal unless a file says otherwise. See [`LICENSE-CC0`](LICENSE-CC0) and [`ASSETS-LICENSE.md`](ASSETS-LICENSE.md).
-
-These licenses allow broad copying, modification, redistribution, private use, commercial use, forks, mods, alternate clients, and community realms. They do not grant trademark rights or imply endorsement by the official Warpkeep project.
+Code is [0BSD](LICENSE). Documentation, lore, manifests, and project-owned reference assets are CC0 unless noted otherwise; see [LICENSE-CC0](LICENSE-CC0) and [ASSETS-LICENSE.md](ASSETS-LICENSE.md).

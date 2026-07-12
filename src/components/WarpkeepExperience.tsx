@@ -10,6 +10,10 @@ import {
 import { useFarcasterAuth } from '../farcaster/FarcasterAuthProvider';
 import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
 import {
+  useWarpkeepBackend,
+  WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE
+} from '../spacetime';
+import {
   WarpkeepAudioDirector,
   WARPKEEP_REALM_TO_MENU_TRANSITION_MS,
   type AudioScene,
@@ -22,6 +26,7 @@ import {
   type MenuInputModality
 } from './menu/WarpkeepMainMenu';
 import { RealmMapScreen } from './realm/RealmMapScreen';
+import { FarcasterAdmissionPanel } from './auth/FarcasterAdmissionPanel';
 import {
   WarpTransitionOverlay,
   type WarpTransitionOrigin
@@ -62,11 +67,9 @@ function hasRealmHash() {
   return typeof window !== 'undefined' && window.location.hash === REALM_HASH;
 }
 
-function initialStablePhase(hasAuthenticatedIdentity: boolean): WarpkeepStableExperiencePhase {
-  // A valid remembered-device record is synchronously restored by the auth
-  // provider, so an intentional #realm revisit can open directly without an
-  // anonymous flash or a new relay channel. A hash alone remains no credential.
-  if (hasRealmHash() && hasAuthenticatedIdentity) return 'realm';
+function initialStablePhase(): WarpkeepStableExperiencePhase {
+  // A hash is never a credential. Even a restored bridge session must first
+  // re-check admission before the authoritative realm may mount.
   if (hasRealmHash()) return 'menu';
   return hasMenuHash() ? 'menu' : 'title';
 }
@@ -138,15 +141,18 @@ export function WarpkeepExperience() {
     retrySignIn: retryFarcasterSignIn,
     prepareQrCode: prepareFarcasterQrCode,
     signOut: signOutFarcaster,
+    oidcSession,
     rememberDevice,
     setRememberDevice,
     hasRememberedDevice
   } = useFarcasterAuth();
-  const initiallyAuthenticated = farcasterAuthState.phase === 'authenticated';
+  const backend = useWarpkeepBackend();
+  const initiallyAuthenticated = farcasterAuthState.phase === 'authenticated'
+    && farcasterAuthState.assurance === 'bridge-oidc-alpha'
+    && oidcSession !== undefined;
   const initialPhase = useMemo(
-    () => initialStablePhase(initiallyAuthenticated),
-    // Restoration is synchronous; the first render intentionally determines
-    // the initial route without responding to later auth transitions.
+    () => initialStablePhase(),
+    // The first render intentionally never treats a route hash as admission.
     []
   );
   const [experience, dispatch] = useReducer(
@@ -158,7 +164,7 @@ export function WarpkeepExperience() {
     initialPhase
   );
   const [pendingDestination, setPendingDestination] = useState<'realm' | null>(() => (
-    hasRealmHash() && !initiallyAuthenticated ? 'realm' : null
+    hasRealmHash() ? 'realm' : null
   ));
   const [gatewayOrigin, setGatewayOrigin] = useState<WarpTransitionOrigin>(() => ({
     x: typeof window === 'undefined' ? 640 : window.innerWidth * 0.5,
@@ -182,19 +188,23 @@ export function WarpkeepExperience() {
   const completedSequenceRef = useRef(-1);
   const lastPointerTypeRef = useRef<string>('mouse');
   const restoreTitleFocusRef = useRef(false);
-  const blockedInitialRealmRef = useRef(hasRealmHash() && !initiallyAuthenticated);
+  const blockedInitialRealmRef = useRef(hasRealmHash());
   const realmAudioResetTimerRef = useRef<number | null>(null);
   const verifiedIdentityRef = useRef<VerifiedFarcasterIdentity | null>(
-    farcasterAuthState.phase === 'authenticated'
+    initiallyAuthenticated
       ? farcasterAuthState.identity
       : null
   );
+  const backendReadyRef = useRef(backend.state.phase === 'ready');
   const returnPreparingRef = useRef(returnPreparing);
   phaseRef.current = experience.phase;
   returnPreparingRef.current = returnPreparing;
   verifiedIdentityRef.current = farcasterAuthState.phase === 'authenticated'
+    && farcasterAuthState.assurance === 'bridge-oidc-alpha'
+    && oidcSession !== undefined
     ? farcasterAuthState.identity
     : null;
+  backendReadyRef.current = backend.state.phase === 'ready';
 
   const clearPendingRealmDestination = useCallback(() => {
     setPendingDestination(null);
@@ -207,9 +217,9 @@ export function WarpkeepExperience() {
 
   const gateAnonymousRealmRoute = useCallback(() => {
     // A hash is not a credential. Preserve the player's intended realm
-    // destination privately, but normalize the visible URL to the menu before
-    // the menu opens its own on-demand Farcaster identity rail.
-    setPendingDestination('realm');
+    // destination privately only while the public shared-alpha path is live.
+    // A disabled release must not create a SIWF request that cannot exchange.
+    setPendingDestination(backend.sharedAlphaAvailable ? 'realm' : null);
     cancelFarcasterSignIn();
     if (hasRealmHash()) {
       window.history.replaceState(
@@ -218,7 +228,7 @@ export function WarpkeepExperience() {
         `${pageUrlWithoutHash()}${MENU_HASH}`
       );
     }
-  }, [cancelFarcasterSignIn]);
+  }, [backend.sharedAlphaAvailable, cancelFarcasterSignIn]);
 
   const fadeRealmAudioToMenuAndReset = useCallback(() => {
     const audioDirector = audioDirectorRef.current;
@@ -238,13 +248,14 @@ export function WarpkeepExperience() {
 
   const handleSignOut = useCallback(() => {
     clearPendingRealmDestination();
+    backend.disconnect();
     if (phaseRef.current === 'realm') {
       fadeRealmAudioToMenuAndReset();
     } else {
       audioDirectorRef.current?.resetScene('realm');
     }
     signOutFarcaster();
-  }, [clearPendingRealmDestination, fadeRealmAudioToMenuAndReset, signOutFarcaster]);
+  }, [backend, clearPendingRealmDestination, fadeRealmAudioToMenuAndReset, signOutFarcaster]);
 
   useLayoutEffect(() => {
     if (!blockedInitialRealmRef.current || !hasRealmHash()) {
@@ -261,30 +272,28 @@ export function WarpkeepExperience() {
   }, []);
 
   useEffect(() => {
-    if (farcasterAuthState.phase === 'authenticated') {
+    if (backendReadyRef.current) {
       return;
     }
     if (!hasRealmHash() && phaseRef.current !== 'realm') {
       return;
     }
 
-    clearPendingRealmDestination();
     if (hasRealmHash()) {
-      window.history.replaceState(
-        menuHistoryState(),
-        '',
-        `${pageUrlWithoutHash()}${MENU_HASH}`
-      );
+      gateAnonymousRealmRoute();
     }
     if (phaseRef.current === 'realm') {
+      clearPendingRealmDestination();
       fadeRealmAudioToMenuAndReset();
       setPresentedScreen('menu');
       dispatch({ type: 'return-menu' });
     }
   }, [
     clearPendingRealmDestination,
+    backend.state.phase,
     farcasterAuthState.phase,
-    fadeRealmAudioToMenuAndReset
+    fadeRealmAudioToMenuAndReset,
+    gateAnonymousRealmRoute
   ]);
 
   const audioScene: AudioScene = !returnPreparing && experience.phase === 'realm'
@@ -309,11 +318,12 @@ export function WarpkeepExperience() {
       experience.phase === 'transitioning-to-title'
       && presentedScreen === 'menu'
     );
-  const realmIdentity = farcasterAuthState.phase === 'authenticated'
+  const realmIdentity = backend.state.phase === 'ready'
+    && verifiedIdentityRef.current
     ? {
-        fid: farcasterAuthState.identity.fid,
-        username: farcasterAuthState.identity.username,
-        displayName: farcasterAuthState.identity.displayName
+        fid: verifiedIdentityRef.current.fid,
+        username: verifiedIdentityRef.current.username,
+        displayName: verifiedIdentityRef.current.displayName
       }
     : null;
   const realmMounted = experience.phase === 'realm' && realmIdentity !== null;
@@ -331,6 +341,22 @@ export function WarpkeepExperience() {
     audioDirectorRef.current?.prepareScene('realm');
     audioDirectorRef.current?.transitionTo('realm');
   }, [realmMounted]);
+
+  useEffect(() => {
+    if (phaseRef.current !== 'realm' || backend.state.phase === 'ready') {
+      return;
+    }
+    fadeRealmAudioToMenuAndReset();
+    setPresentedScreen('menu');
+    dispatch({ type: 'return-menu' });
+    if (hasRealmHash()) {
+      window.history.replaceState(
+        menuHistoryState(),
+        '',
+        `${pageUrlWithoutHash()}${MENU_HASH}`
+      );
+    }
+  }, [backend.state.phase, fadeRealmAudioToMenuAndReset]);
 
   const dismissTitleHint = useCallback(() => {
     hintDismissedRef.current = true;
@@ -379,12 +405,26 @@ export function WarpkeepExperience() {
   }, [beginMenuTransition]);
 
   const beginRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
-    if (phaseRef.current !== 'menu' || returnPreparingRef.current) {
+    if (
+      !backend.sharedAlphaAvailable
+      || phaseRef.current !== 'menu'
+      || returnPreparingRef.current
+    ) {
       return;
     }
 
     const verifiedIdentity = verifiedIdentityRef.current;
     if (!verifiedIdentity || verifiedIdentity.fid !== identity.fid) {
+      return;
+    }
+
+    // The Farcaster identity is necessary but not sufficient. Keep the menu
+    // visible while the server checks the private alpha admission record.
+    if (backend.state.phase !== 'ready') {
+      setPendingDestination('realm');
+      if (backend.state.phase === 'denied' || backend.state.phase === 'error') {
+        backend.checkAgain();
+      }
       return;
     }
 
@@ -404,7 +444,19 @@ export function WarpkeepExperience() {
     }
     setPresentedScreen('realm');
     dispatch({ type: 'request-realm' });
-  }, [clearPendingRealmDestination]);
+  }, [backend, clearPendingRealmDestination]);
+
+  useEffect(() => {
+    if (
+      pendingDestination !== 'realm'
+      || backend.state.phase !== 'ready'
+      || !verifiedIdentityRef.current
+      || phaseRef.current !== 'menu'
+    ) {
+      return;
+    }
+    beginRealmEntry(verifiedIdentityRef.current);
+  }, [backend.state.phase, beginRealmEntry, pendingDestination]);
 
   const returnRealmToMenu = useCallback(() => {
     if (phaseRef.current !== 'realm') {
@@ -514,7 +566,7 @@ export function WarpkeepExperience() {
 
     if (direction === 'to-menu') {
       if (hasRealmHash()) {
-        if (verifiedIdentityRef.current) {
+        if (backendReadyRef.current) {
           clearPendingRealmDestination();
           setPresentedScreen('realm');
           dispatch({ type: 'complete-menu' });
@@ -641,8 +693,9 @@ export function WarpkeepExperience() {
   useEffect(() => {
     const synchronizeHistory = () => {
       const phase = phaseRef.current;
-      if (hasRealmHash() && !verifiedIdentityRef.current) {
+      if (hasRealmHash() && !backendReadyRef.current) {
         gateAnonymousRealmRoute();
+        return;
       }
       if (returnPreparingRef.current && hasMenuHash()) {
         cancelPreparedReturn();
@@ -714,14 +767,14 @@ export function WarpkeepExperience() {
     }
 
     if (experience.phase === 'menu') {
-      if (hasRealmHash() && !verifiedIdentityRef.current) {
+      if (hasRealmHash() && !backendReadyRef.current) {
         gateAnonymousRealmRoute();
       } else if (!hasMenuHash() && !hasRealmHash()) {
         entryLockedRef.current = false;
         beginTitleTransition('none');
       }
     } else if (experience.phase === 'title' && (hasMenuHash() || hasRealmHash())) {
-      if (hasRealmHash() && !verifiedIdentityRef.current) {
+      if (hasRealmHash() && !backendReadyRef.current) {
         gateAnonymousRealmRoute();
       }
       entryLockedRef.current = false;
@@ -837,6 +890,19 @@ export function WarpkeepExperience() {
     titleRef.current?.getGatewayProjection() ?? fallbackGatewayProjection()
   ), []);
 
+  const admissionPanel = backend.state.phase !== 'idle'
+    && backend.state.phase !== 'ready'
+    && verifiedIdentityRef.current
+    ? (
+      <FarcasterAdmissionPanel
+        identity={verifiedIdentityRef.current}
+        onCheckAgain={backend.checkAgain}
+        onSignOut={handleSignOut}
+        phase={backend.state.phase}
+      />
+    )
+    : undefined;
+
   return (
     <div
       className="warpkeep-experience"
@@ -880,7 +946,12 @@ export function WarpkeepExperience() {
             interactive={menuInteractive}
             inputModality={menuInteractive ? inputModality : 'unknown'}
             focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
-            openFarcasterAuthPanel={pendingDestination === 'realm'}
+            authRailContent={admissionPanel}
+            backendUnavailableMessage={backend.sharedAlphaAvailable
+              ? undefined
+              : WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE}
+            openFarcasterAuthPanel={backend.sharedAlphaAvailable
+              && (pendingDestination === 'realm' || admissionPanel !== undefined)}
             onCancelFarcasterSignIn={cancelFarcasterSignInAndClearDestination}
             onDisposeFarcasterSignIn={cancelFarcasterSignIn}
             onRequestAuthenticatedRealm={beginRealmEntry}
@@ -905,6 +976,10 @@ export function WarpkeepExperience() {
         >
           <RealmMapScreen
             identity={realmIdentity}
+            ownCastle={backend.state.realm?.ownCastle}
+            otherCastles={backend.state.realm?.castles ?? []}
+            sharedPlayers={backend.state.realm?.players ?? []}
+            sharedTiles={backend.state.realm?.tiles ?? []}
             onRequestReturn={returnRealmToMenu}
           />
         </div>

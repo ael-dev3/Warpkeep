@@ -1,0 +1,15 @@
+# Development only. Copy to .dev.vars; never commit the copy.
+# Generate SIGNING_KEY_JWK separately and use a different key from production.
+ENVIRONMENT=development
+ISSUER=http://localhost:8787
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+FARCASTER_DOMAIN=localhost:5173
+FARCASTER_SIWE_URI=http://localhost:5173/
+FARCASTER_RPC_URL=https://YOUR-OPTIMISM-RPC.example
+OIDC_AUDIENCE=warpkeep-spacetimedb
+OIDC_KEY_ID=warpkeep-dev-2026-01
+SPACETIMEDB_URI=http://127.0.0.1:3000
+SPACETIMEDB_DATABASE=warpkeep-dev
+SIGNING_KEY_JWK={"kty":"EC","crv":"P-256","x":"...","y":"...","d":"...","kid":"warpkeep-dev-2026-01"}
+# Deliberately invalid: replace with at least 32 random bytes before startup.
+ADMIN_TOKEN_SECRET=replace-me

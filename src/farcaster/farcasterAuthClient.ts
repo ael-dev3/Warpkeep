@@ -1,27 +1,31 @@
 import {
+  FARCASTER_AUTH_REQUEST_TTL_MS,
   createFarcasterRequestMaterial,
   getBrowserFarcasterAuthContext,
   type FarcasterSecureRandomSource
 } from './farcasterAuthContext';
-import type {
-  FarcasterAuthContext,
-  FarcasterAuthError,
-  FarcasterAuthErrorCode,
-  FarcasterAuthMethod,
-  FarcasterChannelStatus,
-  FarcasterCompletedChannelStatus,
-  FarcasterExpectedSignInRequest,
-  FarcasterHex,
-  FarcasterSessionAuthority,
-  FarcasterSignInChannel,
-  VerifiedFarcasterIdentity
+import { FarcasterOidcBridgeClientError } from './farcasterOidcBridgeClient';
+import {
+  isBoundedFarcasterSignature,
+  type FarcasterAuthContext,
+  type FarcasterAuthError,
+  type FarcasterAuthErrorCode,
+  type FarcasterAuthMethod,
+  type FarcasterBridgeChallenge,
+  type FarcasterChannelStatus,
+  type FarcasterCompletedChannelStatus,
+  type FarcasterExpectedSignInRequest,
+  type FarcasterHex,
+  type FarcasterSessionAuthority,
+  type FarcasterSignInChannel,
+  type VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';
 
 export const FARCASTER_AUTH_RELAY_URL = 'https://relay.farcaster.xyz';
 export const FARCASTER_OPTIMISM_RPC_URL = 'https://mainnet.optimism.io';
 
 const MAX_CHANNEL_URL_LENGTH = 8_192;
-const MAX_PROOF_MESSAGE_LENGTH = 65_536;
+const MAX_PROOF_MESSAGE_LENGTH = 8 * 1_024;
 const MAX_PROFILE_FIELD_LENGTH = 256;
 const MAX_PROFILE_URL_LENGTH = 2_048;
 const MAX_VERIFICATIONS = 100;
@@ -95,8 +99,7 @@ function isChannelToken(value: unknown): value is string {
 }
 
 function isHex(value: unknown): value is FarcasterHex {
-  return typeof value === 'string'
-    && /^0x(?:[0-9a-fA-F]{2})+$/.test(value);
+  return isBoundedFarcasterSignature(value);
 }
 
 function isAddress(value: unknown): value is FarcasterHex {
@@ -150,9 +153,48 @@ export function toFarcasterAuthError(error: unknown): FarcasterAuthError {
   if (error instanceof FarcasterAuthClientError) {
     return Object.freeze({ code: error.code, message: error.message });
   }
+  if (error instanceof FarcasterOidcBridgeClientError) {
+    return Object.freeze({
+      code: 'bridge',
+      message: 'The Hegemony verification service could not confirm this sign-in.'
+    });
+  }
   return Object.freeze({
     code: 'unknown',
     message: 'Farcaster authentication could not be completed.'
+  });
+}
+
+function requestFromBridgeChallenge(
+  challenge: FarcasterBridgeChallenge | undefined,
+  now: number
+) {
+  if (!challenge) {
+    return undefined;
+  }
+  if (
+    typeof challenge.nonce !== 'string'
+    || !isNonce(challenge.nonce)
+    || typeof challenge.requestId !== 'string'
+    || !/^[A-Za-z0-9._~-]{8,256}$/.test(challenge.requestId)
+    || !Number.isSafeInteger(challenge.createdAt)
+    || !Number.isSafeInteger(challenge.expiresAt)
+    || challenge.createdAt < 0
+    || challenge.createdAt > now + 60_000
+    || challenge.expiresAt <= now
+    || challenge.expiresAt <= challenge.createdAt
+    || challenge.expiresAt - challenge.createdAt > FARCASTER_AUTH_REQUEST_TTL_MS
+    || challenge.expiresAt > 8.64e15
+  ) {
+    return invalidResponse('Warpkeep could not validate its Farcaster bridge challenge.');
+  }
+
+  return Object.freeze({
+    nonce: challenge.nonce,
+    requestId: challenge.requestId,
+    createdAt: challenge.createdAt,
+    expiresAt: challenge.expiresAt,
+    expirationTime: new Date(challenge.expiresAt).toISOString()
   });
 }
 
@@ -317,7 +359,7 @@ function optionalProfileUrl(data: Record<string, unknown>) {
   try {
     const url = new URL(value);
     if (
-      (url.protocol !== 'https:' && url.protocol !== 'http:')
+      url.protocol !== 'https:'
       || url.username !== ''
       || url.password !== ''
     ) {
@@ -552,9 +594,14 @@ export function createFarcasterSessionAuthority(
   };
 
   return Object.freeze({
-    async beginSignIn(context = resolveContext()) {
+    async beginSignIn(
+      context = resolveContext(),
+      bridgeChallenge: FarcasterBridgeChallenge | undefined = undefined
+    ) {
       validateAuthContext(context);
-      const request = createFarcasterRequestMaterial(now(), options.randomSource);
+      const requestNow = Math.floor(now());
+      const request = requestFromBridgeChallenge(bridgeChallenge, requestNow)
+        ?? createFarcasterRequestMaterial(requestNow, options.randomSource);
       const appClient = await callClient('create-channel', client);
       const response = await callClient(
         'create-channel',

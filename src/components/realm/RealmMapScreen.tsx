@@ -8,6 +8,7 @@ import {
 } from 'react';
 
 import {
+  axialToWorld,
   hexAdd,
   hexKey,
   type HexCoord
@@ -20,6 +21,10 @@ import {
   type RealmTerrainSurface
 } from '../../game/map/realmTerrainSurface';
 import type { RealmTerrainMap, TerrainCell } from '../../game/map/terrainTypes';
+import type {
+  WarpkeepPlayer,
+  WarpkeepWorldTile
+} from '../../spacetime/warpkeepBackendTypes';
 import { RealmAccessibilityControls } from './RealmAccessibilityControls';
 import { RealmHud } from './RealmHud';
 import {
@@ -40,11 +45,27 @@ import type { KeepLoadStatus, RealmIdentity } from './realmTypes';
 import './RealmMapScreen.css';
 
 const HEX_SIZE = 1;
-const KEEP_COORD = { q: 0, r: 0 } as const;
+const DEFAULT_KEEP_COORD = { q: 0, r: 0 } as const;
+
+export type RealmCastleProjection = Readonly<{
+  castleId: number;
+  ownerFid: number;
+  q: number;
+  r: number;
+  level: number;
+  name: string;
+}>;
 
 type RealmMapScreenProps = Readonly<{
   identity: RealmIdentity;
   map?: RealmTerrainMap;
+  /** Server-owned coordinates/name/level replace the old fixed-center authority. */
+  ownCastle?: RealmCastleProjection;
+  /** Lightweight shared-world markers; only the owner loads the detailed GLB. */
+  otherCastles?: readonly RealmCastleProjection[];
+  /** Public shared state from the admission-gated subscription. */
+  sharedTiles?: readonly WarpkeepWorldTile[];
+  sharedPlayers?: readonly WarpkeepPlayer[];
   onRequestReturn: () => void;
   qualityOverride?: RealmQuality;
 }>;
@@ -143,15 +164,23 @@ function initialQuality(override?: RealmQuality) {
   });
 }
 
-function selectedCellFor(surface: RealmTerrainSurface, coord: HexCoord): TerrainCell {
+function selectedCellFor(
+  surface: RealmTerrainSurface,
+  coord: HexCoord,
+  fallback: HexCoord
+): TerrainCell {
   return terrainCellByCoord(surface.playableMap, coord)
-    ?? terrainCellByCoord(surface.playableMap, KEEP_COORD)
+    ?? terrainCellByCoord(surface.playableMap, fallback)
     ?? surface.playableMap.cells[0];
 }
 
 export function RealmMapScreen({
   identity,
   map,
+  ownCastle,
+  otherCastles = [],
+  sharedTiles = [],
+  sharedPlayers = [],
   onRequestReturn,
   qualityOverride
 }: RealmMapScreenProps) {
@@ -159,19 +188,31 @@ export function RealmMapScreen({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<RealmSceneHandle | null>(null);
   const surface = useMemo(() => createSurface(map), [map]);
+  const keepCoord = useMemo<HexCoord>(() => {
+    const candidate = ownCastle ? { q: ownCastle.q, r: ownCastle.r } : DEFAULT_KEEP_COORD;
+    return isPlayableRealmCoord(surface, candidate) ? candidate : DEFAULT_KEEP_COORD;
+  }, [ownCastle, surface]);
+  const peerCastles = useMemo(() => otherCastles.filter((castle) => (
+    castle.ownerFid !== identity.fid
+    && isPlayableRealmCoord(surface, { q: castle.q, r: castle.r })
+  )), [identity.fid, otherCastles, surface]);
   const [quality] = useState(() => initialQuality(qualityOverride));
   const qualitySpec = REALM_QUALITY_SPECS[quality];
   const [rendererMode, setRendererMode] = useState<RendererMode>('loading');
   const [keepLoadStatus, setKeepLoadStatus] = useState<KeepLoadStatus>('idle');
   const [cameraMode, setCameraMode] = useState<RealmCameraMode>('realm');
-  const [selectedCoord, setSelectedCoord] = useState<HexCoord>(KEEP_COORD);
+  const [selectedCoord, setSelectedCoord] = useState<HexCoord>(keepCoord);
   const [hoveredCoord, setHoveredCoord] = useState<HexCoord | null>(null);
   const hoveredCoordRef = useRef<HexCoord | null>(null);
   const reducedMotion = useMemo(readReducedMotion, []);
   const viewBox = useMemo(() => viewBoxForSurface(surface), [surface]);
-  const selectedCell = selectedCellFor(surface, selectedCoord);
-  const hoveredCell = hoveredCoord ? selectedCellFor(surface, hoveredCoord) : null;
-  const selectedIsKeep = sameCoord(selectedCoord, KEEP_COORD);
+  const selectedCell = selectedCellFor(surface, selectedCoord, keepCoord);
+  const hoveredCell = hoveredCoord ? selectedCellFor(surface, hoveredCoord, keepCoord) : null;
+  const selectedIsKeep = sameCoord(selectedCoord, keepCoord);
+
+  useEffect(() => {
+    setSelectedCoord(keepCoord);
+  }, [keepCoord]);
 
   const selectCoord = useCallback((coord: HexCoord) => {
     if (!isPlayableRealmCoord(surface, coord)) return;
@@ -204,6 +245,8 @@ export function RealmMapScreen({
       scene = createRealmScene({
         canvas,
         surface,
+        keepCoord,
+        otherCastles: peerCastles,
         quality: qualitySpec,
         reducedMotion,
         baseUrl: import.meta.env.BASE_URL || '/',
@@ -214,7 +257,7 @@ export function RealmMapScreen({
         onSelect: selectCoord
       });
       sceneRef.current = scene;
-      scene.setSelected(KEEP_COORD);
+      scene.setSelected(keepCoord);
       scene.setHovered(hoveredCoordRef.current);
       setRendererMode('webgl');
     } catch {
@@ -225,7 +268,7 @@ export function RealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [markRendererUnavailable, qualitySpec, reducedMotion, selectCoord, surface, updateHoveredCoord]);
+  }, [keepCoord, markRendererUnavailable, peerCastles, qualitySpec, reducedMotion, selectCoord, surface, updateHoveredCoord]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);
@@ -240,14 +283,14 @@ export function RealmMapScreen({
   }, [onRequestReturn]);
 
   const focusKeep = useCallback(() => {
-    selectCoord(KEEP_COORD);
+    selectCoord(keepCoord);
     sceneRef.current?.focusKeep();
-  }, [selectCoord]);
+  }, [keepCoord, selectCoord]);
 
   const recenterKeep = useCallback(() => {
-    selectCoord(KEEP_COORD);
+    selectCoord(keepCoord);
     sceneRef.current?.recenterKeep();
-  }, [selectCoord]);
+  }, [keepCoord, selectCoord]);
 
   const showRealm = useCallback(() => {
     sceneRef.current?.showRealm();
@@ -300,7 +343,7 @@ export function RealmMapScreen({
             role="img"
             aria-label="Deterministic illustrated Hegemony lowlands"
           >
-            <title>Hegemony lowlands with your first keep fixed at the center</title>
+            <title>Hegemony lowlands with your authoritative frontier keep</title>
             {surface.renderMap.cells.map((cell) => {
               const playable = isPlayableRealmCoord(surface, cell.coord);
               const selected = sameCoord(selectedCoord, cell.coord);
@@ -328,13 +371,28 @@ export function RealmMapScreen({
             <g
               className="realm-map-screen__fallback-keep"
               data-testid="realm-keep-marker"
-              aria-label="Your Hegemony keep at cell 0,0"
+              aria-label={`Your Hegemony keep at cell ${keepCoord.q},${keepCoord.r}`}
+              transform={`translate(${axialToWorld(keepCoord, HEX_SIZE).x} ${-axialToWorld(keepCoord, HEX_SIZE).z})`}
             >
               <path d="M-0.55 0.36V-0.28H-0.36V-0.52H-0.18V-0.28H0.18V-0.52H0.36V-0.28H0.55V0.36Z" fill="#ddd0ad" stroke="#5b4936" strokeWidth="0.035" />
               <path d="M-0.64 0.36H0.64L0.52 0.5H-0.52Z" fill="#766146" />
               <path d="M-0.11 0.36V0.02Q0-0.11 0.11 0.02V0.36Z" fill="#433c32" />
               <path d="M-0.52-0.28L-0.36-0.62L-0.2-0.28M0.2-0.28L0.36-0.62L0.52-0.28" fill="#a58949" stroke="#5b4936" strokeWidth="0.025" />
             </g>
+            {peerCastles.map((castle) => {
+              const world = axialToWorld({ q: castle.q, r: castle.r }, HEX_SIZE);
+              return (
+                <g
+                  aria-label={`Frontier keep marker at cell ${castle.q},${castle.r}`}
+                  className="realm-map-screen__fallback-peer-castle"
+                  key={castle.castleId}
+                  transform={`translate(${world.x} ${-world.z})`}
+                >
+                  <circle cx="0" cy="0" fill="#7d4d90" r="0.16" stroke="#ecd3a3" strokeWidth="0.035" />
+                  <path d="M-0.13 0.04L0-0.22L0.13 0.04Z" fill="#d7ae5e" />
+                </g>
+              );
+            })}
           </svg>
           <p className="realm-map-screen__fallback-copy">
             <strong>61 playable cells · 91 rendered.</strong>{' '}
@@ -351,6 +409,11 @@ export function RealmMapScreen({
 
       <RealmHud
         identity={identity}
+        ownCastle={ownCastle}
+        keepCoord={keepCoord}
+        sharedTileCount={sharedTiles.length || undefined}
+        sharedPlayerCount={sharedPlayers.length}
+        sharedCastleCount={peerCastles.length + (ownCastle ? 1 : 0)}
         selectedCell={selectedCell}
         hoveredCell={hoveredCell}
         keepLoadStatus={keepLoadStatus}

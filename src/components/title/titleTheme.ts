@@ -2,6 +2,6 @@ import { titleSceneSpec } from './titleSceneSpec';
 
 export const titleTheme = {
   title: titleSceneSpec.title.text,
-  liveDemoUrl: 'https://ael-dev3.github.io/Warpkeep/',
+  liveDemoUrl: 'https://warpkeep.com/',
   colors: titleSceneSpec.palette
 } as const;

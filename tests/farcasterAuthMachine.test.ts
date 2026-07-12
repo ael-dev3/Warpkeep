@@ -140,7 +140,14 @@ describe('farcasterAuthMachineReducer', () => {
       generation: 1,
       view: {
         phase: 'authenticated',
-        identity,
+        identity: {
+          fid: identity.fid,
+          username: identity.username,
+          displayName: identity.displayName,
+          pfpUrl: identity.pfpUrl,
+          verifications: [],
+          verifiedAt: identity.verifiedAt
+        },
         assurance: 'live-client-verified'
       }
     });
@@ -276,7 +283,7 @@ describe('farcasterAuthMachineReducer', () => {
           verifications: [],
           verifiedAt: identity.verifiedAt
         },
-        assurance: 'remembered-device-prototype',
+        assurance: 'bridge-oidc-alpha',
         expiresAt
       }
     });

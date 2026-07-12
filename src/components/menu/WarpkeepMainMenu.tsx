@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   type Ref
 } from 'react';
 
@@ -16,7 +17,9 @@ import type {
 } from '../../farcaster/farcasterAuthTypes';
 import { CreditsRoll } from './CreditsRoll';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
+import { WarpkeepBuildStamp } from './WarpkeepBuildStamp';
 import { menuCommands, type MenuCommand, type MenuCommandId } from './menuCommands';
+import type { WarpkeepBuildInfo } from '../../build/buildInfo';
 import './WarpkeepMainMenu.css';
 
 export type MenuInputModality = 'keyboard' | 'pointer' | 'touch' | 'unknown';
@@ -28,6 +31,8 @@ export type WarpkeepMainMenuProps = {
   onRequestReturn: () => void;
   /** When supplied, ENTER REALM opens the live realm foundation instead of its legacy notice. */
   onRequestEnterRealm?: () => void;
+  /** Blocks SIWF when the public shared-alpha configuration is intentionally inactive. */
+  backendUnavailableMessage?: string;
   authState?: FarcasterAuthViewState;
   onRequestFarcasterSignIn?: () => void;
   onCancelFarcasterSignIn?: () => void;
@@ -40,6 +45,8 @@ export type WarpkeepMainMenuProps = {
   hasRememberedDevice?: boolean;
   onRememberDeviceChange?: (remember: boolean) => void;
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
+  /** Replaces the QR rail after Farcaster has yielded an authoritative session. */
+  authRailContent?: ReactNode;
   /**
    * A guarded anonymous `#realm` route asks the menu to show its native auth
    * rail and create one fresh request after the provider is mounted.
@@ -47,6 +54,7 @@ export type WarpkeepMainMenuProps = {
   openFarcasterAuthPanel?: boolean;
   inputModality?: MenuInputModality;
   focusFirstCommand?: boolean;
+  buildInfo?: WarpkeepBuildInfo;
   onVideoReady?: () => void;
   onVideoError?: () => void;
   noticeDurationMs?: number;
@@ -54,6 +62,7 @@ export type WarpkeepMainMenuProps = {
 
 type ActiveNotice = {
   command: MenuCommand;
+  notice?: string;
   anchorElement: HTMLButtonElement;
   refreshKey: number;
 };
@@ -170,6 +179,7 @@ export function WarpkeepMainMenu({
   interactive: interactiveOverride,
   onRequestReturn,
   onRequestEnterRealm,
+  backendUnavailableMessage,
   authState = ANONYMOUS_AUTH_STATE,
   onRequestFarcasterSignIn,
   onCancelFarcasterSignIn,
@@ -181,9 +191,11 @@ export function WarpkeepMainMenu({
   hasRememberedDevice = false,
   onRememberDeviceChange,
   onRequestAuthenticatedRealm,
+  authRailContent,
   openFarcasterAuthPanel = false,
   inputModality = 'unknown',
   focusFirstCommand,
+  buildInfo,
   onVideoReady,
   onVideoError,
   noticeDurationMs = 5600
@@ -215,7 +227,7 @@ export function WarpkeepMainMenu({
   const authenticatedAssurance = authState.phase === 'authenticated'
     ? authState.assurance
     : undefined;
-  const farcasterAuthEnabled = Boolean(
+  const farcasterAuthEnabled = !backendUnavailableMessage && Boolean(
     onRequestFarcasterSignIn
     && onCancelFarcasterSignIn
     && onRetryFarcasterSignIn
@@ -429,10 +441,15 @@ export function WarpkeepMainMenu({
     }
   }, [onVideoError]);
 
-  const openNotice = useCallback((command: MenuCommand, anchorElement: HTMLButtonElement) => {
+  const openNotice = useCallback((
+    command: MenuCommand,
+    anchorElement: HTMLButtonElement,
+    notice?: string
+  ) => {
     noticeSequenceRef.current += 1;
     setActiveNotice({
       command,
+      ...(notice ? { notice } : {}),
       anchorElement,
       refreshKey: noticeSequenceRef.current
     });
@@ -504,8 +521,14 @@ export function WarpkeepMainMenu({
       return;
     }
 
+    if (command.id === 'enter-realm' && backendUnavailableMessage) {
+      openNotice(command, anchorElement, backendUnavailableMessage);
+      return;
+    }
+
     if (command.id === 'enter-realm' && farcasterAuthEnabled) {
       if (authenticatedIdentity) {
+        openAuthPanel(keyboardDriven);
         onRequestAuthenticatedRealm?.(authenticatedIdentity);
       } else {
         openAuthPanel(keyboardDriven);
@@ -522,6 +545,7 @@ export function WarpkeepMainMenu({
     openNotice(command, anchorElement);
   }, [
     authenticatedIdentity,
+    backendUnavailableMessage,
     farcasterAuthEnabled,
     onRequestAuthenticatedRealm,
     onRequestEnterRealm,
@@ -669,9 +693,9 @@ export function WarpkeepMainMenu({
                 <FarcasterIdentityBadge
                   compact
                   identity={authenticatedIdentity}
-                  onActivate={() => openAuthPanel(
-                    lastActionModalityRef.current === 'keyboard'
-                  )}
+                  onActivate={farcasterAuthEnabled
+                    ? () => openAuthPanel(lastActionModalityRef.current === 'keyboard')
+                    : undefined}
                 />
               </Suspense>
               <span className="warpkeep-menu-identity__assurance">
@@ -713,6 +737,7 @@ export function WarpkeepMainMenu({
               ))}
             </ol>
           </nav>
+          <WarpkeepBuildStamp buildInfo={buildInfo} />
         </>
       ) : (
         <div className="warpkeep-menu-auth-rail">
@@ -725,36 +750,38 @@ export function WarpkeepMainMenu({
               primaryActionRef={authPrimaryActionRef}
             />
           }>
-            <FarcasterQrAuthPanel
-              channelUrl={authState.phase === 'awaiting-approval'
-                ? authState.channelUrl
-                : undefined}
-              assurance={authenticatedAssurance}
-              errorMessage={authState.phase === 'error' || authState.phase === 'expired'
-                ? authState.error.message
-                : undefined}
-              hasRememberedDevice={hasRememberedDevice}
-              headingRef={authHeadingRef}
-              identity={authenticatedIdentity}
-              onPresentationReady={handleAuthPanelPresentationReady}
-              onBackToMenu={handleBackToCommands}
-              onCancel={() => closeAuthPanel(
-                lastActionModalityRef.current === 'keyboard'
-              )}
-              onEnterRealm={handleAuthenticatedRealmEntry}
-              onPrepareQrCode={onPrepareFarcasterQrCode}
-              onRememberDeviceChange={onRememberDeviceChange}
-              onRetry={handleRetrySignIn}
-              onSignOut={handleSignOut}
-              phase={authState.phase === 'anonymous'
-                ? 'creating-channel'
-                : authState.phase}
-              primaryActionRef={authPrimaryActionRef}
-              qr={authState.phase === 'awaiting-approval'
-                ? authState.qr
-                : undefined}
-              rememberDevice={rememberDevice}
-            />
+            {authRailContent ?? (
+              <FarcasterQrAuthPanel
+                channelUrl={authState.phase === 'awaiting-approval'
+                  ? authState.channelUrl
+                  : undefined}
+                assurance={authenticatedAssurance}
+                errorMessage={authState.phase === 'error' || authState.phase === 'expired'
+                  ? authState.error.message
+                  : undefined}
+                hasRememberedDevice={hasRememberedDevice}
+                headingRef={authHeadingRef}
+                identity={authenticatedIdentity}
+                onPresentationReady={handleAuthPanelPresentationReady}
+                onBackToMenu={handleBackToCommands}
+                onCancel={() => closeAuthPanel(
+                  lastActionModalityRef.current === 'keyboard'
+                )}
+                onEnterRealm={handleAuthenticatedRealmEntry}
+                onPrepareQrCode={onPrepareFarcasterQrCode}
+                onRememberDeviceChange={onRememberDeviceChange}
+                onRetry={handleRetrySignIn}
+                onSignOut={handleSignOut}
+                phase={authState.phase === 'anonymous'
+                  ? 'creating-channel'
+                  : authState.phase}
+                primaryActionRef={authPrimaryActionRef}
+                qr={authState.phase === 'awaiting-approval'
+                  ? authState.qr
+                  : undefined}
+                rememberDevice={rememberDevice}
+              />
+            )}
           </Suspense>
         </div>
       )}
@@ -781,6 +808,7 @@ export function WarpkeepMainMenu({
           command={activeNotice.command}
           durationMs={noticeDurationMs}
           key={`${activeNotice.command.id}-${activeNotice.refreshKey}`}
+          notice={activeNotice.notice}
           onDismiss={() => setActiveNotice(null)}
           refreshKey={activeNotice.refreshKey}
         />

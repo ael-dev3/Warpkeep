@@ -1,92 +1,120 @@
-# SpacetimeDB Plan
+# SpacetimeDB closed-alpha plan
 
-SpacetimeDB is a strong fit for Warpkeep because the game needs server-authoritative multiplayer state, real-time subscriptions, deterministic reducers, and low-friction client updates for many small asynchronous timers.
+Warpkeep contains a live TypeScript SpacetimeDB authority module under [`spacetimedb/`](../spacetimedb/). It is the first authoritative shared-world slice, not a browser mock. The production issuer chain is deployed; the browser reaches it only through the explicitly configured closed-alpha Pages build.
 
-## State that should be server-authoritative
+## Version contract
 
-SpacetimeDB should eventually own:
+| Component | Pinned version |
+| --- | --- |
+| SpacetimeDB CLI | `2.6.1` (`052c83fe984a4c4eb7bb4f9afa5c6b1903891d87`) |
+| Browser client SDK | `2.6.1` |
+| TypeScript server SDK | `2.6.1` |
 
-- players
-- FIDs
-- castles
-- buildings
-- resources
-- construction queues
-- unit queues
-- armies
-- scouting reports
-- raids
-- alliances
-- seasons
-- world events
-- chat and diplomacy events
-- activity logs
+Bindings are generated from the local module and committed at [`src/spacetime/module_bindings/`](../src/spacetime/module_bindings/). `npm run stdb:verify-bindings` regenerates to a temporary directory and fails on any difference. Private tables are deliberately absent from that generated browser surface.
 
-The web client should treat SpacetimeDB as the source of truth. The current local state is a seed scaffold only.
+## Identity and authorization
 
-## Entity draft
+SpacetimeDB receives a bridge-issued OIDC JWT using `.withToken(jwt)`. The stable JWT subject is `farcaster:<verified decimal fid>`; no browser device record, reducer argument, or display field chooses the game account.
+
+Connection lifecycle validates:
+
+- exact issuer;
+- expected audience;
+- `token_type === "spacetime-access"`;
+- a safe positive decimal FID and exact `sub`/FID match for player tokens;
+- unsigned 32-bit `auth_epoch`;
+- matching `session_iat`/`session_exp` claims with a maximum 30-day window,
+  preserved through connection-token exchange and rechecked against module
+  time on every player call;
+- strict `service:hermes` / `roles: ["warpkeep-admin"]` shape for admin tokens.
+
+`WARPKEEP_BACKEND_PROTOCOL_VERSION = 1` is a backend-only compatibility
+contract, separate from the player-facing `ALPHA 0.2.0` release and the
+player-facing `GENESIS 001` realm label (`HEGEMONY_GENESIS_001` internally).
+A valid player or Hermes connection may call `get_alpha_backend_info` to read
+only static protocol/world-seed metadata before using the shared realm; the
+browser rejects a protocol/seed mismatch before admission, bootstrap, or public
+table subscription. It does not expose private admission data or live player
+aggregates.
+
+Anonymous/no-token connections are rejected. Valid but unadmitted player JWTs may connect solely so `get_my_admission_status` can return a private, caller-specific status. Every gameplay reducer independently enforces the whitelist and auth epoch.
+
+## Schema
+
+| Table | Visibility | Purpose |
+| --- | --- | --- |
+| `allowed_fid` | private | FID primary key, enabled flag, auth epoch, invitation metadata and note. |
+| `admin_audit` | private | Admin action trace only. |
+| `world_tile` | public | Exactly 61 canonical radius-four Lowlands gameplay hexes. |
+| `player` | public | One server identity and public profile projection per admitted FID. |
+| `castle` | public | One persistent level-one keep per FID and one occupant per tile. |
+
+The renderer's 30-cell radius-five visual apron is not authoritative data. No resource, building, unit, combat, alliance, chat, or season system is added in this slice.
+
+## Admission and bootstrap
+
+`get_my_admission_status` derives the caller from the signed JWT and exposes only:
 
 ```txt
-Player(id, fid, handle, created_at, last_seen_at)
-Castle(id, player_id, name, level, region, x, y, created_at)
-ResourceState(castle_id, grain, stone, iron, influence, updated_at)
-Building(id, castle_id, building_type, level)
-ConstructionQueue(id, castle_id, building_type, target_level, started_at, completes_at)
-UnitStack(id, castle_id, unit_type, quantity)
-TrainingQueue(id, castle_id, unit_type, quantity, started_at, completes_at)
-ActivityLog(id, castle_id, event_type, message, created_at)
-ScoutReport(id, source_castle_id, target_castle_id, risk, summary, created_at)
-Alliance(id, name, founder_player_id, created_at)
-Season(id, name, starts_at, ends_at, ruleset_version)
-WorldEvent(id, season_id, event_type, payload, starts_at, ends_at)
+not_admitted | admitted_needs_bootstrap | ready | disabled
 ```
 
-NearbyCastle and map positions can be derived from Castle coordinates, Farcaster graph affinity, or season region assignment.
+`bootstrap_player` is transactional and idempotent:
 
-## Reducers to validate actions
+1. derive FID from strict player claims;
+2. require an enabled allowlist record and matching auth epoch;
+3. preserve an existing consistent player/castle pair;
+4. allocate the first deterministic unoccupied canonical tile (`0,0` first);
+5. insert player and level-one castle, then atomically mark tile occupancy.
 
-- `collect_resources`: calculates production from elapsed server time and building levels.
-- `start_building_upgrade`: validates resource cost, queue capacity, target level, and prerequisites.
-- `complete_building_upgrade`: completes only when server time reaches `completes_at`.
-- `start_unit_training`: validates barracks, resource cost, unit unlock, and queue rules.
-- `complete_unit_training`: creates or increments UnitStack only after `completes_at`.
-- `scout_castle`: validates range, scout availability, cooldowns, and report visibility.
-- `create_alliance`: validates influence cost, name policy, and season limits.
-- `join_alliance`: validates invitation or open policy.
-- `declare_raid`: validates travel time, army availability, target protection, and cooldowns.
-- `resolve_raid`: deterministic combat and loot resolution.
+No denied call creates a player or castle. A changed auth epoch invalidates old player tokens at the module authorization layer. Before minting a new player token, the bridge resolves the current epoch through the documented private HTTP procedure `POST /v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch`, authenticated by a fresh approximately 60-second Hermes OIDC JWT.
 
-## Real-time subscriptions
+## Hermes-only operations
 
-Clients should subscribe to:
+Admin reducers require the exact short-lived Hermes JWT shape:
 
-- their own Player, Castle, ResourceState, Building, queues, UnitStack, ActivityLog
-- nearby castles by region/range/social graph
-- alliance events for joined alliances
-- public season events
-- specific scouting/raid reports relevant to the player
+```txt
+admin_seed_world
+admin_allow_fid
+admin_disable_fid
+admin_bump_auth_epoch
+```
 
-## Anti-cheat model
+`admin_seed_world` is idempotent and refuses to overwrite a conflicting pre-existing world row. `admin_allow_fid` is idempotent; `admin_disable_fid` blocks gameplay immediately; `admin_bump_auth_epoch` revokes prior player tokens.
 
-- Timers are calculated from server timestamps, never client clocks.
-- Resource production is derived on the server from last collection/update time.
-- Costs and prerequisites live in reducer code, not UI code.
-- Clients submit intents; reducers accept or reject.
-- Activity logs are reducer outputs, not client-authored proof.
+The admin-only procedures `admin_get_alpha_status` and `admin_get_fid_auth_epoch({ fid })` expose only aggregate counts or the current epoch needed by trusted Hermes/bridge services. The bridge calls the latter through the documented Maincloud HTTP `call` endpoint with a JSON `[fid]` argument and accepts only its raw unsigned 32-bit epoch result. They do not make the whitelist public.
 
-## Seasons and resets
+Use the root Hermes wrapper only after bridge deployment:
 
-Seasons should be separate rows with a ruleset version. Castle progress can reset, partially carry over, or mint cosmetic chronicles depending on season policy. Keep permanent identity and social memories separate from seasonal military economy.
+```sh
+npm run stdb:inspect-alpha
+npm run stdb:seed-world -- --confirm
+npm run stdb:allow-fid -- 12345 "invited through Farcaster DM" --confirm
+```
 
-## AI safety boundary
+The wrapper obtains an admin token in memory, never writes or prints it, supports `--dry-run`, and requires confirmation for mutations.
 
-AI may generate court flavor, lore, daily summaries, battle prose, and quest copy. AI must not directly update Player, Castle, ResourceState, Queue, Raid, or Alliance tables. If AI proposes a quest or event, deterministic reducers must validate and materialize it.
+## Maincloud safety
 
-## Next implementation steps
+The closed-alpha database is `warpkeep-89e4u` on `https://maincloud.spacetimedb.com`. The production-issuer module was published non-destructively after read-only inspection. Protected aggregate inspection reports exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players, and zero castles; a second seed remained at 61. The repository has no authority to clear it or add a real FID.
 
-1. Install SpacetimeDB CLI and choose Rust or C# module language.
-2. Translate the entity draft into actual SpacetimeDB tables.
-3. Port TypeScript reducer formulas into server reducers.
-4. Generate TypeScript client bindings.
-5. Replace local mock state with subscriptions and reducer calls behind a repository interface.
-6. Add integration tests that compare TypeScript preview logic with server reducer outputs.
+The publish guard refuses if the impossible placeholder returns, confirms the configured public issuer's discovery/JWKS are reachable, and requires `WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u`. It invokes:
+
+```txt
+spacetime publish --server maincloud --module-path spacetimedb --delete-data=never --yes=remote warpkeep-89e4u
+```
+
+It never uses `--delete-data`, `--break-clients`, `--yes=all`, or destructive reset flags. After a safe publish, seed only the 61 world tiles and verify:
+
+```txt
+world_tile = 61
+enabled real-user allowed_fid = 0
+player = 0
+castle = 0
+```
+
+If existing state differs, stop and report it; do not erase it automatically.
+
+## What follows this slice
+
+Only after the identity chain and empty-whitelist denial QA are live should Warpkeep add server-authoritative resource timers, building queues, units, scouting, combat, alliances, seasons, and public activity reports. AI can produce flavor or summaries, but never write authority tables directly.

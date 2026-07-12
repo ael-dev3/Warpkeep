@@ -239,6 +239,52 @@ describe('Farcaster channel creation', () => {
     expect(Object.isFrozen(channel)).toBe(true);
   });
 
+  it('uses a bounded bridge challenge for the SIWF nonce and request correlation', async () => {
+    const client = createClient();
+    const authority = createFarcasterSessionAuthority({ client, now: () => NOW });
+    const bridgeChallenge = {
+      nonce: NONCE,
+      requestId: REQUEST_ID,
+      createdAt: NOW,
+      expiresAt: NOW + FARCASTER_AUTH_REQUEST_TTL_MS
+    } as const;
+
+    await authority.beginSignIn(CONTEXT, bridgeChallenge);
+
+    expect(vi.mocked(client.createChannel)).toHaveBeenCalledWith({
+      siweUri: CONTEXT.siweUri,
+      domain: CONTEXT.domain,
+      requestId: REQUEST_ID,
+      nonce: NONCE,
+      expirationTime: new Date(NOW + FARCASTER_AUTH_REQUEST_TTL_MS).toISOString(),
+      acceptAuthAddress: true
+    });
+  });
+
+  it.each([
+    ['expired', { nonce: NONCE, requestId: REQUEST_ID, createdAt: NOW - 1_000, expiresAt: NOW }],
+    ['overlong', {
+      nonce: NONCE,
+      requestId: REQUEST_ID,
+      createdAt: NOW,
+      expiresAt: NOW + FARCASTER_AUTH_REQUEST_TTL_MS + 1
+    }],
+    ['unsafe request id', {
+      nonce: NONCE,
+      requestId: 'unsafe request id',
+      createdAt: NOW,
+      expiresAt: NOW + FARCASTER_AUTH_REQUEST_TTL_MS
+    }]
+  ])('rejects a %s bridge challenge before creating a relay channel', async (_label, challenge) => {
+    const client = createClient();
+    const authority = createFarcasterSessionAuthority({ client, now: () => NOW });
+
+    await expect(authority.beginSignIn(CONTEXT, challenge)).rejects.toMatchObject({
+      code: 'invalid-response'
+    });
+    expect(client.createChannel).not.toHaveBeenCalled();
+  });
+
   it('accepts the relay current universal web URL and opaque eight-character token', async () => {
     const currentToken = 'Ab12_cd-';
     const currentUrl = `https://farcaster.xyz/~/siwf?channelToken=${currentToken}`;
@@ -450,6 +496,22 @@ describe('Farcaster channel status', () => {
     }
   });
 
+  it('accepts a bounded variable-length smart-account signature', async () => {
+    const signature = `0x${'ab'.repeat(96)}` as const;
+    const client = createClient({
+      status: vi.fn(async () => success({
+        ...completedStatus(),
+        signature
+      }))
+    });
+    const authority = createFarcasterSessionAuthority({ client });
+
+    await expect(authority.getStatus(CHANNEL_TOKEN)).resolves.toMatchObject({
+      state: 'completed',
+      signature
+    });
+  });
+
   it.each([
     ['nonce', undefined],
     ['message', undefined],
@@ -457,6 +519,10 @@ describe('Farcaster channel status', () => {
     ['fid', undefined],
     ['fid', 0],
     ['signature', 'not-a-signature'],
+    ['signature', '0x'],
+    ['signature', '0xabc'],
+    ['signature', `0x${'ab'.repeat(4 * 1_024 + 1)}`],
+    ['message', 'x'.repeat(8 * 1_024 + 1)],
     ['signatureParams', undefined],
     ['acceptAuthAddress', false]
   ])('rejects a completed response with invalid %s', async (field, value) => {
