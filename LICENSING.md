@@ -55,7 +55,9 @@ Apache-2.0 remains permissive, commercially reusable, forkable, and mod-friendly
 
 Historical 0BSD and CC0 grants are not revoked. This transition applies to future versions and to new or modified work beginning with v0.3.0; it does not rewrite the license of an older distributed snapshot or claim that a later path move changes an earlier grant.
 
-The first v0.3.0 licensing commit must replace the active software license, update package metadata, add the active CC-BY-4.0 text, preserve the historical license texts under unambiguous legacy paths, and record its exact commit SHA in this document. The mechanical cutover is deliberately deferred; this preparation does not bump the product version or change the active root license.
+The future cutover uses two commits. Commit A replaces the active software license, updates every package manifest, adds the active CC-BY-4.0 text and path metadata, and preserves the historical license texts under unambiguous legacy paths. Commit B then records Commit A's full SHA in `docs/legal/v0.3.0-cutover.json`. The verifier checks Commit A from Git history and rechecks the same invariants at current `HEAD`; it never trusts a SHA-like string in prose.
+
+This protocol applies to every complete SemVer value on the v0.3 line or later. A valid `0.3.0` prerelease or build form is treated as part of the cutover line so a prerelease cannot bypass the new policy. Commit A and Commit B must be created on the intended final base and merged without squash, rebase, amend, or any other SHA-rewriting operation after the attestation is written. The mechanical cutover remains deliberately deferred; this preparation does not add the machine-readable record, bump the product version, or change the active root license.
 
 ## Third-party and uncertain provenance
 
