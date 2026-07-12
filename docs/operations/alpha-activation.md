@@ -77,7 +77,7 @@ POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get
 Authorization: Bearer <ephemeral Hermes JWT>
 Content-Type: application/json
 Accept: application/json
-body: ["<verified decimal fid>"]
+body: [<verified safe-integer fid>]
 ```
 
 The fixed procedure returns the raw unsigned 32-bit epoch (`0` for a missing whitelist row). The Worker validates that raw result as a non-negative `u32`, caps the response, rejects redirects and malformed/non-2xx responses, uses a timeout no greater than five seconds, and fails closed with `503 authorization_unavailable`. There is no separate resolver hostname, resolver URL, resolver token, browser lookup, anonymous SpacetimeDB call, or public allowlist access.

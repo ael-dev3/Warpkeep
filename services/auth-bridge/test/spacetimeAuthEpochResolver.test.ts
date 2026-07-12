@@ -69,7 +69,7 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     expect(init.body).toBe('[12345]')
     expect(init.cache).toBe('no-store')
     expect(init.credentials).toBe('omit')
-    expect(init.redirect).toBe('error')
+    expect(init.redirect).toBe('manual')
     expect(init.signal).toBeInstanceOf(AbortSignal)
     const headers = new Headers(init.headers)
     expect(headers.get('content-type')).toBe('application/json')
