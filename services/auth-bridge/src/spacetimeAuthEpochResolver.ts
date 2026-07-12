@@ -6,6 +6,40 @@ export const MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES = 1_024
 export const MAX_AUTH_EPOCH = 0xffff_ffff
 export const SPACETIMEDB_AUTH_EPOCH_PROCEDURE = 'admin_get_fid_auth_epoch'
 
+export const AUTH_EPOCH_RESOLVER_FAILURE_STAGES = Object.freeze([
+  'signing',
+  'fetch',
+  'timeout',
+  'upstream_status',
+  'response_validation',
+] as const)
+
+export type AuthEpochResolverFailureStage = typeof AUTH_EPOCH_RESOLVER_FAILURE_STAGES[number]
+
+const AUTH_EPOCH_RESOLVER_FAILURE_STAGE_SET = new Set<string>(AUTH_EPOCH_RESOLVER_FAILURE_STAGES)
+
+/** A closed, non-sensitive operational stage. Never attach an upstream error. */
+export class AuthEpochResolverFailure extends Error {
+  constructor(readonly stage: AuthEpochResolverFailureStage) {
+    if (!AUTH_EPOCH_RESOLVER_FAILURE_STAGE_SET.has(stage)) {
+      throw new Error('Auth epoch resolver failure stage is invalid.')
+    }
+    super('Auth epoch resolver is unavailable.')
+    this.name = 'AuthEpochResolverFailure'
+  }
+}
+
+export function authEpochResolverFailureStage(error: unknown): AuthEpochResolverFailureStage | null {
+  return error instanceof AuthEpochResolverFailure
+    && AUTH_EPOCH_RESOLVER_FAILURE_STAGE_SET.has(error.stage)
+    ? error.stage
+    : null
+}
+
+function resolverFailure(stage: AuthEpochResolverFailureStage): never {
+  throw new AuthEpochResolverFailure(stage)
+}
+
 const MAX_SUPPORTED_FID = BigInt(Number.MAX_SAFE_INTEGER)
 const DATABASE_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const encoder = new TextEncoder()
@@ -86,22 +120,32 @@ function issuedAtSeconds(clock: AuthEpochClock): number {
 async function readBoundedBody(response: Response): Promise<string> {
   const advertisedLength = response.headers.get('content-length')
   if (advertisedLength && (!/^\d+$/.test(advertisedLength) || Number(advertisedLength) > MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES)) {
-    throw new Error('Auth epoch resolver returned invalid data.')
+    return resolverFailure('response_validation')
   }
-  if (!response.body) throw new Error('Auth epoch resolver returned invalid data.')
+  if (!response.body) return resolverFailure('response_validation')
 
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
   let total = 0
   try {
     for (;;) {
-      const { done, value } = await reader.read()
+      let result: ReadableStreamReadResult<Uint8Array>
+      try {
+        result = await reader.read()
+      } catch {
+        return resolverFailure('fetch')
+      }
+      const { done, value } = result
       if (done) break
       if (!value) continue
       total += value.byteLength
       if (total > MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES) {
-        await reader.cancel()
-        throw new Error('Auth epoch resolver returned invalid data.')
+        try {
+          await reader.cancel()
+        } catch {
+          // The known validation failure remains authoritative.
+        }
+        return resolverFailure('response_validation')
       }
       chunks.push(value)
     }
@@ -120,17 +164,17 @@ async function readBoundedBody(response: Response): Promise<string> {
 
 function parseEpoch(raw: string, contentType: string | null): number {
   if (contentType?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
-    throw new Error('Auth epoch resolver returned invalid data.')
+    return resolverFailure('response_validation')
   }
   if (encoder.encode(raw).byteLength > MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES) {
-    throw new Error('Auth epoch resolver returned invalid data.')
+    return resolverFailure('response_validation')
   }
 
   let value: unknown
   try {
     value = JSON.parse(raw)
   } catch {
-    throw new Error('Auth epoch resolver returned invalid data.')
+    return resolverFailure('response_validation')
   }
   if (
     typeof value !== 'number'
@@ -138,7 +182,7 @@ function parseEpoch(raw: string, contentType: string | null): number {
     || value < 0
     || value > MAX_AUTH_EPOCH
   ) {
-    throw new Error('Auth epoch resolver returned invalid data.')
+    return resolverFailure('response_validation')
   }
   return value
 }
@@ -168,16 +212,6 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
   async resolve(fid: string): Promise<number> {
     const fidArgument = supportedFidArgument(fid)
     const issuedAt = issuedAtSeconds(this.clock)
-    let token: string
-    try {
-      token = await this.dependencies.signer(internalAdminClaims(this.config.issuer, this.config.audience, issuedAt))
-    } catch {
-      throw new Error('Auth epoch resolver is unavailable.')
-    }
-    if (typeof token !== 'string' || token.length === 0) {
-      throw new Error('Auth epoch resolver is unavailable.')
-    }
-
     const controller = new AbortController()
     let timedOut = false
     let timeout: ReturnType<typeof setTimeout> | undefined
@@ -185,39 +219,64 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
       timeout = setTimeout(() => {
         timedOut = true
         controller.abort()
-        reject(new Error('Auth epoch resolver timed out.'))
+        reject(new AuthEpochResolverFailure('timeout'))
       }, this.config.timeoutMs)
     })
 
     try {
+      let token: string
+      try {
+        token = await Promise.race([
+          this.dependencies.signer(internalAdminClaims(this.config.issuer, this.config.audience, issuedAt)),
+          deadline,
+        ])
+      } catch (error) {
+        if (error instanceof AuthEpochResolverFailure) throw error
+        return resolverFailure(timedOut ? 'timeout' : 'signing')
+      }
+      if (typeof token !== 'string' || token.length === 0) {
+        return resolverFailure('signing')
+      }
+
       return await Promise.race([
         (async () => {
-          const response = await this.fetcher(this.procedureEndpoint, {
-            method: 'POST',
-            headers: new Headers({
-              authorization: `Bearer ${token}`,
-              'content-type': 'application/json',
-              accept: 'application/json',
-              'cache-control': 'no-store',
-            }),
-            body: JSON.stringify([fidArgument]),
-            cache: 'no-store',
-            credentials: 'omit',
-            // Workerd rejects `error`; `manual` surfaces 3xx to the non-2xx guard below.
-            redirect: 'manual',
-            signal: controller.signal,
-          })
-          if (!response.ok) throw new Error('Auth epoch resolver is unavailable.')
-          return parseEpoch(
-            await readBoundedBody(response),
-            response.headers.get('content-type'),
-          )
+          let response: Response
+          try {
+            response = await this.fetcher(this.procedureEndpoint, {
+              method: 'POST',
+              headers: new Headers({
+                authorization: `Bearer ${token}`,
+                'content-type': 'application/json',
+                accept: 'application/json',
+                'cache-control': 'no-store',
+              }),
+              body: JSON.stringify([fidArgument]),
+              cache: 'no-store',
+              credentials: 'omit',
+              // Workerd rejects `error`; `manual` surfaces 3xx to the non-2xx guard below.
+              redirect: 'manual',
+              signal: controller.signal,
+            })
+          } catch {
+            return resolverFailure(timedOut ? 'timeout' : 'fetch')
+          }
+          if (!response.ok) return resolverFailure('upstream_status')
+          try {
+            return parseEpoch(
+              await readBoundedBody(response),
+              response.headers.get('content-type'),
+            )
+          } catch (error) {
+            if (timedOut) return resolverFailure('timeout')
+            if (error instanceof AuthEpochResolverFailure) throw error
+            return resolverFailure('response_validation')
+          }
         })(),
         deadline,
       ])
-    } catch {
-      if (timedOut) throw new Error('Auth epoch resolver timed out.')
-      throw new Error('Auth epoch resolver is unavailable.')
+    } catch (error) {
+      if (error instanceof AuthEpochResolverFailure) throw error
+      return resolverFailure(timedOut ? 'timeout' : 'fetch')
     } finally {
       if (timeout !== undefined) clearTimeout(timeout)
       controller.abort()

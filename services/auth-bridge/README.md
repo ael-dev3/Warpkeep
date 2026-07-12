@@ -18,11 +18,13 @@ by itself; that remains an exact-head Pages workflow decision.
 | `POST` | `/v1/farcaster/challenge` | Creates a five-minute SIWF challenge. |
 | `POST` | `/v1/farcaster/exchange` | Verifies SIWF and returns a player JWT. |
 | `POST` | `/v1/admin/token` | Server-only five-minute Hermes/admin JWT. |
+| `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free synthetic auth-epoch resolver check. |
 
-Challenge and exchange allow only exact `ALLOWED_ORIGINS`, never wildcard CORS or credentials. They allow only `POST`, `OPTIONS`, and `content-type`; body size is limited to 16 KiB. The admin token route accepts only a completed zero-byte stream, validates every present `Content-Length`, and cancels on the first body byte. The bridge rejects relay secrets such as `channelToken`, custody fields, verification lists, and relay metadata.
+Challenge and exchange allow only exact `ALLOWED_ORIGINS`, never wildcard CORS or credentials. They allow only `POST`, `OPTIONS`, and `content-type`; body size is limited to 16 KiB. Both admin routes accept only a completed zero-byte stream, validate every present `Content-Length`, and cancel on the first body byte. The bridge rejects relay secrets such as `channelToken`, custody fields, verification lists, and relay metadata.
 
-The three credential-bearing POST routes also use distributed Durable Object
-rolling windows: challenge `12/5m`, exchange `20/5m`, and admin token `6/5m`.
+The four authentication POST routes also use distributed Durable Object
+rolling windows: challenge `12/5m`, exchange `20/5m`, and both server-only admin
+routes share the rollback-compatible admin `6/5m` window.
 Browser Origin/no-Origin trust gates run before quota consumption, while the
 limiter still runs before body parsing, proof verification, credential checks,
 or Maincloud work. IPv4 is bucketed per address and IPv6 per routed `/64`; only
@@ -53,6 +55,8 @@ Player JWT claims include `iss`, `sub: farcaster:<verified decimal fid>`, `aud: 
 
 The Worker calls the fixed documented Maincloud endpoint `POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch` with `Authorization: Bearer <ephemeral Hermes JWT>`, JSON content and accept headers, and the numeric SATS-JSON argument array `[<verified safe-integer fid>]`. The protected procedure returns the raw unsigned 32-bit epoch; `0` means the FID has no whitelist row. The Worker validates the fixed HTTPS origin/database/procedure, rejects redirects, disables caching, caps the response, aborts within five seconds, and accepts only a raw `u32`. Missing, malformed, timed-out, redirected, non-2xx, or unavailable results cause `503 authorization_unavailable` and no player JWT is issued. This is the revocation boundary after an admin auth-epoch bump; there is no separate resolver service, URL, token, anonymous request, or browser authority.
 
+The synthetic probe invokes that exact resolver with one fixed safe-integer FID; it accepts no body, query, browser `Origin`, or caller-selected FID. A completed authenticated resolver check returns only `{ "ok": true }`, or `{ "ok": false, "stage": "<closed-stage>" }` with one of `signing`, `fetch`, `timeout`, `upstream_status`, or `response_validation`; unexpected bugs remain a generic error with no fabricated stage. The probe never returns the epoch, FID, JWT, upstream status code/body, URL, or raw error. The public exchange response remains the generic `503 authorization_unavailable` for every resolver stage.
+
 > The 30-day browser-stored OIDC bearer token is a closed-alpha convenience. Production should use short-lived access tokens plus a trusted HttpOnly refresh/session flow.
 
 ## Required configuration
@@ -76,4 +80,4 @@ node --input-type=module -e 'const pair = await crypto.subtle.generateKey({ name
 
 Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`. The isolated tests cover public-only JWKS, mocked valid SIWF exchange, invalid signature/FID mismatch, replay prevention, post-upstream/signing expiry, SIWF context, CORS, raw-byte/framing body guards, distributed rate envelopes/concurrency/cleanup, fail-closed direct auth-epoch lookup, admin authentication/expiry, and static safe log events.
 
-Logs are closed static event names only. The Worker never logs a SIWF message, signature, nonce, request ID, JWT, private JWK, RPC URL, procedure request/response, or admin secret. `/v1/admin/token` requires `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, rejects browser `Origin` headers, emits no admin CORS headers, and is only for a server-side Hermes/admin process. Never expose its secret or returned JWT to frontend code or disk.
+Logs are closed static event names only. The Worker never logs a SIWF message, signature, nonce, request ID, JWT, private JWK, RPC URL, procedure request/response, or admin secret. Both `/v1/admin/token` and `/v1/admin/auth-epoch-probe` require `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, reject browser `Origin` headers, emit no admin CORS headers, and are only for a server-side Hermes/admin process. Never expose the secret, returned JWT, or authenticated probe result to frontend code, and never persist the secret or returned JWT.

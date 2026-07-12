@@ -16,6 +16,8 @@ import { DurableObjectRateLimiter } from './rateLimit'
 import {
   AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
   SpacetimeHttpAuthEpochResolver,
+  authEpochResolverFailureStage,
+  type AuthEpochResolverFailureStage,
 } from './spacetimeAuthEpochResolver'
 import type {
   AuthEpochResolver,
@@ -37,6 +39,16 @@ const JSON_HEADERS = {
 }
 
 const MAX_PROOF_SIGNATURE_BYTES = 4 * 1024
+const AUTH_EPOCH_PROBE_PATH = '/v1/admin/auth-epoch-probe'
+const AUTH_EPOCH_PROBE_FID = '9007199254740991'
+
+const AUTH_EPOCH_FAILURE_EVENTS: Readonly<Record<AuthEpochResolverFailureStage, SafeLogEvent>> = Object.freeze({
+  signing: 'auth_epoch_failed_signing',
+  fetch: 'auth_epoch_failed_fetch',
+  timeout: 'auth_epoch_failed_timeout',
+  upstream_status: 'auth_epoch_failed_upstream_status',
+  response_validation: 'auth_epoch_failed_response_validation',
+})
 
 const SENSITIVE_EXCHANGE_KEYS = new Set([
   'channelToken', 'channelUrl', 'custody', 'verifications', 'authMethod', 'metadata',
@@ -113,6 +125,16 @@ function requireAdminNoOrigin(request: Request): void {
   if (request.headers.has('origin')) {
     throw new HttpError(403, 'admin_browser_forbidden', 'This endpoint is server-only.')
   }
+}
+
+function isServerOnlyAdminPath(pathname: string): boolean {
+  return pathname === '/v1/admin/token' || pathname === AUTH_EPOCH_PROBE_PATH
+}
+
+function logAuthEpochFailure(logger: SafeLogger, error: unknown): void {
+  logger.event('auth_epoch_failed')
+  const stage = authEpochResolverFailureStage(error)
+  if (stage) logger.event(AUTH_EPOCH_FAILURE_EVENTS[stage])
 }
 
 function allowedPreflight(request: Request, config: BridgeConfig): Response {
@@ -622,9 +644,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           let authEpoch: number
           try {
             authEpoch = requireEpoch(await (dependencies.authEpochResolver ?? defaultAuthEpochResolver(config)).resolve(verifiedFid))
-          } catch {
+          } catch (error) {
             await restoreRetryableChallenge(store, claimed, now)
-            logger.event('auth_epoch_failed')
+            logAuthEpochFailure(logger, error)
             throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
           }
           logger.event('auth_epoch_resolved')
@@ -683,17 +705,42 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           return json({ token, tokenType: 'spacetime-access', expiresIn: ADMIN_TOKEN_TTL_SECONDS })
         }
 
+        if (request.method === 'POST' && url.pathname === AUTH_EPOCH_PROBE_PATH) {
+          requireAdminNoOrigin(request)
+          // Reusing the existing persisted action preserves rollback compatibility.
+          await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)
+          await rejectAdminBody(request)
+          const credential = adminCredential(request)
+          if (!credential || !(await timingSafeSecretMatch(credential, config.adminTokenSecret))) {
+            logger.event('admin_probe_rejected')
+            throw new HttpError(401, 'invalid_admin_credentials', 'Admin credentials are invalid.')
+          }
+          if (url.search) {
+            throw new HttpError(400, 'admin_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          try {
+            requireEpoch(await (dependencies.authEpochResolver ?? defaultAuthEpochResolver(config)).resolve(AUTH_EPOCH_PROBE_FID))
+          } catch (error) {
+            const stage = authEpochResolverFailureStage(error)
+            if (!stage) throw error
+            logger.event('auth_epoch_probe_failed')
+            return json({ ok: false, stage }, 503)
+          }
+          logger.event('auth_epoch_probe_succeeded')
+          return json({ ok: true })
+        }
+
         throw new HttpError(404, 'not_found', 'Route not found.')
       } catch (error) {
         if (error instanceof HttpError) {
-          return errorResponse(error, url.pathname === '/v1/admin/token' ? {} : publicCorsHeaders(request, config))
+          return errorResponse(error, isServerOnlyAdminPath(url.pathname) ? {} : publicCorsHeaders(request, config))
         }
         // Do not attach `error`, request body, headers, or any request-derived
         // fields to logs: those can contain SIWF proof or credentials.
         logger.event('internal_error')
         return errorResponse(
           new HttpError(500, 'internal_error', 'Authentication service failed.'),
-          url.pathname === '/v1/admin/token' ? {} : publicCorsHeaders(request, config),
+          isServerOnlyAdminPath(url.pathname) ? {} : publicCorsHeaders(request, config),
         )
       }
     },

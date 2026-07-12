@@ -3,6 +3,10 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAuthBridge, type AuthBridgeDependencies } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
+import {
+  AuthEpochResolverFailure,
+  type AuthEpochResolverFailureStage,
+} from '../src/spacetimeAuthEpochResolver'
 import type {
   AuthEpochResolver,
   FarcasterVerifier,
@@ -365,6 +369,32 @@ describe('Warpkeep auth bridge', () => {
     expect(exchange.status).toBe(503)
     await expect(exchange.json()).resolves.toMatchObject({ error: { code: 'authorization_unavailable' } })
     expect(h.events).toContain('auth_epoch_failed')
+    expect(h.events.filter((event) => event.startsWith('auth_epoch_failed_'))).toEqual([])
+  })
+
+  it.each([
+    ['signing', 'auth_epoch_failed_signing'],
+    ['fetch', 'auth_epoch_failed_fetch'],
+    ['timeout', 'auth_epoch_failed_timeout'],
+    ['upstream_status', 'auth_epoch_failed_upstream_status'],
+    ['response_validation', 'auth_epoch_failed_response_validation'],
+  ] as const)('keeps the %s resolver stage out of the browser response and emits only its static event', async (stage, event) => {
+    const h = harness({
+      resolver: { resolve: async () => { throw new AuthEpochResolverFailure(stage) } },
+    })
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(
+      request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }),
+      env(),
+    )
+
+    expect(exchange.status).toBe(503)
+    const body = await json(exchange)
+    expect(body).toMatchObject({ error: { code: 'authorization_unavailable' } })
+    expect(JSON.stringify(body)).not.toContain(stage)
+    expect(h.events).toContain('auth_epoch_failed')
+    expect(h.events).toContain(event)
+    expect(h.events.filter((candidate) => candidate.startsWith('auth_epoch_failed_'))).toEqual([event])
   })
 
   it('rejects arbitrary SIWF context, invalid proof signatures, and FID mismatches', async () => {
@@ -494,6 +524,189 @@ describe('Warpkeep auth bridge', () => {
     const claims = decodeJwtPayload(String(grantedBody.token))
     expect(claims).toMatchObject({ sub: 'service:hermes', roles: ['warpkeep-admin'], token_type: 'spacetime-access' })
     expect(Number(claims.exp) - Number(claims.iat)).toBe(5 * 60)
+  })
+
+  it('routes the input-free synthetic probe through the configured resolver', async () => {
+    const resolve = vi.fn(async () => 37)
+    const check = vi.fn(async (_request: Request, _action: string) => ({ allowed: true as const }))
+    const h = harness({ resolver: { resolve }, rateLimiter: { check } })
+    const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+
+    expect(response.status).toBe(200)
+    const responseText = await response.text()
+    expect(JSON.parse(responseText)).toEqual({ ok: true })
+    expect(response.headers.has('access-control-allow-origin')).toBe(false)
+    expect(resolve).toHaveBeenCalledOnce()
+    expect(resolve).toHaveBeenCalledWith('9007199254740991')
+    expect(responseText).not.toContain('37')
+    expect(check).toHaveBeenCalledOnce()
+    expect(check.mock.calls[0]?.[1]).toBe('admin-token')
+    expect(h.events).toContain('auth_epoch_probe_succeeded')
+  })
+
+  it('wires the synthetic probe to the production resolver factory', async () => {
+    const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('0', {
+      headers: { 'content-type': 'application/json' },
+    }))
+    const events: SafeLogEvent[] = []
+    const app = createAuthBridge({
+      rateLimiter: { check: async () => ({ allowed: true }) },
+      logger: { event: (event) => events.push(event) },
+    })
+    const response = await app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ ok: true })
+    expect(upstream).toHaveBeenCalledOnce()
+    const [input, init] = upstream.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch')
+    expect(init.body).toBe('[9007199254740991]')
+    expect(init.redirect).toBe('manual')
+    expect(events).toContain('auth_epoch_probe_succeeded')
+  })
+
+  it.each([
+    'signing',
+    'fetch',
+    'timeout',
+    'upstream_status',
+    'response_validation',
+  ] as const)('returns only the authenticated closed %s probe stage', async (stage: AuthEpochResolverFailureStage) => {
+    const h = harness({
+      resolver: { resolve: async () => { throw new AuthEpochResolverFailure(stage) } },
+    })
+    const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({ ok: false, stage })
+    expect(response.headers.has('access-control-allow-origin')).toBe(false)
+    expect(h.events).toContain('auth_epoch_probe_failed')
+  })
+
+  it('does not fabricate a probe stage for an unexpected resolver bug', async () => {
+    const h = harness({
+      resolver: { resolve: async () => { throw new Error('unexpected-sensitive-detail') } },
+    })
+    const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+
+    expect(response.status).toBe(500)
+    const body = await json(response)
+    expect(body).toEqual({ error: { code: 'internal_error', message: 'Authentication service failed.' } })
+    expect(JSON.stringify(body)).not.toContain('unexpected-sensitive-detail')
+    expect(response.headers.has('access-control-allow-origin')).toBe(false)
+    expect(h.events).toContain('internal_error')
+    expect(h.events).not.toContain('auth_epoch_probe_failed')
+  })
+
+  it('keeps the synthetic probe server-only, input-free, rate-limited, and CORS-free', async () => {
+    const resolve = vi.fn(async () => 0)
+    const h = harness({ resolver: { resolve } })
+
+    for (const method of ['GET', 'OPTIONS']) {
+      const unsupported = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+        method,
+        headers: { origin: ORIGIN, authorization: `Bearer ${ADMIN_SECRET}` },
+      }), env())
+      expect(unsupported.status).toBe(404)
+      expect(unsupported.headers.has('access-control-allow-origin')).toBe(false)
+    }
+
+    const missing = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+    }), env())
+    expect(missing.status).toBe(401)
+    expect(missing.headers.has('access-control-allow-origin')).toBe(false)
+
+    const browser = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { origin: ORIGIN, authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+    expect(browser.status).toBe(403)
+    expect(browser.headers.has('access-control-allow-origin')).toBe(false)
+
+    const queried = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe?fid=12345', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+    expect(queried.status).toBe(400)
+    await expect(queried.json()).resolves.toMatchObject({ error: { code: 'admin_query_not_allowed' } })
+    expect(queried.headers.has('access-control-allow-origin')).toBe(false)
+
+    const bodied = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+      body: '{}',
+    }), env())
+    expect(bodied.status).toBe(400)
+    await expect(bodied.json()).resolves.toMatchObject({ error: { code: 'admin_body_not_allowed' } })
+    expect(resolve).not.toHaveBeenCalled()
+    expect(h.events).toContain('admin_probe_rejected')
+
+    const check = vi.fn(async (_request: Request, _action: string) => ({ allowed: false as const, retryAfterSeconds: 23 }))
+    const limitedResolve = vi.fn(async () => 0)
+    const limited = harness({ resolver: { resolve: limitedResolve }, rateLimiter: { check } })
+    const limitedResponse = await limited.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+    expect(limitedResponse.status).toBe(429)
+    expect(limitedResponse.headers.get('retry-after')).toBe('23')
+    expect(limitedResponse.headers.has('access-control-allow-origin')).toBe(false)
+    expect(check.mock.calls[0]?.[1]).toBe('admin-token')
+    expect(limitedResolve).not.toHaveBeenCalled()
+  })
+
+  it('does not pull a synthetic-probe body before the browser-origin or rate-limit gates', async () => {
+    const authorization = `Bearer ${ADMIN_SECRET}`
+    let browserPulls = 0
+    const browserBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        browserPulls += 1
+        controller.enqueue(new Uint8Array([1]))
+      },
+    }, { highWaterMark: 0 })
+    const browserCheck = vi.fn(async () => ({ allowed: true as const }))
+    const browser = harness({ rateLimiter: { check: browserCheck } })
+    const browserResponse = await browser.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization, origin: ORIGIN },
+      body: browserBody,
+      duplex: 'half',
+    } as RequestInit), env())
+    expect(browserResponse.status).toBe(403)
+    expect(browserPulls).toBe(0)
+    expect(browserCheck).not.toHaveBeenCalled()
+
+    let limitedPulls = 0
+    const limitedBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        limitedPulls += 1
+        controller.enqueue(new Uint8Array([1]))
+      },
+    }, { highWaterMark: 0 })
+    const limited = harness({
+      rateLimiter: { check: async () => ({ allowed: false, retryAfterSeconds: 11 }) },
+    })
+    const limitedResponse = await limited.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      method: 'POST',
+      headers: { authorization },
+      body: limitedBody,
+      duplex: 'half',
+    } as RequestInit), env())
+    expect(limitedResponse.status).toBe(429)
+    expect(limitedPulls).toBe(0)
   })
 
   it('accepts a production-normalized zero-byte admin stream but rejects content', async () => {
