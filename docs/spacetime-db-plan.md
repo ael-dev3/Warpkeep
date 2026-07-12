@@ -23,6 +23,9 @@ Connection lifecycle validates:
 - `token_type === "spacetime-access"`;
 - a safe positive decimal FID and exact `sub`/FID match for player tokens;
 - unsigned 32-bit `auth_epoch`;
+- matching `session_iat`/`session_exp` claims with a maximum 30-day window,
+  preserved through connection-token exchange and rechecked against module
+  time on every player call;
 - strict `service:hermes` / `roles: ["warpkeep-admin"]` shape for admin tokens.
 
 `WARPKEEP_BACKEND_PROTOCOL_VERSION = 1` is a backend-only compatibility

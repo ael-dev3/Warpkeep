@@ -4,9 +4,11 @@ import test from 'node:test';
 import {
   ClaimValidationError,
   MAX_HERMES_ADMIN_SESSION_SECONDS,
+  MAX_PLAYER_SESSION_SECONDS,
   isHermesAdminJwt,
   parseFidClaim,
   readFreshHermesAdminJwt,
+  readFreshWarpkeepPlayerJwt,
   readWarpkeepBaseJwt,
   readWarpkeepJwt,
 } from '../src/claims';
@@ -18,6 +20,7 @@ const config = {
 } as const;
 
 function playerPayload(overrides: Record<string, unknown> = {}) {
+  const sessionIssuedAt = 1_700_000_000;
   return {
     iss: config.issuer,
     sub: 'farcaster:12345',
@@ -26,6 +29,8 @@ function playerPayload(overrides: Record<string, unknown> = {}) {
     fid: '12345',
     auth_epoch: 0,
     roles: [],
+    session_iat: sessionIssuedAt,
+    session_exp: sessionIssuedAt + MAX_PLAYER_SESSION_SECONDS,
     ...overrides,
   };
 }
@@ -88,6 +93,42 @@ test('requires player roles to remain exactly empty', () => {
     assert.throws(
       () => readWarpkeepJwt(playerPayload({ roles }), config),
       (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_ROLES',
+    );
+  }
+});
+
+test('expires player authority at the original absolute session deadline', () => {
+  const expiresAt = 1_700_000_000 + MAX_PLAYER_SESSION_SECONDS;
+  const valid = readFreshWarpkeepPlayerJwt(
+    playerPayload(),
+    BigInt(expiresAt) * 1_000_000n - 1n,
+    config,
+  );
+  assert.equal(valid.sessionExpiresAt, expiresAt);
+
+  for (const currentTimeMicros of [
+    BigInt(expiresAt) * 1_000_000n,
+    BigInt(expiresAt + 1) * 1_000_000n,
+  ]) {
+    assert.throws(
+      () => readFreshWarpkeepPlayerJwt(playerPayload(), currentTimeMicros, config),
+      (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_PLAYER_SESSION',
+    );
+  }
+});
+
+test('rejects missing, malformed, or overlong absolute player sessions', () => {
+  const nowMicros = 1_700_000_001n * 1_000_000n;
+  for (const payload of [
+    playerPayload({ session_iat: undefined }),
+    playerPayload({ session_exp: '1702592000' }),
+    playerPayload({ session_exp: 1_700_000_000.5 }),
+    playerPayload({ session_exp: 1_700_000_000 }),
+    playerPayload({ session_exp: 1_700_000_000 + MAX_PLAYER_SESSION_SECONDS + 1 }),
+  ]) {
+    assert.throws(
+      () => readFreshWarpkeepPlayerJwt(payload, nowMicros, config),
+      (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_PLAYER_SESSION',
     );
   }
 });

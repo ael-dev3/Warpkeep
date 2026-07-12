@@ -31,6 +31,8 @@ function createJwt(overrides: Record<string, unknown> = {}) {
     iat: NOW / 1_000,
     nbf: NOW / 1_000,
     exp: EXPIRY / 1_000,
+    session_iat: NOW / 1_000,
+    session_exp: EXPIRY / 1_000,
     jti: 'bridge-test-token',
     ...overrides
   })}.test_signature`;
@@ -46,7 +48,7 @@ function response(body: unknown, ok = true) {
 function exchangeRequest(): FarcasterBridgeExchangeRequest {
   return {
     message: 'ael-dev3.github.io wants you to sign in with your Ethereum account',
-    signature: `0x${'ab'.repeat(65)}`,
+    signature: `0x${'ab'.repeat(96)}`,
     nonce: 'ab'.repeat(24),
     fid: FID,
     requestId: 'd6d120e3-f120-4fb8-9f00-29bb7d46a111',
@@ -177,6 +179,25 @@ describe('Farcaster OIDC bridge client', () => {
     expect(body).not.toHaveProperty('custody');
     expect(body).not.toHaveProperty('signatureParams');
     expect(JSON.stringify(body)).not.toContain('PRIVATE_RELAY_CHANNEL_TOKEN');
+  });
+
+  it('rejects malformed or overlong signatures before sending proof data', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch({});
+    const bridge = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://bridge.warpkeep.example',
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      fetch
+    });
+
+    for (const signature of ['0x', '0xabc', `0x${'ab'.repeat(4 * 1_024 + 1)}`]) {
+      await expect(bridge.exchangeCompletedSignIn({
+        ...exchangeRequest(),
+        signature: signature as `0x${string}`
+      })).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    }
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('rejects an OIDC response whose token claims do not bind to the completed verified FID', async () => {

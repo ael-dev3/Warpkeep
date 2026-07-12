@@ -1,8 +1,9 @@
-import type {
-  FarcasterBridgeChallenge,
-  FarcasterBridgeChallengeRequest,
-  FarcasterBridgeExchangeRequest,
-  FarcasterOidcBridgeClient
+import {
+  isBoundedFarcasterSignature,
+  type FarcasterBridgeChallenge,
+  type FarcasterBridgeChallengeRequest,
+  type FarcasterBridgeExchangeRequest,
+  type FarcasterOidcBridgeClient
 } from './farcasterAuthTypes';
 import {
   FARCASTER_OIDC_DEFAULT_AUDIENCE,
@@ -20,7 +21,6 @@ const MAX_PROOF_MESSAGE_LENGTH = 8 * 1_024;
 const BRIDGE_REQUEST_TIMEOUT_MS = 10_000;
 const NONCE_PATTERN = /^[A-Za-z0-9]{8,128}$/;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;
-const HEX_SIGNATURE_PATTERN = /^0x[0-9a-fA-F]{130}$/;
 
 export type FarcasterOidcBridgeFetch = (
   input: RequestInfo | URL,
@@ -152,8 +152,7 @@ function readSafeExchangeBody(request: FarcasterBridgeExchangeRequest) {
     || typeof request.message !== 'string'
     || request.message.length === 0
     || request.message.length > MAX_PROOF_MESSAGE_LENGTH
-    || typeof request.signature !== 'string'
-    || !HEX_SIGNATURE_PATTERN.test(request.signature)
+    || !isBoundedFarcasterSignature(request.signature)
     || typeof request.nonce !== 'string'
     || !NONCE_PATTERN.test(request.nonce)
     || !isSafeFid(request.fid)

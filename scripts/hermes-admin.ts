@@ -51,6 +51,14 @@ function sanitizeNote(value: string | undefined, fallback?: string) {
   return note;
 }
 
+function readAdminSecret(value: string | undefined) {
+  const bytes = value === undefined ? 0 : new TextEncoder().encode(value).byteLength;
+  if (bytes < 32 || bytes > 512) {
+    fail('WARPKEEP_ADMIN_TOKEN_SECRET must contain 32 to 512 bytes.');
+  }
+  return value as string;
+}
+
 function commandFrom(value: string | undefined): Command {
   if (
     value === 'seed-world'
@@ -117,7 +125,9 @@ function requireCredentialedProductionTarget(uri: string, database: string, brid
 function withOperationTimeout<T>(operation: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => reject(new Error('Warpkeep database operation timed out.')), OPERATION_TIMEOUT_MS);
+    timer = setTimeout(() => reject(new Error(
+      'Warpkeep database operation timed out. A submitted mutation may still commit; inspect current state before retrying.',
+    )), OPERATION_TIMEOUT_MS);
   });
   return Promise.race([operation, deadline]).finally(() => {
     if (timer !== undefined) clearTimeout(timer);
@@ -203,8 +213,7 @@ async function main() {
 
   const bridgeUrl = readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
   requireCredentialedProductionTarget(uri, database, bridgeUrl);
-  const secret = process.env.WARPKEEP_ADMIN_TOKEN_SECRET;
-  if (!secret) fail('WARPKEEP_ADMIN_TOKEN_SECRET is required.');
+  const secret = readAdminSecret(process.env.WARPKEEP_ADMIN_TOKEN_SECRET);
   const token = await requestAdminToken(bridgeUrl, secret);
   const connection = await connect(uri, database, token);
   try {

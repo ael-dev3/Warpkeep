@@ -5,19 +5,20 @@ import {
   type FarcasterSecureRandomSource
 } from './farcasterAuthContext';
 import { FarcasterOidcBridgeClientError } from './farcasterOidcBridgeClient';
-import type {
-  FarcasterAuthContext,
-  FarcasterAuthError,
-  FarcasterAuthErrorCode,
-  FarcasterAuthMethod,
-  FarcasterBridgeChallenge,
-  FarcasterChannelStatus,
-  FarcasterCompletedChannelStatus,
-  FarcasterExpectedSignInRequest,
-  FarcasterHex,
-  FarcasterSessionAuthority,
-  FarcasterSignInChannel,
-  VerifiedFarcasterIdentity
+import {
+  isBoundedFarcasterSignature,
+  type FarcasterAuthContext,
+  type FarcasterAuthError,
+  type FarcasterAuthErrorCode,
+  type FarcasterAuthMethod,
+  type FarcasterBridgeChallenge,
+  type FarcasterChannelStatus,
+  type FarcasterCompletedChannelStatus,
+  type FarcasterExpectedSignInRequest,
+  type FarcasterHex,
+  type FarcasterSessionAuthority,
+  type FarcasterSignInChannel,
+  type VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';
 
 export const FARCASTER_AUTH_RELAY_URL = 'https://relay.farcaster.xyz';
@@ -98,8 +99,7 @@ function isChannelToken(value: unknown): value is string {
 }
 
 function isHex(value: unknown): value is FarcasterHex {
-  return typeof value === 'string'
-    && /^0x[0-9a-fA-F]{130}$/.test(value);
+  return isBoundedFarcasterSignature(value);
 }
 
 function isAddress(value: unknown): value is FarcasterHex {

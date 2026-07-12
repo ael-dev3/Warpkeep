@@ -10,7 +10,7 @@ import {
   type BridgeConfig,
 } from './config'
 import { DurableObjectChallengeStore } from './challengeStore'
-import { createOfficialFarcasterVerifier } from './farcaster'
+import { FarcasterVerifierUnavailableError, createOfficialFarcasterVerifier } from './farcaster'
 import { adminClaims, playerClaims, randomId, randomSiweNonce, signEs256Jwt } from './jwt'
 import {
   AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
@@ -32,6 +32,8 @@ const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
 }
+
+const MAX_PROOF_SIGNATURE_BYTES = 4 * 1024
 
 const SENSITIVE_EXCHANGE_KEYS = new Set([
   'channelToken', 'channelUrl', 'custody', 'verifications', 'authMethod', 'metadata',
@@ -293,8 +295,13 @@ function parseExchangeRequest(body: Record<string, unknown>): ExchangeInput {
     'message', 'signature', 'nonce', 'fid', 'requestId', 'domain', 'siweUri', 'expirationTime', 'expiresAt', 'identity',
   ])
   const message = requireString(body.message, 'message', 8 * 1024)
-  const signature = requireString(body.signature, 'signature', 140)
-  if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) {
+  const signature = requireString(body.signature, 'signature', 2 + MAX_PROOF_SIGNATURE_BYTES * 2)
+  const signatureHexLength = signature.length - 2
+  if (
+    !/^0x[0-9a-fA-F]+$/.test(signature)
+    || signatureHexLength % 2 !== 0
+    || signatureHexLength / 2 > MAX_PROOF_SIGNATURE_BYTES
+  ) {
     throw new HttpError(400, 'invalid_request', 'Invalid signature.')
   }
   const fid = canonicalFid(body.fid)
@@ -469,7 +476,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             jwks_uri: `${issuer}/.well-known/jwks.json`,
             subject_types_supported: ['public'],
             id_token_signing_alg_values_supported: ['ES256'],
-            claims_supported: ['sub', 'aud', 'fid', 'token_type', 'auth_epoch', 'roles'],
+            claims_supported: [
+              'sub', 'aud', 'fid', 'token_type', 'auth_epoch', 'roles', 'session_iat', 'session_exp',
+            ],
           }, 200, publicCorsHeaders(request, config))
         }
 
@@ -536,13 +545,16 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               domain: challenge.domain,
               acceptAuthAddress: true,
             })).fid)
-          } catch {
-            await restoreRetryableChallenge(store, claimed, now)
+          } catch (error) {
+            if (error instanceof FarcasterVerifierUnavailableError) {
+              await restoreRetryableChallenge(store, claimed, now)
+              logger.event('exchange_rejected')
+              throw new HttpError(503, 'verification_unavailable', 'Farcaster verification is temporarily unavailable.')
+            }
             logger.event('exchange_rejected')
             throw new HttpError(401, 'invalid_proof', 'The Farcaster proof could not be verified.')
           }
           if (verifiedFid !== input.fid) {
-            await restoreRetryableChallenge(store, claimed, now)
             logger.event('exchange_rejected')
             throw new HttpError(401, 'fid_mismatch', 'The Farcaster proof could not be verified.')
           }

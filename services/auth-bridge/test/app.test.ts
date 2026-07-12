@@ -2,6 +2,7 @@ import { createSiweMessage } from 'viem/siwe'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAuthBridge } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
+import { FarcasterVerifierUnavailableError } from '../src/farcaster'
 import type { AuthEpochResolver, FarcasterVerifier, SafeLogEvent, WorkerEnv } from '../src/types'
 
 const ORIGIN = 'https://ael-dev3.github.io'
@@ -67,8 +68,8 @@ interface Harness {
   now: number
 }
 
-function harness(options: { epoch?: number; resolver?: AuthEpochResolver } = {}): Harness {
-  const verifier = {
+function harness(options: { epoch?: number; resolver?: AuthEpochResolver; verifier?: FarcasterVerifier } = {}): Harness {
+  const verifier = options.verifier ?? {
     verify: vi.fn(async () => ({ fid: FID })),
   }
   const resolver = options.resolver ?? {
@@ -83,7 +84,13 @@ function harness(options: { epoch?: number; resolver?: AuthEpochResolver } = {})
     now: () => now,
     logger: { event: (event) => events.push(event) },
   })
-  return { app, verifier, resolver: resolver as Harness['resolver'], events, now }
+  return {
+    app,
+    verifier: verifier as Harness['verifier'],
+    resolver: resolver as Harness['resolver'],
+    events,
+    now,
+  }
 }
 
 async function issueChallenge(h: Harness): Promise<Record<string, unknown>> {
@@ -169,6 +176,8 @@ describe('Warpkeep auth bridge', () => {
       pfp_url: 'https://cdn.example/pfp.png',
     })
     expect(Number(claims.exp) - Number(claims.iat)).toBe(30 * 24 * 60 * 60)
+    expect(claims.session_iat).toBe(claims.iat)
+    expect(claims.session_exp).toBe(claims.exp)
     expect(h.verifier.verify).toHaveBeenCalledWith(expect.objectContaining({ acceptAuthAddress: true, nonce: challenge.nonce }))
     expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
     expect(h.events).toContain('auth_epoch_resolved')
@@ -226,12 +235,47 @@ describe('Warpkeep auth bridge', () => {
     const invalidSignature = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(invalidSignature.status).toBe(401)
     await expect(invalidSignature.json()).resolves.toMatchObject({ error: { code: 'invalid_proof' } })
+    const invalidReplay = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    expect(invalidReplay.status).toBe(401)
+    await expect(invalidReplay.json()).resolves.toMatchObject({ error: { code: 'challenge_not_found' } })
 
     const secondChallenge = await issueChallenge(h)
     h.verifier.verify.mockResolvedValueOnce({ fid: '99999' })
     const mismatch = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(secondChallenge), { headers: { origin: ORIGIN } }), env())
     expect(mismatch.status).toBe(401)
     await expect(mismatch.json()).resolves.toMatchObject({ error: { code: 'fid_mismatch' } })
+  })
+
+  it('accepts a bounded smart-account signature shape for official verification', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(request('/v1/farcaster/exchange', {
+      ...proofFor(challenge),
+      signature: `0x${'ab'.repeat(96)}`,
+    }, { headers: { origin: ORIGIN } }), env())
+
+    expect(exchange.status).toBe(200)
+    expect(h.verifier.verify).toHaveBeenCalledWith(expect.objectContaining({
+      signature: `0x${'ab'.repeat(96)}`,
+    }))
+  })
+
+  it('restores a challenge only when the Farcaster verifier is unavailable', async () => {
+    const verifier: FarcasterVerifier = { verify: vi.fn() }
+    vi.mocked(verifier.verify)
+      .mockRejectedValueOnce(new FarcasterVerifierUnavailableError())
+      .mockResolvedValueOnce({ fid: FID })
+    const h = harness({ verifier })
+    const challenge = await issueChallenge(h)
+    const proof = proofFor(challenge)
+
+    const unavailable = await h.app.fetch(request('/v1/farcaster/exchange', proof, { headers: { origin: ORIGIN } }), env())
+    expect(unavailable.status).toBe(503)
+    await expect(unavailable.json()).resolves.toMatchObject({ error: { code: 'verification_unavailable' } })
+
+    const retry = await h.app.fetch(request('/v1/farcaster/exchange', proof, { headers: { origin: ORIGIN } }), env())
+    expect(retry.status).toBe(200)
+    expect(verifier.verify).toHaveBeenCalledTimes(2)
   })
 
   it('enforces the CORS allowlist and rejects oversize bodies before parsing', async () => {

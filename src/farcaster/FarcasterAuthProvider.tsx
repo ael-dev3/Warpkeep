@@ -921,6 +921,7 @@ export function FarcasterAuthProvider({
     const handleStorage = (event: StorageEvent) => {
       if (event.key === controlKey && event.newValue !== null) {
         const current = machineRef.current;
+        controller.cancelSignIn();
         clearLocalAuthoritativeSession();
         if (
           current.view.phase === 'authenticated'
@@ -977,7 +978,7 @@ export function FarcasterAuthProvider({
 
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [clearInMemoryAuthoritativeSession, clearLocalAuthoritativeSession, deviceSessionEnvironment, now]);
+  }, [clearInMemoryAuthoritativeSession, clearLocalAuthoritativeSession, controller, deviceSessionEnvironment, now]);
 
   const value = useMemo<FarcasterAuthControllerValue>(() => ({
     state: machine.view,

@@ -99,6 +99,8 @@ function createJwt(overrides: Record<string, unknown> = {}) {
     iat: NOW / 1_000,
     nbf: NOW / 1_000,
     exp: expiresAt / 1_000,
+    session_iat: NOW / 1_000,
+    session_exp: expiresAt / 1_000,
     jti: 'test-session-id',
     ...overrides
   };

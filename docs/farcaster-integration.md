@@ -50,7 +50,7 @@ OIDC JWT, issuer, audience, verifiedAt, rememberedAt, expiresAt
 
 It restores a valid bridge session after reload, then rechecks private admission before mounting the realm. A prior v1 `remembered-device-prototype` identity-only record is removed; it cannot authorize a shared realm. Sign-out clears the OIDC record, Farcaster UI state, pending realm route, and active database connection.
 
-> The 30-day browser-stored OIDC bearer token is a closed-alpha convenience. Production should use short-lived access tokens plus a trusted HttpOnly refresh/session flow.
+> The 30-day browser-stored OIDC bearer token is a closed-alpha convenience. Its signed absolute session deadline is rechecked by the module even if an authenticated WebSocket remains open. Production should still use short-lived access tokens plus a trusted HttpOnly refresh/session flow.
 
 Browser-readable bearer material remains vulnerable to XSS. The alpha mitigation boundary is server-side allowlist disable/auth-epoch enforcement, not an assertion that local storage is safe.
 

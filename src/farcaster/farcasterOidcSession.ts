@@ -166,6 +166,8 @@ function readPlayerClaims(
   const issuedAt = epochSecondsToMilliseconds(payload.iat);
   const notBefore = epochSecondsToMilliseconds(payload.nbf);
   const expiresAt = epochSecondsToMilliseconds(payload.exp);
+  const sessionIssuedAt = epochSecondsToMilliseconds(payload.session_iat);
+  const sessionExpiresAt = epochSecondsToMilliseconds(payload.session_exp);
   if (
     !audience
     || !fid
@@ -181,6 +183,8 @@ function readPlayerClaims(
     || issuedAt === undefined
     || notBefore === undefined
     || expiresAt === undefined
+    || sessionIssuedAt !== issuedAt
+    || sessionExpiresAt !== expiresAt
     || issuedAt > notBefore
     || notBefore >= expiresAt
     || BigInt(expiresAt) - BigInt(issuedAt) > BigInt(FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS)

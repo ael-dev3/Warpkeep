@@ -11,8 +11,8 @@ import {
   type WarpkeepJwtClaims,
   isHermesAdminJwt,
   readFreshHermesAdminJwt,
+  readFreshWarpkeepPlayerJwt,
   readWarpkeepBaseJwt,
-  readWarpkeepJwt,
 } from './claims';
 import { MAX_SUPPORTED_FID } from './config';
 import type warpkeep from './schema';
@@ -39,7 +39,10 @@ function requireJwtPayload(auth: AuthCtx): unknown {
 /** Require the complete bridge-issued Farcaster player token contract. */
 export function requireWarpkeepJwt(ctx: WarpkeepReducerContext): WarpkeepJwtClaims {
   try {
-    return readWarpkeepJwt(requireJwtPayload(ctx.senderAuth));
+    return readFreshWarpkeepPlayerJwt(
+      requireJwtPayload(ctx.senderAuth),
+      ctx.timestamp.microsSinceUnixEpoch,
+    );
   } catch (error) {
     return senderError(error);
   }
@@ -57,7 +60,9 @@ export function requireWarpkeepConnection(
   try {
     const payload = requireJwtPayload(ctx.senderAuth);
     const base = readWarpkeepBaseJwt(payload);
-    return isHermesAdminJwt(base) ? base : readWarpkeepJwt(payload);
+    return isHermesAdminJwt(base)
+      ? base
+      : readFreshWarpkeepPlayerJwt(payload, ctx.timestamp.microsSinceUnixEpoch);
   } catch (error) {
     return senderError(error);
   }

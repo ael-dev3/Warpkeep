@@ -75,8 +75,11 @@ the private whitelist.
 
 Player reducers derive FID solely from the signed bridge claim, require an
 enabled private `allowed_fid` row, and require the token's `auth_epoch` to
-match. `bootstrap_player` is idempotent and atomically creates the player,
-castle, and tile occupancy; the first admitted fixture receives `0,0`.
+match. They also recheck the bridge's signed, maximum-30-day absolute player
+session deadline against module time, even after SpacetimeDB exchanges the
+browser bearer for a temporary connection token. `bootstrap_player` is
+idempotent and atomically creates the player, castle, and tile occupancy; the
+first admitted fixture receives `0,0`.
 
 Admin reducers require that same separate bridge-issued Hermes token:
 
@@ -114,7 +117,8 @@ identity, audit, or live aggregate state.
 
 ## Closed-alpha token warning
 
-The 30-day browser-stored OIDC bearer token is a closed-alpha convenience.
-Production should use short-lived access tokens plus a trusted HttpOnly
-refresh/session flow. This module deliberately does not store SIWF proofs,
+The 30-day browser-stored OIDC bearer token is a closed-alpha convenience. Its
+signed absolute deadline is enforced on every player call; copied tokens remain
+usable until that deadline unless an auth epoch is bumped. Production should use
+short-lived access tokens plus a trusted HttpOnly refresh/session flow. This module deliberately does not store SIWF proofs,
 channel tokens, QR payloads, private keys, or admin credentials.

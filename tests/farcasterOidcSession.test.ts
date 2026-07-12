@@ -29,6 +29,8 @@ function token(overrides: Record<string, unknown> = {}) {
     iat: issuedAt,
     nbf: issuedAt,
     exp: (NOW + FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS) / 1_000,
+    session_iat: issuedAt,
+    session_exp: (NOW + FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS) / 1_000,
     jti: 'test-session-id',
     ...overrides
   })}.test_signature`;
@@ -52,6 +54,9 @@ describe('Farcaster OIDC session parser security bounds', () => {
     ['fractional expiry', { exp: (NOW + FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS) / 1_000 + 0.5 }],
     ['not-before at expiry', {
       nbf: (NOW + FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS) / 1_000
+    }],
+    ['mismatched absolute session expiry', {
+      session_exp: (NOW + FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS) / 1_000 - 1
     }]
   ])('rejects %s', (_caseName, overrides) => {
     expect(parseFarcasterOidcJwt(token(overrides), {

@@ -77,6 +77,28 @@ describe('ChallengeReplayGuard storage lifecycle', () => {
     expect(storage.values.size).toBe(0)
   })
 
+  it('can restore a still-live challenge after atomic consume deallocates storage', async () => {
+    vi.useFakeTimers({ now: NOW })
+    const storage = new FakeStorage()
+    const guard = new ChallengeReplayGuard({ storage } as DurableObjectState)
+    const record = challenge()
+    const put = () => guard.fetch(request('/record', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(record),
+    }))
+
+    expect((await put()).status).toBe(204)
+    expect((await guard.fetch(request('/consume', { method: 'POST' }))).status).toBe(200)
+    expect(storage.deleteAllCalls).toBe(1)
+
+    expect((await put()).status).toBe(204)
+    const restored = await guard.fetch(request('/record'))
+    expect(restored.status).toBe(200)
+    await expect(restored.json()).resolves.toEqual(record)
+    expect(storage.alarm).toBe(record.expiresAt)
+  })
+
   it('fully deallocates an abandoned object when its alarm fires', async () => {
     const storage = new FakeStorage()
     storage.values.set(RECORD_KEY, challenge())

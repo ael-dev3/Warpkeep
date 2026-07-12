@@ -86,6 +86,11 @@ npm run stdb:seed-world -- --confirm
 npm run stdb:inspect-alpha
 ```
 
+If a confirmed mutation times out, treat its outcome as indeterminate: inspect
+the aggregate state before retrying. The local deadline cannot cancel a reducer
+that Maincloud has already accepted, and blindly retrying an auth-epoch bump can
+advance the epoch twice.
+
 Stop if any unexpected state exists. Do not call `allow-fid` during activation.
 
 ## 5. Browser activation and rollback

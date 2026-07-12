@@ -28,6 +28,17 @@ export type FarcasterAuthMethod = 'custody' | 'authAddress';
 
 export type FarcasterHex = `0x${string}`;
 
+export const FARCASTER_SIGNATURE_MAX_BYTES = 4 * 1_024;
+
+/** Accept EOA and bounded smart-account signatures without accepting arbitrary blobs. */
+export function isBoundedFarcasterSignature(value: unknown): value is FarcasterHex {
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]+$/.test(value)) {
+    return false;
+  }
+  const hexLength = value.length - 2;
+  return hexLength % 2 === 0 && hexLength / 2 <= FARCASTER_SIGNATURE_MAX_BYTES;
+}
+
 /** The presentation that best fits the player's current device. */
 export type FarcasterAuthPresentation = 'qr-first' | 'deep-link-first';
 

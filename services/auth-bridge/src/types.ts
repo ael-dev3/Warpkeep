@@ -141,6 +141,9 @@ export interface PlayerTokenClaims {
   iat: number
   nbf: number
   exp: number
+  /** Original player-session window, preserved when SpacetimeDB re-signs a WebSocket token. */
+  session_iat: number
+  session_exp: number
   jti: string
   username?: string
   display_name?: string

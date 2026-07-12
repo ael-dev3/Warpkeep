@@ -131,6 +131,8 @@ function createOidcSession(
     iat: issuedAt / 1_000,
     nbf: issuedAt / 1_000,
     exp: normalizedExpiresAt / 1_000,
+    session_iat: issuedAt / 1_000,
+    session_exp: normalizedExpiresAt / 1_000,
     jti: `test-${fid}-${now}`
   })}.test_signature`;
   return {
@@ -676,6 +678,43 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     }));
     await settleAsyncWork();
 
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+  });
+
+  it('cancels an in-flight bridge exchange when another tab emits logout', async () => {
+    vi.useFakeTimers({ now: 65_000 });
+    const channel = createChannel('CROSS_TAB_IN_FLIGHT');
+    const bridgeExchange = deferred<FarcasterOidcSession>();
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'CROSS_TAB_IN_FLIGHT')),
+      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+    });
+    const bridge = createBridge({
+      exchangeCompletedSignIn: vi.fn(() => bridgeExchange.promise)
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      pollIntervalMs: 10
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+    expect(readPublicState().phase).toBe('verifying');
+
+    fireEvent(window, new StorageEvent('storage', {
+      key: getFarcasterDeviceSessionControlKey('/'),
+      newValue: `logout-v1:${Date.now()}`
+    }));
+    await settleAsyncWork();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+
+    bridgeExchange.resolve(createOidcSession());
+    await settleAsyncWork();
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
   });

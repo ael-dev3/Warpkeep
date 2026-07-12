@@ -56,4 +56,13 @@ describe('Hermes credential destination policy', () => {
     expect(result.stdout).toContain('"dryRun":true');
     expect(result.stderr).toBe('');
   });
+
+  it('rejects a weak admin secret before network use', () => {
+    const result = runHermes(['inspect-alpha', '--json'], {
+      WARPKEEP_ADMIN_TOKEN_SECRET: 'replace-me'
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('must contain 32 to 512 bytes');
+    expect(result.stdout).toBe('');
+  });
 });
