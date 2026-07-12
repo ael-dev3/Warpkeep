@@ -8,7 +8,8 @@ export const SPACETIMEDB_AUTH_EPOCH_PROCEDURE = 'admin_get_fid_auth_epoch'
 
 export const AUTH_EPOCH_RESOLVER_FAILURE_STAGES = Object.freeze([
   'signing',
-  'fetch',
+  'fetch_request',
+  'fetch_body',
   'timeout',
   'upstream_status',
   'response_validation',
@@ -133,7 +134,7 @@ async function readBoundedBody(response: Response): Promise<string> {
       try {
         result = await reader.read()
       } catch {
-        return resolverFailure('fetch')
+        return resolverFailure('fetch_body')
       }
       const { done, value } = result
       if (done) break
@@ -251,15 +252,14 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
                 'cache-control': 'no-store',
               }),
               body: JSON.stringify([fidArgument]),
-              // The explicit Cache-Control header preserves the no-store
-              // contract without passing browser cache mode to a subrequest.
+              cache: 'no-store',
               credentials: 'omit',
               // Workerd rejects `error`; `manual` surfaces 3xx to the non-2xx guard below.
               redirect: 'manual',
               signal: controller.signal,
             })
           } catch {
-            return resolverFailure(timedOut ? 'timeout' : 'fetch')
+            return resolverFailure(timedOut ? 'timeout' : 'fetch_request')
           }
           if (!response.ok) return resolverFailure('upstream_status')
           try {

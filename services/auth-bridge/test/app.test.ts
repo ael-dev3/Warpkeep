@@ -374,7 +374,8 @@ describe('Warpkeep auth bridge', () => {
 
   it.each([
     ['signing', 'auth_epoch_failed_signing'],
-    ['fetch', 'auth_epoch_failed_fetch'],
+    ['fetch_request', 'auth_epoch_failed_fetch_request'],
+    ['fetch_body', 'auth_epoch_failed_fetch_body'],
     ['timeout', 'auth_epoch_failed_timeout'],
     ['upstream_status', 'auth_epoch_failed_upstream_status'],
     ['response_validation', 'auth_epoch_failed_response_validation'],
@@ -573,7 +574,8 @@ describe('Warpkeep auth bridge', () => {
 
   it.each([
     'signing',
-    'fetch',
+    'fetch_request',
+    'fetch_body',
     'timeout',
     'upstream_status',
     'response_validation',

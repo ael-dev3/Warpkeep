@@ -44,7 +44,8 @@ const AUTH_EPOCH_PROBE_FID = '9007199254740991'
 
 const AUTH_EPOCH_FAILURE_EVENTS: Readonly<Record<AuthEpochResolverFailureStage, SafeLogEvent>> = Object.freeze({
   signing: 'auth_epoch_failed_signing',
-  fetch: 'auth_epoch_failed_fetch',
+  fetch_request: 'auth_epoch_failed_fetch_request',
+  fetch_body: 'auth_epoch_failed_fetch_body',
   timeout: 'auth_epoch_failed_timeout',
   upstream_status: 'auth_epoch_failed_upstream_status',
   response_validation: 'auth_epoch_failed_response_validation',

@@ -86,7 +86,7 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch')
     expect(init.method).toBe('POST')
     expect(init.body).toBe('[12345]')
-    expect(init).not.toHaveProperty('cache')
+    expect(init.cache).toBe('no-store')
     expect(init.credentials).toBe('omit')
     expect(init.redirect).toBe('manual')
     expect(init.signal).toBeInstanceOf(AbortSignal)
@@ -107,17 +107,6 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
       const resolver = createResolver(async () => jsonResponse(raw))
       await expect(resolver.resolve(FID)).resolves.toBe(expected)
     }
-  })
-
-  it('does not send browser-only cache mode in the Worker subrequest init', async () => {
-    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      if (init && 'cache' in init) throw new TypeError('cache mode is not implemented')
-      return jsonResponse('0')
-    })
-    const resolver = createResolver(fetcher)
-
-    await expect(resolver.resolve(FID)).resolves.toBe(0)
-    expect(fetcher).toHaveBeenCalledOnce()
   })
 
   it('classifies redirects and every non-success response as upstream_status', async () => {
@@ -167,7 +156,7 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
       expect(error).toBeInstanceOf(AuthEpochResolverFailure)
       expect(error).toMatchObject({
         message: 'Auth epoch resolver is unavailable.',
-        stage: 'fetch',
+        stage: 'fetch_request',
       })
       expect(JSON.stringify(error)).not.toContain(sensitive)
     }
@@ -192,7 +181,7 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     }
   })
 
-  it('classifies a 2xx response stream failure as fetch', async () => {
+  it('classifies a 2xx response stream failure as fetch_body', async () => {
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.error(new Error('sensitive transport detail'))
@@ -202,7 +191,7 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
       headers: { 'content-type': 'application/json' },
     }))
 
-    await expectFailureStage(resolver.resolve(FID), 'fetch')
+    await expectFailureStage(resolver.resolve(FID), 'fetch_body')
   })
 
   it('rejects a malformed FID before minting a token or making an HTTP request', async () => {
@@ -273,8 +262,8 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
   })
 
   it('rejects spoofed or runtime-mutated failure stages', () => {
-    expect(authEpochResolverFailureStage({ stage: 'fetch' })).toBeNull()
-    const failure = new AuthEpochResolverFailure('fetch')
+    expect(authEpochResolverFailureStage({ stage: 'fetch_request' })).toBeNull()
+    const failure = new AuthEpochResolverFailure('fetch_request')
     Object.defineProperty(failure, 'stage', { value: 'sensitive-arbitrary-stage' })
     expect(authEpochResolverFailureStage(failure)).toBeNull()
   })
