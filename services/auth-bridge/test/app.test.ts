@@ -1,6 +1,6 @@
 import { createSiweMessage } from 'viem/siwe'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAuthBridge } from '../src/app'
+import { createAuthBridge, type AuthBridgeDependencies } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
 import type {
@@ -71,7 +71,7 @@ interface Harness {
   verifier: FarcasterVerifier & { verify: ReturnType<typeof vi.fn> }
   resolver: AuthEpochResolver & { resolve: ReturnType<typeof vi.fn> }
   events: SafeLogEvent[]
-  now: number
+  setNow(value: number): void
 }
 
 function harness(options: {
@@ -79,6 +79,7 @@ function harness(options: {
   resolver?: AuthEpochResolver
   verifier?: FarcasterVerifier
   rateLimiter?: RateLimiter
+  signer?: AuthBridgeDependencies['signer']
 } = {}): Harness {
   const verifier = options.verifier ?? {
     verify: vi.fn(async () => ({ fid: FID })),
@@ -87,12 +88,13 @@ function harness(options: {
     resolve: vi.fn(async () => options.epoch ?? 7),
   }
   const events: SafeLogEvent[] = []
-  const now = Date.now()
+  let now = Date.now()
   const app = createAuthBridge({
     challengeStore: new MemoryChallengeStore(),
     verifier,
     authEpochResolver: resolver,
     rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
+    signer: options.signer,
     now: () => now,
     logger: { event: (event) => events.push(event) },
   })
@@ -101,7 +103,7 @@ function harness(options: {
     verifier: verifier as Harness['verifier'],
     resolver: resolver as Harness['resolver'],
     events,
-    now,
+    setNow(value) { now = value },
   }
 }
 
@@ -175,7 +177,8 @@ describe('Warpkeep auth bridge', () => {
     const h = harness({
       rateLimiter: { check: async () => ({ allowed: false, retryAfterSeconds: 29 }) },
     })
-    const limited = await h.app.fetch(request('/v1/admin/token', {}, {
+    const limited = await h.app.fetch(request('/v1/admin/token', undefined, {
+      method: 'POST',
       headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
     expect(limited.status).toBe(429)
@@ -220,6 +223,36 @@ describe('Warpkeep auth bridge', () => {
     }
     expect(namespace.idFromName).not.toHaveBeenCalled()
     expect(events.filter((event) => event === 'rate_limit_failed')).toHaveLength(3)
+  })
+
+  it.each(['/v1/farcaster/challenge', '/v1/farcaster/exchange'])(
+    'rejects a simple hostile browser request to %s before quota consumption',
+    async (pathname) => {
+    const check = vi.fn(async () => ({ allowed: true as const }))
+    const h = harness({ rateLimiter: { check } })
+    const response = await h.app.fetch(new Request(`https://bridge.warpkeep.example${pathname}`, {
+      method: 'POST',
+      headers: {
+        origin: 'https://hostile.example',
+        'content-type': 'text/plain',
+        'cf-connecting-ip': '203.0.113.7',
+      },
+      body: 'drive-by',
+    }), env())
+    expect(response.status).toBe(403)
+    expect(check).not.toHaveBeenCalled()
+    },
+  )
+
+  it('rejects browser-origin admin requests before they can consume an admin bucket', async () => {
+    const check = vi.fn(async () => ({ allowed: true as const }))
+    const h = harness({ rateLimiter: { check } })
+    const response = await h.app.fetch(request('/v1/admin/token', undefined, {
+      method: 'POST',
+      headers: { origin: ORIGIN, 'cf-connecting-ip': '203.0.113.7' },
+    }), env())
+    expect(response.status).toBe(403)
+    expect(check).not.toHaveBeenCalled()
   })
 
   it('does not consume a challenge when exchange is rate-limited', async () => {
@@ -673,6 +706,51 @@ describe('Warpkeep auth bridge', () => {
     releaseVerification()
     expect((await first).status).toBe(200)
     expect(h.resolver.resolve).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not issue a token when upstream work crosses the challenge deadline', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    const expiresAt = Number(challenge.expiresAt)
+    h.setNow(expiresAt - 1)
+    h.verifier.verify.mockImplementationOnce(async () => {
+      h.setNow(expiresAt + 1)
+      return { fid: FID }
+    })
+
+    const response = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'challenge_expired' } })
+    expect(h.resolver.resolve).toHaveBeenCalledTimes(1)
+    expect(h.events).not.toContain('exchange_succeeded')
+
+    const replay = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(replay.status).toBe(401)
+  })
+
+  it('discards a signed token when signing itself crosses the challenge deadline', async () => {
+    let advanceClock: () => void = () => undefined
+    const h = harness({
+      signer: vi.fn(async () => {
+        advanceClock()
+        return 'header.payload.signature'
+      }),
+    })
+    const challenge = await issueChallenge(h)
+    const expiresAt = Number(challenge.expiresAt)
+    h.setNow(expiresAt - 1)
+    advanceClock = () => h.setNow(expiresAt + 1)
+
+    const response = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'challenge_expired' } })
+    expect(h.events).not.toContain('exchange_succeeded')
   })
 
   it('restores a claimed challenge after a transient epoch lookup failure', async () => {

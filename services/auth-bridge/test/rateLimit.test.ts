@@ -19,10 +19,13 @@ const LIMITS: Readonly<Record<RateLimitAction, number>> = {
   'admin-token': 6,
 }
 
-class FakeStorage implements DurableObjectStorage, DurableObjectTransaction {
+class FakeStorage implements DurableObjectStorage {
   readonly values = new Map<string, unknown>()
   alarm: number | Date | undefined
   putCalls = 0
+  deleteAllCalls = 0
+  failAlarmWrites = false
+  alarmWriteCalls = 0
   private queue: Promise<void> = Promise.resolve()
 
   async get<T>(key: string): Promise<T | undefined> {
@@ -39,10 +42,14 @@ class FakeStorage implements DurableObjectStorage, DurableObjectTransaction {
   }
 
   async deleteAll(): Promise<void> {
+    this.deleteAllCalls += 1
     this.values.clear()
+    this.alarm = undefined
   }
 
   async setAlarm(scheduledTime: number | Date): Promise<void> {
+    this.alarmWriteCalls += 1
+    if (this.failAlarmWrites) throw new Error('test-only alarm write failure')
     this.alarm = scheduledTime
   }
 
@@ -51,8 +58,25 @@ class FakeStorage implements DurableObjectStorage, DurableObjectTransaction {
     let release!: () => void
     this.queue = new Promise<void>((resolve) => { release = resolve })
     await previous
+    const previousValues = new Map(
+      [...this.values].map(([key, value]) => [key, structuredClone(value)]),
+    )
+    const previousAlarm = this.alarm
+    const previousPutCalls = this.putCalls
     try {
-      return await closure(this)
+      // The reviewed limiter intentionally uses only key operations inside its
+      // transaction and keeps alarms/deleteAll on top-level storage.
+      return await closure({
+        get: key => this.get(key),
+        put: (key, value) => this.put(key, value),
+        delete: key => this.delete(key),
+      })
+    } catch (error) {
+      this.values.clear()
+      for (const [key, value] of previousValues) this.values.set(key, value)
+      this.alarm = previousAlarm
+      this.putCalls = previousPutCalls
+      throw error
     } finally {
       release()
     }
@@ -80,10 +104,12 @@ describe('AuthRateLimiter', () => {
       const admitted = await use(guard, action, limit)
       expect(admitted.every((response) => response.status === 204)).toBe(true)
       const writesBeforeDenial = storage.putCalls
+      const alarmWritesBeforeDenial = storage.alarmWriteCalls
       const blocked = await guard.fetch(internalRequest(action))
       expect(blocked.status).toBe(429)
       expect(blocked.headers.get('retry-after')).toBe('300')
       expect(storage.putCalls).toBe(writesBeforeDenial)
+      expect(storage.alarmWriteCalls).toBe(alarmWritesBeforeDenial)
     }
   })
 
@@ -126,6 +152,8 @@ describe('AuthRateLimiter', () => {
     vi.setSystemTime(NOW + 300_000)
     await restored.alarm()
     expect(storage.values.size).toBe(0)
+    expect(storage.deleteAllCalls).toBe(1)
+    expect(storage.alarm).toBeUndefined()
   })
 
   it('fails rather than resetting malformed persisted state', async () => {
@@ -134,6 +162,18 @@ describe('AuthRateLimiter', () => {
     storage.values.set('rate-limit-state', { version: 1, timestamps: { challenge: ['bad'] } })
     const guard = new AuthRateLimiter({ storage } as DurableObjectState)
     await expect(guard.fetch(internalRequest('challenge'))).rejects.toThrow('Invalid rate-limit state')
+  })
+
+  it('rolls back state when initial alarm scheduling fails', async () => {
+    vi.useFakeTimers({ now: NOW })
+    const storage = new FakeStorage()
+    storage.failAlarmWrites = true
+    const guard = new AuthRateLimiter({ storage } as DurableObjectState)
+
+    await expect(guard.fetch(internalRequest('challenge'))).rejects.toThrow('test-only alarm write failure')
+    expect(storage.values.size).toBe(0)
+    expect(storage.deleteAllCalls).toBe(0)
+    expect(storage.alarm).toBeUndefined()
   })
 })
 
@@ -189,10 +229,31 @@ describe('DurableObjectRateLimiter routing', () => {
 
     expect(names).toHaveLength(2)
     expect(names[0]).toBe(names[1])
-    expect(names[0]).toMatch(/^warpkeep-rate:[0-9a-f]{64}$/)
+    expect(names[0]).toMatch(/^warpkeep-rate:v2:[0-9a-f]{64}$/)
     expect(names.join(' ')).not.toContain('2001:db8')
     expect(await Promise.all(requests.map((request) => request.text()))).toEqual(['', ''])
     expect(requests.every((request) => !request.url.includes('2001'))).toBe(true)
+  })
+
+  it('shares one bucket across an IPv6 /64 and separates distinct prefixes', async () => {
+    const names: string[] = []
+    const namespace: DurableObjectNamespace = {
+      idFromName(name) {
+        names.push(name)
+        return { name } as never
+      },
+      get() {
+        return { fetch: async () => new Response(null, { status: 204 }) }
+      },
+    }
+    const limiter = new DurableObjectRateLimiter(namespace)
+    for (const address of ['2001:db8:abcd:12::1', '2001:db8:abcd:12:ffff::99', '2001:db8:abcd:13::1']) {
+      await limiter.check(new Request('https://auth.warpkeep.com/v1/farcaster/challenge', {
+        headers: { 'cf-connecting-ip': address },
+      }), 'challenge')
+    }
+    expect(names[0]).toBe(names[1])
+    expect(names[2]).not.toBe(names[0])
   })
 
   it('fails closed for missing or malformed Cloudflare identity and ignores X-Forwarded-For', async () => {
