@@ -3,12 +3,11 @@
  * run in a deterministic sandbox and cannot safely consult browser or host
  * environment variables at request time.
  *
- * The placeholder is fail-closed: no practical production bridge token can
- * satisfy this issuer. Replace it with the exact public HTTPS issuer only when
- * the bridge discovery document and JWKS are deployed and independently
- * reachable by Maincloud, then build and publish non-destructively.
+ * This issuer is activated only after its public discovery document and JWKS
+ * have been verified over HTTPS. Future issuer changes require the same
+ * verification and a non-destructive module publish.
  */
-export const WARPKEEP_OIDC_ISSUER = 'https://auth.warpkeep.invalid';
+export const WARPKEEP_OIDC_ISSUER = 'https://auth.warpkeep.com';
 export const WARPKEEP_OIDC_AUDIENCE = 'warpkeep-spacetimedb';
 export const WARPKEEP_TOKEN_TYPE = 'spacetime-access';
 export const WARPKEEP_ADMIN_ROLE = 'warpkeep-admin';
