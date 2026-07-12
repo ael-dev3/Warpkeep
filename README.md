@@ -12,9 +12,9 @@ Warpkeep is an open-source, Farcaster-native castle strategy game under active p
 - Standard website Sign In with Farcaster, with QR-first desktop and deep-link-first mobile presentation.
 - A deterministic Hegemony Lowlands presentation with 61 playable cells, 91 rendered cells, a Frontier Keep, procedural terrain, camera movement, and accessible fallback controls.
 - Lowlands music, reduced-motion support, responsive layouts, and WebGL/model-load fallbacks.
-- A cinematic Credits roll and honest notices for systems that are not live yet.
+- A cinematic Credits roll and honest notices for systems outside the current alpha slice.
 
-The public realm remains presentation-only until the closed-alpha backend has passed every activation gate. A remembered device record is not a server session or proof of permanent ownership.
+The shared-realm authority is live behind an intentionally empty admission list. A remembered device record is not proof of permanent ownership, and no real player or castle exists until the Hegemony explicitly admits a FID after owner QA.
 
 ## Closed-alpha architecture
 
@@ -38,11 +38,11 @@ The panel displays the active FID and provides **REQUEST ACCESS**, **CHECK AGAIN
 
 ## Alpha activation status
 
-The canonical GitHub Pages custom domain is live and HTTPS is enforced at `https://warpkeep.com/`. The repository still uses the fail-closed issuer `https://auth.warpkeep.invalid` until the public OIDC bridge, its private direct Maincloud auth-epoch procedure call, and the Maincloud module are verified. The Worker, module publish, world seed, frontend shared-alpha activation, allowlist row, player, and castle remain pending; none is represented as live by this branch.
+The canonical Pages domain and `https://auth.warpkeep.com` are live over HTTPS. OIDC discovery and public-only JWKS, exact browser CORS, distributed rolling-window rate control, and the private direct Maincloud auth-epoch procedure path are active. The module trusts that exact issuer and was published non-destructively.
 
-The known Maincloud development database is `warpkeep-89e4u` at `https://maincloud.spacetimedb.com`. It must be inspected before every mutation and never cleared or seeded with a real FID during activation.
+Maincloud contains exactly 61 canonical world cells, zero allowlist rows, zero enabled FIDs, zero players, and zero castles. No real FID was admitted. The production Pages switch is controlled only by the reviewed exact-head deployment workflow; owner-controlled empty-whitelist denial QA is still pending before any admission.
 
-Before activation, deploy a stable HTTPS bridge whose discovery and JWKS endpoints are public. For each proof exchange, the Worker must mint a short-lived private Hermes OIDC JWT and call the documented SpacetimeDB HTTP procedure `POST /v1/database/:database/call/admin_get_fid_auth_epoch`; no separate public resolver service is used. Then replace the module placeholder with that exact issuer, publish non-destructively, seed only the world tiles, and verify the empty-whitelist denial path. The release policy is in [versioning](docs/releases/versioning.md); the operator sequence is in the [alpha activation runbook](docs/operations/alpha-activation.md).
+For each verified proof exchange, the Worker mints a short-lived private Hermes OIDC JWT and calls the documented SpacetimeDB HTTP procedure `POST /v1/database/:database/call/admin_get_fid_auth_epoch`; no separate public resolver service is used. The release policy is in [versioning](docs/releases/versioning.md); the operator and rollback sequence is in the [alpha activation runbook](docs/operations/alpha-activation.md).
 
 ## Local development
 

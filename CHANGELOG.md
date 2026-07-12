@@ -4,7 +4,7 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-- `https://warpkeep.com/` is live with GitHub Pages HTTPS enforced; activation remains fail-closed until `auth.warpkeep.com`, the private Worker-to-Maincloud auth-epoch procedure call, and the non-destructively published Maincloud module pass their remote gates.
+- The closed-alpha server chain is live at `https://auth.warpkeep.com`: discovery/JWKS, distributed rate control, the private Worker-to-Maincloud auth-epoch procedure, and the non-destructively published module passed their remote gates. Maincloud holds exactly 61 world cells with an empty allowlist and zero players or castles; owner denial QA remains pending.
 
 ## [0.2.0] — Alpha candidate
 
@@ -23,6 +23,7 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 ### Security
 
 - Shared-alpha browser activity is disabled unless explicit, valid public configuration enables it.
+- Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
 [Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.2.0...HEAD

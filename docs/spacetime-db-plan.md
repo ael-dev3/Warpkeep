@@ -1,6 +1,6 @@
 # SpacetimeDB closed-alpha plan
 
-Warpkeep now contains a real TypeScript SpacetimeDB module under [`spacetimedb/`](../spacetimedb/). It is the first authoritative shared-world slice, not a browser mock. The public Pages site remains inactive against it until the OIDC issuer chain is deployed safely.
+Warpkeep contains a live TypeScript SpacetimeDB authority module under [`spacetimedb/`](../spacetimedb/). It is the first authoritative shared-world slice, not a browser mock. The production issuer chain is deployed; the browser reaches it only through the explicitly configured closed-alpha Pages build.
 
 ## Version contract
 
@@ -96,9 +96,9 @@ The wrapper obtains an admin token in memory, never writes or prints it, support
 
 ## Maincloud safety
 
-The known development database is `warpkeep-89e4u` on `https://maincloud.spacetimedb.com`. Before publish, inspect it read-only. The current repository has no authority to clear it or add a real FID.
+The closed-alpha database is `warpkeep-89e4u` on `https://maincloud.spacetimedb.com`. The production-issuer module was published non-destructively after read-only inspection. Protected aggregate inspection reports exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players, and zero castles; a second seed remained at 61. The repository has no authority to clear it or add a real FID.
 
-The publish guard refuses until a real public issuer replaces `https://auth.warpkeep.invalid` in module source, confirms discovery/JWKS are reachable, and requires `WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u`. It invokes:
+The publish guard refuses if the impossible placeholder returns, confirms the configured public issuer's discovery/JWKS are reachable, and requires `WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u`. It invokes:
 
 ```txt
 spacetime publish --server maincloud --module-path spacetimedb --delete-data=never --yes=remote warpkeep-89e4u

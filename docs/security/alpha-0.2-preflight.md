@@ -26,6 +26,29 @@ repository history, and passive domain posture.
 The private report contains detailed evidence and is intentionally not stored in
 the public repository.
 
+## Activation follow-up
+
+The stacked activation PR subsequently verified the server-side closed-alpha
+chain through `63336dd668e901b9ed22752528130c6005182152`:
+
+- `auth.warpkeep.com`, health, discovery, public-only JWKS, and exact CORS are
+  live;
+- challenge, exchange, and admin-token routes use distributed exact
+  rolling-window limits of 12, 20, and 6 requests per 300 seconds;
+- the direct private Maincloud auth-epoch procedure and matching production
+  issuer are live;
+- disabled-to-enabled admission increments the auth epoch exactly once, while
+  first admission intentionally retains baseline epoch zero;
+- the module was published non-destructively and the idempotent seed produced
+  exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players,
+  and zero castles;
+- an independent pre-deployment review caught malformed framing and BOM-only
+  admin-body cases; the raw-byte guard and regressions were corrected and
+  independently passed before the Worker was deployed.
+
+No real FID was admitted. Empty-whitelist denial remains owner-controlled QA,
+not a completed assurance in this report.
+
 ## Architecture and trust boundaries
 
 Warpkeep uses the following authority chain:
@@ -97,19 +120,16 @@ created. This report does not publish a weaponized reproduction path.
 
 ## Remaining accepted alpha risks
 
-Five Medium, three Low, and three Informational observations remain. They are
+Four Medium, three Low, and two Informational observations remain. They are
 not silent production assurances:
 
 - `WK-RISK-001` (Medium): the 30-day bearer remains readable by same-origin
   script/local browser storage. Logout cannot recall a token copied outside the
   browser; epoch/key response and absolute expiry are the current controls.
-- `WK-RISK-002` (Medium, likely): repository code has no distributed challenge/
-  verification rate limiter. Edge quotas, monitoring, and alerts must be
-  verified before activation.
-- `WK-MOD-002` (Medium): a baseline-epoch token obtained before first admission,
-  or a same-epoch token retained across disable/re-enable, can become usable
-  after the corresponding admin policy change. This is not a whitelist bypass,
-  but it needs an explicit token-reissue/epoch policy.
+- `WK-MOD-002` (Medium): a baseline-epoch token obtained before first admission
+  can become usable when that FID is first allowed. Retaining epoch zero for
+  first admission is the explicit closed-alpha policy. Disabled-to-enabled
+  admission now increments the epoch, so older same-epoch tokens stay invalid.
 - `WK-RISK-003` (Medium): the canonical site redirects HTTP to HTTPS but does
   not send HSTS, leaving a first-visit transport gap.
 - `WK-RISK-004` (Medium): `main` has no branch protection/ruleset; owner-side
@@ -125,24 +145,22 @@ not silent production assurances:
   intentionally observable to connected authenticated custom clients.
 - `WK-RISK-008` (Informational): private vulnerability reporting, dependency
   alert/update policy, central action policy, and rulesets require owner action.
-- `WK-OPS-004` (Informational): the live Worker/JWKS/Maincloud/empty-whitelist
-  chain was not available for independent end-to-end verification.
+
 
 The localStorage design is an explicitly documented closed-alpha compromise.
 Production should use short-lived access tokens, a trusted HttpOnly refresh or
 server session, server-side revocation, and mature incident/key-rotation
 operations.
 
-## Operational dependencies not independently verified
+## Original audit exclusions and remaining operational dependencies
 
-The review did not authenticate to Cloudflare or SpacetimeDB and therefore did
-not verify:
+The original review did not authenticate to Cloudflare or SpacetimeDB. The
+activation follow-up later verified the live Worker/JWKS/Maincloud chain and
+aggregate state described above. It still does not claim independent assurance
+for:
 
 - managed Worker secret entropy, access policy, or key rotation;
 - external Cloudflare rate-limit/WAF rules and alerting;
-- live discovery/JWKS consistency or CORS at `auth.warpkeep.com`;
-- the published Maincloud module SHA, private-table state, 61-cell seed, or
-  empty-whitelist state;
 - production repository secrets/variables or third-party account controls;
 - a real Farcaster approval or owner-only denial flow.
 
@@ -158,17 +176,20 @@ path, and no actionable security issue specific to that PR was confirmed.
 
 ## Live verification status
 
-Passive checks observed:
+Activation follow-up checks observed:
 
 - `https://warpkeep.com/`: 200 over HTTPS;
 - `https://www.warpkeep.com/`: canonical redirect;
 - legacy GitHub Pages URL: canonical redirect;
 - `http://warpkeep.com/`: HTTPS redirect, without HSTS;
-- `auth.warpkeep.com`: unresolved during the audit.
+- `auth.warpkeep.com`: health, discovery, public-only JWKS, exact CORS, and
+  non-empty admin-body rejection passed over HTTPS;
+- the protected direct admin path returned exactly 61 world tiles, zero
+  allowlist rows, zero enabled FIDs, zero players, and zero castles;
+- the remote private auth-epoch resolver passed without admitting a FID.
 
-Worker health, discovery, JWKS, exact CORS, caching, issuer consistency, and
-small negative checks remain pending until the host exists. This is an
-operational dependency, not evidence that the reviewed code failed.
+The exact-head Pages workflow must continue to validate its public coordinates,
+and owner empty-whitelist denial QA remains required before any FID admission.
 
 ## Exclusions
 
@@ -200,13 +221,13 @@ Security tests now cover:
   job permissions/timeouts, stacked-PR triggers, and non-executing CodeQL mode;
 - real SpacetimeDB 2.6.1 module build and generated binding equivalence.
 
-The final clean, rebased matrix passed: 56 root test files / 383 tests, 29
-Worker tests, 15 module tests, all typechecks, three root production build
+The latest clean activation matrix passed: 56 root test files / 383 tests, 56
+Worker tests, 22 module tests, all typechecks, three root production build
 variants, real SpacetimeDB 2.6.1 module build, generated-binding equivalence,
 workflow YAML parsing, and `git diff --check`. Root, Worker, and module audits
 reported no known vulnerabilities; 182 registry signatures and 55 attestations
 verified. Hosted Verify, Worker, module, CodeQL analysis, and CodeQL result
-checks all passed, with zero open CodeQL alerts for the security branch.
+checks all passed on the exact deployed Worker source head.
 
 The final shipped build was byte-for-byte equal to the PR #11 baseline: zero
 total-byte and zero main-JavaScript-byte delta while the shared-alpha switch is
@@ -221,17 +242,18 @@ audits reported no known vulnerabilities at the audited locks.
 ## Release recommendation
 
 **CONDITIONAL PASS** for a small closed alpha. There is no remaining confirmed
-Critical/High code blocker on the security branch.
+Critical/High code blocker on the security or activation branch.
 
 PR #11 remained at the audit-base SHA. The security branch was rebased onto
 that exact latest head (a no-op), and the complete local/hosted matrix passed.
 
-Remaining conditions before enabling shared alpha:
+Ongoing conditions before admitting any FID:
 
-1. verify the live issuer, discovery/JWKS, exact CORS, module trust, and private
-   epoch procedure on the final deployment;
-2. verify edge rate controls/monitoring and the empty-whitelist denial path;
-3. explicitly accept or change the pre-admission/re-enable epoch policy;
-4. keep the shared-alpha switch off if any identity-chain coordinate disagrees.
+1. keep the exact-head Pages workflow and public identity-chain coordinates
+   green;
+2. complete owner-controlled empty-whitelist denial QA;
+3. retain the explicit first-admission epoch-zero policy and rotate once on
+   every disabled-to-enabled transition;
+4. set the shared-alpha switch back to `false` if any coordinate disagrees.
 
 This recommendation is not `PASS FOR PRODUCTION`.

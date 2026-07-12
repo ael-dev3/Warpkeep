@@ -2,13 +2,17 @@
 
 This runbook activates the closed alpha without weakening its admission boundary. It is intentionally sequential: do not enable the browser before every server-side gate is healthy.
 
+## Verified activation record
+
+The production bridge, discovery/JWKS, distributed rate control, direct private auth-epoch procedure, and production-issuer module are live. The module was published non-destructively. Protected inspection reports exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players, and zero castles. A second seed remained at 61. No real FID was admitted; owner denial QA is still pending.
+
 ## Safety invariants
 
 - Preserve `_github-pages-challenge-ael-dev3.warpkeep.com` exactly as supplied by GitHub.
 - Never use `--delete-data`, `--break-clients`, database recreation, or a real/synthetic FID during activation.
 - Keep final aggregate state at **61 world tiles / 0 allowlist rows / 0 enabled allowlist rows / 0 players / 0 castles**.
 - Keep secrets out of the repository, `VITE_` variables, shell history, logs, and support screenshots.
-- Leave `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false` until the bridge, its direct private Maincloud auth-epoch procedure call, and the module prove healthy.
+- Enable `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` only through the reviewed exact-head Pages workflow after the bridge, private Maincloud auth-epoch call, and module prove healthy. Set it back to `false` for rollback.
 
 ## 1. Domain and GitHub Pages
 

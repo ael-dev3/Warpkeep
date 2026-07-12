@@ -143,8 +143,10 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Request and response bodies are streamed through byte bounds with strict text
   decoding. The browser bridge exchange, Worker epoch lookup, and local Hermes
   connection/operation paths use explicit deadlines.
-- Distributed sequential abuse still requires deployment-level rate limiting
-  and monitoring before wider availability.
+- Credential-bearing routes use Durable Object-backed exact rolling-window
+  limits: challenge 12/300 seconds, exchange 20/300 seconds, and admin token
+  6/300 seconds per canonical client identity. Monitoring and alert maturity
+  remain operational requirements before wider availability.
 
 ### Tokens and authorization
 
@@ -198,12 +200,12 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Threat | Primary control | Residual treatment |
 | --- | --- | --- |
 | Client chooses or substitutes another FID | Independent SIWF verification and exact FID agreement | Treat verifier/RPC compromise as an external dependency incident. |
-| Proof replay or parallel exchange | Expiring Durable Object challenge and atomic pre-work claim | Add edge/Worker rate limits for distributed sequential abuse. |
+| Proof replay or parallel exchange | Expiring Durable Object challenge, atomic pre-work claim, and distributed rolling-window limits | Monitor abuse patterns and tune only through a separately reviewed policy change. |
 | Stolen browser bearer | Exact claims, module-enforced absolute lifetime, epoch checks, disconnect/logout handling | Accepted closed-alpha risk; move to short-lived access plus trusted HttpOnly refresh for production. |
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
 | Whitelist bypass or private-row disclosure | Module-side admission on every protected operation; private tables/bindings | Public world/player/castle projections remain intentionally observable. |
-| Worker memory/cost exhaustion | Streaming bounds, timeouts, early challenge claim, storage cleanup | Deployment-level quotas, rate limits, and telemetry are still required. |
+| Worker memory/cost exhaustion | Streaming bounds, timeouts, early challenge claim, storage cleanup, and distributed rate limits | Account-level quotas, telemetry, and alerting remain operational requirements. |
 | Malicious dependency or workflow step obtains deployment authority | Lockfiles, audits, action SHA pins, checksum verification, job privilege split | Repository settings and alert operations require ongoing owner review. |
 | First-visit transport downgrade or framing/content-type hardening gap | HTTPS redirect and browser-origin validation | HSTS and response headers depend on the hosting layer and remain an activation check. |
 | Misconfigured partial activation | Default-off frontend switch and exact issuer/origin/database validation | Follow the activation runbook and verify discovery/JWKS/module agreement before enabling. |
@@ -216,10 +218,9 @@ creation, and world state. Anonymous visitors do not open a database connection.
   bump, key response, and the module-enforced absolute expiration are the
   available controls.
 - A baseline-epoch token obtained before first admission can become usable when
-  that FID is first allowed. Re-enabling a disabled record without changing its
-  epoch can likewise reactivate an older same-epoch token. Changing either
-  behavior is a whitelist-policy decision and should be resolved before broader
-  access.
+  that FID is first allowed; retaining epoch zero for first admission is the
+  explicit closed-alpha policy. Re-enabling a disabled record now increments
+  its epoch exactly once, so an older same-epoch token cannot regain authority.
 - Public game projections allow any connected authenticated client, including
   an unadmitted player using a custom client, to observe world/player/castle
   data by design; privacy classification must be revisited as state expands.
@@ -228,8 +229,9 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Static Pages responses currently lack several defense-in-depth headers,
   including HSTS. Hosting-layer header support or a fronting service is a future
   production requirement.
-- Edge rate limiting, alerting, key-rotation drills, incident response, and
-  operational history are not yet mature enough for production assurance.
+- Distributed Worker rate limiting is active. Alerting, key-rotation drills,
+  incident response, and operational history are not yet mature enough for
+  production assurance.
 - The GitHub `main` branch currently has no protection or ruleset. Required
   reviews/checks and tightly scoped bypass permissions remain owner-side release
   controls even with hardened workflows.

@@ -23,19 +23,18 @@ The pure tests cover the strict JWT-claim contract and the deterministic
 radius-four Lowlands map. They do not require, connect to, or publish a
 database.
 
-## Fail-closed deployment handoff
+## Live fail-closed deployment
 
-`src/config.ts` intentionally pins the impossible issuer
-`https://auth.warpkeep.invalid`. This prevents a prematurely published module
-from accepting a browser-created or unrelated bearer token. **Do not publish
-this module until that literal is replaced with the exact stable public OIDC
-issuer that serves discovery and JWKS over HTTPS.**
+`src/config.ts` pins the verified production issuer `https://auth.warpkeep.com`,
+which serves public discovery and JWKS. The matching module was published
+non-destructively after read-only inspection. Protected aggregate checks report
+exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players, and
+zero castles; a second seed remained at 61.
 
-The included `pnpm run stdb:publish:dev` command refuses to publish while the
-placeholder is present. It is a guard, not a deployment command. A deployment
-operator must then inspect `warpkeep-89e4u`, use only a non-destructive publish
-command, and never use `--delete-data`, `--break-clients`, or `--yes=all`.
-The initial real `allowed_fid` table must remain empty.
+The guarded publish command refuses an impossible or unverified issuer and
+requires explicit database confirmation. Operators must continue to inspect
+before mutation and never use `--delete-data`, `--break-clients`, or `--yes=all`.
+The real `allowed_fid` table remains empty pending owner denial QA.
 
 ## Authority and tables
 

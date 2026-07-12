@@ -2,11 +2,11 @@
 
 This Cloudflare Worker verifies completed Farcaster SIWF proofs and issues ES256 OIDC JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the static browser app: browser code never receives a signing key, admin secret, Optimism RPC URL, private Hermes JWT, or Maincloud credential.
 
-The checked-in Worker configuration reserves the intended production origin,
-`https://auth.warpkeep.com`, but it is not a live deployment. The Worker still
-fails closed until its managed secrets, direct private Maincloud procedure path,
-and corresponding module issuer are configured and verified. This directory never
-activates frontend OIDC by itself.
+The checked-in Worker configuration and live deployment use
+`https://auth.warpkeep.com`. Health, discovery/JWKS, exact CORS, distributed
+rate control, the direct private Maincloud procedure path, and the corresponding
+module issuer have been verified. This directory never activates frontend OIDC
+by itself; that remains an exact-head Pages workflow decision.
 
 ## Endpoints
 
@@ -19,7 +19,7 @@ activates frontend OIDC by itself.
 | `POST` | `/v1/farcaster/exchange` | Verifies SIWF and returns a player JWT. |
 | `POST` | `/v1/admin/token` | Server-only five-minute Hermes/admin JWT. |
 
-Challenge and exchange allow only exact `ALLOWED_ORIGINS`, never wildcard CORS or credentials. They allow only `POST`, `OPTIONS`, and `content-type`; body size is limited to 16 KiB. The bridge rejects relay secrets such as `channelToken`, custody fields, verification lists, and relay metadata.
+Challenge and exchange allow only exact `ALLOWED_ORIGINS`, never wildcard CORS or credentials. They allow only `POST`, `OPTIONS`, and `content-type`; body size is limited to 16 KiB. The admin token route accepts only a completed zero-byte stream, validates every present `Content-Length`, and cancels on the first body byte. The bridge rejects relay secrets such as `channelToken`, custody fields, verification lists, and relay metadata.
 
 ## Browser contract
 
@@ -55,6 +55,6 @@ Generate a P-256 JWK outside the repository: `node --input-type=module -e 'const
 
 ## Checks, logs, and admin boundary
 
-Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`. The isolated tests cover public-only JWKS, mocked valid SIWF exchange, invalid signature/FID mismatch, replay prevention, SIWF context, CORS, body limits, fail-closed direct auth-epoch lookup, admin authentication/expiry, and static safe log events.
+Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`. The isolated tests cover public-only JWKS, mocked valid SIWF exchange, invalid signature/FID mismatch, replay prevention, SIWF context, CORS, distributed rolling-window limits, raw-byte/framing body guards, fail-closed direct auth-epoch lookup, admin authentication/expiry, and static safe log events.
 
 Logs are closed static event names only. The Worker never logs a SIWF message, signature, nonce, request ID, JWT, private JWK, RPC URL, procedure request/response, or admin secret. `/v1/admin/token` requires `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, rejects browser `Origin` headers, emits no admin CORS headers, and is only for a server-side Hermes/admin process. Never expose its secret or returned JWT to frontend code or disk.

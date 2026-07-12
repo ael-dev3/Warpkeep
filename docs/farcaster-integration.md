@@ -71,19 +71,23 @@ The static browser only receives public values:
 ```dotenv
 VITE_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
 VITE_SPACETIMEDB_DATABASE=warpkeep-89e4u
-VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false
-VITE_WARPKEEP_AUTH_BRIDGE_URL=https://auth.example.com
-VITE_WARPKEEP_OIDC_ISSUER=https://auth.example.com
+VITE_WARPKEEP_SHARED_ALPHA_ENABLED=true
+VITE_WARPKEEP_AUTH_BRIDGE_URL=https://auth.warpkeep.com
+VITE_WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com
 VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 ```
 
-The Worker receives secrets and server-only configuration described in [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). For each verified proof it mints an ephemeral, approximately 60-second Hermes admin OIDC JWT and calls the fixed documented endpoint `POST /v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch` on Maincloud with JSON `[fid]`. The raw `u32` epoch result is private Worker state, never browser authority. `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` is an explicit default-false kill switch: until the direct procedure call, public discovery/JWKS, and the corresponding SpacetimeDB issuer are deployed and verified, it remains off and the frontend never creates a SIWF channel for shared admission.
+The Worker receives secrets and server-only configuration described in [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). For each verified proof it mints an ephemeral, approximately 60-second Hermes admin OIDC JWT and calls the fixed documented endpoint `POST /v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch` on Maincloud with JSON `[fid]`. The raw `u32` epoch result is private Worker state, never browser authority. `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` remains a default-false kill switch in source; production enables it only through the reviewed Pages workflow after the direct procedure, public discovery/JWKS, and matching module issuer pass. Rollback restores it to `false`.
+
+## Live closed-alpha status
+
+`auth.warpkeep.com`, discovery/JWKS, distributed rate control, the direct private epoch procedure, and the matching Maincloud module are live. The canonical 61-cell world is seeded; the allowlist, player table, and castle table remain empty. Owner-controlled empty-whitelist denial QA is pending, and no real FID has been admitted.
 
 ## Tests and manual QA
 
 Automated tests use injected Farcaster authorities and bridge clients; they never call a real relay or publish proof data. They cover proof envelope minimization, v2 storage/legacy purge/expiry, bridge exchange validation, direct-realm gating, denied rendering, secure access-link attributes, same-session Check Again, sign-out disconnect, and no anonymous connection.
 
-When infrastructure is live, perform a user-controlled manual check:
+The remaining owner-controlled manual check is:
 
 1. After canonical deployment, open `https://warpkeep.com/#menu` and confirm no relay or database connection occurs before **ENTER REALM**.
 2. Complete Farcaster approval and confirm the displayed FID is the approving identity.
