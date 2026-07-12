@@ -3,7 +3,7 @@
   "archived_at": "2026-06-21",
   "source": "PixelLab generations archived for Warpkeep visual direction",
   "repo_commit_used_for_prompting": "906ec8814f66925a130d0342e64364cbc599b24a",
-  "license": "CC0-1.0; see ASSETS-LICENSE.md and LICENSE-CC0",
+  "license": "PixelLab-generated reference material; provider/account terms and source authority require confirmation; see ASSETS-LICENSE.md",
   "generator": {
     "service": "PixelLab API",
     "endpoint": "/create-image-pixen",

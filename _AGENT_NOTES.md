@@ -40,8 +40,8 @@ Warpkeep is an initial playable scaffold, not a production game. It communicates
 
 ## Warnings for future agents
 
-- Do not turn Warpkeep into a DeFi dashboard or on-chain execution bot.
-- Do not implement token mechanics in the core loop yet.
+- Do not turn Warpkeep into a financial dashboard or chain-execution bot.
+- Do not implement token mechanics; they are outside the current product scope.
 - Do not let AI mutate authoritative state.
 - Do not add random combat formulas without a proper design doc and tests.
 - Do not treat handles as stable identity. FID is the stable key.

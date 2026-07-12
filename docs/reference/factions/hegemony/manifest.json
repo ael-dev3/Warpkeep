@@ -13,8 +13,8 @@
       "status": "official",
       "intended_use": "public docs and high-resolution faction identity",
       "description": "Official high-resolution Hegemony faction logo / wordmark for public docs, faction pages, and promotional identity surfaces.",
-      "license": "CC0-1.0 via ASSETS-LICENSE.md",
-      "provenance": "project-provided image asset"
+      "license": "Historical repository CC0 assertion; source authority requires confirmation; see ASSETS-LICENSE.md",
+      "provenance": "project-provided image asset; original source not recorded"
     },
     {
       "id": "hegemony-logo-ui",
@@ -29,8 +29,8 @@
       "status": "official",
       "intended_use": "in-game UI badge and compact faction identity",
       "description": "Official simplified textless Hegemony faction logo for in-game UI, faction badges, cards, and compact identity surfaces.",
-      "license": "CC0-1.0 via ASSETS-LICENSE.md",
-      "provenance": "project-provided image asset"
+      "license": "Historical repository CC0 assertion; source authority requires confirmation; see ASSETS-LICENSE.md",
+      "provenance": "project-provided image asset; original source not recorded"
     }
   ]
 }

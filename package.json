@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "validate:pages-config": "node scripts/validate-pages-deploy-config.mjs",
+    "verify:licenses": "node scripts/verify-license-policy.mjs",
     "verify:alpha-production": "node scripts/verify-alpha-production.mjs",
     "prepare:hegemony-keep": "node scripts/prepare-hegemony-frontier-keep.mjs",
     "stdb:version": "spacetime --version",

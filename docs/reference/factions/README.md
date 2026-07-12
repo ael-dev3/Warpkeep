@@ -1,9 +1,9 @@
 # Warpkeep Faction Logos
 
-Official project-owned faction identity art for Warpkeep.
+Official faction identity art recorded for Warpkeep.
 
 ## Factions
 
 - [Hegemony](hegemony/) — official wordmark and in-game UI logo.
 
-All committed project-owned faction logo assets are covered by the CC0 media policy in [`ASSETS-LICENSE.md`](../../../ASSETS-LICENSE.md).
+The existing manifest calls these project-provided/project-owned assets and records the historical CC0 treatment. Source authority is not independently evidenced in the archive; do not assign a new license by assumption. See [`ASSETS-LICENSE.md`](../../../ASSETS-LICENSE.md).

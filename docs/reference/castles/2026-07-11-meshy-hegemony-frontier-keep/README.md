@@ -51,4 +51,4 @@ The source normal map does not include authored tangents. Generating MikkTSpace 
 
 The unchanged original GLB is preserved byte-for-byte. No preview render, conversion, recompression, or metadata stripping was applied.
 
-Project-owned reference media in `docs/reference/castles/**` follows Warpkeep's maximum-freedom media policy. See [`../../../../ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).
+This is project-provided reference media with preserved provenance. The archive does not independently establish ownership or a future license for the source or generated derivatives. See [`../../../../ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).

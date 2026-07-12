@@ -4,7 +4,7 @@
   "lastRuntimeUpdate": "2026-07-11",
   "purpose": "Source archive and runtime-derivative provenance for the Warpkeep Hegemony menu",
   "source": "Ael-provided project attachments",
-  "license": "CC0-1.0 under the repository project-owned media policy",
+  "license": "Project-provided source media; ownership and original terms require confirmation; see ASSETS-LICENSE.md",
   "usage": "Files under docs are archival; application-loaded copies and derivatives are listed under each asset's runtime field.",
   "assets": [
     {

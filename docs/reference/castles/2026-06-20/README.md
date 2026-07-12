@@ -2,7 +2,7 @@
 
 Pixel-castle references archived for future Warpkeep visual direction. These are reference assets, not production UI art.
 
-License/status: CC0 1.0 Universal under the repo's maximum-freedom media policy. See `../../../../ASSETS-LICENSE.md`.
+License/status: Ael-supplied reference material; original ownership and terms are not independently established. Do not assign a new license by assumption. See `../../../../ASSETS-LICENSE.md`.
 
 ## Files
 

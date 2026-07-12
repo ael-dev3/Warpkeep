@@ -298,140 +298,6 @@ These should be shareable as Farcaster-native objects or mini-app views.
 
 The goal is not just to simulate combat. The goal is to create stories people want to share.
 
-## Experimental faction economy direction
-
-Warpkeep may eventually explore distinct economic rules for each faction.
-
-This is only a brainstorming direction for now and should be marked as experimental, not promised MVP functionality.
-
-Suggested label:
-
-> Experimental / Post-MVP
-
-### Hegemony economy
-
-The Hegemony may use Hypersnap $SNAP as its official faction currency.
-
-Reference token:
-
-- Symbol: `$SNAP`
-- Contract: `0x49B5a631F54927c0007232844f06FE18cbf69786`
-
-Possible design:
-
-- `$SNAP` becomes the official Hegemony currency.
-- Hegemony players can use `$SNAP` to buy in-game resources from the game system.
-- Purchasable resources may include food, wood, stone, iron, influence, command, speedups, or other future resource types.
-- All purchases must remain inside strict balancing limits.
-- `$SNAP` should not create unlimited pay-to-win escalation.
-- Purchases should be capped by season, keep level, time window, faction rules, or diminishing returns.
-- The game should clearly distinguish convenience, catch-up, and strategic spending from unfair domination.
-
-The Hegemony economy should feel centralized, official, regulated, and system-mediated.
-
-The faction fantasy:
-
-> The Hegemony has an official currency, official markets, official logistics, and official authority.
-
-### Ouster economy
-
-The Ousters should have a very different economy.
-
-The Ousters should not be able to use `$SNAP` or any other official currency to buy resources, items, units, speedups, or upgrades directly from the game system.
-
-Instead, the Ousters may eventually have fully enabled free player-to-player trade.
-
-Possible design:
-
-- Ousters cannot buy resources from the system.
-- Ousters cannot use official game shops for in-game power.
-- Ousters can trade in-game items and resources with other players.
-- Ousters can create their own informal markets.
-- Ousters can barter, negotiate, and make off-system agreements.
-- The game does not need to support external payment settlement directly.
-- If players imply purchases using `$SNAP`, ETH, USDC, DEGEN, or any other currency outside the Warpkeep system, that should remain outside official game settlement unless deliberately implemented later.
-
-The Ouster economy should feel decentralized, player-driven, informal, risky, and socially enforced.
-
-The faction fantasy:
-
-> The Ousters reject the official Hegemony market. They rely on autonomy, barter, reputation, private agreements, and emergent trade.
-
-### Economic faction contrast
-
-The Hegemony:
-
-- official currency,
-- system shop,
-- regulated purchases,
-- capped resource buying,
-- predictable logistics,
-- centralized economy,
-- safer and more legible.
-
-The Ousters:
-
-- no official system purchases,
-- no direct pay-to-resource game shop,
-- free player-to-player trade,
-- barter and informal markets,
-- reputation-based trust,
-- higher economic freedom,
-- higher social and counterparty risk.
-
-The Core:
-
-- no normal player economy,
-- may generate rewards, drops, bounties, or event resources,
-- may act as a PvE source of scarcity or disruption.
-
-This creates a meaningful economic distinction between factions:
-
-> Hegemony players accept order and official rails in exchange for predictable access to resources.
->
-> Ouster players reject official rails in exchange for freedom, informal markets, and emergent trade.
-
-### Balance warnings for faction economy
-
-Do not implement this before the basic game loop works.
-
-Before adding token-based resource purchases or free player-to-player trade, the project should have:
-
-- clear resource sinks,
-- anti-bot protections,
-- season caps,
-- trade logs,
-- exploit monitoring,
-- limits on resource transfer,
-- protection for new players,
-- and a tested economy model.
-
-Potential risks:
-
-- pay-to-win perception,
-- bot farming,
-- resource laundering,
-- multi-account abuse,
-- Ouster black-market dominance,
-- Hegemony economic over-centralization,
-- and regulatory or platform concerns around token usage.
-
-Treat `$SNAP` integration as an optional future module, not a required MVP feature.
-
-### MVP position on economy
-
-The first MVP should not require `$SNAP`, token purchases, or player-to-player trading.
-
-MVP economy should remain simple:
-
-- passive resource generation,
-- building costs,
-- unit costs,
-- Core PvE rewards,
-- basic leaderboard scoring.
-
-Faction economy can be introduced later as a seasonal experiment after the core loop is fun.
-
 ## Open-source direction
 
 Warpkeep should be built publicly and fully open source.
@@ -500,9 +366,7 @@ Avoid in MVP:
 - deep tech trees,
 - large alliance warfare,
 - full economy simulation,
-- token purchases,
 - player-to-player trading,
-- on-chain complexity,
 - and monetization-first design.
 
 The MVP should answer:
@@ -595,7 +459,6 @@ Possible later entities:
 - faction_markets
 - player_trade_offers
 - trade_logs
-- token_purchase_caps
 - resource_sink_rules
 
 ## Technical principles
@@ -619,8 +482,6 @@ The client should be a good interface, not the source of truth.
 Prefer simple, testable rules over complex hidden formulas.
 
 Every mechanic should be easy to inspect in the public repo.
-
-Token-related logic, if ever added, should be isolated from the core game loop so the game can remain playable without token integration.
 
 ## Balance principles
 
@@ -661,7 +522,7 @@ Combat should initially be simple enough to explain in a few lines.
 
 Avoid complicated rock-paper-scissors until the core loop is proven.
 
-Avoid real-money or token-mediated balance complexity until the game is fun without it.
+Balance the game around strategic clarity, earned progression, and rules that remain fair without external value inputs.
 
 ## Long-term strategy layer
 
@@ -708,16 +569,6 @@ After the MVP works, add depth gradually:
   - alliance wars,
   - special seasonal objectives.
 
-### Phase 6
-
-- Experimental faction economies:
-  - Hegemony official `$SNAP` rails,
-  - capped system resource purchases,
-  - Ouster free player-to-player trade,
-  - faction-specific markets,
-  - economy audits,
-  - anti-abuse rules.
-
 ## Important product warning
 
 Do not try to build a full Civ/RoK-style MMO immediately.
@@ -731,9 +582,7 @@ The strongest idea is not the size of the map. It is the connection between:
 - public social gameplay,
 - and faction mythology.
 
-Keep the first version small enough to finish.
-
-Do not make token economics the initial hook. The game should be enjoyable before any currency integration exists.
+Keep the first version small enough to finish. Strategy, social play, and the world itself must remain the hook.
 
 ## Community contribution model
 
@@ -749,8 +598,7 @@ Add contributor-friendly docs:
 - how to add a season rule,
 - how to add a faction later,
 - how to write tests for a mechanic,
-- how to propose an experimental module,
-- how to propose alternate faction economies.
+- how to propose an experimental module.
 
 Prefer modular data-driven definitions where possible.
 
@@ -758,7 +606,7 @@ Example:
 
 > Buildings, unit stats, Core nodes, and season settings should be easy to modify without rewriting the whole app.
 
-Token integrations and trade systems should be optional modules, not deeply coupled into the core MVP.
+Later trade systems should remain optional, server-authoritative modules rather than becoming coupled to the core MVP.
 
 ## AI and generated content
 
@@ -840,12 +688,6 @@ Faction naming direction:
 - Hegemony of Man or The Hegemony for the initial playable faction.
 - The Core for the AI faction.
 - Ousters for the later second human faction.
-
-Currency naming direction:
-
-- Hypersnap `$SNAP` may be explored as the Hegemony's official faction currency.
-- Do not present `$SNAP` integration as live or required unless it is actually implemented.
-- Do not imply official endorsement unless one exists.
 
 ## Success criteria
 
