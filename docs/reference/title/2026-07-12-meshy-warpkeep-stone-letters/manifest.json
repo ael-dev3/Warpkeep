@@ -1,0 +1,741 @@
+{
+  "archive_purpose": "Byte-for-byte source archive and provenance record for the six Warpkeep stone-letter 3D models",
+  "reference_only": true,
+  "runtime_derivatives": [],
+  "runtime_usage": null,
+  "archive_date": "2026-07-12",
+  "source": {
+    "supplied_by": "Ael",
+    "provenance": "Six original files supplied with explicit authorization for the Warpkeep v0.3 archive and licensing terms.",
+    "private_workflow_metadata": "intentionally omitted from the public archive",
+    "generation_service_indicated_by_filenames": "Meshy AI"
+  },
+  "license_policy": {
+    "spdx_identifier": "CC-BY-4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "effective_release_boundary": "v0.3.0 and later",
+    "provenance_classification": "project-owned generated creative assets with licensing authority confirmed by an explicit Warpkeep maintainer instruction",
+    "authorization_record": "Ael supplied the six original files and explicitly authorized their archival under the Warpkeep v0.3 licensing terms; private workflow metadata is intentionally omitted.",
+    "attribution": "\u201cWarpkeep stone-letter 3D models\u201d by the Warpkeep project, licensed under CC BY 4.0.",
+    "scope_note": "CC-BY-4.0 applies to copyright and related rights controlled by the Warpkeep project in these files. It does not license Meshy AI software, services, names, or trademarks, any other third-party rights, or Warpkeep trademarks and canonical identity.",
+    "merge_constraint": "Merge only at or after the first v0.3.0 licensing cutover; do not place these files into a v0.2.x release snapshot."
+  },
+  "visual_summary": {
+    "glyphs": [
+      "W",
+      "A",
+      "R",
+      "P",
+      "K",
+      "E"
+    ],
+    "style": "Ivory cracked-stone letter faces with gilded bevels and purple gem or inlay accents.",
+    "local_render_check": "All six labeled glyphs rendered with textures; no blank panels, missing textures, clipping, or obvious corruption were observed.",
+    "preview_committed": false
+  },
+  "aggregate": {
+    "files": 6,
+    "bytes": 264858820,
+    "triangles": 2402820,
+    "position_vertices": 1246311,
+    "unique_sha256": 6
+  },
+  "files": [
+    {
+      "letter": "W",
+      "filename": "Meshy_AI_Warpkeep_W_Stone_Lett_0712102109_image-to-3d-texture.glb",
+      "media_type": "model/gltf-binary",
+      "bytes": 52968424,
+      "sha256": "61b887ddcc2e025b3d9b0b4e67fc51b30e0d6a4b11d474758c412d08b2330814",
+      "gltf": {
+        "container": "GLB",
+        "version": 2,
+        "asset_version": "2.0",
+        "generator": "pygltflib@v1.16.5",
+        "copyright": null,
+        "declared_length": 52968424,
+        "chunks": [
+          {
+            "type": "JSON",
+            "bytes": 2488
+          },
+          {
+            "type": "BIN",
+            "bytes": 52965908
+          }
+        ],
+        "scenes": 1,
+        "default_scene": 0,
+        "nodes": 1,
+        "meshes": 1,
+        "primitives": 1,
+        "materials": 1,
+        "textures": 4,
+        "images": 4,
+        "image_details": [
+          {
+            "index": 0,
+            "mime_type": "image/jpeg",
+            "bytes": 16032380,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 1,
+            "mime_type": "image/jpeg",
+            "bytes": 2217180,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 2,
+            "mime_type": "image/jpeg",
+            "bytes": 16510869,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 3,
+            "mime_type": "image/jpeg",
+            "bytes": 66265,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          }
+        ],
+        "animations": 0,
+        "cameras": 0,
+        "accessors": 4,
+        "buffer_views": 8,
+        "buffers": 1,
+        "position_vertices": 328333,
+        "triangles": 636046,
+        "position_bounds": {
+          "min": [
+            -0.9507960081100464,
+            -0.796101987361908,
+            -0.3126409947872162
+          ],
+          "max": [
+            0.9488840103149414,
+            0.7837610244750977,
+            0.31097298860549927
+          ]
+        },
+        "extensions_used": [],
+        "extensions_required": []
+      },
+      "safe_original_basename": "Meshy_AI_Warpkeep_W_Stone_Lett_0712102109_image-to-3d-texture.glb",
+      "source": {
+        "original_filename": "Meshy_AI_Warpkeep_W_Stone_Lett_0712102109_image-to-3d-texture.glb"
+      },
+      "validation": {
+        "gltf_transform_cli": "4.4.1",
+        "errors": 0,
+        "warnings": [
+          {
+            "code": "MESH_PRIMITIVE_GENERATED_TANGENT_SPACE",
+            "note": "The normal-mapped source does not provide authored tangents; runtimes generate tangent space."
+          }
+        ],
+        "info": [
+          {
+            "code": "NODE_MATRIX_DEFAULT",
+            "note": "The source explicitly stores the default node transform matrix."
+          }
+        ]
+      }
+    },
+    {
+      "letter": "A",
+      "filename": "Meshy_AI_Warpkeep_A_Stone_Lett_0712102720_image-to-3d-texture.glb",
+      "media_type": "model/gltf-binary",
+      "bytes": 40650392,
+      "sha256": "498031fb8b94520e6e3cf58e8451dce7791f59acd31fcd3e6eb86dbe3090eb6e",
+      "gltf": {
+        "container": "GLB",
+        "version": 2,
+        "asset_version": "2.0",
+        "generator": "pygltflib@v1.16.5",
+        "copyright": null,
+        "declared_length": 40650392,
+        "chunks": [
+          {
+            "type": "JSON",
+            "bytes": 2480
+          },
+          {
+            "type": "BIN",
+            "bytes": 40647884
+          }
+        ],
+        "scenes": 1,
+        "default_scene": 0,
+        "nodes": 1,
+        "meshes": 1,
+        "primitives": 1,
+        "materials": 1,
+        "textures": 4,
+        "images": 4,
+        "image_details": [
+          {
+            "index": 0,
+            "mime_type": "image/jpeg",
+            "bytes": 14961727,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 1,
+            "mime_type": "image/jpeg",
+            "bytes": 2005993,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 2,
+            "mime_type": "image/jpeg",
+            "bytes": 15503375,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 3,
+            "mime_type": "image/jpeg",
+            "bytes": 88000,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          }
+        ],
+        "animations": 0,
+        "cameras": 0,
+        "accessors": 4,
+        "buffer_views": 8,
+        "buffers": 1,
+        "position_vertices": 146750,
+        "triangles": 282732,
+        "position_bounds": {
+          "min": [
+            -0.7259629964828491,
+            -0.9507480263710022,
+            -0.21570700407028198
+          ],
+          "max": [
+            0.7240419983863831,
+            0.9484530091285706,
+            0.2138810008764267
+          ]
+        },
+        "extensions_used": [],
+        "extensions_required": []
+      },
+      "safe_original_basename": "Meshy_AI_Warpkeep_A_Stone_Lett_0712102720_image-to-3d-texture.glb",
+      "source": {
+        "original_filename": "Meshy_AI_Warpkeep_A_Stone_Lett_0712102720_image-to-3d-texture.glb"
+      },
+      "validation": {
+        "gltf_transform_cli": "4.4.1",
+        "errors": 0,
+        "warnings": [
+          {
+            "code": "MESH_PRIMITIVE_GENERATED_TANGENT_SPACE",
+            "note": "The normal-mapped source does not provide authored tangents; runtimes generate tangent space."
+          }
+        ],
+        "info": [
+          {
+            "code": "NODE_MATRIX_DEFAULT",
+            "note": "The source explicitly stores the default node transform matrix."
+          }
+        ]
+      }
+    },
+    {
+      "letter": "R",
+      "filename": "Meshy_AI_Warpkeep_R_Stone_Lett_0712103530_image-to-3d-texture.glb",
+      "media_type": "model/gltf-binary",
+      "bytes": 50589156,
+      "sha256": "8bb7ad7410cec4404765723a2dafd9e617a8454e39714a2391671941c51c4556",
+      "gltf": {
+        "container": "GLB",
+        "version": 2,
+        "asset_version": "2.0",
+        "generator": "pygltflib@v1.16.5",
+        "copyright": null,
+        "declared_length": 50589156,
+        "chunks": [
+          {
+            "type": "JSON",
+            "bytes": 2488
+          },
+          {
+            "type": "BIN",
+            "bytes": 50586640
+          }
+        ],
+        "scenes": 1,
+        "default_scene": 0,
+        "nodes": 1,
+        "meshes": 1,
+        "primitives": 1,
+        "materials": 1,
+        "textures": 4,
+        "images": 4,
+        "image_details": [
+          {
+            "index": 0,
+            "mime_type": "image/jpeg",
+            "bytes": 15038640,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 1,
+            "mime_type": "image/jpeg",
+            "bytes": 1914280,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 2,
+            "mime_type": "image/jpeg",
+            "bytes": 15464449,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 3,
+            "mime_type": "image/jpeg",
+            "bytes": 1726052,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          }
+        ],
+        "animations": 0,
+        "cameras": 0,
+        "accessors": 4,
+        "buffer_views": 8,
+        "buffers": 1,
+        "position_vertices": 298455,
+        "triangles": 574388,
+        "position_bounds": {
+          "min": [
+            -0.8408210277557373,
+            -0.9505109786987305,
+            -0.2514770030975342
+          ],
+          "max": [
+            0.8392509818077087,
+            0.9486780166625977,
+            0.24988700449466705
+          ]
+        },
+        "extensions_used": [],
+        "extensions_required": []
+      },
+      "safe_original_basename": "Meshy_AI_Warpkeep_R_Stone_Lett_0712103530_image-to-3d-texture.glb",
+      "source": {
+        "original_filename": "Meshy_AI_Warpkeep_R_Stone_Lett_0712103530_image-to-3d-texture.glb"
+      },
+      "validation": {
+        "gltf_transform_cli": "4.4.1",
+        "errors": 0,
+        "warnings": [
+          {
+            "code": "MESH_PRIMITIVE_GENERATED_TANGENT_SPACE",
+            "note": "The normal-mapped source does not provide authored tangents; runtimes generate tangent space."
+          }
+        ],
+        "info": [
+          {
+            "code": "NODE_MATRIX_DEFAULT",
+            "note": "The source explicitly stores the default node transform matrix."
+          }
+        ]
+      }
+    },
+    {
+      "letter": "P",
+      "filename": "Meshy_AI_Warpkeep_P_Stone_Lett_0712104246_image-to-3d-texture.glb",
+      "media_type": "model/gltf-binary",
+      "bytes": 38240900,
+      "sha256": "0a1dae8ec89c26bfdda3fed489955bcd621206b5e3df40d03cca507b690df2fd",
+      "gltf": {
+        "container": "GLB",
+        "version": 2,
+        "asset_version": "2.0",
+        "generator": "pygltflib@v1.16.5",
+        "copyright": null,
+        "declared_length": 38240900,
+        "chunks": [
+          {
+            "type": "JSON",
+            "bytes": 2480
+          },
+          {
+            "type": "BIN",
+            "bytes": 38238392
+          }
+        ],
+        "scenes": 1,
+        "default_scene": 0,
+        "nodes": 1,
+        "meshes": 1,
+        "primitives": 1,
+        "materials": 1,
+        "textures": 4,
+        "images": 4,
+        "image_details": [
+          {
+            "index": 0,
+            "mime_type": "image/jpeg",
+            "bytes": 14784358,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 1,
+            "mime_type": "image/jpeg",
+            "bytes": 1741332,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 2,
+            "mime_type": "image/jpeg",
+            "bytes": 15318127,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 3,
+            "mime_type": "image/jpeg",
+            "bytes": 82353,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          }
+        ],
+        "animations": 0,
+        "cameras": 0,
+        "accessors": 4,
+        "buffer_views": 8,
+        "buffers": 1,
+        "position_vertices": 114342,
+        "triangles": 221106,
+        "position_bounds": {
+          "min": [
+            -0.718038022518158,
+            -0.9507009983062744,
+            -0.21664300560951233
+          ],
+          "max": [
+            0.7160530090332031,
+            0.9487209916114807,
+            0.2149679958820343
+          ]
+        },
+        "extensions_used": [],
+        "extensions_required": []
+      },
+      "safe_original_basename": "Meshy_AI_Warpkeep_P_Stone_Lett_0712104246_image-to-3d-texture.glb",
+      "source": {
+        "original_filename": "Meshy_AI_Warpkeep_P_Stone_Lett_0712104246_image-to-3d-texture.glb"
+      },
+      "validation": {
+        "gltf_transform_cli": "4.4.1",
+        "errors": 0,
+        "warnings": [
+          {
+            "code": "MESH_PRIMITIVE_GENERATED_TANGENT_SPACE",
+            "note": "The normal-mapped source does not provide authored tangents; runtimes generate tangent space."
+          }
+        ],
+        "info": [
+          {
+            "code": "NODE_MATRIX_DEFAULT",
+            "note": "The source explicitly stores the default node transform matrix."
+          }
+        ]
+      }
+    },
+    {
+      "letter": "K",
+      "filename": "Meshy_AI_Warpkeep_K_Stone_Lett_0712104959_image-to-3d-texture.glb",
+      "media_type": "model/gltf-binary",
+      "bytes": 43528656,
+      "sha256": "15f1471a96f7050b9cf373550abac8b5af918806da047a832927fabba7ab6ae4",
+      "gltf": {
+        "container": "GLB",
+        "version": 2,
+        "asset_version": "2.0",
+        "generator": "pygltflib@v1.16.5",
+        "copyright": null,
+        "declared_length": 43528656,
+        "chunks": [
+          {
+            "type": "JSON",
+            "bytes": 2484
+          },
+          {
+            "type": "BIN",
+            "bytes": 43526144
+          }
+        ],
+        "scenes": 1,
+        "default_scene": 0,
+        "nodes": 1,
+        "meshes": 1,
+        "primitives": 1,
+        "materials": 1,
+        "textures": 4,
+        "images": 4,
+        "image_details": [
+          {
+            "index": 0,
+            "mime_type": "image/jpeg",
+            "bytes": 13860178,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 1,
+            "mime_type": "image/jpeg",
+            "bytes": 1973044,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 2,
+            "mime_type": "image/jpeg",
+            "bytes": 15123318,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 3,
+            "mime_type": "image/jpeg",
+            "bytes": 68405,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          }
+        ],
+        "animations": 0,
+        "cameras": 0,
+        "accessors": 4,
+        "buffer_views": 8,
+        "buffers": 1,
+        "position_vertices": 226890,
+        "triangles": 436726,
+        "position_bounds": {
+          "min": [
+            -0.8895570039749146,
+            -0.9507240056991577,
+            -0.27010399103164673
+          ],
+          "max": [
+            0.8869580030441284,
+            0.9487370252609253,
+            0.26628199219703674
+          ]
+        },
+        "extensions_used": [],
+        "extensions_required": []
+      },
+      "safe_original_basename": "Meshy_AI_Warpkeep_K_Stone_Lett_0712104959_image-to-3d-texture.glb",
+      "source": {
+        "original_filename": "Meshy_AI_Warpkeep_K_Stone_Lett_0712104959_image-to-3d-texture.glb"
+      },
+      "validation": {
+        "gltf_transform_cli": "4.4.1",
+        "errors": 0,
+        "warnings": [
+          {
+            "code": "MESH_PRIMITIVE_GENERATED_TANGENT_SPACE",
+            "note": "The normal-mapped source does not provide authored tangents; runtimes generate tangent space."
+          }
+        ],
+        "info": [
+          {
+            "code": "NODE_MATRIX_DEFAULT",
+            "note": "The source explicitly stores the default node transform matrix."
+          }
+        ]
+      }
+    },
+    {
+      "letter": "E",
+      "filename": "Meshy_AI_Warpkeep_E_Stone_Lett_0712105549_image-to-3d-texture.glb",
+      "media_type": "model/gltf-binary",
+      "bytes": 38881292,
+      "sha256": "2038848ba8f2de6c328f6e53106adf6bd172197db716c457b02489bddee2de36",
+      "gltf": {
+        "container": "GLB",
+        "version": 2,
+        "asset_version": "2.0",
+        "generator": "pygltflib@v1.16.5",
+        "copyright": null,
+        "declared_length": 38881292,
+        "chunks": [
+          {
+            "type": "JSON",
+            "bytes": 2480
+          },
+          {
+            "type": "BIN",
+            "bytes": 38878784
+          }
+        ],
+        "scenes": 1,
+        "default_scene": 0,
+        "nodes": 1,
+        "meshes": 1,
+        "primitives": 1,
+        "materials": 1,
+        "textures": 4,
+        "images": 4,
+        "image_details": [
+          {
+            "index": 0,
+            "mime_type": "image/jpeg",
+            "bytes": 14275544,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 1,
+            "mime_type": "image/jpeg",
+            "bytes": 1928838,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 2,
+            "mime_type": "image/jpeg",
+            "bytes": 15371278,
+            "dimensions": [
+              4096,
+              4096
+            ],
+            "format": "JPEG"
+          },
+          {
+            "index": 3,
+            "mime_type": "image/jpeg",
+            "bytes": 71941,
+            "dimensions": [
+              2048,
+              2048
+            ],
+            "format": "JPEG"
+          }
+        ],
+        "animations": 0,
+        "cameras": 0,
+        "accessors": 4,
+        "buffer_views": 8,
+        "buffers": 1,
+        "position_vertices": 131541,
+        "triangles": 251822,
+        "position_bounds": {
+          "min": [
+            -0.6793500185012817,
+            -0.95073401927948,
+            -0.24816599488258362
+          ],
+          "max": [
+            0.6773840188980103,
+            0.9488160014152527,
+            0.24633699655532837
+          ]
+        },
+        "extensions_used": [],
+        "extensions_required": []
+      },
+      "safe_original_basename": "Meshy_AI_Warpkeep_E_Stone_Lett_0712105549_image-to-3d-texture.glb",
+      "source": {
+        "original_filename": "Meshy_AI_Warpkeep_E_Stone_Lett_0712105549_image-to-3d-texture.glb"
+      },
+      "validation": {
+        "gltf_transform_cli": "4.4.1",
+        "errors": 0,
+        "warnings": [
+          {
+            "code": "MESH_PRIMITIVE_GENERATED_TANGENT_SPACE",
+            "note": "The normal-mapped source does not provide authored tangents; runtimes generate tangent space."
+          }
+        ],
+        "info": [
+          {
+            "code": "NODE_MATRIX_DEFAULT",
+            "note": "The source explicitly stores the default node transform matrix."
+          }
+        ]
+      }
+    }
+  ]
+}
