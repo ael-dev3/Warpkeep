@@ -252,7 +252,8 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
               }),
               body: JSON.stringify([fidArgument]),
               cache: 'no-store',
-              credentials: 'omit',
+              // Worker subrequests have no browser credential jar. Keep this
+              // browser-only RequestInit member out of the production fetch.
               // Workerd rejects `error`; `manual` surfaces 3xx to the non-2xx guard below.
               redirect: 'manual',
               signal: controller.signal,
