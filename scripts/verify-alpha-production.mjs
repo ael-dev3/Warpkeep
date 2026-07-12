@@ -1,14 +1,20 @@
 import { spawnSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const DEFAULT_FRONTEND = 'https://warpkeep.com';
 const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
 const DEFAULT_LEGACY_PAGES = 'https://ael-dev3.github.io/Warpkeep/';
+const DEFAULT_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com';
+const DEFAULT_SPACETIMEDB_DATABASE = 'warpkeep-89e4u';
 const EXPECTED_AUDIENCE = 'warpkeep-spacetimedb';
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_DOCUMENT_BYTES = 1_000_000;
 const MAX_ASSET_BYTES = 16_000_000;
 const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/i;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
+const JWK_COORDINATE = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
+const JWK_KEY_ID = /^[A-Za-z0-9._-]{1,128}$/;
 const EXPECTED_ALPHA_AGGREGATE = Object.freeze({
   worldTiles: 61n,
   allowedFids: 0n,
@@ -19,6 +25,32 @@ const EXPECTED_ALPHA_AGGREGATE = Object.freeze({
 
 function fail(message) {
   throw new Error(`Alpha production verification failed: ${message}`);
+}
+
+export async function validateProductionSigningKey(key) {
+  if (
+    key?.kty !== 'EC'
+    || key?.crv !== 'P-256'
+    || key?.alg !== 'ES256'
+    || key?.use !== 'sig'
+    || typeof key?.kid !== 'string' || !JWK_KEY_ID.test(key.kid)
+    || typeof key?.x !== 'string' || !JWK_COORDINATE.test(key.x)
+    || typeof key?.y !== 'string' || !JWK_COORDINATE.test(key.y)
+    || typeof key?.d !== 'undefined'
+  ) {
+    fail('JWKS contains an invalid or private signing key.');
+  }
+  try {
+    await crypto.subtle.importKey(
+      'jwk',
+      key,
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['verify'],
+    );
+  } catch {
+    fail('JWKS contains an unusable public signing key.');
+  }
 }
 
 function httpsOrigin(value, label) {
@@ -155,7 +187,7 @@ async function readJson(response, label) {
   if (response.status !== 200) {
     fail(`${label} returned HTTP ${response.status}.`);
   }
-  if (!response.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+  if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(response.headers.get('content-type') ?? '')) {
     fail(`${label} did not return JSON.`);
   }
   try {
@@ -379,18 +411,7 @@ async function verifyBridge(frontend, bridge) {
     fail('JWKS must contain exactly one active public signing key.');
   }
   const key = jwks.keys[0];
-  if (
-    key?.kty !== 'EC'
-    || key?.crv !== 'P-256'
-    || key?.alg !== 'ES256'
-    || typeof key?.kid !== 'string'
-    || key.kid.length === 0
-    || typeof key?.x !== 'string'
-    || typeof key?.y !== 'string'
-    || typeof key?.d !== 'undefined'
-  ) {
-    fail('JWKS contains an invalid or private signing key.');
-  }
+  await validateProductionSigningKey(key);
 
   await verifyBridgePreflight(bridge, frontend, '/v1/farcaster/challenge');
   await verifyBridgePreflight(bridge, frontend, '/v1/farcaster/exchange');
@@ -431,18 +452,47 @@ function verifyExpectedAlphaAggregate(output) {
   }
 }
 
-function verifyProtectedAggregateIfConfigured() {
-  if (!process.env.WARPKEEP_ADMIN_TOKEN_SECRET) {
+export function protectedAggregateChildEnvironment(bridge, secret) {
+  return Object.freeze({
+    WARPKEEP_SPACETIMEDB_URI: process.env.WARPKEEP_SPACETIMEDB_URI ?? DEFAULT_SPACETIMEDB_URI,
+    WARPKEEP_SPACETIMEDB_DATABASE: process.env.WARPKEEP_SPACETIMEDB_DATABASE ?? DEFAULT_SPACETIMEDB_DATABASE,
+    WARPKEEP_AUTH_BRIDGE_URL: bridge,
+    WARPKEEP_ADMIN_TOKEN_SECRET: secret,
+  });
+}
+
+export function protectedAggregateChildOptions(repositoryRoot, bridge, secret) {
+  return {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+    env: protectedAggregateChildEnvironment(bridge, secret),
+    maxBuffer: MAX_DOCUMENT_BYTES,
+    timeout: 30_000,
+    // This child is read-only. SIGKILL makes the synchronous timeout a hard
+    // bound even if a compromised/deadlocked child were to ignore SIGTERM.
+    killSignal: 'SIGKILL',
+  };
+}
+
+export function requiredProtectedAggregateSecret(secret, required) {
+  if (typeof secret === 'string' && secret.length > 0) return secret;
+  if (required) fail('protected aggregate inspection was required but no local Hermes credential was configured.');
+  return undefined;
+}
+
+function verifyProtectedAggregateIfConfigured(bridge, required) {
+  const secret = requiredProtectedAggregateSecret(process.env.WARPKEEP_ADMIN_TOKEN_SECRET, required);
+  if (!secret) {
     console.log('alpha status: skipped (no local Hermes credential configured)');
     return;
   }
-  const tsx = process.platform === 'win32' ? 'tsx.cmd' : 'tsx';
-  const result = spawnSync(tsx, ['scripts/hermes-admin.ts', 'inspect-alpha', '--json'], {
-    cwd: new URL('..', import.meta.url),
-    encoding: 'utf8',
-    env: process.env,
-    maxBuffer: MAX_DOCUMENT_BYTES,
-  });
+  const repositoryRoot = resolve(dirname(resolve(process.argv[1])), '..');
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = spawnSync(
+    process.execPath,
+    [tsxCli, 'scripts/hermes-admin.ts', 'inspect-alpha', '--json'],
+    protectedAggregateChildOptions(repositoryRoot, bridge, secret),
+  );
   if (result.error || result.status !== 0 || result.signal) {
     fail('protected aggregate inspection failed.');
   }
@@ -458,16 +508,19 @@ async function main() {
   const www = httpsOrigin(process.env.WARPKEEP_WWW_URL ?? defaultWwwOrigin(frontend), 'WARPKEEP_WWW_URL');
   const legacyPages = httpsUrl(process.env.WARPKEEP_LEGACY_PAGES_URL ?? DEFAULT_LEGACY_PAGES, 'WARPKEEP_LEGACY_PAGES_URL');
   const expectedDeployedSha = readExpectedDeployedSha();
+  const requireProtectedAggregate = process.argv.includes('--require-protected-aggregate');
   if (process.env.WARPKEEP_OIDC_AUDIENCE && process.env.WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
     fail(`WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
   }
   await verifyFrontend(frontend, expectedDeployedSha);
   await verifyFrontendRedirects(frontend, www, legacyPages);
   await verifyBridge(frontend, bridge);
-  verifyProtectedAggregateIfConfigured();
+  verifyProtectedAggregateIfConfigured(bridge, requireProtectedAggregate);
 }
 
-main().catch(error => {
-  console.error(error instanceof Error ? error.message : 'Alpha production verification failed.');
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main().catch(error => {
+    console.error(error instanceof Error ? error.message : 'Alpha production verification failed.');
+    process.exitCode = 1;
+  });
+}

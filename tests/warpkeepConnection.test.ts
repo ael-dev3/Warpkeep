@@ -45,6 +45,7 @@ function builderDouble() {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   window.localStorage.clear();
 });
@@ -83,6 +84,42 @@ describe('Warpkeep authenticated connection boundary', () => {
     vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
 
     await expect(connectWarpkeep(config, 'header.payload.signature')).resolves.toBe(connection);
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('bounds a silent connection handshake and disconnects a late connection', async () => {
+    vi.useFakeTimers();
+    const builder = builderDouble();
+    const disconnect = vi.fn();
+    const lateConnection = {
+      get isDisconnectRequested() { return disconnect.mock.calls.length > 0; },
+      disconnect
+    } as unknown as WarpkeepConnection;
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.build.mockReturnValue(lateConnection);
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    let outcome = 'pending';
+    const connection = connectWarpkeep(config, 'header.payload.signature');
+    void connection.then(
+      () => { outcome = 'resolved'; },
+      () => { outcome = 'rejected'; }
+    );
+
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(outcome).toBe('pending');
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(connection).rejects.toThrow('Warpkeep records are unavailable.');
+    expect(outcome).toBe('rejected');
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+
+    onConnect?.(lateConnection, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+    expect(disconnect).toHaveBeenCalledTimes(1);
     expect(window.localStorage.length).toBe(0);
   });
 

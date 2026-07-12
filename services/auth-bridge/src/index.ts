@@ -1,9 +1,8 @@
-import { ChallengeReplayGuard } from './challengeStore'
 import { createAuthBridge } from './app'
 
-export { ChallengeReplayGuard }
 export { createAuthBridge } from './app'
-export { DurableObjectChallengeStore, MemoryChallengeStore } from './challengeStore'
+export { ChallengeReplayGuard, DurableObjectChallengeStore, MemoryChallengeStore } from './challengeStore'
+export { AuthRateLimiter } from './rateLimit'
 export { SpacetimeHttpAuthEpochResolver } from './spacetimeAuthEpochResolver'
 export type * from './types'
 

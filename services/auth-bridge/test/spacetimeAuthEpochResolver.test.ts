@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
+  AuthEpochResolverFailure,
   MAX_AUTH_EPOCH,
   MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES,
   SpacetimeHttpAuthEpochResolver,
+  authEpochResolverFailureStage,
+  type AuthEpochResolverFailureStage,
   type AuthEpochFetch,
 } from '../src/spacetimeAuthEpochResolver'
 import type { AdminTokenClaims } from '../src/types'
@@ -42,6 +45,22 @@ function jsonResponse(value: string, init: ResponseInit = {}): Response {
   })
 }
 
+async function expectFailureStage(
+  operation: Promise<unknown>,
+  expectedStage: AuthEpochResolverFailureStage,
+): Promise<void> {
+  try {
+    await operation
+    throw new Error('Expected the resolver to fail.')
+  } catch (error) {
+    expect(error).toBeInstanceOf(AuthEpochResolverFailure)
+    expect(error).toMatchObject({
+      message: 'Auth epoch resolver is unavailable.',
+      stage: expectedStage,
+    })
+  }
+}
+
 describe('Spacetime HTTP auth-epoch resolver', () => {
   it('calls only the fixed HTTPS procedure with positional SATS-JSON and a fresh short-lived admin JWT', async () => {
     const signer = vi.fn(async (_claims: AdminTokenClaims) => 'opaque-admin-token')
@@ -67,9 +86,9 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch')
     expect(init.method).toBe('POST')
     expect(init.body).toBe('[12345]')
-    expect(init.cache).toBe('no-store')
-    expect(init.credentials).toBe('omit')
-    expect(init.redirect).toBe('error')
+    expect(init).not.toHaveProperty('cache')
+    expect(init).not.toHaveProperty('credentials')
+    expect(init.redirect).toBe('manual')
     expect(init.signal).toBeInstanceOf(AbortSignal)
     const headers = new Headers(init.headers)
     expect(headers.get('content-type')).toBe('application/json')
@@ -90,10 +109,36 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     }
   })
 
-  it('fails closed for redirects, non-success responses, malformed values, and oversized bodies', async () => {
-    const invalid = [
+  it('keeps browser cache and credential modes out of the Worker subrequest init', async () => {
+    for (const browserOnlyMember of ['cache', 'credentials'] as const) {
+      const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init && browserOnlyMember in init) throw new TypeError(`${browserOnlyMember} is not implemented`)
+        return jsonResponse('0')
+      })
+      const resolver = createResolver(fetcher)
+
+      await expect(resolver.resolve(FID)).resolves.toBe(0)
+      expect(fetcher).toHaveBeenCalledOnce()
+    }
+  })
+
+  it('classifies redirects and every non-success response as upstream_status', async () => {
+    const rejected = [
       new Response('', { status: 302, headers: { location: 'https://unexpected.example' } }),
       new Response('', { status: 503, headers: { 'content-type': 'application/json' } }),
+    ]
+
+    for (const response of rejected) {
+      await expectFailureStage(
+        createResolver(async () => response).resolve(FID),
+        'upstream_status',
+      )
+    }
+  })
+
+  it('classifies malformed media, bodies, JSON, and epochs as response_validation', async () => {
+    const invalid = [
+      new Response(null, { status: 200, headers: { 'content-type': 'application/json' } }),
       jsonResponse('{}'),
       jsonResponse('[]'),
       jsonResponse('"0"'),
@@ -101,13 +146,80 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
       jsonResponse('0.5'),
       jsonResponse(String(MAX_AUTH_EPOCH + 1)),
       new Response('0', { headers: { 'content-type': 'text/plain' } }),
+      new Response('0', { headers: { 'content-type': 'application/jsonp' } }),
       jsonResponse('x'.repeat(MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES + 1)),
     ]
 
     for (const response of invalid) {
-      const resolver = createResolver(async () => response)
-      await expect(resolver.resolve(FID)).rejects.toThrow('Auth epoch resolver is unavailable.')
+      await expectFailureStage(
+        createResolver(async () => response).resolve(FID),
+        'response_validation',
+      )
     }
+  })
+
+  it('classifies a fetch rejection without exposing the upstream error', async () => {
+    const sensitive = 'https://secret.example/?token=do-not-log'
+    const resolver = createResolver(async () => { throw new Error(sensitive) })
+
+    try {
+      await resolver.resolve(FID)
+      throw new Error('Expected the resolver to fail.')
+    } catch (error) {
+      expect(error).toBeInstanceOf(AuthEpochResolverFailure)
+      expect(error).toMatchObject({
+        message: 'Auth epoch resolver is unavailable.',
+        stage: 'fetch_request',
+      })
+      expect(JSON.stringify(error)).not.toContain(sensitive)
+    }
+  })
+
+  it('invokes the runtime fetch function without rebinding its receiver', async () => {
+    let receivedThis: unknown = 'not-called'
+    const runtimeFetch = async function (this: unknown): Promise<Response> {
+      receivedThis = this
+      if (this !== undefined) {
+        throw new TypeError('Illegal invocation: function called with incorrect this reference')
+      }
+      return jsonResponse('0')
+    }
+    const resolver = createResolver(runtimeFetch)
+
+    await expect(resolver.resolve(FID)).resolves.toBe(0)
+    expect(receivedThis).toBeUndefined()
+  })
+
+  it('does not fabricate a closed stage for an unexpected resolver implementation bug', async () => {
+    const sensitive = 'unexpected-sensitive-response-contract-detail'
+    const malformedResponse = {
+      get ok(): boolean {
+        throw new Error(sensitive)
+      },
+    } as Response
+    const resolver = createResolver(async () => malformedResponse)
+
+    try {
+      await resolver.resolve(FID)
+      throw new Error('Expected the resolver to fail.')
+    } catch (error) {
+      expect(error).not.toBeInstanceOf(AuthEpochResolverFailure)
+      expect(error).toMatchObject({ message: sensitive })
+      expect(authEpochResolverFailureStage(error)).toBeNull()
+    }
+  })
+
+  it('classifies a 2xx response stream failure as fetch_body', async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.error(new Error('sensitive transport detail'))
+      },
+    })
+    const resolver = createResolver(async () => new Response(stream, {
+      headers: { 'content-type': 'application/json' },
+    }))
+
+    await expectFailureStage(resolver.resolve(FID), 'fetch_body')
   })
 
   it('rejects a malformed FID before minting a token or making an HTTP request', async () => {
@@ -128,7 +240,27 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
       return new Promise<Response>(() => {})
     }, { timeoutMs: 5 })
 
-    await expect(resolver.resolve(FID)).rejects.toThrow('Auth epoch resolver timed out.')
+    await expectFailureStage(resolver.resolve(FID), 'timeout')
+    expect(signal?.aborted).toBe(true)
+  })
+
+  it('classifies a deadline that aborts a stalled 2xx body as timeout', async () => {
+    let signal: AbortSignal | undefined
+    const resolver = createResolver((_input, init) => {
+      signal = init?.signal ?? undefined
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          signal?.addEventListener('abort', () => {
+            controller.error(new DOMException('sensitive abort detail', 'AbortError'))
+          }, { once: true })
+        },
+      })
+      return Promise.resolve(new Response(stream, {
+        headers: { 'content-type': 'application/json' },
+      }))
+    }, { timeoutMs: 5 })
+
+    await expectFailureStage(resolver.resolve(FID), 'timeout')
     expect(signal?.aborted).toBe(true)
   })
 
@@ -145,7 +277,33 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     const resolver = createResolver(fetcher as AuthEpochFetch, {
       signer: async () => { throw new Error('signing failed') },
     })
-    await expect(resolver.resolve(FID)).rejects.toThrow('Auth epoch resolver is unavailable.')
+    await expectFailureStage(resolver.resolve(FID), 'signing')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('classifies an empty signer result as signing without making a request', async () => {
+    const fetcher = vi.fn(async () => jsonResponse('0'))
+    const resolver = createResolver(fetcher as AuthEpochFetch, { signer: async () => '' })
+
+    await expectFailureStage(resolver.resolve(FID), 'signing')
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('rejects spoofed or runtime-mutated failure stages', () => {
+    expect(authEpochResolverFailureStage({ stage: 'fetch_request' })).toBeNull()
+    const failure = new AuthEpochResolverFailure('fetch_request')
+    Object.defineProperty(failure, 'stage', { value: 'sensitive-arbitrary-stage' })
+    expect(authEpochResolverFailureStage(failure)).toBeNull()
+  })
+
+  it('bounds a stalled signer with the resolver deadline', async () => {
+    const fetcher = vi.fn(async () => jsonResponse('0'))
+    const resolver = createResolver(fetcher as AuthEpochFetch, {
+      signer: () => new Promise<string>(() => {}),
+      timeoutMs: 5,
+    })
+
+    await expectFailureStage(resolver.resolve(FID), 'timeout')
     expect(fetcher).not.toHaveBeenCalled()
   })
 })

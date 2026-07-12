@@ -2,7 +2,10 @@ import type {
   FarcasterOidcSession,
   VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';
-import { validateFarcasterOidcSessionForIdentity } from './farcasterOidcSession';
+import {
+  FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS,
+  validateFarcasterOidcSessionForIdentity
+} from './farcasterOidcSession';
 
 /**
  * Version 2 is the only browser record that can restore a shared-realm
@@ -11,7 +14,7 @@ import { validateFarcasterOidcSessionForIdentity } from './farcasterOidcSession'
  */
 export const FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION = 2 as const;
 export const FARCASTER_REMEMBERED_DEVICE_SESSION_KIND = 'bridge-oidc-alpha' as const;
-export const FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
+export const FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS = FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS;
 
 export const FARCASTER_OIDC_DEVICE_SESSION_VERSION =
   FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION;
@@ -21,6 +24,7 @@ export const FARCASTER_OIDC_DEVICE_SESSION_KIND =
 const LEGACY_SESSION_VERSION = 1 as const;
 const LEGACY_STORAGE_KEY_SUFFIX = ':farcaster-device-session:v1';
 const STORAGE_KEY_SUFFIX = ':farcaster-device-session:v2';
+const CONTROL_KEY_SUFFIX = ':farcaster-session-control:v1';
 const MAX_BASE_PATH_LENGTH = 256;
 const MAX_ORIGIN_LENGTH = 2_048;
 const MAX_PROFILE_FIELD_LENGTH = 256;
@@ -197,6 +201,16 @@ export function getLegacyFarcasterDeviceSessionStorageKey(
     : undefined;
 }
 
+/** Non-sensitive, base-path-scoped cross-tab session termination signal. */
+export function getFarcasterDeviceSessionControlKey(
+  basePath: unknown = import.meta.env.BASE_URL || '/'
+) {
+  const normalizedBasePath = normalizeFarcasterDeviceSessionBasePath(basePath);
+  return normalizedBasePath
+    ? `warpkeep:${normalizedBasePath}${CONTROL_KEY_SUFFIX}`
+    : undefined;
+}
+
 function getBrowserStorage() {
   if (typeof window === 'undefined') {
     return undefined;
@@ -273,7 +287,7 @@ function readProfileUrl(value: unknown) {
   try {
     const url = new URL(value);
     if (
-      (url.protocol !== 'https:' && url.protocol !== 'http:')
+      url.protocol !== 'https:'
       || url.username !== ''
       || url.password !== ''
     ) {
@@ -282,6 +296,23 @@ function readProfileUrl(value: unknown) {
     return url.toString();
   } catch {
     return undefined;
+  }
+}
+
+export function signalFarcasterSessionTermination(
+  environment: FarcasterDeviceSessionEnvironment = {}
+) {
+  const storage = resolveStorage(environment);
+  const key = getFarcasterDeviceSessionControlKey(storageBasePath(environment));
+  const now = readCurrentTime(environment.now);
+  if (!storage || !key || now === undefined) {
+    return false;
+  }
+  try {
+    storage.setItem(key, `logout-v1:${now}`);
+    return true;
+  } catch {
+    return false;
   }
 }
 

@@ -139,6 +139,8 @@ function createOidcSession(
     iat: issuedAt,
     nbf: issuedAt,
     exp: Math.floor(expiresAt / 1_000),
+    session_iat: issuedAt,
+    session_exp: Math.floor(expiresAt / 1_000),
     jti: `test-${fid}-${issuedAt}`
   })}.test_signature`;
   return Object.freeze({ jwt, issuer: TEST_ISSUER, audience: TEST_AUDIENCE, expiresAt });

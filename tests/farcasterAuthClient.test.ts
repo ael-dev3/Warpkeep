@@ -496,6 +496,22 @@ describe('Farcaster channel status', () => {
     }
   });
 
+  it('accepts a bounded variable-length smart-account signature', async () => {
+    const signature = `0x${'ab'.repeat(96)}` as const;
+    const client = createClient({
+      status: vi.fn(async () => success({
+        ...completedStatus(),
+        signature
+      }))
+    });
+    const authority = createFarcasterSessionAuthority({ client });
+
+    await expect(authority.getStatus(CHANNEL_TOKEN)).resolves.toMatchObject({
+      state: 'completed',
+      signature
+    });
+  });
+
   it.each([
     ['nonce', undefined],
     ['message', undefined],
@@ -503,6 +519,10 @@ describe('Farcaster channel status', () => {
     ['fid', undefined],
     ['fid', 0],
     ['signature', 'not-a-signature'],
+    ['signature', '0x'],
+    ['signature', '0xabc'],
+    ['signature', `0x${'ab'.repeat(4 * 1_024 + 1)}`],
+    ['message', 'x'.repeat(8 * 1_024 + 1)],
     ['signatureParams', undefined],
     ['acceptAuthAddress', false]
   ])('rejects a completed response with invalid %s', async (field, value) => {

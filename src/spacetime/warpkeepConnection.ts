@@ -22,6 +22,8 @@ export type WarpkeepConnectionCallbacks = Readonly<{
 
 export type WarpkeepConnection = DbConnection;
 
+const CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS = 10_000;
+
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
   'not_admitted',
   'admitted_needs_bootstrap',
@@ -83,24 +85,42 @@ export function connectWarpkeep(
 ): Promise<WarpkeepConnection> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let failed = false;
+    let pendingConnection: WarpkeepConnection | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     const settle = (callback: () => void) => {
-      if (settled) return;
+      if (settled) return false;
       settled = true;
+      if (timeout !== undefined) clearTimeout(timeout);
       callback();
+      return true;
+    };
+    const rejectUnavailable = () => {
+      if (!settle(() => reject(new Error('Warpkeep records are unavailable.')))) return false;
+      failed = true;
+      disconnectWarpkeep(pendingConnection);
+      pendingConnection = undefined;
+      return true;
     };
 
+    timeout = setTimeout(() => {
+      rejectUnavailable();
+    }, CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS);
     try {
       const builder = createWarpkeepConnectionBuilder(config, bridgeJwt, callbacks)
         .onConnect((connection, _identity, _serverIssuedToken) => {
           // Never persist or log `_serverIssuedToken`; it is not Warpkeep authority.
-          settle(() => resolve(connection));
+          if (settle(() => resolve(connection))) pendingConnection = undefined;
+          else disconnectWarpkeep(connection);
         })
         .onConnectError(() => {
-          settle(() => reject(new Error('Warpkeep records are unavailable.')));
+          rejectUnavailable();
         });
-      builder.build();
+      const builtConnection = builder.build();
+      if (failed) disconnectWarpkeep(builtConnection);
+      else if (!settled) pendingConnection = builtConnection;
     } catch {
-      settle(() => reject(new Error('Warpkeep records are unavailable.')));
+      rejectUnavailable();
     }
   });
 }

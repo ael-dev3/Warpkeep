@@ -10,11 +10,14 @@ import {
   type BridgeConfig,
 } from './config'
 import { DurableObjectChallengeStore } from './challengeStore'
-import { createOfficialFarcasterVerifier } from './farcaster'
+import { FarcasterVerifierUnavailableError, createOfficialFarcasterVerifier } from './farcaster'
 import { adminClaims, playerClaims, randomId, randomSiweNonce, signEs256Jwt } from './jwt'
+import { DurableObjectRateLimiter } from './rateLimit'
 import {
   AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
   SpacetimeHttpAuthEpochResolver,
+  authEpochResolverFailureStage,
+  type AuthEpochResolverFailureStage,
 } from './spacetimeAuthEpochResolver'
 import type {
   AuthEpochResolver,
@@ -23,6 +26,8 @@ import type {
   ChallengeStore,
   FarcasterVerifier,
   PublicIdentity,
+  RateLimitAction,
+  RateLimiter,
   SafeLogEvent,
   SafeLogger,
   WorkerEnv,
@@ -33,6 +38,19 @@ const JSON_HEADERS = {
   'cache-control': 'no-store',
 }
 
+const MAX_PROOF_SIGNATURE_BYTES = 4 * 1024
+const AUTH_EPOCH_PROBE_PATH = '/v1/admin/auth-epoch-probe'
+const AUTH_EPOCH_PROBE_FID = '9007199254740991'
+
+const AUTH_EPOCH_FAILURE_EVENTS: Readonly<Record<AuthEpochResolverFailureStage, SafeLogEvent>> = Object.freeze({
+  signing: 'auth_epoch_failed_signing',
+  fetch_request: 'auth_epoch_failed_fetch_request',
+  fetch_body: 'auth_epoch_failed_fetch_body',
+  timeout: 'auth_epoch_failed_timeout',
+  upstream_status: 'auth_epoch_failed_upstream_status',
+  response_validation: 'auth_epoch_failed_response_validation',
+})
+
 const SENSITIVE_EXCHANGE_KEYS = new Set([
   'channelToken', 'channelUrl', 'custody', 'verifications', 'authMethod', 'metadata',
 ])
@@ -42,6 +60,7 @@ class HttpError extends Error {
     readonly status: number,
     readonly code: string,
     readonly publicMessage: string,
+    readonly responseHeaders: HeadersInit = {},
   ) {
     super(publicMessage)
   }
@@ -51,6 +70,8 @@ export interface AuthBridgeDependencies {
   challengeStore?: ChallengeStore
   verifier?: FarcasterVerifier
   authEpochResolver?: AuthEpochResolver
+  rateLimiter?: RateLimiter
+  signer?: typeof signEs256Jwt
   configReader?: (env: WorkerEnv) => BridgeConfig
   logger?: SafeLogger
   now?: () => number
@@ -72,7 +93,10 @@ function json(value: unknown, status = 200, headers: HeadersInit = {}): Response
 }
 
 function errorResponse(error: HttpError, headers: HeadersInit = {}): Response {
-  return json({ error: { code: error.code, message: error.publicMessage } }, error.status, headers)
+  const merged: Record<string, string> = {}
+  new Headers(headers).forEach((value, name) => { merged[name] = value })
+  new Headers(error.responseHeaders).forEach((value, name) => { merged[name] = value })
+  return json({ error: { code: error.code, message: error.publicMessage } }, error.status, merged)
 }
 
 function corsHeaders(origin: string): HeadersInit {
@@ -104,6 +128,16 @@ function requireAdminNoOrigin(request: Request): void {
   }
 }
 
+function isServerOnlyAdminPath(pathname: string): boolean {
+  return pathname === '/v1/admin/token' || pathname === AUTH_EPOCH_PROBE_PATH
+}
+
+function logAuthEpochFailure(logger: SafeLogger, error: unknown): void {
+  logger.event('auth_epoch_failed')
+  const stage = authEpochResolverFailureStage(error)
+  if (stage) logger.event(AUTH_EPOCH_FAILURE_EVENTS[stage])
+}
+
 function allowedPreflight(request: Request, config: BridgeConfig): Response {
   const origin = requireAllowedBrowserOrigin(request, config)
   const method = request.headers.get('access-control-request-method')
@@ -120,8 +154,47 @@ function allowedPreflight(request: Request, config: BridgeConfig): Response {
 
 function requireJsonContentType(request: Request): void {
   const contentType = request.headers.get('content-type')
-  if (!contentType?.toLowerCase().startsWith('application/json')) {
+  if (contentType?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
     throw new HttpError(415, 'unsupported_media_type', 'Expected an application/json request body.')
+  }
+}
+
+async function readBoundedRequestText(request: Request): Promise<string> {
+  if (!request.body) return ''
+
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      totalBytes += value.byteLength
+      if (totalBytes > MAX_REQUEST_BYTES) {
+        try {
+          await reader.cancel()
+        } catch {
+          // The public result remains a bounded 413 even if cancellation fails.
+        }
+        throw new HttpError(413, 'body_too_large', 'Request body is too large.')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  const bytes = new Uint8Array(totalBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    throw new HttpError(400, 'invalid_json', 'Request body must be valid JSON.')
   }
 }
 
@@ -131,10 +204,7 @@ async function parseObjectBody(request: Request): Promise<Record<string, unknown
   if (advertisedLength && (!/^\d+$/.test(advertisedLength) || Number(advertisedLength) > MAX_REQUEST_BYTES)) {
     throw new HttpError(413, 'body_too_large', 'Request body is too large.')
   }
-  const body = await request.text()
-  if (new TextEncoder().encode(body).byteLength > MAX_REQUEST_BYTES) {
-    throw new HttpError(413, 'body_too_large', 'Request body is too large.')
-  }
+  const body = await readBoundedRequestText(request)
   let parsed: unknown
   try {
     parsed = JSON.parse(body)
@@ -257,8 +327,13 @@ function parseExchangeRequest(body: Record<string, unknown>): ExchangeInput {
     'message', 'signature', 'nonce', 'fid', 'requestId', 'domain', 'siweUri', 'expirationTime', 'expiresAt', 'identity',
   ])
   const message = requireString(body.message, 'message', 8 * 1024)
-  const signature = requireString(body.signature, 'signature', 140)
-  if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) {
+  const signature = requireString(body.signature, 'signature', 2 + MAX_PROOF_SIGNATURE_BYTES * 2)
+  const signatureHexLength = signature.length - 2
+  if (
+    !/^0x[0-9a-fA-F]+$/.test(signature)
+    || signatureHexLength % 2 !== 0
+    || signatureHexLength / 2 > MAX_PROOF_SIGNATURE_BYTES
+  ) {
     throw new HttpError(400, 'invalid_request', 'Invalid signature.')
   }
   const fid = canonicalFid(body.fid)
@@ -309,16 +384,38 @@ function verifySignedMessage(input: ExchangeInput, challenge: ChallengeRecord, n
   } catch {
     throw new HttpError(401, 'invalid_proof', 'The Farcaster proof could not be verified.')
   }
+  const expirationTime = parsed.expirationTime
   if (
     parsed.domain !== challenge.domain
     || parsed.uri !== challenge.siweUri
     || parsed.nonce !== challenge.nonce
     || parsed.requestId !== challenge.requestId
-    || parsed.expirationTime?.toISOString() !== new Date(challenge.expiresAt).toISOString()
-    || !parsed.expirationTime
-    || parsed.expirationTime.getTime() <= now
+    || !expirationTime
+    || !Number.isFinite(expirationTime.getTime())
+    || expirationTime.toISOString() !== new Date(challenge.expiresAt).toISOString()
+    || expirationTime.getTime() <= now
   ) {
     throw new HttpError(401, 'invalid_proof', 'The Farcaster proof could not be verified.')
+  }
+}
+
+async function restoreRetryableChallenge(
+  store: ChallengeStore,
+  challenge: ChallengeRecord,
+  now: () => number,
+): Promise<void> {
+  let currentTime: number
+  try {
+    currentTime = now()
+  } catch {
+    return
+  }
+  if (!Number.isFinite(currentTime) || challenge.expiresAt <= currentTime) return
+  try {
+    await store.put(challenge)
+  } catch {
+    // Restoration is best effort. Failure leaves the challenge consumed and
+    // still fails closed without exposing proof or storage details.
   }
 }
 
@@ -342,17 +439,37 @@ function adminCredential(request: Request): string | null {
   return token.length > 0 ? token : null
 }
 
-function rejectOversizeRequest(request: Request): void {
-  const advertisedLength = request.headers.get('content-length')
-  if (advertisedLength && (!/^\d+$/.test(advertisedLength) || Number(advertisedLength) > MAX_REQUEST_BYTES)) {
-    throw new HttpError(413, 'body_too_large', 'Request body is too large.')
+async function rejectAdminBody(request: Request): Promise<void> {
+  if (request.headers.has('content-length')) {
+    const advertisedLength = request.headers.get('content-length')
+    if (advertisedLength === null || !/^\d+$/.test(advertisedLength)) {
+      throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+    }
+    const byteLength = Number(advertisedLength)
+    if (!Number.isSafeInteger(byteLength) || byteLength > MAX_REQUEST_BYTES) {
+      throw new HttpError(413, 'body_too_large', 'Request body is too large.')
+    }
+    if (byteLength > 0) {
+      throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+    }
   }
-}
+  if (!request.body) return
 
-function rejectAdminBody(request: Request): void {
-  rejectOversizeRequest(request)
-  if (request.body) {
-    throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+  const reader = request.body.getReader()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return
+      if (!value || value.byteLength === 0) continue
+      try {
+        await reader.cancel()
+      } catch {
+        // The endpoint remains fail-closed even if stream cancellation fails.
+      }
+      throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+    }
+  } finally {
+    reader.releaseLock()
   }
 }
 
@@ -373,6 +490,33 @@ function defaultAuthEpochResolver(config: BridgeConfig): AuthEpochResolver {
 function defaultChallengeStore(env: WorkerEnv): ChallengeStore {
   if (!env.CHALLENGE_REPLAY_GUARD) throw new ConfigurationError()
   return new DurableObjectChallengeStore(env.CHALLENGE_REPLAY_GUARD)
+}
+
+function defaultRateLimiter(env: WorkerEnv): RateLimiter {
+  if (!env.AUTH_RATE_LIMITER) throw new ConfigurationError()
+  return new DurableObjectRateLimiter(env.AUTH_RATE_LIMITER)
+}
+
+async function enforceRateLimit(
+  request: Request,
+  action: RateLimitAction,
+  env: WorkerEnv,
+  configured: RateLimiter | undefined,
+  logger: SafeLogger,
+): Promise<void> {
+  let result
+  try {
+    result = await (configured ?? defaultRateLimiter(env)).check(request, action)
+  } catch {
+    logger.event('rate_limit_failed')
+    throw new HttpError(503, 'rate_limit_unavailable', 'Authentication rate control is temporarily unavailable.')
+  }
+  if (!result.allowed) {
+    logger.event('rate_limited')
+    throw new HttpError(429, 'rate_limited', 'Too many authentication requests.', {
+      'retry-after': String(result.retryAfterSeconds),
+    })
+  }
 }
 
 /**
@@ -411,7 +555,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             jwks_uri: `${issuer}/.well-known/jwks.json`,
             subject_types_supported: ['public'],
             id_token_signing_alg_values_supported: ['ES256'],
-            claims_supported: ['sub', 'aud', 'fid', 'token_type', 'auth_epoch', 'roles'],
+            claims_supported: [
+              'sub', 'aud', 'fid', 'token_type', 'auth_epoch', 'roles', 'session_iat', 'session_exp',
+            ],
           }, 200, publicCorsHeaders(request, config))
         }
 
@@ -421,6 +567,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'POST' && url.pathname === '/v1/farcaster/challenge') {
           const origin = requireAllowedBrowserOrigin(request, config)
+          await enforceRateLimit(request, 'challenge', env, dependencies.rateLimiter, logger)
           const body = await parseObjectBody(request)
           parseChallengeRequest(body, config)
           const createdAt = now()
@@ -451,6 +598,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'POST' && url.pathname === '/v1/farcaster/exchange') {
           const origin = requireAllowedBrowserOrigin(request, config)
+          await enforceRateLimit(request, 'exchange', env, dependencies.rateLimiter, logger)
           const body = await parseObjectBody(request)
           const input = parseExchangeRequest(body)
           const store = dependencies.challengeStore ?? defaultChallengeStore(env)
@@ -459,6 +607,15 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           const currentTime = now()
           verifyLocalChallenge(input, challenge, origin, currentTime)
           verifySignedMessage(input, challenge, currentTime)
+
+          // Claim the challenge before any paid/upstream work. Only one
+          // contender can verify, resolve an epoch, or sign. Retryable service
+          // failures restore the still-live challenge below.
+          const claimed = await store.consume(input.requestId)
+          if (!claimed || claimed.nonce !== challenge.nonce || claimed.expiresAt !== challenge.expiresAt) {
+            logger.event('exchange_rejected')
+            throw new HttpError(401, 'challenge_replayed', 'This sign-in challenge is invalid or already used.')
+          }
           const verifier = dependencies.verifier ?? createOfficialFarcasterVerifier(config.farcasterRpcUrl)
           let verifiedFid: string
           try {
@@ -469,7 +626,12 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               domain: challenge.domain,
               acceptAuthAddress: true,
             })).fid)
-          } catch {
+          } catch (error) {
+            if (error instanceof FarcasterVerifierUnavailableError) {
+              await restoreRetryableChallenge(store, claimed, now)
+              logger.event('exchange_rejected')
+              throw new HttpError(503, 'verification_unavailable', 'Farcaster verification is temporarily unavailable.')
+            }
             logger.event('exchange_rejected')
             throw new HttpError(401, 'invalid_proof', 'The Farcaster proof could not be verified.')
           }
@@ -483,26 +645,37 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           let authEpoch: number
           try {
             authEpoch = requireEpoch(await (dependencies.authEpochResolver ?? defaultAuthEpochResolver(config)).resolve(verifiedFid))
-          } catch {
-            logger.event('auth_epoch_failed')
+          } catch (error) {
+            await restoreRetryableChallenge(store, claimed, now)
+            logAuthEpochFailure(logger, error)
             throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
           }
           logger.event('auth_epoch_resolved')
 
-          const issuedAt = Math.floor(currentTime / 1000)
+          // Upstream verification and authorization can cross the challenge's
+          // absolute deadline. Re-read authoritative time immediately before
+          // signing; an already claimed expired challenge stays consumed.
+          const signingTime = now()
+          if (!Number.isSafeInteger(signingTime) || signingTime < 0 || signingTime >= challenge.expiresAt) {
+            logger.event('exchange_rejected')
+            throw new HttpError(401, 'challenge_expired', 'This sign-in challenge has expired.')
+          }
+          const issuedAt = Math.floor(signingTime / 1000)
           let token: string
           try {
-            token = await signEs256Jwt(config, playerClaims(config, issuedAt, verifiedFid, authEpoch, input.identity))
+            token = await (dependencies.signer ?? signEs256Jwt)(
+              config,
+              playerClaims(config, issuedAt, verifiedFid, authEpoch, input.identity),
+            )
           } catch {
+            await restoreRetryableChallenge(store, claimed, now)
             logger.event('configuration_error')
             throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
           }
-          // A contender may prepare a token, but only the request that atomically
-          // consumes the one-time challenge is allowed to return one.
-          const consumed = await store.consume(input.requestId)
-          if (!consumed || consumed.nonce !== challenge.nonce || consumed.expiresAt !== challenge.expiresAt) {
+          const completionTime = now()
+          if (!Number.isSafeInteger(completionTime) || completionTime < 0 || completionTime >= challenge.expiresAt) {
             logger.event('exchange_rejected')
-            throw new HttpError(401, 'challenge_replayed', 'This sign-in challenge is invalid or already used.')
+            throw new HttpError(401, 'challenge_expired', 'This sign-in challenge has expired.')
           }
           logger.event('exchange_succeeded')
           return json({
@@ -514,7 +687,8 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'POST' && url.pathname === '/v1/admin/token') {
           requireAdminNoOrigin(request)
-          rejectAdminBody(request)
+          await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)
+          await rejectAdminBody(request)
           const credential = adminCredential(request)
           if (!credential || !(await timingSafeSecretMatch(credential, config.adminTokenSecret))) {
             logger.event('admin_token_rejected')
@@ -523,7 +697,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           const issuedAt = Math.floor(now() / 1000)
           let token: string
           try {
-            token = await signEs256Jwt(config, adminClaims(config, issuedAt))
+            token = await (dependencies.signer ?? signEs256Jwt)(config, adminClaims(config, issuedAt))
           } catch {
             logger.event('configuration_error')
             throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
@@ -532,17 +706,42 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           return json({ token, tokenType: 'spacetime-access', expiresIn: ADMIN_TOKEN_TTL_SECONDS })
         }
 
+        if (request.method === 'POST' && url.pathname === AUTH_EPOCH_PROBE_PATH) {
+          requireAdminNoOrigin(request)
+          // Reusing the existing persisted action preserves rollback compatibility.
+          await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)
+          await rejectAdminBody(request)
+          const credential = adminCredential(request)
+          if (!credential || !(await timingSafeSecretMatch(credential, config.adminTokenSecret))) {
+            logger.event('admin_probe_rejected')
+            throw new HttpError(401, 'invalid_admin_credentials', 'Admin credentials are invalid.')
+          }
+          if (url.search) {
+            throw new HttpError(400, 'admin_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          try {
+            requireEpoch(await (dependencies.authEpochResolver ?? defaultAuthEpochResolver(config)).resolve(AUTH_EPOCH_PROBE_FID))
+          } catch (error) {
+            const stage = authEpochResolverFailureStage(error)
+            if (!stage) throw error
+            logger.event('auth_epoch_probe_failed')
+            return json({ ok: false, stage }, 503)
+          }
+          logger.event('auth_epoch_probe_succeeded')
+          return json({ ok: true })
+        }
+
         throw new HttpError(404, 'not_found', 'Route not found.')
       } catch (error) {
         if (error instanceof HttpError) {
-          return errorResponse(error, url.pathname === '/v1/admin/token' ? {} : publicCorsHeaders(request, config))
+          return errorResponse(error, isServerOnlyAdminPath(url.pathname) ? {} : publicCorsHeaders(request, config))
         }
         // Do not attach `error`, request body, headers, or any request-derived
         // fields to logs: those can contain SIWF proof or credentials.
         logger.event('internal_error')
         return errorResponse(
           new HttpError(500, 'internal_error', 'Authentication service failed.'),
-          url.pathname === '/v1/admin/token' ? {} : publicCorsHeaders(request, config),
+          isServerOnlyAdminPath(url.pathname) ? {} : publicCorsHeaders(request, config),
         )
       }
     },

@@ -23,19 +23,18 @@ The pure tests cover the strict JWT-claim contract and the deterministic
 radius-four Lowlands map. They do not require, connect to, or publish a
 database.
 
-## Fail-closed deployment handoff
+## Live fail-closed deployment
 
-`src/config.ts` intentionally pins the impossible issuer
-`https://auth.warpkeep.invalid`. This prevents a prematurely published module
-from accepting a browser-created or unrelated bearer token. **Do not publish
-this module until that literal is replaced with the exact stable public OIDC
-issuer that serves discovery and JWKS over HTTPS.**
+`src/config.ts` pins the verified production issuer `https://auth.warpkeep.com`,
+which serves public discovery and JWKS. The matching module was published
+non-destructively after read-only inspection. Protected aggregate checks report
+exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players, and
+zero castles; a second seed remained at 61.
 
-The included `pnpm run stdb:publish:dev` command refuses to publish while the
-placeholder is present. It is a guard, not a deployment command. A deployment
-operator must then inspect `warpkeep-89e4u`, use only a non-destructive publish
-command, and never use `--delete-data`, `--break-clients`, or `--yes=all`.
-The initial real `allowed_fid` table must remain empty.
+The guarded publish command refuses an impossible or unverified issuer and
+requires explicit database confirmation. Operators must continue to inspect
+before mutation and never use `--delete-data`, `--break-clients`, or `--yes=all`.
+The real `allowed_fid` table remains empty pending owner denial QA.
 
 ## Authority and tables
 
@@ -75,8 +74,11 @@ the private whitelist.
 
 Player reducers derive FID solely from the signed bridge claim, require an
 enabled private `allowed_fid` row, and require the token's `auth_epoch` to
-match. `bootstrap_player` is idempotent and atomically creates the player,
-castle, and tile occupancy; the first admitted fixture receives `0,0`.
+match. They also recheck the bridge's signed, maximum-30-day absolute player
+session deadline against module time, even after SpacetimeDB exchanges the
+browser bearer for a temporary connection token. `bootstrap_player` is
+idempotent and atomically creates the player, castle, and tile occupancy; the
+first admitted fixture receives `0,0`.
 
 Admin reducers require that same separate bridge-issued Hermes token:
 
@@ -114,7 +116,8 @@ identity, audit, or live aggregate state.
 
 ## Closed-alpha token warning
 
-The 30-day browser-stored OIDC bearer token is a closed-alpha convenience.
-Production should use short-lived access tokens plus a trusted HttpOnly
-refresh/session flow. This module deliberately does not store SIWF proofs,
+The 30-day browser-stored OIDC bearer token is a closed-alpha convenience. Its
+signed absolute deadline is enforced on every player call; copied tokens remain
+usable until that deadline unless an auth epoch is bumped. Production should use
+short-lived access tokens plus a trusted HttpOnly refresh/session flow. This module deliberately does not store SIWF proofs,
 channel tokens, QR payloads, private keys, or admin credentials.

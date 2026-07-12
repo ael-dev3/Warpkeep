@@ -28,6 +28,17 @@ export type FarcasterAuthMethod = 'custody' | 'authAddress';
 
 export type FarcasterHex = `0x${string}`;
 
+export const FARCASTER_SIGNATURE_MAX_BYTES = 4 * 1_024;
+
+/** Accept EOA and bounded smart-account signatures without accepting arbitrary blobs. */
+export function isBoundedFarcasterSignature(value: unknown): value is FarcasterHex {
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]+$/.test(value)) {
+    return false;
+  }
+  const hexLength = value.length - 2;
+  return hexLength % 2 === 0 && hexLength / 2 <= FARCASTER_SIGNATURE_MAX_BYTES;
+}
+
 /** The presentation that best fits the player's current device. */
 export type FarcasterAuthPresentation = 'qr-first' | 'deep-link-first';
 
@@ -81,6 +92,13 @@ export type VerifiedFarcasterIdentity = Readonly<{
   verifiedAt: number;
 }>;
 
+/** Presentation-only identity. Verification addresses and method never enter React state. */
+export type PublicFarcasterIdentity = Readonly<
+  Omit<VerifiedFarcasterIdentity, 'custody' | 'verifications' | 'authMethod'> & {
+    verifications: readonly [];
+  }
+>;
+
 /** Public state safe to expose to React presentation components. */
 export type FarcasterAuthViewState =
   | Readonly<{ phase: 'anonymous' }>
@@ -97,7 +115,7 @@ export type FarcasterAuthViewState =
     }>
   | Readonly<{
       phase: 'authenticated';
-      identity: VerifiedFarcasterIdentity;
+      identity: PublicFarcasterIdentity;
       assurance: FarcasterSessionAssurance;
       /** Present for an expiring restored authoritative session. */
       expiresAt?: number;

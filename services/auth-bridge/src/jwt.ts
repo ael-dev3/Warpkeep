@@ -1,5 +1,10 @@
 import type { AdminTokenClaims, PlayerTokenClaims } from './types'
-import { ADMIN_TOKEN_TTL_SECONDS, INTERNAL_ADMIN_TOKEN_TTL_SECONDS, type BridgeConfig } from './config'
+import {
+  ADMIN_TOKEN_TTL_SECONDS,
+  INTERNAL_ADMIN_TOKEN_TTL_SECONDS,
+  PLAYER_TOKEN_TTL_SECONDS,
+  type BridgeConfig,
+} from './config'
 
 const encoder = new TextEncoder()
 
@@ -68,7 +73,9 @@ export function playerClaims(
     roles: [],
     iat: nowSeconds,
     nbf: nowSeconds,
-    exp: nowSeconds + 30 * 24 * 60 * 60,
+    exp: nowSeconds + PLAYER_TOKEN_TTL_SECONDS,
+    session_iat: nowSeconds,
+    session_exp: nowSeconds + PLAYER_TOKEN_TTL_SECONDS,
     jti: randomId(),
     ...(display?.username ? { username: display.username } : {}),
     ...(display?.displayName ? { display_name: display.displayName } : {}),

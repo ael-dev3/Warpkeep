@@ -1,8 +1,9 @@
-import type {
-  FarcasterBridgeChallenge,
-  FarcasterBridgeChallengeRequest,
-  FarcasterBridgeExchangeRequest,
-  FarcasterOidcBridgeClient
+import {
+  isBoundedFarcasterSignature,
+  type FarcasterBridgeChallenge,
+  type FarcasterBridgeChallengeRequest,
+  type FarcasterBridgeExchangeRequest,
+  type FarcasterOidcBridgeClient
 } from './farcasterAuthTypes';
 import {
   FARCASTER_OIDC_DEFAULT_AUDIENCE,
@@ -15,17 +16,16 @@ import {
   readWarpkeepRuntimeConfig
 } from '../spacetime/warpkeepConfig';
 
-const MAX_RESPONSE_LENGTH = 32_768;
-const MAX_PROOF_MESSAGE_LENGTH = 65_536;
+const MAX_RESPONSE_BYTES = 32_768;
+const MAX_PROOF_MESSAGE_LENGTH = 8 * 1_024;
+const BRIDGE_REQUEST_TIMEOUT_MS = 10_000;
 const NONCE_PATTERN = /^[A-Za-z0-9]{8,128}$/;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;
-const HEX_SIGNATURE_PATTERN = /^0x(?:[0-9a-fA-F]{2})+$/;
 
-type BridgeFetchResponse = Pick<Response, 'ok' | 'text'>;
 export type FarcasterOidcBridgeFetch = (
   input: RequestInfo | URL,
   init?: RequestInit
-) => Promise<BridgeFetchResponse>;
+) => Promise<Response>;
 
 export type CreateFarcasterOidcBridgeClientOptions = Readonly<{
   bridgeUrl?: string;
@@ -152,8 +152,7 @@ function readSafeExchangeBody(request: FarcasterBridgeExchangeRequest) {
     || typeof request.message !== 'string'
     || request.message.length === 0
     || request.message.length > MAX_PROOF_MESSAGE_LENGTH
-    || typeof request.signature !== 'string'
-    || !HEX_SIGNATURE_PATTERN.test(request.signature)
+    || !isBoundedFarcasterSignature(request.signature)
     || typeof request.nonce !== 'string'
     || !NONCE_PATTERN.test(request.nonce)
     || !isSafeFid(request.fid)
@@ -185,7 +184,7 @@ function readSafeExchangeBody(request: FarcasterBridgeExchangeRequest) {
     }
     try {
       const url = new URL(value);
-      return (url.protocol === 'https:' || url.protocol === 'http:')
+      return url.protocol === 'https:'
         && url.username === ''
         && url.password === ''
         ? url.toString()
@@ -232,18 +231,70 @@ function readSafeExchangeBody(request: FarcasterBridgeExchangeRequest) {
   };
 }
 
+function hasJsonContentType(response: Response) {
+  return response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() === 'application/json';
+}
+
+async function readBoundedResponseText(response: Response) {
+  const advertisedLength = response.headers.get('content-length');
+  if (advertisedLength && (!/^\d+$/.test(advertisedLength) || Number(advertisedLength) > MAX_RESPONSE_BYTES)) {
+    throw new FarcasterOidcBridgeClientError();
+  }
+  if (!response.body) {
+    throw new FarcasterOidcBridgeClientError();
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_RESPONSE_BYTES) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Keep the public failure generic even when cancellation fails.
+        }
+        throw new FarcasterOidcBridgeClientError();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new FarcasterOidcBridgeClientError();
+  }
+}
+
 async function postJson(
   fetchImplementation: FarcasterOidcBridgeFetch,
   url: URL,
   body: unknown
 ) {
-  let response: BridgeFetchResponse;
+  let response: Response;
   try {
     response = await fetchImplementation(url, {
       method: 'POST',
       mode: 'cors',
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
+      redirect: 'error',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(BRIDGE_REQUEST_TIMEOUT_MS),
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
@@ -251,17 +302,17 @@ async function postJson(
     throw new FarcasterOidcBridgeClientError();
   }
 
-  if (!response.ok) {
+  if (!response.ok || !hasJsonContentType(response)) {
     throw new FarcasterOidcBridgeClientError();
   }
 
   let responseText: string;
   try {
-    responseText = await response.text();
+    responseText = await readBoundedResponseText(response);
   } catch {
     throw new FarcasterOidcBridgeClientError();
   }
-  if (responseText.length === 0 || responseText.length > MAX_RESPONSE_LENGTH) {
+  if (responseText.length === 0) {
     throw new FarcasterOidcBridgeClientError();
   }
   try {

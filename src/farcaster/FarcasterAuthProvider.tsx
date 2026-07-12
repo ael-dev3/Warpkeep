@@ -13,10 +13,12 @@ import {
 
 import {
   clearFarcasterRememberedDeviceSession,
+  getFarcasterDeviceSessionControlKey,
   getFarcasterDeviceSessionStorageKey,
   getLegacyFarcasterDeviceSessionStorageKey,
   persistFarcasterRememberedDeviceSession,
   restoreFarcasterRememberedDeviceSession,
+  signalFarcasterSessionTermination,
   toFarcasterOidcSession,
   type FarcasterDeviceSessionEnvironment,
   type FarcasterRememberedDeviceSession
@@ -721,19 +723,26 @@ export function FarcasterAuthProvider({
   pollIntervalMs,
   deviceSessionEnvironment
 }: FarcasterAuthProviderProps) {
-  const [initialRememberedSession] = useState(() => (
-    restoreFarcasterRememberedDeviceSession({ ...deviceSessionEnvironment, now })
-  ));
+  const initialRememberedSessionRef = useRef<
+    FarcasterRememberedDeviceSession | null | undefined
+  >(undefined);
+  if (initialRememberedSessionRef.current === undefined) {
+    initialRememberedSessionRef.current = restoreFarcasterRememberedDeviceSession({
+      ...deviceSessionEnvironment,
+      now
+    }) ?? null;
+  }
+  const initialRememberedSession = initialRememberedSessionRef.current ?? undefined;
   const [machine, dispatch] = useReducer(
     farcasterAuthMachineReducer,
     rememberedMachineSession(initialRememberedSession),
     createFarcasterAuthMachineState
   );
-  const [oidcSession, setOidcSession] = useState<FarcasterOidcSession | undefined>(() => (
-    initialRememberedSession
-      ? toFarcasterOidcSession(initialRememberedSession)
-      : undefined
-  ));
+  const [oidcSession, setOidcSession] = useState<FarcasterOidcSession | undefined>(() => {
+    const remembered = initialRememberedSessionRef.current ?? undefined;
+    initialRememberedSessionRef.current = null;
+    return remembered ? toFarcasterOidcSession(remembered) : undefined;
+  });
   const [rememberDevice, setRememberDeviceState] = useState(true);
   const [hasRememberedDevice, setHasRememberedDevice] = useState(Boolean(initialRememberedSession));
   const controllerRef = useRef<FarcasterAuthController | undefined>(undefined);
@@ -752,11 +761,21 @@ export function FarcasterAuthProvider({
     setHasRememberedDevice(false);
   }, [deviceSessionEnvironment, now]);
 
-  const clearAuthoritativeSession = useCallback(() => {
-    clearRememberedDevice();
+  const clearInMemoryAuthoritativeSession = useCallback(() => {
     sessionOriginRef.current = undefined;
+    oidcSessionRef.current = undefined;
     setOidcSession(undefined);
-  }, [clearRememberedDevice]);
+  }, []);
+
+  const clearLocalAuthoritativeSession = useCallback(() => {
+    clearRememberedDevice();
+    clearInMemoryAuthoritativeSession();
+  }, [clearInMemoryAuthoritativeSession, clearRememberedDevice]);
+
+  const clearAuthoritativeSession = useCallback(() => {
+    clearLocalAuthoritativeSession();
+    signalFarcasterSessionTermination({ ...deviceSessionEnvironment, now });
+  }, [clearLocalAuthoritativeSession, deviceSessionEnvironment, now]);
 
   const persistBridgeSession = useCallback((
     identity: VerifiedFarcasterIdentity,
@@ -894,11 +913,24 @@ export function FarcasterAuthProvider({
   useEffect(() => {
     const key = getFarcasterDeviceSessionStorageKey(deviceSessionEnvironment?.basePath);
     const legacyKey = getLegacyFarcasterDeviceSessionStorageKey(deviceSessionEnvironment?.basePath);
+    const controlKey = getFarcasterDeviceSessionControlKey(deviceSessionEnvironment?.basePath);
     if (typeof window === 'undefined' || !key) {
       return undefined;
     }
 
     const handleStorage = (event: StorageEvent) => {
+      if (event.key === controlKey && event.newValue !== null) {
+        const current = machineRef.current;
+        controller.cancelSignIn();
+        clearLocalAuthoritativeSession();
+        if (
+          current.view.phase === 'authenticated'
+          && current.view.assurance === 'bridge-oidc-alpha'
+        ) {
+          dispatch({ type: 'sign-out', generation: current.generation });
+        }
+        return;
+      }
       if (event.key !== null && event.key !== key && event.key !== legacyKey) {
         return;
       }
@@ -914,14 +946,22 @@ export function FarcasterAuthProvider({
           && current.view.assurance === 'bridge-oidc-alpha'
           && sessionOriginRef.current === 'restored'
         ) {
-          sessionOriginRef.current = undefined;
-          setOidcSession(undefined);
+          clearInMemoryAuthoritativeSession();
           dispatch({ type: 'sign-out', generation: current.generation });
         }
         return;
       }
 
       setHasRememberedDevice(true);
+      if (
+        current.view.phase === 'authenticated'
+        && current.view.assurance === 'bridge-oidc-alpha'
+        && restored.identity.fid !== current.view.identity.fid
+      ) {
+        clearInMemoryAuthoritativeSession();
+        dispatch({ type: 'sign-out', generation: current.generation });
+        return;
+      }
       if (current.view.phase === 'anonymous') {
         const restoredSession = rememberedMachineSession(restored);
         if (restoredSession) {
@@ -938,7 +978,7 @@ export function FarcasterAuthProvider({
 
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [deviceSessionEnvironment, now]);
+  }, [clearInMemoryAuthoritativeSession, clearLocalAuthoritativeSession, controller, deviceSessionEnvironment, now]);
 
   const value = useMemo<FarcasterAuthControllerValue>(() => ({
     state: machine.view,

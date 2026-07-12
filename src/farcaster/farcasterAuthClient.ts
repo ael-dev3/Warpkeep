@@ -5,26 +5,27 @@ import {
   type FarcasterSecureRandomSource
 } from './farcasterAuthContext';
 import { FarcasterOidcBridgeClientError } from './farcasterOidcBridgeClient';
-import type {
-  FarcasterAuthContext,
-  FarcasterAuthError,
-  FarcasterAuthErrorCode,
-  FarcasterAuthMethod,
-  FarcasterBridgeChallenge,
-  FarcasterChannelStatus,
-  FarcasterCompletedChannelStatus,
-  FarcasterExpectedSignInRequest,
-  FarcasterHex,
-  FarcasterSessionAuthority,
-  FarcasterSignInChannel,
-  VerifiedFarcasterIdentity
+import {
+  isBoundedFarcasterSignature,
+  type FarcasterAuthContext,
+  type FarcasterAuthError,
+  type FarcasterAuthErrorCode,
+  type FarcasterAuthMethod,
+  type FarcasterBridgeChallenge,
+  type FarcasterChannelStatus,
+  type FarcasterCompletedChannelStatus,
+  type FarcasterExpectedSignInRequest,
+  type FarcasterHex,
+  type FarcasterSessionAuthority,
+  type FarcasterSignInChannel,
+  type VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';
 
 export const FARCASTER_AUTH_RELAY_URL = 'https://relay.farcaster.xyz';
 export const FARCASTER_OPTIMISM_RPC_URL = 'https://mainnet.optimism.io';
 
 const MAX_CHANNEL_URL_LENGTH = 8_192;
-const MAX_PROOF_MESSAGE_LENGTH = 65_536;
+const MAX_PROOF_MESSAGE_LENGTH = 8 * 1_024;
 const MAX_PROFILE_FIELD_LENGTH = 256;
 const MAX_PROFILE_URL_LENGTH = 2_048;
 const MAX_VERIFICATIONS = 100;
@@ -98,8 +99,7 @@ function isChannelToken(value: unknown): value is string {
 }
 
 function isHex(value: unknown): value is FarcasterHex {
-  return typeof value === 'string'
-    && /^0x(?:[0-9a-fA-F]{2})+$/.test(value);
+  return isBoundedFarcasterSignature(value);
 }
 
 function isAddress(value: unknown): value is FarcasterHex {
@@ -359,7 +359,7 @@ function optionalProfileUrl(data: Record<string, unknown>) {
   try {
     const url = new URL(value);
     if (
-      (url.protocol !== 'https:' && url.protocol !== 'http:')
+      url.protocol !== 'https:'
       || url.username !== ''
       || url.password !== ''
     ) {

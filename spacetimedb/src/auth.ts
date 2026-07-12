@@ -10,9 +10,11 @@ import {
   type WarpkeepBaseJwtClaims,
   type WarpkeepJwtClaims,
   isHermesAdminJwt,
+  readFreshHermesAdminJwt,
+  readFreshWarpkeepPlayerJwt,
   readWarpkeepBaseJwt,
-  readWarpkeepJwt,
 } from './claims';
+import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
 import type warpkeep from './schema';
 
@@ -38,7 +40,10 @@ function requireJwtPayload(auth: AuthCtx): unknown {
 /** Require the complete bridge-issued Farcaster player token contract. */
 export function requireWarpkeepJwt(ctx: WarpkeepReducerContext): WarpkeepJwtClaims {
   try {
-    return readWarpkeepJwt(requireJwtPayload(ctx.senderAuth));
+    return readFreshWarpkeepPlayerJwt(
+      requireJwtPayload(ctx.senderAuth),
+      ctx.timestamp.microsSinceUnixEpoch,
+    );
   } catch (error) {
     return senderError(error);
   }
@@ -56,7 +61,9 @@ export function requireWarpkeepConnection(
   try {
     const payload = requireJwtPayload(ctx.senderAuth);
     const base = readWarpkeepBaseJwt(payload);
-    return isHermesAdminJwt(base) ? base : readWarpkeepJwt(payload);
+    return isHermesAdminJwt(base)
+      ? base
+      : readFreshWarpkeepPlayerJwt(payload, ctx.timestamp.microsSinceUnixEpoch);
   } catch (error) {
     return senderError(error);
   }
@@ -65,11 +72,10 @@ export function requireWarpkeepConnection(
 /** Require a bridge-issued admin token; admin tokens intentionally have no FID. */
 export function requireAdmin(ctx: WarpkeepReducerContext): WarpkeepBaseJwtClaims {
   try {
-    const claims = readWarpkeepBaseJwt(requireJwtPayload(ctx.senderAuth));
-    if (!isHermesAdminJwt(claims)) {
-      throw new SenderError('ADMIN_REQUIRED');
-    }
-    return claims;
+    return readFreshHermesAdminJwt(
+      requireJwtPayload(ctx.senderAuth),
+      ctx.timestamp.microsSinceUnixEpoch,
+    );
   } catch (error) {
     return senderError(error);
   }
@@ -81,16 +87,17 @@ export function requireAllowedFid(ctx: WarpkeepReducerContext): {
 } {
   const claims = requireWarpkeepJwt(ctx);
   const allowed = ctx.db.allowedFid.fid.find(claims.fid);
+  const decision = evaluateAdmissionEpoch(allowed, claims.authEpoch);
 
-  if (allowed === null || !allowed.enabled) {
+  if (decision === 'missing' || decision === 'disabled') {
     throw new SenderError('NOT_ADMITTED');
   }
 
-  if (allowed.authEpoch !== claims.authEpoch) {
+  if (decision === 'epoch_mismatch') {
     throw new SenderError('AUTH_EPOCH_MISMATCH');
   }
 
-  return { claims, allowed };
+  return { claims, allowed: allowed! };
 }
 
 export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {

@@ -6,6 +6,15 @@ export interface DurableObjectStorage {
   get<T>(key: string): Promise<T | undefined>
   put<T>(key: string, value: T): Promise<void>
   delete(key: string): Promise<boolean>
+  deleteAll(): Promise<void>
+  setAlarm(scheduledTime: number | Date): Promise<void>
+  transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T>
+}
+
+export interface DurableObjectTransaction {
+  get<T>(key: string): Promise<T | undefined>
+  put<T>(key: string, value: T): Promise<void>
+  delete(key: string): Promise<boolean>
 }
 
 export interface DurableObjectState {
@@ -47,6 +56,7 @@ export interface WorkerEnv {
   SPACETIMEDB_DATABASE?: string
   ENVIRONMENT?: string
   CHALLENGE_REPLAY_GUARD?: DurableObjectNamespace
+  AUTH_RATE_LIMITER?: DurableObjectNamespace
 }
 
 export interface ExecutionContextLike {
@@ -63,8 +73,19 @@ export type SafeLogEvent =
   | 'exchange_rejected'
   | 'admin_token_issued'
   | 'admin_token_rejected'
+  | 'admin_probe_rejected'
   | 'auth_epoch_resolved'
   | 'auth_epoch_failed'
+  | 'auth_epoch_failed_signing'
+  | 'auth_epoch_failed_fetch_request'
+  | 'auth_epoch_failed_fetch_body'
+  | 'auth_epoch_failed_timeout'
+  | 'auth_epoch_failed_upstream_status'
+  | 'auth_epoch_failed_response_validation'
+  | 'auth_epoch_probe_succeeded'
+  | 'auth_epoch_probe_failed'
+  | 'rate_limited'
+  | 'rate_limit_failed'
   | 'configuration_error'
   | 'internal_error'
 
@@ -120,6 +141,16 @@ export interface AuthEpochResolver {
   resolve(fid: string): Promise<number>
 }
 
+export type RateLimitAction = 'challenge' | 'exchange' | 'admin-token'
+
+export type RateLimitResult =
+  | { allowed: true }
+  | { allowed: false; retryAfterSeconds: number }
+
+export interface RateLimiter {
+  check(request: Request, action: RateLimitAction): Promise<RateLimitResult>
+}
+
 export interface PublicIdentity {
   fid: string
   username?: string
@@ -139,6 +170,9 @@ export interface PlayerTokenClaims {
   iat: number
   nbf: number
   exp: number
+  /** Original player-session window, preserved when SpacetimeDB re-signs a WebSocket token. */
+  session_iat: number
+  session_exp: number
   jti: string
   username?: string
   display_name?: string

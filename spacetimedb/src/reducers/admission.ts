@@ -4,6 +4,7 @@ import {
   optionalDisplayClaim,
   type WarpkeepJwtClaims,
 } from '../claims';
+import { evaluateAdmissionEpoch } from '../admissionPolicy';
 import { requireAllowedFid, requireWarpkeepJwt } from '../auth';
 import warpkeep from '../schema';
 import { CANONICAL_WORLD_TILES } from '../world';
@@ -17,9 +18,10 @@ export type AdmissionStatus =
 function admissionStatus(ctx: Parameters<typeof requireWarpkeepJwt>[0]): AdmissionStatus {
   const claims = requireWarpkeepJwt(ctx);
   const allowed = ctx.db.allowedFid.fid.find(claims.fid);
+  const decision = evaluateAdmissionEpoch(allowed, claims.authEpoch);
 
-  if (allowed === null) return 'not_admitted';
-  if (!allowed.enabled || allowed.authEpoch !== claims.authEpoch) return 'disabled';
+  if (decision === 'missing') return 'not_admitted';
+  if (decision !== 'current') return 'disabled';
 
   const player = ctx.db.player.fid.find(claims.fid);
   if (player === null) return 'admitted_needs_bootstrap';
