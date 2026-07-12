@@ -442,6 +442,8 @@ function verifyProtectedAggregateIfConfigured() {
     encoding: 'utf8',
     env: process.env,
     maxBuffer: MAX_DOCUMENT_BYTES,
+    timeout: 30_000,
+    killSignal: 'SIGTERM',
   });
   if (result.error || result.status !== 0 || result.signal) {
     fail('protected aggregate inspection failed.');

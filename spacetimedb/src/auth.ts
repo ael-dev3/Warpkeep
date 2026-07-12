@@ -10,6 +10,7 @@ import {
   type WarpkeepBaseJwtClaims,
   type WarpkeepJwtClaims,
   isHermesAdminJwt,
+  readFreshHermesAdminJwt,
   readWarpkeepBaseJwt,
   readWarpkeepJwt,
 } from './claims';
@@ -65,11 +66,10 @@ export function requireWarpkeepConnection(
 /** Require a bridge-issued admin token; admin tokens intentionally have no FID. */
 export function requireAdmin(ctx: WarpkeepReducerContext): WarpkeepBaseJwtClaims {
   try {
-    const claims = readWarpkeepBaseJwt(requireJwtPayload(ctx.senderAuth));
-    if (!isHermesAdminJwt(claims)) {
-      throw new SenderError('ADMIN_REQUIRED');
-    }
-    return claims;
+    return readFreshHermesAdminJwt(
+      requireJwtPayload(ctx.senderAuth),
+      ctx.timestamp.microsSinceUnixEpoch,
+    );
   } catch (error) {
     return senderError(error);
   }

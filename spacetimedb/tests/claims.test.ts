@@ -3,8 +3,10 @@ import test from 'node:test';
 
 import {
   ClaimValidationError,
+  MAX_HERMES_ADMIN_SESSION_SECONDS,
   isHermesAdminJwt,
   parseFidClaim,
+  readFreshHermesAdminJwt,
   readWarpkeepBaseJwt,
   readWarpkeepJwt,
 } from '../src/claims';
@@ -24,6 +26,20 @@ function playerPayload(overrides: Record<string, unknown> = {}) {
     fid: '12345',
     auth_epoch: 0,
     roles: [],
+    ...overrides,
+  };
+}
+
+function adminPayload(overrides: Record<string, unknown> = {}) {
+  const iat = 1_700_000_000;
+  return {
+    iss: config.issuer,
+    sub: 'service:hermes',
+    aud: [config.audience],
+    token_type: config.tokenType,
+    roles: ['warpkeep-admin'],
+    iat,
+    exp: iat + MAX_HERMES_ADMIN_SESSION_SECONDS,
     ...overrides,
   };
 }
@@ -67,6 +83,15 @@ test('requires an unsigned 32-bit auth epoch for player tokens', () => {
   }
 });
 
+test('requires player roles to remain exactly empty', () => {
+  for (const roles of [['warpkeep-admin'], ['player'], ['player', 'player']]) {
+    assert.throws(
+      () => readWarpkeepJwt(playerPayload({ roles }), config),
+      (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_ROLES',
+    );
+  }
+});
+
 test('allows the short-lived admin shape without a player FID', () => {
   const claims = readWarpkeepBaseJwt(
     {
@@ -101,4 +126,38 @@ test('rejects a player-shaped token even when it carries an admin-looking role',
 
   assert.equal(isHermesAdminJwt(playerClaims), false);
   assert.equal(isHermesAdminJwt(overprivilegedServiceClaims), false);
+});
+
+test('expires Hermes authority at reducer time even when the socket stays open', () => {
+  const exp = 1_700_000_000 + MAX_HERMES_ADMIN_SESSION_SECONDS;
+  const valid = readFreshHermesAdminJwt(adminPayload(), BigInt(exp) * 1_000_000n - 1n, config);
+  assert.equal(valid.subject, 'service:hermes');
+
+  for (const currentTimeMicros of [
+    BigInt(exp) * 1_000_000n,
+    BigInt(exp + 1) * 1_000_000n,
+  ]) {
+    assert.throws(
+      () => readFreshHermesAdminJwt(adminPayload(), currentTimeMicros, config),
+      (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_ADMIN_SESSION',
+    );
+  }
+});
+
+test('rejects malformed or overlong Hermes session windows', () => {
+  const nowMicros = 1_700_000_001n * 1_000_000n;
+  for (const payload of [
+    adminPayload({ iat: undefined }),
+    adminPayload({ exp: '1700000300' }),
+    adminPayload({ exp: 1_700_000_000.5 }),
+    adminPayload({ exp: Number.MAX_SAFE_INTEGER + 1 }),
+    adminPayload({ exp: 1_700_000_000 }),
+    adminPayload({ exp: 1_700_000_000 + MAX_HERMES_ADMIN_SESSION_SECONDS + 1 }),
+    adminPayload({ sub: 'farcaster:12345', roles: [] }),
+  ]) {
+    assert.throws(
+      () => readFreshHermesAdminJwt(payload, nowMicros, config),
+      (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_ADMIN_SESSION',
+    );
+  }
 });

@@ -4,6 +4,9 @@ type Command = 'seed-world' | 'allow-fid' | 'disable-fid' | 'bump-auth-epoch' | 
 
 const DEFAULT_DATABASE = 'warpkeep-89e4u';
 const DEFAULT_URI = 'https://maincloud.spacetimedb.com';
+const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
+const CONNECT_TIMEOUT_MS = 10_000;
+const OPERATION_TIMEOUT_MS = 15_000;
 
 function fail(message: string): never {
   throw new Error(message);
@@ -75,7 +78,13 @@ async function requestAdminToken(bridgeUrl: string, secret: string) {
   try {
     response = await fetch(new URL('v1/admin/token', `${bridgeUrl}/`), {
       method: 'POST',
-      headers: { authorization: `Bearer ${secret}` },
+      headers: {
+        authorization: `Bearer ${secret}`,
+        accept: 'application/json',
+        'cache-control': 'no-store',
+      },
+      cache: 'no-store',
+      redirect: 'error',
       signal: AbortSignal.timeout(10_000)
     });
   } catch {
@@ -99,20 +108,44 @@ async function requestAdminToken(bridgeUrl: string, secret: string) {
   return (body as { token: string }).token;
 }
 
+function requireCredentialedProductionTarget(uri: string, database: string, bridgeUrl: string): void {
+  if (uri !== DEFAULT_URI || database !== DEFAULT_DATABASE || bridgeUrl !== DEFAULT_BRIDGE) {
+    fail('Credentialed Hermes commands require the canonical Warpkeep production targets.');
+  }
+}
+
+function withOperationTimeout<T>(operation: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('Warpkeep database operation timed out.')), OPERATION_TIMEOUT_MS);
+  });
+  return Promise.race([operation, deadline]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
 function connect(uri: string, database: string, token: string): Promise<DbConnection> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const settle = (callback: () => void) => {
-      if (settled) return;
+      if (settled) return false;
       settled = true;
+      if (timer !== undefined) clearTimeout(timer);
       callback();
+      return true;
     };
+    timer = setTimeout(() => {
+      settle(() => reject(new Error('Could not connect to the Warpkeep database.')));
+    }, CONNECT_TIMEOUT_MS);
     try {
       DbConnection.builder()
         .withUri(uri)
         .withDatabaseName(database)
         .withToken(token)
-        .onConnect((connection) => settle(() => resolve(connection)))
+        .onConnect((connection) => {
+          if (!settle(() => resolve(connection))) connection.disconnect();
+        })
         .onConnectError(() => settle(() => reject(new Error('Could not connect to the Warpkeep database.'))))
         .build();
     } catch {
@@ -122,7 +155,7 @@ function connect(uri: string, database: string, token: string): Promise<DbConnec
 }
 
 async function readStatus(connection: DbConnection, machineReadable = false) {
-  const status = await connection.procedures.adminGetAlphaStatus({});
+  const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatus({}));
   if (machineReadable) {
     // Keep the verifier contract deliberately narrow: it needs aggregate
     // activation state, never audit records, targets, identities, or tokens.
@@ -169,19 +202,20 @@ async function main() {
   }
 
   const bridgeUrl = readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
+  requireCredentialedProductionTarget(uri, database, bridgeUrl);
   const secret = process.env.WARPKEEP_ADMIN_TOKEN_SECRET;
   if (!secret) fail('WARPKEEP_ADMIN_TOKEN_SECRET is required.');
   const token = await requestAdminToken(bridgeUrl, secret);
   const connection = await connect(uri, database, token);
   try {
     if (command === 'seed-world') {
-      await connection.reducers.adminSeedWorld({});
+      await withOperationTimeout(connection.reducers.adminSeedWorld({}));
     } else if (command === 'allow-fid' && fid !== undefined && note !== undefined) {
-      await connection.reducers.adminAllowFid({ fid, note });
+      await withOperationTimeout(connection.reducers.adminAllowFid({ fid, note }));
     } else if (command === 'disable-fid' && fid !== undefined && note !== undefined) {
-      await connection.reducers.adminDisableFid({ fid, note });
+      await withOperationTimeout(connection.reducers.adminDisableFid({ fid, note }));
     } else if (command === 'bump-auth-epoch' && fid !== undefined && note !== undefined) {
-      await connection.reducers.adminBumpAuthEpoch({ fid, note });
+      await withOperationTimeout(connection.reducers.adminBumpAuthEpoch({ fid, note }));
     }
     await readStatus(connection, machineReadableInspection);
   } finally {

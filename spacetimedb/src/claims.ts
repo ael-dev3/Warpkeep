@@ -14,7 +14,10 @@ export type ClaimErrorCode =
   | 'INVALID_SUBJECT'
   | 'INVALID_FID'
   | 'INVALID_AUTH_EPOCH'
-  | 'INVALID_ROLES';
+  | 'INVALID_ROLES'
+  | 'INVALID_ADMIN_SESSION';
+
+export const MAX_HERMES_ADMIN_SESSION_SECONDS = 5 * 60;
 
 export class ClaimValidationError extends Error {
   readonly code: ClaimErrorCode;
@@ -174,6 +177,9 @@ export function readWarpkeepJwt(
   if (base.subject !== `farcaster:${fid.toString()}`) {
     throw new ClaimValidationError('INVALID_SUBJECT');
   }
+  if (base.roles.length !== 0) {
+    throw new ClaimValidationError('INVALID_ROLES');
+  }
 
   return Object.freeze({ ...base, fid, authEpoch });
 }
@@ -189,6 +195,40 @@ export function isHermesAdminJwt(claims: WarpkeepBaseJwtClaims): boolean {
     claims.roles.length === 1 &&
     claims.roles[0] === WARPKEEP_ADMIN_ROLE
   );
+}
+
+function readNumericDate(record: JsonRecord, key: 'iat' | 'exp'): number {
+  const value = record[key];
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new ClaimValidationError('INVALID_ADMIN_SESSION');
+  }
+  return value;
+}
+
+/**
+ * SpacetimeDB authenticates a WebSocket once. Recheck the short-lived Hermes
+ * session against authoritative reducer time so an already-open admin socket
+ * cannot retain authority after its JWT expires.
+ */
+export function readFreshHermesAdminJwt(
+  payload: unknown,
+  currentTimeMicros: bigint,
+  config: WarpkeepJwtConfig = WARPKEEP_JWT_CONFIG,
+): WarpkeepBaseJwtClaims {
+  const claims = readWarpkeepBaseJwt(payload, config);
+  const record = expectRecord(payload);
+  const issuedAt = readNumericDate(record, 'iat');
+  const expiresAt = readNumericDate(record, 'exp');
+  if (
+    !isHermesAdminJwt(claims)
+    || currentTimeMicros < 0n
+    || expiresAt <= issuedAt
+    || expiresAt - issuedAt > MAX_HERMES_ADMIN_SESSION_SECONDS
+    || currentTimeMicros >= BigInt(expiresAt) * 1_000_000n
+  ) {
+    throw new ClaimValidationError('INVALID_ADMIN_SESSION');
+  }
+  return claims;
 }
 
 export function optionalDisplayClaim(
