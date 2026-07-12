@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, feat/spacetimedb-basic-connection]
+    branches: [main, feat/spacetimedb-basic-connection, security/alpha-0.2-preflight]
 
 permissions:
   contents: read
