@@ -45,6 +45,8 @@ chain through `63336dd668e901b9ed22752528130c6005182152`:
 - an independent pre-deployment review caught malformed framing and BOM-only
   admin-body cases; the raw-byte guard and regressions were corrected and
   independently passed before the Worker was deployed.
+- protected aggregate JSON mode suppresses only SpacetimeDB SDK informational
+  chatter; the one-object stdout contract and full production verifier pass.
 
 No real FID was admitted. Empty-whitelist denial remains owner-controlled QA,
 not a completed assurance in this report.
@@ -221,7 +223,7 @@ Security tests now cover:
   job permissions/timeouts, stacked-PR triggers, and non-executing CodeQL mode;
 - real SpacetimeDB 2.6.1 module build and generated binding equivalence.
 
-The latest clean activation matrix passed: 56 root test files / 383 tests, 56
+The latest clean activation matrix passed: 56 root test files / 384 tests, 56
 Worker tests, 22 module tests, all typechecks, three root production build
 variants, real SpacetimeDB 2.6.1 module build, generated-binding equivalence,
 workflow YAML parsing, and `git diff --check`. Root, Worker, and module audits
