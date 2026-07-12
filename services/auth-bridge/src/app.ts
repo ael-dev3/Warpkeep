@@ -415,17 +415,37 @@ function adminCredential(request: Request): string | null {
   return token.length > 0 ? token : null
 }
 
-function rejectOversizeRequest(request: Request): void {
-  const advertisedLength = request.headers.get('content-length')
-  if (advertisedLength && (!/^\d+$/.test(advertisedLength) || Number(advertisedLength) > MAX_REQUEST_BYTES)) {
-    throw new HttpError(413, 'body_too_large', 'Request body is too large.')
+async function rejectAdminBody(request: Request): Promise<void> {
+  if (request.headers.has('content-length')) {
+    const advertisedLength = request.headers.get('content-length')
+    if (advertisedLength === null || !/^\d+$/.test(advertisedLength)) {
+      throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+    }
+    const byteLength = Number(advertisedLength)
+    if (!Number.isSafeInteger(byteLength) || byteLength > MAX_REQUEST_BYTES) {
+      throw new HttpError(413, 'body_too_large', 'Request body is too large.')
+    }
+    if (byteLength > 0) {
+      throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+    }
   }
-}
+  if (!request.body) return
 
-function rejectAdminBody(request: Request): void {
-  rejectOversizeRequest(request)
-  if (request.body) {
-    throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+  const reader = request.body.getReader()
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return
+      if (!value || value.byteLength === 0) continue
+      try {
+        await reader.cancel()
+      } catch {
+        // The endpoint remains fail-closed even if stream cancellation fails.
+      }
+      throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+    }
+  } finally {
+    reader.releaseLock()
   }
 }
 
@@ -628,7 +648,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         if (request.method === 'POST' && url.pathname === '/v1/admin/token') {
           await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)
           requireAdminNoOrigin(request)
-          rejectAdminBody(request)
+          await rejectAdminBody(request)
           const credential = adminCredential(request)
           if (!credential || !(await timingSafeSecretMatch(credential, config.adminTokenSecret))) {
             logger.event('admin_token_rejected')

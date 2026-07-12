@@ -463,6 +463,137 @@ describe('Warpkeep auth bridge', () => {
     expect(Number(claims.exp) - Number(claims.iat)).toBe(5 * 60)
   })
 
+  it('accepts a production-normalized zero-byte admin stream but rejects content', async () => {
+    const h = harness()
+    const authorization = ['Be', 'arer ', ADMIN_SECRET].join('')
+    const normalizedEmptyStream = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+      method: 'POST',
+      headers: { authorization },
+      body: new Uint8Array(0),
+    }), env())
+    expect(normalizedEmptyStream.status).toBe(200)
+
+    const bodyRejected = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+      method: 'POST',
+      headers: { authorization },
+      body: '{}',
+    }), env())
+    expect(bodyRejected.status).toBe(400)
+    await expect(bodyRejected.json()).resolves.toMatchObject({ error: { code: 'admin_body_not_allowed' } })
+  })
+
+  it('rejects malformed, duplicate, positive, and oversized Content-Length framing', async () => {
+    const h = harness()
+    const authorization = ['Be', 'arer ', ADMIN_SECRET].join('')
+    const cases: Array<{ name: string; headers: Headers; status: number; code: string }> = []
+    for (const contentLength of ['', ' \t', '1', String(16 * 1024 + 1)]) {
+      const headers = new Headers({ authorization })
+      headers.set('content-length', contentLength)
+      cases.push({
+        name: `Content-Length ${JSON.stringify(contentLength)}`,
+        headers,
+        status: contentLength === String(16 * 1024 + 1) ? 413 : 400,
+        code: contentLength === String(16 * 1024 + 1) ? 'body_too_large' : 'admin_body_not_allowed',
+      })
+    }
+    const duplicateHeaders = new Headers({ authorization })
+    duplicateHeaders.append('content-length', '0')
+    duplicateHeaders.append('content-length', '0')
+    cases.push({ name: 'duplicate Content-Length', headers: duplicateHeaders, status: 400, code: 'admin_body_not_allowed' })
+
+    for (const framingCase of cases) {
+      expect(framingCase.headers.has('content-length')).toBe(true)
+      const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+        method: 'POST',
+        headers: framingCase.headers,
+        body: new Uint8Array(0),
+      }), env())
+      expect(response.status, framingCase.name).toBe(framingCase.status)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: framingCase.code } })
+    }
+  })
+
+  it('rejects raw admin body bytes before decoding and cancels the stream immediately', async () => {
+    const h = harness()
+    const authorization = ['Be', 'arer ', ADMIN_SECRET].join('')
+    const bodyCases: Array<{ name: string; body: ArrayBuffer; headers: HeadersInit }> = [
+      { name: 'UTF-8 BOM', body: new Uint8Array([0xef, 0xbb, 0xbf]).buffer, headers: { authorization } },
+      { name: 'UTF-8 BOM with advertised zero length', body: new Uint8Array([0xef, 0xbb, 0xbf]).buffer, headers: { authorization, 'content-length': '0' } },
+      { name: 'invalid UTF-8', body: new Uint8Array([0xff]).buffer, headers: { authorization } },
+    ]
+    for (const bodyCase of bodyCases) {
+      const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+        method: 'POST',
+        headers: bodyCase.headers,
+        body: bodyCase.body,
+      }), env())
+      expect(response.status, bodyCase.name).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'admin_body_not_allowed' } })
+    }
+
+    let cancelled = false
+    let pulls = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1
+        if (pulls === 1) controller.enqueue(new Uint8Array([1]))
+        else controller.close()
+      },
+      cancel() {
+        cancelled = true
+      },
+    }, { highWaterMark: 0 })
+    const streamed = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+      method: 'POST',
+      headers: { authorization },
+      body,
+      duplex: 'half',
+    } as RequestInit), env())
+    expect(streamed.status).toBe(400)
+    await expect(streamed.json()).resolves.toMatchObject({ error: { code: 'admin_body_not_allowed' } })
+    expect(cancelled).toBe(true)
+    expect(pulls).toBe(1)
+  })
+
+  it('does not pull an admin body before the rate-limit and browser-origin gates', async () => {
+    const authorization = ['Be', 'arer ', ADMIN_SECRET].join('')
+    let limitedPulls = 0
+    const limitedBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        limitedPulls += 1
+        controller.enqueue(new Uint8Array([1]))
+      },
+    }, { highWaterMark: 0 })
+    const limited = harness({
+      rateLimiter: { check: async () => ({ allowed: false, retryAfterSeconds: 11 }) },
+    })
+    const limitedResponse = await limited.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+      method: 'POST',
+      headers: { authorization },
+      body: limitedBody,
+      duplex: 'half',
+    } as RequestInit), env())
+    expect(limitedResponse.status).toBe(429)
+    expect(limitedPulls).toBe(0)
+
+    let browserPulls = 0
+    const browserBody = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        browserPulls += 1
+        controller.enqueue(new Uint8Array([1]))
+      },
+    }, { highWaterMark: 0 })
+    const browser = harness()
+    const browserResponse = await browser.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+      method: 'POST',
+      headers: { authorization, origin: ORIGIN },
+      body: browserBody,
+      duplex: 'half',
+    } as RequestInit), env())
+    expect(browserResponse.status).toBe(403)
+    expect(browserPulls).toBe(0)
+  })
+
   it('fails closed when the managed admin secret is too short', async () => {
     const h = harness()
     const response = await h.app.fetch(request('/healthz'), env({ ADMIN_TOKEN_SECRET: 'too-short' }))
