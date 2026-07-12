@@ -86,8 +86,8 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch')
     expect(init.method).toBe('POST')
     expect(init.body).toBe('[12345]')
-    expect(init.cache).toBe('no-store')
-    expect(init).not.toHaveProperty('credentials')
+    expect(init).not.toHaveProperty('cache')
+    expect(init.credentials).toBe('omit')
     expect(init.redirect).toBe('manual')
     expect(init.signal).toBeInstanceOf(AbortSignal)
     const headers = new Headers(init.headers)
@@ -109,9 +109,9 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     }
   })
 
-  it('does not send browser-only credential policy in the Worker subrequest init', async () => {
+  it('does not send browser-only cache mode in the Worker subrequest init', async () => {
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      if (init && 'credentials' in init) throw new TypeError('credentials is not implemented')
+      if (init && 'cache' in init) throw new TypeError('cache mode is not implemented')
       return jsonResponse('0')
     })
     const resolver = createResolver(fetcher)

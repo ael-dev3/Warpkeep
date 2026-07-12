@@ -251,9 +251,9 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
                 'cache-control': 'no-store',
               }),
               body: JSON.stringify([fidArgument]),
-              cache: 'no-store',
-              // Worker subrequests have no browser credential jar. Keep this
-              // browser-only RequestInit member out of the production fetch.
+              // The explicit Cache-Control header preserves the no-store
+              // contract without passing browser cache mode to a subrequest.
+              credentials: 'omit',
               // Workerd rejects `error`; `manual` surfaces 3xx to the non-2xx guard below.
               redirect: 'manual',
               signal: controller.signal,
