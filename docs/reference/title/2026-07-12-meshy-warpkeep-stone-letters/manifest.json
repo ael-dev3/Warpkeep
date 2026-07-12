@@ -1,12 +1,15 @@
 {
-  "archive_purpose": "Byte-for-byte source archive and provenance record for the six Warpkeep stone-letter 3D models",
+  "archive_purpose": "Byte-for-byte source archive and provenance record for the six Warpkeep stone-letter source models and their supplied high/compact optimized title assemblies.",
   "reference_only": true,
-  "runtime_derivatives": [],
+  "runtime_derivatives": [
+    "optimized-title-assemblies/warpkeep-title-high.glb",
+    "optimized-title-assemblies/warpkeep-title-compact.glb"
+  ],
   "runtime_usage": null,
   "archive_date": "2026-07-12",
   "source": {
     "supplied_by": "Ael",
-    "provenance": "Six original files supplied with explicit authorization for the Warpkeep v0.3 archive and licensing terms.",
+    "provenance": "Six original glyph files and a supplemental optimized title package supplied with explicit authorization for the Warpkeep v0.3 archive and licensing terms.",
     "private_workflow_metadata": "intentionally omitted from the public archive",
     "generation_service_indicated_by_filenames": "Meshy AI"
   },
@@ -15,8 +18,8 @@
     "license_url": "https://creativecommons.org/licenses/by/4.0/",
     "effective_release_boundary": "v0.3.0 and later",
     "provenance_classification": "project-owned generated creative assets with licensing authority confirmed by an explicit Warpkeep maintainer instruction",
-    "authorization_record": "Ael supplied the six original files and explicitly authorized their archival under the Warpkeep v0.3 licensing terms; private workflow metadata is intentionally omitted.",
-    "attribution": "\u201cWarpkeep stone-letter 3D models\u201d by the Warpkeep project, licensed under CC BY 4.0.",
+    "authorization_record": "Ael supplied the six original glyph files and the supplemental optimized title package and explicitly authorized their archival under the Warpkeep v0.3 licensing terms; private workflow metadata is intentionally omitted.",
+    "attribution": "“Warpkeep stone-letter 3D models and title assemblies” by the Warpkeep project, licensed under CC BY 4.0.",
     "scope_note": "CC-BY-4.0 applies to copyright and related rights controlled by the Warpkeep project in these files. It does not license Meshy AI software, services, names, or trademarks, any other third-party rights, or Warpkeep trademarks and canonical identity.",
     "merge_constraint": "Merge only at or after the first v0.3.0 licensing cutover; do not place these files into a v0.2.x release snapshot."
   },
@@ -31,14 +34,18 @@
     ],
     "style": "Ivory cracked-stone letter faces with gilded bevels and purple gem or inlay accents.",
     "local_render_check": "All six labeled glyphs rendered with textures; no blank panels, missing textures, clipping, or obvious corruption were observed.",
-    "preview_committed": false
+    "preview_committed": false,
+    "assembled_title": "The supplied high and compact previews render the eight-letter WARPKEEP title with consistent ivory faces, gilded bevels, and purple accents; the angled high preview exposes the model depth.",
+    "supplemental_preview_check": "The three full-title previews and three source/high/compact contact sheets show the expected glyphs with no blank panels, missing textures, clipping, or obvious corruption.",
+    "supplied_previews_committed": true
   },
   "aggregate": {
     "files": 6,
     "bytes": 264858820,
     "triangles": 2402820,
     "position_vertices": 1246311,
-    "unique_sha256": 6
+    "unique_sha256": 6,
+    "scope": "Six unique source glyph GLBs only; supplemental assembly totals are recorded separately."
   },
   "files": [
     {
@@ -737,5 +744,714 @@
         ]
       }
     }
-  ]
+  ],
+  "optimized_title_assemblies": {
+    "archive_purpose": "Byte-for-byte preservation of the supplied optimized high/compact title assemblies, build-layout records, checksums, source note, preview/contact sheets, and original ZIP bundle.",
+    "reference_only_in_this_archive": true,
+    "integrated_at_runtime": false,
+    "source_relationship": {
+      "derived_from_unique_glyphs": [
+        "W",
+        "A",
+        "R",
+        "P",
+        "K",
+        "E"
+      ],
+      "assembled_letter_nodes": [
+        "W",
+        "A",
+        "R",
+        "P1",
+        "K",
+        "E1",
+        "E2",
+        "P2"
+      ],
+      "reused_meshes": {
+        "P2": "P1",
+        "E2": "E1"
+      },
+      "supplied_by": "Ael",
+      "authorization_record": "Supplied with an explicit request to archive the remaining title 3D assets under the Warpkeep v0.3 licensing terms.",
+      "standalone_glbs_match_bundle_copies": true,
+      "three_separately_supplied_previews_match_bundle_copies": true,
+      "private_workflow_metadata": "intentionally omitted from the public archive"
+    },
+    "license_policy": {
+      "spdx_identifier": "CC-BY-4.0",
+      "license_url": "https://creativecommons.org/licenses/by/4.0/",
+      "effective_release_boundary": "v0.3.0 and later",
+      "scope_note": "CC-BY-4.0 applies to copyright and related rights controlled by the Warpkeep project in these files. It does not license Meshy AI or other generation software, services, names, or trademarks, other third-party rights, or Warpkeep trademarks and canonical identity.",
+      "merge_constraint": "Merge only at or after the first v0.3.0 licensing cutover; do not place these files into a v0.2.x release snapshot."
+    },
+    "aggregate": {
+      "archive_files_including_zip": 13,
+      "archive_bytes_including_zip_and_extracted_contents": 12783900,
+      "model_files": 2,
+      "model_bytes": 5558424,
+      "unique_triangles": 420464,
+      "rendered_triangles": 503224,
+      "position_vertices": 281358,
+      "support_files_excluding_zip_and_models": 10,
+      "unique_supplied_file_sha256": 13
+    },
+    "models": [
+      {
+        "profile": "high",
+        "filename": "warpkeep-title-high.glb",
+        "media_type": "model/gltf-binary",
+        "bytes": 3844364,
+        "sha256": "2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5",
+        "gltf": {
+          "container": "GLB",
+          "version": 2,
+          "asset_version": "2.0",
+          "generator": "glTF-Transform v4.4.1",
+          "copyright": null,
+          "declared_length": 3844364,
+          "chunks": [
+            {
+              "type": "JSON",
+              "bytes": 16508
+            },
+            {
+              "type": "BIN",
+              "bytes": 3827828
+            }
+          ],
+          "scenes": 1,
+          "default_scene": 0,
+          "nodes": 9,
+          "node_names": [
+            "WarpkeepTitleRoot",
+            "W",
+            "A",
+            "R",
+            "P1",
+            "K",
+            "E1",
+            "E2",
+            "P2"
+          ],
+          "meshes": 6,
+          "mesh_names": [
+            "Letter_W",
+            "Letter_A",
+            "Letter_R",
+            "Letter_P",
+            "Letter_K",
+            "Letter_E"
+          ],
+          "primitives": 6,
+          "materials": 6,
+          "textures": 20,
+          "images": 20,
+          "embedded_images": {
+            "mime_type": "image/webp",
+            "dimensions": [
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ],
+              [
+                1024,
+                1024
+              ]
+            ],
+            "byte_lengths": [
+              178542,
+              20578,
+              52938,
+              166130,
+              1968,
+              25546,
+              60718,
+              184364,
+              74830,
+              23830,
+              46638,
+              153222,
+              19518,
+              45514,
+              130676,
+              15012,
+              35586,
+              133414,
+              18878,
+              49220
+            ]
+          },
+          "animations": 0,
+          "cameras": 0,
+          "accessors": 30,
+          "buffer_views": 45,
+          "buffers": 2,
+          "position_vertices": 186285,
+          "unique_triangles": 288328,
+          "rendered_triangles": 345078,
+          "world_bounds": {
+            "min": [
+              -6.827670486,
+              -5.4537e-05,
+              -0.24999849
+            ],
+            "max": [
+              6.827708587,
+              1.900054537,
+              0.24999849
+            ],
+            "dimensions": [
+              13.655379073,
+              1.900109074,
+              0.499996979
+            ],
+            "center": [
+              1.9051e-05,
+              0.95,
+              0.0
+            ]
+          },
+          "external_uris": [],
+          "extensions_used": [
+            "EXT_meshopt_compression",
+            "EXT_texture_webp",
+            "KHR_mesh_quantization"
+          ],
+          "extensions_required": [
+            "EXT_meshopt_compression",
+            "EXT_texture_webp",
+            "KHR_mesh_quantization"
+          ]
+        },
+        "layout_record": {
+          "filename": "warpkeep-title-high-layout.json",
+          "sha256": "b76c739affb96ff1dcb8225c0d3bc3919ce810829d2ca428be467f8fbbc1bb23",
+          "profile": "high",
+          "letter_nodes": [
+            "W",
+            "A",
+            "R",
+            "P1",
+            "K",
+            "E1",
+            "E2",
+            "P2"
+          ],
+          "world_bounds_match_declared_layout": true
+        },
+        "validation": {
+          "gltf_transform_cli": "4.4.1",
+          "errors": 0,
+          "warnings": [],
+          "info": [
+            {
+              "code": "UNSUPPORTED_EXTENSION",
+              "note": "The validator does not inspect EXT_meshopt_compression; this is informational, not a warning or error."
+            }
+          ]
+        }
+      },
+      {
+        "profile": "compact",
+        "filename": "warpkeep-title-compact.glb",
+        "media_type": "model/gltf-binary",
+        "bytes": 1714060,
+        "sha256": "d29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8",
+        "gltf": {
+          "container": "GLB",
+          "version": 2,
+          "asset_version": "2.0",
+          "generator": "glTF-Transform v4.4.1",
+          "copyright": null,
+          "declared_length": 1714060,
+          "chunks": [
+            {
+              "type": "JSON",
+              "bytes": 16272
+            },
+            {
+              "type": "BIN",
+              "bytes": 1697760
+            }
+          ],
+          "scenes": 1,
+          "default_scene": 0,
+          "nodes": 9,
+          "node_names": [
+            "WarpkeepTitleRoot",
+            "W",
+            "A",
+            "R",
+            "P1",
+            "K",
+            "E1",
+            "E2",
+            "P2"
+          ],
+          "meshes": 6,
+          "mesh_names": [
+            "Letter_W",
+            "Letter_A",
+            "Letter_R",
+            "Letter_P",
+            "Letter_K",
+            "Letter_E"
+          ],
+          "primitives": 6,
+          "materials": 6,
+          "textures": 20,
+          "images": 20,
+          "embedded_images": {
+            "mime_type": "image/webp",
+            "dimensions": [
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ],
+              [
+                512,
+                512
+              ]
+            ],
+            "byte_lengths": [
+              56084,
+              2380,
+              20478,
+              51154,
+              538,
+              3296,
+              24306,
+              59134,
+              30714,
+              2656,
+              17620,
+              48386,
+              2872,
+              18548,
+              43750,
+              2064,
+              13412,
+              41352,
+              2048,
+              19746
+            ]
+          },
+          "animations": 0,
+          "cameras": 0,
+          "accessors": 30,
+          "buffer_views": 45,
+          "buffers": 2,
+          "position_vertices": 95073,
+          "unique_triangles": 132136,
+          "rendered_triangles": 158146,
+          "world_bounds": {
+            "min": [
+              -6.827874874,
+              -8.384e-06,
+              -0.250056647
+            ],
+            "max": [
+              6.827910702,
+              1.900008384,
+              0.250056647
+            ],
+            "dimensions": [
+              13.655785577,
+              1.900016769,
+              0.500113294
+            ],
+            "center": [
+              1.7914e-05,
+              0.95,
+              0.0
+            ]
+          },
+          "external_uris": [],
+          "extensions_used": [
+            "EXT_meshopt_compression",
+            "EXT_texture_webp",
+            "KHR_mesh_quantization"
+          ],
+          "extensions_required": [
+            "EXT_meshopt_compression",
+            "EXT_texture_webp",
+            "KHR_mesh_quantization"
+          ]
+        },
+        "layout_record": {
+          "filename": "warpkeep-title-compact-layout.json",
+          "sha256": "d252a8c0615902be8b27d109bd83dd950e1e471be33f7ce4b12c4cefbc42caa3",
+          "profile": "compact",
+          "letter_nodes": [
+            "W",
+            "A",
+            "R",
+            "P1",
+            "K",
+            "E1",
+            "E2",
+            "P2"
+          ],
+          "world_bounds_match_declared_layout": true
+        },
+        "validation": {
+          "gltf_transform_cli": "4.4.1",
+          "errors": 0,
+          "warnings": [],
+          "info": [
+            {
+              "code": "UNSUPPORTED_EXTENSION",
+              "note": "The validator does not inspect EXT_meshopt_compression; this is informational, not a warning or error."
+            }
+          ]
+        }
+      }
+    ],
+    "support_files": [
+      {
+        "filename": "WARPKEEP_TITLE_ASSET_README.txt",
+        "bytes": 2987,
+        "sha256": "35af4ecf99bfbc86777653d39446e38739deb182cbd201114cae4e083fa3e270",
+        "media_type": "text/plain; charset=utf-8"
+      },
+      {
+        "filename": "SHA256SUMS.txt",
+        "bytes": 183,
+        "sha256": "3a3a6892609fe1d3b735a8a3e21278bfde81d9000825cc278132b8957bd6d4ac",
+        "media_type": "text/plain; charset=utf-8"
+      },
+      {
+        "filename": "warpkeep-title-high-layout.json",
+        "bytes": 2386,
+        "sha256": "b76c739affb96ff1dcb8225c0d3bc3919ce810829d2ca428be467f8fbbc1bb23",
+        "media_type": "application/json",
+        "profile": "high",
+        "letter_records": 8
+      },
+      {
+        "filename": "warpkeep-title-compact-layout.json",
+        "bytes": 2392,
+        "sha256": "d252a8c0615902be8b27d109bd83dd950e1e471be33f7ce4b12c4cefbc42caa3",
+        "media_type": "application/json",
+        "profile": "compact",
+        "letter_records": 8
+      },
+      {
+        "filename": "warpkeep-title-high-preview-front.jpg",
+        "bytes": 124412,
+        "sha256": "f93e2d618d703c19b9db15d73efc1647429e125a0bf2477361cbe6dadf2d35e5",
+        "media_type": "image/jpeg",
+        "dimensions": [
+          1600,
+          500
+        ],
+        "color_mode": "RGB",
+        "alpha": false
+      },
+      {
+        "filename": "warpkeep-title-high-preview-angle.jpg",
+        "bytes": 136115,
+        "sha256": "a0898204f22cd31fe80e44221cc6ea9b71a5d255404ff62668a50ba3834ddd0e",
+        "media_type": "image/jpeg",
+        "dimensions": [
+          1600,
+          500
+        ],
+        "color_mode": "RGB",
+        "alpha": false
+      },
+      {
+        "filename": "warpkeep-title-compact-preview-front.jpg",
+        "bytes": 123453,
+        "sha256": "459585822b3cc27963526e292f133e662690ed58fcef3c2ffa38bde1c5866e93",
+        "media_type": "image/jpeg",
+        "dimensions": [
+          1600,
+          500
+        ],
+        "color_mode": "RGB",
+        "alpha": false
+      },
+      {
+        "filename": "source-letters-front-sheet.jpg",
+        "bytes": 285433,
+        "sha256": "7b4ee96210c0166d57be3214ed8a49e27e5df2371f4b43921a5edd8bef54595b",
+        "media_type": "image/jpeg",
+        "dimensions": [
+          1560,
+          1040
+        ],
+        "color_mode": "RGB",
+        "alpha": false
+      },
+      {
+        "filename": "high-letters-front-sheet.jpg",
+        "bytes": 282269,
+        "sha256": "c46008e5a7b661d5d5c1c56d4eb9101032f44b8857286fa27331b136f65b1778",
+        "media_type": "image/jpeg",
+        "dimensions": [
+          1560,
+          1040
+        ],
+        "color_mode": "RGB",
+        "alpha": false
+      },
+      {
+        "filename": "compact-letters-front-sheet.jpg",
+        "bytes": 270212,
+        "sha256": "93ad7ef521d459d86060716019080bdb40781b6059a15b8cee4724ccc8996a83",
+        "media_type": "image/jpeg",
+        "dimensions": [
+          1560,
+          1040
+        ],
+        "color_mode": "RGB",
+        "alpha": false
+      }
+    ],
+    "source_bundle": {
+      "filename": "warpkeep-title-runtime-assets.zip",
+      "media_type": "application/zip",
+      "bytes": 5995634,
+      "sha256": "5da0dbd818cfd10a8b9f9b4cce3b81ebf69a4345018204404e847c1c2bf0b357",
+      "entries": 13,
+      "file_entries": 12,
+      "uncompressed_bytes": 6788266,
+      "compressed_bytes": 5992444,
+      "safe_paths_no_symlinks": true,
+      "contents": [
+        {
+          "path": "warpkeep-title-runtime-assets/",
+          "bytes": 0,
+          "compressed_bytes": 0,
+          "directory": true
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/warpkeep-title-high.glb",
+          "bytes": 3844364,
+          "compressed_bytes": 3359466,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/warpkeep-title-compact.glb",
+          "bytes": 1714060,
+          "compressed_bytes": 1484088,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/warpkeep-title-high-layout.json",
+          "bytes": 2386,
+          "compressed_bytes": 597,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/warpkeep-title-compact-layout.json",
+          "bytes": 2392,
+          "compressed_bytes": 605,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/WARPKEEP_TITLE_ASSET_README.txt",
+          "bytes": 2987,
+          "compressed_bytes": 1452,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/SHA256SUMS.txt",
+          "bytes": 183,
+          "compressed_bytes": 130,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/warpkeep-title-high-preview-front.jpg",
+          "bytes": 124412,
+          "compressed_bytes": 114796,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/warpkeep-title-high-preview-angle.jpg",
+          "bytes": 136115,
+          "compressed_bytes": 127394,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/warpkeep-title-compact-preview-front.jpg",
+          "bytes": 123453,
+          "compressed_bytes": 113960,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/source-letters-front-sheet.jpg",
+          "bytes": 285433,
+          "compressed_bytes": 268977,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/high-letters-front-sheet.jpg",
+          "bytes": 282269,
+          "compressed_bytes": 266362,
+          "directory": false
+        },
+        {
+          "path": "warpkeep-title-runtime-assets/compact-letters-front-sheet.jpg",
+          "bytes": 270212,
+          "compressed_bytes": 254617,
+          "directory": false
+        }
+      ]
+    },
+    "checksum_file_verification": {
+      "filename": "SHA256SUMS.txt",
+      "covers_models": [
+        "warpkeep-title-high.glb",
+        "warpkeep-title-compact.glb"
+      ],
+      "verified": true
+    }
+  }
 }

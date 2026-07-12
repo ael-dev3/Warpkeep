@@ -27,7 +27,7 @@ Warpkeep is designed as a persistent, asynchronous fantasy strategy game where F
 - [Product vision](docs/vision.md)
 - [Game design](docs/game-design.md)
 - [Warpkeep direction](docs/design/warpkeep-direction.md)
-- [Warpkeep stone-letter 3D reference archive](docs/reference/title/2026-07-12-meshy-warpkeep-stone-letters/)
+- [Warpkeep stone-letter 3D and optimized title assembly archive](docs/reference/title/2026-07-12-meshy-warpkeep-stone-letters/)
 - [Roadmap](docs/design/roadmap.md)
 - [Hegemony Lowlands terrain](docs/design/hegemony-lowlands-terrain.md)
 - [Farcaster integration](docs/farcaster-integration.md)

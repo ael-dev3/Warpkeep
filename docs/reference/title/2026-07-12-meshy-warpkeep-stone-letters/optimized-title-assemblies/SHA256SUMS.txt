@@ -1,0 +1,2 @@
+2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5  warpkeep-title-high.glb
+d29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8  warpkeep-title-compact.glb

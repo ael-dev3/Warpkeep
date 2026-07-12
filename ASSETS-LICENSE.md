@@ -50,15 +50,20 @@ The archived Hegemony Frontier Keep and its runtime derivatives are project-prov
 
 Both runtime files are reproducible with `npm run prepare:hegemony-keep`. The pinned preparation pipeline and complete technical metadata are recorded in the dated castle archive.
 
-## Warpkeep stone-letter model provenance
+## Warpkeep stone-letter and optimized title-assembly provenance
 
-The six source GLBs under `docs/reference/title/2026-07-12-meshy-warpkeep-stone-letters/` are new project-owned generated creative assets supplied by Ael with explicit authorization to archive them under the v0.3 licensing terms. That authorization is the authority record for their path-specific `CC-BY-4.0` classification; it does not change the unresolved classification of earlier Meshy assets. Private workflow metadata is intentionally omitted from the public archive.
+The six source GLBs and supplemental optimized-title package under `docs/reference/title/2026-07-12-meshy-warpkeep-stone-letters/` are new project-owned generated creative assets supplied by Ael with explicit authorization to archive this named set under the v0.3 licensing terms. That authorization is the authority record for their path-specific `CC-BY-4.0` classification; it does not change the unresolved classification of earlier Meshy assets. Private workflow metadata is intentionally omitted from the public archive.
 
 | Intended use | Repository files | Technical record | v0.3 license |
 | --- | --- | --- | --- |
-| Reference-only stone-letter source set | Six original W, A, R, P, K, and E GLBs under `docs/reference/title/2026-07-12-meshy-warpkeep-stone-letters/` | 264,858,820 bytes total; six unique SHA-256 hashes; 2,402,820 triangles; four embedded JPEG PBR textures per file; zero glTF validator errors | `CC-BY-4.0` beginning with v0.3.0; suggested credit: “Warpkeep stone-letter 3D models” by the Warpkeep project |
+| Reference-only stone-letter source set | Six original W, A, R, P, K, and E GLBs in the dated title archive | 264,858,820 bytes total; six unique SHA-256 hashes; 2,402,820 triangles; four embedded JPEG PBR textures per file; zero glTF validator errors | `CC-BY-4.0` beginning with v0.3.0 |
+| High optimized title candidate | `optimized-title-assemblies/warpkeep-title-high.glb` | 3,844,364 bytes; SHA-256 `2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5`; 288,328 unique and 345,078 rendered triangles; 20 embedded 1024×1024 WebP textures; zero validator errors/warnings | `CC-BY-4.0` beginning with v0.3.0 |
+| Compact optimized title candidate | `optimized-title-assemblies/warpkeep-title-compact.glb` | 1,714,060 bytes; SHA-256 `d29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8`; 132,136 unique and 158,146 rendered triangles; 20 embedded 512×512 WebP textures; zero validator errors/warnings | `CC-BY-4.0` beginning with v0.3.0 |
+| Original bundle and support evidence | ZIP, two layouts, checksum/source-note text, and six supplied preview/contact-sheet JPEGs under `optimized-title-assemblies/` | 13 supplied files including the two GLBs; 12,783,900 archived bytes including the original ZIP and extracted contents; every byte and SHA-256 recorded | `CC-BY-4.0` beginning with v0.3.0 |
 
-The source filenames identify Meshy AI as the generation service. CC-BY-4.0 applies only to copyright and related rights controlled by Warpkeep in these files; it does not license Meshy AI software, services, names, or trademarks, any other third-party rights, or Warpkeep trademarks. The exact original filenames, byte counts, hashes, bounds, texture records, and validator notices are preserved in the dated [`manifest.json`](docs/reference/title/2026-07-12-meshy-warpkeep-stone-letters/manifest.json). No runtime derivative or committed preview exists.
+The source filenames identify Meshy AI as the generation service. CC-BY-4.0 applies only to copyright and related rights controlled by Warpkeep in these files; it does not license Meshy AI or other generation software, services, names, or trademarks, any other third-party rights, or Warpkeep trademarks. Suggested credit: “Warpkeep stone-letter 3D models and title assemblies” by the Warpkeep project.
+
+The exact original filenames, byte counts, hashes, bounds, texture records, package entries, and validator notices are preserved in the dated [`manifest.json`](docs/reference/title/2026-07-12-meshy-warpkeep-stone-letters/manifest.json). The high/compact files and supplied previews are archived candidates/evidence only and are not served at runtime. No optimization, recompression, or runtime integration was performed by this archive.
 
 Because these assets are expressly licensed for the v0.3 boundary, their archive PR must remain stacked and unmerged until the first v0.3.0 licensing cutover. They must not enter a v0.2.x release snapshot.
 
