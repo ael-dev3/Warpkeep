@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -10,14 +10,22 @@ function workflow(name: string) {
   return readFileSync(resolve(repositoryRoot, '.github/workflows', name), 'utf8');
 }
 
+function allWorkflows() {
+  const directory = resolve(repositoryRoot, '.github/workflows');
+  return readdirSync(directory)
+    .filter(name => name.endsWith('.yml') || name.endsWith('.yaml'))
+    .sort()
+    .map(name => workflow(name));
+}
+
 describe('GitHub workflow security policy', () => {
   it('pins every external action to an immutable full commit SHA', () => {
-    const source = `${workflow('verify.yml')}\n${workflow('deploy-pages.yml')}`;
+    const source = allWorkflows().join('\n');
     const references = [...source.matchAll(/^\s*uses:\s*([^\s#]+)(?:\s+#.*)?$/gm)]
       .map(match => match[1]);
     expect(references.length).toBeGreaterThan(0);
     for (const reference of references) {
-      expect(reference).toMatch(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40}$/);
+      expect(reference).toMatch(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$/);
     }
   });
 
@@ -34,7 +42,7 @@ describe('GitHub workflow security policy', () => {
   });
 
   it('bounds every workflow job duration', () => {
-    const jobs = [workflow('verify.yml'), workflow('deploy-pages.yml')]
+    const jobs = allWorkflows()
       .map(source => source.slice(source.indexOf('jobs:')))
       .join('\n');
     const jobCount = (jobs.match(/^  [a-z0-9-]+:\s*$/gm) ?? []).length;
@@ -53,7 +61,7 @@ describe('GitHub workflow security policy', () => {
   });
 
   it('does not persist checkout credentials and audits every package boundary', () => {
-    const source = `${workflow('verify.yml')}\n${workflow('deploy-pages.yml')}`;
+    const source = allWorkflows().join('\n');
     const checkoutCount = (source.match(/actions\/checkout@/g) ?? []).length;
     const disabledCredentialCount = (source.match(/persist-credentials:\s*false/g) ?? []).length;
     expect(disabledCredentialCount).toBe(checkoutCount);
@@ -71,5 +79,14 @@ describe('GitHub workflow security policy', () => {
       { cwd: repositoryRoot, encoding: 'utf8' }
     );
     expect(ignored.trim()).toBe('services/auth-bridge/.dev.vars.production');
+  });
+
+  it('runs CodeQL without executing a repository build', () => {
+    const source = workflow('codeql.yml');
+    expect(source).toContain('security-events: write');
+    expect(source).toContain('languages: javascript-typescript');
+    expect(source).toContain('build-mode: none');
+    expect(source).not.toMatch(/^\s+run:/m);
+    expect(source).toContain('branches: [main, feat/spacetimedb-basic-connection]');
   });
 });
