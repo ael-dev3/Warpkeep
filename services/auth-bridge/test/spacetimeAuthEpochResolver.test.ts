@@ -86,8 +86,8 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch')
     expect(init.method).toBe('POST')
     expect(init.body).toBe('[12345]')
-    expect(init.cache).toBe('no-store')
-    expect(init.credentials).toBe('omit')
+    expect(init).not.toHaveProperty('cache')
+    expect(init).not.toHaveProperty('credentials')
     expect(init.redirect).toBe('manual')
     expect(init.signal).toBeInstanceOf(AbortSignal)
     const headers = new Headers(init.headers)
@@ -106,6 +106,19 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     ] as const) {
       const resolver = createResolver(async () => jsonResponse(raw))
       await expect(resolver.resolve(FID)).resolves.toBe(expected)
+    }
+  })
+
+  it('keeps browser cache and credential modes out of the Worker subrequest init', async () => {
+    for (const browserOnlyMember of ['cache', 'credentials'] as const) {
+      const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        if (init && browserOnlyMember in init) throw new TypeError(`${browserOnlyMember} is not implemented`)
+        return jsonResponse('0')
+      })
+      const resolver = createResolver(fetcher)
+
+      await expect(resolver.resolve(FID)).resolves.toBe(0)
+      expect(fetcher).toHaveBeenCalledOnce()
     }
   })
 
