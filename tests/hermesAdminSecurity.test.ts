@@ -1,7 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
@@ -29,6 +31,25 @@ function runHermes(
     timeout: 5_000
   });
 }
+
+describe('Hermes machine-readable output', () => {
+  afterEach(() => {
+    setGlobalLogLevel('info');
+    vi.restoreAllMocks();
+  });
+
+  it('suppresses SpacetimeDB info logs only in machine-readable mode', () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    configureHermesMachineOutput(true);
+    stdbLogger('info', 'transport chatter');
+    expect(output).not.toHaveBeenCalled();
+
+    configureHermesMachineOutput(false);
+    stdbLogger('info', 'human transport status');
+    expect(output).toHaveBeenCalledOnce();
+  });
+});
 
 describe('Hermes credential destination policy', () => {
   it.each([

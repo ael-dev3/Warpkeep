@@ -1,4 +1,5 @@
 import { DbConnection } from '../src/spacetime/module_bindings';
+import { configureHermesMachineOutput } from './hermes-machine-output';
 
 type Command = 'seed-world' | 'allow-fid' | 'disable-fid' | 'bump-auth-epoch' | 'inspect-alpha';
 
@@ -186,6 +187,7 @@ async function main() {
   const command = commandFrom(positional[0]);
   const dryRun = process.argv.includes('--dry-run');
   const machineReadableInspection = command === 'inspect-alpha' && process.argv.includes('--json');
+  configureHermesMachineOutput(machineReadableInspection);
   const confirmed = process.argv.includes('--confirm') || process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes';
   const mutation = command !== 'inspect-alpha';
   const database = readDatabase(process.env.WARPKEEP_SPACETIMEDB_DATABASE);
