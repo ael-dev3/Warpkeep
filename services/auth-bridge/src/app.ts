@@ -58,6 +58,7 @@ export interface AuthBridgeDependencies {
   verifier?: FarcasterVerifier
   authEpochResolver?: AuthEpochResolver
   rateLimiter?: RateLimiter
+  signer?: typeof signEs256Jwt
   configReader?: (env: WorkerEnv) => BridgeConfig
   logger?: SafeLogger
   now?: () => number
@@ -542,8 +543,8 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         }
 
         if (request.method === 'POST' && url.pathname === '/v1/farcaster/challenge') {
-          await enforceRateLimit(request, 'challenge', env, dependencies.rateLimiter, logger)
           const origin = requireAllowedBrowserOrigin(request, config)
+          await enforceRateLimit(request, 'challenge', env, dependencies.rateLimiter, logger)
           const body = await parseObjectBody(request)
           parseChallengeRequest(body, config)
           const createdAt = now()
@@ -573,8 +574,8 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         }
 
         if (request.method === 'POST' && url.pathname === '/v1/farcaster/exchange') {
-          await enforceRateLimit(request, 'exchange', env, dependencies.rateLimiter, logger)
           const origin = requireAllowedBrowserOrigin(request, config)
+          await enforceRateLimit(request, 'exchange', env, dependencies.rateLimiter, logger)
           const body = await parseObjectBody(request)
           const input = parseExchangeRequest(body)
           const store = dependencies.challengeStore ?? defaultChallengeStore(env)
@@ -628,14 +629,30 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           }
           logger.event('auth_epoch_resolved')
 
-          const issuedAt = Math.floor(currentTime / 1000)
+          // Upstream verification and authorization can cross the challenge's
+          // absolute deadline. Re-read authoritative time immediately before
+          // signing; an already claimed expired challenge stays consumed.
+          const signingTime = now()
+          if (!Number.isSafeInteger(signingTime) || signingTime < 0 || signingTime >= challenge.expiresAt) {
+            logger.event('exchange_rejected')
+            throw new HttpError(401, 'challenge_expired', 'This sign-in challenge has expired.')
+          }
+          const issuedAt = Math.floor(signingTime / 1000)
           let token: string
           try {
-            token = await signEs256Jwt(config, playerClaims(config, issuedAt, verifiedFid, authEpoch, input.identity))
+            token = await (dependencies.signer ?? signEs256Jwt)(
+              config,
+              playerClaims(config, issuedAt, verifiedFid, authEpoch, input.identity),
+            )
           } catch {
             await restoreRetryableChallenge(store, claimed, now)
             logger.event('configuration_error')
             throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          const completionTime = now()
+          if (!Number.isSafeInteger(completionTime) || completionTime < 0 || completionTime >= challenge.expiresAt) {
+            logger.event('exchange_rejected')
+            throw new HttpError(401, 'challenge_expired', 'This sign-in challenge has expired.')
           }
           logger.event('exchange_succeeded')
           return json({
@@ -646,8 +663,8 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         }
 
         if (request.method === 'POST' && url.pathname === '/v1/admin/token') {
-          await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)
           requireAdminNoOrigin(request)
+          await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)
           await rejectAdminBody(request)
           const credential = adminCredential(request)
           if (!credential || !(await timingSafeSecretMatch(credential, config.adminTokenSecret))) {
@@ -657,7 +674,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           const issuedAt = Math.floor(now() / 1000)
           let token: string
           try {
-            token = await signEs256Jwt(config, adminClaims(config, issuedAt))
+            token = await (dependencies.signer ?? signEs256Jwt)(config, adminClaims(config, issuedAt))
           } catch {
             logger.event('configuration_error')
             throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')

@@ -95,7 +95,11 @@ npm run stdb:inspect-alpha
 
 Hermes requests a short-lived admin JWT only at runtime. Mutations require `--confirm`; do not run `allow-fid` for an owner, QA account, or real user during activation.
 
-The bridge has discovery, public-only JWKS, durable replay protection, strict CORS/body limits, and a server-only admin endpoint. Its internal auth-epoch lookup is a private Worker-to-SpacetimeDB HTTP procedure call, never a browser endpoint; lookup failure produces a safe `503 authorization_unavailable` rather than a client-side fallback.
+The bridge has discovery, public-only JWKS, durable replay protection,
+distributed per-client rate control, strict CORS/body limits, and a server-only
+admin endpoint. Its internal auth-epoch lookup is a private Worker-to-SpacetimeDB
+HTTP procedure call, never a browser endpoint; lookup failure produces a safe
+`503 authorization_unavailable` rather than a client-side fallback.
 
 For architecture and activation boundaries, see:
 

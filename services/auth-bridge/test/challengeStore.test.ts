@@ -51,7 +51,11 @@ class FakeStorage implements DurableObjectStorage {
   }
 
   async transaction<T>(closure: (txn: DurableObjectTransaction) => Promise<T>): Promise<T> {
-    return closure(this)
+    return closure({
+      get: key => this.get(key),
+      put: (key, value) => this.put(key, value),
+      delete: key => this.delete(key),
+    })
   }
 }
 

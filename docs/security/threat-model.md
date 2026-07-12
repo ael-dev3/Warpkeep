@@ -145,8 +145,9 @@ creation, and world state. Anonymous visitors do not open a database connection.
   connection/operation paths use explicit deadlines.
 - Credential-bearing routes use Durable Object-backed exact rolling-window
   limits: challenge 12/300 seconds, exchange 20/300 seconds, and admin token
-  6/300 seconds per canonical client identity. Monitoring and alert maturity
-  remain operational requirements before wider availability.
+  6/300 seconds. Durable IPv4-address/IPv6-`/64` buckets use bounded backoff,
+  failure-atomic alarm updates, and full expired-object deallocation. Aggregate
+  edge monitoring and alert maturity remain necessary before wider availability.
 
 ### Tokens and authorization
 
@@ -200,12 +201,12 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Threat | Primary control | Residual treatment |
 | --- | --- | --- |
 | Client chooses or substitutes another FID | Independent SIWF verification and exact FID agreement | Treat verifier/RPC compromise as an external dependency incident. |
-| Proof replay or parallel exchange | Expiring Durable Object challenge, atomic pre-work claim, and distributed rolling-window limits | Monitor abuse patterns and tune only through a separately reviewed policy change. |
+| Proof replay or parallel exchange | Expiring Durable Object challenge, atomic pre-work claim, and distributed per-client rolling-window limits | Add aggregate edge monitoring/alerts for broad distributed abuse; tune policy only through separate review. |
 | Stolen browser bearer | Exact claims, module-enforced absolute lifetime, epoch checks, disconnect/logout handling | Accepted closed-alpha risk; move to short-lived access plus trusted HttpOnly refresh for production. |
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
 | Whitelist bypass or private-row disclosure | Module-side admission on every protected operation; private tables/bindings | Public world/player/castle projections remain intentionally observable. |
-| Worker memory/cost exhaustion | Streaming bounds, timeouts, early challenge claim, storage cleanup, and distributed rate limits | Account-level quotas, telemetry, and alerting remain operational requirements. |
+| Worker memory/cost exhaustion | Streaming bounds, timeouts, early challenge claim, per-client rate control, and storage cleanup | Aggregate account quotas, telemetry, and alerting remain operational requirements. |
 | Malicious dependency or workflow step obtains deployment authority | Lockfiles, audits, action SHA pins, checksum verification, job privilege split | Repository settings and alert operations require ongoing owner review. |
 | First-visit transport downgrade or framing/content-type hardening gap | HTTPS redirect and browser-origin validation | HSTS and response headers depend on the hosting layer and remain an activation check. |
 | Misconfigured partial activation | Default-off frontend switch and exact issuer/origin/database validation | Follow the activation runbook and verify discovery/JWKS/module agreement before enabling. |

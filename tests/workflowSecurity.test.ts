@@ -72,7 +72,9 @@ describe('GitHub workflow security policy', () => {
 
   it('runs on both stacked security and activation PR bases and ignores every Wrangler secret-file variant', () => {
     const source = workflow('verify.yml');
-    expect(source).toContain('branches: [main, feat/spacetimedb-basic-connection, security/alpha-0.2-preflight]');
+    expect(source).toContain(
+      'branches: [main, feat/spacetimedb-basic-connection, security/alpha-0.2-preflight, ops/alpha-0.2-live-activation]',
+    );
     const ignored = execFileSync(
       'git',
       ['check-ignore', 'services/auth-bridge/.dev.vars.production'],
@@ -87,6 +89,8 @@ describe('GitHub workflow security policy', () => {
     expect(source).toContain('languages: javascript-typescript');
     expect(source).toContain('build-mode: none');
     expect(source).not.toMatch(/^\s+run:/m);
-    expect(source).toContain('branches: [main, feat/spacetimedb-basic-connection, security/alpha-0.2-preflight]');
+    expect(source).toContain(
+      'branches: [main, feat/spacetimedb-basic-connection, security/alpha-0.2-preflight, ops/alpha-0.2-live-activation]',
+    );
   });
 });

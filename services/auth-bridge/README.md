@@ -21,6 +21,16 @@ by itself; that remains an exact-head Pages workflow decision.
 
 Challenge and exchange allow only exact `ALLOWED_ORIGINS`, never wildcard CORS or credentials. They allow only `POST`, `OPTIONS`, and `content-type`; body size is limited to 16 KiB. The admin token route accepts only a completed zero-byte stream, validates every present `Content-Length`, and cancels on the first body byte. The bridge rejects relay secrets such as `channelToken`, custody fields, verification lists, and relay metadata.
 
+The three credential-bearing POST routes also use distributed Durable Object
+rolling windows: challenge `12/5m`, exchange `20/5m`, and admin token `6/5m`.
+Browser Origin/no-Origin trust gates run before quota consumption, while the
+limiter still runs before body parsing, proof verification, credential checks,
+or Maincloud work. IPv4 is bucketed per address and IPv6 per routed `/64`; only
+a versioned SHA-256 bucket name is retained. Denials return `429` with a bounded
+`Retry-After`, limiter failures return `503`, and expired objects use
+`deleteAll()` to remove SQLite metadata and alarms. Edge/global monitoring is
+still required because per-client controls do not cap aggregate traffic.
+
 ## Browser contract
 
 The client calls `POST /v1/farcaster/challenge` with `{ "domain": "<configured domain>", "siweUri": "<configured SIWF URI>" }`. Domain and URI are only compared to server configuration; caller input never selects an arbitrary SIWF target.
@@ -33,7 +43,7 @@ The exchange body is `{ message, signature, nonce, fid, requestId, domain, siweU
 
 `src/farcaster.ts` uses the official `@farcaster/auth-client` verifier with `acceptAuthAddress: true`. Before verification, the Worker checks exact configured domain, URI, nonce, request ID, and expiry in the parsed SIWE message. Signatures are bounded hexadecimal byte strings rather than hard-coded EOA length so the official verifier can handle supported smart-account signatures. The official verifier validates the signature and Farcaster FID binding.
 
-The challenge store has `put`, `get`, and atomic `consume`. Production uses one Cloudflare Durable Object per challenge rather than Workers KV, because KV get/delete cannot enforce one-time consumption under races. After local context parsing, the bridge atomically claims the challenge before Farcaster RPC, Maincloud lookup, or signing work. Definitively invalid proof/FID results remain consumed; an explicitly retryable verifier outage, Maincloud lookup failure, or signing failure restores only a still-live challenge. Every object schedules an expiry alarm and uses SQLite `deleteAll()` on consumption or expiry so abandoned challenge storage is fully deallocated. A replay cannot produce another token or amplify concurrent upstream work, but deployment still requires independent edge/Worker rate limits against distributed sequential abuse.
+The challenge store has `put`, `get`, and atomic `consume`. Production uses one Cloudflare Durable Object per challenge rather than Workers KV, because KV get/delete cannot enforce one-time consumption under races. After local context parsing, the bridge atomically claims the challenge before Farcaster RPC, Maincloud lookup, or signing work. Definitively invalid proof/FID results remain consumed; an explicitly retryable verifier outage, Maincloud lookup failure, or signing failure restores only a still-live challenge. Every object schedules an expiry alarm and uses SQLite `deleteAll()` on consumption or expiry so abandoned challenge storage is fully deallocated. The bridge rechecks the absolute challenge deadline after upstream work and again after signing, so no completed token crosses that boundary. A replay cannot produce another token or amplify concurrent upstream work.
 
 ## OIDC claims and auth epoch
 
@@ -47,14 +57,23 @@ The Worker calls the fixed documented Maincloud endpoint `POST https://maincloud
 
 ## Required configuration
 
-`wrangler.toml` declares `workers_dev = false`, the `auth.warpkeep.com` custom-domain route, and the stable non-secret production contract: `ENVIRONMENT`, `ISSUER`, `ALLOWED_ORIGINS`, `FARCASTER_DOMAIN`, `FARCASTER_SIWE_URI`, `OIDC_AUDIENCE`, `OIDC_KEY_ID`, `SPACETIMEDB_URI`, and `SPACETIMEDB_DATABASE`. Configure only `FARCASTER_RPC_URL`, `SIGNING_KEY_JWK` (managed private P-256 JWK including `d`), and `ADMIN_TOKEN_SECRET` as managed Worker secrets. The admin secret must contain at least 32 random bytes. The `CHALLENGE_REPLAY_GUARD` Durable Object binding is declared in the config.
+`wrangler.toml` declares `workers_dev = false`, the `auth.warpkeep.com` custom-domain route, and the stable non-secret production contract: `ENVIRONMENT`, `ISSUER`, `ALLOWED_ORIGINS`, `FARCASTER_DOMAIN`, `FARCASTER_SIWE_URI`, `OIDC_AUDIENCE`, `OIDC_KEY_ID`, `SPACETIMEDB_URI`, and `SPACETIMEDB_DATABASE`. Configure only `FARCASTER_RPC_URL`, `SIGNING_KEY_JWK` (managed private P-256 JWK including `d`), and `ADMIN_TOKEN_SECRET` as managed Worker secrets. The admin secret must contain at least 32 random bytes. The config declares separate `CHALLENGE_REPLAY_GUARD` and `AUTH_RATE_LIMITER` SQLite Durable Object bindings and migrations.
 
 Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use separate development keys. Set real secrets through Cloudflare secret management, never Vite variables or committed config. Do not deploy/activate frontend OIDC until public discovery/JWKS, strict CORS, the direct private procedure call, and module JWT validation all pass on the final issuer.
 
-Generate a P-256 JWK outside the repository: `node --input-type=module -e 'const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]); console.log(JSON.stringify(await crypto.subtle.exportKey("jwk", pair.privateKey)))'`.
+From the repository root, generate and hand off the production P-256 JWK only
+from an approved local activation terminal. Feed it directly to the managed-secret command so the
+private `d` value is never printed, copied, or written to disk; do not run this
+under shell tracing or captured CI logs:
+
+```sh
+set +x
+node --input-type=module -e 'const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]); process.stdout.write(JSON.stringify(await crypto.subtle.exportKey("jwk", pair.privateKey)))' \
+  | pnpm --dir services/auth-bridge exec wrangler secret put SIGNING_KEY_JWK
+```
 
 ## Checks, logs, and admin boundary
 
-Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`. The isolated tests cover public-only JWKS, mocked valid SIWF exchange, invalid signature/FID mismatch, replay prevention, SIWF context, CORS, distributed rolling-window limits, raw-byte/framing body guards, fail-closed direct auth-epoch lookup, admin authentication/expiry, and static safe log events.
+Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`. The isolated tests cover public-only JWKS, mocked valid SIWF exchange, invalid signature/FID mismatch, replay prevention, post-upstream/signing expiry, SIWF context, CORS, raw-byte/framing body guards, distributed rate envelopes/concurrency/cleanup, fail-closed direct auth-epoch lookup, admin authentication/expiry, and static safe log events.
 
 Logs are closed static event names only. The Worker never logs a SIWF message, signature, nonce, request ID, JWT, private JWK, RPC URL, procedure request/response, or admin secret. `/v1/admin/token` requires `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, rejects browser `Origin` headers, emits no admin CORS headers, and is only for a server-side Hermes/admin process. Never expose its secret or returned JWT to frontend code or disk.

@@ -10,7 +10,8 @@ OWASP ASVS certification nor a penetration test.
   `2e9f3cfe9eb3f04c37156fb6cf2b82377ad616cc`
 - Runtime branch: `feat/spacetimedb-basic-connection`
 - Security branch: `security/alpha-0.2-preflight`
-- Security runtime/CI changes reviewed through: `117ea12`
+- Security runtime/CI changes reviewed through:
+  `117ea12e18568ed7da95724ab4ce159ea428abc5`
 - PR #15 reviewed separately at:
   `f57d252e56d6d3abf1530d12997815c5b1466e35`
 - Public frontend checked: `https://warpkeep.com/`
@@ -29,7 +30,8 @@ the public repository.
 ## Activation follow-up
 
 The stacked activation PR subsequently verified the server-side closed-alpha
-chain through `63336dd668e901b9ed22752528130c6005182152`:
+chain through Worker source `63336dd668e901b9ed22752528130c6005182152`
+and deployed Pages head `83bc36ccb23bfc012d27865ce8c77550b71b8436`:
 
 - `auth.warpkeep.com`, health, discovery, public-only JWKS, and exact CORS are
   live;
@@ -50,6 +52,10 @@ chain through `63336dd668e901b9ed22752528130c6005182152`:
 
 No real FID was admitted. Empty-whitelist denial remains owner-controlled QA,
 not a completed assurance in this report.
+
+The later assurance fixes described below are being consolidated above that
+live head. They are not represented as deployed until their new exact head is
+deployed and the protected verifier passes again.
 
 ## Architecture and trust boundaries
 
@@ -120,10 +126,45 @@ finding was confirmed.
 The High finding was fixed and regression-tested before this public report was
 created. This report does not publish a weaponized reproduction path.
 
+### Post-audit activation gate
+
+The later stacked activation review added distributed Worker rate control and
+the explicit admission-epoch transition, then found and closed additional
+release gates without publishing private evidence. The review branch:
+
+- deallocates expired rate-bucket SQLite objects, groups IPv6 clients by `/64`,
+  and prevents rejected browser origins from consuming quotas;
+- rechecks challenge expiry after upstream work and after signing;
+- bounds the browser-to-SpacetimeDB connection handshake and disconnects a late
+  connection;
+- hardens discovery/JWKS and module-publish preflight against redirects,
+  oversized/wrong-media responses, incomplete keys, false-success dry runs,
+  and unbounded child execution;
+- bounds the Hermes admin response and isolates the protected verifier child
+  from unrelated ambient environment variables.
+
+The preceding activation base is live. These additional assurance changes are
+not a claim that their new Worker or Pages source is deployed. Exact-head
+deployment verification and owner QA remain separate gates.
+
+After replay onto the stable live head, the consolidated branch passed a clean
+install, 57 root test files / 399 tests, 4 Worker files / 63 tests, 22 module
+tests, all typechecks, all three production build variants, real CLI
+module/binding verification, Worker dry run, and root/Worker/module audits.
+Registry verification reported 182 signed packages / 55 attestations. Hosted
+checks and exact-head deployment verification remain separate gates.
+
 ## Remaining accepted alpha risks
 
 Four Medium, three Low, and two Informational observations remain. They are
 not silent production assurances:
+
+`WK-RISK-002` was Medium at the original audit head because distributed
+challenge and verification limiting was absent. The live activation base added
+per-client limits, and this assurance branch further hardens their identity,
+alarm, and cleanup behavior. Broad distributed-abuse monitoring and alerts
+remain an operational dependency rather than an unresolved application-code
+finding.
 
 - `WK-RISK-001` (Medium): the 30-day bearer remains readable by same-origin
   script/local browser storage. Logout cannot recall a token copied outside the
@@ -173,8 +214,10 @@ secret alert endpoints remained unavailable/inaccessible, so this report does
 not make a broader zero-alert claim.
 
 PR #15's license-policy verifier and CI changes were reviewed separately. Its
-local license verification passed, it introduced no auth/secret/network/runtime
-path, and no actionable security issue specific to that PR was confirmed.
+current v0.2 preparation check passed and it introduced no auth, secret,
+network, or runtime path. A later assurance pass identified a future-v0.3
+release-integrity gap in its cutover attestation/version/path-map checks; PR #15
+must correct and test that future-state branch before it merges.
 
 ## Live verification status
 
@@ -223,13 +266,16 @@ Security tests now cover:
   job permissions/timeouts, stacked-PR triggers, and non-executing CodeQL mode;
 - real SpacetimeDB 2.6.1 module build and generated binding equivalence.
 
-The latest clean activation matrix passed: 56 root test files / 384 tests, 56
+The exact deployed activation head passed 56 root test files / 384 tests, 56
 Worker tests, 22 module tests, all typechecks, three root production build
 variants, real SpacetimeDB 2.6.1 module build, generated-binding equivalence,
 workflow YAML parsing, and `git diff --check`. Root, Worker, and module audits
 reported no known vulnerabilities; 182 registry signatures and 55 attestations
-verified. Hosted Verify, Worker, module, CodeQL analysis, and CodeQL result
-checks all passed on the exact deployed Worker source head.
+verified. Hosted Verify, Worker, module, CodeQL analysis, Pages, and protected
+production verification all passed for that recorded deployment. The additional
+assurance branch passed the separate consolidated local matrix described above;
+the combined head still requires hosted validation and exact-head deployment
+verification.
 
 The final shipped build was byte-for-byte equal to the PR #11 baseline: zero
 total-byte and zero main-JavaScript-byte delta while the shared-alpha switch is
@@ -243,19 +289,27 @@ audits reported no known vulnerabilities at the audited locks.
 
 ## Release recommendation
 
-**CONDITIONAL PASS** for a small closed alpha. There is no remaining confirmed
-Critical/High code blocker on the security or activation branch.
+**BLOCK** for advancing the consolidated activation branch or admitting a FID.
+There is no remaining confirmed Critical/High code defect in the reviewed
+source, but the additional assurance code is not yet the deployed and protected
+production-verifier head.
 
 PR #11 remained at the audit-base SHA. The security branch was rebased onto
 that exact latest head (a no-op), and the complete local/hosted matrix passed.
 
 Ongoing conditions before admitting any FID:
 
-1. keep the exact-head Pages workflow and public identity-chain coordinates
-   green;
+1. deploy the exact consolidated head and keep its Pages workflow, public
+   identity-chain coordinates, and required protected aggregate check green;
 2. complete owner-controlled empty-whitelist denial QA;
 3. retain the explicit first-admission epoch-zero policy and rotate once on
    every disabled-to-enabled transition;
 4. set the shared-alpha switch back to `false` if any coordinate disagrees.
 
-This recommendation is not `PASS FOR PRODUCTION`.
+The historical `83bc36c` activation record remains a conditional closed-alpha
+pass for its exact deployed source; it is not evidence for the new consolidated
+head and is not `PASS FOR PRODUCTION`.
+
+The consolidated activation assurance remains **BLOCKED** from final release
+until its fixes pass on the final hosted head, that exact head is deployed and
+protected-aggregate verified, and owner-controlled denial QA is complete.
