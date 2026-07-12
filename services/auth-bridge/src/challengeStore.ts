@@ -70,8 +70,20 @@ export class ChallengeReplayGuard {
     const url = new URL(request.url)
     if (url.pathname === '/record' && request.method === 'PUT') {
       const candidate: unknown = await request.json()
-      if (!isChallengeRecord(candidate)) return new Response(null, { status: 400 })
-      await this.state.storage.put(RECORD_KEY, candidate)
+      if (
+        !isChallengeRecord(candidate)
+        || candidate.expiresAt <= Date.now()
+        || candidate.createdAt >= candidate.expiresAt
+      ) {
+        return new Response(null, { status: 400 })
+      }
+      try {
+        await this.state.storage.put(RECORD_KEY, candidate)
+        await this.state.storage.setAlarm(candidate.expiresAt)
+      } catch (error) {
+        await this.state.storage.deleteAll()
+        throw error
+      }
       return new Response(null, { status: 204 })
     }
 
@@ -87,18 +99,27 @@ export class ChallengeReplayGuard {
       // before another request can obtain the same record.
       const challenge = await this.readUsableRecord()
       if (!challenge) return new Response(null, { status: 404 })
-      await this.state.storage.delete(RECORD_KEY)
+      await this.state.storage.deleteAll()
       return Response.json(challenge, { headers: { 'cache-control': 'no-store' } })
     }
 
     return new Response(null, { status: 404 })
   }
 
+  /** Fully deallocate abandoned SQLite-backed objects at challenge expiry. */
+  async alarm(): Promise<void> {
+    await this.state.storage.deleteAll()
+  }
+
   private async readUsableRecord(): Promise<ChallengeRecord | null> {
     const candidate = await this.state.storage.get<unknown>(RECORD_KEY)
-    if (!isChallengeRecord(candidate)) return null
+    if (candidate === undefined) return null
+    if (!isChallengeRecord(candidate)) {
+      await this.state.storage.deleteAll()
+      return null
+    }
     if (candidate.expiresAt <= Date.now()) {
-      await this.state.storage.delete(RECORD_KEY)
+      await this.state.storage.deleteAll()
       return null
     }
     return candidate
@@ -115,7 +136,11 @@ export class MemoryChallengeStore implements ChallengeStore {
 
   async get(requestId: string): Promise<ChallengeRecord | null> {
     const challenge = this.records.get(requestId)
-    if (!challenge || challenge.expiresAt <= Date.now()) return null
+    if (!challenge) return null
+    if (challenge.expiresAt <= Date.now()) {
+      this.records.delete(requestId)
+      return null
+    }
     return challenge
   }
 
@@ -123,7 +148,11 @@ export class MemoryChallengeStore implements ChallengeStore {
     // Do not await between lookup and delete: this test adapter preserves the
     // same one-turn consume semantics as the production Durable Object.
     const challenge = this.records.get(requestId)
-    if (!challenge || challenge.expiresAt <= Date.now()) return null
+    if (!challenge) return null
+    if (challenge.expiresAt <= Date.now()) {
+      this.records.delete(requestId)
+      return null
+    }
     this.records.delete(requestId)
     return challenge
   }

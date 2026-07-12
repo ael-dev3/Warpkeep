@@ -5,6 +5,8 @@ export const ADMIN_TOKEN_TTL_SECONDS = 5 * 60
 export const INTERNAL_ADMIN_TOKEN_TTL_SECONDS = 60
 export const CHALLENGE_TTL_MILLISECONDS = 5 * 60 * 1000
 export const MAX_REQUEST_BYTES = 16 * 1024
+export const MIN_ADMIN_TOKEN_SECRET_BYTES = 32
+export const MAX_ADMIN_TOKEN_SECRET_BYTES = 512
 
 export interface BridgeConfig {
   issuer: string
@@ -117,6 +119,14 @@ function parseKeyId(value: string): string {
   return value
 }
 
+function parseAdminTokenSecret(value: string): string {
+  const bytes = new TextEncoder().encode(value).byteLength
+  if (bytes < MIN_ADMIN_TOKEN_SECRET_BYTES || bytes > MAX_ADMIN_TOKEN_SECRET_BYTES) {
+    throw new ConfigurationError()
+  }
+  return value
+}
+
 function parseSpacetimeDbUri(value: string, production: boolean): string {
   const url = parseAbsoluteUrl(value)
   if (
@@ -182,7 +192,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     audience: env.OIDC_AUDIENCE?.trim() || 'warpkeep-spacetimedb',
     keyId: parseKeyId(configuredKid),
     privateJwk,
-    adminTokenSecret: required(env, 'ADMIN_TOKEN_SECRET'),
+    adminTokenSecret: parseAdminTokenSecret(required(env, 'ADMIN_TOKEN_SECRET')),
     spacetimeDbUri,
     spacetimeDbDatabase,
     environment,

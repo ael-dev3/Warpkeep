@@ -119,7 +119,7 @@ async function readBoundedBody(response: Response): Promise<string> {
 }
 
 function parseEpoch(raw: string, contentType: string | null): number {
-  if (!contentType?.toLowerCase().startsWith('application/json')) {
+  if (contentType?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
     throw new Error('Auth epoch resolver returned invalid data.')
   }
   if (encoder.encode(raw).byteLength > MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES) {

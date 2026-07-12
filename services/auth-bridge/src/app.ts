@@ -120,8 +120,47 @@ function allowedPreflight(request: Request, config: BridgeConfig): Response {
 
 function requireJsonContentType(request: Request): void {
   const contentType = request.headers.get('content-type')
-  if (!contentType?.toLowerCase().startsWith('application/json')) {
+  if (contentType?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
     throw new HttpError(415, 'unsupported_media_type', 'Expected an application/json request body.')
+  }
+}
+
+async function readBoundedRequestText(request: Request): Promise<string> {
+  if (!request.body) return ''
+
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+      totalBytes += value.byteLength
+      if (totalBytes > MAX_REQUEST_BYTES) {
+        try {
+          await reader.cancel()
+        } catch {
+          // The public result remains a bounded 413 even if cancellation fails.
+        }
+        throw new HttpError(413, 'body_too_large', 'Request body is too large.')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  const bytes = new Uint8Array(totalBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    throw new HttpError(400, 'invalid_json', 'Request body must be valid JSON.')
   }
 }
 
@@ -131,10 +170,7 @@ async function parseObjectBody(request: Request): Promise<Record<string, unknown
   if (advertisedLength && (!/^\d+$/.test(advertisedLength) || Number(advertisedLength) > MAX_REQUEST_BYTES)) {
     throw new HttpError(413, 'body_too_large', 'Request body is too large.')
   }
-  const body = await request.text()
-  if (new TextEncoder().encode(body).byteLength > MAX_REQUEST_BYTES) {
-    throw new HttpError(413, 'body_too_large', 'Request body is too large.')
-  }
+  const body = await readBoundedRequestText(request)
   let parsed: unknown
   try {
     parsed = JSON.parse(body)
@@ -309,16 +345,38 @@ function verifySignedMessage(input: ExchangeInput, challenge: ChallengeRecord, n
   } catch {
     throw new HttpError(401, 'invalid_proof', 'The Farcaster proof could not be verified.')
   }
+  const expirationTime = parsed.expirationTime
   if (
     parsed.domain !== challenge.domain
     || parsed.uri !== challenge.siweUri
     || parsed.nonce !== challenge.nonce
     || parsed.requestId !== challenge.requestId
-    || parsed.expirationTime?.toISOString() !== new Date(challenge.expiresAt).toISOString()
-    || !parsed.expirationTime
-    || parsed.expirationTime.getTime() <= now
+    || !expirationTime
+    || !Number.isFinite(expirationTime.getTime())
+    || expirationTime.toISOString() !== new Date(challenge.expiresAt).toISOString()
+    || expirationTime.getTime() <= now
   ) {
     throw new HttpError(401, 'invalid_proof', 'The Farcaster proof could not be verified.')
+  }
+}
+
+async function restoreRetryableChallenge(
+  store: ChallengeStore,
+  challenge: ChallengeRecord,
+  now: () => number,
+): Promise<void> {
+  let currentTime: number
+  try {
+    currentTime = now()
+  } catch {
+    return
+  }
+  if (!Number.isFinite(currentTime) || challenge.expiresAt <= currentTime) return
+  try {
+    await store.put(challenge)
+  } catch {
+    // Restoration is best effort. Failure leaves the challenge consumed and
+    // still fails closed without exposing proof or storage details.
   }
 }
 
@@ -459,6 +517,15 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           const currentTime = now()
           verifyLocalChallenge(input, challenge, origin, currentTime)
           verifySignedMessage(input, challenge, currentTime)
+
+          // Claim the challenge before any paid/upstream work. Only one
+          // contender can verify, resolve an epoch, or sign. Retryable service
+          // failures restore the still-live challenge below.
+          const claimed = await store.consume(input.requestId)
+          if (!claimed || claimed.nonce !== challenge.nonce || claimed.expiresAt !== challenge.expiresAt) {
+            logger.event('exchange_rejected')
+            throw new HttpError(401, 'challenge_replayed', 'This sign-in challenge is invalid or already used.')
+          }
           const verifier = dependencies.verifier ?? createOfficialFarcasterVerifier(config.farcasterRpcUrl)
           let verifiedFid: string
           try {
@@ -470,10 +537,12 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               acceptAuthAddress: true,
             })).fid)
           } catch {
+            await restoreRetryableChallenge(store, claimed, now)
             logger.event('exchange_rejected')
             throw new HttpError(401, 'invalid_proof', 'The Farcaster proof could not be verified.')
           }
           if (verifiedFid !== input.fid) {
+            await restoreRetryableChallenge(store, claimed, now)
             logger.event('exchange_rejected')
             throw new HttpError(401, 'fid_mismatch', 'The Farcaster proof could not be verified.')
           }
@@ -484,6 +553,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           try {
             authEpoch = requireEpoch(await (dependencies.authEpochResolver ?? defaultAuthEpochResolver(config)).resolve(verifiedFid))
           } catch {
+            await restoreRetryableChallenge(store, claimed, now)
             logger.event('auth_epoch_failed')
             throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
           }
@@ -494,15 +564,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           try {
             token = await signEs256Jwt(config, playerClaims(config, issuedAt, verifiedFid, authEpoch, input.identity))
           } catch {
+            await restoreRetryableChallenge(store, claimed, now)
             logger.event('configuration_error')
             throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
-          }
-          // A contender may prepare a token, but only the request that atomically
-          // consumes the one-time challenge is allowed to return one.
-          const consumed = await store.consume(input.requestId)
-          if (!consumed || consumed.nonce !== challenge.nonce || consumed.expiresAt !== challenge.expiresAt) {
-            logger.event('exchange_rejected')
-            throw new HttpError(401, 'challenge_replayed', 'This sign-in challenge is invalid or already used.')
           }
           logger.event('exchange_succeeded')
           return json({

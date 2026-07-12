@@ -101,6 +101,7 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
       jsonResponse('0.5'),
       jsonResponse(String(MAX_AUTH_EPOCH + 1)),
       new Response('0', { headers: { 'content-type': 'text/plain' } }),
+      new Response('0', { headers: { 'content-type': 'application/jsonp' } }),
       jsonResponse('x'.repeat(MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES + 1)),
     ]
 

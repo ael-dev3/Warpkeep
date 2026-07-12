@@ -6,6 +6,8 @@ export interface DurableObjectStorage {
   get<T>(key: string): Promise<T | undefined>
   put<T>(key: string, value: T): Promise<void>
   delete(key: string): Promise<boolean>
+  deleteAll(): Promise<void>
+  setAlarm(scheduledTime: number | Date): Promise<void>
 }
 
 export interface DurableObjectState {

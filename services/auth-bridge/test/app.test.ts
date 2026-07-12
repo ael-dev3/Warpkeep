@@ -8,6 +8,7 @@ const ORIGIN = 'https://ael-dev3.github.io'
 const DOMAIN = 'ael-dev3.github.io'
 const SIWE_URI = 'https://ael-dev3.github.io/Warpkeep/'
 const FID = '12345'
+const ADMIN_SECRET = 'TEST_ONLY_ADMIN_SECRET_'.repeat(2)
 let privateJwk: JsonWebKey
 
 beforeAll(async () => {
@@ -27,7 +28,7 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
     SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
     SIGNING_KEY_JWK: JSON.stringify(privateJwk),
-    ADMIN_TOKEN_SECRET: 'correct-horse-battery-staple',
+    ADMIN_TOKEN_SECRET: ADMIN_SECRET,
     ENVIRONMENT: 'production',
     ...overrides,
   }
@@ -35,7 +36,7 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
 
 function request(path: string, body?: unknown, init: RequestInit = {}): Request {
   const headers = new Headers(init.headers)
-  if (body !== undefined) headers.set('content-type', 'application/json')
+  if (body !== undefined && !headers.has('content-type')) headers.set('content-type', 'application/json')
   return new Request(`https://bridge.warpkeep.example${path}`, {
     ...init,
     method: body === undefined ? 'GET' : 'POST',
@@ -252,6 +253,38 @@ describe('Warpkeep auth bridge', () => {
 
     const tooLarge = await h.app.fetch(request('/v1/farcaster/challenge', { domain: DOMAIN, siweUri: SIWE_URI, padding: 'x'.repeat(20_000) }, { headers: { origin: ORIGIN } }), env())
     expect(tooLarge.status).toBe(413)
+
+    const wrongMediaType = await h.app.fetch(request('/v1/farcaster/challenge', {}, {
+      headers: { origin: ORIGIN, 'content-type': 'application/jsonp' },
+    }), env())
+    expect(wrongMediaType.status).toBe(415)
+  })
+
+  it('cancels a chunked body as soon as it crosses the byte limit', async () => {
+    const h = harness()
+    let cancelled = false
+    let pulls = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1
+        controller.enqueue(new Uint8Array(9_000))
+        if (pulls >= 3) controller.close()
+      },
+      cancel() {
+        cancelled = true
+      },
+    })
+    const oversized = new Request('https://bridge.warpkeep.example/v1/farcaster/challenge', {
+      method: 'POST',
+      headers: { origin: ORIGIN, 'content-type': 'application/json' },
+      body,
+      duplex: 'half',
+    } as RequestInit)
+
+    const response = await h.app.fetch(oversized, env())
+    expect(response.status).toBe(413)
+    expect(cancelled).toBe(true)
+    expect(pulls).toBeLessThanOrEqual(2)
   })
 
   it('requires the server-only admin secret and issues a five-minute admin token', async () => {
@@ -260,12 +293,12 @@ describe('Warpkeep auth bridge', () => {
     expect(missing.status).toBe(401)
 
     const browser = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
-      method: 'POST', headers: { origin: ORIGIN, authorization: 'Bearer correct-horse-battery-staple' },
+      method: 'POST', headers: { origin: ORIGIN, authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
     expect(browser.status).toBe(403)
 
     const granted = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
-      method: 'POST', headers: { authorization: 'Bearer correct-horse-battery-staple' },
+      method: 'POST', headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
     expect(granted.status).toBe(200)
     const grantedBody = await json(granted)
@@ -275,12 +308,19 @@ describe('Warpkeep auth bridge', () => {
     expect(Number(claims.exp) - Number(claims.iat)).toBe(5 * 60)
   })
 
+  it('fails closed when the managed admin secret is too short', async () => {
+    const h = harness()
+    const response = await h.app.fetch(request('/healthz'), env({ ADMIN_TOKEN_SECRET: 'too-short' }))
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+  })
+
   it('fails closed without a public issuer and writes only static safe log events', async () => {
     const h = harness()
     const response = await h.app.fetch(request('/healthz'), env({ ISSUER: undefined }))
     expect(response.status).toBe(503)
     expect(h.events).toContain('configuration_error')
-    expect(JSON.stringify(h.events)).not.toContain('correct-horse-battery-staple')
+    expect(JSON.stringify(h.events)).not.toContain(ADMIN_SECRET)
     expect(JSON.stringify(h.events)).not.toContain(FID)
   })
 
@@ -326,5 +366,54 @@ describe('Warpkeep auth bridge', () => {
     expect(output).not.toContain(String(proof.nonce))
     expect(output).not.toContain(String(proof.requestId))
     expect(output).not.toContain(FID)
+  })
+
+  it('claims a challenge before upstream work so concurrent copies do not amplify it', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    let releaseVerification!: () => void
+    h.verifier.verify.mockImplementationOnce(() => new Promise((resolve) => {
+      releaseVerification = () => resolve({ fid: FID })
+    }))
+
+    const first = h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    await vi.waitFor(() => expect(h.verifier.verify).toHaveBeenCalledTimes(1))
+    const contender = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    expect(contender.status).toBe(401)
+    expect(h.verifier.verify).toHaveBeenCalledTimes(1)
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+
+    releaseVerification()
+    expect((await first).status).toBe(200)
+    expect(h.resolver.resolve).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores a claimed challenge after a transient epoch lookup failure', async () => {
+    const resolver = {
+      resolve: vi.fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce(9),
+    }
+    const h = harness({ resolver })
+    const challenge = await issueChallenge(h)
+    const first = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    expect(first.status).toBe(503)
+
+    const retry = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    expect(retry.status).toBe(200)
+    expect(resolver.resolve).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects an invalid signed-message expiry without converting it into a 500', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    const proof = proofFor(challenge)
+    const message = String(proof.message).replace(/^Expiration Time:.*$/m, 'Expiration Time: invalid')
+    const response = await h.app.fetch(request('/v1/farcaster/exchange', {
+      ...proof,
+      message,
+    }, { headers: { origin: ORIGIN } }), env())
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'invalid_proof' } })
   })
 })

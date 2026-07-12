@@ -11,4 +11,4 @@ OIDC_KEY_ID=warpkeep-dev-2026-01
 SPACETIMEDB_URI=http://127.0.0.1:3000
 SPACETIMEDB_DATABASE=warpkeep-dev
 SIGNING_KEY_JWK={"kty":"EC","crv":"P-256","x":"...","y":"...","d":"...","kid":"warpkeep-dev-2026-01"}
-ADMIN_TOKEN_SECRET=replace-with-a-long-random-secret
+ADMIN_TOKEN_SECRET=replace-with-at-least-32-random-bytes
