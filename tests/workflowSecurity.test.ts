@@ -25,11 +25,21 @@ describe('GitHub workflow security policy', () => {
     const source = workflow('deploy-pages.yml');
     const build = source.slice(source.indexOf('  build:'), source.indexOf('  deploy:'));
     const deploy = source.slice(source.indexOf('  deploy:'));
+    expect(build).toMatch(/^\s+pages:\s*read\s*$/m);
     expect(build).not.toMatch(/^\s+pages:\s*write\s*$/m);
     expect(build).not.toMatch(/^\s+id-token:\s*write\s*$/m);
     expect(deploy).toMatch(/^\s+pages:\s*write\s*$/m);
     expect(deploy).toMatch(/^\s+id-token:\s*write\s*$/m);
     expect(source).not.toContain('enablement: true');
+  });
+
+  it('bounds every workflow job duration', () => {
+    const jobs = [workflow('verify.yml'), workflow('deploy-pages.yml')]
+      .map(source => source.slice(source.indexOf('jobs:')))
+      .join('\n');
+    const jobCount = (jobs.match(/^  [a-z0-9-]+:\s*$/gm) ?? []).length;
+    const timeoutCount = (jobs.match(/^    timeout-minutes:\s*[1-9][0-9]*\s*$/gm) ?? []).length;
+    expect(timeoutCount).toBe(jobCount);
   });
 
   it('uses a checksum-verified CLI archive and never pipes a remote installer to a shell', () => {

@@ -15,6 +15,10 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: read
     env:
       DEPLOY_BASE: '/'
       VITE_WARPKEEP_RELEASE_CHANNEL: alpha
@@ -72,6 +76,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       pages: write
