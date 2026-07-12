@@ -16,14 +16,14 @@ Raids, defense, alliances, seasons, diplomacy, and world events are documented a
 
 ## Resources
 
-The first resources are off-chain game resources:
+The first resources are ordinary server-authoritative game resources:
 
 - Grain: produced by Farm, spent on construction and units.
 - Stone: produced by Quarry, spent on buildings.
 - Iron: recovered through early watchtower/military logistics until Mine exists.
 - Influence: produced slowly from Keep authority and later Farcaster activity.
 
-No token price or real-money dependency exists in this seed.
+No real-money or external-payment dependency exists in this seed.
 
 ## Buildings
 

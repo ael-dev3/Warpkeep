@@ -10,7 +10,7 @@ The seed experience is intentionally small:
 4. Collect resources, upgrade buildings, train units, and scout nearby FID castles.
 5. Understand that multiplayer state is intended to become server-authoritative through SpacetimeDB.
 
-Warpkeep is not a dashboard, DeFi agent, on-chain execution bot, or token-price game. It is a social strategy game where Farcaster identity, social graph, channels, and optional future token integrations can become game mechanics without becoming the foundation.
+Warpkeep is not a dashboard, financial product, or chain-execution client. It is a social strategy game where Farcaster identity, social graph, and channels support shared play while SpacetimeDB remains the sole authority for game state.
 
 ## Success condition
 
