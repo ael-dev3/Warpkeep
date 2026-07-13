@@ -1,13 +1,14 @@
 # Deployment and recovery
 
-> **Protocol-v2 backend staged; public entry remains paused.** The existing
-> Maincloud database now has the guarded additive v2 schema, and the reviewed
-> Worker with the additive `SessionFamily` migration and independent managed
-> session-cookie secret is deployed with public auth false. No admission,
-> player, ownership, castle, allowlist, or world data was mutated. The v2 Pages
-> frontend is not yet deployed and shared alpha remains false. The recovery
-> commands below never imply approval for a republish, secret change, deploy, or
-> either later enable.
+> **Protocol-v2 Alpha 0.3.1 is active; recovery remains fail-closed.** The
+> existing Maincloud database has the guarded additive v2 schema, and the
+> reviewed Worker with the additive `SessionFamily` migration and independent
+> managed session-cookie secret is live with the exact-main Pages frontend.
+> Public auth and shared-alpha entry were enabled in Worker-first order after
+> paused verification and one owner canary. No FID is admitted, and no player,
+> ownership, castle, allowlist, or world row was mutated. The recovery commands
+> below deliberately restore a disabled posture and never imply approval for a
+> republish, secret change, deploy, or later enable.
 
 ## Pages
 
@@ -210,13 +211,13 @@ WARPKEEP_EXPECTED_DEPLOYED_SHA=<full-pages-sha> \
     --require-additive-v2-aggregate
 ```
 
-This command is the current paused-checkpoint verifier and the recovery gate for
-any later exact deployment. A successful run attests only the configured source
-and service coordinates supplied for that run; it is not authority to publish,
-deploy, enable, or mutate data. The approved secret handoff supplies the operator
-credential without logging it. Verification accepts the exact aggregate field
-set only, requires both orphan counts to be zero, and never mirrors Hermes child
-output.
+This command is the staging/recovery paused-profile verifier and the recovery
+gate for any later exact deployment. A successful run attests only the
+configured source and service coordinates supplied for that run; it is not
+authority to publish, deploy, enable, or mutate data. The approved secret
+handoff supplies the operator credential without logging it. Verification
+accepts the exact aggregate field set only, requires both orphan counts to be
+zero, and never mirrors Hermes child output.
 
 After an approved Worker enable, replace the paused-profile flag with the
 read-only enabled-profile flag:

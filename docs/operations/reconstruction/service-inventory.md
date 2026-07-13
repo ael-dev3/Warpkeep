@@ -1,13 +1,13 @@
 # Service inventory
 
-> **Protocol-v2 backend staged; public entry paused.** The guarded additive
-> module, `SessionFamily` migration, independent managed cookie secret, and
-> reviewed Worker are staged at their separately recorded production
-> coordinates, with Worker public auth false. The v2 frontend is not yet
-> deployed and shared-alpha access remains false. Recovery manifests must bind
-> every observation to its exact deployed source/version; every future
-> republish, binding change, secret change, deploy, or enable requires its own
-> authority and verification.
+> **Protocol-v2 Alpha 0.3.1 is active; recovery remains fail-closed.** The
+> guarded additive module, `SessionFamily` migration, independent managed cookie
+> secret, reviewed Worker, and exact-main frontend are live at their separately
+> recorded production coordinates. Worker public auth and shared-alpha entry
+> were enabled in order after paused verification and one owner canary. No FID
+> is admitted. Recovery manifests must bind every observation to its exact
+> deployed source/version; every future republish, binding change, secret
+> change, deploy, or enable requires its own authority and verification.
 
 ## Repositories and workflows
 
@@ -69,32 +69,35 @@ development-only.
 - Compatibility date: `2026-07-11`
 - Compatibility flag: `nodejs_compat`
 - `workers_dev = false`
-- Recorded paused production state: `PUBLIC_AUTH_ENABLED=false`
+- Checked-in/recovery default: `PUBLIC_AUTH_ENABLED=false`
+- Recorded Alpha 0.3.1 production state: `PUBLIC_AUTH_ENABLED=true`
 
 Durable Objects:
 
 - `CHALLENGE_REPLAY_GUARD` → `ChallengeReplayGuard` (migration `v1`)
 - `AUTH_RATE_LIMITER` → `AuthRateLimiter` (migration `v2`)
 - `SESSION_FAMILIES` → `SessionFamily` (additive migration `v3`; deployed at the
-  recorded paused checkpoint; any future binding/migration change requires
-  separate approval)
+  recorded paused checkpoint and retained through enablement; any future
+  binding/migration change requires separate approval)
 
 Unauthenticated metadata endpoints are `/healthz`,
 `/.well-known/openid-configuration`, and `/.well-known/jwks.json`. The deployed
 credentialed browser protocol uses `/v2/farcaster/challenge`,
 `/v2/farcaster/exchange`, `/v2/session/refresh`, and `/v2/session/logout`.
-Those public routes remain paused while `PUBLIC_AUTH_ENABLED=false`.
+Those public routes are active only while `PUBLIC_AUTH_ENABLED=true` and return
+the paused profile when it is false.
 Public v1 challenge/exchange are retired with `410`; admin `/v1` routes are a
 separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 `ADMIN_TOKEN_SECRET`, `SESSION_COOKIE_KEY`, and `FARCASTER_RPC_URL`; see
 [`credential-rotation.md`](credential-rotation.md). Never record their values.
 
-The server-only config attestation target is profile `warpkeep-auth-v2` with
-`publicAuthEnabled: false`. It covers issuer/origins/SIWF coordinates, key and
-Maincloud coordinates, S256, the 600-second access TTL, 15-second resolver TTL,
-five-second resolver timeout, five-minute challenge TTL, maximum-30-day family,
-and exact `__Host-` cookie attributes. Record only the reviewed digest and
-observed deployment version.
+The server-only config attestation profile is `warpkeep-auth-v2`. Its
+fail-closed recovery target has `publicAuthEnabled: false`; the recorded Alpha
+0.3.1 active target has `publicAuthEnabled: true`. It covers
+issuer/origins/SIWF coordinates, key and Maincloud coordinates, S256, the
+600-second access TTL, 15-second resolver TTL, five-second resolver timeout,
+five-minute challenge TTL, maximum-30-day family, and exact `__Host-` cookie
+attributes. Record only the reviewed digest and observed deployment version.
 
 Production Worker configuration pins resolver calls to exact
 `https://maincloud.spacetimedb.com` and `warpkeep-89e4u`. Alternate resolver
@@ -121,7 +124,7 @@ never written.
 - CLI/module: `2.6.1`
 - OIDC issuer: `https://auth.warpkeep.com`
 - Audience: `warpkeep-spacetimedb`
-- Recorded paused backend protocol: `2` (verify the deployed observed value; do
+- Recorded production backend protocol: `2` (verify the deployed observed value; do
   not infer it from the repository)
 
 The recorded deployed resolver target is

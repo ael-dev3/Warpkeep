@@ -4,14 +4,14 @@ Warpkeep contains a TypeScript SpacetimeDB authority module under
 [`spacetimedb/`](../spacetimedb/). It is authoritative shared-world code, not a
 browser mock.
 
-> **Protocol-v2 backend staged; public entry remains paused.** The guarded
-> additive module has been published to the existing Maincloud database with
-> deletion prohibited. The exact v2 aggregate remains empty apart from the 61
-> canonical world tiles and audit count. The paused Worker is deployed with its
-> additive session-family storage and independent managed cookie secret, while
-> both public switches remain false. Only the privately recorded identity,
-> source, deployment, aggregate, and probe coordinates attest that checkpoint;
-> an arbitrary local checkout does not.
+> **Protocol-v2 Alpha 0.3.1 is active; authority remains invite-only.** The
+> guarded additive module has been published to the existing Maincloud database
+> with deletion prohibited. The exact v2 aggregate remains empty apart from the
+> 61 canonical world tiles and audit count. The reviewed Worker and exact-main
+> Pages frontend were enabled in Worker-first order after their paused gates and
+> one privacy-safe owner canary passed. No FID is admitted. Only the privately
+> recorded source, deployment, aggregate, probe, and canary coordinates attest
+> that checkpoint; an arbitrary local checkout does not.
 
 ## Version contract
 
@@ -223,9 +223,8 @@ each authority boundary. This head uses an additive protocol-v2 design: the
 exact legacy `player` shape and original table prefix stay frozen, while public
 `player_v2` and private `player_ownership_v2` are appended. Historical evidence
 that legacy `player` was empty does not waive a fresh zero-row check. The
-recorded checkpoint completed steps 1 through 9 below; step 10 and the ordered
-enable/QA gates in step 11 remain pending. Every future republish repeats the
-applicable gates:
+recorded Alpha 0.3.1 checkpoints completed steps 1 through 11 below. Every
+future republish or rollout repeats the applicable gates:
 
 1. keep `PUBLIC_AUTH_ENABLED=false` and the frontend shared-alpha switch false;
 2. run `npm run stdb:verify-additive-migration` and retain its local,
@@ -249,8 +248,10 @@ applicable gates:
 9. separately approve a Worker deploy with public auth still false and verify
    discovery/JWKS, resolver probe, retired v1 routes, and config attestation;
 10. separately approve the v2 frontend deploy with realm access still false;
-11. only after hosted exact-head verification and owner QA, require final
-   explicit approval for any Worker public-auth enable and frontend realm enable.
+11. after hosted exact-head paused verification, require final authority and
+   proceed in strict order: enable Worker public auth, pass its enabled
+   public/private checks, enable/deploy the exact frontend, then perform
+   immediate owner QA with dual-disable handling for any discrepancy.
 
 The current guarded publisher requires the explicit fresh zero-count
 confirmation and forbids `--break-clients`. If preflight or publish reports any
@@ -263,7 +264,8 @@ FID, or fall back to the legacy resolver implicitly. See the
 
 ## What follows this slice
 
-Only after the identity/session chain and tokenless pending-admission QA are
-approved and live should Warpkeep add server-authoritative resource timers,
-queues, units, scouting, combat, alliances, seasons, or activity reports. AI
-may produce flavor or summaries, but never write authority tables directly.
+With the identity/session chain and tokenless pending-admission QA now approved
+and live at the recorded Alpha 0.3.1 coordinates, later versions may add
+server-authoritative resource timers, queues, units, scouting, combat,
+alliances, seasons, or activity reports. AI may produce flavor or summaries,
+but never write authority tables directly.

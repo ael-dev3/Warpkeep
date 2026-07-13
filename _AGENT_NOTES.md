@@ -2,7 +2,12 @@
 
 ## Current state
 
-Warpkeep Alpha 0.3.0 has a live title/menu, standard website SIWF, a Cloudflare Worker OIDC bridge, a non-destructively published SpacetimeDB module, a deterministic 61-cell Lowlands, and quality-aware title/realm rendering. Production admission remains intentionally empty; do not create a player or castle as a convenience test.
+Warpkeep Alpha 0.3.1 has a live title/menu, an explicit Alpha Terms gate,
+browser-bound S256 website SIWF, rotating HttpOnly session families, a
+least-privilege Cloudflare Worker OIDC bridge, a non-destructively published
+protocol-v2 SpacetimeDB module, a deterministic 61-cell Lowlands, and
+quality-aware title/realm rendering. Production admission remains intentionally
+empty; do not create a player or castle as a convenience test.
 
 Start with:
 

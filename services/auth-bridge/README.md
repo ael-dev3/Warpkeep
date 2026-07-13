@@ -5,15 +5,18 @@ OIDC access JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the
 static browser app: browser code never receives a signing key, admin secret,
 Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
 
-> **Local v2 draft — not deployed.** The v2 access/session and resolver contract
-> described below is implemented in this checkout only. No module publish,
-> Durable Object migration, Worker deployment, frontend deployment, secret
-> change, or public-auth activation was performed as part of this work.
-> `wrangler.toml` deliberately keeps `PUBLIC_AUTH_ENABLED = "false"`.
+> **Protocol-v2 Alpha 0.3.1 is active; the checked-in default fails closed.**
+> The v2 access/session and resolver contract described below is live only at
+> its privately recorded production source, deployment, configuration, and
+> canary coordinates. The additive module and Durable Object migration were
+> published/deployed, an independent managed session key was configured, and
+> the exact Worker/frontend gates and owner canary passed. No FID is admitted.
+> `wrangler.toml` deliberately keeps `PUBLIC_AUTH_ENABLED = "false"`; the
+> recorded production override is true.
 
-`https://auth.warpkeep.com` remains the canonical historical bridge coordinate,
-but its existence is not evidence that this local v2 source is deployed. Every
-rollout step requires exact-head verification and separate operator approval.
+`https://auth.warpkeep.com` is the canonical bridge coordinate, but its
+existence is not evidence that an arbitrary local v2 source is deployed. Every
+future rollout step requires exact-head verification and recorded authority.
 
 ## Endpoints
 
@@ -240,8 +243,8 @@ secret management, never Vite variables or committed config.
 
 ## Approval-gated staged rollout
 
-This repository work stops before every external mutation. A future rollout
-must remain staged and fail closed in this order:
+Alpha 0.3.1 completed the following recorded sequence. Every future redeploy or
+recovery must remain staged and fail closed in the same order:
 
 1. keep both Worker public auth and the frontend shared-alpha switch false;
 2. run `npm run stdb:verify-additive-migration` from the repository root; its
@@ -271,9 +274,10 @@ must remain staged and fail closed in this order:
    retirement, and the configuration attestation;
 9. obtain separate approval to deploy the v2 frontend while its realm switch
    remains false;
-10. only after exact-head hosted verification and owner QA, obtain a final,
-   explicit approval for any Worker public-auth enable and any frontend realm
-   enable. Those enables are not authorized by this document.
+10. after exact-head hosted paused verification, obtain final authority and
+    proceed strictly: enable Worker public auth, pass its enabled public/private
+    gates, enable/deploy the exact frontend, then perform immediate owner QA.
+    The Alpha 0.3.1 authority is not reusable for a future change.
 
 If any stage disagrees, stop and leave public auth false. The legacy admin epoch
 procedure is rollback compatibility only, not permission to mint v1 tokens.

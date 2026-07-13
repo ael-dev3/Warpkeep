@@ -3,16 +3,15 @@
 This runbook preserves the Alpha 0.2 recovery record and defines the approval
 gates and recorded checkpoint for the protocol-v2 rollout.
 
-> **Protocol-v2 backend staged; public entry remains paused.** The additive
-> module has been published to the existing Maincloud database with deletion
+> **Protocol-v2 Alpha 0.3.1 is active; admission remains closed.** The additive
+> module was published to the existing Maincloud database with deletion
 > prohibited, the additive `SessionFamily` migration and independent managed
-> session-cookie secret have been staged, and the reviewed Worker is deployed
-> with `PUBLIC_AUTH_ENABLED=false`. The protected aggregate remains at 61 world
+> session-cookie secret were staged, and the reviewed Worker and exact-main
+> frontend were enabled in Worker-first order after their paused gates. One
+> privacy-safe owner canary passed. The protected aggregate remains at 61 world
 > tiles with zero admission, player, ownership, orphan, castle, and allowlist
-> rows. The v2 frontend changes are not yet deployed and
-> `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false`. These observations are bound to
-> the privately recorded deployment coordinates; they do not authorize either
-> public switch.
+> rows. These observations are bound to the privately recorded deployment and
+> canary coordinates; they do not authorize any later change.
 
 ## Historical activation record
 
@@ -20,8 +19,8 @@ Recorded Alpha 0.2 coordinates previously passed discovery/JWKS, distributed
 rate control, the raw admin epoch lookup, non-destructive module publish, and
 protected aggregate inspection at 61 world tiles with empty admission/player/
 castle state. Those observations apply only to their recorded deployed heads.
-The later v2 module and paused Worker checkpoint is recorded separately and is
-likewise not evidence that an arbitrary checkout, frontend build, or
+The later v2 paused checkpoint and enabled owner canary are recorded separately
+and are likewise not evidence that an arbitrary checkout, frontend build, or
 public-auth state is live.
 
 ## Safety invariants
@@ -70,10 +69,11 @@ different additive change with its own approval:
    structured resolver probe, cookie attributes, and config attestation.
 6. **Frontend gate:** obtain separate approval to deploy the exact v2 frontend
    while `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false`.
-7. **Enable gate:** only after exact-head hosted verification and owner QA,
-   obtain a final explicit approval for changing Worker public auth and a
-   separate explicit approval for changing frontend shared-alpha access. This
-   runbook records no such approval.
+7. **Enable gate:** after exact-head hosted paused verification, exercise the
+   recorded final authority in strict order: enable the Worker, pass its public
+   and private enabled checks, enable/deploy the exact frontend, then perform
+   immediate owner QA. Alpha 0.3.1 completed that sequence. Its authority is not
+   reusable for a later change.
 
 If any stage fails or disagrees, stop and keep both switches false. Do not remove
 the additive v2 tables or restore a v1 module: leave the tables inert and use a
@@ -224,7 +224,9 @@ from, rotate it implicitly with, or reuse the signing/admin secrets. The admin
 secret must also differ from the signing JWK private `d` scalar: all three
 secret materials are pairwise distinct. Configure or rotate any secret only
 with explicit approval and non-logging handoff. This runbook contains no secret
-value and records no completed configuration.
+value. The private Alpha 0.3.1 audit records successful independent session-key
+configuration with the value suppressed; every future configuration or rotation
+requires fresh authority.
 
 ## 4. Worker staging with public auth false
 
@@ -383,8 +385,9 @@ coordinates nor a passing tokenless check substitutes for that QA.
 
 ## 8. Owner QA after approved enablement
 
-No owner QA was performed by this documentation task. After all preceding gates
-are approved and verified, a clean profile should confirm:
+The Alpha 0.3.1 owner QA passed and is recorded only through privacy-safe facts
+in the private audit trail. Every future activation or recovery should use a
+clean profile to confirm:
 
 1. **ENTER REALM** opens unchecked Alpha Terms, while Cancel, close, Escape,
    browser Back, reload, another tab, and direct `#realm` navigation create no

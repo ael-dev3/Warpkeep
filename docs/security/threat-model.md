@@ -1,11 +1,12 @@
-# Warpkeep threat model — Alpha 0.2 historical baseline and staged v2 boundary
+# Warpkeep threat model — Alpha 0.2 historical baseline and active v2 boundary
 
 Status: the Alpha 0.2 evidence remains historical. The protocol-v2 module,
-additive session-family storage, independent managed cookie secret, and paused
-Worker are staged at their separately recorded production coordinates. Public
-Worker auth and frontend shared-alpha access remain disabled, and the v2
-frontend is not yet deployed. This is not an OWASP ASVS certification or a
-penetration-test attestation.
+additive session-family storage, independent managed cookie secret, reviewed
+Worker, and exact-main frontend are live at their separately recorded Alpha
+0.3.1 production coordinates. Worker auth and shared-alpha entry were enabled
+in order after paused verification and one privacy-safe owner canary; no FID is
+admitted. This is not an OWASP ASVS certification or a penetration-test
+attestation.
 
 ## Scope and revision
 
@@ -24,11 +25,12 @@ Hermes administration, and the GitHub Pages delivery path.
 The model assumes a deliberately small, invite-only alpha. Protocol v2 replaces
 the historical browser-readable 30-day bearer with a 600-second memory-only
 access token and a separate maximum-30-day HttpOnly rotating session family.
-The paused backend checkpoint is production evidence only for its recorded
-exact source and deployment coordinates; the frontend and public-entry path
-remain untrusted until their remaining gates are separately verified.
+The production checkpoint is evidence only for its recorded exact source,
+deployment, configuration, aggregate, and owner-canary coordinates. It does not
+make an arbitrary checkout or later deployment trusted, and every future
+activation must repeat the fail-closed gates.
 
-## Staged v2 status and remaining deployment boundary
+## Deployed v2 status and continuing authority boundary
 
 The checked-out v2 target has exact `auth_version: 2`, positive auth epochs,
 tokenless pending sessions, a `__Host-` session cookie, server-side family
@@ -37,7 +39,9 @@ retired public v1 challenge/exchange routes. The bridge persists and issues only
 the verified FID. SpacetimeDB freezes the deployed public `player` table as an
 inert legacy contract and appends identity-free public `player_v2` plus private
 `player_ownership_v2`. Worker `PUBLIC_AUTH_ENABLED` and frontend
-`VITE_WARPKEEP_SHARED_ALPHA_ENABLED` remain false.
+`VITE_WARPKEEP_SHARED_ALPHA_ENABLED` are true only at the recorded enabled
+Alpha 0.3.1 production coordinates; the checked-in Worker default remains
+false so a normal redeploy fails closed.
 
 The repository includes a pinned SpacetimeDB 2.6.1 loopback rehearsal proving
 the five legacy tables remain unchanged while the v2 pair is appended, empty and
@@ -47,12 +51,12 @@ before any schema change. That command is local repository evidence only. The
 separately approved guarded publication and post-publish probes attest the
 recorded Maincloud checkpoint; neither substitutes for the other.
 
-Backend staging separately completed the guarded Maincloud publication,
-additive Durable Object migration, independent managed cookie-secret setup, and
-paused Worker deployment. It changed no admission, player, ownership, castle,
-allowlist, or world data. No frontend deployment, DNS/account change, or auth
-enable is claimed here, and historical Alpha 0.2 evidence is not proof of the
-current v2 coordinates.
+The production rollout completed the guarded Maincloud publication, additive
+Durable Object migration, independent managed cookie-secret setup, paused
+Worker/frontend verification, ordered enablement, and one owner canary. It
+changed no admission, player, ownership, castle, allowlist, or world data. No
+DNS/account change or real-FID admission is claimed here, and historical Alpha
+0.2 evidence is not proof of the current v2 coordinates.
 
 ## System and data flow
 
@@ -372,7 +376,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Distributed Worker rate limiting is active. Alerting, key-rotation drills,
   incident response, and operational history are not yet mature enough for
   production assurance.
-- The staged v2 backend is production state only at the recorded exact source,
+- The deployed v2 backend is production state only at the recorded exact source,
   deployment, schema, aggregate, and probe coordinates. The reviewed design
   preserves the five-table prefix, freezes legacy `player`, and appends
   `player_v2` plus `player_ownership_v2`. For every future republish, the local
@@ -399,14 +403,16 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Farcaster's official verifier correctly binds the signature to the FID.
 - SpacetimeDB Maincloud and version 2.6.1 enforce the documented JWT signature
   verification and transaction semantics.
-- Rollout is staged and fail-closed: `PUBLIC_AUTH_ENABLED=false` and
+- Every rollout begins staged and fail-closed: `PUBLIC_AUTH_ENABLED=false` and
   `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false` while the separately approved
   additive module is inspected and verified, the session-family Durable Object
   is migrated, secrets are configured, and Worker/frontend heads are
   independently deployed and attested. Pre-publication requires exactly zero
   legacy players; post-publication requires zero v2 pair and orphan counters.
   Containment leaves the additive tables inert and uses a forward fix rather
-  than destructive rollback.
+  than destructive rollback. The current Alpha 0.3.1 coordinates progressed
+  through those gates to an explicitly recorded enabled canary; that state is
+  not a reusable authorization for a future deploy.
 - Public v1 challenge/exchange routes remain retired after Worker cutover; the
   legacy admin raw-epoch procedure exists only for rollback compatibility and
   is never an implicit v2 fallback.
@@ -418,12 +424,16 @@ creation, and world state. Anonymous visitors do not open a database connection.
 
 ## Exclusions
 
-This review used bounded, read-only checks of owned GitHub, Cloudflare, and
-SpacetimeDB deployment coordinates, including the Keychain-backed counts-only
-aggregate. It did not expose or rotate a production secret, mutate any hosted
-service or whitelist data, approve a real SIWF request, perform high-volume
-production testing, audit Farcaster/Cloudflare/GitHub/SpacetimeDB internals, or
-assess game art, layout, and unrelated gameplay design.
+This review combined bounded, read-only checks of owned GitHub, Cloudflare, and
+SpacetimeDB coordinates with separately authorized additive publication,
+deployment, and public-gate changes. It used the Keychain-backed counts-only
+aggregate throughout. It did not expose or rotate a production secret, mutate
+admission, player, ownership, castle, allowlist, or world data, admit a real
+FID, inspect owner identity or credential material, perform high-volume
+production testing, audit
+Farcaster/Cloudflare/GitHub/SpacetimeDB internals, or assess game art, layout,
+and unrelated gameplay design. One owner approved the bounded SIWF canary; only
+privacy-safe state transitions were observed and recorded.
 
 ## Review triggers
 
@@ -432,11 +442,10 @@ adding a new trusted origin or database, introducing gameplay mutations or
 private player data, adding an admin entry point, changing the deployment
 workflow, or moving away from the current Pages/Worker/Maincloud topology.
 
-The recorded backend-staging checkpoint completed the separately approved
+The recorded Alpha 0.3.1 checkpoints completed the separately authorized
 Maincloud inspection/publication, post-publication aggregate/orphan checks,
-additive Durable Object migration, independent managed cookie secret, and paused
-Worker deployment/config attestation. Before claiming the frontend or public v2
-entry is deployed, separately verify the disabled frontend deployment and then
-the ordered Worker/frontend enable gates and owner QA. Keep both switches false
-until their recorded stage. This document does not authorize a future republish,
-secret change, deploy, data mutation, or enable.
+additive Durable Object migration, independent managed cookie secret, paused
+Worker/frontend deployments, configuration attestation, ordered enable gates,
+and owner QA. Future recovery still begins with both switches false and repeats
+each recorded gate. This document does not authorize a future republish, secret
+change, deploy, data mutation, or enable.
