@@ -1,12 +1,20 @@
 import { SenderError, t } from 'spacetimedb/server';
 
-import { AuthEpochExhaustedError, executeAllowFidTransition } from '../adminPolicy';
+import {
+  AuthEpochExhaustedError,
+  executeAllowFidTransition,
+} from '../adminPolicy';
+import {
+  InvalidAdmissionEpochStateError,
+  resolveAuthResolverAdmission,
+} from '../admissionPolicy';
 import {
   MAX_AUTH_EPOCH,
   WARPKEEP_BACKEND_PROTOCOL_VERSION,
 } from '../config';
 import {
   requireAdmin,
+  requireAuthEpochResolver,
   requireSupportedFid,
   requireWarpkeepConnection,
 } from '../auth';
@@ -54,10 +62,15 @@ const alphaBackendInfo = t.object('AlphaBackendInfo', {
   worldSeedName: t.string(),
 });
 
+const authResolverFidAdmissionV2 = t.object('AuthResolverFidAdmissionV2', {
+  state: t.string(),
+  authEpoch: t.u32(),
+});
+
 /**
- * Safe for any authenticated Warpkeep connection, including a valid but
- * unadmitted player. It exposes static compatibility metadata only: no
- * whitelist rows, identities, audit entries, or live aggregate counts.
+ * Safe for any permitted Warpkeep connection. It exposes static compatibility
+ * metadata only: no whitelist rows, identities, audit entries, or live
+ * aggregate counts.
  */
 export const getAlphaBackendInfo = warpkeep.procedure(
   { name: 'get_alpha_backend_info' },
@@ -116,6 +129,27 @@ export const adminGetFidAuthEpoch = warpkeep.procedure(
     }),
 );
 
+/** Single-purpose resolver view; it reveals neither rows nor disabled epochs. */
+export const authResolverGetFidAdmissionV2 = warpkeep.procedure(
+  { name: 'auth_resolver_get_fid_admission_v2' },
+  { fid: t.u64() },
+  authResolverFidAdmissionV2,
+  (ctx, { fid }) =>
+    ctx.withTx(tx => {
+      requireAuthEpochResolver(tx);
+      requireSupportedFid(fid);
+
+      try {
+        return resolveAuthResolverAdmission(tx.db.allowedFid.fid.find(fid));
+      } catch (error) {
+        if (error instanceof InvalidAdmissionEpochStateError) {
+          throw new SenderError(error.message);
+        }
+        throw error;
+      }
+    }),
+);
+
 /** Protected and idempotent canonical world seeding. */
 export const adminSeedWorld = warpkeep.reducer(
   { name: 'admin_seed_world' },
@@ -127,7 +161,7 @@ export const adminSeedWorld = warpkeep.reducer(
 );
 
 /**
- * First admission preserves epoch 0. Repeating an enabled allow is idempotent,
+ * First admission starts at epoch 1. Repeating an enabled allow is idempotent,
  * while re-enabling a disabled row rotates exactly once before it becomes live.
  */
 export const adminAllowFid = warpkeep.reducer(

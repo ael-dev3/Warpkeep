@@ -3,6 +3,7 @@ export type FarcasterAuthPhase =
   | 'creating-channel'
   | 'awaiting-approval'
   | 'verifying'
+  | 'pending-admission'
   | 'authenticated'
   | 'expired'
   | 'error';
@@ -54,9 +55,9 @@ export type FarcasterQrState =
   | Readonly<{ state: 'error' }>;
 
 /**
- * Only bridge-oidc-alpha carries the bearer session accepted by the shared
- * realm. The two older values remain representable for compatibility and UI
- * messaging, but never gain backend authority on their own.
+ * Only bridge-oidc-alpha carries the short-lived access credential accepted by
+ * the shared realm. Older values remain representable for compatibility, but
+ * never gain backend authority on their own.
  */
 export type FarcasterSessionAssurance =
   | 'live-client-verified'
@@ -114,11 +115,18 @@ export type FarcasterAuthViewState =
       expiresAt: number;
     }>
   | Readonly<{
+      phase: 'pending-admission';
+      identity: PublicFarcasterIdentity;
+      sessionExpiresAt: number;
+    }>
+  | Readonly<{
       phase: 'authenticated';
       identity: PublicFarcasterIdentity;
       assurance: FarcasterSessionAssurance;
-      /** Present for an expiring restored authoritative session. */
+      /** Short-lived in-memory access credential deadline. */
       expiresAt?: number;
+      /** Server cookie-family deadline; never bearer authority by itself. */
+      sessionExpiresAt?: number;
     }>
   | Readonly<{
       phase: 'expired';
@@ -200,12 +208,9 @@ export type FarcasterChannelStatus =
   | FarcasterPendingChannelStatus
   | FarcasterCompletedChannelStatus;
 
-/** The non-sensitive identity subset the bridge may include in its token. */
+/** The sole identity field allowed across the long-lived bridge session path. */
 export type FarcasterBridgeDisplayIdentity = Readonly<{
   fid: number;
-  username?: string;
-  displayName?: string;
-  pfpUrl?: string;
 }>;
 
 export type FarcasterBrowserBindingMethod = 'S256';
@@ -239,8 +244,33 @@ export type FarcasterBridgeExchangeRequest = Readonly<{
   expirationTime: string;
   expiresAt: number;
   bindingVerifier: string;
+  rememberDevice: boolean;
   identity: FarcasterBridgeDisplayIdentity;
 }>;
+
+export type FarcasterBridgeSessionIdentity = FarcasterBridgeDisplayIdentity;
+
+export type FarcasterBridgeAuthorizedSession = Readonly<{
+  version: 2;
+  status: 'authorized';
+  identity: FarcasterBridgeSessionIdentity;
+  sessionExpiresAt: number;
+  accessToken: string;
+  tokenType: 'spacetime-access';
+  accessExpiresAt: number;
+}>;
+
+export type FarcasterBridgePendingAdmissionSession = Readonly<{
+  version: 2;
+  status: 'pending-admission';
+  identity: FarcasterBridgeSessionIdentity;
+  sessionExpiresAt: number;
+}>;
+
+/** Exact response union shared by v2 exchange and cookie refresh. */
+export type FarcasterBridgeSessionResponse =
+  | FarcasterBridgeAuthorizedSession
+  | FarcasterBridgePendingAdmissionSession;
 
 export type FarcasterBridgeChallengeRequest = Readonly<{
   domain: string;
@@ -260,6 +290,9 @@ export type FarcasterBridgeRequestOptions = Readonly<{
  * session. Unbound compatible deployments are intentionally unsupported.
  */
 export interface FarcasterOidcBridgeClient {
+  /** Exact configured token authority used for provider defense-in-depth validation. */
+  readonly issuer: string;
+  readonly audience: string;
   createChallenge(
     request: FarcasterBridgeChallengeRequest,
     options?: FarcasterBridgeRequestOptions
@@ -267,7 +300,11 @@ export interface FarcasterOidcBridgeClient {
   exchangeCompletedSignIn(
     request: FarcasterBridgeExchangeRequest,
     options?: FarcasterBridgeRequestOptions
-  ): Promise<FarcasterOidcSession>;
+  ): Promise<FarcasterBridgeSessionResponse>;
+  refreshSession(
+    options?: FarcasterBridgeRequestOptions
+  ): Promise<FarcasterBridgeSessionResponse>;
+  logoutSession(options?: FarcasterBridgeRequestOptions): Promise<void>;
 }
 
 /** Network/verification boundary consumed by the React auth controller. */

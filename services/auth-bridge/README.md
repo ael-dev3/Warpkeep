@@ -1,96 +1,251 @@
 # Warpkeep Farcaster → OIDC bridge
 
-This Cloudflare Worker verifies completed Farcaster SIWF proofs and issues ES256 OIDC JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the static browser app: browser code never receives a signing key, admin secret, Optimism RPC URL, private Hermes JWT, or Maincloud credential.
+This Cloudflare Worker verifies completed Farcaster SIWF proofs and issues ES256
+OIDC access JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the
+static browser app: browser code never receives a signing key, admin secret,
+Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
 
-The checked-in Worker configuration and live deployment use
-`https://auth.warpkeep.com`. Health, discovery/JWKS, exact CORS, distributed
-rate control, the direct private Maincloud procedure path, and the corresponding
-module issuer have been verified. This directory never activates frontend OIDC
-by itself; that remains an exact-head Pages workflow decision.
+> **Local v2 draft — not deployed.** The v2 access/session and resolver contract
+> described below is implemented in this checkout only. No module publish,
+> Durable Object migration, Worker deployment, frontend deployment, secret
+> change, or public-auth activation was performed as part of this work.
+> `wrangler.toml` deliberately keeps `PUBLIC_AUTH_ENABLED = "false"`.
+
+`https://auth.warpkeep.com` remains the canonical historical bridge coordinate,
+but its existence is not evidence that this local v2 source is deployed. Every
+rollout step requires exact-head verification and separate operator approval.
 
 ## Endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/.well-known/openid-configuration` | Exact issuer and public JWKS URI. |
+| `GET` | `/.well-known/openid-configuration` | Exact issuer, claims, and public JWKS URI. |
 | `GET` | `/.well-known/jwks.json` | Public ES256/P-256 JWK; never serializes private `d`. |
 | `GET` | `/healthz` | Basic health response. |
-| `POST` | `/v1/farcaster/challenge` | Creates a five-minute SIWF challenge. |
-| `POST` | `/v1/farcaster/exchange` | Verifies SIWF and returns a player JWT. |
+| `POST` | `/v2/farcaster/challenge` | Creates a five-minute, S256-bound SIWF challenge. |
+| `POST` | `/v2/farcaster/exchange` | Verifies SIWF and creates a rotating server-side session family. |
+| `POST` | `/v2/session/refresh` | Rotates the session reference and returns a fresh access token only for an authorized family. |
+| `POST` | `/v2/session/logout` | Revokes the server-side family and expires the cookie; fails closed if durable revocation cannot be confirmed. |
 | `POST` | `/v1/admin/token` | Server-only five-minute Hermes/admin JWT. |
-| `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free synthetic auth-epoch resolver check. |
+| `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free structured resolver check. |
+| `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
 
-Challenge and exchange allow only exact `ALLOWED_ORIGINS`, never wildcard CORS or credentials. They allow only `POST`, `OPTIONS`, and `content-type`; body size is limited to 16 KiB. Both admin routes accept only a completed zero-byte stream, validate every present `Content-Length`, and cancel on the first body byte. The bridge rejects relay secrets such as `channelToken`, custody fields, verification lists, and relay metadata.
+The legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` routes
+are retired in the local contract and return `410 legacy_auth_retired`; they do
+not fall through to authentication work. The v2 browser routes allow only exact
+`ALLOWED_ORIGINS`, credentialed CORS, and strict request shapes. They never use
+wildcard CORS. JSON bodies are limited to 16 KiB. Server-only admin routes
+accept only a completed zero-byte stream, validate every present
+`Content-Length`, and cancel on the first body byte. The bridge rejects relay
+secrets such as `channelToken`, custody fields, verification lists, and relay
+metadata.
 
-The four authentication POST routes also use distributed Durable Object
-rolling windows: challenge `12/5m`, exchange `20/5m`, and both server-only admin
-routes share the rollback-compatible admin `6/5m` window.
+Challenge, exchange, refresh, and server-only credential routes use distributed
+Durable Object rolling windows.
 Browser Origin/no-Origin trust gates run before quota consumption, while the
 limiter still runs before body parsing, proof verification, credential checks,
-or Maincloud work. IPv4 is bucketed per address and IPv6 per routed `/64`; only
-a versioned SHA-256 bucket name is retained. Denials return `429` with a bounded
-`Retry-After`, limiter failures return `503`, and expired objects use
+or Maincloud work. IPv4 is bucketed per address and IPv6 per routed `/64`;
+only a versioned SHA-256 bucket name is retained. Denials return `429` with a
+bounded `Retry-After`, limiter failures return `503`, and expired objects use
 `deleteAll()` to remove SQLite metadata and alarms. Edge/global monitoring is
 still required because per-client controls do not cap aggregate traffic.
 
-## Browser contract
+## Browser proof contract
 
-For every sign-in attempt, the browser generates a fresh 32-byte random verifier,
-derives its RFC 7636 `S256` challenge, and keeps the verifier only in the private
-controller for that generation. The client calls `POST /v1/farcaster/challenge`
-with `{ "domain", "siweUri", "bindingChallenge", "bindingMethod": "S256" }`.
-Domain and URI are only compared to server configuration; caller input never
-selects an arbitrary SIWF target. The Worker stores only the challenge digest in
-an exact version-2 Durable Object record and does not echo it in the response.
+For every sign-in attempt, the browser generates a fresh 32-byte random
+verifier, derives its RFC 7636 `S256` challenge, and keeps the verifier only in
+the private controller for that generation. The client calls
+`POST /v2/farcaster/challenge` with
+`{ domain, siweUri, bindingChallenge, bindingMethod: "S256" }`. Domain and URI
+are compared only with server configuration; caller input never selects an
+arbitrary SIWF target. The Worker stores only the digest in an exact version-2
+Durable Object record and does not echo it in the response.
 
-The response is `{ "nonce", "requestId", "createdAt", "expiresAt", "domain", "siweUri", "expirationTime" }`, where timestamp fields are epoch milliseconds and `expirationTime` is the same expiry in ISO-8601 form.
+The exchange body is
+`{ message, signature, nonce, fid, requestId, domain, siweUri, expirationTime, expiresAt, bindingVerifier, rememberDevice, identity }`;
+`identity` is exactly `{ fid }`; additional profile fields are rejected rather
+than persisted or copied into a token. The Worker recomputes
+`S256(bindingVerifier)` and requires an exact match before signed-proof parsing,
+atomic consumption, RPC, admission resolution, session creation, or signing.
+The independently verified FID must match both supplied FID fields. Do not send
+profile metadata or the private Farcaster relay `channelToken`.
 
-The exchange body is `{ message, signature, nonce, fid, requestId, domain, siweUri, expirationTime, expiresAt, bindingVerifier, identity }`; `identity` is `{ fid, username?, displayName?, pfpUrl? }`. The Worker recomputes `S256(bindingVerifier)` and requires an exact match before signed-proof parsing, atomic consumption, RPC, epoch resolution, or signing. Missing, malformed, and mismatched binding values fail closed and do not consume the still-live challenge. The response is `{ "token": "<JWT>", "tokenType": "spacetime-access", "expiresAt": <epoch milliseconds> }`. The independently verified FID must match both supplied FID fields. Optional display fields are bounded/sanitized convenience claims, not ownership proof. Do not send the private Farcaster relay `channelToken`.
+The v2 exchange and refresh response is an exact union:
 
-Each controller generation owns an abort signal that is passed separately from
-the JSON body. Cancel, expiry, cross-tab logout, retry replacement, and provider
-unmount abort outstanding bridge work and drop private verifier references. This
-is best-effort browser cleanup—not guaranteed string zeroization—and the server's
-one-time challenge and expiry checks remain authoritative if bytes have already
-arrived.
+- an enabled FID returns `status: "authorized"`, a maximum-600-second
+  `accessToken`, its `accessExpiresAt`, FID-only identity, and the absolute
+  `sessionExpiresAt`;
+- a missing FID returns `status: "pending-admission"`, FID-only identity,
+  and `sessionExpiresAt` **without any access token**;
+- a disabled FID is rejected and no session family or access token is created.
+
+The browser holds an authorized access token only in JavaScript memory. It is
+never written to `localStorage`, `sessionStorage`, IndexedDB, a URL, or a
+browser-readable cookie. Each controller generation owns a separate abort
+signal. Cancel, expiry, logout, retry replacement, and provider unmount abort
+outstanding work and drop private verifier/proof references. Server-side
+one-time use and expiry remain authoritative if bytes have already arrived.
 
 ## Verification and replay boundary
 
-`src/farcaster.ts` uses the official `@farcaster/auth-client` verifier with `acceptAuthAddress: true`. Before verification, the Worker checks exact configured domain, URI, nonce, request ID, and expiry in the parsed SIWE message. Signatures are bounded hexadecimal byte strings rather than hard-coded EOA length so the official verifier can handle supported smart-account signatures. The official verifier validates the signature and Farcaster FID binding.
+`src/farcaster.ts` uses the official `@farcaster/auth-client` verifier with
+`acceptAuthAddress: true`. Before verification, the Worker checks exact domain,
+URI, nonce, request ID, and expiry in the parsed SIWE message. Signatures are
+bounded hexadecimal byte strings so supported smart-account signatures remain
+possible. The challenge is atomically claimed before Farcaster RPC, Maincloud
+resolution, or signing. Definitive failures consume it; only an explicitly
+retryable verifier outage, Maincloud failure, or signing failure may restore the
+same still-live challenge. Expiry alarms fully deallocate abandoned storage.
 
-The challenge store has `put`, `get`, and atomic `consume`. Production uses one Cloudflare Durable Object per challenge rather than Workers KV, because KV get/delete cannot enforce one-time consumption under races. After local context, browser-binding, and signed-message checks, the bridge atomically claims the challenge before Farcaster RPC, Maincloud lookup, or signing work. Definitively invalid proof/FID results remain consumed; an explicitly retryable verifier outage, Maincloud lookup failure, or signing failure restores only the exact still-live version-2 challenge record. Every object schedules an expiry alarm and uses SQLite `deleteAll()` on consumption or expiry so abandoned challenge storage is fully deallocated. The bridge rechecks the absolute challenge deadline after upstream work and again after signing, so no completed token crosses that boundary. A replay cannot produce another token or amplify concurrent upstream work.
+## Session family and rotation
 
-## OIDC claims and auth epoch
+The browser receives only an HMAC-authenticated reference in
+`__Host-warpkeep_session`. The cookie is always `Secure`, `HttpOnly`,
+`SameSite=Strict`, and `Path=/`, with no `Domain` attribute. A remembered family
+has an absolute maximum of 30 days; without `rememberDevice`, the same bounded
+server-side family is referenced by a non-persistent session cookie. The browser
+preference defaults false, so persistence is explicit opt-in. The Durable Object
+record binds origin, verified FID only, pending/bound state,
+positive epoch when bound, absolute expiry, and current generation.
 
-Player JWT claims include `iss`, `sub: farcaster:<verified decimal fid>`, `aud: ["warpkeep-spacetimedb"]`, `token_type: "spacetime-access"`, verified decimal `fid`, current `auth_epoch`, empty `roles`, `iat`, `nbf`, 30-day `exp`, matching `session_iat`/`session_exp`, and a random `jti`. The custom session window survives SpacetimeDB's connection-token exchange so the module can enforce the original absolute 30-day deadline on every call. The external server-only admin endpoint issues a five-minute Hermes token with `sub: "service:hermes"`, `roles: ["warpkeep-admin"]`, and response metadata `tokenType: "spacetime-access"`.
+Every successful refresh rotates the current generation. The immediately
+previous generation has only a bounded recovery grace for a lost response; an
+older or out-of-grace generation is a stale replay and revokes the family. A
+bound family also revokes when authoritative admission becomes missing or
+disabled, or when its positive epoch no longer matches. A pending family stays
+tokenless while admission is missing, transitions once to a bound positive
+epoch when enabled, and revokes if disabled. A successful logout confirms
+server-side revocation, expires the current browser cookie, and returns `204`.
+If Durable Object revocation fails, the endpoint returns generic `503`, still
+expires the current browser cookie, and does not claim that the family was
+revoked. A separately copied cookie can remain usable after storage recovery
+until the bounded family expires; treat `session_revoke_failed` as an incident
+signal without logging the cookie or family identifier.
 
-`auth_epoch` is never a browser field and is not hardcoded. Before every player token, the Worker mints a fresh in-memory Hermes admin OIDC JWT with an approximately 60-second expiry. Its claims are the configured issuer, `sub: "service:hermes"`, `aud: ["warpkeep-spacetimedb"]`, `token_type: "spacetime-access"`, and `roles: ["warpkeep-admin"]`. It is neither persisted, returned, nor logged.
+The browser additionally writes a non-secret, base-path-scoped logout-intent
+tombstone containing only a marker and timestamp. For its 30-day lifetime it
+blocks every cookie refresh across reloads/tabs until an explicit new SIWF attempt
+clears it early. If that storage write is denied, the current runtime remains
+blocked and unavailable storage fails closed, but a later storage-enabled context
+cannot recover the missing tombstone. Combined with failed server revocation,
+that is a residual risk for a still-valid copied cookie.
 
-The Worker calls the fixed documented Maincloud endpoint `POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch` with `Authorization: Bearer <ephemeral Hermes JWT>`, JSON content and accept headers, and the numeric SATS-JSON argument array `[<verified safe-integer fid>]`. The protected procedure returns the raw unsigned 32-bit epoch; `0` means the FID has no whitelist row. The Worker validates the fixed HTTPS origin/database/procedure, rejects redirects, disables caching, caps the response, aborts within five seconds, and accepts only a raw `u32`. Missing, malformed, timed-out, redirected, non-2xx, or unavailable results cause `503 authorization_unavailable` and no player JWT is issued. This is the revocation boundary after an admin auth-epoch bump; there is no separate resolver service, URL, token, anonymous request, or browser authority.
+## OIDC claims and resolver boundary
 
-The synthetic probe invokes that exact resolver with one fixed safe-integer FID; it accepts no body, query, browser `Origin`, or caller-selected FID. A completed authenticated resolver check returns only `{ "ok": true }`, or `{ "ok": false, "stage": "<closed-stage>" }` with one of `signing`, `fetch_request`, `fetch_body`, `timeout`, `upstream_status`, or `response_validation`; unexpected bugs remain a generic error with no fabricated stage. The probe never returns the epoch, FID, JWT, upstream status code/body, URL, or raw error. The public exchange response remains the generic `503 authorization_unavailable` for every resolver stage.
+Player access JWT claims include exact `auth_version: 2`,
+`sub: farcaster:<verified decimal fid>`, `token_type: "spacetime-access"`, a
+positive `auth_epoch` (`1..u32::MAX`), empty `roles`, standard time claims,
+matching `session_iat`/`session_exp`, and a random `jti`. `exp - iat` and the
+custom session window are both at most 600 seconds. The module rechecks that
+custom deadline after SpacetimeDB connection-token exchange. Player tokens have
+no username, display-name, avatar, or other optional profile claims. The separate
+server-only admin endpoint still issues a maximum-five-minute Hermes token with
+exact `sub: "service:hermes"` and `roles: ["warpkeep-admin"]`.
 
-> The 30-day browser-stored OIDC bearer token is a closed-alpha convenience. Production should use short-lived access tokens plus a trusted HttpOnly refresh/session flow.
+The module does not treat optional profile-shaped JWT fields as a public write
+channel. Even if such fields are present, bootstrap ignores them and inserts
+`username`, `displayName`, and `pfpUrl` as undefined; profile mutations require a
+separately reviewed path.
 
-## Required configuration
+`auth_epoch` is never a browser request field and is not hardcoded. For each
+resolution the Worker mints a fresh, non-persisted resolver JWT with a maximum
+60-second window, exact `sub: "service:auth-epoch-resolver"`, and exactly one
+role: `roles: ["warpkeep-auth-epoch-resolver"]`. It has no admin role and is
+never returned or logged.
 
-`wrangler.toml` declares `workers_dev = false`, the `auth.warpkeep.com` custom-domain route, and the stable non-secret production contract: `ENVIRONMENT`, `ISSUER`, `ALLOWED_ORIGINS`, `FARCASTER_DOMAIN`, `FARCASTER_SIWE_URI`, `OIDC_AUDIENCE`, `OIDC_KEY_ID`, `SPACETIMEDB_URI`, and `SPACETIMEDB_DATABASE`. Configure only `FARCASTER_RPC_URL`, `SIGNING_KEY_JWK` (managed private P-256 JWK including `d`), and `ADMIN_TOKEN_SECRET` as managed Worker secrets. The admin secret must contain at least 32 random bytes. The config declares separate `CHALLENGE_REPLAY_GUARD` and `AUTH_RATE_LIMITER` SQLite Durable Object bindings and migrations.
+The Worker calls the fixed documented Maincloud endpoint
+`POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2`
+with `Authorization: Bearer <ephemeral resolver JWT>` and SATS-JSON argument
+`[<verified safe-integer fid>]`. The structured response must contain exactly
+`{ "state": "missing"|"disabled"|"enabled", "authEpoch": <u32> }`:
+missing/disabled require epoch `0`, while enabled requires epoch `>= 1`. The
+Worker rejects redirects, caching, oversized/wrong-media/malformed bodies,
+inconsistent state/epoch pairs, non-2xx responses, and calls exceeding five
+seconds. Failure returns generic `503 authorization_unavailable` and no access
+token.
 
-Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use separate development keys. Set real secrets through Cloudflare secret management, never Vite variables or committed config. Do not deploy/activate frontend OIDC until public discovery/JWKS, strict CORS, the direct private procedure call, and module JWT validation all pass on the final issuer.
+Production configuration enforces that exact Maincloud origin and database
+before constructing the resolver. Matching lookalikes fail configuration closed.
+Only an explicit `ENVIRONMENT=development` bridge may use configurable local/test
+resolver coordinates.
 
-From the repository root, generate and hand off the production P-256 JWK only
-from an approved local activation terminal. Feed it directly to the managed-secret command so the
-private `d` value is never printed, copied, or written to disk; do not run this
-under shell tracing or captured CI logs:
+`admin_get_fid_auth_epoch` remains documented only as an admin-authenticated,
+raw-epoch rollback compatibility procedure. New v2 issuance and refresh must
+not use it. The synthetic probe invokes only the structured resolver with one
+fixed safe FID and never returns an epoch, FID, JWT, upstream body/status, URL,
+or raw error.
 
-```sh
-set +x
-node --input-type=module -e 'const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]); process.stdout.write(JSON.stringify(await crypto.subtle.exportKey("jwk", pair.privateKey)))' \
-  | pnpm --dir services/auth-bridge exec wrangler secret put SIGNING_KEY_JWK
-```
+## Required configuration and attestation
+
+`wrangler.toml` declares `workers_dev = false`, the `auth.warpkeep.com`
+custom-domain route, `PUBLIC_AUTH_ENABLED = "false"`, and the non-secret
+issuer/origin/database contract. `FARCASTER_RPC_URL`, `SIGNING_KEY_JWK`,
+`ADMIN_TOKEN_SECRET`, and the independent `SESSION_COOKIE_KEY` are managed
+Worker secrets. Both symmetric secrets require at least 32 random bytes and
+must not be reused. `CHALLENGE_REPLAY_GUARD`, `AUTH_RATE_LIMITER`, and
+`SESSION_FAMILIES` are separate SQLite Durable Object bindings; the additive
+`SessionFamily` migration requires explicit operator approval before any Worker
+deployment.
+
+The production browser and Pages activation gate separately pin the exact bridge
+and issuer `https://auth.warpkeep.com`, audience `warpkeep-spacetimedb`, and the
+same Maincloud/database pair. Development remains explicitly configurable and is
+not accepted as a production activation profile.
+
+The server-only `POST /v1/admin/config-attestation` route returns only
+`{ profile: "warpkeep-auth-v2", digest, publicAuthEnabled }` after admin-secret
+authentication. The SHA-256 digest covers issuer, origins, SIWF coordinates,
+audience, key ID, Maincloud coordinates, environment, S256 binding, 600-second
+access lifetime, 30-day family ceiling, exact cookie attributes, and public-auth
+state. Operators must compare it with the reviewed expected configuration; it
+is not a deployment action and reveals no secret.
+
+Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use
+separate development keys. Set real secrets only through approved Cloudflare
+secret management, never Vite variables or committed config.
+
+## Approval-gated staged rollout
+
+This repository work stops before every external mutation. A future rollout
+must remain staged and fail closed in this order:
+
+1. keep both Worker public auth and the frontend shared-alpha switch false;
+2. after read-only Maincloud inspection and binding verification, obtain an
+   explicit schema-rollout approval that specifically covers removing opaque
+   OIDC identity from public `player` rows and creating the private
+   `player_ownership` table; a generic additive module-publish approval is not
+   sufficient for this breaking schema change;
+3. obtain separate approval for the additive `SessionFamily` Durable Object
+   migration;
+4. obtain separate approval to configure `SESSION_COOKIE_KEY` and any other
+   required managed secrets without printing or reusing them;
+5. obtain separate approval to deploy the Worker with public auth still false,
+   then verify discovery/JWKS, the structured resolver probe, legacy-route
+   retirement, and the configuration attestation;
+6. obtain separate approval to deploy the v2 frontend while its realm switch
+   remains false;
+7. only after exact-head hosted verification and owner QA, obtain a final,
+   explicit approval for any Worker public-auth enable and any frontend realm
+   enable. Those enables are not authorized by this document.
+
+If any stage disagrees, stop and leave public auth false. The legacy admin epoch
+procedure is rollback compatibility only, not permission to mint v1 tokens.
 
 ## Checks, logs, and admin boundary
 
-Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`. The isolated tests cover canonical S256 vectors, missing/malformed/mismatched browser binding, copied-proof denial, exact version-2 record parsing and legacy purge, public-only JWKS, mocked valid SIWF exchange, invalid signature/FID mismatch, replay prevention, retry restoration, post-upstream/signing expiry, SIWF context, CORS, raw-byte/framing body guards, distributed rate envelopes/concurrency/cleanup, fail-closed direct auth-epoch lookup, admin authentication/expiry, and static safe log events.
+Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`
+locally. Coverage includes S256 binding, challenge replay, structured admission
+validation, FID-only exchange/storage/response/JWT identity, exact v2 claims,
+pending-without-token responses, cookie integrity and attributes, session-family
+rotation and replay revocation, epoch-change revocation, durable-logout failure,
+default-off persistence intent, logout-tombstone suppression/storage denial,
+profile-claim discard, production resolver-coordinate pins, route retirement,
+configuration attestation, limits, admin separation, and static safe log events.
 
-Logs are closed static event names only. The Worker never logs a SIWF message, signature, nonce, request ID, JWT, private JWK, RPC URL, procedure request/response, or admin secret. Both `/v1/admin/token` and `/v1/admin/auth-epoch-probe` require `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, reject browser `Origin` headers, emit no admin CORS headers, and are only for a server-side Hermes/admin process. Never expose the secret, returned JWT, or authenticated probe result to frontend code, and never persist the secret or returned JWT.
+Logs are closed static event names only. The Worker never logs a SIWF message,
+signature, nonce, request ID, JWT, cookie, private JWK, RPC URL, procedure
+request/response, or symmetric secret. `/v1/admin/token`,
+`/v1/admin/auth-epoch-probe`, and `/v1/admin/config-attestation` require
+`Authorization: Bearer <ADMIN_TOKEN_SECRET>`, reject browser `Origin` headers,
+emit no admin CORS headers, and are only for a server-side operator process.
+Never expose their credential or response to frontend code.

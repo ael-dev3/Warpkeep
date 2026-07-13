@@ -4,6 +4,8 @@ import {
   type FarcasterBridgeChallengeRequest,
   type FarcasterBridgeExchangeRequest,
   type FarcasterBridgeRequestOptions,
+  type FarcasterBridgeSessionIdentity,
+  type FarcasterBridgeSessionResponse,
   type FarcasterOidcBridgeClient
 } from './farcasterAuthTypes';
 import {
@@ -24,6 +26,7 @@ import {
 const MAX_RESPONSE_BYTES = 32_768;
 const MAX_PROOF_MESSAGE_LENGTH = 8 * 1_024;
 const BRIDGE_REQUEST_TIMEOUT_MS = 10_000;
+const FARCASTER_SERVER_SESSION_MAX_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 const NONCE_PATTERN = /^[A-Za-z0-9]{8,128}$/;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;
 
@@ -172,6 +175,7 @@ function readSafeExchangeBody(request: FarcasterBridgeExchangeRequest) {
     || request.expiresAt <= 0
     || Date.parse(request.expirationTime) !== request.expiresAt
     || !isCanonicalFarcasterBrowserBindingValue(request.bindingVerifier)
+    || typeof request.rememberDevice !== 'boolean'
     || !isRecord(request.identity)
     || !isSafeFid(request.identity.fid)
     || request.identity.fid !== request.fid
@@ -179,47 +183,9 @@ function readSafeExchangeBody(request: FarcasterBridgeExchangeRequest) {
     return undefined;
   }
 
-  const safeText = (value: unknown) => typeof value === 'string'
-    && value.length > 0
-    && value.length <= 256
-    && value === value.trim()
-    && !/[\u0000-\u001F\u007F]/.test(value)
-    ? value
-    : undefined;
-  const safeUrl = (value: unknown) => {
-    if (typeof value !== 'string' || value.length === 0 || value.length > 2_048) {
-      return undefined;
-    }
-    try {
-      const url = new URL(value);
-      return url.protocol === 'https:'
-        && url.username === ''
-        && url.password === ''
-        ? url.toString()
-        : undefined;
-    } catch {
-      return undefined;
-    }
-  };
-  const username = request.identity.username === undefined
-    ? undefined
-    : safeText(request.identity.username);
-  const displayName = request.identity.displayName === undefined
-    ? undefined
-    : safeText(request.identity.displayName);
-  const pfpUrl = request.identity.pfpUrl === undefined
-    ? undefined
-    : safeUrl(request.identity.pfpUrl);
-  if (
-    (request.identity.username !== undefined && !username)
-    || (request.identity.displayName !== undefined && !displayName)
-    || (request.identity.pfpUrl !== undefined && !pfpUrl)
-  ) {
-    return undefined;
-  }
-
   // Construct the body field-by-field. Unknown caller properties, including a
-  // maliciously injected channelToken, cannot cross this private boundary.
+  // maliciously injected channelToken or profile metadata, cannot cross this
+  // private boundary.
   return {
     message: request.message,
     signature: request.signature,
@@ -231,13 +197,96 @@ function readSafeExchangeBody(request: FarcasterBridgeExchangeRequest) {
     expirationTime: request.expirationTime,
     expiresAt: request.expiresAt,
     bindingVerifier: request.bindingVerifier,
-    identity: {
-      fid: request.identity.fid,
-      ...(username === undefined ? {} : { username }),
-      ...(displayName === undefined ? {} : { displayName }),
-      ...(pfpUrl === undefined ? {} : { pfpUrl })
-    }
+    rememberDevice: request.rememberDevice,
+    identity: { fid: request.identity.fid }
   };
+}
+
+function readSafeSessionIdentity(value: unknown): FarcasterBridgeSessionIdentity | undefined {
+  if (
+    !isRecord(value)
+    || !hasOnlyAllowedKeys(value, ['fid'])
+    || !isSafeFid(value.fid)
+  ) {
+    return undefined;
+  }
+  return Object.freeze({ fid: value.fid });
+}
+
+function readSafeSessionResponse(
+  value: unknown,
+  issuer: string,
+  audience: string,
+  now: number,
+  expectedFid?: number
+): FarcasterBridgeSessionResponse | undefined {
+  if (!isRecord(value) || value.version !== 2) {
+    return undefined;
+  }
+  const identity = readSafeSessionIdentity(value.identity);
+  const sessionExpiresAt = typeof value.sessionExpiresAt === 'number'
+    && Number.isSafeInteger(value.sessionExpiresAt)
+    ? value.sessionExpiresAt
+    : undefined;
+  if (
+    !identity
+    || (expectedFid !== undefined && identity.fid !== expectedFid)
+    || sessionExpiresAt === undefined
+    || sessionExpiresAt <= now
+    || sessionExpiresAt - now > FARCASTER_SERVER_SESSION_MAX_TTL_MS
+  ) {
+    return undefined;
+  }
+
+  if (value.status === 'pending-admission') {
+    if (!hasOnlyAllowedKeys(value, ['version', 'status', 'identity', 'sessionExpiresAt'])) {
+      return undefined;
+    }
+    return Object.freeze({
+      version: 2,
+      status: 'pending-admission',
+      identity,
+      sessionExpiresAt
+    });
+  }
+
+  if (
+    value.status !== 'authorized'
+    || !hasOnlyAllowedKeys(value, [
+      'version',
+      'status',
+      'identity',
+      'sessionExpiresAt',
+      'accessToken',
+      'tokenType',
+      'accessExpiresAt'
+    ])
+    || typeof value.accessToken !== 'string'
+    || value.tokenType !== 'spacetime-access'
+    || typeof value.accessExpiresAt !== 'number'
+    || !Number.isSafeInteger(value.accessExpiresAt)
+    || value.accessExpiresAt <= now
+    || value.accessExpiresAt > sessionExpiresAt
+  ) {
+    return undefined;
+  }
+  const parsed = parseFarcasterOidcJwt(value.accessToken, { issuer, audience, now });
+  if (
+    !parsed
+    || parsed.claims.fid !== identity.fid
+    || parsed.session.expiresAt !== value.accessExpiresAt
+  ) {
+    return undefined;
+  }
+  return Object.freeze({
+    version: 2,
+    status: 'authorized',
+    identity,
+    sessionExpiresAt,
+    accessToken: value.accessToken,
+    tokenType: 'spacetime-access',
+    accessExpiresAt: value.accessExpiresAt
+  });
 }
 
 function hasJsonContentType(response: Response) {
@@ -315,7 +364,7 @@ async function postJson(
     const response = await fetchImplementation(url, {
       method: 'POST',
       mode: 'cors',
-      credentials: 'omit',
+      credentials: 'include',
       referrerPolicy: 'no-referrer',
       redirect: 'error',
       cache: 'no-store',
@@ -341,6 +390,45 @@ async function postJson(
   }
 }
 
+async function postNoContent(
+  fetchImplementation: FarcasterOidcBridgeFetch,
+  url: URL,
+  body: unknown,
+  callerSignal?: AbortSignal
+) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    if (callerSignal?.aborted) {
+      throw new FarcasterOidcBridgeClientError();
+    }
+    callerSignal?.addEventListener('abort', abort, { once: true });
+    timeout = setTimeout(abort, BRIDGE_REQUEST_TIMEOUT_MS);
+    const response = await fetchImplementation(url, {
+      method: 'POST',
+      mode: 'cors',
+      credentials: 'include',
+      referrerPolicy: 'no-referrer',
+      redirect: 'error',
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (controller.signal.aborted || response.status !== 204) {
+      throw new FarcasterOidcBridgeClientError();
+    }
+  } catch {
+    throw new FarcasterOidcBridgeClientError();
+  } finally {
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
+    callerSignal?.removeEventListener('abort', abort);
+  }
+}
+
 /**
  * Creates a browser bridge client. Its URL and exact issuer must be explicitly
  * configured; absence is a fail-closed condition, never a fallback to local
@@ -356,16 +444,26 @@ export function createFarcasterOidcBridgeClient(
     options.audience ?? FARCASTER_OIDC_DEFAULT_AUDIENCE
   );
   const fetchImplementation = options.fetch ?? globalThis.fetch?.bind(globalThis);
-  if (!bridgeUrl || !issuer || !audience || !fetchImplementation) {
+  if (
+    !bridgeUrl
+    || !issuer
+    || bridgeUrl.origin !== issuer
+    || !audience
+    || !fetchImplementation
+  ) {
     throw new FarcasterOidcBridgeClientError(
       'The Hegemony verification service is not configured for this deployment.'
     );
   }
 
-  const challengeUrl = new URL('v1/farcaster/challenge', bridgeUrl);
-  const exchangeUrl = new URL('v1/farcaster/exchange', bridgeUrl);
+  const challengeUrl = new URL('v2/farcaster/challenge', bridgeUrl);
+  const exchangeUrl = new URL('v2/farcaster/exchange', bridgeUrl);
+  const refreshUrl = new URL('v2/session/refresh', bridgeUrl);
+  const logoutUrl = new URL('v2/session/logout', bridgeUrl);
 
   return Object.freeze({
+    issuer,
+    audience,
     async createChallenge(
       request: FarcasterBridgeChallengeRequest,
       requestOptions?: FarcasterBridgeRequestOptions
@@ -411,38 +509,40 @@ export function createFarcasterOidcBridgeClient(
         body,
         requestOptions?.signal
       );
-      if (
-        !isRecord(result)
-        || !hasOnlyAllowedKeys(result, ['token', 'tokenType', 'expiresAt'])
-        || typeof result.token !== 'string'
-        || (result.tokenType !== undefined && result.tokenType !== 'spacetime-access')
-      ) {
-        throw new FarcasterOidcBridgeClientError();
-      }
-      const responseExpiresAt = typeof result.expiresAt === 'number'
-        ? result.expiresAt
-        : undefined;
-      if (
-        (result.expiresAt !== undefined && responseExpiresAt === undefined)
-        || (responseExpiresAt !== undefined && (
-          !Number.isSafeInteger(responseExpiresAt) || responseExpiresAt <= 0
-        ))
-      ) {
-        throw new FarcasterOidcBridgeClientError();
-      }
-      const parsed = parseFarcasterOidcJwt(result.token, {
+      const session = readSafeSessionResponse(
+        result,
         issuer,
         audience,
-        now: Date.now()
-      });
-      if (
-        !parsed
-        || parsed.claims.fid !== request.fid
-        || (responseExpiresAt !== undefined && parsed.session.expiresAt !== responseExpiresAt)
-      ) {
+        Date.now(),
+        request.fid
+      );
+      if (!session) {
         throw new FarcasterOidcBridgeClientError();
       }
-      return parsed.session;
+      return session;
+    },
+
+    async refreshSession(requestOptions?: FarcasterBridgeRequestOptions) {
+      const result = await postJson(
+        fetchImplementation,
+        refreshUrl,
+        {},
+        requestOptions?.signal
+      );
+      const session = readSafeSessionResponse(
+        result,
+        issuer,
+        audience,
+        Date.now()
+      );
+      if (!session) {
+        throw new FarcasterOidcBridgeClientError();
+      }
+      return session;
+    },
+
+    async logoutSession(requestOptions?: FarcasterBridgeRequestOptions) {
+      await postNoContent(fetchImplementation, logoutUrl, {}, requestOptions?.signal);
     }
   });
 }

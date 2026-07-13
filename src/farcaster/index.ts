@@ -9,6 +9,7 @@ export type {
   FarcasterOidcBridgeLoader
 } from './FarcasterAuthProvider';
 export {
+  FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS,
   FARCASTER_OIDC_DEFAULT_AUDIENCE,
   FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS,
   FARCASTER_OIDC_PLAYER_TOKEN_TYPE,
@@ -45,9 +46,13 @@ export type {
   FarcasterSessionAssurance,
   FarcasterBridgeChallenge,
   FarcasterBridgeChallengeRequest,
+  FarcasterBridgeAuthorizedSession,
   FarcasterBridgeDisplayIdentity,
   FarcasterBridgeExchangeRequest,
+  FarcasterBridgePendingAdmissionSession,
   FarcasterBridgeRequestOptions,
+  FarcasterBridgeSessionIdentity,
+  FarcasterBridgeSessionResponse,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
   PublicFarcasterIdentity,

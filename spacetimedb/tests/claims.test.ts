@@ -3,10 +3,13 @@ import test from 'node:test';
 
 import {
   ClaimValidationError,
+  MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS,
   MAX_HERMES_ADMIN_SESSION_SECONDS,
   MAX_PLAYER_SESSION_SECONDS,
+  isAuthEpochResolverJwt,
   isHermesAdminJwt,
   parseFidClaim,
+  readFreshAuthEpochResolverJwt,
   readFreshHermesAdminJwt,
   readFreshWarpkeepPlayerJwt,
   readWarpkeepBaseJwt,
@@ -19,6 +22,12 @@ const config = {
   tokenType: 'spacetime-access',
 } as const;
 
+test('security authority windows stay pinned to the production limits', () => {
+  assert.equal(MAX_PLAYER_SESSION_SECONDS, 600);
+  assert.equal(MAX_HERMES_ADMIN_SESSION_SECONDS, 300);
+  assert.equal(MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS, 60);
+});
+
 function playerPayload(overrides: Record<string, unknown> = {}) {
   const sessionIssuedAt = 1_700_000_000;
   return {
@@ -26,11 +35,26 @@ function playerPayload(overrides: Record<string, unknown> = {}) {
     sub: 'farcaster:12345',
     aud: [config.audience],
     token_type: config.tokenType,
+    auth_version: 2,
     fid: '12345',
-    auth_epoch: 0,
+    auth_epoch: 1,
     roles: [],
     session_iat: sessionIssuedAt,
     session_exp: sessionIssuedAt + MAX_PLAYER_SESSION_SECONDS,
+    ...overrides,
+  };
+}
+
+function resolverPayload(overrides: Record<string, unknown> = {}) {
+  const iat = 1_700_000_000;
+  return {
+    iss: config.issuer,
+    sub: 'service:auth-epoch-resolver',
+    aud: [config.audience],
+    token_type: config.tokenType,
+    roles: ['warpkeep-auth-epoch-resolver'],
+    iat,
+    exp: iat + MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS,
     ...overrides,
   };
 }
@@ -52,7 +76,8 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
 test('accepts the bridge player JWT contract and preserves a bigint FID', () => {
   const claims = readWarpkeepJwt(playerPayload(), config);
   assert.equal(claims.fid, 12345n);
-  assert.equal(claims.authEpoch, 0);
+  assert.equal(claims.authVersion, 2);
+  assert.equal(claims.authEpoch, 1);
   assert.deepEqual(claims.audience, [config.audience]);
 });
 
@@ -79,11 +104,20 @@ test('rejects unsafe, malformed, and non-positive FID claims', () => {
   }
 });
 
-test('requires an unsigned 32-bit auth epoch for player tokens', () => {
-  for (const auth_epoch of [-1, 0.5, 0x1_0000_0000, '0']) {
+test('requires a positive unsigned 32-bit auth epoch for player tokens', () => {
+  for (const auth_epoch of [0, -1, 0.5, 0x1_0000_0000, '1']) {
     assert.throws(
       () => readWarpkeepJwt(playerPayload({ auth_epoch }), config),
       (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_AUTH_EPOCH',
+    );
+  }
+});
+
+test('requires the exact player auth contract version', () => {
+  for (const auth_version of [undefined, 0, 1, 3, '2']) {
+    assert.throws(
+      () => readWarpkeepJwt(playerPayload({ auth_version }), config),
+      (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_AUTH_VERSION',
     );
   }
 });
@@ -115,6 +149,18 @@ test('expires player authority at the original absolute session deadline', () =>
       (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_PLAYER_SESSION',
     );
   }
+});
+
+test('rejects player authority before the original absolute session begins', () => {
+  const issuedAt = 1_700_000_000;
+  assert.throws(
+    () => readFreshWarpkeepPlayerJwt(
+      playerPayload(),
+      BigInt(issuedAt) * 1_000_000n - 1n,
+      config,
+    ),
+    (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_PLAYER_SESSION',
+  );
 });
 
 test('rejects missing, malformed, or overlong absolute player sessions', () => {
@@ -185,6 +231,18 @@ test('expires Hermes authority at reducer time even when the socket stays open',
   }
 });
 
+test('rejects Hermes authority before its declared issuance time', () => {
+  const issuedAt = 1_700_000_000;
+  assert.throws(
+    () => readFreshHermesAdminJwt(
+      adminPayload(),
+      BigInt(issuedAt) * 1_000_000n - 1n,
+      config,
+    ),
+    (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_ADMIN_SESSION',
+  );
+});
+
 test('rejects malformed or overlong Hermes session windows', () => {
   const nowMicros = 1_700_000_001n * 1_000_000n;
   for (const payload of [
@@ -201,4 +259,59 @@ test('rejects malformed or overlong Hermes session windows', () => {
       (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_ADMIN_SESSION',
     );
   }
+});
+
+test('accepts only the exact short-lived auth-epoch resolver principal', () => {
+  const base = readWarpkeepBaseJwt(resolverPayload(), config);
+  assert.equal(isAuthEpochResolverJwt(base), true);
+  assert.equal(isHermesAdminJwt(base), false);
+
+  const exp = 1_700_000_000 + MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS;
+  const fresh = readFreshAuthEpochResolverJwt(
+    resolverPayload(),
+    BigInt(exp) * 1_000_000n - 1n,
+    config,
+  );
+  assert.equal(fresh.subject, 'service:auth-epoch-resolver');
+  assert.deepEqual(fresh.roles, ['warpkeep-auth-epoch-resolver']);
+});
+
+test('rejects resolver authority before its declared issuance time', () => {
+  const issuedAt = 1_700_000_000;
+  assert.throws(
+    () => readFreshAuthEpochResolverJwt(
+      resolverPayload(),
+      BigInt(issuedAt) * 1_000_000n - 1n,
+      config,
+    ),
+    (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_AUTH_RESOLVER_SESSION',
+  );
+});
+
+test('rejects resolver impersonation, role expansion, expiry, and sessions over 60 seconds', () => {
+  const nowMicros = 1_700_000_001n * 1_000_000n;
+  for (const payload of [
+    resolverPayload({ sub: 'service:hermes' }),
+    resolverPayload({ roles: ['warpkeep-admin'] }),
+    resolverPayload({ roles: ['warpkeep-auth-epoch-resolver', 'warpkeep-admin'] }),
+    resolverPayload({ iat: undefined }),
+    resolverPayload({ exp: '1700000060' }),
+    resolverPayload({ exp: 1_700_000_000 }),
+    resolverPayload({ exp: 1_700_000_000 + MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS + 1 }),
+  ]) {
+    assert.throws(
+      () => readFreshAuthEpochResolverJwt(payload, nowMicros, config),
+      (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_AUTH_RESOLVER_SESSION',
+    );
+  }
+
+  const expiresAt = 1_700_000_000 + MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS;
+  assert.throws(
+    () => readFreshAuthEpochResolverJwt(
+      resolverPayload(),
+      BigInt(expiresAt) * 1_000_000n,
+      config,
+    ),
+    (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_AUTH_RESOLVER_SESSION',
+  );
 });

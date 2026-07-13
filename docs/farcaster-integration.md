@@ -1,74 +1,153 @@
 # Farcaster → OIDC integration
 
-Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini App, Quick Auth, wallet connection, or a client-only permanent identity system.
+Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
+App, Quick Auth, wallet connection, or a client-only permanent identity system.
+
+> **Local v2 draft — not deployed or enabled.** The browser, Worker, and module
+> contracts described here are the checked-out implementation target. This work
+> performed no module publish, Durable Object migration, secret change, Worker
+> or frontend deployment, production mutation, or auth enable. Checked-in
+> Worker public auth and the frontend shared-alpha switch remain false.
 
 ## Authority boundary
 
 ```text
 browser creates a fresh private S256 verifier and bound SIWF challenge
-  -> browser creates a normal Farcaster SIWF channel
-  -> player approves in Farcaster
-  -> browser verifies the completed proof for UI consistency
-  -> browser sends the completed proof envelope plus its private verifier to Warpkeep's bridge
-  -> bridge verifies the browser binding and SIWF, then consumes its one-time challenge
-  -> bridge resolves authoritative auth_epoch through a private documented SpacetimeDB procedure call
-  -> bridge returns an ES256 OIDC player token
-  -> browser connects to SpacetimeDB with that token
+  -> player approves a normal Farcaster SIWF request
+  -> browser sends the completed proof envelope plus verifier to the bridge
+  -> bridge verifies binding and SIWF, then consumes the one-time challenge
+  -> exact resolver principal reads structured admission from SpacetimeDB
+  -> bridge creates a pending or epoch-bound rotating session family
+  -> pending: HttpOnly cookie only, no access token, no database connection
+  -> enabled: 600-second auth_version 2 access token held in JS memory only
+  -> module accepts only a current admitted player connection
 ```
 
-The bridge, not the browser, establishes `sub: farcaster:<fid>`. Usernames, display names, avatars, custody addresses, and verification addresses are display metadata; they never decide account ownership.
+The bridge, not the browser, establishes `sub: farcaster:<fid>`. Its exchange
+accepts exactly `identity: { fid }`; usernames, display names, avatars, custody
+addresses, verification addresses, and other profile fields are rejected at
+that boundary and never enter the session family or player JWT. The bridge
+accepts only the configured `FARCASTER_DOMAIN` and exact
+`FARCASTER_SIWE_URI`.
 
-The bridge only accepts the configured `FARCASTER_DOMAIN` and exact `FARCASTER_SIWE_URI`. The intended production values are:
+The intended production coordinates remain:
 
 ```txt
 domain: warpkeep.com
 siweUri: https://warpkeep.com/
+issuer: https://auth.warpkeep.com
 ```
 
-Localhost SIWF values are accepted only for an explicitly configured development bridge. A production Pages bundle accepts only HTTPS bridge/issuer URLs; it does not fall back to a local or anonymous database identity. The legacy `ael-dev3.github.io/Warpkeep/` origin has separate browser storage, so its remembered records cannot become authority on `warpkeep.com`.
+Those coordinates do not prove that the local v2 code is deployed. Localhost
+SIWF is accepted only by an explicitly configured development bridge. A
+production bundle accepts only HTTPS bridge/issuer URLs and never falls back to
+a local or anonymous database identity.
 
 ## Browser flow and privacy
 
-Selecting **ENTER REALM** is the only action that begins SIWF. Title load, anonymous menu load, and ordinary route rendering create neither a Farcaster channel nor a SpacetimeDB connection. Desktop remains QR-first; mobile/coarse layouts remain deep-link-first with an optional QR fallback.
+Selecting **ENTER REALM** is the only action that begins SIWF. Title load,
+anonymous menu load, and ordinary route rendering create neither a Farcaster
+channel nor a SpacetimeDB connection. Desktop is QR-first; mobile/coarse layouts
+are deep-link-first with optional QR fallback.
 
-The private controller may hold a short-lived channel token, proof, and one-request browser-binding verifier only while completing the current sign-in. Each attempt gets a fresh 32-byte verifier; only its `S256` digest enters the challenge request and Durable Object record. The verifier enters only the final bridge exchange body, never the QR/deep link. Cancel, expiry, cross-tab logout, retry replacement, and provider unmount abort that generation's outstanding bridge request and drop its private references. The following are never placed in React view state, DOM, local storage, analytics, URLs, or logs:
+Each attempt receives a new 32-byte verifier. Only its `S256` digest enters the
+`POST /v2/farcaster/challenge` request and Durable Object record; the verifier
+enters only the final `POST /v2/farcaster/exchange` body. Cancel, expiry, logout,
+retry replacement, and provider unmount abort outstanding work and drop private
+references. These values never enter persistent browser storage, analytics,
+URLs, or logs:
 
-- channel token or channel URL outside the required QR/deep link presentation;
-- SIWF message, signature, nonce, request ID, custody address, verification list, or auth method;
-- browser-binding verifier or challenge digest;
-- bridge/admin JWTs, signing keys, resolver credentials, or admin secrets.
+- relay channel token and completed SIWF proof material;
+- browser-binding verifier or digest;
+- player/admin/resolver JWTs;
+- signing keys, session-cookie key, RPC credential, or admin secret.
 
-On successful bridge exchange, the user-facing view state has the assurance `bridge-oidc-alpha`; its bearer material is held separately as `{ jwt, issuer, audience, expiresAt }`. The provider creates a database connection only when that session is valid and exactly matches the configured issuer/audience.
+The only current authentication-related persistent browser write is a non-secret,
+base-path-scoped logout-intent tombstone containing the exact `logout-v1:` marker
+and a timestamp. It contains no FID, proof, token, cookie, family identifier, or
+profile data and expires after 30 days, matching the maximum server-family
+lifetime.
 
-## Remembered device record
+The public v1 challenge/exchange routes are retired and return `410`; a client
+must never fall back from v2 to v1.
 
-The v2 record is origin/base-path bound and holds only:
+## Access token and session family
+
+An authorized response supplies a maximum-600-second ES256 access token with
+exact `auth_version: 2`, positive `auth_epoch`, empty roles, and matching custom
+session timestamps. It carries the verified FID and no optional username,
+display-name, or avatar claims. The provider keeps
+`{ jwt, issuer, audience, expiresAt }` only in JavaScript memory and connects
+only when issuer/audience/claims match. It never writes the bearer to
+`localStorage`, `sessionStorage`, IndexedDB, a URL, or a readable cookie.
+
+Longer continuity is a separate server-side family referenced by
+`__Host-warpkeep_session`. The cookie is `Secure`, `HttpOnly`,
+`SameSite=Strict`, `Path=/`, and has no `Domain`. A remembered family has a
+maximum 30-day absolute lifetime. **Keep me signed in on this device** defaults
+false; only an explicit opt-in adds the persistent cookie lifetime, while the
+default uses a session cookie. The server-side family remains absolutely bounded
+at 30 days in either case. The family persists only the verified FID as identity.
+The browser cannot read the family ID, generation, or MAC.
+
+Every refresh re-resolves admission and rotates the cookie generation. A bound
+family revokes on missing/disabled admission, epoch mismatch, expiry, origin
+mismatch, or stale replay. Only the immediately previous generation receives a
+short lost-response recovery grace; older/out-of-grace replay revokes.
+Successful logout confirms family revocation, expires the cookie, drops
+memory-only bearer state, cancels pending work, and disconnects SpacetimeDB. If
+durable revocation fails, the bridge returns generic `503` and still expires the
+current browser cookie; a separately copied cookie may remain usable after
+storage recovery until the bounded family expires.
+
+Before the best-effort server call, sign-out also writes the non-secret 30-day
+logout-intent tombstone and blocks every automatic, focus/timer, **CHECK AGAIN**,
+and direct cookie refresh in that browser scope. Reloads and same-origin tabs
+honor it; only a new explicit SIWF attempt clears it early, and it becomes stale
+after the maximum family lifetime. Malformed or currently unavailable storage
+fails closed for refresh. A denied tombstone write remains a residual only when
+server revocation also fails: the current runtime stays blocked, but a later
+context where storage becomes available cannot recover a record that was never
+written and could resume a still-valid copied cookie.
+
+## Pending admission UX
+
+A missing FID creates a pending family and returns FID-only identity plus
+`status: "pending-admission"`; it returns **no access token** and therefore opens
+no SpacetimeDB connection or public-table subscription. The Hegemony menu may
+show the pending identity and a semantic **REQUEST ACCESS** link to
+`https://farcaster.xyz/0xael.eth`, **CHECK AGAIN**, and **SIGN OUT**.
+
+**CHECK AGAIN** calls credentialed `/v2/session/refresh`, not a new Farcaster
+channel. Missing stays pending/tokenless; enabled transitions once to an
+epoch-bound family and returns a fresh 600-second token; disabled revokes. A
+resolver outage remains a generic temporary-unavailable state and produces no
+token. Neither UI path reveals raw reducer, WebSocket, JWT, cookie, or OIDC
+errors.
+
+## Resolver contract
+
+The Worker uses a fresh, maximum-60-second JWT with exact
+`sub: "service:auth-epoch-resolver"` and exactly
+`roles: ["warpkeep-auth-epoch-resolver"]`. It has no admin role, is never
+persisted/returned/logged, and is accepted only by:
 
 ```txt
-version, kind, origin, basePath
-public identity subset
-OIDC JWT, issuer, audience, verifiedAt, rememberedAt, expiresAt
+POST /v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2
 ```
 
-It restores a valid bridge session after reload, then rechecks private admission before mounting the realm. A prior v1 `remembered-device-prototype` identity-only record is removed; it cannot authorize a shared realm. Sign-out clears the OIDC record, Farcaster UI state, pending realm route, and active database connection.
+The response is exactly
+`{ state: "missing"|"disabled"|"enabled", authEpoch }`; missing/disabled require
+epoch zero and enabled requires epoch at least one. The bridge validates exact
+shape, HTTPS origin/database/procedure, media type, byte bound, redirect policy,
+and a maximum-five-second call. Any disagreement fails closed without a token.
 
-> The 30-day browser-stored OIDC bearer token is a closed-alpha convenience. Its signed absolute session deadline is rechecked by the module even if an authenticated WebSocket remains open. Production should still use short-lived access tokens plus a trusted HttpOnly refresh/session flow.
+`admin_get_fid_auth_epoch` is retained only as admin-authenticated rollback
+compatibility. The v2 browser/session path never uses it.
 
-Browser-readable bearer material remains vulnerable to XSS. The alpha mitigation boundary is server-side allowlist disable/auth-epoch enforcement, not an assertion that local storage is safe.
+## Public and server configuration
 
-## Admission UX
-
-A valid token may connect only far enough to read the caller's narrow admission status. The client never subscribes to `allowed_fid` or `admin_audit`.
-
-For a valid but unadmitted identity, the Hegemony menu remains visible and the rail shows:
-
-> This Farcaster identity is not yet admitted to the Hegemony frontier.
-
-It names the active FID and offers a semantic **REQUEST ACCESS** link to `https://farcaster.xyz/0xael.eth`, **CHECK AGAIN**, and **SIGN OUT**. Check Again uses the still-valid OIDC session and does not create a new Farcaster channel, QR, or deep link. A backend outage instead says: “The Hegemony records are temporarily unreachable.” Neither path reveals raw reducer, WebSocket, JWT, or OIDC errors.
-
-## Required deployment configuration
-
-The static browser only receives public values:
+The static browser receives only public coordinates:
 
 ```dotenv
 VITE_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
@@ -79,21 +158,51 @@ VITE_WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com
 VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 ```
 
-The Worker receives secrets and server-only configuration described in [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). For each verified proof it mints an ephemeral, approximately 60-second Hermes admin OIDC JWT and calls the fixed documented endpoint `POST /v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch` on Maincloud with JSON `[fid]`. The raw `u32` epoch result is private Worker state, never browser authority. `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` remains a default-false kill switch in source; production enables it only through the reviewed Pages workflow after the direct procedure, public discovery/JWKS, and matching module issuer pass. Rollback restores it to `false`.
+The Worker configuration is documented in
+[`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its
+checked-in `PUBLIC_AUTH_ENABLED` remains false. Before any future enable, the
+server-only v2 configuration attestation must match the reviewed issuer,
+origins, SIWF coordinates, key ID, Maincloud coordinates, S256 binding,
+600-second access TTL, 30-day family ceiling, exact cookie attributes, and
+public-auth state.
 
-## Live closed-alpha status
+Production frontend activation and the Pages deployment validator require the
+exact bridge and issuer `https://auth.warpkeep.com`, audience
+`warpkeep-spacetimedb`, Maincloud origin `https://maincloud.spacetimedb.com`, and
+database `warpkeep-89e4u`; matching lookalikes fail closed. Local development
+may use the explicit localhost escape hatch. The Worker independently pins its
+production resolver to that exact Maincloud origin/database pair, while an
+explicit `ENVIRONMENT=development` bridge remains configurable for local tests.
 
-`auth.warpkeep.com` health/discovery, distributed rate control, the direct private epoch procedure, and the matching Maincloud module remain deployed. Public challenge and exchange are deliberately paused while this binding and session hardening is reviewed. The canonical 61-cell world is seeded; the allowlist, player table, and castle table remain empty, and no real FID has been admitted.
+## Rollout and approval gates
+
+The v2 rollout is staged and intentionally stopped locally. Removing opaque OIDC
+Identity from public `player` rows and adding private `player_ownership` is a
+breaking schema change, so it requires read-only state inspection and a separate
+explicit migration/client-compatibility approval before any non-destructive
+module publish. A generic additive publish approval is insufficient. The later
+steps separately approve the additive session-family Durable Object migration,
+managed-secret configuration, a Worker deploy still paused, the v2 frontend
+deploy still disabled, and finally any public-auth or shared-realm enable.
+Discovery/JWKS, structured resolver, retired v1 routes, ownership isolation, and
+config attestation must agree before proceeding.
+
+See the [activation and recovery runbook](./operations/alpha-activation.md).
+No historical deployment record is proof that this v2 head passed those gates.
 
 ## Tests and manual QA
 
-Automated tests use injected Farcaster authorities and bridge clients; they never call a real relay or publish proof data. They cover canonical browser binding, copied-proof denial, exact v2 challenge storage/legacy purge/expiry, cancellation and retry isolation, proof envelope minimization, bridge exchange validation, direct-realm gating, denied rendering, secure access-link attributes, same-session Check Again, sign-out disconnect, and no anonymous connection.
+Automated tests use injected Farcaster authorities and bridge clients; they do
+not call a real relay, publish a module, deploy a Worker, or use production
+proofs. Coverage includes S256 binding, v1 retirement, exact v2 response unions,
+memory-only bearer handling, pending-without-token behavior, refresh/logout,
+FID-only bridge identity, default-off remember-device intent, 30-day logout
+tombstones and storage denial, durable-logout failure, session-family rotation
+and revocation, exact production coordinate pins, exact resolver claims/response,
+profile-claim discard, private-ownership isolation, protocol compatibility, and
+no anonymous/unadmitted connection.
 
-The reusable clean-profile denial check is:
-
-1. After canonical deployment, open `https://warpkeep.com/#menu` and confirm no relay or database connection occurs before **ENTER REALM**.
-2. Complete Farcaster approval and confirm the displayed FID is the approving identity.
-3. With the intentionally empty whitelist, confirm the exact Hegemony denial panel, request-access link, and no RealmMapScreen mount.
-4. Confirm Check Again does not open a new QR/deep link, and Sign Out removes the remembered v2 session and closes the database connection.
-
-Do not attach live QR screenshots, browser network dumps, console dumps, or HAR files to a PR; they can retain active proof material.
+Clean-profile QA is allowed only after every deployment gate has separate
+approval and exact-head verification. Never attach live QR screenshots, browser
+network dumps, console dumps, or HAR files to a PR; they can retain active proof
+or cookie material.

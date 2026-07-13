@@ -45,9 +45,9 @@ export type WarpkeepMainMenuProps = {
   onDisposeFarcasterSignIn?: () => void;
   onRetryFarcasterSignIn?: () => void;
   onPrepareFarcasterQrCode?: () => void;
+  onRefreshFarcasterSession?: () => void;
   onSignOut?: () => void;
   rememberDevice?: boolean;
-  hasRememberedDevice?: boolean;
   onRememberDeviceChange?: (remember: boolean) => void;
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
   /** Replaces the QR rail after Farcaster has yielded an authoritative session. */
@@ -194,9 +194,9 @@ export function WarpkeepMainMenu({
   onDisposeFarcasterSignIn,
   onRetryFarcasterSignIn,
   onPrepareFarcasterQrCode,
+  onRefreshFarcasterSession,
   onSignOut,
-  rememberDevice = true,
-  hasRememberedDevice = false,
+  rememberDevice = false,
   onRememberDeviceChange,
   onRequestAuthenticatedRealm,
   authRailContent,
@@ -237,6 +237,10 @@ export function WarpkeepMainMenu({
   const authenticatedIdentity = authState.phase === 'authenticated'
     ? authState.identity
     : undefined;
+  const pendingIdentity = authState.phase === 'pending-admission'
+    ? authState.identity
+    : undefined;
+  const sessionIdentity = authenticatedIdentity ?? pendingIdentity;
   const authenticatedAssurance = authState.phase === 'authenticated'
     ? authState.assurance
     : undefined;
@@ -411,6 +415,7 @@ export function WarpkeepMainMenu({
       || !authWasKeyboardDrivenRef.current
       || (
         authState.phase !== 'authenticated'
+        && authState.phase !== 'pending-admission'
         && authState.phase !== 'expired'
         && authState.phase !== 'error'
       )
@@ -569,6 +574,8 @@ export function WarpkeepMainMenu({
       if (authenticatedIdentity) {
         openAuthPanel(keyboardDriven);
         onRequestAuthenticatedRealm?.(authenticatedIdentity);
+      } else if (pendingIdentity) {
+        openAuthPanel(keyboardDriven);
       } else {
         openAuthPanel(keyboardDriven);
         onRequestFarcasterSignIn?.();
@@ -584,6 +591,7 @@ export function WarpkeepMainMenu({
     openNotice(command, anchorElement);
   }, [
     authenticatedIdentity,
+    pendingIdentity,
     backendUnavailableMessage,
     farcasterAuthEnabled,
     onRequestAuthenticatedRealm,
@@ -727,21 +735,19 @@ export function WarpkeepMainMenu({
 
       {!authPanelOpen ? (
         <>
-          {authenticatedIdentity ? (
+          {sessionIdentity ? (
             <div className="warpkeep-menu-identity">
               <Suspense fallback={null}>
                 <FarcasterIdentityBadge
                   compact
-                  identity={authenticatedIdentity}
+                  identity={sessionIdentity}
                   onActivate={farcasterAuthEnabled
                     ? () => openAuthPanel(lastActionModalityRef.current === 'keyboard')
                     : undefined}
                 />
               </Suspense>
               <span className="warpkeep-menu-identity__assurance">
-                {authenticatedAssurance === 'remembered-device-prototype'
-                  ? 'REMEMBERED DEVICE'
-                  : 'FARCASTER VERIFIED'}
+                {pendingIdentity ? 'ADMISSION PENDING' : 'FARCASTER VERIFIED'}
               </span>
             </div>
           ) : null}
@@ -799,9 +805,8 @@ export function WarpkeepMainMenu({
                 errorMessage={authState.phase === 'error' || authState.phase === 'expired'
                   ? authState.error.message
                   : undefined}
-                hasRememberedDevice={hasRememberedDevice}
                 headingRef={authHeadingRef}
-                identity={authenticatedIdentity}
+                identity={sessionIdentity}
                 onPresentationReady={handleAuthPanelPresentationReady}
                 onBackToMenu={handleBackToCommands}
                 onCancel={() => closeAuthPanel(
@@ -809,6 +814,7 @@ export function WarpkeepMainMenu({
                 )}
                 onEnterRealm={handleAuthenticatedRealmEntry}
                 onPrepareQrCode={onPrepareFarcasterQrCode}
+                onCheckAdmission={onRefreshFarcasterSession}
                 onRememberDeviceChange={onRememberDeviceChange}
                 onRetry={handleRetrySignIn}
                 onSignOut={handleSignOut}

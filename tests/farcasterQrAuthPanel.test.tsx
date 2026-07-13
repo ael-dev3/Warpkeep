@@ -34,6 +34,7 @@ function renderPanel(props: RenderPanelProps) {
     onCancel: vi.fn(),
     onRetry: vi.fn(),
     onBackToMenu: vi.fn(),
+    onCheckAdmission: vi.fn(),
     onEnterRealm: vi.fn(),
     onPrepareQrCode: vi.fn(),
     onRememberDeviceChange: vi.fn(),
@@ -49,6 +50,7 @@ function renderPanel(props: RenderPanelProps) {
       identity={props.identity}
       onBackToMenu={props.onBackToMenu ?? callbacks.onBackToMenu}
       onCancel={props.onCancel ?? callbacks.onCancel}
+      onCheckAdmission={props.onCheckAdmission ?? callbacks.onCheckAdmission}
       onEnterRealm={props.onEnterRealm ?? callbacks.onEnterRealm}
       onPrepareQrCode={props.onPrepareQrCode ?? callbacks.onPrepareQrCode}
       onPresentationReady={props.onPresentationReady}
@@ -60,7 +62,6 @@ function renderPanel(props: RenderPanelProps) {
       qr={props.qr}
       assurance={props.assurance}
       rememberDevice={props.rememberDevice}
-      hasRememberedDevice={props.hasRememberedDevice}
     />
   );
 
@@ -98,7 +99,8 @@ describe('FarcasterQrAuthPanel', () => {
     const { container, callbacks } = renderPanel({
       phase: 'awaiting-approval',
       channelUrl,
-      qr: { state: 'ready', dataUrl: qrDataUrl }
+      qr: { state: 'ready', dataUrl: qrDataUrl },
+      rememberDevice: true
     });
 
     expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
@@ -111,6 +113,11 @@ describe('FarcasterQrAuthPanel', () => {
     const deepLink = screen.getByRole('link', { name: 'OPEN IN FARCASTER' });
     expect(deepLink.getAttribute('href')).toBe(channelUrl);
     expect(container.textContent).not.toContain('ephemeral-secret');
+
+    const remember = screen.getByRole('checkbox', { name: 'Keep me signed in on this device' });
+    expect((remember as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(remember);
+    expect(callbacks.onRememberDeviceChange).toHaveBeenCalledWith(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }));
     expect(callbacks.onCancel).toHaveBeenCalledTimes(1);
@@ -213,7 +220,7 @@ describe('FarcasterQrAuthPanel', () => {
     expect(failed.callbacks.onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it('renders live verification assurance, remembers an explicit device choice, and enters the realm', () => {
+  it('renders a neutral authorized browser session and enters the realm', () => {
     const { callbacks } = renderPanel({
       phase: 'authenticated',
       identity: verifiedIdentity,
@@ -226,13 +233,10 @@ describe('FarcasterQrAuthPanel', () => {
     expect(screen.getByText('The Keeper')).not.toBeNull();
     expect(screen.getByText('FID 12345')).not.toBeNull();
     expect(screen.getByText(
-      'Verified through Farcaster. Your identity is recognized by the realm.'
+      'Your Farcaster identity is active for this browser session.'
     )).not.toBeNull();
     expect(screen.getByRole('status').textContent).toBe('Verified through Farcaster: @keeper, FID 12345');
-    const remember = screen.getByRole('checkbox', { name: 'Remember this device for 30 days' });
-    expect((remember as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(remember);
-    expect(callbacks.onRememberDeviceChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole('checkbox')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(callbacks.onEnterRealm).toHaveBeenCalledWith(verifiedIdentity);
@@ -240,20 +244,21 @@ describe('FarcasterQrAuthPanel', () => {
     expect(callbacks.onSignOut).toHaveBeenCalledTimes(1);
   });
 
-  it('clearly marks a restored prototype session and offers to forget the remembered device', () => {
+  it('renders pending admission without a realm action or credential details', () => {
     const { callbacks } = renderPanel({
-      phase: 'authenticated',
-      identity: verifiedIdentity,
-      assurance: 'remembered-device-prototype',
-      rememberDevice: true,
-      hasRememberedDevice: true
+      phase: 'pending-admission',
+      identity: verifiedIdentity
     });
 
-    expect(screen.getByRole('heading', { name: 'HEGEMONY RECORD REMEMBERED' })).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
     expect(screen.getByText(
-      'Remembered on this device. Reconfirm in Farcaster whenever you need a fresh proof.'
+      'Your Farcaster identity is verified. Admission to the Hegemony frontier is still pending.'
     )).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT & FORGET DEVICE' }));
+    expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
+    expect(document.body.textContent).not.toMatch(/accessToken|bearer|JWT/i);
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(callbacks.onCheckAdmission).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
     expect(callbacks.onSignOut).toHaveBeenCalledTimes(1);
   });
 

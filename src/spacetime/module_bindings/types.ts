@@ -47,6 +47,12 @@ export const AlphaBackendInfo = __t.object("AlphaBackendInfo", {
 });
 export type AlphaBackendInfo = __Infer<typeof AlphaBackendInfo>;
 
+export const AuthResolverFidAdmissionV2 = __t.object("AuthResolverFidAdmissionV2", {
+  state: __t.string(),
+  authEpoch: __t.u32(),
+});
+export type AuthResolverFidAdmissionV2 = __Infer<typeof AuthResolverFidAdmissionV2>;
+
 export const Castle = __t.object("Castle", {
   castleId: __t.u64(),
   ownerFid: __t.u64(),
@@ -61,7 +67,6 @@ export type Castle = __Infer<typeof Castle>;
 
 export const Player = __t.object("Player", {
   fid: __t.u64(),
-  identity: __t.identity(),
   username: __t.option(__t.string()),
   displayName: __t.option(__t.string()),
   pfpUrl: __t.option(__t.string()),
@@ -69,6 +74,12 @@ export const Player = __t.object("Player", {
   status: __t.string(),
 });
 export type Player = __Infer<typeof Player>;
+
+export const PlayerOwnership = __t.object("PlayerOwnership", {
+  fid: __t.u64(),
+  identity: __t.identity(),
+});
+export type PlayerOwnership = __Infer<typeof PlayerOwnership>;
 
 export const WorldTile = __t.object("WorldTile", {
   key: __t.string(),

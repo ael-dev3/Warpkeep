@@ -146,7 +146,7 @@ describe('Warpkeep authenticated connection boundary', () => {
 
   it('rejects an incompatible backend before gameplay admission or subscriptions', async () => {
     const compatible = {
-      protocolVersion: 1,
+      protocolVersion: 2,
       worldSeed: 3_445_214_658,
       worldSeedName: 'HEGEMONY_GENESIS_001'
     };
@@ -157,7 +157,7 @@ describe('Warpkeep authenticated connection boundary', () => {
 
     connection.procedures.getAlphaBackendInfo = vi.fn(async () => ({
       ...compatible,
-      protocolVersion: 2
+      protocolVersion: 1
     }));
     await expect(readWarpkeepBackendInfo(connection)).rejects.toThrow(/protocol is incompatible/i);
   });

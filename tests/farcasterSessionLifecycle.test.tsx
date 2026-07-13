@@ -11,6 +11,7 @@ import { FARCASTER_AUTH_REQUEST_TTL_MS } from '../src/farcaster/farcasterAuthCon
 import { FarcasterOidcBridgeClientError } from '../src/farcaster/farcasterOidcBridgeClient';
 import {
   FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS,
+  FARCASTER_SESSION_TERMINATION_INTENT_TTL_MS,
   getFarcasterDeviceSessionControlKey,
   getFarcasterDeviceSessionStorageKey,
   type FarcasterDeviceSessionEnvironment,
@@ -19,6 +20,7 @@ import {
 import type {
   FarcasterChannelStatus,
   FarcasterCompletedChannelStatus,
+  FarcasterBridgeSessionResponse,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
   FarcasterSessionAuthority,
@@ -104,9 +106,6 @@ function createIdentity(verifiedAt = Date.now()): VerifiedFarcasterIdentity {
 function publicIdentity(identity: VerifiedFarcasterIdentity) {
   return {
     fid: identity.fid,
-    ...(identity.username === undefined ? {} : { username: identity.username }),
-    ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
-    ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl }),
     verifications: [],
     verifiedAt: identity.verifiedAt
   };
@@ -131,7 +130,8 @@ function createOidcSession(
     aud: ['warpkeep-spacetimedb'],
     token_type: 'spacetime-access',
     fid: String(fid),
-    auth_epoch: 0,
+    auth_version: 2,
+    auth_epoch: 1,
     roles: [],
     iat: issuedAt / 1_000,
     nbf: issuedAt / 1_000,
@@ -148,6 +148,35 @@ function createOidcSession(
   };
 }
 
+function createAuthorizedResponse(
+  fid = 12_345,
+  now = Date.now(),
+  accessExpiresAt = now + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+): FarcasterBridgeSessionResponse {
+  const session = createOidcSession(fid, now, accessExpiresAt);
+  return {
+    version: 2,
+    status: 'authorized',
+    identity: { fid },
+    sessionExpiresAt: Math.floor((now + 30 * 24 * 60 * 60 * 1_000) / 1_000) * 1_000,
+    accessToken: session.jwt,
+    tokenType: 'spacetime-access',
+    accessExpiresAt: session.expiresAt
+  };
+}
+
+function createPendingResponse(
+  fid = 12_345,
+  now = Date.now()
+): FarcasterBridgeSessionResponse {
+  return {
+    version: 2,
+    status: 'pending-admission',
+    identity: { fid },
+    sessionExpiresAt: Math.floor((now + 30 * 24 * 60 * 60 * 1_000) / 1_000) * 1_000
+  };
+}
+
 function createBridge(
   overrides: Partial<FarcasterOidcBridgeClient> = {}
 ): FarcasterOidcBridgeClient {
@@ -158,8 +187,14 @@ function createBridge(
       createdAt: Date.now(),
       expiresAt: Date.now() + FARCASTER_AUTH_REQUEST_TTL_MS
     })),
-    exchangeCompletedSignIn: vi.fn(async (request) => createOidcSession(request.fid)),
-    ...overrides
+    exchangeCompletedSignIn: vi.fn(async (request) => createAuthorizedResponse(request.fid)),
+    refreshSession: vi.fn(async () => {
+      throw new FarcasterOidcBridgeClientError('No cookie session in this fixture.');
+    }),
+    logoutSession: vi.fn(async () => undefined),
+    ...overrides,
+    issuer: overrides.issuer ?? 'https://auth.warpkeep.example',
+    audience: overrides.audience ?? 'warpkeep-spacetimedb'
   };
 }
 
@@ -174,12 +209,14 @@ function createAuthority(overrides: Partial<FarcasterSessionAuthority> = {}) {
 
 class MemoryDeviceSessionStorage implements FarcasterDeviceSessionStorage {
   readonly values = new Map<string, string>();
+  readonly writes: Array<readonly [string, string]> = [];
 
   getItem(key: string) {
     return this.values.get(key) ?? null;
   }
 
   setItem(key: string, value: string) {
+    this.writes.push([key, value]);
     this.values.set(key, value);
   }
 
@@ -224,6 +261,7 @@ function AuthHarness({ duplicateBegin = false }: { duplicateBegin?: boolean }) {
       <button onClick={auth.cancelSignIn} type="button">Cancel</button>
       <button onClick={auth.retrySignIn} type="button">Retry</button>
       <button onClick={auth.prepareQrCode} type="button">Prepare QR</button>
+      <button onClick={auth.refreshSession} type="button">Refresh session</button>
       <button onClick={auth.signOut} type="button">Sign out</button>
       <button
         onClick={() => auth.setRememberDevice(!auth.rememberDevice)}
@@ -232,7 +270,6 @@ function AuthHarness({ duplicateBegin = false }: { duplicateBegin?: boolean }) {
         Toggle remember device
       </button>
       <output data-testid="remember-device">{String(auth.rememberDevice)}</output>
-      <output data-testid="has-remembered-device">{String(auth.hasRememberedDevice)}</output>
       <output data-testid="has-oidc-session">{String(Boolean(auth.oidcSession))}</output>
     </div>
   );
@@ -414,6 +451,36 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(challengeOptions?.signal?.aborted).toBe(true);
   });
 
+  it('cancels startup cookie refresh before beginning a new SIWF generation', async () => {
+    const staleRefresh = deferred<FarcasterBridgeSessionResponse>();
+    const pendingChannel = deferred<FarcasterSignInChannel>();
+    const bridge = createBridge({
+      refreshSession: vi.fn(() => staleRefresh.promise)
+    });
+    const authority = createAuthority({
+      beginSignIn: vi.fn(() => pendingChannel.promise)
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge)
+    });
+    await settleAsyncWork();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    const [refreshOptions] = vi.mocked(bridge.refreshSession).mock.calls[0]!;
+    expect(refreshOptions?.signal?.aborted).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    expect(refreshOptions?.signal?.aborted).toBe(true);
+    expect(readPublicState().phase).toBe('creating-channel');
+
+    staleRefresh.resolve(createAuthorizedResponse());
+    await settleAsyncWork();
+    expect(readPublicState().phase).toBe('creating-channel');
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+  });
+
   it('uses one-shot polling at the requested cadence and never overlaps slow status calls', async () => {
     vi.useFakeTimers({ now: 10_000 });
     const firstStatus = deferred<FarcasterChannelStatus>();
@@ -525,7 +592,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(authority.verifyCompletedRequest).toHaveBeenCalledTimes(1);
     expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
-      identity: publicIdentity(identity),
+      identity: { ...publicIdentity(identity), verifiedAt: 50_010 },
       assurance: 'bridge-oidc-alpha',
       expiresAt: expect.any(Number)
     });
@@ -540,7 +607,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Toggle child' }));
     expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
-      identity: publicIdentity(identity),
+      identity: { ...publicIdentity(identity), verifiedAt: 50_010 },
       assurance: 'bridge-oidc-alpha',
       expiresAt: expect.any(Number)
     });
@@ -578,7 +645,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     await settleAsyncWork();
     await advanceTime(10);
 
-    expect(loadBridgeClient).toHaveBeenCalledTimes(1);
+    expect(loadBridgeClient).toHaveBeenCalledTimes(2);
     expect(bridge.createChallenge).toHaveBeenCalledTimes(1);
     const [challengeRequest, challengeOptions] = vi.mocked(bridge.createChallenge).mock.calls[0]!;
     expect(challengeRequest).toEqual({
@@ -602,9 +669,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       expiresAt: channel.expiresAt,
       bindingVerifier: BINDING_VERIFIER,
       identity: {
-        fid: verifiedIdentity.fid,
-        username: verifiedIdentity.username,
-        displayName: verifiedIdentity.displayName
+        fid: verifiedIdentity.fid
       }
     });
     expect(request).not.toHaveProperty('channelToken');
@@ -618,87 +683,333 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(document.body.textContent).not.toContain(BINDING_CHALLENGE);
   });
 
-  it('persists, restores, and forgets a bridge-OIDC session through injected storage', async () => {
-    vi.useFakeTimers({ now: 55_000 });
-    const storage = new MemoryDeviceSessionStorage();
-    const sessionEnvironment = deviceSessionEnvironment(storage);
-    const channel = createChannel('REMEMBERED');
-    const verifiedIdentity = createIdentity(Date.now() - 1_000);
+  it.each([
+    ['issuer', { issuer: 'https://different-issuer.example' }],
+    ['audience', { audience: 'different-audience' }]
+  ])('rejects an access token that does not match the bridge-configured %s', async (
+    caseName,
+    bridgeAuthority
+  ) => {
+    vi.useFakeTimers({ now: 53_000 });
+    const channel = createChannel(`WRONG_${caseName}`);
     const authority = createAuthority({
       beginSignIn: vi.fn(async () => channel),
-      getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'REMEMBERED')),
-      verifyCompletedRequest: vi.fn(async () => verifiedIdentity)
+      getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, `WRONG_${caseName}`)),
+      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
     });
-    const liveRender = renderProvider({
+    const bridge = createBridge(bridgeAuthority);
+    renderProvider({
       loadAuthority: vi.fn(async () => authority),
-      encodeQrCode: vi.fn(async () => 'data:image/svg+xml,unused'),
+      loadBridgeClient: vi.fn(async () => bridge),
       now: Date.now,
-      pollIntervalMs: 10,
-      deviceSessionEnvironment: sessionEnvironment
+      pollIntervalMs: 10
     });
 
-    expect(screen.getByTestId('remember-device').textContent).toBe('true');
-    expect(screen.getByTestId('has-remembered-device').textContent).toBe('false');
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
     await advanceTime(10);
 
     expect(readPublicState()).toMatchObject({
-      phase: 'authenticated',
-      identity: publicIdentity(verifiedIdentity),
-      assurance: 'bridge-oidc-alpha',
-      expiresAt: Math.floor(
-        (Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS) / 1_000
-      ) * 1_000
+      phase: 'error',
+      error: { code: 'invalid-response' }
     });
-    expect(screen.getByTestId('has-remembered-device').textContent).toBe('true');
-    const serialized = storage.values.get(deviceSessionStorageKey());
-    expect(serialized).toBeTruthy();
-    expect(serialized).not.toContain(channel.channelToken);
-    expect(serialized).not.toContain('PRIVATE_MESSAGE_REMEMBERED');
-    expect(serialized).not.toContain('authMethod');
-    expect(serialized).not.toContain(BINDING_VERIFIER);
-    expect(serialized).not.toContain(BINDING_CHALLENGE);
-    expect(window.localStorage.getItem(deviceSessionStorageKey())).toBeNull();
-    expect(JSON.parse(serialized!)).toMatchObject({
-      origin: DEVICE_SESSION_ORIGIN,
-      basePath: DEVICE_SESSION_BASE_PATH,
-      expiresAt: Math.floor(
-        (Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS) / 1_000
-      ) * 1_000
-    });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+  });
 
-    liveRender.unmount();
-    const restoredAuthority = createAuthority();
+  it('clears an expiring access token while a single refresh remains in flight', async () => {
+    vi.useFakeTimers({ now: 200_000 });
+    const refreshAtExpiry = deferred<FarcasterBridgeSessionResponse>();
+    const initial = createAuthorizedResponse(12_345, Date.now(), Date.now() + 40_000);
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(initial)
+        .mockImplementationOnce(() => refreshAtExpiry.promise)
+    });
     renderProvider({
-      loadAuthority: vi.fn(async () => restoredAuthority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now
+    });
+    await settleAsyncWork();
+
+    expect(readPublicState().phase).toBe('authenticated');
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+
+    await advanceTime(10_000);
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+
+    await advanceTime(30_000);
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+    const [refreshOptions] = vi.mocked(bridge.refreshSession).mock.calls[1]!;
+    expect(refreshOptions?.signal?.aborted).toBe(false);
+
+    refreshAtExpiry.resolve(createAuthorizedResponse(12_345, Date.now()));
+    await settleAsyncWork();
+    expect(readPublicState().phase).toBe('authenticated');
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+  });
+
+  it('gates resume refreshes by auth state/proximity and preserves single-flight', async () => {
+    vi.useFakeTimers({ now: 300_000 });
+    let hidden = false;
+    vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    const resumeRefresh = deferred<FarcasterBridgeSessionResponse>();
+    const initial = createAuthorizedResponse();
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(initial)
+        .mockImplementationOnce(() => resumeRefresh.promise)
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now
+    });
+    await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+
+    fireEvent(window, new Event('focus'));
+    fireEvent(document, new Event('visibilitychange'));
+    await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+
+    await advanceTime(FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS - 30_000);
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    hidden = true;
+    fireEvent(document, new Event('visibilitychange'));
+    hidden = false;
+    fireEvent(window, new Event('focus'));
+    fireEvent(document, new Event('visibilitychange'));
+    await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+
+    resumeRefresh.resolve(createAuthorizedResponse(12_345, Date.now()));
+    await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+  });
+
+  it('purges retired bearer storage and restores authority only through cookie refresh', async () => {
+    vi.useFakeTimers({ now: 55_000 });
+    const storage = new MemoryDeviceSessionStorage();
+    const sessionEnvironment = deviceSessionEnvironment(storage);
+    const retiredToken = createOidcSession().jwt;
+    storage.values.set(deviceSessionStorageKey(), retiredToken);
+    storage.values.set(
+      'warpkeep:/Warpkeep/:farcaster-device-session:v1',
+      retiredToken
+    );
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse())
+    });
+    const authority = createAuthority();
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
       encodeQrCode: vi.fn(async () => 'data:image/svg+xml,unused'),
       now: Date.now,
       deviceSessionEnvironment: sessionEnvironment
     });
+    await settleAsyncWork();
 
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
     expect(readPublicState()).toEqual({
       phase: 'authenticated',
       identity: {
-        fid: verifiedIdentity.fid,
-        username: verifiedIdentity.username,
-        displayName: verifiedIdentity.displayName,
+        fid: 12_345,
         verifications: [],
-        verifiedAt: verifiedIdentity.verifiedAt
+        verifiedAt: Date.now()
       },
       assurance: 'bridge-oidc-alpha',
-      expiresAt: Math.floor(
-        (Date.now() + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS) / 1_000
+      expiresAt: createOidcSession().expiresAt,
+      sessionExpiresAt: Math.floor(
+        (Date.now() + 30 * 24 * 60 * 60 * 1_000) / 1_000
       ) * 1_000
     });
-    expect(restoredAuthority.beginSignIn).not.toHaveBeenCalled();
-    expect(screen.getByTestId('has-remembered-device').textContent).toBe('true');
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+    expect(storage.values.has(deviceSessionStorageKey())).toBe(false);
+    expect(storage.values.has('warpkeep:/Warpkeep/:farcaster-device-session:v1')).toBe(false);
+    expect(storage.writes).toEqual([]);
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     await settleAsyncWork();
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
-    expect(screen.getByTestId('has-remembered-device').textContent).toBe('false');
-    expect(storage.values.has(deviceSessionStorageKey())).toBe(false);
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+    expect(bridge.logoutSession).toHaveBeenCalledTimes(1);
+    expect(storage.writes).toEqual([[
+      getFarcasterDeviceSessionControlKey(DEVICE_SESSION_BASE_PATH),
+      `logout-v1:${Date.now()}`
+    ]]);
+    expect(JSON.stringify(storage.writes)).not.toContain(retiredToken);
+  });
+
+  it('suppresses automatic cookie restoration after logout until sign-in is explicit', async () => {
+    vi.useFakeTimers({ now: 57_000 });
+    const storage = new MemoryDeviceSessionStorage();
+    const controlKey = getFarcasterDeviceSessionControlKey(DEVICE_SESSION_BASE_PATH)!;
+    storage.values.set(controlKey, `logout-v1:${Date.now()}`);
+    const channel = createChannel('AFTER_LOGOUT_INTENT');
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel)
+    });
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse())
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: deviceSessionEnvironment(storage)
+    });
+    await settleAsyncWork();
+
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    fireEvent(window, new Event('focus'));
+    fireEvent(document, new Event('visibilitychange'));
+    await settleAsyncWork();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    expect(storage.values.has(controlKey)).toBe(false);
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(readPublicState().phase).toBe('awaiting-approval');
+  });
+
+  it('keeps a failed best-effort logout from restoring the cookie on focus or reload', async () => {
+    vi.useFakeTimers({ now: 58_000 });
+    const storage = new MemoryDeviceSessionStorage();
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse()),
+      logoutSession: vi.fn(async () => {
+        throw new FarcasterOidcBridgeClientError('bounded fixture outage');
+      })
+    });
+    const sessionEnvironment = deviceSessionEnvironment(storage);
+    const firstRender = renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+    await settleAsyncWork();
+    expect(readPublicState().phase).toBe('authenticated');
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await settleAsyncWork();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(bridge.logoutSession).toHaveBeenCalledTimes(1);
+    expect(storage.values.get(getFarcasterDeviceSessionControlKey(DEVICE_SESSION_BASE_PATH)!))
+      .toBe(`logout-v1:${Date.now()}`);
+
+    fireEvent(window, new Event('focus'));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh session' }));
+    await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+
+    firstRender.unmount();
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+    await settleAsyncWork();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('cannot repopulate a JWT when an aborted refresh resolves after sign-out', async () => {
+    vi.useFakeTimers({ now: 58_500 });
+    const storage = new MemoryDeviceSessionStorage();
+    const lateRefresh = deferred<FarcasterBridgeSessionResponse>();
+    const initial = createAuthorizedResponse(12_345, Date.now(), Date.now() + 40_000);
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(initial)
+        .mockImplementationOnce(() => lateRefresh.promise),
+      logoutSession: vi.fn(async () => {
+        throw new FarcasterOidcBridgeClientError('bounded fixture outage');
+      })
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: deviceSessionEnvironment(storage)
+    });
+    await settleAsyncWork();
+    expect(readPublicState().phase).toBe('authenticated');
+
+    await advanceTime(10_000);
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    const [refreshOptions] = vi.mocked(bridge.refreshSession).mock.calls[1]!;
+    expect(refreshOptions?.signal?.aborted).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    expect(refreshOptions?.signal?.aborted).toBe(true);
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+
+    lateRefresh.resolve(createAuthorizedResponse(12_345, Date.now()));
+    await settleAsyncWork();
+    fireEvent(window, new Event('focus'));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh session' }));
+    await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+  });
+
+  it('allows automatic refresh only after an exact logout tombstone is stale', async () => {
+    vi.useFakeTimers({ now: 59_000 + FARCASTER_SESSION_TERMINATION_INTENT_TTL_MS });
+    const storage = new MemoryDeviceSessionStorage();
+    const controlKey = getFarcasterDeviceSessionControlKey(DEVICE_SESSION_BASE_PATH)!;
+    storage.values.set(controlKey, 'logout-v1:59000');
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse())
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: deviceSessionEnvironment(storage)
+    });
+    await settleAsyncWork();
+
+    expect(storage.values.has(controlKey)).toBe(false);
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(readPublicState().phase).toBe('authenticated');
+  });
+
+  it('fails closed when logout-control storage is denied but permits explicit sign-in', async () => {
+    vi.useFakeTimers({ now: 59_500 });
+    const denied: FarcasterDeviceSessionStorage = {
+      getItem: () => { throw new Error('denied'); },
+      setItem: () => { throw new Error('denied'); },
+      removeItem: () => { throw new Error('denied'); }
+    };
+    const channel = createChannel('STORAGE_DENIED');
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel)
+    });
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse())
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: deviceSessionEnvironment(denied)
+    });
+    await settleAsyncWork();
+
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(readPublicState().phase).toBe('awaiting-approval');
   });
 
   it('does not remember a live identity when the explicit device preference is disabled', async () => {
@@ -710,15 +1021,16 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'NO_REMEMBER')),
       verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
     });
+    const bridge = createBridge();
     renderProvider({
       loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
       encodeQrCode: vi.fn(async () => 'data:image/svg+xml,unused'),
       now: Date.now,
       pollIntervalMs: 10,
       deviceSessionEnvironment: deviceSessionEnvironment(storage)
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle remember device' }));
     expect(screen.getByTestId('remember-device').textContent).toBe('false');
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
@@ -728,11 +1040,15 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       phase: 'authenticated',
       assurance: 'bridge-oidc-alpha'
     });
-    expect(screen.getByTestId('has-remembered-device').textContent).toBe('false');
     expect(storage.values.has(deviceSessionStorageKey())).toBe(false);
+    expect(storage.writes).toEqual([]);
+    expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledWith(
+      expect.objectContaining({ rememberDevice: false }),
+      expect.any(Object)
+    );
   });
 
-  it('terminates a live persisted bearer when another tab emits logout', async () => {
+  it('terminates the in-memory bearer when another tab emits logout', async () => {
     vi.useFakeTimers({ now: 65_000 });
     const channel = createChannel('CROSS_TAB_LOGOUT');
     const privateIdentity: VerifiedFarcasterIdentity = {
@@ -757,7 +1073,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
 
     expect(readPublicState()).toMatchObject({
       phase: 'authenticated',
-      identity: publicIdentity(privateIdentity)
+      identity: { ...publicIdentity(privateIdentity), verifiedAt: 65_010 }
     });
     expect(JSON.stringify(readPublicState())).not.toContain(privateIdentity.custody);
     expect(JSON.stringify(readPublicState())).not.toContain(privateIdentity.authMethod);
@@ -776,7 +1092,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
   it('cancels an in-flight bridge exchange when another tab emits logout', async () => {
     vi.useFakeTimers({ now: 65_000 });
     const channel = createChannel('CROSS_TAB_IN_FLIGHT');
-    const bridgeExchange = deferred<FarcasterOidcSession>();
+    const bridgeExchange = deferred<FarcasterBridgeSessionResponse>();
     const authority = createAuthority({
       beginSignIn: vi.fn(async () => channel),
       getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'CROSS_TAB_IN_FLIGHT')),
@@ -807,7 +1123,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
     expect(exchangeOptions?.signal?.aborted).toBe(true);
 
-    bridgeExchange.resolve(createOidcSession());
+    bridgeExchange.resolve(createAuthorizedResponse());
     await settleAsyncWork();
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
@@ -817,7 +1133,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     vi.useFakeTimers({ now: 67_000 });
     const storage = new MemoryDeviceSessionStorage();
     const channel = createChannel('CANCEL_BOUND_EXCHANGE');
-    const bridgeExchange = deferred<FarcasterOidcSession>();
+    const bridgeExchange = deferred<FarcasterBridgeSessionResponse>();
     const authority = createAuthority({
       beginSignIn: vi.fn(async () => channel),
       getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'CANCEL_BOUND_EXCHANGE')),
@@ -842,20 +1158,29 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(options?.signal?.aborted).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await settleAsyncWork();
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
     expect(options?.signal?.aborted).toBe(true);
+    expect(bridge.logoutSession).toHaveBeenCalledTimes(1);
+    expect(storage.values.get(getFarcasterDeviceSessionControlKey(DEVICE_SESSION_BASE_PATH)!))
+      .toBe(`logout-v1:${Date.now()}`);
 
-    bridgeExchange.resolve(createOidcSession());
+    bridgeExchange.resolve(createAuthorizedResponse());
+    await settleAsyncWork();
+    const refreshCallsBeforeResumeAttempt = vi.mocked(bridge.refreshSession).mock.calls.length;
+    fireEvent(window, new Event('focus'));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh session' }));
     await settleAsyncWork();
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
-    expect(storage.values.size).toBe(0);
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(refreshCallsBeforeResumeAttempt);
+    expect(storage.values.size).toBe(1);
   });
 
   it('aborts an in-flight bound exchange when its generation expires', async () => {
     vi.useFakeTimers({ now: 69_000 });
     const channel = createChannel('EXPIRE_BOUND_EXCHANGE', Date.now(), Date.now() + 20);
-    const bridgeExchange = deferred<FarcasterOidcSession>();
+    const bridgeExchange = deferred<FarcasterBridgeSessionResponse>();
     const authority = createAuthority({
       beginSignIn: vi.fn(async () => channel),
       getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'EXPIRE_BOUND_EXCHANGE')),
@@ -882,7 +1207,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(readPublicState()).toMatchObject({ phase: 'expired' });
     expect(options?.signal?.aborted).toBe(true);
 
-    bridgeExchange.resolve(createOidcSession());
+    bridgeExchange.resolve(createAuthorizedResponse());
     await settleAsyncWork();
     expect(readPublicState()).toMatchObject({ phase: 'expired' });
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
@@ -891,7 +1216,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
   it('aborts an in-flight bound exchange during StrictMode provider cleanup', async () => {
     vi.useFakeTimers({ now: 71_000 });
     const channel = createChannel('UNMOUNT_BOUND_EXCHANGE');
-    const bridgeExchange = deferred<FarcasterOidcSession>();
+    const bridgeExchange = deferred<FarcasterBridgeSessionResponse>();
     const authority = createAuthority({
       beginSignIn: vi.fn(async () => channel),
       getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'UNMOUNT_BOUND_EXCHANGE')),
@@ -916,7 +1241,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
 
     rendered.unmount();
     expect(options?.signal?.aborted).toBe(true);
-    bridgeExchange.resolve(createOidcSession());
+    bridgeExchange.resolve(createAuthorizedResponse());
     await settleAsyncWork();
   });
 
@@ -1040,8 +1365,8 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(vi.getTimerCount()).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await settleAsyncWork();
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
-    expect(vi.getTimerCount()).toBe(0);
     await advanceTime(10_000);
     expect(authority.getStatus).not.toHaveBeenCalled();
   });

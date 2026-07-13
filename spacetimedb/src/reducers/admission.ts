@@ -1,11 +1,9 @@
 import { SenderError, t } from 'spacetimedb/server';
 
-import {
-  optionalDisplayClaim,
-  type WarpkeepJwtClaims,
-} from '../claims';
+import type { WarpkeepJwtClaims } from '../claims';
 import { evaluateAdmissionEpoch } from '../admissionPolicy';
 import { requireAllowedFid, requireWarpkeepJwt } from '../auth';
+import { evaluatePlayerOwnership } from '../playerOwnershipPolicy';
 import warpkeep from '../schema';
 import { CANONICAL_WORLD_TILES } from '../world';
 
@@ -24,8 +22,14 @@ function admissionStatus(ctx: Parameters<typeof requireWarpkeepJwt>[0]): Admissi
   if (decision !== 'current') return 'disabled';
 
   const player = ctx.db.player.fid.find(claims.fid);
-  if (player === null) return 'admitted_needs_bootstrap';
-  if (!player.identity.equals(ctx.sender)) return 'disabled';
+  const ownership = ctx.db.playerOwnership.fid.find(claims.fid);
+  const ownershipState = evaluatePlayerOwnership(
+    player !== null,
+    ownership !== null,
+    ownership?.identity.equals(ctx.sender) ?? false,
+  );
+  if (ownershipState === 'unbound') return 'admitted_needs_bootstrap';
+  if (ownershipState !== 'current') return 'disabled';
 
   const castle = ctx.db.castle.ownerFid.find(claims.fid);
   return castle === null ? 'admitted_needs_bootstrap' : 'ready';
@@ -48,23 +52,30 @@ function firstUnoccupiedTile(ctx: Parameters<typeof requireWarpkeepJwt>[0]) {
   throw new SenderError('WORLD_FULL');
 }
 
-function displayData(ctx: Parameters<typeof requireWarpkeepJwt>[0]) {
-  const payload = ctx.senderAuth.jwt?.fullPayload;
-  return {
-    username: optionalDisplayClaim(payload, 'username', 64),
-    displayName: optionalDisplayClaim(payload, 'display_name', 128),
-    pfpUrl: optionalDisplayClaim(payload, 'pfp_url', 2_048),
-  };
-}
-
 function assertExistingPlayerConsistency(
   ctx: Parameters<typeof requireWarpkeepJwt>[0],
   claims: WarpkeepJwtClaims,
 ): void {
   const existingPlayer = ctx.db.player.fid.find(claims.fid);
-  if (existingPlayer === null) return;
+  const existingOwnership = ctx.db.playerOwnership.fid.find(claims.fid);
+  const ownershipState = evaluatePlayerOwnership(
+    existingPlayer !== null,
+    existingOwnership !== null,
+    existingOwnership?.identity.equals(ctx.sender) ?? false,
+  );
 
-  if (!existingPlayer.identity.equals(ctx.sender)) {
+  if (ownershipState === 'unbound') {
+    if (ctx.db.playerOwnership.identity.find(ctx.sender) !== null) {
+      throw new SenderError('IDENTITY_MISMATCH');
+    }
+    return;
+  }
+
+  if (ownershipState === 'partial') {
+    throw new SenderError('STATE_INTEGRITY');
+  }
+
+  if (ownershipState === 'identity_mismatch') {
     throw new SenderError('IDENTITY_MISMATCH');
   }
 
@@ -85,12 +96,18 @@ export const bootstrapPlayer = warpkeep.reducer(
     if (ctx.db.player.fid.find(claims.fid) !== null) return;
 
     const spawn = firstUnoccupiedTile(ctx);
-    const display = displayData(ctx);
+    ctx.db.playerOwnership.insert({
+      fid: claims.fid,
+      identity: ctx.sender,
+    });
 
     ctx.db.player.insert({
       fid: claims.fid,
-      identity: ctx.sender,
-      ...display,
+      // JWT claims are authorization material, never a public-profile write
+      // channel. Profile fields require a separate reviewed mutation path.
+      username: undefined,
+      displayName: undefined,
+      pfpUrl: undefined,
       joinedAt: ctx.timestamp,
       status: 'active',
     });

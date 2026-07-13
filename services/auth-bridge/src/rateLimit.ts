@@ -14,6 +14,7 @@ const INTERNAL_ORIGIN = 'https://auth-rate-limiter.internal'
 const POLICIES: Readonly<Record<RateLimitAction, number>> = Object.freeze({
   challenge: 12,
   exchange: 20,
+  'session-refresh': 30,
   'admin-token': 6,
 })
 

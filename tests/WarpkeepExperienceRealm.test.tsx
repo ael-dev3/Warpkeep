@@ -11,12 +11,14 @@ import { WarpkeepExperience } from '../src/components/WarpkeepExperience';
 import { FarcasterAuthProvider } from '../src/farcaster/FarcasterAuthProvider';
 import {
   getFarcasterDeviceSessionStorageKey,
-  persistFarcasterRememberedDeviceSession,
   type FarcasterDeviceSessionEnvironment,
   type FarcasterDeviceSessionStorage
 } from '../src/farcaster/farcasterDeviceSession';
 import type {
+  FarcasterBridgeAuthorizedSession,
   FarcasterBridgeChallenge,
+  FarcasterBridgePendingAdmissionSession,
+  FarcasterBridgeSessionResponse,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
   FarcasterSessionAuthority,
@@ -37,7 +39,7 @@ import {
 } from '../src/spacetime/warpkeepConfig';
 
 const TEST_NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
-const TEST_ISSUER = 'https://auth.warpkeep.example';
+const TEST_ISSUER = 'https://auth.warpkeep.com';
 const TEST_AUDIENCE = 'warpkeep-spacetimedb';
 const TEST_BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
 const TEST_BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
@@ -129,17 +131,19 @@ function encodeJwtSegment(value: unknown) {
 
 function createOidcSession(
   fid = VERIFIED_IDENTITY.fid,
-  now = TEST_NOW
+  now = TEST_NOW,
+  accessTtlMs = 5 * 60 * 1_000
 ): FarcasterOidcSession {
   const issuedAt = Math.floor(now / 1_000);
-  const expiresAt = now + 30 * 24 * 60 * 60 * 1_000;
+  const expiresAt = now + accessTtlMs;
   const jwt = `${encodeJwtSegment({ alg: 'ES256', typ: 'JWT', kid: 'test-key' })}.${encodeJwtSegment({
     iss: TEST_ISSUER,
     sub: `farcaster:${fid}`,
     aud: [TEST_AUDIENCE],
     token_type: 'spacetime-access',
     fid: String(fid),
-    auth_epoch: 0,
+    auth_version: 2,
+    auth_epoch: 1,
     roles: [],
     iat: issuedAt,
     nbf: issuedAt,
@@ -149,6 +153,35 @@ function createOidcSession(
     jti: `test-${fid}-${issuedAt}`
   })}.test_signature`;
   return Object.freeze({ jwt, issuer: TEST_ISSUER, audience: TEST_AUDIENCE, expiresAt });
+}
+
+function createAuthorizedResponse(
+  fid = VERIFIED_IDENTITY.fid,
+  now = TEST_NOW,
+  accessTtlMs = 5 * 60 * 1_000
+): FarcasterBridgeAuthorizedSession {
+  const session = createOidcSession(fid, now, accessTtlMs);
+  return Object.freeze({
+    version: 2,
+    status: 'authorized',
+    identity: Object.freeze({ fid }),
+    sessionExpiresAt: now + 30 * 24 * 60 * 60 * 1_000,
+    accessToken: session.jwt,
+    tokenType: 'spacetime-access',
+    accessExpiresAt: session.expiresAt
+  });
+}
+
+function createPendingAdmissionResponse(
+  fid = VERIFIED_IDENTITY.fid,
+  now = TEST_NOW
+): FarcasterBridgePendingAdmissionSession {
+  return Object.freeze({
+    version: 2,
+    status: 'pending-admission',
+    identity: Object.freeze({ fid }),
+    sessionExpiresAt: now + 30 * 24 * 60 * 60 * 1_000
+  });
 }
 
 function createTestAuthority(now: () => number) {
@@ -194,8 +227,14 @@ function createTestAuthority(now: () => number) {
   } satisfies FarcasterSessionAuthority;
 }
 
-function createBridge(session: FarcasterOidcSession, now: () => number) {
+function createBridge(
+  exchangeResponse: FarcasterBridgeSessionResponse,
+  now: () => number,
+  refreshResponse?: FarcasterBridgeSessionResponse
+) {
   return {
+    issuer: TEST_ISSUER,
+    audience: TEST_AUDIENCE,
     createChallenge: vi.fn(async () => {
       const createdAt = now();
       return {
@@ -205,7 +244,12 @@ function createBridge(session: FarcasterOidcSession, now: () => number) {
         expiresAt: createdAt + 300_000
       };
     }),
-    exchangeCompletedSignIn: vi.fn(async () => session)
+    exchangeCompletedSignIn: vi.fn(async () => exchangeResponse),
+    refreshSession: vi.fn(async () => {
+      if (!refreshResponse) throw new Error('No active cookie session');
+      return refreshResponse;
+    }),
+    logoutSession: vi.fn(async () => undefined)
   } satisfies FarcasterOidcBridgeClient;
 }
 
@@ -213,7 +257,7 @@ function createBackendRuntime(
   admissionSequence: readonly WarpkeepAdmissionStatus[] = ['ready'],
   realm: WarpkeepRealmSnapshot = SHARED_REALM,
   backendInfo: unknown = {
-    protocolVersion: 1,
+    protocolVersion: 2,
     worldSeed: 3_445_214_658,
     worldSeedName: 'HEGEMONY_GENESIS_001'
   }
@@ -257,7 +301,7 @@ function renderExperience({
   deviceSessionEnvironment,
   now = () => TEST_NOW,
   runtime = createBackendRuntime().runtime,
-  bridge = createBridge(createOidcSession(VERIFIED_IDENTITY.fid, now()), now),
+  bridge = createBridge(createAuthorizedResponse(VERIFIED_IDENTITY.fid, now()), now),
   config = TEST_CONFIG
 }: RenderExperienceOptions = {}) {
   const authority = createTestAuthority(now);
@@ -358,17 +402,18 @@ describe('Warpkeep shared realm admission', () => {
     expect(screen.getByText('LEVEL 2')).not.toBeNull();
   });
 
-  it('restores a valid v2 bridge session, rechecks admission, and does not create a new Farcaster channel', async () => {
+  it('refreshes a valid v2 cookie session, rechecks admission, and does not create a new Farcaster channel', async () => {
     const storage = new TestDeviceStorage();
     const environment = createDeviceSessionEnvironment(storage);
-    expect(persistFarcasterRememberedDeviceSession(
-      VERIFIED_IDENTITY,
-      createOidcSession(VERIFIED_IDENTITY.fid, TEST_NOW),
-      environment
-    )).toBeDefined();
-    window.history.replaceState({}, '', '/#realm');
+    const refreshedSession = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW);
+    const bridge = createBridge(
+      createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW),
+      environment.now!,
+      refreshedSession
+    );
     const backend = createBackendRuntime();
     const { authority } = renderExperience({
+      bridge,
       deviceSessionEnvironment: environment,
       now: environment.now,
       runtime: backend.runtime
@@ -376,9 +421,73 @@ describe('Warpkeep shared realm admission', () => {
 
     await settle();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
     expect(window.location.hash).toBe('#realm');
+  });
+
+  it('disconnects Spacetime exactly when an access token expires while refresh is still pending', async () => {
+    const initial = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW, 40_000);
+    let resolveRefresh!: (value: FarcasterBridgeSessionResponse) => void;
+    const pendingRefresh = new Promise<FarcasterBridgeSessionResponse>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const bridge = createBridge(initial, Date.now);
+    vi.mocked(bridge.refreshSession)
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(() => pendingRefresh);
+    const backend = createBackendRuntime();
+    renderExperience({ bridge, now: Date.now, runtime: backend.runtime });
+    await settle();
+
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    const disconnectCallsAtStart = vi.mocked(backend.runtime.disconnect).mock.calls.length;
+    expect(backend.connection.disconnect).not.toHaveBeenCalled();
+
+    await act(async () => vi.advanceTimersByTime(10_000));
+    await settle();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(backend.runtime.disconnect).toHaveBeenCalledTimes(disconnectCallsAtStart);
+    expect(backend.connection.disconnect).not.toHaveBeenCalled();
+
+    await act(async () => vi.advanceTimersByTime(30_000));
+    await settle();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(backend.runtime.disconnect).mock.calls.slice(disconnectCallsAtStart))
+      .toContainEqual([backend.connection]);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+
+    resolveRefresh(createAuthorizedResponse(VERIFIED_IDENTITY.fid, Date.now()));
+    await settle();
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('never opens a Spacetime connection for a v2 pending-admission cookie session', async () => {
+    const pendingSession = createPendingAdmissionResponse();
+    const bridge = createBridge(
+      createAuthorizedResponse(),
+      () => TEST_NOW,
+      pendingSession
+    );
+    const backend = createBackendRuntime();
+
+    const { authority } = renderExperience({ bridge, runtime: backend.runtime });
+    await settle();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+    expect(screen.getByText(
+      'Your Farcaster identity is verified. Admission to the Hegemony frontier is still pending.'
+    )).not.toBeNull();
   });
 
   it('purges a legacy public-identity record and never lets it mount the shared realm', async () => {
@@ -480,7 +589,7 @@ describe('Warpkeep shared realm admission', () => {
 
   it('does not check admission or mount the realm when the backend protocol is incompatible', async () => {
     const backend = createBackendRuntime(['ready'], SHARED_REALM, {
-      protocolVersion: 2,
+      protocolVersion: 1,
       worldSeed: 3_445_214_658,
       worldSeedName: 'HEGEMONY_GENESIS_001'
     });

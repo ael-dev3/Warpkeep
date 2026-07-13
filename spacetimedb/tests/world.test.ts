@@ -33,7 +33,7 @@ test('canonical terrain checks reject a coordinate or seed mismatch', () => {
 });
 
 test('backend compatibility metadata is stable and distinct from the player-facing release version', () => {
-  assert.equal(WARPKEEP_BACKEND_PROTOCOL_VERSION, 1);
+  assert.equal(WARPKEEP_BACKEND_PROTOCOL_VERSION, 2);
   assert.equal(HEGEMONY_GENESIS_001, 'HEGEMONY_GENESIS_001');
   assert.equal(HEGEMONY_WORLD_SEED, 3_445_214_658);
 });

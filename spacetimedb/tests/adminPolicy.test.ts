@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { evaluateAdmissionEpoch } from '../src/admissionPolicy';
+import {
+  InvalidAdmissionEpochStateError,
+  evaluateAdmissionEpoch,
+  resolveAuthResolverAdmission,
+} from '../src/admissionPolicy';
 import {
   AuthEpochExhaustedError,
   executeAllowFidTransition,
@@ -29,12 +33,34 @@ function recordingHandlers(events: string[]) {
   };
 }
 
-test('first admission keeps epoch zero', () => {
+test('first admission starts at epoch one', () => {
   assert.deepEqual(planAllowFid(null), {
     kind: 'insert',
     enabled: true,
+    authEpoch: 1,
+  });
+});
+
+test('auth resolver exposes exact least-privilege admission states', () => {
+  assert.deepEqual(resolveAuthResolverAdmission(null), {
+    state: 'missing',
     authEpoch: 0,
   });
+  assert.deepEqual(resolveAuthResolverAdmission(disabledPolicy(17)), {
+    state: 'disabled',
+    authEpoch: 0,
+  });
+  assert.deepEqual(resolveAuthResolverAdmission(enabledPolicy(17)), {
+    state: 'enabled',
+    authEpoch: 17,
+  });
+});
+
+test('auth resolver fails closed for an enabled legacy epoch-zero row', () => {
+  assert.throws(
+    () => resolveAuthResolverAdmission(enabledPolicy(0)),
+    InvalidAdmissionEpochStateError,
+  );
 });
 
 test('repeated allow while enabled preserves the epoch', () => {
@@ -102,7 +128,7 @@ test('a retained token from before re-enable resolves to AUTH_EPOCH_MISMATCH', (
 test('the auth-epoch procedure remains a read-only lookup with no audit mutation', () => {
   const source = readFileSync(new URL('../src/reducers/admin.ts', import.meta.url), 'utf8');
   const start = source.indexOf('export const adminGetFidAuthEpoch');
-  const end = source.indexOf('/** Protected and idempotent canonical world seeding.', start);
+  const end = source.indexOf('export const authResolverGetFidAdmissionV2', start);
   assert.notEqual(start, -1);
   assert.notEqual(end, -1);
   const procedure = source.slice(start, end);
@@ -112,4 +138,26 @@ test('the auth-epoch procedure remains a read-only lookup with no audit mutation
   assert.match(procedure, /allowedFid\.fid\.find\(fid\)\?\.authEpoch \?\? 0/);
   assert.doesNotMatch(procedure, /\.(?:insert|update|delete)\s*\(/);
   assert.doesNotMatch(procedure, /\baudit\s*\(/);
+});
+
+test('the v2 admission resolver is separately protected and leaves the legacy lookup unchanged', () => {
+  const source = readFileSync(new URL('../src/reducers/admin.ts', import.meta.url), 'utf8');
+  const legacyStart = source.indexOf('export const adminGetFidAuthEpoch');
+  const resolverStart = source.indexOf('export const authResolverGetFidAdmissionV2');
+  const resolverEnd = source.indexOf('/** Protected and idempotent canonical world seeding.', resolverStart);
+  assert.notEqual(legacyStart, -1);
+  assert.notEqual(resolverStart, -1);
+  assert.notEqual(resolverEnd, -1);
+
+  const legacy = source.slice(legacyStart, resolverStart);
+  assert.match(legacy, /requireAdmin\(tx\)/);
+  assert.match(legacy, /allowedFid\.fid\.find\(fid\)\?\.authEpoch \?\? 0/);
+
+  const resolver = source.slice(resolverStart, resolverEnd);
+  assert.match(resolver, /name: 'auth_resolver_get_fid_admission_v2'/);
+  assert.match(resolver, /requireAuthEpochResolver\(tx\)/);
+  assert.match(resolver, /resolveAuthResolverAdmission/);
+  assert.doesNotMatch(resolver, /requireAdmin\(tx\)/);
+  assert.doesNotMatch(resolver, /\.(?:insert|update|delete)\s*\(/);
+  assert.doesNotMatch(resolver, /\baudit\s*\(/);
 });

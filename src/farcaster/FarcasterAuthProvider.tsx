@@ -12,23 +12,19 @@ import {
 } from 'react';
 
 import {
-  clearFarcasterRememberedDeviceSession,
+  FARCASTER_SESSION_TERMINATION_INTENT_TTL_MS,
+  clearFarcasterSessionTerminationIntent,
   getFarcasterDeviceSessionControlKey,
-  getFarcasterDeviceSessionStorageKey,
-  getLegacyFarcasterDeviceSessionStorageKey,
-  persistFarcasterRememberedDeviceSession,
-  restoreFarcasterRememberedDeviceSession,
+  purgeFarcasterBrowserBearerStorage,
+  readFarcasterSessionTerminationIntent,
   signalFarcasterSessionTermination,
-  toFarcasterOidcSession,
-  type FarcasterDeviceSessionEnvironment,
-  type FarcasterRememberedDeviceSession
+  type FarcasterDeviceSessionEnvironment
 } from './farcasterDeviceSession';
 import {
   createFarcasterAuthMachineState,
   farcasterAuthMachineReducer,
   type FarcasterAuthMachineAction,
-  type FarcasterAuthMachineState,
-  type FarcasterRememberedMachineSession
+  type FarcasterAuthMachineState
 } from './farcasterAuthMachine';
 import {
   getDefaultFarcasterSessionAuthority,
@@ -44,7 +40,7 @@ import {
   isCanonicalFarcasterBrowserBindingValue
 } from './farcasterBrowserBinding';
 import { getDefaultFarcasterOidcBridgeClient } from './farcasterOidcBridgeClient';
-import { validateFarcasterOidcSessionForIdentity } from './farcasterOidcSession';
+import { parseFarcasterOidcJwt } from './farcasterOidcSession';
 import type {
   FarcasterAuthError,
   FarcasterAuthContext,
@@ -52,6 +48,7 @@ import type {
   FarcasterAuthViewState,
   FarcasterBrowserBinding,
   FarcasterBrowserBindingFactory,
+  FarcasterBridgeSessionResponse,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
   FarcasterSessionAuthority,
@@ -90,10 +87,10 @@ export type FarcasterAuthControllerValue = Readonly<{
   cancelSignIn: () => void;
   retrySignIn: () => void;
   prepareQrCode: () => void;
+  refreshSession: () => void;
   signOut: () => void;
   rememberDevice: boolean;
   setRememberDevice: (remember: boolean) => void;
-  hasRememberedDevice: boolean;
 }>;
 
 type ControllerConfig = {
@@ -104,10 +101,10 @@ type ControllerConfig = {
   createBrowserBinding: FarcasterBrowserBindingFactory;
   now: () => number;
   pollIntervalMs: number;
-  onBridgeAuthenticated: (
-    identity: VerifiedFarcasterIdentity,
-    session: FarcasterOidcSession
-  ) => void;
+  rememberDevice: () => boolean;
+  onBeginSignIn: () => void;
+  onBridgeAuthorized: (session: FarcasterOidcSession) => void;
+  onBridgePending: () => void;
   onSignOut: () => void;
 };
 
@@ -169,30 +166,107 @@ function isUsableVerifiedIdentity(identity: VerifiedFarcasterIdentity) {
     && Array.isArray(identity.verifications);
 }
 
-function rememberedMachineSession(
-  session: FarcasterRememberedDeviceSession | undefined
-): FarcasterRememberedMachineSession | undefined {
-  if (!session) {
+const SERVER_SESSION_MAX_TTL_MS = FARCASTER_SESSION_TERMINATION_INTENT_TTL_MS;
+const ACCESS_REFRESH_LEAD_MS = 30_000;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  const actual = Object.keys(value);
+  return actual.length === keys.length && actual.every((key) => keys.includes(key));
+}
+
+function verifiedBridgeIdentity(
+  value: unknown,
+  verifiedAt: number
+): VerifiedFarcasterIdentity | undefined {
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, ['fid'])
+    || typeof value.fid !== 'number'
+    || !Number.isSafeInteger(value.fid)
+    || value.fid <= 0
+  ) {
     return undefined;
   }
+  return Object.freeze({
+    fid: value.fid,
+    verifications: Object.freeze([]),
+    verifiedAt
+  });
+}
 
-  return {
-    identity: {
-      fid: session.identity.fid,
-      ...(session.identity.username === undefined
-        ? {}
-        : { username: session.identity.username }),
-      ...(session.identity.displayName === undefined
-        ? {}
-        : { displayName: session.identity.displayName }),
-      ...(session.identity.pfpUrl === undefined
-        ? {}
-        : { pfpUrl: session.identity.pfpUrl }),
-      verifications: [],
-      verifiedAt: session.verifiedAt
-    },
-    expiresAt: session.expiresAt
-  };
+type MaterializedBridgeSession =
+  | Readonly<{
+      status: 'authorized';
+      identity: VerifiedFarcasterIdentity;
+      session: FarcasterOidcSession;
+      sessionExpiresAt: number;
+    }>
+  | Readonly<{
+      status: 'pending-admission';
+      identity: VerifiedFarcasterIdentity;
+      sessionExpiresAt: number;
+    }>;
+
+function materializeBridgeSession(
+  response: FarcasterBridgeSessionResponse,
+  now: number,
+  issuer: string,
+  audience: string,
+  expectedFid?: number
+): MaterializedBridgeSession | undefined {
+  if (!Number.isSafeInteger(now) || now < 0 || !isRecord(response) || response.version !== 2) {
+    return undefined;
+  }
+  const identity = verifiedBridgeIdentity(response.identity, now);
+  if (
+    !identity
+    || (expectedFid !== undefined && identity.fid !== expectedFid)
+    || !Number.isSafeInteger(response.sessionExpiresAt)
+    || response.sessionExpiresAt <= now
+    || response.sessionExpiresAt - now > SERVER_SESSION_MAX_TTL_MS
+  ) {
+    return undefined;
+  }
+  if (response.status === 'pending-admission') {
+    if (!hasExactKeys(response, ['version', 'status', 'identity', 'sessionExpiresAt'])) {
+      return undefined;
+    }
+    return Object.freeze({
+      status: 'pending-admission',
+      identity,
+      sessionExpiresAt: response.sessionExpiresAt
+    });
+  }
+  if (
+    response.status !== 'authorized'
+    || !hasExactKeys(response, [
+      'version', 'status', 'identity', 'sessionExpiresAt', 'accessToken', 'tokenType', 'accessExpiresAt'
+    ])
+    || response.tokenType !== 'spacetime-access'
+    || !Number.isSafeInteger(response.accessExpiresAt)
+    || response.accessExpiresAt <= now
+    || response.accessExpiresAt > response.sessionExpiresAt
+  ) {
+    return undefined;
+  }
+  const parsed = parseFarcasterOidcJwt(response.accessToken, {
+    issuer,
+    audience,
+    now
+  });
+  if (!parsed || parsed.claims.fid !== identity.fid || parsed.session.expiresAt !== response.accessExpiresAt) {
+    return undefined;
+  }
+  return Object.freeze({
+    status: 'authorized',
+    identity,
+    session: parsed.session,
+    sessionExpiresAt: response.sessionExpiresAt
+  });
 }
 
 class FarcasterAuthController {
@@ -252,6 +326,7 @@ class FarcasterAuthController {
       return;
     }
 
+    this.config.onBeginSignIn();
     const generation = this.nextGeneration();
     const expiresAt = this.readNow() + FARCASTER_AUTH_REQUEST_TTL_MS;
     this.activeRequest = {
@@ -287,13 +362,20 @@ class FarcasterAuthController {
     }
 
     const generation = this.activeRequest?.generation ?? this.machineGeneration;
+    // A verifying exchange can have committed its HttpOnly family before the
+    // aborted fetch result reaches JavaScript. Treat every explicit cancel as
+    // session termination so no landed/stale cookie can silently resume later.
+    this.config.onSignOut();
     this.invalidatePrivateRequest();
     this.phase = 'anonymous';
     this.dispatch({ type: 'cancel', generation });
   };
 
   readonly signOut = () => {
-    if (!this.mounted || this.phase !== 'authenticated') {
+    if (
+      !this.mounted
+      || (this.phase !== 'authenticated' && this.phase !== 'pending-admission')
+    ) {
       return;
     }
 
@@ -437,7 +519,7 @@ class FarcasterAuthController {
 
   private finish(
     generation: number,
-    phase: 'authenticated' | 'expired' | 'error',
+    phase: 'authenticated' | 'pending-admission' | 'expired' | 'error',
     action: FarcasterAuthMachineAction,
     oidcSession?: FarcasterOidcSession
   ) {
@@ -448,7 +530,9 @@ class FarcasterAuthController {
       if (!oidcSession) {
         return;
       }
-      this.config.onBridgeAuthenticated(action.identity, oidcSession);
+      this.config.onBridgeAuthorized(oidcSession);
+    } else if (action.type === 'pending-admission') {
+      this.config.onBridgePending();
     }
     this.invalidatePrivateRequest();
     this.phase = phase;
@@ -696,35 +780,42 @@ class FarcasterAuthController {
         expirationTime: new Date(channel.expiresAt).toISOString(),
         expiresAt: channel.expiresAt,
         bindingVerifier,
-        identity: {
-          fid: identity.fid,
-          ...(identity.username === undefined ? {} : { username: identity.username }),
-          ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
-          ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl })
-        }
+        rememberDevice: this.config.rememberDevice(),
+        identity: { fid: identity.fid }
       }, {
         signal: activeRequest.abortController.signal
       });
       if (!this.isCurrent(generation)) {
         return;
       }
-      const parsedBridgeSession = validateFarcasterOidcSessionForIdentity(
+      const resolvedSession = materializeBridgeSession(
         bridgeSession,
-        identity.fid,
-        { now: Math.floor(this.readNow()) }
+        Math.floor(this.readNow()),
+        bridgeClient.issuer,
+        bridgeClient.audience,
+        identity.fid
       );
-      if (!parsedBridgeSession) {
+      if (!resolvedSession) {
         this.fail(generation, undefined, invalidStatusError);
         return;
       }
-
-      this.finish(generation, 'authenticated', {
-        type: 'authenticated',
-        generation,
-        identity,
-        assurance: 'bridge-oidc-alpha',
-        expiresAt: parsedBridgeSession.session.expiresAt
-      }, parsedBridgeSession.session);
+      if (resolvedSession.status === 'pending-admission') {
+        this.finish(generation, 'pending-admission', {
+          type: 'pending-admission',
+          generation,
+          identity: resolvedSession.identity,
+          sessionExpiresAt: resolvedSession.sessionExpiresAt
+        });
+      } else {
+        this.finish(generation, 'authenticated', {
+          type: 'authenticated',
+          generation,
+          identity: resolvedSession.identity,
+          assurance: 'bridge-oidc-alpha',
+          expiresAt: resolvedSession.session.expiresAt,
+          sessionExpiresAt: resolvedSession.sessionExpiresAt
+        }, resolvedSession.session);
+      }
     } catch (error) {
       this.fail(generation, error);
     } finally {
@@ -778,76 +869,162 @@ export function FarcasterAuthProvider({
   pollIntervalMs,
   deviceSessionEnvironment
 }: FarcasterAuthProviderProps) {
-  const initialRememberedSessionRef = useRef<
-    FarcasterRememberedDeviceSession | null | undefined
-  >(undefined);
-  if (initialRememberedSessionRef.current === undefined) {
-    initialRememberedSessionRef.current = restoreFarcasterRememberedDeviceSession({
-      ...deviceSessionEnvironment,
-      now
-    }) ?? null;
-  }
-  const initialRememberedSession = initialRememberedSessionRef.current ?? undefined;
   const [machine, dispatch] = useReducer(
     farcasterAuthMachineReducer,
-    rememberedMachineSession(initialRememberedSession),
+    undefined,
     createFarcasterAuthMachineState
   );
-  const [oidcSession, setOidcSession] = useState<FarcasterOidcSession | undefined>(() => {
-    const remembered = initialRememberedSessionRef.current ?? undefined;
-    initialRememberedSessionRef.current = null;
-    return remembered ? toFarcasterOidcSession(remembered) : undefined;
-  });
-  const [rememberDevice, setRememberDeviceState] = useState(true);
-  const [hasRememberedDevice, setHasRememberedDevice] = useState(Boolean(initialRememberedSession));
+  const [oidcSession, setOidcSession] = useState<FarcasterOidcSession | undefined>();
+  const [rememberDevice, setRememberDeviceState] = useState(false);
   const controllerRef = useRef<FarcasterAuthController | undefined>(undefined);
   const machineRef = useRef(machine);
   const rememberDeviceRef = useRef(rememberDevice);
   const oidcSessionRef = useRef(oidcSession);
-  const sessionOriginRef = useRef<'live' | 'restored' | undefined>(
-    initialRememberedSession ? 'restored' : undefined
-  );
+  const lifecycleGenerationRef = useRef(0);
+  // Automatic cookie authority is fail closed until the exact logout-control
+  // record has been checked. Explicit SIWF is the only action that clears it.
+  const logoutIntentBlocksRefreshRef = useRef(true);
+  const refreshFlightRef = useRef<{
+    controller: AbortController;
+    promise: Promise<boolean>;
+    clearOnFailure: boolean;
+  } | undefined>(undefined);
   machineRef.current = machine;
   rememberDeviceRef.current = rememberDevice;
   oidcSessionRef.current = oidcSession;
 
-  const clearRememberedDevice = useCallback(() => {
-    clearFarcasterRememberedDeviceSession({ ...deviceSessionEnvironment, now });
-    setHasRememberedDevice(false);
+  const purgeBearerStorage = useCallback(() => {
+    purgeFarcasterBrowserBearerStorage({ ...deviceSessionEnvironment, now });
   }, [deviceSessionEnvironment, now]);
 
+  const abortRefresh = useCallback(() => {
+    lifecycleGenerationRef.current += 1;
+    refreshFlightRef.current?.controller.abort();
+    refreshFlightRef.current = undefined;
+  }, []);
+
   const clearInMemoryAuthoritativeSession = useCallback(() => {
-    sessionOriginRef.current = undefined;
     oidcSessionRef.current = undefined;
     setOidcSession(undefined);
   }, []);
 
-  const clearLocalAuthoritativeSession = useCallback(() => {
-    clearRememberedDevice();
+  const clearLocalAuthoritativeSession = useCallback((signalTabs = false) => {
+    if (signalTabs) logoutIntentBlocksRefreshRef.current = true;
+    abortRefresh();
     clearInMemoryAuthoritativeSession();
-  }, [clearInMemoryAuthoritativeSession, clearRememberedDevice]);
-
-  const clearAuthoritativeSession = useCallback(() => {
-    clearLocalAuthoritativeSession();
-    signalFarcasterSessionTermination({ ...deviceSessionEnvironment, now });
-  }, [clearLocalAuthoritativeSession, deviceSessionEnvironment, now]);
-
-  const persistBridgeSession = useCallback((
-    identity: VerifiedFarcasterIdentity,
-    session: FarcasterOidcSession
-  ) => {
-    sessionOriginRef.current = 'live';
-    setOidcSession(session);
-    if (!rememberDeviceRef.current) {
-      clearRememberedDevice();
-      return;
+    purgeBearerStorage();
+    if (signalTabs) {
+      signalFarcasterSessionTermination({ ...deviceSessionEnvironment, now });
     }
-    const rememberedSession = persistFarcasterRememberedDeviceSession(identity, session, {
-      ...deviceSessionEnvironment,
-      now
-    });
-    setHasRememberedDevice(Boolean(rememberedSession));
-  }, [clearRememberedDevice, deviceSessionEnvironment, now]);
+  }, [abortRefresh, clearInMemoryAuthoritativeSession, deviceSessionEnvironment, now, purgeBearerStorage]);
+
+  const beginExplicitSignIn = useCallback(() => {
+    abortRefresh();
+    logoutIntentBlocksRefreshRef.current = false;
+    // If storage is denied, this runtime still honors the explicit sign-in.
+    // A later context where storage becomes available cannot recover a tombstone
+    // that was never durably written; server-side revocation remains authoritative.
+    clearFarcasterSessionTerminationIntent({ ...deviceSessionEnvironment, now });
+  }, [abortRefresh, deviceSessionEnvironment, now]);
+
+  const onBridgeAuthorized = useCallback((session: FarcasterOidcSession) => {
+    oidcSessionRef.current = session;
+    setOidcSession(session);
+  }, []);
+
+  const onBridgePending = useCallback(() => {
+    clearInMemoryAuthoritativeSession();
+  }, [clearInMemoryAuthoritativeSession]);
+
+  const onSignOut = useCallback(() => {
+    clearLocalAuthoritativeSession(true);
+    void Promise.resolve()
+      .then(() => loadBridgeClient())
+      .then((client) => client.logoutSession())
+      .catch(() => {
+        // Local logout is immediate; an unavailable server endpoint is best effort.
+      });
+  }, [clearLocalAuthoritativeSession, loadBridgeClient]);
+
+  const refreshSession = useCallback((clearOnFailure = false) => {
+    if (logoutIntentBlocksRefreshRef.current) return Promise.resolve(false);
+    const existing = refreshFlightRef.current;
+    if (existing) {
+      if (clearOnFailure) existing.clearOnFailure = true;
+      return existing.promise;
+    }
+
+    const generation = lifecycleGenerationRef.current;
+    const machineGeneration = machineRef.current.generation;
+    const controller = new AbortController();
+    let flight: NonNullable<typeof refreshFlightRef.current>;
+    const promise = Promise.resolve()
+      .then(() => loadBridgeClient())
+      .then(async (client) => ({
+        client,
+        response: await client.refreshSession({ signal: controller.signal })
+      }))
+      .then(({ client, response }) => {
+        if (controller.signal.aborted || lifecycleGenerationRef.current !== generation) {
+          return false;
+        }
+        const currentTime = readProviderNow(now);
+        const resolved = currentTime === undefined
+          ? undefined
+          : materializeBridgeSession(
+              response,
+              currentTime,
+              client.issuer,
+              client.audience
+            );
+        if (!resolved) throw new Error('Invalid refreshed session.');
+
+        if (resolved.status === 'pending-admission') {
+          clearInMemoryAuthoritativeSession();
+          dispatch({
+            type: 'session-pending',
+            generation: machineGeneration,
+            identity: resolved.identity,
+            sessionExpiresAt: resolved.sessionExpiresAt
+          });
+        } else {
+          oidcSessionRef.current = resolved.session;
+          setOidcSession(resolved.session);
+          dispatch({
+            type: 'session-authorized',
+            generation: machineGeneration,
+            identity: resolved.identity,
+            expiresAt: resolved.session.expiresAt,
+            sessionExpiresAt: resolved.sessionExpiresAt
+          });
+        }
+        return true;
+      })
+      .catch(() => {
+        if (
+          !controller.signal.aborted
+          && lifecycleGenerationRef.current === generation
+          && flight.clearOnFailure
+        ) {
+          const currentTime = readProviderNow(now);
+          const currentSession = oidcSessionRef.current;
+          if (currentTime === undefined || !currentSession || currentTime >= currentSession.expiresAt) {
+            const current = machineRef.current;
+            clearLocalAuthoritativeSession(true);
+            if (current.view.phase === 'authenticated' || current.view.phase === 'pending-admission') {
+              dispatch({ type: 'sign-out', generation: current.generation });
+            }
+          }
+        }
+        return false;
+      })
+      .finally(() => {
+        if (refreshFlightRef.current === flight) refreshFlightRef.current = undefined;
+      });
+    flight = { controller, promise, clearOnFailure };
+    refreshFlightRef.current = flight;
+    return promise;
+  }, [clearInMemoryAuthoritativeSession, clearLocalAuthoritativeSession, loadBridgeClient, now]);
 
   const config: ControllerConfig = {
     loadAuthority,
@@ -857,8 +1034,11 @@ export function FarcasterAuthProvider({
     createBrowserBinding,
     now,
     pollIntervalMs: normalizePollInterval(pollIntervalMs),
-    onBridgeAuthenticated: persistBridgeSession,
-    onSignOut: clearAuthoritativeSession
+    rememberDevice: () => rememberDeviceRef.current,
+    onBeginSignIn: beginExplicitSignIn,
+    onBridgeAuthorized,
+    onBridgePending,
+    onSignOut
   };
 
   if (!controllerRef.current) {
@@ -871,170 +1051,118 @@ export function FarcasterAuthProvider({
   useEffect(() => controller.mount(), [controller]);
 
   const setRememberDevice = useCallback((remember: boolean) => {
-    const nextValue = Boolean(remember);
-    setRememberDeviceState(nextValue);
-    if (!nextValue) {
-      clearRememberedDevice();
-      return;
-    }
+    setRememberDeviceState(Boolean(remember));
+  }, []);
 
-    const current = machineRef.current.view;
-    const currentOidcSession = oidcSessionRef.current;
-    if (
-      current.phase === 'authenticated'
-      && current.assurance === 'bridge-oidc-alpha'
-      && currentOidcSession
-    ) {
-      const session = persistFarcasterRememberedDeviceSession(
-        current.identity,
-        currentOidcSession,
-        {
-          ...deviceSessionEnvironment,
-          now
-        }
-      );
-      setHasRememberedDevice(Boolean(session));
+  useEffect(() => {
+    purgeBearerStorage();
+    const terminationStatus = readFarcasterSessionTerminationIntent({
+      ...deviceSessionEnvironment,
+      now
+    });
+    logoutIntentBlocksRefreshRef.current = terminationStatus !== 'absent'
+      && terminationStatus !== 'stale';
+    if (!logoutIntentBlocksRefreshRef.current) void refreshSession(false);
+    return abortRefresh;
+  }, [abortRefresh, deviceSessionEnvironment, now, purgeBearerStorage, refreshSession]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+    const reconcile = () => {
+      if (document.hidden) return;
+      const current = machineRef.current.view;
+      const currentSession = oidcSessionRef.current;
+      const currentTime = readProviderNow(now);
+      const shouldRefresh = current.phase === 'anonymous'
+        || current.phase === 'pending-admission'
+        || (
+          current.phase === 'authenticated'
+          && (
+            !currentSession
+            || (
+              currentTime !== undefined
+              && currentSession.expiresAt - currentTime <= ACCESS_REFRESH_LEAD_MS
+            )
+          )
+        );
+      if (shouldRefresh) void refreshSession(false);
+    };
+    window.addEventListener('focus', reconcile);
+    document.addEventListener('visibilitychange', reconcile);
+    return () => {
+      window.removeEventListener('focus', reconcile);
+      document.removeEventListener('visibilitychange', reconcile);
+    };
+  }, [now, refreshSession]);
+
+  useEffect(() => {
+    if (!oidcSession || typeof window === 'undefined') return undefined;
+    const currentTime = readProviderNow(now);
+    if (currentTime === undefined || currentTime >= oidcSession.expiresAt) {
+      clearInMemoryAuthoritativeSession();
+      void refreshSession(true);
+      return undefined;
     }
-  }, [clearRememberedDevice, deviceSessionEnvironment, now]);
+    const refreshDelay = Math.max(0, oidcSession.expiresAt - currentTime - ACCESS_REFRESH_LEAD_MS);
+    const expiryDelay = oidcSession.expiresAt - currentTime;
+    const refreshTimer = window.setTimeout(() => {
+      void refreshSession(false);
+    }, Math.min(refreshDelay, MAX_BROWSER_TIMER_DELAY_MS));
+    const expiryTimer = window.setTimeout(() => {
+      clearInMemoryAuthoritativeSession();
+      void refreshSession(true);
+    }, Math.min(expiryDelay, MAX_BROWSER_TIMER_DELAY_MS));
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.clearTimeout(expiryTimer);
+    };
+  }, [clearInMemoryAuthoritativeSession, now, oidcSession, refreshSession]);
 
   useEffect(() => {
     const current = machine.view;
-    if (
-      current.phase !== 'authenticated'
-      || current.assurance !== 'bridge-oidc-alpha'
-      || current.expiresAt === undefined
-    ) {
-      return undefined;
-    }
-    const expireRememberedSession = () => {
-      clearAuthoritativeSession();
-      dispatch({ type: 'sign-out', generation: machine.generation });
-    };
-    if (typeof window === 'undefined') {
-      expireRememberedSession();
-      return undefined;
-    }
+    const sessionExpiresAt = current.phase === 'authenticated' || current.phase === 'pending-admission'
+      ? current.sessionExpiresAt
+      : undefined;
+    if (sessionExpiresAt === undefined || typeof window === 'undefined') return undefined;
+
     let timer: number | undefined;
-    const scheduleExpiryCheck = () => {
+    const schedule = () => {
       const currentTime = readProviderNow(now);
-      const delay = currentTime === undefined ? Number.NaN : current.expiresAt! - currentTime;
+      const delay = currentTime === undefined ? Number.NaN : sessionExpiresAt - currentTime;
       if (!Number.isFinite(delay) || delay <= 0) {
-        expireRememberedSession();
+        const latest = machineRef.current;
+        clearLocalAuthoritativeSession(true);
+        if (latest.view.phase === 'authenticated' || latest.view.phase === 'pending-admission') {
+          dispatch({ type: 'sign-out', generation: latest.generation });
+        }
         return;
       }
-      timer = window.setTimeout(() => {
-        timer = undefined;
-        scheduleExpiryCheck();
-      }, Math.min(delay, MAX_BROWSER_TIMER_DELAY_MS));
+      timer = window.setTimeout(schedule, Math.min(delay, MAX_BROWSER_TIMER_DELAY_MS));
     };
-    scheduleExpiryCheck();
+    schedule();
     return () => {
-      if (timer !== undefined) {
-        window.clearTimeout(timer);
-      }
+      if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [clearAuthoritativeSession, machine, now]);
+  }, [clearLocalAuthoritativeSession, machine.view, now]);
 
   useEffect(() => {
-    const current = machine.view;
-    if (
-      typeof document === 'undefined'
-      || current.phase !== 'authenticated'
-      || current.assurance !== 'bridge-oidc-alpha'
-      || current.expiresAt === undefined
-    ) {
-      return undefined;
-    }
-
-    const reconcileRememberedExpiry = () => {
-      if (document.hidden) {
-        return;
-      }
-      const currentTime = readProviderNow(now);
-      if (currentTime !== undefined && currentTime >= current.expiresAt!) {
-        clearAuthoritativeSession();
-        dispatch({ type: 'sign-out', generation: machine.generation });
-      }
-    };
-
-    document.addEventListener('visibilitychange', reconcileRememberedExpiry);
-    window.addEventListener('focus', reconcileRememberedExpiry);
-    reconcileRememberedExpiry();
-    return () => {
-      document.removeEventListener('visibilitychange', reconcileRememberedExpiry);
-      window.removeEventListener('focus', reconcileRememberedExpiry);
-    };
-  }, [clearAuthoritativeSession, machine, now]);
-
-  useEffect(() => {
-    const key = getFarcasterDeviceSessionStorageKey(deviceSessionEnvironment?.basePath);
-    const legacyKey = getLegacyFarcasterDeviceSessionStorageKey(deviceSessionEnvironment?.basePath);
     const controlKey = getFarcasterDeviceSessionControlKey(deviceSessionEnvironment?.basePath);
-    if (typeof window === 'undefined' || !key) {
-      return undefined;
-    }
+    if (typeof window === 'undefined' || !controlKey) return undefined;
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === controlKey && event.newValue !== null) {
-        const current = machineRef.current;
-        controller.cancelSignIn();
-        clearLocalAuthoritativeSession();
-        if (
-          current.view.phase === 'authenticated'
-          && current.view.assurance === 'bridge-oidc-alpha'
-        ) {
-          dispatch({ type: 'sign-out', generation: current.generation });
-        }
-        return;
-      }
-      if (event.key !== null && event.key !== key && event.key !== legacyKey) {
-        return;
-      }
-      const restored = restoreFarcasterRememberedDeviceSession({
-        ...deviceSessionEnvironment,
-        now
-      });
+      if (event.key !== controlKey || event.newValue === null) return;
       const current = machineRef.current;
-      if (!restored) {
-        setHasRememberedDevice(false);
-        if (
-          current.view.phase === 'authenticated'
-          && current.view.assurance === 'bridge-oidc-alpha'
-          && sessionOriginRef.current === 'restored'
-        ) {
-          clearInMemoryAuthoritativeSession();
-          dispatch({ type: 'sign-out', generation: current.generation });
-        }
-        return;
-      }
-
-      setHasRememberedDevice(true);
-      if (
-        current.view.phase === 'authenticated'
-        && current.view.assurance === 'bridge-oidc-alpha'
-        && restored.identity.fid !== current.view.identity.fid
-      ) {
-        clearInMemoryAuthoritativeSession();
+      logoutIntentBlocksRefreshRef.current = true;
+      controller.cancelSignIn();
+      clearLocalAuthoritativeSession(false);
+      if (current.view.phase === 'authenticated' || current.view.phase === 'pending-admission') {
         dispatch({ type: 'sign-out', generation: current.generation });
-        return;
-      }
-      if (current.view.phase === 'anonymous') {
-        const restoredSession = rememberedMachineSession(restored);
-        if (restoredSession) {
-          sessionOriginRef.current = 'restored';
-          setOidcSession(toFarcasterOidcSession(restored));
-          dispatch({
-            type: 'restore',
-            identity: restoredSession.identity,
-            expiresAt: restoredSession.expiresAt
-          });
-        }
       }
     };
 
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [clearInMemoryAuthoritativeSession, clearLocalAuthoritativeSession, controller, deviceSessionEnvironment, now]);
+  }, [clearLocalAuthoritativeSession, controller, deviceSessionEnvironment?.basePath]);
 
   const value = useMemo<FarcasterAuthControllerValue>(() => ({
     state: machine.view,
@@ -1043,15 +1171,15 @@ export function FarcasterAuthProvider({
     cancelSignIn: controller.cancelSignIn,
     retrySignIn: controller.retrySignIn,
     prepareQrCode: controller.prepareQrCode,
+    refreshSession: () => { void refreshSession(false); },
     signOut: controller.signOut,
     rememberDevice,
-    setRememberDevice,
-    hasRememberedDevice
+    setRememberDevice
   }), [
     controller,
-    hasRememberedDevice,
     machine.view,
     oidcSession,
+    refreshSession,
     rememberDevice,
     setRememberDevice
   ]);

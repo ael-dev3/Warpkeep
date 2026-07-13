@@ -30,12 +30,23 @@ export const worldTile = table(
   },
 );
 
-/** Public player identity projection for admitted, bootstrapped accounts. */
+/**
+ * Private ownership binding. OIDC identities are authorization material, not
+ * player profile data, and must never be exposed through public subscriptions.
+ */
+export const playerOwnership = table(
+  { name: 'player_ownership' },
+  {
+    fid: t.u64().primaryKey(),
+    identity: t.identity().unique(),
+  },
+);
+
+/** Public gameplay/profile projection for admitted, bootstrapped accounts. */
 export const player = table(
   { name: 'player', public: true },
   {
     fid: t.u64().primaryKey(),
-    identity: t.identity().unique(),
     username: t.option(t.string()),
     displayName: t.option(t.string()),
     pfpUrl: t.option(t.string()),
@@ -75,9 +86,21 @@ export const adminAudit = table(
 const warpkeep = schema({
   allowedFid,
   worldTile,
+  playerOwnership,
   player,
   castle,
   adminAudit,
+});
+
+// SpacetimeDB 2.6's default case converter separates a trailing digit from
+// its prefix (`v2` -> `v_2`). Pin this security boundary's public procedure
+// spelling so the resolver contract remains exactly versioned as designed.
+warpkeep.moduleDef.explicitNames.entries.push({
+  tag: 'Function',
+  value: {
+    sourceName: 'auth_resolver_get_fid_admission_v2',
+    canonicalName: 'auth_resolver_get_fid_admission_v2',
+  },
 });
 
 export default warpkeep;

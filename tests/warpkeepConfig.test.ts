@@ -51,6 +51,43 @@ describe('Warpkeep runtime configuration', () => {
       ...complete,
       VITE_WARPKEEP_OIDC_ISSUER: 'https://other-auth.warpkeep.com'
     }))).toBe(false);
+    expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig({
+      ...complete,
+      VITE_WARPKEEP_AUTH_BRIDGE_URL: 'https://attacker.example',
+      VITE_WARPKEEP_OIDC_ISSUER: 'https://attacker.example'
+    }))).toBe(false);
+    expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig({
+      ...complete,
+      VITE_SPACETIMEDB_DATABASE: 'lookalike-database'
+    }))).toBe(false);
+    expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig({
+      ...complete,
+      VITE_SPACETIMEDB_URI: 'https://lookalike.example'
+    }))).toBe(false);
+    expect(hasUsableWarpkeepBridge(readWarpkeepRuntimeConfig({
+      ...complete,
+      VITE_WARPKEEP_OIDC_AUDIENCE: 'lookalike-audience'
+    }))).toBe(false);
+  });
+
+  it('rejects matching non-root bridge/issuer paths at both parsing and activation gates', () => {
+    const parsed = readWarpkeepRuntimeConfig({
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'true',
+      VITE_WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com/oidc',
+      VITE_WARPKEEP_OIDC_ISSUER: 'https://auth.warpkeep.com/oidc'
+    });
+    expect(parsed.bridgeUrl).toBeUndefined();
+    expect(parsed.issuer).toBeUndefined();
+    expect(hasUsableWarpkeepBridge(parsed)).toBe(false);
+
+    expect(hasUsableWarpkeepBridge({
+      spacetimeUri: DEFAULT_SPACETIMEDB_URI,
+      spacetimeDatabase: DEFAULT_SPACETIMEDB_DATABASE,
+      audience: 'warpkeep-spacetimedb',
+      sharedAlphaEnabled: true,
+      bridgeUrl: 'https://auth.warpkeep.com/oidc',
+      issuer: 'https://auth.warpkeep.com/oidc'
+    })).toBe(false);
   });
 
   it('never activates the checked-in invalid issuer placeholder', () => {

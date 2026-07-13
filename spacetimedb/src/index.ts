@@ -11,5 +11,6 @@ export {
   adminBumpAuthEpoch,
   adminGetAlphaStatus,
   adminGetFidAuthEpoch,
+  authResolverGetFidAdmissionV2,
   getAlphaBackendInfo,
 } from './reducers/admin';

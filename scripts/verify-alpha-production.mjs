@@ -15,6 +15,44 @@ const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/i;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const JWK_COORDINATE = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
 const JWK_KEY_ID = /^[A-Za-z0-9._-]{1,128}$/;
+const AUTH_V2_SECURITY_PROFILE = 'warpkeep-auth-v2';
+const AUTH_V2_CLAIMS = Object.freeze([
+  'sub',
+  'aud',
+  'fid',
+  'token_type',
+  'auth_version',
+  'auth_epoch',
+  'roles',
+  'session_iat',
+  'session_exp',
+]);
+const AUTH_V2_CREDENTIAL_PATHS = Object.freeze([
+  '/v2/farcaster/challenge',
+  '/v2/farcaster/exchange',
+  '/v2/session/refresh',
+  '/v2/session/logout',
+]);
+const AUTH_V2_PAUSED_PATHS = new Set(AUTH_V2_CREDENTIAL_PATHS.slice(0, 3));
+const AUTH_V2_SECURITY_HEADERS = Object.freeze({
+  'cache-control': 'no-store',
+  'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+  'referrer-policy': 'no-referrer',
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'cross-origin-opener-policy': 'same-origin',
+  'cross-origin-resource-policy': 'same-site',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'x-permitted-cross-domain-policies': 'none',
+});
+const AUTH_V2_CORS_HEADERS = new Set([
+  'access-control-allow-origin',
+  'access-control-allow-methods',
+  'access-control-allow-headers',
+  'access-control-allow-credentials',
+  'access-control-max-age',
+]);
 const EXPECTED_ALPHA_AGGREGATE = Object.freeze({
   worldTiles: 61n,
   allowedFids: 0n,
@@ -133,10 +171,11 @@ function readExpectedDeployedSha() {
   return normalized[0];
 }
 
-async function fetchWithTimeout(url, init = {}) {
+async function fetchWithTimeout(url, init = {}, fetchImpl = fetch) {
   try {
-    return await fetch(url, {
+    return await fetchImpl(url, {
       redirect: 'manual',
+      cache: 'no-store',
       ...init,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -194,6 +233,89 @@ async function readJson(response, label) {
     return JSON.parse(await readBoundedText(response, label, MAX_DOCUMENT_BYTES));
   } catch {
     fail(`${label} did not return JSON.`);
+  }
+}
+
+async function readExactJsonAtStatus(response, label, expectedStatus) {
+  if (response.status !== expectedStatus) {
+    fail(`${label} returned HTTP ${response.status}.`);
+  }
+  if (response.headers.get('content-type') !== 'application/json; charset=utf-8') {
+    fail(`${label} did not return exact JSON content metadata.`);
+  }
+  try {
+    return JSON.parse(await readBoundedText(response, label, MAX_DOCUMENT_BYTES));
+  } catch {
+    fail(`${label} did not return JSON.`);
+  }
+}
+
+function hasExactKeys(value, expectedKeys) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const expected = [...expectedKeys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
+
+function isExactStringArray(value, expected) {
+  return Array.isArray(value)
+    && value.length === expected.length
+    && value.every((entry, index) => entry === expected[index]);
+}
+
+function verifyExactErrorPayload(value, code, message, label) {
+  if (
+    !hasExactKeys(value, ['error'])
+    || !hasExactKeys(value.error, ['code', 'message'])
+    || value.error.code !== code
+    || value.error.message !== message
+  ) {
+    fail(`${label} did not return the expected fail-closed error.`);
+  }
+}
+
+function verifyAuthV2SecurityHeaders(response, label) {
+  for (const [name, expected] of Object.entries(AUTH_V2_SECURITY_HEADERS)) {
+    if (response.headers.get(name) !== expected) {
+      fail(`${label} did not return the exact ${name} security header.`);
+    }
+  }
+  if (response.headers.has('set-cookie')) {
+    fail(`${label} unexpectedly attempted to set a cookie.`);
+  }
+}
+
+function exactCommaHeader(response, name, expected) {
+  const values = (response.headers.get(name) ?? '')
+    .split(',')
+    .map(value => value.trim().toLowerCase())
+    .filter(Boolean);
+  const expectedValues = expected.map(value => value.toLowerCase());
+  return values.length === expectedValues.length
+    && values.every(value => expectedValues.includes(value))
+    && new Set(values).size === values.length;
+}
+
+function verifyExactCredentialedCors(response, frontend, label) {
+  const corsHeaders = [...response.headers.keys()]
+    .filter(name => name.startsWith('access-control-'));
+  if (
+    corsHeaders.length !== AUTH_V2_CORS_HEADERS.size
+    || corsHeaders.some(name => !AUTH_V2_CORS_HEADERS.has(name))
+    || response.headers.get('access-control-allow-origin') !== frontend
+    || response.headers.get('access-control-allow-credentials') !== 'true'
+    || !exactCommaHeader(response, 'access-control-allow-methods', ['POST', 'OPTIONS'])
+    || !exactCommaHeader(response, 'access-control-allow-headers', ['content-type'])
+    || response.headers.get('access-control-max-age') !== '600'
+    || !exactCommaHeader(response, 'vary', ['Origin'])
+  ) {
+    fail(`${label} did not return exact credentialed browser CORS.`);
+  }
+}
+
+function verifyNoCors(response, label) {
+  if ([...response.headers.keys()].some(name => name.startsWith('access-control-'))) {
+    fail(`${label} exposed browser CORS to an untrusted origin.`);
   }
 }
 
@@ -347,7 +469,7 @@ function allowHeaders(response) {
     .filter(Boolean));
 }
 
-async function verifyBridgePreflight(bridge, frontend, pathname) {
+async function verifyBridgePreflight(bridge, frontend, pathname, fetchImpl) {
   const preflight = await fetchWithTimeout(`${bridge}${pathname}`, {
     method: 'OPTIONS',
     headers: {
@@ -355,7 +477,7 @@ async function verifyBridgePreflight(bridge, frontend, pathname) {
       'access-control-request-method': 'POST',
       'access-control-request-headers': 'content-type',
     },
-  });
+  }, fetchImpl);
   const methods = allowMethods(preflight);
   const headers = allowHeaders(preflight);
   const vary = new Set((preflight.headers.get('vary') ?? '')
@@ -382,20 +504,176 @@ async function verifyBridgePreflight(bridge, frontend, pathname) {
       'access-control-request-method': 'POST',
       'access-control-request-headers': 'content-type',
     },
-  });
+  }, fetchImpl);
   if (hostilePreflight.headers.has('access-control-allow-origin')) {
     fail(`bridge ${pathname} exposed browser CORS to an untrusted origin.`);
   }
 }
 
-async function verifyBridge(frontend, bridge) {
-  const health = await readJson(await fetchWithTimeout(`${bridge}/healthz`), 'health endpoint');
+async function verifyContainedAuthV2Preflight(frontend, bridge, pathname, fetchImpl) {
+  const paused = AUTH_V2_PAUSED_PATHS.has(pathname);
+  const label = `bridge ${pathname} ${paused ? 'paused check' : 'preflight'}`;
+  const preflight = await fetchWithTimeout(`${bridge}${pathname}`, {
+    method: 'OPTIONS',
+    headers: {
+      origin: frontend,
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type',
+    },
+  }, fetchImpl);
+  verifyAuthV2SecurityHeaders(preflight, label);
+  verifyExactCredentialedCors(preflight, frontend, label);
+  if (paused) {
+    const payload = await readExactJsonAtStatus(preflight, label, 503);
+    verifyExactErrorPayload(
+      payload,
+      'public_auth_paused',
+      'Farcaster sign-in is temporarily paused for security hardening.',
+      label,
+    );
+  } else {
+    if (preflight.status !== 204 || preflight.headers.has('content-type')) {
+      fail(`${label} did not return an empty HTTP 204 response.`);
+    }
+  }
+
+  const hostileLabel = `bridge ${pathname} hostile-origin check`;
+  const hostile = await fetchWithTimeout(`${bridge}${pathname}`, {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'https://not-warpkeep.invalid',
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type',
+    },
+  }, fetchImpl);
+  verifyAuthV2SecurityHeaders(hostile, hostileLabel);
+  verifyNoCors(hostile, hostileLabel);
+  if (paused) {
+    const payload = await readExactJsonAtStatus(hostile, hostileLabel, 503);
+    verifyExactErrorPayload(
+      payload,
+      'public_auth_paused',
+      'Farcaster sign-in is temporarily paused for security hardening.',
+      hostileLabel,
+    );
+  } else {
+    const payload = await readExactJsonAtStatus(hostile, hostileLabel, 403);
+    verifyExactErrorPayload(
+      payload,
+      'origin_not_allowed',
+      'This browser origin is not allowed.',
+      hostileLabel,
+    );
+  }
+}
+
+async function verifyRetiredLegacyAuthPath(frontend, bridge, pathname, fetchImpl) {
+  const label = `retired bridge ${pathname}`;
+  const response = await fetchWithTimeout(`${bridge}${pathname}`, {
+    method: 'OPTIONS',
+    headers: {
+      origin: frontend,
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type',
+    },
+  }, fetchImpl);
+  verifyAuthV2SecurityHeaders(response, label);
+  if (response.headers.has('access-control-allow-credentials')) {
+    fail(`${label} unexpectedly allowed credentialed browser access.`);
+  }
+  const payload = await readExactJsonAtStatus(response, label, 410);
+  verifyExactErrorPayload(
+    payload,
+    'legacy_auth_retired',
+    'This authentication protocol has been retired.',
+    label,
+  );
+}
+
+async function verifyAuthV2Bridge(frontend, bridge, fetchImpl) {
+  const healthResponse = await fetchWithTimeout(`${bridge}/healthz`, {}, fetchImpl);
+  verifyAuthV2SecurityHeaders(healthResponse, 'auth-v2 health endpoint');
+  const health = await readExactJsonAtStatus(healthResponse, 'auth-v2 health endpoint', 200);
+  if (
+    !hasExactKeys(health, ['ok', 'service', 'securityProfile', 'publicAuthEnabled'])
+    || health.ok !== true
+    || health.service !== 'warpkeep-auth-bridge'
+    || health.securityProfile !== AUTH_V2_SECURITY_PROFILE
+    || health.publicAuthEnabled !== false
+  ) {
+    fail('auth-v2 health endpoint did not attest the contained Warpkeep security profile.');
+  }
+
+  const discoveryResponse = await fetchWithTimeout(
+    `${bridge}/.well-known/openid-configuration`,
+    {},
+    fetchImpl,
+  );
+  verifyAuthV2SecurityHeaders(discoveryResponse, 'auth-v2 OIDC discovery');
+  const discovery = await readExactJsonAtStatus(discoveryResponse, 'auth-v2 OIDC discovery', 200);
+  if (
+    discovery?.issuer !== bridge
+    || discovery?.jwks_uri !== `${bridge}/.well-known/jwks.json`
+    || !isExactStringArray(discovery?.subject_types_supported, ['public'])
+    || !isExactStringArray(discovery?.id_token_signing_alg_values_supported, ['ES256'])
+    || !isExactStringArray(discovery?.claims_supported, AUTH_V2_CLAIMS)
+  ) {
+    fail('auth-v2 OIDC discovery did not advertise the exact required profile and claims.');
+  }
+
+  const jwksResponse = await fetchWithTimeout(discovery.jwks_uri, {}, fetchImpl);
+  verifyAuthV2SecurityHeaders(jwksResponse, 'auth-v2 JWKS endpoint');
+  const jwks = await readExactJsonAtStatus(jwksResponse, 'auth-v2 JWKS endpoint', 200);
+  if (!hasExactKeys(jwks, ['keys']) || !Array.isArray(jwks.keys) || jwks.keys.length !== 1) {
+    fail('auth-v2 JWKS must contain exactly one active public signing key.');
+  }
+  await validateProductionSigningKey(jwks.keys[0]);
+
+  for (const pathname of ['/v1/farcaster/challenge', '/v1/farcaster/exchange']) {
+    await verifyRetiredLegacyAuthPath(frontend, bridge, pathname, fetchImpl);
+  }
+  for (const pathname of AUTH_V2_CREDENTIAL_PATHS) {
+    await verifyContainedAuthV2Preflight(frontend, bridge, pathname, fetchImpl);
+  }
+
+  const adminProbe = await fetchWithTimeout(`${bridge}/v1/admin/token`, {
+    method: 'OPTIONS',
+    headers: {
+      origin: frontend,
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'authorization, content-type',
+    },
+  }, fetchImpl);
+  verifyAuthV2SecurityHeaders(adminProbe, 'auth-v2 admin browser isolation check');
+  verifyNoCors(adminProbe, 'auth-v2 admin browser isolation check');
+  const adminProbePayload = await readExactJsonAtStatus(
+    adminProbe,
+    'auth-v2 admin browser isolation check',
+    404,
+  );
+  verifyExactErrorPayload(
+    adminProbePayload,
+    'not_found',
+    'Route not found.',
+    'auth-v2 admin browser isolation check',
+  );
+  console.log('bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified');
+}
+
+export async function verifyBridge(frontend, bridge, options = {}) {
+  const { requireAuthV2 = false, fetchImpl = fetch } = options;
+  if (requireAuthV2) {
+    await verifyAuthV2Bridge(frontend, bridge, fetchImpl);
+    return;
+  }
+
+  const health = await readJson(await fetchWithTimeout(`${bridge}/healthz`, {}, fetchImpl), 'health endpoint');
   if (health?.ok !== true || health?.service !== 'warpkeep-auth-bridge') {
     fail('health endpoint did not identify the Warpkeep bridge.');
   }
 
   const discovery = await readJson(
-    await fetchWithTimeout(`${bridge}/.well-known/openid-configuration`),
+    await fetchWithTimeout(`${bridge}/.well-known/openid-configuration`, {}, fetchImpl),
     'OIDC discovery'
   );
   if (discovery?.issuer !== bridge || discovery?.jwks_uri !== `${bridge}/.well-known/jwks.json`) {
@@ -406,15 +684,15 @@ async function verifyBridge(frontend, bridge) {
     fail('OIDC discovery does not advertise ES256.');
   }
 
-  const jwks = await readJson(await fetchWithTimeout(discovery.jwks_uri), 'JWKS endpoint');
+  const jwks = await readJson(await fetchWithTimeout(discovery.jwks_uri, {}, fetchImpl), 'JWKS endpoint');
   if (!Array.isArray(jwks?.keys) || jwks.keys.length !== 1) {
     fail('JWKS must contain exactly one active public signing key.');
   }
   const key = jwks.keys[0];
   await validateProductionSigningKey(key);
 
-  await verifyBridgePreflight(bridge, frontend, '/v1/farcaster/challenge');
-  await verifyBridgePreflight(bridge, frontend, '/v1/farcaster/exchange');
+  await verifyBridgePreflight(bridge, frontend, '/v1/farcaster/challenge', fetchImpl);
+  await verifyBridgePreflight(bridge, frontend, '/v1/farcaster/exchange', fetchImpl);
 
   const adminProbe = await fetchWithTimeout(`${bridge}/v1/admin/token`, {
     method: 'OPTIONS',
@@ -422,11 +700,11 @@ async function verifyBridge(frontend, bridge) {
       origin: frontend,
       'access-control-request-method': 'POST',
     },
-  });
+  }, fetchImpl);
   if (adminProbe.headers.has('access-control-allow-origin')) {
     fail('admin token endpoint exposed browser CORS.');
   }
-  console.log('bridge: health, discovery, JWKS, and strict CORS verified');
+  console.log('bridge: legacy-compatible health, discovery, JWKS, and strict CORS verified (auth-v2 gate not requested)');
 }
 
 function readAggregateCount(value, label) {
@@ -509,12 +787,13 @@ async function main() {
   const legacyPages = httpsUrl(process.env.WARPKEEP_LEGACY_PAGES_URL ?? DEFAULT_LEGACY_PAGES, 'WARPKEEP_LEGACY_PAGES_URL');
   const expectedDeployedSha = readExpectedDeployedSha();
   const requireProtectedAggregate = process.argv.includes('--require-protected-aggregate');
+  const requireAuthV2 = process.argv.includes('--require-auth-v2');
   if (process.env.WARPKEEP_OIDC_AUDIENCE && process.env.WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
     fail(`WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
   }
   await verifyFrontend(frontend, expectedDeployedSha);
   await verifyFrontendRedirects(frontend, www, legacyPages);
-  await verifyBridge(frontend, bridge);
+  await verifyBridge(frontend, bridge, { requireAuthV2 });
   verifyProtectedAggregateIfConfigured(bridge, requireProtectedAggregate);
 }
 

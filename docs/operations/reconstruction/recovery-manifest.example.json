@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "capturedAt": "<ISO-8601 UTC>",
+  "status": "<observed deployment state; never infer local auth-v2 deployment>",
   "release": {
     "version": "0.3.0",
     "tag": "v0.3.0",
@@ -58,10 +59,19 @@
     "sourceCommit": "<40 lowercase hex>",
     "deploymentVersion": "<platform version identifier>",
     "compatibilityDate": "2026-07-11",
+    "targetAuthProfile": "warpkeep-auth-v2",
+    "publicAuthEnabledObserved": false,
+    "configAttestationDigestObserved": "<reviewed SHA-256 digest or not deployed>",
     "secretNames": [
       "SIGNING_KEY_JWK",
       "ADMIN_TOKEN_SECRET",
+      "SESSION_COOKIE_KEY",
       "FARCASTER_RPC_URL"
+    ],
+    "durableObjectBindingsObserved": [
+      "CHALLENGE_REPLAY_GUARD -> ChallengeReplayGuard",
+      "AUTH_RATE_LIMITER -> AuthRateLimiter",
+      "<SESSION_FAMILIES -> SessionFamily, or not migrated>"
     ]
   },
   "spacetime": {
@@ -69,7 +79,9 @@
     "database": "warpkeep-89e4u",
     "cliVersion": "2.6.1",
     "moduleSourceCommit": "<40 lowercase hex>",
-    "backendProtocol": 1,
+    "targetBackendProtocol": 2,
+    "backendProtocolObserved": "<integer read from deployed module>",
+    "resolverProcedureObserved": "<auth_resolver_get_fid_admission_v2 or not published>",
     "protectedAggregate": {
       "worldTiles": 61,
       "allowedFids": 0,
@@ -81,6 +93,15 @@
   "verification": {
     "verifyWorkflowRunUrl": "<public URL>",
     "codeqlWorkflowRunUrl": "<public URL>",
-    "productionVerifiedAt": "<ISO-8601 UTC>"
+    "productionVerifiedAt": "<ISO-8601 UTC or not verified>"
+  },
+  "approvalGates": {
+    "modulePublish": "<approval reference or not approved>",
+    "sessionFamilyDurableObjectMigration": "<approval reference or not approved>",
+    "managedSecretConfiguration": "<approval reference or not approved>",
+    "workerDeployWithPublicAuthFalse": "<approval reference or not approved>",
+    "frontendDeployWithSharedAlphaFalse": "<approval reference or not approved>",
+    "workerPublicAuthEnable": "<separate approval reference or not approved>",
+    "frontendSharedAlphaEnable": "<separate approval reference or not approved>"
   }
 }

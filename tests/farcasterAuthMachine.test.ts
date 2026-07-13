@@ -246,7 +246,7 @@ describe('farcasterAuthMachineReducer', () => {
       type: 'cancel',
       generation: 1
     })).toEqual({
-      generation: 1,
+      generation: 2,
       view: { phase: 'anonymous' }
     });
   });
@@ -284,14 +284,45 @@ describe('farcasterAuthMachineReducer', () => {
           verifiedAt: identity.verifiedAt
         },
         assurance: 'bridge-oidc-alpha',
-        expiresAt
+        expiresAt,
+        sessionExpiresAt: expiresAt
       }
     });
 
     expect(farcasterAuthMachineReducer(restored, {
       type: 'sign-out',
       generation: 0
-    })).toEqual({ generation: 0, view: { phase: 'anonymous' } });
+    })).toEqual({ generation: 1, view: { phase: 'anonymous' } });
+  });
+
+  it('generation-gates cookie refresh results and invalidates them on sign-out', () => {
+    const authenticated = farcasterAuthMachineReducer(verifying(), {
+      type: 'authenticated',
+      generation: 1,
+      identity,
+      assurance: 'bridge-oidc-alpha',
+      expiresAt,
+      sessionExpiresAt: expiresAt + 1_000
+    });
+    const signedOut = farcasterAuthMachineReducer(authenticated, {
+      type: 'sign-out',
+      generation: 1
+    });
+    expect(signedOut).toEqual({ generation: 2, view: { phase: 'anonymous' } });
+
+    expect(farcasterAuthMachineReducer(signedOut, {
+      type: 'session-authorized',
+      generation: 1,
+      identity,
+      expiresAt,
+      sessionExpiresAt: expiresAt + 1_000
+    })).toBe(signedOut);
+    expect(farcasterAuthMachineReducer(verifying(), {
+      type: 'session-pending',
+      generation: 1,
+      identity,
+      sessionExpiresAt: expiresAt + 1_000
+    })).toEqual(verifying());
   });
 
   it('ignores stale results from superseded request generations', () => {
@@ -300,7 +331,7 @@ describe('farcasterAuthMachineReducer', () => {
         type: 'cancel',
         generation: 1
       }),
-      { type: 'begin', generation: 2 }
+      { type: 'begin', generation: 3 }
     );
 
     const staleActions: readonly FarcasterAuthMachineAction[] = [
@@ -360,12 +391,16 @@ describe('farcasterAuthMachineReducer', () => {
       error: relayError
     });
 
-    for (const terminalState of [cancelled, expired, failed]) {
+    for (const [terminalState, generation] of [
+      [cancelled, 3],
+      [expired, 2],
+      [failed, 2]
+    ] as const) {
       expect(farcasterAuthMachineReducer(terminalState, {
         type: 'begin',
-        generation: 2
+        generation
       })).toEqual({
-        generation: 2,
+        generation,
         view: { phase: 'creating-channel' }
       });
     }

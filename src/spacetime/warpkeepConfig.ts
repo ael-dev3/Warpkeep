@@ -5,6 +5,7 @@
 export const DEFAULT_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com';
 export const DEFAULT_SPACETIMEDB_DATABASE = 'warpkeep-89e4u';
 export const DEFAULT_WARPKEEP_OIDC_AUDIENCE = 'warpkeep-spacetimedb';
+export const CANONICAL_WARPKEEP_AUTH_ORIGIN = 'https://auth.warpkeep.com';
 export const WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE =
   'FARCASTER SIGN-IN TEMPORARILY PAUSED FOR SECURITY HARDENING';
 
@@ -70,6 +71,18 @@ function normalizeTrustedUrl(value: string | undefined, allowLocalHttp: boolean)
   }
 }
 
+function normalizeTrustedOrigin(value: string | undefined, allowLocalHttp: boolean) {
+  const candidate = cleanOptionalString(value);
+  if (!candidate) return undefined;
+  const trustedUrl = normalizeTrustedUrl(value, allowLocalHttp);
+  if (!trustedUrl) return undefined;
+  const parsed = new URL(trustedUrl);
+  return parsed.pathname === '/'
+    && (candidate === parsed.origin || candidate === `${parsed.origin}/`)
+    ? parsed.origin
+    : undefined;
+}
+
 function normalizeDatabaseName(value: string | undefined) {
   const candidate = cleanOptionalString(value) ?? DEFAULT_SPACETIMEDB_DATABASE;
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate)
@@ -100,8 +113,11 @@ export function readWarpkeepRuntimeConfig(
     environment.VITE_SPACETIMEDB_URI,
     allowLocalHttp
   );
-  const bridgeUrl = normalizeTrustedUrl(environment.VITE_WARPKEEP_AUTH_BRIDGE_URL, allowLocalHttp);
-  const issuer = normalizeTrustedUrl(environment.VITE_WARPKEEP_OIDC_ISSUER, allowLocalHttp);
+  const bridgeUrl = normalizeTrustedOrigin(
+    environment.VITE_WARPKEEP_AUTH_BRIDGE_URL,
+    allowLocalHttp
+  );
+  const issuer = normalizeTrustedOrigin(environment.VITE_WARPKEEP_OIDC_ISSUER, allowLocalHttp);
 
   return Object.freeze({
     spacetimeUri: configuredSpacetimeUri ?? DEFAULT_SPACETIMEDB_URI,
@@ -135,11 +151,32 @@ export function hasUsableWarpkeepBridge(config: WarpkeepRuntimeConfig) {
       || (config.allowLocalHttp === true
         && issuer.protocol === 'http:'
         && isLocalDevelopmentHost(issuer.hostname));
+    const localDevelopmentPair = config.allowLocalHttp === true
+      && bridge.protocol === 'http:'
+      && issuer.protocol === 'http:'
+      && isLocalDevelopmentHost(bridge.hostname)
+      && isLocalDevelopmentHost(issuer.hostname);
+    const canonicalProductionPair = bridge.origin === CANONICAL_WARPKEEP_AUTH_ORIGIN
+      && issuer.origin === CANONICAL_WARPKEEP_AUTH_ORIGIN
+      && config.spacetimeUri === DEFAULT_SPACETIMEDB_URI
+      && config.spacetimeDatabase === DEFAULT_SPACETIMEDB_DATABASE;
     return !bridge.hostname.endsWith('.invalid')
       && !issuer.hostname.endsWith('.invalid')
       && bridgeIsSafe
       && issuerIsSafe
-      && bridge.toString() === issuer.toString();
+      && bridge.username === ''
+      && bridge.password === ''
+      && issuer.username === ''
+      && issuer.password === ''
+      && bridge.pathname === '/'
+      && issuer.pathname === '/'
+      && bridge.search === ''
+      && issuer.search === ''
+      && bridge.hash === ''
+      && issuer.hash === ''
+      && bridge.origin === issuer.origin
+      && config.audience === DEFAULT_WARPKEEP_OIDC_AUDIENCE
+      && (localDevelopmentPair || canonicalProductionPair);
   } catch {
     return false;
   }

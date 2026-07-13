@@ -18,8 +18,8 @@ OWASP ASVS certification nor a penetration test.
 - Observable Pages deployment at audit start:
   `d1184438387cc7d78fd208571f480773d4070c82`
 
-The review covered the React/browser client, Farcaster SIWF flow, remembered
-bearer session, Cloudflare Worker bridge, replay controls, ES256 tokens,
+The historical review covered the React/browser client, Farcaster SIWF flow,
+the former browser-readable bearer session, Cloudflare Worker bridge, replay controls, ES256 tokens,
 Worker-to-SpacetimeDB epoch lookup, module authorization and private tables,
 generated bindings, Hermes tooling, GitHub Actions/Pages, dependencies, public
 repository history, and passive domain posture.
@@ -37,10 +37,10 @@ and deployed Pages head `83bc36ccb23bfc012d27865ce8c77550b71b8436`:
   live;
 - challenge, exchange, and admin-token routes use distributed exact
   rolling-window limits of 12, 20, and 6 requests per 300 seconds;
-- the direct private Maincloud auth-epoch procedure and matching production
-  issuer are live;
-- disabled-to-enabled admission increments the auth epoch exactly once, while
-  first admission intentionally retains baseline epoch zero;
+- the historical direct private Maincloud raw auth-epoch procedure and matching
+  production issuer were live at that recorded head;
+- disabled-to-enabled admission incremented the auth epoch exactly once, while
+  that historical head retained baseline epoch zero for first admission;
 - the module was published non-destructively and the idempotent seed produced
   exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players,
   and zero castles;
@@ -57,9 +57,58 @@ The later assurance fixes described below are being consolidated above that
 live head. They are not represented as deployed until their new exact head is
 deployed and the protected verifier passes again.
 
+## Local protocol-v2 hardening delta
+
+> **Local/draft only.** The following target is implemented in the current
+> checkout but was not published, migrated, configured, deployed, or enabled by
+> this review. Historical Alpha 0.2 observations above remain evidence only for
+> their recorded source coordinates.
+
+The v2 target supersedes the historical bearer/epoch resolver assumptions:
+
+- player access JWTs are maximum 600 seconds, require `auth_version: 2` and
+  `auth_epoch >= 1`, contain FID but no optional profile claims, and live only
+  in browser JavaScript memory;
+- continuity is a separate maximum-30-day server-side rotating family referenced
+  by `__Host-warpkeep_session; Secure; HttpOnly; SameSite=Strict; Path=/`;
+- remember-device persistence defaults false, and sign-out writes only a
+  non-secret, base-path-scoped 30-day logout marker/timestamp that blocks every
+  cookie refresh until explicit SIWF clears it early;
+- a missing admission creates a pending/tokenless session; bound epoch
+  mismatch, missing, disabled, expiry/origin failure, or stale replay revokes;
+- public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` are retired;
+- resolution uses a maximum-60-second JWT with exact
+  `service:auth-epoch-resolver` subject and sole
+  `warpkeep-auth-epoch-resolver` role, plus structured
+  `auth_resolver_get_fid_admission_v2` results;
+- first admission begins at epoch one; epoch zero is only a non-enabled
+  sentinel and never player authority;
+- the bridge exchange/session/response identity is FID-only, and opaque
+  SpacetimeDB OIDC ownership moves from public `player` rows to private
+  `player_ownership` rows with no browser query/subscription accessor;
+- module bootstrap ignores all optional profile-shaped JWT claims and inserts
+  undefined `username`, `displayName`, and `pfpUrl` fields;
+- a server-only configuration attestation covers the reviewed v2 coordinates,
+  lifetimes, cookie attributes, and default-false public-auth state;
+- production frontend/Pages activation pins exact `https://auth.warpkeep.com`,
+  `warpkeep-spacetimedb`, `https://maincloud.spacetimedb.com`, and
+  `warpkeep-89e4u`; the Worker independently pins its production resolver while
+  development remains explicitly configurable;
+- checked-in `PUBLIC_AUTH_ENABLED` and frontend shared-alpha activation remain
+  false.
+
+The raw `admin_get_fid_auth_epoch` procedure remains only as admin-authenticated
+rollback compatibility. It is not the v2 issuance/refresh contract.
+
+The public-player/private-ownership split is a breaking schema rollout, not an
+implicitly additive publish. It requires explicit approval for read-only state
+inspection, a reviewed migration/client-compatibility decision, and the guarded
+non-destructive publish; this review grants none of those approvals.
+
 ## Architecture and trust boundaries
 
-Warpkeep uses the following authority chain:
+The audited Alpha 0.2 head used the following historical authority chain; the
+local v2 session-family and structured-resolver delta is defined above:
 
 ```text
 Farcaster approval
@@ -75,7 +124,9 @@ The browser cannot choose the authoritative FID. The Worker binds proof context
 and resolves the current authorization epoch through a fixed private Maincloud
 procedure. SpacetimeDB independently enforces exact claims and admission before
 state creation. Player and Hermes service principals have distinct subjects and
-role shapes. Private admission and audit tables are absent from browser bindings.
+role shapes. Private admission, player-ownership, and audit tables are absent
+from browser bindings; partial or mismatched public/private player state fails
+closed.
 
 The complete asset, actor, data-flow, trust-boundary, control, and residual-risk
 model is in [the Alpha threat model](./threat-model.md).
@@ -114,7 +165,7 @@ finding was confirmed.
 | `WK-BRIDGE-002` | Medium | Challenge objects schedule expiry and fully deallocate storage after use, expiry, or malformed state. |
 | `WK-BRIDGE-003` | Medium | A challenge is atomically claimed before expensive work; definitive failures consume it and only retryable service failures restore it. |
 | `WK-MOD-001` | Medium | Every admin reducer/procedure rechecks connection-JWT expiry against authoritative module time. |
-| `WK-MOD-003` | Medium | Signed absolute player-session claims survive connection-token exchange and enforce the original maximum 30-day deadline on every player call. |
+| `WK-MOD-003` | Medium | The local v2 target limits player access/session claims to 600 seconds and rechecks the deadline after connection-token exchange; historical 30-day bearer behavior is not retained. |
 | `WK-WEB-001` | Medium | Same-origin tabs propagate logout, cancel active authentication generations, clear bearer state, and reject late completion. |
 | `WK-CI-001` | Medium | Actions are immutable-SHA pinned, the official CLI archive is checksum verified, build/deploy permissions are split, jobs are bounded, and CodeQL is added without executing a repository build. |
 | `WK-WEB-002` | Low | Browser token lifetime, restored-bearer cleanup, and public identity minimization are enforced. |
@@ -156,8 +207,10 @@ checks and exact-head deployment verification remain separate gates.
 
 ## Remaining accepted alpha risks
 
-Four Medium, three Low, and two Informational observations remain. They are
-not silent production assurances:
+The original audit retained four Medium, three Low, and two Informational
+observations. Those counts are historical; later local-v2 and repository-control
+changes below close or reduce several items and are not production assurance
+until their own rollout gates pass:
 
 `WK-RISK-002` was Medium at the original audit head because distributed
 challenge and verification limiting was absent. The live activation base added
@@ -166,19 +219,26 @@ alarm, and cleanup behavior. Broad distributed-abuse monitoring and alerts
 remain an operational dependency rather than an unresolved application-code
 finding.
 
-- `WK-RISK-001` (Medium): the 30-day bearer remains readable by same-origin
-  script/local browser storage. Logout cannot recall a token copied outside the
-  browser; epoch/key response and absolute expiry are the current controls.
-- `WK-MOD-002` (Medium): a baseline-epoch token obtained before first admission
-  can become usable when that FID is first allowed. Retaining epoch zero for
-  first admission is the explicit closed-alpha policy. Disabled-to-enabled
-  admission now increments the epoch, so older same-epoch tokens stay invalid.
+- `WK-RISK-001` (historical Medium): the local v2 target removes the 30-day
+  browser-readable bearer. XSS/extension compromise can still copy the current
+  memory-only token, but it is capped at 600 seconds; the maximum-30-day family
+  is HttpOnly, rotates, and is server-revocable. This reduction is not production
+  evidence until the v2 rollout is approved and verified.
+- `WK-MOD-002` (historical Medium): the local v2 target starts first admission
+  at epoch one and rejects epoch-zero player tokens, closing baseline-token
+  activation. Any existing enabled epoch-zero row fails closed and requires an
+  explicit operator migration decision.
 - `WK-RISK-003` (Medium): the canonical site redirects HTTP to HTTPS but does
   not send HSTS, leaving a first-visit transport gap.
-- `WK-RISK-004` (Medium): `main` has no branch protection/ruleset; owner-side
-  review/check/bypass rules are required.
-- `WK-RISK-005` (Low): optional display/avatar data is bounded convenience
-  metadata, not independently verified profile authority.
+- `WK-RISK-004` (historical Medium): verified `main` protection now requires pull
+  requests including for administrators, strict current-head `verify`,
+  `auth-bridge`, `spacetimedb-module`, `analyze`, and `CodeQL` checks, stale-review
+  dismissal, resolved conversations, and linear history; force pushes and branch
+  deletion are disabled. Repository policy also requires action SHA pinning.
+- `WK-RISK-005` (historical Low): the local v2 bridge rejects optional
+  display/avatar data and neither persists it in session families nor issues it
+  in player JWTs. Remaining public presentation fields are non-authoritative and
+  contain no opaque OIDC ownership identity.
 - `WK-RISK-006` (Low): static Pages responses lack CSP, `nosniff`, referrer, and
   framing headers. No current dangerous HTML/eval sink was found.
 - `WK-OPS-003` (Low): a local timeout cannot cancel a reducer already accepted
@@ -186,14 +246,29 @@ finding.
   cleanup. Operators must inspect before retrying a timed-out mutation.
 - `WK-RISK-007` (Informational): public world/player/castle projections are
   intentionally observable to connected authenticated custom clients.
-- `WK-RISK-008` (Informational): private vulnerability reporting, dependency
-  alert/update policy, central action policy, and rulesets require owner action.
+- `WK-RISK-008` (Informational): required commit signatures remain disabled.
+  Dependabot security updates remain intentionally disabled because automated
+  security PRs in this public repository could disclose an unpatched issue;
+  dependency triage and disclosure-safe remediation therefore remain private
+  operational responsibilities.
 
+The local v2 design now uses short-lived access plus a trusted HttpOnly rotating
+server session and server-side revocation. Residual XSS/device compromise,
+deployment correctness, monitoring, incident response, and key/session-secret
+rotation still require operational maturity.
 
-The localStorage design is an explicitly documented closed-alpha compromise.
-Production should use short-lived access tokens, a trusted HttpOnly refresh or
-server session, server-side revocation, and mature incident/key-rotation
-operations.
+A successful logout confirms family revocation. If the Durable Object revoke
+fails, the bridge returns generic `503` and expires the current browser cookie,
+but a separately copied cookie could become usable after storage recovery until
+the bounded family expires. This residual requires incident monitoring and must
+not be reported as successful server-side revocation.
+
+The non-secret 30-day logout tombstone blocks all cookie-refresh paths across
+reloads and same-origin tabs and is cleared early only by explicit SIWF.
+Malformed/unavailable storage fails closed. If its write is denied at sign-out
+and server revocation also fails, the current runtime stays blocked but a later
+storage-enabled context cannot recover a marker that never existed; that combined
+condition remains an accepted bounded residual.
 
 ## Original audit exclusions and remaining operational dependencies
 
@@ -207,11 +282,14 @@ for:
 - production repository secrets/variables or third-party account controls;
 - a real Farcaster approval or owner-only denial flow.
 
-Repository APIs showed secret scanning and push protection enabled, while
-private vulnerability reporting and branch protection were not enabled. The
-final branch-specific CodeQL query returned zero open alerts; dependency and
-secret alert endpoints remained unavailable/inaccessible, so this report does
-not make a broader zero-alert claim.
+At the original audit coordinate, repository APIs showed secret scanning and
+push protection enabled while branch protection was not enabled. The current
+verified state adds the protected-`main` and SHA-pinning controls described
+above. Required signatures remain disabled, and automated Dependabot security
+updates intentionally remain off pending a disclosure-safe private remediation
+workflow. The original branch-specific CodeQL query returned zero open alerts;
+dependency and secret alert endpoints remained unavailable/inaccessible, so
+this report does not make a broader zero-alert claim.
 
 PR #15's license-policy verifier and CI changes were reviewed separately. Its
 current v0.2 preparation check passed and it introduced no auth, secret,
@@ -231,7 +309,8 @@ Activation follow-up checks observed:
   non-empty admin-body rejection passed over HTTPS;
 - the protected direct admin path returned exactly 61 world tiles, zero
   allowlist rows, zero enabled FIDs, zero players, and zero castles;
-- the remote private auth-epoch resolver passed without admitting a FID.
+- the historical remote raw-epoch probe passed without admitting a FID; this is
+  not evidence for the local structured v2 resolver.
 
 The exact-head Pages workflow must continue to validate its public coordinates,
 and owner empty-whitelist denial QA remains required before any FID admission.
@@ -257,14 +336,23 @@ Security tests now cover:
   and post-consume restoration;
 - strict SIWF context, bounded EOA/smart-account signature shapes, FID equality,
   epoch resolution, and safe error mapping;
-- exact player/admin claims, role separation, 30-day player deadline, and admin
-  connection-token expiry;
-- OIDC/session parsing, maximum lifetime, cross-tab logout, in-flight
-  cancellation, stale bearer cleanup, and minimum public identity;
+- exact protocol-v2 player/admin/resolver claims, role separation, 600-second
+  player deadline, positive epoch, and admin connection-token expiry;
+- memory-only access parsing, tokenless pending responses, maximum-30-day
+  HttpOnly family lifetime, generation rotation/replay revocation, logout,
+  default-off remember-device intent, 30-day tombstone refresh suppression,
+  storage denial, revocation-store failure, in-flight cancellation, FID-only
+  bridge identity, and no optional profile claims;
+- public v1 route retirement, structured resolver validation, and server-only
+  configuration attestation;
 - canonical Hermes destinations, weak-secret rejection, deadlines, and dry run;
 - workflow SHA pins, checkout credentials, checksummed CLI, package audits,
   job permissions/timeouts, stacked-PR triggers, and non-executing CodeQL mode;
-- real SpacetimeDB 2.6.1 module build and generated binding equivalence.
+- real SpacetimeDB 2.6.1 module build, private OIDC-ownership/public-player
+  separation, fail-closed partial-state policy, profile-claim discard, and
+  generated binding equivalence;
+- exact production frontend/Pages and Worker resolver coordinate pins, with
+  development configurability kept outside the production profile.
 
 The exact deployed activation head passed 56 root test files / 384 tests, 56
 Worker tests, 22 module tests, all typechecks, three root production build
@@ -299,12 +387,17 @@ that exact latest head (a no-op), and the complete local/hosted matrix passed.
 
 Ongoing conditions before admitting any FID:
 
-1. deploy the exact consolidated head and keep its Pages workflow, public
-   identity-chain coordinates, and required protected aggregate check green;
-2. complete owner-controlled empty-whitelist denial QA;
-3. retain the explicit first-admission epoch-zero policy and rotate once on
-   every disabled-to-enabled transition;
-4. set the shared-alpha switch back to `false` if any coordinate disagrees.
+1. keep Worker public auth and frontend shared-alpha access false;
+2. explicitly approve read-only inspection and a non-destructive protocol-v2
+   module publish, then verify exact bindings/structured resolver;
+3. separately approve the additive session-family Durable Object migration;
+4. separately approve managed `SESSION_COOKIE_KEY` configuration without
+   exposing or reusing a secret;
+5. separately approve a paused Worker deploy and verify discovery/JWKS,
+   resolver probe, v1 retirement, and configuration attestation;
+6. separately approve a disabled v2 frontend deploy and complete owner QA;
+7. require a final explicit approval before either public auth or shared-realm
+   access is enabled; first admission must begin at epoch one.
 
 The historical `83bc36c` activation record remains a conditional closed-alpha
 pass for its exact deployed source; it is not evidence for the new consolidated

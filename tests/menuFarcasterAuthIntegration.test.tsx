@@ -51,6 +51,12 @@ const rememberedAuthenticatedState: FarcasterAuthViewState = {
   expiresAt: 1_800_000_000_000
 };
 
+const pendingAdmissionState: FarcasterAuthViewState = {
+  phase: 'pending-admission',
+  identity,
+  sessionExpiresAt: 1_800_000_000_000
+};
+
 type MenuCallbacks = ReturnType<typeof createMenuCallbacks>;
 
 function createMenuCallbacks() {
@@ -59,6 +65,7 @@ function createMenuCallbacks() {
     cancel: vi.fn(),
     retry: vi.fn(),
     prepareQrCode: vi.fn(),
+    refreshSession: vi.fn(),
     rememberDeviceChange: vi.fn(),
     signOut: vi.fn(),
     enterRealm: vi.fn(),
@@ -71,7 +78,7 @@ function menu(
   authState: FarcasterAuthViewState = anonymousState,
   inputModality: MenuInputModality = 'unknown',
   openFarcasterAuthPanel = false,
-  options: { rememberDevice?: boolean; hasRememberedDevice?: boolean } = {}
+  options: { rememberDevice?: boolean } = {}
 ) {
   return (
     <WarpkeepMainMenu
@@ -83,12 +90,12 @@ function menu(
       onRequestAuthenticatedRealm={callbacks.enterRealm}
       onRequestFarcasterSignIn={callbacks.begin}
       onPrepareFarcasterQrCode={callbacks.prepareQrCode}
+      onRefreshFarcasterSession={callbacks.refreshSession}
       onRequestReturn={callbacks.returnToTitle}
       onRetryFarcasterSignIn={callbacks.retry}
       onRememberDeviceChange={callbacks.rememberDeviceChange}
       onSignOut={callbacks.signOut}
       rememberDevice={options.rememberDevice}
-      hasRememberedDevice={options.hasRememberedDevice}
     />
   );
 }
@@ -308,7 +315,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.begin).toHaveBeenCalledTimes(1);
   });
 
-  it('labels a restored identity as a remembered device in the menu badge', async () => {
+  it('does not grant special UI authority to a legacy assurance label', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks, rememberedAuthenticatedState));
 
@@ -316,8 +323,23 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByRole('button', {
       name: 'Open Farcaster identity, FID 12345'
     })).not.toBeNull();
-    expect(screen.getByText('REMEMBERED DEVICE')).not.toBeNull();
-    expect(screen.queryByText('FARCASTER VERIFIED')).toBeNull();
+    expect(screen.getByText('FARCASTER VERIFIED')).not.toBeNull();
+    expect(screen.queryByText('REMEMBERED DEVICE')).toBeNull();
+  });
+
+  it('shows pending admission without entering the realm or starting another sign-in', async () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(callbacks, pendingAdmissionState));
+    await settleDeferredPresentation();
+
+    expect(screen.getByText('ADMISSION PENDING')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settleDeferredPresentation();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(callbacks.refreshSession).toHaveBeenCalledTimes(1);
   });
 
   it('invokes the typed realm callback for an authenticated command without beginning again', async () => {

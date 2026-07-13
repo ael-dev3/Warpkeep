@@ -149,11 +149,11 @@ export function WarpkeepExperience() {
     cancelSignIn: cancelFarcasterSignIn,
     retrySignIn: retryFarcasterSignIn,
     prepareQrCode: prepareFarcasterQrCode,
+    refreshSession: refreshFarcasterSession,
     signOut: signOutFarcaster,
     oidcSession,
     rememberDevice,
-    setRememberDevice,
-    hasRememberedDevice
+    setRememberDevice
   } = useFarcasterAuth();
   const backend = useWarpkeepBackend();
   const initiallyAuthenticated = farcasterAuthState.phase === 'authenticated'
@@ -996,11 +996,11 @@ export function WarpkeepExperience() {
             onRequestAuthenticatedRealm={beginRealmEntry}
             onRequestFarcasterSignIn={beginFarcasterSignIn}
             onPrepareFarcasterQrCode={prepareFarcasterQrCode}
+            onRefreshFarcasterSession={refreshFarcasterSession}
             onRequestReturn={handleExplicitReturn}
             onRememberDeviceChange={setRememberDevice}
             onRetryFarcasterSignIn={retryFarcasterSignIn}
             onSignOut={handleSignOut}
-            hasRememberedDevice={hasRememberedDevice}
             rememberDevice={rememberDevice}
             graphicsPreference={graphicsPreference}
             resolvedGraphicsQuality={resolvedGraphicsQuality}
