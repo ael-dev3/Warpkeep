@@ -2,12 +2,15 @@ import type { FarcasterOidcSession } from './farcasterAuthTypes';
 
 export const FARCASTER_OIDC_PLAYER_TOKEN_TYPE = 'spacetime-access' as const;
 export const FARCASTER_OIDC_DEFAULT_AUDIENCE = 'warpkeep-spacetimedb' as const;
-export const FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
+export const FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS = 10 * 60 * 1_000;
+/** Compatibility alias; player access credentials are now capped at ten minutes. */
+export const FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS = FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS;
 
 const MAX_JWT_LENGTH = 16_384;
 const MAX_ISSUER_LENGTH = 2_048;
 const MAX_AUDIENCE_LENGTH = 256;
 const MAX_JTI_LENGTH = 512;
+const MAX_AUTH_EPOCH = 0xffff_ffff;
 const JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const AUDIENCE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const DECIMAL_FID_PATTERN = /^[1-9][0-9]{0,15}$/;
@@ -19,6 +22,7 @@ export type FarcasterOidcTokenClaims = Readonly<{
   expiresAt: number;
   issuedAt: number;
   notBefore: number;
+  authEpoch: number;
 }>;
 
 export type ParsedFarcasterOidcSession = Readonly<{
@@ -74,12 +78,16 @@ export function readSafeFarcasterOidcIssuer(
       (url.protocol !== 'https:' && !isLocalHttp)
       || url.username !== ''
       || url.password !== ''
+      || url.pathname !== '/'
       || url.search !== ''
       || url.hash !== ''
     ) {
       return undefined;
     }
-    return value;
+    if (value !== url.origin && value !== `${url.origin}/`) {
+      return undefined;
+    }
+    return url.origin;
   } catch {
     return undefined;
   }
@@ -173,8 +181,10 @@ function readPlayerClaims(
     || !fid
     || payload.sub !== `farcaster:${fid}`
     || payload.token_type !== FARCASTER_OIDC_PLAYER_TOKEN_TYPE
+    || payload.auth_version !== 2
     || !Number.isSafeInteger(payload.auth_epoch)
-    || (payload.auth_epoch as number) < 0
+    || (payload.auth_epoch as number) < 1
+    || (payload.auth_epoch as number) > MAX_AUTH_EPOCH
     || !Array.isArray(payload.roles)
     || payload.roles.length !== 0
     || typeof payload.jti !== 'string'
@@ -185,9 +195,9 @@ function readPlayerClaims(
     || expiresAt === undefined
     || sessionIssuedAt !== issuedAt
     || sessionExpiresAt !== expiresAt
-    || issuedAt > notBefore
+    || issuedAt !== notBefore
     || notBefore >= expiresAt
-    || BigInt(expiresAt) - BigInt(issuedAt) > BigInt(FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS)
+    || BigInt(expiresAt) - BigInt(issuedAt) > BigInt(FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS)
   ) {
     return undefined;
   }
@@ -205,7 +215,15 @@ function readPlayerClaims(
     return undefined;
   }
 
-  return Object.freeze({ fid, issuer, audience, expiresAt, issuedAt, notBefore });
+  return Object.freeze({
+    fid,
+    issuer,
+    audience,
+    expiresAt,
+    issuedAt,
+    notBefore,
+    authEpoch: payload.auth_epoch as number
+  });
 }
 
 /**

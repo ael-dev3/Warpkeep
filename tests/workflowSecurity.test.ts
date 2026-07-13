@@ -41,6 +41,18 @@ describe('GitHub workflow security policy', () => {
     expect(source).not.toContain('enablement: true');
   });
 
+  it('uses the reviewed Pages uploader with a SHA-pinned nested dependency', () => {
+    const source = workflow('deploy-pages.yml');
+    expect(source).toContain(
+      'actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b',
+    );
+    expect(source).not.toContain(
+      'actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa',
+    );
+    expect(source).not.toContain('actions/upload-artifact@');
+    expect(source).toContain('path: ./dist');
+  });
+
   it('bounds every workflow job duration', () => {
     const jobs = allWorkflows()
       .map(source => source.slice(source.indexOf('jobs:')))

@@ -16,6 +16,7 @@ const NOW = 1_800_000_000_000
 const LIMITS: Readonly<Record<RateLimitAction, number>> = {
   challenge: 12,
   exchange: 20,
+  'session-refresh': 30,
   'admin-token': 6,
 }
 

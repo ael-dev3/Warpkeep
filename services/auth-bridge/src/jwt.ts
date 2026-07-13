@@ -1,7 +1,11 @@
-import type { AdminTokenClaims, PlayerTokenClaims } from './types'
+import type {
+  AdminTokenClaims,
+  AuthEpochResolverTokenClaims,
+  PlayerTokenClaims,
+} from './types'
 import {
   ADMIN_TOKEN_TTL_SECONDS,
-  INTERNAL_ADMIN_TOKEN_TTL_SECONDS,
+  INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
   PLAYER_TOKEN_TTL_SECONDS,
   type BridgeConfig,
 } from './config'
@@ -43,7 +47,7 @@ async function signingKey(config: BridgeConfig): Promise<CryptoKey> {
 
 export async function signEs256Jwt(
   config: BridgeConfig,
-  claims: PlayerTokenClaims | AdminTokenClaims,
+  claims: PlayerTokenClaims | AdminTokenClaims | AuthEpochResolverTokenClaims,
 ): Promise<string> {
   const encodedHeader = base64UrlJson({ alg: 'ES256', typ: 'JWT', kid: config.keyId })
   const encodedPayload = base64UrlJson(claims)
@@ -61,25 +65,26 @@ export function playerClaims(
   nowSeconds: number,
   fid: string,
   authEpoch: number,
-  display?: { username?: string; displayName?: string; pfpUrl?: string },
+  ttlSeconds = PLAYER_TOKEN_TTL_SECONDS,
 ): PlayerTokenClaims {
+  if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > PLAYER_TOKEN_TTL_SECONDS) {
+    throw new Error('Invalid player access-token lifetime.')
+  }
   return {
     iss: config.issuer,
     sub: `farcaster:${fid}`,
     aud: [config.audience],
     token_type: 'spacetime-access',
+    auth_version: 2,
     fid,
     auth_epoch: authEpoch,
     roles: [],
     iat: nowSeconds,
     nbf: nowSeconds,
-    exp: nowSeconds + PLAYER_TOKEN_TTL_SECONDS,
+    exp: nowSeconds + ttlSeconds,
     session_iat: nowSeconds,
-    session_exp: nowSeconds + PLAYER_TOKEN_TTL_SECONDS,
+    session_exp: nowSeconds + ttlSeconds,
     jti: randomId(),
-    ...(display?.username ? { username: display.username } : {}),
-    ...(display?.displayName ? { display_name: display.displayName } : {}),
-    ...(display?.pfpUrl ? { pfp_url: display.pfpUrl } : {}),
   }
 }
 
@@ -107,7 +112,23 @@ export function adminClaims(config: BridgeConfig, nowSeconds: number): AdminToke
   return hermesAdminClaims(config.issuer, config.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS)
 }
 
-/** Fresh, non-persisted 60-second token for one private epoch lookup. */
-export function internalAdminClaims(issuer: string, audience: string, nowSeconds: number): AdminTokenClaims {
-  return hermesAdminClaims(issuer, audience, nowSeconds, INTERNAL_ADMIN_TOKEN_TTL_SECONDS)
+/** Fresh 15-second resolver token bound to one canonical verified FID. */
+export function authEpochResolverClaims(
+  issuer: string,
+  audience: string,
+  resolverFid: string,
+  nowSeconds: number,
+): AuthEpochResolverTokenClaims {
+  return {
+    iss: issuer,
+    sub: 'service:auth-epoch-resolver',
+    aud: [audience],
+    token_type: 'spacetime-access',
+    roles: ['warpkeep-auth-epoch-resolver'],
+    resolver_fid: resolverFid,
+    iat: nowSeconds,
+    nbf: nowSeconds,
+    exp: nowSeconds + INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
+    jti: randomId(),
+  }
 }

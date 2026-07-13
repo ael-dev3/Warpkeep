@@ -13,3 +13,5 @@ SPACETIMEDB_DATABASE=warpkeep-dev
 SIGNING_KEY_JWK={"kty":"EC","crv":"P-256","x":"...","y":"...","d":"...","kid":"warpkeep-dev-2026-01"}
 # Deliberately invalid: replace with at least 32 random bytes before startup.
 ADMIN_TOKEN_SECRET=replace-me
+# Use a separate high-entropy secret; never reuse the admin or signing key.
+SESSION_COOKIE_KEY=replace-me-separately

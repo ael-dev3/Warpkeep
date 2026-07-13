@@ -1,10 +1,14 @@
-import { internalAdminClaims } from './jwt'
-import type { AdminTokenClaims, AuthEpochResolver } from './types'
+import { authEpochResolverClaims } from './jwt'
+import type {
+  AdmissionResolution,
+  AuthEpochResolver,
+  AuthEpochResolverTokenClaims,
+} from './types'
 
 export const AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS = 5_000
 export const MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES = 1_024
 export const MAX_AUTH_EPOCH = 0xffff_ffff
-export const SPACETIMEDB_AUTH_EPOCH_PROCEDURE = 'admin_get_fid_auth_epoch'
+export const SPACETIMEDB_AUTH_EPOCH_PROCEDURE = 'auth_resolver_get_fid_admission_v2'
 
 export const AUTH_EPOCH_RESOLVER_FAILURE_STAGES = Object.freeze([
   'signing',
@@ -53,7 +57,7 @@ export type SpacetimeAuthEpochResolverConfig = Readonly<{
   timeoutMs: number
 }>
 
-export type AuthEpochJwtSigner = (claims: AdminTokenClaims) => Promise<string>
+export type AuthEpochJwtSigner = (claims: AuthEpochResolverTokenClaims) => Promise<string>
 export type AuthEpochFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 export type AuthEpochClock = () => number
 
@@ -96,8 +100,11 @@ function endpoint(config: SpacetimeAuthEpochResolverConfig): URL {
   )
 }
 
-function supportedFidArgument(fid: string): number {
-  if (!/^[1-9]\d{0,15}$/.test(fid)) {
+function supportedFidArgument(fid: unknown): Readonly<{
+  canonicalFid: string
+  fidArgument: number
+}> {
+  if (typeof fid !== 'string' || !/^[1-9]\d{0,15}$/.test(fid)) {
     throw new Error('Auth epoch resolver received an invalid FID.')
   }
   let parsed: bigint
@@ -109,7 +116,7 @@ function supportedFidArgument(fid: string): number {
   if (parsed > MAX_SUPPORTED_FID) {
     throw new Error('Auth epoch resolver received an invalid FID.')
   }
-  return Number(parsed)
+  return Object.freeze({ canonicalFid: fid, fidArgument: Number(parsed) })
 }
 
 function issuedAtSeconds(clock: AuthEpochClock): number {
@@ -163,7 +170,7 @@ async function readBoundedBody(response: Response): Promise<string> {
   return new TextDecoder().decode(bytes)
 }
 
-function parseEpoch(raw: string, contentType: string | null): number {
+function parseAdmission(raw: string, contentType: string | null): AdmissionResolution {
   if (contentType?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
     return resolverFailure('response_validation')
   }
@@ -177,21 +184,30 @@ function parseEpoch(raw: string, contentType: string | null): number {
   } catch {
     return resolverFailure('response_validation')
   }
+  if (!Array.isArray(value) || value.length !== 2) {
+    return resolverFailure('response_validation')
+  }
+  const [state, authEpoch] = value as unknown[]
   if (
-    typeof value !== 'number'
-    || !Number.isSafeInteger(value)
-    || value < 0
-    || value > MAX_AUTH_EPOCH
+    (state !== 'missing' && state !== 'disabled' && state !== 'enabled')
+    || typeof authEpoch !== 'number'
+    || !Number.isSafeInteger(authEpoch)
+    || authEpoch < 0
+    || authEpoch > MAX_AUTH_EPOCH
+    || (state === 'enabled' ? authEpoch < 1 : authEpoch !== 0)
   ) {
     return resolverFailure('response_validation')
   }
-  return value
+  if (state === 'enabled') {
+    return Object.freeze({ state: 'enabled', authEpoch })
+  }
+  return Object.freeze({ state, authEpoch: 0 })
 }
 
 /**
- * Resolves a verified Farcaster FID's revocation epoch directly through the
+ * Resolves a verified Farcaster FID's admission state directly through the
  * documented low-frequency SpacetimeDB HTTP procedure API. It mints a fresh,
- * non-persisted Hermes admin JWT for every request and never exposes it.
+ * non-persisted resolver-only JWT for every request and never exposes it.
  */
 export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
   private readonly fetcher: AuthEpochFetch
@@ -210,8 +226,8 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
     this.clock = dependencies.clock ?? Date.now
   }
 
-  async resolve(fid: string): Promise<number> {
-    const fidArgument = supportedFidArgument(fid)
+  async resolve(fid: string): Promise<AdmissionResolution> {
+    const { canonicalFid, fidArgument } = supportedFidArgument(fid)
     const issuedAt = issuedAtSeconds(this.clock)
     const controller = new AbortController()
     let timedOut = false
@@ -228,7 +244,12 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
       let token: string
       try {
         token = await Promise.race([
-          this.dependencies.signer(internalAdminClaims(this.config.issuer, this.config.audience, issuedAt)),
+          this.dependencies.signer(authEpochResolverClaims(
+            this.config.issuer,
+            this.config.audience,
+            canonicalFid,
+            issuedAt,
+          )),
           deadline,
         ])
       } catch (error) {
@@ -266,7 +287,7 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
           }
           if (!response.ok) return resolverFailure('upstream_status')
           try {
-            return parseEpoch(
+            return parseAdmission(
               await readBoundedBody(response),
               response.headers.get('content-type'),
             )

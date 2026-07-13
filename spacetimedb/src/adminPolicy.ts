@@ -6,7 +6,7 @@ export interface AllowedFidPolicyState {
 }
 
 export type AllowFidPlan =
-  | { kind: 'insert'; enabled: true; authEpoch: 0 }
+  | { kind: 'insert'; enabled: true; authEpoch: 1 }
   | { kind: 'enabled'; enabled: true; authEpoch: number }
   | { kind: 'reenabled'; enabled: true; authEpoch: number };
 
@@ -26,12 +26,12 @@ export class AuthEpochExhaustedError extends Error {
 
 /**
  * Plans whitelist admission before any table or audit mutation. New identities
- * retain epoch 0 for the first-invite flow. Re-enabling a disabled identity
- * rotates exactly once so every retained token from the earlier admission is
- * rejected by the existing module epoch guard.
+ * start at epoch 1; epoch 0 remains reserved for non-enabled resolver results.
+ * Re-enabling a disabled identity rotates exactly once so every retained token
+ * from the earlier admission is rejected by the existing module epoch guard.
  */
 export function planAllowFid(existing: AllowedFidPolicyState | null): AllowFidPlan {
-  if (!existing) return { kind: 'insert', enabled: true, authEpoch: 0 };
+  if (!existing) return { kind: 'insert', enabled: true, authEpoch: 1 };
   if (existing.enabled) {
     return { kind: 'enabled', enabled: true, authEpoch: existing.authEpoch };
   }

@@ -17,13 +17,13 @@ export type FarcasterQrAuthPanelProps = {
   identity?: VerifiedFarcasterIdentity;
   assurance?: FarcasterSessionAssurance;
   rememberDevice?: boolean;
-  hasRememberedDevice?: boolean;
   errorMessage?: string;
   className?: string;
   headingRef?: Ref<HTMLHeadingElement>;
   primaryActionRef?: Ref<HTMLButtonElement>;
   onPresentationReady?: () => void;
   onPrepareQrCode?: () => void;
+  onCheckAdmission?: () => void;
   onRememberDeviceChange?: (remember: boolean) => void;
   onCancel: () => void;
   onRetry: () => void;
@@ -55,6 +55,10 @@ const panelHeadings: Record<Exclude<FarcasterAuthPhase, 'anonymous'>, PanelHeadi
   verifying: {
     eyebrow: 'SIGNED RECORD RECEIVED',
     title: 'VERIFYING HEGEMONY RECORD'
+  },
+  'pending-admission': {
+    eyebrow: 'HEGEMONY FRONTIER ACCESS',
+    title: 'ENTRY NOT YET GRANTED'
   },
   authenticated: {
     eyebrow: 'FID BOUND TO THIS SESSION',
@@ -143,17 +147,16 @@ function getLiveAnnouncement(
       return 'Waiting for Farcaster approval';
     case 'verifying':
       return 'Verifying signature';
+    case 'pending-admission':
+      return identity
+        ? `Farcaster identity verified, admission pending, FID ${identity.fid}`
+        : 'Farcaster identity verified, admission pending';
     case 'authenticated': {
       if (!identity) {
-        return assurance === 'remembered-device-prototype'
-          ? 'Farcaster identity remembered on this device'
-          : 'Farcaster identity verified';
+        return 'Farcaster identity verified';
       }
       const username = normalizeFarcasterUsername(identity.username);
-      const assuranceCopy = assurance === 'remembered-device-prototype'
-        ? 'Remembered on this device'
-        : 'Verified through Farcaster';
-      return `${assuranceCopy}${username ? `: ${username}` : ''}, FID ${identity.fid}`;
+      return `Verified through Farcaster${username ? `: ${username}` : ''}, FID ${identity.fid}`;
     }
     case 'expired':
       return 'Authentication expired';
@@ -191,14 +194,14 @@ export function FarcasterQrAuthPanel({
   channelUrl,
   identity,
   assurance = 'live-client-verified',
-  rememberDevice = true,
-  hasRememberedDevice = false,
+  rememberDevice = false,
   errorMessage,
   className,
   headingRef,
   primaryActionRef,
   onPresentationReady,
   onPrepareQrCode,
+  onCheckAdmission,
   onRememberDeviceChange,
   onCancel,
   onRetry,
@@ -213,12 +216,7 @@ export function FarcasterQrAuthPanel({
     getFarcasterAuthPresentation
   );
   const autoRequestedChannelRef = useRef<string | undefined>(undefined);
-  const heading = phase === 'authenticated' && assurance === 'remembered-device-prototype'
-    ? {
-        eyebrow: 'LOCAL PROTOTYPE SESSION',
-        title: 'HEGEMONY RECORD REMEMBERED'
-      }
-    : panelHeadings[phase];
+  const heading = panelHeadings[phase];
   const isBusy = phase === 'creating-channel' || phase === 'verifying';
   const rootClassName = [
     'farcaster-auth-panel',
@@ -263,9 +261,7 @@ export function FarcasterQrAuthPanel({
   };
 
   const showDeepLink = () => setPresentation('deep-link-first');
-  const verifiedCopy = assurance === 'remembered-device-prototype'
-    ? 'Remembered on this device. Reconfirm in Farcaster whenever you need a fresh proof.'
-    : 'Verified through Farcaster. Your identity is recognized by the realm.';
+  const verifiedCopy = 'Your Farcaster identity is active for this browser session.';
 
   return (
     <section
@@ -289,6 +285,17 @@ export function FarcasterQrAuthPanel({
       <p aria-live="polite" className="farcaster-auth-panel__live-region" role="status">
         {getLiveAnnouncement(phase, identity, assurance)}
       </p>
+
+      {phase === 'awaiting-approval' ? (
+        <label className="farcaster-auth-panel__remember">
+          <input
+            checked={rememberDevice}
+            onChange={(event) => onRememberDeviceChange?.(event.currentTarget.checked)}
+            type="checkbox"
+          />
+          <span>Keep me signed in on this device</span>
+        </label>
+      ) : null}
 
       {phase === 'creating-channel' ? (
         <div className="farcaster-auth-panel__body farcaster-auth-panel__body--centered">
@@ -427,14 +434,6 @@ export function FarcasterQrAuthPanel({
         <div className="farcaster-auth-panel__body farcaster-auth-panel__body--authenticated">
           {identity ? <FarcasterIdentityBadge identity={identity} /> : null}
           <p className="farcaster-auth-panel__lead">{verifiedCopy}</p>
-          <label className="farcaster-auth-panel__remember">
-            <input
-              checked={rememberDevice}
-              onChange={(event) => onRememberDeviceChange?.(event.currentTarget.checked)}
-              type="checkbox"
-            />
-            <span>Remember this device for 30 days</span>
-          </label>
           <div className="farcaster-auth-panel__actions">
             <button
               className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
@@ -450,7 +449,36 @@ export function FarcasterQrAuthPanel({
               ENTER REALM
             </button>
             <button className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary" onClick={onSignOut} type="button">
-              {hasRememberedDevice ? 'SIGN OUT & FORGET DEVICE' : 'SIGN OUT'}
+              SIGN OUT
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {phase === 'pending-admission' ? (
+        <div className="farcaster-auth-panel__body farcaster-auth-panel__body--authenticated">
+          {identity ? <FarcasterIdentityBadge identity={identity} /> : null}
+          <p className="farcaster-auth-panel__lead" role="status">
+            Your Farcaster identity is verified. Admission to the Hegemony frontier is still pending.
+          </p>
+          <p className="farcaster-auth-panel__instruction">
+            Contact @0xael.eth on Farcaster to request access, then check again.
+          </p>
+          <div className="farcaster-auth-panel__actions">
+            <button
+              className="farcaster-auth-panel__action farcaster-auth-panel__action--primary"
+              onClick={onCheckAdmission}
+              ref={primaryActionRef}
+              type="button"
+            >
+              CHECK AGAIN
+            </button>
+            <button
+              className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
+              onClick={onSignOut}
+              type="button"
+            >
+              SIGN OUT
             </button>
           </div>
         </div>

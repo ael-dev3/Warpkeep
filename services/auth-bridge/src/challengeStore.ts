@@ -4,24 +4,46 @@ import type {
   DurableObjectNamespace,
   DurableObjectState,
 } from './types'
+import { BROWSER_BINDING_METHOD, isCanonicalBrowserBindingValue } from './browserBinding'
 
 const RECORD_KEY = 'challenge'
+const CHALLENGE_RECORD_KEYS = Object.freeze([
+  'version',
+  'requestId',
+  'nonce',
+  'origin',
+  'domain',
+  'siweUri',
+  'createdAt',
+  'expiresAt',
+  'bindingChallenge',
+  'bindingMethod',
+])
 
 function challengeUrl(path: 'record' | 'consume'): string {
   return `https://challenge-replay-guard.internal/${path}`
 }
 
 function isChallengeRecord(value: unknown): value is ChallengeRecord {
-  if (!value || typeof value !== 'object') return false
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const keys = Object.keys(value)
+  if (
+    keys.length !== CHALLENGE_RECORD_KEYS.length
+    || keys.some((key) => !CHALLENGE_RECORD_KEYS.includes(key))
+  ) return false
   const record = value as Partial<ChallengeRecord>
-  return record.version === 1
-    && typeof record.requestId === 'string'
-    && typeof record.nonce === 'string'
-    && typeof record.origin === 'string'
-    && typeof record.domain === 'string'
-    && typeof record.siweUri === 'string'
-    && Number.isFinite(record.createdAt)
-    && Number.isFinite(record.expiresAt)
+  const createdAt = record.createdAt
+  const expiresAt = record.expiresAt
+  return record.version === 2
+    && typeof record.requestId === 'string' && record.requestId.length > 0
+    && typeof record.nonce === 'string' && record.nonce.length > 0
+    && typeof record.origin === 'string' && record.origin.length > 0
+    && typeof record.domain === 'string' && record.domain.length > 0
+    && typeof record.siweUri === 'string' && record.siweUri.length > 0
+    && typeof createdAt === 'number' && Number.isSafeInteger(createdAt) && createdAt >= 0
+    && typeof expiresAt === 'number' && Number.isSafeInteger(expiresAt) && expiresAt > createdAt
+    && isCanonicalBrowserBindingValue(record.bindingChallenge)
+    && record.bindingMethod === BROWSER_BINDING_METHOD
 }
 
 async function responseRecord(response: Response): Promise<ChallengeRecord | null> {

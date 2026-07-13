@@ -48,6 +48,7 @@
 }
 
 .farcaster-admission-panel--connecting .farcaster-auth-panel__seal-spinner,
+.farcaster-admission-panel--reconnecting .farcaster-auth-panel__seal-spinner,
 .farcaster-admission-panel--checking-admission .farcaster-auth-panel__seal-spinner,
 .farcaster-admission-panel--bootstrapping .farcaster-auth-panel__seal-spinner {
   margin-bottom: 0.25rem;

@@ -1,6 +1,9 @@
 const EXPECTED_CANONICAL_ORIGIN = 'https://warpkeep.com';
 const EXPECTED_REPOSITORY_URL = 'https://github.com/ael-dev3/Warpkeep';
 const EXPECTED_AUDIENCE = 'warpkeep-spacetimedb';
+const EXPECTED_BRIDGE = 'https://auth.warpkeep.com';
+const EXPECTED_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com';
+const EXPECTED_SPACETIMEDB_DATABASE = 'warpkeep-89e4u';
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
 
 function fail(message) {
@@ -75,17 +78,17 @@ function main() {
     process.env.VITE_WARPKEEP_OIDC_ISSUER,
     'VITE_WARPKEEP_OIDC_ISSUER'
   );
-  if (bridge !== issuer) {
-    fail('the bridge URL and OIDC issuer must be identical.');
+  if (bridge !== EXPECTED_BRIDGE || issuer !== EXPECTED_BRIDGE) {
+    fail(`the bridge URL and OIDC issuer must both be ${EXPECTED_BRIDGE}.`);
   }
   if (process.env.VITE_WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
     fail(`VITE_WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
   }
-  if (process.env.VITE_SPACETIMEDB_URI !== 'https://maincloud.spacetimedb.com') {
-    fail('VITE_SPACETIMEDB_URI must target Maincloud.');
+  if (process.env.VITE_SPACETIMEDB_URI !== EXPECTED_SPACETIMEDB_URI) {
+    fail(`VITE_SPACETIMEDB_URI must be ${EXPECTED_SPACETIMEDB_URI}.`);
   }
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(process.env.VITE_SPACETIMEDB_DATABASE ?? '')) {
-    fail('VITE_SPACETIMEDB_DATABASE is invalid.');
+  if (process.env.VITE_SPACETIMEDB_DATABASE !== EXPECTED_SPACETIMEDB_DATABASE) {
+    fail(`VITE_SPACETIMEDB_DATABASE must be ${EXPECTED_SPACETIMEDB_DATABASE}.`);
   }
 
   console.log('Pages deployment validation passed with shared alpha enabled.');

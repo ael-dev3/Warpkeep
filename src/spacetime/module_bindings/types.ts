@@ -20,6 +20,24 @@ export const AdminAlphaStatus = __t.object("AdminAlphaStatus", {
 });
 export type AdminAlphaStatus = __Infer<typeof AdminAlphaStatus>;
 
+export const AdminAlphaStatusV2 = __t.object("AdminAlphaStatusV2", {
+  worldTiles: __t.u64(),
+  legacyPlayers: __t.u64(),
+  playersV2: __t.u64(),
+  playerOwnershipsV2: __t.u64(),
+  consistentPlayerPairsV2: __t.u64(),
+  orphanedPlayerRowsV2: __t.u64(),
+  orphanedOwnershipRowsV2: __t.u64(),
+  castles: __t.u64(),
+  allowedFids: __t.u64(),
+  enabledAllowedFids: __t.u64(),
+  auditEntries: __t.u64(),
+  protocolVersion: __t.u32(),
+  worldSeed: __t.u32(),
+  worldSeedName: __t.string(),
+});
+export type AdminAlphaStatusV2 = __Infer<typeof AdminAlphaStatusV2>;
+
 export const AdminAudit = __t.object("AdminAudit", {
   id: __t.u64(),
   action: __t.string(),
@@ -47,6 +65,12 @@ export const AlphaBackendInfo = __t.object("AlphaBackendInfo", {
 });
 export type AlphaBackendInfo = __Infer<typeof AlphaBackendInfo>;
 
+export const AuthResolverFidAdmissionV2 = __t.object("AuthResolverFidAdmissionV2", {
+  state: __t.string(),
+  authEpoch: __t.u32(),
+});
+export type AuthResolverFidAdmissionV2 = __Infer<typeof AuthResolverFidAdmissionV2>;
+
 export const Castle = __t.object("Castle", {
   castleId: __t.u64(),
   ownerFid: __t.u64(),
@@ -69,6 +93,22 @@ export const Player = __t.object("Player", {
   status: __t.string(),
 });
 export type Player = __Infer<typeof Player>;
+
+export const PlayerOwnershipV2 = __t.object("PlayerOwnershipV2", {
+  fid: __t.u64(),
+  identity: __t.identity(),
+});
+export type PlayerOwnershipV2 = __Infer<typeof PlayerOwnershipV2>;
+
+export const PlayerV2 = __t.object("PlayerV2", {
+  fid: __t.u64(),
+  username: __t.option(__t.string()),
+  displayName: __t.option(__t.string()),
+  pfpUrl: __t.option(__t.string()),
+  joinedAt: __t.timestamp(),
+  status: __t.string(),
+});
+export type PlayerV2 = __Infer<typeof PlayerV2>;
 
 export const WorldTile = __t.object("WorldTile", {
   key: __t.string(),

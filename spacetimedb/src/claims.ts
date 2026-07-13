@@ -2,6 +2,9 @@ import {
   MAX_AUTH_EPOCH,
   MAX_SUPPORTED_FID,
   WARPKEEP_ADMIN_ROLE,
+  WARPKEEP_AUTH_EPOCH_RESOLVER_ROLE,
+  WARPKEEP_AUTH_EPOCH_RESOLVER_SUBJECT,
+  WARPKEEP_AUTH_VERSION,
   WARPKEEP_HERMES_SUBJECT,
   WARPKEEP_JWT_CONFIG,
 } from './config';
@@ -13,13 +16,16 @@ export type ClaimErrorCode =
   | 'INVALID_TOKEN_TYPE'
   | 'INVALID_SUBJECT'
   | 'INVALID_FID'
+  | 'INVALID_AUTH_VERSION'
   | 'INVALID_AUTH_EPOCH'
   | 'INVALID_ROLES'
   | 'INVALID_PLAYER_SESSION'
-  | 'INVALID_ADMIN_SESSION';
+  | 'INVALID_ADMIN_SESSION'
+  | 'INVALID_AUTH_RESOLVER_SESSION';
 
-export const MAX_PLAYER_SESSION_SECONDS = 30 * 24 * 60 * 60;
+export const MAX_PLAYER_SESSION_SECONDS = 10 * 60;
 export const MAX_HERMES_ADMIN_SESSION_SECONDS = 5 * 60;
+export const MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS = 60;
 
 export class ClaimValidationError extends Error {
   readonly code: ClaimErrorCode;
@@ -47,10 +53,16 @@ export type WarpkeepBaseJwtClaims = Readonly<{
 
 export type WarpkeepJwtClaims = WarpkeepBaseJwtClaims &
   Readonly<{
+    authVersion: number;
     fid: bigint;
     authEpoch: number;
     sessionIssuedAt: number;
     sessionExpiresAt: number;
+  }>;
+
+export type AuthEpochResolverJwtClaims = WarpkeepBaseJwtClaims &
+  Readonly<{
+    resolverFid: bigint;
   }>;
 
 type JsonRecord = Readonly<Record<string, unknown>>;
@@ -125,7 +137,7 @@ export function parseAuthEpochClaim(value: unknown): number {
   if (
     typeof value !== 'number' ||
     !Number.isInteger(value) ||
-    value < 0 ||
+    value < 1 ||
     value > MAX_AUTH_EPOCH
   ) {
     throw new ClaimValidationError('INVALID_AUTH_EPOCH');
@@ -175,6 +187,10 @@ export function readWarpkeepJwt(
 ): WarpkeepJwtClaims {
   const base = readWarpkeepBaseJwt(payload, config);
   const record = expectRecord(payload);
+  if (record.auth_version !== WARPKEEP_AUTH_VERSION) {
+    throw new ClaimValidationError('INVALID_AUTH_VERSION');
+  }
+  const authVersion = WARPKEEP_AUTH_VERSION;
   const fid = parseFidClaim(record.fid);
   const authEpoch = parseAuthEpochClaim(record.auth_epoch);
   const sessionIssuedAt = readNumericDate(record, 'session_iat', 'INVALID_PLAYER_SESSION');
@@ -193,7 +209,14 @@ export function readWarpkeepJwt(
     throw new ClaimValidationError('INVALID_PLAYER_SESSION');
   }
 
-  return Object.freeze({ ...base, fid, authEpoch, sessionIssuedAt, sessionExpiresAt });
+  return Object.freeze({
+    ...base,
+    authVersion,
+    fid,
+    authEpoch,
+    sessionIssuedAt,
+    sessionExpiresAt,
+  });
 }
 
 /**
@@ -206,6 +229,15 @@ export function isHermesAdminJwt(claims: WarpkeepBaseJwtClaims): boolean {
     claims.subject === WARPKEEP_HERMES_SUBJECT &&
     claims.roles.length === 1 &&
     claims.roles[0] === WARPKEEP_ADMIN_ROLE
+  );
+}
+
+/** The resolver is a single-purpose service principal, never an administrator. */
+export function isAuthEpochResolverJwt(claims: WarpkeepBaseJwtClaims): boolean {
+  return (
+    claims.subject === WARPKEEP_AUTH_EPOCH_RESOLVER_SUBJECT &&
+    claims.roles.length === 1 &&
+    claims.roles[0] === WARPKEEP_AUTH_EPOCH_RESOLVER_ROLE
   );
 }
 
@@ -234,6 +266,7 @@ export function readFreshWarpkeepPlayerJwt(
   const claims = readWarpkeepJwt(payload, config);
   if (
     currentTimeMicros < 0n
+    || currentTimeMicros < BigInt(claims.sessionIssuedAt) * 1_000_000n
     || currentTimeMicros >= BigInt(claims.sessionExpiresAt) * 1_000_000n
   ) {
     throw new ClaimValidationError('INVALID_PLAYER_SESSION');
@@ -258,6 +291,7 @@ export function readFreshHermesAdminJwt(
   if (
     !isHermesAdminJwt(claims)
     || currentTimeMicros < 0n
+    || currentTimeMicros < BigInt(issuedAt) * 1_000_000n
     || expiresAt <= issuedAt
     || expiresAt - issuedAt > MAX_HERMES_ADMIN_SESSION_SECONDS
     || currentTimeMicros >= BigInt(expiresAt) * 1_000_000n
@@ -267,15 +301,42 @@ export function readFreshHermesAdminJwt(
   return claims;
 }
 
-export function optionalDisplayClaim(
+/** Validate the exact resolver principal, one-FID binding, and tiny authority window. */
+export function readFreshAuthEpochResolverJwt(
   payload: unknown,
-  key: 'username' | 'display_name' | 'pfp_url',
-  maxLength: number,
-): string | undefined {
-  if (!isRecord(payload)) return undefined;
-  const value = payload[key];
-  if (typeof value !== 'string') return undefined;
+  currentTimeMicros: bigint,
+  config: WarpkeepJwtConfig = WARPKEEP_JWT_CONFIG,
+): AuthEpochResolverJwtClaims {
+  let claims: WarpkeepBaseJwtClaims;
+  let issuedAt: number;
+  let expiresAt: number;
+  let resolverFid: bigint;
 
-  const trimmed = value.trim();
-  return trimmed.length > 0 && trimmed.length <= maxLength ? trimmed : undefined;
+  try {
+    claims = readWarpkeepBaseJwt(payload, config);
+    const record = expectRecord(payload);
+    issuedAt = readNumericDate(record, 'iat', 'INVALID_AUTH_RESOLVER_SESSION');
+    expiresAt = readNumericDate(record, 'exp', 'INVALID_AUTH_RESOLVER_SESSION');
+    resolverFid = parseFidClaim(record.resolver_fid);
+  } catch (error) {
+    if (
+      error instanceof ClaimValidationError &&
+      error.code === 'INVALID_AUTH_RESOLVER_SESSION'
+    ) {
+      throw error;
+    }
+    throw new ClaimValidationError('INVALID_AUTH_RESOLVER_SESSION');
+  }
+
+  if (
+    !isAuthEpochResolverJwt(claims) ||
+    currentTimeMicros < 0n ||
+    currentTimeMicros < BigInt(issuedAt) * 1_000_000n ||
+    expiresAt <= issuedAt ||
+    expiresAt - issuedAt > MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS ||
+    currentTimeMicros >= BigInt(expiresAt) * 1_000_000n
+  ) {
+    throw new ClaimValidationError('INVALID_AUTH_RESOLVER_SESSION');
+  }
+  return Object.freeze({ ...claims, resolverFid });
 }

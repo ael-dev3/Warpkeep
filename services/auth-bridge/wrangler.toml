@@ -18,6 +18,7 @@ OIDC_AUDIENCE = "warpkeep-spacetimedb"
 OIDC_KEY_ID = "warpkeep-alpha-2026-07-01"
 SPACETIMEDB_URI = "https://maincloud.spacetimedb.com"
 SPACETIMEDB_DATABASE = "warpkeep-89e4u"
+PUBLIC_AUTH_ENABLED = "false"
 
 [[routes]]
 pattern = "auth.warpkeep.com"
@@ -31,6 +32,10 @@ class_name = "ChallengeReplayGuard"
 name = "AUTH_RATE_LIMITER"
 class_name = "AuthRateLimiter"
 
+[[durable_objects.bindings]]
+name = "SESSION_FAMILIES"
+class_name = "SessionFamily"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ChallengeReplayGuard"]
@@ -38,3 +43,7 @@ new_sqlite_classes = ["ChallengeReplayGuard"]
 [[migrations]]
 tag = "v2"
 new_sqlite_classes = ["AuthRateLimiter"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["SessionFamily"]

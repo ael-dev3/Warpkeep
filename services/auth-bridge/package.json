@@ -10,14 +10,17 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
+    "typecheck:workerd": "tsc --noEmit -p test-workerd/tsconfig.json",
     "test": "vitest run",
-    "check": "pnpm run typecheck && pnpm run test"
+    "test:workerd": "vitest run --config vitest.workerd.config.ts",
+    "check": "pnpm run typecheck && pnpm run typecheck:workerd && pnpm run test && pnpm run test:workerd"
   },
   "dependencies": {
     "@farcaster/auth-client": "0.7.1",
     "viem": "2.55.0"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.18.4",
     "@cloudflare/workers-types": "5.20260708.1",
     "@types/node": "26.1.1",
     "typescript": "7.0.2",

@@ -6,6 +6,49 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 No unreleased player-facing changes.
 
+## [0.3.1] — 2026-07-13
+
+### Added
+
+- An accessible, unchecked **ALPHA PARTICIPATION TERMS** gate before every
+  authentication attempt, with one-shot in-memory acceptance and no identity or
+  persistent acceptance record.
+- S256 browser binding for Farcaster proof exchange, rotating HttpOnly session
+  families, explicit remember-device opt-in, and server-side logout/revocation.
+- Tokenless pending-admission sessions, positive admission epochs, a dedicated
+  resolver authority, and an additive public `player_v2` / private
+  `player_ownership_v2` ownership pair. The deployed legacy `player` schema is
+  retained unchanged and its writer is retired.
+
+### Changed
+
+- Anonymous mount, focus, visibility, pageshow, and direct `#realm` navigation
+  no longer restore cookie authority or begin authentication. Direct realm URLs
+  normalize to the menu until a fresh, accepted entry attempt succeeds.
+- Retry, pending-admission checks, authenticated entry, cancellation, failure,
+  expiry, browser Back, and unmount now consume or clear the current acceptance.
+
+### Security and operations
+
+- Added exact runtime/configuration attestation, defensive transport and response
+  headers, least-privilege protocol-v2 claims, privacy-safe logging, and
+  fail-closed browser/Worker/SpacetimeDB compatibility checks.
+- Added a pinned, loopback-only SpacetimeDB 2.6.1 rehearsal proving that the v2
+  schema is additive, the real module preserves empty and synthetic nonempty
+  legacy fixtures, uses `--delete-data=never`, and cannot accept a
+  breaking-client prompt. The guarded publisher repeats that proof, binds its
+  SHA-256 receipt to the same prebuilt `bundle.js`, rechecks the bytes before
+  invoking `--js-path`, and performs a fresh protected v1 aggregate before
+  targeting the immutable database identity.
+- Pinned the browser's numeric world seed and made canonical terrain plus every
+  castle/occupancy backlink fail closed before v2 readiness or inspection.
+- Kept public authentication disabled by default. The schema, Durable Object,
+  managed-secret, Worker, Pages, and public-enable stages remain separate owner
+  approval gates; this source release alone changes no production user or world
+  data.
+
+See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
+
 ## [0.3.0] — 2026-07-13
 
 ### Added
@@ -60,6 +103,7 @@ No unreleased player-facing changes.
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ael-dev3/Warpkeep/compare/d5f0748dbfff07064a736c2b8d273d6022a03050...v0.3.0
 [0.2.0]: https://github.com/ael-dev3/Warpkeep/compare/f50a277044b8abe23df9fe8aae25dd82b49635b6...d5f0748dbfff07064a736c2b8d273d6022a03050
