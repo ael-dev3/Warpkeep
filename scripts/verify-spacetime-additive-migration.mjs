@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -49,6 +49,8 @@ const childEnvironmentKeys = Object.freeze([
 
 class MigrationProofError extends Error {}
 
+let disposableCliCredential = null;
+
 function fail(message) {
   throw new MigrationProofError(message);
 }
@@ -76,9 +78,6 @@ function collectBounded(stream, onOverflow) {
 async function runCommand(arguments_, { token, timeout = commandTimeoutMilliseconds } = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const withToken = typeof token === 'string';
-    const stdio = withToken
-      ? ['ignore', 'pipe', 'pipe', 'pipe']
-      : ['ignore', 'pipe', 'pipe'];
     let settled = false;
     let overflow = false;
     let timedOut = false;
@@ -87,7 +86,7 @@ async function runCommand(arguments_, { token, timeout = commandTimeoutMilliseco
     const child = spawn(command, arguments_, {
       cwd: repositoryRoot,
       env: childEnvironment(),
-      stdio,
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
     const finish = callback => {
       if (settled) return;
@@ -129,20 +128,34 @@ async function runCommand(arguments_, { token, timeout = commandTimeoutMilliseco
         finish(() => rejectPromise(new MigrationProofError('CLI command exceeded its hard deadline.')));
       }, 5_000);
     }, timeout);
-
-    if (withToken) {
-      const configPipe = child.stdio[3];
-      configPipe.on('error', () => {
-        try { child.kill('SIGKILL'); } catch { /* The credential pipe failed closed. */ }
-      });
-      configPipe.end(`spacetimedb_token = ${JSON.stringify(token)}\n`);
-    }
   });
 }
 
 function configArguments(token) {
-  if (typeof token !== 'string' || token.length < 32) fail('Disposable local credential was invalid.');
-  return ['--config-path=/dev/fd/3'];
+  if (
+    typeof token !== 'string'
+    || token.length < 32
+    || disposableCliCredential?.token !== token
+    || typeof disposableCliCredential.configPath !== 'string'
+  ) fail('Disposable local credential was invalid.');
+  return [`--config-path=${disposableCliCredential.configPath}`];
+}
+
+async function configureDisposableCliCredential(token, dataDirectory) {
+  if (disposableCliCredential !== null || typeof token !== 'string' || token.length < 32) {
+    fail('Disposable local credential setup was invalid.');
+  }
+  const configPath = join(dataDirectory, 'cli.toml');
+  await writeFile(
+    configPath,
+    `spacetimedb_token = ${JSON.stringify(token)}\n`,
+    { encoding: 'utf8', flag: 'wx', mode: 0o600 },
+  );
+  const metadata = await stat(configPath);
+  if (!metadata.isFile() || (metadata.mode & 0o777) !== 0o600) {
+    fail('Disposable local credential file permissions were invalid.');
+  }
+  disposableCliCredential = Object.freeze({ token, configPath });
 }
 
 function assertSafePublishArguments(arguments_) {
@@ -453,6 +466,7 @@ async function main() {
 
   try {
     const owner = await acquireDisposableIdentity(server);
+    await configureDisposableCliCredential(owner.token, dataDirectory);
     await publish(server, owner.token, fixtureModule, emptyDatabase);
     await publish(server, owner.token, fixtureModule, nonemptyDatabase);
     await publish(server, owner.token, fixtureModule, actualModuleDatabase);
@@ -632,6 +646,7 @@ async function main() {
       + `and guarded v1 rollback refused before schema change. artifact_sha256=${builtArtifactDigest}`,
     );
   } finally {
+    disposableCliCredential = null;
     await stopServer(serverProcess);
     await rm(dataDirectory, { recursive: true, force: true });
   }
