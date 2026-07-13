@@ -36,6 +36,12 @@ import type {
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
+  'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+  'referrer-policy': 'no-referrer',
+  'strict-transport-security': 'max-age=86400',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
 }
 
 const MAX_PROOF_SIGNATURE_BYTES = 4 * 1024
@@ -130,6 +136,10 @@ function requireAdminNoOrigin(request: Request): void {
 
 function isServerOnlyAdminPath(pathname: string): boolean {
   return pathname === '/v1/admin/token' || pathname === AUTH_EPOCH_PROBE_PATH
+}
+
+function isPublicAuthPath(pathname: string): boolean {
+  return pathname === '/v1/farcaster/challenge' || pathname === '/v1/farcaster/exchange'
 }
 
 function logAuthEpochFailure(logger: SafeLogger, error: unknown): void {
@@ -530,6 +540,17 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
   return {
     async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+      let url: URL
+      try {
+        url = new URL(request.url)
+      } catch {
+        return errorResponse(new HttpError(400, 'invalid_request_url', 'Request URL is invalid.'))
+      }
+      if (url.protocol !== 'https:') {
+        logger.event('plaintext_request_rejected')
+        return errorResponse(new HttpError(426, 'https_required', 'HTTPS is required.'))
+      }
+
       let config: BridgeConfig
       try {
         config = configReader(env)
@@ -538,8 +559,15 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         return errorResponse(new HttpError(503, 'service_misconfigured', 'Authentication service is not configured.'))
       }
 
-      const url = new URL(request.url)
       try {
+        if (isPublicAuthPath(url.pathname) && !config.publicAuthEnabled) {
+          logger.event('public_auth_paused')
+          throw new HttpError(
+            503,
+            'public_auth_paused',
+            'Farcaster sign-in is temporarily paused for security hardening.',
+          )
+        }
         if (request.method === 'OPTIONS' && (url.pathname === '/v1/farcaster/challenge' || url.pathname === '/v1/farcaster/exchange')) {
           return allowedPreflight(request, config)
         }

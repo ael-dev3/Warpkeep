@@ -6,7 +6,7 @@ export const DEFAULT_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com';
 export const DEFAULT_SPACETIMEDB_DATABASE = 'warpkeep-89e4u';
 export const DEFAULT_WARPKEEP_OIDC_AUDIENCE = 'warpkeep-spacetimedb';
 export const WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE =
-  'The shared Hegemony frontier is not currently available.';
+  'FARCASTER SIGN-IN TEMPORARILY PAUSED FOR SECURITY HARDENING';
 
 export type WarpkeepRuntimeEnvironment = Readonly<{
   DEV?: boolean;

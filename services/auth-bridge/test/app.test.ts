@@ -38,6 +38,7 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     OIDC_KEY_ID: 'test-es256-2026',
     SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
     SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+    PUBLIC_AUTH_ENABLED: 'true',
     SIGNING_KEY_JWK: JSON.stringify(privateJwk),
     ADMIN_TOKEN_SECRET: ADMIN_SECRET,
     ENVIRONMENT: 'production',
@@ -150,6 +151,42 @@ function proofFor(challenge: Record<string, unknown>, overrides: Record<string, 
 
 describe('Warpkeep auth bridge', () => {
   beforeEach(() => vi.restoreAllMocks())
+
+  it('rejects plaintext before configuration or request-body work', async () => {
+    const h = harness()
+    const response = await h.app.fetch(new Request('http://bridge.warpkeep.example/v1/farcaster/exchange', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: ORIGIN },
+      body: '{not-json'
+    }), env({ ISSUER: undefined }))
+    expect(response.status).toBe(426)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.has('access-control-allow-origin')).toBe(false)
+    expect(h.events).toEqual(['plaintext_request_rejected'])
+  })
+
+  it('keeps health available while the independent public-auth kill switch rejects challenge and exchange', async () => {
+    const h = harness()
+    const disabled = env({ PUBLIC_AUTH_ENABLED: 'false' })
+    expect((await h.app.fetch(request('/healthz'), disabled)).status).toBe(200)
+    for (const path of ['/v1/farcaster/challenge', '/v1/farcaster/exchange']) {
+      const response = await h.app.fetch(request(path, {}, { headers: { origin: ORIGIN } }), disabled)
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'public_auth_paused' }
+      })
+    }
+    expect(h.events).toEqual(['public_auth_paused', 'public_auth_paused'])
+  })
+
+  it('adds staged HSTS and centralized security headers to HTTPS responses', async () => {
+    const response = await harness().app.fetch(request('/healthz'), env())
+    expect(response.headers.get('strict-transport-security')).toBe('max-age=86400')
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(response.headers.get('x-frame-options')).toBe('DENY')
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer')
+    expect(response.headers.get('content-security-policy')).toContain("default-src 'none'")
+  })
 
   it('rate-limits credential-bearing POST routes without affecting health or preflight', async () => {
     const check = vi.fn(async (_request: Request, action: string) => (
