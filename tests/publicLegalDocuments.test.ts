@@ -39,7 +39,6 @@ describe('public Alpha legal documents', () => {
       .toBe('https://warpkeep.com/privacy/');
     expect(terms.querySelector('a[href="../privacy/index.html"]')).not.toBeNull();
     expect(privacy.querySelector('a[href="../terms/index.html"]')).not.toBeNull();
-    expect(privacy.querySelector('a[href*="poverenik.rs"]')).toBeNull();
   });
 
   it('uses one valid main landmark per document', () => {
@@ -84,9 +83,9 @@ describe('public Alpha legal documents', () => {
       'No fixed Alpha deletion schedule yet',
       'Legal bases where applicable',
       'Services, recipients, and locations',
-      'outside Serbia or the EEA',
+      'processed in multiple countries',
       'access, correct, erase, restrict',
-      'Commissioner for Information of Public Importance and Personal Data Protection',
+      'privacy or data-protection authority that applies',
       'does not use player data for credit scoring',
       'Alpha participation earns none of those benefits'
     ]) {
