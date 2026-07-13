@@ -54,6 +54,8 @@ export interface WorkerEnv {
   SPACETIMEDB_URI?: string
   /** Non-secret database name used only by the Worker auth-epoch lookup. */
   SPACETIMEDB_DATABASE?: string
+  /** Emergency public-auth kill switch. Trust coordinates remain immutable. */
+  PUBLIC_AUTH_ENABLED?: string
   ENVIRONMENT?: string
   CHALLENGE_REPLAY_GUARD?: DurableObjectNamespace
   AUTH_RATE_LIMITER?: DurableObjectNamespace
@@ -87,6 +89,8 @@ export type SafeLogEvent =
   | 'rate_limited'
   | 'rate_limit_failed'
   | 'configuration_error'
+  | 'plaintext_request_rejected'
+  | 'public_auth_paused'
   | 'internal_error'
 
 /** This deliberately cannot accept proof, token, nonce, secret, or arbitrary errors. */

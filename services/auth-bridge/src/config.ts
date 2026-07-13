@@ -21,6 +21,7 @@ export interface BridgeConfig {
   adminTokenSecret: string
   spacetimeDbUri: string
   spacetimeDbDatabase: string
+  publicAuthEnabled: boolean
   environment: 'development' | 'production'
 }
 
@@ -149,6 +150,13 @@ function parseSpacetimeDbDatabase(value: string): string {
   return value
 }
 
+function parsePublicAuthEnabled(value: string): boolean {
+  if (value !== 'true' && value !== 'false') {
+    throw new ConfigurationError()
+  }
+  return value === 'true'
+}
+
 export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   const environment: 'development' | 'production' = env.ENVIRONMENT === 'development'
     ? 'development'
@@ -195,6 +203,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     adminTokenSecret: parseAdminTokenSecret(required(env, 'ADMIN_TOKEN_SECRET')),
     spacetimeDbUri,
     spacetimeDbDatabase,
+    publicAuthEnabled: parsePublicAuthEnabled(required(env, 'PUBLIC_AUTH_ENABLED')),
     environment,
   }
 }
