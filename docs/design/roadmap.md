@@ -1,57 +1,36 @@
 # Warpkeep roadmap
 
-## Current milestone — Warpkeep Alpha 0.2.0 activation candidate
+## Current milestone — Alpha 0.3.0 living-world foundation
 
-Implemented in the repository, but intentionally not activated on the public Pages deployment until infrastructure is real:
+Warpkeep's public title, menu, SIWF/OIDC boundary, deterministic 61-cell Lowlands, first authoritative keep projection, and server module are live. The production admission list remains intentionally empty: the world exists, but no player or castle is created until a FID is deliberately admitted.
 
-- cinematic title, menu, credits, audio scenes, mobile deep-link-first SIWF, and accessible route transitions;
-- 61 playable Lowlands hexes with a separate 30-cell visual apron, high/compact keep LODs, and a close keep camera;
-- Farcaster SIWF → independently verified bridge proof → ES256 OIDC JWT with stable `farcaster:<fid>` subject;
-- private `allowed_fid` plus auth-epoch revocation, public player/castle/world state, and real generated SpacetimeDB bindings;
-- narrow shared subscriptions after admission only; server castle name/level/coordinates replace the old fixed-center authority while peer keeps stay lightweight;
-- an empty initial whitelist and the Hegemony request-access panel for valid but unadmitted users;
-- protected Hermes operations, generated-binding CI verification, bridge tests, and fail-closed deployment guards.
-- a semantic product version, exact build-SHA menu stamp, canonical-domain build policy, and a default-off shared-alpha switch.
-
-The public Pages experience does not currently claim a permanent keep. `warpkeep.com` is the canonical target; its Pages domain is verified, HTTPS is enforced, and public resolvers see the required apex/`www` DNS. The Worker issuer, private direct Maincloud auth-epoch procedure call, and module publish remain activation gates. Without a configured bridge/issuer it remains title/menu-safe and performs no shared database I/O.
-
-## Activation gate
-
-Before merging active frontend configuration or publishing a real module:
-
-1. Provision a stable HTTPS OIDC issuer with public discovery/JWKS and a managed ES256 private key.
-2. Deploy the Worker with exact Pages CORS/SIWF values and a private documented `admin_get_fid_auth_epoch` SpacetimeDB HTTP procedure call authenticated by a fresh short-lived Hermes OIDC JWT.
-3. Replace the module's `.invalid` issuer, build with pinned `2.6.1`, publish to `warpkeep-89e4u` non-destructively, and seed exactly 61 world rows.
-4. Keep all real FIDs out of `allowed_fid`; test a valid Farcaster login through the clean denial panel first.
-5. Configure public Vite values, deploy Pages, and verify anonymous visitors create neither relay nor SpacetimeDB identities.
+Alpha 0.3.0 adds the real 3D title, functional graphics settings, a high-quality balanced mobile keep, clearer realm lighting/fog, centered credits, reproducible asset inputs, and a complete reconstruction record. Cinematic/Balanced/Performance choices affect the title model and VFX, realm terrain density, keep LOD, pixel budget, shadows, fog, and lighting without changing authentication or authority.
 
 ## Next vertical slice — admitted shared realm
 
-After activation QA, admit a deliberately chosen user through Hermes and prove:
+After a deliberate admission decision:
 
-- one persistent player and one level-one castle bootstrap atomically;
-- server-owned castle location/name/level render after reload;
-- a second admitted fixture appears as a lightweight peer marker;
-- disable/auth-epoch bump revokes gameplay authorization immediately;
-- public world/player/castle updates are realtime and private tables never reach browser bindings.
+1. Bootstrap one player and level-one castle atomically through the server module.
+2. Prove server-owned castle location/name/level after reload and on a second client.
+3. Render another admitted player as a lightweight peer marker.
+4. Prove disable/auth-epoch rotation revokes gameplay authorization without deleting state.
+5. Keep private admission/audit data out of browser subscriptions and diagnostics.
 
-This requires isolated local module integration coverage before any real-user admission.
+## Gameplay slices
 
-## Subsequent gameplay slices
-
-1. Server-derived resources and building queues.
-2. Unit training, scouting, map visibility, and public reports.
-3. Deterministic travel, raids, and combat resolution.
+1. Server-derived resources and deterministic building queues.
+2. Unit training, scouting, map visibility, and public activity reports.
+3. Deterministic travel, raids, defenses, and bounded combat resolution.
 4. Alliances, diplomacy, season rules, and community realm governance.
-5. Optional original faction economies and social mechanics, never as authentication inputs or pay-to-win shortcuts.
-
-AI remains a presentation layer for court reports, lore, summaries, and quest copy. Reducers remain the only authority for resources, progression, combat, and social state.
+5. Read-only AI court reports, lore, summaries, and quests derived from authoritative snapshots.
 
 ## Non-goals for this alpha
 
-- resources, building upgrades, units, combat, alliances, chat, tokens, or multiple authoritative realms;
-- authoritative visual-apron cells;
-- Mini App/Quick Auth/wallet connectivity;
-- a production refresh-token architecture;
-- any automatic owner, QA, or synthetic FID allowlisting;
-- new title/menu/terrain art unrelated to the shared-state proof.
+- pretending the complete resource/combat/social loop exists;
+- automatic owner, QA, synthetic, or public allowlisting;
+- browser-owned keep identity, resource totals, timer completion, or combat results;
+- wallet/token mechanics or pay-to-win shortcuts;
+- using AI output as authoritative state;
+- publishing unresolved-rights source media merely to reduce repository size.
+
+The frontier grows through small server-authoritative slices, each deployed from an exact reviewed commit and verified against production before the next begins.

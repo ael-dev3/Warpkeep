@@ -4,12 +4,41 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-- The closed-alpha server chain is live from activation head `83bc36c` and Worker source `63336dd`: discovery/JWKS, distributed rate control, the private Worker-to-Maincloud auth-epoch procedure, and the non-destructively published module passed their remote gates. Maincloud holds exactly 61 world cells with an empty allowlist and zero players or castles; owner denial QA remains pending.
-- The stacked activation code adds distributed authentication rate control,
-  explicit re-enable epoch rotation, post-upstream challenge-expiry checks, and
-  bounded activation tooling. The additional assurance fixes on this branch are
-  not represented as deployed until their exact consolidated head is deployed
-  and the protected production verifier passes again.
+No unreleased player-facing changes.
+
+## [0.3.0] — 2026-07-13
+
+### Added
+
+- Real Meshopt-compressed WARPKEEP stone-title assemblies with exact runtime integrity checks and a procedural fallback.
+- One persisted graphics setting shared by the title and realm: Auto, Cinematic, Balanced, and Performance.
+- A 2.06 MB balanced Hegemony keep tier that preserves the mobile silhouette and material boundaries.
+- Public-safe engineering lessons plus workstation, service, asset, deployment, incident, and credential-recovery documentation.
+- Explicit title-asset fetch/cache/offline preparation and CI checks for runtime hashes and oversized non-runtime files.
+
+### Changed
+
+- Normal phones now use the balanced profile; manual settings safely recreate renderers while preserving the selected realm cell.
+- Realm fog sits farther from the camera, while restrained ACES exposure and warm/cool lighting improve keep contrast.
+- Credits use a viewport-centered track independent of their vertical animation and include the stone-title attribution.
+- The README and project voice now describe a live, persistent frontier rather than an outdated local scaffold.
+- Large reference-only source binaries left the active repository tree. Unresolved-rights families were restricted rather than uploaded publicly.
+
+### Removed
+
+- The local-save-style **CONTINUE** menu command and its stale notices/tests.
+
+### Fixed
+
+- Corrected the deployed Workerd auth-epoch resolver's accidental method receiver binding by invoking the stored runtime `fetch` through a receiverless local binding.
+- Added privacy-safe failure stages and a server-only synthetic resolver probe so deployed failures can be diagnosed without returning identity, token, epoch, URL, or upstream-body data.
+- Preserved selected realm cells and disposed/recreated exactly one scene when graphics quality changes.
+
+### Security and operations
+
+- Preserved the fail-closed SIWF → Worker OIDC → SpacetimeDB admission boundary and the empty production admission state.
+- Completed the history-preserving Apache-2.0/CC-BY-4.0 two-commit cutover while retaining the v0.2.0 0BSD/CC0 texts.
+- Archived the authorized title sources and assemblies in the public Warpkeep-Assets release `title-stone-letters-2026-07-12` with verified download hashes.
 
 ## [0.2.0] — Alpha candidate
 
@@ -31,5 +60,6 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/ael-dev3/Warpkeep/compare/f50a277...v0.2.0
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/ael-dev3/Warpkeep/compare/d5f0748dbfff07064a736c2b8d273d6022a03050...v0.3.0
+[0.2.0]: https://github.com/ael-dev3/Warpkeep/compare/f50a277044b8abe23df9fe8aae25dd82b49635b6...d5f0748dbfff07064a736c2b8d273d6022a03050

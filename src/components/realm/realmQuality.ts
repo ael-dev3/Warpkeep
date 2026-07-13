@@ -1,6 +1,17 @@
 import { HEGEMONY_FRONTIER_KEEP } from '../../game/map/hegemonyLandmarks';
 
-export type RealmQuality = 'high' | 'compact' | 'reduced';
+export type RealmQuality = 'high' | 'balanced' | 'reduced';
+
+export type RealmLightingSpec = Readonly<{
+  toneMappingExposure: number;
+  sunIntensity: number;
+}>;
+
+export const REALM_LIGHTING_SPECS: Readonly<Record<RealmQuality, RealmLightingSpec>> = {
+  high: { toneMappingExposure: 1.02, sunIntensity: 2 },
+  balanced: { toneMappingExposure: 1, sunIntensity: 1.85 },
+  reduced: { toneMappingExposure: 0.98, sunIntensity: 1.7 }
+};
 
 export type RealmQualitySpec = Readonly<{
   id: RealmQuality;
@@ -42,24 +53,24 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     fogNear: 28,
     fogFar: 58
   },
-  compact: {
-    id: 'compact',
-    subdivisionsPerEdge: 5,
+  balanced: {
+    id: 'balanced',
+    subdivisionsPerEdge: 6,
     playableRadius: 4,
     renderRadius: 5,
-    greenTuftsPerPlayableCell: 5,
+    greenTuftsPerPlayableCell: 7,
     greenTuftsPerApronCell: 2,
     dryTuftsPerPlayableCell: 1,
     dryTuftsPerApronCell: 0,
-    stoneChancePlayable: 0.46,
-    stoneChanceApron: 0.18,
-    dynamicShadows: false,
-    shadowMapSize: 0,
-    keepAssetPath: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact,
-    pixelRatioCap: 1.6,
-    maxDrawingBufferPixels: 4_200_000,
-    fogNear: 26,
-    fogFar: 52
+    stoneChancePlayable: 0.58,
+    stoneChanceApron: 0.22,
+    dynamicShadows: true,
+    shadowMapSize: 1024,
+    keepAssetPath: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.balanced,
+    pixelRatioCap: 1.75,
+    maxDrawingBufferPixels: 5_200_000,
+    fogNear: 34,
+    fogFar: 66
   },
   reduced: {
     id: 'reduced',
@@ -77,8 +88,8 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     keepAssetPath: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact,
     pixelRatioCap: 1.25,
     maxDrawingBufferPixels: 2_400_000,
-    fogNear: 24,
-    fogFar: 48
+    fogNear: 30,
+    fogFar: 58
   }
 } as const;
 
@@ -100,13 +111,13 @@ export function selectRealmQuality(input: RealmQualityInput): RealmQuality {
   const maxTextureSize = finitePositive(input.maxTextureSize ?? 8192, 8192);
   const shortestSide = Math.min(width, height);
 
-  if (maxTextureSize < 4096 || shortestSide < 360 || width * height * dpr * dpr > 18_000_000) {
+  if (maxTextureSize < 4096 || shortestSide < 280 || width * height * dpr * dpr > 18_000_000) {
     return 'reduced';
   }
   if (width >= 1180 && height >= 680 && dpr <= 2.5 && maxTextureSize >= 8192) {
     return 'high';
   }
-  return 'compact';
+  return 'balanced';
 }
 
 export function resolveRealmPixelRatio(

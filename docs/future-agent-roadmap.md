@@ -1,32 +1,19 @@
-# Future Agent Roadmap
+# Future agent roadmap
 
-Future GPT-5.6, Fable-grade, or stronger agentic systems should expand Warpkeep by deepening systems without breaking the seed's rules.
+Agents should deepen Warpkeep without weakening its authority, privacy, licensing, or release boundaries.
 
-## Good future agent tasks
+## High-value work
 
-- Generate original castle art and realm banners.
-- Generate faction lore and regional histories.
-- Create court advisors with consistent personalities.
-- Generate daily kingdom reports from deterministic state snapshots.
-- Generate battle reports after deterministic raid resolution.
-- Generate seasonal chronicles.
-- Create quests and world events that reducers validate.
-- Help balance formulas with simulation tests.
-- Write integration and browser tests.
-- Simulate player economies and anti-griefing rules.
-- Generate shareable Farcaster social cards.
+1. Prove one deliberately admitted keep across reload and multiple clients.
+2. Add server-owned resources and construction queues with deterministic simulations.
+3. Add unit training and bounded scouting.
+4. Design travel, raids, defense, loot, and anti-griefing before coding combat.
+5. Add alliances, diplomacy, seasons, and community realm rules.
+6. Generate original, provenance-recorded faction art, lore, banners, court advisors, reports, and social cards.
+7. Improve browser, exact-runtime, production-probe, recovery, and compromise drills.
 
 ## Hard boundary
 
-AI must not be trusted with authoritative game state. AI should produce flavor, UI copy, lore, summaries, quests, recommendations, and simulations. Game actions must be validated by deterministic code and SpacetimeDB reducers.
+AI may produce flavor, UI copy, lore, summaries, quests, recommendations, balance simulations, and tests. Game actions must be authorized and resolved by deterministic SpacetimeDB reducers. Farcaster social data may enrich presentation but must not become identity proof, hidden combat authority, or pay-to-win input.
 
-## Recommended expansion sequence
-
-1. Move browser-only SIWF verification behind a trusted backend-issued session with replay protection.
-2. Build the SpacetimeDB module and generated TS bindings.
-3. Add server-authoritative timers and queue completion.
-4. Add map/nearby subscriptions.
-5. Add alliances and diplomacy.
-6. Design combat carefully before implementing raids.
-7. Add seasonal rules and chronicles.
-8. Add AI court reports from read-only state snapshots.
+Every release candidate needs one mutation owner, exact source/deployment coordinates, complete automated verification, clean-browser acceptance, protected aggregate checks, and a tested rollback path.

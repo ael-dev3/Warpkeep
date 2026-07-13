@@ -81,13 +81,13 @@ The Worker receives secrets and server-only configuration described in [`service
 
 ## Live closed-alpha status
 
-`auth.warpkeep.com`, discovery/JWKS, distributed rate control, the direct private epoch procedure, and the matching Maincloud module are live. The canonical 61-cell world is seeded; the allowlist, player table, and castle table remain empty. Owner-controlled empty-whitelist denial QA is pending, and no real FID has been admitted.
+`auth.warpkeep.com`, discovery/JWKS, distributed rate control, the direct private epoch procedure, and the matching Maincloud module are live. Fresh-profile empty-admission QA completed without creating gameplay state. The canonical 61-cell world is seeded; the allowlist, player table, and castle table remain empty, and no real FID has been admitted.
 
 ## Tests and manual QA
 
 Automated tests use injected Farcaster authorities and bridge clients; they never call a real relay or publish proof data. They cover proof envelope minimization, v2 storage/legacy purge/expiry, bridge exchange validation, direct-realm gating, denied rendering, secure access-link attributes, same-session Check Again, sign-out disconnect, and no anonymous connection.
 
-The remaining owner-controlled manual check is:
+The reusable clean-profile denial check is:
 
 1. After canonical deployment, open `https://warpkeep.com/#menu` and confirm no relay or database connection occurs before **ENTER REALM**.
 2. Complete Farcaster approval and confirm the displayed FID is the approving identity.

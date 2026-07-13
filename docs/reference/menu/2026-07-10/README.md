@@ -1,16 +1,18 @@
 # Hegemony main-menu archive and runtime record — 2026-07-10
 
-This directory preserves the Ael-provided menu-development references byte-for-byte and records the runtime derivatives used by the title-to-Hegemony-menu milestone. The runtime record was last updated on 2026-07-11 when the clean 1080p source replaced the original 720p menu film.
+This directory preserves the lightweight Ael-provided menu-development reference and exact technical records for the runtime derivatives used by the title-to-Hegemony-menu milestone. The runtime record was last updated on 2026-07-11 when the clean 1080p source replaced the original 720p menu film.
 
 ![Warpkeep main-menu reference](warpkeep-main-menu-reference.png)
 
 ## Archived source media
 
-- [`warpkeep-menu-loop-silent.mp4`](warpkeep-menu-loop-silent.mp4) — 15.041667-second, 1280×720 H.264 High film at 24 fps with no audio stream.
-- [`warpkeep-menu-loop-clean-hq-max-coverage-1080p-silent.mp4`](warpkeep-menu-loop-clean-hq-max-coverage-1080p-silent.mp4) — clean high-quality maximum-coverage 15.041667-second, 1920×1080 H.264 High film at 24 fps with no audio stream.
-- [`sunset-hegemony.mp3`](sunset-hegemony.mp3) — 401.919979-second stereo 48 kHz MP3 with embedded cover art. The archived attachment arrived with an `.ogg` name, but its detected container and codec are MP3, so the repository filename uses `.mp3` without changing its bytes.
-- [`lowlands-of-hegemony.mp3`](lowlands-of-hegemony.mp3) — 244.919979-second stereo 48 kHz MP3 with a 360×360 embedded front-cover image, archived as an additional soundtrack reference.
+- `warpkeep-menu-loop-silent.mp4` — 15.041667-second, 1280×720 H.264 High film at 24 fps with no audio stream.
+- `warpkeep-menu-loop-clean-hq-max-coverage-1080p-silent.mp4` — clean high-quality maximum-coverage 15.041667-second, 1920×1080 H.264 High film at 24 fps with no audio stream.
+- `sunset-hegemony.mp3` — 401.919979-second stereo 48 kHz MP3 with embedded cover art.
+- `lowlands-of-hegemony.mp3` — 244.919979-second stereo 48 kHz MP3 with a 360×360 embedded front-cover image.
 - [`warpkeep-main-menu-reference.png`](warpkeep-main-menu-reference.png) — 1555×1011 composition reference.
+
+The source film and audio binaries are not present in the v0.3.0 HEAD or public asset releases because their redistribution authority remains unresolved. Their hashes, dimensions, codecs, and derivation records remain below and in `manifest.json`; required runtime derivatives remain under `public/`.
 
 The film container supplied with the implementation prompt has a different container-level hash from the archived Discord attachment, but both contain the same H.264 video bitstream and decode to the same pixels. The manifest records both container hashes and the shared stream hash.
 

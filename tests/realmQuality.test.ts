@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  REALM_LIGHTING_SPECS,
   REALM_QUALITY_SPECS,
   resolveRealmPixelRatio,
   selectRealmQuality
@@ -15,9 +16,10 @@ describe('realm quality profiles', () => {
       dynamicShadows: true,
       shadowMapSize: 2048
     });
-    expect(REALM_QUALITY_SPECS.compact).toMatchObject({
-      subdivisionsPerEdge: 5,
-      dynamicShadows: false
+    expect(REALM_QUALITY_SPECS.balanced).toMatchObject({
+      subdivisionsPerEdge: 6,
+      dynamicShadows: true,
+      shadowMapSize: 1024
     });
     expect(REALM_QUALITY_SPECS.reduced).toMatchObject({
       subdivisionsPerEdge: 3,
@@ -34,15 +36,25 @@ describe('realm quality profiles', () => {
     expect(selectRealmQuality({ width: 1920, height: 1080, devicePixelRatio: 2, maxTextureSize: 16384 }))
       .toBe('high');
     expect(selectRealmQuality({ width: 844, height: 390, devicePixelRatio: 3, maxTextureSize: 8192 }))
-      .toBe('compact');
-    expect(selectRealmQuality({ width: 480, height: 320, devicePixelRatio: 3, maxTextureSize: 4096 }))
+      .toBe('balanced');
+    expect(selectRealmQuality({ width: 480, height: 320, devicePixelRatio: 3, maxTextureSize: 2_048 }))
       .toBe('reduced');
+    expect(selectRealmQuality({ width: 320, height: 568, devicePixelRatio: 3, maxTextureSize: 8_192 }))
+      .toBe('balanced');
+  });
+
+  it('defines restrained quality-aware exposure and warm sunlight', () => {
+    expect(REALM_LIGHTING_SPECS).toEqual({
+      high: { toneMappingExposure: 1.02, sunIntensity: 2 },
+      balanced: { toneMappingExposure: 1, sunIntensity: 1.85 },
+      reduced: { toneMappingExposure: 0.98, sunIntensity: 1.7 }
+    });
   });
 
   it('caps clean high-DPI output against profile and pixel budgets', () => {
     expect(resolveRealmPixelRatio(1440, 900, 2, REALM_QUALITY_SPECS.high)).toBe(2);
     expect(resolveRealmPixelRatio(1920, 1080, 4, REALM_QUALITY_SPECS.high)).toBeCloseTo(2, 4);
     expect(resolveRealmPixelRatio(3840, 2160, 2, REALM_QUALITY_SPECS.high)).toBeCloseTo(1.006, 2);
-    expect(resolveRealmPixelRatio(1280, 720, 3, REALM_QUALITY_SPECS.compact)).toBe(1.6);
+    expect(resolveRealmPixelRatio(1280, 720, 3, REALM_QUALITY_SPECS.balanced)).toBeCloseTo(1.75, 4);
   });
 });

@@ -34,7 +34,8 @@
       "loudnessRangeLu": 8.6,
       "truePeakDbfs": 0
     },
-    "intendedUse": "Immutable source archive; never served by the application"
+    "intendedUse": "Immutable source archive; never served by the application",
+    "headStatus": "Not present in v0.3.0 HEAD or a public release pending redistribution clearance"
   },
   "runtimeDerivative": {
     "filename": "public/audio/warpkeep-lowlands-theme.mp3",

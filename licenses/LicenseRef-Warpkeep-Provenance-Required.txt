@@ -1,0 +1,9 @@
+This identifier is a classification notice, not a copyright license or grant.
+
+Files carrying LicenseRef-Warpkeep-Provenance-Required are project-provided,
+generated, third-party, externally governed, or otherwise unresolved material.
+Consult ASSETS-LICENSE.md and the path-specific provenance record for the
+applicable terms before copying, modifying, or redistributing the file.
+
+Repository presence, a filename, a generation service, or delivery by a
+contributor does not establish Warpkeep's authority to relicense the material.

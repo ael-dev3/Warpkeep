@@ -33,6 +33,7 @@ describe('RealmHud', () => {
         hoveredCell={null}
         keepLoadStatus="ready"
         cameraMode="realm"
+        quality="high"
         onFocusKeep={onFocusKeep}
         onRecenterKeep={onRecenterKeep}
         onShowRealm={vi.fn()}
@@ -46,7 +47,7 @@ describe('RealmHud', () => {
     expect(screen.getByText('Hegemony Frontier Keep')).not.toBeNull();
     expect(screen.getByText(/frontier keep stands ready for this expedition/i)).not.toBeNull();
     expect(screen.getByText('Selected cell 0, 0')).not.toBeNull();
-    expect(screen.queryByText('HIGH')).toBeNull();
+    expect(screen.getByText('QUALITY HIGH')).not.toBeNull();
     expect(screen.queryByText(/elevation|soil/i)).toBeNull();
     expect(screen.queryByText(/owned permanently/i)).toBeNull();
 
@@ -66,6 +67,7 @@ describe('RealmHud', () => {
         hoveredCell={null}
         keepLoadStatus="fallback"
         cameraMode="keep"
+        quality="reduced"
         onFocusKeep={vi.fn()}
         onRecenterKeep={vi.fn()}
         onShowRealm={vi.fn()}
@@ -85,6 +87,7 @@ describe('RealmHud', () => {
         hoveredCell={lowlandsCell()}
         keepLoadStatus="ready"
         cameraMode="realm"
+        quality="balanced"
         onFocusKeep={vi.fn()}
         onRecenterKeep={vi.fn()}
         onShowRealm={vi.fn()}

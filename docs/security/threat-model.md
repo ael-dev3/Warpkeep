@@ -1,7 +1,6 @@
-# Warpkeep Alpha 0.2 Threat Model
+# Warpkeep Alpha 0.2 Threat Model — Historical Baseline
 
-Status: living pre-release model for the closed Alpha 0.2 architecture. It is
-not an OWASP ASVS certification or a penetration-test attestation.
+Status: historical pre-release model for the closed Alpha 0.2 architecture and PR #11 audit base. Current changes must be checked against the active release documentation and code. This is not an OWASP ASVS certification or a penetration-test attestation.
 
 ## Scope and revision
 

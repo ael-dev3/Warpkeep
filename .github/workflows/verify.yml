@@ -32,6 +32,11 @@ jobs:
       - name: Verify licensing transition state
         run: npm run verify:licenses
 
+      - name: Verify runtime asset integrity and repository size policy
+        run: |
+          npm run verify:runtime-assets
+          npm run verify:file-sizes
+
       - name: Run tests
         run: npm test
 

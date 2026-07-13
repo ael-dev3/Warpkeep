@@ -54,7 +54,8 @@ export function CreditsRoll({ onClose }: CreditsRollProps) {
       </button>
 
       <div className="warpkeep-credits__viewport">
-        <div className="warpkeep-credits__roll">
+        <div className="warpkeep-credits__track">
+          <div className="warpkeep-credits__roll">
           <p className="warpkeep-credits__kicker">THE CREDITS OF THE AGE</p>
           <h2 className="warpkeep-credits__title">WARPKEEP</h2>
           <p className="warpkeep-credits__description" id="warpkeep-credits-description">
@@ -73,7 +74,21 @@ export function CreditsRoll({ onClose }: CreditsRollProps) {
 
           <div aria-hidden="true" className="warpkeep-credits__rule" />
           <p className="warpkeep-credits__finale">THE KEEP STANDS.<br />THE CORE WAITS.</p>
+          <p className="warpkeep-credits__attribution">
+            Stone title assembly by Clawberto, licensed under{' '}
+            <a href="https://creativecommons.org/licenses/by/4.0/" rel="noreferrer" target="_blank">
+              CC BY 4.0
+            </a>.{' '}
+            <a
+              href="https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12"
+              rel="noreferrer"
+              target="_blank"
+            >
+              View archive
+            </a>.
+          </p>
           <p className="warpkeep-credits__tiny">NO CASTLES WERE HARMED IN THE MAKING OF THIS MENU.</p>
+          </div>
         </div>
       </div>
     </section>

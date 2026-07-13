@@ -1,56 +1,26 @@
-# Game Design Seed
+# Game design direction
 
-## Core loop
+## Planned core loop
 
 Build → Train → Scout → Raid → Ally → Rule.
 
-The current seed implements only the safe first slice:
+Alpha 0.3.0 provides the identity, world, keep, renderer, and server-authority foundation. Resources, construction, units, scouting, raids, alliances, and seasons below are planned systems, not current player-facing claims.
 
-- collect resources
-- start building upgrades
-- train units
-- scout nearby castles
-- read activity and court flavor
+## Resources and buildings
 
-Raids, defense, alliances, seasons, diplomacy, and world events are documented as future systems.
+- **Grain:** food economy and unit upkeep, primarily from Farms.
+- **Stone:** construction and fortification, primarily from Quarries.
+- **Iron:** military logistics and later Mines.
+- **Influence:** slow realm authority and social coordination, never purchased identity.
 
-## Resources
+The initial building vocabulary is Keep, Farm, Quarry, Barracks, and Watchtower. Server reducers must own costs, queue capacity, start/end times, completion, and cancellation semantics.
 
-The first resources are ordinary server-authoritative game resources:
+## Units and scouting
 
-- Grain: produced by Farm, spent on construction and units.
-- Stone: produced by Quarry, spent on buildings.
-- Iron: recovered through early watchtower/military logistics until Mine exists.
-- Influence: produced slowly from Keep authority and later Farcaster activity.
+The first useful roles are Scout, Guard, and Raider. Scouting should create bounded, time-limited information; a social relationship must not become an authentication or combat advantage by itself.
 
-No real-money or external-payment dependency exists in this seed.
+## Combat requirements
 
-## Buildings
+Combat must not begin as an opaque random formula. Its design must specify deterministic travel, roles, defenses, scouting accuracy, casualties, loot caps, new-player protection, anti-griefing, reports, and season boundaries before implementation.
 
-- Keep: seat of the realm, queue capacity, unlocks.
-- Farm: grain production.
-- Quarry: stone production.
-- Barracks: unit training.
-- Watchtower: scouting and future defense.
-
-## Units
-
-- Scout: discovers nearby castles and future raid intel.
-- Guard: defensive baseline.
-- Raider: future offensive unit, present as a placeholder stack only.
-
-## Combat future direction
-
-Combat should not be added as a quick random formula. A future combat design should define:
-
-- attacker and defender unit roles
-- travel timers
-- watchtower and wall effects
-- scouting accuracy
-- casualty formulas
-- raid loot caps
-- protection for new castles
-- season reset rules
-- anti-griefing constraints
-
-All combat resolution must be deterministic and server-authoritative.
+All actions are intents. SpacetimeDB validates identity, admission, ownership, costs, timers, and outcomes transactionally. AI may narrate the result only after authoritative resolution.

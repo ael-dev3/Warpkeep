@@ -4,10 +4,10 @@ This document is the human-readable source of truth for Warpkeep's release-based
 
 ## Current release policy
 
-The repository is preparing Alpha `0.2.0`. Until the first `v0.3.0` development/release boundary is created, the active root license files and package metadata remain unchanged:
+Warpkeep Alpha `0.3.0` establishes the active forward-looking policy:
 
-- Software is under `0BSD`; see [`LICENSE`](LICENSE).
-- Project-owned documentation, lore, and confirmed project-owned creative material are covered by the historical `CC0-1.0` policy; see [`LICENSE-CC0`](LICENSE-CC0) and [`ASSETS-LICENSE.md`](ASSETS-LICENSE.md).
+- Active software license: Apache-2.0
+- Active project-owned creative-content license: CC-BY-4.0
 - Third-party, externally governed, generated, or uncertain-provenance material keeps its own applicable terms and is not relicensed by this policy.
 
 ## Historical releases
@@ -55,9 +55,9 @@ Apache-2.0 remains permissive, commercially reusable, forkable, and mod-friendly
 
 Historical 0BSD and CC0 grants are not revoked. This transition applies to future versions and to new or modified work beginning with v0.3.0; it does not rewrite the license of an older distributed snapshot or claim that a later path move changes an earlier grant.
 
-The future cutover uses two commits. Commit A replaces the active software license, updates every package manifest, adds the active CC-BY-4.0 text and path metadata, and preserves the historical license texts under unambiguous legacy paths. Commit B then records Commit A's full SHA in `docs/legal/v0.3.0-cutover.json`. The verifier checks Commit A from Git history and rechecks the same invariants at current `HEAD`; it never trusts a SHA-like string in prose.
+The cutover uses two commits. Commit A replaces the active software license, updates every package manifest, adds the active CC-BY-4.0 text and path metadata, and preserves the historical license texts under unambiguous legacy paths. Commit B then records Commit A's full SHA in `docs/legal/v0.3.0-cutover.json`. The verifier checks Commit A from Git history and rechecks the same invariants at current `HEAD`; it never trusts a SHA-like string in prose.
 
-This protocol applies to every complete SemVer value on the v0.3 line or later. A valid `0.3.0` prerelease or build form is treated as part of the cutover line so a prerelease cannot bypass the new policy. Commit A and Commit B must be created on the intended final base and merged without squash, rebase, amend, or any other SHA-rewriting operation after the attestation is written. The mechanical cutover remains deliberately deferred; this preparation does not add the machine-readable record, bump the product version, or change the active root license.
+This protocol applies to every complete SemVer value on the v0.3 line or later. A valid `0.3.0` prerelease or build form is treated as part of the cutover line so a prerelease cannot bypass the new policy. Commit A and Commit B are created on the intended final base and must be merged without squash, rebase, amend, cherry-pick, or any other SHA-rewriting operation after the attestation is written.
 
 ## Third-party and uncertain provenance
 
@@ -75,9 +75,11 @@ The open-source and Creative Commons licenses do not grant trademark rights or p
 
 ## Where to find exact license texts
 
-- Active historical software text: [`LICENSE`](LICENSE) (`0BSD`).
-- Active historical creative-content text: [`LICENSE-CC0`](LICENSE-CC0) (`CC0-1.0`).
-- Exact future texts and legacy-path requirements: [`docs/legal/v0.3.0-license-cutover.md`](docs/legal/v0.3.0-license-cutover.md).
+- Active software text: [`LICENSE`](LICENSE) (`Apache-2.0`).
+- Active creative-content text: [`LICENSE-CC-BY-4.0`](LICENSE-CC-BY-4.0) (`CC-BY-4.0`).
+- Historical software text: [`licenses/legacy/LICENSE-0BSD-v0.2.0`](licenses/legacy/LICENSE-0BSD-v0.2.0) (`0BSD`).
+- Historical creative-content text: [`licenses/legacy/LICENSE-CC0-1.0-v0.2.0`](licenses/legacy/LICENSE-CC0-1.0-v0.2.0) (`CC0-1.0`).
+- Cutover protocol: [`docs/legal/v0.3.0-license-cutover.md`](docs/legal/v0.3.0-license-cutover.md).
 - SPDX identifiers: `0BSD`, `CC0-1.0`, `Apache-2.0`, and `CC-BY-4.0`.
 
 Canonical legal texts must be copied unmodified from their official sources during the v0.3.0 cutover. No custom license, copyleft, noncommercial, field-of-use, AI-use, blockchain, token, or source-available restriction is introduced by this policy.

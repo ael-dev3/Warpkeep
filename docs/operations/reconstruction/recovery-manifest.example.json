@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "<ISO-8601 UTC>",
+  "release": {
+    "version": "0.3.0",
+    "tag": "v0.3.0",
+    "buildCommit": "<40 lowercase hex>",
+    "tree": "<40 lowercase hex>"
+  },
+  "warpkeep": {
+    "repository": "ael-dev3/Warpkeep",
+    "defaultBranch": "main",
+    "branchProtectionObserved": "<enabled or none>",
+    "rulesetsObserved": [
+      "<ruleset name and enforcement, or none>"
+    ],
+    "requiredChecksObserved": [
+      "<required check name, or none>"
+    ],
+    "repositoryVariables": {
+      "WARPKEEP_SHARED_ALPHA_ENABLED": "false",
+      "WARPKEEP_AUTH_BRIDGE_URL": "https://auth.warpkeep.com",
+      "WARPKEEP_OIDC_ISSUER": "https://auth.warpkeep.com",
+      "WARPKEEP_OIDC_AUDIENCE": "warpkeep-spacetimedb",
+      "WARPKEEP_SPACETIMEDB_URI": "https://maincloud.spacetimedb.com",
+      "WARPKEEP_SPACETIMEDB_DATABASE": "warpkeep-89e4u"
+    }
+  },
+  "assets": {
+    "repository": "ael-dev3/Warpkeep-Assets",
+    "commit": "<40 lowercase hex>",
+    "releases": [
+      {
+        "tag": "title-stone-letters-2026-07-12",
+        "attachments": [
+          {
+            "name": "warpkeep-title-assemblies-v1.zip",
+            "bytes": 5994957,
+            "sha256": "492af33d4b0ff5ab80f2e726b68c2f8d497cd75bbcc036f57f2388e0b4089177"
+          }
+        ]
+      }
+    ]
+  },
+  "pages": {
+    "origin": "https://warpkeep.com",
+    "workflow": ".github/workflows/deploy-pages.yml",
+    "environment": "github-pages",
+    "environmentBranchPolicyObserved": [
+      "main"
+    ],
+    "deployedCommit": "<40 lowercase hex>",
+    "workflowRunUrl": "<public URL>"
+  },
+  "worker": {
+    "name": "warpkeep-auth-bridge",
+    "origin": "https://auth.warpkeep.com",
+    "sourceCommit": "<40 lowercase hex>",
+    "deploymentVersion": "<platform version identifier>",
+    "compatibilityDate": "2026-07-11",
+    "secretNames": [
+      "SIGNING_KEY_JWK",
+      "ADMIN_TOKEN_SECRET",
+      "FARCASTER_RPC_URL"
+    ]
+  },
+  "spacetime": {
+    "server": "maincloud",
+    "database": "warpkeep-89e4u",
+    "cliVersion": "2.6.1",
+    "moduleSourceCommit": "<40 lowercase hex>",
+    "backendProtocol": 1,
+    "protectedAggregate": {
+      "worldTiles": 61,
+      "allowedFids": 0,
+      "enabledAllowedFids": 0,
+      "players": 0,
+      "castles": 0
+    }
+  },
+  "verification": {
+    "verifyWorkflowRunUrl": "<public URL>",
+    "codeqlWorkflowRunUrl": "<public URL>",
+    "productionVerifiedAt": "<ISO-8601 UTC>"
+  }
+}

@@ -327,13 +327,14 @@ Anyone should be able to fork the code, but the official deployment should remai
 
 ## License notes
 
-Current licensing direction:
+Current licensing policy from v0.3.0:
 
-- Software code: Zero-Clause BSD (`0BSD`).
-- Docs/lore/manifests/project-owned media: CC0 1.0 Universal unless a file says otherwise.
+- Software code: Apache License 2.0.
+- New or modified confirmed project-owned docs, lore, manifests, and creative media: CC BY 4.0.
+- Historical 0BSD/CC0 grants and external or unresolved terms remain valid; see [`LICENSING.md`](../../LICENSING.md) and [`ASSETS-LICENSE.md`](../../ASSETS-LICENSE.md).
 - Project name, official marks, and canonical deployment identity: not granted as endorsement or trademark rights.
 
-The goal is maximum reuse freedom: forks, mods, alternate clients, community realms, commercial experiments, and remixing should be easy.
+The goal remains broad reuse: forks, mods, alternate clients, community realms, commercial experiments, and remixing should be straightforward while attribution and third-party terms are respected.
 
 The only retained boundary is user clarity. Community forks should not imply they are the canonical Warpkeep deployment unless explicitly authorized.
 

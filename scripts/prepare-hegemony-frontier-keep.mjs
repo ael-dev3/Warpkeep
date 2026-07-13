@@ -12,11 +12,13 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
-const source = join(
-  root,
-  'docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep',
-  'Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb'
-);
+const source = process.env.WARPKEEP_KEEP_SOURCE
+  ? resolve(process.env.WARPKEEP_KEEP_SOURCE)
+  : join(
+    root,
+    '.cache/warpkeep-assets/unresolved/hegemony-frontier-keep',
+    'Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb'
+  );
 const outputDirectory = join(root, 'public/models/hegemony');
 const workspace = mkdtempSync(join(tmpdir(), 'warpkeep-keep-'));
 const usesPnpm = process.env.npm_config_user_agent?.startsWith('pnpm/') ?? false;
@@ -41,6 +43,16 @@ const profiles = [
     expectedTriangles: 56_466,
     expectedVertices: 55_704,
     expectedSha256: 'ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c'
+  },
+  {
+    id: 'balanced',
+    ratio: '0.04',
+    error: '0.012',
+    textureSize: '2048',
+    expectedBytes: 2_064_100,
+    expectedTriangles: 37_634,
+    expectedVertices: 40_632,
+    expectedSha256: 'bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4'
   },
   {
     id: 'compact',
@@ -102,6 +114,11 @@ function assertExactFile(path, expected, label) {
 }
 
 try {
+  if (!statSync(source, { throwIfNoEntry: false })) {
+    throw new Error(
+      `Missing offline keep source at ${source}. Its redistribution rights are unresolved, so Warpkeep does not download it automatically. Set WARPKEEP_KEEP_SOURCE to an authorized exact copy.`
+    );
+  }
   assertExactFile(source, expectedSource, 'source archive');
   const prepared = profiles.map((profile) => {
     const optimized = join(workspace, `${profile.id}-optimized.glb`);

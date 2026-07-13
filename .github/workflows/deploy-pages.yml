@@ -52,6 +52,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Verify runtime asset integrity and repository size policy
+        run: |
+          npm run verify:runtime-assets
+          npm run verify:file-sizes
+
       - name: Audit dependencies
         run: |
           npm audit

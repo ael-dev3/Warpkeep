@@ -15,6 +15,9 @@ describe('CreditsRoll', () => {
     render(<CreditsRoll onClose={onClose} />);
 
     expect(screen.getByRole('dialog', { name: 'Warpkeep credits' })).not.toBeNull();
+    expect(document.querySelector('.warpkeep-credits__viewport > .warpkeep-credits__track > .warpkeep-credits__roll')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'CC BY 4.0' }).getAttribute('href'))
+      .toBe('https://creativecommons.org/licenses/by/4.0/');
     CREDITS_ROLES.forEach(({ role, name }) => {
       expect(screen.getByText(role)).not.toBeNull();
       expect(screen.getAllByText(name).length).toBeGreaterThan(0);

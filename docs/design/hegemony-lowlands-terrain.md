@@ -2,9 +2,9 @@
 
 ## Purpose and scope
 
-After standard web Sign In with Farcaster verifies the player, `ENTER REALM` opens Warpkeep's first bright game-space presentation: a continuous Hegemony Lowlands terrain, a fixed first keep at the center, and enough accessible selection and camera control to inspect the scene.
+After standard web Sign In with Farcaster verifies and admits the player, `ENTER REALM` opens Warpkeep's first bright game-space presentation: a continuous Hegemony Lowlands terrain, the player's server-projected keep, and accessible selection/camera controls.
 
-This remains a session-bound prototype. It does not persist keep ownership or implement resources, roads, farms, units, combat, fog of war, pathfinding, server state, or alternate biomes.
+The server persists the canonical world and admitted player/castle projections. This presentation slice does not yet implement resources, roads, farms, units, combat, fog of war, pathfinding, or alternate biomes.
 
 ## Playable map and visual apron
 
@@ -45,7 +45,7 @@ The three runtime profiles use one terrain draw call and remain in bounded geome
 | Profile | Subdivisions per edge | Radius-five terrain triangles |
 | --- | ---: | ---: |
 | High | 8 | 34,944 |
-| Compact | 5 | 13,650 |
+| Balanced | 6 | 19,656 |
 | Reduced | 3 | 4,914 |
 
 All generated positions, colors, normals, and indices are finite; the tested canonical surfaces have no significant degenerate triangles.
@@ -68,9 +68,9 @@ Three deterministic `InstancedMesh` layers add:
 - shorter dry-gold tufts; and
 - small dodecahedral stones.
 
-Candidates keep a safe distance from cell edges and the center placement, have seeded rotation/scale, and use lower density in the apron. The canonical high profile produces 780 green tufts and 150 dry tufts plus a tested 40–80 seed-selected stones; compact produces 360 green and 60 dry tufts, while reduced keeps 60 green tufts and no dry layer. Each nonempty kind remains one draw call.
+Candidates keep a safe distance from cell edges and the center placement, have seeded rotation/scale, and use lower density in the apron. The canonical high profile produces 780 green tufts and 150 dry tufts plus a tested 40–80 seed-selected stones; balanced produces 480 green and 60 dry tufts, while reduced keeps 60 green tufts and no dry layer. Each nonempty kind remains one draw call.
 
-The Realm uses a pale blue-gray background/fog, a warm-neutral sun, cool sky fill, warm secondary fill, and a high-roughness terrain material. High quality enables one 2048 directional PCF shadow map for the keep and nearby ground. Compact and reduced disable dynamic shadows and retain the lightweight keep contact shadow. There is no bloom, SSAO, vignette, or permanent postprocessing loop.
+The Realm uses a pale blue-gray background/fog, warm sunlight, cool sky fill, a restrained warm secondary fill, and a high-roughness terrain material. Cinematic uses a 2048 directional PCF shadow map; Balanced uses 1024; Performance retains the lightweight keep contact shadow without dynamic shadows. ACES exposure is 1.02/1.00/0.98 and sun intensity is 2.00/1.85/1.70 across the three profiles. There is no bloom, SSAO, vignette, or permanent postprocessing loop.
 
 ## Quality profiles
 
@@ -79,43 +79,44 @@ One typed quality specification controls geometry, decoration density, shadows, 
 | Profile | Green per playable/apron cell | Dry per playable/apron cell | Stone chance playable/apron | Pixel-ratio cap | Fog near/far | Dynamic shadow | Keep LOD |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
 | High | 11 / 4 | 2 / 1 | 0.78 / 0.28 | 2.0 | 28 / 58 | 2048 | High |
-| Compact | 5 / 2 | 1 / 0 | 0.46 / 0.18 | 1.6 | 26 / 52 | No | Compact |
-| Reduced | 1 / 0 | 0 / 0 | 0.20 / 0.08 | 1.25 | 24 / 48 | No | Compact |
+| Balanced | 7 / 2 | 1 / 0 | 0.58 / 0.22 | 1.75 | 34 / 66 | 1024 | Balanced |
+| Reduced | 1 / 0 | 0 / 0 | 0.20 / 0.08 | 1.25 | 30 / 58 | No | Compact |
 
-The typed profile selector uses viewport dimensions, device pixel ratio, drawing-buffer cost, and an available texture-size capability input—not user-agent sniffing. The active pixel ratio is further clamped against each profile's total drawing-buffer budget. Reduced motion preserves terrain quality while making camera changes settle immediately.
+One persisted player preference maps Cinematic/Balanced/Performance to High/Balanced/Reduced. Auto uses viewport dimensions, device pixel ratio, drawing-buffer cost, hardware hints, and an actual WebGL texture-size capability—not user-agent sniffing. Normal modern phones remain Balanced even at high DPR; only genuinely constrained inputs select Reduced. The active pixel ratio is further clamped against each profile's drawing-buffer budget. Reduced motion remains independent and makes camera changes settle immediately.
 
 ## Frontier Keep runtime assets
 
-The unchanged Ael-supplied Meshy source remains archived at [`docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/`](../reference/castles/2026-07-11-meshy-hegemony-frontier-keep/). It is 63,263,296 bytes, contains approximately 941,298 source triangles, and is never requested by the runtime.
+The exact Ael-supplied Meshy source is recorded at [`docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/`](../reference/castles/2026-07-11-meshy-hegemony-frontier-keep/). It is 63,263,296 bytes, contains approximately 941,298 source triangles, and is never requested by the runtime. It is absent from the v0.3.0 HEAD and public releases pending redistribution clearance.
 
-The reproducible `npm run prepare:hegemony-keep` pipeline uses pinned `@gltf-transform/cli@4.4.1`, WebP textures, generated MikkTSpace tangents, Meshopt high compression, quantization, and validation to produce two exact LODs:
+The reproducible `npm run prepare:hegemony-keep` pipeline accepts an authorized exact source through `WARPKEEP_KEEP_SOURCE` and uses pinned `@gltf-transform/cli@4.4.1`, WebP textures, generated MikkTSpace tangents, Meshopt high compression, quantization, and validation to produce three exact LODs:
 
 | LOD | Runtime path | Bytes | Triangles | Uploaded vertices | Textures | SHA-256 |
 | --- | --- | ---: | ---: | ---: | --- | --- |
 | High | `public/models/hegemony/hegemony-frontier-keep-high.glb` | 2,256,092 | 56,466 | 55,704 | four 2048×2048 WebP | `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c` |
+| Balanced | `public/models/hegemony/hegemony-frontier-keep-balanced.glb` | 2,064,100 | 37,634 | 40,632 | four 2048×2048 WebP | `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4` |
 | Compact | `public/models/hegemony/hegemony-frontier-keep-compact.glb` | 760,916 | 17,536 | 24,766 | four 1024×1024 WebP | `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b` |
 
-Both have one scene, mesh, primitive, and material and require `EXT_meshopt_compression`, `EXT_texture_webp`, and `KHR_mesh_quantization`. The active quality profile chooses one path before loading; reduced reuses compact. The public GLB remains outside JavaScript bundles.
+All three have one scene, mesh, primitive, and material and require `EXT_meshopt_compression`, `EXT_texture_webp`, and `KHR_mesh_quantization`. The active quality profile chooses one path before loading; Performance uses Compact. The public GLB remains outside JavaScript bundles.
 
-`GLTFLoader` and `MeshoptDecoder` are dynamically imported only after the authenticated Realm mounts. Textures receive bounded anisotropy and correct color space, emissive response is restrained for daylight, and model geometry/materials/textures are disposed on unmount. A translucent primitive keep stands in while loading; a solid primitive keep replaces it if loading fails without taking down the terrain or navigation.
+`GLTFLoader` and `MeshoptDecoder` are dynamically imported only after the authenticated Realm mounts. Textures receive bounded anisotropy and correct color space, emissive response is restrained for daylight, and model geometry/materials/textures are disposed on unmount or quality recreation. A translucent primitive keep stands in while loading; a solid primitive keep replaces it if loading fails without taking down the terrain or navigation.
 
 ## Verified identity contract
 
-The Realm only mounts while the Farcaster auth state is verified. `WarpkeepExperience` passes a deliberately narrow, proof-free object containing only `fid`, `username`, and `displayName`. The HUD presents:
+The Realm only mounts while the Farcaster auth state is verified and private admission has succeeded. `WarpkeepExperience` passes a deliberately narrow, proof-free identity containing only `fid`, `username`, and `displayName`, plus public server projections for the player's castle and shared realm. The HUD presents:
 
 ```txt
 @username Keep
 FID 12345
 Hegemony Frontier Keep
 Level 1
-Session-bound prototype
+Quality Balanced
 ```
 
-When username is absent, the title becomes `FID 12345 Keep`. The identity personalizes the current scene only: no castle record is persisted, no local storage ownership is created, and no server authority is claimed. Returning to the menu preserves the in-memory identity; signing out prevents later Realm entry until a new verified session exists.
+When username is absent, the title becomes `FID 12345 Keep`. The client never creates ownership in local storage: castle coordinates, name, level, players, and world tiles come from admitted server state. Other castles remain lightweight markers. Returning to the menu preserves the signed session while valid; signing out clears it and prevents Realm entry until a new verified session passes admission.
 
 ## Perspective camera and controls
 
-The Realm owns one `PerspectiveCamera` whose pose, field of view, pitch, focus target, distance, and fog morph together across a normalized overview-to-keep zoom. The overview starts at a 20° field of view and 48° pitch; the close state reaches a 42° field of view and 27° pitch while blending focus upward toward the keep. This produces a readable strategic overview and a materially closer, lower gate inspection without free orbit, camera flipping, or underside visibility.
+The Realm owns one `PerspectiveCamera` whose pose, field of view, pitch, focus target, distance, and fog morph together across a normalized overview-to-keep zoom. The overview starts at a 20° field of view and 48° pitch; the close state reaches a 42° field of view and 27° pitch while blending focus upward toward the keep. Close framing derives a minimum half-height from the keep footprint and current aspect, protecting tall portrait screens without distorting or cropping the model.
 
 Wheel and touch-pinch input update a target zoom. Exponential damping advances only while the camera is unsettled, so the result is smooth without introducing a permanent 60 fps loop. Dragging pans within terrain-aware bounds. Inspect Keep selects `0,0` and enters the close view; Realm View returns to the overview; Recenter Keep and Home restore the keep target. Fog and clipping planes adapt with the camera pose.
 
@@ -131,4 +132,4 @@ If WebGL2 is unavailable, an illustrated SVG fallback renders all 91 terrain cel
 
 ## Deferred gameplay
 
-The base terrain, placement, decoration, quality, camera, and identity boundaries are structured for future overlays. Roads, farms, rivers, forests, multiple keeps, resources, units, ownership, corruption, fog of war, combat, and server persistence remain future milestones rather than implied features of this presentation slice.
+The base terrain, placement, decoration, quality, camera, and authority boundaries are structured for future overlays. Shared world/player/castle persistence exists; roads, farms, rivers, forests, resources, units, corruption, fog of war, combat, and the full strategy loop remain future milestones rather than implied features of this presentation slice.

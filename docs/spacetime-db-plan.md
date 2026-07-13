@@ -29,7 +29,7 @@ Connection lifecycle validates:
 - strict `service:hermes` / `roles: ["warpkeep-admin"]` shape for admin tokens.
 
 `WARPKEEP_BACKEND_PROTOCOL_VERSION = 1` is a backend-only compatibility
-contract, separate from the player-facing `ALPHA 0.2.0` release and the
+contract, separate from the player-facing `ALPHA 0.3.0` release and the
 player-facing `GENESIS 001` realm label (`HEGEMONY_GENESIS_001` internally).
 A valid player or Hermes connection may call `get_alpha_backend_info` to read
 only static protocol/world-seed metadata before using the shared realm; the

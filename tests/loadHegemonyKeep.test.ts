@@ -21,7 +21,14 @@ const ASSETS = [
     maxBytes: 10_000_000
   },
   {
-    quality: 'compact' as const,
+    quality: 'balanced' as const,
+    path: 'public/models/hegemony/hegemony-frontier-keep-balanced.glb',
+    bytes: 2_064_100,
+    sha256: 'bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4',
+    maxBytes: 2_500_000
+  },
+  {
+    quality: 'reduced' as const,
     path: 'public/models/hegemony/hegemony-frontier-keep-compact.glb',
     bytes: 760_916,
     sha256: '9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b',
@@ -36,7 +43,7 @@ function readGlbJson(path: string) {
 }
 
 describe('Hegemony keep runtime assets', () => {
-  it('ships validated high and compact assets inside their transfer budgets', () => {
+  it('ships validated high, balanced, and reduced assets inside their transfer budgets', () => {
     ASSETS.forEach((asset) => {
       const path = resolve(ROOT, asset.path);
       const bytes = readFileSync(path);
@@ -57,7 +64,7 @@ describe('Hegemony keep runtime assets', () => {
 
   it('selects only one LOD and resolves it under the active Vite base path', () => {
     expect(keepAssetPathForQuality('high')).toContain('-high.glb');
-    expect(keepAssetPathForQuality('compact')).toContain('-compact.glb');
+    expect(keepAssetPathForQuality('balanced')).toContain('-balanced.glb');
     expect(keepAssetPathForQuality('reduced')).toContain('-compact.glb');
     expect(resolveRealmAssetUrl('/Warpkeep/', keepAssetPathForQuality('high')))
       .toBe('/Warpkeep/models/hegemony/hegemony-frontier-keep-high.glb');

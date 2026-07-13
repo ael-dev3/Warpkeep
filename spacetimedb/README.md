@@ -34,7 +34,7 @@ zero castles; a second seed remained at 61.
 The guarded publish command refuses an impossible or unverified issuer and
 requires explicit database confirmation. Operators must continue to inspect
 before mutation and never use `--delete-data`, `--break-clients`, or `--yes=all`.
-The real `allowed_fid` table remains empty pending owner denial QA.
+The real `allowed_fid` table remains empty after clean-profile denial QA.
 
 ## Authority and tables
 

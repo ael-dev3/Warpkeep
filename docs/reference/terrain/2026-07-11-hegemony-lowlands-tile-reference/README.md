@@ -6,8 +6,7 @@ Ael-supplied terrain/tile reference for the Hegemony Lowlands visual direction.
 
 ## Provenance
 
-- **Source:** Discord attachment supplied by Ael
-- **Source message:** [`1525464522897227866`](https://discord.com/channels/1483857530282053754/1524505797797744742/1525464522897227866)
+- **Source:** Project attachment supplied by Ael
 - **Original filename:** `ChatGPT_Image_Jul_11_2026_12_52_17_AM.png`
 - **Archive filename:** `hegemony-lowlands-seven-tile-reference.png`
 - **Archive date:** 2026-07-11

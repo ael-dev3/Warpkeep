@@ -28,6 +28,7 @@ import {
   type GatewayVfxFrameState
 } from './gatewayVfx';
 import {
+  applyGatewayVfxQualityPreference,
   calculateGatewayActivationEnvelope,
   calculateGatewayVfxResponse,
   gatewayActivationSpec,
@@ -41,6 +42,10 @@ import {
 import { dampValue, isMousePointerType, normalizePointerPosition } from './titleInteraction';
 import { createBrutalistGlyphGeometry } from './titleGeometry';
 import { createConcreteTextures, type ConcreteTextureSet } from './titleTextures';
+import {
+  disposeObject3DResources,
+  loadWarpkeepTitle
+} from './loadWarpkeepTitle';
 import { calculateTitleResponsiveLayout } from './titleLayout';
 import { calculateGalaxyGrowth, createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
 import {
@@ -695,34 +700,7 @@ function createTitleAssembly(textures: ConcreteTextureSet): TitleAssembly {
 }
 
 function disposeScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, textures: THREE.Texture[]) {
-  const geometries = new Set<string>();
-  const materials = new Set<string>();
-
-  scene.traverse((object) => {
-    const drawable = object as THREE.Object3D & {
-      geometry?: THREE.BufferGeometry;
-      material?: THREE.Material | THREE.Material[];
-    };
-
-    if (drawable.geometry && !geometries.has(drawable.geometry.uuid)) {
-      geometries.add(drawable.geometry.uuid);
-      drawable.geometry.dispose();
-    }
-
-    const objectMaterials = drawable.material
-      ? Array.isArray(drawable.material)
-        ? drawable.material
-        : [drawable.material]
-      : [];
-
-    objectMaterials.forEach((material) => {
-      if (!materials.has(material.uuid)) {
-        materials.add(material.uuid);
-        material.dispose();
-      }
-    });
-  });
-
+  disposeObject3DResources(scene);
   textures.forEach((texture) => texture.dispose());
   renderer.renderLists.dispose();
   renderer.dispose();
@@ -736,7 +714,8 @@ export const WarpkeepTitleScreen3D = forwardRef<
     phase = 'active',
     onRequestEnterMenu,
     onReady,
-    onMeaningfulInteraction
+    onMeaningfulInteraction,
+    graphicsQuality = 'balanced'
   },
   forwardedRef
 ) {
@@ -813,6 +792,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
     let reducedMotionChangeHandler: ((event: MediaQueryListEvent) => void) | null = null;
     let reducedActivationTimer = 0;
     let disposed = false;
+    const titleModelAbortController = new AbortController();
     const pointerTarget = { x: 0, y: 0 };
     const pointerCurrent = { x: 0, y: 0 };
     const pointerScreen = { x: 0, y: 0, active: false };
@@ -823,6 +803,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
         return;
       }
       disposed = true;
+      titleModelAbortController.abort();
       window.clearTimeout(reducedActivationTimer);
       reducedActivationRenderRef.current = null;
       resizeObserver?.disconnect();
@@ -859,7 +840,12 @@ export const WarpkeepTitleScreen3D = forwardRef<
       let prefersReducedMotion = reducedMotionQuery.matches;
       const initialWidth = Math.max(1, Math.round(container.clientWidth));
       const initialHeight = Math.max(1, Math.round(container.clientHeight));
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.65);
+      const pixelRatioCap = graphicsQuality === 'cinematic'
+        ? 1.65
+        : graphicsQuality === 'balanced'
+          ? 1.4
+          : 1.1;
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
 
       scene = new THREE.Scene();
       scene.background = new THREE.Color(titleSceneSpec.palette.void);
@@ -878,13 +864,15 @@ export const WarpkeepTitleScreen3D = forwardRef<
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.08;
       renderer.domElement.className = 'warpkeep-title-canvas';
-      const initialGatewayVfxQuality = selectGatewayVfxQuality({
+      const rendererMaxTextureSize = renderer.capabilities.maxTextureSize;
+      const supportsHighpFragment = renderer.capabilities.getMaxPrecision('highp') === 'highp';
+      const initialGatewayVfxQuality = applyGatewayVfxQualityPreference(selectGatewayVfxQuality({
         viewportWidth: initialWidth,
         viewportHeight: initialHeight,
         reducedMotion: prefersReducedMotion,
-        rendererMaxTextureSize: renderer.capabilities.maxTextureSize,
-        supportsHighpFragment: renderer.capabilities.getMaxPrecision('highp') === 'highp'
-      });
+        rendererMaxTextureSize,
+        supportsHighpFragment
+      }), graphicsQuality, rendererMaxTextureSize, supportsHighpFragment);
       let activeGatewayVfxQuality = initialGatewayVfxQuality;
       const compactGalaxyQuality = initialGatewayVfxQuality !== 'high';
       const initialSurfaceBounds = interactionSurface.getBoundingClientRect();
@@ -1019,8 +1007,10 @@ export const WarpkeepTitleScreen3D = forwardRef<
         texture.anisotropy = maxAnisotropy;
         textures.push(texture);
       });
-      const title = createTitleAssembly(concreteTextures);
+      let title = createTitleAssembly(concreteTextures);
       scene.add(title.group);
+      renderer.domElement.dataset.titleModelState = 'loading';
+      renderer.domElement.dataset.titleModelQuality = graphicsQuality;
 
       scene.add(new THREE.AmbientLight(0x111522, 0.3));
       scene.add(new THREE.HemisphereLight(0xe6e2d6, 0x050711, 0.72));
@@ -1071,7 +1061,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
         const aspect = width / height;
         const portrait = aspect < 0.78;
         const shortLandscape = !portrait && height < 460;
-        const nextPixelRatio = Math.min(window.devicePixelRatio || 1, 1.65);
+        const nextPixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
         viewportWidth = width;
         viewportHeight = height;
         pointerSurfaceBounds.left = surfaceBounds.left;
@@ -1141,15 +1131,38 @@ export const WarpkeepTitleScreen3D = forwardRef<
         [backgroundStars.material, galaxy.stars.material, galaxy.dust.material].forEach((material) => {
           material.uniforms.pixelRatio.value = nextPixelRatio;
         });
-        const nextGatewayVfxQuality = selectGatewayVfxQuality({
+        const nextGatewayVfxQuality = applyGatewayVfxQualityPreference(selectGatewayVfxQuality({
           viewportWidth: width,
           viewportHeight: height,
           reducedMotion: prefersReducedMotion,
-          rendererMaxTextureSize: renderer.capabilities.maxTextureSize,
-          supportsHighpFragment: renderer.capabilities.getMaxPrecision('highp') === 'highp'
-        });
+          rendererMaxTextureSize,
+          supportsHighpFragment
+        }), graphicsQuality, rendererMaxTextureSize, supportsHighpFragment);
         syncGatewayQuality(nextGatewayVfxQuality, nextPixelRatio);
       };
+
+      void loadWarpkeepTitle({
+        baseUrl: import.meta.env.BASE_URL || '/',
+        quality: graphicsQuality,
+        targetHeight: titleSceneSpec.title.height,
+        signal: titleModelAbortController.signal
+      }).then((loadedTitle) => {
+        if (disposed || !scene || !renderer) {
+          disposeObject3DResources(loadedTitle.group);
+          return;
+        }
+        scene.remove(title.group);
+        disposeObject3DResources(title.group);
+        title = loadedTitle;
+        scene.add(title.group);
+        renderer.domElement.dataset.titleModelState = 'ready';
+        renderer.domElement.dataset.titleModelProfile = loadedTitle.profile;
+        resize();
+      }).catch((error: unknown) => {
+        if (titleModelAbortController.signal.aborted || disposed) return;
+        if (renderer) renderer.domElement.dataset.titleModelState = 'fallback';
+        console.warn('Warpkeep title model unavailable; retaining procedural fallback.', error);
+      });
 
       let previousFrameTime = performance.now();
       let visibleElapsed = 0;
@@ -1577,7 +1590,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
       setFallback(true);
       return undefined;
     }
-  }, []);
+  }, [graphicsQuality]);
 
   if (fallback) {
     return (

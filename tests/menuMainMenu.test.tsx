@@ -36,7 +36,7 @@ describe('WarpkeepMainMenu', () => {
     vi.useRealTimers();
   });
 
-  it('renders the live heading, exact tagline, and five semantic commands in order', () => {
+  it('renders the live heading, exact tagline, and four semantic commands in order', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
 
     expect(screen.getByRole('heading', { level: 1, name: 'WARPKEEP' })).not.toBeNull();
@@ -50,7 +50,7 @@ describe('WarpkeepMainMenu', () => {
     expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
   });
 
-  it('routes ENTER REALM to its live callback while preserving notices for other commands', () => {
+  it('routes ENTER REALM to its live callback without exposing a local-save command', () => {
     const onRequestEnterRealm = vi.fn();
     render(
       <WarpkeepMainMenu
@@ -64,34 +64,32 @@ describe('WarpkeepMainMenu', () => {
     expect(onRequestEnterRealm).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('status')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'CONTINUE' }));
-    expect(screen.getByRole('status').textContent).toContain('Campaign');
+    expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();
   });
 
   it('shows distinct anchored notices one at a time without stealing focus', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
-    const settings = screen.getByRole('button', { name: 'SETTINGS' });
+    const exit = screen.getByRole('button', { name: 'EXIT' });
 
     enterRealm.focus();
     fireEvent.click(enterRealm);
     const firstNotice = screen.getByRole('status', { name: '' });
-    expect(firstNotice.textContent).toContain('Hegemony campaign');
+    expect(firstNotice.textContent).toContain('living frontier');
     expect(document.activeElement).toBe(enterRealm);
     expect(enterRealm.getAttribute('aria-describedby')).toBe('warpkeep-menu-notice-enter-realm');
 
     fireEvent.click(enterRealm);
     const refreshedNotice = screen.getByRole('status', { name: '' });
     expect(refreshedNotice).not.toBe(firstNotice);
-    expect(refreshedNotice.textContent).toContain('Hegemony campaign');
+    expect(refreshedNotice.textContent).toContain('living frontier');
 
-    settings.focus();
-    fireEvent.click(settings);
-    const notices = screen.getAllByRole('status');
-    const developmentNotice = notices.find((notice) => notice.classList.contains('warpkeep-menu-notice'));
-    expect(developmentNotice?.textContent).toContain('war council');
-    expect(developmentNotice?.textContent).not.toContain('Hegemony campaign');
-    expect(document.activeElement).toBe(settings);
+    exit.focus();
+    fireEvent.click(exit);
+    const developmentNotice = screen.getByRole('status');
+    expect(developmentNotice.textContent).toContain('Return to Title');
+    expect(developmentNotice.textContent).not.toContain('living frontier');
+    expect(document.activeElement).toBe(exit);
   });
 
   it('opens the dramatic credits roll and uses Escape/back to return without leaving the menu notice open', () => {
@@ -128,12 +126,12 @@ describe('WarpkeepMainMenu', () => {
 
     expect(document.activeElement).toBe(commands[0]);
     fireEvent.keyDown(commands[0], { key: 'ArrowUp' });
-    expect(document.activeElement).toBe(commands[4]);
-    fireEvent.keyDown(commands[4], { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(commands[3]);
+    fireEvent.keyDown(commands[3], { key: 'ArrowDown' });
     expect(document.activeElement).toBe(commands[0]);
     fireEvent.keyDown(commands[0], { key: 'End' });
-    expect(document.activeElement).toBe(commands[4]);
-    fireEvent.keyDown(commands[4], { key: 'Home' });
+    expect(document.activeElement).toBe(commands[3]);
+    fireEvent.keyDown(commands[3], { key: 'Home' });
     expect(document.activeElement).toBe(commands[0]);
 
     const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
@@ -155,6 +153,28 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).not.toBe(
       screen.getByRole('button', { name: 'ENTER REALM' })
     );
+  });
+
+  it('opens functional graphics settings and restores focus after Escape', () => {
+    const onGraphicsPreferenceChange = vi.fn();
+    render(
+      <WarpkeepMainMenu
+        active
+        graphicsPreference="auto"
+        onGraphicsPreferenceChange={onGraphicsPreferenceChange}
+        onRequestReturn={vi.fn()}
+        resolvedGraphicsQuality="cinematic"
+      />
+    );
+    const settings = screen.getByRole('button', { name: 'SETTINGS' });
+    settings.focus();
+    fireEvent.click(settings);
+    expect(screen.getByRole('dialog', { name: 'SETTINGS' })).not.toBeNull();
+    fireEvent.click(screen.getByDisplayValue('balanced'));
+    expect(onGraphicsPreferenceChange).toHaveBeenCalledWith('balanced');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'SETTINGS' })).toBeNull();
+    expect(document.activeElement).toBe(settings);
   });
 
   it('keeps EXIT as an under-construction action and uses the separate return control', () => {

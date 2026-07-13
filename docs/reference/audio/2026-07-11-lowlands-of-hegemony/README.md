@@ -1,10 +1,10 @@
 # Lowlands of Hegemony audio archive — 2026-07-11
 
-This directory preserves the exact project-provided source attachment used for the authenticated Hegemony Lowlands score.
+This directory preserves the exact technical record for the project-provided source attachment used for the authenticated Hegemony Lowlands score.
 
 ## Archive and runtime record
 
-- [`Lowlands Of Hegemony.mp3`](Lowlands%20Of%20Hegemony.mp3) is the byte-for-byte source archive: MP3, 48 kHz stereo, 244.919979-second decoded program, 5,722,488 bytes, SHA-256 `3a04a006e10771c738edacd47150d6039a4eda4faee6bf47f64813b134f81908`.
+- `Lowlands Of Hegemony.mp3` is the byte-for-byte source record: MP3, 48 kHz stereo, 244.919979-second decoded program, 5,722,488 bytes, SHA-256 `3a04a006e10771c738edacd47150d6039a4eda4faee6bf47f64813b134f81908`. The unresolved-rights source is not present in the v0.3.0 HEAD or a public release.
 - The source contains one MP3 audio stream plus a 360×360 MJPEG front-cover stream. Its title is `Lowlands Of Hegemony`; artist is `ael_dev7`.
 - [`../../../../public/audio/warpkeep-lowlands-theme.mp3`](../../../../public/audio/warpkeep-lowlands-theme.mp3) is the runtime derivative: the original audio stream is stream-copied, with the embedded image and source-generator metadata excluded. It contains one 48 kHz stereo MP3 stream, title `Lowlands of Hegemony`, artist `ael_dev7`, 5,704,657 bytes, SHA-256 `d75a8865eda00c808c472d438240a5f645173dead353d44925f34cee500fa13c`.
 

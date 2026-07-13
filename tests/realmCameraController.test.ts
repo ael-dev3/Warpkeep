@@ -19,7 +19,7 @@ const BOUNDS = {
   maxZ: 8.5
 };
 
-const KEEP = { x: 0, y: 0.05, z: 0, height: 1.06 };
+const KEEP = { x: 0, y: 0.05, z: 0, height: 1.06, footprintDiameter: 1.48 };
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -70,6 +70,23 @@ describe('realm perspective camera math', () => {
     expect(overview.target.z).toBeCloseTo(0, 6);
     expect(closePan.x).toBeLessThan(11);
     expect(closePan.z).toBeGreaterThan(-10);
+  });
+
+  it('keeps the full keep footprint framed across tall portrait targets', () => {
+    [
+      [320, 568],
+      [390, 844],
+      [412, 915],
+      [430, 932],
+      [768, 1024]
+    ].forEach(([width, height]) => {
+      const aspect = width / height;
+      const close = deriveRealmCameraPose(1, { x: 0, z: 0 }, BOUNDS, KEEP, aspect);
+      expect(close.visibleHalfHeight).toBeGreaterThanOrEqual(1.62);
+      expect(close.visibleHalfHeight * aspect).toBeGreaterThanOrEqual(
+        KEEP.footprintDiameter * 0.55 - 0.000001
+      );
+    });
   });
 
   it('normalizes wheel units and keeps damping frame-rate independent', () => {

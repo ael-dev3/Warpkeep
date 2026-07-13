@@ -1,0 +1,24 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Warpkeep
+Source: https://github.com/ael-dev3/Warpkeep
+
+Files: src/** scripts/** tests/** services/auth-bridge/** spacetimedb/** .github/** *.ts *.json *.html .env.example
+Copyright: 2026 Warpkeep contributors
+License: Apache-2.0
+
+Files: README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md TRADEMARKS.md LICENSING.md ASSETS-LICENSE.md _AGENT_NOTES.md docs/*.md docs/design/** docs/devlog/** docs/legal/** docs/operations/** docs/plans/** docs/releases/** docs/security/**
+Copyright: 2026 Warpkeep contributors
+License: CC-BY-4.0
+
+Files: licenses/legacy/LICENSE-0BSD-v0.2.0
+Copyright: Historical Warpkeep contributors
+License: 0BSD
+
+Files: licenses/legacy/LICENSE-CC0-1.0-v0.2.0
+Copyright: Historical Warpkeep contributors
+License: CC0-1.0
+
+Files: public/** docs/reference/**
+Copyright: See ASSETS-LICENSE.md and path-specific provenance records
+License: LicenseRef-Warpkeep-Provenance-Required
+Comment: These paths are not relicensed by repository location. Each file retains its confirmed original or path-specific terms; unresolved material remains unresolved.

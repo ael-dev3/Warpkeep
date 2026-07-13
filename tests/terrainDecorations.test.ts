@@ -32,14 +32,14 @@ describe('deterministic lowland decorations', () => {
   it('respects quality density and reduces the visual-apron density', () => {
     const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
     const high = generateTerrainDecorations(surface.renderMap, REALM_QUALITY_SPECS.high);
-    const compact = generateTerrainDecorations(surface.renderMap, REALM_QUALITY_SPECS.compact);
+    const balanced = generateTerrainDecorations(surface.renderMap, REALM_QUALITY_SPECS.balanced);
     const reduced = generateTerrainDecorations(surface.renderMap, REALM_QUALITY_SPECS.reduced);
 
     expect(high.counts['green-tuft']).toBe(780);
     expect(high.counts['dry-tuft']).toBe(150);
     expect(high.counts.stone).toBeGreaterThanOrEqual(40);
     expect(high.counts.stone).toBeLessThanOrEqual(80);
-    expect(compact.counts['green-tuft']).toBe(360);
+    expect(balanced.counts['green-tuft']).toBe(480);
     expect(reduced.counts['green-tuft']).toBe(60);
     expect(high.points.filter((point) => point.apron).length)
       .toBeLessThan(high.points.filter((point) => !point.apron).length);
