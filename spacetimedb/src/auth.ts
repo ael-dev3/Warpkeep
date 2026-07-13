@@ -6,17 +6,22 @@ import {
 } from 'spacetimedb/server';
 
 import {
+  type AuthEpochResolverJwtClaims,
   ClaimValidationError,
   type WarpkeepBaseJwtClaims,
   type WarpkeepJwtClaims,
+  isAuthEpochResolverJwt,
   isHermesAdminJwt,
+  readFreshAuthEpochResolverJwt,
   readFreshHermesAdminJwt,
   readFreshWarpkeepPlayerJwt,
   readWarpkeepBaseJwt,
 } from './claims';
 import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
+import { evaluatePlayerOwnership } from './playerOwnershipPolicy';
 import type warpkeep from './schema';
+import { worldCastleGraphIsConsistent } from './worldCastleIntegrity';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
 
@@ -50,10 +55,14 @@ export function requireWarpkeepJwt(ctx: WarpkeepReducerContext): WarpkeepJwtClai
 }
 
 /**
- * Connections may be made by a player token or by the short-lived Hermes
- * admin token. Both still require the exact bridge issuer, audience, token
- * type, and syntactically valid roles. Player calls continue to require an
- * FID and auth epoch; admin-only procedures separately require the role.
+ * Connections may be made only by a currently admitted player, the exact fresh
+ * Hermes administrator, or the exact fresh resolver principal. SpacetimeDB
+ * invokes this lifecycle gate before HTTP procedures too, so the resolver must
+ * pass it before its independently protected read-only procedure can run.
+ * A resolver bearer presented while fresh can technically establish public
+ * subscriptions that may persist until transport disconnect, and can read
+ * static backend metadata while fresh. Reducer/procedure guards still deny
+ * player, private, and administrator authority and recheck resolver expiry.
  */
 export function requireWarpkeepConnection(
   ctx: WarpkeepReducerContext,
@@ -61,12 +70,20 @@ export function requireWarpkeepConnection(
   try {
     const payload = requireJwtPayload(ctx.senderAuth);
     const base = readWarpkeepBaseJwt(payload);
-    return isHermesAdminJwt(base)
-      ? base
-      : readFreshWarpkeepPlayerJwt(payload, ctx.timestamp.microsSinceUnixEpoch);
+    if (isHermesAdminJwt(base)) {
+      return readFreshHermesAdminJwt(payload, ctx.timestamp.microsSinceUnixEpoch);
+    }
+    if (isAuthEpochResolverJwt(base)) {
+      return readFreshAuthEpochResolverJwt(
+        payload,
+        ctx.timestamp.microsSinceUnixEpoch,
+      );
+    }
   } catch (error) {
     return senderError(error);
   }
+
+  return requireAllowedFid(ctx).claims;
 }
 
 /** Require a bridge-issued admin token; admin tokens intentionally have no FID. */
@@ -76,6 +93,25 @@ export function requireAdmin(ctx: WarpkeepReducerContext): WarpkeepBaseJwtClaims
       requireJwtPayload(ctx.senderAuth),
       ctx.timestamp.microsSinceUnixEpoch,
     );
+  } catch (error) {
+    return senderError(error);
+  }
+}
+
+/** Require the exact short-lived resolver bound to this one procedure FID. */
+export function requireAuthEpochResolver(
+  ctx: WarpkeepReducerContext,
+  expectedFid: bigint,
+): AuthEpochResolverJwtClaims {
+  try {
+    const claims = readFreshAuthEpochResolverJwt(
+      requireJwtPayload(ctx.senderAuth),
+      ctx.timestamp.microsSinceUnixEpoch,
+    );
+    if (claims.resolverFid !== expectedFid) {
+      throw new ClaimValidationError('INVALID_AUTH_RESOLVER_SESSION');
+    }
+    return claims;
   } catch (error) {
     return senderError(error);
   }
@@ -102,20 +138,37 @@ export function requireAllowedFid(ctx: WarpkeepReducerContext): {
 
 export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {
   claims: WarpkeepJwtClaims;
-  player: NonNullable<ReturnType<typeof ctx.db.player.fid.find>>;
+  player: NonNullable<ReturnType<typeof ctx.db.playerV2.fid.find>>;
 } {
   const { claims } = requireAllowedFid(ctx);
-  const player = ctx.db.player.fid.find(claims.fid);
+  if (!worldCastleGraphIsConsistent(ctx.db.worldTile.iter(), ctx.db.castle.iter())) {
+    throw new SenderError('STATE_INTEGRITY');
+  }
+  const player = ctx.db.playerV2.fid.find(claims.fid);
+  const ownership = ctx.db.playerOwnershipV2.fid.find(claims.fid);
+  const ownershipState = evaluatePlayerOwnership(
+    player !== null,
+    ownership !== null,
+    ownership?.identity.equals(ctx.sender) ?? false,
+  );
 
-  if (player === null) {
+  if (ownershipState === 'unbound') {
     throw new SenderError('PLAYER_NOT_BOOTSTRAPPED');
   }
 
-  if (!player.identity.equals(ctx.sender)) {
+  if (ownershipState === 'partial') {
+    throw new SenderError('STATE_INTEGRITY');
+  }
+
+  if (ownershipState === 'identity_mismatch') {
     throw new SenderError('IDENTITY_MISMATCH');
   }
 
-  return { claims, player };
+  if (ctx.db.castle.ownerFid.find(claims.fid) === null) {
+    throw new SenderError('STATE_INTEGRITY');
+  }
+
+  return { claims, player: player! };
 }
 
 /** Admin inputs use the same safe FID envelope as bridge-issued player claims. */

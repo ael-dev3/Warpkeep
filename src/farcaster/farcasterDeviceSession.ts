@@ -1,92 +1,55 @@
-import type {
-  FarcasterOidcSession,
-  VerifiedFarcasterIdentity
-} from './farcasterAuthTypes';
-import {
-  FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS,
-  validateFarcasterOidcSessionForIdentity
-} from './farcasterOidcSession';
+import { FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS } from './farcasterOidcSession';
 
 /**
- * Version 2 is the only browser record that can restore a shared-realm
- * credential. Version 1 stored display identity only and is deliberately
- * retired below instead of being treated as authority.
+ * These identifiers are retained only so startup cleanup can remove bearer
+ * records written by older clients. No current browser session is persisted.
  */
 export const FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION = 2 as const;
 export const FARCASTER_REMEMBERED_DEVICE_SESSION_KIND = 'bridge-oidc-alpha' as const;
-export const FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS = FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS;
+export const FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS = FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS;
+export const FARCASTER_OIDC_DEVICE_SESSION_VERSION = FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION;
+export const FARCASTER_OIDC_DEVICE_SESSION_KIND = FARCASTER_REMEMBERED_DEVICE_SESSION_KIND;
+export const FARCASTER_LEGACY_DEVICE_SESSION_VERSION = 1 as const;
 
-export const FARCASTER_OIDC_DEVICE_SESSION_VERSION =
-  FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION;
-export const FARCASTER_OIDC_DEVICE_SESSION_KIND =
-  FARCASTER_REMEMBERED_DEVICE_SESSION_KIND;
-
-const LEGACY_SESSION_VERSION = 1 as const;
 const LEGACY_STORAGE_KEY_SUFFIX = ':farcaster-device-session:v1';
 const STORAGE_KEY_SUFFIX = ':farcaster-device-session:v2';
 const CONTROL_KEY_SUFFIX = ':farcaster-session-control:v1';
+const CONTROL_VALUE_PATTERN = /^logout-v1:(0|[1-9]\d*)$/;
 const MAX_BASE_PATH_LENGTH = 256;
-const MAX_ORIGIN_LENGTH = 2_048;
-const MAX_PROFILE_FIELD_LENGTH = 256;
-const MAX_PROFILE_URL_LENGTH = 2_048;
-const MAX_STORED_RECORD_LENGTH = 32_768;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/;
 
-export type FarcasterRememberedDeviceIdentity = Readonly<{
-  fid: number;
-  username?: string;
-  displayName?: string;
-  pfpUrl?: string;
-}>;
+/** Matches the maximum lifetime of a server-side session family. */
+export const FARCASTER_SESSION_TERMINATION_INTENT_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 
-/**
- * Complete v2 storage allowlist. Raw SIWF proof, relay channel information,
- * custody/verification addresses, and admin/service credentials are absent by
- * construction.
- */
-export type FarcasterRememberedDeviceSession = Readonly<{
-  version: typeof FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION;
-  kind: typeof FARCASTER_REMEMBERED_DEVICE_SESSION_KIND;
-  origin: string;
-  basePath: string;
-  identity: FarcasterRememberedDeviceIdentity;
-  issuer: string;
-  audience: string;
-  jwt: string;
-  verifiedAt: number;
-  rememberedAt: number;
-  expiresAt: number;
-}>;
+export type FarcasterSessionTerminationIntentStatus =
+  | 'absent'
+  | 'active'
+  | 'stale'
+  | 'malformed'
+  | 'unavailable';
 
 export type FarcasterDeviceSessionStorage = Pick<
   Storage,
   'getItem' | 'setItem' | 'removeItem'
->;
+> & Partial<Pick<Storage, 'key' | 'length'>>;
 
-/** Optional runtime inputs keep this module deterministic and SSR-safe. */
+/** Optional runtime inputs keep cleanup deterministic, testable, and SSR-safe. */
 export type FarcasterDeviceSessionEnvironment = Readonly<{
+  /** Compatibility alias for the localStorage-backed logout signal. */
   storage?: FarcasterDeviceSessionStorage | null;
+  localStorage?: FarcasterDeviceSessionStorage | null;
+  sessionStorage?: FarcasterDeviceSessionStorage | null;
+  /** Retained only for compatibility with deterministic cleanup fixtures. */
   origin?: string;
   basePath?: string;
   now?: () => number;
 }>;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+/** Retired compatibility type: there is no persisted authoritative record. */
+export type FarcasterRememberedDeviceSession = never;
 
-function hasOnlyAllowedKeys(value: Record<string, unknown>, allowedKeys: readonly string[]) {
-  return Object.keys(value).every((key) => allowedKeys.includes(key));
-}
-
-function hasOwn(value: Record<string, unknown>, key: string) {
+function hasOwn(value: object, key: string) {
   return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function readSafeTimestamp(value: unknown) {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
-    ? value
-    : undefined;
 }
 
 function readCurrentTime(now: (() => number) | undefined) {
@@ -96,35 +59,9 @@ function readCurrentTime(now: (() => number) | undefined) {
   } catch {
     return undefined;
   }
-
-  if (!Number.isFinite(value) || value < 0 || value > Number.MAX_SAFE_INTEGER) {
-    return undefined;
-  }
-  return Math.floor(value);
-}
-
-function readSafeOrigin(value: unknown) {
-  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_ORIGIN_LENGTH) {
-    return undefined;
-  }
-
-  try {
-    const url = new URL(value);
-    if (
-      (url.protocol !== 'https:' && url.protocol !== 'http:')
-      || url.username !== ''
-      || url.password !== ''
-      || url.pathname !== '/'
-      || url.search !== ''
-      || url.hash !== ''
-      || url.origin !== value
-    ) {
-      return undefined;
-    }
-    return url.origin;
-  } catch {
-    return undefined;
-  }
+  return Number.isFinite(value) && value >= 0 && value <= Number.MAX_SAFE_INTEGER
+    ? Math.floor(value)
+    : undefined;
 }
 
 /**
@@ -151,19 +88,15 @@ export function normalizeFarcasterDeviceSessionBasePath(value: unknown) {
     const rawSegment = rawSegments[index];
     const isBoundarySegment = index === 0 || index === rawSegments.length - 1;
     if (rawSegment === '') {
-      if (isBoundarySegment) {
-        continue;
-      }
+      if (isBoundarySegment) continue;
       return undefined;
     }
-
     let segment: string;
     try {
       segment = decodeURIComponent(rawSegment);
     } catch {
       return undefined;
     }
-
     if (
       segment === ''
       || segment === '.'
@@ -177,11 +110,9 @@ export function normalizeFarcasterDeviceSessionBasePath(value: unknown) {
       return undefined;
     }
   }
-
   return value.endsWith('/') ? value : `${value}/`;
 }
 
-/** The storage key is scoped by the deploy base path as well as browser origin. */
 export function getFarcasterDeviceSessionStorageKey(
   basePath: unknown = import.meta.env.BASE_URL || '/'
 ) {
@@ -191,7 +122,6 @@ export function getFarcasterDeviceSessionStorageKey(
     : undefined;
 }
 
-/** Public only for migration tests and cross-tab cleanup; it is never authority. */
 export function getLegacyFarcasterDeviceSessionStorageKey(
   basePath: unknown = import.meta.env.BASE_URL || '/'
 ) {
@@ -201,7 +131,7 @@ export function getLegacyFarcasterDeviceSessionStorageKey(
     : undefined;
 }
 
-/** Non-sensitive, base-path-scoped cross-tab session termination signal. */
+/** The only retained storage write is a non-secret cross-tab logout event. */
 export function getFarcasterDeviceSessionControlKey(
   basePath: unknown = import.meta.env.BASE_URL || '/'
 ) {
@@ -211,103 +141,91 @@ export function getFarcasterDeviceSessionControlKey(
     : undefined;
 }
 
-function getBrowserStorage() {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
+function browserStorage(name: 'localStorage' | 'sessionStorage') {
+  if (typeof window === 'undefined') return undefined;
   try {
-    return window.localStorage;
+    return window[name];
   } catch {
     return undefined;
   }
 }
 
-function getBrowserOrigin() {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-  try {
-    return window.location.origin;
-  } catch {
-    return undefined;
-  }
+function localStorageFor(environment: FarcasterDeviceSessionEnvironment) {
+  if (hasOwn(environment, 'localStorage')) return environment.localStorage ?? undefined;
+  if (hasOwn(environment, 'storage')) return environment.storage ?? undefined;
+  return browserStorage('localStorage');
 }
 
-function resolveStorage(environment: FarcasterDeviceSessionEnvironment) {
-  if (hasOwn(environment as Record<string, unknown>, 'storage')) {
-    return environment.storage ?? undefined;
-  }
-  return getBrowserStorage();
+function sessionStorageFor(environment: FarcasterDeviceSessionEnvironment) {
+  if (hasOwn(environment, 'sessionStorage')) return environment.sessionStorage ?? undefined;
+  return browserStorage('sessionStorage');
 }
 
-function resolveBasePath(environment: FarcasterDeviceSessionEnvironment) {
-  return normalizeFarcasterDeviceSessionBasePath(
-    environment.basePath === undefined ? import.meta.env.BASE_URL || '/' : environment.basePath
-  );
-}
-
-function resolveOrigin(environment: FarcasterDeviceSessionEnvironment) {
-  return readSafeOrigin(
-    environment.origin === undefined ? getBrowserOrigin() : environment.origin
-  );
-}
-
-function storageBasePath(environment: FarcasterDeviceSessionEnvironment) {
-  return environment.basePath === undefined ? import.meta.env.BASE_URL || '/' : environment.basePath;
+function basePathFor(environment: FarcasterDeviceSessionEnvironment) {
+  return environment.basePath === undefined
+    ? import.meta.env.BASE_URL || '/'
+    : environment.basePath;
 }
 
 function safelyRemove(storage: FarcasterDeviceSessionStorage | undefined, key: string | undefined) {
-  if (!storage || !key) {
-    return;
-  }
+  if (!storage || !key) return;
   try {
     storage.removeItem(key);
   } catch {
-    // Private browsing / denied storage is an expected non-authentication failure.
+    // Storage denial is non-fatal; server cookies remain the sole session source.
   }
 }
 
-function readProfileText(value: unknown) {
-  if (
-    typeof value !== 'string'
-    || value.length === 0
-    || value.length > MAX_PROFILE_FIELD_LENGTH
-    || value !== value.trim()
-    || CONTROL_CHARACTER_PATTERN.test(value)
-  ) {
-    return undefined;
-  }
-  return value;
-}
+function purgeStorage(
+  storage: FarcasterDeviceSessionStorage | undefined,
+  currentKey: string | undefined,
+  legacyKey: string | undefined
+) {
+  safelyRemove(storage, currentKey);
+  safelyRemove(storage, legacyKey);
 
-function readProfileUrl(value: unknown) {
-  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_PROFILE_URL_LENGTH) {
-    return undefined;
-  }
+  // Also retire records left under an earlier deploy base on this origin.
+  if (!storage || typeof storage.key !== 'function' || typeof storage.length !== 'number') return;
+  const keys: string[] = [];
   try {
-    const url = new URL(value);
-    if (
-      url.protocol !== 'https:'
-      || url.username !== ''
-      || url.password !== ''
-    ) {
-      return undefined;
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (
+        key?.startsWith('warpkeep:')
+        && (key.endsWith(STORAGE_KEY_SUFFIX) || key.endsWith(LEGACY_STORAGE_KEY_SUFFIX))
+      ) {
+        keys.push(key);
+      }
     }
-    return url.toString();
   } catch {
-    return undefined;
+    return;
   }
+  for (const key of keys) safelyRemove(storage, key);
 }
 
+/** Best-effort startup/logout purge of all retired bearer storage. */
+export function purgeFarcasterBrowserBearerStorage(
+  environment: FarcasterDeviceSessionEnvironment = {}
+) {
+  const basePath = basePathFor(environment);
+  const currentKey = getFarcasterDeviceSessionStorageKey(basePath);
+  const legacyKey = getLegacyFarcasterDeviceSessionStorageKey(basePath);
+  purgeStorage(localStorageFor(environment), currentKey, legacyKey);
+  purgeStorage(sessionStorageFor(environment), currentKey, legacyKey);
+}
+
+/**
+ * Persists non-secret logout intent for reload and cross-tab suppression.
+ * A false result means no durable browser record exists; callers must remain
+ * fail closed in memory and rely on server-side revocation for later contexts.
+ */
 export function signalFarcasterSessionTermination(
   environment: FarcasterDeviceSessionEnvironment = {}
 ) {
-  const storage = resolveStorage(environment);
-  const key = getFarcasterDeviceSessionControlKey(storageBasePath(environment));
+  const storage = localStorageFor(environment);
+  const key = getFarcasterDeviceSessionControlKey(basePathFor(environment));
   const now = readCurrentTime(environment.now);
-  if (!storage || !key || now === undefined) {
-    return false;
-  }
+  if (!storage || !key || now === undefined) return false;
   try {
     storage.setItem(key, `logout-v1:${now}`);
     return true;
@@ -316,305 +234,78 @@ export function signalFarcasterSessionTermination(
   }
 }
 
-function readRememberedIdentity(value: unknown): FarcasterRememberedDeviceIdentity | undefined {
-  if (
-    !isRecord(value)
-    || !hasOnlyAllowedKeys(value, ['fid', 'username', 'displayName', 'pfpUrl'])
-    || typeof value.fid !== 'number'
-    || !Number.isSafeInteger(value.fid)
-    || value.fid <= 0
-  ) {
-    return undefined;
-  }
-
-  const identity: {
-    fid: number;
-    username?: string;
-    displayName?: string;
-    pfpUrl?: string;
-  } = { fid: value.fid };
-
-  if (hasOwn(value, 'username')) {
-    const username = readProfileText(value.username);
-    if (!username) {
-      return undefined;
-    }
-    identity.username = username;
-  }
-  if (hasOwn(value, 'displayName')) {
-    const displayName = readProfileText(value.displayName);
-    if (!displayName) {
-      return undefined;
-    }
-    identity.displayName = displayName;
-  }
-  if (hasOwn(value, 'pfpUrl')) {
-    const pfpUrl = readProfileUrl(value.pfpUrl);
-    if (!pfpUrl) {
-      return undefined;
-    }
-    identity.pfpUrl = pfpUrl;
-  }
-
-  return Object.freeze(identity);
-}
-
-function copyRememberedIdentity(
-  identity: VerifiedFarcasterIdentity
-): FarcasterRememberedDeviceIdentity | undefined {
-  if (!isRecord(identity)) {
-    return undefined;
-  }
-  return readRememberedIdentity({
-    fid: identity.fid,
-    ...(identity.username === undefined ? {} : { username: identity.username }),
-    ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
-    ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl })
-  });
-}
-
-function createSessionRecord(
-  identity: VerifiedFarcasterIdentity,
-  oidcSession: FarcasterOidcSession,
-  environment: FarcasterDeviceSessionEnvironment
-): FarcasterRememberedDeviceSession | undefined {
+/**
+ * Reads only the exact scoped control key. Active, malformed, and unavailable
+ * states are fail-closed inputs for automatic cookie refresh. A stale record
+ * cannot outlive the server session family it was created to suppress.
+ */
+export function readFarcasterSessionTerminationIntent(
+  environment: FarcasterDeviceSessionEnvironment = {}
+): FarcasterSessionTerminationIntentStatus {
+  const storage = localStorageFor(environment);
+  const key = getFarcasterDeviceSessionControlKey(basePathFor(environment));
   const now = readCurrentTime(environment.now);
-  const origin = resolveOrigin(environment);
-  const basePath = resolveBasePath(environment);
-  const publicIdentity = copyRememberedIdentity(identity);
-  const verifiedAt = readSafeTimestamp(identity?.verifiedAt);
-  const parsedOidc = validateFarcasterOidcSessionForIdentity(oidcSession, identity.fid, { now });
+  if (!storage || !key || now === undefined) return 'unavailable';
 
-  if (
-    now === undefined
-    || !origin
-    || !basePath
-    || !publicIdentity
-    || verifiedAt === undefined
-    || verifiedAt > now
-    || !parsedOidc
-    || parsedOidc.session.expiresAt <= now
-    || parsedOidc.session.expiresAt - now > FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
-  ) {
-    return undefined;
-  }
-
-  return Object.freeze({
-    version: FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION,
-    kind: FARCASTER_REMEMBERED_DEVICE_SESSION_KIND,
-    origin,
-    basePath,
-    identity: publicIdentity,
-    issuer: parsedOidc.session.issuer,
-    audience: parsedOidc.session.audience,
-    jwt: parsedOidc.session.jwt,
-    verifiedAt,
-    rememberedAt: now,
-    expiresAt: parsedOidc.session.expiresAt
-  });
-}
-
-function parseSessionRecord(
-  value: unknown,
-  expectedOrigin: string,
-  expectedBasePath: string,
-  now: number
-): FarcasterRememberedDeviceSession | undefined {
-  if (
-    !isRecord(value)
-    || !hasOnlyAllowedKeys(value, [
-      'version',
-      'kind',
-      'origin',
-      'basePath',
-      'identity',
-      'issuer',
-      'audience',
-      'jwt',
-      'verifiedAt',
-      'rememberedAt',
-      'expiresAt'
-    ])
-    || value.version !== FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION
-    || value.kind !== FARCASTER_REMEMBERED_DEVICE_SESSION_KIND
-    || readSafeOrigin(value.origin) !== expectedOrigin
-    || normalizeFarcasterDeviceSessionBasePath(value.basePath) !== expectedBasePath
-    || value.basePath !== expectedBasePath
-  ) {
-    return undefined;
-  }
-
-  const identity = readRememberedIdentity(value.identity);
-  const verifiedAt = readSafeTimestamp(value.verifiedAt);
-  const rememberedAt = readSafeTimestamp(value.rememberedAt);
-  const expiresAt = readSafeTimestamp(value.expiresAt);
-  if (
-    !identity
-    || verifiedAt === undefined
-    || rememberedAt === undefined
-    || expiresAt === undefined
-    || verifiedAt > rememberedAt
-    || rememberedAt > now
-    || expiresAt <= now
-    || expiresAt - rememberedAt > FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
-  ) {
-    return undefined;
-  }
-
-  const parsedOidc = validateFarcasterOidcSessionForIdentity({
-    jwt: value.jwt,
-    issuer: value.issuer,
-    audience: value.audience,
-    expiresAt
-  }, identity.fid, { now });
-  if (!parsedOidc || parsedOidc.session.expiresAt !== expiresAt) {
-    return undefined;
-  }
-
-  return Object.freeze({
-    version: FARCASTER_REMEMBERED_DEVICE_SESSION_VERSION,
-    kind: FARCASTER_REMEMBERED_DEVICE_SESSION_KIND,
-    origin: expectedOrigin,
-    basePath: expectedBasePath,
-    identity,
-    issuer: parsedOidc.session.issuer,
-    audience: parsedOidc.session.audience,
-    jwt: parsedOidc.session.jwt,
-    verifiedAt,
-    rememberedAt,
-    expiresAt
-  });
-}
-
-/** Converts the strict persisted record into the private runtime bearer shape. */
-export function toFarcasterOidcSession(
-  session: FarcasterRememberedDeviceSession
-): FarcasterOidcSession {
-  return Object.freeze({
-    jwt: session.jwt,
-    issuer: session.issuer,
-    audience: session.audience,
-    expiresAt: session.expiresAt
-  });
-}
-
-/**
- * Persists a strict v2 closed-alpha record. Storage failure is intentionally
- * non-fatal and never downgrades a current live bridge session to prototype
- * authority.
- */
-export function persistFarcasterRememberedDeviceSession(
-  identity: VerifiedFarcasterIdentity,
-  oidcSession: FarcasterOidcSession,
-  environment?: FarcasterDeviceSessionEnvironment
-): FarcasterRememberedDeviceSession | undefined;
-/**
- * Compatibility-only legacy call shape. It intentionally returns no record:
- * identity-only browser data can no longer authorize the shared realm.
- */
-export function persistFarcasterRememberedDeviceSession(
-  identity: VerifiedFarcasterIdentity,
-  environment?: FarcasterDeviceSessionEnvironment
-): undefined;
-export function persistFarcasterRememberedDeviceSession(
-  identity: VerifiedFarcasterIdentity,
-  oidcSessionOrEnvironment?: FarcasterOidcSession | FarcasterDeviceSessionEnvironment,
-  providedEnvironment?: FarcasterDeviceSessionEnvironment
-) {
-  const hasOidcSession = isRecord(oidcSessionOrEnvironment)
-    && hasOnlyAllowedKeys(oidcSessionOrEnvironment, ['jwt', 'issuer', 'audience', 'expiresAt']);
-  if (!hasOidcSession) {
-    return undefined;
-  }
-  const oidcSession = oidcSessionOrEnvironment as FarcasterOidcSession;
-  const environment = providedEnvironment ?? {};
-  const storage = resolveStorage(environment);
-  const record = createSessionRecord(identity, oidcSession, environment);
-  const key = getFarcasterDeviceSessionStorageKey(storageBasePath(environment));
-  if (!storage || !record || !key) {
-    return undefined;
-  }
-
+  let value: string | null;
   try {
-    storage.setItem(key, JSON.stringify(record));
-    // A fresh exchange is the only valid migration path from the v1 display
-    // record, so delete it only after v2 has been written successfully.
-    safelyRemove(storage, getLegacyFarcasterDeviceSessionStorageKey(storageBasePath(environment)));
-    return record;
+    value = storage.getItem(key);
   } catch {
-    return undefined;
+    return 'unavailable';
+  }
+  if (value === null) return 'absent';
+
+  const match = CONTROL_VALUE_PATTERN.exec(value);
+  if (!match) return 'malformed';
+  const terminatedAt = Number(match[1]);
+  if (!Number.isSafeInteger(terminatedAt) || terminatedAt > now) return 'malformed';
+  if (now - terminatedAt < FARCASTER_SESSION_TERMINATION_INTENT_TTL_MS) return 'active';
+
+  // Remove only the exact control key. Failed cleanup remains deterministically stale.
+  safelyRemove(storage, key);
+  return 'stale';
+}
+
+/** Explicit new sign-in is the only browser action that clears logout intent. */
+export function clearFarcasterSessionTerminationIntent(
+  environment: FarcasterDeviceSessionEnvironment = {}
+) {
+  const storage = localStorageFor(environment);
+  const key = getFarcasterDeviceSessionControlKey(basePathFor(environment));
+  if (!storage || !key) return false;
+  try {
+    storage.removeItem(key);
+    return true;
+  } catch {
+    return false;
   }
 }
 
-/**
- * Restores only an unexpired v2 OIDC record bound to this exact origin and
- * deploy base. Any v1 prototype record is purged and cannot enter the shared
- * realm. Malformed, stale, or foreign v2 values are also removed best-effort.
- */
+/** @deprecated Bearer persistence is retired; this always purges and returns undefined. */
+export function persistFarcasterRememberedDeviceSession(
+  _identity?: unknown,
+  _session?: unknown,
+  environment: FarcasterDeviceSessionEnvironment = {}
+) {
+  purgeFarcasterBrowserBearerStorage(environment);
+  return undefined;
+}
+
+/** @deprecated Cookie refresh replaces storage restoration. */
 export function restoreFarcasterRememberedDeviceSession(
   environment: FarcasterDeviceSessionEnvironment = {}
 ) {
-  const storage = resolveStorage(environment);
-  const basePath = resolveBasePath(environment);
-  const key = getFarcasterDeviceSessionStorageKey(storageBasePath(environment));
-  const legacyKey = getLegacyFarcasterDeviceSessionStorageKey(storageBasePath(environment));
-  if (!storage || !basePath || !key) {
-    return undefined;
-  }
-
-  // Never surface an identity-only v1 record as authority. It must be
-  // replaced by a fresh Farcaster proof + bridge exchange.
-  safelyRemove(storage, legacyKey);
-
-  const origin = resolveOrigin(environment);
-  const now = readCurrentTime(environment.now);
-  if (!origin || now === undefined) {
-    safelyRemove(storage, key);
-    return undefined;
-  }
-
-  let serialized: string | null;
-  try {
-    serialized = storage.getItem(key);
-  } catch {
-    return undefined;
-  }
-  if (serialized === null) {
-    return undefined;
-  }
-
-  if (serialized.length === 0 || serialized.length > MAX_STORED_RECORD_LENGTH) {
-    safelyRemove(storage, key);
-    return undefined;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(serialized);
-  } catch {
-    safelyRemove(storage, key);
-    return undefined;
-  }
-
-  const record = parseSessionRecord(parsed, origin, basePath, now);
-  if (!record) {
-    safelyRemove(storage, key);
-  }
-  return record;
+  purgeFarcasterBrowserBearerStorage(environment);
+  return undefined;
 }
 
-/** Forget both current OIDC state and the retired v1 display-only state. */
+/** @deprecated No persisted object can be converted into bearer authority. */
+export function toFarcasterOidcSession() {
+  return undefined;
+}
+
 export function clearFarcasterRememberedDeviceSession(
   environment: FarcasterDeviceSessionEnvironment = {}
 ) {
-  const storage = resolveStorage(environment);
-  if (!storage) {
-    return;
-  }
-  const basePath = storageBasePath(environment);
-  safelyRemove(storage, getFarcasterDeviceSessionStorageKey(basePath));
-  safelyRemove(storage, getLegacyFarcasterDeviceSessionStorageKey(basePath));
+  purgeFarcasterBrowserBearerStorage(environment);
 }
-
-/** Exposed only to make v1 fail-closed tests explicit. */
-export const FARCASTER_LEGACY_DEVICE_SESSION_VERSION = LEGACY_SESSION_VERSION;

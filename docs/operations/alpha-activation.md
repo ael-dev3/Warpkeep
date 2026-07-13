@@ -1,92 +1,154 @@
 # Warpkeep closed-alpha activation and recovery runbook
 
-This runbook records the Alpha 0.2 activation sequence and remains the safe operational basis for Alpha 0.3 recovery. Historical source coordinates below are evidence, not the current release coordinate.
+This runbook preserves the Alpha 0.2 recovery record and defines the approval
+gates and recorded checkpoint for the protocol-v2 rollout.
 
-This runbook activates the closed alpha without weakening its admission boundary. It is intentionally sequential: do not enable the browser before every server-side gate is healthy.
+> **Protocol-v2 backend staged; public entry remains paused.** The additive
+> module has been published to the existing Maincloud database with deletion
+> prohibited, the additive `SessionFamily` migration and independent managed
+> session-cookie secret have been staged, and the reviewed Worker is deployed
+> with `PUBLIC_AUTH_ENABLED=false`. The protected aggregate remains at 61 world
+> tiles with zero admission, player, ownership, orphan, castle, and allowlist
+> rows. The v2 frontend changes are not yet deployed and
+> `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false`. These observations are bound to
+> the privately recorded deployment coordinates; they do not authorize either
+> public switch.
 
-## Verified activation record
+## Historical activation record
 
-The production bridge through the recorded Alpha 0.2 Worker/Pages coordinates, discovery/JWKS, distributed rate control, direct private auth-epoch procedure, and production-issuer module are live. The module was published non-destructively. Protected inspection reports exactly 61 world tiles, zero allowlist rows, zero enabled FIDs, zero players, and zero castles. A second seed remained at 61. Fresh-profile empty-admission QA completed and no real FID was admitted. Later releases must not be described as live until their own exact consolidated head is deployed and this verification is repeated.
+Recorded Alpha 0.2 coordinates previously passed discovery/JWKS, distributed
+rate control, the raw admin epoch lookup, non-destructive module publish, and
+protected aggregate inspection at 61 world tiles with empty admission/player/
+castle state. Those observations apply only to their recorded deployed heads.
+The later v2 module and paused Worker checkpoint is recorded separately and is
+likewise not evidence that an arbitrary checkout, frontend build, or
+public-auth state is live.
 
 ## Safety invariants
 
-- Preserve `_github-pages-challenge-ael-dev3.warpkeep.com` exactly as supplied by GitHub.
-- Never permit data deletion: the guarded publish must use
-  `--delete-data=never`; never use `--delete-data=always`, `--break-clients`,
-  database recreation, or a real/synthetic FID during activation.
-- Keep final aggregate state at **61 world tiles / 0 allowlist rows / 0 enabled allowlist rows / 0 players / 0 castles**.
-- Keep secrets out of the repository, `VITE_` variables, shell history, logs, and support screenshots.
-- Enable `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` only through the reviewed exact-head Pages workflow after the bridge, private Maincloud auth-epoch call, and module prove healthy. Set it back to `false` for rollback.
+- Preserve `_github-pages-challenge-ael-dev3.warpkeep.com` exactly as supplied
+  by GitHub; do not change DNS during an auth-only rollout without separate
+  approval.
+- Never permit data deletion. A module publish must use `--delete-data=never`;
+  never use `--delete-data=always`, `--delete-data=on-conflict`,
+  `--break-clients`, database recreation, a schema rollback, or an activation
+  FID. Leave additive v2 tables inert if containment is required.
+- Inspect aggregate state read-only before and after any approved publish. Stop
+  on unexpected state; do not erase or auto-repair it.
+- Keep secrets out of the repository, `VITE_` variables, command arguments,
+  shell history, logs, screenshots, HAR files, and support bundles.
+- Keep Worker public auth and frontend shared-alpha access false through module,
+  migration, secret, Worker, and frontend staging.
+- Treat every approval below as single-purpose. Approval for additive module
+  publication does not approve the Durable Object migration, a secret change,
+  deploy, or enable.
 
-## 1. Domain and GitHub Pages
+## Mandatory v2 rollout order and approval gates
 
-Confirm the GitHub verification TXT from at least two independent resolvers. In Cloudflare, use DNS-only records:
+The rollout is staged and sequential. The reviewed SpacetimeDB change is an
+additive migration: it freezes the deployed five-table prefix and appends a
+versioned public/private player pair. The later Durable Object migration is a
+different additive change with its own approval:
 
-```txt
-A      @      185.199.108.153
-A      @      185.199.109.153
-A      @      185.199.110.153
-A      @      185.199.111.153
-CNAME  www    ael-dev3.github.io
-```
+1. **Local verification only:** verify module/Worker/browser tests, generated
+   bindings, dependency locks, and documentation. No cloud login or mutation.
+2. **Module gate:** obtain explicit approval for read-only Maincloud inspection.
+   The protected aggregate must match the empty-alpha baseline, with exactly zero
+   legacy `player` rows; any nonzero value is a hard stop requiring a separate
+   reconciliation plan. Then request the separate approval phrase
+   `approve additive protocol-v2 module publication`. No other approval wording
+   authorizes the guarded publish. Verify protocol 2, the appended v2 pair,
+   private ownership isolation, and the structured resolver before moving on.
+3. **Durable Object gate:** obtain separate approval for the additive
+   `SessionFamily` SQLite Durable Object binding/migration. Never delete or
+   rename existing challenge/rate-limit classes as part of this step.
+4. **Secret gate:** obtain separate approval to configure an independent,
+   high-entropy `SESSION_COOKIE_KEY` and any other required managed secrets.
+   Never reuse `ADMIN_TOKEN_SECRET` or `SIGNING_KEY_JWK` material.
+5. **Worker gate:** obtain separate approval to deploy the exact v2 Worker with
+   `PUBLIC_AUTH_ENABLED=false`. Verify discovery/JWKS, retired public v1 routes,
+   structured resolver probe, cookie attributes, and config attestation.
+6. **Frontend gate:** obtain separate approval to deploy the exact v2 frontend
+   while `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false`.
+7. **Enable gate:** only after exact-head hosted verification and owner QA,
+   obtain a final explicit approval for changing Worker public auth and a
+   separate explicit approval for changing frontend shared-alpha access. This
+   runbook records no such approval.
 
-Do not add a wildcard or proxy the apex. Remove only a documented conflicting placeholder. The repository Pages custom domain is already `warpkeep.com`, its certificate is ready, and HTTPS is enforced; do not change its DNS, custom-domain, or proxy settings during this activation. Verify apex, `www` redirect, and the legacy GitHub URL.
+If any stage fails or disagrees, stop and keep both switches false. Do not remove
+the additive v2 tables or restore a v1 module: leave the tables inert and use a
+separately reviewed forward fix.
 
-## 2. Bridge deployment
+## 1. Domain and public coordinates
 
-`services/auth-bridge/wrangler.toml` defines the intended custom domain and safe public production settings. Deploy only from an authenticated scoped Cloudflare credential with:
-
-- Workers Scripts: Edit
-- Workers Routes/Custom Domains: Edit
-- Zone DNS: Edit
-- Zone: Read
-
-Required Worker secret names are:
-
-```txt
-SIGNING_KEY_JWK
-ADMIN_TOKEN_SECRET
-FARCASTER_RPC_URL
-```
-
-The Worker also receives these public, non-secret values: `SPACETIMEDB_URI=https://maincloud.spacetimedb.com` and `SPACETIMEDB_DATABASE=warpkeep-89e4u`. Generate ES256 P-256 key material and the Hermes secret with a secure local mechanism; do not print them. Keep the recoverable Hermes secret in the owner Mac’s Keychain under a private operations service name. The Worker secret store may hold the signing key because rotation is supported. Configure no browser CORS on `/v1/admin/token`.
-
-Verify these public endpoints before continuing:
-
-```txt
-https://auth.warpkeep.com/healthz
-https://auth.warpkeep.com/.well-known/openid-configuration
-https://auth.warpkeep.com/.well-known/jwks.json
-```
-
-Discovery must name `https://auth.warpkeep.com` exactly; JWKS must contain one public ES256/P-256 key with no `d` member.
-
-Confirm the deployed Worker includes both SQLite Durable Object bindings and
-the reviewed distributed rolling windows for challenge, exchange, and admin
-token issuance. Browser trust gates must precede quota consumption; IPv6 must
-bucket by `/64`; limiter failures must fail closed; `Retry-After` must stay
-bounded; and expiry alarms must deallocate objects with `deleteAll()`. Review
-configuration and a staged/preview check only—do not exhaust production quotas.
-
-## 3. Private auth-epoch procedure call
-
-For each successful Farcaster proof exchange, the Worker mints one in-memory, approximately 60-second Hermes admin OIDC JWT. Its claims are the configured issuer, `sub: service:hermes`, `aud: ["warpkeep-spacetimedb"]`, `token_type: "spacetime-access"`, and `roles: ["warpkeep-admin"]`. It is never persisted, returned, or logged.
-
-The Worker then uses the documented low-frequency SpacetimeDB HTTP API:
+The historical public coordinates are:
 
 ```txt
-POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch
-Authorization: Bearer <ephemeral Hermes JWT>
-Content-Type: application/json
-Accept: application/json
-body: [<verified safe-integer fid>]
+frontend: https://warpkeep.com/
+issuer: https://auth.warpkeep.com
+database service: https://maincloud.spacetimedb.com
+database: warpkeep-89e4u
+audience: warpkeep-spacetimedb
 ```
 
-The fixed procedure returns the raw unsigned 32-bit epoch (`0` for a missing whitelist row). The Worker validates that raw result as a non-negative `u32`, caps the response, rejects redirects and malformed/non-2xx responses, uses a timeout no greater than five seconds, and fails closed with `503 authorization_unavailable`. There is no separate resolver hostname, resolver URL, resolver token, browser lookup, anonymous SpacetimeDB call, or public allowlist access.
+Confirm DNS/TLS and GitHub Pages source only through read-only checks unless a
+separate DNS/Pages approval exists. Do not infer the deployed source SHA from a
+healthy hostname.
 
-## 4. Non-destructive module publish and seed
+## 2. Protocol-v2 module gate
 
-After discovery/JWKS is public, update the module issuer to the exact bridge issuer, regenerate bindings with CLI `2.6.1`, and review the output. Inspect Maincloud before mutating it. Publish only with the guarded command:
+The repository proof freezes the production-v1 definitions and ordering of
+`allowed_fid`, `world_tile`, public `player`, `castle`, and `admin_audit`, then
+uses the pinned SpacetimeDB 2.6.1 CLI against an in-memory loopback server. It
+proves those five table descriptions remain unchanged while public `player_v2`
+and private `player_ownership_v2` are appended, the 61-tile empty fixture remains
+empty, a synthetic nonempty legacy row is preserved, a second publish is
+idempotent, partial state is detected, and guarded v1 rollback is refused before
+any schema change.
+That command is repository-only compatibility evidence. The separately
+approved production checkpoint published the same guarded additive contract to
+the existing database with `--delete-data=never`; only the recorded identity,
+aggregate, and post-publish probes attest that publication.
+
+The legacy public `player` table remains byte-compatible, including its opaque
+Identity column, and is frozen and inert: protocol-v2 authorization, bootstrap,
+subscriptions, snapshots, and observers use only the v2 pair, and no v2 path may
+write a legacy row. Because the legacy table must remain public for compatibility,
+an arbitrary old client can technically request it. The approved production path
+therefore requires it to remain empty; this release does not claim that retaining
+the schema makes legacy Identity rows private.
+
+Before any publish, inspect the production-v1 database read-only using its
+existing protected `admin_get_alpha_status` procedure. It must report exactly 61
+world tiles and zero players, castles, allowlist rows, and enabled allowlist rows.
+At this gate its `players` field is the legacy `player` count: any value other
+than exactly zero is an unconditional hard stop. An enabled epoch-zero allowlist
+row also fails closed and requires a separate migration decision. Never copy,
+repair, delete, or reconcile production rows during this gate.
+
+Immediately after an approved additive publish, use the new protected
+`admin_get_alpha_status_v2` aggregate to recheck the same empty-alpha baseline
+and require:
+
+- `legacyPlayers = 0`;
+- `playersV2 = 0`, `playerOwnershipsV2 = 0`, and
+  `consistentPlayerPairsV2 = 0`;
+- `orphanedPlayerRowsV2 = 0` and `orphanedOwnershipRowsV2 = 0`;
+- protocol `2` and the reviewed world generation.
+
+Both aggregates expose counts only; they must not expose FIDs, Identities,
+profiles, notes, ownership contents, audit contents, or credentials. A nonzero
+legacy, orphan, v2, castle, or admission count blocks every later rollout stage.
+
+The guarded publisher must retain `--delete-data=never`, must not request or
+interactively approve `--break-clients`, and must not recreate the database. If
+local or read-only preflight cannot accept the additive module under those
+conditions, stop and prepare a separately reviewed forward fix; do not weaken the
+guard or attempt a v1 schema rollback.
+
+Only after the owner states exactly
+`approve additive protocol-v2 module publication` may the guarded command be
+used:
 
 ```sh
 WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
@@ -94,81 +156,273 @@ WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
 npm run stdb:publish:dev
 ```
 
-The guard rejects redirects, non-JSON or oversized discovery/JWKS documents,
-an incomplete public key, and a source/config mismatch. Its dry run succeeds
-only after the complete public issuer check. The publish subprocess has a hard
-deadline; if it times out, treat the result as indeterminate and inspect
-Maincloud before any retry.
+Run that command only through the private Keychain wrapper that supplies the
+Hermes credential in memory. The publisher does not trust an operator-entered
+row count: in the same bounded process it attests the exact reviewed CLI binary,
+repeats the current loopback migration proof, verifies the canonical existing
+database name-to-identity mapping, and invokes the deployed v1 aggregate before
+publishing by immutable database identity. The proof emits one SHA-256 receipt;
+the publisher accepts only the exact absolute `bundle.js` it just proved,
+rechecks that digest immediately before spawning `spacetime publish --js-path`,
+and never rebuilds between proof and publish. Unknown flags, stale/nonzero
+state, changed artifact bytes, wrong coordinates, and compatibility prompts all
+fail before publication.
 
-Then, with local Hermes authority configured, seed exactly once and inspect only aggregate-safe counts:
+The publish must remain non-destructive (`--delete-data=never`). If the command
+times out, the outcome is indeterminate: inspect read-only before any retry.
+Never seed, admit, disable, or bump an epoch as part of the publish gate.
 
-```sh
-npm run stdb:seed-world -- --confirm
-npm run stdb:inspect-alpha
-```
+Verify the exact module contract immediately after an approved publish:
 
-If a confirmed mutation times out, treat its outcome as indeterminate: inspect
-the aggregate state before retrying. The local deadline cannot cancel a reducer
-that Maincloud has already accepted, and blindly retrying an auth-epoch bump can
-advance the epoch twice.
+- backend protocol is `2`;
+- player JWTs require `auth_version: 2`, `auth_epoch >= 1`, and a maximum
+  600-second custom session, with FID but no optional profile claims;
+- lifecycle admission accepts only current players, fresh exact Hermes admins,
+  or the exact fresh resolver principal required before its HTTP procedure;
+- the frozen legacy public `player` table remains unchanged and empty, while
+  public `player_v2` contains no opaque OIDC Identity;
+- private `player_ownership_v2` has no browser query/subscription accessor, and
+  partial/mismatched v2 ownership state fails closed;
+- the active browser subscribes to `player_v2` and never legacy `player`;
+- bootstrap ignores optional profile-shaped JWT claims and inserts undefined
+  `username`, `displayName`, and `pfpUrl` fields;
+- `auth_resolver_get_fid_admission_v2` returns exact structured
+  missing/disabled/enabled state and epoch rules;
+- the Worker issues resolver authority for 15 seconds with exact
+  `sub: service:auth-epoch-resolver` and sole role
+  `warpkeep-auth-epoch-resolver`, bound by exact `resolver_fid` to the one
+  procedure argument; the module rejects windows over 60 seconds.
 
-Stop if any unexpected state exists. Do not call `allow-fid` during activation.
+`admin_get_fid_auth_epoch` remains admin-only rollback compatibility. Do not
+configure new v2 issuance or refresh to use it.
 
-## 5. Browser activation and rollback
+## 3. Durable Object migration and secret gate
 
-Set GitHub repository variables only after the previous steps pass:
+The v2 Worker requires three SQLite Durable Object bindings:
 
 ```txt
-WARPKEEP_SHARED_ALPHA_ENABLED=true
-WARPKEEP_AUTH_BRIDGE_URL=https://auth.warpkeep.com
-WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com
-WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
-WARPKEEP_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
-WARPKEEP_SPACETIMEDB_DATABASE=warpkeep-89e4u
+CHALLENGE_REPLAY_GUARD -> ChallengeReplayGuard
+AUTH_RATE_LIMITER      -> AuthRateLimiter
+SESSION_FAMILIES       -> SessionFamily
 ```
 
-The Pages workflow validates the root deployment base, canonical origin, build SHA, and issuer/bridge equality before it builds. To rollback, set `WARPKEEP_SHARED_ALPHA_ENABLED=false` and redeploy; this leaves title, menu, and Credits intact while preventing new bridge/database work. It deletes no world data or secrets.
+The `SessionFamily` class is an additive migration and requires its own explicit
+approval. Confirm migration tag/order and recovery manifest before deployment.
+Do not remove existing classes or storage.
 
-## 6. Verification and clean-profile QA
+Required managed Worker secrets are:
 
-Run public verification after DNS/cert propagation:
+```txt
+SIGNING_KEY_JWK
+ADMIN_TOKEN_SECRET
+SESSION_COOKIE_KEY
+FARCASTER_RPC_URL
+```
+
+`SESSION_COOKIE_KEY` is a separate high-entropy HMAC secret. Do not derive it
+from, rotate it implicitly with, or reuse the signing/admin secrets. The admin
+secret must also differ from the signing JWK private `d` scalar: all three
+secret materials are pairwise distinct. Configure or rotate any secret only
+with explicit approval and non-logging handoff. This runbook contains no secret
+value and records no completed configuration.
+
+## 4. Worker staging with public auth false
+
+An approved Worker deployment must retain:
+
+```txt
+PUBLIC_AUTH_ENABLED=false
+```
+
+The local v2 public routes are `/v2/farcaster/challenge`,
+`/v2/farcaster/exchange`, `/v2/session/refresh`, and `/v2/session/logout`.
+Legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` must return
+`410 legacy_auth_retired` and never mint a token. Admin `/v1` paths are a
+separate server-only namespace and are not public-v1 fallback.
+
+For each admission resolution the Worker uses:
+
+```txt
+POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2
+Authorization: Bearer <Worker-minted 15-second resolver-only JWT>
+Content-Type: application/json
+Accept: application/json
+body: [<verified safe-integer fid>]
+```
+
+The resolver JWT must have exact `sub: service:auth-epoch-resolver` and exactly
+`roles: [warpkeep-auth-epoch-resolver]`, plus exact `resolver_fid` equal to the
+positional argument; the module retains a 60-second rejection ceiling. The HTTP
+SATS-JSON response must be exactly `[state, authEpoch]`, with epoch zero only for
+missing/disabled and a positive epoch for enabled. The Worker normalizes it to
+internal `{ state, authEpoch }`. A FID-binding mismatch, redirect, timeout,
+status, media, size, JSON, or invariant failure is
+`503 authorization_unavailable` and yields no access token.
+
+Because SpacetimeDB runs `clientConnected` before HTTP procedures, this exact
+fresh resolver also passes lifecycle admission. The 15-second production window
+bounds connection initiation, not an accepted WebSocket's lifetime: public-table
+subscriptions opened while fresh may persist until transport disconnect. Static
+`get_alpha_backend_info` is callable only while fresh, protected calls recheck
+expiry, and the resolver cannot read private tables, bootstrap or mutate as a
+player, or pass Hermes/admin guards.
+
+In production the Worker refuses any resolver target other than exact
+`https://maincloud.spacetimedb.com` and database `warpkeep-89e4u`. Only an
+explicit `ENVIRONMENT=development` profile may configure a different local/test
+origin or database; development flexibility is not a production fallback.
+
+## 5. Session and cookie checks
+
+An enabled result may yield only a maximum-600-second access token with exact
+`auth_version: 2` and positive epoch. The browser keeps it in JavaScript memory
+only. The exchange request, session-family record, response identity, and JWT
+carry the verified FID only; optional profile fields are rejected. Missing
+admission creates a pending session with no access token and no SpacetimeDB
+connection. Disabled admission creates neither.
+
+The continuity cookie must be exactly host-only
+`__Host-warpkeep_session; Secure; HttpOnly; SameSite=Strict; Path=/`. A
+remembered family has a maximum 30-day absolute lifetime. **Keep me signed in on
+this device** defaults false, so the cookie is non-persistent unless the user
+opts in; the server family remains absolutely bounded at 30 days either way.
+Refresh rotates the generation. Bound epoch mismatch/missing/disabled,
+expiry/origin disagreement, and stale replay revoke the family; only the
+immediately previous generation has a bounded lost-response recovery grace.
+
+Successful logout confirms server-side revocation, expires the cookie, clears
+browser bearer state, and closes the database connection. If durable revocation
+fails, the bridge returns generic `503` and still expires the current browser
+cookie. Do not report that family as revoked: a separately copied cookie may
+remain usable after storage recovery until the bounded family expires.
+
+Sign-out first records a non-secret, base-path-scoped `logout-v1:<timestamp>`
+tombstone with a 30-day maximum. It contains no FID, token, proof, cookie,
+family identifier, or profile data and blocks every cookie-refresh entry point
+across reloads/tabs until an explicit Terms-gated auth activation clears it
+early. Malformed or unavailable storage fails closed. If the tombstone write is
+denied and server revocation also fails, a later storage-enabled context cannot
+discover the missing marker and may
+resume a copied cookie; record that combined condition as residual risk.
+
+## 6. Configuration attestation
+
+After an explicitly approved paused Worker deploy, an authorized operator may
+call the server-only, zero-body `/v1/admin/config-attestation`. It must return:
+
+```json
+{
+  "profile": "warpkeep-auth-v2",
+  "digest": "<reviewed SHA-256 digest>",
+  "publicAuthEnabled": false
+}
+```
+
+Compare the digest with the reviewed expected issuer, origin/SIWF coordinates,
+audience, key ID, Maincloud coordinates, S256 binding, 600-second access
+lifetime, 15-second resolver lifetime, five-second resolver timeout, five-minute
+challenge lifetime, 30-day family lifetime, cookie attributes, environment,
+and false public-auth state. Never print the admin credential. A mismatch blocks
+frontend deployment and all enablement.
+
+The protected resolver probe must exercise the structured v2 resolver without
+returning an epoch/FID/JWT/upstream body. Discovery must advertise
+`auth_version`; JWKS must expose only the public key.
+
+## 7. Frontend staging and activation
+
+An approved v2 frontend deployment must retain:
+
+```txt
+VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false
+VITE_WARPKEEP_AUTH_BRIDGE_URL=https://auth.warpkeep.com
+VITE_WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com
+VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
+VITE_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
+VITE_SPACETIMEDB_DATABASE=warpkeep-89e4u
+```
+
+The production frontend activation gate and Pages validator require those exact
+bridge/issuer, audience, Maincloud, and database values whenever shared alpha is
+enabled; matching lookalikes fail closed. The localhost/configurable escape hatch
+is development-only.
+
+Only a final explicit enable approval may change Worker public auth from false;
+only a separate final explicit enable approval may change frontend shared-alpha
+access from false. Enable Worker first, verify exact-head v2 behavior, then
+enable the frontend. Never enable a v2 frontend against a v1 Worker/module.
+
+Immediately after an approved Worker enable, run the tokenless enabled-profile
+check before enabling the frontend:
 
 ```sh
-WARPKEEP_EXPECTED_DEPLOYED_SHA='<full SHA from the successful Pages run>' \
-  npm run verify:alpha-production -- --require-protected-aggregate
+WARPKEEP_EXPECTED_DEPLOYED_SHA=<full-pages-sha> \
+  npm run verify:alpha-production -- --require-auth-v2-enabled
 ```
 
-Read the full deployed SHA from the successful Pages workflow run and verify it
-against the intended source branch. Do not assume `origin/main` while an
-activation branch is intentionally deployed before merge. After the final main
-deployment, `git fetch origin main` plus `git rev-parse --verify
-'origin/main^{commit}'` is valid only when the Pages run reports that same SHA.
-Omitting the full SHA skips artifact/source equality and is not an activation
-gate. Load the local Hermes credential through the approved non-logging secret
-handoff before this command; required aggregate mode exits nonzero if it is
-absent.
+`--require-auth-v2-enabled` is deliberately distinct from the existing
+`--require-auth-v2` paused-profile gate. The enabled check makes only bounded,
+no-store `GET` and `OPTIONS` requests. It requires the health document to attest
+`publicAuthEnabled: true`, then verifies exact discovery/JWKS coordinates,
+retired v1 routes, v2 allowed- and hostile-origin preflights, security headers,
+and browser isolation of all three server-only admin paths. For each admin path
+it verifies an allowed-origin `GET` plus allowed- and hostile-origin `OPTIONS`
+preflights, with no `Access-Control-*` response headers. It sends no body,
+authorization, cookie, FID, proof, QR payload, or bearer token and never calls
+challenge, exchange, refresh, or logout with `POST`, so it creates no
+challenge/session or production application state.
 
-The script runs the protected aggregate inspection without printing a token.
-The one owner-only Farcaster check, after deployment, is:
+Run this public check in addition to—not instead of—the required additive
+aggregate gate. It does **not** prove the private configuration digest, observed
+Cloudflare source/deployment coordinate, Maincloud resolver execution, SIWF
+exchange, cookie rotation/revocation, or an end-to-end player connection. Verify
+the reviewed enabled config-attestation digest and exact Cloudflare source and
+deployment version separately through their existing bounded server/platform
+checks. Then perform the immediate clean-profile owner QA below; neither source
+coordinates nor a passing tokenless check substitutes for that QA.
 
-1. Open `https://warpkeep.com/#menu`.
-2. Select **ENTER REALM** and approve through Farcaster.
-3. Confirm **ENTRY NOT YET GRANTED**, the exact denial sentence, identity/FID, and the `@0xael.eth` link.
-4. Confirm **CHECK AGAIN** does not create a new SIWF request.
-5. Reopen the browser and confirm a remembered valid session returns to denial without creating gameplay state.
+## 8. Owner QA after approved enablement
 
-## 7. First admission, release, and rotation
+No owner QA was performed by this documentation task. After all preceding gates
+are approved and verified, a clean profile should confirm:
 
-Only after the owner approves the empty-whitelist test may an externally supplied FID be admitted:
+1. **ENTER REALM** opens unchecked Alpha Terms, while Cancel, close, Escape,
+   browser Back, reload, another tab, and direct `#realm` navigation create no
+   challenge, QR/deep link, cookie refresh, or database connection;
+2. one checked **CONTINUE TO SIGN-IN** creates exactly one auth continuation,
+   while retry starts with fresh unchecked acceptance;
+3. a missing FID receives pending identity but no access token/database
+   connection;
+4. **CHECK AGAIN** uses cookie refresh without a new SIWF request;
+5. disabling or epoch-changing a bound FID revokes refresh and disconnects;
+6. successful logout revokes the family, expires the cookie, clears memory token
+   state, and closes the database connection; an injected/local revocation-store
+   failure returns `503`, expires the current cookie, emits only the static safe
+   event, and is recorded as an unresolved bounded family risk;
+7. a local fixture confirms the non-secret logout tombstone blocks startup,
+   focus/timer, **CHECK AGAIN**, and direct refresh until explicit Terms-gated
+   activation; a denied
+   tombstone write plus failed server revocation remains explicitly unresolved;
+8. no secret/proof/token/cookie is captured in screenshots, console, network
+   exports, or logs.
 
-```sh
-npm run stdb:allow-fid -- 12345 "invited through Farcaster DM" --confirm
-```
+Admission of any real FID requires another explicit approval after tokenless
+pending QA. First admission begins at epoch `1`; do not preserve the historical
+epoch-zero policy.
 
-Use `npm run stdb:disable-fid` and `npm run stdb:bump-auth-epoch` for revocation. Rotate the ES256 key by publishing a new JWKS `kid`, updating the module issuer trust only if the issuer changes, and allowing old tokens to expire; rotate the Hermes secret separately. Create an annotated semantic-version tag and matching GitHub Release only after merge and exact deployed-build verification.
+## Recovery
 
-Admission epoch behavior is deliberate: the first allow retains epoch `0` so
-the pending user's **CHECK AGAIN** can reuse the verified session; repeating an
-already-enabled allow is idempotent; re-enabling a disabled row increments
-exactly once; and a maximum-epoch re-enable fails transactionally before state
-or audit mutation.
+The safest immediate containment is to keep or restore both auth switches to
+false through separately approved deployments. That stops new public auth/realm
+work without deleting Maincloud or Durable Object data. Leave the frozen legacy
+table and additive v2 tables in place; do not publish a v1 module, remove tables,
+delete data, recreate the database, or call that destructive reversal a rollback.
+Do not silently restore v1 public routes or raw-epoch issuance. The legacy admin
+epoch procedure may assist an approved server-only investigation, but it is not
+browser authority.
+
+Secret rotation, Durable Object recovery, Worker recovery, frontend recovery,
+and a SpacetimeDB forward fix are distinct actions with distinct blast radii.
+Follow the [reconstruction documentation](./reconstruction/deployment-recovery.md),
+inspect state before retrying an indeterminate mutation, and obtain explicit
+approval for every external change.

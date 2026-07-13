@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { DbConnection, tables } from '../src/spacetime/module_bindings';
 import {
   connectWarpkeep,
+  bootstrapWarpkeepPlayer,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
   readWarpkeepBackendInfo,
+  readWarpkeepAdmissionStatus,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
   type WarpkeepConnection
@@ -139,14 +143,41 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn())).toBe(subscription);
     expect(subscriptionBuilder.subscribe).toHaveBeenCalledWith([
       tables.worldTile,
-      tables.player,
+      tables.playerV2,
       tables.castle
     ]);
   });
 
+  it('uses only the versioned admission procedure and bootstrap reducer', async () => {
+    const connection = {
+      procedures: {
+        getMyAdmissionStatusV2: vi.fn(async () => 'admitted_needs_bootstrap')
+      },
+      reducers: {
+        bootstrapPlayerV2: vi.fn(async () => undefined)
+      }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepAdmissionStatus(connection)).resolves.toBe('admitted_needs_bootstrap');
+    await bootstrapWarpkeepPlayer(connection);
+    expect(connection.procedures.getMyAdmissionStatusV2).toHaveBeenCalledWith({});
+    expect(connection.reducers.bootstrapPlayerV2).toHaveBeenCalledWith({});
+  });
+
+  it('contains no legacy player subscription, cache read, or observer path', () => {
+    const runtime = readFileSync(
+      resolve(process.cwd(), 'src/spacetime/warpkeepConnection.ts'),
+      'utf8'
+    );
+    expect(runtime).not.toMatch(/tables\.player(?:\W|$)/);
+    expect(runtime).not.toMatch(/connection\.db\.player(?:\W|$)/);
+    expect(runtime).toMatch(/tables\.playerV2/);
+    expect(runtime).toMatch(/connection\.db\.playerV2/);
+  });
+
   it('rejects an incompatible backend before gameplay admission or subscriptions', async () => {
     const compatible = {
-      protocolVersion: 1,
+      protocolVersion: 2,
       worldSeed: 3_445_214_658,
       worldSeedName: 'HEGEMONY_GENESIS_001'
     };
@@ -157,7 +188,7 @@ describe('Warpkeep authenticated connection boundary', () => {
 
     connection.procedures.getAlphaBackendInfo = vi.fn(async () => ({
       ...compatible,
-      protocolVersion: 2
+      protocolVersion: 1
     }));
     await expect(readWarpkeepBackendInfo(connection)).rejects.toThrow(/protocol is incompatible/i);
   });
@@ -168,7 +199,7 @@ describe('Warpkeep authenticated connection boundary', () => {
         worldTile: { iter: function* () { yield {
           key: '0,0', q: 0, r: 0, biome: 'temperate-lowland', terrainSeed: 1, occupantCastleId: 1n
         }; } },
-        player: { iter: function* () { yield { fid: 12_345n, username: 'keeper', displayName: undefined, pfpUrl: undefined, status: 'active' }; } },
+        playerV2: { iter: function* () { yield { fid: 12_345n, username: 'keeper', displayName: undefined, pfpUrl: undefined, status: 'active' }; } },
         castle: { iter: function* () {
           yield { castleId: 1n, ownerFid: 12_345n, tileKey: '0,0', q: 0, r: 0, level: 1, name: 'Token Keep' };
           yield { castleId: 2n, ownerFid: 77n, tileKey: '1,0', q: 1, r: 0, level: 1, name: 'Peer Keep' };

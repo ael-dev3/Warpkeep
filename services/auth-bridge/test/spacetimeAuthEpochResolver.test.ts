@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  CHALLENGE_TTL_MILLISECONDS,
+  INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
+} from '../src/config'
+import {
   AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
   AuthEpochResolverFailure,
   MAX_AUTH_EPOCH,
@@ -9,7 +13,7 @@ import {
   type AuthEpochResolverFailureStage,
   type AuthEpochFetch,
 } from '../src/spacetimeAuthEpochResolver'
-import type { AdminTokenClaims } from '../src/types'
+import type { AuthEpochResolverTokenClaims } from '../src/types'
 
 const FID = '12345'
 const ISSUER = 'https://auth.warpkeep.example'
@@ -20,7 +24,7 @@ const URI = 'https://maincloud.spacetimedb.com'
 function createResolver(
   fetcher: AuthEpochFetch,
   options: {
-    signer?: (claims: AdminTokenClaims) => Promise<string>
+    signer?: (claims: AuthEpochResolverTokenClaims) => Promise<string>
     timeoutMs?: number
     clock?: () => number
   } = {},
@@ -33,7 +37,7 @@ function createResolver(
     timeoutMs: options.timeoutMs ?? AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
   }, {
     fetcher,
-    signer: options.signer ?? (async () => 'opaque-admin-token'),
+    signer: options.signer ?? (async () => 'opaque-resolver-token'),
     clock: options.clock ?? (() => 1_700_000_000_000),
   })
 }
@@ -62,28 +66,29 @@ async function expectFailureStage(
 }
 
 describe('Spacetime HTTP auth-epoch resolver', () => {
-  it('calls only the fixed HTTPS procedure with positional SATS-JSON and a fresh short-lived admin JWT', async () => {
-    const signer = vi.fn(async (_claims: AdminTokenClaims) => 'opaque-admin-token')
-    const fetcher = vi.fn(async () => jsonResponse('0'))
+  it('calls only the fixed HTTPS procedure with positional SATS-JSON and a fresh resolver-only JWT', async () => {
+    const signer = vi.fn(async (_claims: AuthEpochResolverTokenClaims) => 'opaque-resolver-token')
+    const fetcher = vi.fn(async () => jsonResponse('["missing",0]'))
     const resolver = createResolver(fetcher as AuthEpochFetch, { signer })
 
-    await expect(resolver.resolve(FID)).resolves.toBe(0)
+    await expect(resolver.resolve(FID)).resolves.toEqual({ state: 'missing', authEpoch: 0 })
 
     expect(signer).toHaveBeenCalledTimes(1)
-    const [claims] = signer.mock.calls[0] as [AdminTokenClaims]
+    const [claims] = signer.mock.calls[0] as [AuthEpochResolverTokenClaims]
     expect(claims).toMatchObject({
       iss: ISSUER,
-      sub: 'service:hermes',
+      sub: 'service:auth-epoch-resolver',
       aud: [AUDIENCE],
       token_type: 'spacetime-access',
-      roles: ['warpkeep-admin'],
+      roles: ['warpkeep-auth-epoch-resolver'],
+      resolver_fid: FID,
       iat: 1_700_000_000,
       nbf: 1_700_000_000,
     })
-    expect(claims.exp - claims.iat).toBe(60)
+    expect(claims.exp - claims.iat).toBe(INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS)
 
     const [input, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit]
-    expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch')
+    expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2')
     expect(init.method).toBe('POST')
     expect(init.body).toBe('[12345]')
     expect(init).not.toHaveProperty('cache')
@@ -95,17 +100,24 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     expect(headers.get('accept')).toBe('application/json')
     expect(headers.get('cache-control')).toBe('no-store')
     expect(headers.get('authorization')).toMatch(/^Bearer\s+\S+$/)
-    expect(JSON.stringify(fetcher.mock.calls)).not.toContain('opaque-admin-token')
+    expect(JSON.stringify(fetcher.mock.calls)).not.toContain('opaque-resolver-token')
   })
 
-  it('accepts the exact raw u32 procedure result, including a missing-row zero', async () => {
+  it('keeps the internal resolver budget separate from the five-minute browser challenge', () => {
+    expect(INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS).toBe(15)
+    expect(AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS).toBe(5_000)
+    expect(CHALLENGE_TTL_MILLISECONDS).toBe(5 * 60 * 1000)
+  })
+
+  it('accepts only exact structured admission results with epoch zero reserved for non-enabled states', async () => {
     for (const [raw, expected] of [
-      ['0', 0],
-      ['17', 17],
-      [String(MAX_AUTH_EPOCH), MAX_AUTH_EPOCH],
+      ['["missing",0]', { state: 'missing', authEpoch: 0 }],
+      ['["disabled",0]', { state: 'disabled', authEpoch: 0 }],
+      ['["enabled",17]', { state: 'enabled', authEpoch: 17 }],
+      [`["enabled",${MAX_AUTH_EPOCH}]`, { state: 'enabled', authEpoch: MAX_AUTH_EPOCH }],
     ] as const) {
       const resolver = createResolver(async () => jsonResponse(raw))
-      await expect(resolver.resolve(FID)).resolves.toBe(expected)
+      await expect(resolver.resolve(FID)).resolves.toEqual(expected)
     }
   })
 
@@ -113,11 +125,11 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     for (const browserOnlyMember of ['cache', 'credentials'] as const) {
       const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
         if (init && browserOnlyMember in init) throw new TypeError(`${browserOnlyMember} is not implemented`)
-        return jsonResponse('0')
+        return jsonResponse('["missing",0]')
       })
       const resolver = createResolver(fetcher)
 
-      await expect(resolver.resolve(FID)).resolves.toBe(0)
+      await expect(resolver.resolve(FID)).resolves.toEqual({ state: 'missing', authEpoch: 0 })
       expect(fetcher).toHaveBeenCalledOnce()
     }
   })
@@ -145,6 +157,14 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
       jsonResponse('-1'),
       jsonResponse('0.5'),
       jsonResponse(String(MAX_AUTH_EPOCH + 1)),
+      jsonResponse('["missing",1]'),
+      jsonResponse('["disabled",2]'),
+      jsonResponse('["enabled",0]'),
+      jsonResponse(`["enabled",${MAX_AUTH_EPOCH + 1}]`),
+      jsonResponse('["enabled",1,true]'),
+      jsonResponse('["unknown",0]'),
+      jsonResponse('["enabled",0.5]'),
+      jsonResponse('{"state":"enabled","authEpoch":1}'),
       new Response('0', { headers: { 'content-type': 'text/plain' } }),
       new Response('0', { headers: { 'content-type': 'application/jsonp' } }),
       jsonResponse('x'.repeat(MAX_AUTH_EPOCH_RESOLVER_RESPONSE_BYTES + 1)),
@@ -182,11 +202,11 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
       if (this !== undefined) {
         throw new TypeError('Illegal invocation: function called with incorrect this reference')
       }
-      return jsonResponse('0')
+      return jsonResponse('["missing",0]')
     }
     const resolver = createResolver(runtimeFetch)
 
-    await expect(resolver.resolve(FID)).resolves.toBe(0)
+    await expect(resolver.resolve(FID)).resolves.toEqual({ state: 'missing', authEpoch: 0 })
     expect(receivedThis).toBeUndefined()
   })
 
@@ -227,8 +247,17 @@ describe('Spacetime HTTP auth-epoch resolver', () => {
     const fetcher = vi.fn(async () => jsonResponse('0'))
     const resolver = createResolver(fetcher as AuthEpochFetch, { signer })
 
-    await expect(resolver.resolve('001')).rejects.toThrow('invalid FID')
-    await expect(resolver.resolve('9007199254740992')).rejects.toThrow('invalid FID')
+    for (const invalid of [
+      '001',
+      '9007199254740992',
+      12345,
+      12345n,
+      [12345],
+      new Number(12345),
+      { toString: () => '12345' },
+    ] as unknown[]) {
+      await expect(resolver.resolve(invalid as string)).rejects.toThrow('invalid FID')
+    }
     expect(signer).not.toHaveBeenCalled()
     expect(fetcher).not.toHaveBeenCalled()
   })

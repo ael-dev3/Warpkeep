@@ -126,7 +126,7 @@ export function connectWarpkeep(
 }
 
 export async function readWarpkeepAdmissionStatus(connection: WarpkeepConnection) {
-  const status = await connection.procedures.getMyAdmissionStatus({});
+  const status = await connection.procedures.getMyAdmissionStatusV2({});
   if (!admissionStatuses.has(status as WarpkeepAdmissionStatus)) {
     throw new Error('Warpkeep returned an invalid admission status.');
   }
@@ -142,10 +142,10 @@ export async function readWarpkeepBackendInfo(
 }
 
 export async function bootstrapWarpkeepPlayer(connection: WarpkeepConnection) {
-  await connection.reducers.bootstrapPlayer({});
+  await connection.reducers.bootstrapPlayerV2({});
 }
 
-/** Start only the three public shared-state subscriptions, never private/admin tables. */
+/** Start only the protocol-v2 shared-state subscriptions, never legacy/private/admin tables. */
 export function subscribeToWarpkeepRealm(
   connection: WarpkeepConnection,
   onApplied: () => void,
@@ -155,7 +155,7 @@ export function subscribeToWarpkeepRealm(
     .subscriptionBuilder()
     .onApplied(onApplied)
     .onError(() => onError())
-    .subscribe([tables.worldTile, tables.player, tables.castle]);
+    .subscribe([tables.worldTile, tables.playerV2, tables.castle]);
 }
 
 function readWorldTiles(connection: WarpkeepConnection): WarpkeepWorldTile[] {
@@ -176,7 +176,7 @@ function readWorldTiles(connection: WarpkeepConnection): WarpkeepWorldTile[] {
 
 function readPlayers(connection: WarpkeepConnection): WarpkeepPlayer[] {
   const rows: WarpkeepPlayer[] = [];
-  for (const row of connection.db.player.iter()) {
+  for (const row of connection.db.playerV2.iter()) {
     const fid = toSafeNumber(row.fid);
     if (fid === undefined || fid <= 0) continue;
     rows.push({
@@ -238,9 +238,9 @@ export function observeWarpkeepRealm(
   connection.db.worldTile.onInsert(sync);
   connection.db.worldTile.onDelete(sync);
   connection.db.worldTile.onUpdate(sync);
-  connection.db.player.onInsert(sync);
-  connection.db.player.onDelete(sync);
-  connection.db.player.onUpdate(sync);
+  connection.db.playerV2.onInsert(sync);
+  connection.db.playerV2.onDelete(sync);
+  connection.db.playerV2.onUpdate(sync);
   connection.db.castle.onInsert(sync);
   connection.db.castle.onDelete(sync);
   connection.db.castle.onUpdate(sync);
@@ -249,9 +249,9 @@ export function observeWarpkeepRealm(
     connection.db.worldTile.removeOnInsert(sync);
     connection.db.worldTile.removeOnDelete(sync);
     connection.db.worldTile.removeOnUpdate(sync);
-    connection.db.player.removeOnInsert(sync);
-    connection.db.player.removeOnDelete(sync);
-    connection.db.player.removeOnUpdate(sync);
+    connection.db.playerV2.removeOnInsert(sync);
+    connection.db.playerV2.removeOnDelete(sync);
+    connection.db.playerV2.removeOnUpdate(sync);
     connection.db.castle.removeOnInsert(sync);
     connection.db.castle.removeOnDelete(sync);
     connection.db.castle.removeOnUpdate(sync);

@@ -7,7 +7,7 @@ Warpkeep uses semantic product versions and a separate immutable build identity.
 | Product release | Player-facing semantic version | `ALPHA 0.3.0` |
 | Build | Exact Git commit deployed to the browser | `BUILD abc1234` |
 | Realm seed | World-generation identity, not software version | `GENESIS 001` |
-| Backend protocol | Internal compatibility integer | `1` |
+| Backend protocol | Internal compatibility integer | `2` (staged backend; public entry paused) |
 
 ## Release policy
 

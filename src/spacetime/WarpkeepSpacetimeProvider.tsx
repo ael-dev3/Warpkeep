@@ -128,14 +128,35 @@ export function WarpkeepSpacetimeProvider({
   const [state, setState] = useState<WarpkeepBackendState>(IDLE_WARPKEEP_BACKEND_STATE);
   const [checkSequence, setCheckSequence] = useState(0);
   const connectionRef = useRef<WarpkeepConnection | undefined>(undefined);
+  const teardownRef = useRef<(() => void) | undefined>(undefined);
   const generationRef = useRef(0);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const runActiveTeardown = useCallback(() => {
+    const teardown = teardownRef.current;
+    teardownRef.current = undefined;
+    teardown?.();
+  }, []);
 
   const disconnect = useCallback(() => {
     generationRef.current += 1;
-    runtime.disconnect(connectionRef.current);
+    runActiveTeardown();
+    // The effect-owned teardown normally consumes the connection. Keep this
+    // fail-closed fallback for any connection installed by a runtime before
+    // the effect can take ownership of it.
+    const orphanedConnection = connectionRef.current;
     connectionRef.current = undefined;
+    if (orphanedConnection) {
+      try {
+        runtime.disconnect(orphanedConnection);
+      } catch {
+        // Local authority is still cleared below even if an injected runtime
+        // cannot finish its best-effort transport teardown.
+      }
+    }
     setState(IDLE_WARPKEEP_BACKEND_STATE);
-  }, [runtime]);
+  }, [runActiveTeardown, runtime]);
 
   const checkAgain = useCallback(() => {
     if (
@@ -152,9 +173,26 @@ export function WarpkeepSpacetimeProvider({
   useEffect(() => {
     generationRef.current += 1;
     const generation = generationRef.current;
+    const previousState = stateRef.current;
+    const retainedReadyState = (
+      previousState.phase === 'ready'
+      || previousState.phase === 'reconnecting'
+    )
+      && previousState.identity?.fid === identity?.fid
+      && previousState.admission === 'ready'
+      && previousState.realm
+      ? previousState
+      : undefined;
+    runActiveTeardown();
     const previous = connectionRef.current;
     connectionRef.current = undefined;
-    runtime.disconnect(previous);
+    if (previous) {
+      try {
+        runtime.disconnect(previous);
+      } catch {
+        // The previous generation is already invalidated and cannot publish.
+      }
+    }
 
     if (!sharedAlphaAvailable || !identity || !farcaster.oidcSession) {
       setState(IDLE_WARPKEEP_BACKEND_STATE);
@@ -174,15 +212,65 @@ export function WarpkeepSpacetimeProvider({
     let connection: WarpkeepConnection | undefined;
     let cleanupObserver: (() => void) | undefined;
     let subscription: ReturnType<WarpkeepBackendRuntime['subscribeRealm']> | undefined;
+    let terminated = false;
     const current = () => active && generationRef.current === generation;
+    const terminateConnection = () => {
+      if (terminated) {
+        return;
+      }
+      terminated = true;
+      // Invalidate callbacks before disconnecting: an injected runtime or the
+      // SDK may synchronously report onDisconnected from disconnect().
+      active = false;
+      if (teardownRef.current === terminateConnection) {
+        teardownRef.current = undefined;
+      }
+      const observer = cleanupObserver;
+      cleanupObserver = undefined;
+      try {
+        observer?.();
+      } catch {
+        // Continue through every remaining authority cleanup boundary.
+      }
+      const activeSubscription = subscription;
+      subscription = undefined;
+      try {
+        activeSubscription?.unsubscribe();
+      } catch {
+        // Continue to transport teardown even if the SDK handle misbehaves.
+      }
+      const activeConnection = connection;
+      connection = undefined;
+      if (connectionRef.current === activeConnection) {
+        connectionRef.current = undefined;
+      }
+      if (activeConnection) {
+        try {
+          runtime.disconnect(activeConnection);
+        } catch {
+          // Generation invalidation and local state clearing remain mandatory.
+        }
+      }
+    };
+    teardownRef.current = terminateConnection;
     const fail = () => {
       if (current()) {
+        terminateConnection();
         setState(backendError(identity));
       }
     };
 
+    const reconnectingState: WarpkeepBackendState | undefined = retainedReadyState
+      ? {
+          phase: 'reconnecting',
+          identity,
+          admission: 'ready',
+          realm: retainedReadyState.realm
+        }
+      : undefined;
+
     const run = async () => {
-      setState({ phase: 'connecting', identity });
+      setState(reconnectingState ?? { phase: 'connecting', identity });
       try {
         const activeConnection = await runtime.connect(config, farcaster.oidcSession!.jwt, {
           onDisconnected: () => {
@@ -190,7 +278,11 @@ export function WarpkeepSpacetimeProvider({
           }
         });
         if (!current()) {
-          runtime.disconnect(activeConnection);
+          try {
+            runtime.disconnect(activeConnection);
+          } catch {
+            // The stale connection cannot regain authority in this generation.
+          }
           return;
         }
         connection = activeConnection;
@@ -199,17 +291,22 @@ export function WarpkeepSpacetimeProvider({
         // injected/test runtime can never accidentally bypass compatibility.
         readCompatibleWarpkeepBackendInfo(await runtime.readBackendInfo(activeConnection));
         if (!current()) return;
-        setState({ phase: 'checking-admission', identity });
+        if (!reconnectingState) {
+          setState({ phase: 'checking-admission', identity });
+        }
         let admission = await runtime.readAdmission(activeConnection);
         if (!current()) return;
 
         if (admission === 'not_admitted' || admission === 'disabled') {
+          terminateConnection();
           setState({ phase: 'denied', identity, admission });
           return;
         }
 
         if (admission === 'admitted_needs_bootstrap') {
-          setState({ phase: 'bootstrapping', identity, admission });
+          if (!reconnectingState) {
+            setState({ phase: 'bootstrapping', identity, admission });
+          }
           await runtime.bootstrapPlayer(activeConnection);
           if (!current()) return;
           admission = await runtime.readAdmission(activeConnection);
@@ -217,6 +314,7 @@ export function WarpkeepSpacetimeProvider({
         }
 
         if (admission !== 'ready') {
+          terminateConnection();
           setState({ phase: 'denied', identity, admission });
           return;
         }
@@ -231,30 +329,29 @@ export function WarpkeepSpacetimeProvider({
           });
         };
         cleanupObserver = runtime.observeRealm(activeConnection, bridgeFid!, updateRealm);
-        subscription = runtime.subscribeRealm(activeConnection, updateRealm, fail);
+        const startedSubscription = runtime.subscribeRealm(activeConnection, updateRealm, fail);
+        if (!current()) {
+          // A test runtime or SDK failure callback may fire synchronously from
+          // subscribe(). The returned handle was not available to fail(), so
+          // close it here instead of retaining a terminal subscription.
+          startedSubscription.unsubscribe();
+          return;
+        }
+        subscription = startedSubscription;
       } catch {
         fail();
       }
     };
 
     void run();
-    return () => {
-      active = false;
-      cleanupObserver?.();
-      subscription?.unsubscribe();
-      if (connection) {
-        runtime.disconnect(connection);
-      }
-      if (connectionRef.current === connection) {
-        connectionRef.current = undefined;
-      }
-    };
+    return terminateConnection;
   }, [
     bridgeFid,
     checkSequence,
     config,
     farcaster.oidcSession,
     identity,
+    runActiveTeardown,
     runtime,
     sharedAlphaAvailable
   ]);

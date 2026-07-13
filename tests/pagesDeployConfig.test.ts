@@ -53,5 +53,24 @@ describe('Pages deployment configuration validation', () => {
     });
     expect(unsafe.status).not.toBe(0);
     expect(unsafe.stderr).toContain('stable public HTTPS origin');
+
+    const matchingLookalike = validate({
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'true',
+      VITE_WARPKEEP_AUTH_BRIDGE_URL: 'https://lookalike.example',
+      VITE_WARPKEEP_OIDC_ISSUER: 'https://lookalike.example'
+    });
+    expect(matchingLookalike.status).not.toBe(0);
+    expect(matchingLookalike.stderr).toContain('https://auth.warpkeep.com');
+  });
+
+  it('pins the active Maincloud database rather than accepting a lookalike name', () => {
+    const result = validate({
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'true',
+      VITE_WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',
+      VITE_WARPKEEP_OIDC_ISSUER: 'https://auth.warpkeep.com',
+      VITE_SPACETIMEDB_DATABASE: 'lookalike-database'
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('warpkeep-89e4u');
   });
 });

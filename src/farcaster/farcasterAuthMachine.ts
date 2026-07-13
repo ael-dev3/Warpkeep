@@ -7,9 +7,10 @@ import type {
 } from './farcasterAuthTypes';
 
 export type FarcasterRememberedMachineSession = Readonly<{
-  /** Derived only from a validated v2 bridge-OIDC device record. */
+  /** Compatibility-only input; browser storage restoration is retired. */
   identity: VerifiedFarcasterIdentity;
   expiresAt: number;
+  sessionExpiresAt?: number;
 }>;
 
 export type FarcasterAuthMachineState = Readonly<{
@@ -50,6 +51,26 @@ export type FarcasterAuthMachineAction =
       identity: VerifiedFarcasterIdentity;
       assurance: 'bridge-oidc-alpha';
       expiresAt: number;
+      sessionExpiresAt: number;
+    }>
+  | Readonly<{
+      type: 'pending-admission';
+      generation: number;
+      identity: VerifiedFarcasterIdentity;
+      sessionExpiresAt: number;
+    }>
+  | Readonly<{
+      type: 'session-authorized';
+      generation: number;
+      identity: VerifiedFarcasterIdentity;
+      expiresAt: number;
+      sessionExpiresAt: number;
+    }>
+  | Readonly<{
+      type: 'session-pending';
+      generation: number;
+      identity: VerifiedFarcasterIdentity;
+      sessionExpiresAt: number;
     }>
   | Readonly<{
       type: 'restore';
@@ -118,6 +139,12 @@ function isValidRememberedExpiry(identity: VerifiedFarcasterIdentity, expiresAt:
     && expiresAt > 0;
 }
 
+function isValidSessionExpiry(identity: VerifiedFarcasterIdentity, sessionExpiresAt: number) {
+  return Number.isFinite(sessionExpiresAt)
+    && sessionExpiresAt > identity.verifiedAt
+    && sessionExpiresAt > 0;
+}
+
 function publicIdentity(
   identity: VerifiedFarcasterIdentity
 ): PublicFarcasterIdentity {
@@ -156,7 +183,8 @@ function rememberedView(
     phase: 'authenticated',
     identity: publicIdentity(session.identity),
     assurance: 'bridge-oidc-alpha',
-    expiresAt: session.expiresAt
+    expiresAt: session.expiresAt,
+    sessionExpiresAt: session.sessionExpiresAt ?? session.expiresAt
   };
 }
 
@@ -278,7 +306,11 @@ export function farcasterAuthMachineReducer(
         || !isValidIdentity(action.identity)
         || (
           action.assurance === 'bridge-oidc-alpha'
-          && !isValidRememberedExpiry(action.identity, action.expiresAt)
+          && (
+            !isValidRememberedExpiry(action.identity, action.expiresAt)
+            || !isValidSessionExpiry(action.identity, action.sessionExpiresAt)
+            || action.expiresAt > action.sessionExpiresAt
+          )
         )
       ) {
         return state;
@@ -290,8 +322,73 @@ export function farcasterAuthMachineReducer(
           identity: publicIdentity(action.identity),
           assurance: action.assurance,
           ...(action.assurance === 'bridge-oidc-alpha'
-            ? { expiresAt: action.expiresAt }
+            ? {
+                expiresAt: action.expiresAt,
+                sessionExpiresAt: action.sessionExpiresAt
+              }
             : {})
+        }
+      };
+
+    case 'pending-admission':
+      if (
+        state.view.phase !== 'verifying'
+        || !isCurrentGeneration(state, action.generation)
+        || !isValidIdentity(action.identity)
+        || !isValidSessionExpiry(action.identity, action.sessionExpiresAt)
+      ) {
+        return state;
+      }
+      return {
+        generation: state.generation,
+        view: {
+          phase: 'pending-admission',
+          identity: publicIdentity(action.identity),
+          sessionExpiresAt: action.sessionExpiresAt
+        }
+      };
+
+    case 'session-authorized':
+      if (
+        (state.view.phase !== 'anonymous'
+          && state.view.phase !== 'authenticated'
+          && state.view.phase !== 'pending-admission')
+        || !isCurrentGeneration(state, action.generation)
+        || !isValidIdentity(action.identity)
+        || !isValidRememberedExpiry(action.identity, action.expiresAt)
+        || !isValidSessionExpiry(action.identity, action.sessionExpiresAt)
+        || action.expiresAt > action.sessionExpiresAt
+      ) {
+        return state;
+      }
+      return {
+        generation: state.generation,
+        view: {
+          phase: 'authenticated',
+          identity: publicIdentity(action.identity),
+          assurance: 'bridge-oidc-alpha',
+          expiresAt: action.expiresAt,
+          sessionExpiresAt: action.sessionExpiresAt
+        }
+      };
+
+    case 'session-pending':
+      if (
+        (state.view.phase !== 'anonymous'
+          && state.view.phase !== 'authenticated'
+          && state.view.phase !== 'pending-admission')
+        || !isCurrentGeneration(state, action.generation)
+        || !isValidIdentity(action.identity)
+        || !isValidSessionExpiry(action.identity, action.sessionExpiresAt)
+      ) {
+        return state;
+      }
+      return {
+        generation: state.generation,
+        view: {
+          phase: 'pending-admission',
+          identity: publicIdentity(action.identity),
+          sessionExpiresAt: action.sessionExpiresAt
         }
       };
 
@@ -343,15 +440,15 @@ export function farcasterAuthMachineReducer(
       ) {
         return state;
       }
-      return anonymousState(state.generation);
+      return anonymousState(state.generation + 1);
 
     case 'sign-out':
       if (
-        state.view.phase !== 'authenticated'
+        (state.view.phase !== 'authenticated' && state.view.phase !== 'pending-admission')
         || !isCurrentGeneration(state, action.generation)
       ) {
         return state;
       }
-      return anonymousState(state.generation);
+      return anonymousState(state.generation + 1);
   }
 }

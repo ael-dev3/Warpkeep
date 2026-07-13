@@ -11,10 +11,12 @@ import AdminBumpAuthEpochReducer from "../admin_bump_auth_epoch_reducer";
 import AdminDisableFidReducer from "../admin_disable_fid_reducer";
 import AdminSeedWorldReducer from "../admin_seed_world_reducer";
 import BootstrapPlayerReducer from "../bootstrap_player_reducer";
+import BootstrapPlayerV2Reducer from "../bootstrap_player_v_2_reducer";
 
 export type AdminAllowFidParams = __Infer<typeof AdminAllowFidReducer>;
 export type AdminBumpAuthEpochParams = __Infer<typeof AdminBumpAuthEpochReducer>;
 export type AdminDisableFidParams = __Infer<typeof AdminDisableFidReducer>;
 export type AdminSeedWorldParams = __Infer<typeof AdminSeedWorldReducer>;
 export type BootstrapPlayerParams = __Infer<typeof BootstrapPlayerReducer>;
+export type BootstrapPlayerV2Params = __Infer<typeof BootstrapPlayerV2Reducer>;
 

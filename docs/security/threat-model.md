@@ -1,6 +1,11 @@
-# Warpkeep Alpha 0.2 Threat Model — Historical Baseline
+# Warpkeep threat model — Alpha 0.2 historical baseline and staged v2 boundary
 
-Status: historical pre-release model for the closed Alpha 0.2 architecture and PR #11 audit base. Current changes must be checked against the active release documentation and code. This is not an OWASP ASVS certification or a penetration-test attestation.
+Status: the Alpha 0.2 evidence remains historical. The protocol-v2 module,
+additive session-family storage, independent managed cookie secret, and paused
+Worker are staged at their separately recorded production coordinates. Public
+Worker auth and frontend shared-alpha access remain disabled, and the v2
+frontend is not yet deployed. This is not an OWASP ASVS certification or a
+penetration-test attestation.
 
 ## Scope and revision
 
@@ -16,9 +21,38 @@ Hermes administration, and the GitHub Pages delivery path.
 - Intended OIDC issuer: `https://auth.warpkeep.com`
 - Intended database service: SpacetimeDB Maincloud
 
-The model assumes a deliberately small, invite-only alpha. It does not treat
-the current 30-day browser bearer session, early abuse controls, or operational
-history as production-grade.
+The model assumes a deliberately small, invite-only alpha. Protocol v2 replaces
+the historical browser-readable 30-day bearer with a 600-second memory-only
+access token and a separate maximum-30-day HttpOnly rotating session family.
+The paused backend checkpoint is production evidence only for its recorded
+exact source and deployment coordinates; the frontend and public-entry path
+remain untrusted until their remaining gates are separately verified.
+
+## Staged v2 status and remaining deployment boundary
+
+The checked-out v2 target has exact `auth_version: 2`, positive auth epochs,
+tokenless pending sessions, a `__Host-` session cookie, server-side family
+rotation/revocation, a dedicated resolver principal/procedure, protocol 2, and
+retired public v1 challenge/exchange routes. The bridge persists and issues only
+the verified FID. SpacetimeDB freezes the deployed public `player` table as an
+inert legacy contract and appends identity-free public `player_v2` plus private
+`player_ownership_v2`. Worker `PUBLIC_AUTH_ENABLED` and frontend
+`VITE_WARPKEEP_SHARED_ALPHA_ENABLED` remain false.
+
+The repository includes a pinned SpacetimeDB 2.6.1 loopback rehearsal proving
+the five legacy tables remain unchanged while the v2 pair is appended, empty and
+synthetic nonempty fixtures retain their data, a second publication is
+idempotent, partial state is detected, and the guarded v1 rollback is refused
+before any schema change. That command is local repository evidence only. The
+separately approved guarded publication and post-publish probes attest the
+recorded Maincloud checkpoint; neither substitutes for the other.
+
+Backend staging separately completed the guarded Maincloud publication,
+additive Durable Object migration, independent managed cookie-secret setup, and
+paused Worker deployment. It changed no admission, player, ownership, castle,
+allowlist, or world data. No frontend deployment, DNS/account change, or auth
+enable is claimed here, and historical Alpha 0.2 evidence is not proof of the
+current v2 coordinates.
 
 ## System and data flow
 
@@ -28,7 +62,8 @@ flowchart LR
   Farcaster["Farcaster relay and verifier"]
   Bridge["Cloudflare auth bridge\nmanaged ES256 key"]
   Guard["Challenge Durable Object"]
-  STDB["SpacetimeDB Maincloud\nmodule and private admission data"]
+  Family["Session Family Durable Object\nrotating generation and epoch binding"]
+  STDB["SpacetimeDB Maincloud\nmodule, private admission and ownership data"]
   Hermes["Local Hermes operator"]
   GitHub["GitHub repository and Actions"]
   Pages["GitHub Pages\nwarpkeep.com"]
@@ -36,9 +71,10 @@ flowchart LR
   Browser -->|"channel creation/status; user approval"| Farcaster
   Browser -->|"challenge; minimized SIWF proof"| Bridge
   Bridge -->|"one-time claim / cleanup"| Guard
+  Bridge -->|"create / rotate / revoke"| Family
   Bridge -->|"independent proof verification"| Farcaster
-  Bridge -->|"short-lived admin JWT; fixed epoch procedure"| STDB
-  Bridge -->|"player OIDC JWT"| Browser
+  Bridge -->|"15s resolver-only JWT; exact SATS-JSON procedure"| STDB
+  Bridge -->|"600s access JWT or tokenless pending result"| Browser
   Browser -->|"OIDC-authenticated WebSocket"| STDB
   Hermes -->|"admin secret; short-lived admin JWT"| Bridge
   Hermes -->|"admin procedures and reducers"| STDB
@@ -59,16 +95,20 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Farcaster FID identity binding | Integrity; a client-supplied FID must never become authority. |
 | SIWF message and signature | Confidentiality in transit and logs; strict contextual validation; single use. |
 | Relay channel token, channel URL, nonce, and request ID | Confidentiality, bounded lifetime, and no persistence beyond the active flow. |
-| Player OIDC JWT | Confidentiality; exact claims; expiry and epoch enforcement; teardown on logout. |
-| Worker-to-SpacetimeDB admin JWT | Server-only, short-lived, in-memory, fixed destination, never logged. |
+| Player OIDC access JWT | JavaScript-memory-only confidentiality; exact auth version/claims; 600-second maximum; positive epoch enforcement. |
+| Session-family cookie and Durable Object state | `__Host-`, Secure, HttpOnly, SameSite=Strict; integrity-protected rotating reference; server-side expiry/revocation. |
+| Browser logout-intent tombstone | Non-secret, base-path scoped marker/timestamp only; no FID, proof, token, cookie, family ID, or profile data; 30-day maximum and explicit Terms-gated activation clearing. |
+| Alpha Terms acceptance | Unchecked by default, component-memory only, one entry attempt, no identity or cross-tab/persistent representation. |
+| Worker-to-SpacetimeDB resolver JWT | Server-only, Worker-minted 15 seconds, module rejection ceiling 60 seconds, exact resolver subject/sole role and one-FID binding, fixed Worker destination, never logged. |
 | ES256 private signing key | Worker-managed secret only; absent from source, browser, artifacts, and logs. |
 | Hermes admin secret | Operator/Worker secret only; never placed in browser code, process output, or repository. |
+| Session-cookie HMAC key | Independent Worker-managed secret; never reused with signing/admin material or recorded in recovery evidence. |
 | Farcaster/Optimism RPC credential | Worker secret only; URL and credential must not be logged or returned. |
 | Cloudflare account and Worker | Deployment and configuration integrity; least privilege. |
 | SpacetimeDB identity and claims | Exact issuer, audience, token type, subject, role, FID, epoch, and time validation. |
-| Private whitelist and admin audit data | Server-only confidentiality and authorized mutation. |
+| Private whitelist, player-ownership binding, and admin audit data | Server-only confidentiality and authorized mutation; opaque OIDC identity must not enter public subscriptions. |
 | Persistent player, castle, and world state | Transactional integrity and module-authoritative ownership. |
-| Remembered-device record | Local confidentiality; strict parsing, expiry, logout propagation, and minimum data. |
+| Minimum browser identity state | No bearer/family secret persistence; strict parsing, expiry, logout propagation, and minimum data. |
 | GitHub deployment authority | Least privilege, immutable workflow dependencies, reviewed artifact provenance. |
 | Pages custom domain | HTTPS integrity, canonical redirects, and controlled deployment. |
 | Local operations machine | Separation from public repository content and protection of operator credentials. |
@@ -78,18 +118,23 @@ creation, and world state. Anonymous visitors do not open a database connection.
 1. **Browser ↔ Farcaster relay/client.** Channel creation and approval data are
    untrusted until independently verified. A relay response is not itself an
    identity assertion.
-2. **Browser ↔ auth bridge.** All request fields, headers, origins, proof data,
-   and profile metadata are hostile input. TLS, exact CORS policy, strict size
-   bounds, contextual proof checks, and replay protection apply.
+2. **Browser ↔ auth bridge.** All request fields, headers, origins, and proof
+   data are hostile input. The exchange accepts exactly `identity: { fid }` and
+   rejects profile metadata. TLS, exact CORS policy, strict size bounds,
+   contextual proof checks, and replay protection apply.
 3. **Worker ↔ Farcaster verifier / Optimism RPC.** The endpoint and credential
    are server configuration. Responses may fail, stall, or be malformed and
    must not produce a token on error.
-4. **Worker ↔ SpacetimeDB HTTP procedure.** A privileged ephemeral token crosses
-   this boundary. The HTTPS origin, database, procedure, redirects, time, body
-   size, content type, and response shape are constrained.
+4. **Worker ↔ SpacetimeDB HTTP procedure.** A resolver-only ephemeral token
+   crosses this boundary. Its exact subject/role, signed one-FID binding,
+   15-second Worker lifetime, HTTPS origin, database, procedure, redirects,
+   time, body size, content type, and exact `[state, authEpoch]` SATS-JSON
+   response shape are constrained. The module retains a 60-second rejection
+   ceiling and rejects a `resolver_fid`/argument mismatch before lookup.
 5. **Browser ↔ SpacetimeDB Maincloud.** The browser presents a bearer token.
-   Every sensitive procedure/reducer must repeat module-side authorization;
-   frontend gating is not a security boundary.
+   Only a current admitted player receives a browser token; every sensitive
+   procedure/reducer repeats module-side authorization. Frontend gating is not
+   a security boundary.
 6. **Hermes ↔ Worker admin endpoint.** Browser origins are rejected. The
    long-lived admin secret may be sent only to the canonical bridge, which
    returns a short-lived, narrowly shaped admin JWT.
@@ -108,7 +153,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - anonymous browser user;
 - valid but non-whitelisted Farcaster user;
 - malicious whitelisted player;
-- bearer-token holder after browser storage or device compromise;
+- bearer-token holder after XSS, extension, memory capture, or device compromise;
 - XSS or malicious-extension attacker operating in the application origin;
 - replay and parallel-request attacker;
 - origin-spoofing non-browser client;
@@ -126,15 +171,21 @@ creation, and world state. Anonymous visitors do not open a database connection.
   a browser display field or reducer argument.
 - SIWF context is bound to the configured domain, URI, nonce, request ID, and
   expiration before a token can be issued.
-- The proof FID, requested FID, and optional profile FID must agree.
-- Profile fields are bounded presentation metadata, not identity authority.
+- The proof FID, requested FID, and exact FID-only exchange identity must agree.
+- The bridge rejects username, display-name, avatar, and other optional profile
+  fields; it stores only the verified FID in a session family and issues no
+  optional profile claims in an access JWT.
+- The module independently ignores optional profile-shaped JWT claims during
+  bootstrap and inserts undefined public profile fields. JWT authority cannot be
+  repurposed as a profile-write channel.
 - Proof material, relay secrets, tokens, credentialed URLs, and private
   responses are excluded from logs and public error messages.
 
 ### Replay and resource control
 
 - Challenges are random, expire, and are atomically claimed before expensive
-  verification, database lookup, or signing.
+  verification, database lookup, or signing. The QR/deep-link SIWF challenge
+  has an exact five-minute absolute lifetime.
 - A successful or definitively invalid exchange consumes the challenge. Only
   an explicitly retryable verifier outage, epoch lookup failure, or signing
   failure restores a still-live challenge.
@@ -143,121 +194,236 @@ creation, and world state. Anonymous visitors do not open a database connection.
   decoding. The browser bridge exchange, Worker epoch lookup, and local Hermes
   connection/operation paths use explicit deadlines.
 - Credential-bearing routes use Durable Object-backed exact rolling-window
-  limits: challenge 12/300 seconds, exchange 20/300 seconds, and admin token
-  6/300 seconds. Durable IPv4-address/IPv6-`/64` buckets use bounded backoff,
+  limits: challenge 12/300 seconds, exchange 20/300 seconds, refresh 30/300
+  seconds, and the shared admin action 6/300 seconds. Durable
+  IPv4-address/IPv6-`/64` buckets use bounded backoff,
   failure-atomic alarm updates, and full expired-object deallocation. Aggregate
   edge monitoring and alert maturity remain necessary before wider availability.
 
 ### Tokens and authorization
 
-- Player and admin tokens use ES256 and distinct exact subject/role shapes.
+- Player, resolver, and admin tokens use ES256 and distinct exact principal
+  shapes. Players require `auth_version: 2`, positive `auth_epoch`, and empty
+  roles. The resolver requires exact `service:auth-epoch-resolver` and sole
+  `warpkeep-auth-epoch-resolver`, plus signed `resolver_fid` equal to its one
+  procedure argument; Hermes remains exact and admin-only.
 - SpacetimeDB verifies the token signature and standard time claims when the
   connection is authenticated. The module then validates issuer, audience,
-  token type, subject, roles, FID, and epoch. A player cannot use an admin
-  surface and an admin token cannot bootstrap as a player.
+  token type, auth version, subject, roles, FID, positive epoch, and time
+  window. A player cannot use an admin/resolver surface; resolver/admin tokens
+  cannot bootstrap or subscribe as players. Because `clientConnected` also runs
+  before HTTP procedures, an exact resolver presented while fresh can establish
+  a WebSocket and public-table subscriptions that may persist until transport
+  disconnect. It can call static `get_alpha_backend_info` only while fresh;
+  protected calls recheck expiry and private/player-mutation/admin guards still
+  reject it.
 - Signed `session_iat`/`session_exp` claims preserve the original player-session
   window across SpacetimeDB's temporary connection-token exchange. Every player
-  module call rechecks that maximum-30-day absolute deadline against module time.
+  module call rechecks the maximum-600-second deadline against module time.
 - Admin reducer/procedure entry points recheck the connection JWT expiry
   against authoritative reducer time, even when a WebSocket outlives token
   expiry.
 - Player admission and the authorization epoch are module-authoritative.
   Denied admission creates no player or castle state.
-- Private whitelist and admin-audit tables are omitted from public generated
-  bindings and subscriptions.
+- First admission starts at epoch one. Epoch zero is only the structured
+  missing/disabled sentinel and is never player authority.
+- `auth_resolver_get_fid_admission_v2` returns exact missing/disabled/enabled
+  state; non-enabled results use epoch zero and enabled requires a positive
+  epoch. `admin_get_fid_auth_epoch` is rollback compatibility only.
+- Private whitelist, `player_ownership_v2`, and admin-audit tables have no public
+  generated query/subscription accessors. Inert generated schema types expose no
+  rows. The active public `player_v2` projection contains FID and
+  presentation/game fields but no opaque SpacetimeDB OIDC Identity.
+- The frozen legacy public `player` table remains schema-compatible, including
+  its Identity column, but protocol-v2 code never reads, writes, or subscribes to
+  it. Arbitrary old clients can technically request that public table, so a fresh
+  pre-publication count other than exactly zero is a hard stop and continuing
+  zero-row verification is a privacy requirement.
+- Existing-player authorization requires a consistent public `player_v2` row
+  and matching private `player_ownership_v2` row. Public-only, ownership-only, or
+  mismatched state fails closed.
 
 ### Browser session lifecycle
 
-- The remembered record has a documented absolute maximum of 30 days and is
-  strictly parsed against issuer, audience, subject, FID, and timestamps.
-- A restored bearer is moved into transient runtime state rather than retained
-  in immutable component initialization state.
-- Logout clears the local record, pending auth state, and database connection;
-  a non-sensitive same-origin signal propagates logout to other tabs.
-- The browser receives only minimum display identity fields; proof, custody,
-  verification, and authentication-method details do not enter the game view.
-- This self-contained localStorage bearer cannot be remotely invalidated merely
-  by deleting one browser copy. Epoch bump/signing-key response and expiry are
-  the available revocation controls for copied tokens.
+- **ENTER REALM** opens an accessible Alpha Terms gate before any anonymous
+  cookie refresh, SIWF challenge, QR/deep link, or database connection. Its
+  checkbox is local to the mounted dialog and is destroyed on cancel, close,
+  Escape, browser Back, unmount, failure, expiry, retry replacement, or
+  completion. Direct `#realm` navigation normalizes to the menu and conveys no
+  acceptance or authorization intent. The concise notice links to standalone
+  Alpha Terms and a Privacy Notice; neither the gate nor those project-authored
+  documents substitutes for formal legal/privacy review.
+- An access bearer exists only in JavaScript memory and expires within 600
+  seconds. It is never persisted to localStorage, IndexedDB, a URL, or a
+  browser-readable cookie.
+- Continuity uses a separate maximum-30-day server-side session family referenced
+  by `__Host-warpkeep_session; Secure; HttpOnly; SameSite=Strict; Path=/`.
+- Remember-device persistence defaults false. Only explicit opt-in adds a
+  persistent cookie lifetime; the default uses a session cookie while the
+  server-side family remains absolutely bounded at 30 days.
+- Pending admission returns FID-only identity and the HttpOnly reference but no
+  access token, so it cannot open a database connection.
+- Every authorized refresh rechecks admission and rotates the generation. A
+  bound epoch mismatch/missing/disabled result, origin/expiry failure, or stale
+  replay revokes the family. Only the immediately previous generation has a
+  bounded lost-response recovery grace.
+- Successful logout confirms family revocation, expires the cookie, clears
+  transient bearer/pending state, and closes the database connection. If durable
+  revocation cannot be confirmed, the bridge returns generic `503` and still
+  expires the current browser cookie; a separately copied cookie may remain
+  usable after storage recovery until the bounded family expires.
+- Sign-out writes a non-secret 30-day logout-intent tombstone before the
+  best-effort server call. Anonymous startup, focus, visibility, pageshow, and
+  direct refresh remain dormant even without a tombstone. Reloads and
+  same-origin tabs honor an active tombstone; only a new explicit, Terms-gated
+  auth activation clears it before expiry. Malformed or unavailable storage
+  blocks refresh.
+- The bridge returns only the verified FID. Proof, profile, custody,
+  verification, and authentication-method details do not enter session-family
+  storage or access-token claims.
+- XSS can still copy the in-memory access token, but not the HttpOnly family
+  reference; a copied access token remains bounded by 600 seconds and module
+  epoch/admission checks.
 
 ### Operations and delivery
 
 - Hermes credential-bearing operations allowlist the canonical bridge,
   Maincloud origin, and database. Custom destinations are limited to secret-free
   dry runs.
+- A server-only configuration attestation hashes the reviewed v2 issuer,
+  origins, SIWF coordinates, key/database coordinates, access/resolver/
+  challenge/family lifetimes (including the exact five-minute challenge),
+  resolver timeout, cookie attributes, and public-auth state without returning
+  a secret.
+- Production frontend activation and Pages validation require exact
+  `https://auth.warpkeep.com` bridge/issuer, `warpkeep-spacetimedb` audience,
+  `https://maincloud.spacetimedb.com` service, and `warpkeep-89e4u` database.
+  The Worker separately pins its production resolver to that Maincloud/database
+  pair; only explicit development profiles remain configurable.
 - Admin requests reject redirects and use connection, operation, and child
   process deadlines with cleanup.
-- Workflow actions are pinned to reviewed immutable commits. Checkout
-  credentials are not persisted, downloaded SpacetimeDB binaries are pinned by
-  release checksum, and all package boundaries are audited.
+- Workflow actions are pinned to reviewed immutable commits, and repository
+  policy requires SHA pinning. Checkout credentials are not persisted,
+  downloaded SpacetimeDB binaries are pinned by release checksum, and all
+  package boundaries are audited.
 - Build jobs have read-only repository access. Pages and OIDC write authority is
   isolated to the deployment job.
+- Verified `main` protection requires pull requests even for administrators,
+  strict current-head checks (`verify`, `auth-bridge`, `spacetimedb-module`,
+  `analyze`, and `CodeQL`), stale-review dismissal, resolved conversations, and
+  linear history; force pushes and branch deletion are disabled.
 - The frontend shared-alpha switch defaults off so an incomplete identity chain
   fails closed.
+- Worker public auth also defaults false. Module publish, session-family Durable
+  Object migration, secret configuration, Worker deploy, frontend deploy, and
+  each auth enable are separate approval boundaries.
 
 ## Principal threat scenarios
 
 | Threat | Primary control | Residual treatment |
 | --- | --- | --- |
 | Client chooses or substitutes another FID | Independent SIWF verification and exact FID agreement | Treat verifier/RPC compromise as an external dependency incident. |
+| Terms gate bypass or replay | Dormant anonymous refresh; direct-route normalization; local unchecked state; disabled continuation; one-shot callback; focus trap; no persistence or identity tracking | The linked project-authored Alpha Terms and Privacy Notice still require formal legal/privacy review; revisit the gate and documents before changing auth entry points. |
 | Proof replay or parallel exchange | Expiring Durable Object challenge, atomic pre-work claim, and distributed per-client rolling-window limits | Add aggregate edge monitoring/alerts for broad distributed abuse; tune policy only through separate review. |
-| Stolen browser bearer | Exact claims, module-enforced absolute lifetime, epoch checks, disconnect/logout handling | Accepted closed-alpha risk; move to short-lived access plus trusted HttpOnly refresh for production. |
+| Stolen in-memory access bearer | Exact v2 claims, 600-second maximum, positive epoch/admission checks, disconnect/logout handling | XSS/extension memory capture remains possible for the token's short remaining lifetime; the HttpOnly family is not exposed. |
+| Stolen resolver bearer presented before expiry | Server-only minting, exact sole-role and one-FID claims, 15-second Worker initiation window, fixed Worker destination, independent resolver guard | It reveals its bound FID and can resolve only that FID's admission projection while fresh; it can establish public subscriptions that persist until disconnect, but cannot query another FID, read private tables, mutate as a player, or pass Hermes/admin guards. |
+| Stolen or replayed session reference | HMAC-authenticated `__Host-` cookie, SameSite=Strict, origin binding, generation rotation, stale-replay family revocation | Endpoint/host compromise remains an incident; bounded previous-generation recovery must remain narrow. |
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
-| Whitelist bypass or private-row disclosure | Module-side admission on every protected operation; private tables/bindings | Public world/player/castle projections remain intentionally observable. |
+| Whitelist bypass or private-row disclosure | Module-side admission and v2 private ownership checks on every protected operation; private tables/bindings; exact-zero legacy-player publication gate | Public world/player-v2/castle projections remain intentionally observable. Arbitrary old clients can request the frozen public legacy player table, so it must remain empty; any nonzero preflight count blocks publication. |
+| Logout revocation-store failure | Generic `503`, current-cookie expiry, static failure event, and non-secret 30-day browser tombstone that blocks all refresh until explicit Terms-gated activation | A denied tombstone write plus failed server revocation can leave a later storage-enabled context able to resume a copied cookie until family expiry; investigate without logging identifiers or cookie material. |
 | Worker memory/cost exhaustion | Streaming bounds, timeouts, early challenge claim, per-client rate control, and storage cleanup | Aggregate account quotas, telemetry, and alerting remain operational requirements. |
-| Malicious dependency or workflow step obtains deployment authority | Lockfiles, audits, action SHA pins, checksum verification, job privilege split | Repository settings and alert operations require ongoing owner review. |
+| Malicious dependency or workflow step obtains deployment authority | Lockfiles, audits, required action SHA pins, checksum verification, job privilege split, and protected `main` required checks | Commit signatures remain disabled; security-update remediation needs a private workflow while automated security PRs are intentionally off. |
 | First-visit transport downgrade or framing/content-type hardening gap | HTTPS redirect and browser-origin validation | HSTS and response headers depend on the hosting layer and remain an activation check. |
-| Misconfigured partial activation | Default-off frontend switch and exact issuer/origin/database validation | Follow the activation runbook and verify discovery/JWKS/module agreement before enabling. |
+| Misconfigured partial activation | Worker and frontend default-off switches, exact config attestation, and ordered approval gates | Follow the activation runbook; no stage implies approval for publish, migration, secret change, deploy, or enable at another stage. |
 
 ## Accepted alpha risks and future requirements
 
-- The 30-day bearer in localStorage is vulnerable to origin-level script,
-  extension, or device compromise and lacks an HttpOnly refresh/session tier.
-- A copied self-contained player token is not revoked by browser logout. Epoch
-  bump, key response, and the module-enforced absolute expiration are the
-  available controls.
-- A baseline-epoch token obtained before first admission can become usable when
-  that FID is first allowed; retaining epoch zero for first admission is the
-  explicit closed-alpha policy. Re-enabling a disabled record now increments
-  its epoch exactly once, so an older same-epoch token cannot regain authority.
-- Public game projections allow any connected authenticated client, including
-  an unadmitted player using a custom client, to observe world/player/castle
-  data by design; privacy classification must be revisited as state expands.
-- Optional caller-supplied display metadata is not a verified profile claim and
-  must not be used for authority or high-trust presentation.
+- An origin-level script, malicious extension, or compromised device can copy
+  the current memory-only access token. Its authority is capped at 600 seconds
+  and the current epoch; browser logout cannot recall a copy already exfiltrated.
+- The HttpOnly family reduces bearer persistence exposure but does not make a
+  compromised origin/device safe. Rotation, SameSite=Strict, exact CORS/origin,
+  server revocation, incident response, and key rotation remain necessary.
+- The non-secret logout tombstone suppresses cookie resurrection for its 30-day
+  lifetime and is cleared early only by explicit Terms-gated auth activation. Browser storage denial
+  remains a residual when server revocation also fails: a future context where
+  storage works cannot discover a tombstone that was never written.
+- Public game projections are observable to admitted authenticated clients by
+  design; privacy classification must be revisited as state expands. Missing
+  and disabled users receive no access token and cannot connect.
+- The resolver lifecycle exception is required by SpacetimeDB's HTTP procedure
+  execution order. A stolen production resolver token presented within its
+  15-second lifetime can establish public subscriptions that may persist until
+  transport disconnect, read static backend metadata, and resolve only its
+  signed FID's admission projection while fresh. It reveals that bound FID but
+  cannot query another FID and has no broader private, player-mutation, or
+  administrator authority; protected calls independently recheck expiry.
+- Existing enabled epoch-zero rows, if any, fail closed under v2 and require
+  explicit read-only inspection plus an approved migration decision. They must
+  never be silently promoted.
+- The bridge now rejects caller-supplied profile metadata and neither persists
+  it nor issues it in player JWTs. Public SpacetimeDB presentation columns remain
+  a separate, non-authoritative data class and must not contain opaque ownership
+  identity.
 - Static Pages responses currently lack several defense-in-depth headers,
   including HSTS. Hosting-layer header support or a fronting service is a future
   production requirement.
 - Distributed Worker rate limiting is active. Alerting, key-rotation drills,
   incident response, and operational history are not yet mature enough for
   production assurance.
-- The GitHub `main` branch currently has no protection or ruleset. Required
-  reviews/checks and tightly scoped bypass permissions remain owner-side release
-  controls even with hardened workflows.
+- The staged v2 backend is production state only at the recorded exact source,
+  deployment, schema, aggregate, and probe coordinates. The reviewed design
+  preserves the five-table prefix, freezes legacy `player`, and appends
+  `player_v2` plus `player_ownership_v2`. For every future republish, the local
+  pinned-CLI proof does not replace fresh read-only production inspection or
+  explicit approval. A nonzero legacy-player count or any v2/orphan state
+  blocks that operation. No delete, break-client, database-recreation, or
+  schema-rollback path is authorized.
+- GitHub `main` protection is active with pull-request enforcement including
+  administrators, strict required checks, stale-review dismissal, conversation
+  resolution, linear history, and no force-push/delete. Required commit
+  signatures remain disabled. Dependabot security updates remain intentionally
+  disabled because automated PRs in a public repository could disclose an
+  unpatched vulnerability; private triage and disclosure-safe remediation remain
+  operational requirements.
 
 ## Assumptions and operational dependencies
 
-- Cloudflare keeps the signing key, RPC credential, and admin secret in managed
-  secret storage and never exposes them to Pages or untrusted pull requests.
+- Cloudflare keeps the signing key, RPC credential, admin secret, and independent
+  session-cookie key in managed secret storage and never exposes them to Pages
+  or untrusted pull requests.
+- Production browser/Pages and Worker resolver configuration remain pinned to the
+  reviewed Warpkeep auth, audience, Maincloud, and database coordinates;
+  development configurability is never accepted as a production profile.
 - Farcaster's official verifier correctly binds the signature to the FID.
 - SpacetimeDB Maincloud and version 2.6.1 enforce the documented JWT signature
   verification and transaction semantics.
-- The configured issuer, public discovery/JWKS, Worker key, module trust, and
-  frontend values are deployed atomically enough to fail closed during rollout.
-- GitHub environment and branch policies restrict production deployment to the
-  intended branch even though repository branch protection remains an owner
-  configuration concern.
+- Rollout is staged and fail-closed: `PUBLIC_AUTH_ENABLED=false` and
+  `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false` while the separately approved
+  additive module is inspected and verified, the session-family Durable Object
+  is migrated, secrets are configured, and Worker/frontend heads are
+  independently deployed and attested. Pre-publication requires exactly zero
+  legacy players; post-publication requires zero v2 pair and orphan counters.
+  Containment leaves the additive tables inert and uses a forward fix rather
+  than destructive rollback.
+- Public v1 challenge/exchange routes remain retired after Worker cutover; the
+  legacy admin raw-epoch procedure exists only for rollback compatibility and
+  is never an implicit v2 fallback.
+- Verified GitHub branch protection and SHA-pinning policy constrain changes to
+  `main`; the `github-pages` environment policy must still be recorded and
+  rechecked at each release coordinate rather than inferred from branch rules.
 - Operators do not pass secrets on command lines, store returned JWTs, or run
   destructive publish/database commands outside the reviewed runbook.
 
 ## Exclusions
 
-This review does not authenticate to Cloudflare or SpacetimeDB, inspect the
-owner's Keychain, retrieve or rotate production secrets, mutate Maincloud or
-whitelist data, approve a real SIWF request, perform high-volume production
-testing, audit Farcaster/Cloudflare/GitHub/SpacetimeDB internals, or assess game
-art, layout, and unrelated gameplay design.
+This review used bounded, read-only checks of owned GitHub, Cloudflare, and
+SpacetimeDB deployment coordinates, including the Keychain-backed counts-only
+aggregate. It did not expose or rotate a production secret, mutate any hosted
+service or whitelist data, approve a real SIWF request, perform high-volume
+production testing, audit Farcaster/Cloudflare/GitHub/SpacetimeDB internals, or
+assess game art, layout, and unrelated gameplay design.
 
 ## Review triggers
 
@@ -265,3 +431,12 @@ Revisit this model before widening admission, changing token/session policy,
 adding a new trusted origin or database, introducing gameplay mutations or
 private player data, adding an admin entry point, changing the deployment
 workflow, or moving away from the current Pages/Worker/Maincloud topology.
+
+The recorded backend-staging checkpoint completed the separately approved
+Maincloud inspection/publication, post-publication aggregate/orphan checks,
+additive Durable Object migration, independent managed cookie secret, and paused
+Worker deployment/config attestation. Before claiming the frontend or public v2
+entry is deployed, separately verify the disabled frontend deployment and then
+the ordered Worker/frontend enable gates and owner QA. Keep both switches false
+until their recorded stage. This document does not authorize a future republish,
+secret change, deploy, data mutation, or enable.

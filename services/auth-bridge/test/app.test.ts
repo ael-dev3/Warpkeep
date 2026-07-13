@@ -1,25 +1,42 @@
 import { createSiweMessage } from 'viem/siwe'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAuthBridge, type AuthBridgeDependencies } from '../src/app'
+import {
+  FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
+  REQUEST_BODY_TIMEOUT_MILLISECONDS,
+  createAuthBridge,
+  type AuthBridgeDependencies,
+} from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
+import { MemorySessionFamilyStore } from '../src/sessionFamily'
 import {
   AuthEpochResolverFailure,
   type AuthEpochResolverFailureStage,
 } from '../src/spacetimeAuthEpochResolver'
 import type {
   AuthEpochResolver,
+  ChallengeStore,
   FarcasterVerifier,
   RateLimiter,
   SafeLogEvent,
+  SessionFamilyStore,
   WorkerEnv,
 } from '../src/types'
 
-const ORIGIN = 'https://ael-dev3.github.io'
-const DOMAIN = 'ael-dev3.github.io'
-const SIWE_URI = 'https://ael-dev3.github.io/Warpkeep/'
+const ORIGIN = 'https://warpkeep.example'
+const DOMAIN = 'warpkeep.example'
+const SIWE_URI = 'https://warpkeep.example/Warpkeep/'
 const FID = '12345'
 const ADMIN_SECRET = 'TEST_ONLY_ADMIN_SECRET_'.repeat(2)
+const SESSION_COOKIE_KEY = 'TEST_ONLY_SESSION_COOKIE_KEY_'.repeat(2)
+const SERVER_ONLY_ADMIN_PATHS = [
+  '/v1/admin/token',
+  '/v1/admin/auth-epoch-probe',
+  '/v1/admin/config-attestation',
+] as const
+const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
+const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
+const WRONG_BINDING_VERIFIER = 'A'.repeat(43)
 let privateJwk: JsonWebKey
 
 beforeAll(async () => {
@@ -29,7 +46,7 @@ beforeAll(async () => {
 
 function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
   return {
-    ISSUER: 'https://bridge.warpkeep.example',
+    ISSUER: 'https://auth.warpkeep.example',
     ALLOWED_ORIGINS: ORIGIN,
     FARCASTER_DOMAIN: DOMAIN,
     FARCASTER_SIWE_URI: SIWE_URI,
@@ -41,6 +58,7 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     PUBLIC_AUTH_ENABLED: 'true',
     SIGNING_KEY_JWK: JSON.stringify(privateJwk),
     ADMIN_TOKEN_SECRET: ADMIN_SECRET,
+    SESSION_COOKIE_KEY,
     ENVIRONMENT: 'production',
     ...overrides,
   }
@@ -49,7 +67,7 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
 function request(path: string, body?: unknown, init: RequestInit = {}): Request {
   const headers = new Headers(init.headers)
   if (body !== undefined && !headers.has('content-type')) headers.set('content-type', 'application/json')
-  return new Request(`https://bridge.warpkeep.example${path}`, {
+  return new Request(`https://auth.warpkeep.example${path}`, {
     ...init,
     method: init.method ?? (body === undefined ? 'GET' : 'POST'),
     headers,
@@ -71,10 +89,17 @@ async function json(response: Response): Promise<Record<string, unknown>> {
   return response.json() as Promise<Record<string, unknown>>
 }
 
+function responseCookie(response: Response): string {
+  const setCookie = response.headers.get('set-cookie')
+  if (!setCookie) throw new Error('Expected a session cookie.')
+  return setCookie.split(';', 1)[0]
+}
+
 interface Harness {
   app: ReturnType<typeof createAuthBridge>
   verifier: FarcasterVerifier & { verify: ReturnType<typeof vi.fn> }
   resolver: AuthEpochResolver & { resolve: ReturnType<typeof vi.fn> }
+  sessionStore: SessionFamilyStore
   events: SafeLogEvent[]
   setNow(value: number): void
 }
@@ -85,19 +110,25 @@ function harness(options: {
   verifier?: FarcasterVerifier
   rateLimiter?: RateLimiter
   signer?: AuthBridgeDependencies['signer']
+  challengeStore?: ChallengeStore
+  sessionFamilyStore?: SessionFamilyStore
 } = {}): Harness {
   const verifier = options.verifier ?? {
     verify: vi.fn(async () => ({ fid: FID })),
   }
   const resolver = options.resolver ?? {
-    resolve: vi.fn(async () => options.epoch ?? 7),
+    resolve: vi.fn(async () => (options.epoch ?? 7) === 0
+      ? ({ state: 'missing', authEpoch: 0 } as const)
+      : ({ state: 'enabled', authEpoch: options.epoch ?? 7 } as const)),
   }
   const events: SafeLogEvent[] = []
+  const sessionStore = options.sessionFamilyStore ?? new MemorySessionFamilyStore()
   let now = Date.now()
   const app = createAuthBridge({
-    challengeStore: new MemoryChallengeStore(),
+    challengeStore: options.challengeStore ?? new MemoryChallengeStore(),
     verifier,
     authEpochResolver: resolver,
+    sessionFamilyStore: sessionStore,
     rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
     signer: options.signer,
     now: () => now,
@@ -107,17 +138,21 @@ function harness(options: {
     app,
     verifier: verifier as Harness['verifier'],
     resolver: resolver as Harness['resolver'],
+    sessionStore,
     events,
     setNow(value) { now = value },
   }
 }
 
 async function issueChallenge(h: Harness): Promise<Record<string, unknown>> {
-  const response = await h.app.fetch(request('/v1/farcaster/challenge', {
+  const response = await h.app.fetch(request('/v2/farcaster/challenge', {
     domain: DOMAIN,
     siweUri: SIWE_URI,
+    bindingChallenge: BINDING_CHALLENGE,
+    bindingMethod: 'S256',
   }, { headers: { origin: ORIGIN } }), env())
   expect(response.status).toBe(201)
+  expect(h.events).toContain('challenge_binding_created')
   return json(response)
 }
 
@@ -144,7 +179,9 @@ function proofFor(challenge: Record<string, unknown>, overrides: Record<string, 
     siweUri: SIWE_URI,
     expirationTime,
     expiresAt: challenge.expiresAt,
-    identity: { fid: FID, username: 'warpkeeper', displayName: 'Warp Keeper', pfpUrl: 'https://cdn.example/pfp.png' },
+    bindingVerifier: BINDING_VERIFIER,
+    rememberDevice: true,
+    identity: { fid: FID },
     ...overrides,
   }
 }
@@ -154,7 +191,7 @@ describe('Warpkeep auth bridge', () => {
 
   it('rejects plaintext before configuration or request-body work', async () => {
     const h = harness()
-    const response = await h.app.fetch(new Request('http://bridge.warpkeep.example/v1/farcaster/exchange', {
+    const response = await h.app.fetch(new Request('http://auth.warpkeep.example/v2/farcaster/exchange', {
       method: 'POST',
       headers: { 'content-type': 'application/json', origin: ORIGIN },
       body: '{not-json'
@@ -168,8 +205,15 @@ describe('Warpkeep auth bridge', () => {
   it('keeps health available while the independent public-auth kill switch rejects challenge and exchange', async () => {
     const h = harness()
     const disabled = env({ PUBLIC_AUTH_ENABLED: 'false' })
-    expect((await h.app.fetch(request('/healthz'), disabled)).status).toBe(200)
-    for (const path of ['/v1/farcaster/challenge', '/v1/farcaster/exchange']) {
+    const health = await h.app.fetch(request('/healthz'), disabled)
+    expect(health.status).toBe(200)
+    await expect(health.json()).resolves.toEqual({
+      ok: true,
+      service: 'warpkeep-auth-bridge',
+      securityProfile: 'warpkeep-auth-v2',
+      publicAuthEnabled: false,
+    })
+    for (const path of ['/v2/farcaster/challenge', '/v2/farcaster/exchange']) {
       const response = await h.app.fetch(request(path, {}, { headers: { origin: ORIGIN } }), disabled)
       expect(response.status).toBe(503)
       await expect(response.json()).resolves.toMatchObject({
@@ -179,13 +223,42 @@ describe('Warpkeep auth bridge', () => {
     expect(h.events).toEqual(['public_auth_paused', 'public_auth_paused'])
   })
 
-  it('adds staged HSTS and centralized security headers to HTTPS responses', async () => {
+  it('adds long-lived HSTS and centralized security headers to HTTPS responses', async () => {
     const response = await harness().app.fetch(request('/healthz'), env())
-    expect(response.headers.get('strict-transport-security')).toBe('max-age=86400')
+    expect(response.headers.get('strict-transport-security')).toBe('max-age=31536000; includeSubDomains')
+    expect(response.headers.get('cross-origin-resource-policy')).toBe('same-site')
     expect(response.headers.get('x-content-type-options')).toBe('nosniff')
     expect(response.headers.get('x-frame-options')).toBe('DENY')
     expect(response.headers.get('referrer-policy')).toBe('no-referrer')
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'")
+  })
+
+  it('rejects alternate request hosts and cross-site production cookie origins', async () => {
+    const h = harness()
+    const misdirected = await h.app.fetch(new Request('https://alternate.warpkeep.example/healthz'), env())
+    expect(misdirected.status).toBe(421)
+    expect(misdirected.headers.has('access-control-allow-origin')).toBe(false)
+    expect(h.events).toContain('issuer_host_rejected')
+
+    const crossSite = await h.app.fetch(request('/healthz'), env({
+      ALLOWED_ORIGINS: 'https://ael-dev3.github.io',
+      FARCASTER_DOMAIN: 'ael-dev3.github.io',
+      FARCASTER_SIWE_URI: 'https://ael-dev3.github.io/Warpkeep/',
+    }))
+    expect(crossSite.status).toBe(503)
+    await expect(crossSite.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+  })
+
+  it('rejects userinfo in the public issuer and SIWE trust coordinates', async () => {
+    const h = harness()
+    for (const overrides of [
+      { ISSUER: 'https://operator:credential@auth.warpkeep.example' },
+      { FARCASTER_SIWE_URI: 'https://operator:credential@warpkeep.example/' },
+    ]) {
+      const response = await h.app.fetch(request('/healthz'), env(overrides))
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+    }
   })
 
   it('rate-limits credential-bearing POST routes without affecting health or preflight', async () => {
@@ -197,13 +270,13 @@ describe('Warpkeep auth bridge', () => {
     const h = harness({ rateLimiter: { check } })
 
     expect((await h.app.fetch(request('/healthz'), env())).status).toBe(200)
-    expect((await h.app.fetch(request('/v1/farcaster/challenge', undefined, {
+    expect((await h.app.fetch(request('/v2/farcaster/challenge', undefined, {
       method: 'OPTIONS',
       headers: { origin: ORIGIN, 'access-control-request-method': 'POST' },
     }), env())).status).toBe(204)
     expect(check).not.toHaveBeenCalled()
 
-    const limited = await h.app.fetch(request('/v1/farcaster/challenge', {}, {
+    const limited = await h.app.fetch(request('/v2/farcaster/challenge', {}, {
       headers: { origin: ORIGIN, 'cf-connecting-ip': '203.0.113.7' },
     }), env())
     expect(limited.status).toBe(429)
@@ -231,7 +304,7 @@ describe('Warpkeep auth bridge', () => {
     const h = harness({
       rateLimiter: { check: async () => { throw new Error('offline') } },
     })
-    const response = await h.app.fetch(request('/v1/farcaster/challenge', {}, {
+    const response = await h.app.fetch(request('/v2/farcaster/challenge', {}, {
       headers: { origin: ORIGIN },
     }), env())
     expect(response.status).toBe(503)
@@ -247,7 +320,7 @@ describe('Warpkeep auth bridge', () => {
     const app = createAuthBridge({
       challengeStore: new MemoryChallengeStore(),
       verifier: { verify: vi.fn(async () => ({ fid: FID })) },
-      authEpochResolver: { resolve: vi.fn(async () => 0) },
+      authEpochResolver: { resolve: vi.fn(async () => ({ state: 'missing', authEpoch: 0 } as const)) },
       logger: { event: (event) => events.push(event) },
     })
     const headerCases: HeadersInit[] = [
@@ -256,7 +329,7 @@ describe('Warpkeep auth bridge', () => {
       { origin: ORIGIN, 'cf-connecting-ip': 'bad', 'x-forwarded-for': '203.0.113.7' },
     ]
     for (const headers of headerCases) {
-      const response = await app.fetch(request('/v1/farcaster/challenge', {}, { headers }), env({
+      const response = await app.fetch(request('/v2/farcaster/challenge', {}, { headers }), env({
         AUTH_RATE_LIMITER: namespace as never,
       }))
       expect(response.status).toBe(503)
@@ -266,12 +339,12 @@ describe('Warpkeep auth bridge', () => {
     expect(events.filter((event) => event === 'rate_limit_failed')).toHaveLength(3)
   })
 
-  it.each(['/v1/farcaster/challenge', '/v1/farcaster/exchange'])(
+  it.each(['/v2/farcaster/challenge', '/v2/farcaster/exchange'])(
     'rejects a simple hostile browser request to %s before quota consumption',
     async (pathname) => {
     const check = vi.fn(async () => ({ allowed: true as const }))
     const h = harness({ rateLimiter: { check } })
-    const response = await h.app.fetch(new Request(`https://bridge.warpkeep.example${pathname}`, {
+    const response = await h.app.fetch(new Request(`https://auth.warpkeep.example${pathname}`, {
       method: 'POST',
       headers: {
         origin: 'https://hostile.example',
@@ -296,6 +369,48 @@ describe('Warpkeep auth bridge', () => {
     expect(check).not.toHaveBeenCalled()
   })
 
+  it.each(SERVER_ONLY_ADMIN_PATHS.flatMap(pathname => [ORIGIN, 'https://hostile.example']
+    .map(origin => [pathname, origin] as const)))(
+    'rejects browser POST access to %s from %s without exposing CORS',
+    async (pathname, origin) => {
+      const check = vi.fn(async () => ({ allowed: true as const }))
+      const h = harness({ rateLimiter: { check } })
+      const response = await h.app.fetch(request(pathname, undefined, {
+        method: 'POST',
+        headers: { origin },
+      }), env())
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toEqual({
+        error: { code: 'admin_browser_forbidden', message: 'This endpoint is server-only.' },
+      })
+      expect([...response.headers.keys()].filter(name => name.startsWith('access-control-'))).toEqual([])
+      expect(check).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(SERVER_ONLY_ADMIN_PATHS.flatMap(pathname => [ORIGIN, 'https://hostile.example']
+    .flatMap(origin => ['GET', 'OPTIONS'].map(method => [method, pathname, origin] as const))))(
+    'keeps unsupported %s browser access to %s from %s CORS-free',
+    async (method, pathname, origin) => {
+      const headers: Record<string, string> = { origin }
+      if (method === 'OPTIONS') {
+        headers['access-control-request-method'] = 'POST'
+        headers['access-control-request-headers'] = 'authorization, content-type'
+      }
+      const response = await harness().app.fetch(request(pathname, undefined, {
+        method,
+        headers,
+      }), env())
+
+      expect(response.status).toBe(404)
+      await expect(response.json()).resolves.toEqual({
+        error: { code: 'not_found', message: 'Route not found.' },
+      })
+      expect([...response.headers.keys()].filter(name => name.startsWith('access-control-'))).toEqual([])
+    },
+  )
+
   it('does not consume a challenge when exchange is rate-limited', async () => {
     const check = vi.fn()
       .mockResolvedValueOnce({ allowed: true })
@@ -305,13 +420,17 @@ describe('Warpkeep auth bridge', () => {
     const challenge = await issueChallenge(h)
     const proof = proofFor(challenge)
 
-    const blocked = await h.app.fetch(request('/v1/farcaster/exchange', proof, {
+    const blocked = await h.app.fetch(request('/v2/farcaster/exchange', {
+      ...proof,
+      bindingVerifier: WRONG_BINDING_VERIFIER,
+    }, {
       headers: { origin: ORIGIN },
     }), env())
     expect(blocked.status).toBe(429)
     expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.events).not.toContain('exchange_binding_mismatch')
 
-    const retry = await h.app.fetch(request('/v1/farcaster/exchange', proof, {
+    const retry = await h.app.fetch(request('/v2/farcaster/exchange', proof, {
       headers: { origin: ORIGIN },
     }), env())
     expect(retry.status).toBe(200)
@@ -323,8 +442,8 @@ describe('Warpkeep auth bridge', () => {
     const discovery = await h.app.fetch(request('/.well-known/openid-configuration'), env())
     expect(discovery.status).toBe(200)
     await expect(discovery.json()).resolves.toMatchObject({
-      issuer: 'https://bridge.warpkeep.example',
-      jwks_uri: 'https://bridge.warpkeep.example/.well-known/jwks.json',
+      issuer: 'https://auth.warpkeep.example',
+      jwks_uri: 'https://auth.warpkeep.example/.well-known/jwks.json',
       id_token_signing_alg_values_supported: ['ES256'],
     })
 
@@ -342,30 +461,40 @@ describe('Warpkeep auth bridge', () => {
     expect(challenge).toMatchObject({ domain: DOMAIN, siweUri: SIWE_URI })
     expect(typeof challenge.createdAt).toBe('number')
     expect(typeof challenge.expiresAt).toBe('number')
+    expect(Number(challenge.expiresAt) - Number(challenge.createdAt)).toBe(5 * 60 * 1_000)
 
-    const exchange = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    const exchange = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(exchange.status).toBe(200)
     const result = await json(exchange)
+    expect(result).toMatchObject({ version: 2, status: 'authorized' })
+    expect(result.identity).toEqual({ fid: Number(FID) })
     expect(result.tokenType).toBe('spacetime-access')
-    const claims = decodeJwtPayload(String(result.token))
+    const claims = decodeJwtPayload(String(result.accessToken))
     expect(claims).toMatchObject({
-      iss: 'https://bridge.warpkeep.example',
+      iss: 'https://auth.warpkeep.example',
       sub: `farcaster:${FID}`,
       aud: ['warpkeep-spacetimedb'],
       token_type: 'spacetime-access',
+      auth_version: 2,
       fid: FID,
       auth_epoch: 11,
       roles: [],
-      username: 'warpkeeper',
-      display_name: 'Warp Keeper',
-      pfp_url: 'https://cdn.example/pfp.png',
     })
-    expect(Number(claims.exp) - Number(claims.iat)).toBe(30 * 24 * 60 * 60)
+    expect(claims).not.toHaveProperty('username')
+    expect(claims).not.toHaveProperty('display_name')
+    expect(claims).not.toHaveProperty('pfp_url')
+    expect(Number(claims.exp) - Number(claims.iat)).toBe(10 * 60)
     expect(claims.session_iat).toBe(claims.iat)
     expect(claims.session_exp).toBe(claims.exp)
     expect(h.verifier.verify).toHaveBeenCalledWith(expect.objectContaining({ acceptAuthAddress: true, nonce: challenge.nonce }))
     expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
     expect(h.events).toContain('auth_epoch_resolved')
+
+    const familyId = responseCookie(exchange).split('=', 2)[1]?.split('.')[1]
+    expect(familyId).toMatch(/^[A-Za-z0-9_-]{32}$/)
+    const storedFamily = await h.sessionStore.get(familyId!)
+    expect(storedFamily?.identity).toEqual({ fid: FID })
+    expect(Object.keys(storedFamily?.identity ?? {})).toEqual(['fid'])
 
     const jwks = await h.app.fetch(request('/.well-known/jwks.json'), env())
     const publicKey = await crypto.subtle.importKey(
@@ -375,34 +504,232 @@ describe('Warpkeep auth bridge', () => {
       false,
       ['verify'],
     )
-    const [header, payload, signature] = String(result.token).split('.')
+    const [header, payload, signature] = String(result.accessToken).split('.')
     await expect(crypto.subtle.verify(
       { name: 'ECDSA', hash: 'SHA-256' },
       publicKey,
       decodeBase64Url(signature) as unknown as BufferSource,
       new TextEncoder().encode(`${header}.${payload}`),
     )).resolves.toBe(true)
+    expect(exchange.headers.get('set-cookie')).toContain('__Host-warpkeep_session=')
+    expect(exchange.headers.get('set-cookie')).toContain('Secure; HttpOnly; SameSite=Strict')
 
-    const replay = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    const replay = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(replay.status).toBe(401)
     await expect(replay.json()).resolves.toMatchObject({ error: { code: 'challenge_not_found' } })
   })
 
-  it('preserves the missing-row epoch zero baseline', async () => {
+  it('rejects optional profile metadata before proof work and keeps the challenge retryable', async () => {
+    const h = harness({ epoch: 11 })
+    const challenge = await issueChallenge(h)
+    const profileBearing = proofFor(challenge, {
+      identity: {
+        fid: FID,
+        username: 'must-not-persist',
+        displayName: 'Must Not Persist',
+        pfpUrl: 'https://tracking.example/profile.png?user=12345',
+      },
+    })
+    const rejected = await h.app.fetch(request('/v2/farcaster/exchange', profileBearing, {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(rejected.status).toBe(400)
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+
+    const retry = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(retry.status).toBe(200)
+  })
+
+  it('creates only a pending cookie family for a missing admission row', async () => {
     const h = harness({ epoch: 0 })
     const challenge = await issueChallenge(h)
     const exchange = await h.app.fetch(
-      request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }),
+      request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }),
       env(),
     )
     expect(exchange.status).toBe(200)
-    expect(decodeJwtPayload(String((await json(exchange)).token)).auth_epoch).toBe(0)
+    const body = await json(exchange)
+    expect(body).toEqual({
+      version: 2,
+      status: 'pending-admission',
+      identity: { fid: Number(FID) },
+      sessionExpiresAt: expect.any(Number),
+    })
+    expect(body).not.toHaveProperty('accessToken')
+    expect(body).not.toHaveProperty('token')
+    expect(exchange.headers.get('set-cookie')).toContain('__Host-warpkeep_session=')
+  })
+
+  it('binds a pending cookie family once after first admission and only then returns a short access token', async () => {
+    let admission: Awaited<ReturnType<AuthEpochResolver['resolve']>> = { state: 'missing', authEpoch: 0 }
+    const resolver: AuthEpochResolver = { resolve: vi.fn(async () => admission) }
+    const h = harness({ resolver })
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(request(
+      '/v2/farcaster/exchange',
+      proofFor(challenge),
+      { headers: { origin: ORIGIN } },
+    ), env())
+    const pending = await json(exchange)
+    expect(pending).toMatchObject({ version: 2, status: 'pending-admission' })
+    expect(JSON.stringify(pending)).not.toContain('accessToken')
+
+    admission = { state: 'enabled', authEpoch: 1 } as const
+    h.setNow(Number(challenge.createdAt) + 1_000)
+    const refresh = await h.app.fetch(request('/v2/session/refresh', {}, {
+      headers: { origin: ORIGIN, cookie: responseCookie(exchange) },
+    }), env())
+    expect(refresh.status).toBe(200)
+    const authorized = await json(refresh)
+    expect(authorized).toMatchObject({ version: 2, status: 'authorized', tokenType: 'spacetime-access' })
+    expect(authorized.identity).toEqual({ fid: Number(FID) })
+    const claims = decodeJwtPayload(String(authorized.accessToken))
+    expect(claims).toMatchObject({ auth_version: 2, auth_epoch: 1 })
+    expect(claims).not.toHaveProperty('username')
+    expect(claims).not.toHaveProperty('display_name')
+    expect(claims).not.toHaveProperty('pfp_url')
+    expect(Number(claims.exp) - Number(claims.iat)).toBe(600)
+  })
+
+  it('rotates cookies, recovers one parallel/lost response, and revokes stale reuse after grace', async () => {
+    const h = harness({ epoch: 7 })
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(request(
+      '/v2/farcaster/exchange',
+      proofFor(challenge),
+      { headers: { origin: ORIGIN } },
+    ), env())
+    const firstCookie = responseCookie(exchange)
+    const createdAt = Number(challenge.createdAt)
+
+    h.setNow(createdAt + 1_000)
+    const firstRefresh = await h.app.fetch(request('/v2/session/refresh', {}, {
+      headers: { origin: ORIGIN, cookie: firstCookie },
+    }), env())
+    expect(firstRefresh.status).toBe(200)
+    const rotatedCookie = responseCookie(firstRefresh)
+    expect(rotatedCookie).not.toBe(firstCookie)
+
+    h.setNow(createdAt + 2_000)
+    const recovered = await h.app.fetch(request('/v2/session/refresh', {}, {
+      headers: { origin: ORIGIN, cookie: firstCookie },
+    }), env())
+    expect(recovered.status).toBe(200)
+    expect(responseCookie(recovered)).toBe(rotatedCookie)
+
+    h.setNow(createdAt + 31_001)
+    const stale = await h.app.fetch(request('/v2/session/refresh', {}, {
+      headers: { origin: ORIGIN, cookie: firstCookie },
+    }), env())
+    expect(stale.status).toBe(401)
+    expect(stale.headers.get('set-cookie')).toContain('Max-Age=0')
+    expect(h.events).toContain('session_revoked')
+  })
+
+  it('revokes a bound family instead of adopting a bumped epoch', async () => {
+    let admission: Awaited<ReturnType<AuthEpochResolver['resolve']>> = { state: 'enabled', authEpoch: 7 }
+    const resolver: AuthEpochResolver = { resolve: vi.fn(async () => admission) }
+    const h = harness({ resolver })
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(request(
+      '/v2/farcaster/exchange',
+      proofFor(challenge),
+      { headers: { origin: ORIGIN } },
+    ), env())
+    admission = { state: 'enabled', authEpoch: 8 }
+    h.setNow(Number(challenge.createdAt) + 1_000)
+    const refresh = await h.app.fetch(request('/v2/session/refresh', {}, {
+      headers: { origin: ORIGIN, cookie: responseCookie(exchange) },
+    }), env())
+    expect(refresh.status).toBe(401)
+    expect(refresh.headers.get('set-cookie')).toContain('Max-Age=0')
+    expect(h.events).toContain('session_revoked')
+  })
+
+  it('clears and revokes the family on logout even though public session refresh is paused', async () => {
+    const h = harness({ epoch: 7 })
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(request(
+      '/v2/farcaster/exchange',
+      proofFor(challenge, { rememberDevice: false }),
+      { headers: { origin: ORIGIN } },
+    ), env())
+    const cookie = responseCookie(exchange)
+    expect(exchange.headers.get('set-cookie')).not.toContain('Max-Age=2592000')
+
+    const logout = await h.app.fetch(request('/v2/session/logout', {}, {
+      headers: { origin: ORIGIN, cookie },
+    }), env({ PUBLIC_AUTH_ENABLED: 'false' }))
+    expect(logout.status).toBe(204)
+    expect(logout.headers.get('set-cookie')).toContain('Max-Age=0')
+    expect(logout.headers.get('access-control-allow-credentials')).toBe('true')
+
+    const refresh = await h.app.fetch(request('/v2/session/refresh', {}, {
+      headers: { origin: ORIGIN, cookie },
+    }), env())
+    expect(refresh.status).toBe(401)
+  })
+
+  it('expires the browser cookie but reports a generic failure when durable logout revocation fails', async () => {
+    const backing = new MemorySessionFamilyStore()
+    const sessionFamilyStore: SessionFamilyStore = {
+      create: (familyId, record) => backing.create(familyId, record),
+      get: (familyId) => backing.get(familyId),
+      refresh: (familyId, generation, origin, admission, now) => (
+        backing.refresh(familyId, generation, origin, admission, now)
+      ),
+      revoke: async () => { throw new Error('sensitive-store-detail') },
+    }
+    const h = harness({ epoch: 7, sessionFamilyStore })
+    const challenge = await issueChallenge(h)
+    const exchange = await h.app.fetch(request(
+      '/v2/farcaster/exchange',
+      proofFor(challenge),
+      { headers: { origin: ORIGIN } },
+    ), env())
+
+    const logout = await h.app.fetch(request('/v2/session/logout', {}, {
+      headers: { origin: ORIGIN, cookie: responseCookie(exchange) },
+    }), env({ PUBLIC_AUTH_ENABLED: 'false' }))
+    expect(logout.status).toBe(503)
+    await expect(logout.json()).resolves.toEqual({
+      error: { code: 'session_unavailable', message: 'Authentication is temporarily unavailable.' },
+    })
+    expect(logout.headers.get('set-cookie')).toContain('Max-Age=0')
+    expect(logout.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+    expect(logout.headers.get('access-control-allow-credentials')).toBe('true')
+    expect(h.events).toContain('session_revoke_failed')
+    expect(h.events).not.toContain('session_revoked')
+    expect(JSON.stringify(h.events)).not.toContain('sensitive-store-detail')
+  })
+
+  it('retires legacy bearer routes and gives v2 preflight exact credentialed CORS', async () => {
+    const h = harness()
+    for (const path of ['/v1/farcaster/challenge', '/v1/farcaster/exchange']) {
+      const retired = await h.app.fetch(request(path, {}, { headers: { origin: ORIGIN } }), env())
+      expect(retired.status).toBe(410)
+      await expect(retired.json()).resolves.toMatchObject({ error: { code: 'legacy_auth_retired' } })
+    }
+    const preflight = await h.app.fetch(request('/v2/session/refresh', undefined, {
+      method: 'OPTIONS',
+      headers: { origin: ORIGIN, 'access-control-request-method': 'POST' },
+    }), env())
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+    expect(preflight.headers.get('access-control-allow-credentials')).toBe('true')
+    expect(preflight.headers.get('strict-transport-security')).toBe('max-age=31536000; includeSubDomains')
+    expect(preflight.headers.get('cross-origin-resource-policy')).toBe('same-site')
+    expect(preflight.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(preflight.headers.has('content-type')).toBe(false)
   })
 
   it('does not issue a player JWT when the server-side auth epoch lookup fails', async () => {
     const h = harness({ resolver: { resolve: async () => { throw new Error('offline') } } })
     const challenge = await issueChallenge(h)
-    const exchange = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    const exchange = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(exchange.status).toBe(503)
     await expect(exchange.json()).resolves.toMatchObject({ error: { code: 'authorization_unavailable' } })
     expect(h.events).toContain('auth_epoch_failed')
@@ -422,7 +749,7 @@ describe('Warpkeep auth bridge', () => {
     })
     const challenge = await issueChallenge(h)
     const exchange = await h.app.fetch(
-      request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }),
+      request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }),
       env(),
     )
 
@@ -435,25 +762,91 @@ describe('Warpkeep auth bridge', () => {
     expect(h.events.filter((candidate) => candidate.startsWith('auth_epoch_failed_'))).toEqual([event])
   })
 
+  it('requires an exact canonical S256 binding before persisting a challenge', async () => {
+    const put = vi.fn(async () => undefined)
+    const challengeStore: ChallengeStore = {
+      put,
+      get: vi.fn(async () => null),
+      consume: vi.fn(async () => null),
+    }
+    const h = harness({ challengeStore })
+    const invalidRequests: Record<string, unknown>[] = [
+      { domain: DOMAIN, siweUri: SIWE_URI },
+      {
+        domain: DOMAIN,
+        siweUri: SIWE_URI,
+        bindingChallenge: BINDING_CHALLENGE,
+        bindingMethod: 'plain',
+      },
+      {
+        domain: DOMAIN,
+        siweUri: SIWE_URI,
+        bindingChallenge: 'A'.repeat(42),
+        bindingMethod: 'S256',
+      },
+      {
+        domain: DOMAIN,
+        siweUri: SIWE_URI,
+        bindingChallenge: `${'A'.repeat(42)}B`,
+        bindingMethod: 'S256',
+      },
+      {
+        domain: DOMAIN,
+        siweUri: SIWE_URI,
+        bindingChallenge: BINDING_CHALLENGE,
+        bindingMethod: 'S256',
+        bindingVerifier: BINDING_VERIFIER,
+      },
+    ]
+
+    for (const body of invalidRequests) {
+      const response = await h.app.fetch(request('/v2/farcaster/challenge', body, {
+        headers: { origin: ORIGIN },
+      }), env())
+      expect(response.status).toBe(400)
+    }
+    expect(put).not.toHaveBeenCalled()
+
+    const response = await h.app.fetch(request('/v2/farcaster/challenge', {
+      domain: DOMAIN,
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }, { headers: { origin: ORIGIN } }), env())
+    expect(response.status).toBe(201)
+    expect(put).toHaveBeenCalledOnce()
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({
+      version: 2,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }))
+    const responseText = await response.text()
+    expect(responseText).not.toContain(BINDING_CHALLENGE)
+    expect(responseText).not.toContain(BINDING_VERIFIER)
+  })
+
   it('rejects arbitrary SIWF context, invalid proof signatures, and FID mismatches', async () => {
     const h = harness()
-    const badChallenge = await h.app.fetch(request('/v1/farcaster/challenge', {
-      domain: 'evil.example', siweUri: SIWE_URI,
+    const badChallenge = await h.app.fetch(request('/v2/farcaster/challenge', {
+      domain: 'evil.example',
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
     }, { headers: { origin: ORIGIN } }), env())
     expect(badChallenge.status).toBe(400)
 
     const challenge = await issueChallenge(h)
     h.verifier.verify.mockRejectedValueOnce(new Error('invalid signature'))
-    const invalidSignature = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    const invalidSignature = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(invalidSignature.status).toBe(401)
     await expect(invalidSignature.json()).resolves.toMatchObject({ error: { code: 'invalid_proof' } })
-    const invalidReplay = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    const invalidReplay = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(invalidReplay.status).toBe(401)
     await expect(invalidReplay.json()).resolves.toMatchObject({ error: { code: 'challenge_not_found' } })
 
     const secondChallenge = await issueChallenge(h)
     h.verifier.verify.mockResolvedValueOnce({ fid: '99999' })
-    const mismatch = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(secondChallenge), { headers: { origin: ORIGIN } }), env())
+    const mismatch = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(secondChallenge), { headers: { origin: ORIGIN } }), env())
     expect(mismatch.status).toBe(401)
     await expect(mismatch.json()).resolves.toMatchObject({ error: { code: 'fid_mismatch' } })
   })
@@ -461,7 +854,7 @@ describe('Warpkeep auth bridge', () => {
   it('accepts a bounded smart-account signature shape for official verification', async () => {
     const h = harness()
     const challenge = await issueChallenge(h)
-    const exchange = await h.app.fetch(request('/v1/farcaster/exchange', {
+    const exchange = await h.app.fetch(request('/v2/farcaster/exchange', {
       ...proofFor(challenge),
       signature: `0x${'ab'.repeat(96)}`,
     }, { headers: { origin: ORIGIN } }), env())
@@ -481,18 +874,66 @@ describe('Warpkeep auth bridge', () => {
     const challenge = await issueChallenge(h)
     const proof = proofFor(challenge)
 
-    const unavailable = await h.app.fetch(request('/v1/farcaster/exchange', proof, { headers: { origin: ORIGIN } }), env())
+    const unavailable = await h.app.fetch(request('/v2/farcaster/exchange', proof, { headers: { origin: ORIGIN } }), env())
     expect(unavailable.status).toBe(503)
     await expect(unavailable.json()).resolves.toMatchObject({ error: { code: 'verification_unavailable' } })
 
-    const retry = await h.app.fetch(request('/v1/farcaster/exchange', proof, { headers: { origin: ORIGIN } }), env())
+    const retry = await h.app.fetch(request('/v2/farcaster/exchange', proof, { headers: { origin: ORIGIN } }), env())
     expect(retry.status).toBe(200)
     expect(verifier.verify).toHaveBeenCalledTimes(2)
   })
 
+  it('bounds a stalled Farcaster verifier and restores the still-live claimed challenge', async () => {
+    let verificationCalls = 0
+    let markVerificationStarted!: () => void
+    const verificationStarted = new Promise<void>((resolve) => {
+      markVerificationStarted = resolve
+    })
+    const verifier: FarcasterVerifier = {
+      async verify() {
+        verificationCalls += 1
+        if (verificationCalls === 1) {
+          markVerificationStarted()
+          return new Promise<never>(() => undefined)
+        }
+        return { fid: FID }
+      },
+    }
+    const h = harness({ verifier })
+    const challenge = await issueChallenge(h)
+    const proof = proofFor(challenge)
+
+    vi.useFakeTimers()
+    try {
+      const pending = h.app.fetch(request('/v2/farcaster/exchange', proof, {
+        headers: { origin: ORIGIN },
+      }), env())
+      await verificationStarted
+      await vi.advanceTimersByTimeAsync(FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS)
+
+      const unavailable = await pending
+      expect(unavailable.status).toBe(503)
+      await expect(unavailable.json()).resolves.toEqual({
+        error: {
+          code: 'verification_unavailable',
+          message: 'Farcaster verification is temporarily unavailable.',
+        },
+      })
+      expect(h.events).toContain('exchange_rejected')
+
+      const retry = await h.app.fetch(request('/v2/farcaster/exchange', proof, {
+        headers: { origin: ORIGIN },
+      }), env())
+      expect(retry.status).toBe(200)
+      expect(verificationCalls).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('enforces the CORS allowlist and rejects oversize bodies before parsing', async () => {
     const h = harness()
-    const preflight = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/farcaster/challenge', {
+    const preflight = await h.app.fetch(new Request('https://auth.warpkeep.example/v2/farcaster/challenge', {
       method: 'OPTIONS',
       headers: {
         origin: ORIGIN,
@@ -503,14 +944,14 @@ describe('Warpkeep auth bridge', () => {
     expect(preflight.status).toBe(204)
     expect(preflight.headers.get('access-control-allow-origin')).toBe(ORIGIN)
 
-    const blocked = await h.app.fetch(request('/v1/farcaster/challenge', {}, { headers: { origin: 'https://evil.example' } }), env())
+    const blocked = await h.app.fetch(request('/v2/farcaster/challenge', {}, { headers: { origin: 'https://evil.example' } }), env())
     expect(blocked.status).toBe(403)
     expect(blocked.headers.get('access-control-allow-origin')).toBeNull()
 
-    const tooLarge = await h.app.fetch(request('/v1/farcaster/challenge', { domain: DOMAIN, siweUri: SIWE_URI, padding: 'x'.repeat(20_000) }, { headers: { origin: ORIGIN } }), env())
+    const tooLarge = await h.app.fetch(request('/v2/farcaster/challenge', { domain: DOMAIN, siweUri: SIWE_URI, padding: 'x'.repeat(20_000) }, { headers: { origin: ORIGIN } }), env())
     expect(tooLarge.status).toBe(413)
 
-    const wrongMediaType = await h.app.fetch(request('/v1/farcaster/challenge', {}, {
+    const wrongMediaType = await h.app.fetch(request('/v2/farcaster/challenge', {}, {
       headers: { origin: ORIGIN, 'content-type': 'application/jsonp' },
     }), env())
     expect(wrongMediaType.status).toBe(415)
@@ -530,7 +971,7 @@ describe('Warpkeep auth bridge', () => {
         cancelled = true
       },
     }, { highWaterMark: 0 })
-    const oversized = new Request('https://bridge.warpkeep.example/v1/farcaster/challenge', {
+    const oversized = new Request('https://auth.warpkeep.example/v2/farcaster/challenge', {
       method: 'POST',
       headers: { origin: ORIGIN, 'content-type': 'application/json' },
       body,
@@ -543,17 +984,94 @@ describe('Warpkeep auth bridge', () => {
     expect(pulls).toBeLessThanOrEqual(2)
   })
 
+  it('bounds stalled browser JSON and server-only admin request bodies', async () => {
+    const h = harness()
+    vi.useFakeTimers()
+    try {
+      let browserBodyCancelled = false
+      const browserBody = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{'))
+        },
+        cancel() {
+          browserBodyCancelled = true
+        },
+      })
+      const browserResponsePromise = h.app.fetch(new Request(
+        'https://auth.warpkeep.example/v2/session/logout',
+        {
+          method: 'POST',
+          headers: { origin: ORIGIN, 'content-type': 'application/json' },
+          body: browserBody,
+          duplex: 'half',
+        } as RequestInit,
+      ), env())
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(REQUEST_BODY_TIMEOUT_MILLISECONDS)
+      const browserResponse = await browserResponsePromise
+      expect(browserResponse.status).toBe(408)
+      await expect(browserResponse.json()).resolves.toEqual({
+        error: {
+          code: 'request_body_timeout',
+          message: 'Request body was not received in time.',
+        },
+      })
+      expect(browserResponse.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+      expect(browserResponse.headers.get('access-control-allow-credentials')).toBe('true')
+      expect(browserBodyCancelled).toBe(true)
+
+      let adminBodyCancelled = false
+      const adminBody = new ReadableStream<Uint8Array>({
+        start() {
+          // A chunked zero-byte body that never closes must remain bounded.
+        },
+        cancel() {
+          adminBodyCancelled = true
+        },
+      })
+      const adminResponsePromise = h.app.fetch(new Request(
+        'https://auth.warpkeep.example/v1/admin/token',
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+          body: adminBody,
+          duplex: 'half',
+        } as RequestInit,
+      ), env())
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(REQUEST_BODY_TIMEOUT_MILLISECONDS)
+      const adminResponse = await adminResponsePromise
+      expect(adminResponse.status).toBe(408)
+      await expect(adminResponse.json()).resolves.toEqual({
+        error: {
+          code: 'request_body_timeout',
+          message: 'Request body was not received in time.',
+        },
+      })
+      expect(adminResponse.headers.has('access-control-allow-origin')).toBe(false)
+      expect(adminBodyCancelled).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('requires the server-only admin secret and issues a five-minute admin token', async () => {
     const h = harness()
-    const missing = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', { method: 'POST' }), env())
+    const missing = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', { method: 'POST' }), env())
     expect(missing.status).toBe(401)
 
-    const browser = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+    const browser = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
       method: 'POST', headers: { origin: ORIGIN, authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
     expect(browser.status).toBe(403)
 
-    const granted = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+    const queried = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token?format=json', {
+      method: 'POST', headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+    }), env())
+    expect(queried.status).toBe(400)
+    await expect(queried.json()).resolves.toMatchObject({ error: { code: 'admin_query_not_allowed' } })
+
+    const granted = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
       method: 'POST', headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
     expect(granted.status).toBe(200)
@@ -565,10 +1083,10 @@ describe('Warpkeep auth bridge', () => {
   })
 
   it('routes the input-free synthetic probe through the configured resolver', async () => {
-    const resolve = vi.fn(async () => 37)
+    const resolve = vi.fn(async () => ({ state: 'enabled', authEpoch: 37 } as const))
     const check = vi.fn(async (_request: Request, _action: string) => ({ allowed: true as const }))
     const h = harness({ resolver: { resolve }, rateLimiter: { check } })
-    const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const response = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
@@ -585,8 +1103,57 @@ describe('Warpkeep auth bridge', () => {
     expect(h.events).toContain('auth_epoch_probe_succeeded')
   })
 
+  it('returns a private deterministic non-secret configuration attestation', async () => {
+    const h = harness()
+    const call = (overrides: Partial<WorkerEnv> = {}) => h.app.fetch(new Request(
+      'https://auth.warpkeep.example/v1/admin/config-attestation',
+      { method: 'POST', headers: { authorization: `Bearer ${ADMIN_SECRET}` } },
+    ), env(overrides))
+    const first = await call()
+    const second = await call()
+    expect(first.status).toBe(200)
+    const firstBody = await json(first)
+    const secondBody = await json(second)
+    expect(firstBody).toEqual(secondBody)
+    expect(firstBody).toMatchObject({ profile: 'warpkeep-auth-v2', publicAuthEnabled: true })
+    const reviewedCanonical = JSON.stringify({
+      profile: 'warpkeep-auth-v2',
+      issuer: 'https://auth.warpkeep.example',
+      allowedOrigins: ['https://warpkeep.example'],
+      domain: 'warpkeep.example',
+      siweUri: 'https://warpkeep.example/Warpkeep/',
+      audience: 'warpkeep-spacetimedb',
+      keyId: 'test-es256-2026',
+      spacetimeDbUri: 'https://maincloud.spacetimedb.com',
+      spacetimeDbDatabase: 'warpkeep-89e4u',
+      publicAuthEnabled: true,
+      environment: 'production',
+      browserBinding: 'S256',
+      accessTokenTtlSeconds: 600,
+      authEpochResolverTokenTtlSeconds: 15,
+      authEpochResolverTimeoutMilliseconds: 5_000,
+      challengeTtlMilliseconds: 5 * 60 * 1_000,
+      sessionFamilyTtlSeconds: 30 * 24 * 60 * 60,
+      sessionCookie: '__Host-warpkeep_session; Secure; HttpOnly; SameSite=Strict; Path=/',
+    })
+    const reviewedDigest = Array.from(new Uint8Array(
+      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(reviewedCanonical)),
+    ), (byte) => byte.toString(16).padStart(2, '0')).join('')
+    expect(reviewedDigest).toBe('9b14d9039e27982d7818de5010b2e9bbf5e14182a1f311fc7d1d08479fe8c3b9')
+    expect(firstBody.digest).toBe(reviewedDigest)
+    const serialized = JSON.stringify(firstBody)
+    expect(serialized).not.toContain(ADMIN_SECRET)
+    expect(serialized).not.toContain(SESSION_COOKIE_KEY)
+    expect(serialized).not.toContain(privateJwk.d ?? '')
+    const paused = await json(await call({ PUBLIC_AUTH_ENABLED: 'false' }))
+    expect(paused.digest).toBe('2d1f8d2f5d96956be25a8a5201f15c1bb8bf0a76136fe19d325d1756dbed8f2e')
+    expect(paused.publicAuthEnabled).toBe(false)
+    expect(first.headers.has('access-control-allow-origin')).toBe(false)
+    expect(h.events).toContain('config_attestation_issued')
+  })
+
   it('wires the synthetic probe to the production resolver factory', async () => {
-    const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('0', {
+    const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('["missing",0]', {
       headers: { 'content-type': 'application/json' },
     }))
     const events: SafeLogEvent[] = []
@@ -594,7 +1161,7 @@ describe('Warpkeep auth bridge', () => {
       rateLimiter: { check: async () => ({ allowed: true }) },
       logger: { event: (event) => events.push(event) },
     })
-    const response = await app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const response = await app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
@@ -603,7 +1170,7 @@ describe('Warpkeep auth bridge', () => {
     await expect(response.json()).resolves.toEqual({ ok: true })
     expect(upstream).toHaveBeenCalledOnce()
     const [input, init] = upstream.mock.calls[0] as unknown as [URL, RequestInit]
-    expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/admin_get_fid_auth_epoch')
+    expect(input.toString()).toBe('https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2')
     expect(init.body).toBe('[9007199254740991]')
     expect(init.redirect).toBe('manual')
     expect(events).toContain('auth_epoch_probe_succeeded')
@@ -620,7 +1187,7 @@ describe('Warpkeep auth bridge', () => {
     const h = harness({
       resolver: { resolve: async () => { throw new AuthEpochResolverFailure(stage) } },
     })
-    const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const response = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
@@ -635,7 +1202,7 @@ describe('Warpkeep auth bridge', () => {
     const h = harness({
       resolver: { resolve: async () => { throw new Error('unexpected-sensitive-detail') } },
     })
-    const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const response = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
@@ -662,7 +1229,7 @@ describe('Warpkeep auth bridge', () => {
       rateLimiter: { check: async () => ({ allowed: true }) },
       logger: { event: (event) => events.push(event) },
     })
-    const response = await app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const response = await app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
@@ -680,11 +1247,11 @@ describe('Warpkeep auth bridge', () => {
   })
 
   it('keeps the synthetic probe server-only, input-free, rate-limited, and CORS-free', async () => {
-    const resolve = vi.fn(async () => 0)
+    const resolve = vi.fn(async () => ({ state: 'missing', authEpoch: 0 } as const))
     const h = harness({ resolver: { resolve } })
 
     for (const method of ['GET', 'OPTIONS']) {
-      const unsupported = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+      const unsupported = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
         method,
         headers: { origin: ORIGIN, authorization: `Bearer ${ADMIN_SECRET}` },
       }), env())
@@ -692,13 +1259,13 @@ describe('Warpkeep auth bridge', () => {
       expect(unsupported.headers.has('access-control-allow-origin')).toBe(false)
     }
 
-    const missing = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const missing = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
     }), env())
     expect(missing.status).toBe(401)
     expect(missing.headers.has('access-control-allow-origin')).toBe(false)
 
-    const wrongCredential = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const wrongCredential = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization: `Bearer ${'Z'.repeat(ADMIN_SECRET.length)}` },
     }), env())
@@ -710,14 +1277,14 @@ describe('Warpkeep auth bridge', () => {
     expect(resolve).not.toHaveBeenCalled()
     expect(h.events.filter((event) => event === 'admin_probe_rejected')).toHaveLength(2)
 
-    const browser = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const browser = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { origin: ORIGIN, authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
     expect(browser.status).toBe(403)
     expect(browser.headers.has('access-control-allow-origin')).toBe(false)
 
-    const queried = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe?fid=12345', {
+    const queried = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe?fid=12345', {
       method: 'POST',
       headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
@@ -725,7 +1292,7 @@ describe('Warpkeep auth bridge', () => {
     await expect(queried.json()).resolves.toMatchObject({ error: { code: 'admin_query_not_allowed' } })
     expect(queried.headers.has('access-control-allow-origin')).toBe(false)
 
-    const bodied = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const bodied = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization: `Bearer ${ADMIN_SECRET}` },
       body: '{}',
@@ -736,9 +1303,9 @@ describe('Warpkeep auth bridge', () => {
     expect(h.events).toContain('admin_probe_rejected')
 
     const check = vi.fn(async (_request: Request, _action: string) => ({ allowed: false as const, retryAfterSeconds: 23 }))
-    const limitedResolve = vi.fn(async () => 0)
+    const limitedResolve = vi.fn(async () => ({ state: 'missing', authEpoch: 0 } as const))
     const limited = harness({ resolver: { resolve: limitedResolve }, rateLimiter: { check } })
-    const limitedResponse = await limited.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const limitedResponse = await limited.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
@@ -760,7 +1327,7 @@ describe('Warpkeep auth bridge', () => {
     }, { highWaterMark: 0 })
     const browserCheck = vi.fn(async () => ({ allowed: true as const }))
     const browser = harness({ rateLimiter: { check: browserCheck } })
-    const browserResponse = await browser.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const browserResponse = await browser.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization, origin: ORIGIN },
       body: browserBody,
@@ -780,7 +1347,7 @@ describe('Warpkeep auth bridge', () => {
     const limited = harness({
       rateLimiter: { check: async () => ({ allowed: false, retryAfterSeconds: 11 }) },
     })
-    const limitedResponse = await limited.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/auth-epoch-probe', {
+    const limitedResponse = await limited.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/auth-epoch-probe', {
       method: 'POST',
       headers: { authorization },
       body: limitedBody,
@@ -793,14 +1360,14 @@ describe('Warpkeep auth bridge', () => {
   it('accepts a production-normalized zero-byte admin stream but rejects content', async () => {
     const h = harness()
     const authorization = ['Be', 'arer ', ADMIN_SECRET].join('')
-    const normalizedEmptyStream = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+    const normalizedEmptyStream = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
       method: 'POST',
       headers: { authorization },
       body: new Uint8Array(0),
     }), env())
     expect(normalizedEmptyStream.status).toBe(200)
 
-    const bodyRejected = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+    const bodyRejected = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
       method: 'POST',
       headers: { authorization },
       body: '{}',
@@ -830,7 +1397,7 @@ describe('Warpkeep auth bridge', () => {
 
     for (const framingCase of cases) {
       expect(framingCase.headers.has('content-length')).toBe(true)
-      const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+      const response = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
         method: 'POST',
         headers: framingCase.headers,
         body: new Uint8Array(0),
@@ -849,7 +1416,7 @@ describe('Warpkeep auth bridge', () => {
       { name: 'invalid UTF-8', body: new Uint8Array([0xff]).buffer, headers: { authorization } },
     ]
     for (const bodyCase of bodyCases) {
-      const response = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+      const response = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
         method: 'POST',
         headers: bodyCase.headers,
         body: bodyCase.body,
@@ -870,7 +1437,7 @@ describe('Warpkeep auth bridge', () => {
         cancelled = true
       },
     }, { highWaterMark: 0 })
-    const streamed = await h.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+    const streamed = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
       method: 'POST',
       headers: { authorization },
       body,
@@ -894,7 +1461,7 @@ describe('Warpkeep auth bridge', () => {
     const limited = harness({
       rateLimiter: { check: async () => ({ allowed: false, retryAfterSeconds: 11 }) },
     })
-    const limitedResponse = await limited.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+    const limitedResponse = await limited.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
       method: 'POST',
       headers: { authorization },
       body: limitedBody,
@@ -911,7 +1478,7 @@ describe('Warpkeep auth bridge', () => {
       },
     }, { highWaterMark: 0 })
     const browser = harness()
-    const browserResponse = await browser.app.fetch(new Request('https://bridge.warpkeep.example/v1/admin/token', {
+    const browserResponse = await browser.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
       method: 'POST',
       headers: { authorization, origin: ORIGIN },
       body: browserBody,
@@ -924,6 +1491,24 @@ describe('Warpkeep auth bridge', () => {
   it('fails closed when the managed admin secret is too short', async () => {
     const h = harness()
     const response = await h.app.fetch(request('/healthz'), env({ ADMIN_TOKEN_SECRET: 'too-short' }))
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+  })
+
+  it('fails closed when the session-cookie HMAC key is missing, short, or reused implicitly', async () => {
+    const h = harness()
+    for (const value of [undefined, 'too-short', ADMIN_SECRET, privateJwk.d]) {
+      const response = await h.app.fetch(request('/healthz'), env({ SESSION_COOKIE_KEY: value }))
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+    }
+  })
+
+  it('fails closed when the admin secret reuses the OIDC private scalar', async () => {
+    const h = harness()
+    const response = await h.app.fetch(request('/healthz'), env({
+      ADMIN_TOKEN_SECRET: privateJwk.d,
+    }))
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
   })
@@ -946,6 +1531,27 @@ describe('Warpkeep auth bridge', () => {
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
   })
 
+  it('accepts only a string key ID when it falls back to the private JWK kid', async () => {
+    const h = harness()
+    const valid = await h.app.fetch(request('/.well-known/jwks.json'), env({
+      OIDC_KEY_ID: undefined,
+      SIGNING_KEY_JWK: JSON.stringify({ ...privateJwk, kid: 'jwk-fallback-key' }),
+    }))
+    expect(valid.status).toBe(200)
+    await expect(valid.json()).resolves.toMatchObject({
+      keys: [expect.objectContaining({ kid: 'jwk-fallback-key' })],
+    })
+
+    for (const kid of [123, true]) {
+      const response = await h.app.fetch(request('/.well-known/jwks.json'), env({
+        OIDC_KEY_ID: undefined,
+        SIGNING_KEY_JWK: JSON.stringify({ ...privateJwk, kid }),
+      }))
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+    }
+  })
+
   it('requires the non-secret direct Maincloud configuration in production', async () => {
     const h = harness()
     const missing = await h.app.fetch(request('/healthz'), env({ SPACETIMEDB_URI: undefined }))
@@ -954,24 +1560,39 @@ describe('Warpkeep auth bridge', () => {
     expect(insecure.status).toBe(503)
     const malformedDatabase = await h.app.fetch(request('/healthz'), env({ SPACETIMEDB_DATABASE: 'warpkeep/unsafe' }))
     expect(malformedDatabase.status).toBe(503)
+    const lookalikeUri = await h.app.fetch(request('/healthz'), env({ SPACETIMEDB_URI: 'https://lookalike.example' }))
+    expect(lookalikeUri.status).toBe(503)
+    const lookalikeDatabase = await h.app.fetch(request('/healthz'), env({ SPACETIMEDB_DATABASE: 'lookalike-database' }))
+    expect(lookalikeDatabase.status).toBe(503)
+
+    const development = await h.app.fetch(request('/healthz'), env({
+      ENVIRONMENT: 'development',
+      SPACETIMEDB_URI: 'http://127.0.0.1:3000',
+      SPACETIMEDB_DATABASE: 'warpkeep-dev',
+    }))
+    expect(development.status).toBe(200)
   })
 
   it('never places proof material in the default logger output', async () => {
     const log = vi.spyOn(console, 'info').mockImplementation(() => undefined)
     const verifier = { verify: vi.fn(async () => ({ fid: FID })) }
-    const resolver = { resolve: vi.fn(async () => 3) }
+    const resolver = { resolve: vi.fn(async () => ({ state: 'enabled', authEpoch: 3 } as const)) }
     const app = createAuthBridge({
       challengeStore: new MemoryChallengeStore(),
       verifier,
       authEpochResolver: resolver,
+      sessionFamilyStore: new MemorySessionFamilyStore(),
       rateLimiter: { check: async () => ({ allowed: true }) },
     })
-    const challengeResponse = await app.fetch(request('/v1/farcaster/challenge', {
-      domain: DOMAIN, siweUri: SIWE_URI,
+    const challengeResponse = await app.fetch(request('/v2/farcaster/challenge', {
+      domain: DOMAIN,
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
     }, { headers: { origin: ORIGIN } }), env())
     const challenge = await json(challengeResponse)
     const proof = proofFor(challenge)
-    const exchange = await app.fetch(request('/v1/farcaster/exchange', proof, { headers: { origin: ORIGIN } }), env())
+    const exchange = await app.fetch(request('/v2/farcaster/exchange', proof, { headers: { origin: ORIGIN } }), env())
     expect(exchange.status).toBe(200)
     const output = JSON.stringify(log.mock.calls)
     expect(output).toContain('exchange_succeeded')
@@ -979,7 +1600,113 @@ describe('Warpkeep auth bridge', () => {
     expect(output).not.toContain(String(proof.signature))
     expect(output).not.toContain(String(proof.nonce))
     expect(output).not.toContain(String(proof.requestId))
+    expect(output).not.toContain(BINDING_VERIFIER)
+    expect(output).not.toContain(BINDING_CHALLENGE)
     expect(output).not.toContain(FID)
+  })
+
+  it('rejects a copied completed proof with no browser-held binding', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    const { bindingVerifier: _bindingVerifier, ...copiedProof } = proofFor(challenge)
+    const observer = await h.app.fetch(request(
+      '/v2/farcaster/exchange',
+      copiedProof,
+      { headers: { origin: ORIGIN } },
+    ), env())
+
+    expect(observer.status).toBe(401)
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+    expect(h.events).toContain('exchange_binding_missing')
+
+    const legitimate = await h.app.fetch(request(
+      '/v2/farcaster/exchange',
+      proofFor(challenge),
+      { headers: { origin: ORIGIN } },
+    ), env())
+    expect(legitimate.status).toBe(200)
+    expect(h.events).toContain('exchange_binding_verified')
+  })
+
+  it('rejects malformed binding verifiers before proof work without consuming the challenge', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    for (const bindingVerifier of [
+      '',
+      'A'.repeat(42),
+      'A'.repeat(44),
+      `${'A'.repeat(42)}B`,
+    ]) {
+      const response = await h.app.fetch(request('/v2/farcaster/exchange', {
+        ...proofFor(challenge),
+        bindingVerifier,
+      }, { headers: { origin: ORIGIN } }), env())
+      expect(response.status).toBe(401)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'browser_binding_invalid',
+          message: 'This sign-in challenge is invalid.',
+        },
+      })
+    }
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+    expect(h.events.filter((event) => event === 'exchange_binding_invalid')).toHaveLength(4)
+
+    const legitimate = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(legitimate.status).toBe(200)
+  })
+
+  it('rejects a canonical but incorrect verifier before consume and permits the bound browser retry', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    const observer = await h.app.fetch(request('/v2/farcaster/exchange', {
+      ...proofFor(challenge),
+      bindingVerifier: WRONG_BINDING_VERIFIER,
+    }, { headers: { origin: ORIGIN } }), env())
+
+    expect(observer.status).toBe(401)
+    await expect(observer.json()).resolves.toMatchObject({
+      error: { code: 'browser_binding_invalid' },
+    })
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+    expect(h.events).toContain('exchange_binding_mismatch')
+
+    const legitimate = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(legitimate.status).toBe(200)
+    expect(h.verifier.verify).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed before consume when S256 digest verification is unavailable', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    vi.spyOn(crypto.subtle, 'digest').mockRejectedValueOnce(new Error('digest unavailable'))
+
+    const unavailable = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(unavailable.status).toBe(503)
+    await expect(unavailable.json()).resolves.toEqual({
+      error: {
+        code: 'binding_verification_unavailable',
+        message: 'Authentication is temporarily unavailable.',
+      },
+    })
+    expect(h.events).toContain('internal_error')
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+
+    const retry = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(retry.status).toBe(200)
+    expect(h.events).toContain('exchange_binding_verified')
   })
 
   it('claims a challenge before upstream work so concurrent copies do not amplify it', async () => {
@@ -990,9 +1717,9 @@ describe('Warpkeep auth bridge', () => {
       releaseVerification = () => resolve({ fid: FID })
     }))
 
-    const first = h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    const first = h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     await vi.waitFor(() => expect(h.verifier.verify).toHaveBeenCalledTimes(1))
-    const contender = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    const contender = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(contender.status).toBe(401)
     expect(h.verifier.verify).toHaveBeenCalledTimes(1)
     expect(h.resolver.resolve).not.toHaveBeenCalled()
@@ -1012,7 +1739,7 @@ describe('Warpkeep auth bridge', () => {
       return { fid: FID }
     })
 
-    const response = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+    const response = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), {
       headers: { origin: ORIGIN },
     }), env())
     expect(response.status).toBe(401)
@@ -1020,7 +1747,7 @@ describe('Warpkeep auth bridge', () => {
     expect(h.resolver.resolve).toHaveBeenCalledTimes(1)
     expect(h.events).not.toContain('exchange_succeeded')
 
-    const replay = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+    const replay = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), {
       headers: { origin: ORIGIN },
     }), env())
     expect(replay.status).toBe(401)
@@ -1039,7 +1766,7 @@ describe('Warpkeep auth bridge', () => {
     h.setNow(expiresAt - 1)
     advanceClock = () => h.setNow(expiresAt + 1)
 
-    const response = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+    const response = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), {
       headers: { origin: ORIGIN },
     }), env())
     expect(response.status).toBe(401)
@@ -1051,16 +1778,39 @@ describe('Warpkeep auth bridge', () => {
     const resolver = {
       resolve: vi.fn()
         .mockRejectedValueOnce(new Error('offline'))
-        .mockResolvedValueOnce(9),
+        .mockResolvedValueOnce({ state: 'enabled', authEpoch: 9 } as const),
     }
     const h = harness({ resolver })
     const challenge = await issueChallenge(h)
-    const first = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    const first = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(first.status).toBe(503)
 
-    const retry = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
+    const retry = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(retry.status).toBe(200)
     expect(resolver.resolve).toHaveBeenCalledTimes(2)
+  })
+
+  it('restores the complete v2 binding record after a transient signing failure', async () => {
+    const signer = vi.fn()
+      .mockRejectedValueOnce(new Error('transient signing failure'))
+      .mockResolvedValueOnce('header.payload.signature')
+    const h = harness({ signer })
+    const challenge = await issueChallenge(h)
+    const proof = proofFor(challenge)
+
+    const first = await h.app.fetch(request('/v2/farcaster/exchange', proof, {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(first.status).toBe(503)
+    await expect(first.json()).resolves.toMatchObject({ error: { code: 'signing_unavailable' } })
+
+    const retry = await h.app.fetch(request('/v2/farcaster/exchange', proof, {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(retry.status).toBe(200)
+    expect(signer).toHaveBeenCalledTimes(2)
+    expect(h.verifier.verify).toHaveBeenCalledTimes(2)
+    expect(h.resolver.resolve).toHaveBeenCalledTimes(2)
   })
 
   it('rejects an invalid signed-message expiry without converting it into a 500', async () => {
@@ -1068,7 +1818,7 @@ describe('Warpkeep auth bridge', () => {
     const challenge = await issueChallenge(h)
     const proof = proofFor(challenge)
     const message = String(proof.message).replace(/^Expiration Time:.*$/m, 'Expiration Time: invalid')
-    const response = await h.app.fetch(request('/v1/farcaster/exchange', {
+    const response = await h.app.fetch(request('/v2/farcaster/exchange', {
       ...proof,
       message,
     }, { headers: { origin: ORIGIN } }), env())

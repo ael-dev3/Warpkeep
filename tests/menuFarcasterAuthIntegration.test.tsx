@@ -51,6 +51,12 @@ const rememberedAuthenticatedState: FarcasterAuthViewState = {
   expiresAt: 1_800_000_000_000
 };
 
+const pendingAdmissionState: FarcasterAuthViewState = {
+  phase: 'pending-admission',
+  identity,
+  sessionExpiresAt: 1_800_000_000_000
+};
+
 type MenuCallbacks = ReturnType<typeof createMenuCallbacks>;
 
 function createMenuCallbacks() {
@@ -59,6 +65,7 @@ function createMenuCallbacks() {
     cancel: vi.fn(),
     retry: vi.fn(),
     prepareQrCode: vi.fn(),
+    refreshSession: vi.fn(),
     rememberDeviceChange: vi.fn(),
     signOut: vi.fn(),
     enterRealm: vi.fn(),
@@ -71,24 +78,25 @@ function menu(
   authState: FarcasterAuthViewState = anonymousState,
   inputModality: MenuInputModality = 'unknown',
   openFarcasterAuthPanel = false,
-  options: { rememberDevice?: boolean; hasRememberedDevice?: boolean } = {}
+  options: { rememberDevice?: boolean; backendUnavailableMessage?: string } = {}
 ) {
   return (
     <WarpkeepMainMenu
       active
       authState={authState}
+      backendUnavailableMessage={options.backendUnavailableMessage}
       inputModality={inputModality}
       openFarcasterAuthPanel={openFarcasterAuthPanel}
       onCancelFarcasterSignIn={callbacks.cancel}
       onRequestAuthenticatedRealm={callbacks.enterRealm}
       onRequestFarcasterSignIn={callbacks.begin}
       onPrepareFarcasterQrCode={callbacks.prepareQrCode}
+      onRefreshFarcasterSession={callbacks.refreshSession}
       onRequestReturn={callbacks.returnToTitle}
       onRetryFarcasterSignIn={callbacks.retry}
       onRememberDeviceChange={callbacks.rememberDeviceChange}
       onSignOut={callbacks.signOut}
       rememberDevice={options.rememberDevice}
-      hasRememberedDevice={options.hasRememberedDevice}
     />
   );
 }
@@ -120,7 +128,28 @@ async function preloadFarcasterPresentation() {
   await settleDeferredPresentation();
 }
 
+function openAlphaTerms() {
+  fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }), { detail: 0 });
+  return screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+}
+
+function acceptAlphaTerms() {
+  const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+  const checkbox = within(dialog).getByRole('checkbox', {
+    name: 'I understand and agree to these Alpha Terms.'
+  });
+  fireEvent.click(checkbox);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'CONTINUE TO SIGN-IN' }));
+}
+
+function openAndAcceptAlphaTerms() {
+  openAlphaTerms();
+  acceptAlphaTerms();
+}
+
 beforeEach(async () => {
+  window.localStorage.clear();
+  window.sessionStorage.clear();
   animationFrames = new Map();
   nextAnimationFrameId = 0;
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
@@ -153,17 +182,93 @@ afterEach(() => {
 });
 
 describe('WarpkeepMainMenu Farcaster authentication integration', () => {
-  it('does not create a channel or render auth/QR UI on initial render', () => {
+  it('does not create a channel or render Terms, auth, QR, or deep-link UI on initial render', () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks));
 
     expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
     expect(screen.queryByRole('img', { name: 'Sign in with Farcaster QR code' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'OPEN IN FARCASTER' })).toBeNull();
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 
-  it('opens settings independently, then opens auth and begins exactly once', async () => {
+  it('opens an unchecked Terms gate before every authentication side effect', () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(callbacks));
+
+    const dialog = openAlphaTerms();
+    const checkbox = within(dialog).getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    });
+    const continueButton = within(dialog).getByRole('button', {
+      name: 'CONTINUE TO SIGN-IN'
+    });
+
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+    expect((continueButton as HTMLButtonElement).disabled).toBe(true);
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.cancel).not.toHaveBeenCalled();
+    expect(callbacks.retry).not.toHaveBeenCalled();
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
+    expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
+    expect(screen.queryByRole('img', { name: 'Sign in with Farcaster QR code' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'OPEN IN FARCASTER' })).toBeNull();
+  });
+
+  it('accepts Terms once, begins once, and only then opens the auth rail', async () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(callbacks));
+
+    openAndAcceptAlphaTerms();
+    await settleDeferredPresentation();
+    flushAnimationFrames();
+
+    expect(callbacks.begin).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'CLAIM YOUR KEEP' })).toBe(
+      document.activeElement
+    );
+  });
+
+  it.each([
+    ['Cancel', () => fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }))],
+    ['close', () => fireEvent.click(screen.getByRole('button', {
+      name: 'Close Alpha Participation Terms'
+    }))],
+    ['Escape', () => fireEvent.keyDown(document, { key: 'Escape' })]
+  ] as const)('%s clears Terms without beginning or cancelling auth and restores focus', (
+    _action,
+    dismiss
+  ) => {
+    const callbacks = createMenuCallbacks();
+    render(menu(callbacks, anonymousState, 'keyboard'));
+
+    openAlphaTerms();
+    fireEvent.click(screen.getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    }));
+    dismiss();
+    flushAnimationFrames();
+
+    const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.cancel).not.toHaveBeenCalled();
+    expect(callbacks.returnToTitle).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(document.activeElement).toBe(enterRealm);
+
+    fireEvent.click(enterRealm, { detail: 0 });
+    expect((screen.getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    }) as HTMLInputElement).checked).toBe(false);
+    expect(callbacks.begin).not.toHaveBeenCalled();
+  });
+
+  it('opens settings independently, then gates auth and begins exactly once after acceptance', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks));
 
@@ -174,6 +279,8 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
     fireEvent.click(enterRealm, { detail: 0 });
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    acceptAlphaTerms();
     await settleDeferredPresentation();
     flushAnimationFrames();
 
@@ -186,7 +293,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.queryByRole('button', { name: 'SETTINGS' })).toBeNull();
   });
 
-  it('opens one native auth rail for a guarded anonymous realm route', async () => {
+  it('ignores the deprecated guarded-route input instead of auto-opening Terms or auth', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks, anonymousState, 'unknown', true));
 
@@ -195,33 +302,57 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     });
     await settleDeferredPresentation();
 
-    expect(callbacks.begin).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
-    expect(screen.queryByRole('navigation', { name: 'Hegemony main menu' })).toBeNull();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 
-  it('does not start a queued guarded-route request after the menu unmounts', async () => {
+  it('does not begin or cancel auth when an unaccepted Terms gate unmounts', async () => {
     const callbacks = createMenuCallbacks();
-    const rendered = render(menu(callbacks, anonymousState, 'unknown', true));
+    const rendered = render(menu(callbacks));
 
+    openAlphaTerms();
     rendered.unmount();
     await act(async () => {
       await Promise.resolve();
     });
 
     expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.cancel).not.toHaveBeenCalled();
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
   });
 
-  it('uses Escape to cancel back to commands before returning to title', () => {
+  it('clears checked Terms on pagehide so bfcache history cannot restore acceptance', () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(callbacks));
+
+    openAlphaTerms();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent(window, new Event('pagehide'));
+
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.cancel).not.toHaveBeenCalled();
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
+
+    fireEvent(window, new Event('pageshow'));
+    const freshTerms = openAlphaTerms();
+    expect((within(freshTerms).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('uses Escape to cancel an accepted auth attempt back to commands before returning to title', () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks, anonymousState, 'keyboard'));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }), { detail: 0 });
+    openAndAcceptAlphaTerms();
     flushAnimationFrames();
     fireEvent.keyDown(document, { key: 'Escape' });
     flushAnimationFrames();
 
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
+    expect(callbacks.begin).toHaveBeenCalledTimes(1);
     expect(callbacks.cancel).toHaveBeenCalledTimes(1);
     expect(callbacks.returnToTitle).not.toHaveBeenCalled();
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
@@ -231,11 +362,11 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.returnToTitle).toHaveBeenCalledTimes(1);
   });
 
-  it('cancels an open request before returning to title', () => {
+  it('cancels an accepted open request before returning to title', () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks));
 
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    openAndAcceptAlphaTerms();
     fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
 
     expect(callbacks.cancel).toHaveBeenCalledTimes(1);
@@ -243,10 +374,10 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.begin).toHaveBeenCalledTimes(1);
   });
 
-  it('renders the awaiting QR and the exact safe Farcaster deep link', async () => {
+  it('renders the awaiting QR and exact safe Farcaster deep link only after acceptance', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks));
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    openAndAcceptAlphaTerms();
 
     result.rerender(menu(callbacks, awaitingState));
     await settleDeferredPresentation();
@@ -266,10 +397,10 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.queryByRole('navigation', { name: 'Hegemony main menu' })).toBeNull();
   });
 
-  it('asks the lazy QR callback only after an awaiting desktop panel needs an image', async () => {
+  it('asks the lazy QR callback only after accepted Terms lead to an awaiting panel', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks));
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    openAndAcceptAlphaTerms();
 
     result.rerender(menu(callbacks, awaitingWithoutQrState));
     await settleDeferredPresentation();
@@ -279,10 +410,10 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByText('Preparing QR code')).not.toBeNull();
   });
 
-  it('shows keyboard-focused identity confirmation, then a compact authenticated badge', async () => {
+  it('shows keyboard-focused identity confirmation after acceptance, then a compact badge', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks, anonymousState, 'keyboard'));
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }), { detail: 0 });
+    openAndAcceptAlphaTerms();
 
     result.rerender(menu(callbacks, authenticatedState, 'keyboard'));
     await settleDeferredPresentation();
@@ -308,7 +439,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.begin).toHaveBeenCalledTimes(1);
   });
 
-  it('labels a restored identity as a remembered device in the menu badge', async () => {
+  it('does not grant special UI authority to a legacy assurance label', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks, rememberedAuthenticatedState));
 
@@ -316,11 +447,32 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByRole('button', {
       name: 'Open Farcaster identity, FID 12345'
     })).not.toBeNull();
-    expect(screen.getByText('REMEMBERED DEVICE')).not.toBeNull();
-    expect(screen.queryByText('FARCASTER VERIFIED')).toBeNull();
+    expect(screen.getByText('FARCASTER VERIFIED')).not.toBeNull();
+    expect(screen.queryByText('REMEMBERED DEVICE')).toBeNull();
   });
 
-  it('invokes the typed realm callback for an authenticated command without beginning again', async () => {
+  it('gates pending admission without entering the realm or starting another sign-in', async () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(callbacks, pendingAdmissionState));
+    await settleDeferredPresentation();
+
+    expect(screen.getByText('ADMISSION PENDING')).not.toBeNull();
+    const terms = openAlphaTerms();
+    expect((within(terms).getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    }) as HTMLInputElement).checked).toBe(false);
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+    acceptAlphaTerms();
+    await settleDeferredPresentation();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(callbacks.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('gates an authenticated command and invokes the typed realm callback only after acceptance', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks, authenticatedState));
 
@@ -328,17 +480,62 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByRole('button', {
       name: 'Open Farcaster identity, FID 12345'
     })).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    const terms = openAlphaTerms();
+    expect((within(terms).getByRole('button', {
+      name: 'CONTINUE TO SIGN-IN'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    acceptAlphaTerms();
 
     expect(callbacks.enterRealm).toHaveBeenCalledTimes(1);
     expect(callbacks.enterRealm).toHaveBeenCalledWith(identity);
     expect(callbacks.begin).not.toHaveBeenCalled();
   });
 
-  it('focuses retry after a keyboard-driven error', async () => {
+  it('does not let the authenticated identity badge bypass fresh Terms for realm entry', async () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(callbacks, authenticatedState));
+    await settleDeferredPresentation();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Farcaster identity, FID 12345'
+    }));
+    await settleDeferredPresentation();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+
+    const terms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(terms).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    expect(callbacks.enterRealm).not.toHaveBeenCalled();
+    acceptAlphaTerms();
+
+    expect(callbacks.enterRealm).toHaveBeenCalledTimes(1);
+    expect(callbacks.enterRealm).toHaveBeenCalledWith(identity);
+  });
+
+  it('does not let the pending identity badge refresh a session before fresh Terms', async () => {
+    const callbacks = createMenuCallbacks();
+    render(menu(callbacks, pendingAdmissionState));
+    await settleDeferredPresentation();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Farcaster identity, FID 12345'
+    }));
+    await settleDeferredPresentation();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+
+    const terms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(terms).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
+    acceptAlphaTerms();
+
+    expect(callbacks.refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('focuses retry after an accepted keyboard-driven error and gates retry again', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks, anonymousState, 'keyboard'));
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }), { detail: 0 });
+    openAndAcceptAlphaTerms();
 
     result.rerender(menu(callbacks, {
       phase: 'error',
@@ -355,7 +552,14 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     fireEvent.keyDown(screen.getByRole('button', { name: 'TRY AGAIN' }), { key: 'Enter' });
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }), { detail: 0 });
+    const retryTerms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(retryTerms).getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    }) as HTMLInputElement).checked).toBe(false);
+    expect(callbacks.retry).not.toHaveBeenCalled();
+    acceptAlphaTerms();
     result.rerender(menu(callbacks, { phase: 'creating-channel' }, 'keyboard'));
+    await settleDeferredPresentation();
     flushAnimationFrames();
 
     expect(callbacks.retry).toHaveBeenCalledTimes(1);
@@ -365,7 +569,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     }));
   });
 
-  it('preserves keyboard retry focus while a guarded route keeps its auth rail open', async () => {
+  it('requires a fresh unchecked acceptance for every retry attempt', async () => {
     const callbacks = createMenuCallbacks();
     const errorState: FarcasterAuthViewState = {
       phase: 'error',
@@ -374,28 +578,34 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
         message: 'The Farcaster relay could not verify this request.'
       }
     };
-    const result = render(menu(callbacks, errorState, 'keyboard', true));
+    const result = render(menu(callbacks, anonymousState, 'keyboard'));
+    openAndAcceptAlphaTerms();
+    result.rerender(menu(callbacks, errorState, 'keyboard'));
     await settleDeferredPresentation();
 
-    const retry = screen.getByRole('button', { name: 'TRY AGAIN' });
-    fireEvent.keyDown(retry, { key: 'Enter' });
-    fireEvent.click(retry, { detail: 0 });
-    result.rerender(menu(callbacks, { phase: 'creating-channel' }, 'keyboard', true));
-    await settleDeferredPresentation();
-    flushAnimationFrames();
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }), { detail: 0 });
+    expect((screen.getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    }) as HTMLInputElement).checked).toBe(false);
+    acceptAlphaTerms();
+    expect(callbacks.retry).toHaveBeenCalledTimes(1);
 
-    result.rerender(menu(callbacks, errorState, 'keyboard', true));
+    result.rerender(menu(callbacks, { phase: 'creating-channel' }, 'keyboard'));
     await settleDeferredPresentation();
-    flushAnimationFrames();
+    result.rerender(menu(callbacks, errorState, 'keyboard'));
+    await settleDeferredPresentation();
+    fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }), { detail: 0 });
 
     expect(callbacks.retry).toHaveBeenCalledTimes(1);
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'TRY AGAIN' }));
+    expect((screen.getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    }) as HTMLInputElement).checked).toBe(false);
   });
 
-  it('closes a stale auth surface after an external cancellation', () => {
+  it('closes a stale accepted auth surface after an external cancellation', () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks, anonymousState));
-    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    openAndAcceptAlphaTerms();
     result.rerender(menu(callbacks, { phase: 'creating-channel' }));
     expect(screen.getByRole('region', { name: 'Farcaster sign-in' })).not.toBeNull();
 
@@ -403,6 +613,68 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
+  });
+
+  it('gives maintenance mode precedence over Terms and every authentication callback', () => {
+    const callbacks = createMenuCallbacks();
+    const maintenanceMessage = 'Public alpha sign-in is temporarily unavailable.';
+    render(menu(callbacks, anonymousState, 'keyboard', true, {
+      backendUnavailableMessage: maintenanceMessage
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }), { detail: 0 });
+
+    expect(screen.getByText(maintenanceMessage)).not.toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(callbacks.cancel).not.toHaveBeenCalled();
+    expect(callbacks.retry).not.toHaveBeenCalled();
+    expect(callbacks.refreshSession).not.toHaveBeenCalled();
+  });
+
+  it('never persists or reuses acceptance across storage events, rerenders, or unmounts', () => {
+    const storageKey = 'warpkeep-alpha-terms-accepted';
+    window.localStorage.setItem(storageKey, 'true');
+    window.sessionStorage.setItem(storageKey, 'true');
+    const storageWrite = vi.spyOn(Storage.prototype, 'setItem');
+    const callbacks = createMenuCallbacks();
+    const rendered = render(menu(callbacks));
+
+    let dialog = openAlphaTerms();
+    let checkbox = within(dialog).getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: storageKey,
+      newValue: 'true',
+      storageArea: window.localStorage
+    }));
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+
+    fireEvent.click(checkbox);
+    expect((checkbox as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CANCEL' }));
+    rendered.rerender(menu(callbacks));
+
+    dialog = openAlphaTerms();
+    checkbox = within(dialog).getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    });
+    expect((checkbox as HTMLInputElement).checked).toBe(false);
+    rendered.unmount();
+
+    const freshCallbacks = createMenuCallbacks();
+    render(menu(freshCallbacks));
+    dialog = openAlphaTerms();
+    expect((within(dialog).getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    }) as HTMLInputElement).checked).toBe(false);
+    expect(storageWrite).not.toHaveBeenCalled();
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    expect(freshCallbacks.begin).not.toHaveBeenCalled();
   });
 
   it('signs out to anonymous commands and restores keyboard focus', async () => {

@@ -3,20 +3,24 @@ import {
   cleanup,
   fireEvent,
   render as testingLibraryRender,
-  screen
+  screen,
+  within
 } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepExperience } from '../src/components/WarpkeepExperience';
 import { FarcasterAuthProvider } from '../src/farcaster/FarcasterAuthProvider';
 import {
+  getFarcasterDeviceSessionControlKey,
   getFarcasterDeviceSessionStorageKey,
-  persistFarcasterRememberedDeviceSession,
   type FarcasterDeviceSessionEnvironment,
   type FarcasterDeviceSessionStorage
 } from '../src/farcaster/farcasterDeviceSession';
 import type {
+  FarcasterBridgeAuthorizedSession,
   FarcasterBridgeChallenge,
+  FarcasterBridgePendingAdmissionSession,
+  FarcasterBridgeSessionResponse,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
   FarcasterSessionAuthority,
@@ -25,8 +29,10 @@ import type {
 } from '../src/farcaster/farcasterAuthTypes';
 import {
   WarpkeepSpacetimeProvider,
+  useWarpkeepBackend,
   type WarpkeepBackendRuntime
 } from '../src/spacetime/WarpkeepSpacetimeProvider';
+import type { WarpkeepConnection } from '../src/spacetime/warpkeepConnection';
 import type {
   WarpkeepAdmissionStatus,
   WarpkeepRealmSnapshot
@@ -37,8 +43,10 @@ import {
 } from '../src/spacetime/warpkeepConfig';
 
 const TEST_NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
-const TEST_ISSUER = 'https://auth.warpkeep.example';
+const TEST_ISSUER = 'https://auth.warpkeep.com';
 const TEST_AUDIENCE = 'warpkeep-spacetimedb';
+const TEST_BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+const TEST_BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 const TEST_CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
   spacetimeDatabase: 'warpkeep-89e4u',
@@ -47,6 +55,22 @@ const TEST_CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   audience: TEST_AUDIENCE,
   sharedAlphaEnabled: true
 });
+
+type Deferred<T> = Readonly<{
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+}>;
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
 
 const VERIFIED_IDENTITY: VerifiedFarcasterIdentity = Object.freeze({
   fid: 12_345,
@@ -127,17 +151,19 @@ function encodeJwtSegment(value: unknown) {
 
 function createOidcSession(
   fid = VERIFIED_IDENTITY.fid,
-  now = TEST_NOW
+  now = TEST_NOW,
+  accessTtlMs = 5 * 60 * 1_000
 ): FarcasterOidcSession {
   const issuedAt = Math.floor(now / 1_000);
-  const expiresAt = now + 30 * 24 * 60 * 60 * 1_000;
+  const expiresAt = now + accessTtlMs;
   const jwt = `${encodeJwtSegment({ alg: 'ES256', typ: 'JWT', kid: 'test-key' })}.${encodeJwtSegment({
     iss: TEST_ISSUER,
     sub: `farcaster:${fid}`,
     aud: [TEST_AUDIENCE],
     token_type: 'spacetime-access',
     fid: String(fid),
-    auth_epoch: 0,
+    auth_version: 2,
+    auth_epoch: 1,
     roles: [],
     iat: issuedAt,
     nbf: issuedAt,
@@ -147,6 +173,35 @@ function createOidcSession(
     jti: `test-${fid}-${issuedAt}`
   })}.test_signature`;
   return Object.freeze({ jwt, issuer: TEST_ISSUER, audience: TEST_AUDIENCE, expiresAt });
+}
+
+function createAuthorizedResponse(
+  fid = VERIFIED_IDENTITY.fid,
+  now = TEST_NOW,
+  accessTtlMs = 5 * 60 * 1_000
+): FarcasterBridgeAuthorizedSession {
+  const session = createOidcSession(fid, now, accessTtlMs);
+  return Object.freeze({
+    version: 2,
+    status: 'authorized',
+    identity: Object.freeze({ fid }),
+    sessionExpiresAt: now + 30 * 24 * 60 * 60 * 1_000,
+    accessToken: session.jwt,
+    tokenType: 'spacetime-access',
+    accessExpiresAt: session.expiresAt
+  });
+}
+
+function createPendingAdmissionResponse(
+  fid = VERIFIED_IDENTITY.fid,
+  now = TEST_NOW
+): FarcasterBridgePendingAdmissionSession {
+  return Object.freeze({
+    version: 2,
+    status: 'pending-admission',
+    identity: Object.freeze({ fid }),
+    sessionExpiresAt: now + 30 * 24 * 60 * 60 * 1_000
+  });
 }
 
 function createTestAuthority(now: () => number) {
@@ -192,8 +247,14 @@ function createTestAuthority(now: () => number) {
   } satisfies FarcasterSessionAuthority;
 }
 
-function createBridge(session: FarcasterOidcSession, now: () => number) {
+function createBridge(
+  exchangeResponse: FarcasterBridgeSessionResponse,
+  now: () => number,
+  refreshResponse?: FarcasterBridgeSessionResponse
+) {
   return {
+    issuer: TEST_ISSUER,
+    audience: TEST_AUDIENCE,
     createChallenge: vi.fn(async () => {
       const createdAt = now();
       return {
@@ -203,7 +264,12 @@ function createBridge(session: FarcasterOidcSession, now: () => number) {
         expiresAt: createdAt + 300_000
       };
     }),
-    exchangeCompletedSignIn: vi.fn(async () => session)
+    exchangeCompletedSignIn: vi.fn(async () => exchangeResponse),
+    refreshSession: vi.fn(async () => {
+      if (!refreshResponse) throw new Error('No active cookie session');
+      return refreshResponse;
+    }),
+    logoutSession: vi.fn(async () => undefined)
   } satisfies FarcasterOidcBridgeClient;
 }
 
@@ -211,7 +277,7 @@ function createBackendRuntime(
   admissionSequence: readonly WarpkeepAdmissionStatus[] = ['ready'],
   realm: WarpkeepRealmSnapshot = SHARED_REALM,
   backendInfo: unknown = {
-    protocolVersion: 1,
+    protocolVersion: 2,
     worldSeed: 3_445_214_658,
     worldSeedName: 'HEGEMONY_GENESIS_001'
   }
@@ -249,31 +315,50 @@ type RenderExperienceOptions = {
   runtime?: WarpkeepBackendRuntime;
   bridge?: FarcasterOidcBridgeClient;
   config?: WarpkeepRuntimeConfig;
+  exposeBackendDisconnect?: boolean;
 };
+
+function BackendDisconnectProbe() {
+  const backend = useWarpkeepBackend();
+  return (
+    <button type="button" onClick={backend.disconnect}>
+      TEST BACKEND DISCONNECT
+    </button>
+  );
+}
 
 function renderExperience({
   deviceSessionEnvironment,
   now = () => TEST_NOW,
   runtime = createBackendRuntime().runtime,
-  bridge = createBridge(createOidcSession(VERIFIED_IDENTITY.fid, now()), now),
-  config = TEST_CONFIG
+  bridge = createBridge(createAuthorizedResponse(VERIFIED_IDENTITY.fid, now()), now),
+  config = TEST_CONFIG,
+  exposeBackendDisconnect = false
 }: RenderExperienceOptions = {}) {
   const authority = createTestAuthority(now);
+  const createBrowserBinding = vi.fn(async () => ({
+    verifier: TEST_BINDING_VERIFIER,
+    challenge: TEST_BINDING_CHALLENGE,
+    method: 'S256' as const
+  }));
+  const encodeQrCode = vi.fn(async () => 'data:image/svg+xml,TEST_QR');
   const rendered = testingLibraryRender(
     <FarcasterAuthProvider
+      createBrowserBinding={createBrowserBinding}
       deviceSessionEnvironment={deviceSessionEnvironment}
-      encodeQrCode={vi.fn(async () => 'data:image/svg+xml,TEST_QR')}
+      encodeQrCode={encodeQrCode}
       loadAuthority={async () => authority}
       loadBridgeClient={async () => bridge}
       now={now}
       pollIntervalMs={1}
     >
       <WarpkeepSpacetimeProvider config={config} runtime={runtime}>
+        {exposeBackendDisconnect ? <BackendDisconnectProbe /> : null}
         <WarpkeepExperience />
       </WarpkeepSpacetimeProvider>
     </FarcasterAuthProvider>
   );
-  return { ...rendered, authority, bridge };
+  return { ...rendered, authority, bridge, createBrowserBinding, encodeQrCode };
 }
 
 async function settle() {
@@ -282,6 +367,21 @@ async function settle() {
       await Promise.resolve();
     }
   });
+}
+
+async function acceptAlphaParticipationTerms() {
+  const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+  const terms = within(dialog);
+  const checkbox = terms.getByRole('checkbox', {
+    name: 'I understand and agree to these Alpha Terms.'
+  });
+  const continueButton = terms.getByRole('button', { name: 'CONTINUE TO SIGN-IN' });
+
+  expect((continueButton as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(checkbox);
+  expect((continueButton as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(continueButton);
+  await settle();
 }
 
 function installBrowserStubs() {
@@ -330,16 +430,38 @@ afterEach(() => {
 describe('Warpkeep shared realm admission', () => {
   it('exchanges Farcaster proof with the bridge, then uses the server castle instead of local keep authority', async () => {
     const backend = createBackendRuntime();
-    const { container, authority, bridge } = renderExperience({ runtime: backend.runtime });
+    const {
+      container,
+      authority,
+      bridge,
+      createBrowserBinding,
+      encodeQrCode
+    } = renderExperience({ runtime: backend.runtime });
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(backend.runtime.subscribeRealm).not.toHaveBeenCalled();
+
+    await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
 
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(bridge.createChallenge).toHaveBeenCalledTimes(1);
+    expect(createBrowserBinding).toHaveBeenCalledTimes(1);
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
     expect(authority.verifyCompletedRequest).toHaveBeenCalledTimes(1);
     expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledTimes(1);
+    expect(encodeQrCode).toHaveBeenCalledTimes(1);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
     expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_CHANNEL_TOKEN_123456');
@@ -351,30 +473,358 @@ describe('Warpkeep shared realm admission', () => {
     expect(screen.getByText('LEVEL 2')).not.toBeNull();
   });
 
-  it('restores a valid v2 bridge session, rechecks admission, and does not create a new Farcaster channel', async () => {
+  it('cancels the terms gate without creating any authentication or backend side effect', async () => {
+    const backend = createBackendRuntime();
+    const {
+      authority,
+      bridge,
+      createBrowserBinding,
+      encodeQrCode
+    } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CANCEL' }));
+    await settle();
+
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    const freshDialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(freshDialog).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    expect((within(freshDialog).getByRole('button', {
+      name: 'CONTINUE TO SIGN-IN'
+    }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Escape clears a checked acceptance without beginning the entry attempt', async () => {
+    const backend = createBackendRuntime();
+    const { authority, bridge, encodeQrCode } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    fireEvent.click(within(dialog).getByRole('checkbox'));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await settle();
+
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    const freshDialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(freshDialog).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('browser Back clears checked acceptance without starting auth or backend work', async () => {
+    const backend = createBackendRuntime();
+    const {
+      authority,
+      bridge,
+      createBrowserBinding,
+      encodeQrCode
+    } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    fireEvent.click(within(dialog).getByRole('checkbox'));
+
+    act(() => {
+      window.history.replaceState({}, '', '/');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await settle();
+
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+
+    act(() => {
+      window.history.replaceState({ warpkeepMenu: true }, '', '/#menu');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    const freshDialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(freshDialog).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('does not persist or reuse checked terms across storage activity and remount', async () => {
     const storage = new TestDeviceStorage();
     const environment = createDeviceSessionEnvironment(storage);
-    expect(persistFarcasterRememberedDeviceSession(
-      VERIFIED_IDENTITY,
-      createOidcSession(VERIFIED_IDENTITY.fid, TEST_NOW),
-      environment
-    )).toBeDefined();
-    window.history.replaceState({}, '', '/#realm');
+    const bridge = createBridge(createAuthorizedResponse(), environment.now!);
     const backend = createBackendRuntime();
-    const { authority } = renderExperience({
+    const first = renderExperience({
+      bridge,
+      deviceSessionEnvironment: environment,
+      now: environment.now,
+      runtime: backend.runtime
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    fireEvent.click(within(dialog).getByRole('checkbox'));
+    fireEvent(window, new StorageEvent('storage', {
+      key: getFarcasterDeviceSessionControlKey('/'),
+      newValue: JSON.stringify({ kind: 'session-terminated', at: TEST_NOW })
+    }));
+    await settle();
+
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(first.authority.beginSignIn).not.toHaveBeenCalled();
+    expect(first.encodeQrCode).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+
+    first.unmount();
+    await settle();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+
+    const second = renderExperience({
+      bridge,
+      deviceSessionEnvironment: environment,
+      now: environment.now,
+      runtime: backend.runtime
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    const freshDialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    expect((within(freshDialog).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    expect((within(freshDialog).getByRole('button', {
+      name: 'CONTINUE TO SIGN-IN'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(second.authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+  });
+
+  it('waits for explicit terms acceptance before restoring a valid cookie session on mount or focus', async () => {
+    const storage = new TestDeviceStorage();
+    const environment = createDeviceSessionEnvironment(storage);
+    const refreshedSession = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW);
+    const bridge = createBridge(
+      createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW),
+      environment.now!,
+      refreshedSession
+    );
+    const backend = createBackendRuntime();
+    const { authority, createBrowserBinding, encodeQrCode } = renderExperience({
+      bridge,
       deviceSessionEnvironment: environment,
       now: environment.now,
       runtime: backend.runtime
     });
 
     await settle();
+    fireEvent.focus(window);
+    fireEvent(window, new Event('pageshow'));
+    await settle();
+
     expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+
+    await acceptAlphaParticipationTerms();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
     expect(window.location.hash).toBe('#realm');
   });
 
-  it('purges a legacy public-identity record and never lets it mount the shared realm', async () => {
+  it('disconnects Spacetime exactly when an access token expires while refresh is still pending', async () => {
+    const initial = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW, 40_000);
+    let resolveRefresh!: (value: FarcasterBridgeSessionResponse) => void;
+    const pendingRefresh = new Promise<FarcasterBridgeSessionResponse>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    const bridge = createBridge(initial, Date.now);
+    vi.mocked(bridge.refreshSession)
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(() => pendingRefresh);
+    const backend = createBackendRuntime();
+    renderExperience({ bridge, now: Date.now, runtime: backend.runtime });
+    await settle();
+
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    const disconnectCallsAtStart = vi.mocked(backend.runtime.disconnect).mock.calls.length;
+    expect(backend.connection.disconnect).not.toHaveBeenCalled();
+
+    await act(async () => vi.advanceTimersByTime(10_000));
+    await settle();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(backend.runtime.disconnect).toHaveBeenCalledTimes(disconnectCallsAtStart);
+    expect(backend.connection.disconnect).not.toHaveBeenCalled();
+
+    await act(async () => vi.advanceTimersByTime(30_000));
+    await settle();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(backend.runtime.disconnect).mock.calls.slice(disconnectCallsAtStart))
+      .toContainEqual([backend.connection]);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+
+    resolveRefresh(createAuthorizedResponse(VERIFIED_IDENTITY.fid, Date.now()));
+    await settle();
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a same-FID realm mounted while a rotated access token reconnects', async () => {
+    const initial = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW, 40_000);
+    const bridge = createBridge(initial, Date.now);
+    vi.mocked(bridge.refreshSession)
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(async () => createAuthorizedResponse(
+        VERIFIED_IDENTITY.fid,
+        Date.now()
+      ));
+    const backend = createBackendRuntime();
+    const reconnect = deferred<WarpkeepConnection>();
+    const reconnectConnection = {
+      isDisconnectRequested: false,
+      disconnect: vi.fn()
+    } as unknown as WarpkeepConnection;
+    vi.mocked(backend.runtime.connect)
+      .mockReset()
+      .mockResolvedValueOnce(backend.connection as unknown as WarpkeepConnection)
+      .mockImplementationOnce(() => reconnect.promise);
+    const { container } = renderExperience({ bridge, now: Date.now, runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+
+    await act(async () => vi.advanceTimersByTime(10_000));
+    await settle();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+    expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
+
+    await act(async () => reconnect.resolve(reconnectConnection));
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+    expect(reconnectConnection.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('leaves the realm when a same-FID token reconnect definitively fails', async () => {
+    const initial = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW, 40_000);
+    const bridge = createBridge(initial, Date.now);
+    vi.mocked(bridge.refreshSession)
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(async () => createAuthorizedResponse(
+        VERIFIED_IDENTITY.fid,
+        Date.now()
+      ));
+    const backend = createBackendRuntime();
+    const reconnect = deferred<WarpkeepConnection>();
+    vi.mocked(backend.runtime.connect)
+      .mockReset()
+      .mockResolvedValueOnce(backend.connection as unknown as WarpkeepConnection)
+      .mockImplementationOnce(() => reconnect.promise);
+    const { container } = renderExperience({ bridge, now: Date.now, runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+
+    await act(async () => vi.advanceTimersByTime(10_000));
+    await settle();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+
+    await act(async () => reconnect.reject(new Error('controlled reconnect failure')));
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(window.location.hash).toBe('#menu');
+    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+  });
+
+  it('never opens a Spacetime connection for a v2 pending-admission cookie session', async () => {
+    const pendingSession = createPendingAdmissionResponse();
+    const bridge = createBridge(
+      createAuthorizedResponse(),
+      () => TEST_NOW,
+      pendingSession
+    );
+    const backend = createBackendRuntime();
+
+    const { authority } = renderExperience({ bridge, runtime: backend.runtime });
+    await settle();
+
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    await acceptAlphaParticipationTerms();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+    expect(screen.getByText(
+      'Your Farcaster identity is verified. Admission to the Hegemony frontier is still pending.'
+    )).not.toBeNull();
+  });
+
+  it('purges a legacy identity record and normalizes direct #realm without beginning authentication', async () => {
     const storage = new TestDeviceStorage();
     const environment = createDeviceSessionEnvironment(storage);
     storage.setItem('warpkeep:/:farcaster-device-session:v1', JSON.stringify({
@@ -389,23 +839,63 @@ describe('Warpkeep shared realm admission', () => {
     }));
     window.history.replaceState({}, '', '/#realm');
     const backend = createBackendRuntime();
-    const { authority } = renderExperience({
+    const { authority, bridge, createBrowserBinding, encodeQrCode } = renderExperience({
       deviceSessionEnvironment: environment,
       runtime: backend.runtime
     });
 
     await settle();
     expect(storage.getItem('warpkeep:/:farcaster-device-session:v1')).toBeNull();
+    expect(window.location.hash).toBe('#menu');
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
     expect(backend.runtime.connect).not.toHaveBeenCalled();
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
   });
 
-  it('shows the precise denied panel and Check Again reuses the existing bridge session without a new QR flow', async () => {
+  it('normalizes direct #realm with a valid cookie fixture and still requires explicit entry consent', async () => {
+    const storage = new TestDeviceStorage();
+    const environment = createDeviceSessionEnvironment(storage);
+    const bridge = createBridge(
+      createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW),
+      environment.now!,
+      createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW)
+    );
+    const backend = createBackendRuntime();
+    window.history.replaceState({}, '', '/#realm');
+
+    const { authority, createBrowserBinding, encodeQrCode } = renderExperience({
+      bridge,
+      deviceSessionEnvironment: environment,
+      now: environment.now,
+      runtime: backend.runtime
+    });
+    await settle();
+
+    expect(window.location.hash).toBe('#menu');
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
+    expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+  });
+
+  it('gates denied Check Again, reuses the bridge session, and gates the later realm entry', async () => {
     const backend = createBackendRuntime(['not_admitted', 'ready']);
     const { authority, bridge, container } = renderExperience({ runtime: backend.runtime });
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
@@ -417,14 +907,108 @@ describe('Warpkeep shared realm admission', () => {
     });
     expect(requestAccess).toHaveProperty('href', 'https://farcaster.xyz/0xael.eth');
 
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await settle();
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Farcaster identity, FID 12345'
+    }));
+    await settle();
+
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    await acceptAlphaParticipationTerms();
     await settle();
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
     expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledTimes(1);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    await acceptAlphaParticipationTerms();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+  });
+
+  it('clears a failed accepted entry intent before a later admission check becomes ready', async () => {
+    const backend = createBackendRuntime(['not_admitted', 'not_admitted', 'ready']);
+    const { container } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+    expect(screen.getByText(
+      'This Farcaster identity is not yet admitted to the Hegemony frontier.'
+    )).not.toBeNull();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(
+      'This Farcaster identity is not yet admitted to the Hegemony frontier.'
+    )).not.toBeNull();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await settle();
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Farcaster identity, FID 12345'
+    }));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(3);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(window.location.hash).toBe('#menu');
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    await acceptAlphaParticipationTerms();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+  });
+
+  it('clears an authenticated entry intent when its in-flight admission rail is dismissed', async () => {
+    let resolveAdmission!: (status: WarpkeepAdmissionStatus) => void;
+    const pendingAdmission = new Promise<WarpkeepAdmissionStatus>((resolve) => {
+      resolveAdmission = resolve;
+    });
+    const backend = createBackendRuntime(['not_admitted']);
+    vi.mocked(backend.runtime.readAdmission)
+      .mockResolvedValueOnce('not_admitted')
+      .mockImplementationOnce(() => pendingAdmission);
+    const { container } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+    expect(screen.getByText(
+      'This Farcaster identity is not yet admitted to the Hegemony frontier.'
+    )).not.toBeNull();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await settle();
+    await act(async () => resolveAdmission('ready'));
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(window.location.hash).toBe('#menu');
+    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
   });
 
   it('does not connect anonymous title/menu visitors and sign-out tears down backend state', async () => {
@@ -433,6 +1017,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
@@ -446,6 +1031,10 @@ describe('Warpkeep shared realm admission', () => {
     expect(window.localStorage.getItem(getFarcasterDeviceSessionStorageKey('/')!)).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
@@ -453,9 +1042,137 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
   });
 
+  it('standalone backend disconnect tears down the connected realm once and leaves late callbacks inert', async () => {
+    const backend = createBackendRuntime();
+    const removeObserver = vi.fn();
+    const unsubscribe = vi.fn();
+    let reportDisconnected: (() => void) | undefined;
+    let reportObservedRealm: ((snapshot: WarpkeepRealmSnapshot) => void) | undefined;
+    let reportSubscriptionApplied: (() => void) | undefined;
+    let reportSubscriptionError: (() => void) | undefined;
+
+    vi.mocked(backend.runtime.connect).mockImplementation(async (
+      _config,
+      _jwt,
+      callbacks
+    ) => {
+      reportDisconnected = callbacks?.onDisconnected;
+      return backend.connection as never;
+    });
+    vi.mocked(backend.runtime.observeRealm).mockImplementation((
+      _connection,
+      _fid,
+      onChange
+    ) => {
+      reportObservedRealm = onChange;
+      return removeObserver;
+    });
+    vi.mocked(backend.runtime.subscribeRealm).mockImplementation((
+      _connection,
+      onApplied,
+      onError
+    ) => {
+      reportSubscriptionApplied = onApplied;
+      reportSubscriptionError = onError;
+      onApplied();
+      return { unsubscribe } as never;
+    });
+
+    const { bridge } = renderExperience({
+      runtime: backend.runtime,
+      exposeBackendDisconnect: true
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readRealmSnapshot).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'TEST BACKEND DISCONNECT' }));
+    await settle();
+
+    expect(bridge.logoutSession).not.toHaveBeenCalled();
+    expect(removeObserver).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).toHaveBeenCalledWith(backend.connection);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      reportObservedRealm?.(SHARED_REALM);
+      reportSubscriptionApplied?.();
+      reportSubscriptionError?.();
+      reportDisconnected?.();
+    });
+    await settle();
+
+    expect(removeObserver).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).toHaveBeenCalledTimes(1);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readRealmSnapshot).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+  });
+
+  it('completes local sign-out when every backend teardown hook throws', async () => {
+    const backend = createBackendRuntime();
+    const removeObserver = vi.fn(() => {
+      throw new Error('controlled observer cleanup failure');
+    });
+    const unsubscribe = vi.fn(() => {
+      throw new Error('controlled subscription cleanup failure');
+    });
+    vi.mocked(backend.runtime.observeRealm).mockReturnValue(removeObserver);
+    vi.mocked(backend.runtime.subscribeRealm).mockImplementation((
+      _connection,
+      onApplied
+    ) => {
+      onApplied();
+      return { unsubscribe } as never;
+    });
+    vi.mocked(backend.runtime.disconnect).mockImplementation(() => {
+      throw new Error('controlled transport cleanup failure');
+    });
+
+    const { bridge, container } = renderExperience({ runtime: backend.runtime });
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+    await settle();
+    fireEvent.click(screen.getByRole('button', {
+      name: `Open Farcaster identity, FID ${VERIFIED_IDENTITY.fid}`
+    }));
+
+    expect(() => fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }))).not.toThrow();
+    await settle();
+
+    expect(removeObserver).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).toHaveBeenCalledTimes(1);
+    expect(bridge.logoutSession).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'SIGN OUT' })).toBeNull();
+  });
+
   it('keeps shared alpha fail-closed without opening a Farcaster channel when the kill switch is off', async () => {
     const backend = createBackendRuntime();
-    const { authority } = renderExperience({
+    const bridge = createBridge(
+      createAuthorizedResponse(),
+      () => TEST_NOW,
+      createAuthorizedResponse()
+    );
+    const { authority, createBrowserBinding, encodeQrCode } = renderExperience({
+      bridge,
       runtime: backend.runtime,
       config: { ...TEST_CONFIG, sharedAlphaEnabled: false }
     });
@@ -466,20 +1183,28 @@ describe('Warpkeep shared realm admission', () => {
     expect(screen.getByRole('status').textContent).toContain(
       WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE
     );
+    expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
     expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(encodeQrCode).not.toHaveBeenCalled();
     expect(backend.runtime.connect).not.toHaveBeenCalled();
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
   });
 
   it('does not check admission or mount the realm when the backend protocol is incompatible', async () => {
     const backend = createBackendRuntime(['ready'], SHARED_REALM, {
-      protocolVersion: 2,
+      protocolVersion: 1,
       worldSeed: 3_445_214_658,
       worldSeedName: 'HEGEMONY_GENESIS_001'
     });
     const { authority } = renderExperience({ runtime: backend.runtime });
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
     await settle();
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
@@ -487,6 +1212,62 @@ describe('Warpkeep shared realm admission', () => {
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
     expect(backend.runtime.readBackendInfo).toHaveBeenCalledTimes(1);
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+    expect(screen.getByText('The Hegemony records are temporarily unreachable.')).toBeTruthy();
+  });
+
+  it('does not continue a connection that disconnects while its handshake promise is resolving', async () => {
+    const backend = createBackendRuntime();
+    vi.mocked(backend.runtime.connect).mockImplementation(async (
+      _config,
+      _jwt,
+      callbacks
+    ) => {
+      callbacks?.onDisconnected?.();
+      return backend.connection as never;
+    });
+    const { authority } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+    expect(screen.getByText('The Hegemony records are temporarily unreachable.')).toBeTruthy();
+  });
+
+  it('cleans a subscription handle returned after a synchronous subscription failure', async () => {
+    const backend = createBackendRuntime();
+    const removeObserver = vi.fn();
+    const unsubscribe = vi.fn();
+    vi.mocked(backend.runtime.observeRealm).mockReturnValue(removeObserver);
+    vi.mocked(backend.runtime.subscribeRealm).mockImplementation((
+      _connection,
+      _onApplied,
+      onError
+    ) => {
+      onError();
+      return { unsubscribe } as never;
+    });
+    renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(removeObserver).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
     expect(screen.getByText('The Hegemony records are temporarily unreachable.')).toBeTruthy();
   });

@@ -12,7 +12,7 @@ const RECORD_KEY = 'challenge'
 
 function challenge(overrides: Partial<ChallengeRecord> = {}): ChallengeRecord {
   return {
-    version: 1,
+    version: 2,
     requestId: 'request-id-for-storage-test',
     nonce: 'nonce-for-storage-test',
     origin: 'https://warpkeep.com',
@@ -20,6 +20,8 @@ function challenge(overrides: Partial<ChallengeRecord> = {}): ChallengeRecord {
     siweUri: 'https://warpkeep.com/',
     createdAt: NOW,
     expiresAt: NOW + 5 * 60 * 1_000,
+    bindingChallenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    bindingMethod: 'S256',
     ...overrides,
   }
 }
@@ -124,9 +126,23 @@ describe('ChallengeReplayGuard storage lifecycle', () => {
 
   it('deallocates expired or malformed persisted records', async () => {
     vi.useFakeTimers({ now: NOW })
+    const valid = challenge()
+    const { bindingChallenge: _bindingChallenge, ...missingBindingChallenge } = valid
     for (const candidate of [
       challenge({ expiresAt: NOW }),
       { version: 999, requestId: 'malformed' },
+      { ...valid, version: 1 },
+      { ...valid, extra: 'unexpected' },
+      missingBindingChallenge,
+      { ...valid, bindingMethod: 'plain' },
+      { ...valid, bindingChallenge: `${'A'.repeat(42)}B` },
+      { ...valid, requestId: '' },
+      { ...valid, nonce: '' },
+      { ...valid, createdAt: -1 },
+      { ...valid, createdAt: NOW + 0.5 },
+      { ...valid, createdAt: Number.MAX_SAFE_INTEGER + 1 },
+      { ...valid, expiresAt: NOW },
+      { ...valid, expiresAt: NOW + 0.5 },
     ]) {
       const storage = new FakeStorage()
       storage.values.set(RECORD_KEY, candidate)
@@ -136,6 +152,35 @@ describe('ChallengeReplayGuard storage lifecycle', () => {
       expect(response.status).toBe(404)
       expect(storage.deleteAllCalls).toBe(1)
       expect(storage.values.size).toBe(0)
+    }
+  })
+
+  it('rejects legacy, incomplete, and inexact records on the write boundary', async () => {
+    vi.useFakeTimers({ now: NOW })
+    const valid = challenge()
+    const { bindingMethod: _bindingMethod, ...missingBindingMethod } = valid
+    const invalidRecords: unknown[] = [
+      { ...valid, version: 1 },
+      { ...valid, unexpected: true },
+      missingBindingMethod,
+      { ...valid, bindingMethod: 'plain' },
+      { ...valid, bindingChallenge: `${'A'.repeat(42)}B` },
+      { ...valid, origin: '' },
+      { ...valid, createdAt: -1 },
+      { ...valid, expiresAt: valid.createdAt },
+    ]
+
+    for (const candidate of invalidRecords) {
+      const storage = new FakeStorage()
+      const guard = new ChallengeReplayGuard({ storage } as DurableObjectState)
+      const response = await guard.fetch(request('/record', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(candidate),
+      }))
+      expect(response.status).toBe(400)
+      expect(storage.values.size).toBe(0)
+      expect(storage.alarm).toBeUndefined()
     }
   })
 

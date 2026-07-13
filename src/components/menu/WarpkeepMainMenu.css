@@ -277,6 +277,59 @@
   padding: 0;
 }
 
+.warpkeep-menu-project {
+  display: grid;
+  justify-items: center;
+  gap: 0.32rem;
+  margin: clamp(0.7rem, 1.5vh, 1.15rem) 8% 0;
+  padding-top: clamp(0.55rem, 1.1vh, 0.85rem);
+  border-top: 1px solid rgba(202, 157, 85, 0.32);
+  text-align: center;
+}
+
+.warpkeep-menu .warpkeep-menu-project__heading {
+  margin: 0;
+  color: rgba(211, 179, 120, 0.72);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(0.5rem, 0.64vw, 0.62rem);
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  line-height: 1.2;
+}
+
+.warpkeep-menu-project__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0.4rem 0.65rem;
+  color: rgba(231, 203, 150, 0.88);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(0.63rem, 0.8vw, 0.76rem);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  line-height: 1.2;
+  text-decoration: none;
+  text-shadow: 0 2px 4px rgba(6, 3, 8, 0.95);
+  transition: color 180ms ease, text-shadow 180ms ease;
+}
+
+.warpkeep-menu-project__external-mark {
+  margin-left: 0.48rem;
+  color: #c999e7;
+  font-family: ui-serif, Georgia, serif;
+  font-size: 0.9rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.warpkeep-menu-project__link:focus-visible {
+  color: #fff0ca;
+  outline: 2px solid rgba(250, 220, 163, 0.86);
+  outline-offset: 1px;
+  text-shadow: 0 2px 4px rgba(6, 3, 8, 0.98), 0 0 10px rgba(247, 215, 155, 0.42);
+}
+
 .warpkeep-menu .warpkeep-menu-command {
   display: grid;
   position: relative;
@@ -471,6 +524,11 @@ a.warpkeep-menu-build-stamp:focus-visible {
 }
 
 @media (hover: hover) and (pointer: fine) {
+  .warpkeep-menu-project__link:hover {
+    color: #fff0ca;
+    text-shadow: 0 2px 4px rgba(6, 3, 8, 0.98), 0 0 10px rgba(247, 215, 155, 0.42);
+  }
+
   .warpkeep-menu .warpkeep-menu-command:hover:not(:disabled) {
     border: 0;
     color: #fff0ca;
@@ -656,6 +714,24 @@ a.warpkeep-menu-build-stamp:focus-visible {
     padding-block: 0.35rem 0.5rem;
     font-size: clamp(0.88rem, 1.32vw, 1.2rem);
   }
+
+  .warpkeep-menu-project {
+    gap: 0.08rem;
+    margin-top: 0.25rem;
+    padding-top: 0.25rem;
+  }
+
+  .warpkeep-menu-project__link {
+    min-height: 1.85rem;
+    padding-block: 0.2rem;
+  }
+}
+
+@media (max-height: 360px) and (orientation: landscape) {
+  .warpkeep-menu-heading__crest,
+  .warpkeep-menu-heading__rule {
+    display: none;
+  }
 }
 
 @media (max-width: 520px) and (max-height: 650px) and (orientation: landscape) {
@@ -777,6 +853,11 @@ a.warpkeep-menu-build-stamp:focus-visible {
     font-size: clamp(1rem, 4.3vw, 1.34rem);
   }
 
+  .warpkeep-menu-project {
+    margin-top: 0.45rem;
+    padding-top: 0.4rem;
+  }
+
   .warpkeep-menu .warpkeep-menu-back {
     top: auto;
     bottom: max(0.75rem, calc(env(safe-area-inset-bottom) + 0.5rem));
@@ -873,7 +954,8 @@ a.warpkeep-menu-build-stamp:focus-visible {
   .warpkeep-menu-auth-rail,
   .warpkeep-menu-identity,
   .warpkeep-menu .warpkeep-menu-back,
-  .warpkeep-menu-build-stamp {
+  .warpkeep-menu-build-stamp,
+  .warpkeep-menu-project__link {
     transition-duration: 1ms;
     transition-delay: 0ms;
   }

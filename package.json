@@ -1,7 +1,7 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -20,6 +20,7 @@
     "stdb:build": "spacetime build --module-path spacetimedb",
     "stdb:generate": "node scripts/generate-spacetime-bindings.mjs",
     "stdb:verify-bindings": "node scripts/verify-spacetime-bindings.mjs",
+    "stdb:verify-additive-migration": "node scripts/verify-spacetime-additive-migration.mjs",
     "stdb:publish:dev": "node scripts/publish-spacetime-dev.mjs",
     "stdb:logs:dev": "spacetime logs --server maincloud warpkeep-89e4u",
     "stdb:seed-world": "tsx scripts/hermes-admin.ts seed-world",
@@ -27,6 +28,7 @@
     "stdb:disable-fid": "tsx scripts/hermes-admin.ts disable-fid",
     "stdb:bump-auth-epoch": "tsx scripts/hermes-admin.ts bump-auth-epoch",
     "stdb:inspect-alpha": "tsx scripts/hermes-admin.ts inspect-alpha",
+    "stdb:inspect-alpha-v2": "tsx scripts/hermes-admin.ts inspect-alpha-v2",
     "test": "vitest --run",
     "typecheck": "tsc -b"
   },

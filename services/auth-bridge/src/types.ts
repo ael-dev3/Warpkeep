@@ -50,6 +50,8 @@ export interface WorkerEnv {
   SIGNING_KEY_JWK?: string
   /** Cloudflare managed secret for the server-only admin endpoint. */
   ADMIN_TOKEN_SECRET?: string
+  /** Cloudflare managed HMAC key for opaque HttpOnly session cookies. */
+  SESSION_COOKIE_KEY?: string
   /** Non-secret Maincloud origin used only by the Worker auth-epoch lookup. */
   SPACETIMEDB_URI?: string
   /** Non-secret database name used only by the Worker auth-epoch lookup. */
@@ -59,6 +61,7 @@ export interface WorkerEnv {
   ENVIRONMENT?: string
   CHALLENGE_REPLAY_GUARD?: DurableObjectNamespace
   AUTH_RATE_LIMITER?: DurableObjectNamespace
+  SESSION_FAMILIES?: DurableObjectNamespace
 }
 
 export interface ExecutionContextLike {
@@ -71,11 +74,25 @@ export interface BridgeFetchHandler {
 
 export type SafeLogEvent =
   | 'challenge_issued'
+  | 'challenge_binding_created'
   | 'exchange_succeeded'
   | 'exchange_rejected'
+  | 'exchange_binding_missing'
+  | 'exchange_binding_invalid'
+  | 'exchange_binding_mismatch'
+  | 'exchange_binding_verified'
+  | 'legacy_auth_rejected'
+  | 'session_created'
+  | 'session_pending'
+  | 'session_refreshed'
+  | 'session_rejected'
+  | 'session_revoked'
+  | 'session_revoke_failed'
   | 'admin_token_issued'
   | 'admin_token_rejected'
   | 'admin_probe_rejected'
+  | 'config_attestation_issued'
+  | 'config_attestation_rejected'
   | 'auth_epoch_resolved'
   | 'auth_epoch_failed'
   | 'auth_epoch_failed_signing'
@@ -90,6 +107,7 @@ export type SafeLogEvent =
   | 'rate_limit_failed'
   | 'configuration_error'
   | 'plaintext_request_rejected'
+  | 'issuer_host_rejected'
   | 'public_auth_paused'
   | 'internal_error'
 
@@ -99,7 +117,7 @@ export interface SafeLogger {
 }
 
 export interface ChallengeRecord {
-  version: 1
+  version: 2
   requestId: string
   nonce: string
   origin: string
@@ -107,6 +125,8 @@ export interface ChallengeRecord {
   siweUri: string
   createdAt: number
   expiresAt: number
+  bindingChallenge: string
+  bindingMethod: 'S256'
 }
 
 /**
@@ -141,11 +161,16 @@ export interface FarcasterVerifier {
  * deliberately not a browser request parameter: an admin epoch bump must make
  * earlier player JWTs fail module authorization immediately.
  */
+export type AdmissionResolution =
+  | Readonly<{ state: 'missing'; authEpoch: 0 }>
+  | Readonly<{ state: 'disabled'; authEpoch: 0 }>
+  | Readonly<{ state: 'enabled'; authEpoch: number }>
+
 export interface AuthEpochResolver {
-  resolve(fid: string): Promise<number>
+  resolve(fid: string): Promise<AdmissionResolution>
 }
 
-export type RateLimitAction = 'challenge' | 'exchange' | 'admin-token'
+export type RateLimitAction = 'challenge' | 'exchange' | 'session-refresh' | 'admin-token'
 
 export type RateLimitResult =
   | { allowed: true }
@@ -157,9 +182,6 @@ export interface RateLimiter {
 
 export interface PublicIdentity {
   fid: string
-  username?: string
-  displayName?: string
-  pfpUrl?: string
 }
 
 export interface PlayerTokenClaims {
@@ -167,6 +189,7 @@ export interface PlayerTokenClaims {
   sub: string
   aud: string[]
   token_type: 'spacetime-access'
+  auth_version: 2
   fid: string
   /** Current authoritative allowed_fid auth epoch, resolved server-side. */
   auth_epoch: number
@@ -178,9 +201,6 @@ export interface PlayerTokenClaims {
   session_iat: number
   session_exp: number
   jti: string
-  username?: string
-  display_name?: string
-  pfp_url?: string
 }
 
 export interface AdminTokenClaims {
@@ -193,4 +213,51 @@ export interface AdminTokenClaims {
   nbf: number
   exp: number
   jti: string
+}
+
+export interface AuthEpochResolverTokenClaims {
+  iss: string
+  sub: 'service:auth-epoch-resolver'
+  aud: string[]
+  token_type: 'spacetime-access'
+  roles: ['warpkeep-auth-epoch-resolver']
+  resolver_fid: string
+  iat: number
+  nbf: number
+  exp: number
+  jti: string
+}
+
+export type SessionFamilyState = 'pending' | 'bound'
+
+export interface SessionFamilyRecord {
+  version: 1
+  origin: string
+  identity: PublicIdentity
+  state: SessionFamilyState
+  authEpoch?: number
+  rememberDevice: boolean
+  currentGeneration: number
+  previousGeneration?: number
+  previousGenerationGraceUntil?: number
+  createdAt: number
+  expiresAt: number
+}
+
+export type SessionFamilyRefreshResult = Readonly<{
+  familyId: string
+  record: SessionFamilyRecord
+}>
+
+export interface SessionFamilyStore {
+  create(familyId: string, record: SessionFamilyRecord): Promise<void>
+  get(familyId: string): Promise<SessionFamilyRecord | null>
+  refresh(
+    familyId: string,
+    presentedGeneration: number,
+    origin: string,
+    admission: AdmissionResolution,
+    now: number,
+  ): Promise<SessionFamilyRefreshResult | null>
+  revoke(familyId: string): Promise<void>
 }

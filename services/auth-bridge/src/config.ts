@@ -1,12 +1,17 @@
 import type { WorkerEnv } from './types'
 
-export const PLAYER_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
+export const PLAYER_TOKEN_TTL_SECONDS = 10 * 60
 export const ADMIN_TOKEN_TTL_SECONDS = 5 * 60
-export const INTERNAL_ADMIN_TOKEN_TTL_SECONDS = 60
+export const INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS = 15
+export const SESSION_FAMILY_TTL_SECONDS = 30 * 24 * 60 * 60
 export const CHALLENGE_TTL_MILLISECONDS = 5 * 60 * 1000
 export const MAX_REQUEST_BYTES = 16 * 1024
 export const MIN_ADMIN_TOKEN_SECRET_BYTES = 32
 export const MAX_ADMIN_TOKEN_SECRET_BYTES = 512
+export const MIN_SESSION_COOKIE_KEY_BYTES = 32
+export const MAX_SESSION_COOKIE_KEY_BYTES = 512
+export const PRODUCTION_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
+export const PRODUCTION_SPACETIMEDB_DATABASE = 'warpkeep-89e4u'
 
 export interface BridgeConfig {
   issuer: string
@@ -19,6 +24,7 @@ export interface BridgeConfig {
   keyId: string
   privateJwk: PrivateEcJwk
   adminTokenSecret: string
+  sessionCookieKey: string
   spacetimeDbUri: string
   spacetimeDbDatabase: string
   publicAuthEnabled: boolean
@@ -67,7 +73,13 @@ function parseIssuer(value: string, production: boolean): { issuer: string; issu
   if (production && url.protocol !== 'https:') {
     throw new ConfigurationError()
   }
-  if (url.search || url.hash || url.pathname !== '/' && url.pathname !== '') {
+  if (
+    url.username
+    || url.password
+    || url.search
+    || url.hash
+    || url.pathname !== '/' && url.pathname !== ''
+  ) {
     throw new ConfigurationError()
   }
   return { issuer: url.origin, issuerUrl: url }
@@ -113,8 +125,8 @@ function parsePrivateJwk(value: string): PrivateEcJwk {
   return jwk as PrivateEcJwk
 }
 
-function parseKeyId(value: string): string {
-  if (!/^[A-Za-z0-9._-]{1,128}$/.test(value)) {
+function parseKeyId(value: unknown): string {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(value)) {
     throw new ConfigurationError()
   }
   return value
@@ -123,6 +135,14 @@ function parseKeyId(value: string): string {
 function parseAdminTokenSecret(value: string): string {
   const bytes = new TextEncoder().encode(value).byteLength
   if (bytes < MIN_ADMIN_TOKEN_SECRET_BYTES || bytes > MAX_ADMIN_TOKEN_SECRET_BYTES) {
+    throw new ConfigurationError()
+  }
+  return value
+}
+
+function parseSessionCookieKey(value: string): string {
+  const bytes = new TextEncoder().encode(value).byteLength
+  if (bytes < MIN_SESSION_COOKIE_KEY_BYTES || bytes > MAX_SESSION_COOKIE_KEY_BYTES) {
     throw new ConfigurationError()
   }
   return value
@@ -167,7 +187,12 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   const domain = required(env, 'FARCASTER_DOMAIN')
   const siweUri = required(env, 'FARCASTER_SIWE_URI')
   const siweUrl = parseAbsoluteUrl(siweUri)
-  if (siweUrl.host !== domain || siweUrl.toString() !== siweUri) {
+  if (
+    siweUrl.username
+    || siweUrl.password
+    || siweUrl.host !== domain
+    || siweUrl.toString() !== siweUri
+  ) {
     throw new ConfigurationError()
   }
   if (production && siweUrl.protocol !== 'https:') {
@@ -175,6 +200,19 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   }
   if (!allowedOrigins.has(siweUrl.origin)) {
     throw new ConfigurationError()
+  }
+  if (production) {
+    if (
+      !/^[a-z0-9]+(?:[.-][a-z0-9]+)+$/.test(domain)
+      || issuerUrl.hostname !== `auth.${domain}`
+      || issuerUrl.port
+      || [...allowedOrigins].some((origin) => {
+        const allowed = new URL(origin)
+        return allowed.hostname !== domain || allowed.port
+      })
+    ) {
+      throw new ConfigurationError()
+    }
   }
 
   const privateJwk = parsePrivateJwk(required(env, 'SIGNING_KEY_JWK'))
@@ -189,6 +227,24 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
 
   const spacetimeDbUri = parseSpacetimeDbUri(required(env, 'SPACETIMEDB_URI'), production)
   const spacetimeDbDatabase = parseSpacetimeDbDatabase(required(env, 'SPACETIMEDB_DATABASE'))
+  if (
+    production
+    && (
+      spacetimeDbUri !== PRODUCTION_SPACETIMEDB_URI
+      || spacetimeDbDatabase !== PRODUCTION_SPACETIMEDB_DATABASE
+    )
+  ) {
+    throw new ConfigurationError()
+  }
+  const adminTokenSecret = parseAdminTokenSecret(required(env, 'ADMIN_TOKEN_SECRET'))
+  const sessionCookieKey = parseSessionCookieKey(required(env, 'SESSION_COOKIE_KEY'))
+  if (
+    sessionCookieKey === adminTokenSecret
+    || sessionCookieKey === privateJwk.d
+    || adminTokenSecret === privateJwk.d
+  ) {
+    throw new ConfigurationError()
+  }
 
   return {
     issuer,
@@ -200,7 +256,8 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     audience: env.OIDC_AUDIENCE?.trim() || 'warpkeep-spacetimedb',
     keyId: parseKeyId(configuredKid),
     privateJwk,
-    adminTokenSecret: parseAdminTokenSecret(required(env, 'ADMIN_TOKEN_SECRET')),
+    adminTokenSecret,
+    sessionCookieKey,
     spacetimeDbUri,
     spacetimeDbDatabase,
     publicAuthEnabled: parsePublicAuthEnabled(required(env, 'PUBLIC_AUTH_ENABLED')),

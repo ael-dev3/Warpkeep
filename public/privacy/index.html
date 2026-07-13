@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How the Warpkeep experimental Alpha handles player data." />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'" />
+    <link rel="canonical" href="https://warpkeep.com/privacy/" />
+    <link rel="stylesheet" href="../legal/warpkeep-legal.css" />
+    <title>Alpha Privacy Notice · Warpkeep</title>
+  </head>
+  <body>
+    <div class="legal-shell">
+      <nav aria-label="Warpkeep legal documents" class="legal-nav">
+        <a href="../">Warpkeep</a>
+        <span class="legal-nav__documents">
+          <a href="../terms/index.html">Alpha Terms</a>
+          <a aria-current="page" href="./index.html">Privacy Notice</a>
+        </span>
+      </nav>
+
+      <main class="legal-page">
+        <header>
+          <p class="legal-page__eyebrow">Warpkeep experimental Alpha</p>
+          <h1>Privacy Notice</h1>
+          <p class="legal-page__lead">
+            This notice describes the personal data the current Warpkeep Alpha is designed to use,
+            why it is used, where it goes, and the limits of retention and deletion.
+          </p>
+          <p class="legal-page__version">Version 0.3.1 · Last updated 14 July 2026</p>
+          <p class="legal-page__notice">
+            This is a factual, project-authored Alpha notice, not a legal-compliance certification
+            or legal advice. Formal privacy review and a dedicated legal contact remain future work.
+          </p>
+        </header>
+
+        <div class="legal-page__content">
+          <section aria-labelledby="who-contact">
+            <h2 id="who-contact">1. Who is responsible and how to contact the project</h2>
+            <p>
+              Warpkeep is an independent, single-developer project maintained through the
+              <a href="https://github.com/ael-dev3/Warpkeep" rel="noopener noreferrer" target="_blank">ael-dev3/Warpkeep repository</a>.
+              For this Alpha, the project maintainer determines the uses described here and is the
+              privacy contact where applicable. This notice does not represent that Warpkeep is a
+              separately incorporated company, and the repository does not currently publish a
+              postal address, dedicated privacy email, or data-protection officer.
+            </p>
+            <p>
+              To make a privacy request, contact the
+              <a href="https://github.com/ael-dev3" rel="noopener noreferrer" target="_blank">public ael-dev3 GitHub profile</a>
+              or open a content-free repository issue titled <strong>Privacy contact request</strong>,
+              then wait for a private channel. Do not post your FID, proof, token, cookie, QR
+              payload, wallet information, or identity evidence publicly. Report security issues
+              through the
+              <a href="https://github.com/ael-dev3/Warpkeep/security/policy" rel="noopener noreferrer" target="_blank">Security Policy</a>.
+            </p>
+          </section>
+
+          <section aria-labelledby="when-data">
+            <h2 id="when-data">2. When data processing begins</h2>
+            <p>
+              Loading the title or menu does not make the Warpkeep application start Farcaster
+              authentication, read a Warpkeep session cookie, or connect to SpacetimeDB. Selecting
+              <strong>Enter Realm</strong> first opens an unchecked terms gate. Authentication begins
+              only after you check the box and continue. The gate state exists only in component
+              memory and is not an identity record or blanket consent to unrelated data uses.
+            </p>
+            <p>
+              Hosting and network providers may still receive ordinary request data when your
+              browser loads the public site, under their own notices.
+            </p>
+          </section>
+
+          <section aria-labelledby="data-sources">
+            <h2 id="data-sources">3. Data, sources, and purposes</h2>
+            <ul>
+              <li>
+                <strong>Farcaster sign-in:</strong> your browser and Farcaster provide a signed
+                sign-in message, signature, request identifiers, and public FID so Warpkeep can
+                verify account control. Farcaster's relay may return public username, display-name,
+                avatar, custody, or verification data transiently to the browser, but the v2 bridge
+                accepts, stores, and issues only the verified FID as identity. Optional public
+                profile fields are rejected from the server session and current player write.
+              </li>
+              <li>
+                <strong>Browser and session security:</strong> Warpkeep uses an origin, challenge
+                timestamps, a one-attempt browser-binding digest, an opaque session-family
+                reference, remember-device choice, rotation state, and admission epoch to prevent
+                replay and maintain the session you request.
+              </li>
+              <li>
+                <strong>Server-to-server admission resolution:</strong> during proof exchange and
+                each session refresh, the bridge can mint an exact one-FID resolver credential
+                with a 15-second maximum authority window. It is used only to connect to the fixed
+                SpacetimeDB service and database and call the fixed admission procedure. Warpkeep
+                is designed not to persist it, return it to the browser, or place it in logs. A
+                public-table subscription opened while that credential is fresh can remain open
+                until its transport disconnects; credential expiry does not itself close that
+                subscription.
+              </li>
+              <li>
+                <strong>Network abuse prevention:</strong> Cloudflare supplies the connecting IP.
+                Warpkeep immediately converts IPv4 or an IPv6 /64 into a versioned SHA-256 bucket
+                name and stores only that bucket with request timestamps for rate limiting, not the
+                raw address in application storage.
+              </li>
+              <li>
+                <strong>Realm data:</strong> SpacetimeDB stores admission, ownership, world, player,
+                castle, and administrative state needed to operate and secure the shared
+                Alpha. Active public player/game projections can expose an admitted player's FID
+                and gameplay presentation to connected clients. The active-v2 opaque-identity
+                ownership mapping, allowlist, and administrative audit rows are private. A frozen
+                legacy public player schema still contains its original public opaque-identity
+                column for wire compatibility. Protocol v2 never reads, writes, or subscribes to
+                that table, and production verification requires it to remain empty.
+              </li>
+              <li>
+                <strong>Operations:</strong> Warpkeep emits a closed list of generic security and
+                availability event names. Application logs are designed not to contain FIDs,
+                profiles, proofs, signatures, tokens, cookies, QR payloads, private keys, or raw
+                upstream responses. Service providers may keep their own infrastructure logs.
+              </li>
+            </ul>
+            <p>
+              These data are used only to deliver requested Alpha access and gameplay, verify and
+              authorize players, keep sessions, prevent abuse, protect the service, diagnose safe
+              operational failures, and meet applicable legal obligations. Warpkeep's code does not
+              currently add advertising or analytics and the project does not sell player data.
+            </p>
+          </section>
+
+          <section aria-labelledby="legal-bases">
+            <h2 id="legal-bases">4. Legal bases where applicable</h2>
+            <p>
+              Which legal basis applies depends on the jurisdiction and purpose. Where a legal
+              basis is required, the project relies on steps needed to provide the Alpha you
+              request and perform these Alpha Terms; legitimate interests in authentication,
+              service security, abuse prevention, and reliable operation; and legal obligations
+              where they apply. The terms checkbox is not intended as blanket privacy consent. If
+              a future optional use relies on consent, it must be separately explained and that
+              consent may be withdrawn without changing earlier lawful processing.
+            </p>
+          </section>
+
+          <section aria-labelledby="retention">
+            <h2 id="retention">5. Retention and deletion limits</h2>
+            <div
+              aria-labelledby="retention"
+              class="legal-table-wrap"
+              role="region"
+              tabindex="0"
+            >
+              <table>
+                <thead>
+                  <tr><th scope="col">Data</th><th scope="col">Current limit</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Unchecked terms-gate state</td>
+                    <td>Component memory for one entry attempt; cleared on cancel, completion, retry, navigation, or unmount.</td>
+                  </tr>
+                  <tr>
+                    <td>Sign-in challenge and browser-binding digest</td>
+                    <td>Usable for at most five minutes and consumed on a definitive exchange. Expiry makes it unusable and schedules durable cleanup; physical deletion can be subject to provider cleanup and backup retention.</td>
+                  </tr>
+                  <tr>
+                    <td>Signed proof and private binding verifier</td>
+                    <td>Used transiently for the exchange; not intentionally placed in application logs or persistent browser storage.</td>
+                  </tr>
+                  <tr>
+                    <td>Access token</td>
+                    <td>Authority expires after at most ten minutes. It is held only in JavaScript memory and cleared when expiry/lifecycle handling runs, on logout, or on cancellation; browser suspension can delay cleanup without extending token authority.</td>
+                  </tr>
+                  <tr>
+                    <td>FID-bound resolver credential</td>
+                    <td>Authority is valid for at most fifteen seconds, used server-to-server only for the fixed admission lookup, and designed not to be persisted, returned to the browser, or logged. Expiry does not terminate a public-table subscription opened while it was fresh; that subscription can persist until transport disconnect.</td>
+                  </tr>
+                  <tr>
+                    <td>Hashed rate-limit bucket and timestamps</td>
+                    <td>Accepted requests are counted in a rolling five-minute window. The object schedules cleanup after the window; physical deletion can be subject to provider cleanup and backup retention. The raw address is not retained in Warpkeep application storage.</td>
+                  </tr>
+                  <tr>
+                    <td>Server session family and HttpOnly cookie</td>
+                    <td>Authority expires after at most thirty days. The cookie is a browser-session cookie unless you opt into “Keep me signed in”; server authority still expires after thirty days either way. Expiry makes the family unusable and schedules durable cleanup, subject to provider cleanup and backup retention.</td>
+                  </tr>
+                  <tr>
+                    <td>Local logout-intent marker</td>
+                    <td>Active for up to thirty days and then treated as stale. On a later read or explicit sign-in, Warpkeep attempts best-effort removal. Storage denial may leave the physical key; an explicit activation can proceed, but a later reload may continue to treat an unexpired leftover marker as logout intent. It contains only a version marker and time, with no FID, proof, token, cookie, family ID, or profile.</td>
+                  </tr>
+                  <tr>
+                    <td>Game, ownership, admission, and administrative state</td>
+                    <td>No fixed Alpha deletion schedule yet. It remains while needed for the shared realm, security, and audit, unless reset or manually deleted.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p>
+              The limits above are authority and active-use windows, not promises that every
+              storage copy or provider backup is physically erased at that instant. Logout
+              revokes the server family when storage is available and expires the current
+              cookie. A copied cookie may remain usable until the bounded family expires if durable
+              revocation fails. Deletion requests may also be limited by public replicated game
+              state, security or legal needs, and provider backup schedules; the project should
+              explain any limit that applies rather than promise instant or universal deletion.
+            </p>
+          </section>
+
+          <section aria-labelledby="recipients-transfers">
+            <h2 id="recipients-transfers">6. Services, recipients, and locations</h2>
+            <p>
+              The Alpha depends on GitHub Pages for the public site, Cloudflare for the auth bridge
+              and durable session/security state, Farcaster and an Optimism RPC service for account
+              verification, and Clockwork Labs' SpacetimeDB Maincloud for shared realm state.
+              Connected clients receive the public game projections described above. These
+              independent services handle data under their own terms and privacy notices.
+            </p>
+            <p>
+              These are global online services, so information may be processed outside your
+              country, including outside Serbia or the EEA. The Alpha cannot promise one storage
+              country. Review provider notices before continuing if cross-border processing is a
+              concern.
+            </p>
+          </section>
+
+          <section aria-labelledby="choices-rights">
+            <h2 id="choices-rights">7. Your choices and rights</h2>
+            <p>
+              You can decline the terms gate and avoid starting Warpkeep authentication. Remember
+              device defaults off. You can sign out, close the application, and ask the project to
+              access, correct, erase, restrict, or provide applicable personal data, or object to
+              certain processing. Depending on applicable law, some rights—including portability
+              or withdrawal of consent—may apply only in particular circumstances. The project may
+              need to verify control of the FID without collecting unnecessary identity evidence.
+            </p>
+            <p>
+              You may also complain to the data-protection authority where you live or work. In
+              Serbia, this is the Commissioner for Information of Public Importance and
+              Personal Data Protection.
+              Contacting the project first is welcome but does not remove any complaint right.
+            </p>
+          </section>
+
+          <section aria-labelledby="automation-finance">
+            <h2 id="automation-finance">8. Automated checks and no financial decisions</h2>
+            <p>
+              Automated rules validate challenges, apply rate limits, check Alpha admission, and
+              revoke invalid sessions. Those rules affect only technical access to this experimental
+              realm. Warpkeep does not use player data for credit scoring, behavioral advertising,
+              or automated decisions that award, promise, or determine financial rewards,
+              airdrops, or guaranteed gains. Alpha participation earns none of those benefits.
+            </p>
+          </section>
+
+          <section aria-labelledby="changes">
+            <h2 id="changes">9. Changes</h2>
+            <p>
+              The date and version above identify this notice. The link in the pre-sign-in gate
+              points to the current document. Material data-flow changes should be reflected here
+              before the related feature is enabled; because the project is experimental, review
+              the notice again when it changes.
+            </p>
+          </section>
+        </div>
+
+        <footer class="legal-page__footer">
+          <p>Canonical document: https://warpkeep.com/privacy/</p>
+        </footer>
+      </main>
+    </div>
+  </body>
+</html>

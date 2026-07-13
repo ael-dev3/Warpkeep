@@ -10,11 +10,14 @@ importers:
     dependencies:
       '@farcaster/auth-client':
         specifier: 0.7.1
-        version: 0.7.1(typescript@7.0.2)
+        version: 0.7.1(typescript@7.0.2)(zod@3.25.76)
       viem:
         specifier: 2.55.0
-        version: 2.55.0(typescript@7.0.2)
+        version: 2.55.0(typescript@7.0.2)(zod@3.25.76)
     devDependencies:
+      '@cloudflare/vitest-pool-workers':
+        specifier: 0.18.4
+        version: 0.18.4(@cloudflare/workers-types@5.20260708.1)(@vitest/runner@4.1.10)(@vitest/snapshot@4.1.10)(vitest@4.1.10(@types/node@26.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)))
       '@cloudflare/workers-types':
         specifier: 5.20260708.1
         version: 5.20260708.1
@@ -48,6 +51,13 @@ packages:
     peerDependenciesMeta:
       workerd:
         optional: true
+
+  '@cloudflare/vitest-pool-workers@0.18.4':
+    resolution: {integrity: sha512-jOXvyLoR2b8jFvo3tX+mWxXXwcZ+PbId3d7vGFtZsuKakmDjKSeIq4o/sQjkqNv6q3XacIKSCAvfM8TfkPyrEw==}
+    peerDependencies:
+      '@vitest/runner': ^4.1.0
+      '@vitest/snapshot': ^4.1.0
+      vitest: ^4.1.0
 
   '@cloudflare/workerd-darwin-64@1.20260708.1':
     resolution: {integrity: sha512-HXFCvhS1wpg3uXO0CLUwmwC41i2loM5FSK69EUchOBpmYBAXxT1oHLm6EOA5lqhTk5Mu9kjRiQYxa1GwKPwfJg==}
@@ -753,6 +763,9 @@ packages:
     resolution: {integrity: sha512-NUPRluOfOiTKBKvWPtSD4PhFvWCqOi0BGStNWs57X9js7XGTprSmFoz5F0tWhR4WPjNeR9jXqdC7/UpSJTnlRg==}
     engines: {node: '>=18'}
 
+  cjs-module-lexer@1.2.3:
+    resolution: {integrity: sha512-0TNiGstbQmCFwt4akjjBg5pLRTSyj/PkWQ1ZoO2zntmg9yLqSRxwEa4iCfQLGjqhiqBfOJa7W/E8wfGrTDmlZQ==}
+
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
 
@@ -1121,6 +1134,9 @@ packages:
   youch@4.1.0-beta.10:
     resolution: {integrity: sha512-rLfVLB4FgQneDr0dv1oddCVZmKjcJ6yX6mS4pU82Mq/Dt9a3cLZQ62pDBL4AUO+uVrCvtWz3ZFUL2HFAFJ/BXQ==}
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
 snapshots:
 
   '@adraffy/ens-normalize@1.11.1': {}
@@ -1132,6 +1148,21 @@ snapshots:
       unenv: 2.0.0-rc.24
     optionalDependencies:
       workerd: 1.20260708.1
+
+  '@cloudflare/vitest-pool-workers@0.18.4(@cloudflare/workers-types@5.20260708.1)(@vitest/runner@4.1.10)(@vitest/snapshot@4.1.10)(vitest@4.1.10(@types/node@26.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)))':
+    dependencies:
+      '@vitest/runner': 4.1.10
+      '@vitest/snapshot': 4.1.10
+      cjs-module-lexer: 1.2.3
+      esbuild: 0.28.1
+      miniflare: 4.20260708.1
+      vitest: 4.1.10(@types/node@26.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1))
+      wrangler: 4.110.0(@cloudflare/workers-types@5.20260708.1)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cloudflare/workers-types'
+      - bufferutil
+      - utf-8-validate
 
   '@cloudflare/workerd-darwin-64@1.20260708.1':
     optional: true
@@ -1253,10 +1284,10 @@ snapshots:
   '@esbuild/win32-x64@0.28.1':
     optional: true
 
-  '@farcaster/auth-client@0.7.1(typescript@7.0.2)':
+  '@farcaster/auth-client@0.7.1(typescript@7.0.2)(zod@3.25.76)':
     dependencies:
       neverthrow: 6.2.2
-      viem: 2.55.0(typescript@7.0.2)
+      viem: 2.55.0(typescript@7.0.2)(zod@3.25.76)
     transitivePeerDependencies:
       - bufferutil
       - typescript
@@ -1586,15 +1617,18 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
 
-  abitype@1.2.3(typescript@7.0.2):
+  abitype@1.2.3(typescript@7.0.2)(zod@3.25.76):
     optionalDependencies:
       typescript: 7.0.2
+      zod: 3.25.76
 
   assertion-error@2.0.1: {}
 
   blake3-wasm@2.1.5: {}
 
   chai@6.2.2: {}
+
+  cjs-module-lexer@1.2.3: {}
 
   convert-source-map@2.0.0: {}
 
@@ -1727,7 +1761,7 @@ snapshots:
 
   obug@2.1.3: {}
 
-  ox@0.14.30(typescript@7.0.2):
+  ox@0.14.30(typescript@7.0.2)(zod@3.25.76):
     dependencies:
       '@adraffy/ens-normalize': 1.11.1
       '@noble/ciphers': 1.3.0
@@ -1735,7 +1769,7 @@ snapshots:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.2.3(typescript@7.0.2)
+      abitype: 1.2.3(typescript@7.0.2)(zod@3.25.76)
       eventemitter3: 5.0.1
     optionalDependencies:
       typescript: 7.0.2
@@ -1865,15 +1899,15 @@ snapshots:
     dependencies:
       pathe: 2.0.3
 
-  viem@2.55.0(typescript@7.0.2):
+  viem@2.55.0(typescript@7.0.2)(zod@3.25.76):
     dependencies:
       '@noble/curves': 1.9.1
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.2.3(typescript@7.0.2)
+      abitype: 1.2.3(typescript@7.0.2)(zod@3.25.76)
       isows: 1.0.7(ws@8.21.0)
-      ox: 0.14.30(typescript@7.0.2)
+      ox: 0.14.30(typescript@7.0.2)(zod@3.25.76)
       ws: 8.21.0
     optionalDependencies:
       typescript: 7.0.2
@@ -1965,3 +1999,5 @@ snapshots:
       '@speed-highlight/core': 1.2.17
       cookie: 1.1.1
       youch-core: 0.3.3
+
+  zod@3.25.76: {}
