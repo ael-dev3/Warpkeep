@@ -31,7 +31,10 @@ import type {
   WarpkeepAdmissionStatus,
   WarpkeepRealmSnapshot
 } from '../src/spacetime/warpkeepBackendTypes';
-import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
+import {
+  WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE,
+  type WarpkeepRuntimeConfig
+} from '../src/spacetime/warpkeepConfig';
 
 const TEST_NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
 const TEST_ISSUER = 'https://auth.warpkeep.example';
@@ -461,7 +464,7 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
 
     expect(screen.getByRole('status').textContent).toContain(
-      'The shared Hegemony frontier is not currently available.'
+      WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE
     );
     expect(screen.queryByRole('region', { name: 'Farcaster sign-in' })).toBeNull();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
