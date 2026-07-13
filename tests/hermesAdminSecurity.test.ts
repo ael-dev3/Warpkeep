@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
-import { connect, parseHermesArguments, readStatus, requestAdminToken } from '../scripts/hermes-admin';
+import { connect, parseHermesArguments, readStatus, requestAdminToken, requireCredentialedProductionTarget } from '../scripts/hermes-admin';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
@@ -118,6 +118,19 @@ describe('Hermes command-line boundary', () => {
 });
 
 describe('Hermes credential destination policy', () => {
+  it('accepts the canonical name or its pinned immutable identity only', () => {
+    const uri = 'https://maincloud.spacetimedb.com';
+    const bridge = 'https://auth.warpkeep.com';
+    expect(() => requireCredentialedProductionTarget(uri, 'warpkeep-89e4u', bridge)).not.toThrow();
+    expect(() => requireCredentialedProductionTarget(
+      uri,
+      'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+      bridge,
+    )).not.toThrow();
+    expect(() => requireCredentialedProductionTarget(uri, 'warpkeep-lookalike', bridge))
+      .toThrow(/canonical Warpkeep production targets/i);
+  });
+
   it.each([
     ['bridge', { WARPKEEP_AUTH_BRIDGE_URL: 'https://lookalike.example' }],
     ['SpacetimeDB origin', { WARPKEEP_SPACETIMEDB_URI: 'https://lookalike.example' }],

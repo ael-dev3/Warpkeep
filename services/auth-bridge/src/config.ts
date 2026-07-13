@@ -125,8 +125,8 @@ function parsePrivateJwk(value: string): PrivateEcJwk {
   return jwk as PrivateEcJwk
 }
 
-function parseKeyId(value: string): string {
-  if (!/^[A-Za-z0-9._-]{1,128}$/.test(value)) {
+function parseKeyId(value: unknown): string {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9._-]{1,128}$/.test(value)) {
     throw new ConfigurationError()
   }
   return value

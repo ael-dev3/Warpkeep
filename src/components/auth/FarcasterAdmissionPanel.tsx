@@ -29,6 +29,11 @@ const presentationByPhase: Record<Exclude<WarpkeepBackendPhase, 'idle' | 'ready'
     title: 'OPENING HEGEMONY RECORDS',
     liveMessage: 'Opening Hegemony records'
   },
+  reconnecting: {
+    eyebrow: 'HEGEMONY FRONTIER ACCESS',
+    title: 'REOPENING HEGEMONY RECORDS',
+    liveMessage: 'Reopening Hegemony records'
+  },
   'checking-admission': {
     eyebrow: 'HEGEMONY FRONTIER ACCESS',
     title: 'VERIFYING FRONTIER ACCESS',
@@ -63,7 +68,10 @@ export function FarcasterAdmissionPanel({
   const headingId = `farcaster-admission-heading-${useId().replace(/:/g, '')}`;
   const localHeadingRef = useRef<HTMLHeadingElement>(null);
   const presentation = presentationByPhase[phase];
-  const busy = phase === 'connecting' || phase === 'checking-admission' || phase === 'bootstrapping';
+  const busy = phase === 'connecting'
+    || phase === 'reconnecting'
+    || phase === 'checking-admission'
+    || phase === 'bootstrapping';
   const denied = phase === 'denied';
   const unavailable = phase === 'error';
 

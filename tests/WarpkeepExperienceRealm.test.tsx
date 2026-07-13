@@ -29,8 +29,10 @@ import type {
 } from '../src/farcaster/farcasterAuthTypes';
 import {
   WarpkeepSpacetimeProvider,
+  useWarpkeepBackend,
   type WarpkeepBackendRuntime
 } from '../src/spacetime/WarpkeepSpacetimeProvider';
+import type { WarpkeepConnection } from '../src/spacetime/warpkeepConnection';
 import type {
   WarpkeepAdmissionStatus,
   WarpkeepRealmSnapshot
@@ -53,6 +55,22 @@ const TEST_CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   audience: TEST_AUDIENCE,
   sharedAlphaEnabled: true
 });
+
+type Deferred<T> = Readonly<{
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+}>;
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
 
 const VERIFIED_IDENTITY: VerifiedFarcasterIdentity = Object.freeze({
   fid: 12_345,
@@ -297,14 +315,25 @@ type RenderExperienceOptions = {
   runtime?: WarpkeepBackendRuntime;
   bridge?: FarcasterOidcBridgeClient;
   config?: WarpkeepRuntimeConfig;
+  exposeBackendDisconnect?: boolean;
 };
+
+function BackendDisconnectProbe() {
+  const backend = useWarpkeepBackend();
+  return (
+    <button type="button" onClick={backend.disconnect}>
+      TEST BACKEND DISCONNECT
+    </button>
+  );
+}
 
 function renderExperience({
   deviceSessionEnvironment,
   now = () => TEST_NOW,
   runtime = createBackendRuntime().runtime,
   bridge = createBridge(createAuthorizedResponse(VERIFIED_IDENTITY.fid, now()), now),
-  config = TEST_CONFIG
+  config = TEST_CONFIG,
+  exposeBackendDisconnect = false
 }: RenderExperienceOptions = {}) {
   const authority = createTestAuthority(now);
   const createBrowserBinding = vi.fn(async () => ({
@@ -324,6 +353,7 @@ function renderExperience({
       pollIntervalMs={1}
     >
       <WarpkeepSpacetimeProvider config={config} runtime={runtime}>
+        {exposeBackendDisconnect ? <BackendDisconnectProbe /> : null}
         <WarpkeepExperience />
       </WarpkeepSpacetimeProvider>
     </FarcasterAuthProvider>
@@ -683,6 +713,88 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps a same-FID realm mounted while a rotated access token reconnects', async () => {
+    const initial = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW, 40_000);
+    const bridge = createBridge(initial, Date.now);
+    vi.mocked(bridge.refreshSession)
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(async () => createAuthorizedResponse(
+        VERIFIED_IDENTITY.fid,
+        Date.now()
+      ));
+    const backend = createBackendRuntime();
+    const reconnect = deferred<WarpkeepConnection>();
+    const reconnectConnection = {
+      isDisconnectRequested: false,
+      disconnect: vi.fn()
+    } as unknown as WarpkeepConnection;
+    vi.mocked(backend.runtime.connect)
+      .mockReset()
+      .mockResolvedValueOnce(backend.connection as unknown as WarpkeepConnection)
+      .mockImplementationOnce(() => reconnect.promise);
+    const { container } = renderExperience({ bridge, now: Date.now, runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+
+    await act(async () => vi.advanceTimersByTime(10_000));
+    await settle();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+    expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
+
+    await act(async () => reconnect.resolve(reconnectConnection));
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+    expect(reconnectConnection.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('leaves the realm when a same-FID token reconnect definitively fails', async () => {
+    const initial = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW, 40_000);
+    const bridge = createBridge(initial, Date.now);
+    vi.mocked(bridge.refreshSession)
+      .mockReset()
+      .mockResolvedValueOnce(initial)
+      .mockImplementationOnce(async () => createAuthorizedResponse(
+        VERIFIED_IDENTITY.fid,
+        Date.now()
+      ));
+    const backend = createBackendRuntime();
+    const reconnect = deferred<WarpkeepConnection>();
+    vi.mocked(backend.runtime.connect)
+      .mockReset()
+      .mockResolvedValueOnce(backend.connection as unknown as WarpkeepConnection)
+      .mockImplementationOnce(() => reconnect.promise);
+    const { container } = renderExperience({ bridge, now: Date.now, runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+
+    await act(async () => vi.advanceTimersByTime(10_000));
+    await settle();
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    expect(window.location.hash).toBe('#realm');
+
+    await act(async () => reconnect.reject(new Error('controlled reconnect failure')));
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(window.location.hash).toBe('#menu');
+    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+  });
+
   it('never opens a Spacetime connection for a v2 pending-admission cookie session', async () => {
     const pendingSession = createPendingAdmissionResponse();
     const bridge = createBridge(
@@ -805,6 +917,7 @@ describe('Warpkeep shared realm admission', () => {
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
     expect(screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).not.toBeNull();
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
     await acceptAlphaParticipationTerms();
     await settle();
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
@@ -862,6 +975,42 @@ describe('Warpkeep shared realm admission', () => {
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
   });
 
+  it('clears an authenticated entry intent when its in-flight admission rail is dismissed', async () => {
+    let resolveAdmission!: (status: WarpkeepAdmissionStatus) => void;
+    const pendingAdmission = new Promise<WarpkeepAdmissionStatus>((resolve) => {
+      resolveAdmission = resolve;
+    });
+    const backend = createBackendRuntime(['not_admitted']);
+    vi.mocked(backend.runtime.readAdmission)
+      .mockResolvedValueOnce('not_admitted')
+      .mockImplementationOnce(() => pendingAdmission);
+    const { container } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+    expect(screen.getByText(
+      'This Farcaster identity is not yet admitted to the Hegemony frontier.'
+    )).not.toBeNull();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await settle();
+    await act(async () => resolveAdmission('ready'));
+    await settle();
+
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(window.location.hash).toBe('#menu');
+    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+  });
+
   it('does not connect anonymous title/menu visitors and sign-out tears down backend state', async () => {
     const backend = createBackendRuntime(['not_admitted']);
     const { authority } = renderExperience({ runtime: backend.runtime });
@@ -891,6 +1040,128 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
     expect(authority.beginSignIn).toHaveBeenCalledTimes(2);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
+  });
+
+  it('standalone backend disconnect tears down the connected realm once and leaves late callbacks inert', async () => {
+    const backend = createBackendRuntime();
+    const removeObserver = vi.fn();
+    const unsubscribe = vi.fn();
+    let reportDisconnected: (() => void) | undefined;
+    let reportObservedRealm: ((snapshot: WarpkeepRealmSnapshot) => void) | undefined;
+    let reportSubscriptionApplied: (() => void) | undefined;
+    let reportSubscriptionError: (() => void) | undefined;
+
+    vi.mocked(backend.runtime.connect).mockImplementation(async (
+      _config,
+      _jwt,
+      callbacks
+    ) => {
+      reportDisconnected = callbacks?.onDisconnected;
+      return backend.connection as never;
+    });
+    vi.mocked(backend.runtime.observeRealm).mockImplementation((
+      _connection,
+      _fid,
+      onChange
+    ) => {
+      reportObservedRealm = onChange;
+      return removeObserver;
+    });
+    vi.mocked(backend.runtime.subscribeRealm).mockImplementation((
+      _connection,
+      onApplied,
+      onError
+    ) => {
+      reportSubscriptionApplied = onApplied;
+      reportSubscriptionError = onError;
+      onApplied();
+      return { unsubscribe } as never;
+    });
+
+    const { bridge } = renderExperience({
+      runtime: backend.runtime,
+      exposeBackendDisconnect: true
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readRealmSnapshot).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'TEST BACKEND DISCONNECT' }));
+    await settle();
+
+    expect(bridge.logoutSession).not.toHaveBeenCalled();
+    expect(removeObserver).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).toHaveBeenCalledWith(backend.connection);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      reportObservedRealm?.(SHARED_REALM);
+      reportSubscriptionApplied?.();
+      reportSubscriptionError?.();
+      reportDisconnected?.();
+    });
+    await settle();
+
+    expect(removeObserver).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).toHaveBeenCalledTimes(1);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readRealmSnapshot).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+  });
+
+  it('completes local sign-out when every backend teardown hook throws', async () => {
+    const backend = createBackendRuntime();
+    const removeObserver = vi.fn(() => {
+      throw new Error('controlled observer cleanup failure');
+    });
+    const unsubscribe = vi.fn(() => {
+      throw new Error('controlled subscription cleanup failure');
+    });
+    vi.mocked(backend.runtime.observeRealm).mockReturnValue(removeObserver);
+    vi.mocked(backend.runtime.subscribeRealm).mockImplementation((
+      _connection,
+      onApplied
+    ) => {
+      onApplied();
+      return { unsubscribe } as never;
+    });
+    vi.mocked(backend.runtime.disconnect).mockImplementation(() => {
+      throw new Error('controlled transport cleanup failure');
+    });
+
+    const { bridge, container } = renderExperience({ runtime: backend.runtime });
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
+    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+    await settle();
+    fireEvent.click(screen.getByRole('button', {
+      name: `Open Farcaster identity, FID ${VERIFIED_IDENTITY.fid}`
+    }));
+
+    expect(() => fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }))).not.toThrow();
+    await settle();
+
+    expect(removeObserver).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.disconnect).toHaveBeenCalledTimes(1);
+    expect(bridge.logoutSession).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
+    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'SIGN OUT' })).toBeNull();
   });
 
   it('keeps shared alpha fail-closed without opening a Farcaster channel when the kill switch is off', async () => {
@@ -941,6 +1212,62 @@ describe('Warpkeep shared realm admission', () => {
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
     expect(backend.runtime.readBackendInfo).toHaveBeenCalledTimes(1);
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+    expect(screen.getByText('The Hegemony records are temporarily unreachable.')).toBeTruthy();
+  });
+
+  it('does not continue a connection that disconnects while its handshake promise is resolving', async () => {
+    const backend = createBackendRuntime();
+    vi.mocked(backend.runtime.connect).mockImplementation(async (
+      _config,
+      _jwt,
+      callbacks
+    ) => {
+      callbacks?.onDisconnected?.();
+      return backend.connection as never;
+    });
+    const { authority } = renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
+    expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+    expect(screen.getByText('The Hegemony records are temporarily unreachable.')).toBeTruthy();
+  });
+
+  it('cleans a subscription handle returned after a synchronous subscription failure', async () => {
+    const backend = createBackendRuntime();
+    const removeObserver = vi.fn();
+    const unsubscribe = vi.fn();
+    vi.mocked(backend.runtime.observeRealm).mockReturnValue(removeObserver);
+    vi.mocked(backend.runtime.subscribeRealm).mockImplementation((
+      _connection,
+      _onApplied,
+      onError
+    ) => {
+      onError();
+      return { unsubscribe } as never;
+    });
+    renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(removeObserver).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
     expect(screen.getByText('The Hegemony records are temporarily unreachable.')).toBeTruthy();
   });

@@ -432,10 +432,12 @@ export function WarpkeepMainMenu({
 
   const closeAuthPanel = useCallback((restoreKeyboardFocus = false) => {
     acceptedEntryAttemptRef.current = false;
-    if (authAttemptStartedRef.current) {
-      authAttemptStartedRef.current = false;
-      onCancelFarcasterSignIn?.();
-    }
+    authAttemptStartedRef.current = false;
+    // Player-driven dismissal must also clear an authenticated admission
+    // attempt owned by the parent. The auth provider safely ignores cancel
+    // outside an active SIWF flow, while the parent drops its deferred realm
+    // destination so a late ready result cannot enter after Escape/Back.
+    onCancelFarcasterSignIn?.();
     setSurface('commands');
     if (restoreKeyboardFocus) {
       restoreFirstCommandFocus();

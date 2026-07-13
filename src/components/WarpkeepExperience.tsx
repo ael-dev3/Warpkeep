@@ -205,7 +205,9 @@ export function WarpkeepExperience() {
       ? farcasterAuthState.identity
       : null
   );
-  const backendReadyRef = useRef(backend.state.phase === 'ready');
+  const backendRealmContinuityRef = useRef(
+    backend.state.phase === 'ready' || backend.state.phase === 'reconnecting'
+  );
   const returnPreparingRef = useRef(returnPreparing);
   phaseRef.current = experience.phase;
   returnPreparingRef.current = returnPreparing;
@@ -214,7 +216,8 @@ export function WarpkeepExperience() {
     && oidcSession !== undefined
     ? farcasterAuthState.identity
     : null;
-  backendReadyRef.current = backend.state.phase === 'ready';
+  backendRealmContinuityRef.current = backend.state.phase === 'ready'
+    || backend.state.phase === 'reconnecting';
 
   const resolvedGraphicsQuality = useMemo(
     () => resolveGraphicsQuality(graphicsPreference, graphicsCapabilities),
@@ -307,7 +310,7 @@ export function WarpkeepExperience() {
   }, []);
 
   useEffect(() => {
-    if (backendReadyRef.current) {
+    if (backendRealmContinuityRef.current) {
       return;
     }
     if (!hasRealmHash() && phaseRef.current !== 'realm') {
@@ -353,7 +356,10 @@ export function WarpkeepExperience() {
       experience.phase === 'transitioning-to-title'
       && presentedScreen === 'menu'
     );
-  const realmIdentity = backend.state.phase === 'ready'
+  const realmIdentity = (
+    backend.state.phase === 'ready'
+    || backend.state.phase === 'reconnecting'
+  )
     && verifiedIdentityRef.current
     ? {
         fid: verifiedIdentityRef.current.fid,
@@ -378,7 +384,11 @@ export function WarpkeepExperience() {
   }, [realmMounted]);
 
   useEffect(() => {
-    if (phaseRef.current !== 'realm' || backend.state.phase === 'ready') {
+    if (
+      phaseRef.current !== 'realm'
+      || backend.state.phase === 'ready'
+      || backend.state.phase === 'reconnecting'
+    ) {
       return;
     }
     fadeRealmAudioToMenuAndReset();

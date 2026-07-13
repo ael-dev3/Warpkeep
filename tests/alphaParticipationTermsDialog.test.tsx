@@ -102,10 +102,22 @@ describe('AlphaParticipationTermsDialog', () => {
   it('traps forward and reverse keyboard focus within the modal', () => {
     renderDialog();
 
+    const heading = screen.getByRole('heading', {
+      level: 2,
+      name: 'ALPHA PARTICIPATION TERMS'
+    });
     const closeButton = screen.getByRole('button', {
       name: 'Close Alpha Participation Terms'
     });
     const cancelButton = screen.getByRole('button', { name: 'CANCEL' });
+
+    expect(document.activeElement).toBe(heading);
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(cancelButton);
+
+    heading.focus();
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(closeButton);
 
     cancelButton.focus();
     fireEvent.keyDown(document, { key: 'Tab' });

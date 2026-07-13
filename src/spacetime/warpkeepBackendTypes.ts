@@ -9,6 +9,7 @@ export type WarpkeepAdmissionStatus =
 export type WarpkeepBackendPhase =
   | 'idle'
   | 'connecting'
+  | 'reconnecting'
   | 'checking-admission'
   | 'denied'
   | 'bootstrapping'

@@ -966,6 +966,11 @@ export function FarcasterAuthProvider({
 
     const generation = lifecycleGenerationRef.current;
     const machineGeneration = machineRef.current.generation;
+    const viewAtRefreshStart = machineRef.current.view;
+    const expectedFid = viewAtRefreshStart.phase === 'authenticated'
+      || viewAtRefreshStart.phase === 'pending-admission'
+      ? viewAtRefreshStart.identity.fid
+      : undefined;
     const controller = new AbortController();
     let flight: NonNullable<typeof refreshFlightRef.current>;
     const promise = Promise.resolve()
@@ -992,7 +997,8 @@ export function FarcasterAuthProvider({
               response,
               currentTime,
               client.issuer,
-              client.audience
+              client.audience,
+              expectedFid
             );
         if (!resolved) throw new Error('Invalid refreshed session.');
 

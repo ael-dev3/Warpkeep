@@ -774,6 +774,38 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
   });
 
+  it('pins refreshes to the current in-memory FID while allowing anonymous cookie restoration', async () => {
+    vi.useFakeTimers({ now: 250_000 });
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockResolvedValueOnce(createAuthorizedResponse(12_345, Date.now()))
+        .mockResolvedValueOnce(createAuthorizedResponse(54_321, Date.now()))
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now
+    });
+    await settleAsyncWork();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: { fid: 12_345 }
+    });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh session' }));
+    await settleAsyncWork();
+
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: { fid: 12_345 }
+    });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+  });
+
   it('gates resume refreshes by auth state/proximity and preserves single-flight', async () => {
     vi.useFakeTimers({ now: 300_000 });
     let hidden = false;

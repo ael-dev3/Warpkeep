@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -10,9 +11,12 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { parseMigrationProofReceipt, parsePublishArguments, publishChildEnvironment, publishModule, requireCanonicalPublishCoordinates, validateIssuerDeployment, verifyCanonicalDatabaseList, verifyFreshLegacyAggregate, verifyMigrationArtifactReceipt, verifyPinnedCliAttestation } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
+// @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
+import { cleanupMigrationProofResources, containServerProcessErrors, stopServer } from '../scripts/verify-spacetime-additive-migration.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const provenArtifactPath = resolve(repositoryRoot, 'spacetimedb/dist/bundle.js');
+const CANONICAL_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const ISSUER = 'https://auth.warpkeep.com';
 const FRONTEND = 'https://warpkeep.com';
 const AUTH_V2_CLAIMS = [
@@ -421,7 +425,7 @@ describe('activation publish safety', () => {
       queueMicrotask(() => child.emit('close', 0, null));
       return child;
     };
-    const databaseIdentity = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
+    const databaseIdentity = CANONICAL_DATABASE_IDENTITY;
     await withTestProvenArtifact(async receipt => {
       await expect(publishModule(
         'spacetime',
@@ -482,7 +486,7 @@ describe('activation publish safety', () => {
       const spawnProcess = vi.fn();
       await expect(publishModule(
         'spacetime',
-        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+        CANONICAL_DATABASE_IDENTITY,
         receipt,
         spawnProcess as never,
       )).rejects.toThrow(/changed after migration/i);
@@ -514,7 +518,7 @@ describe('activation publish safety', () => {
       child.stderr = new EventEmitter();
       const publish = publishModule(
         'spacetime',
-        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+        CANONICAL_DATABASE_IDENTITY,
         receipt,
         (() => child) as never,
       );
@@ -583,7 +587,7 @@ describe('activation publish safety', () => {
     )).not.toThrow();
     const options = calls[0]?.[2] as { env?: Record<string, string> };
     expect(options.env).toMatchObject({
-      WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+      WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
       WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
     });
     expect(Object.keys(options.env ?? {}).sort()).toEqual([
@@ -601,7 +605,7 @@ describe('activation publish safety', () => {
     await withTestProvenArtifact(async receipt => {
       const publish = publishModule(
         'spacetime',
-        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+        CANONICAL_DATABASE_IDENTITY,
         receipt,
         (() => child) as never,
       );
@@ -615,6 +619,99 @@ describe('activation publish safety', () => {
       child.emit('error', new Error('test-only forced-kill delivery failure'));
       await rejection;
     });
+  });
+
+  it('contains loopback-server spawn errors and awaits close after forced cleanup', async () => {
+    vi.useFakeTimers();
+    const child = new EventEmitter() as EventEmitter & {
+      exitCode: number | null;
+      signalCode: NodeJS.Signals | null;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = vi.fn(() => true);
+    containServerProcessErrors(child);
+    expect(() => child.emit('error', new Error('test-only-startup-failure'))).not.toThrow();
+
+    let completed = false;
+    const cleanup = stopServer(child, 100, 100).then(() => { completed = true; });
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+    await vi.advanceTimersByTimeAsync(100);
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+    expect(completed).toBe(false);
+    child.emit('close', null, 'SIGKILL');
+    await cleanup;
+    expect(completed).toBe(true);
+  });
+
+  it('fails closed when a killed loopback child never reports close', async () => {
+    vi.useFakeTimers();
+    const child = new EventEmitter() as EventEmitter & {
+      exitCode: number | null;
+      signalCode: NodeJS.Signals | null;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = vi.fn(() => true);
+
+    const cleanup = stopServer(child, 100, 100);
+    const rejection = expect(cleanup).rejects.toThrow(/cleanup deadline/i);
+    await vi.advanceTimersByTimeAsync(200);
+    await rejection;
+    expect(child.listenerCount('close')).toBe(0);
+  });
+
+  it('removes private migration data when loopback cleanup reaches its hard deadline', async () => {
+    vi.useFakeTimers();
+    const dataDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-cleanup-test-'));
+    await writeFile(join(dataDirectory, 'cli.toml'), 'test-only-private-credential');
+    const child = new EventEmitter() as EventEmitter & {
+      exitCode: number | null;
+      signalCode: NodeJS.Signals | null;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = vi.fn(() => true);
+
+    try {
+      const cleanup = cleanupMigrationProofResources(child, dataDirectory, 100, 100);
+      const rejection = expect(cleanup).rejects.toThrow(/cleanup deadline/i);
+      await vi.advanceTimersByTimeAsync(200);
+      await rejection;
+      await expect(stat(dataDirectory)).rejects.toMatchObject({ code: 'ENOENT' });
+    } finally {
+      await rm(dataDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('preserves the live-server failure when directory removal also fails', async () => {
+    vi.useFakeTimers();
+    const child = new EventEmitter() as EventEmitter & {
+      exitCode: number | null;
+      signalCode: NodeJS.Signals | null;
+      kill: ReturnType<typeof vi.fn>;
+    };
+    child.exitCode = null;
+    child.signalCode = null;
+    child.kill = vi.fn(() => true);
+    const removeDirectory = vi.fn(async () => {
+      throw new Error('test-only-removal-failure');
+    });
+
+    const cleanup = cleanupMigrationProofResources(
+      child,
+      '/test-only-private-migration-directory',
+      100,
+      100,
+      removeDirectory,
+    );
+    const rejection = expect(cleanup).rejects.toThrow(/cleanup deadline/i);
+    await vi.advanceTimersByTimeAsync(200);
+    await rejection;
+    expect(removeDirectory).toHaveBeenCalledTimes(1);
   });
 
   it('returns a failing status when dry-run issuer configuration is absent', () => {

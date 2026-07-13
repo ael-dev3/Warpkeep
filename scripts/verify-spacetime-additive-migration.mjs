@@ -5,7 +5,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const fixtureModule = resolve(
@@ -416,24 +416,73 @@ async function acquireDisposableIdentity(server) {
   fail('Disposable loopback server did not become ready.');
 }
 
-async function stopServer(serverProcess) {
+export function containServerProcessErrors(serverProcess) {
+  // `spawn` reports some startup failures asynchronously. Keep those failures
+  // inside the proof's generic readiness boundary instead of allowing an
+  // unhandled EventEmitter error to bypass `finally` cleanup.
+  serverProcess.on('error', () => {});
+  return serverProcess;
+}
+
+export async function stopServer(
+  serverProcess,
+  gracefulTimeoutMilliseconds = 5_000,
+  forcedTimeoutMilliseconds = 5_000,
+) {
   if (serverProcess.exitCode !== null || serverProcess.signalCode !== null) return;
-  await new Promise(resolvePromise => {
+  await new Promise((resolvePromise, rejectPromise) => {
     let settled = false;
-    let force;
-    const settle = () => {
+    let gracefulDeadline;
+    let hardDeadline;
+    const finish = callback => {
       if (settled) return;
       settled = true;
-      if (force !== undefined) clearTimeout(force);
-      resolvePromise();
+      if (gracefulDeadline !== undefined) clearTimeout(gracefulDeadline);
+      if (hardDeadline !== undefined) clearTimeout(hardDeadline);
+      serverProcess.removeListener('close', onClose);
+      callback();
     };
-    serverProcess.once('close', settle);
-    try { serverProcess.kill('SIGTERM'); } catch { settle(); return; }
-    force = setTimeout(() => {
+    const onClose = () => finish(resolvePromise);
+    serverProcess.once('close', onClose);
+    gracefulDeadline = setTimeout(() => {
+      if (settled) return;
+      hardDeadline = setTimeout(() => finish(() => rejectPromise(
+        new MigrationProofError('Loopback server did not stop within its cleanup deadline.'),
+      )), forcedTimeoutMilliseconds);
       try { serverProcess.kill('SIGKILL'); } catch { /* Cleanup remains best effort. */ }
-      settle();
-    }, 5_000);
+    }, gracefulTimeoutMilliseconds);
+    try { serverProcess.kill('SIGTERM'); } catch { /* Await close or the bounded hard deadline. */ }
   });
+}
+
+export async function cleanupMigrationProofResources(
+  serverProcess,
+  dataDirectory,
+  gracefulTimeoutMilliseconds = 5_000,
+  forcedTimeoutMilliseconds = 5_000,
+  removeDirectory = rm,
+) {
+  let stopFailure;
+  try {
+    await stopServer(
+      serverProcess,
+      gracefulTimeoutMilliseconds,
+      forcedTimeoutMilliseconds,
+    );
+  } catch (error) {
+    stopFailure = error;
+  }
+
+  try {
+    await removeDirectory(dataDirectory, { recursive: true, force: true });
+  } catch (error) {
+    // A live process is the primary containment failure. Do not let a second
+    // cleanup error replace that signal, but still surface removal failure when
+    // shutdown itself completed normally.
+    if (stopFailure !== undefined) throw stopFailure;
+    throw error;
+  }
+  if (stopFailure !== undefined) throw stopFailure;
 }
 
 async function verifyCliVersion() {
@@ -452,7 +501,7 @@ async function main() {
   if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(server)) fail('Migration proof was not loopback-only.');
   const dataDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-stdb-migration-'));
 
-  const serverProcess = spawn(command, [
+  const serverProcess = containServerProcessErrors(spawn(command, [
     'start',
     '--listen-addr', `127.0.0.1:${port}`,
     '--in-memory',
@@ -462,7 +511,7 @@ async function main() {
     cwd: repositoryRoot,
     env: childEnvironment(),
     stdio: 'ignore',
-  });
+  }));
 
   try {
     const owner = await acquireDisposableIdentity(server);
@@ -647,14 +696,15 @@ async function main() {
     );
   } finally {
     disposableCliCredential = null;
-    await stopServer(serverProcess);
-    await rm(dataDirectory, { recursive: true, force: true });
+    await cleanupMigrationProofResources(serverProcess, dataDirectory);
   }
 }
 
-main().catch(error => {
-  console.error(error instanceof MigrationProofError
-    ? error.message
-    : 'Additive protocol-v2 migration proof failed closed.');
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main().catch(error => {
+    console.error(error instanceof MigrationProofError
+      ? error.message
+      : 'Additive protocol-v2 migration proof failed closed.');
+    process.exitCode = 1;
+  });
+}

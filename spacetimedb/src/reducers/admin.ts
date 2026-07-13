@@ -230,6 +230,12 @@ export const adminSeedWorld = warpkeep.reducer(
   ctx => {
     const admin = requireAdmin(ctx);
     seedCanonicalWorld(ctx);
+    // A partial recovery seed may fill missing canonical tiles, but it must not
+    // commit if an existing castle still lacks the exact reverse occupancy
+    // link. Reducer atomicity rolls every inserted tile back on this failure.
+    if (!worldCastleGraphIsConsistent(ctx.db.worldTile.iter(), ctx.db.castle.iter())) {
+      throw new SenderError('STATE_INTEGRITY');
+    }
     audit(ctx, 'seed_world', undefined, admin.subject, 'canonical-radius-4-lowlands');
   },
 );

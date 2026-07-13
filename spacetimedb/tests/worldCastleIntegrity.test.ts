@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { CANONICAL_WORLD_TILES } from '../src/world';
@@ -38,4 +39,32 @@ test('missing, duplicated, or noncanonical world tiles fail closed', () => {
     { ...tiles[0]!, terrainSeed: tiles[0]!.terrainSeed ^ 1 },
     ...tiles.slice(1),
   ], []), false);
+});
+
+test('admin recovery seeding verifies the completed castle graph before audit', () => {
+  const center = CANONICAL_WORLD_TILES.find(tile => tile.key === '0,0');
+  assert.ok(center);
+  const partiallySeeded = emptyWorld().filter(tile => tile.key !== center.key);
+  const recoveredButUnlinked = [
+    ...partiallySeeded,
+    { ...center, occupantCastleId: undefined },
+  ];
+  const preexistingCastle = { castleId: 1n, tileKey: center.key, q: center.q, r: center.r };
+  assert.equal(
+    worldCastleGraphIsConsistent(recoveredButUnlinked, [preexistingCastle]),
+    false,
+  );
+
+  const source = readFileSync(new URL('../src/reducers/admin.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('export const adminSeedWorld');
+  const end = source.indexOf('/**\n * First admission starts', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const reducer = source.slice(start, end);
+
+  const seed = reducer.indexOf('seedCanonicalWorld(ctx)');
+  const integrity = reducer.indexOf('worldCastleGraphIsConsistent(');
+  const failure = reducer.indexOf("throw new SenderError('STATE_INTEGRITY')");
+  const audit = reducer.indexOf("audit(ctx, 'seed_world'");
+  assert.ok(seed >= 0 && integrity > seed && failure > integrity && audit > failure);
 });

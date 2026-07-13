@@ -115,7 +115,14 @@ export function AlphaParticipationTermsDialog({
       const last = focusableElements[focusableElements.length - 1];
       const activeElement = document.activeElement;
 
-      if (!dialog.contains(activeElement)) {
+      // The heading receives initial programmatic focus but deliberately is
+      // not part of the normal tab order. Treat any such focus target like an
+      // external target so reverse-Tab cannot escape to the inert page behind
+      // the modal before the player reaches a real control.
+      if (
+        !dialog.contains(activeElement)
+        || !focusableElements.includes(activeElement as HTMLElement)
+      ) {
         event.preventDefault();
         (event.shiftKey ? last : first).focus({ preventScroll: true });
         return;

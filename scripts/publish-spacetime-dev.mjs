@@ -370,7 +370,10 @@ export function verifyFreshLegacyAggregate(
     {
       env: {
         WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
-        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE,
+        // Inspect the same immutable identity passed to `spacetime publish`.
+        // The human-readable database name is mutable after its list attestation
+        // and therefore cannot be the final data-state authorization boundary.
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
         WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
         WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
       },

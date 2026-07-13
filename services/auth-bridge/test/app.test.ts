@@ -1,6 +1,11 @@
 import { createSiweMessage } from 'viem/siwe'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAuthBridge, type AuthBridgeDependencies } from '../src/app'
+import {
+  FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
+  REQUEST_BODY_TIMEOUT_MILLISECONDS,
+  createAuthBridge,
+  type AuthBridgeDependencies,
+} from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
 import { MemorySessionFamilyStore } from '../src/sessionFamily'
@@ -830,6 +835,54 @@ describe('Warpkeep auth bridge', () => {
     expect(verifier.verify).toHaveBeenCalledTimes(2)
   })
 
+  it('bounds a stalled Farcaster verifier and restores the still-live claimed challenge', async () => {
+    let verificationCalls = 0
+    let markVerificationStarted!: () => void
+    const verificationStarted = new Promise<void>((resolve) => {
+      markVerificationStarted = resolve
+    })
+    const verifier: FarcasterVerifier = {
+      async verify() {
+        verificationCalls += 1
+        if (verificationCalls === 1) {
+          markVerificationStarted()
+          return new Promise<never>(() => undefined)
+        }
+        return { fid: FID }
+      },
+    }
+    const h = harness({ verifier })
+    const challenge = await issueChallenge(h)
+    const proof = proofFor(challenge)
+
+    vi.useFakeTimers()
+    try {
+      const pending = h.app.fetch(request('/v2/farcaster/exchange', proof, {
+        headers: { origin: ORIGIN },
+      }), env())
+      await verificationStarted
+      await vi.advanceTimersByTimeAsync(FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS)
+
+      const unavailable = await pending
+      expect(unavailable.status).toBe(503)
+      await expect(unavailable.json()).resolves.toEqual({
+        error: {
+          code: 'verification_unavailable',
+          message: 'Farcaster verification is temporarily unavailable.',
+        },
+      })
+      expect(h.events).toContain('exchange_rejected')
+
+      const retry = await h.app.fetch(request('/v2/farcaster/exchange', proof, {
+        headers: { origin: ORIGIN },
+      }), env())
+      expect(retry.status).toBe(200)
+      expect(verificationCalls).toBe(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('enforces the CORS allowlist and rejects oversize bodies before parsing', async () => {
     const h = harness()
     const preflight = await h.app.fetch(new Request('https://auth.warpkeep.example/v2/farcaster/challenge', {
@@ -881,6 +934,77 @@ describe('Warpkeep auth bridge', () => {
     expect(response.status).toBe(413)
     expect(cancelled).toBe(true)
     expect(pulls).toBeLessThanOrEqual(2)
+  })
+
+  it('bounds stalled browser JSON and server-only admin request bodies', async () => {
+    const h = harness()
+    vi.useFakeTimers()
+    try {
+      let browserBodyCancelled = false
+      const browserBody = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{'))
+        },
+        cancel() {
+          browserBodyCancelled = true
+        },
+      })
+      const browserResponsePromise = h.app.fetch(new Request(
+        'https://auth.warpkeep.example/v2/session/logout',
+        {
+          method: 'POST',
+          headers: { origin: ORIGIN, 'content-type': 'application/json' },
+          body: browserBody,
+          duplex: 'half',
+        } as RequestInit,
+      ), env())
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(REQUEST_BODY_TIMEOUT_MILLISECONDS)
+      const browserResponse = await browserResponsePromise
+      expect(browserResponse.status).toBe(408)
+      await expect(browserResponse.json()).resolves.toEqual({
+        error: {
+          code: 'request_body_timeout',
+          message: 'Request body was not received in time.',
+        },
+      })
+      expect(browserResponse.headers.get('access-control-allow-origin')).toBe(ORIGIN)
+      expect(browserResponse.headers.get('access-control-allow-credentials')).toBe('true')
+      expect(browserBodyCancelled).toBe(true)
+
+      let adminBodyCancelled = false
+      const adminBody = new ReadableStream<Uint8Array>({
+        start() {
+          // A chunked zero-byte body that never closes must remain bounded.
+        },
+        cancel() {
+          adminBodyCancelled = true
+        },
+      })
+      const adminResponsePromise = h.app.fetch(new Request(
+        'https://auth.warpkeep.example/v1/admin/token',
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${ADMIN_SECRET}` },
+          body: adminBody,
+          duplex: 'half',
+        } as RequestInit,
+      ), env())
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(REQUEST_BODY_TIMEOUT_MILLISECONDS)
+      const adminResponse = await adminResponsePromise
+      expect(adminResponse.status).toBe(408)
+      await expect(adminResponse.json()).resolves.toEqual({
+        error: {
+          code: 'request_body_timeout',
+          message: 'Request body was not received in time.',
+        },
+      })
+      expect(adminResponse.headers.has('access-control-allow-origin')).toBe(false)
+      expect(adminBodyCancelled).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('requires the server-only admin secret and issues a five-minute admin token', async () => {
@@ -1333,6 +1457,27 @@ describe('Warpkeep auth bridge', () => {
     }))
     expect(response.status).toBe(503)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+  })
+
+  it('accepts only a string key ID when it falls back to the private JWK kid', async () => {
+    const h = harness()
+    const valid = await h.app.fetch(request('/.well-known/jwks.json'), env({
+      OIDC_KEY_ID: undefined,
+      SIGNING_KEY_JWK: JSON.stringify({ ...privateJwk, kid: 'jwk-fallback-key' }),
+    }))
+    expect(valid.status).toBe(200)
+    await expect(valid.json()).resolves.toMatchObject({
+      keys: [expect.objectContaining({ kid: 'jwk-fallback-key' })],
+    })
+
+    for (const kid of [123, true]) {
+      const response = await h.app.fetch(request('/.well-known/jwks.json'), env({
+        OIDC_KEY_ID: undefined,
+        SIGNING_KEY_JWK: JSON.stringify({ ...privateJwk, kid }),
+      }))
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+    }
   })
 
   it('requires the non-secret direct Maincloud configuration in production', async () => {

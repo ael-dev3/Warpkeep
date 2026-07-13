@@ -67,6 +67,8 @@ const JSON_HEADERS = {
 }
 
 const MAX_PROOF_SIGNATURE_BYTES = 4 * 1024
+export const REQUEST_BODY_TIMEOUT_MILLISECONDS = 8_000
+export const FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS = 8_000
 const AUTH_EPOCH_PROBE_PATH = '/v1/admin/auth-epoch-probe'
 const CONFIG_ATTESTATION_PATH = '/v1/admin/config-attestation'
 const AUTH_EPOCH_PROBE_FID = '9007199254740991'
@@ -231,27 +233,30 @@ async function readBoundedRequestText(request: Request): Promise<string> {
   if (!request.body) return ''
 
   const reader = request.body.getReader()
-  const chunks: Uint8Array[] = []
-  let totalBytes = 0
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      if (!value) continue
-      totalBytes += value.byteLength
-      if (totalBytes > MAX_REQUEST_BYTES) {
-        try {
-          await reader.cancel()
-        } catch {
-          // The public result remains a bounded 413 even if cancellation fails.
+  const { chunks, totalBytes } = await withRequestBodyDeadline(reader, async () => {
+    const chunks: Uint8Array[] = []
+    let totalBytes = 0
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (!value) continue
+        totalBytes += value.byteLength
+        if (totalBytes > MAX_REQUEST_BYTES) {
+          cancelReaderBestEffort(reader)
+          throw new HttpError(413, 'body_too_large', 'Request body is too large.')
         }
-        throw new HttpError(413, 'body_too_large', 'Request body is too large.')
+        chunks.push(value)
       }
-      chunks.push(value)
+      return { chunks, totalBytes }
+    } finally {
+      try {
+        reader.releaseLock()
+      } catch {
+        // A timed-out read may still be settling after best-effort cancellation.
+      }
     }
-  } finally {
-    reader.releaseLock()
-  }
+  })
 
   const bytes = new Uint8Array(totalBytes)
   let offset = 0
@@ -263,6 +268,34 @@ async function readBoundedRequestText(request: Request): Promise<string> {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
   } catch {
     throw new HttpError(400, 'invalid_json', 'Request body must be valid JSON.')
+  }
+}
+
+function cancelReaderBestEffort(reader: ReadableStreamDefaultReader<Uint8Array>): void {
+  try {
+    void reader.cancel().catch(() => {
+      // The already-selected static response remains authoritative.
+    })
+  } catch {
+    // A synchronous cancellation failure cannot alter the static response.
+  }
+}
+
+async function withRequestBodyDeadline<T>(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  operation: () => Promise<T>,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new HttpError(408, 'request_body_timeout', 'Request body was not received in time.'))
+      cancelReaderBestEffort(reader)
+    }, REQUEST_BODY_TIMEOUT_MILLISECONDS)
+  })
+  try {
+    return await Promise.race([operation(), deadline])
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout)
   }
 }
 
@@ -573,20 +606,40 @@ async function rejectAdminBody(request: Request): Promise<void> {
   if (!request.body) return
 
   const reader = request.body.getReader()
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) return
-      if (!value || value.byteLength === 0) continue
-      try {
-        await reader.cancel()
-      } catch {
-        // The endpoint remains fail-closed even if stream cancellation fails.
+  await withRequestBodyDeadline(reader, async () => {
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) return
+        if (!value || value.byteLength === 0) continue
+        cancelReaderBestEffort(reader)
+        throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
       }
-      throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+    } finally {
+      try {
+        reader.releaseLock()
+      } catch {
+        // A timed-out read may still be settling after best-effort cancellation.
+      }
     }
+  })
+}
+
+async function verifyFarcasterWithDeadline(
+  verifier: FarcasterVerifier,
+  input: Parameters<FarcasterVerifier['verify']>[0],
+): Promise<Awaited<ReturnType<FarcasterVerifier['verify']>>> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new FarcasterVerifierUnavailableError())
+    }, FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS)
+  })
+  try {
+    const verification = Promise.resolve().then(() => verifier.verify(input))
+    return await Promise.race([verification, deadline])
   } finally {
-    reader.releaseLock()
+    if (timeout !== undefined) clearTimeout(timeout)
   }
 }
 
@@ -894,7 +947,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           const verifier = dependencies.verifier ?? createOfficialFarcasterVerifier(config.farcasterRpcUrl)
           let verifiedFid: string
           try {
-            verifiedFid = canonicalFid((await verifier.verify({
+            verifiedFid = canonicalFid((await verifyFarcasterWithDeadline(verifier, {
               message: input.message,
               signature: input.signature,
               nonce: challenge.nonce,

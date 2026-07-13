@@ -14,6 +14,7 @@ type Command =
   | 'inspect-alpha-v2';
 
 const DEFAULT_DATABASE = 'warpkeep-89e4u';
+const DEFAULT_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const DEFAULT_URI = 'https://maincloud.spacetimedb.com';
 const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
 const CONNECT_TIMEOUT_MS = 10_000;
@@ -232,8 +233,16 @@ export async function requestAdminToken(
   return token;
 }
 
-function requireCredentialedProductionTarget(uri: string, database: string, bridgeUrl: string): void {
-  if (uri !== DEFAULT_URI || database !== DEFAULT_DATABASE || bridgeUrl !== DEFAULT_BRIDGE) {
+export function requireCredentialedProductionTarget(
+  uri: string,
+  database: string,
+  bridgeUrl: string,
+): void {
+  if (
+    uri !== DEFAULT_URI
+    || (database !== DEFAULT_DATABASE && database !== DEFAULT_DATABASE_IDENTITY)
+    || bridgeUrl !== DEFAULT_BRIDGE
+  ) {
     fail('Credentialed Hermes commands require the canonical Warpkeep production targets.');
   }
 }

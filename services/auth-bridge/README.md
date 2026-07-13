@@ -95,7 +95,11 @@ bounded hexadecimal byte strings so supported smart-account signatures remain
 possible. The challenge is atomically claimed before Farcaster RPC, Maincloud
 resolution, or signing. Definitive failures consume it; only an explicitly
 retryable verifier outage, Maincloud failure, or signing failure may restore the
-same still-live challenge. Expiry alarms fully deallocate abandoned storage.
+same still-live challenge. The Worker awaits Farcaster verification for at most
+eight seconds; that deadline becomes the same generic retryable outage and can
+restore only a still-live record. Browser JSON and server-only admin request
+bodies must also finish streaming within eight seconds in addition to their byte
+bounds. Expiry alarms fully deallocate abandoned storage.
 
 ## Session family and rotation
 
@@ -271,7 +275,8 @@ default-off persistence intent, logout-tombstone suppression/storage denial,
 profile-claim discard, production resolver-coordinate pins, route retirement,
 retired legacy module wires, v2-only browser player data, privacy-safe v2 admin
 aggregation, configuration attestation, limits, admin separation, and static
-safe log events.
+safe log events. Stalled verifier and body-stream fixtures prove the Worker
+returns within its fixed deadlines without recording caller material.
 
 Logs are closed static event names only. The Worker never logs a SIWF message,
 signature, nonce, request ID, JWT, cookie, private JWK, RPC URL, procedure
