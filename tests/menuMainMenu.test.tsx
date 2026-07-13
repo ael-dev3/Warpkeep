@@ -50,7 +50,7 @@ describe('WarpkeepMainMenu', () => {
     expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
   });
 
-  it('routes ENTER REALM to its live callback without exposing a local-save command', () => {
+  it('routes ENTER REALM to its live callback only after Terms acceptance', () => {
     const onRequestEnterRealm = vi.fn();
     render(
       <WarpkeepMainMenu
@@ -61,6 +61,18 @@ describe('WarpkeepMainMenu', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(onRequestEnterRealm).not.toHaveBeenCalled();
+
+    const terms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    const continueButton = within(terms).getByRole('button', {
+      name: 'CONTINUE TO SIGN-IN'
+    });
+    expect((continueButton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(within(terms).getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    }));
+    fireEvent.click(continueButton);
+
     expect(onRequestEnterRealm).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('status')).toBeNull();
 

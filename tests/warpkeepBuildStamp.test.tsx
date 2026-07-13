@@ -82,6 +82,15 @@ describe('Warpkeep menu build stamp', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(callbacks.begin).not.toHaveBeenCalled();
+    const continueButton = screen.getByRole('button', { name: 'CONTINUE TO SIGN-IN' });
+    expect((continueButton as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('checkbox', {
+      name: 'I understand and agree to these Alpha Terms.'
+    }));
+    fireEvent.click(continueButton);
+
+    expect(callbacks.begin).toHaveBeenCalledTimes(1);
     expect(screen.queryByText('ALPHA 0.2.0 · BUILD abcdef0')).toBeNull();
 
     const css = readFileSync(

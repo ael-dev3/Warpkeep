@@ -15,6 +15,7 @@ import type {
   FarcasterAuthViewState,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
+import { AlphaParticipationTermsDialog } from './AlphaParticipationTermsDialog';
 import { CreditsRoll } from './CreditsRoll';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
 import { SettingsPanel } from './SettingsPanel';
@@ -28,6 +29,13 @@ import type {
 import './WarpkeepMainMenu.css';
 
 export type MenuInputModality = 'keyboard' | 'pointer' | 'touch' | 'unknown';
+
+export type AuthRailRenderControls = Readonly<{
+  headingRef: Ref<HTMLHeadingElement>;
+  primaryActionRef: Ref<HTMLButtonElement>;
+  onCheckAgain: () => void;
+  onPresentationReady: () => void;
+}>;
 
 export type WarpkeepMainMenuProps = {
   active: boolean;
@@ -50,12 +58,11 @@ export type WarpkeepMainMenuProps = {
   rememberDevice?: boolean;
   onRememberDeviceChange?: (remember: boolean) => void;
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
-  /** Replaces the QR rail after Farcaster has yielded an authoritative session. */
-  authRailContent?: ReactNode;
-  /**
-   * A guarded anonymous `#realm` route asks the menu to show its native auth
-   * rail and create one fresh request after the provider is mounted.
-   */
+  /** Renders an admission rail whose retry is owned by the Terms gate. */
+  renderAuthRailContent?: (controls: AuthRailRenderControls) => ReactNode;
+  onRequestAuthRailCheck?: () => void;
+  authRailAttemptFailed?: boolean;
+  /** @deprecated Route state must never bypass intentional Terms acceptance. */
   openFarcasterAuthPanel?: boolean;
   inputModality?: MenuInputModality;
   focusFirstCommand?: boolean;
@@ -76,6 +83,20 @@ type ActiveNotice = {
 };
 
 type MenuSurface = 'commands' | 'farcaster-auth' | 'settings' | 'credits';
+
+type TermsContinuation =
+  | 'begin-sign-in'
+  | 'retry-sign-in'
+  | 'refresh-session'
+  | 'check-auth-rail'
+  | 'enter-authenticated'
+  | 'show-pending'
+  | 'legacy-enter';
+
+type TermsRequest = {
+  continuation: TermsContinuation;
+  keyboardDriven: boolean;
+};
 
 const ANONYMOUS_AUTH_STATE: FarcasterAuthViewState = Object.freeze({
   phase: 'anonymous'
@@ -199,8 +220,9 @@ export function WarpkeepMainMenu({
   rememberDevice = false,
   onRememberDeviceChange,
   onRequestAuthenticatedRealm,
-  authRailContent,
-  openFarcasterAuthPanel = false,
+  renderAuthRailContent,
+  onRequestAuthRailCheck,
+  authRailAttemptFailed = false,
   inputModality = 'unknown',
   focusFirstCommand,
   buildInfo,
@@ -216,24 +238,27 @@ export function WarpkeepMainMenu({
   const authHeadingRef = useRef<HTMLHeadingElement>(null);
   const authPrimaryActionRef = useRef<HTMLButtonElement>(null);
   const surfaceTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const termsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const noticeSequenceRef = useRef(0);
   const didFocusOnRevealRef = useRef(false);
   const playbackBlockedRef = useRef(false);
   const didReportVideoReadyRef = useRef(false);
   const didReportVideoErrorRef = useRef(false);
   const authWasKeyboardDrivenRef = useRef(false);
+  const authAttemptStartedRef = useRef(false);
+  const acceptedEntryAttemptRef = useRef(false);
   const previousAuthPhaseRef = useRef(authState.phase);
   const lastActionModalityRef = useRef<MenuInputModality>(inputModality);
-  const routeAuthStartQueuedRef = useRef(false);
-  const routeAuthStartVersionRef = useRef(0);
   const [videoState, setVideoState] = useState<'waiting' | 'ready' | 'error'>('waiting');
   const [activeNotice, setActiveNotice] = useState<ActiveNotice | null>(null);
   const [surface, setSurface] = useState<MenuSurface>('commands');
+  const [termsRequest, setTermsRequest] = useState<TermsRequest | null>(null);
   const reducedMotion = useReducedMotionPreference();
   const interactive = interactiveOverride ?? (active && visible);
   const shouldFocusFirstCommand = focusFirstCommand ?? inputModality === 'keyboard';
   const authPanelOpen = surface === 'farcaster-auth';
-  const modalSurfaceOpen = surface === 'settings' || surface === 'credits';
+  const termsOpen = termsRequest !== null;
+  const modalSurfaceOpen = termsOpen || surface === 'settings' || surface === 'credits';
   const authenticatedIdentity = authState.phase === 'authenticated'
     ? authState.identity
     : undefined;
@@ -314,6 +339,9 @@ export function WarpkeepMainMenu({
     if (!interactive) {
       setActiveNotice(null);
       setSurface('commands');
+      setTermsRequest(null);
+      termsTriggerRef.current = null;
+      acceptedEntryAttemptRef.current = false;
       didFocusOnRevealRef.current = false;
       return;
     }
@@ -328,13 +356,32 @@ export function WarpkeepMainMenu({
     const previousPhase = previousAuthPhaseRef.current;
     previousAuthPhaseRef.current = authState.phase;
     if (
+      authState.phase === 'error'
+      || authState.phase === 'expired'
+      || (previousPhase !== 'anonymous' && authState.phase === 'anonymous')
+    ) {
+      acceptedEntryAttemptRef.current = false;
+    }
+    if (
+      authState.phase === 'anonymous'
+      || authState.phase === 'authenticated'
+      || authState.phase === 'pending-admission'
+    ) {
+      authAttemptStartedRef.current = false;
+    }
+    if (
       previousPhase !== 'anonymous'
       && authState.phase === 'anonymous'
-      && !openFarcasterAuthPanel
     ) {
       setSurface('commands');
     }
-  }, [authState.phase, openFarcasterAuthPanel]);
+  }, [authState.phase]);
+
+  useEffect(() => {
+    if (authRailAttemptFailed) {
+      acceptedEntryAttemptRef.current = false;
+    }
+  }, [authRailAttemptFailed]);
 
   const restoreFirstCommandFocus = useCallback(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -346,6 +393,15 @@ export function WarpkeepMainMenu({
   const restoreSurfaceTriggerFocus = useCallback(() => {
     const trigger = surfaceTriggerRef.current;
     surfaceTriggerRef.current = null;
+    const frame = window.requestAnimationFrame(() => {
+      trigger?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  const restoreTermsTriggerFocus = useCallback(() => {
+    const trigger = termsTriggerRef.current;
+    termsTriggerRef.current = null;
     const frame = window.requestAnimationFrame(() => {
       trigger?.focus({ preventScroll: true });
     });
@@ -375,15 +431,29 @@ export function WarpkeepMainMenu({
   }, [restoreSurfaceTriggerFocus]);
 
   const closeAuthPanel = useCallback((restoreKeyboardFocus = false) => {
-    onCancelFarcasterSignIn?.();
+    acceptedEntryAttemptRef.current = false;
+    if (authAttemptStartedRef.current) {
+      authAttemptStartedRef.current = false;
+      onCancelFarcasterSignIn?.();
+    }
     setSurface('commands');
     if (restoreKeyboardFocus) {
       restoreFirstCommandFocus();
     }
   }, [onCancelFarcasterSignIn, restoreFirstCommandFocus]);
 
+  const closeTerms = useCallback(() => {
+    acceptedEntryAttemptRef.current = false;
+    setTermsRequest(null);
+    restoreTermsTriggerFocus();
+  }, [restoreTermsTriggerFocus]);
+
   const handleRequestReturn = useCallback(() => {
-    onCancelFarcasterSignIn?.();
+    acceptedEntryAttemptRef.current = false;
+    if (authAttemptStartedRef.current) {
+      authAttemptStartedRef.current = false;
+      onCancelFarcasterSignIn?.();
+    }
     setSurface('commands');
     onRequestReturn();
   }, [onCancelFarcasterSignIn, onRequestReturn]);
@@ -430,6 +500,10 @@ export function WarpkeepMainMenu({
   }, [authPanelOpen, authState.phase, interactive]);
 
   useEffect(() => () => {
+    if (!authAttemptStartedRef.current) {
+      return;
+    }
+    authAttemptStartedRef.current = false;
     (onDisposeFarcasterSignIn ?? onCancelFarcasterSignIn)?.();
   }, [onCancelFarcasterSignIn, onDisposeFarcasterSignIn]);
 
@@ -446,7 +520,10 @@ export function WarpkeepMainMenu({
       event.preventDefault();
       event.stopPropagation();
       lastActionModalityRef.current = 'keyboard';
-      if (activeNotice) {
+      if (termsOpen) {
+        event.stopImmediatePropagation();
+        closeTerms();
+      } else if (activeNotice) {
         setActiveNotice(null);
       } else if (authPanelOpen) {
         closeAuthPanel(true);
@@ -461,7 +538,7 @@ export function WarpkeepMainMenu({
 
     document.addEventListener('keydown', handleEscape, true);
     return () => document.removeEventListener('keydown', handleEscape, true);
-  }, [activeNotice, authPanelOpen, closeAuthPanel, closeCredits, closeSettings, handleRequestReturn, interactive, surface]);
+  }, [activeNotice, authPanelOpen, closeAuthPanel, closeCredits, closeSettings, closeTerms, handleRequestReturn, interactive, surface, termsOpen]);
 
   const handleVideoReady = useCallback(() => {
     setVideoState('ready');
@@ -500,55 +577,15 @@ export function WarpkeepMainMenu({
     setSurface('farcaster-auth');
   }, []);
 
-  useEffect(() => {
-    if (!openFarcasterAuthPanel || !interactive || !farcasterAuthEnabled) {
-      routeAuthStartVersionRef.current += 1;
-      routeAuthStartQueuedRef.current = false;
-      return;
-    }
-
-    if (!authPanelOpen) {
-      openAuthPanel(false);
-    }
-    if (authState.phase !== 'anonymous') {
-      routeAuthStartVersionRef.current += 1;
-      routeAuthStartQueuedRef.current = false;
-      return;
-    }
-
-    if (routeAuthStartQueuedRef.current) {
-      return;
-    }
-
-    // A direct `#realm` load mounts the menu below the provider. Queue this
-    // one explicit route-gated request until all mount effects have run, which
-    // also keeps StrictMode's effect probe from creating a duplicate channel.
-    routeAuthStartQueuedRef.current = true;
-    const requestVersion = routeAuthStartVersionRef.current;
-    void Promise.resolve().then(() => {
-      if (
-        routeAuthStartVersionRef.current !== requestVersion
-        || !routeAuthStartQueuedRef.current
-      ) {
-        return;
-      }
-      onRequestFarcasterSignIn?.();
-    });
-    return () => {
-      if (routeAuthStartVersionRef.current === requestVersion) {
-        routeAuthStartVersionRef.current += 1;
-      }
-      routeAuthStartQueuedRef.current = false;
-    };
-  }, [
-    authPanelOpen,
-    authState.phase,
-    farcasterAuthEnabled,
-    interactive,
-    onRequestFarcasterSignIn,
-    openAuthPanel,
-    openFarcasterAuthPanel
-  ]);
+  const openTerms = useCallback((
+    continuation: TermsContinuation,
+    anchorElement: HTMLButtonElement | null,
+    keyboardDriven: boolean
+  ) => {
+    termsTriggerRef.current = anchorElement;
+    setActiveNotice(null);
+    setTermsRequest({ continuation, keyboardDriven });
+  }, []);
 
   const handleCommandClick = useCallback((
     command: MenuCommand,
@@ -572,20 +609,17 @@ export function WarpkeepMainMenu({
 
     if (command.id === 'enter-realm' && farcasterAuthEnabled) {
       if (authenticatedIdentity) {
-        openAuthPanel(keyboardDriven);
-        onRequestAuthenticatedRealm?.(authenticatedIdentity);
+        openTerms('enter-authenticated', anchorElement, keyboardDriven);
       } else if (pendingIdentity) {
-        openAuthPanel(keyboardDriven);
+        openTerms('show-pending', anchorElement, keyboardDriven);
       } else {
-        openAuthPanel(keyboardDriven);
-        onRequestFarcasterSignIn?.();
+        openTerms('begin-sign-in', anchorElement, keyboardDriven);
       }
       return;
     }
 
     if (command.id === 'enter-realm' && onRequestEnterRealm) {
-      setActiveNotice(null);
-      onRequestEnterRealm();
+      openTerms('legacy-enter', anchorElement, keyboardDriven);
       return;
     }
     openNotice(command, anchorElement);
@@ -594,25 +628,66 @@ export function WarpkeepMainMenu({
     pendingIdentity,
     backendUnavailableMessage,
     farcasterAuthEnabled,
-    onRequestAuthenticatedRealm,
     onRequestEnterRealm,
-    onRequestFarcasterSignIn,
-    openAuthPanel,
     openCredits,
     openSettings,
-    openNotice
+    openNotice,
+    openTerms
   ]);
 
   const handleRetrySignIn = useCallback(() => {
     const keyboardDriven = lastActionModalityRef.current === 'keyboard';
-    authWasKeyboardDrivenRef.current = keyboardDriven;
-    onRetryFarcasterSignIn?.();
-    if (keyboardDriven) {
+    openTerms('retry-sign-in', authPrimaryActionRef.current, keyboardDriven);
+  }, [openTerms]);
+
+  const handleTermsContinue = useCallback(() => {
+    const request = termsRequest;
+    if (!request) {
+      return;
+    }
+
+    termsTriggerRef.current = null;
+    setTermsRequest(null);
+    authWasKeyboardDrivenRef.current = request.keyboardDriven;
+    acceptedEntryAttemptRef.current = true;
+
+    if (request.continuation === 'legacy-enter') {
+      acceptedEntryAttemptRef.current = false;
+      onRequestEnterRealm?.();
+      return;
+    }
+
+    openAuthPanel(request.keyboardDriven);
+    if (request.continuation === 'begin-sign-in') {
+      authAttemptStartedRef.current = true;
+      onRequestFarcasterSignIn?.();
+    } else if (request.continuation === 'retry-sign-in') {
+      authAttemptStartedRef.current = true;
+      onRetryFarcasterSignIn?.();
       window.requestAnimationFrame(() => {
         authHeadingRef.current?.focus({ preventScroll: true });
       });
+    } else if (request.continuation === 'refresh-session') {
+      acceptedEntryAttemptRef.current = false;
+      onRefreshFarcasterSession?.();
+    } else if (request.continuation === 'check-auth-rail') {
+      acceptedEntryAttemptRef.current = false;
+      onRequestAuthRailCheck?.();
+    } else if (request.continuation === 'enter-authenticated' && authenticatedIdentity) {
+      acceptedEntryAttemptRef.current = false;
+      onRequestAuthenticatedRealm?.(authenticatedIdentity);
     }
-  }, [onRetryFarcasterSignIn]);
+  }, [
+    authenticatedIdentity,
+    onRequestAuthenticatedRealm,
+    onRequestEnterRealm,
+    onRequestFarcasterSignIn,
+    onRefreshFarcasterSession,
+    onRequestAuthRailCheck,
+    onRetryFarcasterSignIn,
+    openAuthPanel,
+    termsRequest
+  ]);
 
   const handleBackToCommands = useCallback(() => {
     closeAuthPanel(lastActionModalityRef.current === 'keyboard');
@@ -620,6 +695,8 @@ export function WarpkeepMainMenu({
 
   const handleSignOut = useCallback(() => {
     const restoreKeyboardFocus = lastActionModalityRef.current === 'keyboard';
+    authAttemptStartedRef.current = false;
+    acceptedEntryAttemptRef.current = false;
     onSignOut?.();
     setSurface('commands');
     if (restoreKeyboardFocus) {
@@ -628,9 +705,44 @@ export function WarpkeepMainMenu({
   }, [onSignOut, restoreFirstCommandFocus]);
 
   const handleAuthenticatedRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
+    if (!acceptedEntryAttemptRef.current) {
+      openTerms(
+        'enter-authenticated',
+        authPrimaryActionRef.current,
+        lastActionModalityRef.current === 'keyboard'
+      );
+      return;
+    }
+    acceptedEntryAttemptRef.current = false;
     setSurface('commands');
     onRequestAuthenticatedRealm?.(identity);
-  }, [onRequestAuthenticatedRealm]);
+  }, [onRequestAuthenticatedRealm, openTerms]);
+
+  const handleRefreshFarcasterSession = useCallback(() => {
+    if (acceptedEntryAttemptRef.current) {
+      acceptedEntryAttemptRef.current = false;
+      onRefreshFarcasterSession?.();
+      return;
+    }
+    openTerms(
+      'refresh-session',
+      authPrimaryActionRef.current,
+      lastActionModalityRef.current === 'keyboard'
+    );
+  }, [onRefreshFarcasterSession, openTerms]);
+
+  const handleAuthRailCheck = useCallback(() => {
+    if (acceptedEntryAttemptRef.current) {
+      acceptedEntryAttemptRef.current = false;
+      onRequestAuthRailCheck?.();
+      return;
+    }
+    openTerms(
+      'check-auth-rail',
+      authPrimaryActionRef.current,
+      lastActionModalityRef.current === 'keyboard'
+    );
+  }, [onRequestAuthRailCheck, openTerms]);
 
   const handleNavigationKeyDown = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
     if (!interactive) {
@@ -796,7 +908,12 @@ export function WarpkeepMainMenu({
               primaryActionRef={authPrimaryActionRef}
             />
           }>
-            {authRailContent ?? (
+            {renderAuthRailContent?.({
+              headingRef: authHeadingRef,
+              primaryActionRef: authPrimaryActionRef,
+              onCheckAgain: handleAuthRailCheck,
+              onPresentationReady: handleAuthPanelPresentationReady
+            }) ?? (
               <FarcasterQrAuthPanel
                 channelUrl={authState.phase === 'awaiting-approval'
                   ? authState.channelUrl
@@ -814,7 +931,7 @@ export function WarpkeepMainMenu({
                 )}
                 onEnterRealm={handleAuthenticatedRealmEntry}
                 onPrepareQrCode={onPrepareFarcasterQrCode}
-                onCheckAdmission={onRefreshFarcasterSession}
+                onCheckAdmission={handleRefreshFarcasterSession}
                 onRememberDeviceChange={onRememberDeviceChange}
                 onRetry={handleRetrySignIn}
                 onSignOut={handleSignOut}
@@ -870,6 +987,12 @@ export function WarpkeepMainMenu({
       ) : null}
       {surface === 'credits' && interactive ? (
         <CreditsRoll onClose={closeCredits} />
+      ) : null}
+      {termsOpen && interactive ? (
+        <AlphaParticipationTermsDialog
+          onCancel={closeTerms}
+          onContinue={handleTermsContinue}
+        />
       ) : null}
     </>
   );

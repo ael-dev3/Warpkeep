@@ -23,6 +23,7 @@ import {
   WarpkeepMainMenu,
   WARPKEEP_MENU_POSTER_URL,
   WARPKEEP_MENU_VIDEO_URL,
+  type AuthRailRenderControls,
   type MenuInputModality
 } from './menu/WarpkeepMainMenu';
 import { RealmMapScreen } from './realm/RealmMapScreen';
@@ -172,9 +173,7 @@ export function WarpkeepExperience() {
   const [presentedScreen, setPresentedScreen] = useState<WarpkeepStableExperiencePhase>(
     initialPhase
   );
-  const [pendingDestination, setPendingDestination] = useState<'realm' | null>(() => (
-    hasRealmHash() ? 'realm' : null
-  ));
+  const [pendingDestination, setPendingDestination] = useState<'realm' | null>(null);
   const [gatewayOrigin, setGatewayOrigin] = useState<WarpTransitionOrigin>(() => ({
     x: typeof window === 'undefined' ? 640 : window.innerWidth * 0.5,
     y: typeof window === 'undefined' ? 280 : window.innerHeight * 0.36
@@ -253,10 +252,9 @@ export function WarpkeepExperience() {
   }, [cancelFarcasterSignIn, clearPendingRealmDestination]);
 
   const gateAnonymousRealmRoute = useCallback(() => {
-    // A hash is not a credential. Preserve the player's intended realm
-    // destination privately only while the public shared-alpha path is live.
-    // A disabled release must not create a SIWF request that cannot exchange.
-    setPendingDestination(backend.sharedAlphaAvailable ? 'realm' : null);
+    // A hash is neither a credential nor Alpha Terms acceptance. Normalize every
+    // unaccepted realm route to the menu without preserving an auth/realm intent.
+    setPendingDestination(null);
     cancelFarcasterSignIn();
     if (hasRealmHash()) {
       window.history.replaceState(
@@ -265,7 +263,7 @@ export function WarpkeepExperience() {
         `${pageUrlWithoutHash()}${MENU_HASH}`
       );
     }
-  }, [backend.sharedAlphaAvailable, cancelFarcasterSignIn]);
+  }, [cancelFarcasterSignIn]);
 
   const fadeRealmAudioToMenuAndReset = useCallback(() => {
     const audioDirector = audioDirectorRef.current;
@@ -495,6 +493,27 @@ export function WarpkeepExperience() {
     beginRealmEntry(verifiedIdentityRef.current);
   }, [backend.state.phase, beginRealmEntry, pendingDestination]);
 
+  useEffect(() => {
+    if (
+      pendingDestination !== 'realm'
+      || (
+        backend.state.phase !== 'denied'
+        && backend.state.phase !== 'error'
+        && farcasterAuthState.phase !== 'anonymous'
+        && farcasterAuthState.phase !== 'error'
+        && farcasterAuthState.phase !== 'expired'
+      )
+    ) {
+      return;
+    }
+    clearPendingRealmDestination();
+  }, [
+    backend.state.phase,
+    clearPendingRealmDestination,
+    farcasterAuthState.phase,
+    pendingDestination
+  ]);
+
   const returnRealmToMenu = useCallback(() => {
     if (phaseRef.current !== 'realm') {
       return;
@@ -603,13 +622,6 @@ export function WarpkeepExperience() {
 
     if (direction === 'to-menu') {
       if (hasRealmHash()) {
-        if (backendReadyRef.current) {
-          clearPendingRealmDestination();
-          setPresentedScreen('realm');
-          dispatch({ type: 'complete-menu' });
-          dispatch({ type: 'request-realm' });
-          return;
-        }
         gateAnonymousRealmRoute();
       }
       if (!hasMenuHash()) {
@@ -623,7 +635,7 @@ export function WarpkeepExperience() {
       dispatch({ type: 'complete-title' });
       entryLockedRef.current = false;
     }
-  }, [clearPendingRealmDestination, gateAnonymousRealmRoute, markTransitionCovered]);
+  }, [gateAnonymousRealmRoute, markTransitionCovered]);
 
   useEffect(() => {
     if (
@@ -730,34 +742,15 @@ export function WarpkeepExperience() {
   useEffect(() => {
     const synchronizeHistory = () => {
       const phase = phaseRef.current;
-      if (hasRealmHash() && !backendReadyRef.current) {
+      if (hasRealmHash() && phase !== 'realm') {
         gateAnonymousRealmRoute();
-        return;
       }
       if (returnPreparingRef.current && hasMenuHash()) {
         cancelPreparedReturn();
         return;
       }
       if (hasRealmHash()) {
-        if (returnPreparingRef.current) {
-          cancelPreparedReturn();
-          setPresentedScreen('realm');
-          dispatch({ type: 'request-realm' });
-          return;
-        }
-        if (phase === 'title') {
-          const projection = titleRef.current?.getGatewayProjection()
-            ?? fallbackGatewayProjection();
-          titleRef.current?.requestEnter('keyboard');
-          if (phaseRef.current === 'title' && !entryLockedRef.current) {
-            beginMenuTransition(projection, 'unknown', false);
-          }
-          return;
-        }
-        if (phase === 'menu') {
-          setPresentedScreen('realm');
-          dispatch({ type: 'request-realm' });
-        }
+        // Only the explicit, terms-gated realm entry path may leave us here.
         return;
       }
       if (hasMenuHash()) {
@@ -804,14 +797,14 @@ export function WarpkeepExperience() {
     }
 
     if (experience.phase === 'menu') {
-      if (hasRealmHash() && !backendReadyRef.current) {
+      if (hasRealmHash()) {
         gateAnonymousRealmRoute();
       } else if (!hasMenuHash() && !hasRealmHash()) {
         entryLockedRef.current = false;
         beginTitleTransition('none');
       }
     } else if (experience.phase === 'title' && (hasMenuHash() || hasRealmHash())) {
-      if (hasRealmHash() && !backendReadyRef.current) {
+      if (hasRealmHash()) {
         gateAnonymousRealmRoute();
       }
       entryLockedRef.current = false;
@@ -927,17 +920,27 @@ export function WarpkeepExperience() {
     titleRef.current?.getGatewayProjection() ?? fallbackGatewayProjection()
   ), []);
 
-  const admissionPanel = backend.state.phase !== 'idle'
-    && backend.state.phase !== 'ready'
-    && verifiedIdentityRef.current
-    ? (
-      <FarcasterAdmissionPanel
-        identity={verifiedIdentityRef.current}
-        onCheckAgain={backend.checkAgain}
-        onSignOut={handleSignOut}
-        phase={backend.state.phase}
-      />
-    )
+  const admissionIdentity = verifiedIdentityRef.current;
+  const admissionPhase = backend.state.phase;
+  const renderAdmissionPanel = admissionPhase !== 'idle'
+    && admissionPhase !== 'ready'
+    && admissionIdentity
+    ? ({
+        headingRef,
+        primaryActionRef,
+        onCheckAgain,
+        onPresentationReady
+      }: AuthRailRenderControls) => (
+        <FarcasterAdmissionPanel
+          headingRef={headingRef}
+          identity={admissionIdentity}
+          onCheckAgain={onCheckAgain}
+          onPresentationReady={onPresentationReady}
+          onSignOut={handleSignOut}
+          phase={admissionPhase}
+          primaryActionRef={primaryActionRef}
+        />
+      )
     : undefined;
 
   return (
@@ -985,15 +988,14 @@ export function WarpkeepExperience() {
             interactive={menuInteractive}
             inputModality={menuInteractive ? inputModality : 'unknown'}
             focusFirstCommand={menuInteractive && inputModality === 'keyboard'}
-            authRailContent={admissionPanel}
+            authRailAttemptFailed={admissionPhase === 'denied' || admissionPhase === 'error'}
             backendUnavailableMessage={backend.sharedAlphaAvailable
               ? undefined
               : WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE}
-            openFarcasterAuthPanel={backend.sharedAlphaAvailable
-              && (pendingDestination === 'realm' || admissionPanel !== undefined)}
             onCancelFarcasterSignIn={cancelFarcasterSignInAndClearDestination}
             onDisposeFarcasterSignIn={cancelFarcasterSignIn}
             onRequestAuthenticatedRealm={beginRealmEntry}
+            onRequestAuthRailCheck={backend.checkAgain}
             onRequestFarcasterSignIn={beginFarcasterSignIn}
             onPrepareFarcasterQrCode={prepareFarcasterQrCode}
             onRefreshFarcasterSession={refreshFarcasterSession}
@@ -1001,6 +1003,7 @@ export function WarpkeepExperience() {
             onRememberDeviceChange={setRememberDevice}
             onRetryFarcasterSignIn={retryFarcasterSignIn}
             onSignOut={handleSignOut}
+            renderAuthRailContent={renderAdmissionPanel}
             rememberDevice={rememberDevice}
             graphicsPreference={graphicsPreference}
             resolvedGraphicsQuality={resolvedGraphicsQuality}

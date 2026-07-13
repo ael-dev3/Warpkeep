@@ -386,6 +386,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     const loadAuthority = vi.fn(async () => authority);
     const encodeQrCode = vi.fn(async () => 'data:image/svg+xml,qr');
     const bridge = createBridge();
+    const loadBridgeClient = vi.fn(async () => bridge);
     const createBrowserBinding = vi.fn(async () => ({
       verifier: BINDING_VERIFIER,
       challenge: BINDING_CHALLENGE,
@@ -396,7 +397,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       children: <AuthHarness duplicateBegin />,
       strict: true,
       loadAuthority,
-      loadBridgeClient: vi.fn(async () => bridge),
+      loadBridgeClient,
       createBrowserBinding,
       resolveAuthContext: () => ({
         domain: 'example.com',
@@ -406,11 +407,22 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     });
 
     expect(loadAuthority).not.toHaveBeenCalled();
+    expect(loadBridgeClient).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
     expect(createBrowserBinding).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh session' }));
+    fireEvent(window, new Event('focus'));
+    fireEvent(window, new Event('pageshow'));
+    fireEvent(document, new Event('visibilitychange'));
+    await settleAsyncWork();
+    expect(loadBridgeClient).not.toHaveBeenCalled();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
 
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(readPublicState().phase).toBe('creating-channel');
     expect(loadAuthority).toHaveBeenCalledTimes(1);
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
@@ -451,11 +463,11 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(challengeOptions?.signal?.aborted).toBe(true);
   });
 
-  it('cancels startup cookie refresh before beginning a new SIWF generation', async () => {
-    const staleRefresh = deferred<FarcasterBridgeSessionResponse>();
+  it('cancels and invalidates a late explicit cookie restoration before SIWF begins', async () => {
+    const lateRefresh = deferred<FarcasterBridgeSessionResponse>();
     const pendingChannel = deferred<FarcasterSignInChannel>();
     const bridge = createBridge({
-      refreshSession: vi.fn(() => staleRefresh.promise)
+      refreshSession: vi.fn(() => lateRefresh.promise)
     });
     const authority = createAuthority({
       beginSignIn: vi.fn(() => pendingChannel.promise)
@@ -466,18 +478,26 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     });
     await settleAsyncWork();
 
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     const [refreshOptions] = vi.mocked(bridge.refreshSession).mock.calls[0]!;
     expect(refreshOptions?.signal?.aborted).toBe(false);
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(readPublicState().phase).toBe('anonymous');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
-    await settleAsyncWork();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(refreshOptions?.signal?.aborted).toBe(true);
-    expect(readPublicState().phase).toBe('creating-channel');
 
-    staleRefresh.resolve(createAuthorizedResponse());
+    lateRefresh.resolve(createAuthorizedResponse());
     await settleAsyncWork();
-    expect(readPublicState().phase).toBe('creating-channel');
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(bridge.logoutSession).toHaveBeenCalledTimes(1);
+    expect(readPublicState().phase).toBe('anonymous');
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
   });
 
@@ -731,6 +751,9 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     });
     await settleAsyncWork();
 
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
     expect(readPublicState().phase).toBe('authenticated');
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
@@ -767,6 +790,10 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       now: Date.now
     });
     await settleAsyncWork();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
 
     fireEvent(window, new Event('focus'));
@@ -789,7 +816,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
   });
 
-  it('purges retired bearer storage and restores authority only through cookie refresh', async () => {
+  it('purges retired bearer storage while dormant and restores only after explicit activation', async () => {
     vi.useFakeTimers({ now: 55_000 });
     const storage = new MemoryDeviceSessionStorage();
     const sessionEnvironment = deviceSessionEnvironment(storage);
@@ -812,6 +839,15 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     });
     await settleAsyncWork();
 
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(storage.values.has(deviceSessionStorageKey())).toBe(false);
+    expect(storage.values.has('warpkeep:/Warpkeep/:farcaster-device-session:v1')).toBe(false);
+    expect(storage.writes).toEqual([]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(authority.beginSignIn).not.toHaveBeenCalled();
     expect(readPublicState()).toEqual({
@@ -828,10 +864,6 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       ) * 1_000
     });
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
-    expect(storage.values.has(deviceSessionStorageKey())).toBe(false);
-    expect(storage.values.has('warpkeep:/Warpkeep/:farcaster-device-session:v1')).toBe(false);
-    expect(storage.writes).toEqual([]);
-
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     await settleAsyncWork();
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
@@ -874,9 +906,9 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
     expect(storage.values.has(controlKey)).toBe(false);
-    expect(bridge.refreshSession).not.toHaveBeenCalled();
-    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
-    expect(readPublicState().phase).toBe('awaiting-approval');
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(readPublicState().phase).toBe('authenticated');
   });
 
   it('keeps a failed best-effort logout from restoring the cookie on focus or reload', async () => {
@@ -894,6 +926,9 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       now: Date.now,
       deviceSessionEnvironment: sessionEnvironment
     });
+    await settleAsyncWork();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
     expect(readPublicState().phase).toBe('authenticated');
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
@@ -940,6 +975,9 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       deviceSessionEnvironment: deviceSessionEnvironment(storage)
     });
     await settleAsyncWork();
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
     expect(readPublicState().phase).toBe('authenticated');
 
     await advanceTime(10_000);
@@ -962,7 +1000,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
   });
 
-  it('allows automatic refresh only after an exact logout tombstone is stale', async () => {
+  it('clears an exact stale logout tombstone but remains dormant until explicit activation', async () => {
     vi.useFakeTimers({ now: 59_000 + FARCASTER_SESSION_TERMINATION_INTENT_TTL_MS });
     const storage = new MemoryDeviceSessionStorage();
     const controlKey = getFarcasterDeviceSessionControlKey(DEVICE_SESSION_BASE_PATH)!;
@@ -978,6 +1016,11 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     await settleAsyncWork();
 
     expect(storage.values.has(controlKey)).toBe(false);
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(readPublicState().phase).toBe('anonymous');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
     expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(readPublicState().phase).toBe('authenticated');
   });
@@ -993,9 +1036,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     const authority = createAuthority({
       beginSignIn: vi.fn(async () => channel)
     });
-    const bridge = createBridge({
-      refreshSession: vi.fn(async () => createAuthorizedResponse())
-    });
+    const bridge = createBridge();
     renderProvider({
       loadAuthority: vi.fn(async () => authority),
       loadBridgeClient: vi.fn(async () => bridge),
@@ -1008,6 +1049,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(1);
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
     expect(readPublicState().phase).toBe('awaiting-approval');
   });

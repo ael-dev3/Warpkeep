@@ -358,7 +358,7 @@ class FarcasterAuthController {
         && this.phase !== 'error'
       )
     ) {
-      return;
+      return false;
     }
 
     const generation = this.activeRequest?.generation ?? this.machineGeneration;
@@ -369,6 +369,7 @@ class FarcasterAuthController {
     this.invalidatePrivateRequest();
     this.phase = 'anonymous';
     this.dispatch({ type: 'cancel', generation });
+    return true;
   };
 
   readonly signOut = () => {
@@ -881,8 +882,11 @@ export function FarcasterAuthProvider({
   const rememberDeviceRef = useRef(rememberDevice);
   const oidcSessionRef = useRef(oidcSession);
   const lifecycleGenerationRef = useRef(0);
-  // Automatic cookie authority is fail closed until the exact logout-control
-  // record has been checked. Explicit SIWF is the only action that clears it.
+  const authActivationGenerationRef = useRef(0);
+  const authActivationFlightRef = useRef<Promise<void> | undefined>(undefined);
+  // Cookie authority is fail closed until the exact logout-control record has
+  // been checked. Only an explicit, externally consent-gated auth activation
+  // clears it; passive lifecycle events never activate an anonymous session.
   const logoutIntentBlocksRefreshRef = useRef(true);
   const refreshFlightRef = useRef<{
     controller: AbortController;
@@ -903,6 +907,12 @@ export function FarcasterAuthProvider({
     refreshFlightRef.current = undefined;
   }, []);
 
+  const invalidateAuthActivation = useCallback(() => {
+    authActivationGenerationRef.current += 1;
+    authActivationFlightRef.current = undefined;
+    abortRefresh();
+  }, [abortRefresh]);
+
   const clearInMemoryAuthoritativeSession = useCallback(() => {
     oidcSessionRef.current = undefined;
     setOidcSession(undefined);
@@ -918,7 +928,7 @@ export function FarcasterAuthProvider({
     }
   }, [abortRefresh, clearInMemoryAuthoritativeSession, deviceSessionEnvironment, now, purgeBearerStorage]);
 
-  const beginExplicitSignIn = useCallback(() => {
+  const beginExplicitAuthActivation = useCallback(() => {
     abortRefresh();
     logoutIntentBlocksRefreshRef.current = false;
     // If storage is denied, this runtime still honors the explicit sign-in.
@@ -960,11 +970,18 @@ export function FarcasterAuthProvider({
     let flight: NonNullable<typeof refreshFlightRef.current>;
     const promise = Promise.resolve()
       .then(() => loadBridgeClient())
-      .then(async (client) => ({
-        client,
-        response: await client.refreshSession({ signal: controller.signal })
-      }))
-      .then(({ client, response }) => {
+      .then(async (client) => {
+        if (controller.signal.aborted || lifecycleGenerationRef.current !== generation) {
+          return undefined;
+        }
+        return {
+          client,
+          response: await client.refreshSession({ signal: controller.signal })
+        };
+      })
+      .then((result) => {
+        if (!result) return false;
+        const { client, response } = result;
         if (controller.signal.aborted || lifecycleGenerationRef.current !== generation) {
           return false;
         }
@@ -978,6 +995,15 @@ export function FarcasterAuthProvider({
               client.audience
             );
         if (!resolved) throw new Error('Invalid refreshed session.');
+
+        const currentPhase = machineRef.current.view.phase;
+        if (
+          currentPhase !== 'anonymous'
+          && currentPhase !== 'authenticated'
+          && currentPhase !== 'pending-admission'
+        ) {
+          return false;
+        }
 
         if (resolved.status === 'pending-admission') {
           clearInMemoryAuthoritativeSession();
@@ -1035,7 +1061,7 @@ export function FarcasterAuthProvider({
     now,
     pollIntervalMs: normalizePollInterval(pollIntervalMs),
     rememberDevice: () => rememberDeviceRef.current,
-    onBeginSignIn: beginExplicitSignIn,
+    onBeginSignIn: beginExplicitAuthActivation,
     onBridgeAuthorized,
     onBridgePending,
     onSignOut
@@ -1048,7 +1074,74 @@ export function FarcasterAuthProvider({
   controller.configure(config);
   controller.syncMachineState(machine);
 
-  useEffect(() => controller.mount(), [controller]);
+  const beginConsentGatedSignIn = useCallback(() => {
+    const phase = machineRef.current.view.phase;
+    if (authActivationFlightRef.current || !canBeginFrom(phase)) {
+      return;
+    }
+
+    // An explicit retry follows a failed/expired SIWF generation. It still
+    // requires the external Terms gate, but must not probe a cookie before
+    // creating the fresh request the player asked for.
+    if (phase === 'error' || phase === 'expired') {
+      controller.retrySignIn();
+      return;
+    }
+
+    const activationGeneration = authActivationGenerationRef.current + 1;
+    authActivationGenerationRef.current = activationGeneration;
+    beginExplicitAuthActivation();
+
+    let activation: Promise<void>;
+    activation = refreshSession(false)
+      .then((restored) => {
+        if (
+          authActivationGenerationRef.current !== activationGeneration
+          || restored
+        ) {
+          return;
+        }
+        controller.beginSignIn();
+      })
+      .finally(() => {
+        if (authActivationFlightRef.current === activation) {
+          authActivationFlightRef.current = undefined;
+        }
+      });
+    authActivationFlightRef.current = activation;
+  }, [beginExplicitAuthActivation, controller, refreshSession]);
+
+  const cancelConsentGatedSignIn = useCallback(() => {
+    const cancelledCookiePreflight = authActivationFlightRef.current !== undefined;
+    invalidateAuthActivation();
+    const cancelledControllerRequest = controller.cancelSignIn();
+    if (cancelledCookiePreflight && !cancelledControllerRequest) {
+      // The refresh request may have reached the bridge before AbortSignal was
+      // observed. Terminate any family it could have rotated so Cancel cannot
+      // leave resumable server authority behind.
+      onSignOut();
+    }
+  }, [controller, invalidateAuthActivation, onSignOut]);
+
+  const signOut = useCallback(() => {
+    invalidateAuthActivation();
+    controller.signOut();
+  }, [controller, invalidateAuthActivation]);
+
+  const refreshActiveSession = useCallback(() => {
+    const phase = machineRef.current.view.phase;
+    if (phase === 'authenticated' || phase === 'pending-admission') {
+      void refreshSession(false);
+    }
+  }, [refreshSession]);
+
+  useEffect(() => {
+    const unmountController = controller.mount();
+    return () => {
+      invalidateAuthActivation();
+      unmountController();
+    };
+  }, [controller, invalidateAuthActivation]);
 
   const setRememberDevice = useCallback((remember: boolean) => {
     setRememberDeviceState(Boolean(remember));
@@ -1062,9 +1155,8 @@ export function FarcasterAuthProvider({
     });
     logoutIntentBlocksRefreshRef.current = terminationStatus !== 'absent'
       && terminationStatus !== 'stale';
-    if (!logoutIntentBlocksRefreshRef.current) void refreshSession(false);
     return abortRefresh;
-  }, [abortRefresh, deviceSessionEnvironment, now, purgeBearerStorage, refreshSession]);
+  }, [abortRefresh, deviceSessionEnvironment, now, purgeBearerStorage]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
@@ -1073,8 +1165,7 @@ export function FarcasterAuthProvider({
       const current = machineRef.current.view;
       const currentSession = oidcSessionRef.current;
       const currentTime = readProviderNow(now);
-      const shouldRefresh = current.phase === 'anonymous'
-        || current.phase === 'pending-admission'
+      const shouldRefresh = current.phase === 'pending-admission'
         || (
           current.phase === 'authenticated'
           && (
@@ -1088,9 +1179,11 @@ export function FarcasterAuthProvider({
       if (shouldRefresh) void refreshSession(false);
     };
     window.addEventListener('focus', reconcile);
+    window.addEventListener('pageshow', reconcile);
     document.addEventListener('visibilitychange', reconcile);
     return () => {
       window.removeEventListener('focus', reconcile);
+      window.removeEventListener('pageshow', reconcile);
       document.removeEventListener('visibilitychange', reconcile);
     };
   }, [now, refreshSession]);
@@ -1153,6 +1246,7 @@ export function FarcasterAuthProvider({
       if (event.key !== controlKey || event.newValue === null) return;
       const current = machineRef.current;
       logoutIntentBlocksRefreshRef.current = true;
+      invalidateAuthActivation();
       controller.cancelSignIn();
       clearLocalAuthoritativeSession(false);
       if (current.view.phase === 'authenticated' || current.view.phase === 'pending-admission') {
@@ -1162,26 +1256,29 @@ export function FarcasterAuthProvider({
 
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [clearLocalAuthoritativeSession, controller, deviceSessionEnvironment?.basePath]);
+  }, [clearLocalAuthoritativeSession, controller, deviceSessionEnvironment?.basePath, invalidateAuthActivation]);
 
   const value = useMemo<FarcasterAuthControllerValue>(() => ({
     state: machine.view,
     oidcSession,
-    beginSignIn: controller.beginSignIn,
-    cancelSignIn: controller.cancelSignIn,
-    retrySignIn: controller.retrySignIn,
+    beginSignIn: beginConsentGatedSignIn,
+    cancelSignIn: cancelConsentGatedSignIn,
+    retrySignIn: beginConsentGatedSignIn,
     prepareQrCode: controller.prepareQrCode,
-    refreshSession: () => { void refreshSession(false); },
-    signOut: controller.signOut,
+    refreshSession: refreshActiveSession,
+    signOut,
     rememberDevice,
     setRememberDevice
   }), [
+    beginConsentGatedSignIn,
+    cancelConsentGatedSignIn,
     controller,
     machine.view,
     oidcSession,
-    refreshSession,
+    refreshActiveSession,
     rememberDevice,
-    setRememberDevice
+    setRememberDevice,
+    signOut
   ]);
 
   return (

@@ -83,7 +83,8 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Relay channel token, channel URL, nonce, and request ID | Confidentiality, bounded lifetime, and no persistence beyond the active flow. |
 | Player OIDC access JWT | JavaScript-memory-only confidentiality; exact auth version/claims; 600-second maximum; positive epoch enforcement. |
 | Session-family cookie and Durable Object state | `__Host-`, Secure, HttpOnly, SameSite=Strict; integrity-protected rotating reference; server-side expiry/revocation. |
-| Browser logout-intent tombstone | Non-secret, base-path scoped marker/timestamp only; no FID, proof, token, cookie, family ID, or profile data; 30-day maximum and explicit-SIWF clearing. |
+| Browser logout-intent tombstone | Non-secret, base-path scoped marker/timestamp only; no FID, proof, token, cookie, family ID, or profile data; 30-day maximum and explicit Terms-gated activation clearing. |
+| Alpha Terms acceptance | Unchecked by default, component-memory only, one entry attempt, no identity or cross-tab/persistent representation. |
 | Worker-to-SpacetimeDB resolver JWT | Server-only, maximum 60 seconds, exact resolver subject/sole role, fixed destination, never logged. |
 | ES256 private signing key | Worker-managed secret only; absent from source, browser, artifacts, and logs. |
 | Hermes admin secret | Operator/Worker secret only; never placed in browser code, process output, or repository. |
@@ -215,6 +216,13 @@ creation, and world state. Anonymous visitors do not open a database connection.
 
 ### Browser session lifecycle
 
+- **ENTER REALM** opens an accessible Alpha Terms gate before any anonymous
+  cookie refresh, SIWF challenge, QR/deep link, or database connection. Its
+  checkbox is local to the mounted dialog and is destroyed on cancel, close,
+  Escape, browser Back, unmount, failure, expiry, retry replacement, or
+  completion. Direct `#realm` navigation normalizes to the menu and conveys no
+  acceptance or authorization intent. The concise notice is not a substitute
+  for complete Terms, Privacy, or legal review.
 - An access bearer exists only in JavaScript memory and expires within 600
   seconds. It is never persisted to localStorage, IndexedDB, a URL, or a
   browser-readable cookie.
@@ -235,10 +243,11 @@ creation, and world state. Anonymous visitors do not open a database connection.
   expires the current browser cookie; a separately copied cookie may remain
   usable after storage recovery until the bounded family expires.
 - Sign-out writes a non-secret 30-day logout-intent tombstone before the
-  best-effort server call. All startup, focus/timer, pending-check, and direct
-  refresh paths fail closed while it is active; reloads and same-origin tabs
-  honor it, and only explicit SIWF clears it before expiry. Malformed or
-  unavailable storage blocks refresh.
+  best-effort server call. Anonymous startup, focus, visibility, pageshow, and
+  direct refresh remain dormant even without a tombstone. Reloads and
+  same-origin tabs honor an active tombstone; only a new explicit, Terms-gated
+  auth activation clears it before expiry. Malformed or unavailable storage
+  blocks refresh.
 - The bridge returns only the verified FID. Proof, profile, custody,
   verification, and authentication-method details do not enter session-family
   storage or access-token claims.
@@ -282,13 +291,14 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Threat | Primary control | Residual treatment |
 | --- | --- | --- |
 | Client chooses or substitutes another FID | Independent SIWF verification and exact FID agreement | Treat verifier/RPC compromise as an external dependency incident. |
+| Terms gate bypass or replay | Dormant anonymous refresh; direct-route normalization; local unchecked state; disabled continuation; one-shot callback; focus trap; no persistence or identity tracking | The concise Alpha notice is not complete legal documentation; revisit the gate before changing auth entry points. |
 | Proof replay or parallel exchange | Expiring Durable Object challenge, atomic pre-work claim, and distributed per-client rolling-window limits | Add aggregate edge monitoring/alerts for broad distributed abuse; tune policy only through separate review. |
 | Stolen in-memory access bearer | Exact v2 claims, 600-second maximum, positive epoch/admission checks, disconnect/logout handling | XSS/extension memory capture remains possible for the token's short remaining lifetime; the HttpOnly family is not exposed. |
 | Stolen or replayed session reference | HMAC-authenticated `__Host-` cookie, SameSite=Strict, origin binding, generation rotation, stale-replay family revocation | Endpoint/host compromise remains an incident; bounded previous-generation recovery must remain narrow. |
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
 | Whitelist bypass or private-row disclosure | Module-side admission and private ownership checks on every protected operation; private tables/bindings | Public world/player/castle projections remain intentionally observable, but public player rows contain no opaque OIDC identity. |
-| Logout revocation-store failure | Generic `503`, current-cookie expiry, static failure event, and non-secret 30-day browser tombstone that blocks all refresh until explicit SIWF | A denied tombstone write plus failed server revocation can leave a later storage-enabled context able to resume a copied cookie until family expiry; investigate without logging identifiers or cookie material. |
+| Logout revocation-store failure | Generic `503`, current-cookie expiry, static failure event, and non-secret 30-day browser tombstone that blocks all refresh until explicit Terms-gated activation | A denied tombstone write plus failed server revocation can leave a later storage-enabled context able to resume a copied cookie until family expiry; investigate without logging identifiers or cookie material. |
 | Worker memory/cost exhaustion | Streaming bounds, timeouts, early challenge claim, per-client rate control, and storage cleanup | Aggregate account quotas, telemetry, and alerting remain operational requirements. |
 | Malicious dependency or workflow step obtains deployment authority | Lockfiles, audits, required action SHA pins, checksum verification, job privilege split, and protected `main` required checks | Commit signatures remain disabled; security-update remediation needs a private workflow while automated security PRs are intentionally off. |
 | First-visit transport downgrade or framing/content-type hardening gap | HTTPS redirect and browser-origin validation | HSTS and response headers depend on the hosting layer and remain an activation check. |
@@ -303,7 +313,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
   compromised origin/device safe. Rotation, SameSite=Strict, exact CORS/origin,
   server revocation, incident response, and key rotation remain necessary.
 - The non-secret logout tombstone suppresses cookie resurrection for its 30-day
-  lifetime and is cleared early only by explicit SIWF. Browser storage denial
+  lifetime and is cleared early only by explicit Terms-gated auth activation. Browser storage denial
   remains a residual when server revocation also fails: a future context where
   storage works cannot discover a tombstone that was never written.
 - Public game projections are observable to admitted authenticated clients by

@@ -225,9 +225,10 @@ remain usable after storage recovery until the bounded family expires.
 Sign-out first records a non-secret, base-path-scoped `logout-v1:<timestamp>`
 tombstone with a 30-day maximum. It contains no FID, token, proof, cookie,
 family identifier, or profile data and blocks every cookie-refresh entry point
-across reloads/tabs until explicit SIWF clears it early. Malformed or unavailable
-storage fails closed. If the tombstone write is denied and server revocation also
-fails, a later storage-enabled context cannot discover the missing marker and may
+across reloads/tabs until an explicit Terms-gated auth activation clears it
+early. Malformed or unavailable storage fails closed. If the tombstone write is
+denied and server revocation also fails, a later storage-enabled context cannot
+discover the missing marker and may
 resume a copied cookie; record that combined condition as residual risk.
 
 ## 6. Configuration attestation
@@ -280,19 +281,24 @@ enable the frontend. Never enable a v2 frontend against a v1 Worker/module.
 No owner QA was performed by this documentation task. After all preceding gates
 are approved and verified, a clean profile should confirm:
 
-1. no relay or database work before **ENTER REALM**;
-2. a missing FID receives pending identity but no access token/database
+1. **ENTER REALM** opens unchecked Alpha Terms, while Cancel, close, Escape,
+   browser Back, reload, another tab, and direct `#realm` navigation create no
+   challenge, QR/deep link, cookie refresh, or database connection;
+2. one checked **CONTINUE TO SIGN-IN** creates exactly one auth continuation,
+   while retry starts with fresh unchecked acceptance;
+3. a missing FID receives pending identity but no access token/database
    connection;
-3. **CHECK AGAIN** uses cookie refresh without a new SIWF request;
-4. disabling or epoch-changing a bound FID revokes refresh and disconnects;
-5. successful logout revokes the family, expires the cookie, clears memory token
+4. **CHECK AGAIN** uses cookie refresh without a new SIWF request;
+5. disabling or epoch-changing a bound FID revokes refresh and disconnects;
+6. successful logout revokes the family, expires the cookie, clears memory token
    state, and closes the database connection; an injected/local revocation-store
    failure returns `503`, expires the current cookie, emits only the static safe
    event, and is recorded as an unresolved bounded family risk;
-6. a local fixture confirms the non-secret logout tombstone blocks startup,
-   focus/timer, **CHECK AGAIN**, and direct refresh until explicit SIWF; a denied
+7. a local fixture confirms the non-secret logout tombstone blocks startup,
+   focus/timer, **CHECK AGAIN**, and direct refresh until explicit Terms-gated
+   activation; a denied
    tombstone write plus failed server revocation remains explicitly unresolved;
-7. no secret/proof/token/cookie is captured in screenshots, console, network
+8. no secret/proof/token/cookie is captured in screenshots, console, network
    exports, or logs.
 
 Admission of any real FID requires another explicit approval after tokenless

@@ -12,7 +12,8 @@ App, Quick Auth, wallet connection, or a client-only permanent identity system.
 ## Authority boundary
 
 ```text
-browser creates a fresh private S256 verifier and bound SIWF challenge
+player intentionally selects ENTER REALM and accepts the in-memory Alpha Terms
+  -> browser may restore one cookie session or creates a fresh private S256 verifier and bound SIWF challenge
   -> player approves a normal Farcaster SIWF request
   -> browser sends the completed proof envelope plus verifier to the bridge
   -> bridge verifies binding and SIWF, then consumes the one-time challenge
@@ -45,10 +46,24 @@ a local or anonymous database identity.
 
 ## Browser flow and privacy
 
-Selecting **ENTER REALM** is the only action that begins SIWF. Title load,
-anonymous menu load, and ordinary route rendering create neither a Farcaster
-channel nor a SpacetimeDB connection. Desktop is QR-first; mobile/coarse layouts
-are deep-link-first with optional QR fallback.
+Selecting **ENTER REALM** opens the concise **ALPHA PARTICIPATION TERMS** gate;
+it does not begin authentication. The unchecked acceptance and its continuation
+exist only in component memory. Only checking the explicit agreement and
+selecting **CONTINUE TO SIGN-IN** starts one auth activation. That activation
+may first restore a valid HttpOnly cookie session; otherwise it creates a fresh
+SIWF request. Cancel, close, Escape, browser Back, unmount, retry, and completion
+discard acceptance. A retry or later entry attempt starts unchecked again.
+
+Title load, anonymous menu load, focus/visibility/pageshow events, ordinary
+route rendering, and direct `#realm` navigation perform no cookie refresh,
+Farcaster channel, QR/deep-link, or SpacetimeDB connection. An unaccepted
+`#realm` route is normalized to the menu. Desktop is QR-first; mobile/coarse
+layouts are deep-link-first with optional QR fallback after acceptance.
+
+The gate stores no identity, tracking record, or persistent acceptance and is
+not represented in `localStorage`, `sessionStorage`, IndexedDB, URLs, cookies,
+or analytics. It is a narrow authentication-start control, not a replacement
+for full Terms of Service, Privacy Policy, or legal review.
 
 Each attempt receives a new 32-byte verifier. Only its `S256` digest enters the
 `POST /v2/farcaster/challenge` request and Durable Object record; the verifier
@@ -103,10 +118,11 @@ storage recovery until the bounded family expires.
 Before the best-effort server call, sign-out also writes the non-secret 30-day
 logout-intent tombstone and blocks every automatic, focus/timer, **CHECK AGAIN**,
 and direct cookie refresh in that browser scope. Reloads and same-origin tabs
-honor it; only a new explicit SIWF attempt clears it early, and it becomes stale
-after the maximum family lifetime. Malformed or currently unavailable storage
-fails closed for refresh. A denied tombstone write remains a residual only when
-server revocation also fails: the current runtime stays blocked, but a later
+honor it; only a new explicit, Terms-gated auth activation clears it early, and
+it becomes stale after the maximum family lifetime. Malformed or currently
+unavailable storage fails closed for refresh. A denied tombstone write remains
+a residual only when server revocation also fails: the current runtime stays
+blocked, but a later
 context where storage becomes available cannot recover a record that was never
 written and could resume a still-valid copied cookie.
 
@@ -199,8 +215,9 @@ memory-only bearer handling, pending-without-token behavior, refresh/logout,
 FID-only bridge identity, default-off remember-device intent, 30-day logout
 tombstones and storage denial, durable-logout failure, session-family rotation
 and revocation, exact production coordinate pins, exact resolver claims/response,
-profile-claim discard, private-ownership isolation, protocol compatibility, and
-no anonymous/unadmitted connection.
+profile-claim discard, private-ownership isolation, protocol compatibility,
+single-use in-memory Alpha Terms acceptance, dormant anonymous cookie refresh,
+direct-route normalization, and no anonymous/unadmitted connection.
 
 Clean-profile QA is allowed only after every deployment gate has separate
 approval and exact-head verification. Never attach live QR screenshots, browser
