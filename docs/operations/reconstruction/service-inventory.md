@@ -1,6 +1,7 @@
 # Service inventory
 
-> **Local auth-v2 target, not a deployment claim.** Recovery manifests must
+> **Local auth-v2 additive target, not a deployment claim.** The module has not
+> been published and is awaiting separate approval. Recovery manifests must
 > record observed deployed versions separately from this target. Start with
 > Worker public auth and frontend shared-alpha access false; every module
 > publish, Durable Object migration, secret configuration, deploy, and enable
@@ -121,22 +122,43 @@ with exact `service:auth-epoch-resolver` subject and sole
 missing/disabled/enabled state with epoch zero only for non-enabled results.
 `admin_get_fid_auth_epoch` is retained only for rollback compatibility.
 
-Expected closed-admission aggregate:
+Expected additive-v2 closed-admission aggregate after an approved publish:
 
 ```text
-61 world tiles / 0 allowlist rows / 0 enabled FIDs / 0 players / 0 castles
+61 world tiles
+0 legacy players / 0 v2 players / 0 private v2 ownerships
+0 consistent v2 player/ownership pairs
+0 orphaned v2 player rows / 0 orphaned v2 ownership rows
+0 allowlist rows / 0 enabled FIDs / 0 castles
+backend protocol 2 / world seed 3445214658 / HEGEMONY_GENESIS_001
 ```
 
-The local v2 schema's private tables include `allowed_fid`, `player_ownership`,
-and `admin_audit`. Public projections include `world_tile`, `player`, and
-`castle`; public `player` rows contain no opaque SpacetimeDB OIDC Identity.
-Private ownership accessors must be absent from generated browser bindings.
+The local module preserves the original five-table prefix exactly, in this
+order: private `allowed_fid`, public `world_tile`, public legacy `player`, public
+`castle`, private `admin_audit`. The legacy `player` schema remains byte-for-byte
+compatible, including its opaque `identity` field. Its protocol-v1 status and
+bootstrap wires fail closed, protocol v2 never reads or writes it, the official
+browser never subscribes to it, and its required production count is zero.
+
+Two tables are appended: public `player_v2`, which excludes opaque identity,
+and private `player_ownership_v2`, which contains the authorization binding.
+The private ownership table must have no generated browser table accessor.
 Bootstrap ignores optional profile-shaped JWT fields and explicitly inserts
 undefined `username`, `displayName`, and `pfpUrl`; profile changes require a
 separately reviewed mutation path.
 
-This public/private split removes the historical public player identity field
-and is a breaking schema rollout. Before any publish, require explicit approval
-for read-only state inspection and a reviewed migration/client-compatibility
-plan; generic additive publish approval is insufficient. Never dump private rows
-or identities into a recovery report.
+`admin_get_alpha_status_v2` is admin-only and read-only. It returns aggregate
+legacy/v2/ownership counts, consistent-pair and both orphan counts, safe world
+and admission totals, protocol/seed constants, and the audit-entry count. It
+returns no FID, Identity, profile, note, audit row, token, or credential. Because
+the preserved legacy table is public, an arbitrary old client can technically
+request it; the retired writer plus mandatory zero-row invariant is the
+compatibility safety boundary.
+
+`npm run stdb:verify-additive-migration` proves the exact prefix, append-only
+tables, empty and synthetic nonempty fixture preservation, idempotence, partial
+state detection, and guarded v1 rollback refusal before schema change against a disposable loopback server with
+the pinned CLI. This local proof grants no production authority. If post-publish
+verification finds a mismatch, keep auth disabled and use a separately reviewed
+forward-compatible fix; never delete data, recreate the database, or roll the
+schema backward.

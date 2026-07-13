@@ -6,9 +6,11 @@ a SpacetimeDB identity, and gameplay authority comes only from a strictly
 validated bridge-issued OIDC access token.
 
 > **Local protocol-v2 draft — not published.** The security changes described
-> below exist in this checkout. This work did not inspect or mutate Maincloud,
-> publish a module, seed a world, change an allowlist, deploy a Worker/frontend,
-> configure a secret, run a Durable Object migration, or enable public auth.
+> below exist in this checkout. The loopback proof does not contact Maincloud; a
+> separate bounded, counts-only read reproduced the closed-alpha baseline. This
+> work did not mutate Maincloud, publish a module, seed a world, change an
+> allowlist, deploy a Worker/frontend, configure a secret, run a Durable Object
+> migration, or enable public auth.
 
 The historical production database and issuer remain recovery context only.
 They must not be described as running this local v2 module until an explicitly
@@ -33,6 +35,12 @@ cover JWT principals/claims, session windows, admission/epoch transitions,
 resolver response policy, connection gating, and the deterministic radius-four
 Lowlands map. They do not connect to or publish a database.
 
+From the repository root, `npm run stdb:verify-additive-migration` runs the
+pinned SpacetimeDB 2.6.1 CLI against disposable loopback-only databases. It
+proves the production-v1 table signatures remain unchanged while the two v2
+tables are appended with `--delete-data=never`. It does not inspect or mutate
+Maincloud and is not production publish approval.
+
 ## Authority and tables
 
 ```txt
@@ -41,13 +49,13 @@ verified Farcaster SIWF
   -> structured private admission resolution
   -> 600-second protocol-v2 player access JWT
   -> admitted SpacetimeDB connection
-  -> public player/castle/world_tile state
+  -> public player_v2/castle/world_tile state
 ```
 
 Private tables:
 
 - `allowed_fid`: manual admission, enabled flag, and per-FID auth epoch.
-- `player_ownership`: the one-to-one FID ↔ opaque SpacetimeDB OIDC Identity
+- `player_ownership_v2`: the one-to-one FID ↔ opaque SpacetimeDB OIDC Identity
   authorization binding.
 - `admin_audit`: administrative action trace.
 
@@ -55,13 +63,19 @@ Public tables:
 
 - `world_tile`: exactly 61 canonical radius-four Lowlands gameplay cells; the
   30-cell visual apron remains client-only.
-- `player`: a stable Farcaster FID plus public presentation/game fields; it
+- `player`: the frozen protocol-v1 compatibility table, preserved with its
+  original public visibility, exact field order, and Identity column. Protocol
+  v2 never reads, writes, or subscribes to it. Historical inspection recorded
+  zero rows; a fresh zero-row check is mandatory before any publish.
+- `player_v2`: the active public FID and presentation/game projection. It
   contains no opaque SpacetimeDB OIDC Identity.
 - `castle`: one level-one keep per admitted FID and one occupant per tile.
 
 Private-table query/subscription accessors are omitted from generated browser
-bindings. Code generation may retain inert schema types, but those types expose
-no rows or subscription authority.
+bindings. Code generation may retain an inert `PlayerOwnershipV2` schema type,
+but it exposes no rows or subscription authority. The active browser subscribes
+only to `world_tile`, `player_v2`, and `castle`; the generated legacy `player`
+accessor exists solely because the production-compatible table remains public.
 
 ## Player token and connection contract
 
@@ -132,18 +146,38 @@ reported as enabled.
 rollback. It returns a raw epoch/baseline zero and must not be used for new v2
 issuance or refresh.
 
-`get_my_admission_status` remains a caller-specific status procedure for an
-already admitted connection. Missing/disabled users are resolved by the bridge
-before any player access token or database connection exists.
+The exact protocol-v1 wires remain present only to prevent old clients from
+reaching historical behavior:
 
-`bootstrap_player` is transactional and idempotent. It derives the FID only
+```txt
+get_my_admission_status
+bootstrap_player
+```
+
+Both fail with `PROTOCOL_RETIRED`; the procedure performs no lookup and the
+reducer performs no mutation. Protocol v2 uses only:
+
+```txt
+get_my_admission_status_v2
+bootstrap_player_v2
+```
+
+Missing/disabled status is handled by the bridge's tokenless pending path before
+any player access token or database connection exists.
+
+`bootstrap_player_v2` is transactional and idempotent. It derives the FID only
 from signed claims, requires current admission, and atomically creates the
-private ownership binding, public player projection, castle, and tile occupancy;
-the first fixture receives `0,0`. The local bridge issues no optional profile
-claims, and the module independently ignores any optional profile-shaped JWT
-fields: new public player rows explicitly insert undefined `username`,
-`displayName`, and `pfpUrl`. A future profile mutation requires a separate
-reviewed authorization path.
+private `player_ownership_v2` binding, public `player_v2` projection, castle,
+and tile occupancy without reading or writing legacy `player`; the first fixture
+receives `0,0`. Missing, partial, duplicate-identity, mismatched, or castle-only
+state fails closed. The local bridge issues no optional profile claims, and the
+module independently ignores any optional profile-shaped JWT fields: new
+`player_v2` rows explicitly insert undefined `username`, `displayName`, and
+`pfpUrl`. A future profile mutation requires a separate reviewed authorization
+path. Admission, bootstrap, admitted-player guards, and the v2 aggregate also
+validate the complete canonical 61-tile/castle graph in both directions; a
+missing or altered terrain row, dangling occupancy, or mismatched castle link
+fails `STATE_INTEGRITY`.
 
 ## Admin operations
 
@@ -154,11 +188,18 @@ Exact fresh Hermes authority is required for:
 - `admin_disable_fid`
 - `admin_bump_auth_epoch`
 - `admin_get_alpha_status`
+- `admin_get_alpha_status_v2`
 - rollback-only `admin_get_fid_auth_epoch`
 
 No real FID is seeded in source or by a verification script. Operator wrappers
 must keep admin JWTs in memory, support read-only/dry-run inspection, and require
 confirmation for mutations.
+
+`admin_get_alpha_status` retains the legacy aggregate shape. The new
+`admin_get_alpha_status_v2` returns privacy-safe counts for legacy players,
+`player_v2`, ownership rows, consistent v2 pairs, both orphan directions,
+castles, admission and audit totals, plus static protocol/world metadata. It
+never returns a FID, Identity, profile, allowlist row, note, or audit record.
 
 ## Backend compatibility metadata
 
@@ -170,8 +211,18 @@ whitelist, identity, audit, or live aggregate data. The browser must reject a
 protocol/seed mismatch before bootstrap or subscription.
 
 SpacetimeDB 2.6's default case converter would spell a trailing version digit
-as `_v_2`; the module pins the resolver's canonical wire name to exact `_v2`.
-Generated bindings and regression tests verify that exact external name.
+as `_v_2`; the module pins these canonical wire names to exact `_v2`:
+
+```txt
+auth_resolver_get_fid_admission_v2
+get_my_admission_status_v2
+bootstrap_player_v2
+admin_get_alpha_status_v2
+```
+
+Generated bindings and regression tests verify the exact external names.
+The browser compatibility gate pins both `HEGEMONY_GENESIS_001` and its exact
+numeric seed `3445214658`; agreement on only one representation is insufficient.
 
 ## Browser session boundary
 
@@ -188,32 +239,50 @@ session cookie, private key, or admin credential.
 
 ## Approval-gated schema rollout
 
-No command in this README authorizes external mutation. This local module removes
-opaque OIDC Identity from the public `player` schema and adds private
-`player_ownership`; that is a breaking schema change even though the publish must
-preserve data. A generic additive publish approval is insufficient. A future
-rollout must keep Worker public auth and the frontend shared-alpha switch false
-while it:
+No command in this README authorizes external mutation. The local protocol-v2
+schema is additive: it preserves the exact five-table production-v1 prefix,
+freezes public legacy `player`, and appends public `player_v2` plus private
+`player_ownership_v2`. No v2 admission, bootstrap, or browser runtime path reads
+or writes the legacy table.
 
-1. obtains explicit approval for read-only Maincloud inspection and records
-   current player/ownership state without exposing row identities;
-2. obtains a separate explicit approval for the reviewed breaking-schema
-   migration/compatibility plan and non-destructive protocol-v2 module publish
-   (`--delete-data=never`); if any existing player data cannot be reconciled,
-   stop rather than deleting or auto-migrating it;
-3. verifies generated bindings contain no private ownership accessor and checks
-   the exact structured resolver;
-4. separately approves the additive session-family Durable Object migration and
+The loopback-only proof command:
+
+```sh
+npm run stdb:verify-additive-migration
+```
+
+uses the pinned CLI and `--delete-data=never` to verify unchanged legacy table
+signatures and product-type order, empty and synthetic nonempty row preservation,
+v2 visibility and constraints, idempotent republish, partial-state detection,
+and refusal of a guarded v1 rollback before any schema change. This proves only the controlled local
+fixtures; it neither observes Maincloud nor authorizes a production publish.
+
+A future rollout must keep Worker public auth and the frontend shared-alpha
+switch false while it:
+
+1. obtains explicit approval for a fresh read-only Maincloud aggregate
+   inspection without exposing row identities;
+2. stops if legacy `player` is not exactly empty, if an enabled epoch-zero row
+   exists, or if any aggregate/schema coordinate disagrees; nonzero legacy state
+   requires a separately implemented and reviewed migration, never dual-write;
+3. obtains separate explicit approval for the guarded production module publish,
+   whose same-run protected v1 aggregate must independently reproduce the fresh
+   zero result and whose publisher pins the exact reviewed CLI binary plus the
+   canonical existing database identity, then binds the proof's one SHA-256
+   receipt to the exact prebuilt artifact and rechecks it before `--js-path`;
+4. publishes only with `--delete-data=never`, without `--break-clients`, and
+   verifies `admin_get_alpha_status_v2`, exact v2 wires, private ownership
+   isolation, generated bindings, and protocol metadata;
+5. separately approves the additive session-family Durable Object migration and
    secret configuration;
-5. separately approves a Worker deploy with public auth still false and checks
+6. separately approves a Worker deploy with public auth still false and checks
    its configuration attestation;
-6. separately approves the v2 frontend deploy with its realm switch false;
-7. requires a final explicit approval before any public-auth or realm enable.
+7. separately approves the v2 frontend deploy with its realm switch false;
+8. requires a final explicit approval before any public-auth or realm enable.
 
-The current guarded publish path forbids `--break-clients`. If local or read-only
-preflight reports that the approved schema cannot be applied through that path,
-stop. Changing the migration implementation or publish guard requires its own
-review and explicit approval; this README does not authorize bypassing it.
+If the CLI requests a compatibility override, the protected aggregate is not
+zero, or the exact additive plan cannot be applied, stop. Do not weaken the
+publisher, delete data, use `--break-clients`, or write the legacy player table.
 
 See the [activation and recovery runbook](../docs/operations/alpha-activation.md).
 If any coordinate or state differs, stop; do not erase, recreate, auto-migrate,

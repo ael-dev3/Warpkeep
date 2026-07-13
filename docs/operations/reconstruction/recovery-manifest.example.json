@@ -3,8 +3,8 @@
   "capturedAt": "<ISO-8601 UTC>",
   "status": "<observed deployment state; never infer local auth-v2 deployment>",
   "release": {
-    "version": "0.3.0",
-    "tag": "v0.3.0",
+    "version": "0.3.1",
+    "tag": "v0.3.1",
     "buildCommit": "<40 lowercase hex>",
     "tree": "<40 lowercase hex>"
   },
@@ -81,13 +81,47 @@
     "moduleSourceCommit": "<40 lowercase hex>",
     "targetBackendProtocol": 2,
     "backendProtocolObserved": "<integer read from deployed module>",
+    "additiveProtocolV2PublishedObserved": false,
     "resolverProcedureObserved": "<auth_resolver_get_fid_admission_v2 or not published>",
-    "protectedAggregate": {
+    "legacySchemaPrefix": [
+      "allowed_fid",
+      "world_tile",
+      "player",
+      "castle",
+      "admin_audit"
+    ],
+    "legacyPlayerExactSchemaObserved": "<true, false, or not inspected>",
+    "legacyProtectedAggregateObserved": {
       "worldTiles": 61,
       "allowedFids": 0,
       "enabledAllowedFids": 0,
       "players": 0,
       "castles": 0
+    },
+    "expectedProtocolV2ProtectedAggregate": {
+      "worldTiles": 61,
+      "legacyPlayers": 0,
+      "playersV2": 0,
+      "playerOwnershipsV2": 0,
+      "consistentPlayerPairsV2": 0,
+      "orphanedPlayerRowsV2": 0,
+      "orphanedOwnershipRowsV2": 0,
+      "castles": 0,
+      "allowedFids": 0,
+      "enabledAllowedFids": 0,
+      "auditEntries": "<nonnegative aggregate count observed after publish>",
+      "protocolVersion": 2,
+      "worldSeed": 3445214658,
+      "worldSeedName": "HEGEMONY_GENESIS_001"
+    },
+    "localAdditiveMigrationProof": {
+      "command": "npm run stdb:verify-additive-migration",
+      "cliVersion": "2.6.1",
+      "result": "<passed for exact candidate source, or not run>"
+    },
+    "recoveryPolicy": {
+      "direction": "forward-only additive fix",
+      "destructiveRollbackAllowed": false
     }
   },
   "verification": {
@@ -96,7 +130,7 @@
     "productionVerifiedAt": "<ISO-8601 UTC or not verified>"
   },
   "approvalGates": {
-    "modulePublish": "<approval reference or not approved>",
+    "additiveProtocolV2ModulePublish": "<separate approval reference or not approved>",
     "sessionFamilyDurableObjectMigration": "<approval reference or not approved>",
     "managedSecretConfiguration": "<approval reference or not approved>",
     "workerDeployWithPublicAuthFalse": "<approval reference or not approved>",

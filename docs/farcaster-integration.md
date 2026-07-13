@@ -161,6 +161,30 @@ and a maximum-five-second call. Any disagreement fails closed without a token.
 `admin_get_fid_auth_epoch` is retained only as admin-authenticated rollback
 compatibility. The v2 browser/session path never uses it.
 
+## Module protocol-v2 boundary
+
+The original public `player` table remains frozen with its exact v1 shape,
+including its opaque OIDC Identity column, and must remain empty. Protocol v2
+does not read, write, or subscribe to it. The active data split is public
+`player_v2` plus private `player_ownership_v2`; the browser subscribes only to
+`world_tile`, `player_v2`, and `castle`, so no ownership Identity is present in
+its query/subscription surface.
+
+The legacy module wires `get_my_admission_status` and `bootstrap_player` remain
+only for client/schema compatibility and immediately fail with
+`PROTOCOL_RETIRED`, without lookup or mutation. The active player path uses the
+exact `get_my_admission_status_v2` and `bootstrap_player_v2` wires. Bridge
+resolution continues to use the exact
+`auth_resolver_get_fid_admission_v2` procedure described above.
+
+Hermes operators may read `admin_get_alpha_status_v2`, which returns only
+privacy-safe aggregate counts for legacy rows, v2 player/ownership consistency,
+world state, admission state, protocol version, and seed. It returns no FID,
+Identity, token, proof, cookie, or profile payload. It refuses the aggregate with
+`STATE_INTEGRITY` if canonical terrain or any castle/occupancy backlink is
+inconsistent. The browser separately requires the exact generation name and
+numeric seed.
+
 ## Public and server configuration
 
 The static browser receives only public coordinates:
@@ -192,16 +216,34 @@ explicit `ENVIRONMENT=development` bridge remains configurable for local tests.
 
 ## Rollout and approval gates
 
-The v2 rollout is staged and intentionally stopped locally. Removing opaque OIDC
-Identity from public `player` rows and adding private `player_ownership` is a
-breaking schema change, so it requires read-only state inspection and a separate
-explicit migration/client-compatibility approval before any non-destructive
-module publish. A generic additive publish approval is insufficient. The later
-steps separately approve the additive session-family Durable Object migration,
-managed-secret configuration, a Worker deploy still paused, the v2 frontend
-deploy still disabled, and finally any public-auth or shared-realm enable.
-Discovery/JWKS, structured resolver, retired v1 routes, ownership isolation, and
-config attestation must agree before proceeding.
+The v2 rollout is staged and intentionally stopped locally. The module change is
+additive: it preserves the exact legacy table prefix and public `player` shape,
+then appends `player_v2` and private `player_ownership_v2`. Before any production
+publish, run `npm run stdb:verify-additive-migration` against its disposable
+loopback-only server. That proof checks schema signatures, retained empty and
+synthetic non-empty legacy rows, idempotent republish, v2 consistency, and
+guarded-v1 rollback refusal before schema change; it neither inspects nor
+mutates Maincloud.
+
+Historical zero-player records are not current evidence. A future operator must
+obtain approval for a fresh, bounded, read-only Maincloud inspection and stop if
+the deployed-v1 `players` field (the legacy count) is not zero or an enabled
+epoch-zero admission exists. Production
+module publish still requires separate explicit owner approval. The guarded
+publisher then independently repeats the deployed v1 aggregate in the same run,
+pins the reviewed CLI binary and canonical existing database identity, and
+publishes only the digest-attested prebuilt artifact from that same proof using
+`--js-path`. It uses `--delete-data=never`, never `--break-clients`, and fails
+closed on changed bytes, compatibility prompts, or disagreement. It accepts no
+hand-entered count.
+
+Later steps separately approve the additive session-family Durable Object
+migration, managed-secret configuration, a Worker deploy still paused, the v2
+frontend deploy still disabled, and finally any public-auth or shared-realm
+enable. `admin_get_alpha_status_v2`, exact v2 wires, discovery/JWKS, structured
+resolver, retired v1 routes, retired legacy module wires, ownership isolation,
+active-browser `player_v2` use, and config attestation must agree before
+proceeding.
 
 See the [activation and recovery runbook](./operations/alpha-activation.md).
 No historical deployment record is proof that this v2 head passed those gates.
@@ -216,8 +258,10 @@ FID-only bridge identity, default-off remember-device intent, 30-day logout
 tombstones and storage denial, durable-logout failure, session-family rotation
 and revocation, exact production coordinate pins, exact resolver claims/response,
 profile-claim discard, private-ownership isolation, protocol compatibility,
-single-use in-memory Alpha Terms acceptance, dormant anonymous cookie refresh,
-direct-route normalization, and no anonymous/unadmitted connection.
+local additive-migration proof, retired legacy module wires, v2-only browser
+player data, privacy-safe v2 admin aggregation, single-use in-memory Alpha Terms
+acceptance, dormant anonymous cookie refresh, direct-route normalization, and no
+anonymous/unadmitted connection.
 
 Clean-profile QA is allowed only after every deployment gate has separate
 approval and exact-head verification. Never attach live QR screenshots, browser

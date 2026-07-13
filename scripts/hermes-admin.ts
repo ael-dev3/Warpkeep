@@ -1,10 +1,17 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DbConnection } from '../src/spacetime/module_bindings';
 import { configureHermesMachineOutput } from './hermes-machine-output';
 
-type Command = 'seed-world' | 'allow-fid' | 'disable-fid' | 'bump-auth-epoch' | 'inspect-alpha';
+type Command =
+  | 'seed-world'
+  | 'allow-fid'
+  | 'disable-fid'
+  | 'bump-auth-epoch'
+  | 'inspect-alpha'
+  | 'inspect-alpha-v2';
 
 const DEFAULT_DATABASE = 'warpkeep-89e4u';
 const DEFAULT_URI = 'https://maincloud.spacetimedb.com';
@@ -56,7 +63,18 @@ function sanitizeNote(value: string | undefined, fallback?: string) {
   return note;
 }
 
-function readAdminSecret(value: string | undefined) {
+function readAdminSecret(value: string | undefined, fromStdin: string | undefined) {
+  if (fromStdin !== undefined && fromStdin !== '1') {
+    fail('WARPKEEP_ADMIN_TOKEN_SECRET_STDIN must be exactly 1 when configured.');
+  }
+  if (fromStdin === '1') {
+    if (value !== undefined) fail('The Hermes credential source was ambiguous.');
+    try {
+      value = readFileSync(0, 'utf8');
+    } catch {
+      fail('The Hermes credential pipe was unavailable.');
+    }
+  }
   const bytes = value === undefined ? 0 : new TextEncoder().encode(value).byteLength;
   if (bytes < 32 || bytes > 512) {
     fail('WARPKEEP_ADMIN_TOKEN_SECRET must contain 32 to 512 bytes.');
@@ -71,10 +89,50 @@ function commandFrom(value: string | undefined): Command {
     || value === 'disable-fid'
     || value === 'bump-auth-epoch'
     || value === 'inspect-alpha'
+    || value === 'inspect-alpha-v2'
   ) {
     return value;
   }
-  fail('Usage: hermes-admin.ts <seed-world|allow-fid|disable-fid|bump-auth-epoch|inspect-alpha> [...args] [--dry-run] [--confirm]');
+  fail('Usage: hermes-admin.ts <seed-world|allow-fid|disable-fid|bump-auth-epoch|inspect-alpha|inspect-alpha-v2> [...args] [--dry-run] [--confirm]');
+}
+
+export function parseHermesArguments(arguments_: readonly string[] = process.argv.slice(2)) {
+  const allowedFlags = new Set(['--dry-run', '--confirm', '--json']);
+  const flags = new Set<string>();
+  const positional: string[] = [];
+  for (const argument of arguments_) {
+    if (argument.startsWith('--')) {
+      if (!allowedFlags.has(argument) || flags.has(argument)) {
+        fail('Unknown or duplicate Hermes command-line argument.');
+      }
+      flags.add(argument);
+    } else {
+      positional.push(argument);
+    }
+  }
+
+  const command = commandFrom(positional[0]);
+  const inspection = command === 'inspect-alpha' || command === 'inspect-alpha-v2';
+  const expectedPositionals = command === 'allow-fid'
+    || command === 'disable-fid'
+    || command === 'bump-auth-epoch'
+    ? 3
+    : 1;
+  if (positional.length !== expectedPositionals) {
+    fail('Hermes command received an unexpected number of positional arguments.');
+  }
+  if ((inspection && flags.has('--confirm')) || (!inspection && flags.has('--json'))) {
+    fail('Hermes command received a flag that is invalid for this operation.');
+  }
+
+  return Object.freeze({
+    command,
+    positional: Object.freeze(positional),
+    dryRun: flags.has('--dry-run'),
+    confirmedByFlag: flags.has('--confirm'),
+    inspection,
+    machineReadableInspection: inspection && flags.has('--json'),
+  });
 }
 
 function printable(value: unknown): unknown {
@@ -244,7 +302,33 @@ export function connect(
   });
 }
 
-async function readStatus(connection: DbConnection, machineReadable = false) {
+export async function readStatus(
+  connection: DbConnection,
+  protocolV2 = false,
+  machineReadable = false,
+) {
+  if (protocolV2) {
+    const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV2({}));
+    const safeStatus = {
+      worldTiles: status.worldTiles,
+      legacyPlayers: status.legacyPlayers,
+      playersV2: status.playersV2,
+      playerOwnershipsV2: status.playerOwnershipsV2,
+      consistentPlayerPairsV2: status.consistentPlayerPairsV2,
+      orphanedPlayerRowsV2: status.orphanedPlayerRowsV2,
+      orphanedOwnershipRowsV2: status.orphanedOwnershipRowsV2,
+      castles: status.castles,
+      allowedFids: status.allowedFids,
+      enabledAllowedFids: status.enabledAllowedFids,
+      auditEntries: status.auditEntries,
+      protocolVersion: status.protocolVersion,
+      worldSeed: status.worldSeed,
+      worldSeedName: status.worldSeedName,
+    };
+    console.log(JSON.stringify(printable(safeStatus)));
+    return;
+  }
+
   const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatus({}));
   if (machineReadable) {
     // Keep the verifier contract deliberately narrow: it needs aggregate
@@ -262,13 +346,17 @@ async function readStatus(connection: DbConnection, machineReadable = false) {
 }
 
 async function main() {
-  const positional = process.argv.slice(2).filter((argument) => !argument.startsWith('--'));
-  const command = commandFrom(positional[0]);
-  const dryRun = process.argv.includes('--dry-run');
-  const machineReadableInspection = command === 'inspect-alpha' && process.argv.includes('--json');
+  const {
+    command,
+    positional,
+    dryRun,
+    confirmedByFlag,
+    inspection,
+    machineReadableInspection,
+  } = parseHermesArguments();
   configureHermesMachineOutput(machineReadableInspection);
-  const confirmed = process.argv.includes('--confirm') || process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes';
-  const mutation = command !== 'inspect-alpha';
+  const confirmed = confirmedByFlag || process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes';
+  const mutation = !inspection;
   const database = readDatabase(process.env.WARPKEEP_SPACETIMEDB_DATABASE);
   const uri = readHttpsUrl(process.env.WARPKEEP_SPACETIMEDB_URI || DEFAULT_URI, 'WARPKEEP_SPACETIMEDB_URI');
 
@@ -294,7 +382,10 @@ async function main() {
 
   const bridgeUrl = readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
   requireCredentialedProductionTarget(uri, database, bridgeUrl);
-  const secret = readAdminSecret(process.env.WARPKEEP_ADMIN_TOKEN_SECRET);
+  const secret = readAdminSecret(
+    process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
+    process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
+  );
   const token = await requestAdminToken(bridgeUrl, secret);
   const connection = await connect(uri, database, token);
   try {
@@ -307,7 +398,7 @@ async function main() {
     } else if (command === 'bump-auth-epoch' && fid !== undefined && note !== undefined) {
       await withOperationTimeout(connection.reducers.adminBumpAuthEpoch({ fid, note }));
     }
-    await readStatus(connection, machineReadableInspection);
+    await readStatus(connection, command === 'inspect-alpha-v2', machineReadableInspection);
   } finally {
     connection.disconnect();
   }

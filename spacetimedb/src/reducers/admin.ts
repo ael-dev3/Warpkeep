@@ -21,6 +21,7 @@ import {
 import warpkeep from '../schema';
 import { seedCanonicalWorld } from './worldSeed';
 import { HEGEMONY_GENESIS_001, HEGEMONY_WORLD_SEED } from '../world';
+import { worldCastleGraphIsConsistent } from '../worldCastleIntegrity';
 
 function cleanAdminNote(note: string): string {
   const trimmed = note.trim();
@@ -54,6 +55,23 @@ const adminAlphaStatus = t.object('AdminAlphaStatus', {
   allowedFids: t.u64(),
   enabledAllowedFids: t.u64(),
   auditEntries: t.u64(),
+});
+
+const adminAlphaStatusV2 = t.object('AdminAlphaStatusV2', {
+  worldTiles: t.u64(),
+  legacyPlayers: t.u64(),
+  playersV2: t.u64(),
+  playerOwnershipsV2: t.u64(),
+  consistentPlayerPairsV2: t.u64(),
+  orphanedPlayerRowsV2: t.u64(),
+  orphanedOwnershipRowsV2: t.u64(),
+  castles: t.u64(),
+  allowedFids: t.u64(),
+  enabledAllowedFids: t.u64(),
+  auditEntries: t.u64(),
+  protocolVersion: t.u32(),
+  worldSeed: t.u32(),
+  worldSeedName: t.string(),
 });
 
 const alphaBackendInfo = t.object('AlphaBackendInfo', {
@@ -109,6 +127,62 @@ export const adminGetAlphaStatus = warpkeep.procedure(
         allowedFids: tx.db.allowedFid.count(),
         enabledAllowedFids,
         auditEntries: tx.db.adminAudit.count(),
+      };
+    }),
+);
+
+/**
+ * Protocol-v2 aggregate inspection. It exposes counts and static compatibility
+ * state only, including enough pair counts to reveal one-sided v2 rows without
+ * disclosing a FID, Identity, profile, note, or audit entry.
+ */
+export const adminGetAlphaStatusV2 = warpkeep.procedure(
+  { name: 'admin_get_alpha_status_v2' },
+  adminAlphaStatusV2,
+  ctx =>
+    ctx.withTx(tx => {
+      requireAdmin(tx);
+      if (!worldCastleGraphIsConsistent(tx.db.worldTile.iter(), tx.db.castle.iter())) {
+        throw new SenderError('STATE_INTEGRITY');
+      }
+
+      let enabledAllowedFids = 0n;
+      for (const row of tx.db.allowedFid.iter()) {
+        if (row.enabled) enabledAllowedFids += 1n;
+      }
+
+      let consistentPlayerPairsV2 = 0n;
+      let orphanedPlayerRowsV2 = 0n;
+      for (const row of tx.db.playerV2.iter()) {
+        if (tx.db.playerOwnershipV2.fid.find(row.fid) === null) {
+          orphanedPlayerRowsV2 += 1n;
+        } else {
+          consistentPlayerPairsV2 += 1n;
+        }
+      }
+
+      let orphanedOwnershipRowsV2 = 0n;
+      for (const row of tx.db.playerOwnershipV2.iter()) {
+        if (tx.db.playerV2.fid.find(row.fid) === null) {
+          orphanedOwnershipRowsV2 += 1n;
+        }
+      }
+
+      return {
+        worldTiles: tx.db.worldTile.count(),
+        legacyPlayers: tx.db.player.count(),
+        playersV2: tx.db.playerV2.count(),
+        playerOwnershipsV2: tx.db.playerOwnershipV2.count(),
+        consistentPlayerPairsV2,
+        orphanedPlayerRowsV2,
+        orphanedOwnershipRowsV2,
+        castles: tx.db.castle.count(),
+        allowedFids: tx.db.allowedFid.count(),
+        enabledAllowedFids,
+        auditEntries: tx.db.adminAudit.count(),
+        protocolVersion: WARPKEEP_BACKEND_PROTOCOL_VERSION,
+        worldSeed: HEGEMONY_WORLD_SEED,
+        worldSeedName: HEGEMONY_GENESIS_001,
       };
     }),
 );

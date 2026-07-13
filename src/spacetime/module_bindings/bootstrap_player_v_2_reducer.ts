@@ -10,12 +10,4 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.row({
-  fid: __t.u64().primaryKey(),
-  identity: __t.identity(),
-  username: __t.option(__t.string()),
-  displayName: __t.option(__t.string()).name("display_name"),
-  pfpUrl: __t.option(__t.string()).name("pfp_url"),
-  joinedAt: __t.timestamp().name("joined_at"),
-  status: __t.string(),
-});
+export default {};

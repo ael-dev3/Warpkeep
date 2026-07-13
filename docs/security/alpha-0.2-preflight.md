@@ -83,9 +83,10 @@ The v2 target supersedes the historical bearer/epoch resolver assumptions:
   `auth_resolver_get_fid_admission_v2` results;
 - first admission begins at epoch one; epoch zero is only a non-enabled
   sentinel and never player authority;
-- the bridge exchange/session/response identity is FID-only, and opaque
-  SpacetimeDB OIDC ownership moves from public `player` rows to private
-  `player_ownership` rows with no browser query/subscription accessor;
+- the bridge exchange/session/response identity is FID-only; the deployed
+  public `player` table is retained byte-for-byte as a frozen, inert legacy
+  contract, while new gameplay uses identity-free public `player_v2` plus
+  private `player_ownership_v2` with no browser query/subscription accessor;
 - module bootstrap ignores all optional profile-shaped JWT claims and inserts
   undefined `username`, `displayName`, and `pfpUrl` fields;
 - a server-only configuration attestation covers the reviewed v2 coordinates,
@@ -100,10 +101,38 @@ The v2 target supersedes the historical bearer/epoch resolver assumptions:
 The raw `admin_get_fid_auth_epoch` procedure remains only as admin-authenticated
 rollback compatibility. It is not the v2 issuance/refresh contract.
 
-The public-player/private-ownership split is a breaking schema rollout, not an
-implicitly additive publish. It requires explicit approval for read-only state
-inspection, a reviewed migration/client-compatibility decision, and the guarded
-non-destructive publish; this review grants none of those approvals.
+The repository now contains an additive migration plan and local proof. The
+production-v1 five-table definitions and order remain unchanged; `player_v2` and
+`player_ownership_v2` are appended. A pinned SpacetimeDB 2.6.1 in-memory
+loopback rehearsal preserves the 61-tile empty fixture and a synthetic nonempty
+legacy row, accepts the additive update with `--delete-data=never`, verifies an
+idempotent second update, detects partial/duplicate state, and confirms guarded
+v1 rollback is refused before schema change. This is repository-only evidence:
+the proof did not inspect or publish Maincloud and does not establish that
+production runs v2.
+
+Before any production publication, an explicitly approved fresh protected read
+must show exactly zero legacy `player` rows. A nonzero count is an unconditional
+hard stop requiring a separate reconciliation plan; it may not be copied,
+repaired, deleted, or waived during this release. After an approved additive
+publication, the v2 aggregate must also report `legacyPlayers = 0`,
+`playersV2 = 0`, `playerOwnershipsV2 = 0`, `consistentPlayerPairsV2 = 0`,
+`orphanedPlayerRowsV2 = 0`, and `orphanedOwnershipRowsV2 = 0`, alongside the
+reviewed 61-tile empty-alpha state.
+
+The legacy table remains public because changing its visibility would break the
+deployed schema. Protocol-v2 code never writes or subscribes to it, but arbitrary
+old clients can technically request the still-public table. Production safety
+therefore depends on the zero-row hard stop and continuing zero-row verification,
+not on treating that legacy table as private.
+
+Keep both `PUBLIC_AUTH_ENABLED=false` and
+`VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false` throughout this module gate. Never use
+delete-data modes other than `never`, `--break-clients`, database recreation, or
+a v1 schema rollback. Leave the additive tables inert and prepare a forward fix
+if containment is required. This review grants no external approval; the only
+module-publication request phrase is
+`approve additive protocol-v2 module publication`.
 
 ## Architecture and trust boundaries
 
@@ -387,9 +416,13 @@ that exact latest head (a no-op), and the complete local/hosted matrix passed.
 
 Ongoing conditions before admitting any FID:
 
-1. keep Worker public auth and frontend shared-alpha access false;
-2. explicitly approve read-only inspection and a non-destructive protocol-v2
-   module publish, then verify exact bindings/structured resolver;
+1. keep `PUBLIC_AUTH_ENABLED=false` and
+   `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false`;
+2. explicitly approve a fresh protected read-only inspection; require exactly
+   zero legacy player rows or stop, then separately request
+   `approve additive protocol-v2 module publication` and verify the unchanged
+   five-table prefix, appended v2 pair, aggregate/orphan counters, exact bindings,
+   and structured resolver;
 3. separately approve the additive session-family Durable Object migration;
 4. separately approve managed `SESSION_COOKIE_KEY` configuration without
    exposing or reusing a secret;
@@ -403,6 +436,8 @@ The historical `83bc36c` activation record remains a conditional closed-alpha
 pass for its exact deployed source; it is not evidence for the new consolidated
 head and is not `PASS FOR PRODUCTION`.
 
-The consolidated activation assurance remains **BLOCKED** from final release
-until its fixes pass on the final hosted head, that exact head is deployed and
-protected-aggregate verified, and owner-controlled denial QA is complete.
+The consolidated activation assurance remains **BLOCKED** from final release.
+The repository-only additive proof does not change that status. The final hosted
+head must pass, receive each separate approval, be deployed through its guarded
+stage, and pass protected aggregate and owner-controlled denial QA before any
+production or enablement claim.

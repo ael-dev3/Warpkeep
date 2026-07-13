@@ -3,12 +3,12 @@
 This runbook preserves the Alpha 0.2 recovery record and defines the approval
 gates for a future protocol-v2 rollout.
 
-> **Local v2 draft — no rollout executed.** The current v2 code has not been
-> published to Maincloud, migrated in Cloudflare, configured with production
-> secrets, deployed as a Worker/frontend, or enabled. This documentation pass
-> performs no external mutation. `PUBLIC_AUTH_ENABLED=false` and the frontend
-> shared-alpha switch must remain false until the final, separately approved
-> enable gate.
+> **Repository-only additive v2 target — no rollout executed.** The current v2
+> code and pinned-CLI migration rehearsal are local evidence only. They have not
+> published or mutated Maincloud, migrated Cloudflare storage, configured
+> production secrets, deployed a Worker/frontend, or enabled auth. Keep
+> `PUBLIC_AUTH_ENABLED=false` and `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false`
+> until their final, separately approved enable gates.
 
 ## Historical activation record
 
@@ -25,29 +25,35 @@ Object, cookie secret, or frontend is live.
   by GitHub; do not change DNS during an auth-only rollout without separate
   approval.
 - Never permit data deletion. A module publish must use `--delete-data=never`;
-  never use `--delete-data=always`, `--break-clients`, database recreation, or
-  an activation FID.
+  never use `--delete-data=always`, `--delete-data=on-conflict`,
+  `--break-clients`, database recreation, a schema rollback, or an activation
+  FID. Leave additive v2 tables inert if containment is required.
 - Inspect aggregate state read-only before and after any approved publish. Stop
   on unexpected state; do not erase or auto-repair it.
 - Keep secrets out of the repository, `VITE_` variables, command arguments,
   shell history, logs, screenshots, HAR files, and support bundles.
 - Keep Worker public auth and frontend shared-alpha access false through module,
   migration, secret, Worker, and frontend staging.
-- Treat every approval below as single-purpose. Approval to publish does not
-  approve a migration, secret change, deploy, or enable.
+- Treat every approval below as single-purpose. Approval for additive module
+  publication does not approve the Durable Object migration, a secret change,
+  deploy, or enable.
 
 ## Mandatory v2 rollout order and approval gates
 
-The rollout is staged and sequential. The SpacetimeDB player/ownership split is
-a breaking schema change; only the later Durable Object migration is additive:
+The rollout is staged and sequential. The reviewed SpacetimeDB change is an
+additive migration: it freezes the deployed five-table prefix and appends a
+versioned public/private player pair. The later Durable Object migration is a
+different additive change with its own approval:
 
 1. **Local verification only:** verify module/Worker/browser tests, generated
    bindings, dependency locks, and documentation. No cloud login or mutation.
-2. **Module gate:** obtain explicit approval for read-only Maincloud inspection;
-   then obtain a separate approval for the reviewed breaking-schema
-   migration/compatibility plan and guarded non-destructive protocol-v2 module
-   publish. A generic additive publish approval is insufficient. Verify protocol
-   2, private ownership isolation, and the structured resolver before moving on.
+2. **Module gate:** obtain explicit approval for read-only Maincloud inspection.
+   The protected aggregate must match the empty-alpha baseline, with exactly zero
+   legacy `player` rows; any nonzero value is a hard stop requiring a separate
+   reconciliation plan. Then request the separate approval phrase
+   `approve additive protocol-v2 module publication`. No other approval wording
+   authorizes the guarded publish. Verify protocol 2, the appended v2 pair,
+   private ownership isolation, and the structured resolver before moving on.
 3. **Durable Object gate:** obtain separate approval for the additive
    `SessionFamily` SQLite Durable Object binding/migration. Never delete or
    rename existing challenge/rate-limit classes as part of this step.
@@ -64,8 +70,9 @@ a breaking schema change; only the later Durable Object migration is additive:
    separate explicit approval for changing frontend shared-alpha access. This
    runbook records no such approval.
 
-If any stage fails or disagrees, stop. Keep both switches false and roll back
-only the most recent approved stage using its reviewed rollback plan.
+If any stage fails or disagrees, stop and keep both switches false. Do not remove
+the additive v2 tables or restore a v1 module: leave the tables inert and use a
+separately reviewed forward fix.
 
 ## 1. Domain and public coordinates
 
@@ -85,26 +92,55 @@ healthy hostname.
 
 ## 2. Protocol-v2 module gate
 
-Before any publish, run local module/binding verification and inspect Maincloud
-read-only with approved operator tooling. Review existing allowlist epochs: v2
-starts first admission at epoch `1`, and an enabled epoch-zero row fails closed
-and requires a deliberate migration decision. Also record aggregate `player`
-state without exposing identities. The local schema removes opaque OIDC Identity
-from public `player` rows and adds private `player_ownership`; every existing
-player row must have a reviewed reconciliation plan before publish.
+The repository proof freezes the production-v1 definitions and ordering of
+`allowed_fid`, `world_tile`, public `player`, `castle`, and `admin_audit`, then
+uses the pinned SpacetimeDB 2.6.1 CLI against an in-memory loopback server. It
+proves those five table descriptions remain unchanged while public `player_v2`
+and private `player_ownership_v2` are appended, the 61-tile empty fixture remains
+empty, a synthetic nonempty legacy row is preserved, a second publish is
+idempotent, partial state is detected, and guarded v1 rollback is refused before
+any schema change.
+This is repository-only compatibility evidence, not a Maincloud publication.
 
-That public/private split is a breaking schema change. Stop unless an explicit
-approval names this migration and its client-compatibility consequences. Do not
-interpret a prior generic or additive module-publish approval as authorization,
-and do not use `--break-clients`, delete data, or auto-repair rows.
+The legacy public `player` table remains byte-compatible, including its opaque
+Identity column, and is frozen and inert: protocol-v2 authorization, bootstrap,
+subscriptions, snapshots, and observers use only the v2 pair, and no v2 path may
+write a legacy row. Because the legacy table must remain public for compatibility,
+an arbitrary old client can technically request it. The approved production path
+therefore requires it to remain empty; this release does not claim that retaining
+the schema makes legacy Identity rows private.
 
-The current guarded publisher intentionally rejects `--break-clients`. If the
-approved read-only preflight says the privacy split cannot be applied without
-that flag or another migration mechanism, stop. A separately implemented,
-reviewed, and explicitly approved migration path is required before continuing;
-do not weaken the guard during an activation session.
+Before any publish, inspect the production-v1 database read-only using its
+existing protected `admin_get_alpha_status` procedure. It must report exactly 61
+world tiles and zero players, castles, allowlist rows, and enabled allowlist rows.
+At this gate its `players` field is the legacy `player` count: any value other
+than exactly zero is an unconditional hard stop. An enabled epoch-zero allowlist
+row also fails closed and requires a separate migration decision. Never copy,
+repair, delete, or reconcile production rows during this gate.
 
-Only after explicit publish approval may the guarded command be used:
+Immediately after an approved additive publish, use the new protected
+`admin_get_alpha_status_v2` aggregate to recheck the same empty-alpha baseline
+and require:
+
+- `legacyPlayers = 0`;
+- `playersV2 = 0`, `playerOwnershipsV2 = 0`, and
+  `consistentPlayerPairsV2 = 0`;
+- `orphanedPlayerRowsV2 = 0` and `orphanedOwnershipRowsV2 = 0`;
+- protocol `2` and the reviewed world generation.
+
+Both aggregates expose counts only; they must not expose FIDs, Identities,
+profiles, notes, ownership contents, audit contents, or credentials. A nonzero
+legacy, orphan, v2, castle, or admission count blocks every later rollout stage.
+
+The guarded publisher must retain `--delete-data=never`, must not request or
+interactively approve `--break-clients`, and must not recreate the database. If
+local or read-only preflight cannot accept the additive module under those
+conditions, stop and prepare a separately reviewed forward fix; do not weaken the
+guard or attempt a v1 schema rollback.
+
+Only after the owner states exactly
+`approve additive protocol-v2 module publication` may the guarded command be
+used:
 
 ```sh
 WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
@@ -112,19 +148,33 @@ WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
 npm run stdb:publish:dev
 ```
 
+Run that command only through the private Keychain wrapper that supplies the
+Hermes credential in memory. The publisher does not trust an operator-entered
+row count: in the same bounded process it attests the exact reviewed CLI binary,
+repeats the current loopback migration proof, verifies the canonical existing
+database name-to-identity mapping, and invokes the deployed v1 aggregate before
+publishing by immutable database identity. The proof emits one SHA-256 receipt;
+the publisher accepts only the exact absolute `bundle.js` it just proved,
+rechecks that digest immediately before spawning `spacetime publish --js-path`,
+and never rebuilds between proof and publish. Unknown flags, stale/nonzero
+state, changed artifact bytes, wrong coordinates, and compatibility prompts all
+fail before publication.
+
 The publish must remain non-destructive (`--delete-data=never`). If the command
 times out, the outcome is indeterminate: inspect read-only before any retry.
 Never seed, admit, disable, or bump an epoch as part of the publish gate.
 
-Verify the exact local contract after an approved publish:
+Verify the exact module contract immediately after an approved publish:
 
 - backend protocol is `2`;
 - player JWTs require `auth_version: 2`, `auth_epoch >= 1`, and a maximum
   600-second custom session, with FID but no optional profile claims;
 - connections admit only current players or fresh exact Hermes admins;
-- public `player` rows contain no opaque OIDC Identity; private
-  `player_ownership` has no browser query/subscription accessor, and
-  partial/mismatched ownership state fails closed;
+- the frozen legacy public `player` table remains unchanged and empty, while
+  public `player_v2` contains no opaque OIDC Identity;
+- private `player_ownership_v2` has no browser query/subscription accessor, and
+  partial/mismatched v2 ownership state fails closed;
+- the active browser subscribes to `player_v2` and never legacy `player`;
 - bootstrap ignores optional profile-shaped JWT claims and inserts undefined
   `username`, `displayName`, and `pfpUrl` fields;
 - `auth_resolver_get_fid_admission_v2` returns exact structured
@@ -159,9 +209,11 @@ FARCASTER_RPC_URL
 ```
 
 `SESSION_COOKIE_KEY` is a separate high-entropy HMAC secret. Do not derive it
-from, rotate it implicitly with, or reuse the signing/admin secrets. Configure
-or rotate any secret only with explicit approval and non-logging handoff. This
-runbook contains no secret value and records no completed configuration.
+from, rotate it implicitly with, or reuse the signing/admin secrets. The admin
+secret must also differ from the signing JWK private `d` scalar: all three
+secret materials are pairwise distinct. Configure or rotate any secret only
+with explicit approval and non-logging handoff. This runbook contains no secret
+value and records no completed configuration.
 
 ## 4. Worker staging with public auth false
 
@@ -307,14 +359,17 @@ epoch-zero policy.
 
 ## Recovery
 
-The safest immediate rollback is to keep or restore both auth switches to false
-through separately approved deployments. That stops new public auth/realm work
-without deleting Maincloud or Durable Object data. Do not silently restore v1
-public routes or raw-epoch issuance. The legacy admin epoch procedure may assist
-an approved server-only rollback investigation, but it is not browser authority.
+The safest immediate containment is to keep or restore both auth switches to
+false through separately approved deployments. That stops new public auth/realm
+work without deleting Maincloud or Durable Object data. Leave the frozen legacy
+table and additive v2 tables in place; do not publish a v1 module, remove tables,
+delete data, recreate the database, or call that destructive reversal a rollback.
+Do not silently restore v1 public routes or raw-epoch issuance. The legacy admin
+epoch procedure may assist an approved server-only investigation, but it is not
+browser authority.
 
-Secret rotation, Durable Object rollback, Worker rollback, frontend rollback,
-and module rollback are distinct actions with distinct blast radii. Follow the
-[reconstruction documentation](./reconstruction/deployment-recovery.md), inspect
-state before retrying an indeterminate mutation, and obtain explicit approval
-for every external change.
+Secret rotation, Durable Object recovery, Worker recovery, frontend recovery,
+and a SpacetimeDB forward fix are distinct actions with distinct blast radii.
+Follow the [reconstruction documentation](./reconstruction/deployment-recovery.md),
+inspect state before retrying an indeterminate mutation, and obtain explicit
+approval for every external change.

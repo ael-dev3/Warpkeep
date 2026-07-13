@@ -31,9 +31,17 @@ The checked-out v2 target has exact `auth_version: 2`, positive auth epochs,
 tokenless pending sessions, a `__Host-` session cookie, server-side family
 rotation/revocation, a dedicated resolver principal/procedure, protocol 2, and
 retired public v1 challenge/exchange routes. The bridge persists and issues only
-the verified FID, while SpacetimeDB keeps opaque OIDC ownership in private
-`player_ownership` rows instead of the public `player` projection. Worker
-`PUBLIC_AUTH_ENABLED` and frontend shared-alpha activation remain false.
+the verified FID. SpacetimeDB freezes the deployed public `player` table as an
+inert legacy contract and appends identity-free public `player_v2` plus private
+`player_ownership_v2`. Worker `PUBLIC_AUTH_ENABLED` and frontend
+`VITE_WARPKEEP_SHARED_ALPHA_ENABLED` remain false.
+
+The repository includes a pinned SpacetimeDB 2.6.1 loopback rehearsal proving
+the five legacy tables remain unchanged while the v2 pair is appended, empty and
+synthetic nonempty fixtures retain their data, a second publication is
+idempotent, partial state is detected, and the guarded v1 rollback is refused
+before any schema change. It is local repository evidence only and did not
+inspect or publish Maincloud.
 
 This review performed no Maincloud publish/mutation, Durable Object migration,
 secret configuration, Worker/frontend deployment, DNS/account change, or auth
@@ -207,12 +215,18 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - `auth_resolver_get_fid_admission_v2` returns exact missing/disabled/enabled
   state; non-enabled results use epoch zero and enabled requires a positive
   epoch. `admin_get_fid_auth_epoch` is rollback compatibility only.
-- Private whitelist, `player_ownership`, and admin-audit tables have no public
+- Private whitelist, `player_ownership_v2`, and admin-audit tables have no public
   generated query/subscription accessors. Inert generated schema types expose no
-  rows. Public `player` rows contain the FID and presentation/game fields but no
-  opaque SpacetimeDB OIDC Identity.
-- Existing-player authorization requires a consistent public `player` row and
-  matching private ownership row. Partial or mismatched state fails closed.
+  rows. The active public `player_v2` projection contains FID and
+  presentation/game fields but no opaque SpacetimeDB OIDC Identity.
+- The frozen legacy public `player` table remains schema-compatible, including
+  its Identity column, but protocol-v2 code never reads, writes, or subscribes to
+  it. Arbitrary old clients can technically request that public table, so a fresh
+  pre-publication count other than exactly zero is a hard stop and continuing
+  zero-row verification is a privacy requirement.
+- Existing-player authorization requires a consistent public `player_v2` row
+  and matching private `player_ownership_v2` row. Public-only, ownership-only, or
+  mismatched state fails closed.
 
 ### Browser session lifecycle
 
@@ -297,7 +311,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Stolen or replayed session reference | HMAC-authenticated `__Host-` cookie, SameSite=Strict, origin binding, generation rotation, stale-replay family revocation | Endpoint/host compromise remains an incident; bounded previous-generation recovery must remain narrow. |
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
-| Whitelist bypass or private-row disclosure | Module-side admission and private ownership checks on every protected operation; private tables/bindings | Public world/player/castle projections remain intentionally observable, but public player rows contain no opaque OIDC identity. |
+| Whitelist bypass or private-row disclosure | Module-side admission and v2 private ownership checks on every protected operation; private tables/bindings; exact-zero legacy-player publication gate | Public world/player-v2/castle projections remain intentionally observable. Arbitrary old clients can request the frozen public legacy player table, so it must remain empty; any nonzero preflight count blocks publication. |
 | Logout revocation-store failure | Generic `503`, current-cookie expiry, static failure event, and non-secret 30-day browser tombstone that blocks all refresh until explicit Terms-gated activation | A denied tombstone write plus failed server revocation can leave a later storage-enabled context able to resume a copied cookie until family expiry; investigate without logging identifiers or cookie material. |
 | Worker memory/cost exhaustion | Streaming bounds, timeouts, early challenge claim, per-client rate control, and storage cleanup | Aggregate account quotas, telemetry, and alerting remain operational requirements. |
 | Malicious dependency or workflow step obtains deployment authority | Lockfiles, audits, required action SHA pins, checksum verification, job privilege split, and protected `main` required checks | Commit signatures remain disabled; security-update remediation needs a private workflow while automated security PRs are intentionally off. |
@@ -332,12 +346,13 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Distributed Worker rate limiting is active. Alerting, key-rotation drills,
   incident response, and operational history are not yet mature enough for
   production assurance.
-- The local v2 code is not production state. Removing opaque OIDC identity from
-  public `player` rows and adding private `player_ownership` is a breaking schema
-  rollout, not an implicitly additive publish. It requires explicit approval,
-  read-only state inspection, a reviewed migration/compatibility decision, and
-  staged module/Worker/frontend/session verification before any statement that
-  v2 is live.
+- The local v2 code is not production state. The reviewed plan preserves the
+  deployed five-table schema, freezes legacy `player`, and appends `player_v2`
+  plus `player_ownership_v2`. Local pinned-CLI compatibility proof does not
+  replace fresh read-only production inspection or the separate exact approval
+  `approve additive protocol-v2 module publication`. A nonzero legacy-player
+  count or any v2/orphan state blocks publication. No delete, break-client,
+  database-recreation, or schema-rollback path is authorized.
 - GitHub `main` protection is active with pull-request enforcement including
   administrators, strict required checks, stale-review dismissal, conversation
   resolution, linear history, and no force-push/delete. Required commit
@@ -357,11 +372,14 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Farcaster's official verifier correctly binds the signature to the FID.
 - SpacetimeDB Maincloud and version 2.6.1 enforce the documented JWT signature
   verification and transaction semantics.
-- Rollout is staged and fail-closed: public auth and shared-realm access stay
-  false while the explicitly approved breaking module schema is reconciled, the
-  session-family Durable Object is migrated, secrets are configured, and
-  Worker/frontend heads are independently deployed and attested. Each action
-  requires separate explicit approval.
+- Rollout is staged and fail-closed: `PUBLIC_AUTH_ENABLED=false` and
+  `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false` while the separately approved
+  additive module is inspected and verified, the session-family Durable Object
+  is migrated, secrets are configured, and Worker/frontend heads are
+  independently deployed and attested. Pre-publication requires exactly zero
+  legacy players; post-publication requires zero v2 pair and orphan counters.
+  Containment leaves the additive tables inert and uses a forward fix rather
+  than destructive rollback.
 - Public v1 challenge/exchange routes remain retired after Worker cutover; the
   legacy admin raw-epoch procedure exists only for rollback compatibility and
   is never an implicit v2 fallback.
@@ -373,11 +391,12 @@ creation, and world state. Anonymous visitors do not open a database connection.
 
 ## Exclusions
 
-This review does not authenticate to Cloudflare or SpacetimeDB, inspect the
-owner's Keychain, retrieve or rotate production secrets, mutate Maincloud or
-whitelist data, approve a real SIWF request, perform high-volume production
-testing, audit Farcaster/Cloudflare/GitHub/SpacetimeDB internals, or assess game
-art, layout, and unrelated gameplay design.
+This review used bounded, read-only checks of owned GitHub, Cloudflare, and
+SpacetimeDB deployment coordinates, including the Keychain-backed counts-only
+aggregate. It did not expose or rotate a production secret, mutate any hosted
+service or whitelist data, approve a real SIWF request, perform high-volume
+production testing, audit Farcaster/Cloudflare/GitHub/SpacetimeDB internals, or
+assess game art, layout, and unrelated gameplay design.
 
 ## Review triggers
 
@@ -387,8 +406,10 @@ private player data, adding an admin entry point, changing the deployment
 workflow, or moving away from the current Pages/Worker/Maincloud topology.
 
 Before claiming the local v2 target is deployed, separately approve and verify:
-read-only Maincloud inspection; a reviewed breaking-schema migration and
-non-destructive module publish; the additive Durable Object migration; managed
+fresh read-only Maincloud inspection with exactly zero legacy players; the exact
+request `approve additive protocol-v2 module publication`; post-publication v2
+aggregate and orphan counters; the additive Durable Object migration; managed
 secret configuration; paused Worker deploy plus config attestation; disabled
-frontend deploy; and finally any Worker/frontend auth enable. This document
-grants none of those approvals.
+frontend deploy; and finally any Worker/frontend auth enable. Keep both switches
+false throughout the staged work. This document grants none of those approvals
+and records no production publication.

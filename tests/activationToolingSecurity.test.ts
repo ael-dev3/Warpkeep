@@ -1,15 +1,18 @@
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { publishChildEnvironment, publishModule, validateIssuerDeployment } from '../scripts/publish-spacetime-dev.mjs';
+import { parseMigrationProofReceipt, parsePublishArguments, publishChildEnvironment, publishModule, requireCanonicalPublishCoordinates, validateIssuerDeployment, verifyCanonicalDatabaseList, verifyFreshLegacyAggregate, verifyMigrationArtifactReceipt, verifyPinnedCliAttestation } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, validateProductionSigningKey, verifyBridge } from '../scripts/verify-alpha-production.mjs';
+import { parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const provenArtifactPath = resolve(repositoryRoot, 'spacetimedb/dist/bundle.js');
 const ISSUER = 'https://auth.warpkeep.com';
 const FRONTEND = 'https://warpkeep.com';
 const AUTH_V2_CLAIMS = [
@@ -290,6 +293,31 @@ function withNonCanonicalPaddingBits(value: string) {
   return `${value.slice(0, -1)}${alphabet[index + 1]}`;
 }
 
+async function withTestProvenArtifact<T>(callback: (receipt: {
+  artifactPath: string;
+  artifactDigest: string;
+}) => Promise<T> | T): Promise<T> {
+  let previous: Buffer | undefined;
+  try {
+    previous = await readFile(provenArtifactPath);
+  } catch {
+    // A clean checkout has no ignored build output to preserve.
+  }
+  const content = Buffer.from('test-only-proven-spacetimedb-artifact');
+  await mkdir(dirname(provenArtifactPath), { recursive: true });
+  await writeFile(provenArtifactPath, content, { mode: 0o600 });
+  const receipt = Object.freeze({
+    artifactPath: provenArtifactPath,
+    artifactDigest: createHash('sha256').update(content).digest('hex'),
+  });
+  try {
+    return await callback(receipt);
+  } finally {
+    if (previous === undefined) await rm(provenArtifactPath, { force: true });
+    else await writeFile(provenArtifactPath, previous);
+  }
+}
+
 describe('activation publish safety', () => {
   it('accepts only direct, no-store, bounded OIDC documents with one exact public key', async () => {
     const documents = validDocuments();
@@ -393,38 +421,200 @@ describe('activation publish safety', () => {
       queueMicrotask(() => child.emit('close', 0, null));
       return child;
     };
-    await expect(publishModule('spacetime', 'warpkeep-89e4u', fakeSpawn as never)).resolves.toBeUndefined();
+    const databaseIdentity = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
+    await withTestProvenArtifact(async receipt => {
+      await expect(publishModule(
+        'spacetime',
+        databaseIdentity,
+        receipt,
+        fakeSpawn as never,
+      )).resolves.toBeUndefined();
+    });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.[0]).toBe('spacetime');
     expect(calls[0]?.[1]).toEqual([
       'publish',
-      '--server', 'maincloud',
-      '--module-path', 'spacetimedb',
+      '--server', 'https://maincloud.spacetimedb.com',
+      '--js-path', provenArtifactPath,
       '--delete-data=never',
       '--yes=remote',
-      'warpkeep-89e4u',
+      '--no-config',
+      databaseIdentity,
     ]);
+    expect(calls[0]?.[1]).not.toContain('--module-path');
     expect(calls[0]?.[2]).toMatchObject({
-      stdio: 'inherit',
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
     expect(calls[0]?.[2]).not.toHaveProperty('shell');
     expect(calls[0]?.[2]).toHaveProperty('env');
+  });
+
+  it('binds an exact single migration receipt and rejects artifact changes before spawn', async () => {
+    await withTestProvenArtifact(async receipt => {
+      const success = 'Additive protocol-v2 migration proof passed with SpacetimeDB 2.6.1: '
+        + `test-only receipt. artifact_sha256=${receipt.artifactDigest}\n`;
+      const parsed = parseMigrationProofReceipt(success);
+      expect(parsed).toEqual(receipt);
+      expect(Object.isFrozen(parsed)).toBe(true);
+      expect(() => parseMigrationProofReceipt('')).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(`${success}${success}`)).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace('2.6.1', '2.6.2')))
+        .toThrow(/exact success receipt/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        artifactPath: resolve(repositoryRoot, 'spacetimedb/dist/other.js'),
+      })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        artifactDigest: receipt.artifactDigest.toUpperCase(),
+      })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({ ...receipt, extra: true }))
+        .toThrow(/receipt was invalid/i);
+      await expect(publishModule(
+        'spacetime',
+        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b5700',
+        receipt,
+        vi.fn() as never,
+      )).rejects.toThrow(/pinned canonical database identity/i);
+
+      await writeFile(provenArtifactPath, 'test-only-changed-artifact');
+      expect(() => verifyMigrationArtifactReceipt(receipt)).toThrow(/changed after migration/i);
+      const spawnProcess = vi.fn();
+      await expect(publishModule(
+        'spacetime',
+        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+        receipt,
+        spawnProcess as never,
+      )).rejects.toThrow(/changed after migration/i);
+      expect(spawnProcess).not.toHaveBeenCalled();
+    });
+  });
+
+  it('rejects a symlink at the canonical proven-artifact path', async () => {
+    await withTestProvenArtifact(async receipt => {
+      await rm(provenArtifactPath, { force: true });
+      try {
+        await symlink(resolve(repositoryRoot, 'spacetimedb/src/config.ts'), provenArtifactPath);
+        expect(() => verifyMigrationArtifactReceipt(receipt)).toThrow(/could not be read/i);
+      } finally {
+        await rm(provenArtifactPath, { force: true });
+      }
+    });
+  });
+
+  it('kills and rejects a publish whose combined output exceeds the fixed bound', async () => {
+    await withTestProvenArtifact(async receipt => {
+      const child = new EventEmitter() as EventEmitter & {
+        kill: ReturnType<typeof vi.fn>;
+        stdout: EventEmitter;
+        stderr: EventEmitter;
+      };
+      child.kill = vi.fn();
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      const publish = publishModule(
+        'spacetime',
+        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+        receipt,
+        (() => child) as never,
+      );
+      child.stdout.emit('data', Buffer.alloc(1_000_001));
+      child.emit('close', 1, 'SIGKILL');
+      await expect(publish).rejects.toThrow(/did not complete successfully/i);
+      expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+    });
+  });
+
+  it('rejects unknown publisher flags and noncanonical production coordinates', () => {
+    expect(parsePublishArguments([])).toEqual({ dryRun: false });
+    expect(parsePublishArguments(['--dry-run'])).toEqual({ dryRun: true });
+    expect(() => parsePublishArguments(['--dryrun'])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments(['--dry-run', '--dry-run'])).toThrow(/unknown or duplicate/i);
+    expect(() => requireCanonicalPublishCoordinates({
+      WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-lookalike',
+    })).toThrow(/canonical existing/i);
+    expect(() => requireCanonicalPublishCoordinates({
+      WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+      WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+    })).not.toThrow();
+  });
+
+  it('pins the exact CLI build and canonical existing database identity', () => {
+    expect(() => verifyPinnedCliAttestation(
+      'spacetimedb tool version 2.6.1; Commit: 052c83fe984a4c4eb7bb4f9afa5c6b1903891d87',
+      '4d76214ab1ba1462bd1500739641ec1c8322f99529d899c28612bfa665ccdfc6',
+      'darwin',
+      'arm64',
+    )).not.toThrow();
+    expect(() => verifyPinnedCliAttestation(
+      'spacetimedb tool version 2.6.2; Commit: other',
+      '4d76214ab1ba1462bd1500739641ec1c8322f99529d899c28612bfa665ccdfc6',
+      'darwin',
+      'arm64',
+    )).toThrow(/exact reviewed/i);
+    expect(() => verifyCanonicalDatabaseList(
+      'warpkeep-89e4u   | c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e\n',
+    )).not.toThrow();
+    expect(() => verifyCanonicalDatabaseList(
+      'warpkeep-89e4u   | a2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e\n',
+    )).toThrow(/identity/i);
+  });
+
+  it('runs the deployed v1 aggregate as the fresh pre-publication hard stop', () => {
+    const calls: unknown[][] = [];
+    const fakeSpawnSync = (...args: unknown[]) => {
+      calls.push(args);
+      return {
+      status: 0,
+      signal: null,
+      stdout: JSON.stringify({
+        worldTiles: '61',
+        allowedFids: '0',
+        enabledAllowedFids: '0',
+        players: '0',
+        castles: '0',
+      }),
+      stderr: '',
+      };
+    };
+    expect(() => verifyFreshLegacyAggregate(
+      'TEST_ONLY_HERMES_SECRET_'.repeat(2),
+      fakeSpawnSync,
+    )).not.toThrow();
+    const options = calls[0]?.[2] as { env?: Record<string, string> };
+    expect(options.env).toMatchObject({
+      WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+      WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+    });
+    expect(Object.keys(options.env ?? {}).sort()).toEqual([
+      'WARPKEEP_ADMIN_TOKEN_SECRET_STDIN',
+      'WARPKEEP_AUTH_BRIDGE_URL',
+      'WARPKEEP_SPACETIMEDB_DATABASE',
+      'WARPKEEP_SPACETIMEDB_URI',
+    ]);
   });
 
   it('enforces a hard deadline with graceful then forced termination', async () => {
     vi.useFakeTimers();
     const child = new EventEmitter() as EventEmitter & { kill: ReturnType<typeof vi.fn> };
     child.kill = vi.fn();
-    const publish = publishModule('spacetime', 'warpkeep-89e4u', (() => child) as never);
-    const rejection = expect(publish).rejects.toThrow(/hard deadline/i);
+    await withTestProvenArtifact(async receipt => {
+      const publish = publishModule(
+        'spacetime',
+        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+        receipt,
+        (() => child) as never,
+      );
+      const rejection = expect(publish).rejects.toThrow(/hard deadline/i);
 
-    await vi.advanceTimersByTimeAsync(120_000);
-    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
-    child.emit('error', new Error('test-only signal delivery failure'));
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
-    child.emit('error', new Error('test-only forced-kill delivery failure'));
-    await rejection;
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+      child.emit('error', new Error('test-only signal delivery failure'));
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+      child.emit('error', new Error('test-only forced-kill delivery failure'));
+      await rejection;
+    });
   });
 
   it('returns a failing status when dry-run issuer configuration is absent', () => {
@@ -554,18 +744,112 @@ describe('bounded auth-v2 production readiness verification', () => {
   );
 });
 
+describe('bounded frontend root-asset verification', () => {
+  it('rejects a document with more than the fixed unique root-asset count', () => {
+    const tags = Array.from({ length: 17 }, (_, index) => (
+      `<script type="module" src="/assets/root-${index}.js"></script>`
+    )).join('');
+    expect(() => rootAssetUrls(tags, FRONTEND)).toThrow(/too many root application assets/i);
+  });
+
+  it('verifies root assets sequentially under one cumulative byte budget', async () => {
+    const assets = [
+      new URL('/assets/root-a.js', FRONTEND),
+      new URL('/assets/root-b.js', FRONTEND),
+      new URL('/assets/root.css', FRONTEND),
+    ];
+    let active = 0;
+    let maximumActive = 0;
+    const result = await verifyRootAssets(assets, undefined, async () => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      await new Promise<void>(resolvePromise => queueMicrotask(resolvePromise));
+      active -= 1;
+      return { byteLength: 1, shaMatches: false };
+    });
+    expect(result).toEqual({ totalBytes: 3, shaMatches: false });
+    expect(maximumActive).toBe(1);
+
+    const budgets: number[] = [];
+    await expect(verifyRootAssets(assets, undefined, async (
+      _asset: URL,
+      _sha: string | undefined,
+      maximumBytes: number,
+    ) => {
+      budgets.push(maximumBytes);
+      return { byteLength: maximumBytes, shaMatches: false };
+    })).rejects.toThrow(/cumulative byte limit/i);
+    expect(budgets).toEqual([16_000_000, 8_000_000]);
+  });
+});
+
 describe('protected aggregate child isolation', () => {
+  const additiveV2Aggregate = Object.freeze({
+    worldTiles: '61',
+    legacyPlayers: '0',
+    playersV2: '0',
+    playerOwnershipsV2: '0',
+    consistentPlayerPairsV2: '0',
+    orphanedPlayerRowsV2: '0',
+    orphanedOwnershipRowsV2: '0',
+    castles: '0',
+    allowedFids: '0',
+    enabledAllowedFids: '0',
+    auditEntries: '2',
+    protocolVersion: 2,
+    worldSeed: 3_445_214_658,
+    worldSeedName: 'HEGEMONY_GENESIS_001',
+  });
+
+  it('accepts only exact legacy and additive-v2 aggregate objects', () => {
+    expect(() => verifyExpectedAlphaAggregate(JSON.stringify({
+      worldTiles: '61',
+      allowedFids: '0',
+      enabledAllowedFids: '0',
+      players: '0',
+      castles: '0',
+    }))).not.toThrow();
+    expect(() => verifyExpectedAlphaV2Aggregate(JSON.stringify(additiveV2Aggregate))).not.toThrow();
+  });
+
+  it.each([
+    ['missing ownership count', (() => {
+      const value = { ...additiveV2Aggregate } as Record<string, unknown>;
+      delete value.playerOwnershipsV2;
+      return value;
+    })()],
+    ['unexpected identity-shaped field', { ...additiveV2Aggregate, identity: 'forbidden' }],
+    ['nonzero orphan count', { ...additiveV2Aggregate, orphanedPlayerRowsV2: '1' }],
+    ['wrong protocol', { ...additiveV2Aggregate, protocolVersion: 1 }],
+    ['wrong generation', { ...additiveV2Aggregate, worldSeedName: 'OTHER' }],
+  ])('rejects a protocol-v2 aggregate with %s', (_label, value) => {
+    expect(() => verifyExpectedAlphaV2Aggregate(JSON.stringify(value))).toThrow();
+  });
+
+  it('rejects malformed and extra-key legacy aggregate output', () => {
+    expect(() => verifyExpectedAlphaAggregate('{')).toThrow(/machine-readable/i);
+    expect(() => verifyExpectedAlphaAggregate(JSON.stringify({
+      worldTiles: '61',
+      allowedFids: '0',
+      enabledAllowedFids: '0',
+      players: '0',
+      castles: '0',
+      identity: 'forbidden',
+    }))).toThrow(/unexpected fields/i);
+  });
+
   it('passes only the four required values and never forwards the ambient environment', () => {
     process.env.WARPKEEP_UNRELATED_SECRET_SENTINEL = 'must-not-be-forwarded';
     try {
-      const child = protectedAggregateChildEnvironment(ISSUER, 'test-only-secret');
+      const child = protectedAggregateChildEnvironment(ISSUER);
       expect(Object.keys(child).sort()).toEqual([
-        'WARPKEEP_ADMIN_TOKEN_SECRET',
+        'WARPKEEP_ADMIN_TOKEN_SECRET_STDIN',
         'WARPKEEP_AUTH_BRIDGE_URL',
         'WARPKEEP_SPACETIMEDB_DATABASE',
         'WARPKEEP_SPACETIMEDB_URI',
       ]);
       expect(JSON.stringify(child)).not.toContain('must-not-be-forwarded');
+      expect(JSON.stringify(child)).not.toContain('test-only-secret');
     } finally {
       delete process.env.WARPKEEP_UNRELATED_SECRET_SENTINEL;
     }
@@ -580,6 +864,34 @@ describe('protected aggregate child isolation', () => {
       timeout: 30_000,
       killSignal: 'SIGKILL',
     });
+    expect(options.input).toBe('test-only-secret');
+    expect(JSON.stringify(options.env)).not.toContain('test-only-secret');
+  });
+
+  it('selects the versioned aggregate command only for the additive-v2 gate', () => {
+    expect(protectedAggregateChildArguments('/test/tsx', false)).toEqual([
+      '/test/tsx', 'scripts/hermes-admin.ts', 'inspect-alpha', '--json',
+    ]);
+    expect(protectedAggregateChildArguments('/test/tsx', true)).toEqual([
+      '/test/tsx', 'scripts/hermes-admin.ts', 'inspect-alpha-v2', '--json',
+    ]);
+  });
+
+  it('rejects unknown or duplicate production-verifier flags', () => {
+    expect(parseProductionVerifierArguments([
+      '--require-auth-v2',
+      '--require-additive-v2-aggregate',
+    ])).toEqual({
+      requireProtectedAggregate: false,
+      requireAdditiveV2Aggregate: true,
+      requireAuthV2: true,
+    });
+    expect(() => parseProductionVerifierArguments(['--require-auth-v3']))
+      .toThrow(/unknown or duplicate/i);
+    expect(() => parseProductionVerifierArguments([
+      '--require-auth-v2',
+      '--require-auth-v2',
+    ])).toThrow(/unknown or duplicate/i);
   });
 
   it('fails closed when the activation gate requires an unavailable aggregate credential', () => {

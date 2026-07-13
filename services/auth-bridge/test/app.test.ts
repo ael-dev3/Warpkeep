@@ -1308,6 +1308,15 @@ describe('Warpkeep auth bridge', () => {
     }
   })
 
+  it('fails closed when the admin secret reuses the OIDC private scalar', async () => {
+    const h = harness()
+    const response = await h.app.fetch(request('/healthz'), env({
+      ADMIN_TOKEN_SECRET: privateJwk.d,
+    }))
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+  })
+
   it('fails closed without a public issuer and writes only static safe log events', async () => {
     const h = harness()
     const response = await h.app.fetch(request('/healthz'), env({ ISSUER: undefined }))

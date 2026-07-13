@@ -143,9 +143,9 @@ server-only admin endpoint still issues a maximum-five-minute Hermes token with
 exact `sub: "service:hermes"` and `roles: ["warpkeep-admin"]`.
 
 The module does not treat optional profile-shaped JWT fields as a public write
-channel. Even if such fields are present, bootstrap ignores them and inserts
-`username`, `displayName`, and `pfpUrl` as undefined; profile mutations require a
-separately reviewed path.
+channel. Even if such fields are present, `bootstrap_player_v2` ignores them and
+inserts `username`, `displayName`, and `pfpUrl` as undefined in `player_v2`;
+profile mutations require a separately reviewed path.
 
 `auth_epoch` is never a browser request field and is not hardcoded. For each
 resolution the Worker mints a fresh, non-persisted resolver JWT with a maximum
@@ -175,6 +175,19 @@ not use it. The synthetic probe invokes only the structured resolver with one
 fixed safe FID and never returns an epoch, FID, JWT, upstream body/status, URL,
 or raw error.
 
+The module preserves the exact public legacy `player` schema, including its
+opaque OIDC Identity column, and requires that table to remain empty. Protocol
+v2 never reads, writes, or subscribes to it. The active split is public
+`player_v2` plus private `player_ownership_v2`; the browser subscribes only to
+`world_tile`, `player_v2`, and `castle`. Legacy `get_my_admission_status` and
+`bootstrap_player` immediately fail `PROTOCOL_RETIRED`, while the active player
+wires are exactly `get_my_admission_status_v2` and `bootstrap_player_v2`.
+
+The admin-only `admin_get_alpha_status_v2` procedure returns privacy-safe
+aggregate counts for legacy rows, v2 player/ownership consistency, world and
+admission state, protocol version, and seed. It returns no FID, Identity, token,
+proof, cookie, or profile payload.
+
 ## Required configuration and attestation
 
 `wrangler.toml` declares `workers_dev = false`, the `auth.warpkeep.com`
@@ -182,7 +195,8 @@ custom-domain route, `PUBLIC_AUTH_ENABLED = "false"`, and the non-secret
 issuer/origin/database contract. `FARCASTER_RPC_URL`, `SIGNING_KEY_JWK`,
 `ADMIN_TOKEN_SECRET`, and the independent `SESSION_COOKIE_KEY` are managed
 Worker secrets. Both symmetric secrets require at least 32 random bytes and
-must not be reused. `CHALLENGE_REPLAY_GUARD`, `AUTH_RATE_LIMITER`, and
+all three secret materials must be pairwise distinct, including the private
+`d` scalar inside `SIGNING_KEY_JWK`. `CHALLENGE_REPLAY_GUARD`, `AUTH_RATE_LIMITER`, and
 `SESSION_FAMILIES` are separate SQLite Durable Object bindings; the additive
 `SessionFamily` migration requires explicit operator approval before any Worker
 deployment.
@@ -210,21 +224,33 @@ This repository work stops before every external mutation. A future rollout
 must remain staged and fail closed in this order:
 
 1. keep both Worker public auth and the frontend shared-alpha switch false;
-2. after read-only Maincloud inspection and binding verification, obtain an
-   explicit schema-rollout approval that specifically covers removing opaque
-   OIDC identity from public `player` rows and creating the private
-   `player_ownership` table; a generic additive module-publish approval is not
-   sufficient for this breaking schema change;
-3. obtain separate approval for the additive `SessionFamily` Durable Object
+2. run `npm run stdb:verify-additive-migration` from the repository root; its
+   disposable loopback-only proof verifies the frozen legacy shapes, retained
+   empty and synthetic non-empty rows, idempotent republish, v2 consistency, and
+   guarded v1 rollback refusal before schema change without contacting
+   Maincloud;
+3. obtain approval for a fresh, bounded, read-only Maincloud inspection and stop
+   unless the deployed-v1 `players` field (the legacy count) equals zero; any
+   enabled epoch-zero admission is also a hard stop, with no automatic migration
+   or deletion;
+4. obtain separate explicit owner approval for the guarded production module
+   publish; its same-run protected v1 aggregate must independently reproduce the
+   fresh zero result, while the publisher pins the reviewed CLI binary and
+   canonical existing database identity, uses `--delete-data=never`, never uses
+   `--break-clients`, and closes stdin so compatibility prompts fail closed;
+5. verify `admin_get_alpha_status_v2`, the exact v2 resolver/player wires,
+   legacy-wire retirement, private ownership isolation, and active-browser
+   `player_v2` use;
+6. obtain separate approval for the additive `SessionFamily` Durable Object
    migration;
-4. obtain separate approval to configure `SESSION_COOKIE_KEY` and any other
+7. obtain separate approval to configure `SESSION_COOKIE_KEY` and any other
    required managed secrets without printing or reusing them;
-5. obtain separate approval to deploy the Worker with public auth still false,
+8. obtain separate approval to deploy the Worker with public auth still false,
    then verify discovery/JWKS, the structured resolver probe, legacy-route
    retirement, and the configuration attestation;
-6. obtain separate approval to deploy the v2 frontend while its realm switch
+9. obtain separate approval to deploy the v2 frontend while its realm switch
    remains false;
-7. only after exact-head hosted verification and owner QA, obtain a final,
+10. only after exact-head hosted verification and owner QA, obtain a final,
    explicit approval for any Worker public-auth enable and any frontend realm
    enable. Those enables are not authorized by this document.
 
@@ -234,13 +260,18 @@ procedure is rollback compatibility only, not permission to mint v1 tokens.
 ## Checks, logs, and admin boundary
 
 Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`
-locally. Coverage includes S256 binding, challenge replay, structured admission
+locally. Run the separate repository-root
+`npm run stdb:verify-additive-migration` command for the loopback-only additive
+module proof; neither check contacts or mutates production. Coverage includes
+S256 binding, challenge replay, structured admission
 validation, FID-only exchange/storage/response/JWT identity, exact v2 claims,
 pending-without-token responses, cookie integrity and attributes, session-family
 rotation and replay revocation, epoch-change revocation, durable-logout failure,
 default-off persistence intent, logout-tombstone suppression/storage denial,
 profile-claim discard, production resolver-coordinate pins, route retirement,
-configuration attestation, limits, admin separation, and static safe log events.
+retired legacy module wires, v2-only browser player data, privacy-safe v2 admin
+aggregation, configuration attestation, limits, admin separation, and static
+safe log events.
 
 Logs are closed static event names only. The Worker never logs a SIWF message,
 signature, nonce, request ID, JWT, cookie, private JWK, RPC URL, procedure

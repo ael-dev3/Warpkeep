@@ -39,17 +39,21 @@ import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
 import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminSeedWorldReducer from "./admin_seed_world_reducer";
 import BootstrapPlayerReducer from "./bootstrap_player_reducer";
+import BootstrapPlayerV2Reducer from "./bootstrap_player_v_2_reducer";
 
 // Import all procedure arg schemas
 import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedure";
+import * as AdminGetAlphaStatusV2Procedure from "./admin_get_alpha_status_v_2_procedure";
 import * as AdminGetFidAuthEpochProcedure from "./admin_get_fid_auth_epoch_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "./get_my_admission_status_procedure";
+import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_procedure";
 
 // Import all table schema definitions
 import CastleRow from "./castle_table";
 import PlayerRow from "./player_table";
+import PlayerV2Row from "./player_v_2_table";
 import WorldTileRow from "./world_tile_table";
 
 /** Type-only namespace exports for generated type groups. */
@@ -81,11 +85,26 @@ const tablesSchema = __schema({
       { accessor: 'fid', name: 'player_fid_idx_btree', algorithm: 'btree', columns: [
         'fid',
       ] },
+      { accessor: 'identity', name: 'player_identity_idx_btree', algorithm: 'btree', columns: [
+        'identity',
+      ] },
     ],
     constraints: [
       { name: 'player_fid_key', constraint: 'unique', columns: ['fid'] },
+      { name: 'player_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, PlayerRow),
+  playerV2: __table({
+    name: 'player_v2',
+    indexes: [
+      { accessor: 'fid', name: 'player_v2_fid_idx_btree', algorithm: 'btree', columns: [
+        'fid',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_v2_fid_key', constraint: 'unique', columns: ['fid'] },
+    ],
+  }, PlayerV2Row),
   worldTile: __table({
     name: 'world_tile',
     indexes: [
@@ -106,15 +125,18 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
   __reducerSchema("admin_seed_world", AdminSeedWorldReducer),
   __reducerSchema("bootstrap_player", BootstrapPlayerReducer),
+  __reducerSchema("bootstrap_player_v2", BootstrapPlayerV2Reducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
   __procedureSchema("admin_get_alpha_status", AdminGetAlphaStatusProcedure.params, AdminGetAlphaStatusProcedure.returnType),
+  __procedureSchema("admin_get_alpha_status_v2", AdminGetAlphaStatusV2Procedure.params, AdminGetAlphaStatusV2Procedure.returnType),
   __procedureSchema("admin_get_fid_auth_epoch", AdminGetFidAuthEpochProcedure.params, AdminGetFidAuthEpochProcedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
   __procedureSchema("get_my_admission_status", GetMyAdmissionStatusProcedure.params, GetMyAdmissionStatusProcedure.returnType),
+  __procedureSchema("get_my_admission_status_v2", GetMyAdmissionStatusV2Procedure.params, GetMyAdmissionStatusV2Procedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

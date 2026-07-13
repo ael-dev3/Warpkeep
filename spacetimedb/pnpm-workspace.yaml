@@ -1,2 +1,6 @@
+packages:
+  - '.'
+  - 'migration-fixtures/*'
+
 allowBuilds:
   esbuild: true

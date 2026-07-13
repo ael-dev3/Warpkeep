@@ -1,13 +1,32 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { constants, accessSync, closeSync, fstatSync, openSync, readFileSync, realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import {
+  protectedAggregateChildArguments,
+  verifyExpectedAlphaAggregate,
+} from './verify-alpha-production.mjs';
+
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const database = process.env.WARPKEEP_SPACETIMEDB_DATABASE || 'warpkeep-89e4u';
+const CANONICAL_DATABASE = 'warpkeep-89e4u';
+const CANONICAL_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
+const CANONICAL_MAINCLOUD_URI = 'https://maincloud.spacetimedb.com';
+const CANONICAL_BRIDGE = 'https://auth.warpkeep.com';
+const PROVEN_ARTIFACT_PATH = resolve(repositoryRoot, 'spacetimedb', 'dist', 'bundle.js');
+const database = process.env.WARPKEEP_SPACETIMEDB_DATABASE || CANONICAL_DATABASE;
 const configuredIssuer = process.env.WARPKEEP_OIDC_ISSUER;
 const sourceConfigPath = join(repositoryRoot, 'spacetimedb', 'src', 'config.ts');
 const command = process.env.SPACETIME_BIN || 'spacetime';
+const EXPECTED_CLI_VERSION = '2.6.1';
+const EXPECTED_CLI_COMMIT = '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';
+const EXPECTED_CLI_BINARY_SHA256 = Object.freeze({
+  'darwin-arm64': '4d76214ab1ba1462bd1500739641ec1c8322f99529d899c28612bfa665ccdfc6',
+});
+const MAX_CHILD_OUTPUT_BYTES = 1_000_000;
+const PREFLIGHT_TIMEOUT_MILLISECONDS = 3 * 60 * 1_000;
 const MAX_OIDC_DOCUMENT_BYTES = 64 * 1_024;
 const OIDC_REQUEST_TIMEOUT_MILLISECONDS = 10_000;
 const PUBLISH_TIMEOUT_MILLISECONDS = 2 * 60 * 1_000;
@@ -19,8 +38,6 @@ const JWK_KEY_ID = /^[A-Za-z0-9._-]{1,128}$/;
 const PUBLISH_CHILD_ENVIRONMENT_KEYS = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TMP', 'TEMP',
   'XDG_CONFIG_HOME', 'XDG_DATA_HOME',
-  'SSL_CERT_FILE', 'SSL_CERT_DIR', 'NODE_EXTRA_CA_CERTS',
-  'HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'NO_PROXY',
   'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SYSTEMROOT', 'COMSPEC', 'PATHEXT',
 ]);
 
@@ -164,22 +181,231 @@ export function publishChildEnvironment(source = process.env) {
   ));
 }
 
+export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
+  if (arguments_.length === 0) return Object.freeze({ dryRun: false });
+  if (arguments_.length === 1 && arguments_[0] === '--dry-run') {
+    return Object.freeze({ dryRun: true });
+  }
+  fail('Usage: publish-spacetime-dev.mjs [--dry-run]. Unknown or duplicate arguments are rejected.');
+}
+
+export function requireCanonicalPublishCoordinates(source = process.env) {
+  if (
+    (source.WARPKEEP_SPACETIMEDB_DATABASE ?? CANONICAL_DATABASE) !== CANONICAL_DATABASE
+    || (source.WARPKEEP_SPACETIMEDB_URI ?? CANONICAL_MAINCLOUD_URI) !== CANONICAL_MAINCLOUD_URI
+  ) {
+    fail('The production publisher is pinned to the canonical existing Warpkeep database.');
+  }
+}
+
+function resolveExecutablePath(executable, environment) {
+  const candidates = isAbsolute(executable) || executable.includes('/')
+    ? [resolve(executable)]
+    : (environment.PATH ?? '').split(delimiter).filter(Boolean).map(entry => join(entry, executable));
+  for (const candidate of candidates) {
+    try {
+      accessSync(candidate, constants.X_OK);
+      return realpathSync(candidate);
+    } catch {
+      // Continue until the exact executable is found or fail generically.
+    }
+  }
+  fail('The pinned SpacetimeDB CLI executable was not found.');
+}
+
+function runBoundedSync(executable, arguments_, options, spawnSyncProcess = spawnSync) {
+  const result = spawnSyncProcess(executable, arguments_, {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+    env: publishChildEnvironment(),
+    input: '',
+    maxBuffer: MAX_CHILD_OUTPUT_BYTES,
+    timeout: PREFLIGHT_TIMEOUT_MILLISECONDS,
+    killSignal: 'SIGKILL',
+    ...options,
+  });
+  if (result.error || result.status !== 0 || result.signal) {
+    fail('A bounded publication preflight failed. No publish was attempted.');
+  }
+  return result;
+}
+
+export function verifyPinnedCliAttestation(versionOutput, digest, platform = process.platform, arch = process.arch) {
+  if (
+    typeof versionOutput !== 'string'
+    || !versionOutput.includes(`spacetimedb tool version ${EXPECTED_CLI_VERSION};`)
+    || !versionOutput.includes(`Commit: ${EXPECTED_CLI_COMMIT}`)
+  ) {
+    fail('The exact reviewed SpacetimeDB CLI version was not active.');
+  }
+  const expectedDigest = EXPECTED_CLI_BINARY_SHA256[`${platform}-${arch}`];
+  if (typeof expectedDigest !== 'string' || digest !== expectedDigest) {
+    fail('The exact reviewed SpacetimeDB CLI binary was not active on this platform.');
+  }
+}
+
+export function attestPinnedSpacetimeCli(
+  executable,
+  spawnSyncProcess = spawnSync,
+  sourceEnvironment = process.env,
+) {
+  const environment = publishChildEnvironment(sourceEnvironment);
+  const executablePath = resolveExecutablePath(executable, environment);
+  const digest = createHash('sha256').update(readFileSync(executablePath)).digest('hex');
+  const result = runBoundedSync(
+    executablePath,
+    ['--version'],
+    { env: environment, timeout: 10_000 },
+    spawnSyncProcess,
+  );
+  verifyPinnedCliAttestation(result.stdout, digest);
+  return executablePath;
+}
+
+export function verifyCanonicalDatabaseList(output) {
+  if (typeof output !== 'string') fail('The canonical database identity could not be verified.');
+  const normalized = output.replace(/\u001b\[[0-9;]*m/g, '');
+  const exactEntry = new RegExp(
+    `^${CANONICAL_DATABASE}\\s+\\|\\s+${CANONICAL_DATABASE_IDENTITY}$`,
+  );
+  const matches = normalized.split(/\r?\n/).filter(line => (
+    exactEntry.test(line.trim())
+  ));
+  if (matches.length !== 1) {
+    fail('The canonical existing Warpkeep database identity could not be verified.');
+  }
+}
+
+export function attestCanonicalDatabase(executable, spawnSyncProcess = spawnSync) {
+  const result = runBoundedSync(executable, [
+    'list',
+    '--server', CANONICAL_MAINCLOUD_URI,
+    '--yes',
+  ], {}, spawnSyncProcess);
+  verifyCanonicalDatabaseList(result.stdout);
+}
+
+function digestArtifact(artifactPath) {
+  let descriptor;
+  try {
+    descriptor = openSync(artifactPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const metadata = fstatSync(descriptor);
+    if (!metadata.isFile()) {
+      fail('The proven SpacetimeDB artifact was not a regular file.');
+    }
+    return createHash('sha256').update(readFileSync(descriptor)).digest('hex');
+  } catch (error) {
+    if (error instanceof SafePublishError) throw error;
+    fail('The proven SpacetimeDB artifact could not be read.');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+export function verifyMigrationArtifactReceipt(receipt) {
+  if (
+    receipt === null
+    || typeof receipt !== 'object'
+    || Object.keys(receipt).sort().join(',') !== 'artifactDigest,artifactPath'
+    || receipt.artifactPath !== PROVEN_ARTIFACT_PATH
+    || !/^[0-9a-f]{64}$/.test(receipt.artifactDigest ?? '')
+  ) {
+    fail('The additive migration proof artifact receipt was invalid.');
+  }
+  const currentDigest = digestArtifact(receipt.artifactPath);
+  if (currentDigest !== receipt.artifactDigest) {
+    fail('The proven SpacetimeDB artifact changed after migration verification.');
+  }
+  return Object.freeze({
+    artifactPath: receipt.artifactPath,
+    artifactDigest: receipt.artifactDigest,
+  });
+}
+
+export function parseMigrationProofReceipt(output) {
+  if (typeof output !== 'string') {
+    fail('The current additive migration proof did not produce its exact success receipt.');
+  }
+  const successLines = output.split(/\r?\n/).filter(line => (
+    line.startsWith('Additive protocol-v2 migration proof passed with SpacetimeDB 2.6.1:')
+  ));
+  const digestMatches = [...output.matchAll(/\bartifact_sha256=([0-9a-f]{64})(?=\s|$)/g)];
+  if (
+    successLines.length !== 1
+    || digestMatches.length !== 1
+    || !successLines[0].endsWith(`artifact_sha256=${digestMatches[0][1]}`)
+  ) {
+    fail('The current additive migration proof did not produce its exact success receipt.');
+  }
+  return verifyMigrationArtifactReceipt({
+    artifactPath: PROVEN_ARTIFACT_PATH,
+    artifactDigest: digestMatches[0][1],
+  });
+}
+
+export function runCurrentAdditiveMigrationProof(executable, spawnSyncProcess = spawnSync) {
+  const result = runBoundedSync(process.execPath, [
+    'scripts/verify-spacetime-additive-migration.mjs',
+  ], {
+    env: {
+      ...publishChildEnvironment(),
+      SPACETIME_BIN: executable,
+    },
+  }, spawnSyncProcess);
+  return parseMigrationProofReceipt(result.stdout);
+}
+
+export function verifyFreshLegacyAggregate(
+  secret,
+  spawnSyncProcess = spawnSync,
+) {
+  const secretBytes = typeof secret === 'string' ? new TextEncoder().encode(secret).byteLength : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the fresh protected preflight.');
+  }
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = runBoundedSync(
+    process.execPath,
+    protectedAggregateChildArguments(tsxCli, false),
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout: 30_000,
+    },
+    spawnSyncProcess,
+  );
+  verifyExpectedAlphaAggregate(result.stdout);
+}
+
 export async function publishModule(
   spacetimeCommand,
   targetDatabase,
+  artifactReceipt,
   spawnProcess = spawn,
 ) {
+  if (targetDatabase !== CANONICAL_DATABASE_IDENTITY) {
+    fail('The production publish target was not the pinned canonical database identity.');
+  }
+  const artifact = verifyMigrationArtifactReceipt(artifactReceipt);
   const arguments_ = [
     'publish',
-    '--server', 'maincloud',
-    '--module-path', 'spacetimedb',
+    '--server', CANONICAL_MAINCLOUD_URI,
+    '--js-path', artifact.artifactPath,
     '--delete-data=never',
     '--yes=remote',
+    '--no-config',
     targetDatabase,
   ];
   await new Promise((resolvePromise, rejectPromise) => {
     let settled = false;
     let timedOut = false;
+    let outputExceeded = false;
+    let outputBytes = 0;
     let deadline;
     let forcedKill;
     const settle = (callback) => {
@@ -194,7 +420,9 @@ export async function publishModule(
     try {
       child = spawnProcess(spacetimeCommand, arguments_, {
         cwd: repositoryRoot,
-        stdio: 'inherit',
+        // A compatibility or break-clients prompt must see EOF and abort. The
+        // bounded output is consumed without mirroring private process detail.
+        stdio: ['ignore', 'pipe', 'pipe'],
         // The CLI uses local config/Home and standard network settings. It
         // never receives ambient Warpkeep signing, admin, RPC, or review data.
         env: publishChildEnvironment(),
@@ -203,6 +431,20 @@ export async function publishModule(
       settle(() => rejectPromise(error));
       return;
     }
+    const observeOutput = (stream) => {
+      if (!stream || typeof stream.on !== 'function') return;
+      stream.on('data', chunk => {
+        outputBytes += chunk.byteLength;
+        if (outputBytes <= MAX_CHILD_OUTPUT_BYTES || outputExceeded) return;
+        outputExceeded = true;
+        try { child.kill('SIGKILL'); } catch { /* The bounded failure remains generic. */ }
+        forcedKill = setTimeout(() => {
+          settle(() => rejectPromise(new Error('SpacetimeDB publish output exceeded its fixed bound.')));
+        }, PUBLISH_KILL_GRACE_MILLISECONDS);
+      });
+    };
+    observeOutput(child.stdout);
+    observeOutput(child.stderr);
     child.on('error', (error) => {
       // A signal-delivery error can arrive after the deadline. Keep the forced
       // SIGKILL timer alive in that case instead of abandoning the child. Keep
@@ -211,7 +453,7 @@ export async function publishModule(
       if (!timedOut) settle(() => rejectPromise(error));
     });
     child.once('close', (code) => settle(() => {
-      if (!timedOut && code === 0) resolvePromise();
+      if (!timedOut && !outputExceeded && code === 0) resolvePromise();
       else rejectPromise(new Error('SpacetimeDB publish did not complete successfully.'));
     }));
 
@@ -230,27 +472,30 @@ export async function publishModule(
 }
 
 async function main() {
-  const dryRun = process.argv.includes('--dry-run');
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(database)) {
-    fail('WARPKEEP_SPACETIMEDB_DATABASE is invalid.');
-  }
+  const { dryRun } = parsePublishArguments();
+  requireCanonicalPublishCoordinates();
+  if (database !== CANONICAL_DATABASE) fail('The production publisher target was not canonical.');
   const issuer = requireHttpsOrigin(configuredIssuer, 'WARPKEEP_OIDC_ISSUER');
+  if (issuer !== CANONICAL_BRIDGE) fail('The production issuer was not canonical.');
   const sourceConfig = await readFile(sourceConfigPath, 'utf8');
   const sourceMatch = sourceConfig.match(/^export const WARPKEEP_OIDC_ISSUER\s*=\s*'([^']+)';\s*$/m);
   if (!sourceMatch || sourceMatch[1] !== issuer) {
     fail('The module source issuer must exactly match WARPKEEP_OIDC_ISSUER before publishing.');
   }
-  if (dryRun) {
-    await validateIssuerDeployment(issuer);
-    console.log(`Dry run: verified ${issuer}; would publish ${database} without deleting data.`);
-    return;
-  }
-  if (process.env.WARPKEEP_PUBLISH_CONFIRM !== database) {
+  if (!dryRun && process.env.WARPKEEP_PUBLISH_CONFIRM !== database) {
     fail(`Set WARPKEEP_PUBLISH_CONFIRM=${database} after reviewing the target database; publish was not attempted.`);
   }
-
+  const executable = attestPinnedSpacetimeCli(command);
+  const artifactReceipt = runCurrentAdditiveMigrationProof(executable);
+  if (dryRun) {
+    await validateIssuerDeployment(issuer);
+    console.log(`Dry run: verified the pinned CLI, current additive migration, and ${issuer}; would update the canonical existing database without deleting data.`);
+    return;
+  }
   await validateIssuerDeployment(issuer);
-  await publishModule(command, database);
+  attestCanonicalDatabase(executable);
+  verifyFreshLegacyAggregate(process.env.WARPKEEP_ADMIN_TOKEN_SECRET);
+  await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

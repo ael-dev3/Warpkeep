@@ -1,10 +1,11 @@
 # Deployment and recovery
 
-> **Local auth-v2 draft — not deployed.** Recovery starts with Worker public
-> auth and Pages shared-alpha access false. Module publish, `SessionFamily`
-> Durable Object migration, managed-secret configuration, Worker deploy,
-> frontend deploy, and either auth enable are separate external mutations and
-> each requires explicit approval. No command below implies that approval.
+> **Local auth-v2 additive draft — not deployed.** Recovery starts with Worker
+> public auth and Pages shared-alpha access false. The protocol-v2 module is
+> awaiting a separate publish approval. Module publish, `SessionFamily` Durable
+> Object migration, managed-secret configuration, Worker deploy, frontend
+> deploy, and either auth enable are separate external mutations and each
+> requires explicit approval. No command below implies that approval.
 
 ## Pages
 
@@ -74,8 +75,10 @@ pnpm --dir services/auth-bridge exec wrangler secret put FARCASTER_RPC_URL
 
 Each secret command requires explicit secret-configuration approval and an
 approved non-logging prompt/pipe. `SESSION_COOKIE_KEY` must be independent of
-the signing/admin secrets and contain no reused material. Record only secret
-names and platform versions, never values.
+the signing/admin secrets and contain no reused material. The admin secret and
+the signing JWK private `d` scalar must also differ; the three trust boundaries
+are pairwise distinct. Record only secret names and platform versions, never
+values.
 
 Deploy only reviewed source after separate Worker-deploy approval, and retain
 `PUBLIC_AUTH_ENABLED=false`. Verify health, discovery, public-only JWKS, exact
@@ -100,7 +103,31 @@ pnpm --dir spacetimedb install --frozen-lockfile
 spacetime --version
 pnpm --dir spacetimedb run verify
 npm run stdb:verify-bindings
+npm run stdb:verify-additive-migration
 ```
+
+The additive-migration check is a local proof, not a production inspection or
+publish. With the pinned SpacetimeDB 2.6.1 CLI it starts a disposable,
+loopback-only, in-memory server and proves that:
+
+- the five-table production prefix remains exactly `allowed_fid`,
+  `world_tile`, `player`, `castle`, `admin_audit`, in that order and with the
+  original schema metadata unchanged;
+- both an empty legacy-player fixture and a synthetic nonempty legacy-player
+  fixture survive the forward publish unchanged;
+- only public `player_v2` and private `player_ownership_v2` are appended;
+- a second forward publish is idempotent, partial v2 state remains detectable,
+  uniqueness constraints hold, and guarded v1 rollback is refused before any
+  schema change or compatibility override.
+
+The legacy public `player` table therefore retains its exact protocol-v1 shape,
+including `identity`. Protocol v2 never reads, writes, or subscribes to it, and
+production publish requires a freshly inspected deployed-v1 `players: 0`
+invariant. After publication, the v2 aggregate reports the same count as
+`legacyPlayers`.
+The public `player_v2` projection contains no opaque identity;
+`player_ownership_v2` is private and must have no generated browser table
+accessor.
 
 Read-only publish preflight:
 
@@ -109,46 +136,74 @@ WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
   npm run stdb:publish:dev -- --dry-run
 ```
 
-The local v2 module removes opaque OIDC Identity from public `player` rows and
-adds private `player_ownership`. Treat this as a breaking schema rollout: first
-obtain explicit approval for read-only aggregate inspection and review a
-migration/client-compatibility plan for every existing player row without
-exposing identities. A generic additive module-publish approval does not cover
-this change.
+Before the first v2 publish, obtain explicit approval for the bounded, read-only
+aggregate already present in the deployed v1 module. In the approved private
+operator environment, run `npm run stdb:inspect-alpha -- --json`; record only
+its aggregate result, never its credential or child-process output. It must be
+exactly 61 world tiles and zero legacy players (`players`), castles, allowlist
+rows, and enabled FIDs. The unpublished `inspect-alpha-v2` procedure cannot be
+used as pre-publication evidence.
 
-Only if that breaking-schema plan was separately approved, the database was
-inspected, and a non-destructive module-publish approval was recorded:
+Only if the local proof passes, the protected aggregate was freshly inspected,
+the deployed-v1 `players` field was exactly zero, and the owner recorded the
+exact separate approval `approve additive protocol-v2 module publication`:
 
 ```sh
 WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
 WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
-  npm run stdb:publish:dev
+npm run stdb:publish:dev
 ```
+
+Use the private Keychain wrapper so the Hermes credential is loaded only into
+bounded publisher memory and forwarded to the protected inspection child over
+stdin; it is excluded from the child environment and every other child process.
+The publisher performs the deployed v1 aggregate
+inspection itself, after attesting the pinned CLI binary, current loopback
+migration proof, and canonical database name-to-identity mapping. It never
+accepts a hand-entered legacy-player count. The proof's single SHA-256 receipt
+is bound to the exact prebuilt `bundle.js`; the publisher rechecks those bytes
+and uses `--js-path`, so it cannot silently rebuild a different module between
+proof and publication.
+
+Immediately after an approved publish, use
+`npm run stdb:inspect-alpha-v2 -- --json`. Require 61 world tiles and zero legacy
+players, v2 players, v2 ownerships, consistent v2 pairs, either orphan class,
+castles, allowlist rows, and enabled FIDs; protocol `2`; world seed `3445214658`;
+and seed name `HEGEMONY_GENESIS_001`. `auditEntries` is an observed nonnegative
+count, not row content.
 
 Never use `--delete-data=always`, `--break-clients`, database recreation, or broad auto-confirmation. A timed-out publish is indeterminate: inspect before retrying.
 
-If the approved read-only preflight reports that the privacy schema cannot be
-applied while the current publisher forbids `--break-clients`, stop. Changing
-the migration mechanism or publish guard is a separate implementation, review,
-and approval boundary; recovery authorization does not imply it.
+If the CLI asks for a compatibility override, reports a mismatch, or cannot
+apply the append-only change under `--delete-data=never`, stop. Do not use
+`--break-clients`, rewrite the five-table prefix, or approve a prompt manually.
+Correct the module as a reviewed additive forward fix, rerun the disposable
+proof and protected inspection, and obtain fresh publish approval.
 
 The auth-v2 target is backend protocol `2`, requires 600-second
 `auth_version: 2`/positive-epoch player JWTs, and adds the exact structured
 `auth_resolver_get_fid_admission_v2` procedure for the maximum-60-second
 `service:auth-epoch-resolver`/sole-role principal. Verify the generated binding
-wire name after publish, confirm that public player bindings have no opaque OIDC
-Identity, and confirm that no private ownership-table accessor was generated.
-`admin_get_fid_auth_epoch` is rollback compatibility only and must not be
-configured as the v2 issuance/refresh path.
+wire names after publish, confirm that the official client subscribes only to
+`player_v2`, and confirm that no private `player_ownership_v2` table accessor was
+generated. The retained legacy `player` binding necessarily preserves its v1
+`identity` field but must remain unused and empty. `admin_get_fid_auth_epoch` is
+rollback compatibility only and must not be configured as the v2
+issuance/refresh path.
 
 ## Production proof and rollback
 
 ```sh
 WARPKEEP_EXPECTED_DEPLOYED_SHA=<full-pages-sha> \
-  npm run verify:alpha-production -- --require-protected-aggregate
+  npm run verify:alpha-production -- \
+    --require-auth-v2 \
+    --require-additive-v2-aggregate
 ```
 
-The approved secret handoff supplies the operator credential without logging it.
+This command is a future post-publish gate, not evidence that protocol v2 is
+currently deployed. The approved secret handoff supplies the operator credential
+without logging it. Verification accepts the exact aggregate field set only,
+requires both orphan counts to be zero, and never mirrors Hermes child output.
 
 Rollback order:
 
@@ -160,5 +215,7 @@ Rollback order:
    public routes or raw-epoch minting.
 4. Treat `SESSION_COOKIE_KEY` rotation as family-wide revocation and require its
    own incident/rotation approval.
-5. Never roll Maincloud back by deleting data; publish only an explicitly
-   compatible reviewed module with separate approval.
+5. Never roll Maincloud back by deleting data or by republishing the v1 schema.
+   If v2 is implicated, keep public auth disabled, inspect aggregate pair/orphan
+   counts, and publish only a compatible reviewed forward fix with separate
+   approval.

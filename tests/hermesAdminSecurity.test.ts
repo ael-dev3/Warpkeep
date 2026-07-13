@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
-import { connect, requestAdminToken } from '../scripts/hermes-admin';
+import { connect, parseHermesArguments, readStatus, requestAdminToken } from '../scripts/hermes-admin';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
@@ -54,6 +54,67 @@ describe('Hermes machine-readable output', () => {
     stdbLogger('info', 'human transport status');
     expect(output).toHaveBeenCalledOnce();
   });
+
+  it('projects the protocol-v2 inspection to an exact aggregate allowlist', async () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const status = {
+      worldTiles: 61n,
+      legacyPlayers: 0n,
+      playersV2: 0n,
+      playerOwnershipsV2: 0n,
+      consistentPlayerPairsV2: 0n,
+      orphanedPlayerRowsV2: 0n,
+      orphanedOwnershipRowsV2: 0n,
+      castles: 0n,
+      allowedFids: 0n,
+      enabledAllowedFids: 0n,
+      auditEntries: 2n,
+      protocolVersion: 2,
+      worldSeed: 3_445_214_658,
+      worldSeedName: 'HEGEMONY_GENESIS_001',
+      identity: 'must-not-escape',
+      note: 'must-not-escape',
+    };
+    const connection = {
+      procedures: { adminGetAlphaStatusV2: vi.fn(async () => status) },
+    };
+
+    await readStatus(connection as never, true, true);
+    expect(output).toHaveBeenCalledOnce();
+    const rendered = output.mock.calls[0]?.[0] as string;
+    expect(JSON.parse(rendered)).toEqual({
+      worldTiles: '61',
+      legacyPlayers: '0',
+      playersV2: '0',
+      playerOwnershipsV2: '0',
+      consistentPlayerPairsV2: '0',
+      orphanedPlayerRowsV2: '0',
+      orphanedOwnershipRowsV2: '0',
+      castles: '0',
+      allowedFids: '0',
+      enabledAllowedFids: '0',
+      auditEntries: '2',
+      protocolVersion: 2,
+      worldSeed: 3_445_214_658,
+      worldSeedName: 'HEGEMONY_GENESIS_001',
+    });
+    expect(rendered).not.toContain('must-not-escape');
+  });
+});
+
+describe('Hermes command-line boundary', () => {
+  it('rejects unknown, duplicate, misplaced, and extra arguments', () => {
+    expect(parseHermesArguments(['inspect-alpha', '--json'])).toMatchObject({
+      command: 'inspect-alpha',
+      inspection: true,
+      machineReadableInspection: true,
+    });
+    expect(() => parseHermesArguments(['inspect-alpha', '--jsno'])).toThrow(/unknown or duplicate/i);
+    expect(() => parseHermesArguments(['inspect-alpha', '--json', '--json'])).toThrow(/unknown or duplicate/i);
+    expect(() => parseHermesArguments(['inspect-alpha', '--confirm'])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments(['allow-fid', '123', 'note', '--json'])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments(['inspect-alpha', 'extra'])).toThrow(/unexpected number/i);
+  });
 });
 
 describe('Hermes credential destination policy', () => {
@@ -80,6 +141,17 @@ describe('Hermes credential destination policy', () => {
     );
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('"dryRun":true');
+    expect(result.stderr).toBe('');
+  });
+
+  it('classifies protocol-v2 aggregate inspection as read-only', () => {
+    const result = runHermes(['inspect-alpha-v2', '--json', '--dry-run'], {
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('"command":"inspect-alpha-v2"');
+    expect(result.stdout).toContain('"mutation":false');
     expect(result.stderr).toBe('');
   });
 

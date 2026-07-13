@@ -27,3 +27,17 @@ test('the resolver principal is isolated to its dedicated authorization guard', 
   assert.match(resolverGate, /readFreshAuthEpochResolverJwt/);
   assert.doesNotMatch(resolverGate, /requireAdmin/);
 });
+
+test('admitted-player authority is derived only from the protocol-v2 pair', () => {
+  const source = readFileSync(new URL('../src/auth.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('export function requireAdmittedPlayer');
+  const end = source.indexOf('/** Admin inputs', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+
+  const guard = source.slice(start, end);
+  assert.match(guard, /ctx\.db\.playerV2\.fid\.find/);
+  assert.match(guard, /ctx\.db\.playerOwnershipV2\.fid\.find/);
+  assert.doesNotMatch(guard, /ctx\.db\.player\./);
+  assert.doesNotMatch(guard, /ctx\.db\.playerOwnership\./);
+});

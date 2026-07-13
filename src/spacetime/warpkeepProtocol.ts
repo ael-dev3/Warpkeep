@@ -4,6 +4,7 @@
  * treating an incompatible published module as a playable shared alpha.
  */
 export const WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION = 2;
+export const WARPKEEP_EXPECTED_WORLD_SEED = 3_445_214_658;
 export const WARPKEEP_EXPECTED_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 
 export type WarpkeepBackendInfo = Readonly<{
@@ -26,6 +27,7 @@ export function readCompatibleWarpkeepBackendInfo(value: unknown): WarpkeepBacke
     || !isUint32(info.worldSeed)
     || typeof info.worldSeedName !== 'string'
     || info.protocolVersion !== WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION
+    || info.worldSeed !== WARPKEEP_EXPECTED_WORLD_SEED
     || info.worldSeedName !== WARPKEEP_EXPECTED_WORLD_SEED_NAME
   ) {
     throw new Error('Warpkeep backend protocol is incompatible.');

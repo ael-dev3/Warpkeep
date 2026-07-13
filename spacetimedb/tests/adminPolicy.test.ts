@@ -161,3 +161,31 @@ test('the v2 admission resolver is separately protected and leaves the legacy lo
   assert.doesNotMatch(resolver, /\.(?:insert|update|delete)\s*\(/);
   assert.doesNotMatch(resolver, /\baudit\s*\(/);
 });
+
+test('the additive v2 status is admin-only, aggregate-only, and leaves legacy status intact', () => {
+  const source = readFileSync(new URL('../src/reducers/admin.ts', import.meta.url), 'utf8');
+  const legacyStart = source.indexOf('export const adminGetAlphaStatus =');
+  const v2Start = source.indexOf('export const adminGetAlphaStatusV2 =');
+  const v2End = source.indexOf('/**\n * Bridge/Hermes can resolve', v2Start);
+  assert.notEqual(legacyStart, -1);
+  assert.notEqual(v2Start, -1);
+  assert.notEqual(v2End, -1);
+
+  const legacy = source.slice(legacyStart, v2Start);
+  assert.match(legacy, /name: 'admin_get_alpha_status'/);
+  assert.match(legacy, /players: tx\.db\.player\.count\(\)/);
+  assert.doesNotMatch(legacy, /playerV2|playerOwnershipV2/);
+
+  const v2 = source.slice(v2Start, v2End);
+  assert.match(v2, /name: 'admin_get_alpha_status_v2'/);
+  assert.match(v2, /requireAdmin\(tx\)/);
+  assert.match(v2, /legacyPlayers: tx\.db\.player\.count\(\)/);
+  assert.match(v2, /playersV2: tx\.db\.playerV2\.count\(\)/);
+  assert.match(v2, /playerOwnershipsV2: tx\.db\.playerOwnershipV2\.count\(\)/);
+  assert.match(v2, /orphanedPlayerRowsV2/);
+  assert.match(v2, /orphanedOwnershipRowsV2/);
+  assert.match(v2, /protocolVersion: WARPKEEP_BACKEND_PROTOCOL_VERSION/);
+  assert.doesNotMatch(v2, /\.(?:insert|update|delete)\s*\(/);
+  assert.doesNotMatch(v2, /\baudit\s*\(/);
+  assert.doesNotMatch(v2, /targetFid|actorSubject|\bnote\b|\.identity\b|username|displayName|pfpUrl/);
+});

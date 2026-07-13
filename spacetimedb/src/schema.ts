@@ -31,22 +31,15 @@ export const worldTile = table(
 );
 
 /**
- * Private ownership binding. OIDC identities are authorization material, not
- * player profile data, and must never be exposed through public subscriptions.
+ * Frozen protocol-v1 projection. Its exact public shape, field order, indexes,
+ * and placement are a deployed schema contract. Protocol v2 never reads or
+ * writes this table; it remains present only for additive compatibility.
  */
-export const playerOwnership = table(
-  { name: 'player_ownership' },
-  {
-    fid: t.u64().primaryKey(),
-    identity: t.identity().unique(),
-  },
-);
-
-/** Public gameplay/profile projection for admitted, bootstrapped accounts. */
 export const player = table(
   { name: 'player', public: true },
   {
     fid: t.u64().primaryKey(),
+    identity: t.identity().unique(),
     username: t.option(t.string()),
     displayName: t.option(t.string()),
     pfpUrl: t.option(t.string()),
@@ -83,24 +76,55 @@ export const adminAudit = table(
   },
 );
 
+/** Public protocol-v2 gameplay projection; opaque OIDC identity is excluded. */
+export const playerV2 = table(
+  { name: 'player_v2', public: true },
+  {
+    fid: t.u64().primaryKey(),
+    username: t.option(t.string()),
+    displayName: t.option(t.string()),
+    pfpUrl: t.option(t.string()),
+    joinedAt: t.timestamp(),
+    status: t.string(),
+  },
+);
+
+/**
+ * Private protocol-v2 ownership binding. OIDC identities are authorization
+ * material and must never be exposed through public subscriptions.
+ */
+export const playerOwnershipV2 = table(
+  { name: 'player_ownership_v2' },
+  {
+    fid: t.u64().primaryKey(),
+    identity: t.identity().unique(),
+  },
+);
+
 const warpkeep = schema({
+  // Preserve the original production schema prefix exactly. New tables are
+  // append-only so SpacetimeDB can apply this migration without rewriting it.
   allowedFid,
   worldTile,
-  playerOwnership,
   player,
   castle,
   adminAudit,
+  playerV2,
+  playerOwnershipV2,
 });
 
 // SpacetimeDB 2.6's default case converter separates a trailing digit from
-// its prefix (`v2` -> `v_2`). Pin this security boundary's public procedure
-// spelling so the resolver contract remains exactly versioned as designed.
-warpkeep.moduleDef.explicitNames.entries.push({
-  tag: 'Function',
-  value: {
-    sourceName: 'auth_resolver_get_fid_admission_v2',
-    canonicalName: 'auth_resolver_get_fid_admission_v2',
-  },
-});
+// its prefix (`v2` -> `v_2`). Pin every protocol-v2 wire spelling explicitly.
+for (const name of [
+  'auth_resolver_get_fid_admission_v2',
+  'get_my_admission_status_v2',
+  'bootstrap_player_v2',
+  'admin_get_alpha_status_v2',
+]) {
+  warpkeep.moduleDef.explicitNames.entries.push({
+    tag: 'Function',
+    value: { sourceName: name, canonicalName: name },
+  });
+}
 
 export default warpkeep;

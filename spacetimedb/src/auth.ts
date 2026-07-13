@@ -19,6 +19,7 @@ import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
 import { evaluatePlayerOwnership } from './playerOwnershipPolicy';
 import type warpkeep from './schema';
+import { worldCastleGraphIsConsistent } from './worldCastleIntegrity';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
 
@@ -119,11 +120,14 @@ export function requireAllowedFid(ctx: WarpkeepReducerContext): {
 
 export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {
   claims: WarpkeepJwtClaims;
-  player: NonNullable<ReturnType<typeof ctx.db.player.fid.find>>;
+  player: NonNullable<ReturnType<typeof ctx.db.playerV2.fid.find>>;
 } {
   const { claims } = requireAllowedFid(ctx);
-  const player = ctx.db.player.fid.find(claims.fid);
-  const ownership = ctx.db.playerOwnership.fid.find(claims.fid);
+  if (!worldCastleGraphIsConsistent(ctx.db.worldTile.iter(), ctx.db.castle.iter())) {
+    throw new SenderError('STATE_INTEGRITY');
+  }
+  const player = ctx.db.playerV2.fid.find(claims.fid);
+  const ownership = ctx.db.playerOwnershipV2.fid.find(claims.fid);
   const ownershipState = evaluatePlayerOwnership(
     player !== null,
     ownership !== null,
@@ -140,6 +144,10 @@ export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {
 
   if (ownershipState === 'identity_mismatch') {
     throw new SenderError('IDENTITY_MISMATCH');
+  }
+
+  if (ctx.db.castle.ownerFid.find(claims.fid) === null) {
+    throw new SenderError('STATE_INTEGRITY');
   }
 
   return { claims, player: player! };

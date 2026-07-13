@@ -11,6 +11,8 @@ const EXPECTED_AUDIENCE = 'warpkeep-spacetimedb';
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_DOCUMENT_BYTES = 1_000_000;
 const MAX_ASSET_BYTES = 16_000_000;
+const MAX_ROOT_ASSET_COUNT = 16;
+const MAX_ROOT_ASSET_TOTAL_BYTES = 24_000_000;
 const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/i;
 const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 const JWK_COORDINATE = /^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/;
@@ -60,6 +62,26 @@ const EXPECTED_ALPHA_AGGREGATE = Object.freeze({
   players: 0n,
   castles: 0n,
 });
+const EXPECTED_ALPHA_V2_AGGREGATE = Object.freeze({
+  worldTiles: 61n,
+  legacyPlayers: 0n,
+  playersV2: 0n,
+  playerOwnershipsV2: 0n,
+  consistentPlayerPairsV2: 0n,
+  orphanedPlayerRowsV2: 0n,
+  orphanedOwnershipRowsV2: 0n,
+  castles: 0n,
+  allowedFids: 0n,
+  enabledAllowedFids: 0n,
+  protocolVersion: 2n,
+  worldSeed: 3_445_214_658n,
+});
+const EXPECTED_ALPHA_V2_KEYS = Object.freeze([
+  ...Object.keys(EXPECTED_ALPHA_V2_AGGREGATE),
+  'auditEntries',
+  'worldSeedName',
+].sort());
+const EXPECTED_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 
 function fail(message) {
   throw new Error(`Alpha production verification failed: ${message}`);
@@ -343,7 +365,7 @@ function hasCanonicalMetadata(html, frontend) {
   return canonicalLink && openGraphUrl;
 }
 
-function rootAssetUrls(html, frontend) {
+export function rootAssetUrls(html, frontend) {
   const assets = new Map();
   let moduleScriptCount = 0;
   const allTags = [
@@ -375,6 +397,9 @@ function rootAssetUrls(html, frontend) {
       moduleScriptCount += 1;
     }
     assets.set(url.href, url);
+    if (assets.size > MAX_ROOT_ASSET_COUNT) {
+      fail('frontend document contains too many root application assets.');
+    }
   }
 
   if (moduleScriptCount === 0 || assets.size === 0) {
@@ -383,8 +408,13 @@ function rootAssetUrls(html, frontend) {
   return [...assets.values()];
 }
 
-async function verifyRootAsset(assetUrl, expectedDeployedSha) {
-  const response = await fetchWithTimeout(assetUrl.href);
+async function verifyRootAsset(
+  assetUrl,
+  expectedDeployedSha,
+  maximumBytes,
+  fetchImpl = fetch,
+) {
+  const response = await fetchWithTimeout(assetUrl.href, {}, fetchImpl);
   if (response.status !== 200) {
     fail(`frontend asset ${assetUrl.pathname} returned HTTP ${response.status}.`);
   }
@@ -395,17 +425,49 @@ async function verifyRootAsset(assetUrl, expectedDeployedSha) {
   if (/\.css$/i.test(assetUrl.pathname) && !contentType.startsWith('text/css')) {
     fail(`frontend stylesheet ${assetUrl.pathname} had an invalid content type.`);
   }
-  const bytes = await readBoundedBytes(response, `frontend asset ${assetUrl.pathname}`, MAX_ASSET_BYTES);
+  const bytes = await readBoundedBytes(response, `frontend asset ${assetUrl.pathname}`, maximumBytes);
   if (bytes.byteLength === 0) fail(`frontend asset ${assetUrl.pathname} was empty.`);
 
   const isJavaScript = /\.m?js$/i.test(assetUrl.pathname);
-  return isJavaScript && expectedDeployedSha
-    ? new TextDecoder().decode(bytes).toLowerCase().includes(expectedDeployedSha)
-    : false;
+  return Object.freeze({
+    byteLength: bytes.byteLength,
+    shaMatches: Boolean(isJavaScript && expectedDeployedSha
+      && new TextDecoder().decode(bytes).toLowerCase().includes(expectedDeployedSha)),
+  });
 }
 
-async function verifyFrontend(frontend, expectedDeployedSha) {
-  const response = await fetchWithTimeout(rootUrl(frontend));
+export async function verifyRootAssets(
+  assets,
+  expectedDeployedSha,
+  verifyAsset = verifyRootAsset,
+) {
+  let totalBytes = 0;
+  let shaMatches = false;
+  for (const asset of assets) {
+    const remainingBytes = MAX_ROOT_ASSET_TOTAL_BYTES - totalBytes;
+    if (remainingBytes <= 0) {
+      fail('frontend root application assets exceeded their cumulative byte limit.');
+    }
+    const maximumBytes = Math.min(MAX_ASSET_BYTES, remainingBytes);
+    const result = await verifyAsset(asset, expectedDeployedSha, maximumBytes);
+    if (
+      result === null
+      || typeof result !== 'object'
+      || !Number.isSafeInteger(result.byteLength)
+      || result.byteLength <= 0
+      || result.byteLength > maximumBytes
+      || typeof result.shaMatches !== 'boolean'
+    ) {
+      fail('frontend root application asset verification returned an invalid result.');
+    }
+    totalBytes += result.byteLength;
+    shaMatches ||= result.shaMatches;
+  }
+  return Object.freeze({ totalBytes, shaMatches });
+}
+
+export async function verifyFrontend(frontend, expectedDeployedSha, fetchImpl = fetch) {
+  const response = await fetchWithTimeout(rootUrl(frontend), {}, fetchImpl);
   if (response.status !== 200) {
     fail(`frontend returned HTTP ${response.status}.`);
   }
@@ -421,8 +483,17 @@ async function verifyFrontend(frontend, expectedDeployedSha) {
   }
 
   const assets = rootAssetUrls(html, frontend);
-  const shaMatches = await Promise.all(assets.map(asset => verifyRootAsset(asset, expectedDeployedSha)));
-  if (expectedDeployedSha && !shaMatches.some(Boolean)) {
+  const result = await verifyRootAssets(
+    assets,
+    expectedDeployedSha,
+    (asset, expectedSha, maximumBytes) => verifyRootAsset(
+      asset,
+      expectedSha,
+      maximumBytes,
+      fetchImpl,
+    ),
+  );
+  if (expectedDeployedSha && !result.shaMatches) {
     fail('frontend assets did not contain the expected deployed build SHA.');
   }
   console.log(`frontend: canonical root and ${assets.length} root-base asset${assets.length === 1 ? '' : 's'} verified${expectedDeployedSha ? ' with expected build SHA' : ''}`);
@@ -713,7 +784,7 @@ function readAggregateCount(value, label) {
   fail(`protected aggregate ${label} was invalid.`);
 }
 
-function verifyExpectedAlphaAggregate(output) {
+export function verifyExpectedAlphaAggregate(output) {
   let status;
   try {
     status = JSON.parse(output);
@@ -723,6 +794,14 @@ function verifyExpectedAlphaAggregate(output) {
   if (!status || typeof status !== 'object' || Array.isArray(status)) {
     fail('protected aggregate inspection returned an invalid status object.');
   }
+  const expectedKeys = Object.keys(EXPECTED_ALPHA_AGGREGATE).sort();
+  const actualKeys = Object.keys(status).sort();
+  if (
+    actualKeys.length !== expectedKeys.length
+    || actualKeys.some((key, index) => key !== expectedKeys[index])
+  ) {
+    fail('protected aggregate inspection returned unexpected fields.');
+  }
   for (const [field, expected] of Object.entries(EXPECTED_ALPHA_AGGREGATE)) {
     if (readAggregateCount(status[field], field) !== expected) {
       fail(`protected aggregate ${field} did not match the required empty-alpha state.`);
@@ -730,12 +809,40 @@ function verifyExpectedAlphaAggregate(output) {
   }
 }
 
-export function protectedAggregateChildEnvironment(bridge, secret) {
+export function verifyExpectedAlphaV2Aggregate(output) {
+  let status;
+  try {
+    status = JSON.parse(output);
+  } catch {
+    fail('protocol-v2 aggregate inspection did not return machine-readable JSON.');
+  }
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    fail('protocol-v2 aggregate inspection returned an invalid status object.');
+  }
+  const actualKeys = Object.keys(status).sort();
+  if (
+    actualKeys.length !== EXPECTED_ALPHA_V2_KEYS.length
+    || actualKeys.some((key, index) => key !== EXPECTED_ALPHA_V2_KEYS[index])
+  ) {
+    fail('protocol-v2 aggregate inspection returned unexpected fields.');
+  }
+  for (const [field, expected] of Object.entries(EXPECTED_ALPHA_V2_AGGREGATE)) {
+    if (readAggregateCount(status[field], field) !== expected) {
+      fail(`protocol-v2 aggregate ${field} did not match the required additive migration state.`);
+    }
+  }
+  readAggregateCount(status.auditEntries, 'auditEntries');
+  if (status.worldSeedName !== EXPECTED_WORLD_SEED_NAME) {
+    fail('protocol-v2 aggregate worldSeedName did not match the required generation state.');
+  }
+}
+
+export function protectedAggregateChildEnvironment(bridge) {
   return Object.freeze({
     WARPKEEP_SPACETIMEDB_URI: process.env.WARPKEEP_SPACETIMEDB_URI ?? DEFAULT_SPACETIMEDB_URI,
     WARPKEEP_SPACETIMEDB_DATABASE: process.env.WARPKEEP_SPACETIMEDB_DATABASE ?? DEFAULT_SPACETIMEDB_DATABASE,
     WARPKEEP_AUTH_BRIDGE_URL: bridge,
-    WARPKEEP_ADMIN_TOKEN_SECRET: secret,
+    WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
   });
 }
 
@@ -743,7 +850,8 @@ export function protectedAggregateChildOptions(repositoryRoot, bridge, secret) {
   return {
     cwd: repositoryRoot,
     encoding: 'utf8',
-    env: protectedAggregateChildEnvironment(bridge, secret),
+    env: protectedAggregateChildEnvironment(bridge),
+    input: secret,
     maxBuffer: MAX_DOCUMENT_BYTES,
     timeout: 30_000,
     // This child is read-only. SIGKILL makes the synchronous timeout a hard
@@ -758,7 +866,16 @@ export function requiredProtectedAggregateSecret(secret, required) {
   return undefined;
 }
 
-function verifyProtectedAggregateIfConfigured(bridge, required) {
+export function protectedAggregateChildArguments(tsxCli, protocolV2 = false) {
+  return [
+    tsxCli,
+    'scripts/hermes-admin.ts',
+    protocolV2 ? 'inspect-alpha-v2' : 'inspect-alpha',
+    '--json',
+  ];
+}
+
+function verifyProtectedAggregateIfConfigured(bridge, required, protocolV2 = false) {
   const secret = requiredProtectedAggregateSecret(process.env.WARPKEEP_ADMIN_TOKEN_SECRET, required);
   if (!secret) {
     console.log('alpha status: skipped (no local Hermes credential configured)');
@@ -768,33 +885,63 @@ function verifyProtectedAggregateIfConfigured(bridge, required) {
   const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
   const result = spawnSync(
     process.execPath,
-    [tsxCli, 'scripts/hermes-admin.ts', 'inspect-alpha', '--json'],
+    protectedAggregateChildArguments(tsxCli, protocolV2),
     protectedAggregateChildOptions(repositoryRoot, bridge, secret),
   );
   if (result.error || result.status !== 0 || result.signal) {
     fail('protected aggregate inspection failed.');
   }
-  verifyExpectedAlphaAggregate(result.stdout);
+  if (protocolV2) verifyExpectedAlphaV2Aggregate(result.stdout);
+  else verifyExpectedAlphaAggregate(result.stdout);
   // Never mirror child-process output: even a future Hermes implementation
   // must not cause this verifier to surface a secret, JWT, or identity.
-  console.log('alpha status: required empty aggregate state verified');
+  console.log(protocolV2
+    ? 'alpha status: required additive protocol-v2 aggregate state verified'
+    : 'alpha status: required empty aggregate state verified');
+}
+
+export function parseProductionVerifierArguments(arguments_ = process.argv.slice(2)) {
+  const allowed = new Set([
+    '--require-protected-aggregate',
+    '--require-additive-v2-aggregate',
+    '--require-auth-v2',
+  ]);
+  const seen = new Set();
+  for (const argument of arguments_) {
+    if (!allowed.has(argument) || seen.has(argument)) {
+      fail('unknown or duplicate command-line argument.');
+    }
+    seen.add(argument);
+  }
+  return Object.freeze({
+    requireProtectedAggregate: seen.has('--require-protected-aggregate'),
+    requireAdditiveV2Aggregate: seen.has('--require-additive-v2-aggregate'),
+    requireAuthV2: seen.has('--require-auth-v2'),
+  });
 }
 
 async function main() {
+  const {
+    requireProtectedAggregate,
+    requireAdditiveV2Aggregate,
+    requireAuthV2,
+  } = parseProductionVerifierArguments();
   const frontend = httpsOrigin(process.env.WARPKEEP_FRONTEND_URL ?? DEFAULT_FRONTEND, 'WARPKEEP_FRONTEND_URL');
   const bridge = httpsOrigin(process.env.WARPKEEP_AUTH_BRIDGE_URL ?? DEFAULT_BRIDGE, 'WARPKEEP_AUTH_BRIDGE_URL');
   const www = httpsOrigin(process.env.WARPKEEP_WWW_URL ?? defaultWwwOrigin(frontend), 'WARPKEEP_WWW_URL');
   const legacyPages = httpsUrl(process.env.WARPKEEP_LEGACY_PAGES_URL ?? DEFAULT_LEGACY_PAGES, 'WARPKEEP_LEGACY_PAGES_URL');
   const expectedDeployedSha = readExpectedDeployedSha();
-  const requireProtectedAggregate = process.argv.includes('--require-protected-aggregate');
-  const requireAuthV2 = process.argv.includes('--require-auth-v2');
   if (process.env.WARPKEEP_OIDC_AUDIENCE && process.env.WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
     fail(`WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
   }
   await verifyFrontend(frontend, expectedDeployedSha);
   await verifyFrontendRedirects(frontend, www, legacyPages);
   await verifyBridge(frontend, bridge, { requireAuthV2 });
-  verifyProtectedAggregateIfConfigured(bridge, requireProtectedAggregate);
+  verifyProtectedAggregateIfConfigured(
+    bridge,
+    requireProtectedAggregate || requireAdditiveV2Aggregate,
+    requireAdditiveV2Aggregate,
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

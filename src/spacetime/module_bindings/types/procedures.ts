@@ -7,13 +7,17 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all procedure arg schemas
 import * as AdminGetAlphaStatusProcedure from "../admin_get_alpha_status_procedure";
+import * as AdminGetAlphaStatusV2Procedure from "../admin_get_alpha_status_v_2_procedure";
 import * as AdminGetFidAuthEpochProcedure from "../admin_get_fid_auth_epoch_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "../get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "../get_my_admission_status_procedure";
+import * as GetMyAdmissionStatusV2Procedure from "../get_my_admission_status_v_2_procedure";
 
 export type AdminGetAlphaStatusArgs = __Infer<typeof AdminGetAlphaStatusProcedure.params>;
 export type AdminGetAlphaStatusResult = __Infer<typeof AdminGetAlphaStatusProcedure.returnType>;
+export type AdminGetAlphaStatusV2Args = __Infer<typeof AdminGetAlphaStatusV2Procedure.params>;
+export type AdminGetAlphaStatusV2Result = __Infer<typeof AdminGetAlphaStatusV2Procedure.returnType>;
 export type AdminGetFidAuthEpochArgs = __Infer<typeof AdminGetFidAuthEpochProcedure.params>;
 export type AdminGetFidAuthEpochResult = __Infer<typeof AdminGetFidAuthEpochProcedure.returnType>;
 export type AuthResolverGetFidAdmissionV2Args = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.params>;
@@ -22,4 +26,6 @@ export type GetAlphaBackendInfoArgs = __Infer<typeof GetAlphaBackendInfoProcedur
 export type GetAlphaBackendInfoResult = __Infer<typeof GetAlphaBackendInfoProcedure.returnType>;
 export type GetMyAdmissionStatusArgs = __Infer<typeof GetMyAdmissionStatusProcedure.params>;
 export type GetMyAdmissionStatusResult = __Infer<typeof GetMyAdmissionStatusProcedure.returnType>;
+export type GetMyAdmissionStatusV2Args = __Infer<typeof GetMyAdmissionStatusV2Procedure.params>;
+export type GetMyAdmissionStatusV2Result = __Infer<typeof GetMyAdmissionStatusV2Procedure.returnType>;
 

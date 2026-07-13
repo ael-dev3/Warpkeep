@@ -39,8 +39,9 @@ separately reviewed production controls are deliberately enabled.
 - Unadmitted identities receive tokenless pending-admission state. Admitted
   players require a positive authorization epoch, while resolver and operator
   authority remain separate, exact, and least privilege.
-- Private ownership records are excluded from generated browser bindings and
-  public realm projections.
+- The official browser reads only the identity-free `player_v2` projection.
+  Private `player_ownership_v2` records have no generated browser table
+  accessor.
 
 ## Release and migration boundary
 
@@ -51,9 +52,24 @@ or deployment requires its own owner approval, runs with public authentication
 disabled, and must pass exact-source/configuration verification before the next
 stage.
 
+The module migration is additive. It preserves the exact production table
+prefix—`allowed_fid`, `world_tile`, legacy `player`, `castle`, and
+`admin_audit`—including the legacy player's original public `identity` field.
+That legacy table and its retired writer remain only for wire compatibility;
+protocol v2 never reads, writes, or subscribes to it, and publication requires a
+fresh aggregate proof that it is empty. Public `player_v2` and private
+`player_ownership_v2` are appended after the five-table prefix.
+
+The protocol-v2 status procedure reports counts only: legacy/v2 players,
+private ownerships, consistent pairs, both orphan classes, world/admission data,
+castles, audit-entry count, and fixed protocol/seed metadata. It never returns
+an identity, FID, profile, note, audit row, token, or credential.
+
 Preparing this release changes no production admission, player, castle, or world
 data. It does not rotate secrets, publish a schema, apply a Durable Object
 migration, deploy a Worker or Pages build, or re-enable public authentication.
+As documented here, protocol v2 is not published and remains awaiting a
+separate owner approval.
 
 ## Verification contract
 
@@ -63,6 +79,13 @@ The release gate requires:
 - TypeScript validation and canonical plus GitHub Pages production builds;
 - dependency, registry-signature, runtime-asset, file-size, license, and
   generated-binding verification;
+- a pinned-CLI, disposable-loopback migration proof that preserves the exact
+  five-table prefix and empty/nonempty fixtures, appends only the two v2 tables,
+  detects partial state, proves idempotence, and refuses a guarded v1 rollback
+  before schema change, with a single SHA-256 receipt binding the same prebuilt
+  artifact to any separately approved guarded publish;
+- exact numeric/name generation matching and bidirectional canonical
+  world/castle/occupancy integrity checks;
 - keyboard, focus-trap, screen-reader semantics, mobile viewport, short
   landscape, reduced-motion CSS, pagehide/back-forward, cancellation, retry,
   and direct-route consent regressions;
@@ -70,6 +93,12 @@ The release gate requires:
   review;
 - separately approved, bounded production rollout and read-only verification
   while public authentication remains disabled.
+
+After any approved publish, verification requires zero legacy players, zero
+one-sided v2 rows, and matching v2 projection/ownership pair counts. A failed or
+indeterminate migration is recovered only through a reviewed additive forward
+fix with fresh approval—never data deletion, database recreation,
+`--break-clients`, or a schema downgrade.
 
 The `v0.3.1` tag and GitHub Release are created only after the canonical public
 build reports the final protected-main commit exactly.

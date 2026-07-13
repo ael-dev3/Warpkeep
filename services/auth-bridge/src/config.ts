@@ -238,7 +238,11 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   }
   const adminTokenSecret = parseAdminTokenSecret(required(env, 'ADMIN_TOKEN_SECRET'))
   const sessionCookieKey = parseSessionCookieKey(required(env, 'SESSION_COOKIE_KEY'))
-  if (sessionCookieKey === adminTokenSecret || sessionCookieKey === privateJwk.d) {
+  if (
+    sessionCookieKey === adminTokenSecret
+    || sessionCookieKey === privateJwk.d
+    || adminTokenSecret === privateJwk.d
+  ) {
     throw new ConfigurationError()
   }
 
