@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { gatewayInteractionDefaults } from '../src/components/title/gatewayInteraction';
 import {
+  applyGatewayVfxQualityPreference,
   calculateGatewayActivationEnvelope,
   calculateGatewayVfxResponse,
   createGatewayParticleAttributes,
@@ -80,6 +81,16 @@ describe('gateway VFX specification', () => {
       viewportWidth: Number.NaN,
       viewportHeight: Number.POSITIVE_INFINITY
     })).toBe('compact');
+  });
+
+  it('caps automatic VFX quality to the player graphics preference', () => {
+    expect(applyGatewayVfxQualityPreference('high', 'cinematic', 8_192, true)).toBe('high');
+    expect(applyGatewayVfxQualityPreference('compact', 'cinematic', 8_192, true)).toBe('high');
+    expect(applyGatewayVfxQualityPreference('high', 'balanced', 8_192, true)).toBe('compact');
+    expect(applyGatewayVfxQualityPreference('compact', 'balanced', 8_192, true)).toBe('compact');
+    expect(applyGatewayVfxQualityPreference('high', 'performance', 8_192, true)).toBe('reduced');
+    expect(applyGatewayVfxQualityPreference('reduced', 'cinematic', 8_192, true)).toBe('reduced');
+    expect(applyGatewayVfxQualityPreference('high', 'cinematic', 2_048, true)).toBe('compact');
   });
 
   it('uses restrained linear light and thickness with nonlinear motion and turbulence', () => {

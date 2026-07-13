@@ -17,9 +17,14 @@ import type {
 } from '../../farcaster/farcasterAuthTypes';
 import { CreditsRoll } from './CreditsRoll';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
+import { SettingsPanel } from './SettingsPanel';
 import { WarpkeepBuildStamp } from './WarpkeepBuildStamp';
 import { menuCommands, type MenuCommand, type MenuCommandId } from './menuCommands';
 import type { WarpkeepBuildInfo } from '../../build/buildInfo';
+import type {
+  GraphicsPreference,
+  GraphicsQualityTier
+} from '../../settings/graphicsPreference';
 import './WarpkeepMainMenu.css';
 
 export type MenuInputModality = 'keyboard' | 'pointer' | 'touch' | 'unknown';
@@ -58,6 +63,9 @@ export type WarpkeepMainMenuProps = {
   onVideoReady?: () => void;
   onVideoError?: () => void;
   noticeDurationMs?: number;
+  graphicsPreference?: GraphicsPreference;
+  resolvedGraphicsQuality?: GraphicsQualityTier;
+  onGraphicsPreferenceChange?: (preference: GraphicsPreference) => void;
 };
 
 type ActiveNotice = {
@@ -67,7 +75,7 @@ type ActiveNotice = {
   refreshKey: number;
 };
 
-type MenuSurface = 'commands' | 'farcaster-auth' | 'credits';
+type MenuSurface = 'commands' | 'farcaster-auth' | 'settings' | 'credits';
 
 const ANONYMOUS_AUTH_STATE: FarcasterAuthViewState = Object.freeze({
   phase: 'anonymous'
@@ -198,12 +206,16 @@ export function WarpkeepMainMenu({
   buildInfo,
   onVideoReady,
   onVideoError,
-  noticeDurationMs = 5600
+  noticeDurationMs = 5600,
+  graphicsPreference = 'auto',
+  resolvedGraphicsQuality = 'balanced',
+  onGraphicsPreferenceChange
 }: WarpkeepMainMenuProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const commandRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const authHeadingRef = useRef<HTMLHeadingElement>(null);
   const authPrimaryActionRef = useRef<HTMLButtonElement>(null);
+  const surfaceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const noticeSequenceRef = useRef(0);
   const didFocusOnRevealRef = useRef(false);
   const playbackBlockedRef = useRef(false);
@@ -221,6 +233,7 @@ export function WarpkeepMainMenu({
   const interactive = interactiveOverride ?? (active && visible);
   const shouldFocusFirstCommand = focusFirstCommand ?? inputModality === 'keyboard';
   const authPanelOpen = surface === 'farcaster-auth';
+  const modalSurfaceOpen = surface === 'settings' || surface === 'credits';
   const authenticatedIdentity = authState.phase === 'authenticated'
     ? authState.identity
     : undefined;
@@ -326,17 +339,36 @@ export function WarpkeepMainMenu({
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  const openCredits = useCallback(() => {
+  const restoreSurfaceTriggerFocus = useCallback(() => {
+    const trigger = surfaceTriggerRef.current;
+    surfaceTriggerRef.current = null;
+    const frame = window.requestAnimationFrame(() => {
+      trigger?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  const openSettings = useCallback((anchorElement: HTMLButtonElement) => {
+    surfaceTriggerRef.current = anchorElement;
+    setActiveNotice(null);
+    setSurface('settings');
+  }, []);
+
+  const closeSettings = useCallback(() => {
+    setSurface('commands');
+    restoreSurfaceTriggerFocus();
+  }, [restoreSurfaceTriggerFocus]);
+
+  const openCredits = useCallback((anchorElement: HTMLButtonElement) => {
+    surfaceTriggerRef.current = anchorElement;
     setActiveNotice(null);
     setSurface('credits');
   }, []);
 
-  const closeCredits = useCallback((restoreKeyboardFocus = false) => {
+  const closeCredits = useCallback(() => {
     setSurface('commands');
-    if (restoreKeyboardFocus) {
-      restoreFirstCommandFocus();
-    }
-  }, [restoreFirstCommandFocus]);
+    restoreSurfaceTriggerFocus();
+  }, [restoreSurfaceTriggerFocus]);
 
   const closeAuthPanel = useCallback((restoreKeyboardFocus = false) => {
     onCancelFarcasterSignIn?.();
@@ -413,8 +445,10 @@ export function WarpkeepMainMenu({
         setActiveNotice(null);
       } else if (authPanelOpen) {
         closeAuthPanel(true);
+      } else if (surface === 'settings') {
+        closeSettings();
       } else if (surface === 'credits') {
-        closeCredits(true);
+        closeCredits();
       } else {
         handleRequestReturn();
       }
@@ -422,7 +456,7 @@ export function WarpkeepMainMenu({
 
     document.addEventListener('keydown', handleEscape, true);
     return () => document.removeEventListener('keydown', handleEscape, true);
-  }, [activeNotice, authPanelOpen, closeAuthPanel, closeCredits, handleRequestReturn, interactive, surface]);
+  }, [activeNotice, authPanelOpen, closeAuthPanel, closeCredits, closeSettings, handleRequestReturn, interactive, surface]);
 
   const handleVideoReady = useCallback(() => {
     setVideoState('ready');
@@ -516,8 +550,13 @@ export function WarpkeepMainMenu({
     anchorElement: HTMLButtonElement,
     keyboardDriven: boolean
   ) => {
+    if (command.id === 'settings') {
+      openSettings(anchorElement);
+      return;
+    }
+
     if (command.id === 'credits') {
-      openCredits();
+      openCredits(anchorElement);
       return;
     }
 
@@ -552,6 +591,7 @@ export function WarpkeepMainMenu({
     onRequestFarcasterSignIn,
     openAuthPanel,
     openCredits,
+    openSettings,
     openNotice
   ]);
 
@@ -629,14 +669,14 @@ export function WarpkeepMainMenu({
   return (
     <>
       <main
-      aria-hidden={!interactive || surface === 'credits'}
+      aria-hidden={!interactive || modalSurfaceOpen}
       aria-labelledby="warpkeep-menu-title"
       className={rootClassName}
       data-active={active ? 'true' : 'false'}
       data-menu-surface={surface}
       data-media-state={reducedMotion ? 'static' : videoState}
       data-visible={visible ? 'true' : 'false'}
-      inert={!interactive || surface === 'credits' ? true : undefined}
+      inert={!interactive || modalSurfaceOpen ? true : undefined}
       onKeyDownCapture={() => {
         lastActionModalityRef.current = 'keyboard';
       }}
@@ -814,8 +854,16 @@ export function WarpkeepMainMenu({
         />
       ) : null}
       </main>
+      {surface === 'settings' && interactive ? (
+        <SettingsPanel
+          onChange={(preference) => onGraphicsPreferenceChange?.(preference)}
+          onClose={closeSettings}
+          preference={graphicsPreference}
+          resolvedQuality={resolvedGraphicsQuality}
+        />
+      ) : null}
       {surface === 'credits' && interactive ? (
-        <CreditsRoll onClose={() => closeCredits(true)} />
+        <CreditsRoll onClose={closeCredits} />
       ) : null}
     </>
   );

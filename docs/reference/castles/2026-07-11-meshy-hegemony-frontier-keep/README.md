@@ -4,8 +4,7 @@ Ael-supplied GLB source archive for Warpkeep Hegemony castle art direction and t
 
 ## Provenance
 
-- **Source:** Discord attachment supplied by Ael
-- **Source message:** [`1525459351110680616`](https://discord.com/channels/1483857530282053754/1524505797797744742/1525459351110680616)
+- **Source:** Project attachment supplied by Ael
 - **Original filename:** `Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb`
 - **Archive date:** 2026-07-11
 - **Integrity:** SHA-256 `fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d`; 63,263,296 bytes
@@ -22,14 +21,15 @@ Ael-supplied GLB source archive for Warpkeep Hegemony castle art direction and t
 
 ## Runtime derivatives
 
-The original archive is intentionally **not** loaded by the runtime. Two optimized derivatives are available, and the selected Realm quality profile fetches exactly one only after an authenticated player enters the Realm:
+The original archive is intentionally **not** loaded by the runtime. Three optimized derivatives are available, and the selected Realm quality profile fetches exactly one only after an authenticated player enters the Realm:
 
 | Profile | Runtime file | Bytes | Triangles | Uploaded vertices | Textures | SHA-256 |
 | --- | --- | ---: | ---: | ---: | --- | --- |
 | High | [`hegemony-frontier-keep-high.glb`](../../../../public/models/hegemony/hegemony-frontier-keep-high.glb) | 2,256,092 | 56,466 | 55,704 | four 2048×2048 WebP maps | `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c` |
+| Balanced | [`hegemony-frontier-keep-balanced.glb`](../../../../public/models/hegemony/hegemony-frontier-keep-balanced.glb) | 2,064,100 | 37,634 | 40,632 | four 2048×2048 WebP maps | `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4` |
 | Compact | [`hegemony-frontier-keep-compact.glb`](../../../../public/models/hegemony/hegemony-frontier-keep-compact.glb) | 760,916 | 17,536 | 24,766 | four 1024×1024 WebP maps | `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b` |
 
-Both models contain one mesh, one primitive, one material, and base-color, metallic-roughness, normal, and restrained emissive maps. They require `EXT_meshopt_compression`, `EXT_texture_webp`, and `KHR_mesh_quantization`. High quality uses the 2K/56K-triangle derivative; compact and reduced quality use the 1K/17K-triangle derivative.
+All three models contain one mesh, one primitive, one material, and base-color, metallic-roughness, normal, and restrained emissive maps. They require `EXT_meshopt_compression`, `EXT_texture_webp`, and `KHR_mesh_quantization`. Cinematic uses High, normal phones use Balanced, and Performance uses Compact.
 
 `loadHegemonyKeep` dynamically imports `GLTFLoader` and the Meshopt decoder, chooses the quality-appropriate URL beneath Vite's active `BASE_URL`, generates no duplicate fetch, and normalizes the model to a 1.48-unit footprint. The keep's closed gate faces `+Z` at yaw `0`, toward the default strategy camera. Its lowest foundation point is grounded to the placement surface and its horizontal bounds are centered before placement. The title, menu, and authentication flow never fetch either model.
 
@@ -41,14 +41,16 @@ Run the checked-in development script from the repository root:
 npm run prepare:hegemony-keep
 ```
 
-The script pins `@gltf-transform/cli` 4.4.1, verifies the untouched source hash and byte length, builds both outputs in a temporary directory, generates MikkTSpace tangents, applies high-level Meshopt compression and 14/10/12-bit position/normal/UV quantization, validates the outputs, and checks their exact bytes, hashes, triangle counts, uploaded vertex counts, image counts, and required extensions before copying them into `public/models/hegemony/`.
+The script pins `@gltf-transform/cli` 4.4.1, verifies the untouched source hash and byte length, builds all three outputs in a temporary directory, generates MikkTSpace tangents, applies high-level Meshopt compression and 14/10/12-bit position/normal/UV quantization, validates the outputs, and checks their exact bytes, hashes, triangle counts, uploaded vertex counts, image counts, and required extensions before copying them into `public/models/hegemony/`.
 
-High uses a `0.06` simplification ratio, `0.008` simplification error, and 2048-pixel texture cap. Compact uses `0.018`, `0.018`, and 1024 pixels. Both use WebP textures plus flatten, join, weld, and prune transforms. The exact arguments and expected hashes are recorded in [`scripts/prepare-hegemony-frontier-keep.mjs`](../../../../scripts/prepare-hegemony-frontier-keep.mjs) and [`manifest.json`](manifest.json).
+High uses a `0.06` simplification ratio, `0.008` error, and 2048-pixel textures. Balanced uses `0.04`, `0.012`, and 2048 pixels. Compact uses `0.018`, `0.018`, and 1024 pixels. All use WebP textures plus flatten, join, weld, and prune transforms. The exact arguments and expected hashes are recorded in [`scripts/prepare-hegemony-frontier-keep.mjs`](../../../../scripts/prepare-hegemony-frontier-keep.mjs) and [`manifest.json`](manifest.json).
+
+Because redistribution authority for the 63 MB source is unresolved, it is not present in the v0.3.0 repository HEAD and is not automatically downloaded. An authorized maintainer may provide the exact source through `WARPKEEP_KEEP_SOURCE`; the script fails closed for any other bytes.
 
 The source normal map does not include authored tangents. Generating MikkTSpace tangents removes the glTF validator's generated-tangent-space warning and gives the close camera a stable normal-map basis.
 
 ## Archive boundary
 
-The unchanged original GLB is preserved byte-for-byte. No preview render, conversion, recompression, or metadata stripping was applied.
+The unchanged original GLB was preserved byte-for-byte in the historical Git record and a restricted operational quarantine. It is not publicly mirrored or present in the v0.3.0 HEAD pending redistribution clearance. No preview render, conversion, recompression, or metadata stripping was applied.
 
 This is project-provided reference media with preserved provenance. The archive does not independently establish ownership or a future license for the source or generated derivatives. See [`../../../../ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).

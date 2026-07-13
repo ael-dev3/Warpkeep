@@ -1,0 +1,140 @@
+.warpkeep-settings {
+  position: fixed;
+  inset: 0;
+  z-index: 14;
+  display: grid;
+  place-items: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  color: #f4dfaa;
+  background: radial-gradient(circle at 50% 28%, rgba(91, 51, 115, 0.34), transparent 42%), rgba(4, 3, 8, 0.9);
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.warpkeep-settings__panel {
+  width: min(44rem, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: clamp(1.1rem, 3vw, 2.25rem);
+  border: 1px solid rgba(231, 194, 119, 0.58);
+  background: linear-gradient(155deg, rgba(27, 14, 35, 0.97), rgba(8, 7, 13, 0.98));
+  box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.72), inset 0 0 3rem rgba(128, 72, 153, 0.1);
+}
+
+.warpkeep-settings__panel header > p:first-child,
+.warpkeep-settings__choices legend,
+.warpkeep-settings__resolved {
+  color: #b895ca;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.warpkeep-settings__panel h2 {
+  margin: 0.3rem 0 0.65rem;
+  font-size: clamp(2.2rem, 7vw, 4.2rem);
+  font-weight: 400;
+  letter-spacing: 0.12em;
+}
+
+.warpkeep-settings__panel header p:last-child {
+  max-width: 38rem;
+  color: #d4c2a0;
+  line-height: 1.55;
+}
+
+.warpkeep-settings__choices {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.warpkeep-settings__choices legend {
+  margin-bottom: 0.65rem;
+}
+
+.warpkeep-settings__choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.85rem;
+  align-items: start;
+  min-height: 3.25rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(207, 174, 107, 0.22);
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+}
+
+.warpkeep-settings__choice[data-selected="true"] {
+  border-color: #e4c87f;
+  background: rgba(132, 82, 156, 0.22);
+}
+
+.warpkeep-settings__choice input {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.12rem;
+  accent-color: #d5b96c;
+}
+
+.warpkeep-settings__choice span {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.warpkeep-settings__choice strong {
+  letter-spacing: 0.12em;
+}
+
+.warpkeep-settings__choice small {
+  color: #c6b8a0;
+  line-height: 1.4;
+}
+
+.warpkeep-settings__resolved {
+  margin: 1rem 0;
+}
+
+.warpkeep-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: flex-end;
+}
+
+.warpkeep-settings__actions button {
+  min-height: 2.75rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(226, 185, 108, 0.48);
+  color: #edd7a3;
+  background: rgba(14, 8, 19, 0.78);
+  font: 700 0.66rem/1 Georgia, "Times New Roman", serif;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
+.warpkeep-settings__actions button:focus-visible,
+.warpkeep-settings__choice:focus-within {
+  outline: 2px solid rgba(250, 220, 163, 0.9);
+  outline-offset: 3px;
+}
+
+.warpkeep-settings__actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+@media (max-width: 520px) {
+  .warpkeep-settings {
+    place-items: stretch;
+  }
+
+  .warpkeep-settings__panel {
+    width: 100%;
+  }
+
+  .warpkeep-settings__actions button {
+    flex: 1 1 10rem;
+  }
+}

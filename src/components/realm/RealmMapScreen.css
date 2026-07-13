@@ -7,7 +7,7 @@
   overflow: hidden;
   isolation: isolate;
   color: var(--realm-ivory);
-  background: #b7c8c3;
+  background: #aebfc0;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   outline: none;
 }
@@ -376,10 +376,12 @@
 @media (max-height: 610px) and (min-width: 681px) {
   .realm-hud {
     gap: 0.4rem;
+    width: min(22rem, 44vw);
     padding: 0.64rem 0.75rem;
   }
 
-  .realm-hud__selection small,
+  .realm-hud__selection,
+  .realm-hud__shared-state,
   .realm-hud__hint {
     display: none;
   }

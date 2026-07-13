@@ -3,6 +3,7 @@ import type { HexCoord } from '../../game/map/hexCoordinates';
 import type { TerrainCell } from '../../game/map/terrainTypes';
 import type { RealmCameraMode } from './realmCameraController';
 import type { KeepLoadStatus, RealmIdentity } from './realmTypes';
+import type { RealmQuality } from './realmQuality';
 
 type RealmHudProps = Readonly<{
   identity: RealmIdentity;
@@ -15,6 +16,7 @@ type RealmHudProps = Readonly<{
   hoveredCell: TerrainCell | null;
   keepLoadStatus: KeepLoadStatus;
   cameraMode: RealmCameraMode;
+  quality: RealmQuality;
   onFocusKeep: () => void;
   onRecenterKeep: () => void;
   onShowRealm: () => void;
@@ -49,6 +51,7 @@ export function RealmHud({
   hoveredCell,
   keepLoadStatus,
   cameraMode,
+  quality,
   onFocusKeep,
   onRecenterKeep,
   onShowRealm,
@@ -67,6 +70,7 @@ export function RealmHud({
         <div className="realm-hud__badges" aria-label="Keep status">
           <span>FID {identity.fid}</span>
           <span>LEVEL {ownCastle?.level ?? HEGEMONY_FRONTIER_KEEP.level}</span>
+          <span>QUALITY {quality.toUpperCase()}</span>
         </div>
       </header>
 

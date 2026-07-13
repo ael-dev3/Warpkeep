@@ -32,9 +32,9 @@ export function resolveRealmAssetUrl(baseUrl: string, assetPath: string) {
   return `${normalizedBase}${assetPath.replace(/^\/+/, '')}`;
 }
 export function keepAssetPathForQuality(quality: RealmQuality) {
-  return quality === 'high'
-    ? HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.high
-    : HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact;
+  if (quality === 'high') return HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.high;
+  if (quality === 'balanced') return HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.balanced;
+  return HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact;
 }
 
 export function calculateKeepNormalization(

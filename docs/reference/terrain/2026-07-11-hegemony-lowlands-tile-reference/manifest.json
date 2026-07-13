@@ -3,12 +3,7 @@
   "reference_only": true,
   "runtime_dependency": false,
   "source": {
-    "platform": "Discord",
-    "guild_id": "1483857530282053754",
-    "channel_id": "1524505797797744742",
-    "message_id": "1525464522897227866",
-    "attachment_id": "1525464522582917180",
-    "message_url": "https://discord.com/channels/1483857530282053754/1524505797797744742/1525464522897227866",
+    "platform": "Project attachment",
     "original_filename": "ChatGPT_Image_Jul_11_2026_12_52_17_AM.png"
   },
   "license_policy": {

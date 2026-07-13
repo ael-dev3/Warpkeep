@@ -56,6 +56,10 @@ export type RealmCastleProjection = Readonly<{
   name: string;
 }>;
 
+const EMPTY_CASTLES: readonly RealmCastleProjection[] = Object.freeze([]);
+const EMPTY_TILES: readonly WarpkeepWorldTile[] = Object.freeze([]);
+const EMPTY_PLAYERS: readonly WarpkeepPlayer[] = Object.freeze([]);
+
 type RealmMapScreenProps = Readonly<{
   identity: RealmIdentity;
   map?: RealmTerrainMap;
@@ -156,11 +160,20 @@ function readReducedMotion() {
 
 function initialQuality(override?: RealmQuality) {
   if (override) return override;
+  let maxTextureSize: number | undefined;
+  try {
+    const probe = document.createElement('canvas');
+    const context = probe.getContext('webgl2');
+    maxTextureSize = context?.getParameter(context.MAX_TEXTURE_SIZE) as number | undefined;
+    context?.getExtension('WEBGL_lose_context')?.loseContext();
+  } catch {
+    maxTextureSize = undefined;
+  }
   return selectRealmQuality({
     width: typeof window === 'undefined' ? 1280 : window.innerWidth,
     height: typeof window === 'undefined' ? 720 : window.innerHeight,
     devicePixelRatio: typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
-    maxTextureSize: 8192
+    maxTextureSize
   });
 }
 
@@ -178,9 +191,9 @@ export function RealmMapScreen({
   identity,
   map,
   ownCastle,
-  otherCastles = [],
-  sharedTiles = [],
-  sharedPlayers = [],
+  otherCastles = EMPTY_CASTLES,
+  sharedTiles = EMPTY_TILES,
+  sharedPlayers = EMPTY_PLAYERS,
   onRequestReturn,
   qualityOverride
 }: RealmMapScreenProps) {
@@ -196,12 +209,13 @@ export function RealmMapScreen({
     castle.ownerFid !== identity.fid
     && isPlayableRealmCoord(surface, { q: castle.q, r: castle.r })
   )), [identity.fid, otherCastles, surface]);
-  const [quality] = useState(() => initialQuality(qualityOverride));
+  const quality = useMemo(() => initialQuality(qualityOverride), [qualityOverride]);
   const qualitySpec = REALM_QUALITY_SPECS[quality];
   const [rendererMode, setRendererMode] = useState<RendererMode>('loading');
   const [keepLoadStatus, setKeepLoadStatus] = useState<KeepLoadStatus>('idle');
   const [cameraMode, setCameraMode] = useState<RealmCameraMode>('realm');
   const [selectedCoord, setSelectedCoord] = useState<HexCoord>(keepCoord);
+  const selectedCoordRef = useRef<HexCoord>(keepCoord);
   const [hoveredCoord, setHoveredCoord] = useState<HexCoord | null>(null);
   const hoveredCoordRef = useRef<HexCoord | null>(null);
   const reducedMotion = useMemo(readReducedMotion, []);
@@ -211,11 +225,13 @@ export function RealmMapScreen({
   const selectedIsKeep = sameCoord(selectedCoord, keepCoord);
 
   useEffect(() => {
+    selectedCoordRef.current = keepCoord;
     setSelectedCoord(keepCoord);
   }, [keepCoord]);
 
   const selectCoord = useCallback((coord: HexCoord) => {
     if (!isPlayableRealmCoord(surface, coord)) return;
+    selectedCoordRef.current = coord;
     setSelectedCoord(coord);
   }, [surface]);
 
@@ -242,6 +258,9 @@ export function RealmMapScreen({
 
     let scene: RealmSceneHandle | null = null;
     try {
+      setRendererMode('loading');
+      setKeepLoadStatus('loading');
+      setCameraMode('realm');
       scene = createRealmScene({
         canvas,
         surface,
@@ -257,7 +276,7 @@ export function RealmMapScreen({
         onSelect: selectCoord
       });
       sceneRef.current = scene;
-      scene.setSelected(keepCoord);
+      scene.setSelected(selectedCoordRef.current);
       scene.setHovered(hoveredCoordRef.current);
       setRendererMode('webgl');
     } catch {
@@ -417,7 +436,8 @@ export function RealmMapScreen({
         selectedCell={selectedCell}
         hoveredCell={hoveredCell}
         keepLoadStatus={keepLoadStatus}
-        cameraMode={cameraMode}
+          cameraMode={cameraMode}
+          quality={quality}
         onFocusKeep={focusKeep}
         onRecenterKeep={recenterKeep}
         onShowRealm={showRealm}

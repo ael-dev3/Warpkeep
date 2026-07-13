@@ -9,6 +9,7 @@ export type RealmKeepFocus = Readonly<{
   y: number;
   z: number;
   height: number;
+  footprintDiameter: number;
 }>;
 
 export type RealmCameraPan = Readonly<{ x: number; z: number }>;
@@ -182,7 +183,11 @@ export function deriveRealmCameraPose(
     spec.overviewPitchDegrees,
     spec.azimuthDegrees
   );
-  const visibleHalfHeight = geometricLerp(overviewHalfHeight, spec.closeHalfHeight, curve);
+  const closeHalfHeight = Math.max(
+    spec.closeHalfHeight,
+    (Math.max(0.001, finite(keep.footprintDiameter, 1.48)) * 0.55) / aspect
+  );
+  const visibleHalfHeight = geometricLerp(overviewHalfHeight, closeHalfHeight, curve);
   const clampedPan = clampRealmPan(panInput, bounds, zoom, visibleHalfHeight, aspect, spec.panMargin);
   const fov = lerp(spec.overviewFov, spec.closeFov, curve);
   const pitchDegrees = lerp(spec.overviewPitchDegrees, spec.closePitchDegrees, curve);
@@ -201,10 +206,10 @@ export function deriveRealmCameraPose(
     z: target.z + Math.cos(azimuth) * horizontalDistance
   };
   const span = Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ);
-  const overviewFogNear = Math.max(spec.fogNear, distance - span * 0.28);
-  const overviewFogFar = Math.max(spec.fogFar, distance + span * 1.38);
-  const fogNear = lerp(overviewFogNear, 9.5, curve);
-  const fogFar = Math.max(fogNear + 6, lerp(overviewFogFar, 24, curve));
+  const overviewFogNear = Math.max(spec.fogNear, distance - span * 0.2);
+  const overviewFogFar = Math.max(spec.fogFar, distance + span * 1.28);
+  const fogNear = lerp(overviewFogNear, 8, curve);
+  const fogFar = Math.max(fogNear + 6, lerp(overviewFogFar, 22, curve));
   return {
     position,
     target,

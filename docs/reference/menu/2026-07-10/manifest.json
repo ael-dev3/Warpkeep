@@ -5,7 +5,7 @@
   "purpose": "Source archive and runtime-derivative provenance for the Warpkeep Hegemony menu",
   "source": "Ael-provided project attachments",
   "license": "Project-provided source media; ownership and original terms require confirmation; see ASSETS-LICENSE.md",
-  "usage": "Files under docs are archival; application-loaded copies and derivatives are listed under each asset's runtime field.",
+  "usage": "The lightweight reference image remains under docs. Source film/audio binaries are absent from v0.3.0 HEAD and public releases pending redistribution clearance; runtime files are listed under each asset's runtime field.",
   "assets": [
     {
       "filename": "warpkeep-main-menu-reference.png",

@@ -38,6 +38,22 @@
         "max": [0.94756, 0.67433, 0.6629]
       }
     },
+    "balanced": {
+      "path": "public/models/hegemony/hegemony-frontier-keep-balanced.glb",
+      "bytes": 2064100,
+      "sha256": "bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4",
+      "simplify_ratio": 0.04,
+      "simplify_error": 0.012,
+      "triangles": 37634,
+      "upload_vertices": 40632,
+      "materials": 1,
+      "textures": 4,
+      "texture_resolution": [2048, 2048],
+      "position_bounds": {
+        "min": [-0.94968, -0.67927, -0.66523],
+        "max": [0.94756, 0.67433, 0.6629]
+      }
+    },
     "compact": {
       "path": "public/models/hegemony/hegemony-frontier-keep-compact.glb",
       "bytes": 760916,
@@ -62,12 +78,7 @@
     }
   },
   "source": {
-    "platform": "Discord",
-    "guild_id": "1483857530282053754",
-    "channel_id": "1524505797797744742",
-    "message_id": "1525459351110680616",
-    "attachment_id": "1525459350771077171",
-    "message_url": "https://discord.com/channels/1483857530282053754/1524505797797744742/1525459351110680616",
+    "platform": "Project attachment",
     "original_filename": "Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb"
   },
   "license_policy": {
@@ -78,7 +89,8 @@
     "filename": "Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb",
     "media_type": "model/gltf-binary",
     "bytes": 63263296,
-    "sha256": "fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d"
+    "sha256": "fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d",
+    "head_status": "Not present in v0.3.0 HEAD or a public release pending redistribution clearance"
   },
   "gltf": {
     "container": "GLB",

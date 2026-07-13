@@ -1,4 +1,5 @@
 import type { GatewayProjection } from './BlackHoleGateway';
+import type { GraphicsQualityTier } from '../../settings/graphicsPreference';
 
 export type WarpkeepInputModality = 'keyboard' | 'pointer' | 'unknown';
 
@@ -12,6 +13,7 @@ export type WarpkeepTitleScreenProps = {
   ) => void;
   onReady?: () => void;
   onMeaningfulInteraction?: () => void;
+  graphicsQuality?: GraphicsQualityTier;
 };
 
 export type WarpkeepTitleScreenHandle = {

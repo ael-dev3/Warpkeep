@@ -16,7 +16,11 @@ import {
   DEFAULT_REALM_CAMERA_SPEC,
   type RealmCameraMode
 } from './realmCameraController';
-import { resolveRealmPixelRatio, type RealmQualitySpec } from './realmQuality';
+import {
+  REALM_LIGHTING_SPECS,
+  resolveRealmPixelRatio,
+  type RealmQualitySpec
+} from './realmQuality';
 import type { KeepLoadStatus } from './realmTypes';
 
 const HEX_SIZE = 1;
@@ -157,8 +161,8 @@ function activePinchDistance(pointers: ReadonlyMap<number, PointerSample>) {
 
 export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHandle {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#b7c8c3');
-  const fog = new THREE.Fog('#b7c8c3', options.quality.fogNear, options.quality.fogFar);
+  scene.background = new THREE.Color('#aebfc0');
+  const fog = new THREE.Fog('#aebfc0', options.quality.fogNear, options.quality.fogFar);
   scene.fog = fog;
 
   const renderer = new THREE.WebGLRenderer({
@@ -169,10 +173,11 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = options.quality.id === 'high' ? 1.03 : 1;
+  const lighting = REALM_LIGHTING_SPECS[options.quality.id];
+  renderer.toneMappingExposure = lighting.toneMappingExposure;
   renderer.shadowMap.enabled = options.quality.dynamicShadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
-  renderer.setClearColor('#b7c8c3', 1);
+  renderer.setClearColor('#aebfc0', 1);
 
   const { data: terrainData, geometry: terrainGeometry } = createTerrainGeometry(
     options.surface,
@@ -198,8 +203,8 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   );
   scene.add(decorations.group);
 
-  const hemisphere = new THREE.HemisphereLight('#fff4dc', '#52613d', 1.42);
-  const sun = new THREE.DirectionalLight('#ffedc7', options.quality.dynamicShadows ? 2.25 : 2.05);
+  const hemisphere = new THREE.HemisphereLight('#f4efd9', '#46523b', 1.1);
+  const sun = new THREE.DirectionalLight('#ffe1a8', lighting.sunIntensity);
   sun.position.set(-7.5, 13.5, 8.5);
   sun.castShadow = options.quality.dynamicShadows;
   if (options.quality.shadowMapSize > 0) {
@@ -213,9 +218,9 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     sun.shadow.bias = -0.00035;
     sun.shadow.normalBias = 0.018;
   }
-  const skyFill = new THREE.DirectionalLight('#c6dcdf', 0.58);
+  const skyFill = new THREE.DirectionalLight('#bdd9e3', 0.42);
   skyFill.position.set(8, 6.5, -9);
-  const warmFill = new THREE.DirectionalLight('#edc67c', 0.25);
+  const warmFill = new THREE.DirectionalLight('#d9a95f', 0.2);
   warmFill.position.set(-5, 4, -6);
   scene.add(hemisphere, sun, skyFill, warmFill);
 
@@ -282,7 +287,13 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   };
   const cameraController = createRealmCameraController({
     bounds: terrainData.bounds,
-    keepFocus: { x: keepWorld.x, y: keepGroundY, z: keepWorld.z, height: 1.08 },
+    keepFocus: {
+      x: keepWorld.x,
+      y: keepGroundY,
+      z: keepWorld.z,
+      height: 1.08,
+      footprintDiameter: 1.48
+    },
     fog,
     reducedMotion: options.reducedMotion,
     render,
@@ -454,7 +465,8 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
       x: keepWorld.x,
       y: keepGroundY,
       z: keepWorld.z,
-      height: loaded.visualHeight
+      height: loaded.visualHeight,
+      footprintDiameter: loaded.footprintDiameter
     });
     options.onKeepStatusChange('ready');
     render();
@@ -468,7 +480,8 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
       x: keepWorld.x,
       y: keepGroundY,
       z: keepWorld.z,
-      height: 0.82
+      height: 0.82,
+      footprintDiameter: 1.48
     });
     options.onKeepStatusChange('fallback');
     render();

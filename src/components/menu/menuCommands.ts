@@ -2,22 +2,17 @@ export const menuCommands = [
   {
     id: 'enter-realm',
     label: 'ENTER REALM',
-    notice: 'The Hegemony campaign is under construction. The gates of the realm will open soon.'
-  },
-  {
-    id: 'continue',
-    label: 'CONTINUE',
-    notice: 'Campaign persistence is under construction. No saved realm can be resumed yet.'
+    notice: 'The living frontier is not yet open on this device.'
   },
   {
     id: 'settings',
     label: 'SETTINGS',
-    notice: 'Settings are under construction while the war council tunes the realm.'
+    notice: undefined
   },
   {
     id: 'credits',
     label: 'CREDITS',
-    notice: 'The chronicles and contributor roll are still under construction.'
+    notice: undefined
   },
   {
     id: 'exit',

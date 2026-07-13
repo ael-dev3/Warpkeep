@@ -163,13 +163,14 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 
-  it('opens auth and begins exactly once while preserving other command notices', async () => {
+  it('opens settings independently, then opens auth and begins exactly once', async () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks));
 
     fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }));
-    expect(screen.getByRole('status').textContent).toContain('war council');
+    expect(screen.getByRole('dialog', { name: 'SETTINGS' })).not.toBeNull();
     expect(callbacks.begin).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: 'Escape' });
 
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
     fireEvent.click(enterRealm, { detail: 0 });
@@ -427,21 +428,19 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'ENTER REALM' }));
   });
 
-  it('keeps the original command set unchanged before authentication', () => {
+  it('keeps the persistent-world command set available before authentication', () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks));
 
     const navigation = screen.getByRole('navigation', { name: 'Hegemony main menu' });
     expect(within(navigation).getAllByRole('button').map((button) => button.textContent)).toEqual([
       'ENTER REALM',
-      'CONTINUE',
       'SETTINGS',
       'CREDITS',
       'EXIT'
     ]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'CONTINUE' }));
-    expect(screen.getByRole('status').textContent).toContain('Campaign persistence');
+    expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();
     expect(callbacks.begin).not.toHaveBeenCalled();
   });
 });

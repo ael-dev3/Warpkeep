@@ -111,6 +111,23 @@ export function selectGatewayVfxQuality({
     : 'high';
 }
 
+export function applyGatewayVfxQualityPreference(
+  automaticQuality: GatewayVfxQuality,
+  graphicsQuality: 'cinematic' | 'balanced' | 'performance',
+  rendererMaxTextureSize = highQualityTextureSize,
+  supportsHighpFragment = true
+): GatewayVfxQuality {
+  if (automaticQuality === 'reduced' || graphicsQuality === 'performance') {
+    return 'reduced';
+  }
+  if (graphicsQuality === 'balanced') {
+    return automaticQuality === 'high' ? 'compact' : automaticQuality;
+  }
+  return rendererMaxTextureSize >= highQualityTextureSize && supportsHighpFragment
+    ? 'high'
+    : 'compact';
+}
+
 export type GatewayVfxResponse = {
   proximity: number;
   proximitySquared: number;

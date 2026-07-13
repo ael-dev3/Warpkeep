@@ -40,17 +40,31 @@ The 2026-07-10 title-to-menu milestone uses project-provided media supplied for 
 
 The original 1280×720 runtime film and poster were superseded on 2026-07-11. Their filenames, hashes, and derivation details remain in the dated menu manifest as a historical record.
 
+The unresolved-rights source film/audio binaries are not present in the v0.3.0 HEAD and were not uploaded to a public asset release. Exact technical records remain in `docs/reference/`; required runtime derivatives remain in `public/` under the same unresolved source terms.
+
+## WARPKEEP stone title provenance
+
+The optimized WARPKEEP stone-letter assemblies were supplied with explicit v0.3 archival and CC-BY-4.0 authorization. Source/master material is held in the public [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets) release [`title-stone-letters-2026-07-12`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12); the browser serves only the verified runtime assemblies committed here.
+
+| Profile | Repository file | Technical record |
+| --- | --- | --- |
+| Cinematic/high title | `public/models/title/warpkeep-title-high.glb` | 3,844,364 bytes, SHA-256 `2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5`, Meshopt-compressed GLB. |
+| Balanced/performance title | `public/models/title/warpkeep-title-compact.glb` | 1,714,060 bytes, SHA-256 `d29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8`, Meshopt-compressed GLB. |
+
+Attribution: **WARPKEEP Stone Title Assembly by Clawberto**, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The verified `warpkeep-title-assemblies-v1.zip` release attachment is 5,994,957 bytes with SHA-256 `492af33d4b0ff5ab80f2e726b68c2f8d497cd75bbcc036f57f2388e0b4089177`. `npm run assets:fetch` and `npm run prepare:title-models` reconstruct the runtime files through an explicit cache/offline boundary; ordinary builds never fetch release assets.
+
 ## Hegemony Frontier Keep provenance
 
-The archived Hegemony Frontier Keep and its runtime derivatives are project-provided media supplied for this repository. The source remains byte-for-byte intact under `docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/`; the public models are generated derivatives whose future license follows the source-rights determination, not the fact of conversion.
+The Hegemony Frontier Keep and its runtime derivatives are project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the v0.3.0 HEAD or a public release while redistribution authority is unresolved. The public models are generated derivatives whose future license follows the source-rights determination, not the fact of conversion.
 
 | Intended use | Repository file | Technical record |
 | --- | --- | --- |
-| Archived source | `docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb` | 63,263,296 bytes, SHA-256 `fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d`, 941,298 source triangles, four embedded JPEG textures. Never served at runtime. |
+| Restricted source record | Not present in v0.3.0 HEAD/public releases | 63,263,296 bytes, SHA-256 `fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d`, 941,298 source triangles, four embedded JPEG textures. Never served at runtime. |
 | High runtime keep | `public/models/hegemony/hegemony-frontier-keep-high.glb` | 2,256,092 bytes, SHA-256 `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c`, 56,466 triangles, four 2048×2048 WebP textures, Meshopt compression. |
+| Balanced runtime keep | `public/models/hegemony/hegemony-frontier-keep-balanced.glb` | 2,064,100 bytes, SHA-256 `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4`, 37,634 triangles, four 2048×2048 WebP textures, Meshopt compression. |
 | Compact runtime keep | `public/models/hegemony/hegemony-frontier-keep-compact.glb` | 760,916 bytes, SHA-256 `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b`, 17,536 triangles, four 1024×1024 WebP textures, Meshopt compression. |
 
-Both runtime files are reproducible with `npm run prepare:hegemony-keep`. The pinned preparation pipeline and complete technical metadata are recorded in the dated castle archive.
+All three runtime files are reproducible with `npm run prepare:hegemony-keep` when an authorized exact source copy is supplied through `WARPKEEP_KEEP_SOURCE`. The pinned preparation pipeline and complete technical metadata are recorded in the dated castle record.
 
 ## Trademark and endorsement note
 

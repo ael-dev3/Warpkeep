@@ -7,6 +7,7 @@ export const HEGEMONY_FRONTIER_KEEP = {
   initialCoord: { q: 0, r: 0 } satisfies HexCoord,
   runtimeAssetPaths: {
     high: 'models/hegemony/hegemony-frontier-keep-high.glb',
+    balanced: 'models/hegemony/hegemony-frontier-keep-balanced.glb',
     compact: 'models/hegemony/hegemony-frontier-keep-compact.glb'
   },
   normalizedScale: 0.78,
