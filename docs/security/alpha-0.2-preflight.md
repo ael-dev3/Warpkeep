@@ -77,10 +77,17 @@ The v2 target supersedes the historical bearer/epoch resolver assumptions:
 - a missing admission creates a pending/tokenless session; bound epoch
   mismatch, missing, disabled, expiry/origin failure, or stale replay revokes;
 - public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` are retired;
-- resolution uses a maximum-60-second JWT with exact
+- resolution uses a Worker-minted 15-second JWT (with a 60-second module
+  rejection ceiling) having exact
   `service:auth-epoch-resolver` subject and sole
-  `warpkeep-auth-epoch-resolver` role, plus structured
-  `auth_resolver_get_fid_admission_v2` results;
+  `warpkeep-auth-epoch-resolver` role and exact one-FID `resolver_fid` binding,
+  plus structured
+  `auth_resolver_get_fid_admission_v2` exact SATS-JSON `[state, authEpoch]`
+  tuple results;
+- the resolver lifecycle exception permits a token presented while fresh to
+  establish public subscriptions that may persist until transport disconnect
+  and to read static backend metadata while fresh; protected calls recheck
+  expiry and private/player-mutation/admin authority remains denied;
 - first admission begins at epoch one; epoch zero is only a non-enabled
   sentinel and never player authority;
 - the bridge exchange/session/response identity is FID-only; the deployed
@@ -90,7 +97,8 @@ The v2 target supersedes the historical bearer/epoch resolver assumptions:
 - module bootstrap ignores all optional profile-shaped JWT claims and inserts
   undefined `username`, `displayName`, and `pfpUrl` fields;
 - a server-only configuration attestation covers the reviewed v2 coordinates,
-  lifetimes, cookie attributes, and default-false public-auth state;
+  player/resolver/family lifetimes, the exact five-minute challenge lifetime,
+  resolver timeout, cookie attributes, and default-false public-auth state;
 - production frontend/Pages activation pins exact `https://auth.warpkeep.com`,
   `warpkeep-spacetimedb`, `https://maincloud.spacetimedb.com`, and
   `warpkeep-89e4u`; the Worker independently pins its production resolver while

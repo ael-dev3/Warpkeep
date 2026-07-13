@@ -112,10 +112,11 @@ export function adminClaims(config: BridgeConfig, nowSeconds: number): AdminToke
   return hermesAdminClaims(config.issuer, config.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS)
 }
 
-/** Fresh, non-persisted 60-second token with only the admission resolver role. */
+/** Fresh 15-second resolver token bound to one canonical verified FID. */
 export function authEpochResolverClaims(
   issuer: string,
   audience: string,
+  resolverFid: string,
   nowSeconds: number,
 ): AuthEpochResolverTokenClaims {
   return {
@@ -124,6 +125,7 @@ export function authEpochResolverClaims(
     aud: [audience],
     token_type: 'spacetime-access',
     roles: ['warpkeep-auth-epoch-resolver'],
+    resolver_fid: resolverFid,
     iat: nowSeconds,
     nbf: nowSeconds,
     exp: nowSeconds + INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,

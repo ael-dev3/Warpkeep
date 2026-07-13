@@ -54,19 +54,25 @@ The local player contract requires:
   time on every player call.
 
 Anonymous, malformed, missing, disabled, and epoch-mismatched players cannot
-connect. `onConnect` permits only a current admitted player or an exact fresh
-Hermes administrator. The resolver principal is intentionally HTTP-procedure
-only and cannot acquire a subscription-bearing WebSocket connection.
+connect. `onConnect` permits a current admitted player, an exact fresh Hermes
+administrator, or the exact fresh resolver principal because SpacetimeDB runs
+the lifecycle hook before authenticated HTTP procedures. A resolver credential
+presented while fresh can technically establish a WebSocket and public-table
+subscriptions that may persist until transport disconnect, and can call static
+`get_alpha_backend_info` while fresh. It cannot read private tables, bootstrap
+or mutate as a player, or pass Hermes/admin guards; protected calls independently
+recheck expiry.
 
 Admin tokens remain exact `sub: "service:hermes"`, exactly
-`roles: ["warpkeep-admin"]`, and at most 300 seconds. Player, resolver, and admin
-authority are disjoint.
+`roles: ["warpkeep-admin"]`, and at most 300 seconds. Privileged player,
+resolver-procedure, and admin authority remain disjoint.
 
 `WARPKEEP_BACKEND_PROTOCOL_VERSION = 2` is a backend-only compatibility
 contract, separate from the player-facing release and
-`HEGEMONY_GENESIS_001`. A permitted player/admin may call
+`HEGEMONY_GENESIS_001`. Any lifecycle-admitted principal may call
 `get_alpha_backend_info`; the browser rejects a protocol/seed mismatch before
-bootstrap or subscription.
+bootstrap or subscription. The procedure is static and performs no database
+lookup.
 
 ## Schema
 
@@ -108,14 +114,17 @@ The dedicated bridge resolver is:
 auth_resolver_get_fid_admission_v2({ fid })
 ```
 
-It requires a fresh maximum-60-second JWT with exact
+The Worker issues a fresh 15-second JWT with exact
 `sub: "service:auth-epoch-resolver"` and sole role
-`warpkeep-auth-epoch-resolver`. It is read-only and returns exactly:
+`warpkeep-auth-epoch-resolver`, plus exact `resolver_fid` equal to the procedure
+argument; the module retains a 60-second rejection ceiling. The procedure is
+read-only, independently revalidates the resolver principal and one-FID binding,
+and its HTTP SATS-JSON response is exactly:
 
 ```txt
-missing  -> authEpoch 0
-disabled -> authEpoch 0
-enabled  -> authEpoch >= 1
+["missing", 0]
+["disabled", 0]
+["enabled", <positive u32>]
 ```
 
 Malformed/inconsistent state fails closed. The bridge calls the exact

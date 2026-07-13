@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import {
+  createHash,
+  generateKeyPairSync,
+  randomBytes,
+  sign as signBytes,
+} from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
@@ -25,6 +30,8 @@ const nonemptyDatabase = 'warpkeep-migration-nonempty';
 const actualModuleDatabase = 'warpkeep-migration-actual-module';
 const maximumOutputBytes = 1_000_000;
 const commandTimeoutMilliseconds = 120_000;
+const procedureTimeoutMilliseconds = 5_000;
+const maximumProcedureResponseBytes = 16_384;
 const existingTables = Object.freeze([
   'allowed_fid',
   'world_tile',
@@ -416,6 +423,244 @@ async function acquireDisposableIdentity(server) {
   fail('Disposable loopback server did not become ready.');
 }
 
+function createEphemeralJwt(privateKey, claims) {
+  const header = Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
+  const signingInput = `${header}.${payload}`;
+  const signature = signBytes('sha256', Buffer.from(signingInput), {
+    key: privateKey,
+    dsaEncoding: 'ieee-p1363',
+  }).toString('base64url');
+  return `${signingInput}.${signature}`;
+}
+
+function serviceClaims(subject, roles, lifetimeSeconds) {
+  const issuedAt = Math.floor(Date.now() / 1_000);
+  return {
+    iss: 'https://auth.warpkeep.com',
+    sub: subject,
+    aud: ['warpkeep-spacetimedb'],
+    token_type: 'spacetime-access',
+    roles,
+    iat: issuedAt,
+    nbf: issuedAt,
+    exp: issuedAt + lifetimeSeconds,
+    jti: randomBytes(18).toString('base64url'),
+  };
+}
+
+function resolverServiceClaims(resolverFid, roles = ['warpkeep-auth-epoch-resolver']) {
+  return {
+    ...serviceClaims('service:auth-epoch-resolver', roles, 15),
+    resolver_fid: resolverFid,
+  };
+}
+
+async function readBoundedProcedureResponse(response, credential) {
+  if (!response.body) return '';
+  const advertisedLength = response.headers.get('content-length');
+  if (
+    advertisedLength
+    && (
+      !/^\d+$/.test(advertisedLength)
+      || Number(advertisedLength) > maximumProcedureResponseBytes
+    )
+  ) fail('Loopback procedure response exceeded its fixed bound.');
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let bytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > maximumProcedureResponseBytes) {
+      try { await reader.cancel(); } catch { /* The bounded failure remains generic. */ }
+      fail('Loopback procedure response exceeded its fixed bound.');
+    }
+    chunks.push(value);
+  }
+  const text = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+  if (text.includes(credential)) fail('Loopback procedure reflected an ephemeral credential.');
+  return text;
+}
+
+async function callLoopbackProcedure(
+  server,
+  database,
+  procedure,
+  credential,
+  body,
+  expectedStatus,
+) {
+  if (
+    !/^http:\/\/127\.0\.0\.1:\d+$/.test(server)
+    || !/^[a-z0-9-]+$/.test(database)
+    || !/^[a-z0-9_]+$/.test(procedure)
+  ) fail('Loopback procedure coordinates were invalid.');
+
+  let response;
+  try {
+    response = await fetch(`${server}/v1/database/${database}/call/${procedure}`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${credential}`,
+        'cache-control': 'no-store',
+        'content-type': 'application/json',
+      },
+      body,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(procedureTimeoutMilliseconds),
+    });
+  } catch {
+    fail('Loopback procedure request failed within its fixed boundary.');
+  }
+  const responseText = await readBoundedProcedureResponse(response, credential);
+  if (response.status !== expectedStatus) {
+    fail(`Loopback procedure returned status ${response.status}; expected ${expectedStatus}.`);
+  }
+  if (
+    expectedStatus === 200
+    && response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json'
+  ) fail('Loopback procedure returned an unexpected media type.');
+  return responseText;
+}
+
+async function verifyResolverHttpLifecycle(server, database, privateKey) {
+  let stage = 'admin-before';
+  try {
+    const adminBeforeCredential = createEphemeralJwt(
+      privateKey,
+      serviceClaims('service:hermes', ['warpkeep-admin'], 300),
+    );
+    const statusBeforeText = await callLoopbackProcedure(
+      server,
+      database,
+      'admin_get_alpha_status_v2',
+      adminBeforeCredential,
+      '[]',
+      200,
+    );
+
+    let statusBefore;
+    try {
+      statusBefore = JSON.parse(statusBeforeText);
+    } catch {
+      fail('Loopback admin aggregate response was invalid.');
+    }
+
+    stage = 'resolver-exact';
+    const resolverCredential = createEphemeralJwt(
+      privateKey,
+      resolverServiceClaims('9007199254740991'),
+    );
+    const resolverText = await callLoopbackProcedure(
+      server,
+      database,
+      'auth_resolver_get_fid_admission_v2',
+      resolverCredential,
+      '[9007199254740991]',
+      200,
+    );
+    let resolverResult;
+    try {
+      resolverResult = JSON.parse(resolverText);
+    } catch {
+      fail('Loopback resolver response was invalid.');
+    }
+    try {
+      assert.deepEqual(resolverResult, ['missing', 0]);
+    } catch {
+      fail('Loopback resolver response contract was invalid.');
+    }
+
+    stage = 'resolver-fid-mismatch';
+    const mismatchedFidCredential = createEphemeralJwt(
+      privateKey,
+      resolverServiceClaims('12345'),
+    );
+    await callLoopbackProcedure(
+      server,
+      database,
+      'auth_resolver_get_fid_admission_v2',
+      mismatchedFidCredential,
+      '[9007199254740991]',
+      500,
+    );
+
+    stage = 'resolver-admin-denial';
+    const resolverForAdminCredential = createEphemeralJwt(
+      privateKey,
+      resolverServiceClaims('9007199254740991'),
+    );
+    await callLoopbackProcedure(
+      server,
+      database,
+      'admin_get_alpha_status_v2',
+      resolverForAdminCredential,
+      '[]',
+      500,
+    );
+
+    stage = 'resolver-player-denial';
+    const resolverForPlayerCredential = createEphemeralJwt(
+      privateKey,
+      resolverServiceClaims('9007199254740991'),
+    );
+    await callLoopbackProcedure(
+      server,
+      database,
+      'get_my_admission_status_v2',
+      resolverForPlayerCredential,
+      '[]',
+      500,
+    );
+
+    stage = 'resolver-expanded-role';
+    const expandedRoleCredential = createEphemeralJwt(
+      privateKey,
+      resolverServiceClaims(
+        '9007199254740991',
+        ['warpkeep-auth-epoch-resolver', 'warpkeep-admin'],
+      ),
+    );
+    await callLoopbackProcedure(
+      server,
+      database,
+      'auth_resolver_get_fid_admission_v2',
+      expandedRoleCredential,
+      '[9007199254740991]',
+      403,
+    );
+
+    stage = 'admin-after';
+    const adminAfterCredential = createEphemeralJwt(
+      privateKey,
+      serviceClaims('service:hermes', ['warpkeep-admin'], 300),
+    );
+    const statusAfterText = await callLoopbackProcedure(
+      server,
+      database,
+      'admin_get_alpha_status_v2',
+      adminAfterCredential,
+      '[]',
+      200,
+    );
+    let statusAfter;
+    try {
+      statusAfter = JSON.parse(statusAfterText);
+    } catch {
+      fail('Loopback admin aggregate response was invalid.');
+    }
+    assert.deepEqual(statusAfter, statusBefore);
+  } catch (error) {
+    if (error instanceof MigrationProofError) {
+      throw new MigrationProofError(`Loopback resolver lifecycle failed at ${stage}: ${error.message}`);
+    }
+    throw new MigrationProofError(`Loopback resolver lifecycle failed at ${stage}.`);
+  }
+}
+
 export function containServerProcessErrors(serverProcess) {
   // `spawn` reports some startup failures asynchronously. Keep those failures
   // inside the proof's generic readiness boundary instead of allowing an
@@ -500,18 +745,57 @@ async function main() {
   const server = `http://127.0.0.1:${port}`;
   if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(server)) fail('Migration proof was not loopback-only.');
   const dataDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-stdb-migration-'));
+  const publicKeyPath = join(dataDirectory, 'jwt-public.pem');
+  const privateKeyPath = join(dataDirectory, 'jwt-private.pem');
+  let privateKey;
+  try {
+    const generated = generateKeyPairSync('ec', {
+      namedCurve: 'prime256v1',
+      publicKeyEncoding: { type: 'spki', format: 'pem' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+    privateKey = generated.privateKey;
+    await writeFile(publicKeyPath, generated.publicKey, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+    await writeFile(privateKeyPath, privateKey, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+    for (const keyPath of [publicKeyPath, privateKeyPath]) {
+      const metadata = await stat(keyPath);
+      if (!metadata.isFile() || (metadata.mode & 0o777) !== 0o600) {
+        fail('Ephemeral loopback signing-key permissions were invalid.');
+      }
+    }
+  } catch (error) {
+    try {
+      await rm(dataDirectory, { recursive: true, force: true });
+    } catch {
+      fail('Ephemeral loopback signing-key cleanup failed.');
+    }
+    if (error instanceof MigrationProofError) throw error;
+    fail('Ephemeral loopback signing-key setup failed.');
+  }
 
-  const serverProcess = containServerProcessErrors(spawn(command, [
-    'start',
-    '--listen-addr', `127.0.0.1:${port}`,
-    '--in-memory',
-    '--data-dir', dataDirectory,
-    '--non-interactive',
-  ], {
-    cwd: repositoryRoot,
-    env: childEnvironment(),
-    stdio: 'ignore',
-  }));
+  let serverProcess;
+  try {
+    serverProcess = containServerProcessErrors(spawn(command, [
+      'start',
+      '--listen-addr', `127.0.0.1:${port}`,
+      '--in-memory',
+      '--data-dir', dataDirectory,
+      '--jwt-pub-key-path', publicKeyPath,
+      '--jwt-priv-key-path', privateKeyPath,
+      '--non-interactive',
+    ], {
+      cwd: repositoryRoot,
+      env: childEnvironment(),
+      stdio: 'ignore',
+    }));
+  } catch {
+    try {
+      await rm(dataDirectory, { recursive: true, force: true });
+    } catch {
+      fail('Loopback server startup cleanup failed.');
+    }
+    fail('Loopback server could not start.');
+  }
 
   try {
     const owner = await acquireDisposableIdentity(server);
@@ -573,6 +857,7 @@ async function main() {
     await publish(server, owner.token, additiveSchemaFixture, emptyDatabase);
     await publish(server, owner.token, additiveModule, nonemptyDatabase);
     await publish(server, owner.token, additiveModule, actualModuleDatabase);
+    await verifyResolverHttpLifecycle(server, actualModuleDatabase, privateKey);
     const builtArtifactPath = join(additiveModule, 'dist', 'bundle.js');
     const builtArtifactDigest = createHash('sha256')
       .update(await readFile(builtArtifactPath))
@@ -691,7 +976,8 @@ async function main() {
     console.log(
       `Additive protocol-v2 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
       + 'five legacy tables unchanged, 61-tile empty and synthetic nonempty fixtures preserved, '
-      + 'v2 tables appended, prebuilt-artifact republish idempotent, partial state detected, '
+      + 'v2 tables appended, exact resolver HTTP lifecycle enforced without mutation, '
+      + 'prebuilt-artifact republish idempotent, partial state detected, '
       + `and guarded v1 rollback refused before schema change. artifact_sha256=${builtArtifactDigest}`,
     );
   } finally {

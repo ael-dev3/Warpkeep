@@ -87,7 +87,8 @@ separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 
 The server-only config attestation target is profile `warpkeep-auth-v2` with
 `publicAuthEnabled: false`. It covers issuer/origins/SIWF coordinates, key and
-Maincloud coordinates, S256, the 600-second access TTL, maximum-30-day family,
+Maincloud coordinates, S256, the 600-second access TTL, 15-second resolver TTL,
+five-second resolver timeout, five-minute challenge TTL, maximum-30-day family,
 and exact `__Host-` cookie attributes. Record only the reviewed digest and
 observed deployment version.
 
@@ -116,10 +117,17 @@ never written.
   infer it from the repository)
 
 The local resolver target is
-`auth_resolver_get_fid_admission_v2`, authorized only by a maximum-60-second JWT
-with exact `service:auth-epoch-resolver` subject and sole
-`warpkeep-auth-epoch-resolver` role. It returns structured
-missing/disabled/enabled state with epoch zero only for non-enabled results.
+`auth_resolver_get_fid_admission_v2`. The Worker mints a 15-second JWT with exact
+`service:auth-epoch-resolver` subject and sole `warpkeep-auth-epoch-resolver`
+role, plus exact `resolver_fid` equal to the positional argument; the module
+retains a 60-second rejection ceiling. The HTTP SATS-JSON response is the exact
+`[state, authEpoch]` tuple, with epoch zero only for non-enabled results.
+Because SpacetimeDB runs its lifecycle hook before HTTP procedures, a resolver
+token presented while fresh can establish public subscriptions that may persist
+until transport disconnect and read static backend metadata while fresh.
+Protected calls recheck expiry, and private/player-mutation/admin authority is
+still denied; see the resolver residual in
+[`threat-model.md`](../../security/threat-model.md).
 `admin_get_fid_auth_epoch` is retained only for rollback compatibility.
 
 Expected additive-v2 closed-admission aggregate after an approved publish:

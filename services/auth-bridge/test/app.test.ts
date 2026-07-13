@@ -414,6 +414,7 @@ describe('Warpkeep auth bridge', () => {
     expect(challenge).toMatchObject({ domain: DOMAIN, siweUri: SIWE_URI })
     expect(typeof challenge.createdAt).toBe('number')
     expect(typeof challenge.expiresAt).toBe('number')
+    expect(Number(challenge.expiresAt) - Number(challenge.createdAt)).toBe(5 * 60 * 1_000)
 
     const exchange = await h.app.fetch(request('/v2/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(exchange.status).toBe(200)
@@ -1068,20 +1069,44 @@ describe('Warpkeep auth bridge', () => {
     const secondBody = await json(second)
     expect(firstBody).toEqual(secondBody)
     expect(firstBody).toMatchObject({ profile: 'warpkeep-auth-v2', publicAuthEnabled: true })
-    expect(firstBody.digest).toMatch(/^[0-9a-f]{64}$/)
+    const reviewedCanonical = JSON.stringify({
+      profile: 'warpkeep-auth-v2',
+      issuer: 'https://auth.warpkeep.example',
+      allowedOrigins: ['https://warpkeep.example'],
+      domain: 'warpkeep.example',
+      siweUri: 'https://warpkeep.example/Warpkeep/',
+      audience: 'warpkeep-spacetimedb',
+      keyId: 'test-es256-2026',
+      spacetimeDbUri: 'https://maincloud.spacetimedb.com',
+      spacetimeDbDatabase: 'warpkeep-89e4u',
+      publicAuthEnabled: true,
+      environment: 'production',
+      browserBinding: 'S256',
+      accessTokenTtlSeconds: 600,
+      authEpochResolverTokenTtlSeconds: 15,
+      authEpochResolverTimeoutMilliseconds: 5_000,
+      challengeTtlMilliseconds: 5 * 60 * 1_000,
+      sessionFamilyTtlSeconds: 30 * 24 * 60 * 60,
+      sessionCookie: '__Host-warpkeep_session; Secure; HttpOnly; SameSite=Strict; Path=/',
+    })
+    const reviewedDigest = Array.from(new Uint8Array(
+      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(reviewedCanonical)),
+    ), (byte) => byte.toString(16).padStart(2, '0')).join('')
+    expect(reviewedDigest).toBe('9b14d9039e27982d7818de5010b2e9bbf5e14182a1f311fc7d1d08479fe8c3b9')
+    expect(firstBody.digest).toBe(reviewedDigest)
     const serialized = JSON.stringify(firstBody)
     expect(serialized).not.toContain(ADMIN_SECRET)
     expect(serialized).not.toContain(SESSION_COOKIE_KEY)
     expect(serialized).not.toContain(privateJwk.d ?? '')
     const paused = await json(await call({ PUBLIC_AUTH_ENABLED: 'false' }))
-    expect(paused.digest).not.toBe(firstBody.digest)
+    expect(paused.digest).toBe('2d1f8d2f5d96956be25a8a5201f15c1bb8bf0a76136fe19d325d1756dbed8f2e')
     expect(paused.publicAuthEnabled).toBe(false)
     expect(first.headers.has('access-control-allow-origin')).toBe(false)
     expect(h.events).toContain('config_attestation_issued')
   })
 
   it('wires the synthetic probe to the production resolver factory', async () => {
-    const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"state":"missing","authEpoch":0}', {
+    const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('["missing",0]', {
       headers: { 'content-type': 'application/json' },
     }))
     const events: SafeLogEvent[] = []

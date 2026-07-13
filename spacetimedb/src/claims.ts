@@ -60,6 +60,11 @@ export type WarpkeepJwtClaims = WarpkeepBaseJwtClaims &
     sessionExpiresAt: number;
   }>;
 
+export type AuthEpochResolverJwtClaims = WarpkeepBaseJwtClaims &
+  Readonly<{
+    resolverFid: bigint;
+  }>;
+
 type JsonRecord = Readonly<Record<string, unknown>>;
 
 const DECIMAL_FID = /^[1-9][0-9]*$/;
@@ -296,21 +301,23 @@ export function readFreshHermesAdminJwt(
   return claims;
 }
 
-/** Validate the exact resolver principal and its deliberately tiny authority window. */
+/** Validate the exact resolver principal, one-FID binding, and tiny authority window. */
 export function readFreshAuthEpochResolverJwt(
   payload: unknown,
   currentTimeMicros: bigint,
   config: WarpkeepJwtConfig = WARPKEEP_JWT_CONFIG,
-): WarpkeepBaseJwtClaims {
+): AuthEpochResolverJwtClaims {
   let claims: WarpkeepBaseJwtClaims;
   let issuedAt: number;
   let expiresAt: number;
+  let resolverFid: bigint;
 
   try {
     claims = readWarpkeepBaseJwt(payload, config);
     const record = expectRecord(payload);
     issuedAt = readNumericDate(record, 'iat', 'INVALID_AUTH_RESOLVER_SESSION');
     expiresAt = readNumericDate(record, 'exp', 'INVALID_AUTH_RESOLVER_SESSION');
+    resolverFid = parseFidClaim(record.resolver_fid);
   } catch (error) {
     if (
       error instanceof ClaimValidationError &&
@@ -331,5 +338,5 @@ export function readFreshAuthEpochResolverJwt(
   ) {
     throw new ClaimValidationError('INVALID_AUTH_RESOLVER_SESSION');
   }
-  return claims;
+  return Object.freeze({ ...claims, resolverFid });
 }

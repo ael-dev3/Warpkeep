@@ -2,7 +2,7 @@ import type { WorkerEnv } from './types'
 
 export const PLAYER_TOKEN_TTL_SECONDS = 10 * 60
 export const ADMIN_TOKEN_TTL_SECONDS = 5 * 60
-export const INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS = 60
+export const INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS = 15
 export const SESSION_FAMILY_TTL_SECONDS = 30 * 24 * 60 * 60
 export const CHALLENGE_TTL_MILLISECONDS = 5 * 60 * 1000
 export const MAX_REQUEST_BYTES = 16 * 1024

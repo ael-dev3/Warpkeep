@@ -155,7 +155,7 @@ test('the v2 admission resolver is separately protected and leaves the legacy lo
 
   const resolver = source.slice(resolverStart, resolverEnd);
   assert.match(resolver, /name: 'auth_resolver_get_fid_admission_v2'/);
-  assert.match(resolver, /requireAuthEpochResolver\(tx\)/);
+  assert.match(resolver, /requireAuthEpochResolver\(tx, fid\)/);
   assert.match(resolver, /resolveAuthResolverAdmission/);
   assert.doesNotMatch(resolver, /requireAdmin\(tx\)/);
   assert.doesNotMatch(resolver, /\.(?:insert|update|delete)\s*\(/);

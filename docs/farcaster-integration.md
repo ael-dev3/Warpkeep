@@ -21,7 +21,7 @@ player intentionally selects ENTER REALM and accepts the in-memory Alpha Terms
   -> bridge creates a pending or epoch-bound rotating session family
   -> pending: HttpOnly cookie only, no access token, no database connection
   -> enabled: 600-second auth_version 2 access token held in JS memory only
-  -> module accepts only a current admitted player connection
+  -> module accepts this browser access token only for a current admitted player connection
 ```
 
 The bridge, not the browser, establishes `sub: farcaster:<fid>`. Its exchange
@@ -143,20 +143,33 @@ errors.
 
 ## Resolver contract
 
-The Worker uses a fresh, maximum-60-second JWT with exact
+The Worker uses a fresh 15-second JWT with exact
 `sub: "service:auth-epoch-resolver"` and exactly
-`roles: ["warpkeep-auth-epoch-resolver"]`. It has no admin role, is never
-persisted/returned/logged, and is accepted only by:
+`roles: ["warpkeep-auth-epoch-resolver"]`, plus exact `resolver_fid` equal to
+the one verified FID being resolved. It has no admin role, is never
+persisted/returned/logged, and the Worker sends it only to:
 
 ```txt
 POST /v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2
 ```
 
-The response is exactly
-`{ state: "missing"|"disabled"|"enabled", authEpoch }`; missing/disabled require
-epoch zero and enabled requires epoch at least one. The bridge validates exact
-shape, HTTPS origin/database/procedure, media type, byte bound, redirect policy,
-and a maximum-five-second call. Any disagreement fails closed without a token.
+The HTTP SATS-JSON response is exactly
+`["missing"|"disabled"|"enabled", authEpoch]`; missing/disabled require epoch
+zero and enabled requires epoch at least one. The bridge normalizes that tuple
+to its internal `{ state, authEpoch }` result and validates exact shape, HTTPS
+origin/database/procedure, media type, byte bound, redirect policy, and a
+maximum-five-second call. Any disagreement fails closed without a token. The
+module retains a 60-second resolver-session rejection ceiling and requires the
+signed `resolver_fid` to equal the positional argument before lookup, preventing
+reuse as an admission oracle for other FIDs.
+
+SpacetimeDB runs its lifecycle hook before HTTP procedures, so an exact fresh
+resolver token must pass connection admission. The 15-second production window
+bounds connection initiation, not an accepted WebSocket's lifetime: public-table
+subscriptions opened while fresh may persist until transport disconnect. Static
+`get_alpha_backend_info` is callable only while fresh, protected calls recheck
+expiry, and the resolver cannot read private tables, bootstrap or mutate as a
+player, or pass Hermes/admin guards.
 
 `admin_get_fid_auth_epoch` is retained only as admin-authenticated rollback
 compatibility. The v2 browser/session path never uses it.
@@ -203,7 +216,8 @@ The Worker configuration is documented in
 checked-in `PUBLIC_AUTH_ENABLED` remains false. Before any future enable, the
 server-only v2 configuration attestation must match the reviewed issuer,
 origins, SIWF coordinates, key ID, Maincloud coordinates, S256 binding,
-600-second access TTL, 30-day family ceiling, exact cookie attributes, and
+600-second access TTL, 15-second resolver TTL, five-second resolver timeout,
+five-minute challenge TTL, 30-day family ceiling, exact cookie attributes, and
 public-auth state.
 
 Production frontend activation and the Pages deployment validator require the

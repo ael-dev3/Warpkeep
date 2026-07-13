@@ -96,11 +96,16 @@ a connection token. Epoch zero is never valid player authority. Optional
 they are never a bootstrap profile-write channel.
 
 `onConnect` accepts only a currently enabled player whose token epoch matches
-the private row, or a fresh exact Hermes administrator. Missing, disabled,
-epoch-mismatched, expired, malformed, resolver, and unrelated principals cannot
-open a subscription-bearing connection. Gameplay reducers independently repeat
-player admission and private-ownership checks. A missing public/private half or
-an identity mismatch fails closed.
+the private row, a fresh exact Hermes administrator, or the exact fresh resolver
+principal required because SpacetimeDB executes the lifecycle hook before HTTP
+procedures. Missing, disabled, epoch-mismatched, expired, malformed, and
+unrelated principals cannot connect. A resolver credential presented while
+fresh can technically establish a WebSocket and public-table subscriptions that
+may persist until transport disconnect, and can call static
+`get_alpha_backend_info` while fresh. It cannot read private tables, bootstrap
+or mutate as a player, or pass Hermes/admin guards; protected calls independently
+recheck expiry. Gameplay reducers repeat player admission and private-ownership
+checks. A missing public/private half or an identity mismatch fails closed.
 
 The separate admin principal remains exact:
 
@@ -126,21 +131,24 @@ The bridge's dedicated resolver procedure is:
 auth_resolver_get_fid_admission_v2({ fid })
 ```
 
-It is callable only with a fresh JWT having exact
+The production Worker sends a fresh 15-second JWT having exact
 `sub: "service:auth-epoch-resolver"`, exactly
-`roles: ["warpkeep-auth-epoch-resolver"]`, and a maximum 60-second window. The
-principal cannot open a WebSocket subscription and has no admin authority. The
-procedure performs a read-only lookup and returns exactly one of:
+`roles: ["warpkeep-auth-epoch-resolver"]`, and exact `resolver_fid` equal to the
+procedure argument; the module retains a 60-second rejection ceiling. The
+procedure independently revalidates that principal and one-FID binding before
+its read-only lookup. Its HTTP SATS-JSON wire response is exactly one of:
 
 ```json
-{ "state": "missing", "authEpoch": 0 }
-{ "state": "disabled", "authEpoch": 0 }
-{ "state": "enabled", "authEpoch": 1 }
+["missing", 0]
+["disabled", 0]
+["enabled", 1]
 ```
 
 The enabled epoch shown is illustrative and may be any positive `u32`. An
 enabled epoch-zero row is an invalid state and fails closed rather than being
-reported as enabled.
+reported as enabled. The resolver has no private, player-mutation, or admin
+authority; its bounded public-subscription/static-metadata capability is the
+documented lifecycle residual above.
 
 `admin_get_fid_auth_epoch({ fid })` remains byte-compatible and admin-only for
 rollback. It returns a raw epoch/baseline zero and must not be used for new v2
@@ -205,10 +213,11 @@ never returns a FID, Identity, profile, allowlist row, note, or audit record.
 
 `WARPKEEP_BACKEND_PROTOCOL_VERSION = 2` is an internal wire contract, separate
 from the player-facing release and the `HEGEMONY_GENESIS_001` realm label.
-`get_alpha_backend_info` is available only to a permitted player/admin
-connection and returns static protocol/world-seed metadata. It exposes no
-whitelist, identity, audit, or live aggregate data. The browser must reject a
-protocol/seed mismatch before bootstrap or subscription.
+`get_alpha_backend_info` is available to every lifecycle-admitted principal,
+including the resolver, and returns only static protocol/world-seed metadata.
+It performs no database lookup and exposes no whitelist, identity, audit, or
+live aggregate data. The browser must reject a protocol/seed mismatch before
+bootstrap or subscription.
 
 SpacetimeDB 2.6's default case converter would spell a trailing version digit
 as `_v_2`; the module pins these canonical wire names to exact `_v2`:

@@ -100,8 +100,11 @@ function endpoint(config: SpacetimeAuthEpochResolverConfig): URL {
   )
 }
 
-function supportedFidArgument(fid: string): number {
-  if (!/^[1-9]\d{0,15}$/.test(fid)) {
+function supportedFidArgument(fid: unknown): Readonly<{
+  canonicalFid: string
+  fidArgument: number
+}> {
+  if (typeof fid !== 'string' || !/^[1-9]\d{0,15}$/.test(fid)) {
     throw new Error('Auth epoch resolver received an invalid FID.')
   }
   let parsed: bigint
@@ -113,7 +116,7 @@ function supportedFidArgument(fid: string): number {
   if (parsed > MAX_SUPPORTED_FID) {
     throw new Error('Auth epoch resolver received an invalid FID.')
   }
-  return Number(parsed)
+  return Object.freeze({ canonicalFid: fid, fidArgument: Number(parsed) })
 }
 
 function issuedAtSeconds(clock: AuthEpochClock): number {
@@ -181,27 +184,24 @@ function parseAdmission(raw: string, contentType: string | null): AdmissionResol
   } catch {
     return resolverFailure('response_validation')
   }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+  if (!Array.isArray(value) || value.length !== 2) {
     return resolverFailure('response_validation')
   }
-  const candidate = value as Record<string, unknown>
+  const [state, authEpoch] = value as unknown[]
   if (
-    Object.keys(candidate).length !== 2
-    || !Object.prototype.hasOwnProperty.call(candidate, 'state')
-    || !Object.prototype.hasOwnProperty.call(candidate, 'authEpoch')
-    || (candidate.state !== 'missing' && candidate.state !== 'disabled' && candidate.state !== 'enabled')
-    || typeof candidate.authEpoch !== 'number'
-    || !Number.isSafeInteger(candidate.authEpoch)
-    || candidate.authEpoch < 0
-    || candidate.authEpoch > MAX_AUTH_EPOCH
-    || (candidate.state === 'enabled' ? candidate.authEpoch < 1 : candidate.authEpoch !== 0)
+    (state !== 'missing' && state !== 'disabled' && state !== 'enabled')
+    || typeof authEpoch !== 'number'
+    || !Number.isSafeInteger(authEpoch)
+    || authEpoch < 0
+    || authEpoch > MAX_AUTH_EPOCH
+    || (state === 'enabled' ? authEpoch < 1 : authEpoch !== 0)
   ) {
     return resolverFailure('response_validation')
   }
-  if (candidate.state === 'enabled') {
-    return Object.freeze({ state: 'enabled', authEpoch: candidate.authEpoch })
+  if (state === 'enabled') {
+    return Object.freeze({ state: 'enabled', authEpoch })
   }
-  return Object.freeze({ state: candidate.state, authEpoch: 0 })
+  return Object.freeze({ state, authEpoch: 0 })
 }
 
 /**
@@ -227,7 +227,7 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
   }
 
   async resolve(fid: string): Promise<AdmissionResolution> {
-    const fidArgument = supportedFidArgument(fid)
+    const { canonicalFid, fidArgument } = supportedFidArgument(fid)
     const issuedAt = issuedAtSeconds(this.clock)
     const controller = new AbortController()
     let timedOut = false
@@ -244,7 +244,12 @@ export class SpacetimeHttpAuthEpochResolver implements AuthEpochResolver {
       let token: string
       try {
         token = await Promise.race([
-          this.dependencies.signer(authEpochResolverClaims(this.config.issuer, this.config.audience, issuedAt)),
+          this.dependencies.signer(authEpochResolverClaims(
+            this.config.issuer,
+            this.config.audience,
+            canonicalFid,
+            issuedAt,
+          )),
           deadline,
         ])
       } catch (error) {

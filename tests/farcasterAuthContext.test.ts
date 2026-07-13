@@ -107,6 +107,7 @@ describe('Farcaster auth request material', () => {
     const createdAt = Date.UTC(2026, 6, 11, 10, 0, 0);
     const material = createFarcasterRequestMaterial(createdAt, source);
 
+    expect(FARCASTER_AUTH_REQUEST_TTL_MS).toBe(300_000);
     expect(material).toEqual({
       requestId,
       nonce: 'ab'.repeat(FARCASTER_AUTH_NONCE_BYTES),
@@ -114,6 +115,7 @@ describe('Farcaster auth request material', () => {
       expiresAt: createdAt + FARCASTER_AUTH_REQUEST_TTL_MS,
       expirationTime: new Date(createdAt + FARCASTER_AUTH_REQUEST_TTL_MS).toISOString()
     });
+    expect(material.expiresAt - material.createdAt).toBe(300_000);
     expect(material.nonce).toMatch(/^[A-Za-z0-9]{48}$/);
   });
 

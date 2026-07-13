@@ -221,6 +221,7 @@ export interface AuthEpochResolverTokenClaims {
   aud: string[]
   token_type: 'spacetime-access'
   roles: ['warpkeep-auth-epoch-resolver']
+  resolver_fid: string
   iat: number
   nbf: number
   exp: number

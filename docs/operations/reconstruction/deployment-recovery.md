@@ -182,14 +182,22 @@ proof and protected inspection, and obtain fresh publish approval.
 
 The auth-v2 target is backend protocol `2`, requires 600-second
 `auth_version: 2`/positive-epoch player JWTs, and adds the exact structured
-`auth_resolver_get_fid_admission_v2` procedure for the maximum-60-second
-`service:auth-epoch-resolver`/sole-role principal. Verify the generated binding
-wire names after publish, confirm that the official client subscribes only to
-`player_v2`, and confirm that no private `player_ownership_v2` table accessor was
-generated. The retained legacy `player` binding necessarily preserves its v1
-`identity` field but must remain unused and empty. `admin_get_fid_auth_epoch` is
-rollback compatibility only and must not be configured as the v2
-issuance/refresh path.
+`auth_resolver_get_fid_admission_v2` procedure for the Worker-minted 15-second
+`service:auth-epoch-resolver`/sole-role principal; the module retains a
+60-second rejection ceiling and requires exact `resolver_fid` equality with the
+positional argument. Verify the exact HTTP SATS-JSON `[state, authEpoch]`
+response, generated binding wire names, that the official client
+subscribes only to `player_v2`, and that no private `player_ownership_v2` table
+accessor was generated. The retained legacy `player` binding necessarily
+preserves its v1 `identity` field but must remain unused and empty.
+`admin_get_fid_auth_epoch` is rollback compatibility only and must not be
+configured as the v2 issuance/refresh path.
+
+Recovery review must retain the resolver lifecycle residual: a token presented
+while fresh can establish public subscriptions that may persist until transport
+disconnect and read static backend metadata while fresh. Protected calls recheck
+expiry, and private/player-mutation/admin authority remains denied; see
+[`threat-model.md`](../../security/threat-model.md).
 
 ## Production proof and rollback
 

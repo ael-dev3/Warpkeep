@@ -6,9 +6,11 @@ import {
 } from 'spacetimedb/server';
 
 import {
+  type AuthEpochResolverJwtClaims,
   ClaimValidationError,
   type WarpkeepBaseJwtClaims,
   type WarpkeepJwtClaims,
+  isAuthEpochResolverJwt,
   isHermesAdminJwt,
   readFreshAuthEpochResolverJwt,
   readFreshHermesAdminJwt,
@@ -53,9 +55,14 @@ export function requireWarpkeepJwt(ctx: WarpkeepReducerContext): WarpkeepJwtClai
 }
 
 /**
- * Connections may be made only by a currently admitted player or the exact,
- * fresh Hermes administrator. The resolver principal is intentionally limited
- * to its HTTP procedure and cannot open a subscription-bearing connection.
+ * Connections may be made only by a currently admitted player, the exact fresh
+ * Hermes administrator, or the exact fresh resolver principal. SpacetimeDB
+ * invokes this lifecycle gate before HTTP procedures too, so the resolver must
+ * pass it before its independently protected read-only procedure can run.
+ * A resolver bearer presented while fresh can technically establish public
+ * subscriptions that may persist until transport disconnect, and can read
+ * static backend metadata while fresh. Reducer/procedure guards still deny
+ * player, private, and administrator authority and recheck resolver expiry.
  */
 export function requireWarpkeepConnection(
   ctx: WarpkeepReducerContext,
@@ -65,6 +72,12 @@ export function requireWarpkeepConnection(
     const base = readWarpkeepBaseJwt(payload);
     if (isHermesAdminJwt(base)) {
       return readFreshHermesAdminJwt(payload, ctx.timestamp.microsSinceUnixEpoch);
+    }
+    if (isAuthEpochResolverJwt(base)) {
+      return readFreshAuthEpochResolverJwt(
+        payload,
+        ctx.timestamp.microsSinceUnixEpoch,
+      );
     }
   } catch (error) {
     return senderError(error);
@@ -85,15 +98,20 @@ export function requireAdmin(ctx: WarpkeepReducerContext): WarpkeepBaseJwtClaims
   }
 }
 
-/** Require the exact, short-lived principal dedicated to admission resolution. */
+/** Require the exact short-lived resolver bound to this one procedure FID. */
 export function requireAuthEpochResolver(
   ctx: WarpkeepReducerContext,
-): WarpkeepBaseJwtClaims {
+  expectedFid: bigint,
+): AuthEpochResolverJwtClaims {
   try {
-    return readFreshAuthEpochResolverJwt(
+    const claims = readFreshAuthEpochResolverJwt(
       requireJwtPayload(ctx.senderAuth),
       ctx.timestamp.microsSinceUnixEpoch,
     );
+    if (claims.resolverFid !== expectedFid) {
+      throw new ClaimValidationError('INVALID_AUTH_RESOLVER_SESSION');
+    }
+    return claims;
   } catch (error) {
     return senderError(error);
   }

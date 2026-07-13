@@ -169,7 +169,8 @@ Verify the exact module contract immediately after an approved publish:
 - backend protocol is `2`;
 - player JWTs require `auth_version: 2`, `auth_epoch >= 1`, and a maximum
   600-second custom session, with FID but no optional profile claims;
-- connections admit only current players or fresh exact Hermes admins;
+- lifecycle admission accepts only current players, fresh exact Hermes admins,
+  or the exact fresh resolver principal required before its HTTP procedure;
 - the frozen legacy public `player` table remains unchanged and empty, while
   public `player_v2` contains no opaque OIDC Identity;
 - private `player_ownership_v2` has no browser query/subscription accessor, and
@@ -179,8 +180,10 @@ Verify the exact module contract immediately after an approved publish:
   `username`, `displayName`, and `pfpUrl` fields;
 - `auth_resolver_get_fid_admission_v2` returns exact structured
   missing/disabled/enabled state and epoch rules;
-- resolver authority is exact `sub: service:auth-epoch-resolver`, sole role
-  `warpkeep-auth-epoch-resolver`, and at most 60 seconds.
+- the Worker issues resolver authority for 15 seconds with exact
+  `sub: service:auth-epoch-resolver` and sole role
+  `warpkeep-auth-epoch-resolver`, bound by exact `resolver_fid` to the one
+  procedure argument; the module rejects windows over 60 seconds.
 
 `admin_get_fid_auth_epoch` remains admin-only rollback compatibility. Do not
 configure new v2 issuance or refresh to use it.
@@ -233,17 +236,28 @@ For each admission resolution the Worker uses:
 
 ```txt
 POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2
-Authorization: Bearer <maximum-60-second resolver-only JWT>
+Authorization: Bearer <Worker-minted 15-second resolver-only JWT>
 Content-Type: application/json
 Accept: application/json
 body: [<verified safe-integer fid>]
 ```
 
 The resolver JWT must have exact `sub: service:auth-epoch-resolver` and exactly
-`roles: [warpkeep-auth-epoch-resolver]`. The response must be exactly
-`{ state, authEpoch }`, with epoch zero only for missing/disabled and a positive
-epoch for enabled. Redirect, timeout, status, media, size, JSON, or invariant
-failure is `503 authorization_unavailable` and yields no access token.
+`roles: [warpkeep-auth-epoch-resolver]`, plus exact `resolver_fid` equal to the
+positional argument; the module retains a 60-second rejection ceiling. The HTTP
+SATS-JSON response must be exactly `[state, authEpoch]`, with epoch zero only for
+missing/disabled and a positive epoch for enabled. The Worker normalizes it to
+internal `{ state, authEpoch }`. A FID-binding mismatch, redirect, timeout,
+status, media, size, JSON, or invariant failure is
+`503 authorization_unavailable` and yields no access token.
+
+Because SpacetimeDB runs `clientConnected` before HTTP procedures, this exact
+fresh resolver also passes lifecycle admission. The 15-second production window
+bounds connection initiation, not an accepted WebSocket's lifetime: public-table
+subscriptions opened while fresh may persist until transport disconnect. Static
+`get_alpha_backend_info` is callable only while fresh, protected calls recheck
+expiry, and the resolver cannot read private tables, bootstrap or mutate as a
+player, or pass Hermes/admin guards.
 
 In production the Worker refuses any resolver target other than exact
 `https://maincloud.spacetimedb.com` and database `warpkeep-89e4u`. Only an
@@ -297,9 +311,11 @@ call the server-only, zero-body `/v1/admin/config-attestation`. It must return:
 ```
 
 Compare the digest with the reviewed expected issuer, origin/SIWF coordinates,
-audience, key ID, Maincloud coordinates, S256 binding, access/family lifetimes,
-cookie attributes, environment, and false public-auth state. Never print the
-admin credential. A mismatch blocks frontend deployment and all enablement.
+audience, key ID, Maincloud coordinates, S256 binding, 600-second access
+lifetime, 15-second resolver lifetime, five-second resolver timeout, five-minute
+challenge lifetime, 30-day family lifetime, cookie attributes, environment,
+and false public-auth state. Never print the admin credential. A mismatch blocks
+frontend deployment and all enablement.
 
 The protected resolver probe must exercise the structured v2 resolver without
 returning an epoch/FID/JWT/upstream body. Discovery must advertise

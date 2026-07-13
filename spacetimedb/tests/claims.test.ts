@@ -53,6 +53,7 @@ function resolverPayload(overrides: Record<string, unknown> = {}) {
     aud: [config.audience],
     token_type: config.tokenType,
     roles: ['warpkeep-auth-epoch-resolver'],
+    resolver_fid: '12345',
     iat,
     exp: iat + MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS,
     ...overrides,
@@ -274,6 +275,7 @@ test('accepts only the exact short-lived auth-epoch resolver principal', () => {
   );
   assert.equal(fresh.subject, 'service:auth-epoch-resolver');
   assert.deepEqual(fresh.roles, ['warpkeep-auth-epoch-resolver']);
+  assert.equal(fresh.resolverFid, 12345n);
 });
 
 test('rejects resolver authority before its declared issuance time', () => {
@@ -288,12 +290,16 @@ test('rejects resolver authority before its declared issuance time', () => {
   );
 });
 
-test('rejects resolver impersonation, role expansion, expiry, and sessions over 60 seconds', () => {
+test('rejects resolver impersonation, role expansion, expiry, and sessions over the 60-second module ceiling', () => {
   const nowMicros = 1_700_000_001n * 1_000_000n;
   for (const payload of [
     resolverPayload({ sub: 'service:hermes' }),
     resolverPayload({ roles: ['warpkeep-admin'] }),
     resolverPayload({ roles: ['warpkeep-auth-epoch-resolver', 'warpkeep-admin'] }),
+    resolverPayload({ resolver_fid: undefined }),
+    resolverPayload({ resolver_fid: 12345 }),
+    resolverPayload({ resolver_fid: '0' }),
+    resolverPayload({ resolver_fid: '9007199254740992' }),
     resolverPayload({ iat: undefined }),
     resolverPayload({ exp: '1700000060' }),
     resolverPayload({ exp: 1_700_000_000 }),

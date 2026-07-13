@@ -67,7 +67,7 @@ flowchart LR
   Bridge -->|"one-time claim / cleanup"| Guard
   Bridge -->|"create / rotate / revoke"| Family
   Bridge -->|"independent proof verification"| Farcaster
-  Bridge -->|"60s resolver-only JWT; structured v2 procedure"| STDB
+  Bridge -->|"15s resolver-only JWT; exact SATS-JSON procedure"| STDB
   Bridge -->|"600s access JWT or tokenless pending result"| Browser
   Browser -->|"OIDC-authenticated WebSocket"| STDB
   Hermes -->|"admin secret; short-lived admin JWT"| Bridge
@@ -93,7 +93,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Session-family cookie and Durable Object state | `__Host-`, Secure, HttpOnly, SameSite=Strict; integrity-protected rotating reference; server-side expiry/revocation. |
 | Browser logout-intent tombstone | Non-secret, base-path scoped marker/timestamp only; no FID, proof, token, cookie, family ID, or profile data; 30-day maximum and explicit Terms-gated activation clearing. |
 | Alpha Terms acceptance | Unchecked by default, component-memory only, one entry attempt, no identity or cross-tab/persistent representation. |
-| Worker-to-SpacetimeDB resolver JWT | Server-only, maximum 60 seconds, exact resolver subject/sole role, fixed destination, never logged. |
+| Worker-to-SpacetimeDB resolver JWT | Server-only, Worker-minted 15 seconds, module rejection ceiling 60 seconds, exact resolver subject/sole role and one-FID binding, fixed Worker destination, never logged. |
 | ES256 private signing key | Worker-managed secret only; absent from source, browser, artifacts, and logs. |
 | Hermes admin secret | Operator/Worker secret only; never placed in browser code, process output, or repository. |
 | Session-cookie HMAC key | Independent Worker-managed secret; never reused with signing/admin material or recorded in recovery evidence. |
@@ -120,11 +120,13 @@ creation, and world state. Anonymous visitors do not open a database connection.
    are server configuration. Responses may fail, stall, or be malformed and
    must not produce a token on error.
 4. **Worker ↔ SpacetimeDB HTTP procedure.** A resolver-only ephemeral token
-   crosses this boundary. Its exact subject/role and 60-second window, HTTPS
-   origin, database, procedure, redirects, time, body size, content type, and
-   structured response shape are constrained.
+   crosses this boundary. Its exact subject/role, signed one-FID binding,
+   15-second Worker lifetime, HTTPS origin, database, procedure, redirects,
+   time, body size, content type, and exact `[state, authEpoch]` SATS-JSON
+   response shape are constrained. The module retains a 60-second rejection
+   ceiling and rejects a `resolver_fid`/argument mismatch before lookup.
 5. **Browser ↔ SpacetimeDB Maincloud.** The browser presents a bearer token.
-   Only a current admitted player may connect; every sensitive
+   Only a current admitted player receives a browser token; every sensitive
    procedure/reducer repeats module-side authorization. Frontend gating is not
    a security boundary.
 6. **Hermes ↔ Worker admin endpoint.** Browser origins are rejected. The
@@ -176,7 +178,8 @@ creation, and world state. Anonymous visitors do not open a database connection.
 ### Replay and resource control
 
 - Challenges are random, expire, and are atomically claimed before expensive
-  verification, database lookup, or signing.
+  verification, database lookup, or signing. The QR/deep-link SIWF challenge
+  has an exact five-minute absolute lifetime.
 - A successful or definitively invalid exchange consumes the challenge. Only
   an explicitly retryable verifier outage, epoch lookup failure, or signing
   failure restores a still-live challenge.
@@ -196,12 +199,18 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Player, resolver, and admin tokens use ES256 and distinct exact principal
   shapes. Players require `auth_version: 2`, positive `auth_epoch`, and empty
   roles. The resolver requires exact `service:auth-epoch-resolver` and sole
-  `warpkeep-auth-epoch-resolver`; Hermes remains exact and admin-only.
+  `warpkeep-auth-epoch-resolver`, plus signed `resolver_fid` equal to its one
+  procedure argument; Hermes remains exact and admin-only.
 - SpacetimeDB verifies the token signature and standard time claims when the
   connection is authenticated. The module then validates issuer, audience,
   token type, auth version, subject, roles, FID, positive epoch, and time
   window. A player cannot use an admin/resolver surface; resolver/admin tokens
-  cannot bootstrap or subscribe as players.
+  cannot bootstrap or subscribe as players. Because `clientConnected` also runs
+  before HTTP procedures, an exact resolver presented while fresh can establish
+  a WebSocket and public-table subscriptions that may persist until transport
+  disconnect. It can call static `get_alpha_backend_info` only while fresh;
+  protected calls recheck expiry and private/player-mutation/admin guards still
+  reject it.
 - Signed `session_iat`/`session_exp` claims preserve the original player-session
   window across SpacetimeDB's temporary connection-token exchange. Every player
   module call rechecks the maximum-600-second deadline against module time.
@@ -275,8 +284,10 @@ creation, and world state. Anonymous visitors do not open a database connection.
   Maincloud origin, and database. Custom destinations are limited to secret-free
   dry runs.
 - A server-only configuration attestation hashes the reviewed v2 issuer,
-  origins, SIWF coordinates, key/database coordinates, access/family lifetimes,
-  cookie attributes, and public-auth state without returning a secret.
+  origins, SIWF coordinates, key/database coordinates, access/resolver/
+  challenge/family lifetimes (including the exact five-minute challenge),
+  resolver timeout, cookie attributes, and public-auth state without returning
+  a secret.
 - Production frontend activation and Pages validation require exact
   `https://auth.warpkeep.com` bridge/issuer, `warpkeep-spacetimedb` audience,
   `https://maincloud.spacetimedb.com` service, and `warpkeep-89e4u` database.
@@ -308,6 +319,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Terms gate bypass or replay | Dormant anonymous refresh; direct-route normalization; local unchecked state; disabled continuation; one-shot callback; focus trap; no persistence or identity tracking | The concise Alpha notice is not complete legal documentation; revisit the gate before changing auth entry points. |
 | Proof replay or parallel exchange | Expiring Durable Object challenge, atomic pre-work claim, and distributed per-client rolling-window limits | Add aggregate edge monitoring/alerts for broad distributed abuse; tune policy only through separate review. |
 | Stolen in-memory access bearer | Exact v2 claims, 600-second maximum, positive epoch/admission checks, disconnect/logout handling | XSS/extension memory capture remains possible for the token's short remaining lifetime; the HttpOnly family is not exposed. |
+| Stolen resolver bearer presented before expiry | Server-only minting, exact sole-role and one-FID claims, 15-second Worker initiation window, fixed Worker destination, independent resolver guard | It reveals its bound FID and can resolve only that FID's admission projection while fresh; it can establish public subscriptions that persist until disconnect, but cannot query another FID, read private tables, mutate as a player, or pass Hermes/admin guards. |
 | Stolen or replayed session reference | HMAC-authenticated `__Host-` cookie, SameSite=Strict, origin binding, generation rotation, stale-replay family revocation | Endpoint/host compromise remains an incident; bounded previous-generation recovery must remain narrow. |
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
@@ -333,6 +345,13 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Public game projections are observable to admitted authenticated clients by
   design; privacy classification must be revisited as state expands. Missing
   and disabled users receive no access token and cannot connect.
+- The resolver lifecycle exception is required by SpacetimeDB's HTTP procedure
+  execution order. A stolen production resolver token presented within its
+  15-second lifetime can establish public subscriptions that may persist until
+  transport disconnect, read static backend metadata, and resolve only its
+  signed FID's admission projection while fresh. It reveals that bound FID but
+  cannot query another FID and has no broader private, player-mutation, or
+  administrator authority; protected calls independently recheck expiry.
 - Existing enabled epoch-zero rows, if any, fail closed under v2 and require
   explicit read-only inspection plus an approved migration decision. They must
   never be silently promoted.

@@ -152,21 +152,36 @@ inserts `username`, `displayName`, and `pfpUrl` as undefined in `player_v2`;
 profile mutations require a separately reviewed path.
 
 `auth_epoch` is never a browser request field and is not hardcoded. For each
-resolution the Worker mints a fresh, non-persisted resolver JWT with a maximum
-60-second window, exact `sub: "service:auth-epoch-resolver"`, and exactly one
-role: `roles: ["warpkeep-auth-epoch-resolver"]`. It has no admin role and is
-never returned or logged.
+resolution the Worker mints a fresh, non-persisted 15-second resolver JWT with
+exact `sub: "service:auth-epoch-resolver"` and exactly one role:
+`roles: ["warpkeep-auth-epoch-resolver"]`, plus exact `resolver_fid` equal to the
+one verified FID being resolved. The module retains a 60-second rejection
+ceiling. The token has no admin role and is never returned or logged.
 
 The Worker calls the fixed documented Maincloud endpoint
 `POST https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/auth_resolver_get_fid_admission_v2`
 with `Authorization: Bearer <ephemeral resolver JWT>` and SATS-JSON argument
-`[<verified safe-integer fid>]`. The structured response must contain exactly
-`{ "state": "missing"|"disabled"|"enabled", "authEpoch": <u32> }`:
-missing/disabled require epoch `0`, while enabled requires epoch `>= 1`. The
-Worker rejects redirects, caching, oversized/wrong-media/malformed bodies,
-inconsistent state/epoch pairs, non-2xx responses, and calls exceeding five
-seconds. Failure returns generic `503 authorization_unavailable` and no access
-token.
+`[<verified safe-integer fid>]`. The exact HTTP SATS-JSON product response is
+`["missing"|"disabled"|"enabled", <u32>]`: missing/disabled require epoch `0`,
+while enabled requires epoch `>= 1`. The Worker normalizes that tuple to its
+internal `{ state, authEpoch }` result and rejects redirects, caching,
+oversized/wrong-media/malformed bodies, inconsistent state/epoch pairs,
+non-2xx responses, and calls exceeding five seconds. Failure returns generic
+`503 authorization_unavailable` and no access token.
+
+The module requires the signed `resolver_fid` to equal the positional procedure
+argument before reading admission state. A captured token necessarily reveals
+its one bound FID and may resolve only that FID's admission projection while
+fresh; it cannot be reused as an oracle for other FIDs.
+
+SpacetimeDB invokes `clientConnected` before authenticated HTTP procedures, so
+the exact fresh resolver must also pass lifecycle admission. The 15 seconds bound
+when the credential can initiate a connection, not the lifetime of an accepted
+WebSocket: public-table subscriptions opened while fresh may persist until
+transport disconnect. Static `get_alpha_backend_info` is callable only while
+fresh, protected calls recheck expiry, and the resolver cannot read private
+tables, bootstrap or mutate as a player, or pass Hermes/admin guards. The Worker
+sends it only to the fixed resolver endpoint.
 
 Production configuration enforces that exact Maincloud origin and database
 before constructing the resolver. Matching lookalikes fail configuration closed.
@@ -214,9 +229,10 @@ The server-only `POST /v1/admin/config-attestation` route returns only
 `{ profile: "warpkeep-auth-v2", digest, publicAuthEnabled }` after admin-secret
 authentication. The SHA-256 digest covers issuer, origins, SIWF coordinates,
 audience, key ID, Maincloud coordinates, environment, S256 binding, 600-second
-access lifetime, 30-day family ceiling, exact cookie attributes, and public-auth
-state. Operators must compare it with the reviewed expected configuration; it
-is not a deployment action and reveals no secret.
+access lifetime, 15-second resolver lifetime, five-second resolver timeout,
+five-minute challenge lifetime, 30-day family ceiling, exact cookie attributes,
+and public-auth state. Operators must compare it with the reviewed expected
+configuration; it is not a deployment action and reveals no secret.
 
 Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use
 separate development keys. Set real secrets only through approved Cloudflare
@@ -230,8 +246,9 @@ must remain staged and fail closed in this order:
 1. keep both Worker public auth and the frontend shared-alpha switch false;
 2. run `npm run stdb:verify-additive-migration` from the repository root; its
    disposable loopback-only proof verifies the frozen legacy shapes, retained
-   empty and synthetic non-empty rows, idempotent republish, v2 consistency, and
-   guarded v1 rollback refusal before schema change without contacting
+   empty and synthetic non-empty rows, real resolver HTTP lifecycle and tuple
+   parsing without aggregate mutation, idempotent republish, v2 consistency,
+   and guarded v1 rollback refusal before schema change without contacting
    Maincloud;
 3. obtain approval for a fresh, bounded, read-only Maincloud inspection and stop
    unless the deployed-v1 `players` field (the legacy count) equals zero; any

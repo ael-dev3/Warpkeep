@@ -210,8 +210,8 @@ export const authResolverGetFidAdmissionV2 = warpkeep.procedure(
   authResolverFidAdmissionV2,
   (ctx, { fid }) =>
     ctx.withTx(tx => {
-      requireAuthEpochResolver(tx);
       requireSupportedFid(fid);
+      requireAuthEpochResolver(tx, fid);
 
       try {
         return resolveAuthResolverAdmission(tx.db.allowedFid.fid.find(fid));

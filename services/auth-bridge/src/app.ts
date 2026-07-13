@@ -8,6 +8,7 @@ import {
   ADMIN_TOKEN_TTL_SECONDS,
   CHALLENGE_TTL_MILLISECONDS,
   ConfigurationError,
+  INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
   MAX_REQUEST_BYTES,
   PLAYER_TOKEN_TTL_SECONDS,
   SESSION_FAMILY_TTL_SECONDS,
@@ -570,6 +571,9 @@ async function configurationAttestation(config: BridgeConfig): Promise<string> {
     environment: config.environment,
     browserBinding: 'S256',
     accessTokenTtlSeconds: PLAYER_TOKEN_TTL_SECONDS,
+    authEpochResolverTokenTtlSeconds: INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
+    authEpochResolverTimeoutMilliseconds: AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
+    challengeTtlMilliseconds: CHALLENGE_TTL_MILLISECONDS,
     sessionFamilyTtlSeconds: SESSION_FAMILY_TTL_SECONDS,
     sessionCookie: '__Host-warpkeep_session; Secure; HttpOnly; SameSite=Strict; Path=/',
   })
