@@ -1,66 +1,28 @@
-# Agent Notes
+# Maintainer and agent notes
 
-## Summary of changes
+## Current state
 
-This pass created the initial Warpkeep seed repository:
+Warpkeep Alpha 0.3.0 has a live title/menu, standard website SIWF, a Cloudflare Worker OIDC bridge, a non-destructively published SpacetimeDB module, a deterministic 61-cell Lowlands, and quality-aware title/realm rendering. Production admission remains intentionally empty; do not create a player or castle as a convenience test.
 
-- Vite + React + TypeScript app scaffold.
-- Landing page and castle dashboard UI.
-- Deterministic game models and reducers.
-- Mock Farcaster identity and nearby FID castles.
-- AI court report placeholder interface.
-- SpacetimeDB schema/reducer scaffold.
-- Vitest coverage for the starter game loop.
-- GitHub Actions verification for tests, typecheck, build, and audit.
-- Product, architecture, Farcaster, SpacetimeDB, and future-agent docs.
-
-## Current project status
-
-Warpkeep is an initial playable scaffold, not a production game. It communicates the core direction: every FID has a castle, local state is temporary, SpacetimeDB should become authoritative, and AI should add flavor without mutating game state.
-
-## Known limitations
-
-- Farcaster auth is a placeholder.
-- SpacetimeDB is documented/scaffolded but not installed or integrated.
-- State resets on refresh.
-- Building/training queues are started but not wired to live timer completion in the UI.
-- Combat, raids, alliances, seasons, and diplomacy are not implemented.
-- Visuals are original CSS placeholders, not final art.
-
-## Next recommended tasks
-
-1. Add real Sign In With Farcaster and persist FID identity.
-2. Create the real SpacetimeDB module from `docs/spacetime-db-plan.md`.
-3. Replace local React state with a repository abstraction that can switch from mocks to SpacetimeDB subscriptions.
-4. Add queue completion UI and server-authoritative timer tests.
-5. Keep duplicate pending upgrades blocked in both client previews and future SpacetimeDB reducers.
-6. Add more tests for costs, queue limits, invalid actions, and completion reducers.
-7. Design combat in a doc before adding raids.
-8. Add browser smoke tests once routes stabilize.
-
-## Warnings for future agents
-
-- Do not turn Warpkeep into a financial dashboard or chain-execution bot.
-- Do not implement token mechanics; they are outside the current product scope.
-- Do not let AI mutate authoritative state.
-- Do not add random combat formulas without a proper design doc and tests.
-- Do not treat handles as stable identity. FID is the stable key.
-- Keep game logic deterministic and covered by tests.
-
-## Where SpacetimeDB should be integrated next
-
-Start with `docs/spacetime-db-plan.md` and `src/spacetime/schemaDraft.ts`. The first real module should implement Player, Castle, ResourceState, Building, ConstructionQueue, UnitStack, TrainingQueue, ActivityLog, and the reducers for collect/resources/upgrades/training/scouting.
-
-## Where Farcaster auth should be integrated next
-
-Start with `src/farcaster/farcasterAuth.ts`. Replace `placeholderFarcasterSession` with a Sign In With Farcaster flow and pass the authenticated FID into `createCastleForFid` or the SpacetimeDB player bootstrap reducer.
-
-## Most important files to read first
+Start with:
 
 1. `README.md`
-2. `docs/vision.md`
-3. `docs/spacetime-db-plan.md`
-4. `src/game/models/types.ts`
-5. `src/game/systems/gameLoop.ts`
-6. `src/farcaster/farcasterAuth.ts`
-7. `src/ai/courtReport.ts`
+2. `docs/design/roadmap.md`
+3. `docs/technical-architecture.md`
+4. `docs/farcaster-integration.md`
+5. `docs/operations/reconstruction/README.md`
+6. `ASSETS-LICENSE.md`
+
+## Hard boundaries
+
+- FID is identity; handles and profile fields are display metadata.
+- The browser never owns admission, keep ownership, resources, timers, or combat.
+- AI output is flavor, not authority.
+- Never add a real/synthetic FID, mutate production world state, or use destructive SpacetimeDB flags during diagnostics.
+- Keep secrets, SIWF proofs, bearer material, private endpoints, and personal paths out of source, logs, screenshots, and issues.
+- Preserve the immutable v0.3.0 licensing cutover commits and normal merge ancestry.
+- Runtime assets stay in Warpkeep; authorized source bundles belong in immutable Warpkeep-Assets releases. Unresolved-rights material is not published by assumption.
+
+## Next product work
+
+The next deliberate slice is one admitted shared-realm fixture, followed by server-derived resources and construction queues. Each slice needs deterministic reducers, generated-binding parity, isolated tests, exact-head deployment, production verification, and rollback evidence before expansion.

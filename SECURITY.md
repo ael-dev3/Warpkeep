@@ -7,7 +7,7 @@ reports are welcome and are handled on a best-effort basis.
 
 | Version | Status |
 | --- | --- |
-| Alpha 0.2 development line | Best-effort security fixes |
+| Alpha 0.3 development line | Best-effort security fixes |
 | Earlier prototypes and snapshots | Unsupported |
 
 ## Reporting a vulnerability
