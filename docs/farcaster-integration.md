@@ -3,13 +3,14 @@
 Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
 App, Quick Auth, wallet connection, or a client-only permanent identity system.
 
-> **Protocol-v2 backend staged; public entry remains paused.** The additive
-> module and paused Worker contract described here have been published/deployed
-> at their separately recorded production coordinates. The Worker includes the
+> **Protocol-v2 Alpha 0.3.1 is active; admission remains closed.** The additive
+> module, reviewed Worker, and exact-main frontend described here are live at
+> their separately recorded production coordinates. The Worker includes the
 > additive `SessionFamily` migration and independent managed session-cookie
-> secret, but `PUBLIC_AUTH_ENABLED=false`; the v2 frontend is not yet deployed
-> and its checked-in shared-alpha switch remains false. No admission, player,
-> ownership, castle, allowlist, or world data was mutated.
+> secret. `PUBLIC_AUTH_ENABLED=true` and the exact frontend shared-alpha gate is
+> enabled after paused verification and one privacy-safe owner canary. No FID is
+> admitted, and no player, ownership, castle, allowlist, or world row was
+> mutated.
 
 ## Authority boundary
 
@@ -209,7 +210,7 @@ The static browser receives only public coordinates:
 ```dotenv
 VITE_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
 VITE_SPACETIMEDB_DATABASE=warpkeep-89e4u
-VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false
+VITE_WARPKEEP_SHARED_ALPHA_ENABLED=true
 VITE_WARPKEEP_AUTH_BRIDGE_URL=https://auth.warpkeep.com
 VITE_WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com
 VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
@@ -217,12 +218,13 @@ VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 
 The Worker configuration is documented in
 [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its
-checked-in `PUBLIC_AUTH_ENABLED` remains false. Before any future enable, the
-server-only v2 configuration attestation must match the reviewed issuer,
-origins, SIWF coordinates, key ID, Maincloud coordinates, S256 binding,
-600-second access TTL, 15-second resolver TTL, five-second resolver timeout,
-five-minute challenge TTL, 30-day family ceiling, exact cookie attributes, and
-public-auth state.
+checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.1
+production override is true. Before any future enable, the server-only v2
+configuration attestation must match the reviewed issuer, origins, SIWF
+coordinates, key ID, Maincloud coordinates, S256 binding, 600-second access
+TTL, 15-second resolver TTL, five-second resolver timeout, five-minute
+challenge TTL, 30-day family ceiling, exact cookie attributes, and public-auth
+state.
 
 Production frontend activation and the Pages deployment validator require the
 exact bridge and issuer `https://auth.warpkeep.com`, audience
@@ -234,8 +236,8 @@ explicit `ENVIRONMENT=development` bridge remains configurable for local tests.
 
 ## Rollout and approval gates
 
-The v2 backend is staged and the rollout is intentionally stopped before the
-frontend and public-entry gates. The module change is additive: it preserves the
+The v2 rollout completed through the frontend and public-entry gates at the
+recorded Alpha 0.3.1 coordinates. The module change is additive: it preserves the
 exact legacy table prefix and public `player` shape, then appends `player_v2` and
 private `player_ownership_v2`. The recorded guarded publication first ran
 `npm run stdb:verify-additive-migration` against its disposable loopback-only
@@ -252,12 +254,12 @@ prebuilt artifact through `--js-path`, `--delete-data=never`, closed stdin, and
 no compatibility override. Any future republish requires fresh approval and the
 same evidence; historical counts never substitute for it.
 
-The recorded checkpoint also completed the additive session-family Durable
-Object migration, independent managed cookie-secret setup, paused Worker deploy,
-exact v2 aggregate, resolver, discovery/JWKS, retired-v1, ownership-isolation,
-and config-attestation checks. The remaining stages are the disabled v2
-frontend deploy and then the separately ordered public-auth/shared-realm enable
-and owner QA gates.
+The recorded checkpoints also completed the additive session-family Durable
+Object migration, independent managed cookie-secret setup, paused Worker and
+frontend deployments, exact v2 aggregate, resolver, discovery/JWKS, retired-v1,
+ownership-isolation, configuration attestation, ordered public-auth/shared-realm
+enablement, and one owner QA canary. No FID was admitted and the final aggregate
+remained empty.
 
 See the [activation and recovery runbook](./operations/alpha-activation.md).
 Only the recorded exact current coordinates attest the backend checkpoint;

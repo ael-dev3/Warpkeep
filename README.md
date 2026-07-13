@@ -4,7 +4,7 @@
 
 **Every FID has a castle.** Warpkeep is an open-source, Farcaster-native strategy world where identity anchors a keep and SpacetimeDB owns the shared state.
 
-Alpha 0.3.0 is live. The first Hegemony keep stands in a deterministic 61-cell Lowlands realm, and the frontier grows one day at a time. The public build includes the real 3D stone title, a functional graphics-quality system, Sign In with Farcaster, the admission-gated shared realm foundation, responsive WebGL presentation, accessible fallbacks, music, and credits.
+Alpha 0.3.1 is live. The first Hegemony keep stands in a deterministic 61-cell Lowlands realm, and the frontier grows one day at a time. The public build includes the real 3D stone title, an intentional Alpha Terms gate, browser-bound Sign In with Farcaster, rotating HttpOnly sessions, the admission-gated shared realm foundation, responsive WebGL presentation, accessible fallbacks, music, and credits.
 
 The admission list remains intentionally empty. The site is a real product surface and technical foundation, not a claim that resources, upgrades, units, combat, alliances, chat, or seasons are playable yet.
 
@@ -53,7 +53,7 @@ The keep source is not publicly mirrored while redistribution authority remains 
 
 ## Documentation
 
-- [Alpha 0.3.0 release notes](docs/releases/alpha-0.3.0.md)
+- [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md) and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
 - [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md)
 - [Technical architecture](docs/technical-architecture.md)
 - [Farcaster/OIDC boundary](docs/farcaster-integration.md)

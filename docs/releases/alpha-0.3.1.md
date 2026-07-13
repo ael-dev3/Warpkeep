@@ -49,9 +49,9 @@ separately reviewed production controls are deliberately enabled.
 The checked-in protocol-v2 module, session-family Durable Object migration,
 managed secret, Worker configuration, and frontend are coordinated rollout
 stages. They are not applied merely by merging source. Each production mutation
-or deployment requires its own owner approval, runs with public authentication
-disabled, and must pass exact-source/configuration verification before the next
-stage.
+or deployment requires recorded authority. Runtime and frontend deployments
+begin with public authentication disabled and must pass exact-source and
+configuration verification before a separately authorized enable stage.
 
 The module migration is additive. It preserves the exact production table
 prefix—`allowed_fid`, `world_tile`, legacy `player`, `castle`, and
@@ -66,12 +66,13 @@ private ownerships, consistent pairs, both orphan classes, world/admission data,
 castles, audit-entry count, and fixed protocol/seed metadata. It never returns
 an identity, FID, profile, note, audit row, token, or credential.
 
-The approved backend staging changed no production admission, player,
-ownership, castle, allowlist, or world data. It published the guarded additive
-schema with deletion prohibited, staged the additive `SessionFamily` migration
-and independent managed session-cookie secret, and deployed the reviewed Worker
-with public auth false. The v2 Pages frontend is not yet deployed, shared alpha
-remains false, and no public authentication has been enabled.
+The approved production rollout changed no admission, player, ownership,
+castle, allowlist, or world data. It published the guarded additive schema with
+deletion prohibited, staged the additive `SessionFamily` migration and
+independent managed session-cookie secret, and deployed the reviewed Worker and
+exact-main Pages frontend. Both public controls were first verified paused,
+then enabled in Worker-first order. The enabled tokenless/private gates and one
+privacy-safe owner canary passed. No FID is admitted.
 
 ## Verification contract
 
@@ -93,8 +94,9 @@ The release gate requires:
   and direct-route consent regressions;
 - exact-head hosted Verify and CodeQL checks plus independent blocker-only
   review;
-- separately approved, bounded production rollout and read-only verification
-  while public authentication remains disabled.
+- separately authorized, bounded production rollout with paused verification,
+  Worker-first enablement, tokenless/private enabled checks, one clean owner
+  canary, and immediate dual-disable handling for any discrepancy.
 
 After any approved publish, verification requires zero legacy players, zero
 one-sided v2 rows, and matching v2 projection/ownership pair counts. A failed or

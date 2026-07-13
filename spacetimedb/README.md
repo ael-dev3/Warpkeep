@@ -5,16 +5,16 @@ It is independent of the static Pages client: title/menu visitors do not create
 a SpacetimeDB identity, and gameplay authority comes only from a strictly
 validated bridge-issued OIDC access token.
 
-> **Local protocol-v2 draft — not published.** The security changes described
-> below exist in this checkout. The loopback proof does not contact Maincloud; a
-> separate bounded, counts-only read reproduced the closed-alpha baseline. This
-> work did not mutate Maincloud, publish a module, seed a world, change an
-> allowlist, deploy a Worker/frontend, configure a secret, run a Durable Object
-> migration, or enable public auth.
+> **Protocol-v2 Alpha 0.3.1 is published; admission remains empty.** The module
+> described below is live only at its privately recorded Maincloud schema,
+> artifact, aggregate, and resolver coordinates. Publication used the pinned
+> CLI with deletion prohibited and preserved the existing database identity.
+> The final counts-only aggregate remains 61 world tiles with zero admission,
+> player, ownership, orphan, castle, or allowlist state. No FID is admitted.
 
-The historical production database and issuer remain recovery context only.
-They must not be described as running this local v2 module until an explicitly
-approved publish and exact-head verification have completed.
+The production database and issuer run the recorded exact v2 release, but that
+does not attest an arbitrary checkout. Every future republish requires a fresh
+proof, bounded aggregate, recorded authority, and exact-source verification.
 
 ## Version compatibility
 
@@ -248,7 +248,7 @@ session cookie, private key, or admin credential.
 
 ## Approval-gated schema rollout
 
-No command in this README authorizes external mutation. The local protocol-v2
+No command in this README authorizes external mutation. The protocol-v2
 schema is additive: it preserves the exact five-table production-v1 prefix,
 freezes public legacy `player`, and appends public `player_v2` plus private
 `player_ownership_v2`. No v2 admission, bootstrap, or browser runtime path reads
@@ -287,7 +287,9 @@ switch false while it:
 6. separately approves a Worker deploy with public auth still false and checks
    its configuration attestation;
 7. separately approves the v2 frontend deploy with its realm switch false;
-8. requires a final explicit approval before any public-auth or realm enable.
+8. requires final authority, then enables Worker public auth, passes its
+   enabled public/private gates, enables/deploys the exact frontend, and runs
+   immediate owner QA with dual-disable handling for any discrepancy.
 
 If the CLI requests a compatibility override, the protected aggregate is not
 zero, or the exact additive plan cannot be applied, stop. Do not weaken the
