@@ -208,6 +208,21 @@ export type FarcasterBridgeDisplayIdentity = Readonly<{
   pfpUrl?: string;
 }>;
 
+export type FarcasterBrowserBindingMethod = 'S256';
+
+/**
+ * One-request proof of browser possession. Only the transformed challenge may
+ * cross the challenge-creation boundary; the verifier remains private browser
+ * memory until the completed proof is exchanged.
+ */
+export type FarcasterBrowserBinding = Readonly<{
+  verifier: string;
+  challenge: string;
+  method: FarcasterBrowserBindingMethod;
+}>;
+
+export type FarcasterBrowserBindingFactory = () => Promise<FarcasterBrowserBinding>;
+
 /**
  * Private controller-to-bridge boundary. The completed SIWF proof is needed
  * for independent server verification, but it must never enter React view
@@ -223,25 +238,35 @@ export type FarcasterBridgeExchangeRequest = Readonly<{
   siweUri: string;
   expirationTime: string;
   expiresAt: number;
+  bindingVerifier: string;
   identity: FarcasterBridgeDisplayIdentity;
 }>;
 
 export type FarcasterBridgeChallengeRequest = Readonly<{
   domain: string;
   siweUri: string;
+  bindingChallenge: string;
+  bindingMethod: FarcasterBrowserBindingMethod;
+}>;
+
+export type FarcasterBridgeRequestOptions = Readonly<{
+  /** Per-generation cancellation only; this signal must never enter JSON. */
+  signal?: AbortSignal;
 }>;
 
 /**
  * The authenticated bridge boundary. Implementations must independently
  * verify the proof passed to exchangeCompletedSignIn before issuing the OIDC
- * session. Challenge loading is optional for compatible bridge deployments.
+ * session. Unbound compatible deployments are intentionally unsupported.
  */
 export interface FarcasterOidcBridgeClient {
-  createChallenge?(
-    request: FarcasterBridgeChallengeRequest
+  createChallenge(
+    request: FarcasterBridgeChallengeRequest,
+    options?: FarcasterBridgeRequestOptions
   ): Promise<FarcasterBridgeChallenge>;
   exchangeCompletedSignIn(
-    request: FarcasterBridgeExchangeRequest
+    request: FarcasterBridgeExchangeRequest,
+    options?: FarcasterBridgeRequestOptions
   ): Promise<FarcasterOidcSession>;
 }
 

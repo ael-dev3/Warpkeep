@@ -32,6 +32,11 @@ type Deferred<T> = {
   reject: (reason?: unknown) => void;
 };
 
+const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
+const SECOND_BINDING_VERIFIER = 'A'.repeat(43);
+const SECOND_BINDING_CHALLENGE = 'DwBzhbb51LfusnSGBa_hqYSgo7-j8BTQnip4TOnlzRo';
+
 function deferred<T>(): Deferred<T> {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
@@ -147,6 +152,12 @@ function createBridge(
   overrides: Partial<FarcasterOidcBridgeClient> = {}
 ): FarcasterOidcBridgeClient {
   return {
+    createChallenge: vi.fn(async () => ({
+      nonce: 'BridgeNonce12345678',
+      requestId: 'bridge-request-id',
+      createdAt: Date.now(),
+      expiresAt: Date.now() + FARCASTER_AUTH_REQUEST_TTL_MS
+    })),
     exchangeCompletedSignIn: vi.fn(async (request) => createOidcSession(request.fid)),
     ...overrides
   };
@@ -236,10 +247,19 @@ function renderProvider({
   children = <AuthHarness />,
   strict = false,
   loadBridgeClient = vi.fn(async () => createBridge()),
+  createBrowserBinding = vi.fn(async () => ({
+    verifier: BINDING_VERIFIER,
+    challenge: BINDING_CHALLENGE,
+    method: 'S256' as const
+  })),
   ...providerProps
 }: RenderProviderOptions) {
   const provider = (
-    <FarcasterAuthProvider {...providerProps} loadBridgeClient={loadBridgeClient}>
+    <FarcasterAuthProvider
+      {...providerProps}
+      createBrowserBinding={createBrowserBinding}
+      loadBridgeClient={loadBridgeClient}
+    >
       {children}
     </FarcasterAuthProvider>
   );
@@ -298,6 +318,29 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(authority.beginSignIn).not.toHaveBeenCalled();
   });
 
+  it('fails closed before bridge or relay work when binding generation is malformed', async () => {
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => createChannel('MALFORMED_BINDING'))
+    });
+    const bridge = createBridge();
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      createBrowserBinding: vi.fn(async () => ({
+        verifier: `${'A'.repeat(42)}B`,
+        challenge: BINDING_CHALLENGE,
+        method: 'S256' as const
+      }))
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+
+    expect(readPublicState()).toMatchObject({ phase: 'error' });
+    expect(bridge.createChallenge).not.toHaveBeenCalled();
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+  });
+
   it('does no auth work on mount and synchronously deduplicates begin under StrictMode', async () => {
     const pendingChannel = deferred<FarcasterSignInChannel>();
     const authority = createAuthority({
@@ -305,22 +348,46 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     });
     const loadAuthority = vi.fn(async () => authority);
     const encodeQrCode = vi.fn(async () => 'data:image/svg+xml,qr');
+    const bridge = createBridge();
+    const createBrowserBinding = vi.fn(async () => ({
+      verifier: BINDING_VERIFIER,
+      challenge: BINDING_CHALLENGE,
+      method: 'S256' as const
+    }));
 
-    renderProvider({
+    const rendered = renderProvider({
       children: <AuthHarness duplicateBegin />,
       strict: true,
       loadAuthority,
+      loadBridgeClient: vi.fn(async () => bridge),
+      createBrowserBinding,
+      resolveAuthContext: () => ({
+        domain: 'example.com',
+        siweUri: 'https://example.com/Warpkeep/'
+      }),
       encodeQrCode
     });
 
     expect(loadAuthority).not.toHaveBeenCalled();
     expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(createBrowserBinding).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
 
     expect(readPublicState().phase).toBe('creating-channel');
     expect(loadAuthority).toHaveBeenCalledTimes(1);
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(createBrowserBinding).toHaveBeenCalledTimes(1);
+    expect(bridge.createChallenge).toHaveBeenCalledTimes(1);
+    const [challengeRequest, challengeOptions] = vi.mocked(bridge.createChallenge).mock.calls[0]!;
+    expect(challengeRequest).toEqual({
+      domain: 'example.com',
+      siweUri: 'https://example.com/Warpkeep/',
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256'
+    });
+    expect(challengeRequest).not.toHaveProperty('bindingVerifier');
+    expect(challengeOptions?.signal?.aborted).toBe(false);
 
     const channel = createChannel('STRICT');
     pendingChannel.resolve(channel);
@@ -343,6 +410,8 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       phase: 'awaiting-approval',
       qr: { state: 'ready', dataUrl: 'data:image/svg+xml,qr' }
     });
+    rendered.unmount();
+    expect(challengeOptions?.signal?.aborted).toBe(true);
   });
 
   it('uses one-shot polling at the requested cadence and never overlaps slow status calls', async () => {
@@ -497,6 +566,10 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     renderProvider({
       loadAuthority: vi.fn(async () => authority),
       loadBridgeClient,
+      resolveAuthContext: () => ({
+        domain: channel.domain,
+        siweUri: channel.siweUri
+      }),
       encodeQrCode: vi.fn(async () => 'data:image/svg+xml,unused'),
       now: Date.now,
       pollIntervalMs: 10
@@ -506,8 +579,17 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     await advanceTime(10);
 
     expect(loadBridgeClient).toHaveBeenCalledTimes(1);
+    expect(bridge.createChallenge).toHaveBeenCalledTimes(1);
+    const [challengeRequest, challengeOptions] = vi.mocked(bridge.createChallenge).mock.calls[0]!;
+    expect(challengeRequest).toEqual({
+      domain: channel.domain,
+      siweUri: channel.siweUri,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256'
+    });
+    expect(challengeRequest).not.toHaveProperty('bindingVerifier');
     expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledTimes(1);
-    const [request] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
+    const [request, exchangeOptions] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
     expect(request).toMatchObject({
       message: completed.message,
       signature: completed.signature,
@@ -518,6 +600,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       siweUri: channel.siweUri,
       expirationTime: new Date(channel.expiresAt).toISOString(),
       expiresAt: channel.expiresAt,
+      bindingVerifier: BINDING_VERIFIER,
       identity: {
         fid: verifiedIdentity.fid,
         username: verifiedIdentity.username,
@@ -526,7 +609,13 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     });
     expect(request).not.toHaveProperty('channelToken');
     expect(JSON.stringify(request)).not.toContain(channel.channelToken);
+    expect(exchangeOptions?.signal).toBe(challengeOptions?.signal);
+    expect(exchangeOptions?.signal?.aborted).toBe(true);
     expect(JSON.stringify(readPublicState())).not.toContain(createOidcSession().jwt);
+    expect(JSON.stringify(readPublicState())).not.toContain(BINDING_VERIFIER);
+    expect(JSON.stringify(readPublicState())).not.toContain(BINDING_CHALLENGE);
+    expect(document.body.textContent).not.toContain(BINDING_VERIFIER);
+    expect(document.body.textContent).not.toContain(BINDING_CHALLENGE);
   });
 
   it('persists, restores, and forgets a bridge-OIDC session through injected storage', async () => {
@@ -568,6 +657,8 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(serialized).not.toContain(channel.channelToken);
     expect(serialized).not.toContain('PRIVATE_MESSAGE_REMEMBERED');
     expect(serialized).not.toContain('authMethod');
+    expect(serialized).not.toContain(BINDING_VERIFIER);
+    expect(serialized).not.toContain(BINDING_CHALLENGE);
     expect(window.localStorage.getItem(deviceSessionStorageKey())).toBeNull();
     expect(JSON.parse(serialized!)).toMatchObject({
       origin: DEVICE_SESSION_ORIGIN,
@@ -705,6 +796,8 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     await settleAsyncWork();
     await advanceTime(10);
     expect(readPublicState().phase).toBe('verifying');
+    const [, exchangeOptions] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
+    expect(exchangeOptions?.signal?.aborted).toBe(false);
 
     fireEvent(window, new StorageEvent('storage', {
       key: getFarcasterDeviceSessionControlKey('/'),
@@ -712,11 +805,177 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     }));
     await settleAsyncWork();
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(exchangeOptions?.signal?.aborted).toBe(true);
 
     bridgeExchange.resolve(createOidcSession());
     await settleAsyncWork();
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+  });
+
+  it('aborts an in-flight bound exchange on explicit cancellation', async () => {
+    vi.useFakeTimers({ now: 67_000 });
+    const storage = new MemoryDeviceSessionStorage();
+    const channel = createChannel('CANCEL_BOUND_EXCHANGE');
+    const bridgeExchange = deferred<FarcasterOidcSession>();
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'CANCEL_BOUND_EXCHANGE')),
+      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+    });
+    const bridge = createBridge({
+      exchangeCompletedSignIn: vi.fn(() => bridgeExchange.promise)
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      pollIntervalMs: 10,
+      deviceSessionEnvironment: deviceSessionEnvironment(storage)
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+    expect(readPublicState().phase).toBe('verifying');
+    const [, options] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
+    expect(options?.signal?.aborted).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(options?.signal?.aborted).toBe(true);
+
+    bridgeExchange.resolve(createOidcSession());
+    await settleAsyncWork();
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+    expect(storage.values.size).toBe(0);
+  });
+
+  it('aborts an in-flight bound exchange when its generation expires', async () => {
+    vi.useFakeTimers({ now: 69_000 });
+    const channel = createChannel('EXPIRE_BOUND_EXCHANGE', Date.now(), Date.now() + 20);
+    const bridgeExchange = deferred<FarcasterOidcSession>();
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'EXPIRE_BOUND_EXCHANGE')),
+      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+    });
+    const bridge = createBridge({
+      exchangeCompletedSignIn: vi.fn(() => bridgeExchange.promise)
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      pollIntervalMs: 10
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+    expect(readPublicState().phase).toBe('verifying');
+    const [, options] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
+    expect(options?.signal?.aborted).toBe(false);
+
+    await advanceTime(10);
+    expect(readPublicState()).toMatchObject({ phase: 'expired' });
+    expect(options?.signal?.aborted).toBe(true);
+
+    bridgeExchange.resolve(createOidcSession());
+    await settleAsyncWork();
+    expect(readPublicState()).toMatchObject({ phase: 'expired' });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+  });
+
+  it('aborts an in-flight bound exchange during StrictMode provider cleanup', async () => {
+    vi.useFakeTimers({ now: 71_000 });
+    const channel = createChannel('UNMOUNT_BOUND_EXCHANGE');
+    const bridgeExchange = deferred<FarcasterOidcSession>();
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'UNMOUNT_BOUND_EXCHANGE')),
+      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+    });
+    const bridge = createBridge({
+      exchangeCompletedSignIn: vi.fn(() => bridgeExchange.promise)
+    });
+    const rendered = renderProvider({
+      strict: true,
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      pollIntervalMs: 10
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+    const [, options] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
+    expect(options?.signal?.aborted).toBe(false);
+
+    rendered.unmount();
+    expect(options?.signal?.aborted).toBe(true);
+    bridgeExchange.resolve(createOidcSession());
+    await settleAsyncWork();
+  });
+
+  it('uses a fresh binding and signal after cancellation and exchanges only the retry verifier', async () => {
+    vi.useFakeTimers({ now: 73_000 });
+    const firstChannel = createChannel('FIRST_BINDING');
+    const secondChannel = createChannel('SECOND_BINDING');
+    const authority = createAuthority({
+      beginSignIn: vi.fn()
+        .mockResolvedValueOnce(firstChannel)
+        .mockResolvedValueOnce(secondChannel),
+      getStatus: vi.fn(async () => createCompletedStatus(secondChannel.nonce, 'SECOND_BINDING')),
+      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+    });
+    const bridge = createBridge();
+    const createBrowserBinding = vi.fn()
+      .mockResolvedValueOnce({
+        verifier: BINDING_VERIFIER,
+        challenge: BINDING_CHALLENGE,
+        method: 'S256' as const
+      })
+      .mockResolvedValueOnce({
+        verifier: SECOND_BINDING_VERIFIER,
+        challenge: SECOND_BINDING_CHALLENGE,
+        method: 'S256' as const
+      });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      createBrowserBinding,
+      now: Date.now,
+      pollIntervalMs: 10
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    expect(readPublicState().phase).toBe('awaiting-approval');
+    const [, firstOptions] = vi.mocked(bridge.createChallenge).mock.calls[0]!;
+    expect(firstOptions?.signal?.aborted).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(firstOptions?.signal?.aborted).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+
+    expect(createBrowserBinding).toHaveBeenCalledTimes(2);
+    expect(bridge.createChallenge).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      bindingChallenge: BINDING_CHALLENGE
+    }), expect.any(Object));
+    expect(bridge.createChallenge).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      bindingChallenge: SECOND_BINDING_CHALLENGE
+    }), expect.any(Object));
+    expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledTimes(1);
+    const [exchange] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
+    expect(exchange.bindingVerifier).toBe(SECOND_BINDING_VERIFIER);
+    expect(exchange.bindingVerifier).not.toBe(BINDING_VERIFIER);
+    expect(JSON.stringify(readPublicState())).not.toContain(BINDING_VERIFIER);
+    expect(JSON.stringify(readPublicState())).not.toContain(SECOND_BINDING_VERIFIER);
   });
 
   it('ignores a late channel from a cancelled generation while a retry proceeds', async () => {

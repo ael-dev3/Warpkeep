@@ -1,5 +1,10 @@
 import { parseSiweMessage } from 'viem/siwe'
 import {
+  BROWSER_BINDING_METHOD,
+  isCanonicalBrowserBindingValue,
+  matchesS256BrowserBinding,
+} from './browserBinding'
+import {
   ADMIN_TOKEN_TTL_SECONDS,
   CHALLENGE_TTL_MILLISECONDS,
   ConfigurationError,
@@ -57,7 +62,7 @@ const AUTH_EPOCH_FAILURE_EVENTS: Readonly<Record<AuthEpochResolverFailureStage, 
   response_validation: 'auth_epoch_failed_response_validation',
 })
 
-const SENSITIVE_EXCHANGE_KEYS = new Set([
+const FORBIDDEN_REQUEST_KEYS = new Set([
   'channelToken', 'channelUrl', 'custody', 'verifications', 'authMethod', 'metadata',
 ])
 
@@ -229,7 +234,7 @@ async function parseObjectBody(request: Request): Promise<Record<string, unknown
 
 function requireExactKeys(value: Record<string, unknown>, allowed: readonly string[]): void {
   for (const key of Object.keys(value)) {
-    if (!allowed.includes(key) || SENSITIVE_EXCHANGE_KEYS.has(key)) {
+    if (!allowed.includes(key) || FORBIDDEN_REQUEST_KEYS.has(key)) {
       throw new HttpError(400, 'invalid_request', 'Request contains unsupported fields.')
     }
   }
@@ -295,15 +300,26 @@ function sanitizeIdentity(input: Record<string, unknown>, expectedFid: string): 
   }
 }
 
-function expectedChallengeContext(
+function parseChallengeRequest(
   request: Record<string, unknown>,
   config: BridgeConfig,
-): void {
-  if (request.domain !== undefined && request.domain !== config.domain) {
+): Pick<ChallengeRecord, 'bindingChallenge' | 'bindingMethod'> {
+  requireExactKeys(request, ['domain', 'siweUri', 'bindingChallenge', 'bindingMethod'])
+  if (request.domain !== config.domain) {
     throw new HttpError(400, 'invalid_request', 'Invalid SIWF domain.')
   }
-  if (request.siweUri !== undefined && request.siweUri !== config.siweUri) {
+  if (request.siweUri !== config.siweUri) {
     throw new HttpError(400, 'invalid_request', 'Invalid SIWF URI.')
+  }
+  if (
+    request.bindingMethod !== BROWSER_BINDING_METHOD
+    || !isCanonicalBrowserBindingValue(request.bindingChallenge)
+  ) {
+    throw new HttpError(400, 'invalid_request', 'Invalid browser binding.')
+  }
+  return {
+    bindingChallenge: request.bindingChallenge,
+    bindingMethod: BROWSER_BINDING_METHOD,
   }
 }
 
@@ -312,11 +328,6 @@ function parseExpiry(value: unknown): number {
     throw new HttpError(400, 'invalid_request', 'Invalid challenge expiry.')
   }
   return value
-}
-
-function parseChallengeRequest(body: Record<string, unknown>, config: BridgeConfig): void {
-  requireExactKeys(body, ['domain', 'siweUri'])
-  expectedChallengeContext(body, config)
 }
 
 interface ExchangeInput {
@@ -329,13 +340,26 @@ interface ExchangeInput {
   siweUri: string
   expirationTime: string
   expiresAt?: number
+  bindingVerifier: string
   identity: PublicIdentity
 }
 
-function parseExchangeRequest(body: Record<string, unknown>): ExchangeInput {
+function bindingRejection(logger: SafeLogger, event: 'exchange_binding_missing' | 'exchange_binding_invalid'): never {
+  logger.event(event)
+  throw new HttpError(401, 'browser_binding_invalid', 'This sign-in challenge is invalid.')
+}
+
+function parseExchangeRequest(body: Record<string, unknown>, logger: SafeLogger): ExchangeInput {
   requireExactKeys(body, [
-    'message', 'signature', 'nonce', 'fid', 'requestId', 'domain', 'siweUri', 'expirationTime', 'expiresAt', 'identity',
+    'message', 'signature', 'nonce', 'fid', 'requestId', 'domain', 'siweUri', 'expirationTime', 'expiresAt',
+    'bindingVerifier', 'identity',
   ])
+  if (!Object.prototype.hasOwnProperty.call(body, 'bindingVerifier')) {
+    bindingRejection(logger, 'exchange_binding_missing')
+  }
+  if (!isCanonicalBrowserBindingValue(body.bindingVerifier)) {
+    bindingRejection(logger, 'exchange_binding_invalid')
+  }
   const message = requireString(body.message, 'message', 8 * 1024)
   const signature = requireString(body.signature, 'signature', 2 + MAX_PROOF_SIGNATURE_BYTES * 2)
   const signatureHexLength = signature.length - 2
@@ -361,8 +385,22 @@ function parseExchangeRequest(body: Record<string, unknown>): ExchangeInput {
     siweUri: requireString(body.siweUri, 'siweUri', 2048),
     expirationTime: requireString(body.expirationTime, 'expirationTime', 64),
     ...(body.expiresAt === undefined ? {} : { expiresAt: parseExpiry(body.expiresAt) }),
+    bindingVerifier: body.bindingVerifier,
     identity: sanitizeIdentity(identityCandidate as Record<string, unknown>, fid),
   }
+}
+
+function sameChallengeRecord(left: ChallengeRecord, right: ChallengeRecord): boolean {
+  return left.version === right.version
+    && left.requestId === right.requestId
+    && left.nonce === right.nonce
+    && left.origin === right.origin
+    && left.domain === right.domain
+    && left.siweUri === right.siweUri
+    && left.createdAt === right.createdAt
+    && left.expiresAt === right.expiresAt
+    && left.bindingChallenge === right.bindingChallenge
+    && left.bindingMethod === right.bindingMethod
 }
 
 function verifyLocalChallenge(
@@ -597,11 +635,11 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           const origin = requireAllowedBrowserOrigin(request, config)
           await enforceRateLimit(request, 'challenge', env, dependencies.rateLimiter, logger)
           const body = await parseObjectBody(request)
-          parseChallengeRequest(body, config)
+          const browserBinding = parseChallengeRequest(body, config)
           const createdAt = now()
           const expiresAt = createdAt + CHALLENGE_TTL_MILLISECONDS
           const challenge: ChallengeRecord = {
-            version: 1,
+            version: 2,
             requestId: randomId(),
             nonce: randomSiweNonce(),
             origin,
@@ -609,9 +647,12 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             siweUri: config.siweUri,
             createdAt,
             expiresAt,
+            bindingChallenge: browserBinding.bindingChallenge,
+            bindingMethod: browserBinding.bindingMethod,
           }
           const store = dependencies.challengeStore ?? defaultChallengeStore(env)
           await store.put(challenge)
+          logger.event('challenge_binding_created')
           logger.event('challenge_issued')
           return json({
             nonce: challenge.nonce,
@@ -628,19 +669,39 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           const origin = requireAllowedBrowserOrigin(request, config)
           await enforceRateLimit(request, 'exchange', env, dependencies.rateLimiter, logger)
           const body = await parseObjectBody(request)
-          const input = parseExchangeRequest(body)
+          const input = parseExchangeRequest(body, logger)
           const store = dependencies.challengeStore ?? defaultChallengeStore(env)
           const challenge = await store.get(input.requestId)
           if (!challenge) throw new HttpError(401, 'challenge_not_found', 'This sign-in challenge is invalid or already used.')
           const currentTime = now()
           verifyLocalChallenge(input, challenge, origin, currentTime)
+          let bindingVerifier = input.bindingVerifier
+          let bindingMatches: boolean
+          try {
+            bindingMatches = await matchesS256BrowserBinding(
+              bindingVerifier,
+              challenge.bindingChallenge,
+            )
+          } catch {
+            logger.event('internal_error')
+            throw new HttpError(503, 'binding_verification_unavailable', 'Authentication is temporarily unavailable.')
+          } finally {
+            input.bindingVerifier = ''
+            body.bindingVerifier = ''
+            bindingVerifier = ''
+          }
+          if (!bindingMatches) {
+            logger.event('exchange_binding_mismatch')
+            throw new HttpError(401, 'browser_binding_invalid', 'This sign-in challenge is invalid.')
+          }
+          logger.event('exchange_binding_verified')
           verifySignedMessage(input, challenge, currentTime)
 
           // Claim the challenge before any paid/upstream work. Only one
           // contender can verify, resolve an epoch, or sign. Retryable service
           // failures restore the still-live challenge below.
           const claimed = await store.consume(input.requestId)
-          if (!claimed || claimed.nonce !== challenge.nonce || claimed.expiresAt !== challenge.expiresAt) {
+          if (!claimed || !sameChallengeRecord(claimed, challenge)) {
             logger.event('exchange_rejected')
             throw new HttpError(401, 'challenge_replayed', 'This sign-in challenge is invalid or already used.')
           }
@@ -668,8 +729,8 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             throw new HttpError(401, 'fid_mismatch', 'The Farcaster proof could not be verified.')
           }
 
-          // Resolve from authoritative server state before one-time consumption;
-          // an outage does not burn a valid five-minute user challenge.
+          // Resolve from authoritative server state after the atomic claim;
+          // an outage restores the still-live five-minute challenge below.
           let authEpoch: number
           try {
             authEpoch = requireEpoch(await (dependencies.authEpochResolver ?? defaultAuthEpochResolver(config)).resolve(verifiedFid))

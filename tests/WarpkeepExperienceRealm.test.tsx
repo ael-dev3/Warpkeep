@@ -39,6 +39,8 @@ import {
 const TEST_NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
 const TEST_ISSUER = 'https://auth.warpkeep.example';
 const TEST_AUDIENCE = 'warpkeep-spacetimedb';
+const TEST_BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+const TEST_BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 const TEST_CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
   spacetimeDatabase: 'warpkeep-89e4u',
@@ -261,6 +263,11 @@ function renderExperience({
   const authority = createTestAuthority(now);
   const rendered = testingLibraryRender(
     <FarcasterAuthProvider
+      createBrowserBinding={async () => ({
+        verifier: TEST_BINDING_VERIFIER,
+        challenge: TEST_BINDING_CHALLENGE,
+        method: 'S256'
+      })}
       deviceSessionEnvironment={deviceSessionEnvironment}
       encodeQrCode={vi.fn(async () => 'data:image/svg+xml,TEST_QR')}
       loadAuthority={async () => authority}

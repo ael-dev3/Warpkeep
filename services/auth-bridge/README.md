@@ -35,17 +35,30 @@ still required because per-client controls do not cap aggregate traffic.
 
 ## Browser contract
 
-The client calls `POST /v1/farcaster/challenge` with `{ "domain": "<configured domain>", "siweUri": "<configured SIWF URI>" }`. Domain and URI are only compared to server configuration; caller input never selects an arbitrary SIWF target.
+For every sign-in attempt, the browser generates a fresh 32-byte random verifier,
+derives its RFC 7636 `S256` challenge, and keeps the verifier only in the private
+controller for that generation. The client calls `POST /v1/farcaster/challenge`
+with `{ "domain", "siweUri", "bindingChallenge", "bindingMethod": "S256" }`.
+Domain and URI are only compared to server configuration; caller input never
+selects an arbitrary SIWF target. The Worker stores only the challenge digest in
+an exact version-2 Durable Object record and does not echo it in the response.
 
 The response is `{ "nonce", "requestId", "createdAt", "expiresAt", "domain", "siweUri", "expirationTime" }`, where timestamp fields are epoch milliseconds and `expirationTime` is the same expiry in ISO-8601 form.
 
-The exchange body is `{ message, signature, nonce, fid, requestId, domain, siweUri, expirationTime, identity }`; `identity` is `{ fid, username?, displayName?, pfpUrl? }`. The response is `{ "token": "<JWT>", "tokenType": "spacetime-access", "expiresAt": <epoch milliseconds> }`. The independently verified FID must match both supplied FID fields. Optional display fields are bounded/sanitized convenience claims, not ownership proof. Do not send the private Farcaster relay `channelToken`.
+The exchange body is `{ message, signature, nonce, fid, requestId, domain, siweUri, expirationTime, expiresAt, bindingVerifier, identity }`; `identity` is `{ fid, username?, displayName?, pfpUrl? }`. The Worker recomputes `S256(bindingVerifier)` and requires an exact match before signed-proof parsing, atomic consumption, RPC, epoch resolution, or signing. Missing, malformed, and mismatched binding values fail closed and do not consume the still-live challenge. The response is `{ "token": "<JWT>", "tokenType": "spacetime-access", "expiresAt": <epoch milliseconds> }`. The independently verified FID must match both supplied FID fields. Optional display fields are bounded/sanitized convenience claims, not ownership proof. Do not send the private Farcaster relay `channelToken`.
+
+Each controller generation owns an abort signal that is passed separately from
+the JSON body. Cancel, expiry, cross-tab logout, retry replacement, and provider
+unmount abort outstanding bridge work and drop private verifier references. This
+is best-effort browser cleanup—not guaranteed string zeroization—and the server's
+one-time challenge and expiry checks remain authoritative if bytes have already
+arrived.
 
 ## Verification and replay boundary
 
 `src/farcaster.ts` uses the official `@farcaster/auth-client` verifier with `acceptAuthAddress: true`. Before verification, the Worker checks exact configured domain, URI, nonce, request ID, and expiry in the parsed SIWE message. Signatures are bounded hexadecimal byte strings rather than hard-coded EOA length so the official verifier can handle supported smart-account signatures. The official verifier validates the signature and Farcaster FID binding.
 
-The challenge store has `put`, `get`, and atomic `consume`. Production uses one Cloudflare Durable Object per challenge rather than Workers KV, because KV get/delete cannot enforce one-time consumption under races. After local context parsing, the bridge atomically claims the challenge before Farcaster RPC, Maincloud lookup, or signing work. Definitively invalid proof/FID results remain consumed; an explicitly retryable verifier outage, Maincloud lookup failure, or signing failure restores only a still-live challenge. Every object schedules an expiry alarm and uses SQLite `deleteAll()` on consumption or expiry so abandoned challenge storage is fully deallocated. The bridge rechecks the absolute challenge deadline after upstream work and again after signing, so no completed token crosses that boundary. A replay cannot produce another token or amplify concurrent upstream work.
+The challenge store has `put`, `get`, and atomic `consume`. Production uses one Cloudflare Durable Object per challenge rather than Workers KV, because KV get/delete cannot enforce one-time consumption under races. After local context, browser-binding, and signed-message checks, the bridge atomically claims the challenge before Farcaster RPC, Maincloud lookup, or signing work. Definitively invalid proof/FID results remain consumed; an explicitly retryable verifier outage, Maincloud lookup failure, or signing failure restores only the exact still-live version-2 challenge record. Every object schedules an expiry alarm and uses SQLite `deleteAll()` on consumption or expiry so abandoned challenge storage is fully deallocated. The bridge rechecks the absolute challenge deadline after upstream work and again after signing, so no completed token crosses that boundary. A replay cannot produce another token or amplify concurrent upstream work.
 
 ## OIDC claims and auth epoch
 
@@ -78,6 +91,6 @@ node --input-type=module -e 'const pair = await crypto.subtle.generateKey({ name
 
 ## Checks, logs, and admin boundary
 
-Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`. The isolated tests cover public-only JWKS, mocked valid SIWF exchange, invalid signature/FID mismatch, replay prevention, post-upstream/signing expiry, SIWF context, CORS, raw-byte/framing body guards, distributed rate envelopes/concurrency/cleanup, fail-closed direct auth-epoch lookup, admin authentication/expiry, and static safe log events.
+Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`. The isolated tests cover canonical S256 vectors, missing/malformed/mismatched browser binding, copied-proof denial, exact version-2 record parsing and legacy purge, public-only JWKS, mocked valid SIWF exchange, invalid signature/FID mismatch, replay prevention, retry restoration, post-upstream/signing expiry, SIWF context, CORS, raw-byte/framing body guards, distributed rate envelopes/concurrency/cleanup, fail-closed direct auth-epoch lookup, admin authentication/expiry, and static safe log events.
 
 Logs are closed static event names only. The Worker never logs a SIWF message, signature, nonce, request ID, JWT, private JWK, RPC URL, procedure request/response, or admin secret. Both `/v1/admin/token` and `/v1/admin/auth-epoch-probe` require `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, reject browser `Origin` headers, emit no admin CORS headers, and are only for a server-side Hermes/admin process. Never expose the secret, returned JWT, or authenticated probe result to frontend code, and never persist the secret or returned JWT.

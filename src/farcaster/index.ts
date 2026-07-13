@@ -22,6 +22,13 @@ export {
   getDefaultFarcasterOidcBridgeClient
 } from './farcasterOidcBridgeClient';
 export {
+  FARCASTER_BROWSER_BINDING_METHOD,
+  FARCASTER_BROWSER_BINDING_VALUE_LENGTH,
+  createFarcasterBrowserBinding,
+  deriveFarcasterBrowserBindingChallenge,
+  isCanonicalFarcasterBrowserBindingValue
+} from './farcasterBrowserBinding';
+export {
   FARCASTER_AUTH_RELAY_URL,
   FARCASTER_OPTIMISM_RPC_URL
 } from './farcasterAuthClient';
@@ -31,12 +38,16 @@ export type {
   FarcasterAuthPresentation,
   FarcasterAuthPhase,
   FarcasterAuthViewState,
+  FarcasterBrowserBinding,
+  FarcasterBrowserBindingFactory,
+  FarcasterBrowserBindingMethod,
   FarcasterQrState,
   FarcasterSessionAssurance,
   FarcasterBridgeChallenge,
   FarcasterBridgeChallengeRequest,
   FarcasterBridgeDisplayIdentity,
   FarcasterBridgeExchangeRequest,
+  FarcasterBridgeRequestOptions,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
   PublicFarcasterIdentity,

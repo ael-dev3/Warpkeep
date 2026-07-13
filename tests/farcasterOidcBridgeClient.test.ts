@@ -5,13 +5,18 @@ import {
   createFarcasterOidcBridgeClient,
   type FarcasterOidcBridgeFetch
 } from '../src/farcaster/farcasterOidcBridgeClient';
-import type { FarcasterBridgeExchangeRequest } from '../src/farcaster/farcasterAuthTypes';
+import type {
+  FarcasterBridgeChallengeRequest,
+  FarcasterBridgeExchangeRequest
+} from '../src/farcaster/farcasterAuthTypes';
 
 const NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
 const ISSUER = 'https://auth.warpkeep.example';
 const AUDIENCE = 'warpkeep-spacetimedb';
 const FID = 12_345;
 const EXPIRY = NOW + 30 * 24 * 60 * 60 * 1_000;
+const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 
 function encodeSegment(value: unknown) {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
@@ -56,6 +61,7 @@ function exchangeRequest(): FarcasterBridgeExchangeRequest {
     siweUri: 'https://ael-dev3.github.io/Warpkeep/',
     expirationTime: new Date(NOW + 5 * 60 * 1_000).toISOString(),
     expiresAt: NOW + 5 * 60 * 1_000,
+    bindingVerifier: BINDING_VERIFIER,
     identity: {
       fid: FID,
       username: 'keeper',
@@ -119,10 +125,14 @@ describe('Farcaster OIDC bridge client', () => {
       fetch
     });
 
-    await expect(bridge.createChallenge!({
+    const challengeRequest = {
       domain: 'ael-dev3.github.io',
-      siweUri: 'https://ael-dev3.github.io/Warpkeep/'
-    })).resolves.toEqual({
+      siweUri: 'https://ael-dev3.github.io/Warpkeep/',
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256' as const,
+      bindingVerifier: 'MUST_NOT_CROSS_CHALLENGE_BOUNDARY'
+    };
+    await expect(bridge.createChallenge(challengeRequest)).resolves.toEqual({
       nonce: 'cd'.repeat(24),
       requestId: 'af351e21-b8b0-4aaf-8879-8bf3a9e0087d',
       createdAt: NOW,
@@ -141,8 +151,38 @@ describe('Farcaster OIDC bridge client', () => {
     expect(init?.signal).toBeInstanceOf(AbortSignal);
     expect(JSON.parse(String(init?.body))).toEqual({
       domain: 'ael-dev3.github.io',
-      siweUri: 'https://ael-dev3.github.io/Warpkeep/'
+      siweUri: 'https://ael-dev3.github.io/Warpkeep/',
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256'
     });
+    expect(String(init?.body)).not.toContain('MUST_NOT_CROSS_CHALLENGE_BOUNDARY');
+  });
+
+  it('rejects absent, downgraded, or non-canonical challenge binding before fetch', async () => {
+    const fetch = createFetch({});
+    const bridge = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://bridge.warpkeep.example',
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      fetch
+    });
+    const base = {
+      domain: 'ael-dev3.github.io',
+      siweUri: 'https://ael-dev3.github.io/Warpkeep/'
+    };
+    const invalid: unknown[] = [
+      base,
+      { ...base, bindingChallenge: BINDING_CHALLENGE, bindingMethod: 'plain' },
+      { ...base, bindingChallenge: 'A'.repeat(42), bindingMethod: 'S256' },
+      { ...base, bindingChallenge: `${'A'.repeat(42)}B`, bindingMethod: 'S256' }
+    ];
+
+    for (const request of invalid) {
+      await expect(bridge.createChallenge(
+        request as FarcasterBridgeChallengeRequest
+      )).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    }
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('exchanges an explicitly constructed proof envelope and never forwards channel/private metadata', async () => {
@@ -178,6 +218,7 @@ describe('Farcaster OIDC bridge client', () => {
     expect(body).not.toHaveProperty('channelToken');
     expect(body).not.toHaveProperty('custody');
     expect(body).not.toHaveProperty('signatureParams');
+    expect(body).not.toHaveProperty('bindingChallenge');
     expect(JSON.stringify(body)).not.toContain('PRIVATE_RELAY_CHANNEL_TOKEN');
   });
 
@@ -197,7 +238,64 @@ describe('Farcaster OIDC bridge client', () => {
         signature: signature as `0x${string}`
       })).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
     }
+    for (const bindingVerifier of [
+      '',
+      'A'.repeat(42),
+      'A'.repeat(44),
+      `${'A'.repeat(42)}B`
+    ]) {
+      await expect(bridge.exchangeCompletedSignIn({
+        ...exchangeRequest(),
+        bindingVerifier
+      })).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    }
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('composes caller cancellation with the timeout without serializing either signal', async () => {
+    const fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!signal) {
+          reject(new Error('missing signal'));
+          return;
+        }
+        const rejectAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+        if (signal.aborted) rejectAbort();
+        else signal.addEventListener('abort', rejectAbort, { once: true });
+      })
+    )) as unknown as FarcasterOidcBridgeFetch;
+    const bridge = createFarcasterOidcBridgeClient({
+      bridgeUrl: 'https://bridge.warpkeep.example',
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      fetch
+    });
+    const controller = new AbortController();
+    const pending = bridge.exchangeCompletedSignIn(exchangeRequest(), {
+      signal: controller.signal
+    });
+    await Promise.resolve();
+
+    expect(fetch).toHaveBeenCalledOnce();
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    expect(init?.signal).not.toBe(controller.signal);
+    expect(init?.signal?.aborted).toBe(false);
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    expect(body).toEqual(exchangeRequest());
+    expect(body).not.toHaveProperty('signal');
+
+    controller.abort();
+    await expect(pending).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(init?.signal?.aborted).toBe(true);
+
+    const preAborted = new AbortController();
+    preAborted.abort();
+    await expect(bridge.exchangeCompletedSignIn(exchangeRequest(), {
+      signal: preAborted.signal
+    })).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
   it('rejects an OIDC response whose token claims do not bind to the completed verified FID', async () => {

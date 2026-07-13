@@ -71,8 +71,13 @@ export interface BridgeFetchHandler {
 
 export type SafeLogEvent =
   | 'challenge_issued'
+  | 'challenge_binding_created'
   | 'exchange_succeeded'
   | 'exchange_rejected'
+  | 'exchange_binding_missing'
+  | 'exchange_binding_invalid'
+  | 'exchange_binding_mismatch'
+  | 'exchange_binding_verified'
   | 'admin_token_issued'
   | 'admin_token_rejected'
   | 'admin_probe_rejected'
@@ -99,7 +104,7 @@ export interface SafeLogger {
 }
 
 export interface ChallengeRecord {
-  version: 1
+  version: 2
   requestId: string
   nonce: string
   origin: string
@@ -107,6 +112,8 @@ export interface ChallengeRecord {
   siweUri: string
   createdAt: number
   expiresAt: number
+  bindingChallenge: string
+  bindingMethod: 'S256'
 }
 
 /**

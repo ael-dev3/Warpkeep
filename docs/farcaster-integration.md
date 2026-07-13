@@ -5,11 +5,12 @@ Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini A
 ## Authority boundary
 
 ```text
-browser creates a normal Farcaster SIWF channel
+browser creates a fresh private S256 verifier and bound SIWF challenge
+  -> browser creates a normal Farcaster SIWF channel
   -> player approves in Farcaster
   -> browser verifies the completed proof for UI consistency
-  -> browser sends only the completed proof envelope to Warpkeep's bridge
-  -> bridge independently verifies SIWF and consumes its one-time challenge
+  -> browser sends the completed proof envelope plus its private verifier to Warpkeep's bridge
+  -> bridge verifies the browser binding and SIWF, then consumes its one-time challenge
   -> bridge resolves authoritative auth_epoch through a private documented SpacetimeDB procedure call
   -> bridge returns an ES256 OIDC player token
   -> browser connects to SpacetimeDB with that token
@@ -30,10 +31,11 @@ Localhost SIWF values are accepted only for an explicitly configured development
 
 Selecting **ENTER REALM** is the only action that begins SIWF. Title load, anonymous menu load, and ordinary route rendering create neither a Farcaster channel nor a SpacetimeDB connection. Desktop remains QR-first; mobile/coarse layouts remain deep-link-first with an optional QR fallback.
 
-The private controller may hold a short-lived channel token and proof only while completing the current sign-in. The following are never placed in React view state, DOM, local storage, analytics, URLs, or logs:
+The private controller may hold a short-lived channel token, proof, and one-request browser-binding verifier only while completing the current sign-in. Each attempt gets a fresh 32-byte verifier; only its `S256` digest enters the challenge request and Durable Object record. The verifier enters only the final bridge exchange body, never the QR/deep link. Cancel, expiry, cross-tab logout, retry replacement, and provider unmount abort that generation's outstanding bridge request and drop its private references. The following are never placed in React view state, DOM, local storage, analytics, URLs, or logs:
 
 - channel token or channel URL outside the required QR/deep link presentation;
 - SIWF message, signature, nonce, request ID, custody address, verification list, or auth method;
+- browser-binding verifier or challenge digest;
 - bridge/admin JWTs, signing keys, resolver credentials, or admin secrets.
 
 On successful bridge exchange, the user-facing view state has the assurance `bridge-oidc-alpha`; its bearer material is held separately as `{ jwt, issuer, audience, expiresAt }`. The provider creates a database connection only when that session is valid and exactly matches the configured issuer/audience.
@@ -71,7 +73,7 @@ The static browser only receives public values:
 ```dotenv
 VITE_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
 VITE_SPACETIMEDB_DATABASE=warpkeep-89e4u
-VITE_WARPKEEP_SHARED_ALPHA_ENABLED=true
+VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false
 VITE_WARPKEEP_AUTH_BRIDGE_URL=https://auth.warpkeep.com
 VITE_WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com
 VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
@@ -81,11 +83,11 @@ The Worker receives secrets and server-only configuration described in [`service
 
 ## Live closed-alpha status
 
-`auth.warpkeep.com`, discovery/JWKS, distributed rate control, the direct private epoch procedure, and the matching Maincloud module are live. Fresh-profile empty-admission QA completed without creating gameplay state. The canonical 61-cell world is seeded; the allowlist, player table, and castle table remain empty, and no real FID has been admitted.
+`auth.warpkeep.com` health/discovery, distributed rate control, the direct private epoch procedure, and the matching Maincloud module remain deployed. Public challenge and exchange are deliberately paused while this binding and session hardening is reviewed. The canonical 61-cell world is seeded; the allowlist, player table, and castle table remain empty, and no real FID has been admitted.
 
 ## Tests and manual QA
 
-Automated tests use injected Farcaster authorities and bridge clients; they never call a real relay or publish proof data. They cover proof envelope minimization, v2 storage/legacy purge/expiry, bridge exchange validation, direct-realm gating, denied rendering, secure access-link attributes, same-session Check Again, sign-out disconnect, and no anonymous connection.
+Automated tests use injected Farcaster authorities and bridge clients; they never call a real relay or publish proof data. They cover canonical browser binding, copied-proof denial, exact v2 challenge storage/legacy purge/expiry, cancellation and retry isolation, proof envelope minimization, bridge exchange validation, direct-realm gating, denied rendering, secure access-link attributes, same-session Check Again, sign-out disconnect, and no anonymous connection.
 
 The reusable clean-profile denial check is:
 

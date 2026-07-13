@@ -9,6 +9,7 @@ import {
 } from '../src/spacetimeAuthEpochResolver'
 import type {
   AuthEpochResolver,
+  ChallengeStore,
   FarcasterVerifier,
   RateLimiter,
   SafeLogEvent,
@@ -20,6 +21,9 @@ const DOMAIN = 'ael-dev3.github.io'
 const SIWE_URI = 'https://ael-dev3.github.io/Warpkeep/'
 const FID = '12345'
 const ADMIN_SECRET = 'TEST_ONLY_ADMIN_SECRET_'.repeat(2)
+const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
+const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
+const WRONG_BINDING_VERIFIER = 'A'.repeat(43)
 let privateJwk: JsonWebKey
 
 beforeAll(async () => {
@@ -85,6 +89,7 @@ function harness(options: {
   verifier?: FarcasterVerifier
   rateLimiter?: RateLimiter
   signer?: AuthBridgeDependencies['signer']
+  challengeStore?: ChallengeStore
 } = {}): Harness {
   const verifier = options.verifier ?? {
     verify: vi.fn(async () => ({ fid: FID })),
@@ -95,7 +100,7 @@ function harness(options: {
   const events: SafeLogEvent[] = []
   let now = Date.now()
   const app = createAuthBridge({
-    challengeStore: new MemoryChallengeStore(),
+    challengeStore: options.challengeStore ?? new MemoryChallengeStore(),
     verifier,
     authEpochResolver: resolver,
     rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
@@ -116,8 +121,11 @@ async function issueChallenge(h: Harness): Promise<Record<string, unknown>> {
   const response = await h.app.fetch(request('/v1/farcaster/challenge', {
     domain: DOMAIN,
     siweUri: SIWE_URI,
+    bindingChallenge: BINDING_CHALLENGE,
+    bindingMethod: 'S256',
   }, { headers: { origin: ORIGIN } }), env())
   expect(response.status).toBe(201)
+  expect(h.events).toContain('challenge_binding_created')
   return json(response)
 }
 
@@ -144,6 +152,7 @@ function proofFor(challenge: Record<string, unknown>, overrides: Record<string, 
     siweUri: SIWE_URI,
     expirationTime,
     expiresAt: challenge.expiresAt,
+    bindingVerifier: BINDING_VERIFIER,
     identity: { fid: FID, username: 'warpkeeper', displayName: 'Warp Keeper', pfpUrl: 'https://cdn.example/pfp.png' },
     ...overrides,
   }
@@ -305,11 +314,15 @@ describe('Warpkeep auth bridge', () => {
     const challenge = await issueChallenge(h)
     const proof = proofFor(challenge)
 
-    const blocked = await h.app.fetch(request('/v1/farcaster/exchange', proof, {
+    const blocked = await h.app.fetch(request('/v1/farcaster/exchange', {
+      ...proof,
+      bindingVerifier: WRONG_BINDING_VERIFIER,
+    }, {
       headers: { origin: ORIGIN },
     }), env())
     expect(blocked.status).toBe(429)
     expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.events).not.toContain('exchange_binding_mismatch')
 
     const retry = await h.app.fetch(request('/v1/farcaster/exchange', proof, {
       headers: { origin: ORIGIN },
@@ -435,10 +448,76 @@ describe('Warpkeep auth bridge', () => {
     expect(h.events.filter((candidate) => candidate.startsWith('auth_epoch_failed_'))).toEqual([event])
   })
 
+  it('requires an exact canonical S256 binding before persisting a challenge', async () => {
+    const put = vi.fn(async () => undefined)
+    const challengeStore: ChallengeStore = {
+      put,
+      get: vi.fn(async () => null),
+      consume: vi.fn(async () => null),
+    }
+    const h = harness({ challengeStore })
+    const invalidRequests: Record<string, unknown>[] = [
+      { domain: DOMAIN, siweUri: SIWE_URI },
+      {
+        domain: DOMAIN,
+        siweUri: SIWE_URI,
+        bindingChallenge: BINDING_CHALLENGE,
+        bindingMethod: 'plain',
+      },
+      {
+        domain: DOMAIN,
+        siweUri: SIWE_URI,
+        bindingChallenge: 'A'.repeat(42),
+        bindingMethod: 'S256',
+      },
+      {
+        domain: DOMAIN,
+        siweUri: SIWE_URI,
+        bindingChallenge: `${'A'.repeat(42)}B`,
+        bindingMethod: 'S256',
+      },
+      {
+        domain: DOMAIN,
+        siweUri: SIWE_URI,
+        bindingChallenge: BINDING_CHALLENGE,
+        bindingMethod: 'S256',
+        bindingVerifier: BINDING_VERIFIER,
+      },
+    ]
+
+    for (const body of invalidRequests) {
+      const response = await h.app.fetch(request('/v1/farcaster/challenge', body, {
+        headers: { origin: ORIGIN },
+      }), env())
+      expect(response.status).toBe(400)
+    }
+    expect(put).not.toHaveBeenCalled()
+
+    const response = await h.app.fetch(request('/v1/farcaster/challenge', {
+      domain: DOMAIN,
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }, { headers: { origin: ORIGIN } }), env())
+    expect(response.status).toBe(201)
+    expect(put).toHaveBeenCalledOnce()
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({
+      version: 2,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }))
+    const responseText = await response.text()
+    expect(responseText).not.toContain(BINDING_CHALLENGE)
+    expect(responseText).not.toContain(BINDING_VERIFIER)
+  })
+
   it('rejects arbitrary SIWF context, invalid proof signatures, and FID mismatches', async () => {
     const h = harness()
     const badChallenge = await h.app.fetch(request('/v1/farcaster/challenge', {
-      domain: 'evil.example', siweUri: SIWE_URI,
+      domain: 'evil.example',
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
     }, { headers: { origin: ORIGIN } }), env())
     expect(badChallenge.status).toBe(400)
 
@@ -967,7 +1046,10 @@ describe('Warpkeep auth bridge', () => {
       rateLimiter: { check: async () => ({ allowed: true }) },
     })
     const challengeResponse = await app.fetch(request('/v1/farcaster/challenge', {
-      domain: DOMAIN, siweUri: SIWE_URI,
+      domain: DOMAIN,
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
     }, { headers: { origin: ORIGIN } }), env())
     const challenge = await json(challengeResponse)
     const proof = proofFor(challenge)
@@ -979,7 +1061,113 @@ describe('Warpkeep auth bridge', () => {
     expect(output).not.toContain(String(proof.signature))
     expect(output).not.toContain(String(proof.nonce))
     expect(output).not.toContain(String(proof.requestId))
+    expect(output).not.toContain(BINDING_VERIFIER)
+    expect(output).not.toContain(BINDING_CHALLENGE)
     expect(output).not.toContain(FID)
+  })
+
+  it('rejects a copied completed proof with no browser-held binding', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    const { bindingVerifier: _bindingVerifier, ...copiedProof } = proofFor(challenge)
+    const observer = await h.app.fetch(request(
+      '/v1/farcaster/exchange',
+      copiedProof,
+      { headers: { origin: ORIGIN } },
+    ), env())
+
+    expect(observer.status).toBe(401)
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+    expect(h.events).toContain('exchange_binding_missing')
+
+    const legitimate = await h.app.fetch(request(
+      '/v1/farcaster/exchange',
+      proofFor(challenge),
+      { headers: { origin: ORIGIN } },
+    ), env())
+    expect(legitimate.status).toBe(200)
+    expect(h.events).toContain('exchange_binding_verified')
+  })
+
+  it('rejects malformed binding verifiers before proof work without consuming the challenge', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    for (const bindingVerifier of [
+      '',
+      'A'.repeat(42),
+      'A'.repeat(44),
+      `${'A'.repeat(42)}B`,
+    ]) {
+      const response = await h.app.fetch(request('/v1/farcaster/exchange', {
+        ...proofFor(challenge),
+        bindingVerifier,
+      }, { headers: { origin: ORIGIN } }), env())
+      expect(response.status).toBe(401)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'browser_binding_invalid',
+          message: 'This sign-in challenge is invalid.',
+        },
+      })
+    }
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+    expect(h.events.filter((event) => event === 'exchange_binding_invalid')).toHaveLength(4)
+
+    const legitimate = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(legitimate.status).toBe(200)
+  })
+
+  it('rejects a canonical but incorrect verifier before consume and permits the bound browser retry', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    const observer = await h.app.fetch(request('/v1/farcaster/exchange', {
+      ...proofFor(challenge),
+      bindingVerifier: WRONG_BINDING_VERIFIER,
+    }, { headers: { origin: ORIGIN } }), env())
+
+    expect(observer.status).toBe(401)
+    await expect(observer.json()).resolves.toMatchObject({
+      error: { code: 'browser_binding_invalid' },
+    })
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+    expect(h.events).toContain('exchange_binding_mismatch')
+
+    const legitimate = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(legitimate.status).toBe(200)
+    expect(h.verifier.verify).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed before consume when S256 digest verification is unavailable', async () => {
+    const h = harness()
+    const challenge = await issueChallenge(h)
+    vi.spyOn(crypto.subtle, 'digest').mockRejectedValueOnce(new Error('digest unavailable'))
+
+    const unavailable = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(unavailable.status).toBe(503)
+    await expect(unavailable.json()).resolves.toEqual({
+      error: {
+        code: 'binding_verification_unavailable',
+        message: 'Authentication is temporarily unavailable.',
+      },
+    })
+    expect(h.events).toContain('internal_error')
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+
+    const retry = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(retry.status).toBe(200)
+    expect(h.events).toContain('exchange_binding_verified')
   })
 
   it('claims a challenge before upstream work so concurrent copies do not amplify it', async () => {
@@ -1061,6 +1249,29 @@ describe('Warpkeep auth bridge', () => {
     const retry = await h.app.fetch(request('/v1/farcaster/exchange', proofFor(challenge), { headers: { origin: ORIGIN } }), env())
     expect(retry.status).toBe(200)
     expect(resolver.resolve).toHaveBeenCalledTimes(2)
+  })
+
+  it('restores the complete v2 binding record after a transient signing failure', async () => {
+    const signer = vi.fn()
+      .mockRejectedValueOnce(new Error('transient signing failure'))
+      .mockResolvedValueOnce('header.payload.signature')
+    const h = harness({ signer })
+    const challenge = await issueChallenge(h)
+    const proof = proofFor(challenge)
+
+    const first = await h.app.fetch(request('/v1/farcaster/exchange', proof, {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(first.status).toBe(503)
+    await expect(first.json()).resolves.toMatchObject({ error: { code: 'signing_unavailable' } })
+
+    const retry = await h.app.fetch(request('/v1/farcaster/exchange', proof, {
+      headers: { origin: ORIGIN },
+    }), env())
+    expect(retry.status).toBe(200)
+    expect(signer).toHaveBeenCalledTimes(2)
+    expect(h.verifier.verify).toHaveBeenCalledTimes(2)
+    expect(h.resolver.resolve).toHaveBeenCalledTimes(2)
   })
 
   it('rejects an invalid signed-message expiry without converting it into a 500', async () => {

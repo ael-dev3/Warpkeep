@@ -38,6 +38,11 @@ import {
   FARCASTER_AUTH_REQUEST_TTL_MS,
   getBrowserFarcasterAuthContext
 } from './farcasterAuthContext';
+import {
+  FARCASTER_BROWSER_BINDING_METHOD,
+  createFarcasterBrowserBinding,
+  isCanonicalFarcasterBrowserBindingValue
+} from './farcasterBrowserBinding';
 import { getDefaultFarcasterOidcBridgeClient } from './farcasterOidcBridgeClient';
 import { validateFarcasterOidcSessionForIdentity } from './farcasterOidcSession';
 import type {
@@ -45,6 +50,8 @@ import type {
   FarcasterAuthContext,
   FarcasterAuthPhase,
   FarcasterAuthViewState,
+  FarcasterBrowserBinding,
+  FarcasterBrowserBindingFactory,
   FarcasterOidcBridgeClient,
   FarcasterOidcSession,
   FarcasterSessionAuthority,
@@ -67,6 +74,8 @@ export type FarcasterAuthProviderProps = Readonly<{
   /** Kept injectable so a challenge and SIWF request share one exact context. */
   resolveAuthContext?: () => FarcasterAuthContext;
   encodeQrCode?: FarcasterQrEncoder;
+  /** Generates the one-request browser-held S256 verifier in private memory. */
+  createBrowserBinding?: FarcasterBrowserBindingFactory;
   now?: () => number;
   pollIntervalMs?: number;
   /** Injection seam for storage-denied and cross-tab lifecycle tests. */
@@ -92,6 +101,7 @@ type ControllerConfig = {
   loadBridgeClient: FarcasterOidcBridgeLoader;
   resolveAuthContext: () => FarcasterAuthContext;
   encodeQrCode: FarcasterQrEncoder;
+  createBrowserBinding: FarcasterBrowserBindingFactory;
   now: () => number;
   pollIntervalMs: number;
   onBridgeAuthenticated: (
@@ -104,9 +114,11 @@ type ControllerConfig = {
 type ActiveRequest = {
   generation: number;
   expiresAt: number;
+  abortController: AbortController;
   channel?: FarcasterSignInChannel;
   pollInFlight: boolean;
   qrInFlight: boolean;
+  bindingVerifier?: string;
 };
 
 const expiredError: FarcasterAuthError = Object.freeze({
@@ -245,6 +257,7 @@ class FarcasterAuthController {
     this.activeRequest = {
       generation,
       expiresAt,
+      abortController: new AbortController(),
       pollInFlight: false,
       qrInFlight: false
     };
@@ -357,7 +370,12 @@ class FarcasterAuthController {
   private invalidatePrivateRequest() {
     this.generationCounter += 1;
     this.clearTimers();
+    const activeRequest = this.activeRequest;
     this.activeRequest = undefined;
+    if (activeRequest) {
+      activeRequest.bindingVerifier = undefined;
+      activeRequest.abortController.abort();
+    }
   }
 
   private async getAuthority() {
@@ -485,10 +503,35 @@ class FarcasterAuthController {
     }
 
     let channel: FarcasterSignInChannel;
+    let binding: FarcasterBrowserBinding | undefined;
     try {
-      const challenge = bridgeClient.createChallenge
-        ? await bridgeClient.createChallenge(context)
-        : undefined;
+      binding = await this.config.createBrowserBinding();
+      if (
+        !this.isCurrent(generation)
+        || binding.method !== FARCASTER_BROWSER_BINDING_METHOD
+        || !isCanonicalFarcasterBrowserBindingValue(binding.verifier)
+        || !isCanonicalFarcasterBrowserBindingValue(binding.challenge)
+      ) {
+        if (this.isCurrent(generation)) {
+          throw new Error('Farcaster browser binding is unavailable.');
+        }
+        return;
+      }
+      const activeRequest = this.activeRequest;
+      if (!activeRequest || activeRequest.generation !== generation) {
+        return;
+      }
+      activeRequest.bindingVerifier = binding.verifier;
+      const challengeRequest = {
+        domain: context.domain,
+        siweUri: context.siweUri,
+        bindingChallenge: binding.challenge,
+        bindingMethod: binding.method
+      };
+      binding = undefined;
+      const challenge = await bridgeClient.createChallenge(challengeRequest, {
+        signal: activeRequest.abortController.signal
+      });
       if (!this.isCurrent(generation)) {
         return;
       }
@@ -499,6 +542,8 @@ class FarcasterAuthController {
     } catch (error) {
       this.fail(generation, error);
       return;
+    } finally {
+      binding = undefined;
     }
 
     const activeRequest = this.activeRequest;
@@ -634,6 +679,12 @@ class FarcasterAuthController {
       if (!this.isCurrent(generation)) {
         return;
       }
+      const bindingVerifier = activeRequest.bindingVerifier;
+      if (!isCanonicalFarcasterBrowserBindingValue(bindingVerifier)) {
+        this.fail(generation, undefined, invalidStatusError);
+        return;
+      }
+      activeRequest.bindingVerifier = undefined;
       const bridgeSession = await bridgeClient.exchangeCompletedSignIn({
         message: status.message,
         signature: status.signature,
@@ -644,12 +695,15 @@ class FarcasterAuthController {
         siweUri: channel.siweUri,
         expirationTime: new Date(channel.expiresAt).toISOString(),
         expiresAt: channel.expiresAt,
+        bindingVerifier,
         identity: {
           fid: identity.fid,
           ...(identity.username === undefined ? {} : { username: identity.username }),
           ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
           ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl })
         }
+      }, {
+        signal: activeRequest.abortController.signal
       });
       if (!this.isCurrent(generation)) {
         return;
@@ -719,6 +773,7 @@ export function FarcasterAuthProvider({
   loadBridgeClient = getDefaultFarcasterOidcBridgeClient,
   resolveAuthContext = getBrowserFarcasterAuthContext,
   encodeQrCode = defaultEncodeQrCode,
+  createBrowserBinding = createFarcasterBrowserBinding,
   now = Date.now,
   pollIntervalMs,
   deviceSessionEnvironment
@@ -799,6 +854,7 @@ export function FarcasterAuthProvider({
     loadBridgeClient,
     resolveAuthContext,
     encodeQrCode,
+    createBrowserBinding,
     now,
     pollIntervalMs: normalizePollInterval(pollIntervalMs),
     onBridgeAuthenticated: persistBridgeSession,
