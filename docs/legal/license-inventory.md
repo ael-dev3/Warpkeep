@@ -1,6 +1,8 @@
 # Warpkeep License Inventory
 
-This inventory records the licensing surface at the PR #11 head (`2e9f3cf`) while the package is `0.2.0`. It is a path-based audit, not a claim that every file in a category has identical ownership. File-specific provenance and hashes remain in [`ASSETS-LICENSE.md`](../../ASSETS-LICENSE.md) and the dated reference manifests.
+This inventory records the licensing surface at the Alpha 0.3.0 cutover from post-PR #15 main (`b124c75`). It is a path-based audit, not a claim that every file in a category has identical ownership. File-specific provenance and hashes remain in [`ASSETS-LICENSE.md`](../../ASSETS-LICENSE.md) and the dated reference manifests.
+
+Active software policy is `Apache-2.0`. Active project-owned creative-content policy is `CC-BY-4.0` for new or modified material where authority is confirmed. Historical texts remain at `licenses/legacy/LICENSE-0BSD-v0.2.0` and `licenses/legacy/LICENSE-CC0-1.0-v0.2.0`.
 
 ## Classification matrix
 
@@ -25,7 +27,7 @@ This inventory records the licensing surface at the PR #11 head (`2e9f3cf`) whil
 | `services/auth-bridge/package.json` and pnpm lock | Worker dependency metadata | No explicit package license currently | Add `Apache-2.0` at cutover | Warpkeep controls its package metadata; dependencies remain upstream | `pnpm-lock.yaml` is generated/package metadata | Update manifest only at cutover |
 | `spacetimedb/package.json` and pnpm lock | Module dependency metadata | No explicit package license currently | Add `Apache-2.0` at cutover | Warpkeep controls its package metadata; SpacetimeDB remains upstream | Module package is not the SpacetimeDB SDK license | Update manifest only at cutover |
 | `.env.example`, `.dev.vars.example`, `wrangler.toml`, `vite.config.ts`, tsconfigs | Configuration and safe templates | Historical software policy for project-authored config | `Apache-2.0` for new/modified project config | Project-authored config; hosted services and tools remain external | Examples contain placeholders and must never contain secrets | Add software SPDX metadata where appropriate |
-| `LICENSE`, `LICENSE-CC0` | Exact active historical legal texts | Active `0BSD` and `CC0-1.0` texts | Preserve under unambiguous legacy paths at cutover | Canonical text is upstream; historical repository application is recorded | These files are intentionally unchanged by this transition PR | Copy exact Apache/CC-BY texts only in first v0.3.0 cutover commit |
+| `LICENSE`, `LICENSE-CC-BY-4.0` | Exact active legal texts | Historical `0BSD` and `CC0-1.0` texts | Active `Apache-2.0` and `CC-BY-4.0` texts | Canonical text is upstream; repository application is recorded | Historical texts are preserved at `licenses/legacy/LICENSE-0BSD-v0.2.0` and `licenses/legacy/LICENSE-CC0-1.0-v0.2.0` | Preserve exact active and historical bytes |
 | `docs/legal/v0.3.0-cutover.json` | Machine-readable future cutover attestation | Deliberately absent | Added only in attestation Commit B and points to cutover Commit A | Warpkeep release metadata | A commit cannot attest its own SHA; the verifier resolves A from Git and checks A plus current `HEAD` | Create Commit A on the final base, add the exact record in Commit B, and preserve both SHAs during integration |
 | Third-party dependencies and vendored/upstream code | External libraries, fonts, models, tools, and actions | Original terms | Original terms | Upstream owners | No static dependency-license dump is currently maintained | Preserve notices; generate a reproducible report during cutover/security audit if needed |
 
@@ -43,4 +45,4 @@ Historical repository license statements are retained as historical statements a
 
 ## Audit method and evidence
 
-The audit covered 287 tracked paths at PR #11 head `2e9f3cf`, all root and nested package manifests/lockfiles, all top-level and `docs/**` Markdown, all seven asset manifests, all reference archive READMEs, generated binding headers, `.github/**`, `.env` templates, SPDX/license-term searches, asset-introduction history, tags/releases, and PR #11's six commits and changed-file list. No tags or GitHub Releases were present at audit time. Major asset introduction commits are recorded by `git log --diff-filter=A` and the dated manifests retain byte counts and SHA-256 values.
+The preparation audit covered 287 tracked paths at PR #11 head `2e9f3cf`; the cutover was then reconciled through deployed Alpha 0.2 main and merged PR #15 before Commit A. The inventory includes all root and nested package manifests/lockfiles, top-level and `docs/**` Markdown, asset manifests, reference archive READMEs, generated binding headers, `.github/**`, `.env` templates, SPDX/license-term searches, and asset-introduction history. Major asset introduction commits remain discoverable with `git log --diff-filter=A`, and dated manifests retain byte counts and SHA-256 values.

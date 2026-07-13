@@ -2,6 +2,7 @@
   "name": "warpkeep-spacetimedb-module",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@11.7.0",
   "description": "Warpkeep's closed-alpha SpacetimeDB authority module.",

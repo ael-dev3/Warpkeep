@@ -1,8 +1,8 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.2.0",
-  "license": "0BSD",
+  "version": "0.3.0",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

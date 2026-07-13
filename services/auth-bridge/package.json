@@ -2,6 +2,7 @@
   "name": "@warpkeep/auth-bridge",
   "private": true,
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "description": "Farcaster SIWF to Warpkeep OIDC bridge for Cloudflare Workers",
   "type": "module",
   "packageManager": "pnpm@11.7.0",

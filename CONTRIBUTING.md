@@ -14,8 +14,9 @@ Thank you for helping build Warpkeep in the open. Contributions should keep the 
 Contributions included in a release follow the licensing policy for that release and material category:
 
 - Through v0.2.0, Warpkeep software follows the historical `0BSD` policy and confirmed project-owned creative material follows the historical `CC0-1.0` policy.
-- Beginning with v0.3.0, new or modified Warpkeep code, scripts, tests, configuration, and workflows are intended to be `Apache-2.0`.
-- Beginning with v0.3.0, new or modified confirmed project-owned documentation, lore, images, audio, video, models, reference material, and manifests are intended to be `CC-BY-4.0`.
+- Active software license: Apache-2.0
+- Active project-owned creative-content license: CC-BY-4.0
+- Beginning with v0.3.0, those policies apply to new or modified Warpkeep work in their respective categories.
 - Third-party, externally governed, generated, and uncertain-provenance material keeps its original terms unless the project has documented the right to license it.
 
 Contributors retain their copyright. No copyright assignment is required, and Warpkeep does not use a heavyweight CLA. By submitting a contribution for inclusion, you confirm that you have the right to submit it and agree that it may be distributed under the applicable release policy.

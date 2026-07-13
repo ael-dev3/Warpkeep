@@ -2,9 +2,11 @@
 
 This file records the license and provenance status of runtime media, archived references, generated derivatives, and asset manifests. Repository presence or delivery by Ael does not by itself establish copyright ownership or transferable licensing authority.
 
-## Policy transition
+## Active policy
 
-Through v0.2.0, confirmed project-owned creative material was made available under the historical `CC0-1.0` policy. Beginning with v0.3.0, new or modified confirmed project-owned creative material is intended to be `CC-BY-4.0`.
+Active project-owned creative-content license: CC-BY-4.0
+
+Through v0.2.0, confirmed project-owned creative material was made available under the historical `CC0-1.0` policy. Beginning with v0.3.0, new or modified confirmed project-owned creative material is licensed under `CC-BY-4.0` where Warpkeep has authority to grant it.
 
 Historical CC0 versions remain available under CC0-1.0. Third-party and externally governed assets remain under their original terms. No future license is assigned to an asset whose authority is incomplete or ambiguous.
 
@@ -18,11 +20,11 @@ Historical CC0 versions remain available under CC0-1.0. Third-party and external
 
 ## Software license
 
-Source code, scripts, configuration, tests, and other software files remain under the active historical Zero-Clause BSD license (`0BSD`) through v0.2.0. See [`LICENSE`](LICENSE). The first v0.3.0 cutover will move new or modified Warpkeep software to Apache-2.0; it must not relicense dependencies or upstream tools.
+Source code, scripts, configuration, tests, and other new or modified v0.3 software are under Apache-2.0; see [`LICENSE`](LICENSE). Historical 0BSD grants remain valid at [`licenses/legacy/LICENSE-0BSD-v0.2.0`](licenses/legacy/LICENSE-0BSD-v0.2.0). Neither policy relicenses dependencies or upstream tools.
 
 ## Documentation, lore, and manifests
 
-Project-authored documentation, design notes, lore, and manifests follow the historical `CC0-1.0` policy through v0.2.0 and the future `CC-BY-4.0` policy for new or modified confirmed project-owned material from v0.3.0. Documentation that records external source terms does not grant those terms away.
+Project-authored documentation, design notes, lore, and manifests follow the historical `CC0-1.0` policy through v0.2.0 and the active `CC-BY-4.0` policy for new or modified confirmed project-owned material from v0.3.0. Documentation that records external source terms does not grant those terms away.
 
 ## Hegemony menu media provenance
 
