@@ -1,14 +1,18 @@
 # Warpkeep closed-alpha activation and recovery runbook
 
 This runbook preserves the Alpha 0.2 recovery record and defines the approval
-gates for a future protocol-v2 rollout.
+gates and recorded checkpoint for the protocol-v2 rollout.
 
-> **Repository-only additive v2 target — no rollout executed.** The current v2
-> code and pinned-CLI migration rehearsal are local evidence only. They have not
-> published or mutated Maincloud, migrated Cloudflare storage, configured
-> production secrets, deployed a Worker/frontend, or enabled auth. Keep
-> `PUBLIC_AUTH_ENABLED=false` and `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false`
-> until their final, separately approved enable gates.
+> **Protocol-v2 backend staged; public entry remains paused.** The additive
+> module has been published to the existing Maincloud database with deletion
+> prohibited, the additive `SessionFamily` migration and independent managed
+> session-cookie secret have been staged, and the reviewed Worker is deployed
+> with `PUBLIC_AUTH_ENABLED=false`. The protected aggregate remains at 61 world
+> tiles with zero admission, player, ownership, orphan, castle, and allowlist
+> rows. The v2 frontend changes are not yet deployed and
+> `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false`. These observations are bound to
+> the privately recorded deployment coordinates; they do not authorize either
+> public switch.
 
 ## Historical activation record
 
@@ -16,8 +20,9 @@ Recorded Alpha 0.2 coordinates previously passed discovery/JWKS, distributed
 rate control, the raw admin epoch lookup, non-destructive module publish, and
 protected aggregate inspection at 61 world tiles with empty admission/player/
 castle state. Those observations apply only to their recorded deployed heads.
-They are not evidence that the local v2 module, Worker, session-family Durable
-Object, cookie secret, or frontend is live.
+The later v2 module and paused Worker checkpoint is recorded separately and is
+likewise not evidence that an arbitrary checkout, frontend build, or
+public-auth state is live.
 
 ## Safety invariants
 
@@ -100,7 +105,10 @@ and private `player_ownership_v2` are appended, the 61-tile empty fixture remain
 empty, a synthetic nonempty legacy row is preserved, a second publish is
 idempotent, partial state is detected, and guarded v1 rollback is refused before
 any schema change.
-This is repository-only compatibility evidence, not a Maincloud publication.
+That command is repository-only compatibility evidence. The separately
+approved production checkpoint published the same guarded additive contract to
+the existing database with `--delete-data=never`; only the recorded identity,
+aggregate, and post-publish probes attest that publication.
 
 The legacy public `player` table remains byte-compatible, including its opaque
 Identity column, and is frozen and inert: protocol-v2 authorization, bootstrap,
@@ -343,6 +351,35 @@ Only a final explicit enable approval may change Worker public auth from false;
 only a separate final explicit enable approval may change frontend shared-alpha
 access from false. Enable Worker first, verify exact-head v2 behavior, then
 enable the frontend. Never enable a v2 frontend against a v1 Worker/module.
+
+Immediately after an approved Worker enable, run the tokenless enabled-profile
+check before enabling the frontend:
+
+```sh
+WARPKEEP_EXPECTED_DEPLOYED_SHA=<full-pages-sha> \
+  npm run verify:alpha-production -- --require-auth-v2-enabled
+```
+
+`--require-auth-v2-enabled` is deliberately distinct from the existing
+`--require-auth-v2` paused-profile gate. The enabled check makes only bounded,
+no-store `GET` and `OPTIONS` requests. It requires the health document to attest
+`publicAuthEnabled: true`, then verifies exact discovery/JWKS coordinates,
+retired v1 routes, v2 allowed- and hostile-origin preflights, security headers,
+and browser isolation of all three server-only admin paths. For each admin path
+it verifies an allowed-origin `GET` plus allowed- and hostile-origin `OPTIONS`
+preflights, with no `Access-Control-*` response headers. It sends no body,
+authorization, cookie, FID, proof, QR payload, or bearer token and never calls
+challenge, exchange, refresh, or logout with `POST`, so it creates no
+challenge/session or production application state.
+
+Run this public check in addition to—not instead of—the required additive
+aggregate gate. It does **not** prove the private configuration digest, observed
+Cloudflare source/deployment coordinate, Maincloud resolver execution, SIWF
+exchange, cookie rotation/revocation, or an end-to-end player connection. Verify
+the reviewed enabled config-attestation digest and exact Cloudflare source and
+deployment version separately through their existing bounded server/platform
+checks. Then perform the immediate clean-profile owner QA below; neither source
+coordinates nor a passing tokenless check substitutes for that QA.
 
 ## 8. Owner QA after approved enablement
 

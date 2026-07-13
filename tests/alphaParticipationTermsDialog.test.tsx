@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AlphaParticipationTermsDialog } from '../src/components/menu/AlphaParticipationTermsDialog';
+import {
+  WARPKEEP_ALPHA_PRIVACY_URL,
+  WARPKEEP_ALPHA_TERMS_URL
+} from '../src/legal/publicDocuments';
 
 afterEach(() => {
   cleanup();
@@ -64,6 +68,29 @@ describe('AlphaParticipationTermsDialog', () => {
     fireEvent.click(acceptance);
     expect(acceptance.checked).toBe(false);
     expect(continueButton.disabled).toBe(true);
+  });
+
+  it('offers the stable full Terms and Privacy documents before consent without starting auth', () => {
+    const { onCancel, onContinue } = renderDialog();
+
+    const termsLink = screen.getByRole('link', { name: 'full Alpha Terms' });
+    const privacyLink = screen.getByRole('link', { name: 'Privacy Notice' });
+    expect(termsLink.getAttribute('href')).toBe(WARPKEEP_ALPHA_TERMS_URL);
+    expect(privacyLink.getAttribute('href')).toBe(WARPKEEP_ALPHA_PRIVACY_URL);
+
+    for (const link of [termsLink, privacyLink]) {
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')?.split(/\s+/)).toEqual(
+        expect.arrayContaining(['noopener', 'noreferrer'])
+      );
+    }
+
+    expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole('button', {
+      name: 'CONTINUE TO SIGN-IN'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onContinue).not.toHaveBeenCalled();
   });
 
   it('allows exactly one continuation even when the form is activated twice', () => {

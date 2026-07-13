@@ -53,6 +53,11 @@ const AUTH_V2_PAUSED_PATHS = new Set([
   '/v2/farcaster/exchange',
   '/v2/session/refresh',
 ]);
+const AUTH_V2_SERVER_ONLY_ADMIN_PATHS = new Set([
+  '/v1/admin/token',
+  '/v1/admin/auth-epoch-probe',
+  '/v1/admin/config-attestation',
+]);
 let publicJwk: JsonWebKey;
 
 beforeAll(async () => {
@@ -97,12 +102,19 @@ function validDocuments() {
 
 type AuthV2FixtureOptions = {
   health?: Record<string, unknown>;
+  publicAuthEnabled?: boolean;
   discoveryClaims?: string[];
   omitSecurityHeader?: string;
   legacyNotRetired?: boolean;
   omitCredentialedCors?: boolean;
   exposeHostileCors?: boolean;
   publicRoutesNotPaused?: boolean;
+  publicRoutesPaused?: boolean;
+  adminCorsLeak?: Readonly<{
+    pathname: string;
+    method: 'GET' | 'OPTIONS';
+    origin: string;
+  }>;
 };
 
 function authV2Headers(
@@ -149,6 +161,7 @@ function authV2EmptyResponse(
 }
 
 function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
+  const publicAuthEnabled = options.publicAuthEnabled ?? false;
   return vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
     const method = init?.method ?? 'GET';
@@ -161,7 +174,7 @@ function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
         ok: true,
         service: 'warpkeep-auth-bridge',
         securityProfile: 'warpkeep-auth-v2',
-        publicAuthEnabled: false,
+        publicAuthEnabled,
       }, 200, {}, options.omitSecurityHeader);
     }
     if (method === 'GET' && url.pathname === '/.well-known/openid-configuration') {
@@ -223,10 +236,9 @@ function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
       if (options.omitCredentialedCors && origin === FRONTEND) {
         delete (cors as Record<string, string>)['access-control-allow-credentials'];
       }
-      if (AUTH_V2_PAUSED_PATHS.has(url.pathname)) {
-        if (options.publicRoutesNotPaused) {
-          return authV2EmptyResponse(204, cors, options.omitSecurityHeader);
-        }
+      const publicRoutesPaused = options.publicRoutesPaused
+        ?? (!publicAuthEnabled && !options.publicRoutesNotPaused);
+      if (AUTH_V2_PAUSED_PATHS.has(url.pathname) && publicRoutesPaused) {
         return authV2JsonResponse({
           error: {
             code: 'public_auth_paused',
@@ -245,10 +257,20 @@ function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
       }, 403, {}, options.omitSecurityHeader);
     }
 
-    if (method === 'OPTIONS' && url.pathname === '/v1/admin/token') {
+    if (
+      (method === 'GET' || method === 'OPTIONS')
+      && AUTH_V2_SERVER_ONLY_ADMIN_PATHS.has(url.pathname)
+    ) {
+      const leak = options.adminCorsLeak;
+      const cors: HeadersInit = leak
+        && leak.pathname === url.pathname
+        && leak.method === method
+        && leak.origin === origin
+        ? { 'access-control-allow-origin': origin }
+        : {};
       return authV2JsonResponse({
         error: { code: 'not_found', message: 'Route not found.' },
-      }, 404, {}, options.omitSecurityHeader);
+      }, 404, cors, options.omitSecurityHeader);
     }
     throw new Error(`Unexpected fixture request: ${method} ${url.pathname}`);
   });
@@ -750,12 +772,11 @@ describe('bounded auth-v2 production readiness verification', () => {
       fetchImpl,
     })).resolves.toBeUndefined();
 
-    expect(fetchImpl).toHaveBeenCalledTimes(14);
+    expect(fetchImpl).toHaveBeenCalledTimes(22);
     for (const [input, init] of fetchImpl.mock.calls) {
       const url = new URL(String(input));
       const headers = new Headers(init?.headers);
       expect(url.origin).toBe(ISSUER);
-      expect(url.pathname).not.toBe('/v1/admin/config-attestation');
       expect(init?.method ?? 'GET').toMatch(/^(?:GET|OPTIONS)$/);
       expect(init?.body).toBeUndefined();
       expect(init?.redirect).toBe('manual');
@@ -772,13 +793,119 @@ describe('bounded auth-v2 production readiness verification', () => {
         expect(headers.get('access-control-request-headers')).toBe('content-type');
         expect([FRONTEND, 'https://not-warpkeep.invalid']).toContain(headers.get('origin'));
       }
-      if (url.pathname === '/v1/admin/token') {
-        expect(headers.get('access-control-request-headers')).toBe('authorization, content-type');
+      if (AUTH_V2_SERVER_ONLY_ADMIN_PATHS.has(url.pathname)) {
+        expect([FRONTEND, 'https://not-warpkeep.invalid']).toContain(headers.get('origin'));
+        if (init?.method === 'OPTIONS') {
+          expect(headers.get('access-control-request-method')).toBe('POST');
+          expect(headers.get('access-control-request-headers')).toBe('authorization, content-type');
+        } else {
+          expect(headers.has('access-control-request-method')).toBe(false);
+          expect(headers.has('access-control-request-headers')).toBe(false);
+        }
       }
+    }
+    for (const pathname of AUTH_V2_SERVER_ONLY_ADMIN_PATHS) {
+      const calls = fetchImpl.mock.calls.filter(([input]) => new URL(String(input)).pathname === pathname);
+      expect(calls).toHaveLength(3);
+      expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS']);
     }
     expect(log).toHaveBeenCalledWith(
       'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified',
     );
+  });
+
+  it('attests enabled auth-v2 without creating challenge or session state', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const fetchImpl = authV2BridgeFetch({ publicAuthEnabled: true });
+
+    await expect(verifyBridge(FRONTEND, ISSUER, {
+      requireAuthV2Enabled: true,
+      fetchImpl,
+    })).resolves.toBeUndefined();
+
+    expect(fetchImpl).toHaveBeenCalledTimes(22);
+    for (const [input, init] of fetchImpl.mock.calls) {
+      const url = new URL(String(input));
+      const headers = new Headers(init?.headers);
+      expect(url.origin).toBe(ISSUER);
+      expect(init?.method ?? 'GET').toMatch(/^(?:GET|OPTIONS)$/);
+      expect(init?.body).toBeUndefined();
+      expect(init?.redirect).toBe('manual');
+      expect(init?.cache).toBe('no-store');
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      expect(headers.has('authorization')).toBe(false);
+      expect(headers.has('cookie')).toBe(false);
+      expect(headers.has('x-fid')).toBe(false);
+    }
+    for (const pathname of AUTH_V2_SERVER_ONLY_ADMIN_PATHS) {
+      const calls = fetchImpl.mock.calls.filter(([input]) => new URL(String(input)).pathname === pathname);
+      expect(calls).toHaveLength(3);
+      expect(calls.map(([, init]) => init?.method)).toEqual(['GET', 'OPTIONS', 'OPTIONS']);
+    }
+    expect(log).toHaveBeenCalledWith(
+      'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified',
+    );
+  });
+
+  it.each([
+    [
+      'a disabled public-auth switch',
+      { publicAuthEnabled: false },
+      /enabled Warpkeep security profile/i,
+    ],
+    [
+      'paused public routes behind an enabled health response',
+      { publicAuthEnabled: true, publicRoutesPaused: true },
+      /enabled preflight did not return an empty HTTP 204 response/i,
+    ],
+  ] as const)(
+    'fails the enabled auth-v2 gate for %s',
+    async (_label, options, expectedError) => {
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      await expect(verifyBridge(FRONTEND, ISSUER, {
+        requireAuthV2Enabled: true,
+        fetchImpl: authV2BridgeFetch(options),
+      })).rejects.toThrow(expectedError);
+    },
+  );
+
+  it.each([...AUTH_V2_SERVER_ONLY_ADMIN_PATHS])(
+    'fails closed when allowed-origin GET exposes CORS on %s',
+    async (pathname) => {
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      await expect(verifyBridge(FRONTEND, ISSUER, {
+        requireAuthV2Enabled: true,
+        fetchImpl: authV2BridgeFetch({
+          publicAuthEnabled: true,
+          adminCorsLeak: { pathname, method: 'GET', origin: FRONTEND },
+        }),
+      })).rejects.toThrow(/exposed browser CORS/i);
+    },
+  );
+
+  it.each([
+    ...[...AUTH_V2_SERVER_ONLY_ADMIN_PATHS].map(pathname => [pathname, FRONTEND] as const),
+    ...[...AUTH_V2_SERVER_ONLY_ADMIN_PATHS].map(pathname => [pathname, 'https://not-warpkeep.invalid'] as const),
+  ])(
+    'fails closed when an admin preflight exposes CORS on %s to %s',
+    async (pathname, origin) => {
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      await expect(verifyBridge(FRONTEND, ISSUER, {
+        requireAuthV2Enabled: true,
+        fetchImpl: authV2BridgeFetch({
+          publicAuthEnabled: true,
+          adminCorsLeak: { pathname, method: 'OPTIONS', origin },
+        }),
+      })).rejects.toThrow(/exposed browser CORS/i);
+    },
+  );
+
+  it('rejects simultaneous paused and enabled auth-v2 library modes', async () => {
+    await expect(verifyBridge(FRONTEND, ISSUER, {
+      requireAuthV2: true,
+      requireAuthV2Enabled: true,
+      fetchImpl: authV2BridgeFetch(),
+    })).rejects.toThrow(/mutually exclusive/i);
   });
 
   it.each([
@@ -982,6 +1109,24 @@ describe('protected aggregate child isolation', () => {
       requireProtectedAggregate: false,
       requireAdditiveV2Aggregate: true,
       requireAuthV2: true,
+      requireAuthV2Enabled: false,
+    });
+    expect(parseProductionVerifierArguments([
+      '--require-auth-v2-enabled',
+    ])).toEqual({
+      requireProtectedAggregate: false,
+      requireAdditiveV2Aggregate: false,
+      requireAuthV2: false,
+      requireAuthV2Enabled: true,
+    });
+    expect(parseProductionVerifierArguments([
+      '--require-auth-v2-enabled',
+      '--require-additive-v2-aggregate',
+    ])).toEqual({
+      requireProtectedAggregate: false,
+      requireAdditiveV2Aggregate: true,
+      requireAuthV2: false,
+      requireAuthV2Enabled: true,
     });
     expect(() => parseProductionVerifierArguments(['--require-auth-v3']))
       .toThrow(/unknown or duplicate/i);
@@ -989,6 +1134,10 @@ describe('protected aggregate child isolation', () => {
       '--require-auth-v2',
       '--require-auth-v2',
     ])).toThrow(/unknown or duplicate/i);
+    expect(() => parseProductionVerifierArguments([
+      '--require-auth-v2',
+      '--require-auth-v2-enabled',
+    ])).toThrow(/mutually exclusive/i);
   });
 
   it('fails closed when the activation gate requires an unavailable aggregate credential', () => {

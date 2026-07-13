@@ -4,11 +4,14 @@ Warpkeep contains a TypeScript SpacetimeDB authority module under
 [`spacetimedb/`](../spacetimedb/). It is authoritative shared-world code, not a
 browser mock.
 
-> **Local protocol-v2 draft — not published.** The checked-out module, bridge,
-> browser, tests, and bindings describe the next contract. This work did not
-> publish or mutate Maincloud, migrate a Durable Object, configure a production
-> secret, deploy a Worker/frontend, or enable auth. Historical production
-> records are not evidence that this local v2 head is live.
+> **Protocol-v2 backend staged; public entry remains paused.** The guarded
+> additive module has been published to the existing Maincloud database with
+> deletion prohibited. The exact v2 aggregate remains empty apart from the 61
+> canonical world tiles and audit count. The paused Worker is deployed with its
+> additive session-family storage and independent managed cookie secret, while
+> both public switches remain false. Only the privately recorded identity,
+> source, deployment, aggregate, and probe coordinates attest that checkpoint;
+> an arbitrary local checkout does not.
 
 ## Version contract
 
@@ -210,14 +213,19 @@ The historical closed-alpha database coordinate is `warpkeep-89e4u` on
 `https://maincloud.spacetimedb.com`. Recorded Alpha 0.2 inspection found 61
 world tiles and empty allowlist/player/castle state, but that historical record
 must be rechecked read-only before any future mutation. The current bounded,
-counts-only read reproduced that baseline without exposing rows; this v2 work
-made no mutation and claims no deployment state.
+counts-only v2 aggregate reproduced that baseline without exposing rows and
+confirmed the additive pair and zero orphan state after the guarded publication.
+The publication changed schema only: it did not mutate admission, player,
+ownership, castle, allowlist, or world rows.
 
 The v2 rollout must be staged, exact-head verified, and explicitly approved at
 each authority boundary. This head uses an additive protocol-v2 design: the
 exact legacy `player` shape and original table prefix stay frozen, while public
 `player_v2` and private `player_ownership_v2` are appended. Historical evidence
-that legacy `player` was empty does not waive a fresh zero-row check:
+that legacy `player` was empty does not waive a fresh zero-row check. The
+recorded checkpoint completed steps 1 through 9 below; step 10 and the ordered
+enable/QA gates in step 11 remain pending. Every future republish repeats the
+applicable gates:
 
 1. keep `PUBLIC_AUTH_ENABLED=false` and the frontend shared-alpha switch false;
 2. run `npm run stdb:verify-additive-migration` and retain its local,

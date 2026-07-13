@@ -21,7 +21,10 @@ import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
 import { SettingsPanel } from './SettingsPanel';
 import { WarpkeepBuildStamp } from './WarpkeepBuildStamp';
 import { menuCommands, type MenuCommand, type MenuCommandId } from './menuCommands';
-import type { WarpkeepBuildInfo } from '../../build/buildInfo';
+import {
+  DEFAULT_WARPKEEP_REPOSITORY_URL,
+  type WarpkeepBuildInfo
+} from '../../build/buildInfo';
 import type {
   GraphicsPreference,
   GraphicsQualityTier
@@ -896,6 +899,29 @@ export function WarpkeepMainMenu({
                 </li>
               ))}
             </ol>
+            <section
+              aria-labelledby="warpkeep-menu-project-heading"
+              className="warpkeep-menu-project"
+            >
+              <h2
+                className="warpkeep-menu-project__heading"
+                id="warpkeep-menu-project-heading"
+              >
+                PROJECT
+              </h2>
+              <a
+                aria-label="Open Warpkeep repository on GitHub (opens in a new tab)"
+                className="warpkeep-menu-project__link"
+                href={DEFAULT_WARPKEEP_REPOSITORY_URL}
+                referrerPolicy="no-referrer"
+                rel="noopener noreferrer"
+                tabIndex={interactive ? 0 : -1}
+                target="_blank"
+              >
+                <span>WARPKEEP ON GITHUB</span>
+                <span aria-hidden="true" className="warpkeep-menu-project__external-mark">↗</span>
+              </a>
+            </section>
           </nav>
           <WarpkeepBuildStamp buildInfo={buildInfo} />
         </>

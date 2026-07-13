@@ -7,6 +7,10 @@ import {
   type FormEvent
 } from 'react';
 
+import {
+  WARPKEEP_ALPHA_PRIVACY_URL,
+  WARPKEEP_ALPHA_TERMS_URL
+} from '../../legal/publicDocuments';
 import './AlphaParticipationTermsDialog.css';
 
 export type AlphaParticipationTermsDialogProps = Readonly<{
@@ -177,7 +181,26 @@ export function AlphaParticipationTermsDialog({
               Participation will not earn or entitle you to rewards, tokens, points, airdrops,
               or guaranteed financial gain.
             </p>
-            <p>There is no promise of future rewards.</p>
+            <p className="warpkeep-alpha-terms__documents">
+              Review the{' '}
+              <a
+                href={WARPKEEP_ALPHA_TERMS_URL}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                full Alpha Terms
+              </a>
+              {' '}and{' '}
+              <a
+                href={WARPKEEP_ALPHA_PRIVACY_URL}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Privacy Notice
+              </a>
+              {' '}before continuing.
+            </p>
+            <p className="warpkeep-alpha-terms__warning">There is no promise of future rewards.</p>
           </div>
 
           <label className="warpkeep-alpha-terms__acceptance" htmlFor={checkboxId}>

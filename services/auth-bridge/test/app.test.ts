@@ -29,6 +29,11 @@ const SIWE_URI = 'https://warpkeep.example/Warpkeep/'
 const FID = '12345'
 const ADMIN_SECRET = 'TEST_ONLY_ADMIN_SECRET_'.repeat(2)
 const SESSION_COOKIE_KEY = 'TEST_ONLY_SESSION_COOKIE_KEY_'.repeat(2)
+const SERVER_ONLY_ADMIN_PATHS = [
+  '/v1/admin/token',
+  '/v1/admin/auth-epoch-probe',
+  '/v1/admin/config-attestation',
+] as const
 const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
 const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
 const WRONG_BINDING_VERIFIER = 'A'.repeat(43)
@@ -363,6 +368,48 @@ describe('Warpkeep auth bridge', () => {
     expect(response.status).toBe(403)
     expect(check).not.toHaveBeenCalled()
   })
+
+  it.each(SERVER_ONLY_ADMIN_PATHS.flatMap(pathname => [ORIGIN, 'https://hostile.example']
+    .map(origin => [pathname, origin] as const)))(
+    'rejects browser POST access to %s from %s without exposing CORS',
+    async (pathname, origin) => {
+      const check = vi.fn(async () => ({ allowed: true as const }))
+      const h = harness({ rateLimiter: { check } })
+      const response = await h.app.fetch(request(pathname, undefined, {
+        method: 'POST',
+        headers: { origin },
+      }), env())
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toEqual({
+        error: { code: 'admin_browser_forbidden', message: 'This endpoint is server-only.' },
+      })
+      expect([...response.headers.keys()].filter(name => name.startsWith('access-control-'))).toEqual([])
+      expect(check).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(SERVER_ONLY_ADMIN_PATHS.flatMap(pathname => [ORIGIN, 'https://hostile.example']
+    .flatMap(origin => ['GET', 'OPTIONS'].map(method => [method, pathname, origin] as const))))(
+    'keeps unsupported %s browser access to %s from %s CORS-free',
+    async (method, pathname, origin) => {
+      const headers: Record<string, string> = { origin }
+      if (method === 'OPTIONS') {
+        headers['access-control-request-method'] = 'POST'
+        headers['access-control-request-headers'] = 'authorization, content-type'
+      }
+      const response = await harness().app.fetch(request(pathname, undefined, {
+        method,
+        headers,
+      }), env())
+
+      expect(response.status).toBe(404)
+      await expect(response.json()).resolves.toEqual({
+        error: { code: 'not_found', message: 'Route not found.' },
+      })
+      expect([...response.headers.keys()].filter(name => name.startsWith('access-control-'))).toEqual([])
+    },
+  )
 
   it('does not consume a challenge when exchange is rate-limited', async () => {
     const check = vi.fn()

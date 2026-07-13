@@ -1,9 +1,11 @@
-# Warpkeep threat model — Alpha 0.2 historical baseline and local v2 delta
+# Warpkeep threat model — Alpha 0.2 historical baseline and staged v2 boundary
 
-Status: the Alpha 0.2 evidence remains historical. The active security delta in
-this document describes local protocol-v2 code that has **not** been published,
-migrated, configured, deployed, or enabled. This is not an OWASP ASVS
-certification or a penetration-test attestation.
+Status: the Alpha 0.2 evidence remains historical. The protocol-v2 module,
+additive session-family storage, independent managed cookie secret, and paused
+Worker are staged at their separately recorded production coordinates. Public
+Worker auth and frontend shared-alpha access remain disabled, and the v2
+frontend is not yet deployed. This is not an OWASP ASVS certification or a
+penetration-test attestation.
 
 ## Scope and revision
 
@@ -19,13 +21,14 @@ Hermes administration, and the GitHub Pages delivery path.
 - Intended OIDC issuer: `https://auth.warpkeep.com`
 - Intended database service: SpacetimeDB Maincloud
 
-The model assumes a deliberately small, invite-only alpha. The local v2 target
-replaces the historical browser-readable 30-day bearer with a 600-second
-memory-only access token and a separate maximum-30-day HttpOnly rotating session
-family. That target remains untrusted as production state until every rollout
-gate is separately approved and verified.
+The model assumes a deliberately small, invite-only alpha. Protocol v2 replaces
+the historical browser-readable 30-day bearer with a 600-second memory-only
+access token and a separate maximum-30-day HttpOnly rotating session family.
+The paused backend checkpoint is production evidence only for its recorded
+exact source and deployment coordinates; the frontend and public-entry path
+remain untrusted until their remaining gates are separately verified.
 
-## Local v2 status and non-deployment boundary
+## Staged v2 status and remaining deployment boundary
 
 The checked-out v2 target has exact `auth_version: 2`, positive auth epochs,
 tokenless pending sessions, a `__Host-` session cookie, server-side family
@@ -40,13 +43,16 @@ The repository includes a pinned SpacetimeDB 2.6.1 loopback rehearsal proving
 the five legacy tables remain unchanged while the v2 pair is appended, empty and
 synthetic nonempty fixtures retain their data, a second publication is
 idempotent, partial state is detected, and the guarded v1 rollback is refused
-before any schema change. It is local repository evidence only and did not
-inspect or publish Maincloud.
+before any schema change. That command is local repository evidence only. The
+separately approved guarded publication and post-publish probes attest the
+recorded Maincloud checkpoint; neither substitutes for the other.
 
-This review performed no Maincloud publish/mutation, Durable Object migration,
-secret configuration, Worker/frontend deployment, DNS/account change, or auth
-enable. The historical live Alpha 0.2 record is not evidence that this local v2
-head is deployed.
+Backend staging separately completed the guarded Maincloud publication,
+additive Durable Object migration, independent managed cookie-secret setup, and
+paused Worker deployment. It changed no admission, player, ownership, castle,
+allowlist, or world data. No frontend deployment, DNS/account change, or auth
+enable is claimed here, and historical Alpha 0.2 evidence is not proof of the
+current v2 coordinates.
 
 ## System and data flow
 
@@ -244,8 +250,9 @@ creation, and world state. Anonymous visitors do not open a database connection.
   checkbox is local to the mounted dialog and is destroyed on cancel, close,
   Escape, browser Back, unmount, failure, expiry, retry replacement, or
   completion. Direct `#realm` navigation normalizes to the menu and conveys no
-  acceptance or authorization intent. The concise notice is not a substitute
-  for complete Terms, Privacy, or legal review.
+  acceptance or authorization intent. The concise notice links to standalone
+  Alpha Terms and a Privacy Notice; neither the gate nor those project-authored
+  documents substitutes for formal legal/privacy review.
 - An access bearer exists only in JavaScript memory and expires within 600
   seconds. It is never persisted to localStorage, IndexedDB, a URL, or a
   browser-readable cookie.
@@ -316,7 +323,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Threat | Primary control | Residual treatment |
 | --- | --- | --- |
 | Client chooses or substitutes another FID | Independent SIWF verification and exact FID agreement | Treat verifier/RPC compromise as an external dependency incident. |
-| Terms gate bypass or replay | Dormant anonymous refresh; direct-route normalization; local unchecked state; disabled continuation; one-shot callback; focus trap; no persistence or identity tracking | The concise Alpha notice is not complete legal documentation; revisit the gate before changing auth entry points. |
+| Terms gate bypass or replay | Dormant anonymous refresh; direct-route normalization; local unchecked state; disabled continuation; one-shot callback; focus trap; no persistence or identity tracking | The linked project-authored Alpha Terms and Privacy Notice still require formal legal/privacy review; revisit the gate and documents before changing auth entry points. |
 | Proof replay or parallel exchange | Expiring Durable Object challenge, atomic pre-work claim, and distributed per-client rolling-window limits | Add aggregate edge monitoring/alerts for broad distributed abuse; tune policy only through separate review. |
 | Stolen in-memory access bearer | Exact v2 claims, 600-second maximum, positive epoch/admission checks, disconnect/logout handling | XSS/extension memory capture remains possible for the token's short remaining lifetime; the HttpOnly family is not exposed. |
 | Stolen resolver bearer presented before expiry | Server-only minting, exact sole-role and one-FID claims, 15-second Worker initiation window, fixed Worker destination, independent resolver guard | It reveals its bound FID and can resolve only that FID's admission projection while fresh; it can establish public subscriptions that persist until disconnect, but cannot query another FID, read private tables, mutate as a player, or pass Hermes/admin guards. |
@@ -365,13 +372,14 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Distributed Worker rate limiting is active. Alerting, key-rotation drills,
   incident response, and operational history are not yet mature enough for
   production assurance.
-- The local v2 code is not production state. The reviewed plan preserves the
-  deployed five-table schema, freezes legacy `player`, and appends `player_v2`
-  plus `player_ownership_v2`. Local pinned-CLI compatibility proof does not
-  replace fresh read-only production inspection or the separate exact approval
-  `approve additive protocol-v2 module publication`. A nonzero legacy-player
-  count or any v2/orphan state blocks publication. No delete, break-client,
-  database-recreation, or schema-rollback path is authorized.
+- The staged v2 backend is production state only at the recorded exact source,
+  deployment, schema, aggregate, and probe coordinates. The reviewed design
+  preserves the five-table prefix, freezes legacy `player`, and appends
+  `player_v2` plus `player_ownership_v2`. For every future republish, the local
+  pinned-CLI proof does not replace fresh read-only production inspection or
+  explicit approval. A nonzero legacy-player count or any v2/orphan state
+  blocks that operation. No delete, break-client, database-recreation, or
+  schema-rollback path is authorized.
 - GitHub `main` protection is active with pull-request enforcement including
   administrators, strict required checks, stale-review dismissal, conversation
   resolution, linear history, and no force-push/delete. Required commit
@@ -424,11 +432,11 @@ adding a new trusted origin or database, introducing gameplay mutations or
 private player data, adding an admin entry point, changing the deployment
 workflow, or moving away from the current Pages/Worker/Maincloud topology.
 
-Before claiming the local v2 target is deployed, separately approve and verify:
-fresh read-only Maincloud inspection with exactly zero legacy players; the exact
-request `approve additive protocol-v2 module publication`; post-publication v2
-aggregate and orphan counters; the additive Durable Object migration; managed
-secret configuration; paused Worker deploy plus config attestation; disabled
-frontend deploy; and finally any Worker/frontend auth enable. Keep both switches
-false throughout the staged work. This document grants none of those approvals
-and records no production publication.
+The recorded backend-staging checkpoint completed the separately approved
+Maincloud inspection/publication, post-publication aggregate/orphan checks,
+additive Durable Object migration, independent managed cookie secret, and paused
+Worker deployment/config attestation. Before claiming the frontend or public v2
+entry is deployed, separately verify the disabled frontend deployment and then
+the ordered Worker/frontend enable gates and owner QA. Keep both switches false
+until their recorded stage. This document does not authorize a future republish,
+secret change, deploy, data mutation, or enable.

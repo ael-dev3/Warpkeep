@@ -23,8 +23,9 @@ separately reviewed production controls are deliberately enabled.
 - Direct `#realm` navigation normalizes to the menu and carries no consent or
   authorization intent. Anonymous focus, visibility, and pageshow events cannot
   silently restore a cookie session.
-- The concise Alpha notice stores no identity or tracking record and is not a
-  substitute for complete Terms of Service, Privacy Policy, or legal review.
+- The concise Alpha notice stores no identity or tracking record and links to
+  the standalone Alpha Terms and Privacy Notice. Neither the concise gate nor
+  those project-authored documents substitutes for formal legal/privacy review.
 
 ## Authentication and authorization hardening
 
@@ -65,11 +66,12 @@ private ownerships, consistent pairs, both orphan classes, world/admission data,
 castles, audit-entry count, and fixed protocol/seed metadata. It never returns
 an identity, FID, profile, note, audit row, token, or credential.
 
-Preparing this release changes no production admission, player, castle, or world
-data. It does not rotate secrets, publish a schema, apply a Durable Object
-migration, deploy a Worker or Pages build, or re-enable public authentication.
-As documented here, protocol v2 is not published and remains awaiting a
-separate owner approval.
+The approved backend staging changed no production admission, player,
+ownership, castle, allowlist, or world data. It published the guarded additive
+schema with deletion prohibited, staged the additive `SessionFamily` migration
+and independent managed session-cookie secret, and deployed the reviewed Worker
+with public auth false. The v2 Pages frontend is not yet deployed, shared alpha
+remains false, and no public authentication has been enabled.
 
 ## Verification contract
 

@@ -66,10 +66,18 @@ Required final source checks are Pages, Verify, and CodeQL for the exact candida
 - The menu build stamp equals the final full main SHA.
 - Worker `/healthz`, discovery, and JWKS are healthy; JWKS has public P-256 data and no `d` member.
 - Browser CORS is exact and admin/synthetic endpoints remain server only.
+- While auth is paused, `verify:alpha-production -- --require-auth-v2` proves the
+  exact paused profile. After an approved enable,
+  `verify:alpha-production -- --require-auth-v2-enabled` proves only the
+  tokenless read-only enabled health/metadata/preflight surface. The latter
+  never creates challenge/session state and does not replace the private config
+  digest, exact Cloudflare source/deployment coordinate, resolver probe, or
+  immediate owner QA.
 - The synthetic resolver probe succeeds without state mutation.
-- Before protocol v2 is published, the deployed legacy protected aggregate
-  remains `61/0/0/0/0`; do not infer deployment from local source.
-- After a separately approved protocol-v2 publish, the exact v2 aggregate has
+- For a legacy recovery or any future pre-v2 checkpoint, the legacy protected
+  aggregate remains `61/0/0/0/0`; do not infer deployment from local source.
+- At the recorded protocol-v2 checkpoint and after any separately approved
+  republish, the exact v2 aggregate has
   61 world tiles; zero legacy players, v2 players, private v2 ownerships,
   consistent v2 pairs, either orphan class, castles, allowlist rows, and enabled
   FIDs; protocol `2`; seed `3445214658`; and seed name

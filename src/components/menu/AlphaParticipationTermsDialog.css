@@ -99,9 +99,25 @@
   margin: 0;
 }
 
-.warpkeep-alpha-terms__copy p:last-child {
+.warpkeep-alpha-terms__warning {
   color: #f0d9ad;
   font-weight: 700;
+}
+
+.warpkeep-alpha-terms__documents a {
+  color: #efd28e;
+  text-decoration-color: rgba(239, 210, 142, 0.58);
+  text-underline-offset: 0.18em;
+}
+
+.warpkeep-alpha-terms__documents a:hover {
+  text-decoration-color: currentColor;
+}
+
+.warpkeep-alpha-terms__documents a:focus-visible {
+  border-radius: 1px;
+  outline: 2px solid rgba(250, 220, 163, 0.95);
+  outline-offset: 3px;
 }
 
 .warpkeep-alpha-terms__acceptance {

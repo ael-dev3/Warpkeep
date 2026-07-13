@@ -3,11 +3,13 @@
 Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
 App, Quick Auth, wallet connection, or a client-only permanent identity system.
 
-> **Local v2 draft — not deployed or enabled.** The browser, Worker, and module
-> contracts described here are the checked-out implementation target. This work
-> performed no module publish, Durable Object migration, secret change, Worker
-> or frontend deployment, production mutation, or auth enable. Checked-in
-> Worker public auth and the frontend shared-alpha switch remain false.
+> **Protocol-v2 backend staged; public entry remains paused.** The additive
+> module and paused Worker contract described here have been published/deployed
+> at their separately recorded production coordinates. The Worker includes the
+> additive `SessionFamily` migration and independent managed session-cookie
+> secret, but `PUBLIC_AUTH_ENABLED=false`; the v2 frontend is not yet deployed
+> and its checked-in shared-alpha switch remains false. No admission, player,
+> ownership, castle, allowlist, or world data was mutated.
 
 ## Authority boundary
 
@@ -39,10 +41,11 @@ siweUri: https://warpkeep.com/
 issuer: https://auth.warpkeep.com
 ```
 
-Those coordinates do not prove that the local v2 code is deployed. Localhost
-SIWF is accepted only by an explicitly configured development bridge. A
-production bundle accepts only HTTPS bridge/issuer URLs and never falls back to
-a local or anonymous database identity.
+Those public coordinates alone do not prove that an arbitrary checkout matches
+the recorded deployment; exact source/version and service probes provide that
+evidence. Localhost SIWF is accepted only by an explicitly configured
+development bridge. A production bundle accepts only HTTPS bridge/issuer URLs
+and never falls back to a local or anonymous database identity.
 
 ## Browser flow and privacy
 
@@ -63,7 +66,8 @@ layouts are deep-link-first with optional QR fallback after acceptance.
 The gate stores no identity, tracking record, or persistent acceptance and is
 not represented in `localStorage`, `sessionStorage`, IndexedDB, URLs, cookies,
 or analytics. It is a narrow authentication-start control, not a replacement
-for full Terms of Service, Privacy Policy, or legal review.
+for the linked standalone Alpha Terms and Privacy Notice. Those project-authored
+documents are not substitutes for formal legal and privacy review.
 
 Each attempt receives a new 32-byte verifier. Only its `S256` digest enters the
 `POST /v2/farcaster/challenge` request and Durable Object record; the verifier
@@ -230,37 +234,34 @@ explicit `ENVIRONMENT=development` bridge remains configurable for local tests.
 
 ## Rollout and approval gates
 
-The v2 rollout is staged and intentionally stopped locally. The module change is
-additive: it preserves the exact legacy table prefix and public `player` shape,
-then appends `player_v2` and private `player_ownership_v2`. Before any production
-publish, run `npm run stdb:verify-additive-migration` against its disposable
-loopback-only server. That proof checks schema signatures, retained empty and
-synthetic non-empty legacy rows, idempotent republish, v2 consistency, and
-guarded-v1 rollback refusal before schema change; it neither inspects nor
-mutates Maincloud.
+The v2 backend is staged and the rollout is intentionally stopped before the
+frontend and public-entry gates. The module change is additive: it preserves the
+exact legacy table prefix and public `player` shape, then appends `player_v2` and
+private `player_ownership_v2`. The recorded guarded publication first ran
+`npm run stdb:verify-additive-migration` against its disposable loopback-only
+server and then bound that proof to the production artifact. The local proof
+checks schema signatures, retained empty and synthetic non-empty legacy rows,
+idempotent republish, v2 consistency, and guarded-v1 rollback refusal; it does
+not itself inspect or mutate Maincloud.
 
-Historical zero-player records are not current evidence. A future operator must
-obtain approval for a fresh, bounded, read-only Maincloud inspection and stop if
-the deployed-v1 `players` field (the legacy count) is not zero or an enabled
-epoch-zero admission exists. Production
-module publish still requires separate explicit owner approval. The guarded
-publisher then independently repeats the deployed v1 aggregate in the same run,
-pins the reviewed CLI binary and canonical existing database identity, and
-publishes only the digest-attested prebuilt artifact from that same proof using
-`--js-path`. It uses `--delete-data=never`, never `--break-clients`, and fails
-closed on changed bytes, compatibility prompts, or disagreement. It accepts no
-hand-entered count.
+The recorded production run obtained a fresh, bounded, read-only aggregate and
+stopped unless the legacy player count and enabled epoch-zero admission count
+were zero. The guarded publisher repeated that aggregate, pinned the reviewed
+CLI and existing database identity, and published only the digest-attested
+prebuilt artifact through `--js-path`, `--delete-data=never`, closed stdin, and
+no compatibility override. Any future republish requires fresh approval and the
+same evidence; historical counts never substitute for it.
 
-Later steps separately approve the additive session-family Durable Object
-migration, managed-secret configuration, a Worker deploy still paused, the v2
-frontend deploy still disabled, and finally any public-auth or shared-realm
-enable. `admin_get_alpha_status_v2`, exact v2 wires, discovery/JWKS, structured
-resolver, retired v1 routes, retired legacy module wires, ownership isolation,
-active-browser `player_v2` use, and config attestation must agree before
-proceeding.
+The recorded checkpoint also completed the additive session-family Durable
+Object migration, independent managed cookie-secret setup, paused Worker deploy,
+exact v2 aggregate, resolver, discovery/JWKS, retired-v1, ownership-isolation,
+and config-attestation checks. The remaining stages are the disabled v2
+frontend deploy and then the separately ordered public-auth/shared-realm enable
+and owner QA gates.
 
 See the [activation and recovery runbook](./operations/alpha-activation.md).
-No historical deployment record is proof that this v2 head passed those gates.
+Only the recorded exact current coordinates attest the backend checkpoint;
+historical records and arbitrary local checkouts do not.
 
 ## Tests and manual QA
 

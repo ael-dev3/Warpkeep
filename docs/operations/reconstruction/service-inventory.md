@@ -1,11 +1,13 @@
 # Service inventory
 
-> **Local auth-v2 additive target, not a deployment claim.** The module has not
-> been published and is awaiting separate approval. Recovery manifests must
-> record observed deployed versions separately from this target. Start with
-> Worker public auth and frontend shared-alpha access false; every module
-> publish, Durable Object migration, secret configuration, deploy, and enable
-> requires explicit approval.
+> **Protocol-v2 backend staged; public entry paused.** The guarded additive
+> module, `SessionFamily` migration, independent managed cookie secret, and
+> reviewed Worker are staged at their separately recorded production
+> coordinates, with Worker public auth false. The v2 frontend is not yet
+> deployed and shared-alpha access remains false. Recovery manifests must bind
+> every observation to its exact deployed source/version; every future
+> republish, binding change, secret change, deploy, or enable requires its own
+> authority and verification.
 
 ## Repositories and workflows
 
@@ -67,19 +69,21 @@ development-only.
 - Compatibility date: `2026-07-11`
 - Compatibility flag: `nodejs_compat`
 - `workers_dev = false`
-- Local target: `PUBLIC_AUTH_ENABLED=false`
+- Recorded paused production state: `PUBLIC_AUTH_ENABLED=false`
 
 Durable Objects:
 
 - `CHALLENGE_REPLAY_GUARD` → `ChallengeReplayGuard` (migration `v1`)
 - `AUTH_RATE_LIMITER` → `AuthRateLimiter` (migration `v2`)
-- `SESSION_FAMILIES` → `SessionFamily` (additive migration `v3`; explicit
-  migration approval required before deploy)
+- `SESSION_FAMILIES` → `SessionFamily` (additive migration `v3`; deployed at the
+  recorded paused checkpoint; any future binding/migration change requires
+  separate approval)
 
 Unauthenticated metadata endpoints are `/healthz`,
-`/.well-known/openid-configuration`, and `/.well-known/jwks.json`. The local
+`/.well-known/openid-configuration`, and `/.well-known/jwks.json`. The deployed
 credentialed browser protocol uses `/v2/farcaster/challenge`,
 `/v2/farcaster/exchange`, `/v2/session/refresh`, and `/v2/session/logout`.
+Those public routes remain paused while `PUBLIC_AUTH_ENABLED=false`.
 Public v1 challenge/exchange are retired with `410`; admin `/v1` routes are a
 separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 `ADMIN_TOKEN_SECRET`, `SESSION_COOKIE_KEY`, and `FARCASTER_RPC_URL`; see
@@ -99,9 +103,13 @@ local/test use and must never be treated as a production recovery profile.
 
 Browser continuity defaults **Keep me signed in on this device** to false.
 Sign-out writes only a non-secret, base-path-scoped `logout-v1:<timestamp>`
-tombstone with a 30-day maximum; it contains no identity or credential material
-and blocks every cookie refresh across reloads/tabs until explicit SIWF clears it
-early. A denied tombstone write combined with failed server revocation remains a
+tombstone that is active for at most 30 days; it contains no identity or
+credential material and blocks every cookie refresh across reloads/tabs until
+explicit SIWF clears it early. A stale marker is ignored and removed when later
+read only when storage permits. Cleanup is best effort: storage denial may leave
+the physical key, and a later reload can continue treating an unexpired leftover
+marker as logout intent even though the current explicit activation proceeded.
+A denied tombstone write combined with failed server revocation remains a
 bounded residual because a later storage-enabled context cannot recover a marker
 never written.
 
@@ -113,10 +121,10 @@ never written.
 - CLI/module: `2.6.1`
 - OIDC issuer: `https://auth.warpkeep.com`
 - Audience: `warpkeep-spacetimedb`
-- Local target backend protocol: `2` (record the deployed observed value; do not
-  infer it from the repository)
+- Recorded paused backend protocol: `2` (verify the deployed observed value; do
+  not infer it from the repository)
 
-The local resolver target is
+The recorded deployed resolver target is
 `auth_resolver_get_fid_admission_v2`. The Worker mints a 15-second JWT with exact
 `service:auth-epoch-resolver` subject and sole `warpkeep-auth-epoch-resolver`
 role, plus exact `resolver_fid` equal to the positional argument; the module

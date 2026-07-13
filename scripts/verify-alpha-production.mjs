@@ -36,6 +36,11 @@ const AUTH_V2_CREDENTIAL_PATHS = Object.freeze([
   '/v2/session/logout',
 ]);
 const AUTH_V2_PAUSED_PATHS = new Set(AUTH_V2_CREDENTIAL_PATHS.slice(0, 3));
+const AUTH_V2_SERVER_ONLY_ADMIN_PATHS = Object.freeze([
+  '/v1/admin/token',
+  '/v1/admin/auth-epoch-probe',
+  '/v1/admin/config-attestation',
+]);
 const AUTH_V2_SECURITY_HEADERS = Object.freeze({
   'cache-control': 'no-store',
   'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
@@ -581,9 +586,19 @@ async function verifyBridgePreflight(bridge, frontend, pathname, fetchImpl) {
   }
 }
 
-async function verifyContainedAuthV2Preflight(frontend, bridge, pathname, fetchImpl) {
-  const paused = AUTH_V2_PAUSED_PATHS.has(pathname);
-  const label = `bridge ${pathname} ${paused ? 'paused check' : 'preflight'}`;
+async function verifyAuthV2Preflight(
+  frontend,
+  bridge,
+  pathname,
+  expectedPublicAuthEnabled,
+  fetchImpl,
+) {
+  const paused = !expectedPublicAuthEnabled && AUTH_V2_PAUSED_PATHS.has(pathname);
+  const label = `bridge ${pathname} ${paused
+    ? 'paused check'
+    : expectedPublicAuthEnabled
+      ? 'enabled preflight'
+      : 'preflight'}`;
   const preflight = await fetchWithTimeout(`${bridge}${pathname}`, {
     method: 'OPTIONS',
     headers: {
@@ -661,7 +676,49 @@ async function verifyRetiredLegacyAuthPath(frontend, bridge, pathname, fetchImpl
   );
 }
 
-async function verifyAuthV2Bridge(frontend, bridge, fetchImpl) {
+async function verifyAuthV2AdminBrowserIsolation(frontend, bridge, fetchImpl) {
+  const checks = Object.freeze([
+    Object.freeze({
+      name: 'allowed-origin GET',
+      method: 'GET',
+      headers: Object.freeze({ origin: frontend }),
+    }),
+    Object.freeze({
+      name: 'allowed-origin preflight',
+      method: 'OPTIONS',
+      headers: Object.freeze({
+        origin: frontend,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization, content-type',
+      }),
+    }),
+    Object.freeze({
+      name: 'hostile-origin preflight',
+      method: 'OPTIONS',
+      headers: Object.freeze({
+        origin: 'https://not-warpkeep.invalid',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'authorization, content-type',
+      }),
+    }),
+  ]);
+
+  for (const pathname of AUTH_V2_SERVER_ONLY_ADMIN_PATHS) {
+    for (const check of checks) {
+      const label = `auth-v2 admin browser isolation ${pathname} ${check.name}`;
+      const response = await fetchWithTimeout(`${bridge}${pathname}`, {
+        method: check.method,
+        headers: check.headers,
+      }, fetchImpl);
+      verifyAuthV2SecurityHeaders(response, label);
+      verifyNoCors(response, label);
+      const payload = await readExactJsonAtStatus(response, label, 404);
+      verifyExactErrorPayload(payload, 'not_found', 'Route not found.', label);
+    }
+  }
+}
+
+async function verifyAuthV2Bridge(frontend, bridge, expectedPublicAuthEnabled, fetchImpl) {
   const healthResponse = await fetchWithTimeout(`${bridge}/healthz`, {}, fetchImpl);
   verifyAuthV2SecurityHeaders(healthResponse, 'auth-v2 health endpoint');
   const health = await readExactJsonAtStatus(healthResponse, 'auth-v2 health endpoint', 200);
@@ -670,9 +727,11 @@ async function verifyAuthV2Bridge(frontend, bridge, fetchImpl) {
     || health.ok !== true
     || health.service !== 'warpkeep-auth-bridge'
     || health.securityProfile !== AUTH_V2_SECURITY_PROFILE
-    || health.publicAuthEnabled !== false
+    || health.publicAuthEnabled !== expectedPublicAuthEnabled
   ) {
-    fail('auth-v2 health endpoint did not attest the contained Warpkeep security profile.');
+    fail(expectedPublicAuthEnabled
+      ? 'auth-v2 health endpoint did not attest the enabled Warpkeep security profile.'
+      : 'auth-v2 health endpoint did not attest the contained Warpkeep security profile.');
   }
 
   const discoveryResponse = await fetchWithTimeout(
@@ -704,37 +763,32 @@ async function verifyAuthV2Bridge(frontend, bridge, fetchImpl) {
     await verifyRetiredLegacyAuthPath(frontend, bridge, pathname, fetchImpl);
   }
   for (const pathname of AUTH_V2_CREDENTIAL_PATHS) {
-    await verifyContainedAuthV2Preflight(frontend, bridge, pathname, fetchImpl);
+    await verifyAuthV2Preflight(
+      frontend,
+      bridge,
+      pathname,
+      expectedPublicAuthEnabled,
+      fetchImpl,
+    );
   }
 
-  const adminProbe = await fetchWithTimeout(`${bridge}/v1/admin/token`, {
-    method: 'OPTIONS',
-    headers: {
-      origin: frontend,
-      'access-control-request-method': 'POST',
-      'access-control-request-headers': 'authorization, content-type',
-    },
-  }, fetchImpl);
-  verifyAuthV2SecurityHeaders(adminProbe, 'auth-v2 admin browser isolation check');
-  verifyNoCors(adminProbe, 'auth-v2 admin browser isolation check');
-  const adminProbePayload = await readExactJsonAtStatus(
-    adminProbe,
-    'auth-v2 admin browser isolation check',
-    404,
-  );
-  verifyExactErrorPayload(
-    adminProbePayload,
-    'not_found',
-    'Route not found.',
-    'auth-v2 admin browser isolation check',
-  );
-  console.log('bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified');
+  await verifyAuthV2AdminBrowserIsolation(frontend, bridge, fetchImpl);
+  console.log(expectedPublicAuthEnabled
+    ? 'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified'
+    : 'bridge: contained auth-v2 health, discovery, JWKS, retired v1, security headers, and credentialed CORS verified');
 }
 
 export async function verifyBridge(frontend, bridge, options = {}) {
-  const { requireAuthV2 = false, fetchImpl = fetch } = options;
-  if (requireAuthV2) {
-    await verifyAuthV2Bridge(frontend, bridge, fetchImpl);
+  const {
+    requireAuthV2 = false,
+    requireAuthV2Enabled = false,
+    fetchImpl = fetch,
+  } = options;
+  if (requireAuthV2 && requireAuthV2Enabled) {
+    fail('paused and enabled auth-v2 verification modes are mutually exclusive.');
+  }
+  if (requireAuthV2 || requireAuthV2Enabled) {
+    await verifyAuthV2Bridge(frontend, bridge, requireAuthV2Enabled, fetchImpl);
     return;
   }
 
@@ -905,6 +959,7 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     '--require-protected-aggregate',
     '--require-additive-v2-aggregate',
     '--require-auth-v2',
+    '--require-auth-v2-enabled',
   ]);
   const seen = new Set();
   for (const argument of arguments_) {
@@ -913,10 +968,14 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     }
     seen.add(argument);
   }
+  if (seen.has('--require-auth-v2') && seen.has('--require-auth-v2-enabled')) {
+    fail('paused and enabled auth-v2 verification modes are mutually exclusive.');
+  }
   return Object.freeze({
     requireProtectedAggregate: seen.has('--require-protected-aggregate'),
     requireAdditiveV2Aggregate: seen.has('--require-additive-v2-aggregate'),
     requireAuthV2: seen.has('--require-auth-v2'),
+    requireAuthV2Enabled: seen.has('--require-auth-v2-enabled'),
   });
 }
 
@@ -925,6 +984,7 @@ async function main() {
     requireProtectedAggregate,
     requireAdditiveV2Aggregate,
     requireAuthV2,
+    requireAuthV2Enabled,
   } = parseProductionVerifierArguments();
   const frontend = httpsOrigin(process.env.WARPKEEP_FRONTEND_URL ?? DEFAULT_FRONTEND, 'WARPKEEP_FRONTEND_URL');
   const bridge = httpsOrigin(process.env.WARPKEEP_AUTH_BRIDGE_URL ?? DEFAULT_BRIDGE, 'WARPKEEP_AUTH_BRIDGE_URL');
@@ -936,7 +996,7 @@ async function main() {
   }
   await verifyFrontend(frontend, expectedDeployedSha);
   await verifyFrontendRedirects(frontend, www, legacyPages);
-  await verifyBridge(frontend, bridge, { requireAuthV2 });
+  await verifyBridge(frontend, bridge, { requireAuthV2, requireAuthV2Enabled });
   verifyProtectedAggregateIfConfigured(
     bridge,
     requireProtectedAggregate || requireAdditiveV2Aggregate,

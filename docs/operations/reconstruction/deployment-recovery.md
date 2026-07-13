@@ -1,11 +1,13 @@
 # Deployment and recovery
 
-> **Local auth-v2 additive draft — not deployed.** Recovery starts with Worker
-> public auth and Pages shared-alpha access false. The protocol-v2 module is
-> awaiting a separate publish approval. Module publish, `SessionFamily` Durable
-> Object migration, managed-secret configuration, Worker deploy, frontend
-> deploy, and either auth enable are separate external mutations and each
-> requires explicit approval. No command below implies that approval.
+> **Protocol-v2 backend staged; public entry remains paused.** The existing
+> Maincloud database now has the guarded additive v2 schema, and the reviewed
+> Worker with the additive `SessionFamily` migration and independent managed
+> session-cookie secret is deployed with public auth false. No admission,
+> player, ownership, castle, allowlist, or world data was mutated. The v2 Pages
+> frontend is not yet deployed and shared alpha remains false. The recovery
+> commands below never imply approval for a republish, secret change, deploy, or
+> either later enable.
 
 ## Pages
 
@@ -208,10 +210,36 @@ WARPKEEP_EXPECTED_DEPLOYED_SHA=<full-pages-sha> \
     --require-additive-v2-aggregate
 ```
 
-This command is a future post-publish gate, not evidence that protocol v2 is
-currently deployed. The approved secret handoff supplies the operator credential
-without logging it. Verification accepts the exact aggregate field set only,
-requires both orphan counts to be zero, and never mirrors Hermes child output.
+This command is the current paused-checkpoint verifier and the recovery gate for
+any later exact deployment. A successful run attests only the configured source
+and service coordinates supplied for that run; it is not authority to publish,
+deploy, enable, or mutate data. The approved secret handoff supplies the operator
+credential without logging it. Verification accepts the exact aggregate field
+set only, requires both orphan counts to be zero, and never mirrors Hermes child
+output.
+
+After an approved Worker enable, replace the paused-profile flag with the
+read-only enabled-profile flag:
+
+```sh
+WARPKEEP_EXPECTED_DEPLOYED_SHA=<full-pages-sha> \
+  npm run verify:alpha-production -- \
+    --require-auth-v2-enabled \
+    --require-additive-v2-aggregate
+```
+
+The two auth-v2 flags are mutually exclusive. `--require-auth-v2` retains its
+paused-only semantics. `--require-auth-v2-enabled` requires
+`publicAuthEnabled: true` and exercises only bounded, no-store `GET`/`OPTIONS`
+metadata and browser-preflight contracts. Its HTTP checks send no authorization,
+cookie, request body, proof, QR payload, token, or FID and create no
+challenge/session state. The retained additive aggregate flag still uses the
+isolated approved-secret child described above; it does not alter the enabled
+HTTP mode or expose child output. The enabled check does not attest the private
+config digest or Cloudflare source/version coordinate and does not exercise
+exchange, resolver, refresh, revocation, or a player connection. Keep the
+separate exact-source/config checks and immediate clean-profile owner QA
+mandatory.
 
 Rollback order:
 

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepMainMenu } from '../src/components/menu/WarpkeepMainMenu';
 import { menuCommands } from '../src/components/menu/menuCommands';
+import { DEFAULT_WARPKEEP_REPOSITORY_URL } from '../src/build/buildInfo';
 
 function installMotionPreference(matches = false) {
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
@@ -48,6 +49,23 @@ describe('WarpkeepMainMenu', () => {
       .map((button) => button.textContent);
     expect(commandLabels).toEqual(menuCommands.map((command) => command.label));
     expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
+  });
+
+  it('exposes the canonical project repository as a hardened external link', () => {
+    render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
+
+    const project = screen.getByRole('region', { name: 'PROJECT' });
+    const repositoryLink = within(project).getByRole('link', {
+      name: 'Open Warpkeep repository on GitHub (opens in a new tab)'
+    });
+
+    expect(repositoryLink.getAttribute('href')).toBe(DEFAULT_WARPKEEP_REPOSITORY_URL);
+    expect(repositoryLink.getAttribute('target')).toBe('_blank');
+    expect(repositoryLink.getAttribute('rel')?.split(/\s+/)).toEqual(
+      expect.arrayContaining(['noopener', 'noreferrer'])
+    );
+    expect(repositoryLink.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(repositoryLink.getAttribute('tabindex')).toBe('0');
   });
 
   it('routes ENTER REALM to its live callback only after Terms acceptance', () => {
@@ -209,6 +227,10 @@ describe('WarpkeepMainMenu', () => {
     );
     const menu = container.querySelector('main.warpkeep-menu');
     const commands = screen.getAllByRole('button', { hidden: true });
+    const repositoryLink = screen.getByRole('link', {
+      hidden: true,
+      name: 'Open Warpkeep repository on GitHub (opens in a new tab)'
+    });
 
     expect(menu?.getAttribute('aria-hidden')).toBe('true');
     expect(menu?.hasAttribute('inert')).toBe(true);
@@ -216,5 +238,6 @@ describe('WarpkeepMainMenu', () => {
       expect((button as HTMLButtonElement).disabled).toBe(true);
       expect(button.getAttribute('tabindex')).toBe('-1');
     });
+    expect(repositoryLink.getAttribute('tabindex')).toBe('-1');
   });
 });
