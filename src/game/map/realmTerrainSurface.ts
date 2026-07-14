@@ -11,11 +11,17 @@ export type RealmTerrainSurface = Readonly<{
 
 export function createRealmTerrainSurface(
   seed: string | number,
-  playableRadius = 4,
-  renderRadius = 5
+  playableRadius: number,
+  renderRadius: number
 ): RealmTerrainSurface {
-  const safePlayableRadius = Math.max(0, Math.trunc(playableRadius));
-  const safeRenderRadius = Math.max(safePlayableRadius, Math.trunc(renderRadius));
+  if (
+    !Number.isSafeInteger(playableRadius)
+    || !Number.isSafeInteger(renderRadius)
+    || playableRadius < 0
+    || renderRadius < playableRadius
+  ) throw new RangeError('REALM_TERRAIN_SURFACE_RADIUS_INVALID');
+  const safePlayableRadius = playableRadius;
+  const safeRenderRadius = renderRadius;
   const playableMap = generateRealmTerrainMap(seed, safePlayableRadius);
   const renderMap = generateRealmTerrainMap(seed, safeRenderRadius);
   const playableKeys = new Set(playableMap.cells.map((cell) => hexKey(cell.coord)));
@@ -26,6 +32,6 @@ export function isPlayableRealmCoord(surface: RealmTerrainSurface, coord: HexCoo
   return surface.playableKeys.has(hexKey(coord));
 }
 
-export function isApronCoord(coord: HexCoord, playableRadius = 4) {
+export function isApronCoord(coord: HexCoord, playableRadius: number) {
   return hexDistance({ q: 0, r: 0 }, coord) > playableRadius;
 }

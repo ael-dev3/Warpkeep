@@ -32,6 +32,37 @@ test('trusted public profile snapshots are normalized, bounded, and HTTPS-only',
   );
 });
 
+test('profile image validation is deterministic in the server runtime and rejects non-public authorities', () => {
+  assert.equal(
+    normalizeTrustedPublicProfile({
+      pfpUrl: 'https://imagedelivery.net/account/profile/public#tracking',
+    }).pfpUrl,
+    'https://imagedelivery.net/account/profile/public',
+  );
+  assert.equal(
+    normalizeTrustedPublicProfile({
+      pfpUrl: 'https://cdn.example.com:8443/profile.png?size=320',
+    }).pfpUrl,
+    'https://cdn.example.com:8443/profile.png?size=320',
+  );
+  for (const pfpUrl of [
+    'http://images.example.com/profile.png',
+    'https://user:pass@images.example.com/profile.png',
+    'https://localhost/profile.png',
+    'https://assets.internal/profile.png',
+    'https://127.0.0.1/profile.png',
+    'https://[::1]/profile.png',
+    'https://images.example.com:70000/profile.png',
+    'https://images.example.com\\profile.png',
+    'https://images.example.com/profile image.png',
+  ]) {
+    assert.throws(
+      () => normalizeTrustedPublicProfile({ pfpUrl }),
+      /PROFILE_PFP_URL_INVALID/,
+    );
+  }
+});
+
 test('public labels strip bidi, isolate, and zero-width spoofing controls but retain Unicode', () => {
   const normalized = normalizeTrustedPublicProfile({
     displayName: 'Sir\u202eabc\u202c 🏰 Željko\u200b',

@@ -30,6 +30,7 @@ import {
   type RealmCameraComposition,
   type RealmCameraMode
 } from './realmCameraController';
+import { realmCastleProjectionFrameKey } from './realmCastlePresentation';
 import {
   REALM_LIGHTING_SPECS,
   resolveRealmPixelRatio,
@@ -422,6 +423,7 @@ function initializeRealmScene(
     r: castle.coord.r,
     x: castle.x,
     y: castle.groundY + 1.12,
+    groundY: castle.groundY,
     z: castle.z
   }));
 
@@ -436,6 +438,35 @@ function initializeRealmScene(
   let lastCastleProjectionKey = '';
   let renderPendingWhileHidden = false;
   const projectionPoint = new THREE.Vector3();
+  const projectionBoundsPoint = new THREE.Vector3();
+  const projectCastleBounds = (
+    anchor: (typeof castleLabelAnchors)[number],
+    width: number,
+    height: number
+  ) => {
+    const halfFootprint = castleFocusSize.footprintDiameter * 0.5;
+    let left = Number.POSITIVE_INFINITY;
+    let top = Number.POSITIVE_INFINITY;
+    let right = Number.NEGATIVE_INFINITY;
+    let bottom = Number.NEGATIVE_INFINITY;
+    for (const xOffset of [-halfFootprint, halfFootprint]) {
+      for (const yOffset of [0, castleFocusSize.height]) {
+        for (const zOffset of [-halfFootprint, halfFootprint]) {
+          projectionBoundsPoint
+            .set(anchor.x + xOffset, anchor.groundY + yOffset, anchor.z + zOffset)
+            .project(cameraController.camera);
+          const x = (projectionBoundsPoint.x * 0.5 + 0.5) * width;
+          const y = (-projectionBoundsPoint.y * 0.5 + 0.5) * height;
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return undefined;
+          left = Math.min(left, x);
+          top = Math.min(top, y);
+          right = Math.max(right, x);
+          bottom = Math.max(bottom, y);
+        }
+      }
+    }
+    return right > left && bottom > top ? { left, top, right, bottom } : undefined;
+  };
   const projectCastleLabels = () => {
     const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
     const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
@@ -443,6 +474,12 @@ function initializeRealmScene(
       projectionPoint.set(anchor.x, anchor.y, anchor.z);
       const distance = projectionPoint.distanceTo(cameraController.camera.position);
       projectionPoint.project(cameraController.camera);
+      const visible = projectionPoint.z >= -1
+        && projectionPoint.z <= 1
+        && projectionPoint.x >= -1.05
+        && projectionPoint.x <= 1.05
+        && projectionPoint.y >= -1.08
+        && projectionPoint.y <= 1.08;
       return {
         castleId: anchor.castleId,
         q: anchor.q,
@@ -450,20 +487,15 @@ function initializeRealmScene(
         x: (projectionPoint.x * 0.5 + 0.5) * width,
         y: (-projectionPoint.y * 0.5 + 0.5) * height,
         distance,
-        visible: projectionPoint.z >= -1
-          && projectionPoint.z <= 1
-          && projectionPoint.x >= -1.05
-          && projectionPoint.x <= 1.05
-          && projectionPoint.y >= -1.08
-          && projectionPoint.y <= 1.08
+        castleBounds: visible ? projectCastleBounds(anchor, width, height) : undefined,
+        visible
       };
     });
-    const projectionKey = `${width}:${height}:${castles.map((castle) => (
-      `${castle.castleId}:${Math.round(castle.x)}:${Math.round(castle.y)}:${castle.visible ? 1 : 0}`
-    )).join('|')}`;
+    const frame = { width, height, castles };
+    const projectionKey = realmCastleProjectionFrameKey(frame);
     if (projectionKey === lastCastleProjectionKey) return;
     lastCastleProjectionKey = projectionKey;
-    options.onCastleProjection({ width, height, castles });
+    options.onCastleProjection(frame);
   };
   const render = () => {
     if (cleanup.isDisposed()) return;

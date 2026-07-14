@@ -6,7 +6,6 @@ import {
 } from './realmSeed';
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
 
-export const DEFAULT_REALM_RADIUS = 2;
 const TERRAIN_CELL_INDEX = new WeakMap<RealmTerrainMap, ReadonlyMap<string, TerrainCell>>();
 
 function normalizedSeed(seed: string | number): number {
@@ -35,9 +34,12 @@ export function createTerrainCellForCoord(worldSeed: number, coord: HexCoord): T
  * Deterministically create a stable axial disc. The order is q-major, then r,
  * and is part of the serialized map contract.
  */
-export function generateRealmTerrainMap(seed: string | number, radius = DEFAULT_REALM_RADIUS): RealmTerrainMap {
+export function generateRealmTerrainMap(seed: string | number, radius: number): RealmTerrainMap {
   const worldSeed = normalizedSeed(seed);
-  const safeRadius = Math.max(0, Math.trunc(Number.isFinite(radius) ? radius : DEFAULT_REALM_RADIUS));
+  if (!Number.isSafeInteger(radius) || radius < 0) {
+    throw new RangeError('REALM_TERRAIN_RADIUS_INVALID');
+  }
+  const safeRadius = radius;
   const cells = hexDisc({ q: 0, r: 0 }, safeRadius)
     .map((coord) => createTerrainCellForCoord(worldSeed, coord));
 

@@ -7,6 +7,13 @@ export type RealmIdentity = Readonly<Pick<
 
 export type KeepLoadStatus = 'idle' | 'loading' | 'ready' | 'fallback';
 
+export type RealmCastleScreenBounds = Readonly<{
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}>;
+
 export type RealmCastleScreenProjection = Readonly<{
   castleId: number;
   q: number;
@@ -15,6 +22,8 @@ export type RealmCastleScreenProjection = Readonly<{
   y: number;
   distance: number;
   visible: boolean;
+  /** Projected model silhouette used to keep its own label unobstructed. */
+  castleBounds?: RealmCastleScreenBounds;
 }>;
 
 export type RealmCastleProjectionFrame = Readonly<{

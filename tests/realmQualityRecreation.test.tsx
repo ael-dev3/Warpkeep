@@ -167,6 +167,24 @@ afterEach(() => {
 });
 
 describe('live realm quality recreation', () => {
+  it('does not create a WebGL scene for an unbranded snapshot', () => {
+    installWebGlProbe();
+    const canonical = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const unbranded = { ...canonical } as CanonicalWarpkeepRealmSnapshot;
+
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={unbranded}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    expect(screen.getByRole('alert').textContent).toMatch(/Genesis 001 is unavailable/i);
+    expect(mocked.createRealmScene).not.toHaveBeenCalled();
+  });
+
   it('disposes one scene, preserves selection, and mounts the requested model tier', () => {
     installWebGlProbe();
     const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
@@ -296,6 +314,45 @@ describe('live realm quality recreation', () => {
 
     unmount();
     expect(motion.preference.removeEventListener).toHaveBeenCalledOnce();
+  });
+
+  it('restores an explicitly focused castle instead of overwriting it with district framing', () => {
+    installWebGlProbe();
+    const snapshot = createCanonicalGenesisSnapshot({
+      ownFid: CANONICAL_TEST_FID,
+      peerFid: 77
+    });
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="high"
+      />
+    );
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => initialOptions.onCastlesReady?.(2));
+    expect(mocked.handles[0]!.frameFoundingDistrict).toHaveBeenCalledOnce();
+
+    act(() => initialOptions.onTargetSelect?.({
+      kind: 'castle',
+      castleId: 2,
+      coord: { q: 2, r: -1 }
+    }));
+    expect(mocked.handles[0]!.focusCastle).toHaveBeenLastCalledWith(2);
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(mocked.handles[1]!.focusCastle).toHaveBeenCalledWith(2);
+    expect(mocked.handles[1]!.frameFoundingDistrict).not.toHaveBeenCalled();
   });
 
   it('keeps hover imperative and requires explicit castle activation for HUD/inspector state', () => {

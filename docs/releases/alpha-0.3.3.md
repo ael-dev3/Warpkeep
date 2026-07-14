@@ -111,12 +111,14 @@ and rejects credentials, every literal-IP origin, and non-HTTPS schemes before
 an image reaches a browser sink. Image failure keeps a stable neutral fallback.
 
 The private profile-maintenance workflow is bounded to already founded public
-profiles, preserves sanitized last-known-good values on an upstream omission,
-and requires a dry run plus a short-lived, one-use, content/config-attested
-reviewed plan. Apply never re-fetches profile data, performs a fresh read-only
-post-check, and records only privacy-safe completeness and mutation outcomes. It
-cannot admit a player, move a castle, inspect a wallet, or alter Marks. No
-profile backfill or other production-data mutation occurred during release.
+profiles, preserves sanitized last-known-good values only when the upstream is
+unavailable or incomplete, and honors authoritative field clears from a
+complete current response. It requires a dry run plus a short-lived, one-use,
+content/config-attested reviewed plan bound to the exact founder set. Apply
+never re-fetches profile data, performs a fresh read-only post-check, and records
+only privacy-safe completeness and mutation outcomes. It cannot admit a player,
+move a castle, inspect a wallet, or alter Marks. The current founded profiles
+were backfilled through that bounded reducer path.
 
 The existing Terms-gated, browser-bound Sign In with Farcaster, short-lived
 access authority, rotating HttpOnly session, admission, and protocol-3 server
@@ -132,7 +134,8 @@ Focused automated coverage now exercises:
   duplicate metadata, realm ambiguity, wrong protocol/seed/radius/generation,
   broken occupancy, public-row overflow, and wrong own-castle ownership;
 - pre-application loading, readiness timeout, inert late callbacks, reconnect
-  fingerprint retention, and fail-closed invalid observer updates;
+  fingerprint retention, fail-closed invalid observer updates, and hidden-tab,
+  pageshow, and StrictMode remount rejection of the historical 61-cell state;
 - hover-independent interaction, inspector/navigator exclusivity, focus return,
   measured label collision, label event isolation, and concise announcements;
 - deterministic four- and one-hundred-castle LOD packing, higher-LOD ceilings,
@@ -140,11 +143,12 @@ Focused automated coverage now exercises:
   scene work;
 - camera-safe bounds at the five target viewport classes, live composition,
   reduced motion, and hidden-document render recovery;
-- profile sanitization, unsafe-image rejection, neutral fallbacks, reviewed-plan
+- profile sanitization, authoritative clearing versus outage preservation,
+  unsafe-image rejection, neutral fallbacks, exact-founder reviewed-plan
   handling, bounded reducer outcomes, and privacy-safe audit records.
 
-The frozen-install release matrix passed 97 root files / 933 tests, 152 Worker
-unit tests plus 3 workerd tests, and 84 SpacetimeDB tests. Root, Worker, and
+The cumulative Alpha 0.3.3 matrix passed 99 root files / 977 tests, 152 Worker
+unit tests plus 3 workerd tests, and 85 SpacetimeDB tests. Root, Worker, and
 module typechecks; standard, canonical Pages, and legacy-base builds; 18 exact
 runtime assets; file-size and licensing policy; generated-binding parity; the
 additive migration proof; zero-vulnerability dependency audits; 189 registry
@@ -162,7 +166,8 @@ Alpha 0.3.3 does not:
 
 - change backend protocol 3, the active realm seed, the 1,261 authoritative
   rows, the 100 castle slots, admission, ownership, castle coordinates, or
-  existing production data;
+  Marks state; the only bounded data repair was sanitized public profile
+  presentation for already founded players;
 - publish a Maincloud schema, change the authentication Worker, enable public
   admission, or mutate production game data;
 - connect or scan wallets, apply burn credits, enable Mark spending, install a
@@ -182,9 +187,9 @@ Alpha 0.3.3 does not:
   and driver.
 - Public PFP availability remains externally dependent. The neutral fallback is
   intentional; direct image hosts receive ordinary connection metadata even
-  though the browser sends no referrer. A production profile refresh requires
-  authoritative review of the pinned upstream contract, a bounded dry run,
+  though the browser sends no referrer. The production profile source is
+  code-pinned and owner-reviewed; each refresh still requires a bounded dry run,
   exact founded-set verification, and explicit production scope.
-- No Worker, schema, profile, admission, castle, world, wallet, Marks, scan, or
-  burn mutation occurred. The production profile operator remains fail-closed
-  until its trusted source is owner-attested.
+- No Worker, schema, admission, castle, world, wallet, Marks, scan, or burn
+  mutation occurred. Public profile presentation fields were backfilled, and a
+  schema-identical policy module was republished with data deletion disabled.

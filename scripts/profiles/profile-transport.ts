@@ -6,17 +6,30 @@ import {
 const DEFAULT_TIMEOUT_MS = 8_000;
 const MAXIMUM_RESPONSE_BYTES = 64 * 1_024;
 const MAXIMUM_ATTEMPTS = 2;
+const MAXIMUM_CURRENT_USER_DATA_MESSAGES = 100;
 const CONTROLLED_FIXTURE_BASE_URL = 'https://profile-fixture.invalid/';
 
 /**
- * Production remains intentionally unavailable until the owner supplies and
- * reviews an owned or contracted Snapchain origin. No guessed public origin is
- * operational. Adding the origin requires a reviewed code change and produces
- * a different configuration digest in every later plan.
+ * The owner-authorized Alpha 0.3.3 rollout separately verified the
+ * Farcaster-operated rho host, its TLS HTTP surface, and the documented
+ * Snapchain user-data contract. Upstream pins this hostname for mainnet
+ * replication and documents the HTTP contract/port, but does not itself claim
+ * that the two are one public service. Keep those evidence claims separate.
+ * Operators cannot replace this reviewed origin through argv, stdin, or
+ * environment configuration, and any later source change invalidates plans.
  */
 export const TRUSTED_PRODUCTION_PROFILE_SOURCE_ID = 'owner-reviewed-snapchain-mainnet-v1';
-export const TRUSTED_PRODUCTION_PROFILE_SOURCE_STATUS: string = 'blocked-pending-owner-source';
-export const TRUSTED_PRODUCTION_SNAPCHAIN_BASE_URL: string | undefined = undefined;
+export const TRUSTED_PRODUCTION_PROFILE_SOURCE_STATUS: string = 'owner-reviewed';
+export const TRUSTED_PRODUCTION_SNAPCHAIN_BASE_URL: string | undefined = 'https://rho.farcaster.xyz:3381/';
+export const TRUSTED_PRODUCTION_PROFILE_SOURCE_EVIDENCE = Object.freeze({
+  repository: 'farcasterxyz/snapchain',
+  commit: 'bee1d09c0a816d11e9f6fc63d539c321b084f352',
+  hostnameProvenancePath: 'src/bootstrap/replication/rpc_client.rs',
+  httpContractPath: 'site/docs/pages/reference/httpapi/httpapi.md',
+  userDataContractPath: 'site/docs/pages/reference/httpapi/userdata.md',
+  exactTlsSurfaceOwnerReviewedAt: '2026-07-14',
+  ownerApprovalScope: 'alpha-0.3.3-current-founded-public-profiles',
+});
 export const CONTROLLED_PROFILE_FIXTURE_SOURCE_ID = 'controlled-local-profile-fixture-v1';
 export const TRUSTED_PROFILE_ENDPOINT_PATH = 'v1/userDataByFid';
 
@@ -61,6 +74,9 @@ export function validateProfileSource(
   if (source.sourceId !== TRUSTED_PRODUCTION_PROFILE_SOURCE_ID) {
     throw new ProfileTransportError('PROFILE_SOURCE_NOT_PINNED');
   }
+  if (source.authorization !== undefined || source.apiKey !== undefined) {
+    throw new ProfileTransportError('PROFILE_SOURCE_CREDENTIAL_UNSUPPORTED');
+  }
   if (
     TRUSTED_PRODUCTION_PROFILE_SOURCE_STATUS !== 'owner-reviewed'
     || TRUSTED_PRODUCTION_SNAPCHAIN_BASE_URL === undefined
@@ -91,7 +107,10 @@ export function trustedProfileTransportAttestation() {
     sourceStatus: TRUSTED_PRODUCTION_PROFILE_SOURCE_STATUS,
     baseUrl: TRUSTED_PRODUCTION_SNAPCHAIN_BASE_URL ?? null,
     endpointPath: TRUSTED_PROFILE_ENDPOINT_PATH,
+    sourceEvidence: TRUSTED_PRODUCTION_PROFILE_SOURCE_EVIDENCE,
     userDataTypes: FARCASTER_PUBLIC_USER_DATA_TYPES,
+    requestMode: 'one-current-user-data-envelope-per-fid',
+    maximumCurrentUserDataMessages: MAXIMUM_CURRENT_USER_DATA_MESSAGES,
     responseByteLimit: MAXIMUM_RESPONSE_BYTES,
     requestTimeoutMs: DEFAULT_TIMEOUT_MS,
     maximumAttempts: MAXIMUM_ATTEMPTS,
@@ -149,7 +168,6 @@ async function boundedJson(response: Response): Promise<unknown> {
 async function fetchOne(
   source: TrustedProfileSource,
   fid: bigint,
-  type: FarcasterPublicUserDataType,
   fetchImpl: typeof fetch,
   timeoutMs: number,
   controlledFixture: boolean,
@@ -157,7 +175,7 @@ async function fetchOne(
   const base = validateProfileSource(source, controlledFixture);
   const url = new URL(TRUSTED_PROFILE_ENDPOINT_PATH, base);
   url.searchParams.set('fid', fid.toString());
-  url.searchParams.set('user_data_type', type);
+  url.searchParams.set('pageSize', String(MAXIMUM_CURRENT_USER_DATA_MESSAGES));
   const headers: HeadersInit = {
     accept: 'application/json',
     ...(source.authorization ? { authorization: cleanHeader(source.authorization) as string } : {}),
@@ -214,11 +232,29 @@ export async function fetchPublicProfileResponses(input: Readonly<{
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30_000) {
     throw new ProfileTransportError('PROFILE_TIMEOUT_INVALID');
   }
-  const responses = await Promise.all(FARCASTER_PUBLIC_USER_DATA_TYPES.map(async type => [
-    type,
-    await fetchOne(input.source, input.fid, type, fetchImpl, timeoutMs, controlledFixture),
-  ] as const));
+  const response = await fetchOne(
+    input.source,
+    input.fid,
+    fetchImpl,
+    timeoutMs,
+    controlledFixture,
+  );
+  if (response === undefined) return Object.freeze({});
+  const envelope = response !== null && typeof response === 'object' && !Array.isArray(response)
+    ? response as Record<string, unknown>
+    : undefined;
+  const hasPageToken = envelope !== undefined
+    && Object.prototype.hasOwnProperty.call(envelope, 'nextPageToken');
+  if (
+    !envelope
+    || !Array.isArray(envelope.messages)
+    || envelope.messages.length > MAXIMUM_CURRENT_USER_DATA_MESSAGES
+    || (hasPageToken && envelope.nextPageToken !== '')
+  ) throw new ProfileTransportError('PROFILE_SOURCE_RESPONSE_INVALID');
   return Object.freeze(Object.fromEntries(
-    responses.filter((entry): entry is readonly [FarcasterPublicUserDataType, unknown] => entry[1] !== undefined),
+    FARCASTER_PUBLIC_USER_DATA_TYPES.map((type): readonly [FarcasterPublicUserDataType, unknown] => [
+      type,
+      response,
+    ]),
   ));
 }

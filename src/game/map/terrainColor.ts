@@ -20,8 +20,8 @@ export type TerrainRgb = Readonly<{ r: number; g: number; b: number }>;
 export type TerrainColorContext = Readonly<{
   cell?: TerrainCell;
   hexSize?: number;
-  playableRadius?: number;
-  renderRadius?: number;
+  playableRadius: number;
+  renderRadius: number;
   placements?: readonly TerrainStructurePlacement[];
 }>;
 
@@ -64,7 +64,7 @@ function continuousApronBlend(
 export function sampleLowlandsColor(
   worldSeed: number,
   world: HexWorldPosition,
-  context: TerrainColorContext = {}
+  context: TerrainColorContext
 ): TerrainRgb {
   const hexSize = context.hexSize ?? hegemonyLowlandsSpec.surface.hexSize;
   const broad = worldSurfaceSignal(worldSeed, world, 'grass-broad', 0.68) * 0.5 + 0.5;
@@ -119,8 +119,8 @@ export function sampleLowlandsColor(
   const apronBlend = continuousApronBlend(
     world,
     hexSize,
-    context.playableRadius ?? 4,
-    context.renderRadius ?? 5
+    context.playableRadius,
+    context.renderRadius
   );
   return mixColor(color, { r: 0.47, g: 0.51, b: 0.38 }, apronBlend * 0.32);
 }

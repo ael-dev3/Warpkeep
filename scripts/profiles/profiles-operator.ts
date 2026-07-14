@@ -82,7 +82,6 @@ type ParsedArguments = Readonly<{
 type UnknownRecord = Record<string, unknown>;
 type ProfileRequest = Readonly<{
   source: TrustedProfileSource;
-  fids: readonly bigint[];
 }>;
 type ReviewedPlanReference = Readonly<{
   filename: string;
@@ -97,6 +96,7 @@ const SOURCE_CONFIGURATION_DIGEST = createHash('sha256').update(JSON.stringify({
   transport: SOURCE_CONFIGURATION_ATTESTATION,
 }), 'utf8').digest('hex');
 const TARGET_CONFIGURATION_DIGEST = createHash('sha256').update(JSON.stringify({
+  profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
   databaseUri: DATABASE_URI,
   database: DATABASE,
   bridgeUrl: BRIDGE_URL,
@@ -123,20 +123,9 @@ function onlyKeys(value: UnknownRecord, allowed: readonly string[], code: string
   if (Object.keys(value).some(key => !keys.has(key))) throw new ProfilesOperatorError(code);
 }
 
-function parseFid(value: unknown): bigint {
-  if (typeof value !== 'string' || !/^[1-9][0-9]{0,15}$/.test(value)) {
-    throw new ProfilesOperatorError('PROFILES_FID_INPUT_INVALID');
-  }
-  const fid = BigInt(value);
-  if (fid > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new ProfilesOperatorError('PROFILES_FID_INPUT_INVALID');
-  }
-  return fid;
-}
-
 export function parseProfileRequest(value: unknown): ProfileRequest {
   const input = record(value);
-  onlyKeys(input, ['source', 'fids'], 'PROFILES_PRIVATE_INPUT_INVALID');
+  onlyKeys(input, ['source'], 'PROFILES_PRIVATE_INPUT_INVALID');
   const sourceInput = record(input.source, 'PROFILES_SOURCE_INVALID');
   onlyKeys(sourceInput, ['sourceId', 'authorization', 'apiKey'], 'PROFILES_SOURCE_INVALID');
   if (
@@ -150,14 +139,7 @@ export function parseProfileRequest(value: unknown): ProfileRequest {
     ...(typeof sourceInput.apiKey === 'string' ? { apiKey: sourceInput.apiKey } : {}),
   });
   validateProfileSource(source);
-  if (!Array.isArray(input.fids) || input.fids.length < 1 || input.fids.length > 100) {
-    throw new ProfilesOperatorError('PROFILES_FID_INPUT_INVALID');
-  }
-  const fids = input.fids.map(parseFid);
-  if (new Set(fids.map(fid => fid.toString())).size !== fids.length) {
-    throw new ProfilesOperatorError('PROFILES_FID_INPUT_INVALID');
-  }
-  return Object.freeze({ source, fids: Object.freeze(fids) });
+  return Object.freeze({ source });
 }
 
 export function parseReviewedPlanReference(value: unknown): ReviewedPlanReference {
@@ -235,7 +217,7 @@ async function readPrivateInput(): Promise<UnknownRecord> {
 }
 
 export async function resolveTrustedProfiles(
-  request: ProfileRequest,
+  request: Readonly<{ source: TrustedProfileSource; fids: readonly bigint[] }>,
   fetchImpl?: typeof fetch,
 ): Promise<readonly TrustedPublicFarcasterProfile[]> {
   const profiles: TrustedPublicFarcasterProfile[] = [];
@@ -451,6 +433,12 @@ export function planProfileUpdates(
   profiles: readonly TrustedPublicFarcasterProfile[],
   current: CurrentProfileMap,
 ) {
+  const resolvedFids = new Set(profiles.map(profile => profile.fid));
+  if (
+    profiles.length !== current.size
+    || resolvedFids.size !== profiles.length
+    || [...current.keys()].some(fid => !resolvedFids.has(fid))
+  ) throw new ProfilesOperatorError('PROFILES_FOUNDER_SET_MISMATCH');
   const updates: TrustedPublicFarcasterProfile[] = [];
   let preservedFields = 0;
   for (const resolved of profiles) {
@@ -458,10 +446,18 @@ export function planProfileUpdates(
     if (!existing) throw new ProfilesOperatorError('PROFILES_FOUNDER_STATE_MISMATCH');
     const merged = mergeWithLastKnownGood(resolved, existing);
     preservedFields += [
-      resolved.canonicalUsername === undefined && existing.canonicalUsername !== undefined,
-      resolved.displayName === undefined && existing.displayName !== undefined,
-      resolved.pfpUrl === undefined && existing.pfpUrl !== undefined,
-      resolved.publicBio === undefined && existing.publicBio !== undefined,
+      resolved.canonicalUsername === undefined
+        && existing.canonicalUsername !== undefined
+        && merged.canonicalUsername !== undefined,
+      resolved.displayName === undefined
+        && existing.displayName !== undefined
+        && merged.displayName !== undefined,
+      resolved.pfpUrl === undefined
+        && existing.pfpUrl !== undefined
+        && merged.pfpUrl !== undefined,
+      resolved.publicBio === undefined
+        && existing.publicBio !== undefined
+        && merged.publicBio !== undefined,
     ].filter(Boolean).length;
     if (!profilesEqual(existing, merged)) updates.push(merged);
   }
@@ -470,6 +466,22 @@ export function planProfileUpdates(
     unchangedProfiles: profiles.length - updates.length,
     lastKnownGoodFieldsPreserved: preservedFields,
   });
+}
+
+export function foundedProfileSetDigest(fids: Iterable<bigint>): string {
+  const canonical = [...fids]
+    .map((fid) => {
+      if (fid <= 0n || fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+        throw new ProfilesOperatorError('PROFILES_FOUNDER_STATE_MISMATCH');
+      }
+      return fid;
+    })
+    .sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
+    .map(fid => fid.toString());
+  if (new Set(canonical).size !== canonical.length) {
+    throw new ProfilesOperatorError('PROFILES_FOUNDER_STATE_MISMATCH');
+  }
+  return createHash('sha256').update(JSON.stringify(canonical), 'utf8').digest('hex');
 }
 
 function profileFields(profile: ExistingPublicProfile): ExistingPublicProfile {
@@ -500,9 +512,15 @@ async function readProductionProfiles(token: string): Promise<CurrentProfileMap>
 
 async function runRefresh(arguments_: ParsedArguments, request: ProfileRequest) {
   const secret = requireAdminCredentialSource();
-  const profiles = await resolveTrustedProfiles(request);
   const token = await requestAdminToken(BRIDGE_URL, secret);
   const current = await readProductionProfiles(token);
+  if (current.size < 1 || current.size > 100) {
+    throw new ProfilesOperatorError('PROFILES_FOUNDER_STATE_MISMATCH');
+  }
+  const profiles = await resolveTrustedProfiles({
+    source: request.source,
+    fids: Object.freeze([...current.keys()].sort((left, right) => left < right ? -1 : left > right ? 1 : 0)),
+  });
   const planned = planProfileUpdates(profiles, current);
   const updates: ReviewedProfilePlanEntry[] = planned.updates.map((profile) => {
     const expectedCurrent = current.get(profile.fid);
@@ -517,6 +535,7 @@ async function runRefresh(arguments_: ParsedArguments, request: ProfileRequest) 
     sourceConfigurationDigest: SOURCE_CONFIGURATION_DIGEST,
     targetConfigurationDigest: TARGET_CONFIGURATION_DIGEST,
     policyVersion: FARCASTER_PROFILE_POLICY_VERSION,
+    foundedProfileSetDigest: foundedProfileSetDigest(current.keys()),
     fetchedProfiles: profiles.length,
     unchangedProfiles: planned.unchangedProfiles,
     lastKnownGoodFieldsPreserved: planned.lastKnownGoodFieldsPreserved,
@@ -530,6 +549,11 @@ async function runRefresh(arguments_: ParsedArguments, request: ProfileRequest) 
     schemaVersion: 2,
     command: 'profiles-refresh',
     dryRun: true,
+    foundedProfiles: current.size,
+    currentProfilesWithUsername: [...current.values()].filter(profile => profile.canonicalUsername !== undefined).length,
+    currentProfilesWithDisplayName: [...current.values()].filter(profile => profile.displayName !== undefined).length,
+    currentProfilesWithPfp: [...current.values()].filter(profile => profile.pfpUrl !== undefined).length,
+    currentProfilesWithBio: [...current.values()].filter(profile => profile.publicBio !== undefined).length,
     ...completeness(profiles),
     intendedUpdates: updates.length,
     unchangedProfiles: planned.unchangedProfiles,
@@ -552,8 +576,13 @@ async function runRefresh(arguments_: ParsedArguments, request: ProfileRequest) 
   });
 }
 
-function planPreconditionsMatch(plan: ReviewedProfilePlan, current: CurrentProfileMap): boolean {
-  return plan.updates.every((update) => {
+function founderSetMatches(plan: ReviewedProfilePlan, current: CurrentProfileMap): boolean {
+  return current.size === plan.fetchedProfiles
+    && foundedProfileSetDigest(current.keys()) === plan.foundedProfileSetDigest;
+}
+
+export function planPreconditionsMatch(plan: ReviewedProfilePlan, current: CurrentProfileMap): boolean {
+  return founderSetMatches(plan, current) && plan.updates.every((update) => {
     const currentProfile = current.get(BigInt(update.fid));
     return currentProfile !== undefined && profilesEqual(currentProfile, update.expectedCurrent);
   });
@@ -607,6 +636,9 @@ async function runApply(
   let submittedUpdates = 0;
   let succeededUpdates = 0;
   let interimAmbiguousUpdates = 0;
+  let matchedUpdates = 0;
+  let verificationAvailable = false;
+  let founderSetVerified = false;
   try {
     const current = await readCurrentProfilesTracked(mutationConnection);
     if (!planPreconditionsMatch(plan, current)) {
@@ -662,6 +694,30 @@ async function runApply(
       }
       break;
     }
+    // A fresh subscription on the still-authorized mutation connection avoids
+    // reusing one short-lived admin token for a second WebSocket lifecycle.
+    // The subscription's onApplied boundary still reads a new authoritative
+    // table snapshot after every reducer result.
+    audit('verification-started', 'pending');
+    try {
+      const verified = await readCurrentProfilesTracked(mutationConnection);
+      verificationAvailable = true;
+      founderSetVerified = founderSetMatches(plan, verified);
+      matchedUpdates = plan.updates.filter((update) => {
+        const observed = verified.get(BigInt(update.fid));
+        return observed !== undefined && profilesEqual(observed, update.intended);
+      }).length;
+      if (founderSetVerified && matchedUpdates === plan.updates.length) {
+        audit('verification-complete', 'verified', { matchedUpdates });
+      } else {
+        audit('verification-complete', 'mismatch', {
+          reason: 'verification-mismatch',
+          matchedUpdates,
+        });
+      }
+    } catch {
+      audit('verification-failed', 'ambiguous', { reason: 'verification-unavailable' });
+    }
   } finally {
     const unexpectedDisconnect = mutationConnection.unexpectedDisconnectObserved();
     const disconnectSucceeded = mutationConnection.close();
@@ -674,30 +730,12 @@ async function runApply(
     }
   }
 
-  audit('verification-started', 'pending');
-  let matchedUpdates = 0;
-  let verificationAvailable = false;
-  try {
-    const verified = await readProductionProfiles(token);
-    verificationAvailable = true;
-    matchedUpdates = plan.updates.filter((update) => {
-      const observed = verified.get(BigInt(update.fid));
-      return observed !== undefined && profilesEqual(observed, update.intended);
-    }).length;
-    if (matchedUpdates === plan.updates.length) {
-      audit('verification-complete', 'verified', { matchedUpdates });
-    } else {
-      audit('verification-complete', 'mismatch', {
-        reason: 'verification-mismatch',
-        matchedUpdates,
-      });
-    }
-  } catch {
-    audit('verification-failed', 'ambiguous', { reason: 'verification-unavailable' });
-  }
-
   let finalOutcome: 'succeeded' | 'failed' | 'ambiguous';
-  if (!verificationAvailable || matchedUpdates !== plan.updates.length) finalOutcome = 'ambiguous';
+  if (
+    !verificationAvailable
+    || !founderSetVerified
+    || matchedUpdates !== plan.updates.length
+  ) finalOutcome = 'ambiguous';
   else if (mutationOutcome === 'failed') finalOutcome = 'failed';
   else finalOutcome = 'succeeded';
   audit('apply-complete', finalOutcome);
@@ -712,6 +750,7 @@ async function runApply(
     interimAmbiguousUpdates,
     postApplyMatchedUpdates: matchedUpdates,
     postApplyVerificationAvailable: verificationAvailable,
+    postApplyFounderSetVerified: founderSetVerified,
     unchangedProfiles: plan.unchangedProfiles,
     lastKnownGoodFieldsPreserved: plan.lastKnownGoodFieldsPreserved,
     walletOperations: 0,

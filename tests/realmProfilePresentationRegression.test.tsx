@@ -87,6 +87,67 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(screen.getByText('A')).not.toBeNull();
   });
 
+  it('upgrades a blank founder label to a trusted profile and keeps a dignified image fallback', () => {
+    const label = {
+      castleId: 7,
+      q: 1,
+      r: -1,
+      x: 180,
+      y: 140,
+      distance: 2,
+      visible: true,
+      compact: false
+    } as const;
+    const castle = {
+      castleId: 7,
+      ownerFid: 7_001,
+      q: 1,
+      r: -1,
+      level: 1,
+      name: 'Fixture Keep'
+    } as const;
+    const renderLabels = (presentation: RealmCastlePublicPresentation) => (
+      <RealmCastleLabels
+        labels={[label]}
+        records={new Map([[7, { castle, profile: presentation }]])}
+        selectedCastleId={7}
+        inspectorCastleId={7}
+        ownCastleId={7}
+        inspectorId="castle-inspector"
+        inspectorOpen
+        onActivate={vi.fn()}
+      />
+    );
+    const { rerender } = render(renderLabels(profile()));
+    let button = screen.getByRole('button', {
+      name: 'Inspect Hegemony Keep castle, Fixture Keep, cell 1,-1, your castle'
+    });
+    expect(button.querySelector('img')).toBeNull();
+    expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('W');
+
+    const trusted = profile({
+      canonicalUsername: 'fixturekeeper',
+      displayName: 'Fixture Keeper',
+      pfpUrl: 'https://profiles.example/fixturekeeper.png'
+    });
+    rerender(renderLabels(trusted));
+    button = screen.getByRole('button', {
+      name: 'Inspect @fixturekeeper castle, Fixture Keep, cell 1,-1, your castle'
+    });
+    expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
+    const image = button.querySelector('img');
+    if (!(image instanceof HTMLImageElement)) throw new Error('missing trusted fixture image');
+    expect(image.src).toBe('https://profiles.example/fixturekeeper.png');
+    expect(image.getAttribute('loading')).toBe('eager');
+    expect(image.getAttribute('referrerpolicy')).toBe('no-referrer');
+
+    fireEvent.error(image);
+    expect(button.querySelector('img')).toBeNull();
+    expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('F');
+    expect(button.querySelector('.realm-castle-avatar')?.textContent).not.toMatch(/[0-9]/);
+    expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
+  });
+
   it.each([
     'http://cdn.warpkeep.com/profile.png',
     'data:image/png;base64,AA==',

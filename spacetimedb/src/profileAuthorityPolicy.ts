@@ -2,7 +2,7 @@ const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
 const ADDRESS_PATTERN = /^0x[0-9a-f]{40}$/i;
 const ATTRIBUTION_KEY_PATTERN = /^[a-f0-9]{64}$/;
 
-export const FARCASTER_PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v1';
+export const FARCASTER_PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v2';
 export const FARCASTER_WALLET_POLICY_VERSION = 'trusted-snapchain-current-wallet-v1';
 
 export class ProfileAuthorityPolicyError extends Error {
@@ -40,23 +40,51 @@ function normalizedUsername(value: string | undefined): string | undefined {
 function normalizedPfpUrl(value: string | undefined): string | undefined {
   if (value === undefined) return undefined;
   if (value.length > 2_048) throw new ProfileAuthorityPolicyError('PROFILE_PFP_URL_INVALID');
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new ProfileAuthorityPolicyError('PROFILE_PFP_URL_INVALID');
-  }
+  // SpacetimeDB's server runtime does not provide the browser URL constructor.
+  // The trusted local resolver already canonicalizes through URL before this
+  // reducer boundary, so validate that canonical HTTPS serialization using
+  // deterministic string operations supported by the module runtime.
+  const fragmentIndex = value.indexOf('#');
+  const canonical = fragmentIndex === -1 ? value : value.slice(0, fragmentIndex);
   if (
-    url.protocol !== 'https:'
-    || url.username !== ''
-    || url.password !== ''
-    || url.hostname === ''
-    || url.hostname.endsWith('.invalid')
+    !canonical.startsWith('https://')
+    || canonical.length > 2_048
+    || /[\u0000-\u0020\u007f\\]/.test(canonical)
   ) {
     throw new ProfileAuthorityPolicyError('PROFILE_PFP_URL_INVALID');
   }
-  url.hash = '';
-  return url.href;
+  const remainder = canonical.slice('https://'.length);
+  const authorityEnd = [remainder.indexOf('/'), remainder.indexOf('?')]
+    .filter(index => index >= 0)
+    .reduce((minimum, index) => Math.min(minimum, index), remainder.length);
+  const authority = remainder.slice(0, authorityEnd);
+  if (!authority || authority.includes('@') || authority.startsWith('[') || authority.includes(']')) {
+    throw new ProfileAuthorityPolicyError('PROFILE_PFP_URL_INVALID');
+  }
+  const colonIndex = authority.lastIndexOf(':');
+  const hostname = (colonIndex === -1 ? authority : authority.slice(0, colonIndex)).toLowerCase();
+  const port = colonIndex === -1 ? undefined : authority.slice(colonIndex + 1);
+  if (
+    !hostname
+    || hostname.endsWith('.')
+    || hostname === 'localhost'
+    || hostname.endsWith('.localhost')
+    || hostname.endsWith('.local')
+    || hostname.endsWith('.internal')
+    || hostname.endsWith('.invalid')
+    || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
+    || !/^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])$/.test(hostname)
+    || hostname.split('.').some(label => (
+      label.length > 63
+      || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
+    ))
+    || (port !== undefined && (
+      !/^[0-9]{1,5}$/.test(port)
+      || Number(port) < 1
+      || Number(port) > 65_535
+    ))
+  ) throw new ProfileAuthorityPolicyError('PROFILE_PFP_URL_INVALID');
+  return canonical;
 }
 
 export type TrustedPublicProfileInput = Readonly<{

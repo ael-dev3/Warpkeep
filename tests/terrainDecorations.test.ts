@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as THREE from 'three';
 
+import { createTerrainDecorationLayers } from '../src/components/realm/createTerrainDecorations';
 import {
   REALM_QUALITY_SPECS,
   resolveRealmRenderPlan
@@ -26,7 +28,7 @@ function decorationQuality(
 describe('deterministic lowland decorations', () => {
   it('is stable, edge-safe, placement-safe, and never calls Math.random', () => {
     const random = vi.spyOn(Math, 'random');
-    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
     const first = generateTerrainDecorations(
       surface.renderMap,
       decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
@@ -55,7 +57,7 @@ describe('deterministic lowland decorations', () => {
   });
 
   it('respects quality density and reduces the visual-apron density', () => {
-    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
     const high = generateTerrainDecorations(
       surface.renderMap,
       decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
@@ -86,7 +88,7 @@ describe('deterministic lowland decorations', () => {
   });
 
   it('clears deterministic decoration footprints around off-center own and nearby peer castles', () => {
-    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
     const placements = createHegemonyCastlePlacements([
       { id: 'own-keep', coord: { q: 2, r: -1 } },
       { id: 'peer-castle-2', coord: { q: 2, r: 0 } }
@@ -135,5 +137,25 @@ describe('deterministic lowland decorations', () => {
     expect(details.points.length).toBeLessThanOrEqual(plan.decorationInstanceBudget);
     expect(details.counts['green-tuft']).toBeGreaterThan(details.counts['dry-tuft']);
     expect(details.counts['dry-tuft']).toBeGreaterThan(details.counts.stone);
+  });
+
+  it('releases unique instance buffers exactly once when decoration layers are recreated', () => {
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
+    const details = generateTerrainDecorations(
+      surface.renderMap,
+      decorationQuality(REALM_QUALITY_SPECS.reduced, surface.playableMap.radius)
+    );
+    const instanceDispose = vi.spyOn(THREE.InstancedMesh.prototype, 'dispose');
+    const layers = createTerrainDecorationLayers(
+      details,
+      surface.renderMap,
+      REALM_QUALITY_SPECS.reduced
+    );
+
+    layers.dispose();
+    layers.dispose();
+
+    expect(instanceDispose).toHaveBeenCalledTimes(layers.drawCalls);
+    instanceDispose.mockRestore();
   });
 });

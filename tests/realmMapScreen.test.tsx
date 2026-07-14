@@ -195,4 +195,16 @@ describe('RealmMapScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
     expect(onRequestReturn).toHaveBeenCalledOnce();
   });
+
+  it('rejects malformed runtime input before dereferencing or mounting any map surface', () => {
+    const malformed = Object.freeze({}) as CanonicalWarpkeepRealmSnapshot;
+    const { container } = renderFallbackRealm({ snapshot: malformed });
+
+    expect(screen.getByRole('alert').textContent).toMatch(/Genesis 001 is unavailable/i);
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(container.querySelector('.realm-map-screen__fallback-map')).toBeNull();
+    expect(container.textContent).not.toMatch(
+      /(?:61\s+(?:realm|traversable)\s+cells|traversable\s+cells\s+61)/i
+    );
+  });
 });

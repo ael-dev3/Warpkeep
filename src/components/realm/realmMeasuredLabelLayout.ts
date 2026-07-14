@@ -33,6 +33,8 @@ export type RealmProjectedLabelAnchor = Readonly<{
   inFrontOfCamera: boolean;
   priority: RealmLabelPriority;
   distance: number;
+  /** Projected bounds of this label's own castle silhouette. */
+  occlusionBounds?: RealmScreenRect;
   measurements: Readonly<{
     full?: RealmMeasuredLabelRectangle;
     avatar?: RealmMeasuredLabelRectangle;
@@ -63,6 +65,7 @@ export type RealmLabelCullReason =
   | 'invalid-projection'
   | 'unmeasured'
   | 'reserved-ui'
+  | 'associated-castle'
   | 'collision'
   | 'no-safe-placement'
   | 'capacity'
@@ -382,12 +385,21 @@ export function resolveMeasuredRealmLabelLayout(
     let accepted: RealmLabelPlacement | undefined;
     let sawSafeWithoutReservedUi = false;
     let sawReservedUi = false;
+    let sawAssociatedCastle = false;
     let sawLabelCollision = false;
+    const associatedCastleBounds = candidate.occlusionBounds
+      && validRect(candidate.occlusionBounds)
+      ? candidate.occlusionBounds
+      : undefined;
     for (const proposal of proposals) {
       const bounds = boundsAt(proposal, measurement);
       const paddedBounds = expandRect(bounds, collisionPadding);
       if (reservedUiRects.some((reserved) => intersects(paddedBounds, reserved))) {
         sawReservedUi = true;
+        continue;
+      }
+      if (associatedCastleBounds && intersects(bounds, associatedCastleBounds)) {
+        sawAssociatedCastle = true;
         continue;
       }
       sawSafeWithoutReservedUi = true;
@@ -412,6 +424,8 @@ export function resolveMeasuredRealmLabelLayout(
       placements.push(accepted);
     } else if (sawLabelCollision && sawSafeWithoutReservedUi) {
       culled.push({ castleId: candidate.castleId, reason: 'collision' });
+    } else if (sawAssociatedCastle) {
+      culled.push({ castleId: candidate.castleId, reason: 'associated-castle' });
     } else if (sawReservedUi) {
       culled.push({ castleId: candidate.castleId, reason: 'reserved-ui' });
     } else {

@@ -309,6 +309,27 @@ export function createRealmCastleInstanceLayer(
     meshOwners.clear();
   };
 
+  const disposeInstanceBuffers = () => {
+    let firstError: unknown;
+    meshesByLod.forEach((lodMeshes) => {
+      lodMeshes.meshes.forEach((mesh) => {
+        try {
+          // InstancedMesh owns its instanceMatrix/instanceColor GPU buffers.
+          // This does not dispose repository-owned geometry or materials.
+          mesh.dispose();
+        } catch (error) {
+          firstError ??= error;
+        }
+      });
+    });
+    try {
+      contactShadows.dispose();
+    } catch (error) {
+      firstError ??= error;
+    }
+    if (firstError) throw firstError;
+  };
+
   return Object.freeze({
     group,
     update,
@@ -317,12 +338,25 @@ export function createRealmCastleInstanceLayer(
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      let firstError: unknown;
+      try {
+        disposeInstanceBuffers();
+      } catch (error) {
+        firstError = error;
+      }
       clear();
       try {
         contactShadowGeometry.dispose();
+      } catch (error) {
+        firstError ??= error;
       } finally {
-        contactShadowMaterial.dispose();
+        try {
+          contactShadowMaterial.dispose();
+        } catch (error) {
+          firstError ??= error;
+        }
       }
+      if (firstError) throw firstError;
     },
     getPacking: () => packing
   });

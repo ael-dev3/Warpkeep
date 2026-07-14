@@ -7,7 +7,7 @@ import {
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 
 describe('Hegemony terrain surface layers', () => {
-  it('separates 61 playable cells from a 30-cell visual apron', () => {
+  it('keeps an explicitly requested historical radius-four fixture separate from its apron', () => {
     const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
 
     expect(surface.playableMap.radius).toBe(4);
@@ -20,11 +20,18 @@ describe('Hegemony terrain surface layers', () => {
   });
 
   it('remains deterministic and keeps the canonical world seed across both layers', () => {
-    const first = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
-    const second = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
+    const first = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 20, 22);
+    const second = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 20, 22);
 
     expect(first.playableMap).toEqual(second.playableMap);
     expect(first.renderMap).toEqual(second.renderMap);
     expect(first.playableMap.worldSeed).toBe(first.renderMap.worldSeed);
+  });
+
+  it('requires explicit valid radii instead of synthesizing a small runtime world', () => {
+    expect(() => createRealmTerrainSurface(HEGEMONY_GENESIS_001, 20, 19))
+      .toThrow('REALM_TERRAIN_SURFACE_RADIUS_INVALID');
+    expect(() => createRealmTerrainSurface(HEGEMONY_GENESIS_001, Number.NaN, 22))
+      .toThrow('REALM_TERRAIN_SURFACE_RADIUS_INVALID');
   });
 });

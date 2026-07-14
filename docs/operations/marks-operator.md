@@ -93,41 +93,38 @@ state. Its only mutation capability is the existing
 | Command | Network by default | Effect |
 | --- | --- | --- |
 | `npm run profiles:plan` | No | Writes capability metadata only. |
-| `npm run profiles:refresh -- --input-stdin --dry-run` | Blocked by source gate | Once the source is reviewed, reads four typed public user-data fields and current public profile state, then writes an exact reviewed plan; it performs no reducer call. |
-| `npm run profiles:apply -- --input-stdin --confirm` | Blocked by source gate | Once the source is reviewed, applies one fresh, previously reviewed plan without re-fetching Farcaster data, then performs a fresh read-only verification. |
+| `npm run profiles:refresh -- --input-stdin --dry-run` | Yes, bounded read-only | Reads the code-pinned official Snapchain current-user envelope for every authoritative founded profile, retains only four public presentation fields, and writes an exact reviewed plan; it performs no reducer call. |
+| `npm run profiles:apply -- --input-stdin --confirm` | Maincloud only | Applies one fresh, previously reviewed plan without re-fetching Farcaster data, then performs a fresh read-only verification. |
 | `npm run profiles:inspect` | No | Reads private operator-report metadata only. |
 
-Production profile refresh is currently blocked fail-closed. Farcaster's
-official material documents self-hosted Snapchain and suggests using a managed
-provider, but it does not establish an official public production origin for
-this operator. No guessed public endpoint is operational. The code reserves
-source ID `owner-reviewed-snapchain-mainnet-v1`, but returns
-`PROFILE_SOURCE_ATTESTATION_PENDING` before network access until the owner
-supplies and reviews an owned or contracted, credentialed source. The CLI
-accepts no URL or origin in private input; adding or changing the source
-requires a reviewed code change and changes the source-configuration digest,
-invalidating every older plan.
+Production profile refresh uses one code-pinned, owner-reviewed Farcaster
+source. Its host provenance, TLS surface, and API contract are attested as
+separate claims rather than inferred from one another. The CLI accepts no URL,
+origin, API key, authorization header, or FID list in private input. Adding
+credentials or changing the source requires a reviewed code change and changes
+the source-configuration digest, invalidating every older plan.
 
-Refresh stdin contains only the pinned source ID, optional source credential,
-and the founded FIDs to refresh. Keep the populated document in Keychain or an
-equivalent owner-only stdin producer:
+Refresh stdin contains only the pinned source ID. The operator first reads the
+authoritative current profile rows and derives the complete founded set in
+memory; callers cannot omit or add a FID. Keep even this control document in an
+owner-only stdin producer:
 
 ```json
 {
   "source": {
-    "sourceId": "owner-reviewed-snapchain-mainnet-v1",
-    "authorization": "<private-value-if-required>"
-  },
-  "fids": ["<decimal-fid>"]
+    "sourceId": "owner-reviewed-snapchain-mainnet-v1"
+  }
 }
 ```
 
-This shape is inert until that source gate is completed. Use either
-`authorization` or `apiKey`, never both. The operator requests only
-`USERNAME`, `DISPLAY`, `BIO`, and `PFP` through the exact
-`/v1/userDataByFid` contract. Redirects are rejected, response bodies and
-deadlines are bounded, PFP URLs are re-sanitized, and omitted or invalid fields
-retain their last-known-good public value.
+The operator requests one bounded `/v1/userDataByFid` current envelope per
+authoritative founder. It validates every returned message against the expected
+FID, mainnet, and user-data contract, then retains only `USERNAME`, `DISPLAY`,
+`BIO`, and `PFP`; unrelated user-data fields are discarded and never persisted
+or reported. Redirects and pagination are rejected, response bodies and
+deadlines are bounded, and PFP URLs are re-sanitized. A successful complete
+current envelope can authoritatively clear a field; only unavailable or
+incomplete responses retain last-known-good public data.
 
 The dry run reads the canonical current profile rows and writes a private
 `profiles-reviewed-plan-*.json` file in

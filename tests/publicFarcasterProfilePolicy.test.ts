@@ -50,6 +50,36 @@ describe('public-only trusted Farcaster profile policy', () => {
     });
   });
 
+  it('validates a complete current-user envelope while ignoring non-presentation fields', () => {
+    const envelope = {
+      messages: [
+        response('USER_DATA_TYPE_USERNAME', 'keeper.eth'),
+        response('USER_DATA_TYPE_DISPLAY', 'Keeper'),
+        response('USER_DATA_TYPE_PFP', 'https://images.example/keeper.png'),
+        response('USER_DATA_PRIMARY_ADDRESS_ETHEREUM', '0x0000000000000000000000000000000000000001'),
+      ],
+      nextPageToken: '',
+    };
+    const profile = buildTrustedPublicFarcasterProfile({
+      fid: FID,
+      responses: Object.fromEntries([
+        'USER_DATA_TYPE_USERNAME',
+        'USER_DATA_TYPE_DISPLAY',
+        'USER_DATA_TYPE_BIO',
+        'USER_DATA_TYPE_PFP',
+      ].map(type => [type, envelope])),
+    });
+    expect(profile).toEqual({
+      fid: FID,
+      canonicalUsername: 'keeper.eth',
+      displayName: 'Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+      publicBio: undefined,
+      farcasterProfileUrl: 'https://farcaster.xyz/keeper.eth',
+    });
+    expect(profile).not.toHaveProperty('address');
+  });
+
   it('preserves every last-known-good field omitted by a later source response', () => {
     const partial = buildTrustedPublicFarcasterProfile({
       fid: FID,
@@ -72,6 +102,36 @@ describe('public-only trusted Farcaster profile policy', () => {
     });
   });
 
+  it('honors fields cleared by a successful complete current envelope', () => {
+    const envelope = {
+      messages: [response('USER_DATA_TYPE_USERNAME', 'stable.eth')],
+      nextPageToken: '',
+    };
+    const current = buildTrustedPublicFarcasterProfile({
+      fid: FID,
+      responses: Object.fromEntries([
+        'USER_DATA_TYPE_USERNAME',
+        'USER_DATA_TYPE_DISPLAY',
+        'USER_DATA_TYPE_BIO',
+        'USER_DATA_TYPE_PFP',
+      ].map(type => [type, envelope])),
+    });
+
+    expect(mergeWithLastKnownGood(current, {
+      canonicalUsername: 'stable.eth',
+      displayName: 'Old Display',
+      pfpUrl: 'https://images.example/stable.png',
+      publicBio: 'Old bio',
+    })).toEqual({
+      fid: FID,
+      canonicalUsername: 'stable.eth',
+      displayName: undefined,
+      pfpUrl: undefined,
+      publicBio: undefined,
+      farcasterProfileUrl: 'https://farcaster.xyz/stable.eth',
+    });
+  });
+
   it.each([
     'http://images.example/pfp.png',
     'https://localhost/pfp.png',
@@ -90,13 +150,12 @@ describe('public-only trusted Farcaster profile policy', () => {
     'https://user:pass@images.example/pfp.png',
     'javascript:alert(1)',
   ])('rejects unsafe PFP delivery URL %s', (pfpUrl) => {
-    const profile = buildTrustedPublicFarcasterProfile({
+    expect(() => buildTrustedPublicFarcasterProfile({
       fid: FID,
       responses: {
         USER_DATA_TYPE_PFP: response('USER_DATA_TYPE_PFP', pfpUrl),
       },
-    });
-    expect(profile.pfpUrl).toBeUndefined();
+    })).toThrow('FARCASTER_PROFILE_PFP_INVALID');
   });
 
   it('re-sanitizes last-known-good presentation before preserving it', () => {
@@ -131,11 +190,11 @@ describe('public-only trusted Farcaster profile policy', () => {
       responses: { USER_DATA_TYPE_DISPLAY: wrongNetwork },
     })).toThrow('FARCASTER_PROFILE_CONTRACT_MISMATCH');
 
+    const malformedType = response('USER_DATA_TYPE_DISPLAY', 'Name');
+    malformedType.data.userDataBody.type = 2 as unknown as string;
     expect(() => buildTrustedPublicFarcasterProfile({
       fid: FID,
-      responses: {
-        USER_DATA_TYPE_DISPLAY: response('USER_DATA_TYPE_BIO', 'mismatched'),
-      },
+      responses: { USER_DATA_TYPE_DISPLAY: malformedType },
     })).toThrow('FARCASTER_PROFILE_CONTRACT_MISMATCH');
   });
 });

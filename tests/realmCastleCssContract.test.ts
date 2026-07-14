@@ -67,4 +67,61 @@ describe('realm castle compositor CSS contract', () => {
       /\.castle-inspection__profile-link\s*\{[\s\S]*?min-height:\s*2\.75rem;/
     );
   });
+
+  it('keeps compact sheets and fallback copy clear of the mobile toolbar', () => {
+    const map = readFileSync(
+      resolve(ROOT, 'src/components/realm/RealmMapScreen.css'),
+      'utf8'
+    );
+
+    expect(map).toMatch(
+      /\.realm-map-screen__fallback-copy\s*\{\s*bottom:\s*max\(7\.1rem,\s*calc\(env\(safe-area-inset-bottom\) \+ 6\.55rem\)\);/
+    );
+    expect(map).toMatch(
+      /@media \(max-width: 760px\)[\s\S]*?\.realm-map-screen:has\(\.realm-cell-navigator__dialog\) \.realm-hud\s*\{[\s\S]*?pointer-events:\s*none;[\s\S]*?visibility:\s*hidden;/
+    );
+    expect(map).toMatch(
+      /\.realm-map-screen:has\(\.realm-cell-navigator__dialog\) \.realm-cell-navigator\s*\{\s*bottom:\s*max\(0\.55rem,\s*env\(safe-area-inset-bottom\)\);/
+    );
+  });
+
+  it('bounds short-wide controls and stacks the narrow coordinate form', () => {
+    const map = readFileSync(
+      resolve(ROOT, 'src/components/realm/RealmMapScreen.css'),
+      'utf8'
+    );
+
+    expect(map).toMatch(
+      /@media \(max-height: 520px\) and \(min-width: 761px\)[\s\S]*?\.realm-hud__actions\s*\{[\s\S]*?right:\s*auto;[\s\S]*?30rem,/
+    );
+    expect(map).toMatch(
+      /@media \(max-width: 430px\)[\s\S]*?\.realm-cell-navigator__jump fieldset\s*\{\s*grid-template-columns:\s*auto minmax\(0, 1fr\);/
+    );
+    expect(map).toMatch(
+      /@media \(max-width: 430px\)[\s\S]*?\.realm-cell-navigator__jump input\s*\{\s*width:\s*100%;/
+    );
+    expect(map).toMatch(
+      /\.realm-cell-navigator__dialog\s*\{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/
+    );
+    expect(map).toMatch(
+      /\.realm-cell-navigator__jump fieldset\s*\{[^}]*min-width:\s*0;[^}]*box-sizing:\s*border-box;/
+    );
+  });
+
+  it('keeps meaningful HUD and navigator data at a readable text size', () => {
+    const map = readFileSync(
+      resolve(ROOT, 'src/components/realm/RealmMapScreen.css'),
+      'utf8'
+    );
+
+    expect(map).toMatch(
+      /\.realm-hud__badges span,\s*\.realm-hud__shared-state\s*\{[^}]*font-size:\s*0\.8125rem;/
+    );
+    expect(map).toMatch(
+      /\.realm-hud__actions button\s*\{[^}]*font-size:\s*0\.8125rem;/
+    );
+    expect(map).toMatch(
+      /\.realm-cell-navigator__castles span,\s*\.realm-cell-navigator__castles small\s*\{[^}]*font-size:\s*0\.8125rem;/
+    );
+  });
 });

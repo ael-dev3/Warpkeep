@@ -55,6 +55,7 @@ import {
 import type { KeepLoadStatus, RealmIdentity } from './realmTypes';
 import type { RealmCastleProjectionFrame } from './realmTypes';
 import {
+  CASTLE_LABEL_FAR_DISTANCE,
   castleProfileLabel,
   fallbackCastleProjection,
   publicProfileForCastle,
@@ -69,7 +70,8 @@ import {
 import {
   createRealmInteractionState,
   realmInteractionReducer,
-  resolveRealmEscape
+  resolveRealmEscape,
+  type RealmCameraTarget
 } from './realmInteractionState';
 import './RealmMapScreen.css';
 import './RealmCastlePresentation.css';
@@ -346,7 +348,33 @@ function selectedCellFor(
     ?? surface.playableMap.cells[0];
 }
 
-export function RealmMapScreen({
+function CanonicalRealmUnavailable({
+  onRequestReturn
+}: Readonly<{ onRequestReturn: () => void }>) {
+  return (
+    <main className="realm-map-screen realm-map-screen--unavailable" role="alert">
+      <div className="realm-map-screen__loading">
+        <strong>Genesis 001 is unavailable</strong>
+        <span>The canonical realm records did not pass validation.</span>
+        <button type="button" onClick={onRequestReturn}>Return to Menu</button>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * Keep the private canonical brand check outside the hook-heavy renderer.
+ * Invalid or malformed runtime input must not be dereferenced, generate a
+ * terrain surface, or register WebGL/browser effects before failing closed.
+ */
+export function RealmMapScreen(props: RealmMapScreenProps) {
+  if (!isCanonicalGenesisSnapshot(props.snapshot, props.identity.fid)) {
+    return <CanonicalRealmUnavailable onRequestReturn={props.onRequestReturn} />;
+  }
+  return <CanonicalRealmMapScreen {...props} />;
+}
+
+function CanonicalRealmMapScreen({
   identity,
   snapshot,
   onRequestReturn,
@@ -360,7 +388,6 @@ export function RealmMapScreen({
   const navigatorTriggerRef = useRef<HTMLButtonElement>(null);
   const inspectorId = useId();
   const navigatorId = useId();
-  const canonical = isCanonicalGenesisSnapshot(snapshot, identity.fid);
   const ownCastle = snapshot.ownCastle;
   const sharedTiles = snapshot.tiles;
   const sharedPlayers = snapshot.players;
@@ -468,8 +495,13 @@ export function RealmMapScreen({
   const [cameraMode, setCameraMode] = useState<RealmCameraMode>('realm');
   const [interaction, dispatchInteraction] = useReducer(
     realmInteractionReducer,
-    keepCoord,
-    createRealmInteractionState
+    { keepCoord, hasNearbyFoundingKeeps },
+    ({ keepCoord: initialCoord, hasNearbyFoundingKeeps: hasNearby }) => ({
+      ...createRealmInteractionState(initialCoord),
+      cameraTarget: hasNearby
+        ? { kind: 'founding-district' as const }
+        : { kind: 'realm' as const }
+    })
   );
   const interactionRef = useRef(interaction);
   interactionRef.current = interaction;
@@ -676,8 +708,9 @@ export function RealmMapScreen({
             ? 'selected' as const
             : castle.castleId === context.ownCastleId
               ? 'own' as const
-              : castle.distance > 24 ? 'far' as const : 'near' as const,
+              : castle.distance > CASTLE_LABEL_FAR_DISTANCE ? 'far' as const : 'near' as const,
           distance: castle.distance,
+          occlusionBounds: castle.castleBounds,
           measurements: {
             full,
             avatar: {
@@ -882,7 +915,12 @@ export function RealmMapScreen({
       scene.setSelected(selectedCoordRef.current);
       scene.setSelectedCastleId(interactionRef.current.selectedCastle?.castleId ?? null);
       scene.setHovered(hoveredCoordRef.current);
-      if (hasNearbyFoundingKeeps) scene.frameFoundingDistrict();
+      const cameraTarget: RealmCameraTarget = interactionRef.current.cameraTarget;
+      if (cameraTarget.kind === 'castle') scene.focusCastle(cameraTarget.castleId);
+      else if (cameraTarget.kind === 'cell') scene.focusCell(cameraTarget.coord);
+      else if (cameraTarget.kind === 'keep') scene.recenterKeep();
+      else if (cameraTarget.kind === 'founding-district') scene.frameFoundingDistrict();
+      else scene.showRealm();
     } catch {
       markRendererUnavailable();
     }
@@ -933,19 +971,26 @@ export function RealmMapScreen({
 
   const recenterKeep = useCallback(() => {
     selectCoord(keepCoord);
+    dispatchInteraction({ type: 'set-camera-target', target: { kind: 'keep' } });
     sceneRef.current?.recenterKeep();
   }, [keepCoord, selectCoord]);
 
   const showRealm = useCallback(() => {
+    dispatchInteraction({ type: 'set-camera-target', target: { kind: 'realm' } });
     sceneRef.current?.showRealm();
   }, []);
 
   const frameFoundingDistrict = useCallback(() => {
+    dispatchInteraction({
+      type: 'set-camera-target',
+      target: { kind: 'founding-district' }
+    });
     sceneRef.current?.frameFoundingDistrict();
   }, []);
 
   const selectFromNavigator = useCallback((coord: HexCoord) => {
     selectCoord(coord);
+    dispatchInteraction({ type: 'set-camera-target', target: { kind: 'cell', coord } });
     sceneRef.current?.focusCell(coord);
     dispatchInteraction({ type: 'close-navigator' });
     dispatchInteraction({ type: 'request-map-focus' });
@@ -982,18 +1027,6 @@ export function RealmMapScreen({
     const next = hexAdd(selectedCoord, direction);
     if (isPlayableRealmCoord(surface, next)) selectCoord(next);
   };
-
-  if (!canonical) {
-    return (
-      <main className="realm-map-screen realm-map-screen--unavailable" role="alert">
-        <div className="realm-map-screen__loading">
-          <strong>Genesis 001 is unavailable</strong>
-          <span>The canonical realm records did not pass validation.</span>
-          <button type="button" onClick={onRequestReturn}>Return to Menu</button>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main

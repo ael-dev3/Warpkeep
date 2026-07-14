@@ -83,6 +83,7 @@ export function createTerrainDecorationLayers(
   const scale = new THREE.Vector3();
   const axis = new THREE.Vector3(0, 1, 0);
   const meshes: THREE.InstancedMesh[] = [];
+  let disposed = false;
 
   (['green-tuft', 'dry-tuft', 'stone'] as const).forEach((kind) => {
     const points = data.points.filter((point) => point.kind === kind);
@@ -121,10 +122,23 @@ export function createTerrainDecorationLayers(
     counts: data.counts,
     drawCalls: meshes.length,
     dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      let firstError: unknown;
       meshes.forEach((mesh) => {
-        mesh.geometry.dispose();
-        (mesh.material as THREE.Material).dispose();
+        for (const dispose of [
+          () => mesh.dispose(),
+          () => mesh.geometry.dispose(),
+          () => (mesh.material as THREE.Material).dispose(),
+        ]) {
+          try {
+            dispose();
+          } catch (error) {
+            firstError ??= error;
+          }
+        }
       });
+      if (firstError) throw firstError;
     }
   };
 }
