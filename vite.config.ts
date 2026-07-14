@@ -61,6 +61,12 @@ const productVersion = readWarpkeepPackageVersion();
 
 export default defineConfig({
   base: deploymentBase,
+  build: {
+    // Three.js is isolated behind the title/realm boundaries and compresses to
+    // roughly 150 KiB. Keep the warning just above that single vendor chunk so
+    // any renewed application-bundle growth still fails visibly.
+    chunkSizeWarningLimit: 600
+  },
   define: {
     __WARPKEEP_PRODUCT_VERSION__: JSON.stringify(productVersion)
   },

@@ -1,6 +1,7 @@
 import {
   DbConnection,
   tables,
+  type EventContext,
   type SubscriptionHandle
 } from './module_bindings';
 import type {
@@ -234,7 +235,13 @@ export function observeWarpkeepRealm(
   ownFid: number,
   onChange: (snapshot: WarpkeepRealmSnapshot) => void
 ) {
-  const sync = () => onChange(readWarpkeepRealmSnapshot(connection, ownFid));
+  let active = true;
+  let latestTransactionEventId: string | undefined;
+  const sync = (context: EventContext) => {
+    if (!active || context.event.id === latestTransactionEventId) return;
+    latestTransactionEventId = context.event.id;
+    onChange(readWarpkeepRealmSnapshot(connection, ownFid));
+  };
   connection.db.worldTile.onInsert(sync);
   connection.db.worldTile.onDelete(sync);
   connection.db.worldTile.onUpdate(sync);
@@ -246,6 +253,7 @@ export function observeWarpkeepRealm(
   connection.db.castle.onUpdate(sync);
 
   return () => {
+    active = false;
     connection.db.worldTile.removeOnInsert(sync);
     connection.db.worldTile.removeOnDelete(sync);
     connection.db.worldTile.removeOnUpdate(sync);

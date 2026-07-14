@@ -36,11 +36,10 @@
     radial-gradient(ellipse at center, transparent 28%, rgba(3, 2, 6, 0.82) 100%);
 }
 
-.warpkeep-credits__close {
+.warpkeep-credits__close,
+.warpkeep-credits__reading-toggle {
   position: absolute;
   z-index: 4;
-  top: max(1rem, calc(env(safe-area-inset-top) + 0.75rem));
-  left: max(1rem, calc(env(safe-area-inset-left) + 0.75rem));
   min-height: 2.75rem;
   padding: 0.65rem 0.9rem;
   border: 1px solid rgba(226, 185, 108, 0.48);
@@ -53,14 +52,33 @@
   transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
 }
 
+.warpkeep-credits__reading-toggle:disabled {
+  cursor: default;
+  opacity: 0.82;
+}
+
+.warpkeep-credits__close {
+  top: max(1rem, calc(env(safe-area-inset-top) + 0.75rem));
+  left: max(1rem, calc(env(safe-area-inset-left) + 0.75rem));
+}
+
+.warpkeep-credits__reading-toggle {
+  right: max(1rem, calc(env(safe-area-inset-right) + 0.75rem));
+  bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.75rem));
+}
+
 .warpkeep-credits__close:hover,
-.warpkeep-credits__close:focus-visible {
+.warpkeep-credits__close:focus-visible,
+.warpkeep-credits__reading-toggle:hover,
+.warpkeep-credits__reading-toggle:focus-visible,
+.warpkeep-credits__reading-toggle[aria-pressed="true"] {
   border-color: #f5d99d;
   color: #fff2ce;
   background: rgba(51, 23, 63, 0.84);
 }
 
-.warpkeep-credits__close:focus-visible {
+.warpkeep-credits__close:focus-visible,
+.warpkeep-credits__reading-toggle:focus-visible {
   outline: 2px solid rgba(250, 220, 163, 0.88);
   outline-offset: 3px;
 }
@@ -74,6 +92,18 @@
   transform: translateX(-50%);
   mask-image: linear-gradient(180deg, transparent 0%, #000 13%, #000 85%, transparent 100%);
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 13%, #000 85%, transparent 100%);
+}
+
+.warpkeep-credits[data-presentation="reading"] .warpkeep-credits__viewport {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+.warpkeep-credits[data-presentation="reading"] .warpkeep-credits__viewport:focus-visible {
+  outline: 2px solid rgba(250, 220, 163, 0.82);
+  outline-offset: -4px;
 }
 
 .warpkeep-credits__track {
@@ -97,6 +127,12 @@
   padding: 105vh 0 38vh;
   text-align: center;
   animation: warpkeep-credits-roll 48s linear both;
+}
+
+.warpkeep-credits[data-presentation="reading"] .warpkeep-credits__roll {
+  min-height: 100%;
+  padding: 7rem 0 6rem;
+  animation: none;
 }
 
 .warpkeep-credits__kicker,
@@ -124,6 +160,12 @@
 .warpkeep-credits__attribution a {
   color: #f1d99d;
   text-underline-offset: 0.22em;
+}
+
+.warpkeep-credits__attribution a:focus-visible {
+  border-radius: 0.15rem;
+  outline: 2px solid rgba(250, 220, 163, 0.92);
+  outline-offset: 0.28rem;
 }
 
 .warpkeep-credits__title {

@@ -3,6 +3,7 @@ import type { TerrainCell } from '../../game/map/terrainTypes';
 
 type RealmAccessibilityControlsProps = Readonly<{
   cells: readonly TerrainCell[];
+  keepCoord: HexCoord;
   selectedCoord: HexCoord;
   onHover: (coord: HexCoord | null) => void;
   onSelect: (coord: HexCoord) => void;
@@ -13,6 +14,7 @@ function sameCoord(first: HexCoord, second: HexCoord) {
 }
 export function RealmAccessibilityControls({
   cells,
+  keepCoord,
   selectedCoord,
   onHover,
   onSelect
@@ -23,7 +25,7 @@ export function RealmAccessibilityControls({
       <div className="realm-cell-navigator__grid" role="group" aria-label="Playable realm cells">
         {cells.map((cell) => {
           const selected = sameCoord(selectedCoord, cell.coord);
-          const keep = cell.coord.q === 0 && cell.coord.r === 0;
+          const keep = sameCoord(keepCoord, cell.coord);
           return (
             <button
               key={hexKey(cell.coord)}

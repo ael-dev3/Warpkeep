@@ -165,6 +165,51 @@ describe('title presentation state machine', () => {
     expect(unchanged).toBe(state);
   });
 
+  it('does not restart an in-flight primary request for the same model profile', () => {
+    const loading = createTitlePresentationState('compact', 0, false);
+    const unchanged = transitionTitlePresentation(loading, {
+      type: 'quality-requested',
+      requestId: 2,
+      profile: 'compact'
+    });
+    expect(unchanged).toBe(loading);
+  });
+
+  it('cancels an obsolete replacement when quality returns to the active profile', () => {
+    let state = compilePrimary('compact', 0);
+    state = transitionTitlePresentation(state, { type: 'transition-finished' });
+    state = transitionTitlePresentation(state, {
+      type: 'quality-requested',
+      requestId: 2,
+      profile: 'high'
+    });
+    state = transitionTitlePresentation(state, { type: 'model-loaded', requestId: 2 });
+    state = transitionTitlePresentation(state, {
+      type: 'model-compiled',
+      requestId: 2,
+      now: 200
+    });
+    expect(state.phase).toBe('replacement-crossfading');
+
+    const reverted = transitionTitlePresentation(state, {
+      type: 'quality-requested',
+      requestId: 3,
+      profile: 'compact'
+    });
+    expect(reverted.phase).toBe('model-ready');
+    expect(reverted.requestId).toBe(3);
+    expect(reverted.desiredProfile).toBe('compact');
+    expect(reverted.activeProfile).toBe('compact');
+    expect(reverted.candidateProfile).toBeNull();
+    expect(reverted.transitionStartedAt).toBeNull();
+
+    const staleCompletion = transitionTitlePresentation(reverted, {
+      type: 'transition-finished'
+    });
+    expect(staleCompletion).toBe(reverted);
+    expect(staleCompletion.activeProfile).toBe('compact');
+  });
+
   it('retains the current model after replacement failure or replacement timeout', () => {
     let failed = compilePrimary('compact', 0);
     failed = transitionTitlePresentation(failed, { type: 'transition-finished' });
@@ -204,6 +249,28 @@ describe('title presentation state machine', () => {
     expect(titleTransitionProgress(normal, 1_000 + TITLE_REVEAL_MS / 2)).toBe(0.5);
     expect(titleTransitionProgress(reduced, 1_000 + TITLE_REDUCED_MOTION_REVEAL_MS / 2)).toBe(0.5);
     expect(titleTransitionProgress(reduced, 1_000 + TITLE_REDUCED_MOTION_REVEAL_MS)).toBe(1);
+  });
+
+  it('preserves reveal progress when reduced-motion preference changes mid-transition', () => {
+    const reduced = compilePrimary('compact', 1_000, true);
+    const halfway = 1_000 + TITLE_REDUCED_MOTION_REVEAL_MS / 2;
+    expect(titleTransitionProgress(reduced, halfway)).toBe(0.5);
+
+    const normal = transitionTitlePresentation(reduced, {
+      type: 'reduced-motion-changed',
+      reducedMotion: false,
+      now: halfway
+    });
+    expect(titleTransitionProgress(normal, halfway)).toBe(0.5);
+    expect(titleTransitionProgress(normal, halfway + 80)).toBeGreaterThan(0.5);
+
+    const reducedAgain = transitionTitlePresentation(normal, {
+      type: 'reduced-motion-changed',
+      reducedMotion: true,
+      now: halfway + 80
+    });
+    expect(titleTransitionProgress(reducedAgain, halfway + 80))
+      .toBeCloseTo(titleTransitionProgress(normal, halfway + 80), 8);
   });
 
   it('is terminal after disposal and ignores strict-mode-style late work', () => {

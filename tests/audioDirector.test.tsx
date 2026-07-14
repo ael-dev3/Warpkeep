@@ -219,6 +219,25 @@ describe('WarpkeepAudioDirector', () => {
     expect(standby.preload).toBe('none');
   });
 
+  it('keeps title audio source-free on a direct menu route until title is requested', () => {
+    const directorRef = createRef<WarpkeepAudioDirectorHandle>();
+    const { container } = render(
+      <WarpkeepAudioDirector ref={directorRef} scene="menu" />
+    );
+    const title = getAudio(container, 'title');
+    const playSpy = vi.mocked(HTMLMediaElement.prototype.play);
+
+    expect(title.getAttribute('src')).toBeNull();
+    expect(title.preload).toBe('none');
+    expect(playSpy.mock.instances).not.toContain(title);
+
+    playSpy.mockClear();
+    act(() => directorRef.current?.transitionTo('title'));
+    expect(title.src).toMatch(/\/audio\/warpkeep-title-theme-[ab]\.mp3$/);
+    expect(title.preload).toBe('auto');
+    expect(playSpy.mock.instances).toContain(title);
+  });
+
   it('does not attach or request Lowlands until an explicit realm preparation gesture', () => {
     const directorRef = createRef<WarpkeepAudioDirectorHandle>();
     const { container, rerender } = render(

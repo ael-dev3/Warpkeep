@@ -2,12 +2,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { DbConnection, tables } from '../src/spacetime/module_bindings';
+import {
+  DbConnection,
+  tables,
+  type EventContext
+} from '../src/spacetime/module_bindings';
 import {
   connectWarpkeep,
   bootstrapWarpkeepPlayer,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
+  observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepRealmSnapshot,
@@ -210,6 +215,66 @@ describe('Warpkeep authenticated connection boundary', () => {
     const snapshot = readWarpkeepRealmSnapshot(connection, 12_345);
     expect(snapshot.ownCastle?.name).toBe('Token Keep');
     expect(snapshot.castles).toHaveLength(2);
+  });
+
+  it('publishes one realm snapshot per transaction and removes every table listener', () => {
+    type Listener = (context: EventContext, ...rows: unknown[]) => void;
+    const tableDouble = () => {
+      const listeners: {
+        insert?: Listener;
+        delete?: Listener;
+        update?: Listener;
+      } = {};
+      return {
+        listeners,
+        table: {
+          iter: function* () { return undefined; },
+          onInsert: vi.fn((listener: Listener) => { listeners.insert = listener; }),
+          onDelete: vi.fn((listener: Listener) => { listeners.delete = listener; }),
+          onUpdate: vi.fn((listener: Listener) => { listeners.update = listener; }),
+          removeOnInsert: vi.fn(),
+          removeOnDelete: vi.fn(),
+          removeOnUpdate: vi.fn()
+        }
+      };
+    };
+    const worldTile = tableDouble();
+    const playerV2 = tableDouble();
+    const castle = tableDouble();
+    const connection = {
+      db: {
+        worldTile: worldTile.table,
+        playerV2: playerV2.table,
+        castle: castle.table
+      }
+    } as unknown as WarpkeepConnection;
+    const onChange = vi.fn();
+    const cleanup = observeWarpkeepRealm(connection, 12_345, onChange);
+    const context = (id: string) => ({
+      event: { id, tag: 'Transaction' }
+    }) as unknown as EventContext;
+
+    worldTile.listeners.insert?.(context('transaction-1'));
+    playerV2.listeners.update?.(context('transaction-1'));
+    castle.listeners.delete?.(context('transaction-1'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith({
+      tiles: [],
+      players: [],
+      castles: []
+    });
+
+    castle.listeners.insert?.(context('transaction-2'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    cleanup();
+    worldTile.listeners.insert?.(context('transaction-3'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+    for (const source of [worldTile.table, playerV2.table, castle.table]) {
+      expect(source.removeOnInsert).toHaveBeenCalledOnce();
+      expect(source.removeOnDelete).toHaveBeenCalledOnce();
+      expect(source.removeOnUpdate).toHaveBeenCalledOnce();
+    }
   });
 
   it('disconnects a current connection without throwing on a stale socket', () => {

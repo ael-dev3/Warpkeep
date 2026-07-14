@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -26,8 +28,6 @@ import {
   type AuthRailRenderControls,
   type MenuInputModality
 } from './menu/WarpkeepMainMenu';
-import { RealmMapScreen } from './realm/RealmMapScreen';
-import { FarcasterAdmissionPanel } from './auth/FarcasterAdmissionPanel';
 import {
   WarpTransitionOverlay,
   type WarpTransitionOrigin
@@ -51,7 +51,6 @@ import {
   type GraphicsPreference
 } from '../settings/graphicsPreference';
 import { TitleGatewayHint } from './title/TitleGatewayHint';
-import { WarpkeepTitleScreen3D } from './title/WarpkeepTitleScreen3D';
 import {
   fallbackGatewayProjection,
   type WarpkeepTitleScreenHandle
@@ -63,6 +62,30 @@ const REALM_HASH = '#realm';
 const MENU_HISTORY_KEY = 'warpkeepMenu';
 const REALM_HISTORY_KEY = 'warpkeepRealm';
 const TITLE_HINT_DELAY_MS = 5_000;
+
+const WarpkeepTitleScreen3D = lazy(async () => {
+  const module = await import('./title/WarpkeepTitleScreen3D');
+  return { default: module.WarpkeepTitleScreen3D };
+});
+
+const RealmMapScreen = lazy(async () => {
+  const module = await import('./realm/RealmMapScreen');
+  return { default: module.RealmMapScreen };
+});
+
+const FarcasterAdmissionPanel = lazy(async () => {
+  const module = await import('./auth/FarcasterAdmissionPanel');
+  return { default: module.FarcasterAdmissionPanel };
+});
+
+function SceneModuleFallback({ label }: Readonly<{ label: string }>) {
+  return (
+    <div aria-label={label} className="warpkeep-experience__scene-loader" role="status">
+      <span aria-hidden="true" />
+      <small>{label}</small>
+    </div>
+  );
+}
 
 type WarpkeepHistoryState = Record<string, unknown> & {
   [MENU_HISTORY_KEY]?: true;
@@ -893,11 +916,13 @@ export function WarpkeepExperience() {
       const poster = new Image();
       poster.decoding = 'async';
       poster.src = WARPKEEP_MENU_POSTER_URL;
-      preloadVideo = document.createElement('video');
-      preloadVideo.muted = true;
-      preloadVideo.preload = 'metadata';
-      preloadVideo.src = WARPKEEP_MENU_VIDEO_URL;
-      preloadVideo.load();
+      if (!reducedMotion) {
+        preloadVideo = document.createElement('video');
+        preloadVideo.muted = true;
+        preloadVideo.preload = 'metadata';
+        preloadVideo.src = WARPKEEP_MENU_VIDEO_URL;
+        preloadVideo.load();
+      }
       setMenuPreloadReady(true);
     };
 
@@ -924,7 +949,7 @@ export function WarpkeepExperience() {
         preloadVideo.load();
       }
     };
-  }, [experience.phase, titleReady]);
+  }, [experience.phase, reducedMotion, titleReady]);
 
   const getCurrentGatewayProjection = useCallback(() => (
     titleRef.current?.getGatewayProjection() ?? fallbackGatewayProjection()
@@ -969,18 +994,20 @@ export function WarpkeepExperience() {
           aria-hidden={!titleInteractive}
           inert={!titleInteractive ? true : undefined}
         >
-          <WarpkeepTitleScreen3D
-            ref={titleRef}
-            graphicsQuality={resolvedGraphicsQuality}
-            phase={experience.phase === 'transitioning-to-menu'
-              ? 'departing'
-              : experience.phase === 'transitioning-to-title' || returnPreparing
-                ? 'returning'
-                : 'active'}
-            onMeaningfulInteraction={dismissTitleHint}
-            onReady={() => setTitleReady(true)}
-            onRequestEnterMenu={handleTitleEntryRequest}
-          />
+          <Suspense fallback={<SceneModuleFallback label="OPENING THE GATEWAY" />}>
+            <WarpkeepTitleScreen3D
+              ref={titleRef}
+              graphicsQuality={resolvedGraphicsQuality}
+              phase={experience.phase === 'transitioning-to-menu'
+                ? 'departing'
+                : experience.phase === 'transitioning-to-title' || returnPreparing
+                  ? 'returning'
+                  : 'active'}
+              onMeaningfulInteraction={dismissTitleHint}
+              onReady={() => setTitleReady(true)}
+              onRequestEnterMenu={handleTitleEntryRequest}
+            />
+          </Suspense>
         </div>
       ) : null}
 
@@ -1029,15 +1056,17 @@ export function WarpkeepExperience() {
           aria-hidden={experience.phase !== 'realm'}
           inert={experience.phase !== 'realm' ? true : undefined}
         >
-          <RealmMapScreen
-            identity={realmIdentity}
-            ownCastle={backend.state.realm?.ownCastle}
-            otherCastles={backend.state.realm?.castles}
-            sharedPlayers={backend.state.realm?.players}
-            sharedTiles={backend.state.realm?.tiles}
-            onRequestReturn={returnRealmToMenu}
-            qualityOverride={realmProfileForQuality(resolvedGraphicsQuality)}
-          />
+          <Suspense fallback={<SceneModuleFallback label="ASSEMBLING THE REALM" />}>
+            <RealmMapScreen
+              identity={realmIdentity}
+              ownCastle={backend.state.realm?.ownCastle}
+              otherCastles={backend.state.realm?.castles}
+              sharedPlayers={backend.state.realm?.players}
+              sharedTiles={backend.state.realm?.tiles}
+              onRequestReturn={returnRealmToMenu}
+              qualityOverride={realmProfileForQuality(resolvedGraphicsQuality)}
+            />
+          </Suspense>
         </div>
       ) : null}
 

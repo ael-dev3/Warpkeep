@@ -100,6 +100,12 @@ export type RealmQualityInput = Readonly<{
   maxTextureSize?: number;
 }>;
 
+/**
+ * Preserve enough internal resolution for readable borders and keep details
+ * while still allowing oversized canvases to honour their pixel budget.
+ */
+export const MIN_REALM_PIXEL_RATIO = 0.5;
+
 function finitePositive(value: number, fallback: number) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
@@ -130,5 +136,9 @@ export function resolveRealmPixelRatio(
   const safeHeight = finitePositive(height, 1);
   const safeDpr = finitePositive(devicePixelRatio, 1);
   const pixelBudgetRatio = Math.sqrt(spec.maxDrawingBufferPixels / (safeWidth * safeHeight));
-  return Math.max(1, Math.min(safeDpr, spec.pixelRatioCap, pixelBudgetRatio));
+  const minimumPixelRatio = Math.min(safeDpr, MIN_REALM_PIXEL_RATIO);
+  return Math.max(
+    minimumPixelRatio,
+    Math.min(safeDpr, spec.pixelRatioCap, pixelBudgetRatio)
+  );
 }

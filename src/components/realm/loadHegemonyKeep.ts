@@ -5,6 +5,29 @@ import type { RealmQuality, RealmQualitySpec } from './realmQuality';
 
 const KEEP_TARGET_DIAMETER = 1.48;
 
+export const HEGEMONY_KEEP_RUNTIME_ASSETS = Object.freeze({
+  high: Object.freeze({
+    path: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.high,
+    bytes: 2_256_092,
+    sha256: 'ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c'
+  }),
+  balanced: Object.freeze({
+    path: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.balanced,
+    bytes: 2_064_100,
+    sha256: 'bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4'
+  }),
+  reduced: Object.freeze({
+    path: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact,
+    bytes: 760_916,
+    sha256: '9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b'
+  })
+});
+
+type KeepRuntimeAsset = (typeof HEGEMONY_KEEP_RUNTIME_ASSETS)[keyof typeof HEGEMONY_KEEP_RUNTIME_ASSETS];
+type KeepBinaryRequest = Promise<ArrayBuffer>;
+
+const keepBinaryRequests = new Map<string, KeepBinaryRequest>();
+
 export type KeepNormalization = Readonly<{
   scale: number;
   offsetX: number;
@@ -25,7 +48,13 @@ export type LoadHegemonyKeepOptions = Readonly<{
   quality: RealmQualitySpec;
   baseUrl: string;
   maxAnisotropy: number;
+  parser?: HegemonyKeepParser;
 }>;
+
+export type HegemonyKeepParser = (
+  bytes: ArrayBuffer,
+  resourcePath: string
+) => Promise<THREE.Object3D>;
 
 export function resolveRealmAssetUrl(baseUrl: string, assetPath: string) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -35,6 +64,53 @@ export function keepAssetPathForQuality(quality: RealmQuality) {
   if (quality === 'high') return HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.high;
   if (quality === 'balanced') return HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.balanced;
   return HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact;
+}
+
+function keepRuntimeAssetForPath(path: string): KeepRuntimeAsset {
+  const asset = Object.values(HEGEMONY_KEEP_RUNTIME_ASSETS)
+    .find((candidate) => candidate.path === path);
+  if (!asset) throw new Error('Unsupported Hegemony keep runtime asset.');
+  return asset;
+}
+
+async function sha256Hex(bytes: ArrayBuffer) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function requestKeepBinary(assetUrl: string, asset: KeepRuntimeAsset) {
+  const cached = keepBinaryRequests.get(assetUrl);
+  if (cached) return cached;
+
+  let request: KeepBinaryRequest;
+  request = fetch(assetUrl, { credentials: 'same-origin' })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Hegemony keep request failed with ${response.status}.`);
+      const bytes = await response.arrayBuffer();
+      if (bytes.byteLength !== asset.bytes || await sha256Hex(bytes) !== asset.sha256) {
+        throw new Error('Hegemony keep model failed its integrity check.');
+      }
+      return bytes;
+    })
+    .catch((error) => {
+      if (keepBinaryRequests.get(assetUrl) === request) keepBinaryRequests.delete(assetUrl);
+      throw error;
+    });
+  keepBinaryRequests.set(assetUrl, request);
+  return request;
+}
+
+async function parseHegemonyKeep(bytes: ArrayBuffer, resourcePath: string) {
+  const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
+    import('three/addons/loaders/GLTFLoader.js'),
+    import('three/addons/libs/meshopt_decoder.module.js')
+  ]);
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  const loaded = await loader.parseAsync(bytes, resourcePath);
+  return loaded.scene;
 }
 
 export function calculateKeepNormalization(
@@ -123,15 +199,14 @@ export function createHegemonyKeepPlaceholder(failed = false) {
 export async function loadHegemonyKeep(
   options: LoadHegemonyKeepOptions
 ): Promise<HegemonyKeepLoadResult> {
-  const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
-    import('three/addons/loaders/GLTFLoader.js'),
-    import('three/addons/libs/meshopt_decoder.module.js')
-  ]);
   const assetUrl = resolveRealmAssetUrl(options.baseUrl, options.quality.keepAssetPath);
-  const loader = new GLTFLoader();
-  loader.setMeshoptDecoder(MeshoptDecoder);
-  const loaded = await loader.loadAsync(assetUrl);
-  const box = new THREE.Box3().setFromObject(loaded.scene);
+  const asset = keepRuntimeAssetForPath(options.quality.keepAssetPath);
+  const bytes = await requestKeepBinary(assetUrl, asset);
+  const scene = await (options.parser ?? parseHegemonyKeep)(
+    bytes.slice(0),
+    assetUrl.slice(0, assetUrl.lastIndexOf('/') + 1)
+  );
+  const box = new THREE.Box3().setFromObject(scene);
   const normalization = calculateKeepNormalization({
     minX: box.min.x,
     minY: box.min.y,
@@ -140,14 +215,14 @@ export async function loadHegemonyKeep(
     maxY: box.max.y,
     maxZ: box.max.z
   });
-  loaded.scene.scale.setScalar(normalization.scale);
-  loaded.scene.position.set(
+  scene.scale.setScalar(normalization.scale);
+  scene.position.set(
     normalization.offsetX,
     normalization.offsetY,
     normalization.offsetZ
   );
-  loaded.scene.rotation.y = HEGEMONY_FRONTIER_KEEP.yawRadians;
-  loaded.scene.traverse((object) => {
+  scene.rotation.y = HEGEMONY_FRONTIER_KEEP.yawRadians;
+  scene.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     object.castShadow = options.quality.dynamicShadows;
     object.receiveShadow = true;
@@ -156,13 +231,17 @@ export async function loadHegemonyKeep(
   });
   const root = new THREE.Group();
   root.name = HEGEMONY_FRONTIER_KEEP.id;
-  root.add(loaded.scene);
+  root.add(scene);
   return {
     root,
     visualHeight: normalization.visualHeight,
     footprintDiameter: normalization.footprintDiameter,
     assetUrl
   };
+}
+
+export function clearHegemonyKeepBinaryCacheForTests() {
+  keepBinaryRequests.clear();
 }
 
 function disposeMaterial(material: THREE.Material, textures: Set<THREE.Texture>) {

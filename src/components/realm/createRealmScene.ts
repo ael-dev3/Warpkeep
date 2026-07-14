@@ -4,6 +4,10 @@ import { axialToWorld, worldToNearestAxial, type HexCoord } from '../../game/map
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
 import { isPlayableRealmCoord, type RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
+import {
+  createHegemonyCastlePlacements,
+  type TerrainStructurePlacement
+} from '../../game/map/terrainPlacements';
 import { createTerrainDecorationLayers } from './createTerrainDecorations';
 import { createTerrainGeometryData, pointyHexCorners } from './createTerrainGeometry';
 import {
@@ -73,11 +77,13 @@ type PickResult = Readonly<{
 
 function createTerrainGeometry(
   surface: RealmTerrainSurface,
-  quality: RealmQualitySpec
+  quality: RealmQualitySpec,
+  placements: readonly TerrainStructurePlacement[]
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
     subdivisionsPerEdge: quality.subdivisionsPerEdge,
-    playableRadius: quality.playableRadius
+    playableRadius: quality.playableRadius,
+    placements
   });
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
@@ -114,7 +120,8 @@ function createOverlay(color: THREE.ColorRepresentation, opacity: number) {
 function setOverlay(
   overlay: THREE.LineLoop,
   surface: RealmTerrainSurface,
-  coord: HexCoord | null
+  coord: HexCoord | null,
+  placements: readonly TerrainStructurePlacement[]
 ) {
   if (!coord || !isPlayableRealmCoord(surface, coord)) {
     overlay.visible = false;
@@ -126,7 +133,7 @@ function setOverlay(
     positions.setXYZ(
       index,
       corner.x,
-      terrainHeightAtWorld(surface.renderMap, corner, HEX_SIZE) + OVERLAY_LIFT,
+      terrainHeightAtWorld(surface.renderMap, corner, HEX_SIZE, placements) + OVERLAY_LIFT,
       corner.z
     );
   });
@@ -160,6 +167,13 @@ function activePinchDistance(pointers: ReadonlyMap<number, PointerSample>) {
 }
 
 export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHandle {
+  const terrainPlacements = createHegemonyCastlePlacements([
+    { id: 'own-keep', coord: options.keepCoord },
+    ...options.otherCastles.map((castle) => ({
+      id: `peer-castle-${castle.castleId}`,
+      coord: { q: castle.q, r: castle.r }
+    }))
+  ]);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#aebfc0');
   const fog = new THREE.Fog('#aebfc0', options.quality.fogNear, options.quality.fogFar);
@@ -181,7 +195,8 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
 
   const { data: terrainData, geometry: terrainGeometry } = createTerrainGeometry(
     options.surface,
-    options.quality
+    options.quality,
+    terrainPlacements
   );
   const terrainMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -194,12 +209,18 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   terrain.receiveShadow = true;
   scene.add(terrain);
 
-  const decorationData = generateTerrainDecorations(options.surface.renderMap, options.quality);
+  const decorationData = generateTerrainDecorations(
+    options.surface.renderMap,
+    options.quality,
+    HEX_SIZE,
+    terrainPlacements
+  );
   const decorations = createTerrainDecorationLayers(
     decorationData,
     options.surface.renderMap,
     options.quality,
-    HEX_SIZE
+    HEX_SIZE,
+    terrainPlacements
   );
   scene.add(decorations.group);
 
@@ -229,7 +250,12 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   scene.add(hoverOverlay, selectedOverlay);
 
   const keepWorld = axialToWorld(options.keepCoord, HEX_SIZE);
-  const keepGroundY = terrainHeightAtWorld(options.surface.renderMap, keepWorld, HEX_SIZE);
+  const keepGroundY = terrainHeightAtWorld(
+    options.surface.renderMap,
+    keepWorld,
+    HEX_SIZE,
+    terrainPlacements
+  );
   const keepAnchor = new THREE.Group();
   keepAnchor.name = 'hegemony-keep-anchor';
   keepAnchor.position.set(keepWorld.x, keepGroundY + 0.006, keepWorld.z);
@@ -247,18 +273,32 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     roughness: 0.78,
     metalness: 0.04
   });
-  for (const castle of options.otherCastles) {
+  const peerMarkerInstances = new THREE.InstancedMesh(
+    peerMarkerGeometry,
+    peerMarkerMaterial,
+    options.otherCastles.length
+  );
+  peerMarkerInstances.name = 'hegemony-peer-castle-instances';
+  const peerMarkerMatrix = new THREE.Matrix4();
+  const peerMarkerPosition = new THREE.Vector3();
+  const peerMarkerRotation = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    Math.PI / 5
+  );
+  const peerMarkerScale = new THREE.Vector3(1, 1, 1);
+  options.otherCastles.forEach((castle, index) => {
     const world = axialToWorld({ q: castle.q, r: castle.r }, HEX_SIZE);
-    const marker = new THREE.Mesh(peerMarkerGeometry, peerMarkerMaterial);
-    marker.name = `peer-castle-${castle.castleId}`;
-    marker.position.set(
+    peerMarkerPosition.set(
       world.x,
-      terrainHeightAtWorld(options.surface.renderMap, world, HEX_SIZE) + 0.2,
+      terrainHeightAtWorld(options.surface.renderMap, world, HEX_SIZE, terrainPlacements) + 0.2,
       world.z
     );
-    marker.rotation.y = Math.PI / 5;
-    peerMarkerGroup.add(marker);
-  }
+    peerMarkerMatrix.compose(peerMarkerPosition, peerMarkerRotation, peerMarkerScale);
+    peerMarkerInstances.setMatrixAt(index, peerMarkerMatrix);
+  });
+  peerMarkerInstances.instanceMatrix.needsUpdate = true;
+  peerMarkerInstances.computeBoundingSphere();
+  peerMarkerGroup.add(peerMarkerInstances);
   scene.add(peerMarkerGroup);
 
   const contactShadow = new THREE.Mesh(
@@ -522,12 +562,12 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     recenterKeep: cameraController.recenterKeep,
     setHovered: (coord) => {
       if (disposed) return;
-      setOverlay(hoverOverlay, options.surface, coord);
+      setOverlay(hoverOverlay, options.surface, coord, terrainPlacements);
       render();
     },
     setSelected: (coord) => {
       if (disposed) return;
-      setOverlay(selectedOverlay, options.surface, coord);
+      setOverlay(selectedOverlay, options.surface, coord, terrainPlacements);
       render();
     },
     showRealm: cameraController.showRealm

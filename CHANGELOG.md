@@ -4,7 +4,40 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-No unreleased player-facing changes.
+### Added
+
+- A cancellable 3D title-presentation controller with exact asset integrity,
+  shared request coalescing, delayed procedural fallback, and smooth quality
+  replacement without transient duplicate render loops.
+- Keyboard-contained Terms and Settings dialogs plus a pauseable, manually
+  scrollable Credits presentation with live reduced-motion support.
+
+### Changed
+
+- Castle admission now fills the center and nearest hex rings first, keeping
+  new keeps close together while preserving deterministic allocation.
+- Realm terrain, packed-earth pads, decoration clearance, SVG fallback, and
+  peer markers now derive from the authoritative own-and-peer castle set.
+- Peer castle markers share one instanced draw, terrain placement sampling uses
+  immutable coordinate indexes, repeated keep-model requests are coalesced and
+  integrity-checked, and menu-only visits no longer fetch title music.
+- Title, realm, and admission-only UI are split behind their actual screen
+  boundaries; menu-only visits avoid the Three.js scene bundle, title music,
+  and reduced-motion menu-video metadata transfer.
+
+### Fixed
+
+- Preserved realm focus and selection across quality changes, ignored metadata-
+  only peer updates, and stopped nested HUD controls from triggering map keys.
+- Removed the phantom origin foundation when no castle exists and kept custom
+  wide foundations continuous across shared terrain edges.
+- Deduplicated SpacetimeDB transaction notifications and consumed observer
+  snapshots directly instead of rebuilding and sorting the realm repeatedly.
+- Stabilized title loading, reveal, quality replacement, hidden-tab recovery,
+  particle-density changes, and resource disposal under Strict Mode and live
+  reduced-motion changes.
+- Restored exact modal trigger focus, removed non-interactive heading outlines,
+  and improved compact Terms, Credits, project-link, and realm-HUD legibility.
 
 ## [0.3.1] — 2026-07-13
 

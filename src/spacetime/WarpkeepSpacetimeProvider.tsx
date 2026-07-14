@@ -25,7 +25,8 @@ import {
 } from './warpkeepConnection';
 import {
   IDLE_WARPKEEP_BACKEND_STATE,
-  type WarpkeepBackendState
+  type WarpkeepBackendState,
+  type WarpkeepRealmSnapshot
 } from './warpkeepBackendTypes';
 import {
   hasUsableWarpkeepBridge,
@@ -319,13 +320,14 @@ export function WarpkeepSpacetimeProvider({
           return;
         }
 
-        const updateRealm = () => {
+        const updateRealm = (observedSnapshot?: WarpkeepRealmSnapshot) => {
           if (!current()) return;
           setState({
             phase: 'ready',
             identity,
             admission: 'ready',
-            realm: runtime.readRealmSnapshot(activeConnection, bridgeFid!)
+            realm: observedSnapshot
+              ?? runtime.readRealmSnapshot(activeConnection, bridgeFid!)
           });
         };
         cleanupObserver = runtime.observeRealm(activeConnection, bridgeFid!, updateRealm);

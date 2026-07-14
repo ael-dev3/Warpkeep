@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MIN_REALM_PIXEL_RATIO,
   REALM_LIGHTING_SPECS,
   REALM_QUALITY_SPECS,
   resolveRealmPixelRatio,
@@ -56,5 +57,22 @@ describe('realm quality profiles', () => {
     expect(resolveRealmPixelRatio(1920, 1080, 4, REALM_QUALITY_SPECS.high)).toBeCloseTo(2, 4);
     expect(resolveRealmPixelRatio(3840, 2160, 2, REALM_QUALITY_SPECS.high)).toBeCloseTo(1.006, 2);
     expect(resolveRealmPixelRatio(1280, 720, 3, REALM_QUALITY_SPECS.balanced)).toBeCloseTo(1.75, 4);
+  });
+
+  it('scales oversized canvases below one to honour their drawing-buffer budget', () => {
+    const width = 7_680;
+    const height = 4_320;
+    const ratio = resolveRealmPixelRatio(width, height, 2, REALM_QUALITY_SPECS.high);
+
+    expect(ratio).toBeLessThan(1);
+    expect(width * height * ratio * ratio)
+      .toBeLessThanOrEqual(REALM_QUALITY_SPECS.high.maxDrawingBufferPixels);
+  });
+
+  it('keeps an intentional resolution floor for pathological canvas sizes', () => {
+    expect(resolveRealmPixelRatio(32_000, 18_000, 2, REALM_QUALITY_SPECS.reduced))
+      .toBe(MIN_REALM_PIXEL_RATIO);
+    expect(resolveRealmPixelRatio(32_000, 18_000, 0.4, REALM_QUALITY_SPECS.reduced))
+      .toBe(0.4);
   });
 });

@@ -97,7 +97,11 @@ async function settleInitialTitle() {
   return screen.getByRole('button', { name: 'Enter Warpkeep' });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await Promise.all([
+    import('../src/components/title/WarpkeepTitleScreen3D'),
+    import('../src/components/realm/RealmMapScreen')
+  ]);
   vi.useFakeTimers();
   window.history.replaceState({}, '', '/');
   installBrowserStubs();

@@ -522,20 +522,20 @@ export function WarpkeepMainMenu({
         return;
       }
 
+      // Mounted modal surfaces own their complete keyboard boundary, including
+      // Escape. Let their capture listener close exactly once and restore the
+      // command that opened them through the corresponding close callback.
+      if (termsOpen || surface === 'settings' || surface === 'credits') {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
       lastActionModalityRef.current = 'keyboard';
-      if (termsOpen) {
-        event.stopImmediatePropagation();
-        closeTerms();
-      } else if (activeNotice) {
+      if (activeNotice) {
         setActiveNotice(null);
       } else if (authPanelOpen) {
         closeAuthPanel(true);
-      } else if (surface === 'settings') {
-        closeSettings();
-      } else if (surface === 'credits') {
-        closeCredits();
       } else {
         handleRequestReturn();
       }
@@ -543,7 +543,7 @@ export function WarpkeepMainMenu({
 
     document.addEventListener('keydown', handleEscape, true);
     return () => document.removeEventListener('keydown', handleEscape, true);
-  }, [activeNotice, authPanelOpen, closeAuthPanel, closeCredits, closeSettings, closeTerms, handleRequestReturn, interactive, surface, termsOpen]);
+  }, [activeNotice, authPanelOpen, closeAuthPanel, handleRequestReturn, interactive, surface, termsOpen]);
 
   const handleVideoReady = useCallback(() => {
     setVideoState('ready');

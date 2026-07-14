@@ -301,7 +301,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   padding: 0.4rem 0.65rem;
   color: rgba(231, 203, 150, 0.88);
   font-family: Georgia, "Times New Roman", serif;
@@ -722,7 +722,7 @@ a.warpkeep-menu-build-stamp:focus-visible {
   }
 
   .warpkeep-menu-project__link {
-    min-height: 1.85rem;
+    min-height: 2.75rem;
     padding-block: 0.2rem;
   }
 }

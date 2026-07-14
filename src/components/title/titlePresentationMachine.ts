@@ -52,7 +52,7 @@ export type TitlePresentationEvent =
   | Readonly<{ type: 'fallback-compiled'; now: number }>
   | Readonly<{ type: 'fallback-compile-failed'; reason: string }>
   | Readonly<{ type: 'transition-finished' }>
-  | Readonly<{ type: 'reduced-motion-changed'; reducedMotion: boolean }>
+  | Readonly<{ type: 'reduced-motion-changed'; reducedMotion: boolean; now: number }>
   | Readonly<{ type: 'dispose' }>;
 
 export function titlePrimaryTimeoutMs(profile: WarpkeepTitleModelProfile) {
@@ -180,10 +180,47 @@ export function transitionTitlePresentation(
         : { ...failed, phase: 'model-failed-waiting' };
     }
     case 'quality-requested': {
-      if (state.fallbackLocked || event.profile === state.activeProfile || event.profile === state.candidateProfile) {
+      if (state.fallbackLocked) {
         return state;
       }
-      if (state.activeProfile && state.phase === 'model-ready') {
+
+      const primaryInFlight = !state.activeProfile && [
+        'model-loading',
+        'model-compiling',
+        'model-failed-waiting'
+      ].includes(state.phase);
+      if (primaryInFlight && event.profile === state.desiredProfile) {
+        return state;
+      }
+
+      const replacementInFlight = Boolean(state.activeProfile) && [
+        'replacement-loading',
+        'replacement-compiling',
+        'replacement-crossfading'
+      ].includes(state.phase);
+      if (replacementInFlight && event.profile === state.candidateProfile) {
+        return state;
+      }
+      if (state.activeProfile && event.profile === state.activeProfile) {
+        if (!replacementInFlight) return state;
+        return {
+          ...state,
+          phase: 'model-ready',
+          requestId: event.requestId,
+          desiredProfile: event.profile,
+          candidateProfile: null,
+          transitionStartedAt: null,
+          failure: null
+        };
+      }
+
+      if (state.activeProfile && [
+        'model-revealing',
+        'model-ready',
+        'replacement-loading',
+        'replacement-compiling',
+        'replacement-crossfading'
+      ].includes(state.phase)) {
         return {
           ...state,
           phase: 'replacement-loading',
@@ -194,11 +231,7 @@ export function transitionTitlePresentation(
           failure: null
         };
       }
-      if (!state.activeProfile && [
-        'model-loading',
-        'model-compiling',
-        'model-failed-waiting'
-      ].includes(state.phase)) {
+      if (primaryInFlight) {
         return {
           ...state,
           phase: 'model-loading',
@@ -256,8 +289,19 @@ export function transitionTitlePresentation(
       }
       return state;
     }
-    case 'reduced-motion-changed':
-      return { ...state, reducedMotion: event.reducedMotion };
+    case 'reduced-motion-changed': {
+      if (state.reducedMotion === event.reducedMotion) return state;
+      if (state.transitionStartedAt === null) {
+        return { ...state, reducedMotion: event.reducedMotion };
+      }
+      const progress = titleTransitionProgress(state, event.now);
+      return {
+        ...state,
+        reducedMotion: event.reducedMotion,
+        transitionStartedAt:
+          event.now - progress * titleRevealDurationMs(event.reducedMotion)
+      };
+    }
   }
 }
 

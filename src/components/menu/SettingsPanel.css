@@ -36,6 +36,10 @@
   letter-spacing: 0.12em;
 }
 
+.warpkeep-settings__panel h2:focus {
+  outline: none;
+}
+
 .warpkeep-settings__panel header p:last-child {
   max-width: 38rem;
   color: #d4c2a0;

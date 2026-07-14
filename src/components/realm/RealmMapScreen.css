@@ -69,6 +69,10 @@
   filter: drop-shadow(0 0.14rem 0.1rem rgb(29 23 33 / 46%));
 }
 
+.realm-map-screen__fallback-foundation {
+  pointer-events: none;
+}
+
 .realm-map-screen__fallback-copy {
   position: absolute;
   z-index: 2;
@@ -134,7 +138,7 @@
 .realm-hud__header > p {
   margin: 0;
   color: #c9d7c4;
-  font-size: 0.57rem;
+  font-size: clamp(0.64rem, 0.72vw, 0.7rem);
   font-weight: 740;
   letter-spacing: 0.18em;
 }
@@ -161,7 +165,7 @@
   padding: 0.15rem 0.34rem;
   border: 1px solid rgb(229 198 119 / 28%);
   color: #e2cc92;
-  font-size: 0.5rem;
+  font-size: clamp(0.61rem, 0.68vw, 0.67rem);
   font-weight: 720;
   letter-spacing: 0.12em;
 }
@@ -198,7 +202,7 @@
 .realm-hud__shared-state {
   margin: -0.08rem 0 0;
   color: #b9c8a9;
-  font-size: 0.5rem;
+  font-size: clamp(0.61rem, 0.68vw, 0.67rem);
   font-weight: 740;
   letter-spacing: 0.105em;
   line-height: 1.4;
@@ -224,7 +228,7 @@
 .realm-hud__actions button {
   min-height: 2.75rem;
   padding: 0.45rem 0.38rem;
-  font-size: 0.56rem;
+  font-size: clamp(0.65rem, 0.72vw, 0.7rem);
   font-weight: 760;
   letter-spacing: 0.075em;
   line-height: 1.25;
@@ -342,7 +346,7 @@
 
   .realm-hud__selection small,
   .realm-hud__hint {
-    font-size: 0.57rem;
+    font-size: 0.64rem;
   }
 
   .realm-hud__hint {
@@ -351,7 +355,7 @@
 
   .realm-hud__actions button {
     min-height: 2.65rem;
-    font-size: 0.51rem;
+    font-size: 0.64rem;
   }
 
   .realm-cell-navigator {

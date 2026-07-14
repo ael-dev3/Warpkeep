@@ -16,7 +16,7 @@ function boundedSigned(seed: number): number {
   return Math.max(-1, Math.min(1, seededSignedFloat(seed)));
 }
 
-function createTerrainCell(worldSeed: number, coord: HexCoord): TerrainCell {
+export function createTerrainCellForCoord(worldSeed: number, coord: HexCoord): TerrainCell {
   const cellSeed = deriveChannelSeed(worldSeed, coord.q, coord.r, 'cell');
   return {
     coord,
@@ -37,7 +37,8 @@ function createTerrainCell(worldSeed: number, coord: HexCoord): TerrainCell {
 export function generateRealmTerrainMap(seed: string | number, radius = DEFAULT_REALM_RADIUS): RealmTerrainMap {
   const worldSeed = normalizedSeed(seed);
   const safeRadius = Math.max(0, Math.trunc(Number.isFinite(radius) ? radius : DEFAULT_REALM_RADIUS));
-  const cells = hexDisc({ q: 0, r: 0 }, safeRadius).map((coord) => createTerrainCell(worldSeed, coord));
+  const cells = hexDisc({ q: 0, r: 0 }, safeRadius)
+    .map((coord) => createTerrainCellForCoord(worldSeed, coord));
 
   return {
     version: 1,

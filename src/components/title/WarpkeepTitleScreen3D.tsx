@@ -43,9 +43,9 @@ import { dampValue, isMousePointerType, normalizePointerPosition } from './title
 import { createBrutalistGlyphGeometry } from './titleGeometry';
 import { createConcreteTextures, type ConcreteTextureSet } from './titleTextures';
 import {
-  disposeObject3DResources,
-  loadWarpkeepTitle
+  disposeObject3DResources
 } from './loadWarpkeepTitle';
+import { createTitlePresentationController } from './titlePresentationController';
 import { calculateTitleResponsiveLayout } from './titleLayout';
 import { calculateGalaxyGrowth, createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
 import {
@@ -70,6 +70,7 @@ type GalaxyAssembly = {
   dust: PointLayer;
   disc: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   discMaterial: THREE.ShaderMaterial;
+  particleCount: number;
 };
 
 type TitleAssembly = {
@@ -567,11 +568,7 @@ function createGalaxyDust(layout: ReturnType<typeof createSpiralGalaxyLayout>, p
   return { points, material };
 }
 
-function createGalaxy(
-  count: number,
-  pixelRatio: number,
-  initialQuality: GatewayVfxQuality
-): GalaxyAssembly {
+function createGalaxyPointLayers(count: number, pixelRatio: number) {
   const layout = createSpiralGalaxyLayout(count);
   const colors = new Float32Array(count * 3);
   const ivory = new THREE.Color('#e9e1eb');
@@ -602,6 +599,16 @@ function createGalaxy(
   starPoints.renderOrder = 2;
   const stars = { points: starPoints, material: starMaterial };
   const dust = createGalaxyDust(layout, pixelRatio);
+
+  return { stars, dust };
+}
+
+function createGalaxy(
+  count: number,
+  pixelRatio: number,
+  initialQuality: GatewayVfxQuality
+): GalaxyAssembly {
+  const { stars, dust } = createGalaxyPointLayers(count, pixelRatio);
 
   const discMaterial = createGalaxyDiscMaterial(initialQuality);
   const disc = new THREE.Mesh(
@@ -637,7 +644,8 @@ function createGalaxy(
     stars,
     dust,
     disc,
-    discMaterial
+    discMaterial,
+    particleCount: count
   };
 }
 
@@ -694,7 +702,6 @@ function createTitleAssembly(textures: ConcreteTextureSet): TitleAssembly {
     throw error;
   }
 
-  group.position.set(0, -1.52, 0.28);
   const safeWidth = layout.width + titleSceneSpec.title.depth * 0.22;
   return { group, safeWidth };
 }
@@ -730,9 +737,16 @@ export const WarpkeepTitleScreen3D = forwardRef<
   const entryRequestedRef = useRef(false);
   const readyNotifiedRef = useRef(false);
   const callbacksRef = useRef({ onRequestEnterMenu, onReady, onMeaningfulInteraction });
+  const graphicsQualityRef = useRef(graphicsQuality);
+  const qualityChangeHandlerRef = useRef<((quality: typeof graphicsQuality) => void) | null>(null);
   const [fallback, setFallback] = useState(false);
   phaseRef.current = phase;
+  graphicsQualityRef.current = graphicsQuality;
   callbacksRef.current = { onRequestEnterMenu, onReady, onMeaningfulInteraction };
+
+  useEffect(() => {
+    qualityChangeHandlerRef.current?.(graphicsQuality);
+  }, [graphicsQuality]);
 
   const requestEnter = useCallback((input: 'keyboard' | 'pointer') => {
     if (fallbackRef.current) {
@@ -791,8 +805,11 @@ export const WarpkeepTitleScreen3D = forwardRef<
     let reducedMotionQuery: MediaQueryList | null = null;
     let reducedMotionChangeHandler: ((event: MediaQueryListEvent) => void) | null = null;
     let reducedActivationTimer = 0;
+    let titlePresentation: ReturnType<typeof createTitlePresentationController> | null = null;
+    let requestTitleRender: () => void = () => undefined;
+    let refreshTitleLayout: () => void = () => undefined;
+    let renderingFrame = false;
     let disposed = false;
-    const titleModelAbortController = new AbortController();
     const pointerTarget = { x: 0, y: 0 };
     const pointerCurrent = { x: 0, y: 0 };
     const pointerScreen = { x: 0, y: 0, active: false };
@@ -803,9 +820,11 @@ export const WarpkeepTitleScreen3D = forwardRef<
         return;
       }
       disposed = true;
-      titleModelAbortController.abort();
       window.clearTimeout(reducedActivationTimer);
       reducedActivationRenderRef.current = null;
+      qualityChangeHandlerRef.current = null;
+      titlePresentation?.dispose();
+      titlePresentation = null;
       resizeObserver?.disconnect();
       if (animationFrame) {
         window.cancelAnimationFrame(animationFrame);
@@ -840,12 +859,13 @@ export const WarpkeepTitleScreen3D = forwardRef<
       let prefersReducedMotion = reducedMotionQuery.matches;
       const initialWidth = Math.max(1, Math.round(container.clientWidth));
       const initialHeight = Math.max(1, Math.round(container.clientHeight));
-      const pixelRatioCap = graphicsQuality === 'cinematic'
+      let activeGraphicsQuality = graphicsQualityRef.current;
+      const pixelRatioCap = () => activeGraphicsQuality === 'cinematic'
         ? 1.65
-        : graphicsQuality === 'balanced'
+        : activeGraphicsQuality === 'balanced'
           ? 1.4
           : 1.1;
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap());
 
       scene = new THREE.Scene();
       scene.background = new THREE.Color(titleSceneSpec.palette.void);
@@ -872,7 +892,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
         reducedMotion: prefersReducedMotion,
         rendererMaxTextureSize,
         supportsHighpFragment
-      }), graphicsQuality, rendererMaxTextureSize, supportsHighpFragment);
+      }), activeGraphicsQuality, rendererMaxTextureSize, supportsHighpFragment);
       let activeGatewayVfxQuality = initialGatewayVfxQuality;
       const compactGalaxyQuality = initialGatewayVfxQuality !== 'high';
       const initialSurfaceBounds = interactionSurface.getBoundingClientRect();
@@ -939,10 +959,11 @@ export const WarpkeepTitleScreen3D = forwardRef<
       };
       attachPointerInteraction();
 
-      const backgroundStars = createBackgroundStars(
-        compactGalaxyQuality
-          ? titleSceneSpec.galaxy.mobileBackgroundStars
-          : titleSceneSpec.galaxy.desktopBackgroundStars,
+      let backgroundStarCount = compactGalaxyQuality
+        ? titleSceneSpec.galaxy.mobileBackgroundStars
+        : titleSceneSpec.galaxy.desktopBackgroundStars;
+      let backgroundStars = createBackgroundStars(
+        backgroundStarCount,
         pixelRatio
       );
       scene.add(backgroundStars.points);
@@ -955,6 +976,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
         activeGatewayVfxQuality
       );
       const webglRenderer = renderer;
+      const webglScene = scene;
       const updateGatewayVfxDataset = (assembly: GatewayVfxAssembly) => {
         webglRenderer.domElement.dataset.gatewayVfxQuality = assembly.stats.quality;
         webglRenderer.domElement.dataset.gatewayVfxDrawCalls = String(assembly.stats.drawCalls);
@@ -1001,16 +1023,62 @@ export const WarpkeepTitleScreen3D = forwardRef<
       gatewayVfx = createGatewayAssembly(activeGatewayVfxQuality, pixelRatio);
       scene.add(galaxy.group);
 
-      const concreteTextures = createConcreteTextures();
-      const maxAnisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-      [concreteTextures.color, concreteTextures.bump, concreteTextures.roughness].forEach((texture) => {
-        texture.anisotropy = maxAnisotropy;
-        textures.push(texture);
-      });
-      let title = createTitleAssembly(concreteTextures);
-      scene.add(title.group);
+      const disposePointLayer = (layer: PointLayer) => {
+        layer.points.geometry.dispose();
+        layer.material.dispose();
+      };
+      const syncGalaxyDensity = (
+        quality: GatewayVfxQuality,
+        nextPixelRatio: number
+      ) => {
+        const compact = quality !== 'high';
+        const nextBackgroundStarCount = compact
+          ? titleSceneSpec.galaxy.mobileBackgroundStars
+          : titleSceneSpec.galaxy.desktopBackgroundStars;
+        if (nextBackgroundStarCount !== backgroundStarCount) {
+          const previous = backgroundStars;
+          backgroundStars = createBackgroundStars(nextBackgroundStarCount, nextPixelRatio);
+          backgroundStarCount = nextBackgroundStarCount;
+          webglScene.remove(previous.points);
+          webglScene.add(backgroundStars.points);
+          disposePointLayer(previous);
+        }
+
+        const nextGalaxyParticleCount = compact
+          ? titleSceneSpec.galaxy.mobileParticleCount
+          : titleSceneSpec.galaxy.desktopParticleCount;
+        if (nextGalaxyParticleCount !== galaxy.particleCount) {
+          const previousStars = galaxy.stars;
+          const previousDust = galaxy.dust;
+          const nextLayers = createGalaxyPointLayers(nextGalaxyParticleCount, nextPixelRatio);
+          galaxy.spinGroup.remove(previousStars.points, previousDust.points);
+          galaxy.spinGroup.add(nextLayers.dust.points, nextLayers.stars.points);
+          galaxy.stars = nextLayers.stars;
+          galaxy.dust = nextLayers.dust;
+          galaxy.particleCount = nextGalaxyParticleCount;
+          disposePointLayer(previousStars);
+          disposePointLayer(previousDust);
+        }
+        webglRenderer.domElement.dataset.titleGalaxyParticles = String(galaxy.particleCount);
+        webglRenderer.domElement.dataset.titleBackgroundStars = String(backgroundStarCount);
+      };
+      syncGalaxyDensity(activeGatewayVfxQuality, pixelRatio);
+
+      let concreteTextures: ConcreteTextureSet | null = null;
+      const createFallbackTitle = () => {
+        if (!concreteTextures) {
+          concreteTextures = createConcreteTextures();
+          const maxAnisotropy = Math.min(8, renderer?.capabilities.getMaxAnisotropy() ?? 1);
+          [concreteTextures.color, concreteTextures.bump, concreteTextures.roughness]
+            .forEach((texture) => {
+              texture.anisotropy = maxAnisotropy;
+              textures.push(texture);
+            });
+        }
+        return createTitleAssembly(concreteTextures);
+      };
       renderer.domElement.dataset.titleModelState = 'loading';
-      renderer.domElement.dataset.titleModelQuality = graphicsQuality;
+      renderer.domElement.dataset.titleModelQuality = activeGraphicsQuality;
 
       scene.add(new THREE.AmbientLight(0x111522, 0.3));
       scene.add(new THREE.HemisphereLight(0xe6e2d6, 0x050711, 0.72));
@@ -1031,6 +1099,25 @@ export const WarpkeepTitleScreen3D = forwardRef<
       const neutralFillLight = new THREE.PointLight(0xb8b0a5, 5.5, 22, 1.65);
       neutralFillLight.position.set(-6, -1.4, 4.5);
       scene.add(neutralFillLight);
+
+      titlePresentation = createTitlePresentationController({
+        scene,
+        camera,
+        renderer,
+        baseUrl: import.meta.env.BASE_URL || '/',
+        initialQuality: activeGraphicsQuality,
+        reducedMotion: prefersReducedMotion,
+        createFallback: createFallbackTitle,
+        onNeedsRender: () => requestTitleRender(),
+        onStateChange: (titleState) => {
+          if (!renderer) return;
+          renderer.domElement.dataset.titleModelState = titleState.phase;
+          renderer.domElement.dataset.titleModelProfile =
+            titleState.activeProfile ?? (titleState.fallbackLocked ? 'fallback' : 'pending');
+          refreshTitleLayout();
+        }
+      });
+      const titleStage = titlePresentation.stage;
 
       let titleBaseY = -1.52;
       let galaxyBaseY = 1.55;
@@ -1061,7 +1148,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
         const aspect = width / height;
         const portrait = aspect < 0.78;
         const shortLandscape = !portrait && height < 460;
-        const nextPixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap);
+        const nextPixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap());
         viewportWidth = width;
         viewportHeight = height;
         pointerSurfaceBounds.left = surfaceBounds.left;
@@ -1082,17 +1169,17 @@ export const WarpkeepTitleScreen3D = forwardRef<
         camera.aspect = aspect;
         camera.updateProjectionMatrix();
 
-        const titleDistance = camera.position.z - title.group.position.z;
+        const titleDistance = camera.position.z - titleStage.position.z;
         const titleVisibleHeight = 2 * titleDistance * Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
         const titleVisibleWidth = titleVisibleHeight * aspect;
         const titleLayout = calculateTitleResponsiveLayout(
           width,
           height,
           titleVisibleWidth,
-          title.safeWidth
+          titlePresentation?.getSafeWidth() ?? 1
         );
         titleLayoutScale = titleLayout.scale;
-        title.group.scale.setScalar(titleLayoutScale);
+        titleStage.scale.setScalar(titleLayoutScale);
         titleBaseY = titleLayout.baseY;
         cameraTargetY = titleLayout.cameraTargetY;
         titleRestYaw = titleLayout.restYawRadians;
@@ -1137,32 +1224,19 @@ export const WarpkeepTitleScreen3D = forwardRef<
           reducedMotion: prefersReducedMotion,
           rendererMaxTextureSize,
           supportsHighpFragment
-        }), graphicsQuality, rendererMaxTextureSize, supportsHighpFragment);
+        }), activeGraphicsQuality, rendererMaxTextureSize, supportsHighpFragment);
+        syncGalaxyDensity(nextGatewayVfxQuality, nextPixelRatio);
         syncGatewayQuality(nextGatewayVfxQuality, nextPixelRatio);
       };
-
-      void loadWarpkeepTitle({
-        baseUrl: import.meta.env.BASE_URL || '/',
-        quality: graphicsQuality,
-        targetHeight: titleSceneSpec.title.height,
-        signal: titleModelAbortController.signal
-      }).then((loadedTitle) => {
-        if (disposed || !scene || !renderer) {
-          disposeObject3DResources(loadedTitle.group);
-          return;
-        }
-        scene.remove(title.group);
-        disposeObject3DResources(title.group);
-        title = loadedTitle;
-        scene.add(title.group);
-        renderer.domElement.dataset.titleModelState = 'ready';
-        renderer.domElement.dataset.titleModelProfile = loadedTitle.profile;
+      refreshTitleLayout = resize;
+      qualityChangeHandlerRef.current = (nextQuality) => {
+        if (disposed || activeGraphicsQuality === nextQuality) return;
+        activeGraphicsQuality = nextQuality;
+        renderer?.domElement.setAttribute('data-title-model-quality', nextQuality);
+        titlePresentation?.setQuality(nextQuality);
         resize();
-      }).catch((error: unknown) => {
-        if (titleModelAbortController.signal.aborted || disposed) return;
-        if (renderer) renderer.domElement.dataset.titleModelState = 'fallback';
-        console.warn('Warpkeep title model unavailable; retaining procedural fallback.', error);
-      });
+        requestTitleRender();
+      };
 
       let previousFrameTime = performance.now();
       let visibleElapsed = 0;
@@ -1241,8 +1315,10 @@ export const WarpkeepTitleScreen3D = forwardRef<
         if (!renderer || !scene || disposed) {
           return;
         }
+        renderingFrame = true;
 
         const frameTime = performance.now();
+        const titleTransitionActive = titlePresentation?.update(frameTime) ?? false;
         const rawDelta = Math.max(0, (frameTime - previousFrameTime) / 1000);
         previousFrameTime = frameTime;
         const visibleDelta = prefersReducedMotion || !pageVisible
@@ -1306,14 +1382,14 @@ export const WarpkeepTitleScreen3D = forwardRef<
         galaxy.group.position.y =
           galaxyBaseY + pointerCurrent.y * titleSceneSpec.interaction.galaxyTravelY;
 
-        title.group.scale.setScalar(titleLayoutScale * (1 - warpPull * 0.08));
-        title.group.rotation.y =
+        titleStage.scale.setScalar(titleLayoutScale * (1 - warpPull * 0.08));
+        titleStage.rotation.y =
           titleRestYaw + Math.sin(visibleElapsed * 0.1) * 0.008 +
           pointerCurrent.x * titleSceneSpec.interaction.titleRotationY;
-        title.group.rotation.x =
+        titleStage.rotation.x =
           titleRestPitch + Math.sin(visibleElapsed * 0.075 + 0.7) * 0.0028 -
           pointerCurrent.y * titleSceneSpec.interaction.titleRotationX;
-        title.group.position.y = titleBaseY + Math.sin(visibleElapsed * 0.13) * 0.018;
+        titleStage.position.y = titleBaseY + Math.sin(visibleElapsed * 0.13) * 0.018;
 
         const lightCycle = (shaderTime / titleSceneSpec.title.shinePeriodSeconds) * Math.PI * 2;
         sweepLight.position.x =
@@ -1512,10 +1588,25 @@ export const WarpkeepTitleScreen3D = forwardRef<
         violetRimLight.intensity = 19.5 + Math.sin(shaderTime * 0.36) * 2 +
           gatewayResponse.brightness * 5 + activationEnvelope.rupture * 3.2;
         renderer.render(scene, camera);
+        renderingFrame = false;
 
-        if (!prefersReducedMotion && pageVisible) {
+        if ((!prefersReducedMotion || titleTransitionActive) && pageVisible) {
           animationFrame = window.requestAnimationFrame(render);
         }
+      };
+
+      requestTitleRender = () => {
+        if (disposed || !pageVisible || renderingFrame || animationFrame) return;
+        animationFrame = window.requestAnimationFrame(render);
+      };
+
+      const renderTitleImmediately = () => {
+        if (disposed) return;
+        if (animationFrame) {
+          window.cancelAnimationFrame(animationFrame);
+          animationFrame = 0;
+        }
+        render();
       };
 
       reducedActivationRenderRef.current = () => {
@@ -1523,29 +1614,27 @@ export const WarpkeepTitleScreen3D = forwardRef<
           return;
         }
         window.clearTimeout(reducedActivationTimer);
-        render();
+        renderTitleImmediately();
         reducedActivationTimer = window.setTimeout(() => {
           if (disposed || !prefersReducedMotion) {
             return;
           }
           surgeElapsed = gatewayActivationSpec.durationSeconds;
-          render();
+          renderTitleImmediately();
         }, 180);
       };
 
       visibilityChangeHandler = () => {
         pageVisible = !document.hidden;
         previousFrameTime = performance.now();
-        if (pageVisible && !prefersReducedMotion && !animationFrame) {
-          animationFrame = window.requestAnimationFrame(render);
-        }
+        if (pageVisible) requestTitleRender();
       };
       document.addEventListener('visibilitychange', visibilityChangeHandler);
 
       const handleResize = () => {
         resize();
         if (prefersReducedMotion) {
-          render();
+          renderTitleImmediately();
         }
       };
 
@@ -1555,6 +1644,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
         }
 
         prefersReducedMotion = event.matches;
+        titlePresentation?.setReducedMotion(prefersReducedMotion);
         window.clearTimeout(reducedActivationTimer);
         reducedActivationTimer = 0;
         handledActivationSequence = gatewayActivationSequenceRef.current;
@@ -1562,12 +1652,8 @@ export const WarpkeepTitleScreen3D = forwardRef<
         previousFrameTime = performance.now();
         if (prefersReducedMotion) {
           detachPointerInteraction();
-          if (animationFrame) {
-            window.cancelAnimationFrame(animationFrame);
-            animationFrame = 0;
-          }
           resize();
-          render();
+          renderTitleImmediately();
         } else {
           resize();
           attachPointerInteraction();
@@ -1590,7 +1676,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
       setFallback(true);
       return undefined;
     }
-  }, [graphicsQuality]);
+  }, []);
 
   if (fallback) {
     return (

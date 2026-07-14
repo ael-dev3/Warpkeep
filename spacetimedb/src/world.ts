@@ -58,10 +58,17 @@ function compareSpawnOrder(
   left: Pick<CanonicalWorldTile, 'q' | 'r'>,
   right: Pick<CanonicalWorldTile, 'q' | 'r'>,
 ): number {
-  const leftCenter = left.q === 0 && left.r === 0;
-  const rightCenter = right.q === 0 && right.r === 0;
-  if (leftCenter !== rightCenter) return leftCenter ? -1 : 1;
-  return left.q - right.q || left.r - right.r;
+  const leftDistance = Math.max(
+    Math.abs(left.q),
+    Math.abs(left.r),
+    Math.abs(-left.q - left.r),
+  );
+  const rightDistance = Math.max(
+    Math.abs(right.q),
+    Math.abs(right.r),
+    Math.abs(-right.q - right.r),
+  );
+  return leftDistance - rightDistance || left.q - right.q || left.r - right.r;
 }
 
 function makeCanonicalWorldTiles(): readonly CanonicalWorldTile[] {

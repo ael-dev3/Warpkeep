@@ -20,8 +20,11 @@ test('the authoritative Lowlands disc contains exactly 61 unique radius-four til
   }
 });
 
-test('the first deterministic spawn is the central 0,0 tile', () => {
-  assert.deepEqual(CANONICAL_WORLD_TILES[0].key, '0,0');
+test('the first seven deterministic spawns fill the center and adjacent ring', () => {
+  assert.deepEqual(
+    CANONICAL_WORLD_TILES.slice(0, 7).map(tile => tile.key),
+    ['0,0', '-1,0', '-1,1', '0,-1', '0,1', '1,-1', '1,0'],
+  );
 });
 
 test('canonical terrain checks reject a coordinate or seed mismatch', () => {

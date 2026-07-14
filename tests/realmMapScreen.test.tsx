@@ -53,6 +53,24 @@ describe('RealmMapScreen', () => {
     expect(within(selector).queryByRole('button', { name: 'Select cell 5,0' })).toBeNull();
   });
 
+  it('focuses the realm once on entry without reclaiming focus after the player moves it', () => {
+    const { rerender } = renderFallbackRealm();
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(document.activeElement).toBe(realm);
+
+    const returnButton = screen.getByRole('button', { name: 'Return to Menu' });
+    returnButton.focus();
+    rerender(
+      <RealmMapScreen
+        identity={VERIFIED_REALM_IDENTITY}
+        sharedPlayers={[{ fid: VERIFIED_REALM_IDENTITY.fid, status: 'active' }]}
+        onRequestReturn={vi.fn()}
+      />
+    );
+
+    expect(document.activeElement).toBe(returnButton);
+  });
+
   it('keeps the session-bound first keep fixed at the center while other cells are selected', () => {
     renderFallbackRealm();
     const selector = openPlayableCellNavigator();
@@ -83,7 +101,7 @@ describe('RealmMapScreen', () => {
 
   it('uses the authoritative own-castle projection and exposes the narrow shared snapshot', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
-    render(
+    const { container } = render(
       <RealmMapScreen
         identity={VERIFIED_REALM_IDENTITY}
         ownCastle={{
@@ -120,8 +138,27 @@ describe('RealmMapScreen', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Server Bastion' })).not.toBeNull();
     expect(screen.getByText('LEVEL 3')).not.toBeNull();
     expect(screen.getByText('Selected cell 1, -1')).not.toBeNull();
+    const selector = openPlayableCellNavigator();
+    expect(within(selector).getByRole('button', {
+      name: 'Select cell 1,-1, your Hegemony keep'
+    })).not.toBeNull();
+    expect(within(selector).getByRole('button', { name: 'Select cell 0,0' })).not.toBeNull();
     expect(screen.getByLabelText('Shared realm state').textContent)
       .toContain('61 TILES // 2 KEEPERS // 2 KEEPS');
+
+    const foundations = Array.from(container.querySelectorAll(
+      '.realm-map-screen__fallback-foundation'
+    ));
+    expect(foundations).toHaveLength(2);
+    expect(foundations.map((foundation) => ({
+      id: foundation.getAttribute('data-foundation-id'),
+      q: foundation.getAttribute('data-q'),
+      r: foundation.getAttribute('data-r'),
+      radius: foundation.getAttribute('r')
+    }))).toEqual([
+      { id: 'peer-castle-10', q: '-1', r: '1', radius: '0.7' },
+      { id: 'own-keep', q: '1', r: '-1', radius: '0.7' }
+    ]);
   });
 
   it('returns focus to the realm after compact navigator selection so arrow navigation works', () => {
@@ -136,6 +173,40 @@ describe('RealmMapScreen', () => {
 
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
     expect(screen.getByText('Selected cell 1, 0')).not.toBeNull();
+  });
+
+  it.each(['Enter', ' '])(
+    'leaves %j activation with a focused HUD control instead of invoking the map shortcut',
+    (key) => {
+      const onRequestReturn = vi.fn();
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+      render(
+        <RealmMapScreen
+          identity={VERIFIED_REALM_IDENTITY}
+          onRequestReturn={onRequestReturn}
+        />
+      );
+
+      const returnButton = screen.getByRole('button', { name: 'Return to Menu' });
+      returnButton.focus();
+
+      expect(fireEvent.keyDown(returnButton, { key })).toBe(true);
+      expect(document.activeElement).toBe(returnButton);
+      expect(screen.getByText('Selected cell 0, 0')).not.toBeNull();
+
+      fireEvent.click(returnButton);
+      expect(onRequestReturn).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('does not consume arrow keys that originate from nested realm controls', () => {
+    renderFallbackRealm();
+    const recenterButton = screen.getByRole('button', { name: 'Recenter Keep' });
+    recenterButton.focus();
+
+    expect(fireEvent.keyDown(recenterButton, { key: 'ArrowRight' })).toBe(true);
+    expect(document.activeElement).toBe(recenterButton);
+    expect(screen.getByText('Selected cell 0, 0')).not.toBeNull();
   });
 
   it('does not rerender the realm for repeated hover updates on the same cell', () => {
