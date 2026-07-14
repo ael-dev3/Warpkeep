@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 import {
   chmod,
   lstat,
@@ -14,7 +15,7 @@ import {
   unlink,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseQaObserverSnapshot } from './observer-snapshot.mjs';
 
@@ -31,9 +32,10 @@ const LOCK_PATH = join(OBSERVATORY_ROOT, 'qa-cycle.lock');
 const RUNTIME_HOME = join(OBSERVATORY_ROOT, 'runtime-home');
 const RUNTIME_TMP = join(OBSERVATORY_ROOT, 'tmp');
 const NPM_CACHE = join(OBSERVATORY_ROOT, 'npm-cache');
-const BROKER_HEALTH_URL = 'http://127.0.0.1:41731/healthz';
-const BROKER_SNAPSHOT_URL = 'http://127.0.0.1:41731/snapshot';
-const BROKER_BROWSER_ORIGIN = 'http://127.0.0.1:5173';
+const BROKER_SOCKET_PATH = join(OBSERVATORY_ROOT, 'broker.sock');
+const BROKER_HEALTH_PATH = '/healthz';
+const BROKER_SNAPSHOT_PATH = '/snapshot';
+const MAX_UNIX_SOCKET_PATH_BYTES = 90;
 const NPM_EXECUTABLE = join(dirname(process.execPath), 'npm');
 const SPACETIME_CLI_VERSION = '2.6.1';
 const SPACETIME_CLI = join(
@@ -230,7 +232,6 @@ export function qaCycleEnvironment() {
   return Object.freeze({
     PATH: [
       dirname(process.execPath),
-      join(homedir(), '.local', 'bin'),
       '/opt/homebrew/bin',
       '/usr/local/bin',
       '/usr/bin',
@@ -256,7 +257,30 @@ export function qaCycleEnvironment() {
 }
 
 async function ensurePrivateDirectory(path) {
-  await mkdir(path, { recursive: true, mode: 0o700 });
+  const absolutePath = resolve(path);
+  const root = parse(absolutePath).root;
+  const relativePath = relative(root, absolutePath);
+  if (!relativePath || relativePath.startsWith('..')) throw new Error('Unsafe directory.');
+  let current = root;
+  for (const segment of relativePath.split('/')) {
+    if (!segment || segment === '.' || segment === '..') throw new Error('Unsafe directory.');
+    current = join(current, segment);
+    let metadata;
+    try {
+      metadata = await lstat(current);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw new Error('Unsafe directory.');
+      try {
+        await mkdir(current, { mode: 0o700 });
+        metadata = await lstat(current);
+      } catch {
+        throw new Error('Unsafe directory.');
+      }
+    }
+    if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+      throw new Error('Unsafe directory.');
+    }
+  }
   const metadata = await lstat(path);
   const expectedUid = typeof process.getuid === 'function' ? process.getuid() : undefined;
   if (
@@ -438,107 +462,126 @@ export function runCommandCheck(check, options = {}) {
   });
 }
 
-async function readBoundedJson(response, maximumBytes) {
-  const advertised = response.headers.get('content-length');
-  if (advertised !== null && (!/^\d+$/.test(advertised) || Number(advertised) > maximumBytes)) {
-    throw new Error('Bound exceeded.');
+async function requireOwnerPrivateSocket(socketPath) {
+  if (Buffer.byteLength(socketPath, 'utf8') > MAX_UNIX_SOCKET_PATH_BYTES) {
+    throw new Error('Unsafe local QA broker socket.');
   }
-  if (!response.body) throw new Error('Missing body.');
-  const reader = response.body.getReader();
-  const chunks = [];
-  let total = 0;
-  try {
-    for (;;) {
-      const result = await reader.read();
-      if (result.done) break;
-      if (!result.value) continue;
-      total += result.value.byteLength;
-      if (total > maximumBytes) throw new Error('Bound exceeded.');
-      chunks.push(result.value);
-    }
-  } finally {
-    try {
-      await reader.cancel();
-    } catch {
-      // The original validation result remains authoritative.
-    }
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  const parentPath = dirname(socketPath);
+  const expectedUid = typeof process.getuid === 'function' ? process.getuid() : undefined;
+  const [parent, socket] = await Promise.all([lstat(parentPath), lstat(socketPath)]);
+  if (
+    !parent.isDirectory()
+    || parent.isSymbolicLink()
+    || (expectedUid !== undefined && parent.uid !== expectedUid)
+    || (parent.mode & 0o077) !== 0
+    || resolve(await realpath(parentPath)) !== resolve(parentPath)
+    || !socket.isSocket()
+    || socket.isSymbolicLink()
+    || (expectedUid !== undefined && socket.uid !== expectedUid)
+    || (socket.mode & 0o077) !== 0
+  ) throw new Error('Unsafe local QA broker socket.');
 }
 
-export async function probeLocalBrokerHealth(fetchImpl = globalThis.fetch, timeoutMs = 5_000) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetchImpl(BROKER_HEALTH_URL, {
+function headerValue(headers, name) {
+  const value = headers[name];
+  return Array.isArray(value) ? value.join(',') : value;
+}
+
+async function readBrokerJson(path, maximumBytes, options = {}) {
+  const socketPath = options.socketPath ?? BROKER_SOCKET_PATH;
+  const timeoutMs = options.timeoutMs ?? 5_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000) {
+    throw new TypeError('Invalid broker timeout.');
+  }
+  await requireOwnerPrivateSocket(socketPath);
+  return new Promise((resolveJson, rejectJson) => {
+    let settled = false;
+    let response;
+    let timeout;
+    let total = 0;
+    const chunks = [];
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    };
+    const request = httpRequest({
+      socketPath,
+      path,
       method: 'GET',
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
-      redirect: 'error',
-      referrerPolicy: 'no-referrer',
       headers: { Accept: 'application/json' },
-      signal: controller.signal,
+      agent: false,
+    }, (incoming) => {
+      response = incoming;
+      const advertised = headerValue(incoming.headers, 'content-length');
+      const contentType = headerValue(incoming.headers, 'content-type');
+      if (
+        incoming.statusCode !== 200
+        || typeof contentType !== 'string'
+        || !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(contentType)
+        || (advertised !== undefined && (
+          typeof advertised !== 'string'
+          || !/^\d+$/.test(advertised)
+          || Number(advertised) > maximumBytes
+        ))
+      ) {
+        incoming.destroy();
+        finish(() => rejectJson(new Error('Invalid local QA broker response.')));
+        return;
+      }
+      incoming.on('data', (chunk) => {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        total += bytes.byteLength;
+        if (total > maximumBytes) {
+          incoming.destroy();
+          finish(() => rejectJson(new Error('Local QA broker response exceeded its bound.')));
+          return;
+        }
+        chunks.push(bytes);
+      });
+      incoming.once('error', () => finish(() => rejectJson(new Error('Local QA broker response failed.'))));
+      incoming.once('end', () => {
+        finish(() => {
+          try {
+            resolveJson(JSON.parse(Buffer.concat(chunks, total).toString('utf8')));
+          } catch {
+            rejectJson(new Error('Invalid local QA broker response.'));
+          }
+        });
+      });
     });
-    if (
-      !response.ok
-      || response.status !== 200
-      || (response.url && response.url !== BROKER_HEALTH_URL)
-      || !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(
-        response.headers.get('content-type') ?? '',
-      )
-    ) throw new Error('Invalid health response.');
-    const body = await readBoundedJson(response, 1_024);
-    if (
-      body === null
-      || typeof body !== 'object'
-      || Array.isArray(body)
-      || Object.keys(body).sort().join(',') !== 'mode,ok'
-      || body.ok !== true
-      || body.mode !== 'read-only'
-    ) throw new Error('Invalid health response.');
-  } finally {
-    clearTimeout(timeout);
-  }
+    timeout = setTimeout(() => {
+      request.destroy(new Error('Local QA broker timed out.'));
+      response?.destroy();
+      finish(() => rejectJson(new Error('Local QA broker timed out.')));
+    }, timeoutMs);
+    request.once('error', () => finish(() => rejectJson(new Error('Local QA broker is unavailable.'))));
+    request.end();
+  });
 }
 
-export async function probeLocalBrokerSnapshot(fetchImpl = globalThis.fetch, timeoutMs = 30_000) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetchImpl(BROKER_SNAPSHOT_URL, {
-      method: 'GET',
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
-      redirect: 'error',
-      referrerPolicy: 'no-referrer',
-      headers: {
-        Accept: 'application/json',
-        Origin: BROKER_BROWSER_ORIGIN,
-      },
-      signal: controller.signal,
-    });
-    if (
-      !response.ok
-      || response.status !== 200
-      || (response.url && response.url !== BROKER_SNAPSHOT_URL)
-      || !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(
-        response.headers.get('content-type') ?? '',
-      )
-    ) throw new Error('Invalid snapshot response.');
-    const body = await readBoundedJson(response, 256 * 1_024);
-    if (!parseQaObserverSnapshot(body)) throw new Error('Invalid snapshot response.');
-  } finally {
-    clearTimeout(timeout);
-  }
+export async function probeLocalBrokerHealth(options = {}) {
+  const body = await readBrokerJson(BROKER_HEALTH_PATH, 1_024, {
+    socketPath: options.socketPath,
+    timeoutMs: options.timeoutMs ?? 5_000,
+  });
+  if (
+    body === null
+    || typeof body !== 'object'
+    || Array.isArray(body)
+    || Object.keys(body).sort().join(',') !== 'mode,ok'
+    || body.ok !== true
+    || body.mode !== 'read-only'
+  ) throw new Error('Invalid health response.');
+}
+
+export async function probeLocalBrokerSnapshot(options = {}) {
+  const body = await readBrokerJson(BROKER_SNAPSHOT_PATH, 256 * 1_024, {
+    socketPath: options.socketPath,
+    timeoutMs: options.timeoutMs ?? 30_000,
+  });
+  if (!parseQaObserverSnapshot(body)) throw new Error('Invalid snapshot response.');
 }
 
 export async function runQaCycle(options = {}) {

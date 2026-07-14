@@ -9,7 +9,7 @@
     <string>__NODE_EXECUTABLE_ABSOLUTE_PATH__</string>
     <string>__WARPKEEP_REPOSITORY_ABSOLUTE_PATH__/scripts/qa-observer/qa-cycle-runner.mjs</string>
     <string>--tier=auto</string>
-    <string>--broker=snapshot</string>
+    <string>--broker=off</string>
   </array>
   <key>WorkingDirectory</key>
   <string>__WARPKEEP_REPOSITORY_ABSOLUTE_PATH__</string>

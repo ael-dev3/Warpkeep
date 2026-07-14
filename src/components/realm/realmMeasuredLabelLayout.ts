@@ -88,7 +88,6 @@ export type RealmMeasuredLabelLayoutInput = Readonly<{
   previousPlacements?: readonly RealmLabelPlacement[];
   hysteresis?: Partial<RealmLabelHysteresis>;
   collisionPaddingPixels?: number;
-  placementGapPixels?: number;
 }>;
 
 export type RealmMeasuredLabelLayout = Readonly<{

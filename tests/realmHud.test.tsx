@@ -42,8 +42,6 @@ describe('RealmHud', () => {
         {...common}
         marksStatus="ready"
         ownProfile={{
-          fid: 12_345,
-          publicStatus: 'active',
           communityStatsVisible: true,
           marksBalanceMicros: 123_450_000n
         }}
@@ -88,9 +86,7 @@ describe('RealmHud', () => {
         selectedCell={terrainCell(2, -1)}
         selectedCastle={{ name: 'Peer Watch', level: 3, q: 2, r: -1 }}
         selectedCastleProfile={{
-          fid: 77,
           canonicalUsername: 'peerkeeper',
-          publicStatus: 'founding-player',
           communityStatsVisible: false
         }}
       />
@@ -112,9 +108,7 @@ describe('RealmHud', () => {
       <RealmHud
         {...common}
         ownProfile={{
-          fid: 12_345,
           canonicalUsername: 'warpkeeper',
-          publicStatus: 'active',
           communityStatsVisible: false
         }}
       />

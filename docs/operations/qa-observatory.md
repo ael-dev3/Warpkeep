@@ -4,12 +4,14 @@ The QA Observatory is a read-only, machine-bound production presentation path.
 It is not a player, administrator, Farcaster, admission, or Terms bypass. The
 normal Warpkeep product flow remains unchanged.
 
-The browser receives only a bounded, FID-free Realm presentation snapshot from
-a loopback broker. The browser never receives the Secure Enclave key, a player
-session, an administrator secret, a SpacetimeDB credential, or a Farcaster proof.
-The bridge uses a fresh internal 15-second snapshot-resolver credential only to
-call one fixed read-only procedure, validates its exact response, and discards
-the credential before returning sanitized JSON.
+The browser QA pages use deterministic, synthetic FID-free fixtures. They never
+receive a production snapshot, Secure Enclave key, player session, administrator
+secret, SpacetimeDB credential, or Farcaster proof. Separately, an owner-private
+Unix-domain-socket broker may ask the native helper for one bounded sanitized
+snapshot during an explicitly approved local runner probe. The bridge uses a
+fresh internal 15-second snapshot-resolver credential only to call one fixed
+read-only procedure, validates its exact response, and discards the credential
+before returning sanitized JSON.
 
 ## Authority boundaries
 
@@ -33,8 +35,11 @@ the credential before returning sanitized JSON.
   ownership, Terms, wallets, receipts, private Marks state, tokens, sessions,
   audit data, and PFP URLs.
 - The development observer page and native helper are absent from the public
-  Pages artifact. The loopback broker binds only `127.0.0.1`, writes no snapshot
-  to disk, and clears its bounded in-memory snapshot cache after 30 seconds.
+  Pages artifact. The browser observer is fixture-only. The optional broker
+  listens only on `~/Library/Application Support/Warpkeep/qa-observatory/broker.sock`,
+  whose directory is mode `0700` and socket is mode `0600`; it has no TCP
+  listener, CORS policy, or browser route. It writes no snapshot to disk and
+  clears its bounded in-memory snapshot cache after 30 seconds.
 
 ## Bridge wire contract
 
@@ -82,15 +87,17 @@ The registration workflow derives and privately checks the RFC 7638 thumbprint
 without adding it to routine logs. `snapshot` prints only the sanitized
 presentation document.
 
-Start the loopback broker after enrollment and production activation:
+Start the owner-private broker only after the separately approved enrollment and
+activation. It exists for a local runner probe, not for browser access:
 
 ```sh
 npm run qa:observer:broker
-npm run dev -- --host 127.0.0.1
 ```
 
-Then open `http://127.0.0.1:5173/dev/realm-observer-qa.html`. The observer route
-must visibly identify itself as read-only and cannot expose player-owned controls.
+For browser QA, run the local dev server and open
+`http://127.0.0.1:5173/dev/realm-observer-qa.html`. This observer route uses
+only a deterministic local fixture, visibly identifies itself as read-only, and
+cannot expose player-owned controls.
 
 ## Approval-gated activation
 
@@ -100,15 +107,18 @@ remain separate one-time checkpoints:
 1. review the exact module diff and non-destructive aggregate preflight;
 2. approve publishing the additive procedure/claim policy with data deletion forbidden;
 3. approve the new QA challenge Durable Object binding and migration;
-4. generate the Secure Enclave key and privately review its public thumbprint;
-5. rebuild the locally signed helper and pass a supervised, output-suppressed
+4. establish a stable macOS signing identity, access-group design, and a
+   separate restricted QA account; do not enroll a key while the helper is only
+   ad-hoc signed;
+5. generate the Secure Enclave key and privately review its public thumbprint;
+6. rebuild the signed helper and pass a supervised, output-suppressed
    key-continuity self-test before relying on unattended rebuilds;
-6. approve registering only that public JWK plus its fixed canonical
+7. approve registering only that public JWK plus its fixed canonical
    registration and expiry timestamps as managed Worker values;
-7. deploy with the QA gate still disabled and verify configuration attestation;
-8. explicitly enable the QA gate, request one sanitized snapshot, and confirm
+8. deploy with the QA gate still disabled and verify configuration attestation;
+9. explicitly enable the QA gate, request one sanitized snapshot, and confirm
    zero game-state and private-data changes;
-9. install a reviewed non-root LaunchAgent only after the supervised local run passes.
+10. install a reviewed non-root LaunchAgent only after the supervised local run passes.
 
 Daily operation after activation needs no QR scan or human input, but it does not
 replace periodic human testing of genuine Farcaster and Terms consent.
@@ -141,20 +151,20 @@ Run a single local cycle manually:
 npm run qa:observer:cycle -- --tier=quick --broker=off
 ```
 
-`--broker=health` adds one bounded `GET` to the exact loopback health endpoint
-`http://127.0.0.1:41731/healthz`. It does not request a snapshot, contact the
-bridge, or cause the native helper to use its device key. Broker probing is
-fail-closed and never follows redirects or sends credentials.
+`--broker=health` adds one bounded `GET /healthz` through the exact owner-private
+Unix socket. It does not request a snapshot, contact the bridge, or cause the
+native helper to use its device key. Broker probing is fail-closed and does not
+use TCP, CORS, a browser, redirects, or credentials.
 
 `--broker=snapshot` instead exercises the activated machine-bound read model by
-issuing one bounded `GET` to exactly `http://127.0.0.1:41731/snapshot`, with the
-fixed allowed browser Origin `http://127.0.0.1:5173`. The loopback broker may
-then ask the native helper for its single sanitized read-only snapshot. The
+issuing one bounded `GET /snapshot` through the same owner-private Unix socket.
+The broker may then ask the native helper for its single sanitized read-only snapshot. The
 runner never receives the device key, helper proof, resolver credential, or any
 unsanitized response. It caps the body at 256 KiB, validates the complete
 FID-free schema again, discards the data, and records only pass/fail/duration.
-This mode is appropriate only after the separately approved broker and remote
-read gate are active.
+This mode is appropriate only after the separately approved broker, stable
+signing/caller-bound design, and remote read gate are active. It never supplies
+data to browser JavaScript.
 
 The tiers intentionally trade coverage for hourly cost:
 
@@ -178,12 +188,15 @@ Terse JSON reports are atomically created with mode `0600` under
 `~/Library/Application Support/Warpkeep/qa-observatory/reports`. Directories use
 mode `0700`; only recognized report names are eligible for retention cleanup.
 Reports older than 14 days are removed, with an additional cap of 200 files.
+Private QA audit notes live outside any Git worktree under
+`~/Library/Application Support/Warpkeep/qa-observatory/audit`, also mode `0700`
+with mode-`0600` files.
 
 The checked-in
 `scripts/qa-observer/launchd/com.warpkeep.qa-cycle.plist.template` is deliberately
 inert. It describes twelve hourly local-time triggers from 08:00 through 19:00,
-and each scheduled cycle requests the fixed snapshot probe, but no repository
-command installs or loads it. It still references a mutable checkout and is not
+and each scheduled cycle keeps the broker disabled, but no repository command
+installs or loads it. It still references a mutable checkout and is not
 an immutable execution boundary. Keep it uninstalled until its absolute paths,
 source revision or installed-copy attestation, local time window, local broker,
 machine enrollment, and remote read-only gate have been reviewed and separately
@@ -193,9 +206,12 @@ approved. Do not run `launchctl` as part of repository validation.
 
 Secure Enclave makes the key non-exportable and device-bound, but unattended use
 means malware running as the signed-in user may still ask the installed helper
-to perform its one fixed snapshot operation. The narrow output and lack of any
-mutation capability limit that risk. Keep QA screenshots and reports private,
-mode `0600`, with short retention.
+to perform its one fixed snapshot operation. A Unix socket excludes other local
+accounts and browser-origin spoofing, but it cannot distinguish malicious code
+already executing as the same macOS user. The narrow output and lack of any
+mutation capability limit that risk; stable signing, XPC/code-identity controls,
+and a restricted QA account remain required before enrollment. Keep QA
+screenshots and reports private, mode `0600`, with short retention.
 
 The checked-in helper is locally ad-hoc signed. Long-term Keychain access across
 binary rebuilds must be proven by the supervised continuity checkpoint above;

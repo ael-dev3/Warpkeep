@@ -65,8 +65,8 @@ function freezeSnapshot(value) {
 
 /**
  * Defense-in-depth validation for the native helper boundary. The helper and
- * Worker perform the same closed-shape checks independently; the loopback
- * broker never forwards arbitrary JSON to the QA page.
+ * Worker perform the same closed-shape checks independently; the owner-private
+ * broker never forwards arbitrary JSON to browser JavaScript.
  */
 export function parseQaObserverSnapshot(value) {
   if (!isRecord(value) || !hasExactKeys(value, TOP_LEVEL_KEYS)) return undefined;

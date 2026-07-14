@@ -629,6 +629,12 @@
   }
 }
 
+@media (max-width: 360px) {
+  .realm-cell-navigator > button span {
+    display: none;
+  }
+}
+
 @media (max-height: 600px) and (min-width: 581px) {
   .realm-hud {
     top: max(0.45rem, env(safe-area-inset-top));

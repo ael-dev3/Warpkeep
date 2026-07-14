@@ -16,15 +16,13 @@ import {
 } from '../../spacetimedb/src/world';
 
 export const REALM_OBSERVER_SNAPSHOT_VERSION = 1;
-export const REALM_OBSERVER_BROKER_ORIGIN = 'http://127.0.0.1:41731';
-export const REALM_OBSERVER_SNAPSHOT_URL = `${REALM_OBSERVER_BROKER_ORIGIN}/snapshot`;
 export const REALM_OBSERVER_PORTRAIT_PLACEHOLDER_PATH =
   WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH;
 
-const MAX_SNAPSHOT_BYTES = 256 * 1024;
 const SYNTHETIC_OWNER_BASE = 8_000_000_000_000_000;
 const SYNTHETIC_OWNER_SEED_STRIDE = 128;
 const MAX_SYNTHETIC_OWNER_SEED = 1_000_000;
+export const REALM_OBSERVER_FIXTURE_OWNER_SEED = 73;
 const FORBIDDEN_TEXT = /[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff<>]/u;
 const USERNAME = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
 const PUBLIC_STATUSES = new Set(['founded', 'active']);
@@ -102,7 +100,7 @@ export type RealmObserverHarnessRealm = Readonly<{
 
 export class RealmObserverSnapshotError extends Error {
   constructor() {
-    super('The local QA observer snapshot is unavailable or incompatible.');
+    super('The local QA observer fixture is incompatible.');
     this.name = 'RealmObserverSnapshotError';
   }
 }
@@ -263,21 +261,14 @@ export function parseRealmObserverSnapshot(value: unknown): RealmObserverSnapsho
   });
 }
 
-function randomSyntheticOwnerSeed() {
-  if (!globalThis.crypto?.getRandomValues) fail();
-  const random = new Uint32Array(1);
-  globalThis.crypto.getRandomValues(random);
-  return (random[0]! % MAX_SYNTHETIC_OWNER_SEED) + 1;
-}
-
 /**
- * Converts a privacy-bounded external snapshot into the existing privately
+ * Converts a privacy-bounded observer snapshot into the existing privately
  * branded renderer authority. Synthetic numeric owner keys exist only in this
- * dev-only adapter and are regenerated for every observer run.
+ * dev-only adapter; no source identity is passed to the renderer.
  */
 export function createRealmObserverHarnessRealm(
   observer: RealmObserverSnapshot,
-  syntheticOwnerSeed = randomSyntheticOwnerSeed()
+  syntheticOwnerSeed = REALM_OBSERVER_FIXTURE_OWNER_SEED
 ): RealmObserverHarnessRealm {
   safeInteger(syntheticOwnerSeed, 1, MAX_SYNTHETIC_OWNER_SEED);
   const syntheticOwnerKeys = observer.castles.map((_, index) => (
@@ -329,78 +320,80 @@ export function createRealmObserverHarnessRealm(
   });
 }
 
-async function readBoundedSnapshotBody(response: Response) {
-  const advertised = response.headers.get('content-length');
-  if (
-    advertised !== null
-    && (!/^\d+$/.test(advertised) || Number(advertised) > MAX_SNAPSHOT_BYTES)
-  ) fail();
-  if (!response.body) fail();
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    for (;;) {
-      const result = await reader.read();
-      if (result.done) break;
-      if (!result.value) continue;
-      total += result.value.byteLength;
-      if (total > MAX_SNAPSHOT_BYTES) {
-        try {
-          await reader.cancel();
-        } catch {
-          // The size violation remains authoritative.
-        }
-        fail();
-      }
-      chunks.push(result.value);
-    }
-  } catch (error) {
-    if (error instanceof RealmObserverSnapshotError) throw error;
-    return fail();
-  } finally {
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    return fail();
-  }
+const REALM_OBSERVER_FIXTURE_CASTLES = Object.freeze([
+  Object.freeze({
+    castleId: 101,
+    name: 'Northwatch Bastion',
+    canonicalUsername: 'sentinel-one',
+    publicStatus: 'founded'
+  }),
+  Object.freeze({
+    castleId: 102,
+    name: 'Cinderwatch Keep',
+    canonicalUsername: 'sentinel-two',
+    publicStatus: 'active'
+  }),
+  Object.freeze({
+    castleId: 103,
+    name: 'Mossgate Hold',
+    canonicalUsername: 'sentinel-three',
+    publicStatus: 'active'
+  }),
+  Object.freeze({
+    castleId: 104,
+    name: 'Dawnward Citadel',
+    canonicalUsername: 'sentinel-four',
+    publicStatus: 'founded'
+  })
+]);
+
+function createRealmObserverFixtureSnapshot() {
+  const slots = CANONICAL_CASTLE_SLOTS.slice(0, REALM_OBSERVER_FIXTURE_CASTLES.length);
+  if (slots.length !== REALM_OBSERVER_FIXTURE_CASTLES.length) fail();
+  return parseRealmObserverSnapshot({
+    version: REALM_OBSERVER_SNAPSHOT_VERSION,
+    protocolVersion: WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION,
+    worldSeed: CANONICAL_REALM.numericSeed,
+    worldSeedName: CANONICAL_REALM.seedName,
+    worldTileCount: CANONICAL_WORLD_TILES.length,
+    worldTileMetaCount: CANONICAL_WORLD_TILE_META.length,
+    realm: {
+      realmId: CANONICAL_REALM.realmId,
+      numericSeed: CANONICAL_REALM.numericSeed,
+      generationVersion: CANONICAL_REALM.generationVersion,
+      authoritativeRadius: CANONICAL_REALM.authoritativeRadius,
+      renderRadius: CANONICAL_REALM.renderRadius,
+      playerCapacity: CANONICAL_REALM.playerCapacity
+    },
+    castles: REALM_OBSERVER_FIXTURE_CASTLES.map((castle, index) => {
+      const slot = slots[index];
+      if (!slot) fail();
+      return {
+        ...castle,
+        tileKey: slot.tileKey,
+        q: slot.q,
+        r: slot.r,
+        level: index === 0 ? 3 : 1,
+        portraitAvailable: false
+      };
+    })
+  });
 }
 
-export async function fetchRealmObserverSnapshot(
-  fetchImpl: typeof fetch = globalThis.fetch
-): Promise<RealmObserverSnapshot> {
-  let response: Response;
-  try {
-    response = await fetchImpl(REALM_OBSERVER_SNAPSHOT_URL, {
-      method: 'GET',
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
-      redirect: 'error',
-      referrerPolicy: 'no-referrer',
-      headers: { Accept: 'application/json' }
-    });
-  } catch {
-    return fail();
-  }
-  if (!response.ok || response.status !== 200) fail();
-  if (response.url && response.url !== REALM_OBSERVER_SNAPSHOT_URL) fail();
-  if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(response.headers.get('content-type') ?? '')) {
-    fail();
-  }
-  const body = await readBoundedSnapshotBody(response);
-  try {
-    return parseRealmObserverSnapshot(JSON.parse(body) as unknown);
-  } catch (error) {
-    if (error instanceof RealmObserverSnapshotError) throw error;
-    return fail();
-  }
+const REALM_OBSERVER_FIXTURE_SNAPSHOT = createRealmObserverFixtureSnapshot();
+
+/**
+ * Fixed, FID-free local data for browser presentation QA. It is deliberately
+ * independent of the helper, broker, network, browser storage, and player
+ * authentication state.
+ */
+export function realmObserverFixtureSnapshot() {
+  return REALM_OBSERVER_FIXTURE_SNAPSHOT;
+}
+
+export function createRealmObserverFixtureRealm(): RealmObserverHarnessRealm {
+  return createRealmObserverHarnessRealm(
+    REALM_OBSERVER_FIXTURE_SNAPSHOT,
+    REALM_OBSERVER_FIXTURE_OWNER_SEED
+  );
 }

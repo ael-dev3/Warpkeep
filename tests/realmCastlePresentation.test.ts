@@ -18,6 +18,7 @@ import {
   safeRealmProfileImageUrl,
   sectorForRealmCoord
 } from '../src/components/realm/realmCastlePresentation';
+import type { WarpkeepRealmProfile } from '../src/spacetime/warpkeepBackendTypes';
 
 describe('realm castle public presentation', () => {
   it('uses safe fallbacks and strips directional/control characters from legacy player data', () => {
@@ -30,15 +31,60 @@ describe('realm castle public presentation', () => {
     }]);
 
     expect(profile).toMatchObject({
-      fid: 42,
       canonicalUsername: 'alice',
       displayName: 'Alice Keeper',
       communityStatsVisible: false
     });
+    expect(profile).not.toHaveProperty('fid');
     expect(castleProfileLabel(profile)).toBe('@alice');
     expect(safeRealmProfileImageUrl(profile.pfpUrl)).toBeUndefined();
     expect(farcasterProfileUrl(profile.canonicalUsername))
       .toBe('https://farcaster.xyz/alice');
+  });
+
+  it('whitelists only Realm presentation fields from a fuller subscription profile', () => {
+    const authoritative = {
+      fid: 42,
+      canonicalUsername: 'keeper',
+      displayName: 'Fixture Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+      publicBio: 'Fixture public bio.',
+      admittedAt: Date.UTC(2026, 6, 1),
+      firstAuthenticatedAt: Date.UTC(2026, 6, 2),
+      publicStatus: 'active',
+      communityStatsVisible: true,
+      totalSnapBurnedMicros: 200_000_000n,
+      marksEarnedMicros: 200_000_000n,
+      marksSpentMicros: 50_000_000n,
+      marksBalanceMicros: 150_000_000n,
+      marksPolicyVersion: 'fixture-policy-v1',
+      updatedAt: Date.UTC(2026, 6, 3),
+      operatorNote: 'fixture-only'
+    } satisfies WarpkeepRealmProfile & Readonly<{
+      updatedAt: number;
+      operatorNote: string;
+    }>;
+
+    expect(publicProfileForCastle(42, [authoritative], [])).toStrictEqual({
+      canonicalUsername: 'keeper',
+      displayName: 'Fixture Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+      publicBio: 'Fixture public bio.',
+      communityStatsVisible: true,
+      totalSnapBurnedMicros: 200_000_000n,
+      marksBalanceMicros: 150_000_000n
+    });
+
+    expect(publicProfileForCastle(42, [{
+      ...authoritative,
+      communityStatsVisible: false
+    }], [])).toStrictEqual({
+      canonicalUsername: 'keeper',
+      displayName: 'Fixture Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+      publicBio: 'Fixture public bio.',
+      communityStatsVisible: false
+    });
   });
 
   it('accepts credential-free HTTPS portraits and rejects unsafe profile links', () => {

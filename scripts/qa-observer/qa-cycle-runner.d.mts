@@ -50,12 +50,16 @@ export function runCommandCheck(
   }>,
 ): Promise<QaCheckResult>;
 export function probeLocalBrokerHealth(
-  fetchImpl?: typeof fetch,
-  timeoutMs?: number,
+  options?: Readonly<{
+    socketPath?: string;
+    timeoutMs?: number;
+  }>,
 ): Promise<void>;
 export function probeLocalBrokerSnapshot(
-  fetchImpl?: typeof fetch,
-  timeoutMs?: number,
+  options?: Readonly<{
+    socketPath?: string;
+    timeoutMs?: number;
+  }>,
 ): Promise<void>;
 export function runQaCycle(options?: Readonly<{
   startedAt?: Date;

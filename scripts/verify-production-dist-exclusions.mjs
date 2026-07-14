@@ -11,6 +11,8 @@ const forbiddenContent = Object.freeze([
   'http://127.0.0.1:41731',
   'RealmObserverQaHarness',
   'realmObserverQaMain',
+  'realmObserverFixtureSnapshot',
+  'createRealmObserverFixtureRealm',
   'QA OBSERVER · READ ONLY',
   'Close QA Observer',
   'Public presentation preview',

@@ -1,4 +1,5 @@
 import {
+  chmod,
   mkdtemp,
   mkdir,
   readFile,
@@ -10,11 +11,16 @@ import {
   utimes,
   writeFile
 } from 'node:fs/promises';
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse
+} from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   QaCycleLockError,
@@ -39,6 +45,43 @@ async function temporaryRoot() {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'warpkeep-qa-cycle-')));
   temporaryRoots.push(root);
   return root;
+}
+
+async function temporarySocketRoot() {
+  // Darwin's Unix socket path ceiling is much shorter than a runner-isolated
+  // TMPDIR can be. Keep this test transport independent of that environment.
+  const root = await realpath(await mkdtemp('/tmp/wkq-'));
+  await chmod(root, 0o700);
+  temporaryRoots.push(root);
+  return root;
+}
+
+type LocalBrokerHandler = (request: IncomingMessage, response: ServerResponse) => void;
+
+async function withLocalBroker(
+  handler: LocalBrokerHandler,
+  test: (socketPath: string) => Promise<void>
+) {
+  const root = await temporarySocketRoot();
+  const socketPath = join(root, 'broker.sock');
+  const server = createServer(handler);
+  await new Promise<void>((resolveListen, rejectListen) => {
+    const reject = (error: Error) => {
+      server.off('error', reject);
+      rejectListen(error);
+    };
+    server.once('error', reject);
+    server.listen(socketPath, () => {
+      server.off('error', reject);
+      resolveListen();
+    });
+  });
+  await chmod(socketPath, 0o600);
+  try {
+    await test(socketPath);
+  } finally {
+    await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
+  }
 }
 
 function passingReport(): QaCycleReport {
@@ -162,6 +205,7 @@ describe('local autonomous QA cycle runner', () => {
     expect(environment.SPACETIME_BIN).toMatch(
       /\/\.local\/share\/spacetime\/bin\/2\.6\.1\/spacetimedb-cli$/,
     );
+    expect(environment.PATH).not.toContain(`${process.env.HOME}/.local/bin`);
     expect(environment.npm_config_userconfig).toBe('/dev/null');
     expect(environment.npm_config_logs_max).toBe('0');
   });
@@ -262,59 +306,45 @@ describe('local autonomous QA cycle runner', () => {
       join(outside, 'reports', 'qa-20260714T080001000Z-aabbccdd.json'),
       'utf8'
     )).rejects.toThrow();
+    await expect(readdir(outside)).resolves.not.toContain('reports');
   });
 
-  it('probes only the exact loopback broker health route without credentials', async () => {
-    const response = new Response(JSON.stringify({ ok: true, mode: 'read-only' }), {
-      status: 200,
-      headers: { 'content-type': 'application/json; charset=utf-8' }
+  it('probes only the exact owner-private Unix socket health route without credentials', async () => {
+    let observed: Readonly<{ method?: string; url?: string; origin?: string }> = {};
+    await withLocalBroker((request, response) => {
+      observed = {
+        method: request.method,
+        url: request.url,
+        origin: typeof request.headers.origin === 'string' ? request.headers.origin : undefined
+      };
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify({ ok: true, mode: 'read-only' }));
+    }, async (socketPath) => {
+      await expect(probeLocalBrokerHealth({ socketPath })).resolves.toBeUndefined();
     });
-    Object.defineProperty(response, 'url', {
-      value: 'http://127.0.0.1:41731/healthz'
-    });
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => response);
-    await expect(probeLocalBrokerHealth(fetchMock as unknown as typeof fetch)).resolves.toBeUndefined();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:41731/healthz');
-    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
-      method: 'GET',
-      credentials: 'omit',
-      redirect: 'error',
-      referrerPolicy: 'no-referrer'
-    });
-    expect(JSON.stringify(fetchMock.mock.calls[0]?.[1])).not.toMatch(/(?:authorization|cookie|token)/i);
+    expect(observed).toEqual({ method: 'GET', url: '/healthz', origin: undefined });
   });
 
-  it('validates and discards only the bounded FID-free loopback snapshot', async () => {
-    const response = new Response(JSON.stringify(sanitizedObserverSnapshot()), {
-      status: 200,
-      headers: { 'content-type': 'application/json; charset=utf-8' }
-    });
-    Object.defineProperty(response, 'url', {
-      value: 'http://127.0.0.1:41731/snapshot'
-    });
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => response);
+  it('fails closed before opening an overlong Unix socket path', async () => {
+    await expect(probeLocalBrokerHealth({
+      socketPath: `/${'a'.repeat(100)}`
+    })).rejects.toThrow('Unsafe local QA broker socket');
+  });
 
-    await expect(probeLocalBrokerSnapshot(
-      fetchMock as unknown as typeof fetch
-    )).resolves.toBeUndefined();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://127.0.0.1:41731/snapshot');
-    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
-      method: 'GET',
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
-      redirect: 'error',
-      referrerPolicy: 'no-referrer',
-      headers: {
-        Accept: 'application/json',
-        Origin: 'http://127.0.0.1:5173'
-      }
+  it('validates and discards only the bounded FID-free Unix-socket snapshot', async () => {
+    let observed: Readonly<{ method?: string; url?: string; origin?: string }> = {};
+    await withLocalBroker((request, response) => {
+      observed = {
+        method: request.method,
+        url: request.url,
+        origin: typeof request.headers.origin === 'string' ? request.headers.origin : undefined
+      };
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify(sanitizedObserverSnapshot()));
+    }, async (socketPath) => {
+      await expect(probeLocalBrokerSnapshot({ socketPath })).resolves.toBeUndefined();
     });
-    expect(JSON.stringify(fetchMock.mock.calls[0]?.[1])).not.toMatch(
-      /(?:authorization|cookie|token|proof)/i
-    );
+    expect(observed).toEqual({ method: 'GET', url: '/snapshot', origin: undefined });
 
     const report = await runQaCycle({
       startedAt: new Date(),
@@ -338,59 +368,31 @@ describe('local autonomous QA cycle runner', () => {
   });
 
   it('rejects oversized or identity-bearing snapshot responses', async () => {
-    const identityBearing = new Response(JSON.stringify({
-      ...sanitizedObserverSnapshot(),
-      fid: 424242
-    }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' }
+    await withLocalBroker((_request, response) => {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ ...sanitizedObserverSnapshot(), fid: 424242 }));
+    }, async (socketPath) => {
+      await expect(probeLocalBrokerSnapshot({ socketPath })).rejects.toThrow();
     });
-    Object.defineProperty(identityBearing, 'url', {
-      value: 'http://127.0.0.1:41731/snapshot'
-    });
-    const oversized = new Response('{}', {
-      status: 200,
-      headers: {
+    await withLocalBroker((_request, response) => {
+      response.writeHead(200, {
         'content-type': 'application/json',
         'content-length': String(256 * 1_024 + 1)
-      }
+      });
+      response.end('{}');
+    }, async (socketPath) => {
+      await expect(probeLocalBrokerSnapshot({ socketPath })).rejects.toThrow();
     });
-    Object.defineProperty(oversized, 'url', {
-      value: 'http://127.0.0.1:41731/snapshot'
-    });
-
-    for (const response of [identityBearing, oversized]) {
-      const fetchMock = vi.fn(async () => response);
-      await expect(probeLocalBrokerSnapshot(
-        fetchMock as unknown as typeof fetch
-      )).rejects.toThrow();
-    }
   });
 
-  it('gives the snapshot broker 30 seconds but remains strictly bounded', async () => {
-    vi.useFakeTimers();
-    try {
-      let signal: AbortSignal | undefined;
-      const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
-        signal = init?.signal ?? undefined;
-        return new Promise<Response>((_resolve, reject) => {
-          signal?.addEventListener('abort', () => reject(new DOMException(
-            'The operation was aborted.',
-            'AbortError'
-          )), { once: true });
-        });
-      });
-      const probe = probeLocalBrokerSnapshot(fetchMock as unknown as typeof fetch);
-      const rejection = expect(probe).rejects.toMatchObject({ name: 'AbortError' });
-
-      await vi.advanceTimersByTimeAsync(29_999);
-      expect(signal?.aborted).toBe(false);
-      await vi.advanceTimersByTimeAsync(1);
-      expect(signal?.aborted).toBe(true);
-      await rejection;
-    } finally {
-      vi.useRealTimers();
-    }
+  it('bounds a stalled Unix-socket snapshot response', async () => {
+    await withLocalBroker((_request, _response) => {}, async (socketPath) => {
+      const startedAt = Date.now();
+      await expect(probeLocalBrokerSnapshot({ socketPath, timeoutMs: 40 })).rejects.toThrow(
+        'timed out'
+      );
+      expect(Date.now() - startedAt).toBeLessThan(2_000);
+    });
   });
 
   it('fails the aggregate report closed and keeps the launchd schedule inert', async () => {
@@ -418,8 +420,9 @@ describe('local autonomous QA cycle runner', () => {
     expect(template.match(/<key>Hour<\/key>/g)).toHaveLength(12);
     expect(template).toContain('<integer>8</integer>');
     expect(template).toContain('<integer>19</integer>');
-    expect(template).toContain('--broker=snapshot');
+    expect(template).toContain('--broker=off');
     expect(template).not.toContain('--broker=health');
+    expect(template).not.toContain('--broker=snapshot');
     expect(template).not.toMatch(/(?:RunAtLoad|KeepAlive|launchctl)/);
   });
 });

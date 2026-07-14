@@ -22,7 +22,21 @@ const CASTLE_LABEL_FULL_WIDTH = 132;
 const CASTLE_LABEL_FULL_HEIGHT = 44;
 const CASTLE_LABEL_PRIORITY_NUDGE_PIXELS = 12;
 
-export type RealmCastlePublicPresentation = WarpkeepRealmProfile;
+/**
+ * The deliberately small profile projection available to Realm presentation
+ * components. Keep subscription, admission, authentication, and policy data
+ * behind `publicProfileForCastle`; a castle record already owns the FID used
+ * to associate this display data with a place in the world.
+ */
+export type RealmCastlePublicPresentation = Readonly<{
+  canonicalUsername?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  publicBio?: string;
+  communityStatsVisible: boolean;
+  totalSnapBurnedMicros?: bigint;
+  marksBalanceMicros?: bigint;
+}>;
 
 export type VisibleCastleLabel = RealmCastleScreenProjection & Readonly<{
   compact: boolean;
@@ -85,6 +99,23 @@ export function normalizeRealmUsername(value: string | undefined) {
   return boundedDisplayText(value, 64)?.replace(/^@+/, '');
 }
 
+function publicPresentationFromProfile(
+  profile: WarpkeepRealmProfile
+): RealmCastlePublicPresentation {
+  const communityStatsVisible = profile.communityStatsVisible === true;
+  return {
+    canonicalUsername: normalizeRealmUsername(profile.canonicalUsername),
+    displayName: boundedDisplayText(profile.displayName, 80),
+    pfpUrl: safeRealmProfileImageUrl(profile.pfpUrl),
+    publicBio: boundedDisplayText(profile.publicBio, 320),
+    communityStatsVisible,
+    ...(communityStatsVisible ? {
+      totalSnapBurnedMicros: profile.totalSnapBurnedMicros,
+      marksBalanceMicros: profile.marksBalanceMicros
+    } : {})
+  };
+}
+
 export function publicProfileForCastle(
   fid: number,
   profiles: readonly WarpkeepRealmProfile[],
@@ -93,22 +124,15 @@ export function publicProfileForCastle(
 ): RealmCastlePublicPresentation {
   const authoritative = profiles.find((profile) => profile.fid === fid);
   if (authoritative) {
-    return {
-      ...authoritative,
-      canonicalUsername: normalizeRealmUsername(authoritative.canonicalUsername),
-      displayName: boundedDisplayText(authoritative.displayName, 80),
-      publicBio: boundedDisplayText(authoritative.publicBio, 320)
-    };
+    return publicPresentationFromProfile(authoritative);
   }
 
   const player = players.find((candidate) => candidate.fid === fid);
   const identity = ownIdentity?.fid === fid ? ownIdentity : undefined;
   return {
-    fid,
     canonicalUsername: normalizeRealmUsername(player?.username ?? identity?.username),
     displayName: boundedDisplayText(player?.displayName ?? identity?.displayName, 80),
-    pfpUrl: player?.pfpUrl ?? identity?.pfpUrl,
-    publicStatus: player?.status ?? 'profile-pending',
+    pfpUrl: safeRealmProfileImageUrl(player?.pfpUrl ?? identity?.pfpUrl),
     communityStatsVisible: false
   };
 }

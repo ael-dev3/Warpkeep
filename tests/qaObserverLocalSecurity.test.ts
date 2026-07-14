@@ -119,12 +119,17 @@ describe('local QA Observatory security boundary', () => {
     expect(buildSource).not.toContain('/bin/mkdir -p');
   });
 
-  it('binds the broker to loopback and passes no credential through argv or environment', () => {
+  it('binds the broker to an owner-private Unix socket and passes no credential through argv or environment', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'scripts/qa-observer/qa-observer-broker.mjs'),
       'utf8'
     );
-    expect(source).toContain("const HOST = '127.0.0.1'");
+    expect(source).toContain("const SOCKET_PATH = join(OBSERVATORY_DIRECTORY, 'broker.sock')");
+    expect(source).toContain('const MAX_UNIX_SOCKET_PATH_BYTES = 90');
+    expect(source).toContain('server.listen(SOCKET_PATH');
+    expect(source).toContain('process.umask(0o077)');
+    expect(source).toContain('metadata.isSocket()');
+    expect(source).toContain('chmodSync(SOCKET_PATH, 0o600)');
     expect(source).toContain("spawn(helperPath, ['snapshot']");
     expect(source).toContain('metadata.isSymbolicLink()');
     expect(source).toContain('(metadata.mode & 0o077) !== 0');
@@ -138,6 +143,7 @@ describe('local QA Observatory security boundary', () => {
     expect(source).toContain('cachedSnapshot = undefined');
     expect(source).toContain("request.method !== 'GET'");
     expect(source).toContain("url.search !== ''");
+    expect(source).not.toMatch(/127\.0\.0\.1|localhost|access-control|ALLOWED_ORIGINS|validOrigin|Origin/);
   });
 
   it('ships an inert non-root LaunchAgent template without secrets or network coordinates', () => {

@@ -659,8 +659,7 @@ function CanonicalRealmMapScreen({
         maximumLabels,
         previousPlacements: previousLabelLayoutRef.current,
         hysteresis: { membershipDistance: 5, anchorJitterPixels: 2 },
-        collisionPaddingPixels: 4,
-        placementGapPixels: 7
+        collisionPaddingPixels: 4
       });
       previousLabelLayoutRef.current = layout.placements;
       const projectionById = new Map(frame.castles.map((castle) => [castle.castleId, castle]));

@@ -197,6 +197,7 @@ describe('compact Realm CSS contract', () => {
 
   it('keeps narrow portrait and short-landscape controls bounded and mutually clear', () => {
     const narrow = block(MAP, '@media (max-width: 430px) {');
+    const compactest = block(MAP, '@media (max-width: 360px) {');
     const shortMap = block(MAP, '@media (max-height: 600px) and (min-width: 581px) {');
     const shortPresentation = block(
       PRESENTATION,
@@ -205,6 +206,10 @@ describe('compact Realm CSS contract', () => {
     const narrowHud = block(narrow, '.realm-hud {');
     const narrowBadges = block(narrow, '.realm-hud__badges {');
     const narrowJump = block(narrow, '.realm-cell-navigator__jump fieldset {');
+    const compactestExploreCount = block(
+      compactest,
+      '.realm-cell-navigator > button span {'
+    );
     const shortHud = block(shortMap, '.realm-hud {');
     const shortActions = block(shortMap, '.realm-hud__actions {');
     const shortExplore = block(shortMap, '.realm-cell-navigator {');
@@ -218,6 +223,8 @@ describe('compact Realm CSS contract', () => {
     expect(narrowHud).toContain('width: min(13.75rem,');
     expect(narrowBadges).toContain('display: none;');
     expect(narrowJump).toContain('grid-template-columns: auto minmax(0, 1fr);');
+    expect(compactestExploreCount).toContain('display: none;');
+    expect(EXPLORE_COMPONENT).toContain('aria-label={`Explore realm, ${castles.length} founded');
 
     expect(shortHud).toContain('width: min(13.5rem, 31vw);');
     expect(shortActions).toContain('width: 8.75rem;');

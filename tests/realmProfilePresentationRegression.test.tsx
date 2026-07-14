@@ -72,8 +72,6 @@ function profile(
   overrides: Partial<RealmCastlePublicPresentation> = {}
 ): RealmCastlePublicPresentation {
   return {
-    fid: 7_001,
-    publicStatus: 'founding-player',
     communityStatsVisible: false,
     ...overrides
   };
@@ -99,7 +97,8 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(castleProfileMonogram(profile({ canonicalUsername: 'warpkeeper' }))).toBe('W');
     expect(castleProfileMonogram(profile({ displayName: 'Sentinel' }))).toBe('S');
     expect(castleProfileMonogram(profile())).toBe('W');
-    expect(castleProfileMonogram(profile({ fid: 12_345 }))).toBe('W');
+    const legacyFidPresentation = { ...profile(), fid: 12_345 };
+    expect(castleProfileMonogram(legacyFidPresentation)).toBe('W');
     expect(castleProfileMonogram(profile())).not.toMatch(/[0-9]/);
 
     const { container, rerender } = render(<CastleProfileAvatar profile={profile()} />);
@@ -108,7 +107,7 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(crest?.textContent).not.toContain('7001');
     expect((crest as HTMLElement | null)?.style.getPropertyValue('--realm-avatar-hue')).toBe('87');
 
-    rerender(<CastleProfileAvatar profile={profile({ fid: 12_345 })} />);
+    rerender(<CastleProfileAvatar profile={legacyFidPresentation} />);
     expect(crest?.textContent).toBe('W');
     expect((crest as HTMLElement | null)?.style.getPropertyValue('--realm-avatar-hue')).toBe('87');
   });
@@ -191,7 +190,7 @@ describe('realm profile and PFP presentation regressions', () => {
     rerender(<CastleProfileAvatar profile={{
       ...presentation,
       pfpUrl: 'https://cdn.warpkeep.com/profiles/alice-new.png',
-      publicStatus: 'active'
+      displayName: 'Alice Keeper'
     }} />);
     expect(mockProfileImages).toHaveLength(2);
     expect(container.querySelector('img')).toBeNull();

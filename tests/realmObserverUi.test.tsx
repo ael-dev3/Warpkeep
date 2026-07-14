@@ -1,87 +1,49 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
 import {
-  REALM_OBSERVER_REFRESH_MILLISECONDS,
   RealmObserverQaHarness
 } from '../src/dev/RealmObserverQaHarness';
 import {
-  createRealmObserverHarnessRealm,
-  parseRealmObserverSnapshot
+  createRealmObserverFixtureRealm
 } from '../src/dev/realmObserverSnapshot';
-import {
-  CANONICAL_CASTLE_SLOTS,
-  CANONICAL_REALM,
-  CANONICAL_WORLD_TILES,
-  CANONICAL_WORLD_TILE_META
-} from '../spacetimedb/src/world';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
-function observerSnapshot() {
-  const slots = CANONICAL_CASTLE_SLOTS.slice(0, 2);
-  return parseRealmObserverSnapshot({
-    version: 1,
-    protocolVersion: 3,
-    worldSeed: CANONICAL_REALM.numericSeed,
-    worldSeedName: CANONICAL_REALM.seedName,
-    worldTileCount: CANONICAL_WORLD_TILES.length,
-    worldTileMetaCount: CANONICAL_WORLD_TILE_META.length,
-    realm: {
-      realmId: CANONICAL_REALM.realmId,
-      numericSeed: CANONICAL_REALM.numericSeed,
-      generationVersion: CANONICAL_REALM.generationVersion,
-      authoritativeRadius: CANONICAL_REALM.authoritativeRadius,
-      renderRadius: CANONICAL_REALM.renderRadius,
-      playerCapacity: CANONICAL_REALM.playerCapacity
-    },
-    castles: slots.map((slot, index) => ({
-      castleId: index + 1,
-      tileKey: slot.tileKey,
-      q: slot.q,
-      r: slot.r,
-      level: index + 1,
-      name: index === 0 ? 'Amethyst Bastion' : 'Violet Watch',
-      canonicalUsername: index === 0 ? 'ael' : 'violetwarden',
-      displayName: index === 0 ? 'Ael' : 'Violet Warden',
-      publicBio: 'Public Realm presentation.',
-      portraitAvailable: true,
-      publicStatus: index === 0 ? 'founded' : 'active'
-    }))
-  });
-}
-
 function observerRealm() {
-  return createRealmObserverHarnessRealm(observerSnapshot(), 71);
+  return createRealmObserverFixtureRealm();
 }
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('Realm read-only observer presentation', () => {
-  it('refreshes without overlapping and fails closed when a later snapshot is unavailable', async () => {
-    vi.useFakeTimers();
-    try {
-      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
-      const loadSnapshot = vi.fn()
-        .mockResolvedValueOnce(observerSnapshot())
-        .mockRejectedValueOnce(new Error('static test failure'));
-      render(<RealmObserverQaHarness loadSnapshot={loadSnapshot} />);
-      await act(async () => { await Promise.resolve(); });
-      expect(screen.getByText('QA OBSERVER · READ ONLY')).not.toBeNull();
-      expect(loadSnapshot).toHaveBeenCalledTimes(1);
+  it('opens the deterministic fixture without calling browser transport and can close locally', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const fetchImpl = vi.fn();
+    vi.stubGlobal('fetch', fetchImpl);
+    render(<RealmObserverQaHarness />);
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(REALM_OBSERVER_REFRESH_MILLISECONDS);
-      });
-      expect(loadSnapshot).toHaveBeenCalledTimes(2);
-      expect(screen.getByRole('alert').textContent).toMatch(/did not provide/i);
-      expect(screen.queryByRole('main', { name: 'Hegemony realm QA observer' })).toBeNull();
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(screen.getByRole('main', { name: 'Hegemony realm QA observer' })).not.toBeNull();
+    expect(screen.getByText('QA OBSERVER · READ ONLY')).not.toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close QA Observer' }));
+    expect(screen.getByText('The QA observer session is closed.')).not.toBeNull();
+    expect(screen.queryByRole('main', { name: 'Hegemony realm QA observer' })).toBeNull();
+  });
+
+  it('fails closed if the deterministic fixture cannot initialize', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    render(<RealmObserverQaHarness createFixtureRealm={() => {
+      throw new Error('fixture unavailable');
+    }} />);
+
+    expect(screen.getByRole('alert').textContent).toMatch(/fixture could not be initialized/i);
+    expect(screen.queryByRole('main', { name: 'Hegemony realm QA observer' })).toBeNull();
   });
 
   it('keeps map interaction while suppressing every player-auth and ownership semantic', () => {
@@ -105,17 +67,17 @@ describe('Realm read-only observer presentation', () => {
     expect(screen.queryByRole('button', { name: 'Return to Menu' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {
-      name: 'Explore realm, 2 founded castles'
+      name: 'Explore realm, 4 founded castles'
     }));
     const explore = screen.getByRole('dialog', { name: 'Explore' });
     expect(within(explore).queryByRole('button', { name: 'My Keep' })).toBeNull();
     const firstCastle = within(explore).getByRole('button', {
-      name: /Inspect @ael, Amethyst Bastion/i
+      name: /Inspect @sentinel-one, Northwatch Bastion/i
     });
     expect(firstCastle.textContent).not.toMatch(/your castle/i);
     fireEvent.click(firstCastle);
 
-    const record = screen.getByRole('dialog', { name: '@ael' });
+    const record = screen.getByRole('dialog', { name: '@sentinel-one' });
     expect(within(record).getByText('PUBLIC CASTLE')).not.toBeNull();
     expect(within(record).queryByRole('link')).toBeNull();
     expect(document.body.textContent).not.toMatch(

@@ -1,15 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { safeRealmProfileImageUrl } from '../src/components/realm/realmCastlePresentation';
 import { isCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import {
-  REALM_OBSERVER_BROKER_ORIGIN,
+  REALM_OBSERVER_FIXTURE_OWNER_SEED,
   REALM_OBSERVER_PORTRAIT_PLACEHOLDER_PATH,
-  REALM_OBSERVER_SNAPSHOT_URL,
   RealmObserverSnapshotError,
+  createRealmObserverFixtureRealm,
   createRealmObserverHarnessRealm,
-  fetchRealmObserverSnapshot,
-  parseRealmObserverSnapshot
+  parseRealmObserverSnapshot,
+  realmObserverFixtureSnapshot
 } from '../src/dev/realmObserverSnapshot';
 import {
   CANONICAL_CASTLE_SLOTS,
@@ -25,9 +25,9 @@ function externalSnapshot() {
     q: slot.q,
     r: slot.r,
     level: index + 1,
-    name: index === 0 ? 'Amethyst Bastion' : 'Violet Watch',
-    canonicalUsername: index === 0 ? 'ael' : 'violetwarden',
-    displayName: index === 0 ? 'Ael' : 'Violet Warden',
+    name: index === 0 ? 'Observer Bastion' : 'Observer Watch',
+    canonicalUsername: index === 0 ? 'observer-one' : 'observer-two',
+    displayName: index === 0 ? 'Observer One' : 'Observer Two',
     publicBio: 'Public observer presentation.',
     portraitAvailable: index === 0,
     publicStatus: index === 0 ? 'founded' : 'active'
@@ -51,7 +51,7 @@ function externalSnapshot() {
   };
 }
 
-describe('local Realm observer snapshot boundary', () => {
+describe('local Realm observer fixture boundary', () => {
   it('accepts only the exact privacy-bounded contract and freezes every row', () => {
     const parsed = parseRealmObserverSnapshot(externalSnapshot());
 
@@ -120,6 +120,25 @@ describe('local Realm observer snapshot boundary', () => {
     expect(firstRun.snapshot.profiles.every((profile) => !profile.communityStatsVisible)).toBe(true);
   });
 
+  it('uses one deterministic, FID-free browser fixture and derives only internal renderer keys', () => {
+    const fixture = realmObserverFixtureSnapshot();
+    const firstRealm = createRealmObserverFixtureRealm();
+    const secondRealm = createRealmObserverFixtureRealm();
+
+    expect(realmObserverFixtureSnapshot()).toBe(fixture);
+    expect(fixture.castles).toHaveLength(4);
+    expect(fixture.castles.every((castle) => !castle.portraitAvailable)).toBe(true);
+    expect(JSON.stringify(fixture)).not.toMatch(
+      /(?:"fid"|ownerFid|identity|token|session|admission|wallet|marks|terms|pfpUrl)/i
+    );
+    expect(firstRealm.identity.fid).toBe(secondRealm.identity.fid);
+    expect(firstRealm.snapshot.castles.map((castle) => castle.ownerFid))
+      .toEqual(secondRealm.snapshot.castles.map((castle) => castle.ownerFid));
+    expect(firstRealm.identity.fid).toBe(
+      createRealmObserverHarnessRealm(fixture, REALM_OBSERVER_FIXTURE_OWNER_SEED).identity.fid
+    );
+  });
+
   it('resolves the observer portrait marker only to the exact current-origin asset', () => {
     const placeholder = safeRealmProfileImageUrl(REALM_OBSERVER_PORTRAIT_PLACEHOLDER_PATH);
     expect(placeholder).toBe(new URL(
@@ -129,53 +148,4 @@ describe('local Realm observer snapshot boundary', () => {
     expect(safeRealmProfileImageUrl('/images/unreviewed.png')).toBeUndefined();
   });
 
-  it('fetches only the fixed loopback URL without cookies, storage, referrer, or redirects', async () => {
-    const response = new Response(JSON.stringify(externalSnapshot()), {
-      status: 200,
-      headers: { 'content-type': 'application/json; charset=utf-8' }
-    });
-    Object.defineProperty(response, 'url', { value: REALM_OBSERVER_SNAPSHOT_URL });
-    const fetchImpl = vi.fn(async () => response) as unknown as typeof fetch;
-
-    await expect(fetchRealmObserverSnapshot(fetchImpl)).resolves.toMatchObject({
-      version: 1,
-      protocolVersion: 3
-    });
-    expect(REALM_OBSERVER_SNAPSHOT_URL).toBe(
-      `${REALM_OBSERVER_BROKER_ORIGIN}/snapshot`
-    );
-    expect(fetchImpl).toHaveBeenCalledWith(REALM_OBSERVER_SNAPSHOT_URL, {
-      method: 'GET',
-      mode: 'cors',
-      credentials: 'omit',
-      cache: 'no-store',
-      redirect: 'error',
-      referrerPolicy: 'no-referrer',
-      headers: { Accept: 'application/json' }
-    });
-  });
-
-  it('rejects snapshots that exceed the bounded response size', async () => {
-    const advertisedOversize = new Response('{}', {
-      status: 200,
-      headers: {
-        'content-type': 'application/json',
-        'content-length': String(256 * 1024 + 1)
-      }
-    });
-    Object.defineProperty(advertisedOversize, 'url', { value: REALM_OBSERVER_SNAPSHOT_URL });
-
-    const streamedOversize = new Response('x'.repeat(256 * 1024 + 1), {
-      status: 200,
-      headers: { 'content-type': 'application/json' }
-    });
-    Object.defineProperty(streamedOversize, 'url', { value: REALM_OBSERVER_SNAPSHOT_URL });
-
-    for (const response of [advertisedOversize, streamedOversize]) {
-      const fetchImpl = vi.fn(async () => response) as unknown as typeof fetch;
-      await expect(fetchRealmObserverSnapshot(fetchImpl)).rejects.toBeInstanceOf(
-        RealmObserverSnapshotError
-      );
-    }
-  });
 });

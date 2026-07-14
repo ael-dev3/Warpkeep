@@ -4,7 +4,6 @@ import { HEGEMONY_FRONTIER_KEEP } from '../../game/map/hegemonyLandmarks';
 import type { HexCoord } from '../../game/map/hexCoordinates';
 import type { TerrainCell } from '../../game/map/terrainTypes';
 import type { RealmIdentity } from './realmTypes';
-import type { WarpkeepRealmProfile } from '../../spacetime/warpkeepBackendTypes';
 import {
   castleProfileLabel,
   formatPublicMarkMicros,
@@ -14,7 +13,7 @@ import {
 type RealmHudProps = Readonly<{
   identity: RealmIdentity;
   ownCastle?: Readonly<{ name: string; level: number }>;
-  ownProfile?: WarpkeepRealmProfile;
+  ownProfile?: RealmCastlePublicPresentation;
   marksStatus?: 'loading' | 'unavailable' | 'ready';
   keepCoord?: HexCoord;
   selectedCell: TerrainCell;
@@ -24,7 +23,7 @@ type RealmHudProps = Readonly<{
   onRequestReturn: () => void;
 }>;
 
-function keeperLabel(identity: RealmIdentity, profile: WarpkeepRealmProfile | undefined) {
+function keeperLabel(identity: RealmIdentity, profile: RealmCastlePublicPresentation | undefined) {
   if (profile) return castleProfileLabel(profile);
   return identity.username ? `@${identity.username.replace(/^@+/, '')}` : 'Hegemony Keeper';
 }
@@ -46,7 +45,7 @@ function MarksBalance({
   profile,
   status
 }: Readonly<{
-  profile: WarpkeepRealmProfile | undefined;
+  profile: RealmCastlePublicPresentation | undefined;
   status: NonNullable<RealmHudProps['marksStatus']>;
 }>) {
   const formatted = status === 'ready'
