@@ -15,6 +15,13 @@ export const WARPKEEP_ADMIN_ROLE = 'warpkeep-admin';
 export const WARPKEEP_HERMES_SUBJECT = 'service:hermes';
 export const WARPKEEP_AUTH_EPOCH_RESOLVER_ROLE = 'warpkeep-auth-epoch-resolver';
 export const WARPKEEP_AUTH_EPOCH_RESOLVER_SUBJECT = 'service:auth-epoch-resolver';
+/**
+ * Internal bridge-only principal for the bounded, privacy-sanitized QA realm
+ * snapshot. It is neither a player nor an administrator and is never returned
+ * to a browser or local QA process.
+ */
+export const WARPKEEP_QA_SNAPSHOT_RESOLVER_ROLE = 'warpkeep-qa-snapshot-resolver';
+export const WARPKEEP_QA_SNAPSHOT_RESOLVER_SUBJECT = 'service:qa-snapshot-resolver';
 /** Internal wire contract, intentionally separate from the player-facing app version. */
 export const WARPKEEP_BACKEND_PROTOCOL_VERSION = 3;
 

@@ -1,0 +1,56 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #08060d;
+}
+
+.realm-observer-qa-status {
+  display: grid;
+  min-height: 100%;
+  padding: 1rem;
+  place-items: center;
+  box-sizing: border-box;
+  color: #fff7e5;
+  background:
+    radial-gradient(circle at 50% 42%, rgb(105 55 136 / 28%), transparent 30rem),
+    #08060d;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.realm-observer-qa-status section {
+  display: grid;
+  gap: 0.65rem;
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 1.2rem;
+  border: 1px solid rgb(225 190 105 / 38%);
+  border-radius: 0.65rem;
+  background: rgb(10 9 15 / 94%);
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 42%);
+  text-align: center;
+}
+
+.realm-observer-qa-status :is(p, h1, span) {
+  margin: 0;
+}
+
+.realm-observer-qa-status p {
+  color: #c9a7ea;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.realm-observer-qa-status h1 {
+  color: #f0d58c;
+  font: 500 1.3rem/1.2 Georgia, "Times New Roman", serif;
+}
+
+.realm-observer-qa-status span {
+  color: #c9bfd0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}

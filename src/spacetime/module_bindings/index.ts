@@ -58,6 +58,7 @@ import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "./get_my_admission_status_procedure";
 import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_procedure";
+import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_snapshot_v_1_procedure";
 
 // Import all table schema definitions
 import CastleRow from "./castle_table";
@@ -217,6 +218,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
   __procedureSchema("get_my_admission_status", GetMyAdmissionStatusProcedure.params, GetMyAdmissionStatusProcedure.returnType),
   __procedureSchema("get_my_admission_status_v2", GetMyAdmissionStatusV2Procedure.params, GetMyAdmissionStatusV2Procedure.returnType),
+  __procedureSchema("qa_observer_get_realm_snapshot_v1", QaObserverGetRealmSnapshotV1Procedure.params, QaObserverGetRealmSnapshotV1Procedure.returnType),
 );
 
 /** The remote SpacetimeDB module schema, both runtime and type information. */

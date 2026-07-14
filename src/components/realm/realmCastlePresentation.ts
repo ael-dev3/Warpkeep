@@ -1,6 +1,6 @@
 import { axialToWorld, hexDistance, type HexCoord } from '../../game/map/hexCoordinates';
 import { formatMarkMicros } from '../../marks/marksPolicy';
-import { safePublicHttpsImageUrl } from '../../security/publicImageUrl';
+import { safeWarpkeepProfileImageUrl } from '../../security/publicImageUrl';
 import type {
   WarpkeepPlayer,
   WarpkeepRealmProfile
@@ -125,7 +125,7 @@ export function castleProfileMonogram(profile: RealmCastlePublicPresentation) {
 }
 
 export function safeRealmProfileImageUrl(value: string | undefined) {
-  return safePublicHttpsImageUrl(value);
+  return safeWarpkeepProfileImageUrl(value);
 }
 
 export function farcasterProfileUrl(username: string | undefined) {

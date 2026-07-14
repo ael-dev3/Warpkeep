@@ -7,6 +7,8 @@ import {
   WARPKEEP_AUTH_VERSION,
   WARPKEEP_HERMES_SUBJECT,
   WARPKEEP_JWT_CONFIG,
+  WARPKEEP_QA_SNAPSHOT_RESOLVER_ROLE,
+  WARPKEEP_QA_SNAPSHOT_RESOLVER_SUBJECT,
 } from './config';
 
 export type ClaimErrorCode =
@@ -21,11 +23,16 @@ export type ClaimErrorCode =
   | 'INVALID_ROLES'
   | 'INVALID_PLAYER_SESSION'
   | 'INVALID_ADMIN_SESSION'
-  | 'INVALID_AUTH_RESOLVER_SESSION';
+  | 'INVALID_AUTH_RESOLVER_SESSION'
+  | 'INVALID_QA_SNAPSHOT_RESOLVER_SESSION';
 
 export const MAX_PLAYER_SESSION_SECONDS = 10 * 60;
 export const MAX_HERMES_ADMIN_SESSION_SECONDS = 5 * 60;
 export const MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS = 60;
+/** The bridge intends to issue this internal principal for only 15 seconds. */
+export const QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS = 15;
+/** The module independently enforces the same exact 15-second ceiling. */
+export const MAX_QA_SNAPSHOT_RESOLVER_SESSION_SECONDS = 15;
 
 export class ClaimValidationError extends Error {
   readonly code: ClaimErrorCode;
@@ -65,9 +72,15 @@ export type AuthEpochResolverJwtClaims = WarpkeepBaseJwtClaims &
     resolverFid: bigint;
   }>;
 
+export type QaSnapshotResolverJwtClaims = WarpkeepBaseJwtClaims &
+  Readonly<{
+    deviceThumbprint: string;
+  }>;
+
 type JsonRecord = Readonly<Record<string, unknown>>;
 
 const DECIMAL_FID = /^[1-9][0-9]*$/;
+const QA_DEVICE_THUMBPRINT = /^[A-Za-z0-9_-]{43}$/;
 
 function isRecord(value: unknown): value is JsonRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -244,6 +257,15 @@ export function isAuthEpochResolverJwt(claims: WarpkeepBaseJwtClaims): boolean {
   );
 }
 
+/** The QA snapshot resolver is one exact bridge-internal, read-only principal. */
+export function isQaSnapshotResolverJwt(claims: WarpkeepBaseJwtClaims): boolean {
+  return (
+    claims.subject === WARPKEEP_QA_SNAPSHOT_RESOLVER_SUBJECT &&
+    claims.roles.length === 1 &&
+    claims.roles[0] === WARPKEEP_QA_SNAPSHOT_RESOLVER_ROLE
+  );
+}
+
 function readNumericDate(
   record: JsonRecord,
   key: 'iat' | 'exp' | 'session_iat' | 'session_exp',
@@ -342,4 +364,63 @@ export function readFreshAuthEpochResolverJwt(
     throw new ClaimValidationError('INVALID_AUTH_RESOLVER_SESSION');
   }
   return Object.freeze({ ...claims, resolverFid });
+}
+
+/**
+ * Validate the exact bridge-only QA snapshot resolver at authoritative module
+ * time. Player, admission-resolver, and administrator-shaped custom claims are
+ * forbidden so this principal can never be interpreted as another authority.
+ */
+export function readFreshQaSnapshotResolverJwt(
+  payload: unknown,
+  currentTimeMicros: bigint,
+  config: WarpkeepJwtConfig = WARPKEEP_JWT_CONFIG,
+): QaSnapshotResolverJwtClaims {
+  let claims: WarpkeepBaseJwtClaims;
+  let issuedAt: number;
+  let expiresAt: number;
+  let deviceThumbprint: string;
+
+  try {
+    claims = readWarpkeepBaseJwt(payload, config);
+    const record = expectRecord(payload);
+    issuedAt = readNumericDate(record, 'iat', 'INVALID_QA_SNAPSHOT_RESOLVER_SESSION');
+    expiresAt = readNumericDate(record, 'exp', 'INVALID_QA_SNAPSHOT_RESOLVER_SESSION');
+    deviceThumbprint = expectString(
+      record,
+      'device_thumbprint',
+      'INVALID_QA_SNAPSHOT_RESOLVER_SESSION',
+    );
+    if (
+      !QA_DEVICE_THUMBPRINT.test(deviceThumbprint)
+      || record.fid !== undefined
+      || record.auth_version !== undefined
+      || record.auth_epoch !== undefined
+      || record.session_iat !== undefined
+      || record.session_exp !== undefined
+      || record.resolver_fid !== undefined
+    ) {
+      throw new ClaimValidationError('INVALID_QA_SNAPSHOT_RESOLVER_SESSION');
+    }
+  } catch (error) {
+    if (
+      error instanceof ClaimValidationError &&
+      error.code === 'INVALID_QA_SNAPSHOT_RESOLVER_SESSION'
+    ) {
+      throw error;
+    }
+    throw new ClaimValidationError('INVALID_QA_SNAPSHOT_RESOLVER_SESSION');
+  }
+
+  if (
+    !isQaSnapshotResolverJwt(claims)
+    || currentTimeMicros < 0n
+    || currentTimeMicros < BigInt(issuedAt) * 1_000_000n
+    || expiresAt <= issuedAt
+    || expiresAt - issuedAt > MAX_QA_SNAPSHOT_RESOLVER_SESSION_SECONDS
+    || currentTimeMicros >= BigInt(expiresAt) * 1_000_000n
+  ) {
+    throw new ClaimValidationError('INVALID_QA_SNAPSHOT_RESOLVER_SESSION');
+  }
+  return Object.freeze({ ...claims, deviceThumbprint });
 }

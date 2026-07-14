@@ -56,7 +56,7 @@ import {
   requireAdmin,
   requireAuthEpochResolver,
   requireSupportedFid,
-  requireWarpkeepConnection,
+  requireWarpkeepMetadataConnection,
 } from '../auth';
 import warpkeep from '../schema';
 import { seedCanonicalWorld } from './worldSeed';
@@ -348,16 +348,15 @@ const adminSnapScanBatchAggregateV1 = t.object('AdminSnapScanBatchAggregateV1', 
 });
 
 /**
- * Safe for any permitted Warpkeep connection. It exposes static compatibility
- * metadata only: no whitelist rows, identities, audit entries, or live
- * aggregate counts.
+ * Safe for ordinary permitted connections. The QA snapshot principal is
+ * intentionally rejected so it has exactly one callable procedure.
  */
 export const getAlphaBackendInfo = warpkeep.procedure(
   { name: 'get_alpha_backend_info' },
   alphaBackendInfo,
   ctx =>
     ctx.withTx(tx => {
-      requireWarpkeepConnection(tx);
+      requireWarpkeepMetadataConnection(tx);
       return {
         protocolVersion: WARPKEEP_BACKEND_PROTOCOL_VERSION,
         worldSeed: HEGEMONY_WORLD_SEED,

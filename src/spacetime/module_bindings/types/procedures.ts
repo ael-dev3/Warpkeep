@@ -15,6 +15,7 @@ import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fi
 import * as GetAlphaBackendInfoProcedure from "../get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "../get_my_admission_status_procedure";
 import * as GetMyAdmissionStatusV2Procedure from "../get_my_admission_status_v_2_procedure";
+import * as QaObserverGetRealmSnapshotV1Procedure from "../qa_observer_get_realm_snapshot_v_1_procedure";
 
 export type AdminGetAlphaStatusArgs = __Infer<typeof AdminGetAlphaStatusProcedure.params>;
 export type AdminGetAlphaStatusResult = __Infer<typeof AdminGetAlphaStatusProcedure.returnType>;
@@ -34,4 +35,6 @@ export type GetMyAdmissionStatusArgs = __Infer<typeof GetMyAdmissionStatusProced
 export type GetMyAdmissionStatusResult = __Infer<typeof GetMyAdmissionStatusProcedure.returnType>;
 export type GetMyAdmissionStatusV2Args = __Infer<typeof GetMyAdmissionStatusV2Procedure.params>;
 export type GetMyAdmissionStatusV2Result = __Infer<typeof GetMyAdmissionStatusV2Procedure.returnType>;
+export type QaObserverGetRealmSnapshotV1Args = __Infer<typeof QaObserverGetRealmSnapshotV1Procedure.params>;
+export type QaObserverGetRealmSnapshotV1Result = __Infer<typeof QaObserverGetRealmSnapshotV1Procedure.returnType>;
 

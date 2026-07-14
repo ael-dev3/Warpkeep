@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/verify-production-dist-exclusions.mjs",
     "preview": "vite preview",
     "validate:pages-config": "node scripts/validate-pages-deploy-config.mjs",
     "verify:licenses": "node scripts/verify-license-policy.mjs",
@@ -24,6 +24,9 @@
     "profiles:refresh": "tsx scripts/profiles/profiles-operator.ts refresh",
     "profiles:apply": "tsx scripts/profiles/profiles-operator.ts apply",
     "profiles:inspect": "tsx scripts/profiles/profiles-operator.ts inspect",
+    "qa:observer:build-helper": "scripts/qa-observer/build-macos-helper.zsh",
+    "qa:observer:broker": "node scripts/qa-observer/qa-observer-broker.mjs",
+    "qa:observer:cycle": "node scripts/qa-observer/qa-cycle-runner.mjs",
     "verify:runtime-assets": "node scripts/verify-runtime-assets.mjs",
     "verify:file-sizes": "node scripts/verify-file-sizes.mjs",
     "stdb:version": "spacetime --version",

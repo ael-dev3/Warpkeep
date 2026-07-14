@@ -33,6 +33,7 @@ import {
   type CastleLabelRecord
 } from './RealmCastleLabels';
 import { RealmHud } from './RealmHud';
+import { RealmObserverHud } from './RealmObserverHud';
 import {
   createRealmScene,
   type RealmInteractionTarget,
@@ -96,6 +97,8 @@ type RealmMapScreenProps = Readonly<{
   snapshot: CanonicalWarpkeepRealmSnapshot;
   onRequestReturn: () => void;
   qualityOverride?: RealmQuality;
+  /** Explicit local QA presentation; it grants no backend or player authority. */
+  presentationMode?: 'player' | 'observer';
 }>;
 
 type RendererMode = 'loading' | 'webgl' | 'fallback';
@@ -136,14 +139,14 @@ function samePeerCastleMarkers(
  */
 function useStablePeerCastleMarkers(
   castles: readonly RealmCastleProjection[],
-  ownFid: number,
+  ownFid: number | undefined,
   surface: RealmTerrainSurface
 ) {
   const stableMarkersRef = useRef<readonly RealmPeerCastleMarker[]>(EMPTY_PEER_CASTLE_MARKERS);
   const nextMarkers: RealmPeerCastleMarker[] = [];
   for (const castle of castles) {
     if (
-      castle.ownerFid !== ownFid
+      (ownFid === undefined || castle.ownerFid !== ownFid)
       && isPlayableRealmCoord(surface, { q: castle.q, r: castle.r })
     ) {
       nextMarkers.push({ castleId: castle.castleId, q: castle.q, r: castle.r });
@@ -298,8 +301,13 @@ function CanonicalRealmMapScreen({
   identity,
   snapshot,
   onRequestReturn,
-  qualityOverride
+  qualityOverride,
+  presentationMode = 'player'
 }: RealmMapScreenProps) {
+  // The observer is a development-only presentation of an already-sanitized
+  // loopback snapshot. Compile the mode out of production even if a future
+  // caller accidentally supplies the internal prop.
+  const observerMode = import.meta.env.DEV && presentationMode === 'observer';
   const rootRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackMapRef = useRef<SVGSVGElement>(null);
@@ -338,7 +346,11 @@ function CanonicalRealmMapScreen({
     () => ({ q: ownCastleQ, r: ownCastleR }),
     [ownCastleQ, ownCastleR]
   );
-  const peerCastles = useStablePeerCastleMarkers(otherCastles, identity.fid, surface);
+  const peerCastles = useStablePeerCastleMarkers(
+    otherCastles,
+    observerMode ? undefined : identity.fid,
+    surface
+  );
   const hasNearbyFoundingKeeps = peerCastles.some((castle) => (
     hexDistance(keepCoord, castle) <= 4
   ));
@@ -365,11 +377,11 @@ function CanonicalRealmMapScreen({
           castle.ownerFid,
           sharedProfiles,
           sharedPlayers,
-          identity
+          observerMode ? undefined : identity
         )
       }
     ]));
-  }, [allCastles, identity, sharedPlayers, sharedProfiles]);
+  }, [allCastles, identity, observerMode, sharedPlayers, sharedProfiles]);
   const navigatorCastles = useMemo(() => allCastles.map((castle) => ({
     castleId: castle.castleId,
     label: castleProfileLabel(profileRecords.get(castle.castleId)!.profile),
@@ -378,12 +390,12 @@ function CanonicalRealmMapScreen({
     r: castle.r
   })), [allCastles, profileRecords]);
   const terrainPlacements = useMemo(() => createHegemonyCastlePlacements([
-    { id: 'own-keep', coord: keepCoord },
+    ...(observerMode ? [] : [{ id: 'own-keep', coord: keepCoord }]),
     ...peerCastles.map((castle) => ({
       id: `peer-castle-${castle.castleId}`,
       coord: { q: castle.q, r: castle.r }
     }))
-  ]), [keepCoord, peerCastles]);
+  ]), [keepCoord, observerMode, peerCastles]);
   const fallbackFoundations = useMemo(() => terrainPlacements.map((placement, index) => {
     const world = axialToWorld(placement.coord, HEX_SIZE);
     const cell = terrainCellByCoord(surface.renderMap, placement.coord);
@@ -444,12 +456,12 @@ function CanonicalRealmMapScreen({
       ? 'ready'
       : 'unavailable';
   const labelLayoutContextRef = useRef({
-    ownCastleId: ownCastle.castleId,
+    ownCastleId: observerMode ? undefined : ownCastle.castleId,
     selectedCastleId: selectedCastle?.castleId,
     reducedQuality: quality === 'reduced'
   });
   labelLayoutContextRef.current = {
-    ownCastleId: ownCastle.castleId,
+    ownCastleId: observerMode ? undefined : ownCastle.castleId,
     selectedCastleId: selectedCastle?.castleId,
     reducedQuality: quality === 'reduced'
   };
@@ -797,7 +809,7 @@ function CanonicalRealmMapScreen({
         canvas,
         surface,
         keepCoord,
-        ownCastleId: ownCastle.castleId,
+        ownCastleId: observerMode ? undefined : ownCastle.castleId,
         otherCastles: peerCastles,
         quality: qualitySpec,
         reducedMotion,
@@ -839,7 +851,7 @@ function CanonicalRealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, surface, updateCastleProjection, updateSceneComposition]);
+  }, [handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, surface, updateCastleProjection, updateSceneComposition]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);
@@ -912,7 +924,8 @@ function CanonicalRealmMapScreen({
 
     if (event.key === 'Home') {
       event.preventDefault();
-      recenterKeep();
+      if (observerMode) showRealm();
+      else recenterKeep();
       return;
     }
     if (event.key === 'Enter' || event.key === ' ') {
@@ -939,10 +952,11 @@ function CanonicalRealmMapScreen({
     <main
       ref={rootRef}
       className="realm-map-screen"
+      data-presentation-mode={observerMode ? 'observer' : 'player'}
       data-renderer={rendererMode}
       data-quality={quality}
       tabIndex={0}
-      aria-label="Hegemony realm"
+      aria-label={observerMode ? 'Hegemony realm QA observer' : 'Hegemony realm'}
       aria-busy={rendererMode === 'loading'}
       onKeyDown={handleKeyDown}
     >
@@ -960,9 +974,13 @@ function CanonicalRealmMapScreen({
             className="realm-map-screen__fallback-map"
             viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
             role="img"
-            aria-label="Deterministic illustrated Hegemony lowlands"
+            aria-label={observerMode
+              ? 'Deterministic illustrated Hegemony lowlands observer map'
+              : 'Deterministic illustrated Hegemony lowlands'}
           >
-            <title>Hegemony lowlands with your authoritative frontier keep</title>
+            <title>{observerMode
+              ? 'Hegemony lowlands with public frontier castles'
+              : 'Hegemony lowlands with your authoritative frontier keep'}</title>
             <defs>
               {fallbackFoundations.map((foundation) => (
                 <radialGradient id={foundation.gradientId} key={foundation.id}>
@@ -1019,17 +1037,19 @@ function CanonicalRealmMapScreen({
                 />
               ))}
             </g>
-            <g
-              className="realm-map-screen__fallback-keep"
-              data-testid="realm-keep-marker"
-              aria-label={`Your Hegemony keep at cell ${keepCoord.q},${keepCoord.r}`}
-              transform={`translate(${axialToWorld(keepCoord, HEX_SIZE).x} ${-axialToWorld(keepCoord, HEX_SIZE).z})`}
-            >
-              <path d="M-0.55 0.36V-0.28H-0.36V-0.52H-0.18V-0.28H0.18V-0.52H0.36V-0.28H0.55V0.36Z" fill="#ddd0ad" stroke="#5b4936" strokeWidth="0.035" />
-              <path d="M-0.64 0.36H0.64L0.52 0.5H-0.52Z" fill="#766146" />
-              <path d="M-0.11 0.36V0.02Q0-0.11 0.11 0.02V0.36Z" fill="#433c32" />
-              <path d="M-0.52-0.28L-0.36-0.62L-0.2-0.28M0.2-0.28L0.36-0.62L0.52-0.28" fill="#a58949" stroke="#5b4936" strokeWidth="0.025" />
-            </g>
+            {!observerMode ? (
+              <g
+                className="realm-map-screen__fallback-keep"
+                data-testid="realm-keep-marker"
+                aria-label={`Your Hegemony keep at cell ${keepCoord.q},${keepCoord.r}`}
+                transform={`translate(${axialToWorld(keepCoord, HEX_SIZE).x} ${-axialToWorld(keepCoord, HEX_SIZE).z})`}
+              >
+                <path d="M-0.55 0.36V-0.28H-0.36V-0.52H-0.18V-0.28H0.18V-0.52H0.36V-0.28H0.55V0.36Z" fill="#ddd0ad" stroke="#5b4936" strokeWidth="0.035" />
+                <path d="M-0.64 0.36H0.64L0.52 0.5H-0.52Z" fill="#766146" />
+                <path d="M-0.11 0.36V0.02Q0-0.11 0.11 0.02V0.36Z" fill="#433c32" />
+                <path d="M-0.52-0.28L-0.36-0.62L-0.2-0.28M0.2-0.28L0.36-0.62L0.52-0.28" fill="#a58949" stroke="#5b4936" strokeWidth="0.025" />
+              </g>
+            ) : null}
             {peerCastles.map((castle) => {
               const world = axialToWorld({ q: castle.q, r: castle.r }, HEX_SIZE);
               return (
@@ -1058,8 +1078,10 @@ function CanonicalRealmMapScreen({
         >
           <div>
             <strong role="status">Surveying the bright lowlands…</strong>
-            <span>Preparing every canonical keep before the realm is revealed.</span>
-            <button type="button" onClick={onRequestReturn}>Return to Menu</button>
+            <span>Preparing every canonical castle before the realm is revealed.</span>
+            <button type="button" onClick={onRequestReturn}>
+              {observerMode ? 'Close QA Observer' : 'Return to Menu'}
+            </button>
           </div>
         </div>
       ) : null}
@@ -1071,33 +1093,46 @@ function CanonicalRealmMapScreen({
             records={profileRecords}
             selectedCastleId={selectedCastle?.castleId}
             inspectorCastleId={inspectorCastle?.castleId}
-            ownCastleId={ownCastle.castleId}
+            ownCastleId={observerMode ? undefined : ownCastle.castleId}
             inspectorId={inspectorId}
             inspectorOpen={interaction.inspectorOpen}
             onActivate={selectCastle}
           />
 
-          <RealmHud
-            identity={identity}
-            ownCastle={ownCastle}
-            ownProfile={ownProfile}
-            marksStatus={marksStatus}
-            keepCoord={keepCoord}
-            selectedCell={selectedCell}
-            selectedCastle={selectedCastle}
-            selectedCastleProfile={selectedCastle
-              ? profileRecords.get(selectedCastle.castleId)?.profile
-              : undefined}
-            onRecenterKeep={recenterKeep}
-            onRequestReturn={onRequestReturn}
-          />
+          {observerMode ? (
+            <RealmObserverHud
+              selectedCell={selectedCell}
+              selectedCastle={selectedCastle}
+              selectedCastleProfile={selectedCastle
+                ? profileRecords.get(selectedCastle.castleId)?.profile
+                : undefined}
+              onShowRealm={showRealm}
+              onRequestReturn={onRequestReturn}
+            />
+          ) : (
+            <RealmHud
+              identity={identity}
+              ownCastle={ownCastle}
+              ownProfile={ownProfile}
+              marksStatus={marksStatus}
+              keepCoord={keepCoord}
+              selectedCell={selectedCell}
+              selectedCastle={selectedCastle}
+              selectedCastleProfile={selectedCastle
+                ? profileRecords.get(selectedCastle.castleId)?.profile
+                : undefined}
+              onRecenterKeep={recenterKeep}
+              onRequestReturn={onRequestReturn}
+            />
+          )}
 
           {inspectorCastle && profileRecords.get(inspectorCastle.castleId) ? (
             <CastleInspectionPanel
               id={inspectorId}
               castle={inspectorCastle}
               profile={profileRecords.get(inspectorCastle.castleId)!.profile}
-              own={inspectorCastle.ownerFid === identity.fid}
+              own={!observerMode && inspectorCastle.ownerFid === identity.fid}
+              observer={observerMode}
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
             />
@@ -1107,7 +1142,7 @@ function CanonicalRealmMapScreen({
             id={navigatorId}
             open={interaction.navigatorOpen}
             castles={navigatorCastles}
-            ownCastleId={ownCastle.castleId}
+            ownCastleId={observerMode ? undefined : ownCastle.castleId}
             selectedCastleId={selectedCastle?.castleId}
             triggerRef={navigatorTriggerRef}
             cameraPresets={[
@@ -1123,12 +1158,12 @@ function CanonicalRealmMapScreen({
                 active: cameraMode === 'approach',
                 onActivate: frameFoundingDistrict
               }] : []),
-              {
+              ...(!observerMode ? [{
                 id: 'keep',
                 label: 'My Keep',
                 active: cameraMode === 'keep',
                 onActivate: viewKeep
-              }
+              }] : [])
             ]}
             onRequestOpen={() => dispatchInteraction({ type: 'open-navigator' })}
             onRequestClose={() => dispatchInteraction({ type: 'close-navigator' })}

@@ -18,6 +18,8 @@ const LIMITS: Readonly<Record<RateLimitAction, number>> = {
   exchange: 20,
   'session-refresh': 30,
   'admin-token': 6,
+  'qa-challenge': 12,
+  'qa-snapshot': 60,
 }
 
 class FakeStorage implements DurableObjectStorage {

@@ -2,11 +2,13 @@ import type {
   AdminTokenClaims,
   AuthEpochResolverTokenClaims,
   PlayerTokenClaims,
+  QaSnapshotResolverTokenClaims,
 } from './types'
 import {
   ADMIN_TOKEN_TTL_SECONDS,
   INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
   PLAYER_TOKEN_TTL_SECONDS,
+  QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
   type BridgeConfig,
 } from './config'
 
@@ -47,7 +49,7 @@ async function signingKey(config: BridgeConfig): Promise<CryptoKey> {
 
 export async function signEs256Jwt(
   config: BridgeConfig,
-  claims: PlayerTokenClaims | AdminTokenClaims | AuthEpochResolverTokenClaims,
+  claims: PlayerTokenClaims | AdminTokenClaims | AuthEpochResolverTokenClaims | QaSnapshotResolverTokenClaims,
 ): Promise<string> {
   const encodedHeader = base64UrlJson({ alg: 'ES256', typ: 'JWT', kid: config.keyId })
   const encodedPayload = base64UrlJson(claims)
@@ -129,6 +131,27 @@ export function authEpochResolverClaims(
     iat: nowSeconds,
     nbf: nowSeconds,
     exp: nowSeconds + INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
+    jti: randomId(),
+  }
+}
+
+/** Fresh server-only token bound to the registered QA device thumbprint. */
+export function qaSnapshotResolverClaims(
+  issuer: string,
+  audience: string,
+  deviceThumbprint: string,
+  nowSeconds: number,
+): QaSnapshotResolverTokenClaims {
+  return {
+    iss: issuer,
+    sub: 'service:qa-snapshot-resolver',
+    aud: [audience],
+    token_type: 'spacetime-access',
+    roles: ['warpkeep-qa-snapshot-resolver'],
+    device_thumbprint: deviceThumbprint,
+    iat: nowSeconds,
+    nbf: nowSeconds,
+    exp: nowSeconds + QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
     jti: randomId(),
   }
 }

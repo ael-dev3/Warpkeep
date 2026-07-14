@@ -58,8 +58,17 @@ export interface WorkerEnv {
   SPACETIMEDB_DATABASE?: string
   /** Emergency public-auth kill switch. Trust coordinates remain immutable. */
   PUBLIC_AUTH_ENABLED?: string
+  /** Independent fail-closed gate for the machine-bound read-only QA observer. */
+  QA_OBSERVER_ENABLED?: string
+  /** One registered public P-256 JWK. The corresponding private key stays on the QA Mac. */
+  QA_OBSERVER_PUBLIC_JWK?: string
+  /** Canonical RFC 3339 expiry for the registered QA public key. */
+  QA_OBSERVER_KEY_EXPIRES_AT?: string
+  /** Fixed canonical RFC 3339 timestamp of the owner-reviewed QA key registration. */
+  QA_OBSERVER_KEY_REGISTERED_AT?: string
   ENVIRONMENT?: string
   CHALLENGE_REPLAY_GUARD?: DurableObjectNamespace
+  QA_CHALLENGE_REPLAY_GUARD?: DurableObjectNamespace
   AUTH_RATE_LIMITER?: DurableObjectNamespace
   SESSION_FAMILIES?: DurableObjectNamespace
 }
@@ -109,6 +118,18 @@ export type SafeLogEvent =
   | 'plaintext_request_rejected'
   | 'issuer_host_rejected'
   | 'public_auth_paused'
+  | 'qa_observer_paused'
+  | 'qa_challenge_issued'
+  | 'qa_challenge_rejected'
+  | 'qa_signature_rejected'
+  | 'qa_snapshot_succeeded'
+  | 'qa_snapshot_rejected'
+  | 'qa_snapshot_failed_signing'
+  | 'qa_snapshot_failed_fetch_request'
+  | 'qa_snapshot_failed_fetch_body'
+  | 'qa_snapshot_failed_timeout'
+  | 'qa_snapshot_failed_upstream_status'
+  | 'qa_snapshot_failed_response_validation'
   | 'internal_error'
 
 /** This deliberately cannot accept proof, token, nonce, secret, or arbitrary errors. */
@@ -170,7 +191,13 @@ export interface AuthEpochResolver {
   resolve(fid: string): Promise<AdmissionResolution>
 }
 
-export type RateLimitAction = 'challenge' | 'exchange' | 'session-refresh' | 'admin-token'
+export type RateLimitAction =
+  | 'challenge'
+  | 'exchange'
+  | 'session-refresh'
+  | 'admin-token'
+  | 'qa-challenge'
+  | 'qa-snapshot'
 
 export type RateLimitResult =
   | { allowed: true }
@@ -226,6 +253,38 @@ export interface AuthEpochResolverTokenClaims {
   nbf: number
   exp: number
   jti: string
+}
+
+export interface QaSnapshotResolverTokenClaims {
+  iss: string
+  sub: 'service:qa-snapshot-resolver'
+  aud: string[]
+  token_type: 'spacetime-access'
+  roles: ['warpkeep-qa-snapshot-resolver']
+  device_thumbprint: string
+  iat: number
+  nbf: number
+  exp: number
+  jti: string
+}
+
+export type QaObserverScope = 'realm.snapshot'
+
+export interface QaObserverChallengeRecord {
+  version: 1
+  requestId: string
+  challenge: string
+  createdAt: number
+  expiresAt: number
+  keyThumbprint: string
+  scope: QaObserverScope
+  signingInput: string
+}
+
+export interface QaObserverChallengeStore {
+  put(challenge: QaObserverChallengeRecord): Promise<void>
+  get(requestId: string): Promise<QaObserverChallengeRecord | null>
+  consume(requestId: string): Promise<QaObserverChallengeRecord | null>
 }
 
 export type SessionFamilyState = 'pending' | 'bound'
