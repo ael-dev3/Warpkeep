@@ -107,7 +107,7 @@ describe('Farcaster browser session storage privacy', () => {
   it('retires persistence/restoration authority and never writes a bearer token', () => {
     const localStorage = new MemoryStorage();
     const sessionStorage = new MemoryStorage();
-    const token = 'eyJhbGciOiJFUzI1NiJ9.SECRET.signature';
+    const token = ['fixture-header', 'fixture-payload', 'fixture-signature'].join('.');
     localStorage.values.set(getFarcasterDeviceSessionStorageKey(BASE_PATH)!, token);
     sessionStorage.values.set(getLegacyFarcasterDeviceSessionStorageKey(BASE_PATH)!, token);
     const environment = { localStorage, sessionStorage, basePath: BASE_PATH, now: () => NOW };

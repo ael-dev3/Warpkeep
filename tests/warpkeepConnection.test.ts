@@ -25,6 +25,11 @@ import {
   WARPKEEP_ALPHA_TERMS_VERSION as MODULE_ALPHA_TERMS_VERSION
 } from '../spacetimedb/src/marksAuthorityPolicy';
 import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
+import type { WarpkeepRealmSnapshotCandidate } from '../src/spacetime/warpkeepBackendTypes';
+import {
+  CANONICAL_TEST_FID,
+  createCanonicalGenesisCandidate
+} from './fixtures/canonicalGenesisSnapshot';
 
 const config: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
@@ -35,6 +40,63 @@ const config: WarpkeepRuntimeConfig = Object.freeze({
   publicConfigValid: true,
   sharedAlphaEnabled: true
 });
+
+function timestamp(milliseconds = 1_752_408_000_000) {
+  return { toMillis: () => BigInt(milliseconds) };
+}
+
+function rawRowsForCandidate(candidate: WarpkeepRealmSnapshotCandidate) {
+  return {
+    worldTile: candidate.tiles.map((tile) => ({
+      ...tile,
+      occupantCastleId: tile.occupantCastleId === undefined
+        ? undefined
+        : BigInt(tile.occupantCastleId)
+    })),
+    worldTileMetaV1: candidate.tileMetadata.map((metadata) => ({ ...metadata })),
+    playerV2: candidate.players.map((player) => ({
+      ...player,
+      fid: BigInt(player.fid),
+      joinedAt: timestamp()
+    })),
+    realmProfileV1: candidate.profiles.map((profile) => ({
+      ...profile,
+      fid: BigInt(profile.fid),
+      admittedAt: timestamp(profile.admittedAt),
+      firstAuthenticatedAt: profile.firstAuthenticatedAt === undefined
+        ? undefined
+        : timestamp(profile.firstAuthenticatedAt),
+      profileUpdatedAt: timestamp()
+    })),
+    realmV1: candidate.activeRealms.map((realm) => ({
+      ...realm,
+      createdAt: timestamp()
+    })),
+    castle: candidate.castles.map((castle) => ({
+      ...castle,
+      castleId: BigInt(castle.castleId),
+      ownerFid: BigInt(castle.ownerFid),
+      createdAt: timestamp(castle.foundedAt)
+    }))
+  };
+}
+
+function connectionForCandidate(candidate: WarpkeepRealmSnapshotCandidate): WarpkeepConnection {
+  const rows = rawRowsForCandidate(candidate);
+  const table = <T,>(values: readonly T[]) => ({
+    iter: function* () { yield* values; }
+  });
+  return {
+    db: {
+      worldTile: table(rows.worldTile),
+      worldTileMetaV1: table(rows.worldTileMetaV1),
+      playerV2: table(rows.playerV2),
+      realmProfileV1: table(rows.realmProfileV1),
+      realmV1: table(rows.realmV1),
+      castle: table(rows.castle)
+    }
+  } as unknown as WarpkeepConnection;
+}
 
 function builderDouble() {
   const builder = {
@@ -229,105 +291,23 @@ describe('Warpkeep authenticated connection boundary', () => {
   });
 
   it('derives the own castle from the bridge-token FID passed by the provider', () => {
-    const connection = {
-      db: {
-        worldTile: { iter: function* () { yield {
-          key: '0,0', q: 0, r: 0, biome: 'temperate-lowland', terrainSeed: 1, occupantCastleId: 1n
-        }; } },
-        worldTileMetaV1: { iter: function* () { return undefined; } },
-        playerV2: { iter: function* () { yield { fid: 12_345n, username: 'keeper', displayName: undefined, pfpUrl: undefined, status: 'active' }; } },
-        realmProfileV1: { iter: function* () { return undefined; } },
-        realmV1: { iter: function* () { return undefined; } },
-        castle: { iter: function* () {
-          yield { castleId: 1n, ownerFid: 12_345n, tileKey: '0,0', q: 0, r: 0, level: 1, name: 'Token Keep' };
-          yield { castleId: 2n, ownerFid: 77n, tileKey: '1,0', q: 1, r: 0, level: 1, name: 'Peer Keep' };
-        } }
-      }
-    } as unknown as WarpkeepConnection;
+    const candidate = createCanonicalGenesisCandidate({
+      ownFid: CANONICAL_TEST_FID,
+      peerFid: 77
+    });
+    const connection = connectionForCandidate(candidate);
 
-    const snapshot = readWarpkeepRealmSnapshot(connection, 12_345);
-    expect(snapshot.ownCastle?.name).toBe('Token Keep');
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.ownCastle.name).toBe('Warpkeeper Bastion');
     expect(snapshot.castles).toHaveLength(2);
+    expect(snapshot.tiles).toHaveLength(1_261);
+    expect(snapshot.tileMetadata).toHaveLength(1_261);
   });
 
   it('maps only the public realm metadata, profile, Marks, and founding presentation', () => {
-    const timestamp = (milliseconds: bigint) => ({
-      toMillis: () => milliseconds
-    });
-    const connection = {
-      db: {
-        worldTile: { iter: function* () { return undefined; } },
-        worldTileMetaV1: { iter: function* () {
-          yield {
-            tileKey: 'GENESIS_001:1,-1',
-            realmId: 'GENESIS_001',
-            s: 0,
-            ring: 1,
-            sector: 6,
-            terrainKind: 'lowland',
-            passable: true,
-            movementCost: 1,
-            staticContentKind: 'castle-slot',
-            generationVersion: 2
-          };
-        } },
-        playerV2: { iter: function* () { return undefined; } },
-        realmProfileV1: { iter: function* () {
-          yield {
-            fid: 12_345n,
-            canonicalUsername: 'warpkeeper',
-            displayName: 'Warp Keeper',
-            pfpUrl: 'https://cdn.example/keeper.png',
-            publicBio: 'Founding the frontier.',
-            admittedAt: timestamp(1_752_408_000_000n),
-            firstAuthenticatedAt: timestamp(1_752_494_400_000n),
-            publicStatus: 'founding-player',
-            communityStatsVisible: true,
-            totalSnapBurnedMicros: 25_000_000n,
-            marksEarnedMicros: 25_000_000n,
-            marksSpentMicros: 1_000_000n,
-            marksBalanceMicros: 24_000_000n,
-            marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1'
-          };
-        } },
-        realmV1: { iter: function* () {
-          yield { realmId: 'ARCHIVE', publicName: 'Archive', active: false };
-          yield {
-            realmId: 'GENESIS_001',
-            publicName: 'The Hegemony · Genesis 001',
-            active: true
-          };
-        } },
-        castle: { iter: function* () {
-          yield {
-            castleId: 1n,
-            ownerFid: 12_345n,
-            tileKey: 'GENESIS_001:1,-1',
-            q: 1,
-            r: -1,
-            level: 2,
-            name: 'Warpkeeper Bastion',
-            createdAt: timestamp(1_752_580_800_000n)
-          };
-        } }
-      }
-    } as unknown as WarpkeepConnection;
-
-    expect(readWarpkeepRealmSnapshot(connection, 12_345)).toEqual({
-      tiles: [],
-      tileMetadata: [{
-        tileKey: 'GENESIS_001:1,-1',
-        realmId: 'GENESIS_001',
-        s: 0,
-        ring: 1,
-        sector: 6,
-        terrainKind: 'lowland',
-        passable: true,
-        movementCost: 1,
-        staticContentKind: 'castle-slot',
-        generationVersion: 2
-      }],
-      players: [],
+    const base = createCanonicalGenesisCandidate();
+    const candidate: WarpkeepRealmSnapshotCandidate = {
+      ...base,
       profiles: [{
         fid: 12_345,
         canonicalUsername: 'warpkeeper',
@@ -343,37 +323,44 @@ describe('Warpkeep authenticated connection boundary', () => {
         marksSpentMicros: 1_000_000n,
         marksBalanceMicros: 24_000_000n,
         marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1'
-      }],
-      castles: [{
-        castleId: 1,
-        ownerFid: 12_345,
-        tileKey: 'GENESIS_001:1,-1',
-        q: 1,
-        r: -1,
-        level: 2,
-        name: 'Warpkeeper Bastion',
-        foundedAt: 1_752_580_800_000
-      }],
-      realm: {
-        realmId: 'GENESIS_001',
-        publicName: 'The Hegemony · Genesis 001'
-      },
-      ownCastle: {
-        castleId: 1,
-        ownerFid: 12_345,
-        tileKey: 'GENESIS_001:1,-1',
-        q: 1,
-        r: -1,
-        level: 2,
-        name: 'Warpkeeper Bastion',
-        foundedAt: 1_752_580_800_000
-      }
-    });
+      }]
+    };
+    const snapshot = readWarpkeepRealmSnapshot(
+      connectionForCandidate(candidate),
+      CANONICAL_TEST_FID
+    );
+
+    expect(snapshot.realm).toEqual(base.activeRealms[0]);
+    expect(snapshot.profiles).toEqual(candidate.profiles);
+    expect(snapshot.tiles).toHaveLength(1_261);
+    expect(snapshot.tileMetadata).toHaveLength(1_261);
+    expect(snapshot.ownCastle.ownerFid).toBe(CANONICAL_TEST_FID);
+    expect(snapshot).not.toHaveProperty('identity');
+    expect(snapshot).not.toHaveProperty('wallet');
+  });
+
+  it('rejects active-realm ambiguity instead of selecting the first row', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const ambiguous: WarpkeepRealmSnapshotCandidate = {
+      ...candidate,
+      activeRealms: [
+        candidate.activeRealms[0]!,
+        { ...candidate.activeRealms[0]!, realmId: 'GENESIS_002' }
+      ]
+    };
+
+    expect(() => readWarpkeepRealmSnapshot(
+      connectionForCandidate(ambiguous),
+      CANONICAL_TEST_FID
+    )).toThrow(/incomplete or incompatible/i);
   });
 
   it('publishes one realm snapshot per transaction and removes every table listener', () => {
     type Listener = (context: EventContext, ...rows: unknown[]) => void;
-    const tableDouble = () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const rows = rawRowsForCandidate(candidate);
+    const tableDouble = <T,>(initialValues: readonly T[]) => {
+      const values = [...initialValues];
       const listeners: {
         insert?: Listener;
         delete?: Listener;
@@ -381,8 +368,9 @@ describe('Warpkeep authenticated connection boundary', () => {
       } = {};
       return {
         listeners,
+        values,
         table: {
-          iter: function* () { return undefined; },
+          iter: function* () { yield* values; },
           onInsert: vi.fn((listener: Listener) => { listeners.insert = listener; }),
           onDelete: vi.fn((listener: Listener) => { listeners.delete = listener; }),
           onUpdate: vi.fn((listener: Listener) => { listeners.update = listener; }),
@@ -392,12 +380,12 @@ describe('Warpkeep authenticated connection boundary', () => {
         }
       };
     };
-    const worldTile = tableDouble();
-    const worldTileMetaV1 = tableDouble();
-    const playerV2 = tableDouble();
-    const castle = tableDouble();
-    const realmV1 = tableDouble();
-    const realmProfileV1 = tableDouble();
+    const worldTile = tableDouble(rows.worldTile);
+    const worldTileMetaV1 = tableDouble(rows.worldTileMetaV1);
+    const playerV2 = tableDouble(rows.playerV2);
+    const castle = tableDouble(rows.castle);
+    const realmV1 = tableDouble(rows.realmV1);
+    const realmProfileV1 = tableDouble(rows.realmProfileV1);
     const connection = {
       db: {
         worldTile: worldTile.table,
@@ -409,7 +397,13 @@ describe('Warpkeep authenticated connection boundary', () => {
       }
     } as unknown as WarpkeepConnection;
     const onChange = vi.fn();
-    const cleanup = observeWarpkeepRealm(connection, 12_345, onChange);
+    const onError = vi.fn();
+    const cleanup = observeWarpkeepRealm(
+      connection,
+      CANONICAL_TEST_FID,
+      onChange,
+      onError
+    );
     const context = (id: string) => ({
       event: { id, tag: 'Transaction' }
     }) as unknown as EventContext;
@@ -423,15 +417,20 @@ describe('Warpkeep authenticated connection boundary', () => {
     playerV2.listeners.update?.(context('transaction-1'));
     castle.listeners.delete?.(context('transaction-1'));
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenLastCalledWith({
-      tiles: [],
-      tileMetadata: [],
-      players: [],
-      profiles: [],
-      castles: []
+    expect(onChange.mock.calls[0]?.[0]).toMatchObject({
+      protocolVersion: 3,
+      canonicalFingerprint: expect.stringContaining('genesis-001')
     });
+    expect(onChange.mock.calls[0]?.[0].tiles).toHaveLength(1_261);
 
     castle.listeners.insert?.(context('transaction-2'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    worldTileMetaV1.values.pop();
+    castle.listeners.insert?.(context('transaction-invalid'));
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenCalledTimes(2);
+    worldTile.listeners.insert?.(context('transaction-after-error'));
     expect(onChange).toHaveBeenCalledTimes(2);
 
     cleanup();

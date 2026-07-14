@@ -1,8 +1,15 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref
+} from 'react';
 
 import { hexDistance } from '../../game/map/hexCoordinates';
 import type { WarpkeepWorldTileMetadata } from '../../spacetime/warpkeepBackendTypes';
-import type { RealmCastleProjection } from './RealmMapScreen';
 import { CastleProfileAvatar } from './RealmCastleLabels';
 import {
   castleProfileLabel,
@@ -14,13 +21,6 @@ import {
 } from './realmCastlePresentation';
 
 export const CASTLE_WARP_PREVIEW_MESSAGE = 'CASTLE WARP IS UNDER DEVELOPMENT. FUTURE RELOCATION WILL COST 100 MARKS. NO MARKS WERE SPENT.';
-const COMPACT_INSPECTION_QUERY = '(max-width: 680px), (max-height: 610px)';
-
-function inspectionStartsOpen() {
-  return typeof window === 'undefined'
-    || typeof window.matchMedia !== 'function'
-    || !window.matchMedia(COMPACT_INSPECTION_QUERY).matches;
-}
 
 function PublicDate({ value }: Readonly<{ value: number | undefined }>) {
   const formatted = formatPublicRealmDate(value);
@@ -34,7 +34,7 @@ function PublicMarkAmount({ value }: Readonly<{ value: bigint | undefined }>) {
 function PublicField({
   label,
   children
-}: Readonly<{ label: string; children: React.ReactNode }>) {
+}: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <div className="castle-inspection__field">
       <dt>{label}</dt>
@@ -43,25 +43,49 @@ function PublicField({
   );
 }
 
-export function CastleInspectionPanel({
-  castle,
-  profile,
-  tileMetadata,
-  realmName,
-  own
-}: Readonly<{
-  castle: RealmCastleProjection;
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === 'function') {
+    ref(value);
+  } else if (ref) {
+    (ref as { current: T | null }).current = value;
+  }
+}
+
+export type CastleInspectionRecord = Readonly<{
+  castleId: number;
+  q: number;
+  r: number;
+  level: number;
+  name: string;
+  foundedAt?: number;
+}>;
+
+export type CastleInspectionPanelProps = Readonly<{
+  id: string;
+  castle: CastleInspectionRecord;
   profile: RealmCastlePublicPresentation;
   tileMetadata?: WarpkeepWorldTileMetadata;
   realmName: string;
   own: boolean;
-}>) {
-  const [open, setOpen] = useState(inspectionStartsOpen);
+  onRequestClose: () => void;
+  focusTargetRef?: Ref<HTMLButtonElement>;
+}>;
+
+export function CastleInspectionPanel({
+  id,
+  castle,
+  profile,
+  tileMetadata,
+  realmName,
+  own,
+  onRequestClose,
+  focusTargetRef
+}: CastleInspectionPanelProps) {
   const [warpNoticeVisible, setWarpNoticeVisible] = useState(false);
   const [warpNoticePinned, setWarpNoticePinned] = useState(false);
-  const summaryRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const warpNoticeId = useId();
-  const titleId = useId();
+  const titleId = `${id}-title`;
   const username = castleProfileLabel(profile);
   const profileUrl = farcasterProfileUrl(profile.canonicalUsername);
   const coord = { q: castle.q, r: castle.r };
@@ -69,11 +93,16 @@ export function CastleInspectionPanel({
   const ring = tileMetadata?.ring ?? hexDistance({ q: 0, r: 0 }, coord);
   const sector = tileMetadata?.sector ?? sectorForRealmCoord(coord);
 
+  const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
+    closeButtonRef.current = element;
+    assignRef(focusTargetRef, element);
+  }, [focusTargetRef]);
+
   useEffect(() => {
-    setOpen(inspectionStartsOpen());
     setWarpNoticeVisible(false);
     setWarpNoticePinned(false);
-  }, [castle.castleId]);
+    closeButtonRef.current?.focus({ preventScroll: true });
+  }, [castle.castleId, id]);
 
   const showTransientWarpNotice = () => setWarpNoticeVisible(true);
   const hideTransientWarpNotice = () => {
@@ -82,34 +111,28 @@ export function CastleInspectionPanel({
 
   return (
     <aside
+      id={id}
       className="castle-inspection"
+      role="dialog"
+      aria-modal="false"
       aria-labelledby={titleId}
-      data-open={open ? 'true' : 'false'}
+      data-open="true"
     >
-      <details open={open}>
-        <summary
-          ref={summaryRef}
-          onClick={(event) => {
-            event.preventDefault();
-            setOpen((current) => !current);
-          }}
-        >
+      <div className="castle-inspection__drawer">
+        <header className="castle-inspection__record-heading">
           <span>CASTLE RECORD</span>
           <strong>{castle.name}</strong>
-          <small>{open ? 'Collapse' : 'Expand'}</small>
-        </summary>
-
-        <div className="castle-inspection__body">
           <button
-            className="castle-inspection__close"
-            onClick={() => {
-              setOpen(false);
-              summaryRef.current?.focus({ preventScroll: true });
-            }}
+            ref={setCloseButtonRef}
+            className="castle-inspection__dismiss"
+            onClick={onRequestClose}
             type="button"
           >
             CLOSE RECORD
           </button>
+        </header>
+
+        <div className="castle-inspection__body">
           <header className="castle-inspection__identity">
             <CastleProfileAvatar profile={profile} size="large" />
             <div>
@@ -202,7 +225,7 @@ export function CastleInspectionPanel({
                 }}
                 onFocus={showTransientWarpNotice}
                 onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
+                  if (event.key === 'Escape' && warpNoticeVisible) {
                     event.preventDefault();
                     event.stopPropagation();
                     setWarpNoticePinned(false);
@@ -223,7 +246,7 @@ export function CastleInspectionPanel({
             </div>
           ) : null}
         </div>
-      </details>
+      </div>
     </aside>
   );
 }

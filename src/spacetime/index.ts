@@ -14,6 +14,12 @@ export {
   type WarpkeepRuntimeConfig
 } from './warpkeepConfig';
 export {
+  CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT,
+  CanonicalGenesisSnapshotError,
+  isCanonicalGenesisSnapshot,
+  validateCanonicalGenesisSnapshot
+} from './canonicalGenesisSnapshot';
+export {
   WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION,
   WARPKEEP_EXPECTED_WORLD_SEED_NAME,
   readCompatibleWarpkeepBackendInfo,
@@ -24,7 +30,11 @@ export type {
   WarpkeepBackendPhase,
   WarpkeepBackendState,
   WarpkeepCastle,
+  CanonicalWarpkeepRealmSnapshot,
   WarpkeepPlayer,
+  WarpkeepRealm,
   WarpkeepRealmSnapshot,
+  WarpkeepRealmSnapshotCandidate,
+  WarpkeepWorldTileMetadata,
   WarpkeepWorldTile
 } from './warpkeepBackendTypes';

@@ -2,6 +2,9 @@
 
 ## Current state
 
+The checked-in package is the in-development Alpha 0.3.3 patch line. It is not
+deployed; Alpha 0.3.2 remains the verified public production baseline.
+
 Warpkeep Alpha 0.3.2 has a live title/menu, an explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
 least-privilege Cloudflare Worker OIDC bridge, and a non-destructively published

@@ -41,6 +41,7 @@ import {
   WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE,
   type WarpkeepRuntimeConfig
 } from '../src/spacetime/warpkeepConfig';
+import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
 const TEST_NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
 const TEST_ISSUER = 'https://auth.warpkeep.com';
@@ -82,38 +83,9 @@ const VERIFIED_IDENTITY: VerifiedFarcasterIdentity = Object.freeze({
   verifiedAt: TEST_NOW - 10_000
 });
 
-const SHARED_REALM: WarpkeepRealmSnapshot = Object.freeze({
-  tiles: Object.freeze([]),
-  players: Object.freeze([]),
-  castles: Object.freeze([
-    Object.freeze({
-      castleId: 1,
-      ownerFid: VERIFIED_IDENTITY.fid,
-      tileKey: '1,-1',
-      q: 1,
-      r: -1,
-      level: 2,
-      name: 'Warpkeeper Bastion'
-    }),
-    Object.freeze({
-      castleId: 2,
-      ownerFid: 77,
-      tileKey: '-1,1',
-      q: -1,
-      r: 1,
-      level: 1,
-      name: 'Peer Watch'
-    })
-  ]),
-  ownCastle: Object.freeze({
-    castleId: 1,
-    ownerFid: VERIFIED_IDENTITY.fid,
-    tileKey: '1,-1',
-    q: 1,
-    r: -1,
-    level: 2,
-    name: 'Warpkeeper Bastion'
-  })
+const SHARED_REALM: WarpkeepRealmSnapshot = createCanonicalGenesisSnapshot({
+  ownFid: VERIFIED_IDENTITY.fid,
+  peerFid: 77
 });
 
 class TestDeviceStorage implements FarcasterDeviceSessionStorage {

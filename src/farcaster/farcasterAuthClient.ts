@@ -5,6 +5,7 @@ import {
   type FarcasterSecureRandomSource
 } from './farcasterAuthContext';
 import { FarcasterOidcBridgeClientError } from './farcasterOidcBridgeClient';
+import { safePublicHttpsImageUrl } from '../security/publicImageUrl';
 import {
   isBoundedFarcasterSignature,
   type FarcasterAuthContext,
@@ -356,19 +357,7 @@ function optionalProfileUrl(data: Record<string, unknown>) {
   if (typeof value !== 'string' || value.length > MAX_PROFILE_URL_LENGTH) {
     return undefined;
   }
-  try {
-    const url = new URL(value);
-    if (
-      url.protocol !== 'https:'
-      || url.username !== ''
-      || url.password !== ''
-    ) {
-      return undefined;
-    }
-    return url.toString();
-  } catch {
-    return undefined;
-  }
+  return safePublicHttpsImageUrl(value);
 }
 
 function optionalCustody(data: Record<string, unknown>) {

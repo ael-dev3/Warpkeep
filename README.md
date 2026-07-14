@@ -19,7 +19,16 @@ scope and verification. The site is a real product surface and technical
 foundation, not a claim that resources, upgrades, units, combat, alliances,
 chat, or seasons are playable yet.
 
-## Current foundation
+Alpha 0.3.3 is currently a source candidate and has not been deployed. The
+candidate admits only one exact, complete Genesis 001 snapshot; renders every
+visible founded castle with a shared real Hegemony GLB LOD; separates hover,
+selection, inspection, camera, and keyboard-focus state; and introduces a
+compact safe-area-aware HUD, inspector, navigator, and camera composition. Its
+public profile presentation is bounded and sanitized, with neutral nonnumeric
+fallbacks. The patch preserves the live Alpha 0.3.2 authentication, protocol,
+admission, world, castle, wallet, and Marks authority boundaries.
+
+## Live Alpha 0.3.2 foundation
 
 - Standard website SIWF with an independently verifying Cloudflare Worker and short-lived OIDC handoff.
 - Server-authoritative SpacetimeDB module with private admission/auth-epoch controls and public world/player/castle boundaries.
@@ -27,6 +36,13 @@ chat, or seasons are playable yet.
 - Cinematic, balanced, and performance profiles shared by the title and realm; normal modern phones default to balanced.
 - Exact build identity, fail-closed configuration, reduced-motion behavior, keyboard/touch controls, and non-WebGL/model fallbacks.
 - Apache-2.0 software and CC-BY-4.0 project-owned creative work from v0.3.0 onward, with historical and external terms preserved.
+
+The Alpha 0.3.3 candidate replaces the live peer-marker presentation with real
+instanced keeps, removes the standalone 61-cell browser fallback, and keeps the
+illustrated fallback bound to the same canonical 1,261-cell snapshot. These are
+source statements, not claims about the currently deployed site. See the
+[Alpha 0.3.3 development notes](docs/releases/alpha-0.3.3.md) for validation
+status and remaining release gates.
 
 The canonical player domain is [warpkeep.com](https://warpkeep.com/). Source/master assets and immutable bundles live in [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets); the game repository contains only runtime media and lightweight provenance records.
 
@@ -73,7 +89,7 @@ The keep source is not publicly mirrored while redistribution authority remains 
 
 ## Documentation
 
-- [Alpha 0.3.2 release notes](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 history](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
+- [Alpha 0.3.3 development notes](docs/releases/alpha-0.3.3.md), [Alpha 0.3.2 release notes](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 history](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
 - [Marks policy v1](docs/gameplay/marks-policy-v1.md)
 - [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md)
 - [Technical architecture](docs/technical-architecture.md)

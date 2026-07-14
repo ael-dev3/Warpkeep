@@ -60,6 +60,11 @@ const presentationByPhase: Record<Exclude<WarpkeepBackendPhase, 'idle' | 'ready'
     title: 'RECORDING ALPHA TERMS',
     liveMessage: 'Recording your Alpha Terms acceptance'
   },
+  'opening-realm': {
+    eyebrow: 'HEGEMONY FRONTIER ACCESS',
+    title: 'OPENING GENESIS 001…',
+    liveMessage: 'Opening Genesis 001…'
+  },
   error: {
     eyebrow: 'HEGEMONY FRONTIER ACCESS',
     title: 'HEGEMONY RECORDS UNREACHABLE',
@@ -84,7 +89,8 @@ export function FarcasterAdmissionPanel({
     || phase === 'reconnecting'
     || phase === 'checking-admission'
     || phase === 'bootstrapping'
-    || phase === 'accepting-terms';
+    || phase === 'accepting-terms'
+    || phase === 'opening-realm';
   const denied = phase === 'denied';
   const awaitingTerms = phase === 'awaiting-terms';
   const unavailable = phase === 'error';

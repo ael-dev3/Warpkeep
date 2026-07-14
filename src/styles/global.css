@@ -30,7 +30,7 @@ button {
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
-button:hover:not(:disabled) {
+button:hover:not(:disabled):not(.realm-castle-label) {
   transform: translateY(-1px);
   border-color: #f2c16b;
   background: rgba(242, 193, 107, 0.16);

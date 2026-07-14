@@ -11,6 +11,7 @@ import type {
   WarpkeepRealm,
   WarpkeepRealmProfile,
   WarpkeepRealmSnapshot,
+  WarpkeepRealmSnapshotCandidate,
   WarpkeepWorldTileMetadata,
   WarpkeepWorldTile
 } from './warpkeepBackendTypes';
@@ -18,8 +19,10 @@ import type { WarpkeepRuntimeConfig } from './warpkeepConfig';
 import { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 import {
   readCompatibleWarpkeepBackendInfo,
+  WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION,
   type WarpkeepBackendInfo
 } from './warpkeepProtocol';
+import { validateCanonicalGenesisSnapshot } from './canonicalGenesisSnapshot';
 
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
@@ -58,6 +61,14 @@ function toSafeNumber(value: bigint | number | undefined) {
     return Number(value);
   }
   return undefined;
+}
+
+function requireSafePositiveNumber(value: bigint | number | undefined) {
+  const converted = toSafeNumber(value);
+  if (converted === undefined || converted <= 0) {
+    throw new Error('Warpkeep records are unavailable.');
+  }
+  return converted;
 }
 
 function toOptionalString(value: unknown) {
@@ -199,6 +210,9 @@ function readWorldTiles(connection: WarpkeepConnection): WarpkeepWorldTile[] {
   const rows: WarpkeepWorldTile[] = [];
   for (const row of connection.db.worldTile.iter()) {
     const occupantCastleId = toSafeNumber(row.occupantCastleId);
+    if (row.occupantCastleId !== undefined && (occupantCastleId === undefined || occupantCastleId <= 0)) {
+      throw new Error('Warpkeep records are unavailable.');
+    }
     rows.push({
       key: row.key,
       q: row.q,
@@ -214,8 +228,7 @@ function readWorldTiles(connection: WarpkeepConnection): WarpkeepWorldTile[] {
 function readPlayers(connection: WarpkeepConnection): WarpkeepPlayer[] {
   const rows: WarpkeepPlayer[] = [];
   for (const row of connection.db.playerV2.iter()) {
-    const fid = toSafeNumber(row.fid);
-    if (fid === undefined || fid <= 0) continue;
+    const fid = requireSafePositiveNumber(row.fid);
     rows.push({
       fid,
       ...(toOptionalString(row.username) === undefined ? {} : { username: row.username! }),
@@ -251,8 +264,7 @@ function readWorldTileMetadata(connection: WarpkeepConnection): WarpkeepWorldTil
 function readRealmProfiles(connection: WarpkeepConnection): WarpkeepRealmProfile[] {
   const rows: WarpkeepRealmProfile[] = [];
   for (const row of connection.db.realmProfileV1.iter()) {
-    const fid = toSafeNumber(row.fid);
-    if (fid === undefined || fid <= 0) continue;
+    const fid = requireSafePositiveNumber(row.fid);
     const admittedAt = toSafeTimestampMilliseconds(row.admittedAt);
     const firstAuthenticatedAt = toSafeTimestampMilliseconds(row.firstAuthenticatedAt);
     rows.push({
@@ -279,20 +291,28 @@ function readRealmProfiles(connection: WarpkeepConnection): WarpkeepRealmProfile
   return rows.sort((left, right) => left.fid - right.fid);
 }
 
-function readRealm(connection: WarpkeepConnection): WarpkeepRealm | undefined {
-  const realms = [...connection.db.realmV1.iter()]
+function readActiveRealms(connection: WarpkeepConnection): WarpkeepRealm[] {
+  return [...connection.db.realmV1.iter()]
     .filter((row) => row.active)
+    .map((row) => ({
+      realmId: row.realmId,
+      publicName: row.publicName,
+      seedName: row.seedName,
+      numericSeed: row.numericSeed,
+      generationVersion: row.generationVersion,
+      authoritativeRadius: row.authoritativeRadius,
+      renderRadius: row.renderRadius,
+      playerCapacity: row.playerCapacity,
+      active: row.active
+    }))
     .sort((left, right) => left.realmId.localeCompare(right.realmId));
-  const realm = realms[0];
-  return realm ? { realmId: realm.realmId, publicName: realm.publicName } : undefined;
 }
 
 function readCastles(connection: WarpkeepConnection): WarpkeepCastle[] {
   const rows: WarpkeepCastle[] = [];
   for (const row of connection.db.castle.iter()) {
-    const castleId = toSafeNumber(row.castleId);
-    const ownerFid = toSafeNumber(row.ownerFid);
-    if (castleId === undefined || ownerFid === undefined || ownerFid <= 0) continue;
+    const castleId = requireSafePositiveNumber(row.castleId);
+    const ownerFid = requireSafePositiveNumber(row.ownerFid);
     const foundedAt = toSafeTimestampMilliseconds(row.createdAt);
     rows.push({
       castleId,
@@ -314,16 +334,19 @@ export function readWarpkeepRealmSnapshot(
 ): WarpkeepRealmSnapshot {
   const castles = readCastles(connection);
   const ownCastle = castles.find((castle) => castle.ownerFid === ownFid);
-  const realm = readRealm(connection);
-  return {
+  const candidate: WarpkeepRealmSnapshotCandidate = {
     tiles: readWorldTiles(connection),
     tileMetadata: readWorldTileMetadata(connection),
     players: readPlayers(connection),
     profiles: readRealmProfiles(connection),
     castles,
-    ...(realm ? { realm } : {}),
+    activeRealms: readActiveRealms(connection),
     ...(ownCastle ? { ownCastle } : {})
   };
+  return validateCanonicalGenesisSnapshot(candidate, {
+    ownFid,
+    protocolVersion: WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION
+  });
 }
 
 /**
@@ -333,7 +356,8 @@ export function readWarpkeepRealmSnapshot(
 export function observeWarpkeepRealm(
   connection: WarpkeepConnection,
   ownFid: number,
-  onChange: (snapshot: WarpkeepRealmSnapshot) => void
+  onChange: (snapshot: WarpkeepRealmSnapshot) => void,
+  onError: () => void
 ) {
   let active = true;
   let latestTransactionEventId: string | undefined;
@@ -347,7 +371,14 @@ export function observeWarpkeepRealm(
       || context.event.id === latestTransactionEventId
     ) return;
     latestTransactionEventId = context.event.id;
-    onChange(readWarpkeepRealmSnapshot(connection, ownFid));
+    try {
+      onChange(readWarpkeepRealmSnapshot(connection, ownFid));
+    } catch {
+      // A post-ready canonical violation must revoke the browser's renderer
+      // authority instead of escaping the SDK callback with stale ready state.
+      active = false;
+      onError();
+    }
   };
   connection.db.worldTile.onInsert(sync);
   connection.db.worldTile.onDelete(sync);

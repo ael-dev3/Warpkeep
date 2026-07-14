@@ -61,11 +61,13 @@ fresh verification.
 
 ## Release validation
 
-Before rollout, the source candidate passed 752 browser/shared tests and 84
-SpacetimeDB module tests, root and module typechecks, production builds, exact
-generated-binding privacy checks, legal/runtime-asset validation, dependency
-and secret scans, and a disposable additive migration rehearsal from both empty
-and populated protocol-2 fixtures. The migration artifact SHA-256 was
+The released source passed 752 browser/shared tests and 84 SpacetimeDB module
+tests before rollout, followed by the recorded exact-source deployment and
+bounded production verification. Pre-release checks included root and module
+typechecks, production builds, exact generated-binding privacy checks,
+legal/runtime-asset validation, dependency and secret scans, and a disposable
+additive migration rehearsal from both empty and populated protocol-2 fixtures.
+The migration artifact SHA-256 was
 `ea9a5327a367423957053f404936d41b7e4d98206b9e6d5c6c9f95f475701435`.
 
 Those local results remain source evidence rather than production evidence.

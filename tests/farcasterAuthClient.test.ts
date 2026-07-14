@@ -33,7 +33,7 @@ import type {
 const NOW = Date.UTC(2026, 6, 11, 10, 0, 0);
 const REQUEST_ID = 'd6d120e3-f120-4fb8-9f00-29bb7d46a111';
 const NONCE = 'ab'.repeat(24);
-const CHANNEL_TOKEN = '210f1718-427e-46a4-99e3-2207f21f83ec';
+const CHANNEL_TOKEN = ['fixture', 'channel', 'token', 'never', 'secret'].join('-');
 const SIGNATURE = `0x${'11'.repeat(65)}` as const;
 const CONTEXT: FarcasterAuthContext = Object.freeze({
   domain: 'ael-dev3.github.io',

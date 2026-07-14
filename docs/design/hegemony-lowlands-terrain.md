@@ -1,24 +1,43 @@
-# Hegemony Lowlands Terrain and Frontier Keep
+# Genesis 001 Realm Presentation
 
-## Purpose and scope
+## Purpose and authority
 
-After standard web Sign In with Farcaster verifies and admits the player, `ENTER REALM` opens Warpkeep's first bright game-space presentation: a continuous Hegemony Lowlands terrain, the player's server-projected keep, and accessible selection/camera controls.
+After Sign In with Farcaster, Terms acceptance, and private admission succeed,
+Warpkeep opens one shared world presentation: canonical Genesis 001. SpacetimeDB
+owns the realm, world tiles, public metadata, players, profiles, and castles. The
+browser renders that complete projection; it does not invent a smaller recovery
+map, ownership, castle coordinates, or player identity.
 
-The server persists the canonical world and admitted player/castle projections. This presentation slice does not yet implement resources, roads, farms, units, combat, fog of war, pathfinding, or alternate biomes.
+This presentation does not yet implement resources, roads, farms, units,
+movement, combat, fog of war, or alternate biomes.
 
-## Playable map and visual apron
+## Canonical readiness boundary
 
-The authoritative prototype terrain map remains renderer-independent and uses the canonical `HEGEMONY_GENESIS_001` seed. The public Realm separates gameplay from visual continuation:
+The authenticated realm mounts only after a single validator accepts the whole
+snapshot. The contract requires one active Genesis 001 realm at protocol 3,
+radius 20, the expected generation and render radius, exactly 1,261 world rows,
+exactly 1,261 matching metadata rows, valid tile keys/rings/static metadata,
+valid castle occupancy, and an own castle that belongs to the authenticated
+player.
+
+Partial subscriptions, ambiguous realms, missing sidecars, stale geography, and
+invalid castle relations remain behind a branded loading surface and eventually
+fail closed to Retry or Return to Menu. A same-player reconnect may retain an
+earlier snapshot only when its complete private fingerprint still matches the
+canonical Genesis contract. No authenticated production path generates or
+renders a standalone radius-four world.
 
 ```txt
-playable radius:       4
-playable cells:       61
-render radius:         5
-visual apron cells:   30
-total rendered cells: 91
+authoritative radius:        20
+authoritative cells:      1,261
+render radius:               22
+visual apron cells:         258
+total rendered cells:     1,519
+current passable cells:   1,101
 ```
 
-Only the radius-four map is selectable and exposed to semantic gameplay controls. The outer 30 cells reuse the same seed, biome, height, and color rules, but exist only in the derived render surface. They cannot be hovered, selected, used as keep destinations, or serialized as owned gameplay cells. Continuous desaturation, reduced decoration density, camera framing, and atmospheric fog soften the outer boundary without adding walls, water, or a hard board edge.
+The original 61 radius-four rows remain unchanged as rings 0–4 inside this same
+world. They are historical inner geography, not a second runtime topology.
 
 The map uses pointy-top axial coordinates:
 
@@ -28,115 +47,138 @@ z = size × 1.5 × r
 s = -q - r
 ```
 
-Cells retain stable `q,r` keys. Independent `(world seed, q, r, channel, index)` hashes generate cell fields and decoration candidates without mutable random state or `Math.random()`.
+Stable `(world seed, q, r, channel, index)` hashes generate terrain fields and
+decoration candidates without mutable random state or `Math.random()`.
 
-## Subdivided seamless surface
+## Terrain and foundations
 
-Terrain height combines:
+Each pointy hex is split into six radial wedges and barycentrically subdivided.
+Vertices are deduplicated by stable quantized world position before normals are
+computed for the combined mesh. Shared edges therefore reuse positions and do
+not create overlapping cell meshes, cracks, or hard normal seams.
 
-1. broad continuous world-space value noise;
-2. restrained cell-local micro-relief multiplied by an exact-zero border falloff; and
-3. an optional renderer-independent structure-placement influence.
+One deterministic quality plan is applied to canonical Genesis before large
+arrays or GPU resources are allocated. There is no special 61/91-cell runtime
+branch:
 
-Each pointy hex is split into six radial wedges. Each wedge becomes a barycentrically subdivided triangular lattice, and every generated vertex is deduplicated by a stable quantized world position before normals are computed for the combined mesh. Shared edge and corner positions therefore reuse the same indexed vertex. Cell-local height and color influence reaches exactly zero before cell boundaries, preventing cracks, color seams, overlapping cell meshes, and hard normal seams.
+| Profile | Subdivisions | Terrain triangles | Triangle ceiling | Detail ceiling |
+| --- | ---: | ---: | ---: | ---: |
+| High | 4 | 145,824 | 150,000 | 7,000 |
+| Balanced | 3 | 82,026 | 90,000 | 5,500 |
+| Reduced | 2 | 36,456 | 40,000 | 3,000 |
 
-The three runtime profiles use one terrain draw call and remain in bounded geometry budgets:
+Every authoritative castle receives a deterministic local placement. The
+normalized model spans 1.48 world units; its terrain uses a 0.62 level footprint
+and 0.78 smooth blend radius. The blend completes before the pointy-hex
+inradius, preserving close adjacent founders without cross-cell seams. The same
+placement clears local vegetation and supplies a packed-earth/stone tint.
 
-| Profile | Subdivisions per edge | Radius-five terrain triangles |
-| --- | ---: | ---: |
-| High | 8 | 34,944 |
-| Balanced | 6 | 19,656 |
-| Reduced | 3 | 4,914 |
+Three deterministic instanced detail layers add green tufts, dry tufts, and
+stones. Canonical density is bounded per profile and reduced further in the
+visual apron. Terrain and detail work remains demand-driven and pauses while the
+document is hidden.
 
-All generated positions, colors, normals, and indices are finite; the tested canonical surfaces have no significant degenerate triangles.
+## Real castle rendering
 
-## Center placement surface
+Every visible founded castle uses a verified Hegemony castle GLB. The ordinary
+WebGL path contains no cone, crystal, pin, number-circle, or temporary primitive
+castle. Realm presentation remains branded-loading until all authoritative
+castles have real instances; model failure switches the whole view to the
+canonical illustrated fallback instead of presenting mixed representations.
 
-The first Hegemony Frontier Keep is fixed at `q:0, r:0`. It is not a movable building-placement interaction.
+The authorized preparation pipeline produces three integrity-pinned LODs:
 
-The renderer-independent placement definition uses a `0.43` footprint radius and a `0.70` smooth blend radius. Terrain inside the footprint resolves to the cell-center height, then blends back into natural relief before reaching any shared edge. The same influence adds restrained packed-earth/stone color and clears grass, dry vegetation, and stones through the blend radius plus a safety margin. This grounds the keep without a raised slab or visible circular platform.
+| LOD | Runtime path | Bytes | Triangles | Textures | SHA-256 |
+| --- | --- | ---: | ---: | --- | --- |
+| High | `public/models/hegemony/hegemony-frontier-keep-high.glb` | 2,256,092 | 56,466 | four 2048×2048 WebP | `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c` |
+| Balanced | `public/models/hegemony/hegemony-frontier-keep-balanced.glb` | 2,064,100 | 37,634 | four 2048×2048 WebP | `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4` |
+| Compact | `public/models/hegemony/hegemony-frontier-keep-compact.glb` | 760,916 | 17,536 | four 1024×1024 WebP | `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b` |
 
-The model normalizer centers each LOD in X/Z, aligns its lowest foundation point to terrain, preserves the closed gate on the `+Z` facing axis, and scales the footprint to `1.48` world units—74% of one hex diameter. A restrained contact shadow remains available when dynamic shadows are disabled.
+Each required LOD is fetched and parsed once per mounted realm. A scene-lifetime
+repository owns its geometry, materials, and textures; deterministic
+`InstancedMesh` buckets reuse those resources across castles. Screen-space LOD
+selection has separate enter/exit thresholds, a selected-castle floor, quality
+ceilings, stable castle-ID-to-instance mapping, frustum culling, and tested
+4-castle/100-castle packing. Late loads cannot insert after unmount, and the
+final lease disposes each shared GPU resource exactly once.
 
-## Palette, daylight, and instanced details
+Higher-detail residency is explicitly bounded. High permits at most eight High
+and 24 Balanced castles; Balanced permits at most 24 Balanced castles; Reduced
+uses Compact throughout. With all 100 slots visible and promoted, those ceilings
+bound castle geometry to 2,547,392, 2,235,952, and 1,753,600 triangles
+respectively. Because each GLB has one primitive, the 100-castle High case still
+uses at most three castle instance draw calls plus one shared contact-shadow draw
+call. Four fully promoted castles contain 225,864 High, 150,536 Balanced, or
+70,144 Compact triangles.
 
-The lowland surface uses authored procedural color rather than a downloaded or reference-image texture. Broad and fine world-space signals mix brighter olive and moss grass, warm ochre soil, dry gold, and neutral gray-brown stone. Cell `moisture`, `soilBias`, and `dryGrassBias` have modest interior influence that fades safely at borders. The apron tint changes continuously in world space instead of producing a ring seam.
+High and Balanced contain the same four 2K texture images, so the repository
+rebinds Balanced materials to High's verified texture objects and disposes the
+duplicates. Together with Compact's four 1K textures, the conservative
+uncompressed RGBA8-plus-mip estimate is about 106.7 MiB instead of about
+192 MiB without cross-LOD reuse. This is a static upper-bound estimate, not a
+claim about browser- or GPU-specific compression.
 
-Three deterministic `InstancedMesh` layers add:
+Normalization uses one uniform scale, centers X/Z, and aligns the lowest source
+point to the local foundation. Authored material differences are preserved;
+only unsafe numeric extremes are bounded. Warm frontier sunlight, neutral stone
+light, cool amethyst fill, restrained ACES exposure, and one footprint-sized
+contact shadow per visible castle provide depth without stretching a realm-wide
+shadow map over 1,519 cells.
 
-- crossed low-poly green grass-blade tufts;
-- shorter dry-gold tufts; and
-- small dodecahedral stones.
+## Identity and interaction
 
-Candidates keep a safe distance from cell edges and the center placement, have seeded rotation/scale, and use lower density in the apron. The canonical high profile produces 780 green tufts and 150 dry tufts plus a tested 40–80 seed-selected stones; balanced produces 480 green and 60 dry tufts, while reduced keeps 60 green tufts and no dry layer. Each nonempty kind remains one draw call.
+Public castle presentation comes only from sanitized trusted profile records.
+World labels prefer `@canonicalUsername`, then trusted display name, then
+`Hegemony Keep`. Avatars prefer a safe HTTPS Farcaster PFP, then a public-name
+initial, then the Warpkeep sigil. FID digits are never the main label or avatar;
+FID may appear once as secondary record metadata.
 
-The Realm uses a pale blue-gray background/fog, warm sunlight, cool sky fill, a restrained warm secondary fill, and a high-roughness terrain material. Cinematic uses a 2048 directional PCF shadow map; Balanced uses 1024; Performance retains the lightweight keep contact shadow without dynamic shadows. ACES exposure is 1.02/1.00/0.98 and sun intensity is 2.00/1.85/1.70 across the three profiles. There is no bloom, SSAO, vignette, or permanent postprocessing loop.
+Hover is an imperative, animation-frame-coalesced visual effect. It does not
+change terrain selection, castle selection, inspection, camera focus, the main
+HUD, or live-region output. Click, tap, Enter/Space, and explicit navigator
+activation are the only selection paths. Castle instances are raycast before
+terrain, and deterministic instance IDs resolve back to castle IDs. Drag and
+pinch gestures suppress hover and click activation until they end.
 
-## Quality profiles
+React owns label identity and public profile content. Camera movement updates
+CSS transforms at most once per animation frame. Collision uses measured label
+and avatar dimensions, bounded membership, hysteresis, and reserved HUD,
+inspector, toolbar, navigator, and safe-area rectangles.
 
-One typed quality specification controls geometry, decoration density, shadows, keep LOD, drawing-buffer budget, pixel-ratio cap, and fog:
+## Camera and responsive UI
 
-| Profile | Green per playable/apron cell | Dry per playable/apron cell | Stone chance playable/apron | Pixel-ratio cap | Fog near/far | Dynamic shadow | Keep LOD |
-| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
-| High | 11 / 4 | 2 / 1 | 0.78 / 0.28 | 2.0 | 28 / 58 | 2048 | High |
-| Balanced | 7 / 2 | 1 / 0 | 0.58 / 0.22 | 1.75 | 34 / 66 | 1024 | Balanced |
-| Reduced | 1 / 0 | 0 / 0 | 0.20 / 0.08 | 1.25 | 30 / 58 | No | Compact |
+The perspective camera composes against the unobstructed play region rather
+than the raw canvas center. Runtime measurements supply left HUD, right drawer,
+bottom toolbar/navigator, compact bottom-sheet, and device-safe insets. Opening
+or closing an inspector smoothly recomposes the same camera. Explicit castle
+activation focuses that castle; overview and Founding District remain separate
+actions.
 
-One persisted player preference maps Cinematic/Balanced/Performance to High/Balanced/Reduced. Auto uses viewport dimensions, device pixel ratio, drawing-buffer cost, hardware hints, and an actual WebGL texture-size capability—not user-agent sniffing. Normal modern phones remain Balanced even at high DPR; only genuinely constrained inputs select Reduced. The active pixel ratio is further clamped against each profile's drawing-buffer budget. Reduced motion remains independent and makes camera changes settle immediately.
+The close view uses an 18° telephoto-style field of view versus the 26° overview
+lens, increasing distance instead of distorting the castle. Safe-bound golden
+tests cover 1920×1080, 1440×900, 1024×768, 390×844, and 667×375 with the
+inspector open and closed. Reduced-motion mode settles composition immediately.
 
-## Frontier Keep runtime assets
+The in-realm interface uses compact amethyst/electrum layers: an own-keep HUD,
+inline Marks presentation, bottom action toolbar, explicit selected-castle
+record, and a searchable Realm Navigator. The navigator lists meaningful
+founded castles and offers an optional validated q/r jump; it does not expose a
+permanent grid of more than one thousand coordinate buttons.
 
-The exact Ael-supplied Meshy source is recorded at [`docs/reference/castles/2026-07-11-meshy-hegemony-frontier-keep/`](../reference/castles/2026-07-11-meshy-hegemony-frontier-keep/). It is 63,263,296 bytes, contains approximately 941,298 source triangles, and is never requested by the runtime. It is absent from the v0.3.0 HEAD and public releases pending redistribution clearance.
+Escape closes the topmost inspector or navigator before returning to the menu.
+Arrow keys move map selection only while the map owns focus. Labels and nested
+controls contain their events, focus is visibly restored, touch targets remain
+at least 44 CSS pixels, and hover is never announced.
 
-The reproducible `npm run prepare:hegemony-keep` pipeline accepts an authorized exact source through `WARPKEEP_KEEP_SOURCE` and uses pinned `@gltf-transform/cli@4.4.1`, WebP textures, generated MikkTSpace tangents, Meshopt high compression, quantization, and validation to produce three exact LODs:
+If WebGL2 or a required model is unavailable, an illustrated SVG fallback still
+renders the radius-22 surface, distinguishes all 1,261 authoritative cells from
+the 258-cell apron, shows every founded castle and public identity, and retains
+the same selection, HUD, inspector, and navigator contract.
 
-| LOD | Runtime path | Bytes | Triangles | Uploaded vertices | Textures | SHA-256 |
-| --- | --- | ---: | ---: | ---: | --- | --- |
-| High | `public/models/hegemony/hegemony-frontier-keep-high.glb` | 2,256,092 | 56,466 | 55,704 | four 2048×2048 WebP | `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c` |
-| Balanced | `public/models/hegemony/hegemony-frontier-keep-balanced.glb` | 2,064,100 | 37,634 | 40,632 | four 2048×2048 WebP | `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4` |
-| Compact | `public/models/hegemony/hegemony-frontier-keep-compact.glb` | 760,916 | 17,536 | 24,766 | four 1024×1024 WebP | `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b` |
+## Residual limits
 
-All three have one scene, mesh, primitive, and material and require `EXT_meshopt_compression`, `EXT_texture_webp`, and `KHR_mesh_quantization`. The active quality profile chooses one path before loading; Performance uses Compact. The public GLB remains outside JavaScript bundles.
-
-`GLTFLoader` and `MeshoptDecoder` are dynamically imported only after the authenticated Realm mounts. Textures receive bounded anisotropy and correct color space, emissive response is restrained for daylight, and model geometry/materials/textures are disposed on unmount or quality recreation. A translucent primitive keep stands in while loading; a solid primitive keep replaces it if loading fails without taking down the terrain or navigation.
-
-## Verified identity contract
-
-The Realm only mounts while the Farcaster auth state is verified and private admission has succeeded. `WarpkeepExperience` passes a deliberately narrow, proof-free identity containing only `fid`, `username`, and `displayName`, plus public server projections for the player's castle and shared realm. The HUD presents:
-
-```txt
-@username Keep
-FID 12345
-Hegemony Frontier Keep
-Level 1
-Quality Balanced
-```
-
-When username is absent, the title becomes `FID 12345 Keep`. The client never creates ownership in local storage: castle coordinates, name, level, players, and world tiles come from admitted server state. Other castles remain lightweight markers. Returning to the menu preserves the signed session while valid; signing out clears it and prevents Realm entry until a new verified session passes admission.
-
-## Perspective camera and controls
-
-The Realm owns one `PerspectiveCamera` whose pose, field of view, pitch, focus target, distance, and fog morph together across a normalized overview-to-keep zoom. The overview starts at a 20° field of view and 48° pitch; the close state reaches a 42° field of view and 27° pitch while blending focus upward toward the keep. Close framing derives a minimum half-height from the keep footprint and current aspect, protecting tall portrait screens without distorting or cropping the model.
-
-Wheel and touch-pinch input update a target zoom. Exponential damping advances only while the camera is unsettled, so the result is smooth without introducing a permanent 60 fps loop. Dragging pans within terrain-aware bounds. Inspect Keep selects `0,0` and enters the close view; Realm View returns to the overview; Recenter Keep and Home restore the keep target. Fog and clipping planes adapt with the camera pose.
-
-Rendering remains demand-driven on initial setup, resize, camera settling, hover, selection, model completion, and quality-dependent scene changes. Camera animation pauses while the document is hidden and all listeners, animation frames, renderer resources, scene geometry, materials, textures, overlays, instances, and observers are disposed on unmount.
-
-## HUD, accessibility, and fallback
-
-The compact HUD exposes identity, FID, Level 1, active quality, selected coordinates/terrain, Return to Menu, Recenter Keep, Inspect Keep/Realm View, and concise control hints. Clicking or tapping the 3D keep selects the center cell and enters its close view. Arrow keys move among playable cells, Enter/Space inspects the selected keep, Home recenters, and Escape returns.
-
-The permanent coordinate matrix is replaced by a collapsed, paginated
-**Traversable Cells** navigator. In the live generation it exposes the 1,101
-passable cells from the 1,261-cell authoritative realm; visual apron cells never
-appear there.
-
-If WebGL2 is unavailable, an illustrated SVG fallback renders the full
-radius-22 surface (1,519 terrain cells), visually distinguishes the 1,261
-authoritative realm cells from the 258-cell apron, shows the personalized keep
-marker, and preserves the same HUD and paginated navigator. A 3D-model failure
-uses the primitive keep fallback without replacing the working WebGL terrain.
-
-## Deferred gameplay
-
-The base terrain, placement, decoration, quality, camera, and authority boundaries are structured for future overlays. Shared world/player/castle persistence exists; roads, farms, rivers, forests, resources, units, corruption, fog of war, combat, and the full strategy loop remain future milestones rather than implied features of this presentation slice.
+The 100-castle path is architecture- and regression-tested, but real device GPU
+and thermal behavior still varies. Label count, pixel ratio, terrain detail, and
+LOD ceilings remain deliberately bounded. Rich gameplay overlays, persistent
+camera preferences, and alternate castle models are future work rather than
+claims of Alpha 0.3.3.

@@ -1,0 +1,158 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  createRealmInteractionState,
+  realmInteractionReducer,
+  resolveRealmEscape
+} from '../src/components/realm/realmInteractionState';
+
+describe('realm interaction state', () => {
+  it('starts with durable cell selection and no automatically opened inspector', () => {
+    const state = createRealmInteractionState({ q: 2, r: -1 });
+
+    expect(state).toEqual({
+      selectedCell: { q: 2, r: -1 },
+      selectedCastle: null,
+      inspectorTarget: null,
+      inspectorOpen: false,
+      cameraTarget: { kind: 'realm' },
+      navigatorOpen: false,
+      keyboardIntent: { sequence: 0, target: { kind: 'map' } }
+    });
+    expect(Object.keys(state).some((key) => key.toLowerCase().includes('hover'))).toBe(false);
+  });
+
+  it('keeps a cell selection independent from an open castle inspector', () => {
+    const initial = createRealmInteractionState({ q: 0, r: 0 });
+    const castle = realmInteractionReducer(initial, {
+      type: 'activate-castle',
+      castleId: 7_001,
+      coord: { q: 1, r: -2 }
+    });
+    const terrain = realmInteractionReducer(castle, {
+      type: 'select-cell',
+      coord: { q: -3, r: 2 }
+    });
+
+    expect(terrain.selectedCell).toEqual({ q: -3, r: 2 });
+    expect(terrain.selectedCastle).toBeNull();
+    expect(terrain.inspectorOpen).toBe(true);
+    expect(terrain.inspectorTarget).toEqual({
+      castleId: 7_001,
+      coord: { q: 1, r: -2 }
+    });
+  });
+
+  it('activates a castle explicitly and directs camera and keyboard intent to it', () => {
+    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-castle',
+      castleId: 42,
+      coord: { q: 3, r: -1 }
+    });
+
+    expect(state.selectedCell).toEqual({ q: 3, r: -1 });
+    expect(state.selectedCastle).toEqual({ castleId: 42, coord: { q: 3, r: -1 } });
+    expect(state.inspectorTarget).toEqual({ castleId: 42, coord: { q: 3, r: -1 } });
+    expect(state.inspectorOpen).toBe(true);
+    expect(state.cameraTarget).toEqual({
+      kind: 'castle',
+      castleId: 42,
+      coord: { q: 3, r: -1 }
+    });
+    expect(state.keyboardIntent).toEqual({
+      sequence: 1,
+      target: { kind: 'inspector', castleId: 42 }
+    });
+  });
+
+  it('closes the inspector without erasing selection and can reopen the same castle', () => {
+    const active = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-castle',
+      castleId: 7,
+      coord: { q: -1, r: 1 }
+    });
+    const closed = realmInteractionReducer(active, { type: 'close-inspector' });
+
+    expect(closed.inspectorOpen).toBe(false);
+    expect(closed.selectedCell).toEqual(active.selectedCell);
+    expect(closed.selectedCastle).toEqual(active.selectedCastle);
+    expect(closed.inspectorTarget).toEqual(active.inspectorTarget);
+    expect(closed.cameraTarget).toEqual(active.cameraTarget);
+    expect(closed.keyboardIntent).toEqual({
+      sequence: 2,
+      target: { kind: 'castle-label', castleId: 7 }
+    });
+
+    const reopened = realmInteractionReducer(closed, {
+      type: 'activate-castle',
+      castleId: 7,
+      coord: { q: -1, r: 1 }
+    });
+    expect(reopened.inspectorOpen).toBe(true);
+    expect(reopened.inspectorTarget).toEqual(active.inspectorTarget);
+    expect(reopened.keyboardIntent).toEqual({
+      sequence: 3,
+      target: { kind: 'inspector', castleId: 7 }
+    });
+  });
+
+  it('resolves Escape by closing the inspector before requesting realm exit', () => {
+    const active = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-castle',
+      castleId: 9,
+      coord: { q: 0, r: 1 }
+    });
+    const firstEscape = resolveRealmEscape(active);
+
+    expect(firstEscape.decision).toBe('close-inspector');
+    expect(firstEscape.state.inspectorOpen).toBe(false);
+    expect(firstEscape.state.selectedCastle).toEqual(active.selectedCastle);
+
+    const secondEscape = resolveRealmEscape(firstEscape.state);
+    expect(secondEscape.decision).toBe('request-exit');
+    expect(secondEscape.state).toBe(firstEscape.state);
+  });
+
+  it('closes an open navigator before requesting exit and restores trigger focus intent', () => {
+    const initial = createRealmInteractionState({ q: 0, r: 0 });
+    const open = realmInteractionReducer(initial, { type: 'open-navigator' });
+
+    expect(open.navigatorOpen).toBe(true);
+    expect(open.keyboardIntent).toEqual({ sequence: 1, target: { kind: 'navigator' } });
+
+    const firstEscape = resolveRealmEscape(open);
+    expect(firstEscape.decision).toBe('close-navigator');
+    expect(firstEscape.state.navigatorOpen).toBe(false);
+    expect(firstEscape.state.keyboardIntent).toEqual({
+      sequence: 2,
+      target: { kind: 'navigator-trigger' }
+    });
+    expect(resolveRealmEscape(firstEscape.state).decision).toBe('request-exit');
+  });
+
+  it('never leaves the inspector and navigator open together', () => {
+    const inspector = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-castle',
+      castleId: 9,
+      coord: { q: 1, r: -1 }
+    });
+    const navigator = realmInteractionReducer(inspector, { type: 'open-navigator' });
+
+    expect(navigator.inspectorOpen).toBe(false);
+    expect(navigator.navigatorOpen).toBe(true);
+    expect(resolveRealmEscape(navigator).decision).toBe('close-navigator');
+  });
+
+  it('models camera and repeated keyboard focus requests without DOM references', () => {
+    const initial = createRealmInteractionState({ q: 0, r: 0 });
+    const camera = realmInteractionReducer(initial, {
+      type: 'set-camera-target',
+      target: { kind: 'cell', coord: { q: 4, r: -4 } }
+    });
+    const firstFocus = realmInteractionReducer(camera, { type: 'request-map-focus' });
+    const secondFocus = realmInteractionReducer(firstFocus, { type: 'request-map-focus' });
+
+    expect(camera.cameraTarget).toEqual({ kind: 'cell', coord: { q: 4, r: -4 } });
+    expect(secondFocus.keyboardIntent).toEqual({ sequence: 2, target: { kind: 'map' } });
+  });
+});

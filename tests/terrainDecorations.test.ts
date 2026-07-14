@@ -16,19 +16,26 @@ import {
   distanceToPlacement
 } from '../src/game/map/terrainPlacements';
 
+function decorationQuality(
+  quality: (typeof REALM_QUALITY_SPECS)[keyof typeof REALM_QUALITY_SPECS],
+  playableRadius: number
+) {
+  return { ...quality, playableRadius };
+}
+
 describe('deterministic lowland decorations', () => {
   it('is stable, edge-safe, placement-safe, and never calls Math.random', () => {
     const random = vi.spyOn(Math, 'random');
     const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
     const first = generateTerrainDecorations(
       surface.renderMap,
-      REALM_QUALITY_SPECS.high,
+      decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
       1,
       HEGEMONY_TERRAIN_PLACEMENTS
     );
     const second = generateTerrainDecorations(
       surface.renderMap,
-      REALM_QUALITY_SPECS.high,
+      decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
       1,
       HEGEMONY_TERRAIN_PLACEMENTS
     );
@@ -51,19 +58,19 @@ describe('deterministic lowland decorations', () => {
     const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
     const high = generateTerrainDecorations(
       surface.renderMap,
-      REALM_QUALITY_SPECS.high,
+      decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
       1,
       HEGEMONY_TERRAIN_PLACEMENTS
     );
     const balanced = generateTerrainDecorations(
       surface.renderMap,
-      REALM_QUALITY_SPECS.balanced,
+      decorationQuality(REALM_QUALITY_SPECS.balanced, surface.playableMap.radius),
       1,
       HEGEMONY_TERRAIN_PLACEMENTS
     );
     const reduced = generateTerrainDecorations(
       surface.renderMap,
-      REALM_QUALITY_SPECS.reduced,
+      decorationQuality(REALM_QUALITY_SPECS.reduced, surface.playableMap.radius),
       1,
       HEGEMONY_TERRAIN_PLACEMENTS
     );
@@ -86,13 +93,13 @@ describe('deterministic lowland decorations', () => {
     ]);
     const uncleared = generateTerrainDecorations(
       surface.renderMap,
-      REALM_QUALITY_SPECS.high,
+      decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
       1,
       []
     );
     const cleared = generateTerrainDecorations(
       surface.renderMap,
-      REALM_QUALITY_SPECS.high,
+      decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
       1,
       placements
     );

@@ -14,7 +14,6 @@ separately reviewed. Do not bypass it with direct table writes.
 | Command | Network by default | Effect |
 | --- | --- | --- |
 | `npm run marks:plan` | No | Writes the current policy/capability plan. |
-| `npm run marks:refresh-profiles -- --input-stdin` | Only after stdin opt-in | Validates bounded trusted Farcaster/Snapchain snapshots; persists nothing. |
 | `npm run marks:scan -- --dry-run --input-stdin` | Only after both opt-ins | Runs a resumable two-provider finalized scan and writes a private reconciliation report. |
 | `npm run marks:reconcile -- --input-stdin` | No | Compares privacy-safe scan and database aggregates supplied by the private wrapper. |
 | `npm run marks:inspect` | No | Reads report metadata only; it never opens report bodies. |
@@ -47,8 +46,6 @@ The private scan input has this shape. Replace placeholders only inside the Keyc
 ```
 
 Omit `cursor` for the first dry run. Copy the cursor from the prior private report for the next run. The optional alias key creates stable HMAC account aliases for private per-account reconciliation; it is never written to the report. Without it, reports remain counts-only. Never move raw event receipts, wallet links, transaction hashes, or populated input JSON into tickets, commits, chat, screenshots, shell history, or logs.
-
-`marks:refresh-profiles` accepts a `requests` array. Each entry contains a decimal `fid` and three private endpoint objects named `userData`, `custodyEvents`, and `verifications`; an endpoint object has the same `url` and optional `authorization` fields shown above. The command bounds every response, re-applies the trusted Snapchain parser/sanitizer, reports completeness counts only, and persists neither profiles nor wallet links.
 
 `marks:reconcile` accepts exactly `scan` and `database` aggregate objects. Each contains `policyId`, integer `creditedEvents`, integer `creditedAccounts`, and decimal-string `creditedMicros`. All four fields must match exactly and the micros total must fit the u128 ledger bound. Obtain the database aggregate only through the separate canonical, counts-only Keychain wrapper; this runner intentionally has no general-purpose SpacetimeDB endpoint or table-write transport.
 
@@ -85,3 +82,82 @@ The template runs daily at 03:17 local time, suppresses launchd stdout/stderr, u
 To uninstall, first run `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.warpkeep.marks-scan.plist`, then remove the copied plist and private wrapper. Keep or securely archive the private reports according to the owner retention policy. Delete the Keychain item in Keychain Access only when the scanner is retired; secret deletion/rotation remains an explicit owner action.
 
 If inspection reports a lock after a crash, verify in Activity Monitor that no Marks operator process exists before removing `.operator.lock`. Never automatically delete or age out a lock. A live process, unexplained cursor mismatch, provider disagreement, or contract attestation mismatch is a hard stop requiring review—not a retry loop.
+
+## Public Farcaster profile operator
+
+Profile refresh is a separate, public-data-only operator. It does not call the
+Marks scanner and cannot mutate admission, wallets, castles, Marks, or world
+state. Its only mutation capability is the existing
+`admin_upsert_realm_profile_v1` reducer.
+
+| Command | Network by default | Effect |
+| --- | --- | --- |
+| `npm run profiles:plan` | No | Writes capability metadata only. |
+| `npm run profiles:refresh -- --input-stdin --dry-run` | Blocked by source gate | Once the source is reviewed, reads four typed public user-data fields and current public profile state, then writes an exact reviewed plan; it performs no reducer call. |
+| `npm run profiles:apply -- --input-stdin --confirm` | Blocked by source gate | Once the source is reviewed, applies one fresh, previously reviewed plan without re-fetching Farcaster data, then performs a fresh read-only verification. |
+| `npm run profiles:inspect` | No | Reads private operator-report metadata only. |
+
+Production profile refresh is currently blocked fail-closed. Farcaster's
+official material documents self-hosted Snapchain and suggests using a managed
+provider, but it does not establish an official public production origin for
+this operator. No guessed public endpoint is operational. The code reserves
+source ID `owner-reviewed-snapchain-mainnet-v1`, but returns
+`PROFILE_SOURCE_ATTESTATION_PENDING` before network access until the owner
+supplies and reviews an owned or contracted, credentialed source. The CLI
+accepts no URL or origin in private input; adding or changing the source
+requires a reviewed code change and changes the source-configuration digest,
+invalidating every older plan.
+
+Refresh stdin contains only the pinned source ID, optional source credential,
+and the founded FIDs to refresh. Keep the populated document in Keychain or an
+equivalent owner-only stdin producer:
+
+```json
+{
+  "source": {
+    "sourceId": "owner-reviewed-snapchain-mainnet-v1",
+    "authorization": "<private-value-if-required>"
+  },
+  "fids": ["<decimal-fid>"]
+}
+```
+
+This shape is inert until that source gate is completed. Use either
+`authorization` or `apiKey`, never both. The operator requests only
+`USERNAME`, `DISPLAY`, `BIO`, and `PFP` through the exact
+`/v1/userDataByFid` contract. Redirects are rejected, response bodies and
+deadlines are bounded, PFP URLs are re-sanitized, and omitted or invalid fields
+retain their last-known-good public value.
+
+The dry run reads the canonical current profile rows and writes a private
+`profiles-reviewed-plan-*.json` file in
+`~/Library/Application Support/Warpkeep/profiles/reports`. The artifact contains
+the sanitized current and intended public profile fields needed for exact
+precondition checks, so it is sensitive operational material even though the
+fields are public. The directory is mode `0700`; the atomically published plan
+is mode `0600`, content-attested, expires after 30 minutes, and can be claimed
+only once. Review it locally in an owner-only editor. Never paste its contents
+into chat, tickets, screenshots, commits, or shell history.
+
+Refresh returns only the plan filename, SHA-256 digest, and expiry. After local
+review, pass that exact reference to apply through stdin:
+
+```json
+{
+  "reviewedPlan": {
+    "filename": "profiles-reviewed-plan-<timestamp>-<id>.json",
+    "sha256": "<digest-returned-by-refresh>"
+  }
+}
+```
+
+Apply verifies the file mode, content digest, policy/source/target attestation,
+expiry, and unchanged database preconditions before it creates a one-use claim
+and submits any reducer. It never contacts Snapchain. Every reducer has its own
+bounded deadline. Before submission and after each result, the operator
+atomically appends a mode-`0600`, identity-free audit event. A timeout or
+unexpected disconnect is recorded as ambiguous and is never retried. A
+disconnect error cannot replace a reducer result. Finally, a fresh read-only
+subscription checks every intended profile; mismatch or unavailable
+verification exits fail-closed. Create a new dry run after any failed,
+ambiguous, expired, drifted, or already-claimed plan.

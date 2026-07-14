@@ -19,8 +19,11 @@ export type TerrainCastleLocation = Readonly<{
 }>;
 
 const HEGEMONY_KEEP_FOUNDATION = Object.freeze({
-  footprintRadius: 0.43,
-  blendRadius: 0.7,
+  // The normalized castle spans 1.48 world units. Keep most of that base on a
+  // calm, level plinth, then blend before the pointy-hex inradius so adjacent
+  // founders remain visually close without floating or cross-cell seams.
+  footprintRadius: 0.62,
+  blendRadius: 0.78,
   targetHeightMode: 'cell-center' as const
 });
 

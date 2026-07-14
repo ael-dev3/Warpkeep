@@ -9,7 +9,7 @@ const webglState = vi.hoisted(() => ({
 }));
 
 const keepLoadState = vi.hoisted(() => ({
-  load: vi.fn(() => new Promise<never>(() => undefined))
+  load: vi.fn(() => new Promise<unknown>(() => undefined))
 }));
 
 vi.mock('three', async (importOriginal) => {
@@ -53,6 +53,28 @@ function listenerCalls(spy: ListenerSpy, eventName: string) {
   return spy.mock.calls.filter((call: unknown[]) => call[0] === eventName).length;
 }
 
+function dispatchPointer(
+  canvas: HTMLCanvasElement,
+  type: string,
+  input: Readonly<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    pointerType?: string;
+    button?: number;
+  }>
+) {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperties(event, {
+    pointerId: { value: input.pointerId },
+    clientX: { value: input.clientX },
+    clientY: { value: input.clientY },
+    pointerType: { value: input.pointerType ?? 'mouse' },
+    button: { value: input.button ?? 0 }
+  });
+  canvas.dispatchEvent(event);
+}
+
 function createOptions(
   canvas: HTMLCanvasElement,
   overrides: Partial<CreateRealmSceneOptions> = {}
@@ -61,6 +83,7 @@ function createOptions(
     canvas,
     surface: createRealmTerrainSurface('realm-scene-cleanup', 0, 0),
     keepCoord: { q: 0, r: 0 },
+    ownCastleId: 1,
     otherCastles: [],
     quality: REALM_QUALITY_SPECS.reduced,
     reducedMotion: false,
@@ -84,7 +107,7 @@ describe('realm scene setup cleanup', () => {
   beforeEach(() => {
     webglState.instances.length = 0;
     keepLoadState.load.mockReset();
-    keepLoadState.load.mockImplementation(() => new Promise<never>(() => undefined));
+    keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
     resizeObservers.length = 0;
     vi.stubGlobal('ResizeObserver', class ResizeObserver {
       disconnect = vi.fn();
@@ -143,16 +166,17 @@ describe('realm scene setup cleanup', () => {
     });
     expect(listenerCalls(windowAdd, 'resize')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
-    expect(listenerCalls(documentAdd, 'visibilitychange')).toBe(1);
-    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(1);
+    expect(listenerCalls(documentAdd, 'visibilitychange')).toBe(2);
+    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(2);
   });
 
-  it('keeps normal scene disposal idempotent', () => {
+  it('keeps normal scene disposal idempotent', async () => {
     const canvas = document.createElement('canvas');
     const canvasRemove = vi.spyOn(canvas, 'removeEventListener');
     const windowRemove = vi.spyOn(window, 'removeEventListener');
     const documentRemove = vi.spyOn(document, 'removeEventListener');
     const scene = createRealmScene(createOptions(canvas));
+    await Promise.resolve();
 
     scene.dispose();
     scene.dispose();
@@ -166,6 +190,267 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(canvasRemove, 'wheel')).toBe(1);
     expect(listenerCalls(canvasRemove, 'webglcontextlost')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
-    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(1);
+    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(2);
+  });
+
+  it('releases a late prefab lease once without inserting after disposal', async () => {
+    let resolveLoad: ((value: unknown) => void) | undefined;
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const materialDispose = vi.spyOn(material, 'dispose');
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material));
+    keepLoadState.load.mockImplementation(() => new Promise((resolve) => {
+      resolveLoad = resolve;
+    }));
+    const canvas = document.createElement('canvas');
+    const onCastlesReady = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, { onCastlesReady }));
+    await Promise.resolve();
+
+    scene.dispose();
+    scene.dispose();
+    resolveLoad?.({
+      root,
+      visualHeight: 1,
+      footprintDiameter: 1,
+      assetUrl: '/castle-compact.glb'
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onCastlesReady).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(geometryDispose).toHaveBeenCalledTimes(1);
+      expect(materialDispose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('signals readiness only after a real prefab instance exists', async () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const materialDispose = vi.spyOn(material, 'dispose');
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material));
+    keepLoadState.load.mockResolvedValue({
+      root,
+      visualHeight: 1,
+      footprintDiameter: 1,
+      assetUrl: '/castle-compact.glb'
+    });
+    const canvas = document.createElement('canvas');
+    const onCastlesReady = vi.fn();
+    const onKeepStatusChange = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      onCastlesReady,
+      onKeepStatusChange
+    }));
+
+    await vi.waitFor(() => {
+      expect(onCastlesReady).toHaveBeenCalledWith(1);
+    });
+    expect(keepLoadState.load).toHaveBeenCalledTimes(1);
+    expect(onKeepStatusChange.mock.calls.map(([status]) => status)).toEqual([
+      'loading',
+      'ready'
+    ]);
+    expect(geometryDispose).not.toHaveBeenCalled();
+    expect(materialDispose).not.toHaveBeenCalled();
+
+    scene.dispose();
+    scene.dispose();
+    expect(geometryDispose).toHaveBeenCalledTimes(1);
+    expect(materialDispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('coalesces hidden-tab demand renders into one visibility recovery frame', async () => {
+    let hidden = true;
+    vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material));
+    keepLoadState.load.mockResolvedValue({
+      root,
+      visualHeight: 1,
+      footprintDiameter: 1,
+      assetUrl: '/castle-compact.glb'
+    });
+    const canvas = document.createElement('canvas');
+    const onCastlesReady = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      onCastlesReady
+    }));
+
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    scene.setHovered({ q: 0, r: 0 });
+    scene.setSelected({ q: 0, r: 0 });
+    scene.setSelectedCastleId(1);
+    expect(webglState.instances[0].render).not.toHaveBeenCalled();
+
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(webglState.instances[0].render).toHaveBeenCalledTimes(1);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(webglState.instances[0].render).toHaveBeenCalledTimes(1);
+
+    scene.dispose();
+  });
+
+  it('releases prefab leases even when layer-owned disposal throws', async () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const materialDispose = vi.spyOn(material, 'dispose');
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material));
+    keepLoadState.load.mockResolvedValue({
+      root,
+      visualHeight: 1,
+      footprintDiameter: 1,
+      assetUrl: '/castle-compact.glb'
+    });
+    const canvas = document.createElement('canvas');
+    const onCastlesReady = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, { onCastlesReady }));
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    vi.spyOn(THREE.BufferGeometry.prototype, 'dispose').mockImplementationOnce(() => {
+      throw new Error('synthetic layer disposal failure');
+    });
+
+    scene.dispose();
+
+    expect(geometryDispose).toHaveBeenCalledTimes(1);
+    expect(materialDispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('focuses only playable, authoritatively passable terrain cells', () => {
+    const canvas = document.createElement('canvas');
+    const isCoordPassable = vi.fn((coord: Readonly<{ q: number; r: number }>) => {
+      if (coord.q === 0 && coord.r === 1) throw new Error('metadata unavailable');
+      return coord.q === 1 && coord.r === 0;
+    });
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-scene-focus-cell', 1, 1),
+      reducedMotion: true,
+      isCoordPassable
+    }));
+    const renderer = webglState.instances[0];
+    const camera = renderer.render.mock.calls.at(-1)?.[1] as THREE.PerspectiveCamera;
+    const initialPosition = camera.position.clone();
+    renderer.render.mockClear();
+
+    scene.focusCell({ q: 1, r: 0 });
+    expect(renderer.render).toHaveBeenCalledTimes(1);
+    expect(camera.position.equals(initialPosition)).toBe(false);
+
+    scene.focusCell({ q: 0, r: 0 });
+    scene.focusCell({ q: 0, r: 1 });
+    const passabilityChecks = isCoordPassable.mock.calls.length;
+    scene.focusCell({ q: 9, r: 9 });
+    expect(renderer.render).toHaveBeenCalledTimes(1);
+    expect(isCoordPassable).toHaveBeenCalledTimes(passabilityChecks);
+
+    scene.dispose();
+  });
+
+  it('suppresses click selection after drag and pinch gestures', () => {
+    vi.spyOn(window, 'requestAnimationFrame').mockReturnValue(1);
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) }
+    });
+    vi.spyOn(THREE.Raycaster.prototype, 'intersectObject').mockReturnValue([{
+      point: new THREE.Vector3(0, 0, 0)
+    }] as THREE.Intersection[]);
+    const onTargetSelect = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, { onTargetSelect }));
+
+    dispatchPointer(canvas, 'pointerdown', { pointerId: 1, clientX: 100, clientY: 100 });
+    dispatchPointer(canvas, 'pointerup', { pointerId: 1, clientX: 100, clientY: 100 });
+    expect(onTargetSelect).toHaveBeenCalledTimes(1);
+    onTargetSelect.mockClear();
+
+    dispatchPointer(canvas, 'pointerdown', { pointerId: 2, clientX: 100, clientY: 100 });
+    dispatchPointer(canvas, 'pointermove', { pointerId: 2, clientX: 120, clientY: 100 });
+    dispatchPointer(canvas, 'pointerup', { pointerId: 2, clientX: 120, clientY: 100 });
+    expect(onTargetSelect).not.toHaveBeenCalled();
+
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 3,
+      clientX: 180,
+      clientY: 180,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 4,
+      clientX: 220,
+      clientY: 180,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 4,
+      clientX: 240,
+      clientY: 180,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 4,
+      clientX: 240,
+      clientY: 180,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointerup', {
+      pointerId: 3,
+      clientX: 180,
+      clientY: 180,
+      pointerType: 'touch'
+    });
+    expect(onTargetSelect).not.toHaveBeenCalled();
+
+    scene.dispose();
+  });
+
+  it('fails closed to the illustrated renderer when prefab initialization fails', async () => {
+    keepLoadState.load.mockRejectedValue(new Error('synthetic prefab failure'));
+    const canvas = document.createElement('canvas');
+    const onCastlesReady = vi.fn();
+    const onKeepStatusChange = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      onCastlesReady,
+      onKeepStatusChange,
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => {
+      expect(onRendererUnavailable).toHaveBeenCalledTimes(1);
+    });
+    expect(onCastlesReady).not.toHaveBeenCalled();
+    expect(onKeepStatusChange.mock.calls.map(([status]) => status)).toEqual([
+      'loading',
+      'fallback'
+    ]);
+    expect(webglState.instances[0].dispose).toHaveBeenCalledTimes(1);
+
+    scene.dispose();
+    expect(webglState.instances[0].dispose).toHaveBeenCalledTimes(1);
   });
 });

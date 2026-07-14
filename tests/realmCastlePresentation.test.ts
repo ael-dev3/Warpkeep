@@ -36,7 +36,7 @@ describe('realm castle public presentation', () => {
 
   it('accepts credential-free HTTPS portraits and rejects unsafe profile links', () => {
     expect(safeRealmProfileImageUrl('https://images.example/a.png#tracking'))
-      .toBe('https://images.example/a.png#tracking');
+      .toBe('https://images.example/a.png');
     expect(safeRealmProfileImageUrl('https://name:secret@images.example/a.png'))
       .toBeUndefined();
     expect(safeRealmProfileImageUrl('data:image/png;base64,AA==')).toBeUndefined();

@@ -1097,19 +1097,27 @@ export function WarpkeepExperience() {
           aria-hidden={experience.phase !== 'realm'}
           inert={experience.phase !== 'realm' ? true : undefined}
         >
-          <Suspense fallback={<SceneModuleFallback label="ASSEMBLING THE REALM" />}>
-            <RealmMapScreen
-              identity={realmIdentity}
-              ownCastle={backend.state.realm?.ownCastle}
-              otherCastles={backend.state.realm?.castles}
-              sharedPlayers={backend.state.realm?.players}
-              sharedProfiles={backend.state.realm?.profiles}
-              sharedTileMetadata={backend.state.realm?.tileMetadata}
-              sharedTiles={backend.state.realm?.tiles}
-              realmName={backend.state.realm?.realm?.publicName}
-              onRequestReturn={returnRealmToMenu}
-              qualityOverride={realmProfileForQuality(resolvedGraphicsQuality)}
-            />
+          <Suspense fallback={<SceneModuleFallback label="OPENING GENESIS 001" />}>
+            {backend.state.realm ? (
+              <RealmMapScreen
+                identity={realmIdentity}
+                snapshot={backend.state.realm}
+                onRequestReturn={returnRealmToMenu}
+                qualityOverride={realmProfileForQuality(resolvedGraphicsQuality)}
+              />
+            ) : (
+              <section className="warpkeep-experience__realm-unavailable" role="alert">
+                <p>{backend.state.phase === 'error'
+                  ? 'Genesis 001 could not be opened safely.'
+                  : 'Opening Genesis 001…'}</p>
+                {backend.state.phase === 'error' ? (
+                  <div>
+                    <button type="button" onClick={backend.checkAgain}>Retry</button>
+                    <button type="button" onClick={returnRealmToMenu}>Return to Menu</button>
+                  </div>
+                ) : null}
+              </section>
+            )}
           </Suspense>
         </div>
       ) : null}

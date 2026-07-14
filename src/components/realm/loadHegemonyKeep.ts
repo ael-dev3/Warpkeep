@@ -4,6 +4,8 @@ import { HEGEMONY_FRONTIER_KEEP } from '../../game/map/hegemonyLandmarks';
 import type { RealmQuality, RealmQualitySpec } from './realmQuality';
 
 const KEEP_TARGET_DIAMETER = 1.48;
+export const DEFAULT_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 20_000;
+const MAX_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 60_000;
 
 export const HEGEMONY_KEEP_RUNTIME_ASSETS = Object.freeze({
   high: Object.freeze({
@@ -48,6 +50,8 @@ export type LoadHegemonyKeepOptions = Readonly<{
   quality: RealmQualitySpec;
   baseUrl: string;
   maxAnisotropy: number;
+  /** Bounds both fetch and response-body work; the default is production-safe. */
+  requestTimeoutMs?: number;
   parser?: HegemonyKeepParser;
 }>;
 
@@ -80,12 +84,30 @@ async function sha256Hex(bytes: ArrayBuffer) {
     .join('');
 }
 
-function requestKeepBinary(assetUrl: string, asset: KeepRuntimeAsset) {
+function normalizedRequestTimeout(timeoutMs: number | undefined) {
+  if (!Number.isFinite(timeoutMs)) return DEFAULT_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS;
+  return Math.max(1, Math.min(
+    MAX_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS,
+    Math.trunc(timeoutMs ?? DEFAULT_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS)
+  ));
+}
+
+function requestKeepBinary(
+  assetUrl: string,
+  asset: KeepRuntimeAsset,
+  timeoutMs: number | undefined
+) {
   const cached = keepBinaryRequests.get(assetUrl);
   if (cached) return cached;
 
-  let request: KeepBinaryRequest;
-  request = fetch(assetUrl, { credentials: 'same-origin' })
+  const boundedTimeoutMs = normalizedRequestTimeout(timeoutMs);
+  const abortController = new AbortController();
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const fetchRequest = Promise.resolve()
+    .then(() => fetch(assetUrl, {
+      credentials: 'same-origin',
+      signal: abortController.signal
+    }))
     .then(async (response) => {
       if (!response.ok) throw new Error(`Hegemony keep request failed with ${response.status}.`);
       const bytes = await response.arrayBuffer();
@@ -93,6 +115,17 @@ function requestKeepBinary(assetUrl: string, asset: KeepRuntimeAsset) {
         throw new Error('Hegemony keep model failed its integrity check.');
       }
       return bytes;
+    });
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timeoutHandle = setTimeout(() => {
+      reject(new Error(`Hegemony keep request timed out after ${boundedTimeoutMs}ms.`));
+      abortController.abort();
+    }, boundedTimeoutMs);
+  });
+  let request: KeepBinaryRequest;
+  request = Promise.race([fetchRequest, timeout])
+    .finally(() => {
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
     })
     .catch((error) => {
       if (keepBinaryRequests.get(assetUrl) === request) keepBinaryRequests.delete(assetUrl);
@@ -147,10 +180,15 @@ function tuneTexture(texture: THREE.Texture | null, anisotropy: number, color = 
 
 function tuneKeepMaterial(material: THREE.Material, anisotropy: number) {
   if (!(material instanceof THREE.MeshStandardMaterial)) return;
-  material.metalness = Math.min(material.metalness, 0.14);
-  material.roughness = Math.max(material.roughness, 0.58);
-  material.envMapIntensity = Math.min(material.envMapIntensity, 0.4);
-  if (material.emissiveMap) material.emissiveIntensity = Math.min(material.emissiveIntensity, 0.045);
+  // Preserve authored stone/electrum/fabric separation. Only contain values
+  // that become unstable under ACES or missing-device environment support;
+  // the old global 0.14/0.58 clamps flattened every material into muddy stone.
+  material.metalness = THREE.MathUtils.clamp(material.metalness, 0, 0.92);
+  material.roughness = THREE.MathUtils.clamp(material.roughness, 0.2, 1);
+  material.envMapIntensity = THREE.MathUtils.clamp(material.envMapIntensity, 0, 1.25);
+  if (material.emissiveMap) {
+    material.emissiveIntensity = THREE.MathUtils.clamp(material.emissiveIntensity, 0, 1.2);
+  }
   tuneTexture(material.map, anisotropy, true);
   tuneTexture(material.emissiveMap, anisotropy, true);
   tuneTexture(material.normalMap, anisotropy);
@@ -160,48 +198,12 @@ function tuneKeepMaterial(material: THREE.Material, anisotropy: number) {
   material.needsUpdate = true;
 }
 
-export function createHegemonyKeepPlaceholder(failed = false) {
-  const root = new THREE.Group();
-  root.name = failed ? 'hegemony-keep-fallback' : 'hegemony-keep-loading';
-  const stone = new THREE.MeshStandardMaterial({
-    color: failed ? '#8c7a61' : '#d6c9aa',
-    roughness: 0.82,
-    metalness: 0.02,
-    transparent: !failed,
-    opacity: failed ? 1 : 0.58
-  });
-  const gold = new THREE.MeshStandardMaterial({
-    color: '#a8843f',
-    roughness: 0.62,
-    metalness: 0.28,
-    transparent: !failed,
-    opacity: failed ? 1 : 0.65
-  });
-  const keep = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.42, 0.46), stone);
-  keep.position.y = 0.21;
-  root.add(keep);
-  [-0.43, 0.43].forEach((x) => {
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.23, 0.62, 12), stone);
-    tower.position.set(x, 0.31, 0.08);
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.2, 12), gold);
-    roof.position.set(x, 0.72, 0.08);
-    root.add(tower, roof);
-  });
-  root.traverse((object) => {
-    if (object instanceof THREE.Mesh) {
-      object.castShadow = failed;
-      object.receiveShadow = true;
-    }
-  });
-  return root;
-}
-
 export async function loadHegemonyKeep(
   options: LoadHegemonyKeepOptions
 ): Promise<HegemonyKeepLoadResult> {
   const assetUrl = resolveRealmAssetUrl(options.baseUrl, options.quality.keepAssetPath);
   const asset = keepRuntimeAssetForPath(options.quality.keepAssetPath);
-  const bytes = await requestKeepBinary(assetUrl, asset);
+  const bytes = await requestKeepBinary(assetUrl, asset, options.requestTimeoutMs);
   const scene = await (options.parser ?? parseHegemonyKeep)(
     bytes.slice(0),
     assetUrl.slice(0, assetUrl.lastIndexOf('/') + 1)

@@ -22,8 +22,8 @@ describe('Hegemony keep terrain placement', () => {
     const cell = terrainCellByCoord(map, { q: 0, r: 0 })!;
     const center = { x: 0, z: 0 };
     const inside = { x: 0.32, z: 0 };
-    const blend = { x: 0.56, z: 0 };
-    const outside = { x: 0.76, z: 0 };
+    const blend = { x: 0.7, z: 0 };
+    const outside = { x: 0.82, z: 0 };
     const edge = { x: Math.sqrt(3) / 2, z: 0 };
 
     const centerHeight = terrainHeightForCell(
@@ -103,8 +103,8 @@ describe('Hegemony keep terrain placement', () => {
     const mutablePlacement: TerrainStructurePlacement = {
       id: 'moving-fixture',
       coord: { q: 0, r: 0 },
-      footprintRadius: 0.43,
-      blendRadius: 0.7,
+      footprintRadius: 0.62,
+      blendRadius: 0.78,
       targetHeightMode: 'cell-center'
     };
     const mutable = [mutablePlacement];

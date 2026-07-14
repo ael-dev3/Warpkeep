@@ -15,6 +15,7 @@ export type WarpkeepBackendPhase =
   | 'denied'
   | 'bootstrapping'
   | 'accepting-terms'
+  | 'opening-realm'
   | 'ready'
   | 'error';
 
@@ -43,6 +44,13 @@ export type WarpkeepWorldTileMetadata = Readonly<{
 export type WarpkeepRealm = Readonly<{
   realmId: string;
   publicName: string;
+  seedName: string;
+  numericSeed: number;
+  generationVersion: number;
+  authoritativeRadius: number;
+  renderRadius: number;
+  playerCapacity: number;
+  active: boolean;
 }>;
 
 export type WarpkeepPlayer = Readonly<{
@@ -86,21 +94,42 @@ export type WarpkeepCastle = Readonly<{
   foundedAt?: number;
 }>;
 
-export type WarpkeepRealmSnapshot = Readonly<{
+/**
+ * Untrusted projection assembled from the six public subscription tables.
+ * It may represent a partially applied subscription and must not reach the
+ * renderer until `validateCanonicalGenesisSnapshot` accepts it.
+ */
+export type WarpkeepRealmSnapshotCandidate = Readonly<{
   tiles: readonly WarpkeepWorldTile[];
-  tileMetadata?: readonly WarpkeepWorldTileMetadata[];
+  tileMetadata: readonly WarpkeepWorldTileMetadata[];
   players: readonly WarpkeepPlayer[];
-  profiles?: readonly WarpkeepRealmProfile[];
+  profiles: readonly WarpkeepRealmProfile[];
   castles: readonly WarpkeepCastle[];
-  realm?: WarpkeepRealm;
+  /** Every active public realm row; cardinality is part of validation. */
+  activeRealms: readonly WarpkeepRealm[];
   ownCastle?: WarpkeepCastle;
 }>;
+
+/**
+ * Canonical, immutable renderer authority. The runtime brand is intentionally
+ * private to the validator module; the public fingerprint is an attestation
+ * label, not a cryptographic digest.
+ */
+export type CanonicalWarpkeepRealmSnapshot = WarpkeepRealmSnapshotCandidate & Readonly<{
+  protocolVersion: 3;
+  canonicalFingerprint: string;
+  realm: WarpkeepRealm;
+  ownCastle: WarpkeepCastle;
+}>;
+
+/** Backward-compatible public name for the only snapshot allowed in ready state. */
+export type WarpkeepRealmSnapshot = CanonicalWarpkeepRealmSnapshot;
 
 export type WarpkeepBackendState = Readonly<{
   phase: WarpkeepBackendPhase;
   identity?: VerifiedFarcasterIdentity;
   admission?: WarpkeepAdmissionStatus;
-  realm?: WarpkeepRealmSnapshot;
+  realm?: CanonicalWarpkeepRealmSnapshot;
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({
