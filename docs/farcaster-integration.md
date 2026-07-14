@@ -265,8 +265,11 @@ stopped unless the legacy player count and enabled epoch-zero admission count
 were zero. The guarded publisher repeated that aggregate, pinned the reviewed
 CLI and existing database identity, and published only the digest-attested
 prebuilt artifact through `--js-path`, `--delete-data=never`, closed stdin, and
-no compatibility override. Any future republish requires fresh approval and the
-same evidence; historical counts never substitute for it.
+no compatibility override. Any future republish requires fresh approval plus
+explicit canonical founder/player/Terms expectations from a private current
+inspection. The guarded publisher must verify the complete founded protocol-3
+aggregate against the immutable database identity before and after publication;
+historical counts never substitute for it.
 
 The recorded checkpoints also completed the additive session-family Durable
 Object migration, independent managed cookie-secret setup, paused Worker and

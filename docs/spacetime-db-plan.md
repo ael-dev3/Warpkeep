@@ -319,8 +319,14 @@ That initial guarded publisher required an explicit fresh zero-count
 confirmation and forbade `--break-clients`. A future republish or recovery must
 instead derive an explicitly reviewed expected aggregate from a fresh,
 privacy-safe inspection of the current founded state; it must not reuse the
-historical zero-admission checkpoint. If preflight or publish reports any
-compatibility disagreement, stop; do not bypass the guard.
+historical zero-admission checkpoint. The current publisher requires explicit
+canonical founder, authenticated player, and Terms-acceptance expectations,
+including zeroes; keeps those values out of child arguments/environments; and
+validates the complete founded protocol-v3 aggregate against the immutable
+database identity before and after its single `--delete-data=never` publish.
+If preflight or publish reports any compatibility disagreement, stop; do not
+bypass the guard. A post-publish inspection failure is indeterminate and must
+be resolved read-only before any retry.
 
 No earlier approval implies a later one. If any state or coordinate differs,
 stop and report it; never erase/recreate data, auto-advance an epoch, admit a

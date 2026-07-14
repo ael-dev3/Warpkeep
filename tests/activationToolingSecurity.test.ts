@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { parseMigrationProofReceipt, parsePublishArguments, publishChildEnvironment, publishModule, requireCanonicalPublishCoordinates, validateIssuerDeployment, verifyCanonicalDatabaseList, verifyFreshProtocolV2Aggregate, verifyMigrationArtifactReceipt, verifyPinnedCliAttestation } from '../scripts/publish-spacetime-dev.mjs';
+import { parseMigrationProofReceipt, parsePublishArguments, publishChildEnvironment, publishModule, readFoundedPublishExpectations, requireCanonicalPublishCoordinates, validateIssuerDeployment, verifyCanonicalDatabaseList, verifyFreshFoundedProtocolV3Aggregate, verifyMigrationArtifactReceipt, verifyPinnedCliAttestation, verifyPostPublishFoundedProtocolV3Aggregate } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
@@ -565,6 +565,67 @@ describe('activation publish safety', () => {
     })).not.toThrow();
   });
 
+  it('requires exact canonical founded-state expectations for a live republish', () => {
+    const expectations = readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: '4',
+      WARPKEEP_EXPECTED_PLAYER_COUNT: '1',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '1',
+    });
+    expect(expectations).toEqual({
+      expectedFounderCount: 4,
+      expectedPlayerCount: 1,
+      expectedTermsAcceptanceCount: 1,
+    });
+    expect(Object.isFrozen(expectations)).toBe(true);
+    expect(readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: '4',
+      WARPKEEP_EXPECTED_PLAYER_COUNT: '0',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '0',
+    })).toEqual({
+      expectedFounderCount: 4,
+      expectedPlayerCount: 0,
+      expectedTermsAcceptanceCount: 0,
+    });
+
+    expect(() => readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_PLAYER_COUNT: '0',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '0',
+    })).toThrow(/EXPECTED_FOUNDER_COUNT.*canonical integer/i);
+    expect(() => readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: '04',
+      WARPKEEP_EXPECTED_PLAYER_COUNT: '1',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '1',
+    })).toThrow(/canonical integer/i);
+    expect(() => readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: '4',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '0',
+    })).toThrow(/EXPECTED_PLAYER_COUNT.*canonical integer/i);
+    expect(() => readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: '4',
+      WARPKEEP_EXPECTED_PLAYER_COUNT: '0',
+    })).toThrow(/EXPECTED_TERMS_ACCEPTANCE_COUNT.*canonical integer/i);
+    expect(() => readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: '4',
+      WARPKEEP_EXPECTED_PLAYER_COUNT: '01',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '0',
+    })).toThrow(/EXPECTED_PLAYER_COUNT.*canonical integer/i);
+    expect(() => readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: '4',
+      WARPKEEP_EXPECTED_PLAYER_COUNT: '1',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '01',
+    })).toThrow(/EXPECTED_TERMS_ACCEPTANCE_COUNT.*canonical integer/i);
+    expect(() => readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: '3',
+      WARPKEEP_EXPECTED_PLAYER_COUNT: '4',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '1',
+    })).toThrow(/expectations were invalid/i);
+    expect(() => readFoundedPublishExpectations({
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: '3',
+      WARPKEEP_EXPECTED_PLAYER_COUNT: '1',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '2',
+    })).toThrow(/expectations were invalid/i);
+  });
+
   it('pins the exact CLI build and canonical existing database identity', () => {
     expect(() => verifyPinnedCliAttestation(
       'spacetimedb tool version 2.6.1; Commit: 052c83fe984a4c4eb7bb4f9afa5c6b1903891d87',
@@ -586,48 +647,123 @@ describe('activation publish safety', () => {
     )).toThrow(/identity/i);
   });
 
-  it('runs the exact deployed protocol-v2 aggregate as the fresh pre-publication hard stop', () => {
+  it('runs the exact founded protocol-v3 aggregate as the fresh pre-publication hard stop', () => {
     const calls: unknown[][] = [];
+    const invariantFields = [
+      'orphanedPlayerRowsV2',
+      'orphanedOwnershipRowsV2',
+      'orphanedCastleClaims',
+      'orphanedCastles',
+      'orphanedRealmProfiles',
+      'orphanedMarkAccounts',
+      'orphanedBurnCredits',
+      'orphanedTermsAcceptances',
+      'founderStateGaps',
+      'markAccountInvariantViolations',
+      'publicMarkProjectionViolations',
+      'duplicateBurnReferences',
+      'burnAccountReconciliationViolations',
+      'ambiguousActiveWalletAddresses',
+      'staticWorldDriftViolations',
+      'termsAcceptanceInvariantViolations',
+    ];
     const fakeSpawnSync = (...args: unknown[]) => {
       calls.push(args);
       return {
       status: 0,
       signal: null,
       stdout: JSON.stringify({
-        worldTiles: '61',
+        worldTiles: '1261',
+        occupiedWorldTiles: '4',
+        worldTileMeta: '1261',
+        realms: '1',
+        castleSlots: '100',
+        castleSlotClaims: '4',
         legacyPlayers: '0',
-        playersV2: '0',
-        playerOwnershipsV2: '0',
-        consistentPlayerPairsV2: '0',
-        castles: '0',
-        allowedFids: '0',
-        enabledAllowedFids: '0',
-        auditEntries: '2',
-        orphanedPlayerRowsV2: '0',
-        orphanedOwnershipRowsV2: '0',
-        protocolVersion: 2,
+        playersV2: '1',
+        playerOwnershipsV2: '1',
+        castles: '4',
+        realmProfiles: '4',
+        markAccounts: '4',
+        snapBurnCredits: '0',
+        walletAttributions: '0',
+        walletAttributionSnapshots: '0',
+        scanCursors: '0',
+        scanBatches: '0',
+        alphaTermsAcceptances: '1',
+        allowedFids: '4',
+        enabledAllowedFids: '4',
+        auditEntries: '7',
+        ...Object.fromEntries(invariantFields.map(field => [field, '0'])),
+        protocolVersion: 3,
         worldSeed: 3_445_214_658,
         worldSeedName: 'HEGEMONY_GENESIS_001',
       }),
       stderr: '',
       };
     };
-    expect(() => verifyFreshProtocolV2Aggregate(
-      'TEST_ONLY_HERMES_SECRET_'.repeat(2),
+    const testSecret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+    expect(() => verifyFreshFoundedProtocolV3Aggregate(
+      testSecret,
+      {
+        expectedFounderCount: 4,
+        expectedPlayerCount: 1,
+        expectedTermsAcceptanceCount: 1,
+      },
       fakeSpawnSync,
     )).not.toThrow();
-    expect((calls[0]?.[1] as string[])).toContain('inspect-alpha-v2');
-    const options = calls[0]?.[2] as { env?: Record<string, string> };
+    expect(calls[0]?.[1]).toEqual([
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+      'scripts/hermes-admin.ts',
+      'inspect-alpha-v3',
+      '--json',
+    ]);
+    const options = calls[0]?.[2] as { env?: Record<string, string>; input?: string };
     expect(options.env).toMatchObject({
       WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
       WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
     });
+    expect(options.input).toBe(testSecret);
     expect(Object.keys(options.env ?? {}).sort()).toEqual([
       'WARPKEEP_ADMIN_TOKEN_SECRET_STDIN',
       'WARPKEEP_AUTH_BRIDGE_URL',
       'WARPKEEP_SPACETIMEDB_DATABASE',
       'WARPKEEP_SPACETIMEDB_URI',
     ]);
+    expect(JSON.stringify(calls[0]?.[1])).not.toContain(testSecret);
+    expect(JSON.stringify(options.env)).not.toContain(testSecret);
+
+    expect(() => verifyFreshFoundedProtocolV3Aggregate(
+      testSecret,
+      {
+        expectedFounderCount: 5,
+        expectedPlayerCount: 1,
+        expectedTermsAcceptanceCount: 1,
+      },
+      fakeSpawnSync,
+    )).toThrow(/did not match the required rollout stage/i);
+    expect(() => verifyFreshFoundedProtocolV3Aggregate(
+      testSecret,
+      {
+        expectedFounderCount: 4,
+        expectedPlayerCount: 1,
+        expectedTermsAcceptanceCount: 1,
+        extra: true,
+      },
+      fakeSpawnSync,
+    )).toThrow(/expectations are required/i);
+
+    const postPublishFailure = () => verifyPostPublishFoundedProtocolV3Aggregate(
+      'TEST_ONLY_HERMES_SECRET_'.repeat(2),
+      {
+        expectedFounderCount: 4,
+        expectedPlayerCount: 1,
+        expectedTermsAcceptanceCount: 1,
+      },
+      (() => ({ status: 1, signal: null, stdout: '', stderr: '' })) as never,
+    );
+    expect(postPublishFailure).toThrow(/fresh read-only inspection/i);
+    expect(postPublishFailure).not.toThrow(/no publish was attempted/i);
   });
 
   it('enforces a hard deadline with graceful then forced termination', async () => {
@@ -756,6 +892,18 @@ describe('activation publish safety', () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toBe('');
     expect(result.stderr).toContain('WARPKEEP_OIDC_ISSUER is required');
+  });
+
+  it('requires the founded-state expectation contract even for a dry run', () => {
+    const result = spawnSync(process.execPath, ['scripts/publish-spacetime-dev.mjs', '--dry-run'], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      env: { WARPKEEP_OIDC_ISSUER: ISSUER },
+      timeout: 5_000,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('WARPKEEP_EXPECTED_FOUNDER_COUNT');
   });
 });
 
@@ -1579,6 +1727,9 @@ describe('protected aggregate child isolation', () => {
       HOME: '/test/home',
       WARPKEEP_UNRELATED_SECRET_SENTINEL: 'must-not-be-forwarded',
       WARPKEEP_ADMIN_TOKEN_SECRET: 'must-not-be-forwarded',
+      WARPKEEP_EXPECTED_FOUNDER_COUNT: 'must-not-be-forwarded',
+      WARPKEEP_EXPECTED_PLAYER_COUNT: 'must-not-be-forwarded',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: 'must-not-be-forwarded',
       SIGNING_KEY_JWK: 'must-not-be-forwarded',
     });
     expect(child).toEqual({ PATH: '/test/bin', HOME: '/test/home' });

@@ -36,6 +36,10 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   feature-ref dispatch from deploying or cancelling a legitimate main release.
 - The protected founded-state verifier now supports exact privacy-safe live
   player and Terms counts after earlier founders have entered the realm.
+- The guarded SpacetimeDB republisher now gates the current founded protocol-3
+  aggregate before and after its non-destructive publish instead of reusing the
+  historical empty protocol-2 checkpoint; authenticated player pairs without
+  an admitted founder now trip the existing orphan counters as well.
 - Development notices cannot dismiss twice, and patch-note hover content has a
   reachable pointer grace period plus normal disclosure-button toggling.
 

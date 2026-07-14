@@ -150,5 +150,7 @@ test('v3 admin status is counts-only and includes founder and ledger orphan sign
   assert.match(procedure, /walletAttributionSnapshotV1\.count/);
   assert.match(procedure, /snapScanBatchV1\.count/);
   assert.match(procedure, /alphaTermsAcceptanceV1\.count/);
+  assert.match(procedure, /playerOwnershipV2\.fid\.find\(row\.fid\) === null[\s\S]*allowedFid\.fid\.find\(row\.fid\) === null/);
+  assert.match(procedure, /playerV2\.fid\.find\(row\.fid\) === null[\s\S]*allowedFid\.fid\.find\(row\.fid\) === null/);
   assert.doesNotMatch(procedure, /return\s*\{[\s\S]*(?:canonicalUsername|displayName|pfpUrl|transactionHash|senderAddress)/);
 });
