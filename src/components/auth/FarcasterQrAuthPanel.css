@@ -13,20 +13,13 @@
   padding: clamp(1rem, 2.2vh, 1.45rem) clamp(1rem, 2.4vw, 1.6rem) clamp(1rem, 2vh, 1.35rem);
   overflow-x: hidden;
   overflow-y: auto;
-  border: 1px solid rgba(207, 161, 84, 0.72);
-  border-left-color: rgba(167, 103, 207, 0.76);
-  border-radius: 0;
-  outline: 1px solid rgba(7, 4, 9, 0.84);
-  outline-offset: -4px;
+  border: 1px solid var(--warpkeep-surface-border, rgba(207, 161, 84, 0.55));
+  border-radius: var(--warpkeep-surface-radius, 0.7rem);
   color: #e9d7b5;
-  background:
-    linear-gradient(126deg, rgba(28, 14, 31, 0.965), rgba(9, 6, 12, 0.975) 62%),
-    radial-gradient(circle at 8% 20%, rgba(114, 43, 146, 0.2), transparent 42%);
-  box-shadow:
-    0 1.3rem 3.4rem rgba(3, 2, 5, 0.52),
-    inset 0 0 2.6rem rgba(116, 53, 142, 0.08),
-    inset 0 0 0 4px rgba(5, 3, 7, 0.76);
-  font-family: Georgia, "Times New Roman", serif;
+  background: var(--warpkeep-surface-bg-strong, rgba(7, 9, 15, 0.96));
+  box-shadow: var(--warpkeep-surface-shadow, 0 1.3rem 3.4rem rgba(3, 2, 5, 0.52));
+  backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   text-align: center;
   scrollbar-color: rgba(201, 155, 82, 0.54) rgba(7, 4, 9, 0.4);
   animation: farcaster-auth-panel-enter 320ms cubic-bezier(0.2, 0.78, 0.24, 1) both;
@@ -290,11 +283,11 @@
   margin: 0;
   padding: 0.65rem 0.8rem;
   border: 1px solid rgba(202, 156, 83, 0.48);
-  border-radius: 0;
+  border-radius: 0.45rem;
   color: #e8cc97;
   background: rgba(10, 6, 13, 0.58);
-  box-shadow: inset 0 0 1.1rem rgba(108, 48, 132, 0.07);
-  font-family: Georgia, "Times New Roman", serif;
+  box-shadow: none;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -310,8 +303,7 @@
 .farcaster-auth-panel__action--primary {
   border-color: rgba(225, 184, 113, 0.74);
   color: #f7dfae;
-  background:
-    linear-gradient(90deg, rgba(84, 39, 91, 0.4), rgba(25, 13, 29, 0.7), rgba(84, 39, 91, 0.4));
+  background: rgba(91, 54, 105, 0.66);
 }
 
 .farcaster-auth-panel__action--secondary {
@@ -376,14 +368,14 @@
   border: 1px solid rgba(206, 160, 83, 0.52);
   border-left-color: rgba(171, 101, 209, 0.68);
   color: #ead6af;
-  background: linear-gradient(100deg, rgba(67, 30, 74, 0.32), rgba(8, 5, 11, 0.56));
-  box-shadow: inset 0 0 1.2rem rgba(119, 51, 143, 0.08);
+  border-radius: 0.45rem;
+  background: var(--warpkeep-control-bg, rgba(255, 255, 255, 0.045));
+  box-shadow: none;
   text-align: left;
 }
 
 button.farcaster-identity-badge {
   margin: 0;
-  border-radius: 0;
   font: inherit;
   cursor: pointer;
   appearance: none;

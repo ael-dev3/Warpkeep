@@ -46,7 +46,8 @@ import {
   disposeObject3DResources
 } from './loadWarpkeepTitle';
 import { createTitlePresentationController } from './titlePresentationController';
-import { calculateTitleResponsiveLayout } from './titleLayout';
+import { isTitleStartupPresentationReady } from './titlePresentationMachine';
+import { calculateTitleResponsiveLayout, titlePortraitAspect } from './titleLayout';
 import { calculateGalaxyGrowth, createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
 import {
   fallbackGatewayProjection,
@@ -740,6 +741,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
   const graphicsQualityRef = useRef(graphicsQuality);
   const qualityChangeHandlerRef = useRef<((quality: typeof graphicsQuality) => void) | null>(null);
   const [fallback, setFallback] = useState(false);
+  const [titlePresentationReady, setTitlePresentationReady] = useState(false);
   phaseRef.current = phase;
   graphicsQualityRef.current = graphicsQuality;
   callbacksRef.current = { onRequestEnterMenu, onReady, onMeaningfulInteraction };
@@ -810,10 +812,20 @@ export const WarpkeepTitleScreen3D = forwardRef<
     let refreshTitleLayout: () => void = () => undefined;
     let renderingFrame = false;
     let disposed = false;
+    let gatewayReady = false;
+    // The lightweight DOM wordmark is visible from the first mounted frame.
+    // Model readiness only controls when that placeholder may fade away.
+    const visibleTitleReady = true;
     const pointerTarget = { x: 0, y: 0 };
     const pointerCurrent = { x: 0, y: 0 };
     const pointerScreen = { x: 0, y: 0, active: false };
     const textures: THREE.Texture[] = [];
+    const notifyReady = () => {
+      if (gatewayReady && visibleTitleReady && !readyNotifiedRef.current) {
+        readyNotifiedRef.current = true;
+        callbacksRef.current.onReady?.();
+      }
+    };
 
     const teardown = () => {
       if (disposed) {
@@ -1114,7 +1126,11 @@ export const WarpkeepTitleScreen3D = forwardRef<
           renderer.domElement.dataset.titleModelState = titleState.phase;
           renderer.domElement.dataset.titleModelProfile =
             titleState.activeProfile ?? (titleState.fallbackLocked ? 'fallback' : 'pending');
+          if (isTitleStartupPresentationReady(titleState.phase)) {
+            setTitlePresentationReady(true);
+          }
           refreshTitleLayout();
+          notifyReady();
         }
       });
       const titleStage = titlePresentation.stage;
@@ -1146,8 +1162,8 @@ export const WarpkeepTitleScreen3D = forwardRef<
         const height = Math.max(1, Math.round(container.clientHeight));
         const surfaceBounds = interactionSurface.getBoundingClientRect();
         const aspect = width / height;
-        const portrait = aspect < 0.78;
-        const shortLandscape = !portrait && height < 460;
+        const portrait = aspect < titlePortraitAspect;
+        const shortLandscape = !portrait && height <= 460;
         const nextPixelRatio = Math.min(window.devicePixelRatio || 1, pixelRatioCap());
         viewportWidth = width;
         viewportHeight = height;
@@ -1435,7 +1451,12 @@ export const WarpkeepTitleScreen3D = forwardRef<
         const gatewayY = (-gatewayProjectedPosition.y * 0.5 + 0.5) * viewportHeight;
         const gatewayVisible =
           gatewayProjectedPosition.z >= -1 &&
-          gatewayProjectedPosition.z <= 1;
+          gatewayProjectedPosition.z <= 1 &&
+          gatewayX >= 0 &&
+          gatewayX <= viewportWidth &&
+          gatewayY >= 0 &&
+          gatewayY <= viewportHeight;
+        gatewayReady = gatewayVisible;
         gatewayRef.current?.setProjectedPosition(
           gatewayX,
           gatewayY,
@@ -1443,10 +1464,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
           viewportHeight,
           gatewayVisible
         );
-        if (gatewayVisible && !readyNotifiedRef.current) {
-          readyNotifiedRef.current = true;
-          callbacksRef.current.onReady?.();
-        }
+        notifyReady();
 
         const pointerProximity = !prefersReducedMotion && pointerScreen.active
           ? calculateGatewayProximity(
@@ -1698,6 +1716,13 @@ export const WarpkeepTitleScreen3D = forwardRef<
       data-title-phase={phase}
     >
       <div ref={mountRef} className="warpkeep-title-canvas-shell" aria-hidden="true" />
+      <div
+        aria-hidden="true"
+        className="warpkeep-title-loading-wordmark"
+        data-ready={titlePresentationReady ? 'true' : 'false'}
+      >
+        {titleSceneSpec.title.text}
+      </div>
       <h1 className="sr-only">{titleSceneSpec.title.text}</h1>
       <BlackHoleGateway
         ref={gatewayRef}

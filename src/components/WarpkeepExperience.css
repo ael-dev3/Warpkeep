@@ -6,7 +6,7 @@
   min-height: 100svh;
   overflow: hidden;
   isolation: isolate;
-  background: #010106;
+  background: #010207;
 }
 
 .warpkeep-experience__screen {
@@ -40,10 +40,8 @@
   place-content: center;
   justify-items: center;
   gap: 1rem;
-  color: rgba(224, 196, 133, 0.78);
-  background:
-    radial-gradient(circle at 50% 48%, rgba(92, 45, 124, 0.22), transparent 28%),
-    #010106;
+  color: rgba(241, 238, 228, 0.8);
+  background: #010207;
   font-family: Georgia, "Times New Roman", serif;
   text-align: center;
 }
@@ -51,13 +49,14 @@
 .warpkeep-experience__scene-loader span {
   width: 1.15rem;
   height: 1.15rem;
-  border: 1px solid rgba(227, 194, 122, 0.82);
-  box-shadow: 0 0 1.25rem rgba(128, 73, 174, 0.52);
+  border: 1px solid rgba(224, 222, 230, 0.6);
+  box-shadow: 0 0 1.1rem rgba(139, 142, 171, 0.18);
   transform: rotate(45deg);
-  animation: warpkeep-scene-loader-pulse 1.4s ease-in-out infinite;
+  animation: warpkeep-scene-loader-pulse 1.8s ease-in-out infinite;
 }
 
 .warpkeep-experience__scene-loader small {
+  color: rgba(208, 207, 216, 0.76);
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.24em;
@@ -111,6 +110,37 @@
   animation: warpkeep-realm-entry 340ms ease-out both;
 }
 
+.warpkeep-experience[data-graphics-quality="performance"] {
+  --warpkeep-surface-bg: rgba(7, 9, 15, 0.97);
+  --warpkeep-surface-bg-strong: #07090f;
+  --warpkeep-surface-shadow: 0 0.55rem 1.6rem rgba(0, 0, 0, 0.34);
+}
+
+.warpkeep-experience[data-graphics-quality="performance"] :is(
+  .warpkeep-gateway-notice,
+  .warpkeep-title-entry-hint,
+  .warpkeep-menu-notice,
+  .warpkeep-patch-notes,
+  .warpkeep-alpha-terms__panel,
+  .warpkeep-settings__panel,
+  .farcaster-auth-panel,
+  .realm-hud,
+  .realm-hud__actions,
+  .realm-cell-navigator__dialog,
+  .castle-inspection__drawer,
+  .realm-castle-label
+) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .warpkeep-experience {
+    --warpkeep-surface-bg: rgba(7, 9, 15, 0.97);
+    --warpkeep-surface-bg-strong: #07090f;
+  }
+}
+
 @keyframes warpkeep-realm-entry {
   from {
     opacity: 0;
@@ -126,26 +156,30 @@
 @keyframes warpkeep-scene-loader-pulse {
   0%,
   100% {
-    opacity: 0.5;
-    transform: rotate(45deg) scale(0.84);
+    opacity: 0.48;
+    transform: rotate(45deg) scale(0.92);
   }
 
   50% {
-    opacity: 1;
-    transform: rotate(45deg) scale(1.08);
+    opacity: 0.86;
+    transform: rotate(45deg) scale(1);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .warpkeep-experience__screen {
-    transition: none;
+    transition: none !important;
   }
 
   .warpkeep-experience__screen--realm[data-presented="true"] {
     animation: none;
+    filter: none;
   }
 
   .warpkeep-experience__scene-loader span {
     animation: none;
+    box-shadow: none;
+    opacity: 0.72;
+    transform: rotate(45deg);
   }
 }

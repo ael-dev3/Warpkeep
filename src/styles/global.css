@@ -1,10 +1,18 @@
 :root {
   color: #f4ead8;
-  background: #120f0c;
+  background: #010207;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  --warpkeep-surface-bg: rgba(7, 9, 15, 0.88);
+  --warpkeep-surface-bg-strong: rgba(7, 9, 15, 0.96);
+  --warpkeep-surface-border: rgba(226, 197, 139, 0.42);
+  --warpkeep-surface-shadow: 0 1.25rem 3.75rem rgba(0, 0, 0, 0.46);
+  --warpkeep-surface-radius: 0.7rem;
+  --warpkeep-surface-blur: 12px;
+  --warpkeep-control-bg: rgba(255, 255, 255, 0.045);
+  --warpkeep-control-bg-active: rgba(199, 159, 91, 0.12);
 }
 
 * { box-sizing: border-box; }
@@ -13,24 +21,26 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 20% 10%, rgba(167, 111, 45, 0.24), transparent 28rem),
-    radial-gradient(circle at 80% 0%, rgba(88, 109, 146, 0.16), transparent 22rem),
-    linear-gradient(135deg, #120f0c 0%, #211911 45%, #101319 100%);
+  background: #010207;
 }
 
 button {
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.landing-shell button,
+.dashboard-shell button {
   border: 1px solid rgba(232, 196, 132, 0.5);
   border-radius: 999px;
   background: rgba(244, 234, 216, 0.08);
-  color: #f4ead8;
-  cursor: pointer;
-  font: inherit;
   padding: 0.7rem 1rem;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
-button:hover:not(:disabled):not(.realm-castle-label) {
+.landing-shell button:hover:not(:disabled),
+.dashboard-shell button:hover:not(:disabled) {
   transform: translateY(-1px);
   border-color: #f2c16b;
   background: rgba(242, 193, 107, 0.16);

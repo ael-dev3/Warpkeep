@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { GatewayProjection } from './BlackHoleGateway';
 import { calculateGatewayNoticePosition } from './gatewayInteraction';
+import { titleSceneSpec } from './titleSceneSpec';
 
 type TitleGatewayHintProps = {
   getProjection: () => GatewayProjection;
@@ -51,9 +52,8 @@ export function TitleGatewayHint({ getProjection, touch }: TitleGatewayHintProps
         noticeHeight: hintHeight,
         viewportWidth,
         viewportHeight,
-        preferredPlacement: viewportHeight < 460 && viewportWidth > viewportHeight
-          ? 'above'
-          : 'below'
+        hitRadius: titleSceneSpec.gateway.hitHeightMaxPx * 0.5,
+        preferredPlacement: 'above'
       });
 
       hint.style.left = `${position.left + viewportLeft}px`;
@@ -100,8 +100,8 @@ export function TitleGatewayHint({ getProjection, touch }: TitleGatewayHintProps
       aria-atomic="true"
     >
       {touch
-        ? 'Tap the galactic core to enter.'
-        : 'Enter the gateway — click the galactic core or press Enter.'}
+        ? 'Tap the core to enter.'
+        : 'Click the core or press Enter.'}
     </div>
   );
 }

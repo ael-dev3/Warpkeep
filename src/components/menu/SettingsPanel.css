@@ -7,7 +7,7 @@
   padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
   color: #f4dfaa;
   background: radial-gradient(circle at 50% 28%, rgba(91, 51, 115, 0.34), transparent 42%), rgba(4, 3, 8, 0.9);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 .warpkeep-settings__panel {
@@ -15,9 +15,11 @@
   max-height: 100%;
   overflow: auto;
   padding: clamp(1.1rem, 3vw, 2.25rem);
-  border: 1px solid rgba(231, 194, 119, 0.58);
-  background: linear-gradient(155deg, rgba(27, 14, 35, 0.97), rgba(8, 7, 13, 0.98));
-  box-shadow: 0 1.5rem 5rem rgba(0, 0, 0, 0.72), inset 0 0 3rem rgba(128, 72, 153, 0.1);
+  border: 1px solid var(--warpkeep-surface-border, rgba(231, 194, 119, 0.5));
+  border-radius: var(--warpkeep-surface-radius, 0.7rem);
+  background: var(--warpkeep-surface-bg-strong, rgba(7, 9, 15, 0.96));
+  box-shadow: var(--warpkeep-surface-shadow, 0 1.5rem 5rem rgba(0, 0, 0, 0.72));
+  backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
 }
 
 .warpkeep-settings__panel header > p:first-child,
@@ -33,6 +35,7 @@
   margin: 0.3rem 0 0.65rem;
   font-size: clamp(2.2rem, 7vw, 4.2rem);
   font-weight: 400;
+  font-family: Georgia, "Times New Roman", serif;
   letter-spacing: 0.12em;
 }
 
@@ -117,7 +120,7 @@
   border: 1px solid rgba(226, 185, 108, 0.48);
   color: #edd7a3;
   background: rgba(14, 8, 19, 0.78);
-  font: 700 0.66rem/1 Georgia, "Times New Roman", serif;
+  font: 700 0.66rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.14em;
   cursor: pointer;
 }

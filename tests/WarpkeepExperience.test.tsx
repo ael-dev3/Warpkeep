@@ -138,18 +138,25 @@ describe('WarpkeepExperience', () => {
     expect(container.querySelectorAll('audio[data-audio-role^="realm"][src]')).toHaveLength(0);
   });
 
-  it('shows the entry hint five seconds after title readiness and dismisses it permanently', async () => {
+  it('keeps the entry hint through irrelevant and missed input, then dismisses it on activation', async () => {
     render(<WarpkeepExperience />);
-    await settleInitialTitle();
+    const gateway = await settleInitialTitle();
 
     act(() => vi.advanceTimersByTime(4_998));
     expect(screen.queryByRole('status')).toBeNull();
     act(() => vi.advanceTimersByTime(2));
-    expect(screen.getByRole('status').textContent).toContain('Enter the gateway');
+    const hint = screen.getByRole('status');
+    expect(hint.textContent).toBe('Click the core or press Enter.');
+    expect(hint.getAttribute('data-placement')).toBe('above');
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('status')).toBeNull();
-    act(() => vi.advanceTimersByTime(10_000));
+    fireEvent.touchStart(document.body);
+    fireEvent.click(document.body);
+    fireEvent.keyDown(document.body, { key: 'Shift' });
+    act(() => gateway.focus());
+    expect(screen.getByRole('status')).toBe(hint);
+
+    fireEvent.click(gateway, { detail: 1 });
     expect(screen.queryByRole('status')).toBeNull();
   });
 
@@ -167,7 +174,9 @@ describe('WarpkeepExperience', () => {
     render(<WarpkeepExperience />);
     await settleInitialTitle();
     act(() => vi.advanceTimersByTime(5_000));
-    expect(screen.getByRole('status').textContent).toBe('Tap the galactic core to enter.');
+    const hint = screen.getByRole('status');
+    expect(hint.textContent).toBe('Tap the core to enter.');
+    expect(hint.getAttribute('data-placement')).toBe('above');
   });
 
   it('supports global Enter and Space while rejecting repeats, modifiers, and overlaps', async () => {

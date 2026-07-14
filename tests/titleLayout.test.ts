@@ -49,6 +49,19 @@ describe('Warpkeep title responsive layout', () => {
     expect(phone.cameraDriftX).toBeLessThan(desktop.cameraDriftX);
     expect(tablet.baseY).toBe(phone.baseY);
     expect(desktop.baseY).not.toBe(phone.baseY);
+    expect(calculateTitleResponsiveLayout(900, 1000, 7, 7).portrait).toBe(true);
+    expect(calculateTitleResponsiveLayout(1000, 900, 7, 7).portrait).toBe(false);
+  });
+
+  it('keeps the title below the gateway in short landscape viewports', () => {
+    const short = calculateTitleResponsiveLayout(568, 320, 8, 7);
+    const standard = calculateTitleResponsiveLayout(1280, 720, 8, 7);
+
+    expect(short.portrait).toBe(false);
+    expect(short.shortLandscape).toBe(true);
+    expect(standard.shortLandscape).toBe(false);
+    expect(short.baseY).toBeLessThan(standard.baseY);
+    expect(short.baseY).toBeLessThanOrEqual(-2.8);
   });
 
   it('rejects invalid viewport or geometry inputs', () => {
