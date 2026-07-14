@@ -66,6 +66,7 @@ describe('realm castle instance layer', () => {
     const material = new THREE.MeshBasicMaterial();
     const geometryDispose = vi.spyOn(geometry, 'dispose');
     const materialDispose = vi.spyOn(material, 'dispose');
+    const instanceDispose = vi.spyOn(THREE.InstancedMesh.prototype, 'dispose');
     const castles = Array.from({ length: 100 }, (_, index) => {
       const x = (index % 10) * 0.22 - 0.99;
       const z = Math.floor(index / 10) * 0.22 - 0.99;
@@ -106,6 +107,9 @@ describe('realm castle instance layer', () => {
     layer.clear();
     layer.dispose();
     layer.dispose();
+    // One castle bucket and one contact-shadow mesh release only their
+    // layer-owned instance buffers; prefab resources remain repository-owned.
+    expect(instanceDispose).toHaveBeenCalledTimes(2);
     expect(geometryDispose).not.toHaveBeenCalled();
     expect(materialDispose).not.toHaveBeenCalled();
   });

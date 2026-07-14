@@ -38,7 +38,7 @@ export type ReviewedProfilePlanEntry = Readonly<{
 }>;
 
 export type ReviewedProfilePlan = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 2;
   kind: 'warpkeep-reviewed-profile-plan';
   planId: string;
   createdAt: string;
@@ -46,6 +46,7 @@ export type ReviewedProfilePlan = Readonly<{
   sourceConfigurationDigest: string;
   targetConfigurationDigest: string;
   policyVersion: string;
+  foundedProfileSetDigest: string;
   fetchedProfiles: number;
   unchangedProfiles: number;
   lastKnownGoodFieldsPreserved: number;
@@ -136,13 +137,14 @@ function parsePlan(value: unknown): ReviewedProfilePlan {
     'sourceConfigurationDigest',
     'targetConfigurationDigest',
     'policyVersion',
+    'foundedProfileSetDigest',
     'fetchedProfiles',
     'unchangedProfiles',
     'lastKnownGoodFieldsPreserved',
     'updates',
   ]);
   if (
-    plan.schemaVersion !== 1
+    plan.schemaVersion !== 2
     || plan.kind !== 'warpkeep-reviewed-profile-plan'
     || typeof plan.planId !== 'string'
     || !/^[0-9a-f]{32}$/.test(plan.planId)
@@ -155,6 +157,8 @@ function parsePlan(value: unknown): ReviewedProfilePlan {
     || typeof plan.policyVersion !== 'string'
     || plan.policyVersion.length < 1
     || plan.policyVersion.length > 128
+    || typeof plan.foundedProfileSetDigest !== 'string'
+    || !DIGEST_PATTERN.test(plan.foundedProfileSetDigest)
     || !Array.isArray(plan.updates)
     || plan.updates.length > 100
   ) throw new ProfilePlanArtifactError('PROFILES_REVIEWED_PLAN_INVALID');
@@ -185,7 +189,7 @@ function parsePlan(value: unknown): ReviewedProfilePlan {
     throw new ProfilePlanArtifactError('PROFILES_REVIEWED_PLAN_INVALID');
   }
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'warpkeep-reviewed-profile-plan',
     planId: plan.planId,
     createdAt: plan.createdAt,
@@ -193,6 +197,7 @@ function parsePlan(value: unknown): ReviewedProfilePlan {
     sourceConfigurationDigest: plan.sourceConfigurationDigest,
     targetConfigurationDigest: plan.targetConfigurationDigest,
     policyVersion: plan.policyVersion,
+    foundedProfileSetDigest: plan.foundedProfileSetDigest,
     fetchedProfiles,
     unchangedProfiles,
     lastKnownGoodFieldsPreserved,
@@ -208,6 +213,7 @@ export function createReviewedProfilePlan(input: Readonly<{
   sourceConfigurationDigest: string;
   targetConfigurationDigest: string;
   policyVersion: string;
+  foundedProfileSetDigest: string;
   fetchedProfiles: number;
   unchangedProfiles: number;
   lastKnownGoodFieldsPreserved: number;
@@ -216,7 +222,7 @@ export function createReviewedProfilePlan(input: Readonly<{
 }>): ReviewedProfilePlan {
   const now = input.now ?? new Date();
   return parsePlan({
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'warpkeep-reviewed-profile-plan',
     planId: randomUUID().replace(/-/g, ''),
     createdAt: now.toISOString(),
@@ -224,6 +230,7 @@ export function createReviewedProfilePlan(input: Readonly<{
     sourceConfigurationDigest: input.sourceConfigurationDigest,
     targetConfigurationDigest: input.targetConfigurationDigest,
     policyVersion: input.policyVersion,
+    foundedProfileSetDigest: input.foundedProfileSetDigest,
     fetchedProfiles: input.fetchedProfiles,
     unchangedProfiles: input.unchangedProfiles,
     lastKnownGoodFieldsPreserved: input.lastKnownGoodFieldsPreserved,

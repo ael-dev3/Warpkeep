@@ -4,7 +4,7 @@ const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
 const MAINNET_NETWORK = 'FARCASTER_NETWORK_MAINNET';
 const USER_DATA_MESSAGE = 'MESSAGE_TYPE_USER_DATA_ADD';
 
-export const FARCASTER_PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v1';
+export const FARCASTER_PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v2';
 
 export const FARCASTER_PUBLIC_USER_DATA_TYPES = Object.freeze([
   'USER_DATA_TYPE_USERNAME',
@@ -37,6 +37,16 @@ export type ExistingPublicProfile = Readonly<{
   pfpUrl?: string;
   publicBio?: string;
 }>;
+
+type PublicProfileField = keyof ExistingPublicProfile;
+
+// Provenance stays process-local and never enters reports or reviewed plans.
+// It lets the merge boundary distinguish a successful authoritative clear
+// from an unavailable/incomplete response that should retain last-known-good.
+const AUTHORITATIVE_PROFILE_FIELDS = new WeakMap<
+  TrustedPublicFarcasterProfile,
+  ReadonlySet<PublicProfileField>
+>();
 
 type UnknownRecord = Record<string, unknown>;
 type UserDataValue = Readonly<{
@@ -117,11 +127,15 @@ function parseUserData(
     if (
       data.network !== MAINNET_NETWORK
       || data.type !== USER_DATA_MESSAGE
-      || body.type !== expectedType
+      || typeof body.type !== 'string'
       || typeof body.value !== 'string'
     ) {
       throw new FarcasterPublicProfileError('FARCASTER_PROFILE_CONTRACT_MISMATCH');
     }
+    // GetUserDataByFid returns the current envelope for every user-data type.
+    // Validate every message's authority contract, then retain only the four
+    // explicitly allowed public presentation fields.
+    if (body.type !== expectedType) continue;
     parsed.push(Object.freeze({
       type: expectedType,
       value: body.value,
@@ -145,11 +159,30 @@ export function buildTrustedPublicFarcasterProfile(input: Readonly<{
       if (!current || candidate.timestamp > current.timestamp) values.set(type, candidate);
     }
   }
-  const canonicalUsername = sanitizeUsername(values.get('USER_DATA_TYPE_USERNAME')?.value);
+  const responseField = Object.freeze({
+    USER_DATA_TYPE_USERNAME: 'canonicalUsername',
+    USER_DATA_TYPE_DISPLAY: 'displayName',
+    USER_DATA_TYPE_BIO: 'publicBio',
+    USER_DATA_TYPE_PFP: 'pfpUrl',
+  } satisfies Record<FarcasterPublicUserDataType, PublicProfileField>);
+  const authoritativeFields = new Set<PublicProfileField>();
+  for (const type of FARCASTER_PUBLIC_USER_DATA_TYPES) {
+    if (input.responses[type] !== undefined) authoritativeFields.add(responseField[type]);
+  }
+
+  const rawUsername = values.get('USER_DATA_TYPE_USERNAME')?.value;
+  const rawPfpUrl = values.get('USER_DATA_TYPE_PFP')?.value;
+  const canonicalUsername = sanitizeUsername(rawUsername);
   const displayName = sanitizeText(values.get('USER_DATA_TYPE_DISPLAY')?.value, 80);
   const publicBio = sanitizeText(values.get('USER_DATA_TYPE_BIO')?.value, 320);
-  const pfpUrl = sanitizePfpUrl(values.get('USER_DATA_TYPE_PFP')?.value);
-  return Object.freeze({
+  const pfpUrl = sanitizePfpUrl(rawPfpUrl);
+  if (rawUsername !== undefined && rawUsername.trim() !== '' && canonicalUsername === undefined) {
+    throw new FarcasterPublicProfileError('FARCASTER_PROFILE_USERNAME_INVALID');
+  }
+  if (rawPfpUrl !== undefined && rawPfpUrl.trim() !== '' && pfpUrl === undefined) {
+    throw new FarcasterPublicProfileError('FARCASTER_PROFILE_PFP_INVALID');
+  }
+  const profile = Object.freeze({
     fid: input.fid,
     canonicalUsername,
     displayName,
@@ -159,20 +192,31 @@ export function buildTrustedPublicFarcasterProfile(input: Readonly<{
       ? `https://farcaster.xyz/${encodeURIComponent(canonicalUsername)}`
       : undefined,
   });
+  AUTHORITATIVE_PROFILE_FIELDS.set(profile, Object.freeze(authoritativeFields));
+  return profile;
 }
 
 export function mergeWithLastKnownGood(
   resolved: TrustedPublicFarcasterProfile,
   existing: ExistingPublicProfile,
 ): TrustedPublicFarcasterProfile {
-  const canonicalUsername = resolved.canonicalUsername
-    ?? sanitizeUsername(existing.canonicalUsername);
+  const authoritativeFields = AUTHORITATIVE_PROFILE_FIELDS.get(resolved);
+  const authoritative = (field: PublicProfileField) => authoritativeFields?.has(field) === true;
+  const canonicalUsername = authoritative('canonicalUsername')
+    ? resolved.canonicalUsername
+    : resolved.canonicalUsername ?? sanitizeUsername(existing.canonicalUsername);
   return Object.freeze({
     fid: resolved.fid,
     canonicalUsername,
-    displayName: resolved.displayName ?? sanitizeText(existing.displayName, 80),
-    pfpUrl: resolved.pfpUrl ?? sanitizePfpUrl(existing.pfpUrl),
-    publicBio: resolved.publicBio ?? sanitizeText(existing.publicBio, 320),
+    displayName: authoritative('displayName')
+      ? resolved.displayName
+      : resolved.displayName ?? sanitizeText(existing.displayName, 80),
+    pfpUrl: authoritative('pfpUrl')
+      ? resolved.pfpUrl
+      : resolved.pfpUrl ?? sanitizePfpUrl(existing.pfpUrl),
+    publicBio: authoritative('publicBio')
+      ? resolved.publicBio
+      : resolved.publicBio ?? sanitizeText(existing.publicBio, 320),
     farcasterProfileUrl: canonicalUsername
       ? `https://farcaster.xyz/${encodeURIComponent(canonicalUsername)}`
       : undefined,

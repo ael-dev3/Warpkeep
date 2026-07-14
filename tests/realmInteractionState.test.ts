@@ -155,4 +155,24 @@ describe('realm interaction state', () => {
     expect(camera.cameraTarget).toEqual({ kind: 'cell', coord: { q: 4, r: -4 } });
     expect(secondFocus.keyboardIntent).toEqual({ sequence: 2, target: { kind: 'map' } });
   });
+
+  it('retains semantic overview, district, and keep camera targets for scene restoration', () => {
+    const initial = createRealmInteractionState({ q: 0, r: 0 });
+    const district = realmInteractionReducer(initial, {
+      type: 'set-camera-target',
+      target: { kind: 'founding-district' }
+    });
+    const keep = realmInteractionReducer(district, {
+      type: 'set-camera-target',
+      target: { kind: 'keep' }
+    });
+    const realm = realmInteractionReducer(keep, {
+      type: 'set-camera-target',
+      target: { kind: 'realm' }
+    });
+
+    expect(district.cameraTarget).toEqual({ kind: 'founding-district' });
+    expect(keep.cameraTarget).toEqual({ kind: 'keep' });
+    expect(realm.cameraTarget).toEqual({ kind: 'realm' });
+  });
 });

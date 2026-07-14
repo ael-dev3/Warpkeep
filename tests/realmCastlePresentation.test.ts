@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CASTLE_LABEL_FAR_DISTANCE,
   CASTLE_LABEL_MAX_DESKTOP,
   castleProfileLabel,
   fallbackCastleProjection,
   farcasterProfileUrl,
   formatPublicMarkMicros,
   publicProfileForCastle,
+  realmCastleProjectionFrameKey,
   resolveVisibleCastleLabels,
   safeRealmProfileImageUrl,
   sectorForRealmCoord
@@ -114,6 +116,34 @@ describe('realm castle public presentation', () => {
 
     // A 2:1 viewBox meets inside the 400px square with 100px vertical bars.
     expect(projection.x).toBe(400);
-    expect(projection.y).toBe(250);
+    expect(projection.y).toBe(236);
+    expect(projection.castleBounds).toEqual({
+      left: 390,
+      top: 240,
+      right: 410,
+      bottom: 260
+    });
+  });
+
+  it('invalidates projection coalescing when a stationary castle changes distance band', () => {
+    const frame = (distance: number) => ({
+      width: 1_440,
+      height: 900,
+      castles: [{
+        castleId: 1,
+        q: 0,
+        r: 0,
+        x: 720,
+        y: 450,
+        distance,
+        visible: true,
+        castleBounds: { left: 680, top: 390, right: 760, bottom: 500 }
+      }]
+    });
+
+    expect(realmCastleProjectionFrameKey(frame(CASTLE_LABEL_FAR_DISTANCE - 0.01)))
+      .not.toBe(realmCastleProjectionFrameKey(frame(CASTLE_LABEL_FAR_DISTANCE + 0.01)));
+    expect(realmCastleProjectionFrameKey(frame(10)))
+      .not.toBe(realmCastleProjectionFrameKey(frame(10.3)));
   });
 });

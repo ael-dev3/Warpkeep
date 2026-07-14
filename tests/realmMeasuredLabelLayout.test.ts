@@ -220,4 +220,22 @@ describe('measured realm label layout', () => {
     expect(result.placements).toHaveLength(2);
     expect(overlaps(result.placements[0].bounds, result.placements[1].bounds)).toBe(false);
   });
+
+  it('culls instead of moving a label down across its own castle silhouette', () => {
+    const result = resolveMeasuredRealmLabelLayout({
+      anchors: [candidate(1, {
+        x: 200,
+        y: 100,
+        occlusionBounds: { left: 150, top: 100, right: 250, bottom: 220 }
+      })],
+      viewportBounds: viewport,
+      safeAreaBounds: { left: 150, top: 10, right: 250, bottom: 290 },
+      reservedUiRects: [{ left: 0, top: 0, right: 400, bottom: 100 }],
+      maximumLabels: 1,
+      collisionPaddingPixels: 0
+    });
+
+    expect(result.placements).toEqual([]);
+    expect(result.culled).toEqual([{ castleId: 1, reason: 'associated-castle' }]);
+  });
 });

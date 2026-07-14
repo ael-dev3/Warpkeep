@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -140,6 +141,16 @@ function renderProvider(harness: RuntimeHarness) {
   );
 }
 
+function renderStrictProvider(harness: RuntimeHarness) {
+  return render(
+    <StrictMode>
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={harness.runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    </StrictMode>
+  );
+}
+
 async function beginSubscription(harness: RuntimeHarness) {
   await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms'));
   fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
@@ -246,5 +257,45 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
     );
     await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('connecting'));
     expect(screen.getByTestId('fingerprint').textContent).toBe('');
+  });
+
+  it('never publishes a 61-cell snapshot across hidden pageshow and StrictMode remounts', async () => {
+    let hidden = true;
+    vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    mockedFarcaster.current = authenticatedFarcaster();
+
+    const incompleteSnapshot = () => {
+      const candidate = createCanonicalGenesisCandidate();
+      return { ...candidate, tiles: candidate.tiles.slice(0, 61) } as never;
+    };
+    const firstHarness = createRuntimeHarness();
+    vi.mocked(firstHarness.runtime.readRealmSnapshot).mockReturnValue(incompleteSnapshot());
+    const first = renderStrictProvider(firstHarness);
+    await beginSubscription(firstHarness);
+
+    act(() => {
+      fireEvent(document, new Event('visibilitychange'));
+      fireEvent(window, new Event('pageshow'));
+      firstHarness.applied()?.();
+    });
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('error'));
+    expect(screen.getByTestId('fingerprint').textContent).toBe('');
+    first.unmount();
+
+    hidden = false;
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    const secondHarness = createRuntimeHarness();
+    vi.mocked(secondHarness.runtime.readRealmSnapshot).mockReturnValue(incompleteSnapshot());
+    renderStrictProvider(secondHarness);
+    await beginSubscription(secondHarness);
+
+    act(() => {
+      fireEvent(window, new Event('pageshow'));
+      fireEvent(document, new Event('visibilitychange'));
+      secondHarness.applied()?.();
+    });
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('error'));
+    expect(screen.getByTestId('fingerprint').textContent).toBe('');
+    expect(secondHarness.runtime.readRealmSnapshot).toHaveBeenCalledTimes(1);
   });
 });

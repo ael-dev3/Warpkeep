@@ -597,7 +597,7 @@
 .realm-hud__badges span,
 .realm-hud__shared-state {
   color: var(--realm-muted);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   letter-spacing: 0.06em;
 }
 
@@ -656,7 +656,7 @@
   padding: 0.5rem 0.7rem;
   border-radius: 0.35rem;
   background: rgba(96, 58, 115, 0.62);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   letter-spacing: 0.04em;
   text-transform: none;
 }
@@ -671,7 +671,7 @@
   left: max(1rem, env(safe-area-inset-left));
   margin: 0;
   color: rgb(235 226 240 / 74%);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   text-shadow: 0 1px 6px #000;
 }
 
@@ -709,7 +709,8 @@
   max-height: min(70vh, 35rem);
   margin-top: 0.5rem;
   padding: 0.8rem;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid rgb(225 190 105 / 38%);
   border-radius: var(--warpkeep-surface-radius, 0.7rem);
   background: var(--realm-panel);
@@ -724,14 +725,20 @@
   gap: 0.8rem;
 }
 
-.realm-cell-navigator__heading span,
-.realm-cell-navigator__dialog > label,
-.realm-cell-navigator__jump legend,
-.realm-cell-navigator__jump label {
+.realm-cell-navigator__heading span {
   color: var(--realm-muted);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.05em;
+}
+
+.realm-cell-navigator__dialog > label,
+.realm-cell-navigator__jump legend,
+.realm-cell-navigator__jump label {
+  color: var(--realm-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.035em;
 }
 
 .realm-cell-navigator__heading h2 {
@@ -790,12 +797,12 @@
 .realm-cell-navigator__castles span,
 .realm-cell-navigator__castles small {
   color: var(--realm-muted);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
 }
 
 .realm-cell-navigator__castles em {
   color: var(--realm-lavender);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-style: normal;
   font-weight: 800;
 }
@@ -805,6 +812,8 @@
   grid-template-columns: auto 1fr auto 1fr auto;
   gap: 0.4rem;
   align-items: center;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0;
   padding: 0.65rem;
   border: 1px solid rgb(218 181 96 / 22%);
@@ -886,6 +895,10 @@
   .realm-cell-navigator__jump button {
     grid-column: 1 / -1;
   }
+
+  .realm-map-screen__fallback-copy {
+    bottom: max(7.1rem, calc(env(safe-area-inset-bottom) + 6.55rem));
+  }
 }
 
 @media (max-height: 520px) and (min-width: 581px) {
@@ -893,6 +906,20 @@
     right: max(0.55rem, env(safe-area-inset-right));
     bottom: max(7.1rem, calc(env(safe-area-inset-bottom) + 6.55rem));
     width: min(18rem, 43vw);
+  }
+}
+
+/* A short but wide viewport still needs a compact toolbar. The combined
+   compact query above deliberately gives narrow phones a full-width 2x2
+   control grid; do not stretch that grid across landscape tablets/desktops. */
+@media (max-height: 520px) and (min-width: 761px) {
+  .realm-hud__actions {
+    right: auto;
+    width: min(
+      30rem,
+      calc(100vw - 1.1rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+    );
+    max-width: none;
   }
 }
 
@@ -908,6 +935,34 @@
 
   .realm-cell-navigator > button {
     min-width: 9.75rem;
+  }
+
+  .realm-cell-navigator__jump fieldset {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .realm-cell-navigator__jump input {
+    width: 100%;
+  }
+
+  .realm-cell-navigator__jump button {
+    grid-column: 1 / -1;
+  }
+}
+
+/* On narrow screens the open navigator is the active sheet. Hiding the HUD
+   also removes its fixed toolbar from focus/hit testing, allowing the sheet
+   to use the real viewport instead of overlapping an opaque full-width card. */
+@media (max-width: 760px) {
+  .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.5rem);
+    visibility: hidden;
+  }
+
+  .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-cell-navigator {
+    bottom: max(0.55rem, env(safe-area-inset-bottom));
   }
 }
 

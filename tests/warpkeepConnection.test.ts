@@ -98,6 +98,59 @@ function connectionForCandidate(candidate: WarpkeepRealmSnapshotCandidate): Warp
   } as unknown as WarpkeepConnection;
 }
 
+type RealmTableListener = (context: EventContext, ...rows: unknown[]) => void;
+
+function observableTableDouble<T>(initialValues: readonly T[]) {
+  const values = [...initialValues];
+  const listeners: {
+    insert?: RealmTableListener;
+    delete?: RealmTableListener;
+    update?: RealmTableListener;
+  } = {};
+  return {
+    listeners,
+    values,
+    table: {
+      iter: function* () { yield* values; },
+      onInsert: vi.fn((listener: RealmTableListener) => { listeners.insert = listener; }),
+      onDelete: vi.fn((listener: RealmTableListener) => { listeners.delete = listener; }),
+      onUpdate: vi.fn((listener: RealmTableListener) => { listeners.update = listener; }),
+      removeOnInsert: vi.fn(),
+      removeOnDelete: vi.fn(),
+      removeOnUpdate: vi.fn()
+    }
+  };
+}
+
+function observableConnectionForCandidate(candidate: WarpkeepRealmSnapshotCandidate) {
+  const rows = rawRowsForCandidate(candidate);
+  const worldTile = observableTableDouble(rows.worldTile);
+  const worldTileMetaV1 = observableTableDouble(rows.worldTileMetaV1);
+  const playerV2 = observableTableDouble(rows.playerV2);
+  const castle = observableTableDouble(rows.castle);
+  const realmV1 = observableTableDouble(rows.realmV1);
+  const realmProfileV1 = observableTableDouble(rows.realmProfileV1);
+  const connection = {
+    db: {
+      worldTile: worldTile.table,
+      worldTileMetaV1: worldTileMetaV1.table,
+      playerV2: playerV2.table,
+      castle: castle.table,
+      realmV1: realmV1.table,
+      realmProfileV1: realmProfileV1.table
+    }
+  } as unknown as WarpkeepConnection;
+  return {
+    connection,
+    worldTile,
+    worldTileMetaV1,
+    playerV2,
+    castle,
+    realmV1,
+    realmProfileV1
+  };
+}
+
 function builderDouble() {
   const builder = {
     withUri: vi.fn(),
@@ -356,46 +409,16 @@ describe('Warpkeep authenticated connection boundary', () => {
   });
 
   it('publishes one realm snapshot per transaction and removes every table listener', () => {
-    type Listener = (context: EventContext, ...rows: unknown[]) => void;
     const candidate = createCanonicalGenesisCandidate();
-    const rows = rawRowsForCandidate(candidate);
-    const tableDouble = <T,>(initialValues: readonly T[]) => {
-      const values = [...initialValues];
-      const listeners: {
-        insert?: Listener;
-        delete?: Listener;
-        update?: Listener;
-      } = {};
-      return {
-        listeners,
-        values,
-        table: {
-          iter: function* () { yield* values; },
-          onInsert: vi.fn((listener: Listener) => { listeners.insert = listener; }),
-          onDelete: vi.fn((listener: Listener) => { listeners.delete = listener; }),
-          onUpdate: vi.fn((listener: Listener) => { listeners.update = listener; }),
-          removeOnInsert: vi.fn(),
-          removeOnDelete: vi.fn(),
-          removeOnUpdate: vi.fn()
-        }
-      };
-    };
-    const worldTile = tableDouble(rows.worldTile);
-    const worldTileMetaV1 = tableDouble(rows.worldTileMetaV1);
-    const playerV2 = tableDouble(rows.playerV2);
-    const castle = tableDouble(rows.castle);
-    const realmV1 = tableDouble(rows.realmV1);
-    const realmProfileV1 = tableDouble(rows.realmProfileV1);
-    const connection = {
-      db: {
-        worldTile: worldTile.table,
-        worldTileMetaV1: worldTileMetaV1.table,
-        playerV2: playerV2.table,
-        castle: castle.table,
-        realmV1: realmV1.table,
-        realmProfileV1: realmProfileV1.table
-      }
-    } as unknown as WarpkeepConnection;
+    const {
+      connection,
+      worldTile,
+      worldTileMetaV1,
+      playerV2,
+      castle,
+      realmV1,
+      realmProfileV1
+    } = observableConnectionForCandidate(candidate);
     const onChange = vi.fn();
     const onError = vi.fn();
     const cleanup = observeWarpkeepRealm(
@@ -448,6 +471,55 @@ describe('Warpkeep authenticated connection boundary', () => {
       expect(source.removeOnDelete).toHaveBeenCalledOnce();
       expect(source.removeOnUpdate).toHaveBeenCalledOnce();
     }
+  });
+
+  it('publishes trusted presentation fields after a blank founder profile update event', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const founderProfile = {
+      fid: CANONICAL_TEST_FID,
+      publicStatus: 'founded',
+      communityStatsVisible: false
+    } as const;
+    const { connection, realmProfileV1 } = observableConnectionForCandidate({
+      ...candidate,
+      profiles: [founderProfile]
+    });
+    const initial = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID).profiles[0];
+    expect(initial).toEqual(expect.objectContaining(founderProfile));
+    expect(initial).not.toHaveProperty('canonicalUsername');
+    expect(initial).not.toHaveProperty('pfpUrl');
+
+    const onChange = vi.fn();
+    const onError = vi.fn();
+    const cleanupObserver = observeWarpkeepRealm(
+      connection,
+      CANONICAL_TEST_FID,
+      onChange,
+      onError
+    );
+    realmProfileV1.values[0] = {
+      ...realmProfileV1.values[0]!,
+      canonicalUsername: 'fixturekeeper',
+      displayName: 'Fixture Keeper',
+      pfpUrl: 'https://profiles.example/fixturekeeper.png',
+      publicBio: 'A fixture-only public profile.'
+    };
+    realmProfileV1.listeners.update?.({
+      event: { id: 'trusted-profile-update', tag: 'Transaction' }
+    } as unknown as EventContext);
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0]?.[0].profiles).toEqual([
+      expect.objectContaining({
+        ...founderProfile,
+        canonicalUsername: 'fixturekeeper',
+        displayName: 'Fixture Keeper',
+        pfpUrl: 'https://profiles.example/fixturekeeper.png',
+        publicBio: 'A fixture-only public profile.'
+      })
+    ]);
+    cleanupObserver();
   });
 
   it('disconnects a current connection without throwing on a stale socket', () => {

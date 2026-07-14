@@ -13,12 +13,44 @@ import type {
 
 export const CASTLE_LABEL_MAX_DESKTOP = 28;
 export const CASTLE_LABEL_MAX_MOBILE = 10;
+export const CASTLE_LABEL_FAR_DISTANCE = 24;
+
+const CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT = 4;
 
 export type RealmCastlePublicPresentation = WarpkeepRealmProfile;
 
 export type VisibleCastleLabel = RealmCastleScreenProjection & Readonly<{
   compact: boolean;
 }>;
+
+function projectionNumberKey(value: number, scale = 1) {
+  return Number.isFinite(value) ? Math.round(value * scale) : 'invalid';
+}
+
+/**
+ * Coalesces sub-pixel camera motion while retaining every presentation input:
+ * screen position, visibility, model silhouette, and distance/near-far band.
+ */
+export function realmCastleProjectionFrameKey(frame: RealmCastleProjectionFrame) {
+  return `${projectionNumberKey(frame.width)}:${projectionNumberKey(frame.height)}:${frame.castles.map((castle) => {
+    const bounds = castle.castleBounds;
+    const boundsKey = bounds
+      ? [bounds.left, bounds.top, bounds.right, bounds.bottom]
+          .map((value) => projectionNumberKey(value))
+          .join(',')
+      : '-';
+    const distanceBand = castle.distance > CASTLE_LABEL_FAR_DISTANCE ? 'far' : 'near';
+    return [
+      castle.castleId,
+      projectionNumberKey(castle.x),
+      projectionNumberKey(castle.y),
+      projectionNumberKey(castle.distance, CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT),
+      distanceBand,
+      castle.visible ? 1 : 0,
+      boundsKey
+    ].join(':');
+  }).join('|')}`;
+}
 
 function boundedDisplayText(value: string | undefined, maximumLength: number) {
   const normalized = value
@@ -173,7 +205,7 @@ export function resolveVisibleCastleLabels(
   for (const castle of candidates) {
     if (accepted.length >= maximumLabels) break;
     const priority = castle.castleId === selectedCastleId || castle.castleId === ownCastleId;
-    const compact = !priority && castle.distance > 24;
+    const compact = !priority && castle.distance > CASTLE_LABEL_FAR_DISTANCE;
     const width = labelWidth(compact);
     const projectedCastle = priority
       ? {
@@ -223,11 +255,21 @@ export function fallbackCastleProjection(
   );
   const contentLeft = svgViewport.left + (svgViewport.width - viewBox.width * scale) / 2;
   const contentTop = svgViewport.top + (svgViewport.height - viewBox.height * scale) / 2;
+  const centerX = contentLeft + (world.x - viewBox.x) * scale;
+  const centerY = contentTop + (-world.z - viewBox.y) * scale;
+  const markerHalfSize = Math.max(10, Math.abs(scale) * 0.64);
+  const labelGap = 4;
   return {
     ...castle,
-    x: contentLeft + (world.x - viewBox.x) * scale,
-    y: contentTop + (-world.z - viewBox.y) * scale,
+    x: centerX,
+    y: centerY - markerHalfSize - labelGap,
     distance: hexDistance({ q: 0, r: 0 }, castle),
-    visible: true
+    visible: true,
+    castleBounds: {
+      left: centerX - markerHalfSize,
+      top: centerY - markerHalfSize,
+      right: centerX + markerHalfSize,
+      bottom: centerY + markerHalfSize
+    }
   };
 }

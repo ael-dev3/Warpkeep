@@ -7,6 +7,8 @@ export type RealmCastleTarget = Readonly<{
 
 export type RealmCameraTarget =
   | Readonly<{ kind: 'realm' }>
+  | Readonly<{ kind: 'founding-district' }>
+  | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>;
 
@@ -62,6 +64,8 @@ function copyCastleTarget(target: RealmCastleTarget): RealmCastleTarget {
 
 function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'realm') return { kind: 'realm' };
+  if (target.kind === 'founding-district') return { kind: 'founding-district' };
+  if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
 }
