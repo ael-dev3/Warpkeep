@@ -90,4 +90,20 @@ describe('FarcasterAdmissionPanel', () => {
     expect(screen.queryByText(/OIDC|JWT|WebSocket/i)).toBeNull();
     expect(screen.getByRole('button', { name: 'SIGN OUT' })).not.toBeNull();
   });
+
+  it('names the canonical opening boundary while subscription data is still pending', () => {
+    render(
+      <FarcasterAdmissionPanel
+        identity={identity}
+        onBackToMenu={vi.fn()}
+        onCheckAgain={vi.fn()}
+        onSignOut={vi.fn()}
+        phase="opening-realm"
+      />
+    );
+
+    expect(screen.getByRole('heading', { level: 2, name: 'OPENING GENESIS 001…' })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('Opening Genesis 001…');
+    expect(screen.queryByRole('button', { name: 'CHECK AGAIN' })).toBeNull();
+  });
 });

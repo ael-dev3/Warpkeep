@@ -65,7 +65,7 @@ function sanitizeNote(value: string | undefined, fallback?: string) {
   return note;
 }
 
-function readAdminSecret(value: string | undefined, fromStdin: string | undefined) {
+export function readAdminSecret(value: string | undefined, fromStdin: string | undefined) {
   if (fromStdin !== undefined && fromStdin !== '1') {
     fail('WARPKEEP_ADMIN_TOKEN_SECRET_STDIN must be exactly 1 when configured.');
   }

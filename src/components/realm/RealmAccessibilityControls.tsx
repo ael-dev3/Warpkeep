@@ -1,108 +1,260 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type Ref
+} from 'react';
 
-import { hexKey, type HexCoord } from '../../game/map/hexCoordinates';
-import type { TerrainCell } from '../../game/map/terrainTypes';
+import type { HexCoord } from '../../game/map/hexCoordinates';
 
-type RealmAccessibilityControlsProps = Readonly<{
-  cells: readonly TerrainCell[];
-  keepCoord: HexCoord;
-  selectedCoord: HexCoord;
-  onHover: (coord: HexCoord | null) => void;
-  onFocusMap: () => void;
-  onSelect: (coord: HexCoord) => void;
+export type RealmNavigatorCastle = Readonly<{
+  castleId: number;
+  /** Trusted, privacy-bounded public identity label prepared by the parent. */
+  label: string;
+  /** Trusted authoritative castle name prepared by the parent. */
+  name: string;
+  q: number;
+  r: number;
 }>;
 
-export const REALM_CELL_NAVIGATOR_PAGE_SIZE = 72;
+export type RealmNavigatorCloseReason = 'escape' | 'close-button';
 
-function sameCoord(first: HexCoord, second: HexCoord) {
-  return first.q === second.q && first.r === second.r;
+export type RealmNavigatorCoordinateJump = Readonly<{
+  validate: (coord: HexCoord) => boolean;
+  onActivate: (coord: HexCoord) => void;
+}>;
+
+export type RealmAccessibilityControlsProps = Readonly<{
+  id: string;
+  open: boolean;
+  castles: readonly RealmNavigatorCastle[];
+  ownCastleId?: number;
+  selectedCastleId?: number;
+  onRequestOpen: () => void;
+  onRequestClose: (reason: RealmNavigatorCloseReason) => void;
+  onActivateCastle: (castle: RealmNavigatorCastle) => void;
+  coordinateJump?: RealmNavigatorCoordinateJump;
+  /** Receives the trigger element; focus is restored here after controlled close. */
+  triggerRef?: Ref<HTMLButtonElement>;
+}>;
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === 'function') {
+    ref(value);
+  } else if (ref) {
+    (ref as { current: T | null }).current = value;
+  }
 }
+
+function strictInteger(value: string) {
+  const normalized = value.trim();
+  if (!/^-?\d+$/.test(normalized)) return undefined;
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+function searchCopy(castle: RealmNavigatorCastle) {
+  return `${castle.label} ${castle.name} ${castle.q},${castle.r} q ${castle.q} r ${castle.r}`
+    .toLocaleLowerCase();
+}
+
 export function RealmAccessibilityControls({
-  cells,
-  keepCoord,
-  selectedCoord,
-  onHover,
-  onFocusMap,
-  onSelect
+  id,
+  open,
+  castles,
+  ownCastleId,
+  selectedCastleId,
+  onRequestOpen,
+  onRequestClose,
+  onActivateCastle,
+  coordinateJump,
+  triggerRef
 }: RealmAccessibilityControlsProps) {
-  const selectedIndex = useMemo(() => cells.findIndex((cell) => (
-    sameCoord(cell.coord, selectedCoord)
-  )), [cells, selectedCoord]);
-  const pageCount = Math.max(1, Math.ceil(cells.length / REALM_CELL_NAVIGATOR_PAGE_SIZE));
-  const [page, setPage] = useState(() => Math.max(
-    0,
-    Math.floor(Math.max(0, selectedIndex) / REALM_CELL_NAVIGATOR_PAGE_SIZE)
-  ));
+  const [search, setSearch] = useState('');
+  const [qValue, setQValue] = useState('');
+  const [rValue, setRValue] = useState('');
+  const [jumpError, setJumpError] = useState<string>();
+  const internalTriggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const wasOpenRef = useRef(false);
+  const headingId = `${id}-title`;
+  const searchId = `${id}-search`;
+  const qId = `${id}-q`;
+  const rId = `${id}-r`;
+  const jumpErrorId = `${id}-jump-error`;
+
+  const setTriggerRef = useCallback((element: HTMLButtonElement | null) => {
+    internalTriggerRef.current = element;
+    assignRef(triggerRef, element);
+  }, [triggerRef]);
 
   useEffect(() => {
-    if (selectedIndex < 0) return;
-    setPage(Math.floor(selectedIndex / REALM_CELL_NAVIGATOR_PAGE_SIZE));
-  }, [selectedIndex]);
+    if (open) {
+      setSearch('');
+      setQValue('');
+      setRValue('');
+      setJumpError(undefined);
+      searchRef.current?.focus({ preventScroll: true });
+    } else if (wasOpenRef.current) {
+      internalTriggerRef.current?.focus({ preventScroll: true });
+    }
+    wasOpenRef.current = open;
+  }, [open]);
 
-  useEffect(() => {
-    setPage((current) => Math.min(current, pageCount - 1));
-  }, [pageCount]);
+  const visibleCastles = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return query
+      ? castles.filter((castle) => searchCopy(castle).includes(query))
+      : castles;
+  }, [castles, search]);
 
-  const visibleCells = cells.slice(
-    page * REALM_CELL_NAVIGATOR_PAGE_SIZE,
-    (page + 1) * REALM_CELL_NAVIGATOR_PAGE_SIZE
-  );
+  const handleDialogKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    onRequestClose('escape');
+  };
+
+  const handleJump = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!coordinateJump) return;
+    const q = strictInteger(qValue);
+    const r = strictInteger(rValue);
+    if (q === undefined || r === undefined) {
+      setJumpError('Enter whole-number q and r coordinates.');
+      return;
+    }
+    const coord = { q, r };
+    let valid = false;
+    try {
+      valid = coordinateJump.validate(coord);
+    } catch {
+      valid = false;
+    }
+    if (!valid) {
+      setJumpError('That coordinate is not available in this realm.');
+      return;
+    }
+    setJumpError(undefined);
+    coordinateJump.onActivate(coord);
+  };
 
   return (
-    <details className="realm-cell-navigator">
-      <summary>Traversable Cells <span>{cells.length}</span></summary>
-      <div className="realm-cell-navigator__map-focus">
-        <button
-          aria-label="Focus realm map for arrow-key navigation"
-          onClick={onFocusMap}
-          type="button"
-        >
-          Focus map
-        </button>
-      </div>
-      {pageCount > 1 ? (
-        <div className="realm-cell-navigator__pagination" aria-label="Realm cell pages">
-          <button
-            type="button"
-            disabled={page === 0}
-            onClick={() => setPage((current) => Math.max(0, current - 1))}
-          >
-            Previous
-          </button>
-          <span aria-live="polite">Page {page + 1} of {pageCount}</span>
-          <button
-            type="button"
-            disabled={page >= pageCount - 1}
-            onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}
-          >
-            Next
-          </button>
-        </div>
-      ) : null}
-      <div
-        className="realm-cell-navigator__grid"
-        role="group"
-        aria-label={pageCount > 1 ? `Traversable realm cells, page ${page + 1}` : 'Traversable realm cells'}
+    <div className="realm-cell-navigator">
+      <button
+        ref={setTriggerRef}
+        type="button"
+        aria-controls={id}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={onRequestOpen}
       >
-        {visibleCells.map((cell) => {
-          const selected = sameCoord(selectedCoord, cell.coord);
-          const keep = sameCoord(keepCoord, cell.coord);
-          return (
+        Realm Navigator <span>{castles.length}</span>
+      </button>
+
+      {open ? (
+        <section
+          id={id}
+          className="realm-cell-navigator__dialog"
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby={headingId}
+          onKeyDown={handleDialogKeyDown}
+        >
+          <header className="realm-cell-navigator__heading">
+            <div>
+              <span>FOUNDED CASTLES</span>
+              <h2 id={headingId}>Realm Navigator</h2>
+            </div>
             <button
-              key={hexKey(cell.coord)}
               type="button"
-              aria-label={`Select cell ${cell.coord.q},${cell.coord.r}${keep ? ', your Hegemony keep' : ''}`}
-              aria-pressed={selected}
-              data-keep={keep ? 'true' : 'false'}
-              onFocus={() => onHover(cell.coord)}
-              onBlur={() => onHover(null)}
-              onClick={() => onSelect(cell.coord)}
+              onClick={() => onRequestClose('close-button')}
             >
-              {keep ? '◆ ' : ''}{cell.coord.q},{cell.coord.r}
+              CLOSE NAVIGATOR
             </button>
-          );
-        })}
-      </div>
-    </details>
+          </header>
+
+          <label htmlFor={searchId}>Search founded castles</label>
+          <input
+            ref={searchRef}
+            id={searchId}
+            type="search"
+            autoComplete="off"
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+            placeholder="Player, castle, or coordinates"
+          />
+
+          {visibleCastles.length > 0 ? (
+            <ul className="realm-cell-navigator__castles" aria-label="Founded castles">
+              {visibleCastles.map((castle) => {
+                const own = castle.castleId === ownCastleId;
+                const selected = castle.castleId === selectedCastleId;
+                const status = [own ? 'your castle' : '', selected ? 'selected' : '']
+                  .filter(Boolean)
+                  .join(', ');
+                return (
+                  <li key={castle.castleId}>
+                    <button
+                      type="button"
+                      aria-label={`Inspect ${castle.label}, ${castle.name}, q ${castle.q}, r ${castle.r}${status ? `, ${status}` : ''}`}
+                      aria-pressed={selected}
+                      data-own={own ? 'true' : 'false'}
+                      onClick={() => onActivateCastle(castle)}
+                    >
+                      <strong>{castle.label}</strong>
+                      <span>{castle.name}</span>
+                      <small>q {castle.q} · r {castle.r}</small>
+                      {own ? <em>YOUR CASTLE</em> : null}
+                      {selected ? <em>SELECTED</em> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p role="status">
+              {castles.length > 0
+                ? 'No founded castles match this search.'
+                : 'No founded castles are available.'}
+            </p>
+          )}
+
+          {coordinateJump ? (
+            <form className="realm-cell-navigator__jump" onSubmit={handleJump}>
+              <fieldset>
+                <legend>Jump to a realm coordinate</legend>
+                <label htmlFor={qId}>q coordinate</label>
+                <input
+                  id={qId}
+                  aria-describedby={jumpError ? jumpErrorId : undefined}
+                  aria-invalid={jumpError ? 'true' : undefined}
+                  inputMode="numeric"
+                  maxLength={12}
+                  value={qValue}
+                  onChange={(event) => setQValue(event.currentTarget.value)}
+                />
+                <label htmlFor={rId}>r coordinate</label>
+                <input
+                  id={rId}
+                  aria-describedby={jumpError ? jumpErrorId : undefined}
+                  aria-invalid={jumpError ? 'true' : undefined}
+                  inputMode="numeric"
+                  maxLength={12}
+                  value={rValue}
+                  onChange={(event) => setRValue(event.currentTarget.value)}
+                />
+                <button type="submit">JUMP TO CELL</button>
+              </fieldset>
+              {jumpError ? <p id={jumpErrorId} role="alert">{jumpError}</p> : null}
+            </form>
+          ) : null}
+        </section>
+      ) : null}
+    </div>
   );
 }

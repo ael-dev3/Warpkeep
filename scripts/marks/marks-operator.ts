@@ -5,11 +5,6 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import {
-  FarcasterProfilePolicyError,
-  buildTrustedFarcasterSnapshot,
-  privacySafeProfileSummary,
-} from './farcaster-profile-policy';
-import {
   MarksOperatorError,
   reconcilePrivacySafeAggregates,
   runDryScan,
@@ -32,11 +27,10 @@ import {
 import { SNAP_MARK_POLICY_ID, SnapBurnPolicyError } from './snap-burn-policy';
 
 const MAX_PRIVATE_INPUT_BYTES = 2 * 1024 * 1024;
-const MAX_PROFILE_RESPONSE_BYTES = 2 * 1024 * 1024;
 const DEFAULT_REPORT_DIRECTORY = join(homedir(), 'Library', 'Application Support', 'Warpkeep', 'marks', 'reports');
-const COMMANDS = new Set(['plan', 'refresh-profiles', 'scan', 'apply', 'reconcile', 'inspect']);
+const COMMANDS = new Set(['plan', 'scan', 'apply', 'reconcile', 'inspect']);
 
-type CommandName = 'plan' | 'refresh-profiles' | 'scan' | 'apply' | 'reconcile' | 'inspect';
+type CommandName = 'plan' | 'scan' | 'apply' | 'reconcile' | 'inspect';
 type ParsedArguments = Readonly<{
   command: CommandName;
   reportDirectory: string;
@@ -152,7 +146,7 @@ function assertCommandFlags(arguments_: ParsedArguments): void {
     if (confirm) throw new MarksOperatorError('MARKS_ARGUMENT_INVALID');
     return;
   }
-  if (command === 'refresh-profiles' || command === 'reconcile') {
+  if (command === 'reconcile') {
     if (!inputStdin) throw new MarksOperatorError('MARKS_PRIVATE_INPUT_REQUIRED');
     if (dryRun || confirm) throw new MarksOperatorError('MARKS_ARGUMENT_INVALID');
     return;
@@ -218,7 +212,7 @@ function positiveIntegerOrZero(value: unknown): number {
 
 function writeReport(
   arguments_: ParsedArguments,
-  command: 'plan' | 'refresh-profiles' | 'scan' | 'reconcile',
+  command: 'plan' | 'scan' | 'reconcile',
   report: unknown,
 ): void {
   writePrivateOperatorReport({
@@ -232,7 +226,7 @@ async function runPlan(arguments_: ParsedArguments) {
   const report = Object.freeze({
     schemaVersion: 1,
     command: 'plan',
-    productVersion: '0.3.2',
+    productVersion: '0.3.3',
     policyId: SNAP_MARK_POLICY_ID,
     networkDefault: false,
     productionMutationAvailable: false,
@@ -243,49 +237,6 @@ async function runPlan(arguments_: ParsedArguments) {
   });
   writeReport(arguments_, 'plan', report);
   return Object.freeze({ reportWritten: true, applyAvailable: false, networkUsed: false });
-}
-
-async function runRefreshProfiles(arguments_: ParsedArguments, input: UnknownRecord) {
-  onlyKeys(input, ['requests'], 'MARKS_PROFILE_REQUESTS_INVALID');
-  if (!Array.isArray(input.requests) || input.requests.length < 1 || input.requests.length > 100) {
-    throw new MarksOperatorError('MARKS_PROFILE_REQUESTS_INVALID');
-  }
-  const summaries = [];
-  for (const value of input.requests) {
-    const request = record(value, 'MARKS_PROFILE_REQUESTS_INVALID');
-    onlyKeys(
-      request,
-      ['fid', 'userData', 'custodyEvents', 'verifications'],
-      'MARKS_PROFILE_REQUESTS_INVALID',
-    );
-    const fid = decimalBigInt(request.fid, 'MARKS_PROFILE_REQUESTS_INVALID');
-    const [userDataResponse, custodyEventsResponse, verificationsResponse] = await Promise.all([
-      fetchBoundedJson(privateEndpoint(request.userData), { maximumBytes: MAX_PROFILE_RESPONSE_BYTES }),
-      fetchBoundedJson(privateEndpoint(request.custodyEvents), { maximumBytes: MAX_PROFILE_RESPONSE_BYTES }),
-      fetchBoundedJson(privateEndpoint(request.verifications), { maximumBytes: MAX_PROFILE_RESPONSE_BYTES }),
-    ]);
-    summaries.push(privacySafeProfileSummary(buildTrustedFarcasterSnapshot({
-      fid,
-      userDataResponse,
-      custodyEventsResponse,
-      verificationsResponse,
-    })));
-  }
-  const report = Object.freeze({
-    schemaVersion: 1,
-    command: 'refresh-profiles',
-    dryRun: true,
-    requestedProfiles: summaries.length,
-    resolvedProfiles: summaries.filter(summary => summary.resolved).length,
-    profilesWithUsername: summaries.filter(summary => summary.hasUsername).length,
-    profilesWithDisplayName: summaries.filter(summary => summary.hasDisplayName).length,
-    profilesWithPfp: summaries.filter(summary => summary.hasPfp).length,
-    profilesWithBio: summaries.filter(summary => summary.hasBio).length,
-    privateWalletLinks: summaries.reduce((total, summary) => total + summary.privateWalletCount, 0),
-    persistencePerformed: false,
-  });
-  writeReport(arguments_, 'refresh-profiles', report);
-  return Object.freeze({ reportWritten: true, networkUsed: true, persistencePerformed: false });
 }
 
 async function runScan(arguments_: ParsedArguments, input: UnknownRecord) {
@@ -361,7 +312,6 @@ export async function executeOperator(arguments_: ParsedArguments): Promise<unkn
   return withExclusiveOperatorLock(arguments_.reportDirectory, async () => {
     const input = arguments_.inputStdin ? await readPrivateInput() : undefined;
     if (arguments_.command === 'plan') return runPlan(arguments_);
-    if (arguments_.command === 'refresh-profiles') return runRefreshProfiles(arguments_, input as UnknownRecord);
     if (arguments_.command === 'scan') return runScan(arguments_, input as UnknownRecord);
     if (arguments_.command === 'reconcile') return runReconcile(arguments_, input as UnknownRecord);
     throw new MarksOperatorError('MARKS_COMMAND_INVALID');
@@ -373,7 +323,6 @@ function publicErrorCode(error: unknown): string {
     error instanceof MarksOperatorError
     || error instanceof MarksTransportError
     || error instanceof SnapBurnPolicyError
-    || error instanceof FarcasterProfilePolicyError
   ) {
     return error.code;
   }

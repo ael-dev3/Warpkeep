@@ -4,6 +4,68 @@ import type { TerrainBounds } from './createTerrainGeometry';
 
 export type RealmCameraMode = 'realm' | 'approach' | 'keep';
 
+export type RealmCameraPoint = Readonly<{
+  x: number;
+  y: number;
+  z: number;
+}>;
+
+export type RealmCameraViewport = Readonly<{
+  width: number;
+  height: number;
+}>;
+
+export type RealmCameraInsets = Readonly<{
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}>;
+
+export type RealmCameraInsetsInput = Readonly<Partial<RealmCameraInsets>>;
+
+/**
+ * UI insets are measured inward from the device-safe boundary. The resolver
+ * adds them to the device safe-area insets and clamps pathological inputs to a
+ * non-empty gameplay rectangle.
+ */
+export type RealmCameraComposition = Readonly<{
+  insets?: RealmCameraInsetsInput;
+  safeAreaInsets?: RealmCameraInsetsInput;
+  focusPadding?: number;
+}>;
+
+export type RealmSafeViewport = Readonly<{
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+  aspect: number;
+}>;
+
+export type RealmScreenProjection = Readonly<{
+  x: number;
+  y: number;
+  ndcX: number;
+  ndcY: number;
+  depth: number;
+  visible: boolean;
+}>;
+
+export type RealmScreenBounds = Readonly<{
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  width: number;
+  height: number;
+  visible: boolean;
+}>;
+
 export type RealmKeepFocus = Readonly<{
   x: number;
   y: number;
@@ -25,6 +87,7 @@ export type RealmCameraSpec = Readonly<{
   focusEnd: number;
   zoomDamping: number;
   panDamping: number;
+  compositionDamping?: number;
   panMargin: number;
   fogNear: number;
   fogFar: number;
@@ -42,11 +105,14 @@ export type RealmCameraPose = Readonly<{
   fogNear: number;
   fogFar: number;
   mode: RealmCameraMode;
+  focus: RealmCameraPoint;
+  safeViewport: RealmSafeViewport;
+  viewport: RealmCameraViewport;
 }>;
 
 export const DEFAULT_REALM_CAMERA_SPEC: RealmCameraSpec = {
-  overviewFov: 20,
-  closeFov: 42,
+  overviewFov: 26,
+  closeFov: 18,
   overviewPitchDegrees: 48,
   closePitchDegrees: 27,
   azimuthDegrees: 43,
@@ -55,10 +121,20 @@ export const DEFAULT_REALM_CAMERA_SPEC: RealmCameraSpec = {
   focusEnd: 0.8,
   zoomDamping: 10,
   panDamping: 13,
+  compositionDamping: 11,
   panMargin: 0.72,
   fogNear: 28,
   fogFar: 58
 };
+
+const DEFAULT_FOCUS_PADDING = 24;
+const MIN_SAFE_VIEWPORT_SIZE = 1;
+const ZERO_INSETS: RealmCameraInsets = Object.freeze({
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0
+});
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -83,6 +159,62 @@ function geometricLerp(first: number, second: number, amount: number) {
 
 function radians(degrees: number) {
   return (degrees * Math.PI) / 180;
+}
+
+function normalizeViewport(viewport: RealmCameraViewport): RealmCameraViewport {
+  return {
+    width: Math.max(1, finite(viewport.width, 1)),
+    height: Math.max(1, finite(viewport.height, 1))
+  };
+}
+
+function normalizeInsets(insets: RealmCameraInsetsInput | undefined): RealmCameraInsets {
+  return {
+    top: Math.max(0, finite(insets?.top ?? 0, 0)),
+    right: Math.max(0, finite(insets?.right ?? 0, 0)),
+    bottom: Math.max(0, finite(insets?.bottom ?? 0, 0)),
+    left: Math.max(0, finite(insets?.left ?? 0, 0))
+  };
+}
+
+function fitInsetPair(first: number, second: number, available: number) {
+  const maximum = Math.max(0, available - MIN_SAFE_VIEWPORT_SIZE);
+  const total = first + second;
+  if (total <= maximum || total <= 0) return [first, second] as const;
+  const scale = maximum / total;
+  return [first * scale, second * scale] as const;
+}
+
+export function resolveRealmSafeViewport(
+  viewportInput: RealmCameraViewport,
+  composition: RealmCameraComposition = {}
+): RealmSafeViewport {
+  const viewport = normalizeViewport(viewportInput);
+  const insets = normalizeInsets(composition.insets);
+  const safeAreaInsets = normalizeInsets(composition.safeAreaInsets);
+  const [left, right] = fitInsetPair(
+    insets.left + safeAreaInsets.left,
+    insets.right + safeAreaInsets.right,
+    viewport.width
+  );
+  const [top, bottom] = fitInsetPair(
+    insets.top + safeAreaInsets.top,
+    insets.bottom + safeAreaInsets.bottom,
+    viewport.height
+  );
+  const width = Math.max(MIN_SAFE_VIEWPORT_SIZE, viewport.width - left - right);
+  const height = Math.max(MIN_SAFE_VIEWPORT_SIZE, viewport.height - top - bottom);
+  return {
+    top,
+    right: viewport.width - right,
+    bottom: viewport.height - bottom,
+    left,
+    width,
+    height,
+    centerX: left + width * 0.5,
+    centerY: top + height * 0.5,
+    aspect: Math.max(0.01, width / height)
+  };
 }
 
 const OVERVIEW_FIT_MARGIN = 1.02;
@@ -141,6 +273,286 @@ export function fitRealmOverview(
   );
 }
 
+function normalizeKeepFocus(
+  focus: RealmKeepFocus,
+  fallback: RealmKeepFocus = { x: 0, y: 0, z: 0, height: 1, footprintDiameter: 1 }
+): RealmKeepFocus {
+  return {
+    x: finite(focus.x, fallback.x),
+    y: finite(focus.y, fallback.y),
+    z: finite(focus.z, fallback.z),
+    height: Math.max(0.001, finite(focus.height, fallback.height)),
+    footprintDiameter: Math.max(
+      0.001,
+      finite(focus.footprintDiameter, fallback.footprintDiameter)
+    )
+  };
+}
+
+function focusPivot(focusInput: RealmKeepFocus): RealmCameraPoint {
+  const focus = normalizeKeepFocus(focusInput);
+  return {
+    x: focus.x,
+    y: focus.y + focus.height * 0.38,
+    z: focus.z
+  };
+}
+
+function focusBoundsCorners(focusInput: RealmKeepFocus): readonly RealmCameraPoint[] {
+  const focus = normalizeKeepFocus(focusInput);
+  const radius = focus.footprintDiameter * 0.5;
+  const corners: RealmCameraPoint[] = [];
+  [-radius, radius].forEach((xOffset) => {
+    [0, focus.height].forEach((yOffset) => {
+      [-radius, radius].forEach((zOffset) => {
+        corners.push({
+          x: focus.x + xOffset,
+          y: focus.y + yOffset,
+          z: focus.z + zOffset
+        });
+      });
+    });
+  });
+  return corners;
+}
+
+type RealmCameraGeometry = Readonly<{
+  position: RealmCameraPoint;
+  target: RealmCameraPoint;
+  distance: number;
+}>;
+
+function deriveFramedCameraGeometry(
+  focus: RealmCameraPoint,
+  visibleHalfHeight: number,
+  fov: number,
+  pitchDegrees: number,
+  azimuthDegrees: number,
+  viewportInput: RealmCameraViewport,
+  safeViewport: RealmSafeViewport
+): RealmCameraGeometry {
+  const viewport = normalizeViewport(viewportInput);
+  const aspect = viewport.width / viewport.height;
+  const pitch = radians(pitchDegrees);
+  const azimuth = radians(azimuthDegrees);
+  const right = {
+    x: Math.cos(azimuth),
+    y: 0,
+    z: -Math.sin(azimuth)
+  };
+  const up = {
+    x: -Math.sin(azimuth) * Math.sin(pitch),
+    y: Math.cos(pitch),
+    z: -Math.cos(azimuth) * Math.sin(pitch)
+  };
+  const desiredNdcX = (safeViewport.centerX / viewport.width) * 2 - 1;
+  const desiredNdcY = 1 - (safeViewport.centerY / viewport.height) * 2;
+  const shiftRight = -desiredNdcX * visibleHalfHeight * aspect;
+  const shiftUp = -desiredNdcY * visibleHalfHeight;
+  const target = {
+    x: focus.x + right.x * shiftRight + up.x * shiftUp,
+    y: focus.y + right.y * shiftRight + up.y * shiftUp,
+    z: focus.z + right.z * shiftRight + up.z * shiftUp
+  };
+  const distance = visibleHalfHeight / Math.tan(radians(fov) / 2);
+  const horizontalDistance = Math.cos(pitch) * distance;
+  return {
+    target,
+    position: {
+      x: target.x + Math.sin(azimuth) * horizontalDistance,
+      y: target.y + Math.sin(pitch) * distance,
+      z: target.z + Math.cos(azimuth) * horizontalDistance
+    },
+    distance
+  };
+}
+
+function projectRealmPointFromView(
+  position: RealmCameraPoint,
+  target: RealmCameraPoint,
+  fov: number,
+  point: RealmCameraPoint,
+  viewportInput: RealmCameraViewport
+): RealmScreenProjection {
+  const viewport = normalizeViewport(viewportInput);
+  const forwardVector = {
+    x: target.x - position.x,
+    y: target.y - position.y,
+    z: target.z - position.z
+  };
+  const forwardLength = Math.max(
+    0.000001,
+    Math.hypot(forwardVector.x, forwardVector.y, forwardVector.z)
+  );
+  const forward = {
+    x: forwardVector.x / forwardLength,
+    y: forwardVector.y / forwardLength,
+    z: forwardVector.z / forwardLength
+  };
+  const rightLength = Math.max(0.000001, Math.hypot(forward.z, forward.x));
+  const right = {
+    x: -forward.z / rightLength,
+    y: 0,
+    z: forward.x / rightLength
+  };
+  const up = {
+    x: right.y * forward.z - right.z * forward.y,
+    y: right.z * forward.x - right.x * forward.z,
+    z: right.x * forward.y - right.y * forward.x
+  };
+  const offset = {
+    x: point.x - position.x,
+    y: point.y - position.y,
+    z: point.z - position.z
+  };
+  const depth = offset.x * forward.x + offset.y * forward.y + offset.z * forward.z;
+  const cameraX = offset.x * right.x + offset.y * right.y + offset.z * right.z;
+  const cameraY = offset.x * up.x + offset.y * up.y + offset.z * up.z;
+  const verticalScale = Math.max(0.000001, depth * Math.tan(radians(fov) / 2));
+  const ndcX = cameraX / (verticalScale * (viewport.width / viewport.height));
+  const ndcY = cameraY / verticalScale;
+  const x = (ndcX * 0.5 + 0.5) * viewport.width;
+  const y = (-ndcY * 0.5 + 0.5) * viewport.height;
+  return {
+    x,
+    y,
+    ndcX,
+    ndcY,
+    depth,
+    visible: depth > 0
+      && Number.isFinite(x)
+      && Number.isFinite(y)
+      && ndcX >= -1
+      && ndcX <= 1
+      && ndcY >= -1
+      && ndcY <= 1
+  };
+}
+
+export function projectRealmPointToViewport(
+  pose: RealmCameraPose,
+  point: RealmCameraPoint,
+  viewport: RealmCameraViewport = pose.viewport
+): RealmScreenProjection {
+  return projectRealmPointFromView(pose.position, pose.target, pose.fov, point, viewport);
+}
+
+function boundsFromProjections(
+  projections: readonly RealmScreenProjection[]
+): RealmScreenBounds {
+  const minX = Math.min(...projections.map((projection) => projection.x));
+  const maxX = Math.max(...projections.map((projection) => projection.x));
+  const minY = Math.min(...projections.map((projection) => projection.y));
+  const maxY = Math.max(...projections.map((projection) => projection.y));
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+    visible: projections.every((projection) => projection.visible)
+  };
+}
+
+export function projectRealmFocusBounds(
+  pose: RealmCameraPose,
+  focus: RealmKeepFocus,
+  viewport: RealmCameraViewport = pose.viewport
+): RealmScreenBounds {
+  return boundsFromProjections(
+    focusBoundsCorners(focus).map((corner) => projectRealmPointToViewport(pose, corner, viewport))
+  );
+}
+
+export function isRealmScreenBoundsInsideSafeViewport(
+  bounds: RealmScreenBounds,
+  safeViewport: RealmSafeViewport,
+  padding = 0
+) {
+  const safePadding = clamp(
+    finite(padding, 0),
+    0,
+    Math.max(0, Math.min(safeViewport.width, safeViewport.height) * 0.45)
+  );
+  return bounds.visible
+    && bounds.minX >= safeViewport.left + safePadding - 0.000001
+    && bounds.maxX <= safeViewport.right - safePadding + 0.000001
+    && bounds.minY >= safeViewport.top + safePadding - 0.000001
+    && bounds.maxY <= safeViewport.bottom - safePadding + 0.000001;
+}
+
+export type RealmFocusFitOptions = Readonly<{
+  fov?: number;
+  pitchDegrees?: number;
+  azimuthDegrees?: number;
+  minimumHalfHeight?: number;
+}>;
+
+export function fitRealmFocusHalfHeight(
+  focus: RealmKeepFocus,
+  viewportInput: RealmCameraViewport,
+  composition: RealmCameraComposition = {},
+  options: RealmFocusFitOptions = {}
+) {
+  const viewport = normalizeViewport(viewportInput);
+  const safeViewport = resolveRealmSafeViewport(viewport, composition);
+  const fov = clamp(finite(options.fov ?? DEFAULT_REALM_CAMERA_SPEC.closeFov, 18), 1, 120);
+  const pitchDegrees = clamp(
+    finite(options.pitchDegrees ?? DEFAULT_REALM_CAMERA_SPEC.closePitchDegrees, 27),
+    1,
+    89
+  );
+  const azimuthDegrees = finite(
+    options.azimuthDegrees ?? DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees,
+    43
+  );
+  const minimumHalfHeight = Math.max(
+    0.05,
+    finite(options.minimumHalfHeight ?? DEFAULT_REALM_CAMERA_SPEC.closeHalfHeight, 1.62)
+  );
+  const padding = clamp(
+    finite(composition.focusPadding ?? DEFAULT_FOCUS_PADDING, DEFAULT_FOCUS_PADDING),
+    0,
+    Math.max(0, Math.min(safeViewport.width, safeViewport.height) * 0.45)
+  );
+  const pivot = focusPivot(focus);
+  const corners = focusBoundsCorners(focus);
+  const fits = (visibleHalfHeight: number) => {
+    const geometry = deriveFramedCameraGeometry(
+      pivot,
+      visibleHalfHeight,
+      fov,
+      pitchDegrees,
+      azimuthDegrees,
+      viewport,
+      safeViewport
+    );
+    const bounds = boundsFromProjections(corners.map((corner) => projectRealmPointFromView(
+      geometry.position,
+      geometry.target,
+      fov,
+      corner,
+      viewport
+    )));
+    return isRealmScreenBoundsInsideSafeViewport(bounds, safeViewport, padding);
+  };
+
+  if (fits(minimumHalfHeight)) return minimumHalfHeight;
+  let lower = minimumHalfHeight;
+  let upper = minimumHalfHeight;
+  for (let attempt = 0; attempt < 24 && !fits(upper); attempt += 1) {
+    lower = upper;
+    upper = Math.min(100_000, upper * 1.5);
+  }
+  for (let iteration = 0; iteration < 36; iteration += 1) {
+    const middle = (lower + upper) * 0.5;
+    if (fits(middle)) upper = middle;
+    else lower = middle;
+  }
+  return upper;
+}
+
 export function clampRealmPan(
   pan: RealmCameraPan,
   bounds: TerrainBounds,
@@ -163,53 +575,87 @@ export function clampRealmPan(
   };
 }
 
-export function deriveRealmCameraPose(
+export function deriveRealmCameraPoseForViewport(
   zoomInput: number,
   panInput: RealmCameraPan,
   bounds: TerrainBounds,
   keep: RealmKeepFocus,
-  aspectInput: number,
+  viewportInput: RealmCameraViewport,
+  composition: RealmCameraComposition = {},
   spec: RealmCameraSpec = DEFAULT_REALM_CAMERA_SPEC
 ): RealmCameraPose {
+  const viewport = normalizeViewport(viewportInput);
+  const safeViewport = resolveRealmSafeViewport(viewport, composition);
+  const normalizedKeep = normalizeKeepFocus(keep);
   const zoom = clamp(finite(zoomInput, 0), 0, 1);
-  const aspect = Math.max(0.35, finite(aspectInput, 16 / 9));
+  const aspect = viewport.width / viewport.height;
   const curve = smootherstep(zoom);
   const focusBlend = smootherstep(
     (zoom - spec.focusStart) / Math.max(0.001, spec.focusEnd - spec.focusStart)
   );
+  const overviewFov = clamp(finite(spec.overviewFov, 26), 1, 120);
+  const closeFov = Math.min(overviewFov, clamp(finite(spec.closeFov, 18), 1, 120));
+  const overviewPitchDegrees = clamp(finite(spec.overviewPitchDegrees, 48), 1, 89);
+  const closePitchDegrees = clamp(finite(spec.closePitchDegrees, 27), 1, 89);
   const overviewHalfHeight = fitRealmOverview(
     bounds,
-    aspect,
-    spec.overviewPitchDegrees,
+    safeViewport.aspect,
+    overviewPitchDegrees,
     spec.azimuthDegrees
+  ) * (viewport.height / safeViewport.height);
+  const closeMinimumHalfHeight = Math.max(
+    Math.max(0.05, finite(spec.closeHalfHeight, 1.62))
+      * (viewport.height / safeViewport.height),
+    normalizedKeep.footprintDiameter
+      * 0.55
+      * (viewport.height / safeViewport.width)
   );
-  const closeHalfHeight = Math.max(
-    spec.closeHalfHeight,
-    (Math.max(0.001, finite(keep.footprintDiameter, 1.48)) * 0.55) / aspect
+  const closeHalfHeight = fitRealmFocusHalfHeight(
+    normalizedKeep,
+    viewport,
+    composition,
+    {
+      fov: closeFov,
+      pitchDegrees: closePitchDegrees,
+      azimuthDegrees: spec.azimuthDegrees,
+      minimumHalfHeight: closeMinimumHalfHeight
+    }
   );
   const visibleHalfHeight = geometricLerp(overviewHalfHeight, closeHalfHeight, curve);
-  const clampedPan = clampRealmPan(panInput, bounds, zoom, visibleHalfHeight, aspect, spec.panMargin);
-  const fov = lerp(spec.overviewFov, spec.closeFov, curve);
-  const pitchDegrees = lerp(spec.overviewPitchDegrees, spec.closePitchDegrees, curve);
-  const distance = visibleHalfHeight / Math.tan(radians(fov) / 2);
-  const target = {
-    x: lerp(clampedPan.x, keep.x, focusBlend),
-    y: lerp(0, keep.y + keep.height * 0.38, focusBlend),
-    z: lerp(clampedPan.z, keep.z, focusBlend)
+  const safeVisibleHalfHeight = visibleHalfHeight * (safeViewport.height / viewport.height);
+  const clampedPan = clampRealmPan(
+    panInput,
+    bounds,
+    zoom,
+    safeVisibleHalfHeight,
+    safeViewport.aspect,
+    spec.panMargin
+  );
+  const fov = lerp(overviewFov, closeFov, curve);
+  const pitchDegrees = lerp(overviewPitchDegrees, closePitchDegrees, curve);
+  const keepPivot = focusPivot(normalizedKeep);
+  const focus = {
+    x: lerp(clampedPan.x, normalizedKeep.x, focusBlend),
+    y: lerp(0, keepPivot.y, focusBlend),
+    z: lerp(clampedPan.z, normalizedKeep.z, focusBlend)
   };
-  const pitch = radians(pitchDegrees);
-  const azimuth = radians(spec.azimuthDegrees);
-  const horizontalDistance = Math.cos(pitch) * distance;
-  const position = {
-    x: target.x + Math.sin(azimuth) * horizontalDistance,
-    y: target.y + Math.sin(pitch) * distance,
-    z: target.z + Math.cos(azimuth) * horizontalDistance
-  };
+  const geometry = deriveFramedCameraGeometry(
+    focus,
+    visibleHalfHeight,
+    fov,
+    pitchDegrees,
+    spec.azimuthDegrees,
+    viewport,
+    safeViewport
+  );
+  const { distance, position, target } = geometry;
   const span = Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ);
   const overviewFogNear = Math.max(spec.fogNear, distance - span * 0.2);
   const overviewFogFar = Math.max(spec.fogFar, distance + span * 1.28);
-  const fogNear = lerp(overviewFogNear, 8, curve);
-  const fogFar = Math.max(fogNear + 6, lerp(overviewFogFar, 22, curve));
+  const closeFogNear = distance + Math.max(2, normalizedKeep.footprintDiameter * 1.6);
+  const closeFogFar = Math.max(closeFogNear + 6, distance + 22);
+  const fogNear = lerp(overviewFogNear, closeFogNear, curve);
+  const fogFar = Math.max(fogNear + 6, lerp(overviewFogFar, closeFogFar, curve));
   return {
     position,
     target,
@@ -221,18 +667,135 @@ export function deriveRealmCameraPose(
     far: Math.max(60, distance + span * 4),
     fogNear,
     fogFar,
-    mode: zoom < 0.24 ? 'realm' : zoom < 0.76 ? 'approach' : 'keep'
+    mode: zoom < 0.24 ? 'realm' : zoom < 0.76 ? 'approach' : 'keep',
+    focus,
+    safeViewport,
+    viewport
   };
+}
+
+/**
+ * Backwards-compatible aspect-only derivation. New integrations should prefer
+ * deriveRealmCameraPoseForViewport so UI and device insets can participate in
+ * composition.
+ */
+export function deriveRealmCameraPose(
+  zoomInput: number,
+  panInput: RealmCameraPan,
+  bounds: TerrainBounds,
+  keep: RealmKeepFocus,
+  aspectInput: number,
+  spec: RealmCameraSpec = DEFAULT_REALM_CAMERA_SPEC
+): RealmCameraPose {
+  const aspect = Math.max(0.35, finite(aspectInput, 16 / 9));
+  return deriveRealmCameraPoseForViewport(
+    zoomInput,
+    panInput,
+    bounds,
+    keep,
+    { width: aspect * 1_000, height: 1_000 },
+    {},
+    spec
+  );
+}
+
+type RealmCompositionState = Readonly<{
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+  focusPadding: number;
+}>;
+
+function compositionState(composition: RealmCameraComposition = {}): RealmCompositionState {
+  const insets = normalizeInsets(composition.insets);
+  const safeAreaInsets = normalizeInsets(composition.safeAreaInsets);
+  return {
+    top: insets.top + safeAreaInsets.top,
+    right: insets.right + safeAreaInsets.right,
+    bottom: insets.bottom + safeAreaInsets.bottom,
+    left: insets.left + safeAreaInsets.left,
+    focusPadding: Math.max(
+      0,
+      finite(composition.focusPadding ?? DEFAULT_FOCUS_PADDING, DEFAULT_FOCUS_PADDING)
+    )
+  };
+}
+
+function stateComposition(state: RealmCompositionState): RealmCameraComposition {
+  return {
+    insets: {
+      top: state.top,
+      right: state.right,
+      bottom: state.bottom,
+      left: state.left
+    },
+    safeAreaInsets: ZERO_INSETS,
+    focusPadding: state.focusPadding
+  };
+}
+
+function lerpFocus(
+  current: RealmKeepFocus,
+  target: RealmKeepFocus,
+  amount: number
+): RealmKeepFocus {
+  return {
+    x: lerp(current.x, target.x, amount),
+    y: lerp(current.y, target.y, amount),
+    z: lerp(current.z, target.z, amount),
+    height: lerp(current.height, target.height, amount),
+    footprintDiameter: lerp(current.footprintDiameter, target.footprintDiameter, amount)
+  };
+}
+
+function lerpComposition(
+  current: RealmCompositionState,
+  target: RealmCompositionState,
+  amount: number
+): RealmCompositionState {
+  return {
+    top: lerp(current.top, target.top, amount),
+    right: lerp(current.right, target.right, amount),
+    bottom: lerp(current.bottom, target.bottom, amount),
+    left: lerp(current.left, target.left, amount),
+    focusPadding: lerp(current.focusPadding, target.focusPadding, amount)
+  };
+}
+
+function focusDistance(first: RealmKeepFocus, second: RealmKeepFocus) {
+  return Math.max(
+    Math.abs(first.x - second.x),
+    Math.abs(first.y - second.y),
+    Math.abs(first.z - second.z),
+    Math.abs(first.height - second.height),
+    Math.abs(first.footprintDiameter - second.footprintDiameter)
+  );
+}
+
+function compositionDistance(first: RealmCompositionState, second: RealmCompositionState) {
+  return Math.max(
+    Math.abs(first.top - second.top),
+    Math.abs(first.right - second.right),
+    Math.abs(first.bottom - second.bottom),
+    Math.abs(first.left - second.left),
+    Math.abs(first.focusPadding - second.focusPadding)
+  );
 }
 
 export type RealmCameraController = Readonly<{
   camera: THREE.PerspectiveCamera;
   dispose: () => void;
+  focusAt: (focus: RealmKeepFocus) => void;
   focusKeep: () => void;
   getMode: () => RealmCameraMode;
+  getPose: () => RealmCameraPose;
+  getSafeViewport: () => RealmSafeViewport;
   getZoom: () => number;
   panByPixels: (deltaX: number, deltaY: number) => void;
+  projectPoint: (point: RealmCameraPoint) => RealmScreenProjection;
   recenterKeep: () => void;
+  setComposition: (composition: RealmCameraComposition) => void;
   setKeepFocus: (focus: RealmKeepFocus) => void;
   setViewport: (width: number, height: number) => void;
   showRealm: () => void;
@@ -247,6 +810,7 @@ export type CreateRealmCameraControllerOptions = Readonly<{
   reducedMotion: boolean;
   render: () => void;
   onModeChange?: (mode: RealmCameraMode) => void;
+  composition?: RealmCameraComposition;
   spec?: RealmCameraSpec;
 }>;
 
@@ -265,21 +829,37 @@ export function createRealmCameraController(
     z: (options.bounds.minZ + options.bounds.maxZ) / 2
   };
   let targetPan = { ...currentPan };
-  let keepFocus = { ...options.keepFocus };
+  let keepFocus = normalizeKeepFocus(options.keepFocus);
+  let currentFocus = { ...keepFocus };
+  let targetFocus = { ...keepFocus };
+  let targetFocusIsKeep = true;
+  let currentComposition = compositionState(options.composition);
+  let targetComposition = { ...currentComposition };
   let previousTime = 0;
   let frame = 0;
   let disposed = false;
   let mode: RealmCameraMode = 'realm';
+  let lastPose = deriveRealmCameraPoseForViewport(
+    currentZoom,
+    currentPan,
+    options.bounds,
+    currentFocus,
+    { width, height },
+    stateComposition(currentComposition),
+    spec
+  );
 
   const applyPose = () => {
-    const pose = deriveRealmCameraPose(
+    const pose = deriveRealmCameraPoseForViewport(
       currentZoom,
       currentPan,
       options.bounds,
-      keepFocus,
-      width / Math.max(1, height),
+      currentFocus,
+      { width, height },
+      stateComposition(currentComposition),
       spec
     );
+    lastPose = pose;
     camera.position.set(pose.position.x, pose.position.y, pose.position.z);
     targetVector.set(pose.target.x, pose.target.y, pose.target.z);
     camera.fov = pose.fov;
@@ -300,13 +880,17 @@ export function createRealmCameraController(
   const settleImmediately = () => {
     currentZoom = targetZoom;
     currentPan = { ...targetPan };
+    currentFocus = { ...targetFocus };
+    currentComposition = { ...targetComposition };
     applyPose();
     options.render();
   };
 
   const isUnsettled = () => Math.abs(currentZoom - targetZoom) > 0.0004
     || Math.abs(currentPan.x - targetPan.x) > 0.001
-    || Math.abs(currentPan.z - targetPan.z) > 0.001;
+    || Math.abs(currentPan.z - targetPan.z) > 0.001
+    || focusDistance(currentFocus, targetFocus) > 0.0005
+    || compositionDistance(currentComposition, targetComposition) > 0.02;
 
   const tick = (time: number) => {
     frame = 0;
@@ -315,15 +899,27 @@ export function createRealmCameraController(
     previousTime = time;
     const zoomAlpha = dampingAlpha(spec.zoomDamping, deltaSeconds);
     const panAlpha = dampingAlpha(spec.panDamping, deltaSeconds);
+    const compositionAlpha = dampingAlpha(
+      finite(spec.compositionDamping ?? DEFAULT_REALM_CAMERA_SPEC.compositionDamping ?? 11, 11),
+      deltaSeconds
+    );
     currentZoom = lerp(currentZoom, targetZoom, zoomAlpha);
     currentPan = {
       x: lerp(currentPan.x, targetPan.x, panAlpha),
       z: lerp(currentPan.z, targetPan.z, panAlpha)
     };
+    currentFocus = lerpFocus(currentFocus, targetFocus, panAlpha);
+    currentComposition = lerpComposition(
+      currentComposition,
+      targetComposition,
+      compositionAlpha
+    );
     const unsettled = isUnsettled();
     if (!unsettled) {
       currentZoom = targetZoom;
       currentPan = { ...targetPan };
+      currentFocus = { ...targetFocus };
+      currentComposition = { ...targetComposition };
     }
     applyPose();
     options.render();
@@ -344,12 +940,21 @@ export function createRealmCameraController(
 
   const setZoomTarget = (next: number) => {
     targetZoom = clamp(next, 0, 1);
+    const targetPose = deriveRealmCameraPoseForViewport(
+      targetZoom,
+      targetPan,
+      options.bounds,
+      targetFocus,
+      { width, height },
+      stateComposition(targetComposition),
+      spec
+    );
     targetPan = clampRealmPan(
       targetPan,
       options.bounds,
       targetZoom,
-      deriveRealmCameraPose(targetZoom, targetPan, options.bounds, keepFocus, width / height, spec).visibleHalfHeight,
-      width / height,
+      targetPose.visibleHalfHeight * (targetPose.safeViewport.height / height),
+      targetPose.safeViewport.aspect,
       spec.panMargin
     );
     invalidate();
@@ -374,19 +979,30 @@ export function createRealmCameraController(
       if (frame) window.cancelAnimationFrame(frame);
       document.removeEventListener('visibilitychange', handleVisibility);
     },
+    focusAt: (next) => {
+      targetFocusIsKeep = false;
+      targetFocus = normalizeKeepFocus(next, targetFocus);
+      targetPan = { x: targetFocus.x, z: targetFocus.z };
+      setZoomTarget(1);
+    },
     focusKeep: () => {
+      targetFocusIsKeep = true;
+      targetFocus = { ...keepFocus };
       targetPan = { x: keepFocus.x, z: keepFocus.z };
       setZoomTarget(1);
     },
     getMode: () => mode,
+    getPose: () => lastPose,
+    getSafeViewport: () => lastPose.safeViewport,
     getZoom: () => targetZoom,
     panByPixels: (deltaX, deltaY) => {
-      const pose = deriveRealmCameraPose(
+      const pose = deriveRealmCameraPoseForViewport(
         targetZoom,
         targetPan,
         options.bounds,
-        keepFocus,
-        width / Math.max(1, height),
+        targetFocus,
+        { width, height },
+        stateComposition(targetComposition),
         spec
       );
       const worldPerPixel = (pose.visibleHalfHeight * 2) / Math.max(1, height);
@@ -396,42 +1012,65 @@ export function createRealmCameraController(
           - Math.sin(azimuth) * deltaY * worldPerPixel,
         z: targetPan.z + Math.sin(azimuth) * deltaX * worldPerPixel
           - Math.cos(azimuth) * deltaY * worldPerPixel
-      }, options.bounds, targetZoom, pose.visibleHalfHeight, width / Math.max(1, height), spec.panMargin);
+      },
+      options.bounds,
+      targetZoom,
+      pose.visibleHalfHeight * (pose.safeViewport.height / height),
+      pose.safeViewport.aspect,
+      spec.panMargin);
       invalidate();
     },
+    projectPoint: (point) => projectRealmPointToViewport(lastPose, point, { width, height }),
     recenterKeep: () => {
+      targetFocusIsKeep = true;
+      targetFocus = { ...keepFocus };
       targetPan = { x: keepFocus.x, z: keepFocus.z };
       invalidate();
     },
+    setComposition: (next) => {
+      targetComposition = compositionState(next);
+      invalidate();
+    },
     setKeepFocus: (next) => {
-      keepFocus = { ...next };
+      keepFocus = normalizeKeepFocus(next, keepFocus);
+      if (targetFocusIsKeep) targetFocus = { ...keepFocus };
       invalidate();
     },
     setViewport: (nextWidth, nextHeight) => {
       width = Math.max(1, finite(nextWidth, 1));
       height = Math.max(1, finite(nextHeight, 1));
+      const targetPose = deriveRealmCameraPoseForViewport(
+        targetZoom,
+        targetPan,
+        options.bounds,
+        targetFocus,
+        { width, height },
+        stateComposition(targetComposition),
+        spec
+      );
       targetPan = clampRealmPan(
         targetPan,
         options.bounds,
         targetZoom,
-        deriveRealmCameraPose(targetZoom, targetPan, options.bounds, keepFocus, width / height, spec).visibleHalfHeight,
-        width / height,
+        targetPose.visibleHalfHeight * (targetPose.safeViewport.height / height),
+        targetPose.safeViewport.aspect,
         spec.panMargin
       );
-      const currentPose = deriveRealmCameraPose(
+      const currentPose = deriveRealmCameraPoseForViewport(
         currentZoom,
         currentPan,
         options.bounds,
-        keepFocus,
-        width / height,
+        currentFocus,
+        { width, height },
+        stateComposition(currentComposition),
         spec
       );
       currentPan = clampRealmPan(
         currentPan,
         options.bounds,
         currentZoom,
-        currentPose.visibleHalfHeight,
-        width / height,
+        currentPose.visibleHalfHeight * (currentPose.safeViewport.height / height),
+        currentPose.safeViewport.aspect,
         spec.panMargin
       );
       if (options.reducedMotion) settleImmediately();
@@ -442,6 +1081,8 @@ export function createRealmCameraController(
       }
     },
     showRealm: () => {
+      targetFocusIsKeep = true;
+      targetFocus = { ...keepFocus };
       targetPan = { x: keepFocus.x, z: keepFocus.z };
       setZoomTarget(0);
     },

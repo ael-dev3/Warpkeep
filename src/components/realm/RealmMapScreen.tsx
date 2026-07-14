@@ -1,7 +1,9 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
+  useReducer,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent
@@ -15,20 +17,15 @@ import {
   type HexCoord
 } from '../../game/map/hexCoordinates';
 import { terrainCellByCoord } from '../../game/map/generateTerrainMap';
-import { HEGEMONY_GENESIS_001 } from '../../game/map/realmSeed';
 import {
   createRealmTerrainSurface,
   isPlayableRealmCoord,
   type RealmTerrainSurface
 } from '../../game/map/realmTerrainSurface';
 import { createHegemonyCastlePlacements } from '../../game/map/terrainPlacements';
-import type { RealmTerrainMap, TerrainCell } from '../../game/map/terrainTypes';
-import type {
-  WarpkeepPlayer,
-  WarpkeepRealmProfile,
-  WarpkeepWorldTileMetadata,
-  WarpkeepWorldTile
-} from '../../spacetime/warpkeepBackendTypes';
+import type { TerrainCell } from '../../game/map/terrainTypes';
+import type { CanonicalWarpkeepRealmSnapshot } from '../../spacetime/warpkeepBackendTypes';
+import { isCanonicalGenesisSnapshot } from '../../spacetime/canonicalGenesisSnapshot';
 import { CastleInspectionPanel } from './CastleInspectionPanel';
 import { RealmAccessibilityControls } from './RealmAccessibilityControls';
 import {
@@ -38,6 +35,7 @@ import {
 import { RealmHud } from './RealmHud';
 import {
   createRealmScene,
+  type RealmInteractionTarget,
   type RealmPeerCastleMarker,
   type RealmSceneHandle
 } from './createRealmScene';
@@ -45,7 +43,10 @@ import {
   pointyHexCorners,
   sampleLowlandsColor
 } from './createTerrainGeometry';
-import type { RealmCameraMode } from './realmCameraController';
+import type {
+  RealmCameraComposition,
+  RealmCameraMode
+} from './realmCameraController';
 import {
   REALM_QUALITY_SPECS,
   selectRealmQuality,
@@ -54,17 +55,26 @@ import {
 import type { KeepLoadStatus, RealmIdentity } from './realmTypes';
 import type { RealmCastleProjectionFrame } from './realmTypes';
 import {
+  castleProfileLabel,
   fallbackCastleProjection,
   publicProfileForCastle,
-  resolveVisibleCastleLabels
+  resolveVisibleCastleLabels,
+  type VisibleCastleLabel
 } from './realmCastlePresentation';
+import {
+  resolveMeasuredRealmLabelLayout,
+  type RealmLabelPlacement,
+  type RealmScreenRect
+} from './realmMeasuredLabelLayout';
+import {
+  createRealmInteractionState,
+  realmInteractionReducer,
+  resolveRealmEscape
+} from './realmInteractionState';
 import './RealmMapScreen.css';
 import './RealmCastlePresentation.css';
 
 const HEX_SIZE = 1;
-const DEFAULT_KEEP_COORD = { q: 0, r: 0 } as const;
-const DEFAULT_REALM_PLAYABLE_RADIUS = 4;
-const MAX_REALM_PLAYABLE_RADIUS = 20;
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 export type RealmCastleProjection = Readonly<{
@@ -78,24 +88,12 @@ export type RealmCastleProjection = Readonly<{
   foundedAt?: number;
 }>;
 
-const EMPTY_CASTLES: readonly RealmCastleProjection[] = Object.freeze([]);
-const EMPTY_TILES: readonly WarpkeepWorldTile[] = Object.freeze([]);
-const EMPTY_PLAYERS: readonly WarpkeepPlayer[] = Object.freeze([]);
 const EMPTY_PEER_CASTLE_MARKERS: readonly RealmPeerCastleMarker[] = Object.freeze([]);
 
 type RealmMapScreenProps = Readonly<{
   identity: RealmIdentity;
-  map?: RealmTerrainMap;
-  /** Server-owned coordinates/name/level replace the old fixed-center authority. */
-  ownCastle?: RealmCastleProjection;
-  /** Lightweight shared-world markers; only the owner loads the detailed GLB. */
-  otherCastles?: readonly RealmCastleProjection[];
-  /** Public shared state from the admission-gated subscription. */
-  sharedTiles?: readonly WarpkeepWorldTile[];
-  sharedPlayers?: readonly WarpkeepPlayer[];
-  sharedProfiles?: readonly WarpkeepRealmProfile[];
-  sharedTileMetadata?: readonly WarpkeepWorldTileMetadata[];
-  realmName?: string;
+  /** Privately branded, exact Genesis 001 renderer authority. */
+  snapshot: CanonicalWarpkeepRealmSnapshot;
   onRequestReturn: () => void;
   qualityOverride?: RealmQuality;
 }>;
@@ -184,65 +182,6 @@ function canUseWebGL() {
   }
 }
 
-function expectedHexDiscCellCount(radius: number) {
-  return 1 + 3 * radius * (radius + 1);
-}
-
-function completeDiscRadius(tiles: readonly WarpkeepWorldTile[]) {
-  if (tiles.length === 0) return DEFAULT_REALM_PLAYABLE_RADIUS;
-  const keys = new Set<string>();
-  let radius = 0;
-  for (const tile of tiles) {
-    if (
-      !Number.isSafeInteger(tile.q)
-      || !Number.isSafeInteger(tile.r)
-      || tile.key !== `${tile.q},${tile.r}`
-    ) return DEFAULT_REALM_PLAYABLE_RADIUS;
-    const coord = { q: tile.q, r: tile.r };
-    const key = hexKey(coord);
-    if (keys.has(key)) return DEFAULT_REALM_PLAYABLE_RADIUS;
-    keys.add(key);
-    radius = Math.max(radius, hexDistance(DEFAULT_KEEP_COORD, coord));
-  }
-  return Number.isSafeInteger(radius)
-    && radius >= DEFAULT_REALM_PLAYABLE_RADIUS
-    && radius <= MAX_REALM_PLAYABLE_RADIUS
-    && tiles.length === expectedHexDiscCellCount(radius)
-    ? radius
-    : DEFAULT_REALM_PLAYABLE_RADIUS;
-}
-
-function validMapForRadius(map: RealmTerrainMap | undefined, radius: number) {
-  if (!map || map.radius !== radius || map.cells.length !== expectedHexDiscCellCount(radius)) {
-    return false;
-  }
-  const keys = new Set(map.cells.map((cell) => hexKey(cell.coord)));
-  return keys.size === map.cells.length
-    && map.cells.every((cell) => (
-      Number.isSafeInteger(cell.coord.q)
-      && Number.isSafeInteger(cell.coord.r)
-      && hexDistance(DEFAULT_KEEP_COORD, cell.coord) <= radius
-    ));
-}
-
-function createSurface(map: RealmTerrainMap | undefined, playableRadius: number): RealmTerrainSurface {
-  const apronWidth = playableRadius > 4 ? 2 : 1;
-  const generated = createRealmTerrainSurface(
-    map?.worldSeed ?? HEGEMONY_GENESIS_001,
-    playableRadius,
-    playableRadius + apronWidth
-  );
-  if (!validMapForRadius(map, playableRadius)) return generated;
-  const authoritativeMap = map as RealmTerrainMap;
-  const playableKeys = new Set(authoritativeMap.cells.map((cell) => hexKey(cell.coord)));
-  return {
-    ...generated,
-    playableMap: authoritativeMap,
-    playableKeys,
-    apronCells: generated.renderMap.cells.filter((cell) => !playableKeys.has(hexKey(cell.coord)))
-  };
-}
-
 function pointsForSvg(coord: HexCoord) {
   return pointyHexCorners(coord, HEX_SIZE)
     .map((point) => `${point.x.toFixed(4)},${(-point.z).toFixed(4)}`)
@@ -274,6 +213,84 @@ function readReducedMotion() {
   return typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
     && window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+function measuredRealmComposition(root: HTMLElement): RealmCameraComposition {
+  const rootRect = root.getBoundingClientRect();
+  const width = Math.max(1, rootRect.width);
+  const height = Math.max(1, rootRect.height);
+  const compact = width <= 760 || height <= 520;
+  const shortLandscape = height <= 520 && width > 580;
+  const gap = compact ? 10 : 16;
+  const safeAreaProbe = root.querySelector<HTMLElement>('.realm-safe-area-probe');
+  const probeStyle = safeAreaProbe ? window.getComputedStyle(safeAreaProbe) : undefined;
+  const cssPixels = (value: string | undefined) => {
+    const parsed = Number.parseFloat(value ?? '0');
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  };
+  const safeAreaInsets = {
+    top: cssPixels(probeStyle?.paddingTop),
+    right: cssPixels(probeStyle?.paddingRight),
+    bottom: cssPixels(probeStyle?.paddingBottom),
+    left: cssPixels(probeStyle?.paddingLeft)
+  };
+  const insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  const rectFor = (selector: string) => {
+    const element = root.querySelector<HTMLElement>(selector);
+    if (!element) return undefined;
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 ? rect : undefined;
+  };
+  const reserveLeft = (rect: DOMRect) => {
+    insets.left = Math.max(
+      insets.left,
+      rect.right - rootRect.left + gap - safeAreaInsets.left
+    );
+  };
+  const reserveRight = (rect: DOMRect) => {
+    insets.right = Math.max(
+      insets.right,
+      rootRect.right - rect.left + gap - safeAreaInsets.right
+    );
+  };
+  const reserveTop = (rect: DOMRect) => {
+    insets.top = Math.max(
+      insets.top,
+      rect.bottom - rootRect.top + gap - safeAreaInsets.top
+    );
+  };
+  const reserveBottom = (rect: DOMRect) => {
+    insets.bottom = Math.max(
+      insets.bottom,
+      rootRect.bottom - rect.top + gap - safeAreaInsets.bottom
+    );
+  };
+
+  const hud = rectFor('.realm-hud');
+  const inspector = rectFor('.castle-inspection');
+  const actions = rectFor('.realm-hud__actions');
+  const navigator = rectFor('.realm-cell-navigator__dialog')
+    ?? rectFor('.realm-cell-navigator > button');
+
+  if (hud && !(compact && inspector)) {
+    if (compact && !shortLandscape) reserveTop(hud);
+    else reserveLeft(hud);
+  }
+  if (inspector) {
+    if (compact && !shortLandscape) reserveBottom(inspector);
+    else reserveRight(inspector);
+  }
+  if (actions) reserveBottom(actions);
+  if (navigator && !inspector) {
+    if (compact && !shortLandscape) reserveBottom(navigator);
+    else reserveRight(navigator);
+  }
+
+  return Object.freeze({
+    insets: Object.freeze(insets),
+    safeAreaInsets: Object.freeze(safeAreaInsets),
+    focusPadding: compact ? 14 : 24
+  });
 }
 
 function useReducedMotionPreference() {
@@ -331,14 +348,7 @@ function selectedCellFor(
 
 export function RealmMapScreen({
   identity,
-  map,
-  ownCastle,
-  otherCastles = EMPTY_CASTLES,
-  sharedTiles = EMPTY_TILES,
-  sharedPlayers = EMPTY_PLAYERS,
-  sharedProfiles,
-  sharedTileMetadata,
-  realmName = 'The Hegemony · Genesis 001',
+  snapshot,
   onRequestReturn,
   qualityOverride
 }: RealmMapScreenProps) {
@@ -346,59 +356,85 @@ export function RealmMapScreen({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackMapRef = useRef<SVGSVGElement>(null);
   const sceneRef = useRef<RealmSceneHandle | null>(null);
-  const inferredRadius = useMemo(() => {
-    const candidate = map?.radius ?? completeDiscRadius(sharedTiles);
-    return Number.isSafeInteger(candidate)
-      && candidate >= DEFAULT_REALM_PLAYABLE_RADIUS
-      && candidate <= MAX_REALM_PLAYABLE_RADIUS
-      ? candidate
-      : DEFAULT_REALM_PLAYABLE_RADIUS;
-  }, [map?.radius, sharedTiles]);
+  const inspectorFocusRef = useRef<HTMLButtonElement>(null);
+  const navigatorTriggerRef = useRef<HTMLButtonElement>(null);
+  const inspectorId = useId();
+  const navigatorId = useId();
+  const canonical = isCanonicalGenesisSnapshot(snapshot, identity.fid);
+  const ownCastle = snapshot.ownCastle;
+  const sharedTiles = snapshot.tiles;
+  const sharedPlayers = snapshot.players;
+  const sharedProfiles = snapshot.profiles;
+  const sharedTileMetadata = snapshot.tileMetadata;
+  const realmName = snapshot.realm.publicName;
+  const otherCastles = snapshot.castles;
   const surface = useMemo(
-    () => createSurface(map, inferredRadius),
-    [inferredRadius, map]
+    () => createRealmTerrainSurface(
+      snapshot.realm.numericSeed,
+      snapshot.realm.authoritativeRadius,
+      snapshot.realm.renderRadius
+    ),
+    [
+      snapshot.realm.authoritativeRadius,
+      snapshot.realm.numericSeed,
+      snapshot.realm.renderRadius
+    ]
   );
   const tileMetadataByKey = useMemo(() => new Map(
-    (sharedTileMetadata ?? []).map((metadata) => [metadata.tileKey, metadata] as const)
+    sharedTileMetadata.map((metadata) => [metadata.tileKey, metadata] as const)
   ), [sharedTileMetadata]);
+  const surfaceRef = useRef(surface);
+  surfaceRef.current = surface;
+  const tileMetadataByKeyRef = useRef(tileMetadataByKey);
+  tileMetadataByKeyRef.current = tileMetadataByKey;
   const traversableCells = useMemo(() => surface.playableMap.cells.filter((cell) => (
     tileMetadataByKey.get(hexKey(cell.coord))?.passable !== false
   )), [surface.playableMap.cells, tileMetadataByKey]);
-  const ownCastleQ = ownCastle?.q ?? DEFAULT_KEEP_COORD.q;
-  const ownCastleR = ownCastle?.r ?? DEFAULT_KEEP_COORD.r;
-  const keepCoord = useMemo<HexCoord>(() => {
-    const candidate = { q: ownCastleQ, r: ownCastleR };
-    return isPlayableRealmCoord(surface, candidate) ? candidate : DEFAULT_KEEP_COORD;
-  }, [ownCastleQ, ownCastleR, surface]);
+  const ownCastleQ = ownCastle.q;
+  const ownCastleR = ownCastle.r;
+  const keepCoord = useMemo<HexCoord>(
+    () => ({ q: ownCastleQ, r: ownCastleR }),
+    [ownCastleQ, ownCastleR]
+  );
   const peerCastles = useStablePeerCastleMarkers(otherCastles, identity.fid, surface);
   const hasNearbyFoundingKeeps = peerCastles.some((castle) => (
     hexDistance(keepCoord, castle) <= 4
   ));
-  const allCastles = useMemo(() => {
+  const allCastles = useMemo<readonly RealmCastleProjection[]>(() => {
     const byId = new Map<number, RealmCastleProjection>();
     for (const castle of otherCastles) {
       if (isPlayableRealmCoord(surface, castle)) byId.set(castle.castleId, castle);
     }
-    if (ownCastle && isPlayableRealmCoord(surface, ownCastle)) {
+    if (isPlayableRealmCoord(surface, ownCastle)) {
       byId.set(ownCastle.castleId, ownCastle);
     }
     return [...byId.values()].sort((left, right) => left.castleId - right.castleId);
   }, [otherCastles, ownCastle, surface]);
+  const allCastlesRef = useRef(allCastles);
+  allCastlesRef.current = allCastles;
+  const expectedCastleCountRef = useRef(allCastles.length);
+  expectedCastleCountRef.current = allCastles.length;
   const profileRecords = useMemo(() => {
-    const profiles = sharedProfiles ?? [];
     return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
       castle.castleId,
       {
         castle,
         profile: publicProfileForCastle(
           castle.ownerFid,
-          profiles,
+          sharedProfiles,
           sharedPlayers,
           identity
         )
       }
     ]));
   }, [allCastles, identity, sharedPlayers, sharedProfiles]);
+  const navigatorCastles = useMemo(() => allCastles.map((castle) => ({
+    castleId: castle.castleId,
+    label: castleProfileLabel(profileRecords.get(castle.castleId)!.profile),
+    name: castle.name,
+    q: castle.q,
+    r: castle.r
+  })), [allCastles, profileRecords]);
   const terrainPlacements = useMemo(() => createHegemonyCastlePlacements([
     { id: 'own-keep', coord: keepCoord },
     ...peerCastles.map((castle) => ({
@@ -426,43 +462,52 @@ export function RealmMapScreen({
   const quality = useMemo(() => initialQuality(qualityOverride), [qualityOverride]);
   const qualitySpec = REALM_QUALITY_SPECS[quality];
   const [rendererMode, setRendererMode] = useState<RendererMode>('loading');
+  const rendererModeRef = useRef<RendererMode>('loading');
+  rendererModeRef.current = rendererMode;
   const [keepLoadStatus, setKeepLoadStatus] = useState<KeepLoadStatus>('idle');
   const [cameraMode, setCameraMode] = useState<RealmCameraMode>('realm');
-  const [selectedCoord, setSelectedCoord] = useState<HexCoord>(keepCoord);
-  const selectedCoordRef = useRef<HexCoord>(keepCoord);
-  const [hoveredCoord, setHoveredCoord] = useState<HexCoord | null>(null);
+  const [interaction, dispatchInteraction] = useReducer(
+    realmInteractionReducer,
+    keepCoord,
+    createRealmInteractionState
+  );
+  const interactionRef = useRef(interaction);
+  interactionRef.current = interaction;
+  const selectedCoord = interaction.selectedCell;
+  const selectedCoordRef = useRef<HexCoord>(interaction.selectedCell);
   const hoveredCoordRef = useRef<HexCoord | null>(null);
-  const [castleProjectionFrame, setCastleProjectionFrame] = useState<RealmCastleProjectionFrame>({
-    width: 0,
-    height: 0,
-    castles: []
-  });
+  const [visibleCastleLabels, setVisibleCastleLabels] = useState<readonly VisibleCastleLabel[]>([]);
+  const latestProjectionRef = useRef<RealmCastleProjectionFrame>({ width: 0, height: 0, castles: [] });
+  const previousLabelLayoutRef = useRef<readonly RealmLabelPlacement[]>([]);
+  const labelProjectionRafRef = useRef<number | null>(null);
+  const compositionRafRef = useRef<number | null>(null);
+  const safeAreaInsetsRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
+  const labelMembershipSignatureRef = useRef('');
   const reducedMotion = useReducedMotionPreference();
   const viewBox = useMemo(() => viewBoxForSurface(surface), [surface]);
   const selectedCell = selectedCellFor(surface, selectedCoord, keepCoord);
-  const hoveredCell = hoveredCoord ? selectedCellFor(surface, hoveredCoord, keepCoord) : null;
   const selectedTileMetadata = tileMetadataByKey.get(hexKey(selectedCell.coord));
-  const hoveredTileMetadata = hoveredCell
-    ? tileMetadataByKey.get(hexKey(hoveredCell.coord))
+  const selectedCastle = interaction.selectedCastle
+    ? allCastles.find((castle) => castle.castleId === interaction.selectedCastle?.castleId)
     : undefined;
-  const selectedIsKeep = sameCoord(selectedCoord, keepCoord);
-  const selectedCastle = allCastles.find((castle) => sameCoord(castle, selectedCoord));
-  const ownProfile = ownCastle
-    ? profileRecords.get(ownCastle.castleId)?.profile
+  const castleAtSelectedCell = allCastles.find((castle) => sameCoord(castle, selectedCoord));
+  const inspectorCastle = interaction.inspectorOpen && interaction.inspectorTarget
+    ? allCastles.find((castle) => castle.castleId === interaction.inspectorTarget?.castleId)
     : undefined;
-  const marksStatus = sharedProfiles === undefined
-    ? 'loading'
-    : ownProfile?.communityStatsVisible && ownProfile.marksBalanceMicros !== undefined
+  const ownProfile = profileRecords.get(ownCastle.castleId)?.profile;
+  const marksStatus = ownProfile?.communityStatsVisible && ownProfile.marksBalanceMicros !== undefined
       ? 'ready'
       : 'unavailable';
-  const visibleCastleLabels = useMemo(() => resolveVisibleCastleLabels(
-    castleProjectionFrame,
-    ownCastle?.castleId,
-    selectedCastle?.castleId,
-    quality === 'reduced'
-      ? (castleProjectionFrame.width <= 680 ? 10 : 14)
-      : undefined
-  ), [castleProjectionFrame, ownCastle?.castleId, quality, selectedCastle?.castleId]);
+  const labelLayoutContextRef = useRef({
+    ownCastleId: ownCastle.castleId,
+    selectedCastleId: selectedCastle?.castleId,
+    reducedQuality: quality === 'reduced'
+  });
+  labelLayoutContextRef.current = {
+    ownCastleId: ownCastle.castleId,
+    selectedCastleId: selectedCastle?.castleId,
+    reducedQuality: quality === 'reduced'
+  };
 
   useEffect(() => {
     // RealmMapScreen mounts only on entry. Focus once so keyboard navigation is
@@ -471,36 +516,279 @@ export function RealmMapScreen({
   }, []);
 
   useEffect(() => {
+    const target = interaction.keyboardIntent.target;
+    if (target.kind === 'map') {
+      rootRef.current?.focus({ preventScroll: true });
+    } else if (target.kind === 'inspector') {
+      inspectorFocusRef.current?.focus({ preventScroll: true });
+    } else if (target.kind === 'castle-label') {
+      const label = rootRef.current
+        ?.querySelector<HTMLButtonElement>(`.realm-castle-label[data-castle-id="${target.castleId}"]`)
+      if (label && label.tabIndex >= 0 && label.style.visibility !== 'hidden') {
+        label.focus({ preventScroll: true });
+      }
+      if (document.activeElement !== label) {
+        rootRef.current?.focus({ preventScroll: true });
+      }
+    } else if (target.kind === 'navigator-trigger') {
+      navigatorTriggerRef.current?.focus({ preventScroll: true });
+    }
+  }, [interaction.keyboardIntent]);
+
+  useEffect(() => {
     selectedCoordRef.current = keepCoord;
-    setSelectedCoord(keepCoord);
+    dispatchInteraction({ type: 'select-cell', coord: keepCoord });
   }, [keepCoord]);
 
   const selectCoord = useCallback((coord: HexCoord) => {
     if (
-      !isPlayableRealmCoord(surface, coord)
-      || tileMetadataByKey.get(hexKey(coord))?.passable === false
+      !isPlayableRealmCoord(surfaceRef.current, coord)
+      || tileMetadataByKeyRef.current.get(hexKey(coord))?.passable === false
     ) return;
     selectedCoordRef.current = coord;
-    setSelectedCoord(coord);
-  }, [surface, tileMetadataByKey]);
+    dispatchInteraction({ type: 'select-cell', coord });
+  }, []);
+
+  const selectCastle = useCallback((castle: RealmCastleProjection) => {
+    selectedCoordRef.current = { q: castle.q, r: castle.r };
+    dispatchInteraction({
+      type: 'activate-castle',
+      castleId: castle.castleId,
+      coord: { q: castle.q, r: castle.r }
+    });
+    sceneRef.current?.focusCastle(castle.castleId);
+  }, []);
 
   const markRendererUnavailable = useCallback(() => {
+    rendererModeRef.current = 'fallback';
     setRendererMode('fallback');
     setKeepLoadStatus('fallback');
   }, []);
 
+  const isSceneCoordPassable = useCallback((coord: HexCoord) => (
+    isPlayableRealmCoord(surfaceRef.current, coord)
+    && tileMetadataByKeyRef.current.get(hexKey(coord))?.passable !== false
+  ), []);
+
   const updateHoveredCoord = useCallback((coord: HexCoord | null) => {
-    // Re-upload and redraw the WebGL overlay only when the hovered territory
-    // actually changes; pointermove can otherwise emit dozens of duplicates.
+    // Hover is an imperative WebGL concern. It never enters durable React
+    // selection/HUD/inspector state, even under high-frequency pointer input.
     if (sameCoord(hoveredCoordRef.current, coord)) return;
     hoveredCoordRef.current = coord;
     sceneRef.current?.setHovered(coord);
-    setHoveredCoord(coord);
   }, []);
 
+  const handleSceneTargetHover = useCallback((target: RealmInteractionTarget | null) => {
+    if (rendererModeRef.current !== 'webgl') return;
+    // Both terrain and castle hits receive the same restrained ground outline.
+    // This keeps hover feedback clear without mutating durable selection state
+    // or applying a bright post-process effect to the castle model.
+    updateHoveredCoord(target?.coord ?? null);
+  }, [updateHoveredCoord]);
+
+  const handleSceneTargetSelect = useCallback((target: RealmInteractionTarget) => {
+    if (rendererModeRef.current !== 'webgl') return;
+    if (target.kind === 'castle') {
+      const castle = allCastlesRef.current.find((candidate) => candidate.castleId === target.castleId);
+      if (castle) selectCastle(castle);
+      return;
+    }
+    selectCoord(target.coord);
+  }, [selectCastle, selectCoord]);
+
   const updateCastleProjection = useCallback((frame: RealmCastleProjectionFrame) => {
-    setCastleProjectionFrame(frame);
+    latestProjectionRef.current = frame;
+    if (labelProjectionRafRef.current !== null) return;
+    labelProjectionRafRef.current = window.requestAnimationFrame(() => {
+      labelProjectionRafRef.current = null;
+      const frame = latestProjectionRef.current;
+      const root = rootRef.current;
+      if (!root || frame.width <= 0 || frame.height <= 0) return;
+      const context = labelLayoutContextRef.current;
+      const maximumLabels = context.reducedQuality
+        ? (frame.width <= 680 ? 10 : 14)
+        : frame.width <= 680 ? 10 : 28;
+      const provisional = resolveVisibleCastleLabels(
+        frame,
+        context.ownCastleId,
+        context.selectedCastleId,
+        maximumLabels
+      );
+      const buttons = new Map<number, HTMLButtonElement>();
+      root.querySelectorAll<HTMLButtonElement>('button.realm-castle-label[data-castle-id]')
+        .forEach((button) => {
+          const castleId = Number(button.dataset.castleId);
+          if (Number.isSafeInteger(castleId)) buttons.set(castleId, button);
+        });
+      const measurementLabels = new Map<number, HTMLElement>();
+      root.querySelectorAll<HTMLElement>('.realm-castle-label--measurement[data-measure-castle-id]')
+        .forEach((label) => {
+          const castleId = Number(label.dataset.measureCastleId);
+          if (Number.isSafeInteger(castleId)) measurementLabels.set(castleId, label);
+        });
+      if (measurementLabels.size === 0) {
+        const signature = provisional.map((label) => `${label.castleId}:${label.compact}`).join('|');
+        if (signature !== labelMembershipSignatureRef.current) {
+          labelMembershipSignatureRef.current = signature;
+          setVisibleCastleLabels(provisional);
+        }
+        return;
+      }
+
+      const rootRect = root.getBoundingClientRect();
+      const toRelativeRect = (rect: DOMRect): RealmScreenRect => ({
+        left: rect.left - rootRect.left,
+        top: rect.top - rootRect.top,
+        right: rect.right - rootRect.left,
+        bottom: rect.bottom - rootRect.top
+      });
+      const reservedUiRects = [
+        '.realm-hud',
+        '.castle-inspection',
+        '.realm-hud__actions',
+        '.realm-cell-navigator > button',
+        '.realm-cell-navigator__dialog'
+      ].flatMap((selector) => {
+        const element = root.querySelector<HTMLElement>(selector);
+        if (!element) return [];
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 ? [toRelativeRect(rect)] : [];
+      });
+      const anchors = frame.castles.map((castle) => {
+        const button = buttons.get(castle.castleId);
+        const measurementLabel = measurementLabels.get(castle.castleId);
+        const rect = button?.getBoundingClientRect()
+          ?? measurementLabel?.getBoundingClientRect();
+        const avatarRect = (button ?? measurementLabel)
+          ?.querySelector<HTMLElement>('.realm-castle-avatar')
+          ?.getBoundingClientRect();
+        const full = rect && rect.width > 0 && rect.height > 0
+          ? { offsetX: -rect.width / 2, offsetY: -rect.height, width: rect.width, height: rect.height }
+          : undefined;
+        const avatarWidth = avatarRect ? Math.max(44, avatarRect.width + 8) : 44;
+        const avatarHeight = avatarRect ? Math.max(44, avatarRect.height + 8) : 44;
+        return {
+          castleId: castle.castleId,
+          x: castle.x,
+          y: castle.y,
+          inFrontOfCamera: castle.visible,
+          priority: castle.castleId === context.selectedCastleId
+            ? 'selected' as const
+            : castle.castleId === context.ownCastleId
+              ? 'own' as const
+              : castle.distance > 24 ? 'far' as const : 'near' as const,
+          distance: castle.distance,
+          measurements: {
+            full,
+            avatar: {
+              offsetX: -avatarWidth / 2,
+              offsetY: -avatarHeight,
+              width: avatarWidth,
+              height: avatarHeight
+            }
+          }
+        };
+      });
+      const layout = resolveMeasuredRealmLabelLayout({
+        anchors,
+        viewportBounds: { left: 0, top: 0, right: frame.width, bottom: frame.height },
+        safeAreaBounds: {
+          left: safeAreaInsetsRef.current.left + 8,
+          top: safeAreaInsetsRef.current.top + 8,
+          right: frame.width - safeAreaInsetsRef.current.right - 8,
+          bottom: frame.height - safeAreaInsetsRef.current.bottom - 8
+        },
+        reservedUiRects,
+        maximumLabels,
+        previousPlacements: previousLabelLayoutRef.current,
+        hysteresis: { membershipDistance: 5, anchorJitterPixels: 2 },
+        collisionPaddingPixels: 4,
+        placementGapPixels: 7
+      });
+      previousLabelLayoutRef.current = layout.placements;
+      const projectionById = new Map(frame.castles.map((castle) => [castle.castleId, castle]));
+      const nextLabels = layout.placements.flatMap((placement): VisibleCastleLabel[] => {
+        const projection = projectionById.get(placement.castleId);
+        return projection ? [{
+          ...projection,
+          x: placement.x,
+          y: placement.y,
+          compact: placement.presentation === 'avatar'
+        }] : [];
+      });
+      const signature = nextLabels.map((label) => `${label.castleId}:${label.compact}`).join('|');
+      if (signature !== labelMembershipSignatureRef.current) {
+        labelMembershipSignatureRef.current = signature;
+        setVisibleCastleLabels(nextLabels);
+      }
+      const placementsById = new Map(layout.placements.map((placement) => [placement.castleId, placement]));
+      for (const [castleId, button] of buttons) {
+        const placement = placementsById.get(castleId);
+        if (!placement) {
+          button.style.visibility = 'hidden';
+          button.tabIndex = -1;
+          continue;
+        }
+        button.style.visibility = 'visible';
+        button.tabIndex = 0;
+        button.style.setProperty('--realm-castle-label-x', `${placement.x.toFixed(2)}px`);
+        button.style.setProperty('--realm-castle-label-y', `${placement.y.toFixed(2)}px`);
+      }
+    });
   }, []);
+
+  const updateSceneComposition = useCallback(() => {
+    if (compositionRafRef.current !== null) return;
+    compositionRafRef.current = window.requestAnimationFrame(() => {
+      compositionRafRef.current = null;
+      const root = rootRef.current;
+      if (root) {
+        const composition = measuredRealmComposition(root);
+        safeAreaInsetsRef.current = {
+          top: composition.safeAreaInsets?.top ?? 0,
+          right: composition.safeAreaInsets?.right ?? 0,
+          bottom: composition.safeAreaInsets?.bottom ?? 0,
+          left: composition.safeAreaInsets?.left ?? 0
+        };
+        sceneRef.current?.setComposition(composition);
+        updateCastleProjection(latestProjectionRef.current);
+      }
+    });
+  }, [updateCastleProjection]);
+
+  useEffect(() => () => {
+    if (labelProjectionRafRef.current !== null) {
+      window.cancelAnimationFrame(labelProjectionRafRef.current);
+      labelProjectionRafRef.current = null;
+    }
+    if (compositionRafRef.current !== null) {
+      window.cancelAnimationFrame(compositionRafRef.current);
+      compositionRafRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    updateSceneComposition();
+    const root = rootRef.current;
+    const observer = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(updateSceneComposition)
+      : undefined;
+    if (root) {
+      observer?.observe(root);
+      root.querySelectorAll<HTMLElement>(
+        '.realm-hud, .realm-hud__actions, .castle-inspection, .realm-cell-navigator'
+      ).forEach((element) => observer?.observe(element));
+    }
+    window.addEventListener('resize', updateSceneComposition, { passive: true });
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updateSceneComposition);
+    };
+  }, [interaction.inspectorOpen, interaction.navigatorOpen, rendererMode, updateSceneComposition]);
+
+  useEffect(() => {
+    updateCastleProjection(latestProjectionRef.current);
+  }, [interaction.inspectorOpen, interaction.navigatorOpen, profileRecords, selectedCastle?.castleId, updateCastleProjection, visibleCastleLabels]);
 
   useEffect(() => {
     if (rendererMode !== 'fallback') return undefined;
@@ -520,7 +808,7 @@ export function RealmMapScreen({
             height: Math.max(1, svgRect.height)
           }
         : { left: 0, top: 0, width, height };
-      setCastleProjectionFrame({
+      updateCastleProjection({
         width,
         height,
         castles: allCastles.map((castle) => fallbackCastleProjection(
@@ -542,7 +830,7 @@ export function RealmMapScreen({
       observer?.disconnect();
       window.removeEventListener('resize', updateFallbackProjection);
     };
-  }, [allCastles, rendererMode, viewBox]);
+  }, [allCastles, rendererMode, updateCastleProjection, viewBox]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -553,31 +841,48 @@ export function RealmMapScreen({
 
     let scene: RealmSceneHandle | null = null;
     try {
+      rendererModeRef.current = 'loading';
       setRendererMode('loading');
-      setCastleProjectionFrame({ width: 0, height: 0, castles: [] });
+      latestProjectionRef.current = { width: 0, height: 0, castles: [] };
+      previousLabelLayoutRef.current = [];
+      labelMembershipSignatureRef.current = '';
+      setVisibleCastleLabels([]);
       setKeepLoadStatus('loading');
       setCameraMode('realm');
       scene = createRealmScene({
         canvas,
         surface,
         keepCoord,
-        ownCastleId: ownCastle?.castleId,
+        ownCastleId: ownCastle.castleId,
         otherCastles: peerCastles,
         quality: qualitySpec,
         reducedMotion,
         baseUrl: import.meta.env.BASE_URL || '/',
+        isCoordPassable: isSceneCoordPassable,
         onCameraModeChange: setCameraMode,
-        onHover: updateHoveredCoord,
+        onHover: () => undefined,
+        onTargetHover: handleSceneTargetHover,
         onKeepStatusChange: setKeepLoadStatus,
+        onCastlesReady: (castleCount) => {
+          if (castleCount !== expectedCastleCountRef.current) {
+            markRendererUnavailable();
+            return;
+          }
+          setKeepLoadStatus('ready');
+          rendererModeRef.current = 'webgl';
+          setRendererMode('webgl');
+          updateSceneComposition();
+        },
         onCastleProjection: updateCastleProjection,
         onRendererUnavailable: markRendererUnavailable,
-        onSelect: selectCoord
+        onSelect: () => undefined,
+        onTargetSelect: handleSceneTargetSelect
       });
       sceneRef.current = scene;
       scene.setSelected(selectedCoordRef.current);
+      scene.setSelectedCastleId(interactionRef.current.selectedCastle?.castleId ?? null);
       scene.setHovered(hoveredCoordRef.current);
       if (hasNearbyFoundingKeeps) scene.frameFoundingDistrict();
-      setRendererMode('webgl');
     } catch {
       markRendererUnavailable();
     }
@@ -586,24 +891,45 @@ export function RealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [hasNearbyFoundingKeeps, keepCoord, markRendererUnavailable, ownCastle?.castleId, peerCastles, qualitySpec, reducedMotion, selectCoord, surface, updateCastleProjection, updateHoveredCoord]);
+  }, [handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, surface, updateCastleProjection, updateSceneComposition]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);
   }, [selectedCoord]);
 
   useEffect(() => {
+    sceneRef.current?.setSelectedCastleId(selectedCastle?.castleId ?? null);
+  }, [selectedCastle?.castleId]);
+
+  useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onRequestReturn();
+      // Treat one physical Escape press as one hierarchy step. Ignoring the
+      // browser's auto-repeat prevents a held key from closing a surface and
+      // then immediately returning the player to the menu.
+      if (event.key !== 'Escape' || event.defaultPrevented || event.repeat) return;
+      const result = resolveRealmEscape(interactionRef.current);
+      if (result.decision === 'close-inspector') {
+        event.preventDefault();
+        dispatchInteraction({ type: 'close-inspector' });
+      } else if (result.decision === 'close-navigator') {
+        event.preventDefault();
+        dispatchInteraction({ type: 'close-navigator' });
+      } else {
+        onRequestReturn();
+      }
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onRequestReturn]);
 
   const focusKeep = useCallback(() => {
-    selectCoord(keepCoord);
+    dispatchInteraction({
+      type: 'activate-castle',
+      castleId: ownCastle.castleId,
+      coord: keepCoord
+    });
     sceneRef.current?.focusKeep();
-  }, [keepCoord, selectCoord]);
+  }, [keepCoord, ownCastle.castleId]);
 
   const recenterKeep = useCallback(() => {
     selectCoord(keepCoord);
@@ -620,14 +946,9 @@ export function RealmMapScreen({
 
   const selectFromNavigator = useCallback((coord: HexCoord) => {
     selectCoord(coord);
-  }, [selectCoord]);
-
-  const focusRealmMap = useCallback(() => {
-    rootRef.current?.focus({ preventScroll: true });
-  }, []);
-
-  const selectCastle = useCallback((castle: RealmCastleProjection) => {
-    selectCoord(castle);
+    sceneRef.current?.focusCell(coord);
+    dispatchInteraction({ type: 'close-navigator' });
+    dispatchInteraction({ type: 'request-map-focus' });
   }, [selectCoord]);
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -635,15 +956,24 @@ export function RealmMapScreen({
     // their native keyboard behavior instead of turning Enter, Space, Home, or
     // arrow keys on a HUD/navigator control into an unrelated map command.
     if (event.target !== event.currentTarget) return;
+    if (rendererMode === 'loading') return;
 
     if (event.key === 'Home') {
       event.preventDefault();
       recenterKeep();
       return;
     }
-    if ((event.key === 'Enter' || event.key === ' ') && selectedIsKeep) {
+    if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      focusKeep();
+      if (castleAtSelectedCell) {
+        selectCastle(castleAtSelectedCell);
+      } else {
+        sceneRef.current?.focusCell(selectedCoord);
+        dispatchInteraction({
+          type: 'set-camera-target',
+          target: { kind: 'cell', coord: selectedCoord }
+        });
+      }
       return;
     }
     const direction = directionForKey(event.key);
@@ -653,6 +983,18 @@ export function RealmMapScreen({
     if (isPlayableRealmCoord(surface, next)) selectCoord(next);
   };
 
+  if (!canonical) {
+    return (
+      <main className="realm-map-screen realm-map-screen--unavailable" role="alert">
+        <div className="realm-map-screen__loading">
+          <strong>Genesis 001 is unavailable</strong>
+          <span>The canonical realm records did not pass validation.</span>
+          <button type="button" onClick={onRequestReturn}>Return to Menu</button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main
       ref={rootRef}
@@ -661,8 +1003,10 @@ export function RealmMapScreen({
       data-quality={quality}
       tabIndex={0}
       aria-label="Hegemony realm"
+      aria-busy={rendererMode === 'loading'}
       onKeyDown={handleKeyDown}
     >
+      <div className="realm-safe-area-probe" aria-hidden="true" />
       <canvas
         ref={canvasRef}
         className="realm-map-screen__canvas"
@@ -769,64 +1113,96 @@ export function RealmMapScreen({
       ) : null}
 
       {rendererMode === 'loading' ? (
-        <div className="realm-map-screen__loading" role="status">
-          Surveying the bright lowlands…
+        <div
+          className="realm-map-screen__loading"
+          aria-label="Preparing Hegemony realm"
+        >
+          <div>
+            <strong role="status">Surveying the bright lowlands…</strong>
+            <span>Preparing every canonical keep before the realm is revealed.</span>
+            <button type="button" onClick={onRequestReturn}>Return to Menu</button>
+          </div>
         </div>
       ) : null}
 
-      <RealmCastleLabels
-        labels={visibleCastleLabels}
-        records={profileRecords}
-        selectedCastleId={selectedCastle?.castleId}
-        ownCastleId={ownCastle?.castleId}
-        onActivate={selectCastle}
-      />
+      {rendererMode !== 'loading' ? (
+        <>
+          <RealmCastleLabels
+            labels={visibleCastleLabels}
+            records={profileRecords}
+            selectedCastleId={selectedCastle?.castleId}
+            inspectorCastleId={inspectorCastle?.castleId}
+            ownCastleId={ownCastle.castleId}
+            inspectorId={inspectorId}
+            inspectorOpen={interaction.inspectorOpen}
+            onActivate={selectCastle}
+          />
 
-      <RealmHud
-        identity={identity}
-        ownCastle={ownCastle}
-        ownProfile={ownProfile}
-        marksStatus={marksStatus}
-        keepCoord={keepCoord}
-        sharedTileCount={sharedTiles.length || undefined}
-        sharedPlayerCount={sharedPlayers.length}
-        sharedCastleCount={peerCastles.length + (ownCastle ? 1 : 0)}
-        selectedCell={selectedCell}
-        hoveredCell={hoveredCell}
-        selectedTileMetadata={selectedTileMetadata}
-        hoveredTileMetadata={hoveredTileMetadata}
-        keepLoadStatus={keepLoadStatus}
-        cameraMode={cameraMode}
-        quality={quality}
-        onFrameFoundingDistrict={
-          rendererMode === 'webgl' && hasNearbyFoundingKeeps
-            ? frameFoundingDistrict
-            : undefined
-        }
-        onFocusKeep={focusKeep}
-        onRecenterKeep={recenterKeep}
-        onShowRealm={showRealm}
-        onRequestReturn={onRequestReturn}
-      />
+          <RealmHud
+            identity={identity}
+            ownCastle={ownCastle}
+            ownProfile={ownProfile}
+            marksStatus={marksStatus}
+            keepCoord={keepCoord}
+            sharedTileCount={sharedTiles.length || undefined}
+            sharedPlayerCount={sharedPlayers.length}
+            sharedCastleCount={allCastles.length}
+            selectedCell={selectedCell}
+            selectedCastle={selectedCastle}
+            selectedCastleProfile={selectedCastle
+              ? profileRecords.get(selectedCastle.castleId)?.profile
+              : undefined}
+            selectedTileMetadata={selectedTileMetadata}
+            keepLoadStatus={keepLoadStatus}
+            cameraMode={cameraMode}
+            quality={quality}
+            onFrameFoundingDistrict={
+              rendererMode === 'webgl' && hasNearbyFoundingKeeps
+                ? frameFoundingDistrict
+                : undefined
+            }
+            onFocusKeep={focusKeep}
+            onRecenterKeep={recenterKeep}
+            onShowRealm={showRealm}
+            onRequestReturn={onRequestReturn}
+          />
 
-      {selectedCastle && profileRecords.get(selectedCastle.castleId) ? (
-        <CastleInspectionPanel
-          castle={selectedCastle}
-          profile={profileRecords.get(selectedCastle.castleId)!.profile}
-          tileMetadata={tileMetadataByKey.get(selectedCastle.tileKey ?? hexKey(selectedCastle))}
-          realmName={realmName}
-          own={selectedCastle.ownerFid === identity.fid}
-        />
+          {inspectorCastle && profileRecords.get(inspectorCastle.castleId) ? (
+            <CastleInspectionPanel
+              id={inspectorId}
+              castle={inspectorCastle}
+              profile={profileRecords.get(inspectorCastle.castleId)!.profile}
+              tileMetadata={tileMetadataByKey.get(inspectorCastle.tileKey ?? hexKey(inspectorCastle))}
+              realmName={realmName}
+              own={inspectorCastle.ownerFid === identity.fid}
+              focusTargetRef={inspectorFocusRef}
+              onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
+            />
+          ) : null}
+
+          <RealmAccessibilityControls
+            id={navigatorId}
+            open={interaction.navigatorOpen}
+            castles={navigatorCastles}
+            ownCastleId={ownCastle.castleId}
+            selectedCastleId={selectedCastle?.castleId}
+            triggerRef={navigatorTriggerRef}
+            onRequestOpen={() => dispatchInteraction({ type: 'open-navigator' })}
+            onRequestClose={() => dispatchInteraction({ type: 'close-navigator' })}
+            onActivateCastle={(entry) => {
+              const castle = allCastles.find((candidate) => candidate.castleId === entry.castleId);
+              if (castle) selectCastle(castle);
+            }}
+            coordinateJump={{
+              validate: (coord) => (
+                isPlayableRealmCoord(surface, coord)
+                && tileMetadataByKey.get(hexKey(coord))?.passable !== false
+              ),
+              onActivate: selectFromNavigator
+            }}
+          />
+        </>
       ) : null}
-
-      <RealmAccessibilityControls
-        cells={traversableCells}
-        keepCoord={keepCoord}
-        selectedCoord={selectedCoord}
-        onHover={updateHoveredCoord}
-        onFocusMap={focusRealmMap}
-        onSelect={selectFromNavigator}
-      />
     </main>
   );
 }

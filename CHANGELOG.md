@@ -4,8 +4,21 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
+Alpha 0.3.3 is the current source-candidate patch line. It has not been deployed,
+tagged, or released; the verified public production baseline remains Alpha 0.3.2.
+
 ### Added
 
+- One canonical Genesis readiness validator that withholds realm presentation
+  until the protocol-3 radius-20 world has exactly 1,261 matching tile and
+  metadata rows, one unambiguous active realm, consistent castle occupancy, and
+  the authenticated player's authoritative castle.
+- A realm-lifetime real-castle prefab repository with deterministic instanced
+  high/balanced/compact LOD buckets, raycast mappings, higher-LOD ceilings,
+  hysteresis, frustum visibility, and reference-counted cleanup.
+- An explicit realm interaction reducer, measured animation-frame-coalesced
+  castle labels, UI-aware camera composition, and a searchable founded-castle
+  navigator with validated coordinate focus.
 - An in-menu, keyboard/touch/hover-accessible latest-patch chronicle that stays
   inside Warpkeep and is bundled by exact product version.
 - A persistent soundtrack mute switch, Data Saver/constrained-network-aware
@@ -14,6 +27,23 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ### Changed
 
+- Every visible founded castle now uses a real Hegemony castle GLB on the normal
+  WebGL path. Model failure switches the entire view to the canonical
+  illustrated fallback instead of mixing detailed keeps with primitive peer
+  markers.
+- Realm entry no longer generates or briefly displays a standalone 61-cell
+  recovery world. The original 61 cells remain rings 0–4 of the one canonical
+  1,261-cell world.
+- Public castle identity now uses bounded display-only Farcaster presentation,
+  safe eager PFP loading, and a neutral name/sigil fallback rather than an FID
+  label or numeric avatar.
+- Castle hover is visual only. Explicit click, tap, keyboard, or navigator
+  activation owns selection, inspection, camera focus, focus return, and concise
+  live-region feedback.
+- The permanent large panels and raw coordinate grid are replaced with a compact
+  amethyst/electrum HUD, explicit castle record, action toolbar, and responsive
+  navigator. Measured UI and device-safe insets keep the camera target in the
+  unobstructed play region.
 - Realm selection announcements, explicit map-focus navigation, castle-record
   focus return, and the inert 100-Mark warp preview now communicate their state
   more clearly without duplicate live-region noise.
@@ -23,6 +53,17 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ### Fixed
 
+- Same-player reconnect can retain a realm only when its full canonical
+  fingerprint and connection coordinates match; partial, stale, ambiguous, and
+  post-ready invalid snapshots fail closed.
+- Camera-frame label positions no longer flow through full React realm renders.
+  Collision uses measured labels, stable priority/hysteresis, and reserved UI
+  regions instead of guessed dimensions.
+- Castle picking resolves real instance IDs before terrain, and drag/pinch or
+  label interaction cannot accidentally select the cell underneath.
+- Castle normalization remains uniform, material clamps preserve authored PBR,
+  foundations ground the full silhouette, and warm/cool lighting plus localized
+  contact shadows restore readable depth.
 - JWT validation now requires exactly one Warpkeep audience, and explicitly
   malformed or blank public database coordinates fail closed at both activation
   and transport boundaries.
@@ -42,6 +83,23 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   an admitted founder now trip the existing orphan counters as well.
 - Development notices cannot dismiss twice, and patch-note hover content has a
   reachable pointer grace period plus normal disclosure-button toggling.
+
+### Security and privacy
+
+- Public image sinks share a fail-closed HTTPS policy that excludes credentials
+  and literal local, private, or special-use hosts; visible PFP requests
+  send no referrer and retain a stable neutral fallback on failure.
+- A bounded profile-maintenance workflow accepts private input only outside
+  command arguments, preserves sanitized last-known-good public fields, requires
+  a short-lived one-use reviewed plan, avoids re-fetching during apply, performs
+  a fresh read-only post-check, and emits privacy-safe audit outcomes. It is
+  limited to already founded profiles and cannot alter admission, castles,
+  wallets, or Marks.
+- The candidate changes no backend protocol, schema, Terms/authentication
+  version, admission rule, wallet boundary, or production data. No deployment or
+  profile backfill is implied by these source changes.
+
+See [Alpha 0.3.3 development notes](docs/releases/alpha-0.3.3.md).
 
 ## [0.3.2] — 2026-07-14
 

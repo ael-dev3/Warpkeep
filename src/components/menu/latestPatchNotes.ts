@@ -21,9 +21,25 @@ const ALPHA_0_3_2_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   alphaNotice: 'Alpha systems remain experimental and may change.'
 });
 
+const ALPHA_0_3_3_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: 'IN DEVELOPMENT',
+  title: 'GENESIS REALM QUALITY',
+  summary:
+    'Alpha 0.3.3 is strengthening realm readiness and making the shared frontier clearer without changing its authority model.',
+  highlights: Object.freeze([
+    'Realm entry waits for one complete, internally consistent Genesis snapshot instead of presenting partial world state.',
+    'Public castle identity stays limited to sanitized Farcaster display fields; private identity and wallet data remain outside the realm view.',
+    'Founded keeps are moving to shared, quality-aware rendering of the real Hegemony castle asset instead of abstract peer markers.',
+    'Castle labels, selection, inspection, focus return, and HUD states are being clarified across mouse, touch, and keyboard play.',
+    'Richer presentation remains bounded by graphics quality, visibility, and disposal rules so responsiveness is preserved.'
+  ]),
+  alphaNotice: 'In development. Not yet deployed; Alpha systems remain experimental and may change.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
-    '0.3.2': ALPHA_0_3_2_PATCH_NOTES
+    '0.3.2': ALPHA_0_3_2_PATCH_NOTES,
+    '0.3.3': ALPHA_0_3_3_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

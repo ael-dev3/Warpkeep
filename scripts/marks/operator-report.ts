@@ -19,12 +19,20 @@ import { join } from 'node:path';
 
 import { MarksOperatorError } from './operator-core';
 
-const REPORT_NAME_PATTERN = /^(plan|refresh-profiles|scan|reconcile)-([0-9]{8}T[0-9]{9}Z)-[0-9a-f]{12}\.json$/;
+const REPORT_NAME_PATTERN = /^(plan|refresh-profiles|scan|reconcile|profiles-plan|profiles-refresh|profiles-apply)-([0-9]{8}T[0-9]{9}Z)-[0-9a-f]{12}\.json$/;
 const FORBIDDEN_KEY_PATTERN = /(?:address|authorization|credential|cookie|endpoint|fid|identity|proof|qr|raw|rpc|secret|token|transaction|txhash)/i;
 const ADDRESS_VALUE_PATTERN = /(?:^|[^0-9a-f])0x[0-9a-f]{40}(?:$|[^0-9a-f])/i;
 const URL_VALUE_PATTERN = /https?:\/\//i;
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+export type PrivateOperatorReportCommand =
+  | 'plan'
+  | 'refresh-profiles'
+  | 'scan'
+  | 'reconcile'
+  | 'profiles-plan'
+  | 'profiles-refresh'
+  | 'profiles-apply';
 
 function assertPrivateDirectory(path: string): void {
   if (!existsSync(path)) mkdirSync(path, { recursive: true, mode: 0o700 });
@@ -68,7 +76,7 @@ function timestampForFilename(now: Date): string {
 
 export function writePrivateOperatorReport(input: Readonly<{
   reportDirectory: string;
-  command: 'plan' | 'refresh-profiles' | 'scan' | 'reconcile';
+  command: PrivateOperatorReportCommand;
   report: JsonValue;
   now?: Date;
 }>): Readonly<{ written: true }> {

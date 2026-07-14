@@ -16,7 +16,12 @@ describe('latest in-menu patch notes', () => {
     ) as { version: string };
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
-    expect(getLatestPatchNotes(packageJson.version)?.title).toBe('GENESIS 001 FOUNDING');
+    expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
+      releasedOn: 'IN DEVELOPMENT',
+      title: 'GENESIS REALM QUALITY'
+    });
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Not yet deployed');
+    expect(getLatestPatchNotes('0.3.2')?.title).toBe('GENESIS 001 FOUNDING');
     expect(getLatestPatchNotes('0.0.0')).toBeUndefined();
     expect(getLatestPatchNotes('__proto__')).toBeUndefined();
   });

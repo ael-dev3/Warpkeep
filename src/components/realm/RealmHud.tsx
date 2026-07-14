@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+
 import { HEGEMONY_FRONTIER_KEEP } from '../../game/map/hegemonyLandmarks';
 import type { HexCoord } from '../../game/map/hexCoordinates';
 import type { TerrainCell } from '../../game/map/terrainTypes';
@@ -8,7 +10,11 @@ import type {
   WarpkeepRealmProfile,
   WarpkeepWorldTileMetadata
 } from '../../spacetime/warpkeepBackendTypes';
-import { formatPublicMarkMicros } from './realmCastlePresentation';
+import {
+  castleProfileLabel,
+  formatPublicMarkMicros,
+  type RealmCastlePublicPresentation
+} from './realmCastlePresentation';
 
 type RealmHudProps = Readonly<{
   identity: RealmIdentity;
@@ -20,9 +26,9 @@ type RealmHudProps = Readonly<{
   sharedPlayerCount?: number;
   sharedCastleCount?: number;
   selectedCell: TerrainCell;
-  hoveredCell: TerrainCell | null;
+  selectedCastle?: Readonly<{ name: string; level: number; q: number; r: number }>;
+  selectedCastleProfile?: RealmCastlePublicPresentation;
   selectedTileMetadata?: WarpkeepWorldTileMetadata;
-  hoveredTileMetadata?: WarpkeepWorldTileMetadata;
   keepLoadStatus: KeepLoadStatus;
   cameraMode: RealmCameraMode;
   quality: RealmQuality;
@@ -33,9 +39,9 @@ type RealmHudProps = Readonly<{
   onRequestReturn: () => void;
 }>;
 
-function keepTitle(identity: RealmIdentity, ownCastle: RealmHudProps['ownCastle']) {
-  if (ownCastle?.name.trim()) return ownCastle.name;
-  return identity.username ? `@${identity.username} Keep` : `FID ${identity.fid} Keep`;
+function keeperLabel(identity: RealmIdentity, profile: WarpkeepRealmProfile | undefined) {
+  if (profile) return castleProfileLabel(profile);
+  return identity.username ? `@${identity.username.replace(/^@+/, '')}` : 'Hegemony Keeper';
 }
 function keepStatusCopy(status: KeepLoadStatus) {
   switch (status) {
@@ -144,9 +150,9 @@ export function RealmHud({
   sharedPlayerCount,
   sharedCastleCount,
   selectedCell,
-  hoveredCell,
+  selectedCastle,
+  selectedCastleProfile,
   selectedTileMetadata,
-  hoveredTileMetadata,
   keepLoadStatus,
   cameraMode,
   quality,
@@ -157,39 +163,53 @@ export function RealmHud({
   onRequestReturn
 }: RealmHudProps) {
   const authoritativeKeepCoord = keepCoord ?? { q: 0, r: 0 };
-  const inspectedCell = hoveredCell ?? selectedCell;
-  const inspectingHoveredCell = hoveredCell !== null;
-  const inspectedIsKeep = isKeepCell(inspectedCell, authoritativeKeepCoord);
-  const inspectedTile = tilePresentation(
-    inspectingHoveredCell ? hoveredTileMetadata : selectedTileMetadata
-  );
   const selectedIsKeep = isKeepCell(selectedCell, authoritativeKeepCoord);
   const selectedTile = tilePresentation(selectedTileMetadata);
-  const selectedAnnouncement = selectedIsKeep
-    ? `${ownCastle?.name ?? HEGEMONY_FRONTIER_KEEP.name}. Selected cell ${selectedCell.coord.q}, ${selectedCell.coord.r}. ${keepStatusCopy(keepLoadStatus)}`
-    : `${selectedTile.title}. Selected cell ${selectedCell.coord.q}, ${selectedCell.coord.r}. ${selectedTile.detail}`;
+  const selectedCastleLabel = selectedCastleProfile
+    ? castleProfileLabel(selectedCastleProfile)
+    : 'Hegemony Keep';
+  const selectedAnnouncementCandidate = selectedCastle
+    ? `${selectedCastleLabel}, ${selectedCastle.name}. Selected castle at cell ${selectedCastle.q}, ${selectedCastle.r}.`
+    : selectedIsKeep
+      ? `${ownCastle?.name ?? HEGEMONY_FRONTIER_KEEP.name}. Your keep is selected at cell ${selectedCell.coord.q}, ${selectedCell.coord.r}.`
+      : `${selectedTile.title}. Selected cell ${selectedCell.coord.q}, ${selectedCell.coord.r}. ${selectedTile.detail}`;
+  const selectionAnnouncementKey = selectedCastle
+    ? `castle:${selectedCastle.q}:${selectedCastle.r}`
+    : `cell:${selectedCell.coord.q}:${selectedCell.coord.r}`;
+  const selectionAnnouncementRef = useRef({
+    key: selectionAnnouncementKey,
+    copy: selectedAnnouncementCandidate
+  });
+  if (selectionAnnouncementRef.current.key !== selectionAnnouncementKey) {
+    selectionAnnouncementRef.current = {
+      key: selectionAnnouncementKey,
+      copy: selectedAnnouncementCandidate
+    };
+  }
+  const selectedAnnouncement = selectionAnnouncementRef.current.copy;
 
   return (
     <section className="realm-hud" aria-labelledby="realm-heading">
       <header className="realm-hud__header">
-        <p>HEGEMONY REALM // GENESIS 001</p>
-        <h1 id="realm-heading">{keepTitle(identity, ownCastle)}</h1>
+        <p>GENESIS 001 · HEGEMONY REALM</p>
+        <h1 id="realm-heading">{ownCastle?.name ?? 'Hegemony Keep'}</h1>
+        <span className="realm-hud__keeper">{keeperLabel(identity, ownProfile)}</span>
         <div className="realm-hud__badges" aria-label="Keep status">
-          <span>FID {identity.fid}</span>
           <span>LEVEL {ownCastle?.level ?? HEGEMONY_FRONTIER_KEEP.level}</span>
-          <span>QUALITY {quality.toUpperCase()}</span>
         </div>
       </header>
 
       <div className="realm-hud__selection">
-        <span>{inspectedIsKeep ? ownCastle?.name ?? HEGEMONY_FRONTIER_KEEP.name : inspectedTile.title}</span>
+        <span>{selectedCastle ? selectedCastleLabel : selectedIsKeep ? ownCastle?.name ?? HEGEMONY_FRONTIER_KEEP.name : selectedTile.title}</span>
         <strong>
-          {inspectingHoveredCell ? 'Surveying' : 'Selected'} cell {inspectedCell.coord.q}, {inspectedCell.coord.r}
+          {selectedCastle ? selectedCastle.name : 'Selected terrain'} · {selectedCell.coord.q}, {selectedCell.coord.r}
         </strong>
         <small>
-          {inspectedIsKeep
+          {selectedCastle
+            ? `Level ${selectedCastle.level} castle. Activate its record for trusted public details.`
+            : selectedIsKeep
             ? keepStatusCopy(keepLoadStatus)
-            : inspectedTile.detail}
+            : selectedTile.detail}
         </small>
       </div>
       <p
@@ -205,7 +225,7 @@ export function RealmHud({
 
       {sharedTileCount !== undefined ? (
         <p className="realm-hud__shared-state" aria-label="Shared realm state">
-          SHARED LOWLANDS // {sharedTileCount} TILES // {sharedPlayerCount ?? 0} KEEPERS // {sharedCastleCount ?? 0} KEEPS
+          GENESIS 001 · {sharedTileCount.toLocaleString('en-US')} CELLS · {sharedPlayerCount ?? 0} {(sharedPlayerCount ?? 0) === 1 ? 'KEEPER' : 'KEEPERS'} · {sharedCastleCount ?? 0} {(sharedCastleCount ?? 0) === 1 ? 'KEEP' : 'KEEPS'}
         </p>
       ) : null}
 
@@ -234,7 +254,7 @@ export function RealmHud({
         )}
       </div>
       <p className="realm-hud__hint">
-        Drag to survey · wheel or pinch to approach · Home recenters · arrows select · Escape returns
+        Drag to survey · wheel or pinch to approach · Home recenters · arrows select · Escape closes the top surface
       </p>
     </section>
   );

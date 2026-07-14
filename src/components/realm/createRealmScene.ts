@@ -11,13 +11,23 @@ import {
 import { createTerrainDecorationLayers } from './createTerrainDecorations';
 import { createTerrainGeometryData, pointyHexCorners } from './createTerrainGeometry';
 import {
-  createHegemonyKeepPlaceholder,
-  disposeRealmObject,
-  loadHegemonyKeep
-} from './loadHegemonyKeep';
+  DEFAULT_CASTLE_LOD_POLICY,
+  type CastleLod,
+  type CastleLodPolicy
+} from './castleInstancePlanning';
+import {
+  createHegemonyKeepPrefabRepository,
+  type HegemonyKeepPrefabLease
+} from './hegemonyKeepPrefabRepository';
+import {
+  createRealmCastleInstanceLayer,
+  type RealmCastleInstanceLayer,
+  type RealmCastleInstanceRecord
+} from './realmCastleInstanceLayer';
 import {
   createRealmCameraController,
   DEFAULT_REALM_CAMERA_SPEC,
+  type RealmCameraComposition,
   type RealmCameraMode
 } from './realmCameraController';
 import {
@@ -38,13 +48,21 @@ export type RealmPeerCastleMarker = Readonly<{
   r: number;
 }>;
 
+export type RealmInteractionTarget =
+  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
+  | Readonly<{ kind: 'terrain'; coord: HexCoord }>;
+
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
+  focusCastle: (castleId: number) => void;
+  focusCell: (coord: HexCoord) => void;
   frameFoundingDistrict: () => void;
   focusKeep: () => void;
   recenterKeep: () => void;
   setHovered: (coord: HexCoord | null) => void;
   setSelected: (coord: HexCoord | null) => void;
+  setSelectedCastleId: (castleId: number | null) => void;
+  setComposition: (composition: RealmCameraComposition) => void;
   showRealm: () => void;
 }>;
 
@@ -69,12 +87,20 @@ export type CreateRealmSceneOptions = Readonly<{
   quality: RealmQualitySpec;
   reducedMotion: boolean;
   baseUrl: string;
+  /** Optional authoritative metadata boundary for camera navigation. */
+  isCoordPassable?: (coord: HexCoord) => boolean;
   onCameraModeChange: (mode: RealmCameraMode) => void;
+  /** @deprecated Prefer onTargetHover for castle identity-aware interaction. */
   onHover: (coord: HexCoord | null) => void;
+  onTargetHover?: (target: RealmInteractionTarget | null) => void;
   onKeepStatusChange: (status: KeepLoadStatus) => void;
+  /** Fired only after every authoritative castle has a real GLB instance. */
+  onCastlesReady?: (castleCount: number) => void;
   onCastleProjection: (frame: RealmCastleProjectionFrame) => void;
   onRendererUnavailable: () => void;
+  /** @deprecated Prefer onTargetSelect for castle identity-aware interaction. */
   onSelect: (coord: HexCoord) => void;
+  onTargetSelect?: (target: RealmInteractionTarget) => void;
 }>;
 
 type PointerSample = {
@@ -86,11 +112,6 @@ type PointerSample = {
   originY: number;
   dragged: boolean;
 };
-
-type PickResult = Readonly<{
-  coord: HexCoord;
-  keep: boolean;
-}>;
 
 type RealmSceneCleanup = Readonly<{
   add: (dispose: () => void) => void;
@@ -212,15 +233,6 @@ function disposeOverlay(overlay: THREE.LineLoop) {
   (overlay.material as THREE.Material).dispose();
 }
 
-function isDescendantOf(object: THREE.Object3D, ancestor: THREE.Object3D) {
-  let current: THREE.Object3D | null = object;
-  while (current) {
-    if (current === ancestor) return true;
-    current = current.parent;
-  }
-  return false;
-}
-
 function pointerDistance(first: PointerSample, second: PointerSample) {
   return Math.hypot(first.x - second.x, first.y - second.y);
 }
@@ -230,6 +242,29 @@ function activePinchDistance(pointers: ReadonlyMap<number, PointerSample>) {
   const first = iterator.next().value;
   const second = iterator.next().value;
   return first && second ? pointerDistance(first, second) : 0;
+}
+
+function castleLodPolicyForQuality(quality: RealmQualitySpec): CastleLodPolicy {
+  const maximumLod: CastleLod = quality.id === 'high'
+    ? 'high'
+    : quality.id === 'balanced' ? 'balanced' : 'compact';
+  return Object.freeze({
+    ...DEFAULT_CASTLE_LOD_POLICY,
+    maximumLod,
+    selectedMinimumLod: maximumLod,
+    highInstanceBudget: maximumLod === 'high'
+      ? DEFAULT_CASTLE_LOD_POLICY.highInstanceBudget
+      : 0,
+    balancedInstanceBudget: maximumLod === 'compact'
+      ? 0
+      : DEFAULT_CASTLE_LOD_POLICY.balancedInstanceBudget
+  });
+}
+
+function castleLodsForQuality(quality: RealmQualitySpec): readonly CastleLod[] {
+  if (quality.id === 'high') return ['compact', 'balanced', 'high'];
+  if (quality.id === 'balanced') return ['compact', 'balanced'];
+  return ['compact'];
 }
 
 export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHandle {
@@ -265,8 +300,8 @@ function initializeRealmScene(
     }))
   ]);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#aebfc0');
-  const fog = new THREE.Fog('#aebfc0', options.quality.fogNear, options.quality.fogFar);
+  scene.background = new THREE.Color('#9498a6');
+  const fog = new THREE.Fog('#9498a6', options.quality.fogNear, options.quality.fogFar);
   scene.fog = fog;
 
   const renderer = new THREE.WebGLRenderer({
@@ -282,7 +317,7 @@ function initializeRealmScene(
   renderer.toneMappingExposure = lighting.toneMappingExposure;
   renderer.shadowMap.enabled = renderPlan.dynamicShadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
-  renderer.setClearColor('#aebfc0', 1);
+  renderer.setClearColor('#9498a6', 1);
 
   const { data: terrainData, geometry: terrainGeometry } = createTerrainGeometry(
     options.surface,
@@ -321,8 +356,8 @@ function initializeRealmScene(
   cleanup.add(decorations.dispose);
   scene.add(decorations.group);
 
-  const hemisphere = new THREE.HemisphereLight('#f4efd9', '#46523b', 1.1);
-  const sun = new THREE.DirectionalLight('#ffe1a8', lighting.sunIntensity);
+  const hemisphere = new THREE.HemisphereLight('#ece9f4', '#332c3c', 0.84);
+  const sun = new THREE.DirectionalLight('#ffddb0', lighting.sunIntensity);
   sun.position.set(-7.5, 13.5, 8.5);
   sun.castShadow = renderPlan.dynamicShadows;
   if (renderPlan.shadowMapSize > 0) {
@@ -336,11 +371,11 @@ function initializeRealmScene(
     sun.shadow.bias = -0.00035;
     sun.shadow.normalBias = 0.018;
   }
-  const skyFill = new THREE.DirectionalLight('#bdd9e3', 0.42);
+  const skyFill = new THREE.DirectionalLight('#a991d0', 0.56);
   skyFill.position.set(8, 6.5, -9);
-  const warmFill = new THREE.DirectionalLight('#d9a95f', 0.2);
-  warmFill.position.set(-5, 4, -6);
-  scene.add(hemisphere, sun, skyFill, warmFill);
+  const neutralFill = new THREE.DirectionalLight('#d5d9e2', 0.24);
+  neutralFill.position.set(-5, 4, -6);
+  scene.add(hemisphere, sun, skyFill, neutralFill);
 
   const hoverOverlay = createOverlay('#f4df9a', 0.72);
   cleanup.add(() => disposeOverlay(hoverOverlay));
@@ -355,103 +390,51 @@ function initializeRealmScene(
     HEX_SIZE,
     terrainPlacements
   );
-  const keepAnchor = new THREE.Group();
-  keepAnchor.name = 'hegemony-keep-anchor';
-  keepAnchor.position.set(keepWorld.x, keepGroundY + 0.006, keepWorld.z);
-  scene.add(keepAnchor);
-
-  // Shared-state peers intentionally remain lightweight markers; only the
-  // authenticated player's own keep loads the detailed GLB.
-  const peerMarkerGroup = new THREE.Group();
-  peerMarkerGroup.name = 'hegemony-peer-castle-markers';
-  const peerMarkerGeometry = new THREE.ConeGeometry(0.13, 0.36, 5);
-  cleanup.add(() => peerMarkerGeometry.dispose());
-  const peerMarkerMaterial = new THREE.MeshStandardMaterial({
-    color: '#8f58a2',
-    emissive: '#341946',
-    emissiveIntensity: 0.18,
-    roughness: 0.78,
-    metalness: 0.04
-  });
-  cleanup.add(() => peerMarkerMaterial.dispose());
-  const peerMarkerInstances = new THREE.InstancedMesh(
-    peerMarkerGeometry,
-    peerMarkerMaterial,
-    options.otherCastles.length
-  );
-  peerMarkerInstances.name = 'hegemony-peer-castle-instances';
-  const peerMarkerMatrix = new THREE.Matrix4();
-  const peerMarkerPosition = new THREE.Vector3();
-  const peerMarkerRotation = new THREE.Quaternion().setFromAxisAngle(
-    new THREE.Vector3(0, 1, 0),
-    Math.PI / 5
-  );
-  const peerMarkerScale = new THREE.Vector3(1, 1, 1);
-  options.otherCastles.forEach((castle, index) => {
-    const world = axialToWorld({ q: castle.q, r: castle.r }, HEX_SIZE);
-    peerMarkerPosition.set(
-      world.x,
-      terrainHeightAtWorld(options.surface.renderMap, world, HEX_SIZE, terrainPlacements) + 0.2,
-      world.z
-    );
-    peerMarkerMatrix.compose(peerMarkerPosition, peerMarkerRotation, peerMarkerScale);
-    peerMarkerInstances.setMatrixAt(index, peerMarkerMatrix);
-  });
-  peerMarkerInstances.instanceMatrix.needsUpdate = true;
-  peerMarkerInstances.computeBoundingSphere();
-  peerMarkerGroup.add(peerMarkerInstances);
-  scene.add(peerMarkerGroup);
-
-  const castleLabelAnchors = [
-    ...(options.ownCastleId === undefined ? [] : [{
+  const authoritativeCastles: readonly RealmCastleInstanceRecord[] = [
+    ...(options.ownCastleId === undefined ? [] : [Object.freeze({
       castleId: options.ownCastleId,
-      q: options.keepCoord.q,
-      r: options.keepCoord.r,
+      coord: Object.freeze({ q: options.keepCoord.q, r: options.keepCoord.r }),
       x: keepWorld.x,
-      y: keepGroundY + 1.12,
+      groundY: keepGroundY,
       z: keepWorld.z
-    }]),
+    })]),
     ...options.otherCastles.map((castle) => {
-      const world = axialToWorld(castle, HEX_SIZE);
-      return {
+      const coord = Object.freeze({ q: castle.q, r: castle.r });
+      const world = axialToWorld(coord, HEX_SIZE);
+      return Object.freeze({
         castleId: castle.castleId,
-        q: castle.q,
-        r: castle.r,
+        coord,
         x: world.x,
-        y: terrainHeightAtWorld(
+        groundY: terrainHeightAtWorld(
           options.surface.renderMap,
           world,
           HEX_SIZE,
           terrainPlacements
-        ) + 0.58,
+        ),
         z: world.z
-      };
+      });
     })
   ];
 
-  const contactShadowGeometry = new THREE.CircleGeometry(0.69, 40);
-  cleanup.add(() => contactShadowGeometry.dispose());
-  const contactShadowMaterial = new THREE.MeshBasicMaterial({
-    color: '#283020',
-    opacity: renderPlan.dynamicShadows ? 0.11 : 0.19,
-    transparent: true,
-    depthWrite: false,
-    toneMapped: false
-  });
-  cleanup.add(() => contactShadowMaterial.dispose());
-  const contactShadow = new THREE.Mesh(contactShadowGeometry, contactShadowMaterial);
-  contactShadow.name = 'keep-contact-shadow';
-  contactShadow.rotation.x = -Math.PI / 2;
-  contactShadow.position.y = 0.005;
-  contactShadow.renderOrder = 1;
-  keepAnchor.add(contactShadow);
+  const castleLabelAnchors = authoritativeCastles.map((castle) => ({
+    castleId: castle.castleId,
+    q: castle.coord.q,
+    r: castle.coord.r,
+    x: castle.x,
+    y: castle.groundY + 1.12,
+    z: castle.z
+  }));
 
-  let keepObject = createHegemonyKeepPlaceholder(false);
-  cleanup.add(() => disposeRealmObject(keepObject));
-  keepAnchor.add(keepObject);
-  options.onKeepStatusChange('loading');
+  let castleLayer: RealmCastleInstanceLayer | null = null;
+  let selectedCastleId: number | undefined;
+  let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
+    height: 1.08,
+    footprintDiameter: 1.48
+  });
+  options.onKeepStatusChange(authoritativeCastles.length > 0 ? 'loading' : 'ready');
 
   let lastCastleProjectionKey = '';
+  let renderPendingWhileHidden = false;
   const projectionPoint = new THREE.Vector3();
   const projectCastleLabels = () => {
     const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
@@ -483,10 +466,23 @@ function initializeRealmScene(
     options.onCastleProjection({ width, height, castles });
   };
   const render = () => {
-    if (!cleanup.isDisposed()) {
-      renderer.render(scene, cameraController.camera);
-      projectCastleLabels();
+    if (cleanup.isDisposed()) return;
+    if (document.hidden) {
+      renderPendingWhileHidden = true;
+      return;
     }
+    renderPendingWhileHidden = false;
+    const viewportHeight = Math.max(
+      1,
+      options.canvas.clientHeight || window.innerHeight || 1
+    );
+    castleLayer?.update(
+      cameraController.camera,
+      viewportHeight,
+      selectedCastleId
+    );
+    renderer.render(scene, cameraController.camera);
+    projectCastleLabels();
   };
   const cameraController = createRealmCameraController({
     bounds: terrainData.bounds,
@@ -508,19 +504,39 @@ function initializeRealmScene(
     }
   });
   cleanup.add(cameraController.dispose);
+  const handleRenderVisibility = () => {
+    if (!document.hidden && renderPendingWhileHidden && !cleanup.isDisposed()) render();
+  };
+  document.addEventListener('visibilitychange', handleRenderVisibility);
+  cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
 
   const raycaster = new THREE.Raycaster();
   const normalizedPointer = new THREE.Vector2();
   const pointers = new Map<number, PointerSample>();
   let lastPinchDistance = 0;
+  let pendingHoverPoint: Readonly<{ x: number; y: number }> | null = null;
+  let hoverAnimationFrame = 0;
   let resizeObserver: ResizeObserver | null = null;
   cleanup.add(() => {
+    if (hoverAnimationFrame !== 0) window.cancelAnimationFrame(hoverAnimationFrame);
+    hoverAnimationFrame = 0;
+    pendingHoverPoint = null;
     pointers.clear();
     lastPinchDistance = 0;
     delete options.canvas.dataset.dragging;
   });
 
-  const pick = (clientX: number, clientY: number): PickResult | null => {
+  const dispatchHover = (target: RealmInteractionTarget | null) => {
+    options.onTargetHover?.(target);
+    options.onHover(target?.coord ?? null);
+  };
+
+  const dispatchSelect = (target: RealmInteractionTarget) => {
+    options.onTargetSelect?.(target);
+    options.onSelect(target.coord);
+  };
+
+  const pick = (clientX: number, clientY: number): RealmInteractionTarget | null => {
     const bounds = options.canvas.getBoundingClientRect();
     if (bounds.width <= 0 || bounds.height <= 0) return null;
     normalizedPointer.set(
@@ -528,20 +544,46 @@ function initializeRealmScene(
       -((clientY - bounds.top) / bounds.height) * 2 + 1
     );
     raycaster.setFromCamera(normalizedPointer, cameraController.camera);
-    const intersections = raycaster.intersectObjects([keepAnchor, terrain], true);
+    // Castle identity is authoritative and must win even when the terrain is
+    // geometrically closer at the base of a model.
+    const castleHit = castleLayer?.raycast(raycaster);
+    if (castleHit) {
+      return Object.freeze({
+        kind: 'castle',
+        castleId: castleHit.castleId,
+        coord: castleHit.coord
+      });
+    }
+    const intersections = raycaster.intersectObject(terrain, false);
     for (const intersection of intersections) {
-      if (isDescendantOf(intersection.object, keepAnchor)) {
-        return { coord: options.keepCoord, keep: true };
-      }
-      if (intersection.object === terrain) {
-        const coord = worldToNearestAxial(
-          { x: intersection.point.x, z: intersection.point.z },
-          HEX_SIZE
-        );
-        if (isPlayableRealmCoord(options.surface, coord)) return { coord, keep: false };
+      const coord = worldToNearestAxial(
+        { x: intersection.point.x, z: intersection.point.z },
+        HEX_SIZE
+      );
+      if (isPlayableRealmCoord(options.surface, coord)) {
+        return Object.freeze({ kind: 'terrain', coord });
       }
     }
     return null;
+  };
+
+  const cancelPendingHover = () => {
+    pendingHoverPoint = null;
+    if (hoverAnimationFrame === 0) return;
+    window.cancelAnimationFrame(hoverAnimationFrame);
+    hoverAnimationFrame = 0;
+  };
+
+  const scheduleHover = (clientX: number, clientY: number) => {
+    pendingHoverPoint = { x: clientX, y: clientY };
+    if (hoverAnimationFrame !== 0) return;
+    hoverAnimationFrame = window.requestAnimationFrame(() => {
+      hoverAnimationFrame = 0;
+      const point = pendingHoverPoint;
+      pendingHoverPoint = null;
+      if (cleanup.isDisposed() || pointers.size > 0 || !point) return;
+      dispatchHover(pick(point.x, point.y));
+    });
   };
 
   const handlePointerDown = (event: PointerEvent) => {
@@ -561,16 +603,18 @@ function initializeRealmScene(
       pointers.forEach((sample) => { sample.dragged = true; });
       lastPinchDistance = activePinchDistance(pointers);
     }
+    cancelPendingHover();
     options.canvas.dataset.dragging = 'true';
-    options.onHover(null);
+    dispatchHover(null);
   };
 
   const handlePointerMove = (event: PointerEvent) => {
     const sample = pointers.get(event.pointerId);
     if (!sample) {
-      options.onHover(pick(event.clientX, event.clientY)?.coord ?? null);
+      scheduleHover(event.clientX, event.clientY);
       return;
     }
+    cancelPendingHover();
     event.preventDefault();
     sample.previousX = sample.x;
     sample.previousY = sample.y;
@@ -604,21 +648,32 @@ function initializeRealmScene(
     if (!cancelled && sample && wasOnlyPointer && !sample.dragged) {
       const picked = pick(event.clientX, event.clientY);
       if (picked) {
-        options.onSelect(picked.coord);
-        if (picked.keep) cameraController.focusKeep();
+        selectedCastleId = picked.kind === 'castle' ? picked.castleId : undefined;
+        dispatchSelect(picked);
+        render();
+        if (
+          picked.kind === 'castle'
+          && picked.castleId === options.ownCastleId
+        ) {
+          cameraController.focusKeep();
+        }
       }
     }
     lastPinchDistance = activePinchDistance(pointers);
     if (pointers.size === 0) {
       delete options.canvas.dataset.dragging;
-      options.onHover(pick(event.clientX, event.clientY)?.coord ?? null);
+      if (cancelled) dispatchHover(null);
+      else scheduleHover(event.clientX, event.clientY);
     }
   };
 
   const handlePointerUp = (event: PointerEvent) => finishPointer(event, false);
   const handlePointerCancel = (event: PointerEvent) => finishPointer(event, true);
   const handlePointerLeave = () => {
-    if (pointers.size === 0) options.onHover(null);
+    if (pointers.size === 0) {
+      cancelPendingHover();
+      dispatchHover(null);
+    }
   };
   const handleWheel = (event: WheelEvent) => {
     event.preventDefault();
@@ -666,43 +721,128 @@ function initializeRealmScene(
   cleanup.add(() => window.removeEventListener('resize', resize));
   resize();
 
-  void loadHegemonyKeep({
-    quality: runtimeQuality,
+  const castleLodPolicy = castleLodPolicyForQuality(runtimeQuality);
+  const usedCastleLods = castleLodsForQuality(runtimeQuality);
+  const prefabRepository = createHegemonyKeepPrefabRepository({
     baseUrl: options.baseUrl,
     maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
-  }).then((loaded) => {
-    if (cleanup.isDisposed()) {
-      disposeRealmObject(loaded.root);
+  });
+
+  const releaseLeases = (leases: readonly HegemonyKeepPrefabLease[]) => {
+    leases.forEach((lease) => {
+      try {
+        lease.release();
+      } catch {
+        // One faulty WebGL disposal must not strand the remaining shared LODs.
+      }
+    });
+  };
+
+  const initializeCastleInstances = async () => {
+    if (authoritativeCastles.length === 0) {
+      if (!cleanup.isDisposed()) {
+        options.onCastlesReady?.(0);
+        render();
+      }
       return;
     }
-    keepAnchor.remove(keepObject);
-    disposeRealmObject(keepObject);
-    keepObject = loaded.root;
-    keepAnchor.add(keepObject);
-    cameraController.setKeepFocus({
-      x: keepWorld.x,
-      y: keepGroundY,
-      z: keepWorld.z,
-      height: loaded.visualHeight,
-      footprintDiameter: loaded.footprintDiameter
+
+    const leases: HegemonyKeepPrefabLease[] = [];
+    let acquisitionStopped = false;
+    try {
+      await Promise.all(usedCastleLods.map(async (lod) => {
+        try {
+          const lease = await prefabRepository.acquire(lod);
+          if (acquisitionStopped || cleanup.isDisposed()) {
+            releaseLeases([lease]);
+            return;
+          }
+          leases.push(lease);
+        } catch (error) {
+          acquisitionStopped = true;
+          throw error;
+        }
+      }));
+    } catch (error) {
+      acquisitionStopped = true;
+      releaseLeases(leases);
+      throw error;
+    }
+    if (cleanup.isDisposed()) {
+      releaseLeases(leases);
+      return;
+    }
+
+    const prefabs = new Map(leases.map((lease) => [lease.prefab.lod, lease.prefab]));
+    let nextLayer: RealmCastleInstanceLayer;
+    try {
+      nextLayer = createRealmCastleInstanceLayer({
+        castles: authoritativeCastles,
+        prefabs,
+        policy: castleLodPolicy,
+        dynamicShadows: renderPlan.dynamicShadows
+      });
+    } catch (error) {
+      releaseLeases(leases);
+      throw error;
+    }
+    if (cleanup.isDisposed()) {
+      try {
+        nextLayer.dispose();
+      } finally {
+        releaseLeases(leases);
+      }
+      return;
+    }
+
+    castleLayer = nextLayer;
+    scene.add(nextLayer.group);
+    let released = false;
+    cleanup.add(() => {
+      if (released) return;
+      released = true;
+      try {
+        scene.remove(nextLayer.group);
+      } finally {
+        try {
+          nextLayer.dispose();
+        } finally {
+          if (castleLayer === nextLayer) castleLayer = null;
+          releaseLeases(leases);
+        }
+      }
     });
+
+    const focusPrefab = prefabs.get(castleLodPolicy.maximumLod)
+      ?? prefabs.get('compact');
+    if (focusPrefab) {
+      castleFocusSize = Object.freeze({
+        height: focusPrefab.visualHeight,
+        footprintDiameter: focusPrefab.footprintDiameter
+      });
+      cameraController.setKeepFocus({
+        x: keepWorld.x,
+        y: keepGroundY,
+        z: keepWorld.z,
+        height: focusPrefab.visualHeight,
+        footprintDiameter: focusPrefab.footprintDiameter
+      });
+    }
     options.onKeepStatusChange('ready');
-    render();
-  }).catch(() => {
     if (cleanup.isDisposed()) return;
-    keepAnchor.remove(keepObject);
-    disposeRealmObject(keepObject);
-    keepObject = createHegemonyKeepPlaceholder(true);
-    keepAnchor.add(keepObject);
-    cameraController.setKeepFocus({
-      x: keepWorld.x,
-      y: keepGroundY,
-      z: keepWorld.z,
-      height: 0.82,
-      footprintDiameter: 1.48
-    });
-    options.onKeepStatusChange('fallback');
+    options.onCastlesReady?.(authoritativeCastles.length);
     render();
+  };
+
+  void initializeCastleInstances().catch(() => {
+    if (cleanup.isDisposed()) return;
+    try {
+      options.onKeepStatusChange('fallback');
+    } catch {
+      // Renderer fallback still has to engage when a status observer fails.
+    }
+    disposeScene();
+    options.onRendererUnavailable();
   });
 
   function disposeScene() {
@@ -711,6 +851,40 @@ function initializeRealmScene(
 
   return {
     dispose: disposeScene,
+    focusCastle: (castleId) => {
+      if (cleanup.isDisposed()) return;
+      const castle = authoritativeCastles.find((candidate) => candidate.castleId === castleId);
+      if (!castle) return;
+      cameraController.focusAt({
+        x: castle.x,
+        y: castle.groundY,
+        z: castle.z,
+        height: castleFocusSize.height,
+        footprintDiameter: castleFocusSize.footprintDiameter
+      });
+    },
+    focusCell: (coord) => {
+      if (cleanup.isDisposed() || !isPlayableRealmCoord(options.surface, coord)) return;
+      try {
+        if (options.isCoordPassable && !options.isCoordPassable(coord)) return;
+      } catch {
+        // Authoritative metadata uncertainty must never move the camera.
+        return;
+      }
+      const world = axialToWorld(coord, HEX_SIZE);
+      cameraController.focusAt({
+        x: world.x,
+        y: terrainHeightAtWorld(
+          options.surface.renderMap,
+          world,
+          HEX_SIZE,
+          terrainPlacements
+        ),
+        z: world.z,
+        height: 0.18,
+        footprintDiameter: 1.24
+      });
+    },
     frameFoundingDistrict: () => {
       cameraController.recenterKeep();
       const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
@@ -730,9 +904,20 @@ function initializeRealmScene(
     },
     setSelected: (coord) => {
       if (cleanup.isDisposed()) return;
+      selectedCastleId = coord
+        ? authoritativeCastles.find((castle) => (
+          castle.coord.q === coord.q && castle.coord.r === coord.r
+        ))?.castleId
+        : undefined;
       setOverlay(selectedOverlay, options.surface, coord, terrainPlacements);
       render();
     },
+    setSelectedCastleId: (castleId) => {
+      if (cleanup.isDisposed()) return;
+      selectedCastleId = castleId === null ? undefined : castleId;
+      render();
+    },
+    setComposition: (composition) => cameraController.setComposition(composition),
     showRealm: cameraController.showRealm
   };
 }

@@ -15,6 +15,7 @@ import {
   type WarpkeepBackendRuntime
 } from '../src/spacetime/WarpkeepSpacetimeProvider';
 import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
+import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
 const CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
@@ -109,7 +110,7 @@ describe('Warpkeep server Terms gate', () => {
       bootstrapPlayer: vi.fn(),
       acceptAlphaTerms: vi.fn(async () => undefined),
       observeRealm: vi.fn(() => vi.fn()),
-      readRealmSnapshot: vi.fn(() => ({ tiles: [], players: [], castles: [] })),
+      readRealmSnapshot: vi.fn((_candidate, fid: number) => createCanonicalGenesisSnapshot(fid)),
       subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
         onApplied();
         return { unsubscribe: vi.fn() };
@@ -176,7 +177,7 @@ describe('Warpkeep server Terms gate', () => {
       bootstrapPlayer: vi.fn(),
       acceptAlphaTerms: vi.fn(() => acceptance),
       observeRealm: vi.fn(() => vi.fn()),
-      readRealmSnapshot: vi.fn(() => ({ tiles: [], players: [], castles: [] })),
+      readRealmSnapshot: vi.fn((_candidate, fid: number) => createCanonicalGenesisSnapshot(fid)),
       subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
         onApplied();
         return { unsubscribe: vi.fn() };

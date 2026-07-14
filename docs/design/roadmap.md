@@ -1,5 +1,25 @@
 # Warpkeep roadmap
 
+## Current development — Alpha 0.3.3 Genesis realm quality
+
+Alpha 0.3.3 is a source candidate and is not yet deployed. Its implementation
+accepts only a complete canonical 1,261-cell Genesis snapshot, removes the
+standalone 61-cell browser presentation, gives every visible founded castle a
+shared real Hegemony GLB LOD, and separates transient hover from durable
+selection, inspection, camera, and keyboard-focus state.
+
+The candidate also replaces the permanent debug-like panels and raw coordinate
+grid with a compact safe-area-aware Hegemony HUD, explicit castle record,
+searchable navigator, measured labels, and UI-aware camera composition. Public
+profile presentation remains sanitized and display-only, with nonnumeric neutral
+fallbacks. No authentication, protocol, schema, admission, wallet, Marks, world,
+or castle-authority expansion is part of the patch.
+
+Release still requires the final cumulative validation matrix, independent
+review, exact production-video replay, real desktop/mobile GPU measurements,
+bounded owner QA, and exact-build deployment verification. No tag, release, or
+production data mutation is implied by the checked-in `0.3.3` version.
+
 ## Live milestone — Alpha 0.3.2 Genesis founding
 
 Warpkeep's public title, menu, SIWF/OIDC boundary, protocol-3 server module, and

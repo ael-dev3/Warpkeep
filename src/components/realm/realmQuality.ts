@@ -16,8 +16,6 @@ export const REALM_LIGHTING_SPECS: Readonly<Record<RealmQuality, RealmLightingSp
 export type RealmQualitySpec = Readonly<{
   id: RealmQuality;
   subdivisionsPerEdge: number;
-  playableRadius: 4;
-  renderRadius: 5;
   greenTuftsPerPlayableCell: number;
   greenTuftsPerApronCell: number;
   dryTuftsPerPlayableCell: number;
@@ -43,7 +41,6 @@ export type RealmDecorationDensitySpec = Readonly<{
 }>;
 
 export type RealmRenderPlan = Readonly<{
-  expanded: boolean;
   subdivisionsPerEdge: number;
   terrainTriangleBudget: number;
   estimatedTerrainTriangles: number;
@@ -53,7 +50,7 @@ export type RealmRenderPlan = Readonly<{
   dynamicShadows: boolean;
   shadowMapSize: 0 | 1024 | 2048;
   shadowCameraHalfExtent: number;
-  shadowMode: 'full-legacy-realm' | 'contact-only';
+  shadowMode: 'contact-only';
 }>;
 
 export type RealmRenderPlanInput = Readonly<{
@@ -67,8 +64,6 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
   high: {
     id: 'high',
     subdivisionsPerEdge: 8,
-    playableRadius: 4,
-    renderRadius: 5,
     greenTuftsPerPlayableCell: 11,
     greenTuftsPerApronCell: 4,
     dryTuftsPerPlayableCell: 2,
@@ -86,8 +81,6 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
   balanced: {
     id: 'balanced',
     subdivisionsPerEdge: 6,
-    playableRadius: 4,
-    renderRadius: 5,
     greenTuftsPerPlayableCell: 7,
     greenTuftsPerApronCell: 2,
     dryTuftsPerPlayableCell: 1,
@@ -105,8 +98,6 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
   reduced: {
     id: 'reduced',
     subdivisionsPerEdge: 3,
-    playableRadius: 4,
-    renderRadius: 5,
     greenTuftsPerPlayableCell: 1,
     greenTuftsPerApronCell: 0,
     dryTuftsPerPlayableCell: 0,
@@ -124,9 +115,8 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
 } as const;
 
 /**
- * Hard scene-build ceilings for the largest currently admitted radius-20
- * realm. They bound CPU-side geometry generation and GPU instance count
- * without changing the original radius-four presentation.
+ * Hard scene-build ceilings for canonical radius-20 Genesis 001. They bound
+ * CPU-side geometry generation and GPU instance count before allocation.
  */
 export const REALM_EXPANDED_RENDER_BUDGETS = Object.freeze({
   high: Object.freeze({ terrainTriangles: 150_000, decorationInstances: 7_000 }),
@@ -168,17 +158,6 @@ function finiteCellCount(value: number) {
   return Math.max(1, Number.isFinite(value) ? Math.trunc(value) : 1);
 }
 
-function densityFromQuality(quality: RealmQualitySpec): RealmDecorationDensitySpec {
-  return {
-    greenTuftsPerPlayableCell: quality.greenTuftsPerPlayableCell,
-    greenTuftsPerApronCell: quality.greenTuftsPerApronCell,
-    dryTuftsPerPlayableCell: quality.dryTuftsPerPlayableCell,
-    dryTuftsPerApronCell: quality.dryTuftsPerApronCell,
-    stoneChancePlayable: quality.stoneChancePlayable,
-    stoneChanceApron: quality.stoneChanceApron
-  };
-}
-
 function maximumDecorationInstances(
   density: RealmDecorationDensitySpec,
   playableCellCount: number,
@@ -195,11 +174,10 @@ function maximumDecorationInstances(
 }
 
 /**
- * Resolve one deterministic plan before any large arrays or Three.js objects
- * are allocated. Dynamic shadow maps deliberately stop at the original
- * radius-five render surface: stretching a fixed 1024/2048 map over the
- * expanded realm would either omit distant castles or make every shadow soft.
- * Expanded scenes retain the authored contact shadow instead.
+ * Resolve one deterministic canonical-world plan before any large arrays or
+ * Three.js objects are allocated. There is deliberately no radius-four/radius-
+ * five quality branch: every runtime realm uses bounded Genesis density and
+ * footprint-sized castle contact shadows.
  */
 export function resolveRealmRenderPlan(
   quality: RealmQualitySpec,
@@ -207,10 +185,6 @@ export function resolveRealmRenderPlan(
 ): RealmRenderPlan {
   const playableCellCount = finiteCellCount(input.playableCellCount);
   const renderCellCount = Math.max(playableCellCount, finiteCellCount(input.renderCellCount));
-  const expanded = input.playableRadius > quality.playableRadius
-    || input.renderRadius > quality.renderRadius
-    || playableCellCount > 61
-    || renderCellCount > 91;
   const budget = REALM_EXPANDED_RENDER_BUDGETS[quality.id];
   const subdivisionsForBudget = Math.max(1, Math.floor(Math.sqrt(
     budget.terrainTriangles / (renderCellCount * 6)
@@ -219,13 +193,9 @@ export function resolveRealmRenderPlan(
     quality.subdivisionsPerEdge,
     subdivisionsForBudget
   );
-  const decorationDensity = expanded
-    ? EXPANDED_DECORATION_DENSITY[quality.id]
-    : densityFromQuality(quality);
-  const dynamicShadows = quality.dynamicShadows && !expanded;
+  const decorationDensity = EXPANDED_DECORATION_DENSITY[quality.id];
 
   return {
-    expanded,
     subdivisionsPerEdge,
     terrainTriangleBudget: budget.terrainTriangles,
     estimatedTerrainTriangles: renderCellCount * 6 * subdivisionsPerEdge ** 2,
@@ -236,10 +206,10 @@ export function resolveRealmRenderPlan(
       playableCellCount,
       renderCellCount
     ),
-    dynamicShadows,
-    shadowMapSize: dynamicShadows ? quality.shadowMapSize : 0,
-    shadowCameraHalfExtent: dynamicShadows ? 10.5 : 0,
-    shadowMode: dynamicShadows ? 'full-legacy-realm' : 'contact-only'
+    dynamicShadows: false,
+    shadowMapSize: 0,
+    shadowCameraHalfExtent: 0,
+    shadowMode: 'contact-only'
   };
 }
 

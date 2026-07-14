@@ -1,0 +1,183 @@
+import type { HexCoord } from '../../game/map/hexCoordinates';
+
+export type RealmCastleTarget = Readonly<{
+  castleId: number;
+  coord: HexCoord;
+}>;
+
+export type RealmCameraTarget =
+  | Readonly<{ kind: 'realm' }>
+  | Readonly<{ kind: 'cell'; coord: HexCoord }>
+  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>;
+
+export type RealmKeyboardTarget =
+  | Readonly<{ kind: 'map' }>
+  | Readonly<{ kind: 'inspector'; castleId: number }>
+  | Readonly<{ kind: 'castle-label'; castleId: number }>
+  | Readonly<{ kind: 'navigator' }>
+  | Readonly<{ kind: 'navigator-trigger' }>;
+
+/**
+ * A sequence number makes repeated requests for the same focus target observable
+ * without putting an HTMLElement in durable interaction state.
+ */
+export type RealmKeyboardIntent = Readonly<{
+  sequence: number;
+  target: RealmKeyboardTarget;
+}>;
+
+export type RealmInteractionState = Readonly<{
+  selectedCell: HexCoord;
+  selectedCastle: RealmCastleTarget | null;
+  inspectorTarget: RealmCastleTarget | null;
+  inspectorOpen: boolean;
+  cameraTarget: RealmCameraTarget;
+  navigatorOpen: boolean;
+  keyboardIntent: RealmKeyboardIntent;
+}>;
+
+export type RealmInteractionAction =
+  | Readonly<{ type: 'select-cell'; coord: HexCoord }>
+  | Readonly<{ type: 'activate-castle'; castleId: number; coord: HexCoord }>
+  | Readonly<{ type: 'close-inspector' }>
+  | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
+  | Readonly<{ type: 'open-navigator' }>
+  | Readonly<{ type: 'close-navigator' }>
+  | Readonly<{ type: 'request-map-focus' }>;
+
+export type RealmEscapeDecision = 'close-inspector' | 'close-navigator' | 'request-exit';
+
+export type RealmEscapeResult = Readonly<{
+  decision: RealmEscapeDecision;
+  state: RealmInteractionState;
+}>;
+
+function copyCoord(coord: HexCoord): HexCoord {
+  return { q: coord.q, r: coord.r };
+}
+
+function copyCastleTarget(target: RealmCastleTarget): RealmCastleTarget {
+  return { castleId: target.castleId, coord: copyCoord(target.coord) };
+}
+
+function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
+  if (target.kind === 'realm') return { kind: 'realm' };
+  if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
+  return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
+}
+
+function withKeyboardIntent(
+  state: RealmInteractionState,
+  target: RealmKeyboardTarget
+): RealmKeyboardIntent {
+  return { sequence: state.keyboardIntent.sequence + 1, target };
+}
+
+export function createRealmInteractionState(initialSelectedCell: HexCoord): RealmInteractionState {
+  return {
+    selectedCell: copyCoord(initialSelectedCell),
+    selectedCastle: null,
+    inspectorTarget: null,
+    inspectorOpen: false,
+    cameraTarget: { kind: 'realm' },
+    navigatorOpen: false,
+    keyboardIntent: { sequence: 0, target: { kind: 'map' } }
+  };
+}
+
+/**
+ * Durable interaction state only. Pointer hover remains transient presentation
+ * state and deliberately has no field or action in this reducer.
+ */
+export function realmInteractionReducer(
+  state: RealmInteractionState,
+  action: RealmInteractionAction
+): RealmInteractionState {
+  switch (action.type) {
+    case 'select-cell':
+      return {
+        ...state,
+        selectedCell: copyCoord(action.coord),
+        selectedCastle: null
+      };
+
+    case 'activate-castle': {
+      const target = copyCastleTarget({ castleId: action.castleId, coord: action.coord });
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: target,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'inspector',
+          castleId: target.castleId
+        })
+      };
+    }
+
+    case 'close-inspector': {
+      if (!state.inspectorOpen) return state;
+      const castle = state.inspectorTarget ?? state.selectedCastle;
+      return {
+        ...state,
+        inspectorOpen: false,
+        keyboardIntent: withKeyboardIntent(
+          state,
+          castle
+            ? { kind: 'castle-label', castleId: castle.castleId }
+            : { kind: 'map' }
+        )
+      };
+    }
+
+    case 'set-camera-target':
+      return { ...state, cameraTarget: copyCameraTarget(action.target) };
+
+    case 'open-navigator':
+      return {
+        ...state,
+        inspectorOpen: false,
+        navigatorOpen: true,
+        keyboardIntent: withKeyboardIntent(state, { kind: 'navigator' })
+      };
+
+    case 'close-navigator':
+      if (!state.navigatorOpen) return state;
+      return {
+        ...state,
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, { kind: 'navigator-trigger' })
+      };
+
+    case 'request-map-focus':
+      return {
+        ...state,
+        keyboardIntent: withKeyboardIntent(state, { kind: 'map' })
+      };
+  }
+}
+
+/**
+ * Resolves one Escape press without storing an exit request in durable state.
+ * The caller owns the external exit side effect only when `request-exit` wins.
+ */
+export function resolveRealmEscape(state: RealmInteractionState): RealmEscapeResult {
+  if (state.inspectorOpen) {
+    return {
+      decision: 'close-inspector',
+      state: realmInteractionReducer(state, { type: 'close-inspector' })
+    };
+  }
+
+  if (state.navigatorOpen) {
+    return {
+      decision: 'close-navigator',
+      state: realmInteractionReducer(state, { type: 'close-navigator' })
+    };
+  }
+
+  return { decision: 'request-exit', state };
+}

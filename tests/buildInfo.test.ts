@@ -16,12 +16,20 @@ import {
 const FULL_SHA = '0123456789abcdef0123456789abcdef01234567';
 
 describe('Warpkeep build identity', () => {
-  it('reads the 0.3.2 product version from the package source of truth', () => {
+  it('opts the document viewport into device safe-area composition', () => {
+    const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+
+    expect(indexHtml).toMatch(
+      /<meta\s+name="viewport"\s+content="[^"]*\bviewport-fit=cover\b[^"]*"\s*\/>/
+    );
+  });
+
+  it('reads the 0.3.3 product version from the package source of truth', () => {
     const packageJson = JSON.parse(
       readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')
     ) as { version?: unknown };
 
-    expect(readWarpkeepProductVersion(packageJson.version)).toBe('0.3.2');
+    expect(readWarpkeepProductVersion(packageJson.version)).toBe('0.3.3');
     expect(readWarpkeepProductVersion('1.0.0-alpha.1+build.7')).toBe('1.0.0-alpha.1+build.7');
     expect(readWarpkeepProductVersion('0.2')).toBeUndefined();
   });

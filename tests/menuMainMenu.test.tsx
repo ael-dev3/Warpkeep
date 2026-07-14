@@ -116,7 +116,7 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -220,18 +220,18 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
 
     act(() => patchNotes.focus());
-    const notes = screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' });
+    const notes = screen.getByRole('region', { name: 'GENESIS REALM QUALITY' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.2');
-    expect(notes.textContent).toContain('1,261 authoritative realm cells');
-    expect(notes.textContent).toContain('production burn-credit application remain unavailable');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.3');
+    expect(notes.textContent).toContain('one complete, internally consistent Genesis snapshot');
+    expect(notes.textContent).toContain('Not yet deployed');
     expect(within(notes).queryByRole('link')).toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -244,19 +244,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = screen.getByRole('button', { name: 'PATCH NOTES' });
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -266,19 +266,19 @@ describe('WarpkeepMainMenu', () => {
     const commandItem = patchNotes.closest('li');
 
     fireEvent.pointerEnter(commandItem!, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
     fireEvent.pointerLeave(commandItem!, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' });
+    const panel = screen.getByRole('region', { name: 'GENESIS REALM QUALITY' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

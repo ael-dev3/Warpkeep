@@ -1,5 +1,6 @@
 import { axialToWorld, hexDistance, type HexCoord } from '../../game/map/hexCoordinates';
 import { formatMarkMicros } from '../../marks/marksPolicy';
+import { safePublicHttpsImageUrl } from '../../security/publicImageUrl';
 import type {
   WarpkeepPlayer,
   WarpkeepRealmProfile
@@ -62,29 +63,17 @@ export function publicProfileForCastle(
 
 export function castleProfileLabel(profile: RealmCastlePublicPresentation) {
   const username = normalizeRealmUsername(profile.canonicalUsername);
-  return username ? `@${username}` : profile.displayName ?? `FID ${profile.fid}`;
+  return username ? `@${username}` : profile.displayName ?? 'Hegemony Keep';
 }
 
 export function castleProfileMonogram(profile: RealmCastlePublicPresentation) {
   const source = normalizeRealmUsername(profile.canonicalUsername)
     ?? boundedDisplayText(profile.displayName, 80);
-  return source?.[0]?.toLocaleUpperCase() ?? (String(profile.fid).slice(-2) || 'W');
+  return source?.[0]?.toLocaleUpperCase() ?? 'W';
 }
 
 export function safeRealmProfileImageUrl(value: string | undefined) {
-  if (!value || value.length > 2_048) return undefined;
-  try {
-    const parsed = new URL(value);
-    const normalized = parsed.toString();
-    return parsed.protocol === 'https:'
-      && !parsed.username
-      && !parsed.password
-      && normalized.length <= 2_048
-      ? normalized
-      : undefined;
-  } catch {
-    return undefined;
-  }
+  return safePublicHttpsImageUrl(value);
 }
 
 export function farcasterProfileUrl(username: string | undefined) {

@@ -17,8 +17,6 @@ describe('realm quality profiles', () => {
   it('keeps every profile inside the declared terrain and rendering budgets', () => {
     expect(REALM_QUALITY_SPECS.high).toMatchObject({
       subdivisionsPerEdge: 8,
-      playableRadius: 4,
-      renderRadius: 5,
       dynamicShadows: true,
       shadowMapSize: 2048
     });
@@ -32,7 +30,6 @@ describe('realm quality profiles', () => {
       dynamicShadows: false
     });
     Object.values(REALM_QUALITY_SPECS).forEach((spec) => {
-      expect(spec.playableRadius).toBeLessThan(spec.renderRadius);
       expect(spec.pixelRatioCap).toBeGreaterThanOrEqual(1);
       expect(spec.keepAssetPath.endsWith('.glb')).toBe(true);
     });
@@ -81,7 +78,7 @@ describe('realm quality profiles', () => {
       .toBe(0.4);
   });
 
-  it('preserves the original radius-four scene quality exactly', () => {
+  it('has no legacy radius-four rendering branch', () => {
     const input = {
       playableRadius: 4,
       renderRadius: 5,
@@ -91,28 +88,20 @@ describe('realm quality profiles', () => {
     Object.values(REALM_QUALITY_SPECS).forEach((quality) => {
       const plan = resolveRealmRenderPlan(quality, input);
       expect(plan.subdivisionsPerEdge).toBe(quality.subdivisionsPerEdge);
-      expect(plan.dynamicShadows).toBe(quality.dynamicShadows);
-      expect(plan.shadowMapSize).toBe(quality.shadowMapSize);
-      expect(plan.decorationDensity).toEqual({
-        greenTuftsPerPlayableCell: quality.greenTuftsPerPlayableCell,
-        greenTuftsPerApronCell: quality.greenTuftsPerApronCell,
-        dryTuftsPerPlayableCell: quality.dryTuftsPerPlayableCell,
-        dryTuftsPerApronCell: quality.dryTuftsPerApronCell,
-        stoneChancePlayable: quality.stoneChancePlayable,
-        stoneChanceApron: quality.stoneChanceApron
-      });
+      expect(plan.dynamicShadows).toBe(false);
+      expect(plan.shadowMapSize).toBe(0);
+      expect(plan.shadowMode).toBe('contact-only');
     });
 
     const plan = resolveRealmRenderPlan(REALM_QUALITY_SPECS.high, input);
 
     expect(plan).toMatchObject({
-      expanded: false,
       subdivisionsPerEdge: 8,
       estimatedTerrainTriangles: 34_944,
-      dynamicShadows: true,
-      shadowMapSize: 2048,
-      shadowCameraHalfExtent: 10.5,
-      shadowMode: 'full-legacy-realm'
+      dynamicShadows: false,
+      shadowMapSize: 0,
+      shadowCameraHalfExtent: 0,
+      shadowMode: 'contact-only'
     });
   });
 
@@ -134,7 +123,6 @@ describe('realm quality profiles', () => {
     expect([high.estimatedMaximumDecorationInstances, balanced.estimatedMaximumDecorationInstances, reduced.estimatedMaximumDecorationInstances])
       .toEqual([6_821, 5_302, 2_780]);
     [high, balanced, reduced].forEach((plan) => {
-      expect(plan.expanded).toBe(true);
       expect(plan.estimatedTerrainTriangles).toBeLessThanOrEqual(plan.terrainTriangleBudget);
       expect(plan.estimatedMaximumDecorationInstances)
         .toBeLessThanOrEqual(plan.decorationInstanceBudget);

@@ -30,11 +30,18 @@ import {
   type WarpkeepRealmSnapshot
 } from './warpkeepBackendTypes';
 import {
+  CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT,
+  isCanonicalGenesisSnapshot,
+  validateCanonicalGenesisSnapshot
+} from './canonicalGenesisSnapshot';
+import {
   hasUsableWarpkeepBridge,
   readWarpkeepRuntimeConfig,
   type WarpkeepRuntimeConfig
 } from './warpkeepConfig';
 import { readCompatibleWarpkeepBackendInfo } from './warpkeepProtocol';
+
+export const CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS = 15_000;
 
 export type WarpkeepBackendControllerValue = Readonly<{
   state: WarpkeepBackendState;
@@ -139,6 +146,7 @@ export function WarpkeepSpacetimeProvider({
   const teardownRef = useRef<(() => void) | undefined>(undefined);
   const generationRef = useRef(0);
   const stateRef = useRef(state);
+  const canonicalRealmSourceRef = useRef<string | undefined>(undefined);
   const termsAttemptRef = useRef(0);
   const completedTermsAttemptRef = useRef(0);
   const termsIntentGenerationRef = useRef(0);
@@ -158,6 +166,7 @@ export function WarpkeepSpacetimeProvider({
     completedTermsAttemptRef.current = 0;
     termsIntentGenerationRef.current = 0;
     termsIdentityFidRef.current = undefined;
+    canonicalRealmSourceRef.current = undefined;
     processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
     // The effect-owned teardown normally consumes the connection. Keep this
@@ -223,6 +232,12 @@ export function WarpkeepSpacetimeProvider({
     generationRef.current += 1;
     const generation = generationRef.current;
     const previousState = stateRef.current;
+    const canonicalRealmSource = [
+      config.spacetimeUri,
+      config.spacetimeDatabase,
+      config.issuer,
+      config.audience
+    ].join('\n');
     const retainedReadyState = (
       previousState.phase === 'ready'
       || previousState.phase === 'reconnecting'
@@ -230,8 +245,12 @@ export function WarpkeepSpacetimeProvider({
       && previousState.identity?.fid === identity?.fid
       && previousState.admission === 'ready'
       && previousState.realm
+      && previousState.realm.canonicalFingerprint === CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT
+      && isCanonicalGenesisSnapshot(previousState.realm, identity?.fid)
+      && canonicalRealmSourceRef.current === canonicalRealmSource
       ? previousState
       : undefined;
+    if (!retainedReadyState) canonicalRealmSourceRef.current = undefined;
     runActiveTeardown();
     const previous = connectionRef.current;
     connectionRef.current = undefined;
@@ -244,6 +263,7 @@ export function WarpkeepSpacetimeProvider({
     }
 
     if (!sharedAlphaAvailable || !identity || !farcaster.oidcSession) {
+      canonicalRealmSourceRef.current = undefined;
       setState(IDLE_WARPKEEP_BACKEND_STATE);
       return undefined;
     }
@@ -253,6 +273,7 @@ export function WarpkeepSpacetimeProvider({
       || farcaster.oidcSession.issuer !== config.issuer
       || farcaster.oidcSession.audience !== config.audience
     ) {
+      canonicalRealmSourceRef.current = undefined;
       setState(backendError(identity));
       return undefined;
     }
@@ -264,6 +285,9 @@ export function WarpkeepSpacetimeProvider({
     let publishReadySnapshot: (() => void) | undefined;
     let activateRealm: (() => void) | undefined;
     let realmActivated = false;
+    let subscriptionApplied = false;
+    let backendProtocolVersion: number | undefined;
+    let readinessTimeout: ReturnType<typeof setTimeout> | undefined;
     let termsAcceptancePromise: Promise<boolean> | undefined;
     let terminated = false;
     const current = () => active && generationRef.current === generation;
@@ -272,6 +296,10 @@ export function WarpkeepSpacetimeProvider({
         return;
       }
       terminated = true;
+      if (readinessTimeout !== undefined) {
+        clearTimeout(readinessTimeout);
+        readinessTimeout = undefined;
+      }
       // Invalidate callbacks before disconnecting: an injected runtime or the
       // SDK may synchronously report onDisconnected from disconnect().
       active = false;
@@ -311,6 +339,7 @@ export function WarpkeepSpacetimeProvider({
     teardownRef.current = terminateConnection;
     const fail = () => {
       if (current()) {
+        canonicalRealmSourceRef.current = undefined;
         terminateConnection();
         setState(backendError(identity));
       }
@@ -393,7 +422,10 @@ export function WarpkeepSpacetimeProvider({
         connectionRef.current = activeConnection;
         // Validate here as well as at the generated-binding boundary so an
         // injected/test runtime can never accidentally bypass compatibility.
-        readCompatibleWarpkeepBackendInfo(await runtime.readBackendInfo(activeConnection));
+        const backendInfo = readCompatibleWarpkeepBackendInfo(
+          await runtime.readBackendInfo(activeConnection)
+        );
+        backendProtocolVersion = backendInfo.protocolVersion;
         if (!current()) return;
         if (!reconnectingState) {
           setState({ phase: 'checking-admission', identity });
@@ -423,26 +455,65 @@ export function WarpkeepSpacetimeProvider({
           return;
         }
 
-        const updateRealm = (observedSnapshot?: WarpkeepRealmSnapshot) => {
-          if (!current()) return;
-          setState({
-            phase: 'ready',
-            identity,
-            admission: 'ready',
-            realm: observedSnapshot
-              ?? runtime.readRealmSnapshot(activeConnection, bridgeFid!)
-          });
+        const publishCanonicalRealm = (observedSnapshot?: WarpkeepRealmSnapshot) => {
+          if (!current() || !subscriptionApplied || backendProtocolVersion === undefined) return;
+          try {
+            const realm = validateCanonicalGenesisSnapshot(
+              observedSnapshot ?? runtime.readRealmSnapshot(activeConnection, bridgeFid!),
+              { ownFid: bridgeFid!, protocolVersion: backendProtocolVersion }
+            );
+            if (readinessTimeout !== undefined) {
+              clearTimeout(readinessTimeout);
+              readinessTimeout = undefined;
+            }
+            canonicalRealmSourceRef.current = canonicalRealmSource;
+            setState({
+              phase: 'ready',
+              identity,
+              admission: 'ready',
+              realm
+            });
+          } catch {
+            fail();
+          }
         };
-        publishReadySnapshot = () => updateRealm();
+        const updateObservedRealm = (observedSnapshot: WarpkeepRealmSnapshot) => {
+          // Public table listeners are installed before subscribe() to avoid a
+          // post-apply race, but they have no render authority until onApplied.
+          if (!subscriptionApplied) return;
+          publishCanonicalRealm(observedSnapshot);
+        };
+        const applySubscribedRealm = () => {
+          if (!current()) return;
+          subscriptionApplied = true;
+          publishCanonicalRealm();
+        };
+        publishReadySnapshot = () => publishCanonicalRealm();
         activateRealm = () => {
           if (!current()) return;
           if (realmActivated) {
             publishReadySnapshot?.();
             return;
           }
+          if (!reconnectingState) {
+            setState({ phase: 'opening-realm', identity, admission: 'ready' });
+          }
           realmActivated = true;
-          cleanupObserver = runtime.observeRealm(activeConnection, bridgeFid!, updateRealm);
-          const startedSubscription = runtime.subscribeRealm(activeConnection, updateRealm, fail);
+          cleanupObserver = runtime.observeRealm(
+            activeConnection,
+            bridgeFid!,
+            updateObservedRealm,
+            fail
+          );
+          readinessTimeout = setTimeout(
+            fail,
+            CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS
+          );
+          const startedSubscription = runtime.subscribeRealm(
+            activeConnection,
+            applySubscribedRealm,
+            fail
+          );
           if (!current()) {
             // A test runtime or SDK failure callback may fire synchronously from
             // subscribe(). The returned handle was not available to fail(), so

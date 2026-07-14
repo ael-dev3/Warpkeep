@@ -49,6 +49,7 @@ function readGlbJson(path: string) {
 
 afterEach(() => {
   clearHegemonyKeepBinaryCacheForTests();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -111,11 +112,21 @@ describe('Hegemony keep runtime assets', () => {
       arrayBuffer: async () => bytes.slice(0)
     }));
     vi.stubGlobal('fetch', fetchMock);
+    const parsedMaterials: THREE.MeshStandardMaterial[] = [];
     const parser = vi.fn(async () => {
       const scene = new THREE.Group();
+      const material = new THREE.MeshStandardMaterial({
+        metalness: 0.74,
+        roughness: 0.31,
+        emissive: '#6d3594',
+        emissiveIntensity: 0.8
+      });
+      material.emissiveMap = new THREE.Texture();
+      material.envMapIntensity = 0.95;
+      parsedMaterials.push(material);
       scene.add(new THREE.Mesh(
         new THREE.BoxGeometry(2, 1.5, 1),
-        new THREE.MeshStandardMaterial()
+        material
       ));
       return scene;
     });
@@ -133,6 +144,12 @@ describe('Hegemony keep runtime assets', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(parser).toHaveBeenCalledTimes(2);
+    parsedMaterials.forEach((material) => {
+      expect(material.metalness).toBe(0.74);
+      expect(material.roughness).toBe(0.31);
+      expect(material.envMapIntensity).toBe(0.95);
+      expect(material.emissiveIntensity).toBe(0.8);
+    });
     expect(first.root).not.toBe(second.root);
     expect(first.assetUrl).toBe('/models/hegemony/hegemony-frontier-keep-compact.glb');
     disposeRealmObject(first.root);
@@ -162,5 +179,29 @@ describe('Hegemony keep runtime assets', () => {
     await expect(loadHegemonyKeep(options)).rejects.toThrow(/integrity check/i);
     await expect(loadHegemonyKeep(options)).rejects.toThrow(/503/);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('bounds a stalled model request and aborts the underlying fetch', async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+      return new Promise<Response>(() => undefined);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const load = loadHegemonyKeep({
+      quality: REALM_QUALITY_SPECS.reduced,
+      baseUrl: '/',
+      maxAnisotropy: 1,
+      requestTimeoutMs: 25,
+      parser: vi.fn(async () => new THREE.Group())
+    });
+    const rejection = expect(load).rejects.toThrow(/timed out after 25ms/i);
+
+    await vi.advanceTimersByTimeAsync(25);
+    await rejection;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(signal?.aborted).toBe(true);
   });
 });

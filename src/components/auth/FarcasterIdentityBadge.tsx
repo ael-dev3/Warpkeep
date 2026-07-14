@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { VerifiedFarcasterIdentity } from '../../farcaster/farcasterAuthTypes';
+import { safePublicHttpsImageUrl } from '../../security/publicImageUrl';
 import './FarcasterQrAuthPanel.css';
 
 export type FarcasterIdentityBadgeProps = {
@@ -21,24 +22,7 @@ export function normalizeFarcasterUsername(username: string | undefined) {
 }
 
 export function getSafeFarcasterProfileImageUrl(profileImageUrl: string | undefined) {
-  if (!profileImageUrl) {
-    return undefined;
-  }
-
-  try {
-    const parsedUrl = new URL(profileImageUrl);
-    if (
-      parsedUrl.protocol === 'https:'
-      && !parsedUrl.username
-      && !parsedUrl.password
-    ) {
-      return parsedUrl.toString();
-    }
-  } catch {
-    // Untrusted profile metadata should degrade to the local monogram.
-  }
-
-  return undefined;
+  return safePublicHttpsImageUrl(profileImageUrl);
 }
 
 export function getFarcasterIdentityMonogram(identity: VerifiedFarcasterIdentity) {

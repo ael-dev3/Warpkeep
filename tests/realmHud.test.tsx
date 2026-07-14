@@ -7,35 +7,31 @@ import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 
 afterEach(cleanup);
 
-function centerCell() {
-  const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 4);
-  const cell = terrainCellByCoord(map, { q: 0, r: 0 });
-  if (!cell) throw new Error('missing center terrain cell');
+function terrainCell(q = 0, r = 0) {
+  const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 20);
+  const cell = terrainCellByCoord(map, { q, r });
+  if (!cell) throw new Error(`missing terrain cell ${q},${r}`);
   return cell;
 }
 
-function lowlandsCell() {
-  const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 4);
-  const cell = terrainCellByCoord(map, { q: 1, r: 0 });
-  if (!cell) throw new Error('missing lowlands terrain cell');
-  return cell;
+function commonProps() {
+  return {
+    identity: { fid: 12_345, username: 'warpkeeper' },
+    ownCastle: { name: 'Warpkeeper Bastion', level: 2 },
+    selectedCell: terrainCell(),
+    keepLoadStatus: 'ready' as const,
+    cameraMode: 'realm' as const,
+    quality: 'high' as const,
+    onFocusKeep: vi.fn(),
+    onRecenterKeep: vi.fn(),
+    onShowRealm: vi.fn(),
+    onRequestReturn: vi.fn()
+  };
 }
 
 describe('RealmHud', () => {
   it('renders loading, unavailable, and exact ready Marks states with a PNG fallback', () => {
-    const common = {
-      identity: { fid: 12_345, username: 'warpkeeper' },
-      ownCastle: { name: 'Warpkeeper Bastion', level: 2 },
-      selectedCell: centerCell(),
-      hoveredCell: null,
-      keepLoadStatus: 'ready' as const,
-      cameraMode: 'realm' as const,
-      quality: 'high' as const,
-      onFocusKeep: vi.fn(),
-      onRecenterKeep: vi.fn(),
-      onShowRealm: vi.fn(),
-      onRequestReturn: vi.fn()
-    };
+    const common = commonProps();
     const { container, rerender } = render(
       <RealmHud {...common} marksStatus="loading" />
     );
@@ -63,113 +59,107 @@ describe('RealmHud', () => {
       .toContain('hegemony-mark-64.png');
   });
 
-  it('personalizes the fixed center keep without claiming persistent ownership', () => {
-    const onFocusKeep = vi.fn();
-    const onRecenterKeep = vi.fn();
-    const onRequestReturn = vi.fn();
+  it('presents the canonical 1,261-cell realm and keeps FID out of the primary identity', () => {
     render(
       <RealmHud
-        identity={{ fid: 12_345, username: 'warpkeeper', displayName: 'Warp Keeper' }}
-        selectedCell={centerCell()}
-        hoveredCell={null}
-        keepLoadStatus="ready"
-        cameraMode="realm"
-        quality="high"
-        onFocusKeep={onFocusKeep}
-        onRecenterKeep={onRecenterKeep}
-        onShowRealm={vi.fn()}
-        onRequestReturn={onRequestReturn}
+        {...commonProps()}
+        identity={{ fid: 98_765 }}
+        ownCastle={undefined}
+        sharedTileCount={1_261}
+        sharedPlayerCount={1}
+        sharedCastleCount={1}
       />
     );
 
-    expect(screen.getByRole('heading', { level: 1, name: '@warpkeeper Keep' })).not.toBeNull();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
-    expect(screen.getByText('LEVEL 1')).not.toBeNull();
-    expect(screen.getByText('Hegemony Frontier Keep')).not.toBeNull();
-    expect(screen.getAllByText(/frontier keep stands ready for this expedition/i)).toHaveLength(2);
-    expect(screen.getByText('Selected cell 0, 0')).not.toBeNull();
-    expect(screen.getByText('QUALITY HIGH')).not.toBeNull();
-    expect(screen.queryByText(/elevation|soil/i)).toBeNull();
-    expect(screen.queryByText(/owned permanently/i)).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Select your Hegemony keep' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Recenter Keep' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
-    expect(onFocusKeep).toHaveBeenCalledTimes(1);
-    expect(onRecenterKeep).toHaveBeenCalledTimes(1);
-    expect(onRequestReturn).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('heading', { level: 1, name: 'Hegemony Keep' })).not.toBeNull();
+    expect(screen.getByText('Hegemony Keeper')).not.toBeNull();
+    expect(screen.getByLabelText('Shared realm state').textContent)
+      .toBe('GENESIS 001 · 1,261 CELLS · 1 KEEPER · 1 KEEP');
+    expect(screen.queryByText('FID 98765')).toBeNull();
+    expect(screen.queryByRole('heading', { name: /FID/i })).toBeNull();
   });
 
-  it('offers the founding-district framing only when nearby keeps can be framed', () => {
-    const onFrameFoundingDistrict = vi.fn();
-    const common = {
-      identity: { fid: 12_345, username: 'warpkeeper' },
-      selectedCell: centerCell(),
-      hoveredCell: null,
-      keepLoadStatus: 'ready' as const,
-      cameraMode: 'realm' as const,
-      quality: 'high' as const,
-      onFocusKeep: vi.fn(),
-      onRecenterKeep: vi.fn(),
-      onShowRealm: vi.fn(),
-      onRequestReturn: vi.fn()
-    };
+  it('changes the selection record only from explicit selected props', () => {
+    const common = commonProps();
     const { rerender } = render(<RealmHud {...common} />);
-    expect(screen.queryByRole('button', { name: 'Frame the nearby founding keeps' })).toBeNull();
+
+    expect(screen.getByText('Selected terrain · 0, 0')).not.toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
 
     rerender(
       <RealmHud
         {...common}
-        onFrameFoundingDistrict={onFrameFoundingDistrict}
+        selectedCell={terrainCell(2, -1)}
+        selectedCastle={{ name: 'Peer Watch', level: 3, q: 2, r: -1 }}
+        selectedCastleProfile={{
+          fid: 77,
+          canonicalUsername: 'peerkeeper',
+          publicStatus: 'founding-player',
+          communityStatsVisible: false
+        }}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Frame the nearby founding keeps' }));
-    expect(onFrameFoundingDistrict).toHaveBeenCalledTimes(1);
+
+    expect(screen.getByText('Peer Watch · 2, -1')).not.toBeNull();
+    expect(screen.getByText('@peerkeeper')).not.toBeNull();
+    expect(screen.getByText(/Selected castle at cell 2, -1/)).not.toBeNull();
   });
 
-  it('uses an FID keep title when no username is available', () => {
+  it('announces explicit selection changes without reannouncing async presentation updates', () => {
+    const common = commonProps();
+    const { container, rerender } = render(
+      <RealmHud {...common} keepLoadStatus="loading" />
+    );
+    const liveRegion = container.querySelector('.realm-hud__selection-announcement');
+    const initialAnnouncement = liveRegion?.textContent;
+    expect(initialAnnouncement).toContain('Your keep is selected at cell 0, 0');
+
+    rerender(
+      <RealmHud
+        {...common}
+        keepLoadStatus="ready"
+        ownProfile={{
+          fid: 12_345,
+          canonicalUsername: 'warpkeeper',
+          publicStatus: 'active',
+          communityStatsVisible: false
+        }}
+      />
+    );
+    expect(liveRegion?.textContent).toBe(initialAnnouncement);
+
+    rerender(<RealmHud {...common} selectedCell={terrainCell(1, 0)} />);
+    expect(liveRegion?.textContent).toContain('Selected cell 1, 0');
+  });
+
+  it('offers camera actions without allowing nested keys to masquerade as map selection', () => {
+    const onFocusKeep = vi.fn();
+    const onRecenterKeep = vi.fn();
+    const onFrameFoundingDistrict = vi.fn();
+    const onRequestReturn = vi.fn();
     render(
       <RealmHud
-        identity={{ fid: 98_765 }}
-        selectedCell={centerCell()}
-        hoveredCell={null}
-        keepLoadStatus="fallback"
-        cameraMode="keep"
-        quality="reduced"
-        onFocusKeep={vi.fn()}
-        onRecenterKeep={vi.fn()}
-        onShowRealm={vi.fn()}
-        onRequestReturn={vi.fn()}
+        {...commonProps()}
+        onFocusKeep={onFocusKeep}
+        onRecenterKeep={onRecenterKeep}
+        onFrameFoundingDistrict={onFrameFoundingDistrict}
+        onRequestReturn={onRequestReturn}
       />
     );
 
-    expect(screen.getByRole('heading', { level: 1, name: 'FID 98765 Keep' })).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Realm View' })).not.toBeNull();
-  });
+    const returnButton = screen.getByRole('button', { name: 'Return to Menu' });
+    returnButton.focus();
+    expect(fireEvent.keyDown(returnButton, { key: 'ArrowRight' })).toBe(true);
+    expect(document.activeElement).toBe(returnButton);
+    expect(screen.getByText('Selected terrain · 0, 0')).not.toBeNull();
 
-  it('names the territory currently being surveyed without exposing terrain internals', () => {
-    const { container } = render(
-      <RealmHud
-        identity={{ fid: 98_765 }}
-        selectedCell={centerCell()}
-        hoveredCell={lowlandsCell()}
-        keepLoadStatus="ready"
-        cameraMode="realm"
-        quality="balanced"
-        onFocusKeep={vi.fn()}
-        onRecenterKeep={vi.fn()}
-        onShowRealm={vi.fn()}
-        onRequestReturn={vi.fn()}
-      />
-    );
-
-    expect(screen.getByText('Temperate Lowlands')).not.toBeNull();
-    expect(screen.getByText('Surveying cell 1, 0')).not.toBeNull();
-    expect(screen.getByText('Olive grass · terrain record pending.')).not.toBeNull();
-    expect(screen.queryByText(/elevation|soil/i)).toBeNull();
-    const selectionAnnouncement = container.querySelector('.realm-hud__selection-announcement');
-    expect(selectionAnnouncement?.getAttribute('aria-live')).toBe('polite');
-    expect(selectionAnnouncement?.textContent).toContain('Selected cell 0, 0');
-    expect(selectionAnnouncement?.textContent).not.toContain('Surveying');
+    fireEvent.click(screen.getByRole('button', { name: 'Select your Hegemony keep' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recenter Keep' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Frame the nearby founding keeps' }));
+    fireEvent.click(returnButton);
+    expect(onFocusKeep).toHaveBeenCalledOnce();
+    expect(onRecenterKeep).toHaveBeenCalledOnce();
+    expect(onFrameFoundingDistrict).toHaveBeenCalledOnce();
+    expect(onRequestReturn).toHaveBeenCalledOnce();
   });
 });
