@@ -26,37 +26,73 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes('__proto__')).toBeUndefined();
   });
 
-  it('prefers the open left side of the desktop menu and vertically centers the panel', () => {
+  it('places the panel above the bottom-left desktop build stamp and aligns its arrow', () => {
     expect(calculatePatchNotesPosition({
-      anchorLeft: 780,
-      anchorTop: 420,
-      anchorWidth: 180,
+      anchorLeft: 16,
+      anchorTop: 660,
+      anchorWidth: 110,
       anchorHeight: 44,
-      panelWidth: 360,
-      panelHeight: 280,
-      viewportWidth: 1_024,
-      viewportHeight: 768
+      panelWidth: 400,
+      panelHeight: 320,
+      viewportWidth: 1_280,
+      viewportHeight: 720
     })).toEqual({
-      left: 406,
-      top: 302,
-      placement: 'left'
+      arrowOffset: 55,
+      left: 16,
+      top: 326,
+      placement: 'above'
     });
   });
 
-  it('places the panel above a narrow-screen trigger and clamps it to viewport margins', () => {
+  it('places the panel above the bottom-right portrait stamp and aligns after clamping', () => {
     expect(calculatePatchNotesPosition({
-      anchorLeft: 95,
-      anchorTop: 690,
-      anchorWidth: 200,
+      anchorLeft: 230,
+      anchorTop: 780,
+      anchorWidth: 144,
       anchorHeight: 44,
       panelWidth: 360,
       panelHeight: 300,
       viewportWidth: 390,
       viewportHeight: 844
     })).toEqual({
+      arrowOffset: 286,
       left: 16,
-      top: 376,
+      top: 466,
       placement: 'above'
+    });
+  });
+
+  it('keeps compact 320x568 portrait and 568x320 landscape placements bounded', () => {
+    expect(calculatePatchNotesPosition({
+      anchorLeft: 172,
+      anchorTop: 512,
+      anchorWidth: 78,
+      anchorHeight: 44,
+      panelWidth: 288,
+      panelHeight: 480,
+      viewportWidth: 320,
+      viewportHeight: 568
+    })).toEqual({
+      arrowOffset: 195,
+      left: 16,
+      top: 18,
+      placement: 'above'
+    });
+
+    expect(calculatePatchNotesPosition({
+      anchorLeft: 12,
+      anchorTop: 266,
+      anchorWidth: 90,
+      anchorHeight: 44,
+      panelWidth: 400,
+      panelHeight: 288,
+      viewportWidth: 568,
+      viewportHeight: 320
+    })).toEqual({
+      arrowOffset: 268,
+      left: 116,
+      top: 16,
+      placement: 'right'
     });
   });
 
@@ -71,9 +107,10 @@ describe('latest in-menu patch notes', () => {
       viewportWidth: 120,
       viewportHeight: 80
     })).toEqual({
+      arrowOffset: 24,
       left: 16,
       top: 16,
-      placement: 'left'
+      placement: 'right'
     });
     expect(calculatePatchNotesPosition({
       anchorLeft: 0,
@@ -84,6 +121,6 @@ describe('latest in-menu patch notes', () => {
       panelHeight: 0,
       viewportWidth: 0,
       viewportHeight: 0
-    })).toEqual({ left: 0, top: 0, placement: 'below' });
+    })).toEqual({ arrowOffset: 0, left: 0, top: 0, placement: 'below' });
   });
 });

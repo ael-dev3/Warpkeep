@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createWarpkeepBuildInfo } from '../src/build/buildInfo';
@@ -26,8 +26,8 @@ afterEach(() => {
 });
 
 describe('Warpkeep menu build stamp', () => {
-  it('renders exact deployed-build copy as a hardened semantic GitHub link', () => {
-    render(
+  it('renders the Alpha version as the patch-notes disclosure and keeps exact build provenance separate', () => {
+    const { container } = render(
       <WarpkeepMainMenu
         active
         buildInfo={deployedBuild}
@@ -35,20 +35,35 @@ describe('Warpkeep menu build stamp', () => {
       />
     );
 
-    const stamp = screen.getByRole('link', {
+    const stamp = container.querySelector('[data-build-stamp="commit"]');
+    const patchNotes = screen.getByRole('button', {
+      name: 'Open patch notes for Warpkeep ALPHA 0.2.0'
+    });
+    const buildLink = screen.getByRole('link', {
       name: 'Open Warpkeep ALPHA 0.2.0 build abcdef0 on GitHub'
     });
-    expect(stamp.textContent).toBe('ALPHA 0.2.0 · BUILD abcdef0');
-    expect(stamp.getAttribute('href')).toBe(`https://github.com/ael-dev3/Warpkeep/commit/${FULL_SHA}`);
-    expect(stamp.getAttribute('target')).toBe('_blank');
-    expect(stamp.getAttribute('rel')).toContain('noopener');
-    expect(stamp.getAttribute('rel')).toContain('noreferrer');
-    expect(stamp.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(stamp?.textContent).toBe('ALPHA 0.2.0 · BUILD abcdef0');
+    expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
+    expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
+    expect(buildLink.getAttribute('href')).toBe(`https://github.com/ael-dev3/Warpkeep/commit/${FULL_SHA}`);
+    expect(buildLink.getAttribute('target')).toBe('_blank');
+    expect(buildLink.getAttribute('rel')).toContain('noopener');
+    expect(buildLink.getAttribute('rel')).toContain('noreferrer');
+    expect(buildLink.getAttribute('referrerpolicy')).toBe('no-referrer');
+
+    fireEvent.click(patchNotes);
+    expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
+    expect(patchNotes.getAttribute('aria-label')).toBe(
+      'Close patch notes for Warpkeep ALPHA 0.2.0'
+    );
+    const notes = screen.getByRole('region', { name: 'NOTES UNAVAILABLE' });
+    buildLink.focus();
+    expect(screen.getByRole('region', { name: 'NOTES UNAVAILABLE' })).toBe(notes);
   });
 
-  it('renders a local build as text instead of a link', () => {
+  it('keeps local provenance as text while the Alpha version still opens patch notes', () => {
     const localBuild = createWarpkeepBuildInfo({ productVersion: '0.2.0' });
-    render(
+    const { container } = render(
       <WarpkeepMainMenu
         active
         buildInfo={localBuild}
@@ -56,7 +71,10 @@ describe('Warpkeep menu build stamp', () => {
       />
     );
 
-    expect(screen.getByText('ALPHA 0.2.0 · LOCAL').getAttribute('data-build-stamp')).toBe('local');
+    const stamp = container.querySelector('[data-build-stamp="local"]');
+    expect(stamp?.textContent).toBe('ALPHA 0.2.0 · LOCAL');
+    expect(within(stamp as HTMLElement).queryByRole('link')).toBeNull();
+    expect(within(stamp as HTMLElement).getByText('LOCAL')).not.toBeNull();
     expect(screen.queryByRole('link', { name: /Open Warpkeep Alpha 0\.2\.0 build/i })).toBeNull();
   });
 

@@ -13,11 +13,6 @@ export const menuCommands = [
     id: 'credits',
     label: 'CREDITS',
     notice: undefined
-  },
-  {
-    id: 'patch-notes',
-    label: 'PATCH NOTES',
-    notice: undefined
   }
 ] as const;
 

@@ -31,27 +31,32 @@
 }
 
 .warpkeep-patch-notes[data-placement="left"]::before {
-  top: 50%;
+  top: var(--warpkeep-patch-notes-arrow-offset, 50%);
   right: -0.4rem;
   transform: translateY(-50%) rotate(135deg);
 }
 
 .warpkeep-patch-notes[data-placement="right"]::before {
-  top: 50%;
+  top: var(--warpkeep-patch-notes-arrow-offset, 50%);
   left: -0.4rem;
   transform: translateY(-50%) rotate(-45deg);
 }
 
 .warpkeep-patch-notes[data-placement="above"]::before {
-  right: 50%;
+  left: var(--warpkeep-patch-notes-arrow-offset, 50%);
   bottom: -0.4rem;
-  transform: translateX(50%) rotate(225deg);
+  transform: translateX(-50%) rotate(225deg);
 }
 
 .warpkeep-patch-notes[data-placement="below"]::before {
   top: -0.4rem;
-  right: 50%;
-  transform: translateX(50%) rotate(45deg);
+  left: var(--warpkeep-patch-notes-arrow-offset, 50%);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.warpkeep-patch-notes:focus-visible {
+  outline: 2px solid rgba(250, 220, 163, 0.86);
+  outline-offset: 2px;
 }
 
 .warpkeep-patch-notes__rail {
@@ -185,6 +190,14 @@
   .warpkeep-patch-notes__highlights li {
     font-size: 0.72rem;
     line-height: 1.36;
+  }
+}
+
+@media (max-height: 360px) and (orientation: landscape) {
+  .warpkeep-patch-notes {
+    /* Leave the footer disclosure and provenance targets unobscured. */
+    max-height: min(31rem, calc(100vh - 5.625rem - env(safe-area-inset-bottom)));
+    max-height: min(31rem, calc(100svh - 5.625rem - env(safe-area-inset-bottom)));
   }
 }
 

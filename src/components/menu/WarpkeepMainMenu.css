@@ -487,8 +487,10 @@
 }
 
 .warpkeep-menu-build-stamp {
+  display: inline-flex;
   position: absolute;
   z-index: 4;
+  align-items: center;
   bottom: max(1rem, calc(env(safe-area-inset-bottom) + 0.7rem));
   left: max(1rem, calc(env(safe-area-inset-left) + 0.7rem));
   max-width: min(22rem, calc(100vw - 2rem));
@@ -506,7 +508,46 @@
   white-space: nowrap;
   opacity: 0;
   transform: translateY(0.35rem);
-  transition: opacity 420ms 590ms ease, color 180ms ease, transform 620ms 560ms ease;
+  transition: opacity 420ms 590ms ease, transform 620ms 560ms ease;
+}
+
+.warpkeep-menu-build-stamp__version,
+.warpkeep-menu-build-stamp__build {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.2rem;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  text-shadow: inherit;
+  text-transform: inherit;
+  white-space: inherit;
+}
+
+.warpkeep-menu-build-stamp__version {
+  appearance: none;
+  border: 0;
+  border-radius: 0.2rem;
+  background: transparent;
+  cursor: pointer;
+  transition: color 180ms ease, text-shadow 180ms ease;
+}
+
+.warpkeep-menu-build-stamp__version:disabled {
+  cursor: default;
+}
+
+.warpkeep-menu-build-stamp__separator {
+  margin-inline: 0.08rem;
+  pointer-events: none;
+}
+
+.warpkeep-menu-build-stamp__build {
+  border-radius: 0.2rem;
+  text-decoration: none;
+  transition: color 180ms ease, text-shadow 180ms ease;
 }
 
 .warpkeep-menu--visible .warpkeep-menu-build-stamp {
@@ -514,17 +555,28 @@
   transform: translateY(0);
 }
 
-a.warpkeep-menu-build-stamp:focus-visible {
-  color: #fff0ca;
-  outline: 1px solid rgba(250, 220, 163, 0.9);
-  outline-offset: 4px;
+.warpkeep-menu--visible .warpkeep-menu-build-stamp:focus-within,
+.warpkeep-menu--visible .warpkeep-menu-build-stamp:hover {
   opacity: 1;
 }
 
+.warpkeep-menu-build-stamp__version:focus-visible,
+a.warpkeep-menu-build-stamp__build:focus-visible {
+  color: #fff0ca;
+  outline: 1px solid rgba(250, 220, 163, 0.9);
+  outline-offset: 2px;
+}
+
+.warpkeep-menu-build-stamp[data-patch-notes-state="preview"] .warpkeep-menu-build-stamp__version,
+.warpkeep-menu-build-stamp[data-patch-notes-state="pinned"] .warpkeep-menu-build-stamp__version {
+  color: #fff0ca;
+  text-shadow: 0 1px 3px rgba(4, 2, 5, 0.96), 0 0 10px rgba(247, 215, 155, 0.34);
+}
+
 @media (hover: hover) and (pointer: fine) {
-  a.warpkeep-menu-build-stamp:hover {
+  .warpkeep-menu-build-stamp__version:hover,
+  a.warpkeep-menu-build-stamp__build:hover {
     color: #fff0ca;
-    opacity: 1;
   }
 }
 

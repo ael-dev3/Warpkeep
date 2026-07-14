@@ -708,9 +708,11 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(within(navigation).getAllByRole('button').map((button) => button.textContent)).toEqual([
       'ENTER REALM',
       'SETTINGS',
-      'CREDITS',
-      'PATCH NOTES'
+      'CREDITS'
     ]);
+    expect(screen.getByRole('button', {
+      name: 'Open patch notes for Warpkeep ALPHA 0.3.3'
+    })).not.toBeNull();
 
     expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();
     expect(callbacks.begin).not.toHaveBeenCalled();
