@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
+import { measuredRealmComposition } from '../src/components/realm/realmMeasuredComposition';
 import type { RealmIdentity } from '../src/components/realm/realmTypes';
 import type { CanonicalWarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
 import {
@@ -38,35 +39,81 @@ afterEach(() => {
 });
 
 describe('RealmMapScreen', () => {
+  it('reserves a short-landscape Explore panel from the right camera edge', () => {
+    const root = document.createElement('main');
+    const hud = document.createElement('section');
+    const actions = document.createElement('div');
+    const dialog = document.createElement('section');
+    const probe = document.createElement('div');
+    hud.className = 'realm-hud';
+    actions.className = 'realm-hud__actions';
+    dialog.className = 'realm-cell-navigator__dialog';
+    probe.className = 'realm-safe-area-probe';
+    root.append(hud, actions, dialog, probe);
+
+    const rect = (left: number, top: number, right: number, bottom: number) => ({
+      left,
+      top,
+      right,
+      bottom,
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+      toJSON: () => ({})
+    }) as DOMRect;
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 844, 390));
+    vi.spyOn(hud, 'getBoundingClientRect').mockReturnValue(rect(10, 10, 225, 145));
+    vi.spyOn(actions, 'getBoundingClientRect').mockReturnValue(rect(10, 330, 160, 380));
+    vi.spyOn(dialog, 'getBoundingClientRect').mockReturnValue(rect(550, 10, 834, 380));
+
+    expect(measuredRealmComposition(root)).toMatchObject({
+      insets: { top: 0, right: 304, bottom: 70, left: 235 },
+      focusPadding: 14
+    });
+  });
+
   it('renders the exact canonical 1,261-cell Genesis disc and two-ring apron', () => {
     const { container } = renderFallbackRealm();
 
     expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
     const fallback = screen.getByTestId('realm-static-fallback');
-    expect(fallback.textContent)
-      .toContain('1101 traversable cells · 1261 realm cells · 1519 rendered');
+    expect(within(fallback).getByText(
+      'Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.'
+    )).not.toBeNull();
+    expect(fallback.textContent).not.toMatch(/\b(?:traversable cells|realm cells|rendered)\b/i);
     expect(container.querySelectorAll('.realm-map-screen__fallback-map polygon'))
       .toHaveLength(1_519);
     expect(container.querySelectorAll('polygon[data-realm-cell="true"]'))
       .toHaveLength(1_261);
     expect(container.querySelectorAll('polygon[data-playable="false"][data-realm-cell="true"]'))
       .toHaveLength(160);
-    expect(screen.getByLabelText('Shared realm state').textContent)
-      .toContain('GENESIS 001 · 1,261 CELLS');
-    expect(screen.getByRole('button', { name: /Realm Navigator\s+1/i })).not.toBeNull();
+    expect(screen.getByLabelText('Current selection').textContent)
+      .toContain('Warpkeeper Bastion · q 0, r 0');
+    expect(screen.getByRole('button', {
+      name: 'Explore realm, 1 founded castle'
+    }).textContent).toContain('Explore');
+
+    const actions = screen.getByLabelText('Realm actions');
+    expect(within(actions).getByRole('button', { name: 'Return to Menu' }).textContent).toBe('Menu');
+    expect(within(actions).getByRole('button', { name: 'Recenter Keep' }).textContent).toBe('Home');
   });
 
-  it('opens a castle record only after explicit navigator activation', () => {
+  it('opens a castle record only after explicit Explore activation', () => {
     const snapshot = createCanonicalGenesisSnapshot({
       ownFid: CANONICAL_TEST_FID,
       peerFid: 77
     });
     renderFallbackRealm({ snapshot });
 
-    const navigatorTrigger = screen.getByRole('button', { name: /Realm Navigator\s+2/i });
-    fireEvent.click(navigatorTrigger);
-    const navigator = screen.getByRole('dialog', { name: 'Realm Navigator' });
-    const peer = within(navigator).getByRole('button', {
+    const exploreTrigger = screen.getByRole('button', {
+      name: 'Explore realm, 2 founded castles'
+    });
+    expect(exploreTrigger.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(exploreTrigger);
+    expect(exploreTrigger.getAttribute('aria-expanded')).toBe('true');
+    const explore = screen.getByRole('dialog', { name: 'Explore' });
+    const peer = within(explore).getByRole('button', {
       name: /Inspect Hegemony Keep, Peer Watch, q 2, r -1/i
     });
 
@@ -75,10 +122,28 @@ describe('RealmMapScreen', () => {
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
 
     fireEvent.click(peer);
-    expect(screen.queryByRole('dialog', { name: 'Realm Navigator' })).toBeNull();
-    expect(screen.getByRole('dialog', { name: 'Hegemony Keep' })).not.toBeNull();
-    expect(screen.getByText('Peer Watch · 2, -1')).not.toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+    const record = screen.getByRole('dialog', { name: 'Hegemony Keep' });
+    expect(within(record).getByText('Peer Watch')).not.toBeNull();
+    expect(within(record).getByText('q 2 · r -1')).not.toBeNull();
+    expect(screen.getByLabelText('Current selection').textContent)
+      .toContain('Peer Watch · q 2, r -1');
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).toBe(document.activeElement);
+  });
+
+  it('changes camera presets without opening a castle record', () => {
+    renderFallbackRealm();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Explore realm, 1 founded castle'
+    }));
+    const views = screen.getByRole('region', { name: 'Realm views' });
+    fireEvent.click(within(views).getByRole('button', { name: 'My Keep' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
+    expect(screen.getByLabelText('Current selection').textContent)
+      .toContain('Warpkeeper Bastion · q 0, r 0');
   });
 
   it('restores focus safely after closing a castle record', async () => {
@@ -88,8 +153,10 @@ describe('RealmMapScreen', () => {
     });
     renderFallbackRealm({ snapshot });
 
-    fireEvent.click(screen.getByRole('button', { name: /Realm Navigator\s+2/i }));
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Realm Navigator' })).getByRole(
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Explore realm, 2 founded castles'
+    }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Explore' })).getByRole(
       'button',
       { name: /Inspect Hegemony Keep, Peer Watch, q 2, r -1/i }
     ));
@@ -108,16 +175,19 @@ describe('RealmMapScreen', () => {
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
     const marker = screen.getByTestId('realm-keep-marker');
     const markerTransform = marker.getAttribute('transform');
+    const currentSelection = () => screen.getByLabelText('Current selection');
 
-    expect(screen.getByText('Selected terrain · 0, 0')).not.toBeNull();
+    expect(currentSelection().textContent).toContain('Warpkeeper Bastion · q 0, r 0');
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
 
-    expect(screen.getByText('Selected terrain · 1, 0')).not.toBeNull();
+    expect(currentSelection().textContent).toContain('Temperate Lowlands · q 1, r 0');
     expect(marker.getAttribute('transform')).toBe(markerTransform);
     expect(screen.queryByRole('dialog')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Recenter Keep' }));
-    expect(screen.getByText('Selected terrain · 0, 0')).not.toBeNull();
+    const home = screen.getByRole('button', { name: 'Recenter Keep' });
+    expect(home.textContent).toBe('Home');
+    fireEvent.click(home);
+    expect(currentSelection().textContent).toContain('Warpkeeper Bastion · q 0, r 0');
     expect(marker.getAttribute('transform')).toBe(markerTransform);
   });
 
@@ -128,6 +198,7 @@ describe('RealmMapScreen', () => {
     expect(document.activeElement).toBe(realm);
 
     const returnButton = screen.getByRole('button', { name: 'Return to Menu' });
+    expect(returnButton.textContent).toBe('Menu');
     returnButton.focus();
     rerender(
       <RealmMapScreen
@@ -144,7 +215,13 @@ describe('RealmMapScreen', () => {
     const onRequestReturn = vi.fn();
     renderFallbackRealm({ onRequestReturn });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select your Hegemony keep' }));
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Explore realm, 1 founded castle'
+    }));
+    const explore = screen.getByRole('dialog', { name: 'Explore' });
+    fireEvent.click(within(explore).getByRole('button', {
+      name: /Inspect @warpkeeper, Warpkeeper Bastion, q 0, r 0, your castle/i
+    }));
     expect(screen.getByRole('dialog', { name: '@warpkeeper' })).not.toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -159,7 +236,10 @@ describe('RealmMapScreen', () => {
     const onRequestReturn = vi.fn();
     renderFallbackRealm({ onRequestReturn });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select your Hegemony keep' }));
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(screen.getByLabelText('Current selection').textContent)
+      .toContain('Warpkeeper Bastion · q 0, r 0');
+    fireEvent.keyDown(realm, { key: 'Enter' });
     expect(screen.getByRole('dialog', { name: '@warpkeeper' })).not.toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });

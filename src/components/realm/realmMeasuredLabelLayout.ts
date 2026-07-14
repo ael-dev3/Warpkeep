@@ -44,7 +44,10 @@ export type RealmProjectedLabelAnchor = Readonly<{
 export type RealmLabelHysteresis = Readonly<{
   /** Bias retained members by this much in the candidate distance ordering. */
   membershipDistance: number;
-  /** Keep a previous placement until its anchor moves this many CSS pixels. */
+  /**
+   * Retained for call-site compatibility. Camera-driven positions always
+   * follow their current projected anchor; only membership is hysteretic.
+   */
   anchorJitterPixels: number;
 }>;
 
@@ -98,6 +101,8 @@ type PlacementProposal = Readonly<{
   y: number;
   layoutAnchor: RealmScreenPoint;
 }>;
+
+const MAX_PRIORITY_NUDGE_PIXELS = 12;
 
 const PRIORITY_RANK: Readonly<Record<RealmLabelPriority, number>> = {
   selected: 0,
@@ -183,7 +188,8 @@ function clamp(value: number, minimum: number, maximum: number) {
 function clampProposalToSafeArea(
   proposal: PlacementProposal,
   measurement: RealmMeasuredLabelRectangle,
-  safeArea: RealmScreenRect
+  safeArea: RealmScreenRect,
+  maximumNudgePixels: number
 ): PlacementProposal | null {
   const minimumX = safeArea.left - measurement.offsetX;
   const maximumX = safeArea.right - measurement.offsetX - measurement.width;
@@ -193,104 +199,42 @@ function clampProposalToSafeArea(
 
   const x = clamp(proposal.x, minimumX, maximumX);
   const y = clamp(proposal.y, minimumY, maximumY);
+  if (Math.hypot(x - proposal.x, y - proposal.y) > maximumNudgePixels) {
+    return null;
+  }
   return {
     x,
     y,
-    layoutAnchor: x === proposal.x && y === proposal.y
-      ? proposal.layoutAnchor
-      : { x: proposal.layoutAnchor.x + x - proposal.x, y: proposal.layoutAnchor.y + y - proposal.y }
+    layoutAnchor: proposal.layoutAnchor
   };
-}
-
-function pointDistance(first: RealmScreenPoint, second: RealmScreenPoint) {
-  return Math.hypot(first.x - second.x, first.y - second.y);
-}
-
-function rawPlacementProposals(
-  anchor: RealmScreenPoint,
-  measurement: RealmMeasuredLabelRectangle,
-  previous: RealmLabelPlacement | undefined,
-  presentation: RealmLabelPresentation,
-  anchorJitterPixels: number,
-  gap: number
-): readonly PlacementProposal[] {
-  const proposals: PlacementProposal[] = [];
-  if (previous?.presentation === presentation) {
-    if (pointDistance(anchor, previous.layoutAnchor) <= anchorJitterPixels) {
-      proposals.push({
-        x: previous.x,
-        y: previous.y,
-        layoutAnchor: previous.layoutAnchor
-      });
-    } else {
-      proposals.push({
-        x: anchor.x + previous.x - previous.layoutAnchor.x,
-        y: anchor.y + previous.y - previous.layoutAnchor.y,
-        layoutAnchor: anchor
-      });
-    }
-  }
-
-  const horizontalStep = measurement.width + gap;
-  const verticalStep = measurement.height + gap;
-  const offsets = [
-    [0, 0],
-    [0, -verticalStep],
-    [0, verticalStep],
-    [-horizontalStep, 0],
-    [horizontalStep, 0],
-    [-horizontalStep, -verticalStep],
-    [horizontalStep, -verticalStep],
-    [-horizontalStep, verticalStep],
-    [horizontalStep, verticalStep],
-    [0, -verticalStep * 2],
-    [0, verticalStep * 2]
-  ] as const;
-  offsets.forEach(([offsetX, offsetY]) => proposals.push({
-    x: anchor.x + offsetX,
-    y: anchor.y + offsetY,
-    layoutAnchor: anchor
-  }));
-  return proposals;
 }
 
 function placementProposals(
   anchor: RealmScreenPoint,
   measurement: RealmMeasuredLabelRectangle,
-  previous: RealmLabelPlacement | undefined,
-  presentation: RealmLabelPresentation,
-  anchorJitterPixels: number,
-  gap: number,
-  safeArea: RealmScreenRect
+  safeArea: RealmScreenRect,
+  maximumNudgePixels: number
 ) {
-  const unique = new Set<string>();
-  const proposals: PlacementProposal[] = [];
-  rawPlacementProposals(
-    anchor,
+  const attached = { x: anchor.x, y: anchor.y, layoutAnchor: anchor };
+  const proposal = clampProposalToSafeArea(
+    attached,
     measurement,
-    previous,
-    presentation,
-    anchorJitterPixels,
-    gap
-  ).forEach((raw) => {
-    const proposal = clampProposalToSafeArea(raw, measurement, safeArea);
-    if (!proposal) return;
-    const key = `${proposal.x.toFixed(4)},${proposal.y.toFixed(4)}`;
-    if (unique.has(key)) return;
-    unique.add(key);
-    proposals.push(proposal);
-  });
-  return proposals;
+    safeArea,
+    maximumNudgePixels
+  );
+  return proposal ? [proposal] : [];
 }
 
-function presentationFor(priority: RealmLabelPriority): RealmLabelPresentation {
-  return priority === 'far' ? 'avatar' : 'full';
+function presentationFor(_priority: RealmLabelPriority): RealmLabelPresentation {
+  // Capacity and collision culling already bound density. Every marker that
+  // survives those checks must retain the player's visible identity label.
+  return 'full';
 }
 
 /**
  * Resolves measured castle labels without React, DOM reads, or projection work.
- * Feeding `placements` back as `previousPlacements` enables both membership and
- * position hysteresis on the next frame.
+ * Feeding `placements` back as `previousPlacements` preserves membership
+ * hysteresis while positions continue following every projected camera frame.
  */
 export function resolveMeasuredRealmLabelLayout(
   input: RealmMeasuredLabelLayoutInput
@@ -301,9 +245,7 @@ export function resolveMeasuredRealmLabelLayout(
     ? Math.max(0, Math.floor(input.maximumLabels))
     : 0;
   const collisionPadding = finiteNonNegative(input.collisionPaddingPixels, 2);
-  const placementGap = finiteNonNegative(input.placementGapPixels, 4);
   const membershipDistance = finiteNonNegative(input.hysteresis?.membershipDistance, 0);
-  const anchorJitterPixels = finiteNonNegative(input.hysteresis?.anchorJitterPixels, 0);
   const previousPlacements = input.previousPlacements ?? [];
   const previousById = new Map(previousPlacements.map((placement) => [
     placement.castleId,
@@ -376,11 +318,10 @@ export function resolveMeasuredRealmLabelLayout(
     const proposals = placementProposals(
       anchor,
       measurement,
-      previousById.get(candidate.castleId),
-      presentation,
-      anchorJitterPixels,
-      placementGap,
-      safeArea
+      safeArea,
+      candidate.priority === 'selected' || candidate.priority === 'own'
+        ? MAX_PRIORITY_NUDGE_PIXELS
+        : 0
     );
     let accepted: RealmLabelPlacement | undefined;
     let sawSafeWithoutReservedUi = false;

@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   CastleProfileAvatar,
@@ -12,6 +12,62 @@ import {
   type RealmCastlePublicPresentation
 } from '../src/components/realm/realmCastlePresentation';
 
+class MockProfileImage {
+  decoding = 'auto';
+  naturalHeight = 200;
+  naturalWidth = 400;
+  onerror: ((event: Event) => void) | null = null;
+  onload: ((event: Event) => void) | null = null;
+  referrerPolicy = '';
+  referrerPolicyAtRequest = '';
+  removedSourceCount = 0;
+  requestedUrl = '';
+  sourcePresent = false;
+
+  constructor() {
+    mockProfileImages.push(this);
+  }
+
+  get src() {
+    return this.sourcePresent ? this.requestedUrl : '';
+  }
+
+  set src(value: string) {
+    this.requestedUrl = value;
+    this.referrerPolicyAtRequest = this.referrerPolicy;
+    this.sourcePresent = true;
+  }
+
+  removeAttribute(name: string) {
+    if (name !== 'src') return;
+    this.removedSourceCount += 1;
+    this.sourcePresent = false;
+  }
+
+  finishLoad() {
+    this.onload?.(new Event('load'));
+  }
+
+  failLoad() {
+    this.onerror?.(new Event('error'));
+  }
+}
+
+let mockProfileImages: MockProfileImage[];
+let clearCanvas: ReturnType<typeof vi.fn>;
+let drawCanvasImage: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  mockProfileImages = [];
+  clearCanvas = vi.fn();
+  drawCanvasImage = vi.fn();
+  vi.stubGlobal('Image', MockProfileImage as unknown as typeof Image);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    clearRect: clearCanvas,
+    drawImage: drawCanvasImage
+  } as unknown as CanvasRenderingContext2D);
+});
+
 function profile(
   overrides: Partial<RealmCastlePublicPresentation> = {}
 ): RealmCastlePublicPresentation {
@@ -23,7 +79,11 @@ function profile(
   };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('realm profile and PFP presentation regressions', () => {
   it('prefers the trusted username, then display name, then a neutral keep label', () => {
@@ -53,37 +113,112 @@ describe('realm profile and PFP presentation regressions', () => {
     expect((crest as HTMLElement | null)?.style.getPropertyValue('--realm-avatar-hue')).toBe('87');
   });
 
-  it('loads a safe HTTPS PFP eagerly without sending a referrer', () => {
+  it('requests a safe HTTPS PFP without a referrer and draws exactly one static cover snapshot', () => {
     const pfpUrl = 'https://cdn.warpkeep.com/profiles/warpkeeper.png';
-    render(
+    const { container } = render(
       <CastleProfileAvatar
         profile={profile({ canonicalUsername: 'warpkeeper', pfpUrl })}
       />
     );
 
-    const image = document.querySelector('.realm-castle-avatar img');
-    if (!(image instanceof HTMLImageElement)) throw new Error('missing safe profile image');
-    expect(image.src).toBe(pfpUrl);
-    expect(image.getAttribute('loading')).toBe('eager');
-    expect(image.getAttribute('referrerpolicy')).toBe('no-referrer');
-    expect(image.alt).toBe('');
+    expect(mockProfileImages).toHaveLength(1);
+    const image = mockProfileImages[0];
+    expect(image.requestedUrl).toBe(pfpUrl);
+    expect(image.referrerPolicyAtRequest).toBe('no-referrer');
+    expect(image.decoding).toBe('async');
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByText('W')).not.toBeNull();
+
+    act(() => image.finishLoad());
+
+    const canvas = container.querySelector('canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error('missing static profile canvas');
+    expect(canvas.style.display).toBe('block');
+    expect(canvas.width).toBe(128);
+    expect(canvas.height).toBe(128);
+    expect(clearCanvas).toHaveBeenCalledOnce();
+    expect(drawCanvasImage).toHaveBeenCalledOnce();
+    expect(drawCanvasImage).toHaveBeenCalledWith(
+      image,
+      100,
+      0,
+      200,
+      200,
+      0,
+      0,
+      128,
+      128
+    );
+    expect(image.removedSourceCount).toBe(1);
+    expect(image.sourcePresent).toBe(false);
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.queryByText('W')).toBeNull();
+
+    act(() => image.finishLoad());
+    expect(drawCanvasImage).toHaveBeenCalledOnce();
   });
 
-  it('keeps a stable public monogram after an image load error', () => {
+  it('keeps a stable public monogram after an image load error and URL change', () => {
     const presentation = profile({
       canonicalUsername: 'alice',
       pfpUrl: 'https://cdn.warpkeep.com/profiles/alice.png'
     });
-    const { rerender } = render(<CastleProfileAvatar profile={presentation} />);
-    const image = document.querySelector('.realm-castle-avatar img');
-    if (!(image instanceof HTMLImageElement)) throw new Error('missing safe profile image');
+    const { container, rerender } = render(<CastleProfileAvatar profile={presentation} />);
+    const firstImage = mockProfileImages[0];
 
-    fireEvent.error(image);
-    expect(document.querySelector('.realm-castle-avatar img')).toBeNull();
+    act(() => firstImage.finishLoad());
+    expect(container.querySelector('canvas')?.style.display).toBe('block');
+    expect(screen.queryByText('A')).toBeNull();
+
+    rerender(<CastleProfileAvatar profile={{
+      ...presentation,
+      pfpUrl: 'https://cdn.warpkeep.com/profiles/alice-new.png'
+    }} />);
+
+    expect(mockProfileImages).toHaveLength(2);
+    expect(container.querySelector('canvas')?.style.display).toBe('none');
+    expect(screen.getByText('A')).not.toBeNull();
+    expect(container.querySelector('img')).toBeNull();
+
+    const changedImage = mockProfileImages[1];
+    act(() => changedImage.failLoad());
+
+    expect(drawCanvasImage).toHaveBeenCalledOnce();
+    expect(changedImage.removedSourceCount).toBe(1);
+    expect(container.querySelector('canvas')?.style.display).toBe('none');
     expect(screen.getByText('A')).not.toBeNull();
 
-    rerender(<CastleProfileAvatar profile={{ ...presentation, publicStatus: 'active' }} />);
-    expect(document.querySelector('.realm-castle-avatar img')).toBeNull();
+    rerender(<CastleProfileAvatar profile={{
+      ...presentation,
+      pfpUrl: 'https://cdn.warpkeep.com/profiles/alice-new.png',
+      publicStatus: 'active'
+    }} />);
+    expect(mockProfileImages).toHaveLength(2);
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByText('A')).not.toBeNull();
+  });
+
+  it('retains the monogram and detaches the image when canvas drawing fails', () => {
+    drawCanvasImage.mockImplementationOnce(() => {
+      throw new Error('fixture draw failure');
+    });
+    const { container } = render(
+      <CastleProfileAvatar
+        profile={profile({
+          canonicalUsername: 'alice',
+          pfpUrl: 'https://cdn.warpkeep.com/profiles/alice.png'
+        })}
+      />
+    );
+
+    const image = mockProfileImages[0];
+    act(() => image.finishLoad());
+
+    expect(drawCanvasImage).toHaveBeenCalledOnce();
+    expect(image.removedSourceCount).toBe(1);
+    expect(image.sourcePresent).toBe(false);
+    expect(container.querySelector('canvas')?.style.display).toBe('none');
+    expect(container.querySelector('img')).toBeNull();
     expect(screen.getByText('A')).not.toBeNull();
   });
 
@@ -135,15 +270,15 @@ describe('realm profile and PFP presentation regressions', () => {
       name: 'Inspect @fixturekeeper castle, Fixture Keep, cell 1,-1, your castle'
     });
     expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
-    const image = button.querySelector('img');
-    if (!(image instanceof HTMLImageElement)) throw new Error('missing trusted fixture image');
-    expect(image.src).toBe('https://profiles.example/fixturekeeper.png');
-    expect(image.getAttribute('loading')).toBe('eager');
-    expect(image.getAttribute('referrerpolicy')).toBe('no-referrer');
-
-    fireEvent.error(image);
     expect(button.querySelector('img')).toBeNull();
     expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('F');
+    expect(mockProfileImages).toHaveLength(1);
+    expect(mockProfileImages[0].requestedUrl).toBe('https://profiles.example/fixturekeeper.png');
+    expect(mockProfileImages[0].referrerPolicyAtRequest).toBe('no-referrer');
+
+    act(() => mockProfileImages[0].finishLoad());
+    expect(button.querySelector('canvas')?.style.display).toBe('block');
+    expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('');
     expect(button.querySelector('.realm-castle-avatar')?.textContent).not.toMatch(/[0-9]/);
     expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
   });

@@ -30,8 +30,8 @@ const ALPHA_0_3_3_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Realm entry waits for one complete, internally consistent Genesis snapshot instead of presenting partial world state.',
     'Public castle identity stays limited to sanitized Farcaster display fields; private identity and wallet data remain outside the realm view.',
     'Founded keeps now share quality-aware rendering of the real Hegemony castle asset instead of abstract peer markers.',
-    'Castle labels, selection, inspection, focus return, and HUD states are clearer across mouse, touch, and keyboard play.',
-    'Richer presentation remains bounded by graphics quality, visibility, and disposal rules so responsiveness is preserved.'
+    'Static Farcaster portraits and persistent usernames stay attached to their own castle roofline instead of drifting across the map.',
+    'A slimmer HUD, focused castle record, and searchable Explore panel keep navigation clear across mouse, touch, and keyboard play.'
   ]),
   alphaNotice: 'Released 14 July 2026. Alpha systems remain experimental and may change.'
 });

@@ -21,11 +21,18 @@ export type RealmNavigatorCastle = Readonly<{
   r: number;
 }>;
 
-export type RealmNavigatorCloseReason = 'escape' | 'close-button';
+export type RealmNavigatorCloseReason = 'escape' | 'close-button' | 'camera-preset';
 
 export type RealmNavigatorCoordinateJump = Readonly<{
   validate: (coord: HexCoord) => boolean;
   onActivate: (coord: HexCoord) => void;
+}>;
+
+export type RealmNavigatorCameraPreset = Readonly<{
+  id: string;
+  label: string;
+  active?: boolean;
+  onActivate: () => void;
 }>;
 
 export type RealmAccessibilityControlsProps = Readonly<{
@@ -38,6 +45,7 @@ export type RealmAccessibilityControlsProps = Readonly<{
   onRequestClose: (reason: RealmNavigatorCloseReason) => void;
   onActivateCastle: (castle: RealmNavigatorCastle) => void;
   coordinateJump?: RealmNavigatorCoordinateJump;
+  cameraPresets?: readonly RealmNavigatorCameraPreset[];
   /** Receives the trigger element; focus is restored here after controlled close. */
   triggerRef?: Ref<HTMLButtonElement>;
 }>;
@@ -72,6 +80,7 @@ export function RealmAccessibilityControls({
   onRequestClose,
   onActivateCastle,
   coordinateJump,
+  cameraPresets = [],
   triggerRef
 }: RealmAccessibilityControlsProps) {
   const [search, setSearch] = useState('');
@@ -148,12 +157,13 @@ export function RealmAccessibilityControls({
       <button
         ref={setTriggerRef}
         type="button"
+        aria-label={`Explore realm, ${castles.length} founded ${castles.length === 1 ? 'castle' : 'castles'}`}
         aria-controls={id}
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={onRequestOpen}
       >
-        Realm Navigator <span>{castles.length}</span>
+        Explore <span>{castles.length} {castles.length === 1 ? 'CASTLE' : 'CASTLES'}</span>
       </button>
 
       {open ? (
@@ -167,16 +177,37 @@ export function RealmAccessibilityControls({
         >
           <header className="realm-cell-navigator__heading">
             <div>
-              <span>FOUNDED CASTLES</span>
-              <h2 id={headingId}>Realm Navigator</h2>
+              <span>EXPLORE THE REALM</span>
+              <h2 id={headingId}>Explore</h2>
             </div>
             <button
               type="button"
               onClick={() => onRequestClose('close-button')}
             >
-              CLOSE NAVIGATOR
+              CLOSE EXPLORE
             </button>
           </header>
+
+          {cameraPresets.length > 0 ? (
+            <section className="realm-cell-navigator__presets" aria-label="Realm views">
+              <span>VIEWS</span>
+              <div>
+                {cameraPresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    aria-pressed={preset.active}
+                    onClick={() => {
+                      preset.onActivate();
+                      onRequestClose('camera-preset');
+                    }}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <label htmlFor={searchId}>Search founded castles</label>
           <input

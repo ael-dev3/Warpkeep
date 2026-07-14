@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  resolveCastleLabelOcclusionBounds,
+  resolveCastleLabelScreenAnchor
+} from '../src/components/realm/createRealmScene';
+import {
   CASTLE_LABEL_FAR_DISTANCE,
+  CASTLE_LABEL_GAP_PIXELS,
   CASTLE_LABEL_MAX_DESKTOP,
   castleProfileLabel,
   fallbackCastleProjection,
@@ -63,7 +68,7 @@ describe('realm castle public presentation', () => {
     expect(sectorForRealmCoord({ q: 1, r: -1 })).toBe(6);
   });
 
-  it('caps and collision-culls labels while retaining selected and own priorities', () => {
+  it('caps and collision-culls labels without detaching a lower-priority collision', () => {
     const castles = Array.from({ length: 100 }, (_, index) => ({
       castleId: index + 1,
       q: index,
@@ -73,8 +78,8 @@ describe('realm castle public presentation', () => {
       distance: index + 1,
       visible: true
     }));
-    // Force own and selected into the same initial collision cluster. Priority
-    // labels are shifted before ordinary records are culled.
+    // Force own and selected into the same initial collision cluster. Selected
+    // wins deterministically; own is culled instead of floating elsewhere.
     castles[98] = { ...castles[98], x: 240, y: 160, distance: 99 };
     castles[99] = { ...castles[99], x: 240, y: 160, distance: 100 };
 
@@ -85,25 +90,44 @@ describe('realm castle public presentation', () => {
     );
 
     expect(resolved.length).toBeLessThanOrEqual(CASTLE_LABEL_MAX_DESKTOP);
-    expect(resolved.some((castle) => castle.castleId === 99)).toBe(true);
     expect(resolved.some((castle) => castle.castleId === 100)).toBe(true);
-    expect(resolved.find((castle) => castle.castleId === 99)?.y)
-      .not.toBe(resolved.find((castle) => castle.castleId === 100)?.y);
+    expect(resolved.some((castle) => castle.castleId === 99)).toBe(false);
+    expect(resolved.every((castle) => castle.compact === false)).toBe(true);
   });
 
-  it('clamps selected and own labels into the horizontal safe area', () => {
+  it('permits only a small selected or own nudge into the safe area', () => {
     const resolved = resolveVisibleCastleLabels({
       width: 320,
       height: 300,
       castles: [
-        { castleId: 1, q: 0, r: 0, x: 2, y: 120, distance: 0, visible: true },
-        { castleId: 2, q: 1, r: 0, x: 318, y: 220, distance: 1, visible: true }
+        { castleId: 1, q: 0, r: 0, x: 62, y: 120, distance: 0, visible: true },
+        { castleId: 2, q: 1, r: 0, x: 258, y: 220, distance: 1, visible: true }
       ]
     }, 1, 2);
 
     expect(resolved.map((castle) => castle.castleId)).toEqual([2, 1]);
     expect(resolved.find((castle) => castle.castleId === 1)?.x).toBe(70);
     expect(resolved.find((castle) => castle.castleId === 2)?.x).toBe(250);
+  });
+
+  it('keeps accepted distant projections as full identity labels', () => {
+    const resolved = resolveVisibleCastleLabels({
+      width: 800,
+      height: 600,
+      castles: [{
+        castleId: 1,
+        q: 0,
+        r: 0,
+        x: 400,
+        y: 230,
+        distance: CASTLE_LABEL_FAR_DISTANCE * 10,
+        visible: true,
+        castleBounds: { left: 390, top: 236, right: 410, bottom: 256 }
+      }]
+    }, undefined, undefined, 1);
+
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]).toMatchObject({ castleId: 1, compact: false, x: 400, y: 230 });
   });
 
   it('maps fallback labels through the rendered SVG viewport and its aspect-fit letterbox', () => {
@@ -116,13 +140,39 @@ describe('realm castle public presentation', () => {
 
     // A 2:1 viewBox meets inside the 400px square with 100px vertical bars.
     expect(projection.x).toBe(400);
-    expect(projection.y).toBe(236);
+    expect(projection.y).toBe(234);
     expect(projection.castleBounds).toEqual({
       left: 390,
       top: 240,
       right: 410,
       bottom: 260
     });
+    expect(projection.conservativeCastleBounds).toEqual(projection.castleBounds);
+  });
+
+  it('anchors labels to a calibrated roof while retaining conservative bounds separately', () => {
+    const conservative = { left: 360, top: 180, right: 440, bottom: 300 };
+    const bounds = resolveCastleLabelOcclusionBounds(conservative, 240);
+    expect(bounds).toEqual({ left: 360, top: 240, right: 440, bottom: 300 });
+    expect(conservative).toEqual({ left: 360, top: 180, right: 440, bottom: 300 });
+    expect(resolveCastleLabelScreenAnchor(bounds, { x: 999, y: 999 })).toEqual({
+      x: 400,
+      y: 240 - CASTLE_LABEL_GAP_PIXELS
+    });
+    expect(resolveCastleLabelScreenAnchor(undefined, { x: 12, y: 34 })).toEqual({
+      x: 12,
+      y: 34
+    });
+
+    const fallback = fallbackCastleProjection(
+      { castleId: 1, q: 0, r: 0 },
+      { x: -20, y: -10, width: 40, height: 20 },
+      { width: 1_000, height: 600 },
+      { left: 200, top: 50, width: 400, height: 400 }
+    );
+    expect(fallback.x).toBe((fallback.castleBounds!.left + fallback.castleBounds!.right) / 2);
+    expect(fallback.y).toBe(fallback.castleBounds!.top - CASTLE_LABEL_GAP_PIXELS);
+    expect(fallback.conservativeCastleBounds).toEqual(fallback.castleBounds);
   });
 
   it('invalidates projection coalescing when a stationary castle changes distance band', () => {

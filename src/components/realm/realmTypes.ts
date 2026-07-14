@@ -22,8 +22,10 @@ export type RealmCastleScreenProjection = Readonly<{
   y: number;
   distance: number;
   visible: boolean;
-  /** Projected model silhouette used to keep its own label unobstructed. */
+  /** Calibrated roof silhouette used to keep its own label unobstructed. */
   castleBounds?: RealmCastleScreenBounds;
+  /** Conservative projected model prism, kept separate from label attachment. */
+  conservativeCastleBounds?: RealmCastleScreenBounds;
 }>;
 
 export type RealmCastleProjectionFrame = Readonly<{

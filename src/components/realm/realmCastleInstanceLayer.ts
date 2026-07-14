@@ -11,7 +11,7 @@ import {
 } from './castleInstancePlanning';
 import type { HegemonyKeepPrefab } from './hegemonyKeepPrefabRepository';
 
-const CASTLE_GROUND_LIFT = 0.006;
+export const CASTLE_GROUND_LIFT = 0.006;
 
 export type RealmCastleInstanceRecord = Readonly<{
   castleId: number;

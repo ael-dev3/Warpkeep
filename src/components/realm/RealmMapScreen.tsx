@@ -43,16 +43,14 @@ import {
   pointyHexCorners,
   sampleLowlandsColor
 } from './createTerrainGeometry';
-import type {
-  RealmCameraComposition,
-  RealmCameraMode
-} from './realmCameraController';
+import type { RealmCameraMode } from './realmCameraController';
+import { measuredRealmComposition } from './realmMeasuredComposition';
 import {
   REALM_QUALITY_SPECS,
   selectRealmQuality,
   type RealmQuality
 } from './realmQuality';
-import type { KeepLoadStatus, RealmIdentity } from './realmTypes';
+import type { RealmIdentity } from './realmTypes';
 import type { RealmCastleProjectionFrame } from './realmTypes';
 import {
   CASTLE_LABEL_FAR_DISTANCE,
@@ -217,84 +215,6 @@ function readReducedMotion() {
     && window.matchMedia(REDUCED_MOTION_QUERY).matches;
 }
 
-function measuredRealmComposition(root: HTMLElement): RealmCameraComposition {
-  const rootRect = root.getBoundingClientRect();
-  const width = Math.max(1, rootRect.width);
-  const height = Math.max(1, rootRect.height);
-  const compact = width <= 760 || height <= 520;
-  const shortLandscape = height <= 520 && width > 580;
-  const gap = compact ? 10 : 16;
-  const safeAreaProbe = root.querySelector<HTMLElement>('.realm-safe-area-probe');
-  const probeStyle = safeAreaProbe ? window.getComputedStyle(safeAreaProbe) : undefined;
-  const cssPixels = (value: string | undefined) => {
-    const parsed = Number.parseFloat(value ?? '0');
-    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-  };
-  const safeAreaInsets = {
-    top: cssPixels(probeStyle?.paddingTop),
-    right: cssPixels(probeStyle?.paddingRight),
-    bottom: cssPixels(probeStyle?.paddingBottom),
-    left: cssPixels(probeStyle?.paddingLeft)
-  };
-  const insets = { top: 0, right: 0, bottom: 0, left: 0 };
-  const rectFor = (selector: string) => {
-    const element = root.querySelector<HTMLElement>(selector);
-    if (!element) return undefined;
-    const rect = element.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 ? rect : undefined;
-  };
-  const reserveLeft = (rect: DOMRect) => {
-    insets.left = Math.max(
-      insets.left,
-      rect.right - rootRect.left + gap - safeAreaInsets.left
-    );
-  };
-  const reserveRight = (rect: DOMRect) => {
-    insets.right = Math.max(
-      insets.right,
-      rootRect.right - rect.left + gap - safeAreaInsets.right
-    );
-  };
-  const reserveTop = (rect: DOMRect) => {
-    insets.top = Math.max(
-      insets.top,
-      rect.bottom - rootRect.top + gap - safeAreaInsets.top
-    );
-  };
-  const reserveBottom = (rect: DOMRect) => {
-    insets.bottom = Math.max(
-      insets.bottom,
-      rootRect.bottom - rect.top + gap - safeAreaInsets.bottom
-    );
-  };
-
-  const hud = rectFor('.realm-hud');
-  const inspector = rectFor('.castle-inspection');
-  const actions = rectFor('.realm-hud__actions');
-  const navigator = rectFor('.realm-cell-navigator__dialog')
-    ?? rectFor('.realm-cell-navigator > button');
-
-  if (hud && !(compact && inspector)) {
-    if (compact && !shortLandscape) reserveTop(hud);
-    else reserveLeft(hud);
-  }
-  if (inspector) {
-    if (compact && !shortLandscape) reserveBottom(inspector);
-    else reserveRight(inspector);
-  }
-  if (actions) reserveBottom(actions);
-  if (navigator && !inspector) {
-    if (compact && !shortLandscape) reserveBottom(navigator);
-    else reserveRight(navigator);
-  }
-
-  return Object.freeze({
-    insets: Object.freeze(insets),
-    safeAreaInsets: Object.freeze(safeAreaInsets),
-    focusPadding: compact ? 14 : 24
-  });
-}
-
 function useReducedMotionPreference() {
   const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
 
@@ -389,11 +309,9 @@ function CanonicalRealmMapScreen({
   const inspectorId = useId();
   const navigatorId = useId();
   const ownCastle = snapshot.ownCastle;
-  const sharedTiles = snapshot.tiles;
   const sharedPlayers = snapshot.players;
   const sharedProfiles = snapshot.profiles;
   const sharedTileMetadata = snapshot.tileMetadata;
-  const realmName = snapshot.realm.publicName;
   const otherCastles = snapshot.castles;
   const surface = useMemo(
     () => createRealmTerrainSurface(
@@ -414,9 +332,6 @@ function CanonicalRealmMapScreen({
   surfaceRef.current = surface;
   const tileMetadataByKeyRef = useRef(tileMetadataByKey);
   tileMetadataByKeyRef.current = tileMetadataByKey;
-  const traversableCells = useMemo(() => surface.playableMap.cells.filter((cell) => (
-    tileMetadataByKey.get(hexKey(cell.coord))?.passable !== false
-  )), [surface.playableMap.cells, tileMetadataByKey]);
   const ownCastleQ = ownCastle.q;
   const ownCastleR = ownCastle.r;
   const keepCoord = useMemo<HexCoord>(
@@ -491,7 +406,6 @@ function CanonicalRealmMapScreen({
   const [rendererMode, setRendererMode] = useState<RendererMode>('loading');
   const rendererModeRef = useRef<RendererMode>('loading');
   rendererModeRef.current = rendererMode;
-  const [keepLoadStatus, setKeepLoadStatus] = useState<KeepLoadStatus>('idle');
   const [cameraMode, setCameraMode] = useState<RealmCameraMode>('realm');
   const [interaction, dispatchInteraction] = useReducer(
     realmInteractionReducer,
@@ -518,7 +432,6 @@ function CanonicalRealmMapScreen({
   const reducedMotion = useReducedMotionPreference();
   const viewBox = useMemo(() => viewBoxForSurface(surface), [surface]);
   const selectedCell = selectedCellFor(surface, selectedCoord, keepCoord);
-  const selectedTileMetadata = tileMetadataByKey.get(hexKey(selectedCell.coord));
   const selectedCastle = interaction.selectedCastle
     ? allCastles.find((castle) => castle.castleId === interaction.selectedCastle?.castleId)
     : undefined;
@@ -594,7 +507,6 @@ function CanonicalRealmMapScreen({
   const markRendererUnavailable = useCallback(() => {
     rendererModeRef.current = 'fallback';
     setRendererMode('fallback');
-    setKeepLoadStatus('fallback');
   }, []);
 
   const isSceneCoordPassable = useCallback((coord: HexCoord) => (
@@ -880,7 +792,6 @@ function CanonicalRealmMapScreen({
       previousLabelLayoutRef.current = [];
       labelMembershipSignatureRef.current = '';
       setVisibleCastleLabels([]);
-      setKeepLoadStatus('loading');
       setCameraMode('realm');
       scene = createRealmScene({
         canvas,
@@ -895,13 +806,12 @@ function CanonicalRealmMapScreen({
         onCameraModeChange: setCameraMode,
         onHover: () => undefined,
         onTargetHover: handleSceneTargetHover,
-        onKeepStatusChange: setKeepLoadStatus,
+        onKeepStatusChange: () => undefined,
         onCastlesReady: (castleCount) => {
           if (castleCount !== expectedCastleCountRef.current) {
             markRendererUnavailable();
             return;
           }
-          setKeepLoadStatus('ready');
           rendererModeRef.current = 'webgl';
           setRendererMode('webgl');
           updateSceneComposition();
@@ -960,19 +870,16 @@ function CanonicalRealmMapScreen({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onRequestReturn]);
 
-  const focusKeep = useCallback(() => {
-    dispatchInteraction({
-      type: 'activate-castle',
-      castleId: ownCastle.castleId,
-      coord: keepCoord
-    });
-    sceneRef.current?.focusKeep();
-  }, [keepCoord, ownCastle.castleId]);
-
   const recenterKeep = useCallback(() => {
     selectCoord(keepCoord);
     dispatchInteraction({ type: 'set-camera-target', target: { kind: 'keep' } });
     sceneRef.current?.recenterKeep();
+  }, [keepCoord, selectCoord]);
+
+  const viewKeep = useCallback(() => {
+    selectCoord(keepCoord);
+    dispatchInteraction({ type: 'set-camera-target', target: { kind: 'keep' } });
+    sceneRef.current?.focusKeep();
   }, [keepCoord, selectCoord]);
 
   const showRealm = useCallback(() => {
@@ -1139,8 +1046,7 @@ function CanonicalRealmMapScreen({
             })}
           </svg>
           <p className="realm-map-screen__fallback-copy">
-            <strong>{traversableCells.length} traversable cells · {surface.playableMap.cells.length} realm cells · {surface.renderMap.cells.length} rendered.</strong>{' '}
-            WebGL terrain preview is unavailable, so this deterministic lowlands chart preserves the same authoritative keep foundations, terrain records, and realm boundary.
+            Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.
           </p>
         </div>
       ) : null}
@@ -1177,26 +1083,12 @@ function CanonicalRealmMapScreen({
             ownProfile={ownProfile}
             marksStatus={marksStatus}
             keepCoord={keepCoord}
-            sharedTileCount={sharedTiles.length || undefined}
-            sharedPlayerCount={sharedPlayers.length}
-            sharedCastleCount={allCastles.length}
             selectedCell={selectedCell}
             selectedCastle={selectedCastle}
             selectedCastleProfile={selectedCastle
               ? profileRecords.get(selectedCastle.castleId)?.profile
               : undefined}
-            selectedTileMetadata={selectedTileMetadata}
-            keepLoadStatus={keepLoadStatus}
-            cameraMode={cameraMode}
-            quality={quality}
-            onFrameFoundingDistrict={
-              rendererMode === 'webgl' && hasNearbyFoundingKeeps
-                ? frameFoundingDistrict
-                : undefined
-            }
-            onFocusKeep={focusKeep}
             onRecenterKeep={recenterKeep}
-            onShowRealm={showRealm}
             onRequestReturn={onRequestReturn}
           />
 
@@ -1205,8 +1097,6 @@ function CanonicalRealmMapScreen({
               id={inspectorId}
               castle={inspectorCastle}
               profile={profileRecords.get(inspectorCastle.castleId)!.profile}
-              tileMetadata={tileMetadataByKey.get(inspectorCastle.tileKey ?? hexKey(inspectorCastle))}
-              realmName={realmName}
               own={inspectorCastle.ownerFid === identity.fid}
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
@@ -1220,6 +1110,26 @@ function CanonicalRealmMapScreen({
             ownCastleId={ownCastle.castleId}
             selectedCastleId={selectedCastle?.castleId}
             triggerRef={navigatorTriggerRef}
+            cameraPresets={[
+              {
+                id: 'realm',
+                label: 'Realm',
+                active: cameraMode === 'realm',
+                onActivate: showRealm
+              },
+              ...(rendererMode === 'webgl' && hasNearbyFoundingKeeps ? [{
+                id: 'founders',
+                label: 'Founders',
+                active: cameraMode === 'approach',
+                onActivate: frameFoundingDistrict
+              }] : []),
+              {
+                id: 'keep',
+                label: 'My Keep',
+                active: cameraMode === 'keep',
+                onActivate: viewKeep
+              }
+            ]}
             onRequestOpen={() => dispatchInteraction({ type: 'open-navigator' })}
             onRequestClose={() => dispatchInteraction({ type: 'close-navigator' })}
             onActivateCastle={(entry) => {
