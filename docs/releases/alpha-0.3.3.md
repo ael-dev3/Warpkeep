@@ -1,8 +1,8 @@
 # Warpkeep Alpha 0.3.3 — Genesis Realm UI and Castle Presentation
 
-**Status: source candidate in development. Alpha 0.3.3 has not been deployed,
-tagged, or released. The verified public production baseline remains Alpha
-0.3.2.**
+**Status: released 14 July 2026 through protected main and GitHub Pages. The
+menu build stamp identifies the exact deployed source; `v0.3.3` is tagged only
+after that deployed commit passes exact-build verification.**
 
 Alpha 0.3.3 is a focused Genesis Realm presentation and canonical-state patch.
 It replaces transitional world and marker behavior with one fail-closed realm
@@ -107,9 +107,8 @@ public-name initial, then the Warpkeep sigil. FID digits are never used as the p
 world label or avatar.
 
 Visible PFPs load eagerly with no referrer. Shared URL policy strips fragments
-and rejects credentials, literal local/private/special-use hosts, and
-non-HTTPS schemes before an image reaches a browser sink. Image failure keeps a
-stable neutral fallback.
+and rejects credentials, every literal-IP origin, and non-HTTPS schemes before
+an image reaches a browser sink. Image failure keeps a stable neutral fallback.
 
 The private profile-maintenance workflow is bounded to already founded public
 profiles, preserves sanitized last-known-good values on an upstream omission,
@@ -117,8 +116,7 @@ and requires a dry run plus a short-lived, one-use, content/config-attested
 reviewed plan. Apply never re-fetches profile data, performs a fresh read-only
 post-check, and records only privacy-safe completeness and mutation outcomes. It
 cannot admit a player, move a castle, inspect a wallet, or alter Marks. No
-profile backfill or other production-data mutation is claimed by this source
-candidate.
+profile backfill or other production-data mutation occurred during release.
 
 The existing Terms-gated, browser-bound Sign In with Farcaster, short-lived
 access authority, rotating HttpOnly session, admission, and protocol-3 server
@@ -145,12 +143,18 @@ Focused automated coverage now exercises:
 - profile sanitization, unsafe-image rejection, neutral fallbacks, reviewed-plan
   handling, bounded reducer outcomes, and privacy-safe audit records.
 
-Development checkpoints have also exercised typechecking, standard and Pages
-build modes, runtime-asset and file-size policy, SpacetimeDB module/binding and
-additive-migration checks, and dependency audit/signature verification. Because
-the cumulative branch is still changing, those intermediate results are not
-final release evidence. A fresh clean run of the complete matrix, exact browser
-replay, and production verification must be recorded against the final commit.
+The frozen-install release matrix passed 97 root files / 933 tests, 152 Worker
+unit tests plus 3 workerd tests, and 84 SpacetimeDB tests. Root, Worker, and
+module typechecks; standard, canonical Pages, and legacy-base builds; 18 exact
+runtime assets; file-size and licensing policy; generated-binding parity; the
+additive migration proof; zero-vulnerability dependency audits; 189 registry
+signatures; 61 attestations; and a zero-finding redacted secret scan all passed.
+Protected Verify and CodeQL checks passed before merge and again on main.
+
+Local clean-browser desktop, mobile, and short-landscape menu and Terms QA
+passed. The exact deployed Pages SHA passed public asset/build-stamp and
+redirect verification plus the unchanged auth-v2 bridge's read-only health,
+discovery, JWKS, retired-v1, security-header, and CORS checks.
 
 ## Preserved boundaries
 
@@ -160,30 +164,27 @@ Alpha 0.3.3 does not:
   rows, the 100 castle slots, admission, ownership, castle coordinates, or
   existing production data;
 - publish a Maincloud schema, change the authentication Worker, enable public
-  admission, or authorize any deployment by virtue of this source work;
+  admission, or mutate production game data;
 - connect or scan wallets, apply burn credits, enable Mark spending, install a
   scheduler, or change the Marks policy;
 - add resources, construction, units, movement, combat, alliances, chat,
   seasons, or live castle warp.
 
-## Remaining release gates and risks
+## Residual risks and deferred operations
 
-- The supplied production-video path still needs a final clean-browser replay
-  against the exact release candidate, including console, focus, reconnect, and
-  loading-state checks.
-- The complete test/build/audit matrix and independent cumulative review must be
-  rerun after the last code change; intermediate totals must not be copied into
-  a release claim.
+- The supplied 104-second source recording was not available in the repository
+  or local attachment cache. Its documented interaction path is covered by
+  state, rendering, responsive, and stress regressions, but new timestamped
+  before/after frames could not be extracted.
 - One-hundred-castle packing is synthetic. Representative desktop and mobile
   GPU memory, frame-time, device heat, and browser lifecycle measurements are
-  still required. Packaged LOD texture cost varies by device and driver.
+  still useful follow-up evidence. Packaged LOD texture cost varies by device
+  and driver.
 - Public PFP availability remains externally dependent. The neutral fallback is
   intentional; direct image hosts receive ordinary connection metadata even
   though the browser sends no referrer. A production profile refresh requires
   authoritative review of the pinned upstream contract, a bounded dry run,
   exact founded-set verification, and explicit production scope.
-- No production Pages deployment, Worker change, profile mutation, owner QA,
-  protected-main merge, `v0.3.3` tag, or GitHub Release is claimed here.
-
-Until those gates pass against one exact commit, Alpha 0.3.2 remains the public
-release and this document remains development evidence only.
+- No Worker, schema, profile, admission, castle, world, wallet, Marks, scan, or
+  burn mutation occurred. The production profile operator remains fail-closed
+  until its trusted source is owner-attested.

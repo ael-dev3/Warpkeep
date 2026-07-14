@@ -227,7 +227,7 @@ describe('WarpkeepMainMenu', () => {
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
     expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.3');
     expect(notes.textContent).toContain('one complete, internally consistent Genesis snapshot');
-    expect(notes.textContent).toContain('Not yet deployed');
+    expect(notes.textContent).toContain('Released 14 July 2026');
     expect(within(notes).queryByRole('link')).toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
