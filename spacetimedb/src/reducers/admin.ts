@@ -493,11 +493,17 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
 
       let orphanedPlayerRowsV2 = 0n;
       for (const row of tx.db.playerV2.iter()) {
-        if (tx.db.playerOwnershipV2.fid.find(row.fid) === null) orphanedPlayerRowsV2 += 1n;
+        if (
+          tx.db.playerOwnershipV2.fid.find(row.fid) === null
+          || tx.db.allowedFid.fid.find(row.fid) === null
+        ) orphanedPlayerRowsV2 += 1n;
       }
       let orphanedOwnershipRowsV2 = 0n;
       for (const row of tx.db.playerOwnershipV2.iter()) {
-        if (tx.db.playerV2.fid.find(row.fid) === null) orphanedOwnershipRowsV2 += 1n;
+        if (
+          tx.db.playerV2.fid.find(row.fid) === null
+          || tx.db.allowedFid.fid.find(row.fid) === null
+        ) orphanedOwnershipRowsV2 += 1n;
       }
 
       let orphanedCastleClaims = 0n;

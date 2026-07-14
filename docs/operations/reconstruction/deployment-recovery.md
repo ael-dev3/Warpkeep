@@ -123,16 +123,17 @@ loopback-only, in-memory server and proves that:
   original schema metadata unchanged;
 - both an empty legacy-player fixture and a synthetic nonempty legacy-player
   fixture survive the forward publish unchanged;
-- only public `player_v2` and private `player_ownership_v2` are appended;
-- a second forward publish is idempotent, partial v2 state remains detectable,
-  uniqueness constraints hold, and guarded v1 rollback is refused before any
+- the complete seven-table protocol-v2 prefix remains unchanged while the exact
+  12-table protocol-v3 suffix is appended;
+- a second forward publish is idempotent, populated protocol-v3 state survives,
+  uniqueness constraints hold, and guarded v2 rollback is refused before any
   schema change or compatibility override.
 
 The legacy public `player` table therefore retains its exact protocol-v1 shape,
-including `identity`. Protocol v2 never reads, writes, or subscribes to it, and
-production publish requires a freshly inspected deployed-v1 `players: 0`
-invariant. After publication, the v2 aggregate reports the same count as
-`legacyPlayers`.
+including `identity`. Protocol v2 never reads, writes, or subscribes to it. The
+historical first v2 publish required a freshly inspected deployed-v1
+`players: 0` invariant; a current republish instead requires the exact founded
+protocol-v3 aggregate and still requires `legacyPlayers: 0`.
 The public `player_v2` projection contains no opaque identity;
 `player_ownership_v2` is private and must have no generated browser table
 accessor.
@@ -141,47 +142,56 @@ Read-only publish preflight:
 
 ```sh
 WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
-  npm run stdb:publish:dev -- --dry-run
+WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
+WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
+WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
+npm run stdb:publish:dev -- --dry-run
 ```
 
-Before the first v2 publish, obtain explicit approval for the bounded, read-only
-aggregate already present in the deployed v1 module. In the approved private
-operator environment, run `npm run stdb:inspect-alpha -- --json`; record only
-its aggregate result, never its credential or child-process output. It must be
-exactly 61 world tiles and zero legacy players (`players`), castles, allowlist
-rows, and enabled FIDs. The unpublished `inspect-alpha-v2` procedure cannot be
-used as pre-publication evidence.
+All three count expectations are mandatory canonical decimal strings, including
+explicit zeroes. Obtain them from a fresh counts-only private inspection and do
+not copy them into public notes, shell history, tickets, screenshots, or chat.
+The command blocks show the required environment shape only: inject the reviewed
+values through the private non-interactive operation runner, not by typing them
+into an interactive shell.
+The publisher passes none of them to the CLI or protected child; they exist only
+in parent memory as the exact comparison contract for `admin_get_alpha_status_v3`.
+The dry run validates this command contract without reading Maincloud state or
+performing a publish.
 
-Only if the local proof passes, the protected aggregate was freshly inspected,
-the deployed-v1 `players` field was exactly zero, and the owner recorded the
-exact separate approval `approve additive protocol-v2 module publication`:
+Only if the local proof passes, the owner has separately approved the exact
+forward module update, and the private current counts were freshly reviewed:
 
 ```sh
 WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
 WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
+WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
+WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
+WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
 npm run stdb:publish:dev
 ```
 
 Use the private Keychain wrapper so the Hermes credential is loaded only into
 bounded publisher memory and forwarded to the protected inspection child over
 stdin; it is excluded from the child environment and every other child process.
-For the historical first v2 publication, the publisher performed the deployed
-v1 aggregate inspection itself. The current protocol-v3 candidate instead
-requires the exact deployed protocol-v2 aggregate, including v2 ownership and
-orphan counters, before it can publish. It does so after attesting the pinned
-CLI binary, current loopback migration proof, and canonical database
-name-to-identity mapping. It never
-accepts a hand-entered legacy-player count. The proof's single SHA-256 receipt
-is bound to the exact prebuilt `bundle.js`; the publisher rechecks those bytes
-and uses `--js-path`, so it cannot silently rebuild a different module between
-proof and publication.
+For the historical first v2 publication, the then-current publisher performed
+the deployed-v1 aggregate inspection itself. The current publisher requires the
+exact founded protocol-v3 aggregate—including founder graphs, authenticated
+player/ownership pairs, Terms rows, static-world checks, and every zero
+invariant—against the immutable database identity immediately before publish.
+It attests the pinned CLI binary, reruns the current loopback migration proof,
+and verifies the canonical database name-to-identity mapping. The proof's single
+SHA-256 receipt is bound to the exact prebuilt `bundle.js`; the publisher
+rechecks those bytes and uses `--js-path`, so it cannot silently rebuild a
+different module between proof and publication.
 
-Immediately after an approved publish, use
-`npm run stdb:inspect-alpha-v2 -- --json`. Require 61 world tiles and zero legacy
-players, v2 players, v2 ownerships, consistent v2 pairs, either orphan class,
-castles, allowlist rows, and enabled FIDs; protocol `2`; world seed `3445214658`;
-and seed name `HEGEMONY_GENESIS_001`. `auditEntries` is an observed nonnegative
-count, not row content.
+After a successful publish, the publisher repeats the same founded aggregate.
+Any post-publish inspection failure makes the outcome indeterminate and requires
+a fresh read-only inspection before any retry. Independently run the production
+verifier with `--require-genesis-v3-founded-aggregate` and the same private
+founder/player/Terms expectations. Require protocol `3`, the reviewed generation,
+all exact counts, and every orphan/drift/invariant counter at zero; never print
+the protected procedure body.
 
 Never use `--delete-data=always`, `--break-clients`, database recreation, or broad auto-confirmation. A timed-out publish is indeterminate: inspect before retrying.
 

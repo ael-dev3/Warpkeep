@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   PROTECTED_AGGREGATE_STAGE,
   protectedAggregateChildArguments,
-  verifyExpectedAlphaV2Aggregate,
+  verifyExpectedAlphaV3Aggregate,
 } from './verify-alpha-production.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -199,6 +199,64 @@ export function requireCanonicalPublishCoordinates(source = process.env) {
   }
 }
 
+function validateFoundedPublishExpectations(value) {
+  if (
+    value === null
+    || typeof value !== 'object'
+    || Object.keys(value).sort().join(',') !== [
+      'expectedFounderCount',
+      'expectedPlayerCount',
+      'expectedTermsAcceptanceCount',
+    ].sort().join(',')
+  ) {
+    fail('Exact founded protocol-v3 publication expectations are required.');
+  }
+  const {
+    expectedFounderCount,
+    expectedPlayerCount,
+    expectedTermsAcceptanceCount,
+  } = value;
+  if (
+    !Number.isSafeInteger(expectedFounderCount)
+    || expectedFounderCount < 1
+    || expectedFounderCount > 100
+    || !Number.isSafeInteger(expectedPlayerCount)
+    || expectedPlayerCount < 0
+    || expectedPlayerCount > expectedFounderCount
+    || !Number.isSafeInteger(expectedTermsAcceptanceCount)
+    || expectedTermsAcceptanceCount < 0
+    || expectedTermsAcceptanceCount > expectedPlayerCount
+  ) {
+    fail('Founded protocol-v3 publication expectations were invalid.');
+  }
+  return Object.freeze({
+    expectedFounderCount,
+    expectedPlayerCount,
+    expectedTermsAcceptanceCount,
+  });
+}
+
+export function readFoundedPublishExpectations(source = process.env) {
+  const readCount = (key, minimum) => {
+    const value = source[key];
+    const pattern = minimum === 1
+      ? /^(?:[1-9]|[1-9]\d|100)$/
+      : /^(?:0|[1-9]|[1-9]\d|100)$/;
+    if (typeof value !== 'string' || !pattern.test(value)) {
+      fail(`${key} must be a canonical integer from ${minimum} through 100.`);
+    }
+    return Number(value);
+  };
+  return validateFoundedPublishExpectations({
+    expectedFounderCount: readCount('WARPKEEP_EXPECTED_FOUNDER_COUNT', 1),
+    expectedPlayerCount: readCount('WARPKEEP_EXPECTED_PLAYER_COUNT', 0),
+    expectedTermsAcceptanceCount: readCount(
+      'WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT',
+      0,
+    ),
+  });
+}
+
 function resolveExecutablePath(executable, environment) {
   const candidates = isAbsolute(executable) || executable.includes('/')
     ? [resolve(executable)]
@@ -356,10 +414,12 @@ export function runCurrentAdditiveMigrationProof(executable, spawnSyncProcess = 
   return parseMigrationProofReceipt(result.stdout);
 }
 
-export function verifyFreshProtocolV2Aggregate(
+export function verifyFreshFoundedProtocolV3Aggregate(
   secret,
+  expectations,
   spawnSyncProcess = spawnSync,
 ) {
+  const exactExpectations = validateFoundedPublishExpectations(expectations);
   const secretBytes = typeof secret === 'string' ? new TextEncoder().encode(secret).byteLength : 0;
   if (secretBytes < 32 || secretBytes > 512) {
     fail('A local 32-to-512-byte Hermes credential is required for the fresh protected preflight.');
@@ -367,7 +427,7 @@ export function verifyFreshProtocolV2Aggregate(
   const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
   const result = runBoundedSync(
     process.execPath,
-    protectedAggregateChildArguments(tsxCli, PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2),
+    protectedAggregateChildArguments(tsxCli, PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED),
     {
       env: {
         WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
@@ -383,7 +443,28 @@ export function verifyFreshProtocolV2Aggregate(
     },
     spawnSyncProcess,
   );
-  verifyExpectedAlphaV2Aggregate(result.stdout);
+  verifyExpectedAlphaV3Aggregate(
+    result.stdout,
+    PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    exactExpectations.expectedFounderCount,
+    exactExpectations.expectedPlayerCount,
+    exactExpectations.expectedTermsAcceptanceCount,
+  );
+}
+
+export function verifyPostPublishFoundedProtocolV3Aggregate(
+  secret,
+  expectations,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    verifyFreshFoundedProtocolV3Aggregate(secret, expectations, spawnSyncProcess);
+  } catch {
+    // Publication has already returned success. Never surface a preflight-style
+    // "no publish attempted" message or invite an unsafe retry when only the
+    // bounded post-publication inspection failed.
+    throw new Error('Post-publication verification requires a fresh read-only inspection.');
+  }
 }
 
 export async function publishModule(
@@ -489,17 +570,25 @@ async function main() {
   if (!dryRun && process.env.WARPKEEP_PUBLISH_CONFIRM !== database) {
     fail(`Set WARPKEEP_PUBLISH_CONFIRM=${database} after reviewing the target database; publish was not attempted.`);
   }
+  const foundedExpectations = readFoundedPublishExpectations();
   const executable = attestPinnedSpacetimeCli(command);
   const artifactReceipt = runCurrentAdditiveMigrationProof(executable);
   if (dryRun) {
     await validateIssuerDeployment(issuer);
-    console.log(`Dry run: verified the pinned CLI, current additive migration, and ${issuer}; would update the canonical existing database without deleting data.`);
+    console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, and ${issuer}; would update the canonical existing database without deleting data.`);
     return;
   }
   await validateIssuerDeployment(issuer);
   attestCanonicalDatabase(executable);
-  verifyFreshProtocolV2Aggregate(process.env.WARPKEEP_ADMIN_TOKEN_SECRET);
+  verifyFreshFoundedProtocolV3Aggregate(
+    process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
+    foundedExpectations,
+  );
   await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
+  verifyPostPublishFoundedProtocolV3Aggregate(
+    process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
+    foundedExpectations,
+  );
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

@@ -347,6 +347,26 @@ republish, and refusal of a guarded v2 rollback after a v3 row is populated.
 This proves only controlled local fixtures; it neither observes Maincloud nor
 authorizes a production republish or world mutation.
 
+Any separately approved current forward republish must run through the guarded
+publisher with a fresh, private counts-only contract:
+
+```sh
+WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
+WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
+WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
+WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
+WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
+npm run stdb:publish:dev
+```
+
+All three expectations are mandatory canonical decimal strings, including
+explicit zeroes, and stay in parent memory. The publisher sends only the Hermes
+credential over the protected inspector's stdin, targets the immutable database
+identity, requires the exact founded protocol-v3 aggregate before publication,
+uses one prebuilt artifact with `--delete-data=never`, and repeats the same
+aggregate afterward. Never retry after a post-publish inspection failure until
+a fresh read-only inspection establishes the actual outcome.
+
 The historical Alpha 0.3.2 rollout used the following fail-closed sequence. Its
 zero-admission checkpoints describe that earlier pre-founding interval, not the
 current founded realm, and are not reusable expected values for a future

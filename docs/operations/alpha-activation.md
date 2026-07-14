@@ -194,9 +194,10 @@ local or read-only preflight cannot accept the additive module under those
 conditions, stop and prepare a separately reviewed forward fix; do not weaken the
 guard or attempt a v1 schema rollback.
 
-Only after the owner states exactly
-`approve additive protocol-v2 module publication` may the guarded command be
-used:
+The historical first-publish authority was
+`approve additive protocol-v2 module publication`. That authority is exhausted,
+and the old invocation below is intentionally no longer accepted by the current
+publisher because it has no founded-state expectations:
 
 ```sh
 WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
@@ -204,26 +205,44 @@ WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
 npm run stdb:publish:dev
 ```
 
-Run that command only through the private Keychain wrapper that supplies the
-Hermes credential in memory. The publisher does not trust an operator-entered
-row count: in the same bounded process it attests the exact reviewed CLI binary,
-repeats the current loopback migration proof, verifies the canonical existing
-database name-to-identity mapping, and invokes the exact deployed protocol-v2
-aggregate before the then-candidate protocol-3 release could publish. The
-historical first v2 publication used the then-deployed v1 aggregate; that weaker shape is not a
-valid 0.3.2 pre-publication gate. Publication continues only after
-that exact check, and targets the immutable database identity. The proof emits one SHA-256 receipt;
-the publisher accepts only the exact absolute `bundle.js` it just proved,
-rechecks that digest immediately before spawning `spacetime publish --js-path`,
-and never rebuilds between proof and publish. Unknown flags, stale/nonzero
-state, changed artifact bytes, wrong coordinates, and compatibility prompts all
-fail before publication.
+For any current protocol-3 forward republish, obtain fresh approval and use the
+private Keychain wrapper with all three counts-only expectations supplied
+explicitly, including zeroes:
+
+```sh
+WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
+WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
+WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
+WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
+WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
+npm run stdb:publish:dev
+```
+
+The wrapper supplies the Hermes credential only in parent memory. The publisher
+passes it to the protected inspection child over stdin and forwards neither the
+secret nor the three expected counts in child arguments or environment. It
+attests the exact reviewed CLI binary, repeats the current loopback migration
+proof, verifies the canonical existing database name-to-identity mapping, and
+invokes `admin_get_alpha_status_v3` against that immutable identity. The result
+must match the exact founder/player/ownership/Terms graph and every zero
+orphan/drift/invariant counter before publication. Its player orphan counters
+also reject otherwise paired player/ownership rows that have no admitted FID.
+The historical first v2
+publication used the then-deployed v1 aggregate; that weaker shape is not a
+valid current pre-publication gate.
+
+The proof emits one SHA-256 receipt. The publisher accepts only the exact
+absolute `bundle.js` it just proved, rechecks that digest immediately before
+spawning `spacetime publish --js-path`, and never rebuilds between proof and
+publish. Unknown flags, malformed expectations, stale counts, changed artifact
+bytes, wrong coordinates, and compatibility prompts all fail before
+publication.
 
 The publish must remain non-destructive (`--delete-data=never`). If the command
 times out, the outcome is indeterminate: inspect read-only before any retry.
 Never seed, admit, disable, or bump an epoch as part of the publish gate.
 
-Verify the exact module contract immediately after an approved publish:
+For the historical v2 checkpoint, the exact module contract was:
 
 - backend protocol is `2`;
 - player JWTs require `auth_version: 2`, `auth_epoch >= 1`, and a maximum
@@ -243,6 +262,12 @@ Verify the exact module contract immediately after an approved publish:
   `sub: service:auth-epoch-resolver` and sole role
   `warpkeep-auth-epoch-resolver`, bound by exact `resolver_fid` to the one
   procedure argument; the module rejects windows over 60 seconds.
+
+A current republish must retain backend protocol `3`, the complete 1,261-cell
+generation, every inherited table reference and appended visibility contract,
+and the exact founded-state aggregate. The publisher repeats that aggregate
+after a successful publish. If this post-publish read fails, the outcome is
+indeterminate: perform a fresh read-only inspection before any retry.
 
 `admin_get_fid_auth_epoch` remains admin-only rollback compatibility. Do not
 configure new v2 issuance or refresh to use it.
