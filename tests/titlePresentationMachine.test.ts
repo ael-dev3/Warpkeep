@@ -7,6 +7,7 @@ import {
   TITLE_REDUCED_MOTION_REVEAL_MS,
   TITLE_REVEAL_MS,
   createTitlePresentationState,
+  isTitleStartupPresentationReady,
   titleTransitionProgress,
   transitionTitlePresentation
 } from '../src/components/title/titlePresentationMachine';
@@ -23,6 +24,15 @@ function compilePrimary(profile: 'high' | 'compact', readyAt: number, reducedMot
 }
 
 describe('title presentation state machine', () => {
+  it('exposes readiness only after a real or fallback title has a fully visible frame', () => {
+    expect(isTitleStartupPresentationReady('model-loading')).toBe(false);
+    expect(isTitleStartupPresentationReady('model-revealing')).toBe(false);
+    expect(isTitleStartupPresentationReady('fallback-revealing')).toBe(false);
+    expect(isTitleStartupPresentationReady('fallback-failed')).toBe(false);
+    expect(isTitleStartupPresentationReady('model-ready')).toBe(true);
+    expect(isTitleStartupPresentationReady('fallback-ready')).toBe(true);
+  });
+
   it.each([0, 100, 9_900, 10_001])(
     'reveals an integrity-checked real model ready at %dms without a procedural stage',
     (readyAt) => {
@@ -126,6 +136,22 @@ describe('title presentation state machine', () => {
       now: 20_000
     });
     expect(lateCompile).toBe(state);
+  });
+
+  it('keeps startup unready when no fallback renderable can be created', () => {
+    let state = createTitlePresentationState('compact', 0, false);
+    state = transitionTitlePresentation(state, {
+      type: 'primary-timeout',
+      now: TITLE_COMPACT_TIMEOUT_MS
+    });
+    state = transitionTitlePresentation(state, {
+      type: 'fallback-create-failed',
+      reason: 'fallback construction failed'
+    });
+
+    expect(state.phase).toBe('fallback-failed');
+    expect(state.failure).toBe('fallback construction failed');
+    expect(isTitleStartupPresentationReady(state.phase)).toBe(false);
   });
 
   it('keeps the current real model while a different quality loads and crossfades', () => {

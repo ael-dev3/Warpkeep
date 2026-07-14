@@ -19,7 +19,8 @@ describe('realm castle compositor CSS contract', () => {
     expect(presentation).toContain('translate3d(\n    var(--realm-castle-label-x),');
     expect(presentation).not.toMatch(/top:\s*var\(--realm-castle-label-y\)/);
     expect(presentation).not.toMatch(/left:\s*var\(--realm-castle-label-x\)/);
-    expect(global).toContain(':not(.realm-castle-label)');
+    expect(global).toContain('.landing-shell button:hover:not(:disabled)');
+    expect(global).not.toMatch(/^button:hover[^\n{]*\{/m);
   });
 
   it('contains long public names and removes a covered compact navigator from focus', () => {

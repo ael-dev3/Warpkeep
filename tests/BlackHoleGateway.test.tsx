@@ -5,6 +5,7 @@ import {
   BlackHoleGateway,
   type BlackHoleGatewayHandle
 } from '../src/components/title/BlackHoleGateway';
+import { titleSceneSpec } from '../src/components/title/titleSceneSpec';
 
 function renderVisibleGateway(props: React.ComponentProps<typeof BlackHoleGateway> = {}) {
   const gatewayRef = createRef<BlackHoleGatewayHandle>();
@@ -45,6 +46,24 @@ describe('BlackHoleGateway', () => {
     expect(button.parentElement?.hidden).toBe(true);
   });
 
+  it('wires the centered elliptical hit area to the shared title specification', () => {
+    const { container } = renderVisibleGateway();
+    const gateway = container.querySelector<HTMLElement>('.warpkeep-gateway');
+    expect(gateway).not.toBeNull();
+    expect(gateway!.style.getPropertyValue('--warpkeep-gateway-hit-width-min'))
+      .toBe(`${titleSceneSpec.gateway.hitWidthMinPx}px`);
+    expect(gateway!.style.getPropertyValue('--warpkeep-gateway-hit-width-fluid'))
+      .toBe(`${titleSceneSpec.gateway.hitWidthViewportRatio * 100}vw`);
+    expect(gateway!.style.getPropertyValue('--warpkeep-gateway-hit-width-max'))
+      .toBe(`${titleSceneSpec.gateway.hitWidthMaxPx}px`);
+    expect(gateway!.style.getPropertyValue('--warpkeep-gateway-hit-height-min'))
+      .toBe(`${titleSceneSpec.gateway.hitHeightMinPx}px`);
+    expect(gateway!.style.getPropertyValue('--warpkeep-gateway-hit-height-fluid'))
+      .toBe(`${titleSceneSpec.gateway.hitHeightViewportRatio * 100}vw`);
+    expect(gateway!.style.getPropertyValue('--warpkeep-gateway-hit-height-max'))
+      .toBe(`${titleSceneSpec.gateway.hitHeightMaxPx}px`);
+  });
+
   it('requests the real experience through the native click path without the obsolete notice', () => {
     const onActivate = vi.fn();
     renderVisibleGateway({ onActivate });
@@ -60,7 +79,7 @@ describe('BlackHoleGateway', () => {
     expect(onActivate).toHaveBeenCalledTimes(2);
   });
 
-  it('reports focus and meaningful interaction while retaining focus control', () => {
+  it('reports focus without treating focus, keydown, or pointerdown as activation', () => {
     const onFocusChange = vi.fn();
     const onMeaningfulInteraction = vi.fn();
     const { gatewayRef } = renderVisibleGateway({ onFocusChange, onMeaningfulInteraction });
@@ -68,9 +87,14 @@ describe('BlackHoleGateway', () => {
 
     act(() => gatewayRef.current?.focus());
     expect(document.activeElement).toBe(button);
+    fireEvent.keyDown(button, { key: 'Shift' });
+    fireEvent.pointerDown(button, { pointerType: 'mouse' });
+    expect(onMeaningfulInteraction).not.toHaveBeenCalled();
+
+    fireEvent.click(button, { detail: 1 });
+    expect(onMeaningfulInteraction).toHaveBeenCalledTimes(1);
     fireEvent.blur(button);
     expect(onFocusChange.mock.calls).toEqual([[true], [false]]);
-    expect(onMeaningfulInteraction).toHaveBeenCalled();
   });
 
   it('keeps an explicitly requested reusable notice dismissible and nonmodal', () => {

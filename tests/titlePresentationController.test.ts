@@ -230,4 +230,30 @@ describe('title presentation controller', () => {
     expect(fallback.material.opacity).toBeCloseTo(0.8, 8);
     controller.dispose();
   });
+
+  it('keeps the empty title stage explicitly unready when fallback creation fails', async () => {
+    vi.useFakeTimers();
+    let now = 0;
+    const controller = createTitlePresentationController({
+      scene: new THREE.Scene(),
+      camera: new THREE.PerspectiveCamera(),
+      renderer: { compile: vi.fn() },
+      baseUrl: '/',
+      initialQuality: 'balanced',
+      reducedMotion: false,
+      createFallback: () => {
+        throw new Error('fallback construction failed');
+      },
+      now: () => now,
+      loadTitle: vi.fn(async () => { throw new Error('offline'); })
+    });
+
+    await settle();
+    now = 10_000;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(controller.getState().phase).toBe('fallback-failed');
+    expect(controller.getState().failure).toBe('fallback construction failed');
+    expect(controller.stage.children).toHaveLength(0);
+    controller.dispose();
+  });
 });

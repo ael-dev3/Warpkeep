@@ -750,15 +750,9 @@ export function WarpkeepExperience() {
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       lastPointerTypeRef.current = event.pointerType || 'mouse';
-      if (phaseRef.current === 'title') {
-        dismissTitleHint();
-      }
     };
     const handleTouchStart = () => {
       lastPointerTypeRef.current = 'touch';
-      if (phaseRef.current === 'title') {
-        dismissTitleHint();
-      }
     };
     document.addEventListener('pointerdown', handlePointerDown, true);
     document.addEventListener('touchstart', handleTouchStart, { capture: true, passive: true });
@@ -766,7 +760,7 @@ export function WarpkeepExperience() {
       document.removeEventListener('pointerdown', handlePointerDown, true);
       document.removeEventListener('touchstart', handleTouchStart, true);
     };
-  }, [dismissTitleHint]);
+  }, []);
 
   useEffect(() => {
     if (experience.phase !== 'title') {
@@ -774,7 +768,6 @@ export function WarpkeepExperience() {
     }
 
     const handleTitleKeyDown = (event: KeyboardEvent) => {
-      dismissTitleHint();
       const isEntryKey = event.key === 'Enter'
         || event.key === ' '
         || event.key === 'Space'
@@ -800,7 +793,7 @@ export function WarpkeepExperience() {
 
     document.addEventListener('keydown', handleTitleKeyDown, true);
     return () => document.removeEventListener('keydown', handleTitleKeyDown, true);
-  }, [dismissTitleHint, experience.phase]);
+  }, [experience.phase]);
 
   useEffect(() => {
     const synchronizeHistory = () => {

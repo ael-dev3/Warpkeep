@@ -16,6 +16,7 @@ export type TitlePresentationPhase =
   | 'fallback-compiling'
   | 'fallback-revealing'
   | 'fallback-ready'
+  | 'fallback-failed'
   | 'replacement-loading'
   | 'replacement-compiling'
   | 'replacement-crossfading'
@@ -50,10 +51,15 @@ export type TitlePresentationEvent =
     }>
   | Readonly<{ type: 'replacement-timeout'; requestId: number; reason: string }>
   | Readonly<{ type: 'fallback-compiled'; now: number }>
+  | Readonly<{ type: 'fallback-create-failed'; reason: string }>
   | Readonly<{ type: 'fallback-compile-failed'; reason: string }>
   | Readonly<{ type: 'transition-finished' }>
   | Readonly<{ type: 'reduced-motion-changed'; reducedMotion: boolean; now: number }>
   | Readonly<{ type: 'dispose' }>;
+
+export function isTitleStartupPresentationReady(phase: TitlePresentationPhase) {
+  return phase === 'model-ready' || phase === 'fallback-ready';
+}
 
 export function titlePrimaryTimeoutMs(profile: WarpkeepTitleModelProfile) {
   return profile === 'high' ? TITLE_HIGH_TIMEOUT_MS : TITLE_COMPACT_TIMEOUT_MS;
@@ -261,6 +267,15 @@ export function transitionTitlePresentation(
     case 'fallback-compiled': {
       if (state.phase !== 'fallback-compiling') return state;
       return { ...state, phase: 'fallback-revealing', transitionStartedAt: event.now };
+    }
+    case 'fallback-create-failed': {
+      if (state.phase !== 'fallback-compiling') return state;
+      return {
+        ...state,
+        phase: 'fallback-failed',
+        transitionStartedAt: null,
+        failure: event.reason
+      };
     }
     case 'fallback-compile-failed': {
       if (state.phase !== 'fallback-compiling') return state;

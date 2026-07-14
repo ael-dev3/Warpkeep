@@ -1,9 +1,12 @@
 import { titleSceneSpec } from './titleSceneSpec';
 
-export const titlePortraitAspect = 0.78;
+// Match CSS `(orientation: portrait)` so scene and overlay composition switch
+// at the same boundary instead of disagreeing in near-square viewports.
+export const titlePortraitAspect = 1;
 
 export type TitleResponsiveLayout = {
   readonly portrait: boolean;
+  readonly shortLandscape: boolean;
   readonly scale: number;
   readonly baseY: number;
   readonly cameraTargetY: number;
@@ -29,14 +32,16 @@ export function calculateTitleResponsiveLayout(
   }
 
   const portrait = viewportWidth / viewportHeight < titlePortraitAspect;
+  const shortLandscape = !portrait && viewportHeight <= 460;
   const widthRatio = portrait
     ? titleSceneSpec.title.mobileViewportWidth
     : titleSceneSpec.title.desktopViewportWidth;
 
   return {
     portrait,
+    shortLandscape,
     scale: Math.min(1.16, (visibleWorldWidth * widthRatio) / titleSafeWidth),
-    baseY: portrait ? -0.46 : -1.52,
+    baseY: portrait ? -0.46 : shortLandscape ? -2.9 : -1.52,
     cameraTargetY: portrait ? 0.08 : -0.42,
     restYawRadians: (portrait ? -0.35 : -1.1) * Math.PI / 180,
     cameraDriftX: portrait ? 0.025 : 0.1

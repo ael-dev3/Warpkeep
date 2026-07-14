@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   forwardRef,
   useCallback,
   useEffect,
@@ -9,9 +10,18 @@ import {
   useState
 } from 'react';
 import { calculateGatewayNoticePosition } from './gatewayInteraction';
+import { titleSceneSpec } from './titleSceneSpec';
 
 const defaultAutoDismissMs = 5_500;
 const noticeRelayoutThreshold = 8;
+const gatewayHitAreaStyle = {
+  '--warpkeep-gateway-hit-width-min': `${titleSceneSpec.gateway.hitWidthMinPx}px`,
+  '--warpkeep-gateway-hit-width-fluid': `${titleSceneSpec.gateway.hitWidthViewportRatio * 100}vw`,
+  '--warpkeep-gateway-hit-width-max': `${titleSceneSpec.gateway.hitWidthMaxPx}px`,
+  '--warpkeep-gateway-hit-height-min': `${titleSceneSpec.gateway.hitHeightMinPx}px`,
+  '--warpkeep-gateway-hit-height-fluid': `${titleSceneSpec.gateway.hitHeightViewportRatio * 100}vw`,
+  '--warpkeep-gateway-hit-height-max': `${titleSceneSpec.gateway.hitHeightMaxPx}px`
+} as CSSProperties;
 
 export type GatewayProjection = {
   x: number;
@@ -109,6 +119,7 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
         noticeHeight: noticeSizeRef.current.height,
         viewportWidth: projection.viewportWidth,
         viewportHeight: projection.viewportHeight,
+        hitRadius: titleSceneSpec.gateway.hitHeightMaxPx * 0.5,
         preferredPlacement: projection.viewportHeight < 460 &&
           projection.viewportWidth > projection.viewportHeight
           ? 'above'
@@ -307,6 +318,7 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
         ref={gatewayRef}
         className={joinClassNames('warpkeep-gateway', className)}
         data-notice-open={String(noticeState.open)}
+        style={gatewayHitAreaStyle}
       >
         <div ref={anchorRef} className="warpkeep-gateway-anchor">
           <button
@@ -318,10 +330,7 @@ export const BlackHoleGateway = forwardRef<BlackHoleGatewayHandle, BlackHoleGate
             aria-describedby={noticeState.open ? noticeId : undefined}
             aria-expanded={notice ? noticeState.open : undefined}
             onClick={(event) => activateGateway(event.detail === 0 ? 'keyboard' : 'pointer')}
-            onPointerDown={onMeaningfulInteraction}
-            onKeyDown={onMeaningfulInteraction}
             onFocus={() => {
-              onMeaningfulInteraction?.();
               onFocusChange?.(true);
             }}
             onBlur={() => onFocusChange?.(false)}

@@ -17,10 +17,10 @@ describe('Warpkeep brutalist galaxy title specification', () => {
     expect(titleSceneSpec.title.bumpScale).toBeLessThanOrEqual(0.018);
     expect(titleSceneSpec.title.depth / titleSceneSpec.title.height).toBeGreaterThanOrEqual(0.4);
     expect(titleSceneSpec.title.bevelSize).toBeLessThanOrEqual(0.02);
-    expect(titleSceneSpec.title.desktopViewportWidth).toBeGreaterThanOrEqual(0.92);
-    expect(titleSceneSpec.title.desktopViewportWidth).toBeLessThanOrEqual(0.93);
-    expect(titleSceneSpec.title.mobileViewportWidth).toBeGreaterThanOrEqual(0.9);
-    expect(titleSceneSpec.title.mobileViewportWidth).toBeLessThanOrEqual(0.92);
+    expect(titleSceneSpec.title.desktopViewportWidth).toBeGreaterThanOrEqual(0.8);
+    expect(titleSceneSpec.title.desktopViewportWidth).toBeLessThanOrEqual(0.84);
+    expect(titleSceneSpec.title.mobileViewportWidth).toBeGreaterThanOrEqual(0.82);
+    expect(titleSceneSpec.title.mobileViewportWidth).toBeLessThanOrEqual(0.86);
     expect(Number.parseInt(titleSceneSpec.palette.concrete.slice(1), 16)).toBeGreaterThan(
       Number.parseInt(titleSceneSpec.palette.concreteShadow.slice(1), 16)
     );
@@ -71,9 +71,14 @@ describe('Warpkeep brutalist galaxy title specification', () => {
 
     expect(gateway.interactionRadiusRatio).toBeGreaterThanOrEqual(0.25);
     expect(gateway.interactionRadiusRatio).toBeLessThanOrEqual(0.35);
-    expect(gateway.hitSizeMinPx).toBeGreaterThanOrEqual(56);
-    expect(gateway.hitSizeMaxPx).toBeGreaterThanOrEqual(gateway.hitSizeMinPx);
-    expect(gateway.hitSizeMaxPx).toBeLessThanOrEqual(88);
+    expect(gateway.hitWidthMinPx).toBe(112);
+    expect(gateway.hitWidthViewportRatio).toBeCloseTo(0.1, 8);
+    expect(gateway.hitWidthMaxPx).toBe(180);
+    expect(gateway.hitHeightMinPx).toBe(80);
+    expect(gateway.hitHeightViewportRatio).toBeCloseTo(0.07, 8);
+    expect(gateway.hitHeightMaxPx).toBe(128);
+    expect(gateway.hitWidthMinPx).toBeGreaterThan(gateway.hitHeightMinPx);
+    expect(gateway.hitWidthMaxPx).toBeGreaterThan(gateway.hitHeightMaxPx);
     expect(gateway.proximityRiseResponse).toBeGreaterThan(gateway.proximitySettleResponse);
     expect(gateway.idlePulsePeriodSeconds).toBeGreaterThan(gateway.activePulsePeriodSeconds);
     expect(gateway.surgeDurationSeconds).toBeGreaterThanOrEqual(0.8);

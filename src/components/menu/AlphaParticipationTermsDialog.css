@@ -21,7 +21,7 @@
   background:
     radial-gradient(circle at 50% 22%, rgba(107, 55, 127, 0.34), transparent 44%),
     rgba(4, 3, 8, 0.94);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   overscroll-behavior: contain;
 }
 
@@ -32,11 +32,11 @@
   overflow-x: hidden;
   overflow-y: auto;
   padding: clamp(1.35rem, 4vw, 2.5rem);
-  border: 1px solid rgba(231, 194, 119, 0.62);
-  background: linear-gradient(155deg, rgba(27, 14, 35, 0.99), rgba(8, 7, 13, 0.99));
-  box-shadow:
-    0 1.5rem 5rem rgba(0, 0, 0, 0.76),
-    inset 0 0 3rem rgba(128, 72, 153, 0.11);
+  border: 1px solid var(--warpkeep-surface-border, rgba(231, 194, 119, 0.52));
+  border-radius: var(--warpkeep-surface-radius, 0.7rem);
+  background: var(--warpkeep-surface-bg-strong, rgba(7, 9, 15, 0.96));
+  box-shadow: var(--warpkeep-surface-shadow, 0 1.5rem 5rem rgba(0, 0, 0, 0.76));
+  backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
   animation: warpkeep-alpha-terms-arrive 180ms ease-out both;
   scrollbar-gutter: stable;
 }
@@ -77,6 +77,7 @@
   margin: 0.45rem 0 0;
   font-size: clamp(1.8rem, 6vw, 3.6rem);
   font-weight: 400;
+  font-family: Georgia, "Times New Roman", serif;
   letter-spacing: 0.08em;
   line-height: 1.04;
   text-wrap: balance;
@@ -163,14 +164,14 @@
   border: 1px solid rgba(226, 185, 108, 0.48);
   color: #edd7a3;
   background: rgba(14, 8, 19, 0.82);
-  font: 700 0.7rem/1.2 Georgia, "Times New Roman", serif;
+  font: 700 0.7rem/1.2 Inter, ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.12em;
   cursor: pointer;
 }
 
 .warpkeep-alpha-terms__action--primary {
   border-color: rgba(238, 205, 125, 0.82);
-  background: linear-gradient(135deg, rgba(119, 68, 139, 0.86), rgba(50, 27, 66, 0.94));
+  background: rgba(103, 66, 122, 0.74);
 }
 
 .warpkeep-alpha-terms__close:hover,

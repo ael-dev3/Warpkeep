@@ -7,16 +7,13 @@
   padding: 1.05rem 1.15rem 1rem 1.35rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border: 1px solid rgba(218, 174, 99, 0.68);
-  border-left-color: rgba(181, 104, 229, 0.82);
+  border: 1px solid var(--warpkeep-surface-border, rgba(218, 174, 99, 0.5));
   color: #ead8b8;
-  background:
-    linear-gradient(118deg, rgba(25, 13, 27, 0.985), rgba(9, 7, 12, 0.975)),
-    radial-gradient(circle at 0% 28%, rgba(139, 61, 185, 0.2), transparent 50%);
-  box-shadow:
-    0 1.2rem 3.2rem rgba(3, 2, 5, 0.62),
-    inset 0 0 2.2rem rgba(117, 50, 143, 0.08);
-  font-family: Georgia, "Times New Roman", serif;
+  border-radius: var(--warpkeep-surface-radius, 0.7rem);
+  background: var(--warpkeep-surface-bg-strong, rgba(7, 9, 15, 0.96));
+  box-shadow: var(--warpkeep-surface-shadow, 0 1.2rem 3.2rem rgba(3, 2, 5, 0.62));
+  backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   scrollbar-color: rgba(207, 160, 83, 0.72) rgba(10, 7, 12, 0.6);
   scrollbar-width: thin;
   animation: warpkeep-patch-notes-enter 170ms ease-out both;
@@ -30,7 +27,7 @@
   border: 1px solid rgba(218, 174, 99, 0.68);
   border-right: 0;
   border-bottom: 0;
-  background: #140b17;
+  background: var(--warpkeep-surface-bg-strong, #090b11);
 }
 
 .warpkeep-patch-notes[data-placement="left"]::before {
@@ -106,6 +103,7 @@
   color: #f2dba9;
   font-size: clamp(1.05rem, 1.6vw, 1.34rem);
   font-weight: 400;
+  font-family: Georgia, "Times New Roman", serif;
   letter-spacing: 0.11em;
   line-height: 1.2;
   text-shadow: 0 0 16px rgba(182, 105, 222, 0.2);

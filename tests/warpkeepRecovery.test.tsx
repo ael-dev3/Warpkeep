@@ -8,6 +8,28 @@ import { WARPKEEP_ROOT_ERROR_HANDLERS } from '../src/components/errors/warpkeepR
 
 const PRIVATE_FAILURE_DETAIL = 'private-token-should-never-render';
 
+function readCssBlock(source: string, opening: string): string {
+  const openingIndex = source.indexOf(opening);
+  expect(openingIndex).toBeGreaterThanOrEqual(0);
+
+  const blockStart = source.indexOf('{', openingIndex);
+  expect(blockStart).toBeGreaterThan(openingIndex);
+
+  let depth = 0;
+  for (let index = blockStart; index < source.length; index += 1) {
+    if (source[index] === '{') {
+      depth += 1;
+    } else if (source[index] === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(blockStart + 1, index);
+      }
+    }
+  }
+
+  throw new Error(`Unclosed CSS block: ${opening}`);
+}
+
 function ThrowingChild(): never {
   throw new Error(PRIVATE_FAILURE_DETAIL);
 }
@@ -92,6 +114,10 @@ describe('Warpkeep document fallback', () => {
   const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
   const mainSource = readFileSync(resolve(process.cwd(), 'src/main.tsx'), 'utf8');
   const bootCss = readFileSync(resolve(process.cwd(), 'public/warpkeep-boot.css'), 'utf8');
+  const experienceCss = readFileSync(
+    resolve(process.cwd(), 'src/components/WarpkeepExperience.css'),
+    'utf8'
+  );
   const noscriptCss = readFileSync(
     resolve(process.cwd(), 'public/warpkeep-noscript.css'),
     'utf8'
@@ -119,5 +145,50 @@ describe('Warpkeep document fallback', () => {
     expect(bootCss).toContain('.warpkeep-boot--noscript');
     expect(bootCss).toContain('@media (prefers-reduced-motion: reduce)');
     expect(bootCss).toContain('@media (forced-colors: active)');
+  });
+
+  it('keeps pre-React and lazy scene loading continuous with the title palette', () => {
+    const boot = readCssBlock(bootCss, '.warpkeep-boot {');
+    const bootSigil = readCssBlock(bootCss, '.warpkeep-boot__sigil {');
+    const experience = readCssBlock(experienceCss, '.warpkeep-experience {');
+    const sceneLoader = readCssBlock(
+      experienceCss,
+      '.warpkeep-experience__scene-loader {'
+    );
+    const sceneLoaderGlyph = readCssBlock(
+      experienceCss,
+      '.warpkeep-experience__scene-loader span {'
+    );
+
+    expect(indexHtml).toContain('<meta name="theme-color" content="#010207" />');
+    expect(boot).toContain('background: #010207');
+    expect(boot).not.toMatch(/gradient\(/);
+    expect(experience).toContain('background: #010207');
+    expect(sceneLoader).toContain('background: #010207');
+    expect(sceneLoader).not.toMatch(/gradient\(/);
+    expect(bootSigil).toContain('color: #f1eee4');
+    expect(sceneLoaderGlyph).toContain('border: 1px solid rgba(224, 222, 230, 0.6)');
+    expect(sceneLoaderGlyph).not.toMatch(/rgba\((?:92, 45, 124|128, 73, 174)/);
+  });
+
+  it('keeps boot and lazy loading static and unglowing for reduced motion', () => {
+    const bootReducedMotion = readCssBlock(
+      bootCss,
+      '@media (prefers-reduced-motion: reduce)'
+    );
+    const experienceReducedMotion = readCssBlock(
+      experienceCss,
+      '@media (prefers-reduced-motion: reduce)'
+    );
+
+    expect(bootReducedMotion).toMatch(
+      /\.warpkeep-boot__sigil::after\s*\{[\s\S]*animation:\s*none;/
+    );
+    expect(experienceReducedMotion).toMatch(
+      /\.warpkeep-experience__screen\s*\{[\s\S]*transition:\s*none\s*!important;/
+    );
+    expect(experienceReducedMotion).toMatch(
+      /\.warpkeep-experience__scene-loader span\s*\{[\s\S]*animation:\s*none;[\s\S]*box-shadow:\s*none;/
+    );
   });
 });

@@ -299,7 +299,7 @@ export function createTitlePresentationController({
       stage.add(renderable.group);
     } catch (error) {
       dispatch({
-        type: 'fallback-compile-failed',
+        type: 'fallback-create-failed',
         reason: errorMessage(error, 'The fallback title could not be created.')
       });
       return;
