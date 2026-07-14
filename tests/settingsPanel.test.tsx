@@ -10,16 +10,18 @@ afterEach(() => {
 
 function renderSettings(preference: 'auto' | 'cinematic' | 'balanced' | 'performance' = 'balanced') {
   const onChange = vi.fn();
+  const onAudioMutedChange = vi.fn();
   const onClose = vi.fn();
   render(
     <SettingsPanel
       onChange={onChange}
+      onAudioMutedChange={onAudioMutedChange}
       onClose={onClose}
       preference={preference}
       resolvedQuality="balanced"
     />
   );
-  return { onChange, onClose };
+  return { onAudioMutedChange, onChange, onClose };
 }
 
 describe('SettingsPanel', () => {
@@ -51,5 +53,14 @@ describe('SettingsPanel', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('offers an accessible soundtrack switch', () => {
+    const { onAudioMutedChange } = renderSettings();
+    const soundtrack = screen.getByRole('switch', { name: /music & ambience/i });
+
+    expect((soundtrack as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(soundtrack);
+    expect(onAudioMutedChange).toHaveBeenCalledWith(true);
   });
 });

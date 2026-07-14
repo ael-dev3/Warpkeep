@@ -199,6 +199,19 @@
   line-height: 1.42;
 }
 
+.realm-hud__selection-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  border: 0;
+  white-space: nowrap;
+}
+
 .realm-hud__shared-state {
   margin: -0.08rem 0 0;
   color: #b9c8a9;
@@ -306,6 +319,21 @@
   border: 1px solid rgb(233 211 151 / 29%);
   background: rgb(17 28 21 / 91%);
   box-shadow: 0 0.6rem 1.8rem rgb(20 27 17 / 28%);
+}
+
+.realm-cell-navigator__map-focus {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.38rem;
+}
+
+.realm-cell-navigator__map-focus button {
+  min-height: 2.35rem;
+  padding: 0 0.65rem;
+  font-size: 0.58rem;
+  font-weight: 720;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .realm-cell-navigator__pagination span {

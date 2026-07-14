@@ -82,6 +82,13 @@ Required final source checks are Pages, Verify, and CodeQL for the exact candida
   consistent v2 pairs, either orphan class, castles, allowlist rows, and enabled
   FIDs; protocol `2`; seed `3445214658`; and seed name
   `HEGEMONY_GENESIS_001`. `auditEntries` may be any nonnegative aggregate count.
+- For the current protocol-3 realm, use the protected founded aggregate with
+  exact private expected founder, activated-player, and Terms-acceptance counts.
+  Require 1,261 world/meta rows, one realm, 100 slots, matching founder-owned
+  occupied/claim/castle/profile/Mark/admission counts, matching player/ownership
+  counts, and zero orphan, drift, reconciliation, ambiguity, and invariant
+  counters. Current enabled production uses `--require-auth-v2-enabled`; the
+  paused flag is never auto-detected or substituted.
 - The official browser subscribes to `player_v2`, never legacy `player`; the
   private `player_ownership_v2` table has no generated browser accessor.
 - Clean-browser SIWF denial and remembered-session phases pass without retaining proof data.
@@ -90,7 +97,7 @@ Required final source checks are Pages, Verify, and CodeQL for the exact candida
 
 Do not tag a release until final main, deployed Pages, and the reported build SHA match exactly.
 
-If any v2 pair/orphan, schema-prefix, or compatibility check fails, keep public
+If any protocol-3 invariant, v2 pair/orphan, schema-prefix, or compatibility check fails, keep public
 authentication and shared alpha disabled. Repair through a reviewed additive
 forward publish with separate approval; never delete production data, recreate
 the database, use `--break-clients`, or roll back to the v1 schema.

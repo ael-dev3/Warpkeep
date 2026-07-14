@@ -158,7 +158,10 @@ export function readWarpkeepBaseJwt(
   }
 
   const audience = readAudience(record);
-  if (!audience.includes(config.audience)) {
+  // Warpkeep tokens are deliberately single-audience. A token that also names
+  // another service weakens the confused-deputy boundary even when Warpkeep is
+  // present, so an array must contain exactly our one audience.
+  if (audience.length !== 1 || audience[0] !== config.audience) {
     throw new ClaimValidationError('INVALID_AUDIENCE');
   }
 

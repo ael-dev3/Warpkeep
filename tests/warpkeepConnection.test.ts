@@ -32,6 +32,7 @@ const config: WarpkeepRuntimeConfig = Object.freeze({
   bridgeUrl: 'https://auth.warpkeep.example',
   issuer: 'https://auth.warpkeep.example',
   audience: 'warpkeep-spacetimedb',
+  publicConfigValid: true,
   sharedAlphaEnabled: true
 });
 
@@ -81,6 +82,17 @@ describe('Warpkeep authenticated connection boundary', () => {
     const spy = vi.spyOn(DbConnection, 'builder');
     expect(() => createWarpkeepConnectionBuilder(config, '')).toThrow(/bridge session/i);
     expect(() => createWarpkeepConnectionBuilder(config, 'not-a-jwt')).toThrow(/bridge session/i);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('refuses parser-invalid public coordinates at the transport boundary', () => {
+    const spy = vi.spyOn(DbConnection, 'builder');
+    const invalidConfig = Object.freeze({ ...config, publicConfigValid: false });
+
+    expect(() => createWarpkeepConnectionBuilder(
+      invalidConfig,
+      'header.payload.signature'
+    )).toThrow('Warpkeep records are unavailable.');
     expect(spy).not.toHaveBeenCalled();
   });
 

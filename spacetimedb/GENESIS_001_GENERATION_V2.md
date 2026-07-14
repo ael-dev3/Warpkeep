@@ -1,13 +1,14 @@
 # Genesis 001 generation v2
 
-Status: local Alpha 0.3.2 candidate only. This document does not authorize a
-Maincloud publish, world seed, admission, profile lookup, or token scan. The
-recorded production checkpoint remains backend protocol 2 with the original 61
-world rows until a separately reviewed rollout proves otherwise.
+Status: live Alpha 0.3.2 generation contract on backend protocol 3. The guarded
+schema publication and deterministic seed completed at the privately recorded
+production coordinates. This document records that contract; it does not
+authorize another publish, seed, admission, profile lookup, token scan, credit,
+or any other production mutation.
 
 ## Independent version coordinates
 
-| Coordinate | Candidate value |
+| Coordinate | Live value |
 | --- | --- |
 | Product | Alpha 0.3.2 |
 | Auth contract | 2 (unchanged) |
@@ -20,17 +21,17 @@ world rows until a separately reviewed rollout proves otherwise.
 | Client render radius | 22 |
 | Player capacity / castle slots | 100 |
 
-Old clients and a protocol-3 browser paired with the currently deployed
-protocol-2 backend fail closed at the compatibility gate. Auth-v2 procedure and
-reducer names remain independently versioned and byte-exact.
+Old clients and a protocol-3 browser paired with a protocol-2 backend fail
+closed at the compatibility gate. Auth-v2 procedure and reducer names remain
+independently versioned and byte-exact.
 
 ## Deterministic world
 
 The pointy-top axial disc contains exactly `1 + 3r(r + 1) = 1,261` cells at
 radius 20. Generation retains the established radial `(ring, q, r)` order and
 the original seed/hash functions. The first 61 radius-four rows are therefore
-field-for-field and order-for-order identical to the deployed prefix; the
-candidate adds exactly 1,200 rows for rings 5 through 20.
+field-for-field and order-for-order identical to the inherited prefix; the live
+generation appended exactly 1,200 rows for rings 5 through 20.
 
 Pinned SHA-256 digests:
 
@@ -79,10 +80,10 @@ The reducer remains admin-only and transactional. Its audit label includes the
 generation and radius. The pure policy suite covers idempotence and conflict
 rollback without accessing an external database.
 
-## Append-only schema candidate
+## Live append-only schema
 
-The deployed table refs 0 through 6 remain byte-identical and in place. The
-candidate appends refs 7 through 18:
+The inherited table refs 0 through 6 remain byte-identical and in place. The
+live protocol-3 schema appends refs 7 through 18:
 
 | Ref | Table | Access | Purpose |
 | ---: | --- | --- | --- |
@@ -107,9 +108,9 @@ silently discarded.
 
 `snap_burn_credit_v1` models an ordinary SNAP token burn on Ethereum mainnet.
 It does not encode or imply a HyperSnap-specific burn product or workflow. The
-candidate includes a reviewed fixed-point reducer contract and a local dry-run
+live schema includes the reviewed fixed-point reducer contract and local dry-run
 scanner policy, but `marks:apply` remains hard-disabled and no chain scan or
-account credit has been performed against production.
+account credit is authorized by this release.
 
 ## Local migration proof
 
@@ -118,7 +119,7 @@ SpacetimeDB 2.6.1 server and `--delete-data=never`. It advances independent
 fixtures to the frozen seven-table checkpoint, then proves:
 
 - refs 0 through 6, their fields, indexes, constraints, and access remain exact;
-- the 12 candidate tables occupy refs 7 through 18 with exact fields/access;
+- the 12 protocol-3 tables occupy refs 7 through 18 with exact fields/access;
 - the real module matches an independent schema-only v3 fixture;
 - empty and synthetic nonempty legacy rows and the 61-row world remain intact;
 - a prebuilt artifact can be republished idempotently;
@@ -156,18 +157,17 @@ but the inspected backend aggregate contract is protocol 3. Merely documenting
 or implementing these read-only gates does not authorize running them against
 Maincloud.
 
-## Implemented local candidate and remaining gates
+## Live contract and remaining gates
 
-The local candidate now implements atomic admit-and-found behavior, permanent
+The live contract implements atomic admit-and-found behavior, permanent
 castle reuse on first login and re-enable, trusted profile/private wallet
 updates, exact one-to-one Mark crediting, a counts-only v3 aggregate, a
 two-provider fail-closed dry-run scanner, and browser bindings for only the
 public protocol-3 tables. The first three slots remain deliberately adjacent;
 no founding FID is embedded in source or public documentation.
 
-This still does not authorize or claim the production phases. Maincloud schema
-publication, the 1,200-row/sidecar seed, private operator inputs, initial scan,
-credit application, admission/founding, public-stat activation, frontend
-deployment, merge, tag, and release each remain separate reviewed gates. No
-production credential, FID, wallet address, transaction receipt, private row,
-or mutable game state was accessed while implementing these local paths.
+Completed publication, seed, frontend, and deliberately approved founding
+actions do not authorize repetition. Every later private operator input, scan,
+credit application, admission/founding action, public-stat change, frontend
+deployment, merge, tag, or release remains a separate reviewed gate. Exact
+founder identities and mutable counts stay in the private operational record.

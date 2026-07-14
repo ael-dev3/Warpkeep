@@ -15,9 +15,9 @@ export const menuCommands = [
     notice: undefined
   },
   {
-    id: 'exit',
-    label: 'EXIT',
-    notice: 'This passage is still under construction. Use Return to Title or press Escape.'
+    id: 'patch-notes',
+    label: 'PATCH NOTES',
+    notice: undefined
   }
 ] as const;
 

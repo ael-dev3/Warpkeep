@@ -4,14 +4,14 @@ Warpkeep contains a TypeScript SpacetimeDB authority module under
 [`spacetimedb/`](../spacetimedb/). It is authoritative shared-world code, not a
 browser mock.
 
-> **Protocol-v2 Alpha 0.3.1 is active; authority remains invite-only.** The
-> guarded additive module has been published to the existing Maincloud database
-> with deletion prohibited. The exact v2 aggregate remains empty apart from the
-> 61 canonical world tiles and audit count. The reviewed Worker and exact-main
-> Pages frontend were enabled in Worker-first order after their paused gates and
-> one privacy-safe owner canary passed. No FID is admitted. Only the privately
-> recorded source, deployment, aggregate, probe, and canary coordinates attest
-> that checkpoint; an arbitrary local checkout does not.
+> **Alpha 0.3.2 is live on backend protocol 3; authority remains invite-only.**
+> The guarded additive module was published to the existing Maincloud database
+> with deletion prohibited, the deterministic 1,261-cell Genesis world and 100
+> close-outward slots were seeded, deliberately admitted founders received
+> permanent castles, and public shared auth plus realm entry are enabled. Exact founder counts and
+> identities remain in the private operational record. Only the privately
+> recorded source, deployment, aggregate, probe, and QA coordinates attest that
+> state; an arbitrary local checkout does not.
 
 ## Version contract
 
@@ -20,20 +20,20 @@ browser mock.
 | SpacetimeDB CLI | `2.6.1` (`052c83fe984a4c4eb7bb4f9afa5c6b1903891d87`) |
 | Browser client SDK | `2.6.1` |
 | TypeScript server SDK | `2.6.1` |
-| Deployed backend protocol | `2` |
-| Checked-out candidate protocol | `3` |
+| Deployed backend protocol | `3` |
+| Checked-out backend protocol | `3` |
 
 Bindings are generated from the local module and committed at
 [`src/spacetime/module_bindings/`](../src/spacetime/module_bindings/).
 `npm run stdb:verify-bindings` regenerates to a temporary directory and fails on
 any difference. Private-table query/subscription surfaces remain absent from the
-browser. The deployed protocol-v2 wire names remain pinned to
+browser. The deployed auth-v2 wire names remain pinned to
 `auth_resolver_get_fid_admission_v2`, `get_my_admission_status_v2`,
 `bootstrap_player_v2`, and `admin_get_alpha_status_v2`; verification catches
 SpacetimeDB 2.6's default trailing-digit case conversion.
 
 `npm run stdb:verify-additive-migration` proves the checked-out protocol-v3
-candidate locally
+schema locally
 against a disposable, loopback-only SpacetimeDB 2.6.1 server. It publishes a v1
 fixture, an additive-v2 fixture, an additive-v3 fixture, and the checked-out
 module with `--delete-data=never`; verifies the frozen legacy shapes and retained
@@ -73,9 +73,8 @@ Admin tokens remain exact `sub: "service:hermes"`, exactly
 `roles: ["warpkeep-admin"]`, and at most 300 seconds. Privileged player,
 resolver-procedure, and admin authority remain disjoint.
 
-Production currently reports `WARPKEEP_BACKEND_PROTOCOL_VERSION = 2`; the
-checked-out additive candidate advances that backend-only compatibility value
-to `3`. This contract is separate from the player-facing release and
+Production and this checkout report `WARPKEEP_BACKEND_PROTOCOL_VERSION = 3`.
+This backend-only compatibility value is separate from the player-facing release and
 `HEGEMONY_GENESIS_001`. Any lifecycle-admitted principal may call
 `get_alpha_backend_info`; the browser rejects a protocol/seed mismatch before
 bootstrap or subscription. The procedure is static and performs no database
@@ -86,7 +85,7 @@ lookup.
 | Table | Visibility | Purpose |
 | --- | --- | --- |
 | `allowed_fid` | private | FID primary key, enabled flag, auth epoch, invitation metadata and note. |
-| `world_tile` | public | Frozen row shape: the deployed inner 61 rows remain exact; approved generation-v2 seeding would append the radius-20 total of 1,261. |
+| `world_tile` | public | Frozen row shape: the inherited inner 61 rows remain exact within the seeded radius-20 total of 1,261. |
 | `player` | public | Frozen legacy v1 table with its original exact column order and public opaque OIDC Identity column. It must remain empty and is never read, written, or subscribed by protocol v2. |
 | `castle` | public | One persistent level-one keep per FID and one occupant per tile. |
 | `admin_audit` | private | Admin action trace only. |
@@ -264,20 +263,20 @@ wires remain available for staged compatibility checks.
 
 ## Maincloud and rollout safety
 
-The historical closed-alpha database coordinate is `warpkeep-89e4u` on
+The closed-alpha database coordinate is `warpkeep-89e4u` on
 `https://maincloud.spacetimedb.com`. Recorded Alpha 0.2 inspection found 61
 world tiles and empty allowlist/player/castle state, but that historical record
-must be rechecked read-only before any future mutation. The current bounded,
-counts-only v2 aggregate reproduced that baseline without exposing rows and
-confirmed the additive pair and zero orphan state after the guarded publication.
-The publication changed schema only: it did not mutate admission, player,
-ownership, castle, allowlist, or world rows.
+must be rechecked read-only before any future mutation. The bounded, counts-only
+v2 aggregate recorded during Alpha 0.3.1 reproduced that baseline
+without exposing rows and confirmed the additive pair and zero orphan state
+after the guarded publication. That historical publication changed schema only:
+it did not mutate admission, player, ownership, castle, allowlist, or world rows.
 
-The recorded Alpha 0.3.1 protocol-v2 rollout is complete. The 0.3.2 source head
-is a new additive protocol-v3 candidate: it freezes all seven deployed table
-references and appends 12. Historical evidence that legacy `player` was empty
-does not waive a fresh exact aggregate. Every candidate rollout must be staged,
-exact-head verified, and separately approved at each authority boundary:
+The Alpha 0.3.2 protocol-3 rollout is complete: it froze all seven inherited
+table references, appended 12, seeded the 1,261-cell world and 100 slots, and
+assigned permanent castles to deliberately admitted founders. The following
+sequence is the historical rollout record. Its zero-state aggregates are pre-seed and pre-founding
+checkpoints, not current production expectations and not reusable authority:
 
 1. run `npm run stdb:verify-additive-migration` and retain its local,
    loopback-only artifact receipt;
@@ -285,9 +284,9 @@ exact-head verified, and separately approved at each authority boundary:
    and frontend shared-alpha entry, then keep both disabled through schema, seed,
    founding, and staged verification;
 3. perform only an explicitly approved, bounded, read-only Maincloud inspection
-   and require the complete deployed protocol-v2 aggregate—not merely the
-   legacy player count—to match the recorded 61-tile, zero-player/ownership/
-   castle/admission state and all integrity invariants;
+   and require the complete then-deployed protocol-v2 aggregate—not merely the
+   legacy player count—to match the historical 61-tile, zero-player/ownership/
+   castle/admission checkpoint and all integrity invariants;
 4. obtain separate owner approval for the production protocol-v3 schema publish;
 5. publish only through the guarded path, which pins the reviewed CLI and exact
    database identity, reruns the local proof and deployed-v2 aggregate, binds
@@ -316,8 +315,11 @@ exact-head verified, and separately approved at each authority boundary:
 12. re-enabling either production switch, merge, tag, release, and every other
     configuration change remain distinct approvals.
 
-The current guarded publisher requires the explicit fresh zero-count
-confirmation and forbids `--break-clients`. If preflight or publish reports any
+That initial guarded publisher required an explicit fresh zero-count
+confirmation and forbade `--break-clients`. A future republish or recovery must
+instead derive an explicitly reviewed expected aggregate from a fresh,
+privacy-safe inspection of the current founded state; it must not reuse the
+historical zero-admission checkpoint. If preflight or publish reports any
 compatibility disagreement, stop; do not bypass the guard.
 
 No earlier approval implies a later one. If any state or coordinate differs,
@@ -327,8 +329,9 @@ FID, or fall back to the legacy resolver implicitly. See the
 
 ## What follows this slice
 
-With the identity/session chain and tokenless pending-admission QA now approved
-and live at the recorded Alpha 0.3.1 coordinates, later versions may add
+With the identity/session chain, protocol-3 world, deliberately admitted
+founders, and shared realm live at the recorded Alpha 0.3.2 coordinates, later
+versions may add
 server-authoritative resource timers, queues, units, scouting, combat,
 alliances, seasons, or activity reports. AI may produce flavor or summaries,
 but never write authority tables directly.

@@ -155,6 +155,7 @@ export interface WarpkeepAudioDirectorHandle {
 export interface WarpkeepAudioDirectorProps {
   scene?: AudioScene;
   preloadMenu?: boolean;
+  muted?: boolean;
 }
 
 /**
@@ -165,7 +166,11 @@ export interface WarpkeepAudioDirectorProps {
 export const WarpkeepAudioDirector = forwardRef<
   WarpkeepAudioDirectorHandle,
   WarpkeepAudioDirectorProps
->(function WarpkeepAudioDirector({ scene = 'title', preloadMenu = true }, forwardedRef) {
+>(function WarpkeepAudioDirector({
+  scene = 'title',
+  preloadMenu = true,
+  muted = false
+}, forwardedRef) {
   const baseUrl = import.meta.env.BASE_URL;
   const soundtrackUrls = useMemo(
     () => ({
@@ -178,6 +183,7 @@ export const WarpkeepAudioDirector = forwardRef<
   const titleUrl = `${baseUrl}${titleTrack.path}`;
   const initialSceneRef = useRef(scene);
   const preloadMenuRef = useRef(preloadMenu);
+  const mutedRef = useRef(muted);
   const titleAudioRef = useRef<HTMLAudioElement>(null);
   const loopAudioRefs = useRef<Record<AudioLoopScene, AudioPair>>({
     menu: [null, null],
@@ -808,7 +814,7 @@ export const WarpkeepAudioDirector = forwardRef<
     const allAudio = getAllAudio();
     titleAudio!.loop = true;
     allAudio.forEach((audio) => {
-      audio.muted = false;
+      audio.muted = mutedRef.current;
     });
     titleAudio!.preload = titlePreparedRef.current ? 'auto' : 'none';
     getLoopPair('menu')[0] && (getLoopPair('menu')[0]!.preload = preloadMenuRef.current ? 'auto' : 'none');
@@ -925,6 +931,14 @@ export const WarpkeepAudioDirector = forwardRef<
   ]);
 
   useEffect(() => {
+    mutedRef.current = muted;
+    getAllAudio().forEach((audio) => {
+      audio.muted = muted;
+    });
+    if (!muted) playIntendedSources();
+  }, [getAllAudio, muted, playIntendedSources]);
+
+  useEffect(() => {
     preloadMenuRef.current = preloadMenu;
     const [primaryAudio, standbyAudio] = getLoopPair('menu');
     if (primaryAudio && loopStateRef.current.menu.activeIndex === 0) {
@@ -944,6 +958,7 @@ export const WarpkeepAudioDirector = forwardRef<
         data-track={titleTrack.id}
         data-track-label={titleTrack.label}
         src={titlePrepared ? titleUrl : undefined}
+        muted={muted}
         loop
         preload={titlePrepared ? 'auto' : 'none'}
         aria-hidden="true"
@@ -954,6 +969,7 @@ export const WarpkeepAudioDirector = forwardRef<
           loopAudioRefs.current.menu[0] = audio;
         }}
         data-audio-role="menu-primary"
+        muted={muted}
         src={soundtrackUrls.menu}
         preload={preloadMenu ? 'auto' : 'none'}
         aria-hidden="true"
@@ -964,6 +980,7 @@ export const WarpkeepAudioDirector = forwardRef<
           loopAudioRefs.current.menu[1] = audio;
         }}
         data-audio-role="menu-standby"
+        muted={muted}
         src={soundtrackUrls.menu}
         preload="none"
         aria-hidden="true"
@@ -974,6 +991,7 @@ export const WarpkeepAudioDirector = forwardRef<
           loopAudioRefs.current.realm[0] = audio;
         }}
         data-audio-role="realm-primary"
+        muted={muted}
         src={realmPrepared ? soundtrackUrls.realm : undefined}
         preload={realmPrepared ? 'auto' : 'none'}
         aria-hidden="true"
@@ -984,6 +1002,7 @@ export const WarpkeepAudioDirector = forwardRef<
           loopAudioRefs.current.realm[1] = audio;
         }}
         data-audio-role="realm-standby"
+        muted={muted}
         src={realmPrepared ? soundtrackUrls.realm : undefined}
         preload="none"
         aria-hidden="true"

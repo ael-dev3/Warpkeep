@@ -50,6 +50,15 @@ import {
   writeGraphicsPreference,
   type GraphicsPreference
 } from '../settings/graphicsPreference';
+import {
+  readAudioMuted,
+  subscribeAudioMuted,
+  writeAudioMuted
+} from '../settings/audioPreference';
+import {
+  allowsSpeculativeMenuMediaPreload,
+  type NetworkNavigatorSnapshot
+} from '../settings/networkPreloadPolicy';
 import { TitleGatewayHint } from './title/TitleGatewayHint';
 import {
   fallbackGatewayProjection,
@@ -204,6 +213,7 @@ export function WarpkeepExperience() {
   const [inputModality, setInputModality] = useState<MenuInputModality>('unknown');
   const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
   const [graphicsPreference, setGraphicsPreference] = useState(readGraphicsPreference);
+  const [audioMuted, setAudioMuted] = useState(readAudioMuted);
   const [graphicsCapabilities, setGraphicsCapabilities] = useState(browserGraphicsCapabilities);
   const [titleReady, setTitleReady] = useState(initialPhase !== 'title');
   const [showTitleHint, setShowTitleHint] = useState(false);
@@ -252,6 +262,11 @@ export function WarpkeepExperience() {
     setGraphicsPreference(preference);
   }, []);
 
+  const updateAudioMuted = useCallback((muted: boolean) => {
+    writeAudioMuted(muted);
+    setAudioMuted(muted);
+  }, []);
+
   useEffect(() => {
     const updateCapabilities = () => setGraphicsCapabilities(browserGraphicsCapabilities());
     let resizeTimer = 0;
@@ -267,6 +282,8 @@ export function WarpkeepExperience() {
       window.removeEventListener('resize', scheduleCapabilityUpdate);
     };
   }, []);
+
+  useEffect(() => subscribeAudioMuted(setAudioMuted), []);
 
   const clearPendingRealmDestination = useCallback(() => {
     setPendingDestination(null);
@@ -929,6 +946,11 @@ export function WarpkeepExperience() {
       const poster = new Image();
       poster.decoding = 'async';
       poster.src = WARPKEEP_MENU_POSTER_URL;
+      if (!allowsSpeculativeMenuMediaPreload(
+        navigator as Navigator & NetworkNavigatorSnapshot
+      )) {
+        return;
+      }
       if (!reducedMotion) {
         preloadVideo = document.createElement('video');
         preloadVideo.muted = true;
@@ -1001,6 +1023,7 @@ export function WarpkeepExperience() {
       data-return-preparing={returnPreparing ? 'true' : 'false'}
       data-transition-sequence={experience.transitionSequence}
       data-graphics-quality={resolvedGraphicsQuality}
+      data-audio-muted={audioMuted ? 'true' : 'false'}
     >
       {titleMounted ? (
         <div
@@ -1061,6 +1084,8 @@ export function WarpkeepExperience() {
             graphicsPreference={graphicsPreference}
             resolvedGraphicsQuality={resolvedGraphicsQuality}
             onGraphicsPreferenceChange={updateGraphicsPreference}
+            audioMuted={audioMuted}
+            onAudioMutedChange={updateAudioMuted}
           />
         </div>
       ) : null}
@@ -1114,6 +1139,7 @@ export function WarpkeepExperience() {
       ) : null}
 
       <WarpkeepAudioDirector
+        muted={audioMuted}
         ref={audioDirectorRef}
         scene={audioScene}
         preloadMenu={menuPreloadReady || audioScene === 'menu'}

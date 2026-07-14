@@ -620,8 +620,11 @@ export function RealmMapScreen({
 
   const selectFromNavigator = useCallback((coord: HexCoord) => {
     selectCoord(coord);
-    rootRef.current?.focus({ preventScroll: true });
   }, [selectCoord]);
+
+  const focusRealmMap = useCallback(() => {
+    rootRef.current?.focus({ preventScroll: true });
+  }, []);
 
   const selectCastle = useCallback((castle: RealmCastleProjection) => {
     selectCoord(castle);
@@ -821,6 +824,7 @@ export function RealmMapScreen({
         keepCoord={keepCoord}
         selectedCoord={selectedCoord}
         onHover={updateHoveredCoord}
+        onFocusMap={focusRealmMap}
         onSelect={selectFromNavigator}
       />
     </main>

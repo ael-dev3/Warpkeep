@@ -5,31 +5,33 @@ It is independent of the static Pages client: title/menu visitors do not create
 a SpacetimeDB identity, and gameplay authority comes only from a strictly
 validated bridge-issued OIDC access token.
 
-> **Protocol-v2 Alpha 0.3.1 is published; admission remains empty.** The module
-> described below is live only at its privately recorded Maincloud schema,
-> artifact, aggregate, and resolver coordinates. Publication used the pinned
-> CLI with deletion prohibited and preserved the existing database identity.
-> The final counts-only aggregate remains 61 world tiles with zero admission,
-> player, ownership, orphan, castle, or allowlist state. No FID is admitted.
+> **Alpha 0.3.2 is live on backend protocol 3.** The module described below is
+> deployed only at its privately recorded Maincloud schema, artifact,
+> aggregate, and resolver coordinates. Publication used the pinned CLI with
+> deletion prohibited and preserved the existing database identity. The
+> 1,261-cell Genesis world and its 100 close-outward castle slots are seeded,
+> deliberately admitted founders hold their permanent castles, and public shared
+> auth and realm entry are enabled. Exact founder counts and identities remain in the
+> private operational record rather than this public document.
 
-The production database and issuer run the recorded exact v2 release, but that
-does not attest an arbitrary checkout. Every future republish requires a fresh
-proof, bounded aggregate, recorded authority, and exact-source verification.
+The production database and issuer run the recorded exact Alpha 0.3.2 release,
+while the player authentication contract remains v2. That deployment does not
+attest an arbitrary checkout. Every future republish requires a fresh proof,
+bounded aggregate, recorded authority, and exact-source verification.
 
-> **This checkout contains an unpublished protocol-3 / generation-v2
-> candidate.** It expands Genesis 001 to 1,261 deterministic cells, appends 12
-> versioned tables, and defines 100 permanent castle slots. It has not been
-> published or seeded outside local fixtures. See
+> **This checkout contains the live protocol-3 / generation-v2 contract.** It
+> expands Genesis 001 to 1,261 deterministic cells, appends 12 versioned tables,
+> and defines 100 permanent castle slots. See
 > [Genesis 001 generation v2](./GENESIS_001_GENERATION_V2.md) for exact counts,
-> digests, privacy boundaries, and unfinished release work.
+> digests, privacy boundaries, and release invariants.
 
 ## Version compatibility
 
 - Installed CLI: `spacetimedb 2.6.1` (commit `052c83fe984a4c4eb7bb4f9afa5c6b1903891d87`)
 - Server package: `spacetimedb 2.6.1`
 - Module TypeScript: `5.6.3`
-- Deployed backend wire protocol: `2`
-- Local candidate backend wire protocol: `3`
+- Deployed backend wire protocol: `3`
+- Checked-out backend wire protocol: `3`
 - Player authentication contract: `2` (unchanged)
 - Local world generation: `2`
 
@@ -49,7 +51,7 @@ fail-closed seed planning. They do not connect to or publish a database.
 From the repository root, `npm run stdb:verify-additive-migration` runs the
 pinned SpacetimeDB 2.6.1 CLI against disposable loopback-only databases. It
 starts from the independently frozen deployed seven-table checkpoint and proves
-the 12 protocol-3 candidate tables append at refs 7 through 18 with
+the 12 protocol-3 tables append at refs 7 through 18 with
 `--delete-data=never`. It does not inspect or mutate Maincloud and is not
 production publish approval.
 
@@ -64,17 +66,19 @@ verified Farcaster SIWF
   -> public player_v2/castle/world_tile state
 ```
 
-Live protocol-v2 private tables:
+Inherited auth-v2 private tables in live protocol 3:
 
 - `allowed_fid`: manual admission, enabled flag, and per-FID auth epoch.
 - `player_ownership_v2`: the one-to-one FID ↔ opaque SpacetimeDB OIDC Identity
   authorization binding.
 - `admin_audit`: administrative action trace.
 
-Live protocol-v2 public tables:
+Inherited auth-v2 public tables in live protocol 3:
 
-- `world_tile`: exactly 61 canonical radius-four Lowlands gameplay cells; the
-  30-cell visual apron remains client-only.
+- `world_tile`: the inherited declaration whose historical protocol-2
+  checkpoint contained 61 canonical radius-four cells. Protocol 3 preserves
+  that declaration and now contains 1,261 canonical radius-20 rows; visual
+  apron cells remain client-only.
 - `player`: the frozen protocol-v1 compatibility table, preserved with its
   original public visibility, exact field order, and Identity column. Protocol
   v2 never reads, writes, or subscribes to it. Historical inspection recorded
@@ -83,7 +87,7 @@ Live protocol-v2 public tables:
   contains no opaque SpacetimeDB OIDC Identity.
 - `castle`: one level-one keep per admitted FID and one occupant per tile.
 
-The unpublished protocol-3 schema preserves those seven declarations exactly
+The live protocol-3 schema preserves those seven declarations exactly
 and appends public `realm_v1`, `world_tile_meta_v1`, `castle_slot_v1`, and
 `realm_profile_v1`. It appends private `castle_slot_claim_v1`,
 `mark_account_v1`, `snap_burn_credit_v1`, `fid_wallet_attribution_v1`,
@@ -94,13 +98,13 @@ lifecycle, and versioned Terms acceptance are never public. Optional public
 community aggregates remain absent unless the authenticated player accepts the
 exact current Terms version.
 
-The candidate `world_tile` table contains the same frozen declaration, but its
-admin-only seed policy can append exactly 1,200 canonical outer rows after
+The protocol-3 `world_tile` table contains the same frozen declaration. Its
+completed admin-only seed appended exactly 1,200 canonical outer rows after
 validating the original 61. Terrain/content metadata and 100 immutable slot
-coordinates live in sidecar tables, so no deployed row or field is rewritten.
+coordinates live in sidecar tables, so no inherited row or field was rewritten.
 
 Private-table query/subscription accessors are omitted from generated browser
-bindings. The protocol-3 candidate bindings expose only the eight public tables:
+bindings. The protocol-3 bindings expose only the eight public tables:
 the frozen legacy `player` compatibility accessor, active `world_tile`,
 `player_v2`, and `castle`, plus `realm_v1`, `world_tile_meta_v1`,
 `castle_slot_v1`, and `realm_profile_v1`. They contain no accessor for
@@ -209,7 +213,7 @@ bootstrap_player_v2
 Missing/disabled status is handled by the bridge's tokenless pending path before
 any player access token or database connection exists.
 
-In the protocol-3 candidate, `admin_allow_fid` is the atomic founding boundary.
+In protocol 3, `admin_allow_fid` is the atomic founding boundary.
 After validating the complete canonical generation, one transaction creates or
 preserves the admission row, permanent slot claim, level-one castle, reverse
 tile occupancy, hidden public profile, zeroed private Mark account, and audit.
@@ -282,17 +286,16 @@ local operator's apply transport remains deliberately disabled.
 
 ## Backend compatibility metadata
 
-Production remains protocol 2. In this unpublished candidate,
-`WARPKEEP_BACKEND_PROTOCOL_VERSION = 3` is an internal wire contract, separate
+Production and this checkout use
+`WARPKEEP_BACKEND_PROTOCOL_VERSION = 3` as an internal wire contract, separate
 from the player-facing release, auth contract 2, world generation 2, and the
 `HEGEMONY_GENESIS_001` realm label.
 `get_alpha_backend_info` is available to every lifecycle-admitted principal,
 including the resolver, and returns only static protocol/world-seed metadata.
 It performs no database lookup and exposes no whitelist, identity, audit, or
 live aggregate data. The browser must reject a protocol/seed mismatch before
-bootstrap or subscription. Consequently, this candidate frontend and the
-currently deployed protocol-2 backend are intentionally incompatible until a
-coordinated reviewed rollout; deploying only one side fails closed.
+bootstrap or subscription. The browser and backend must continue to agree on
+this protocol and seed pair; deploying a mismatched side fails closed.
 
 SpacetimeDB 2.6's default case converter would spell a trailing version digit
 as `_v_2`; the module pins these canonical wire names to exact `_v2`:
@@ -325,10 +328,10 @@ session cookie, private key, or admin credential.
 
 No command in this README authorizes external mutation. The recorded protocol-2
 schema already preserves the five-table production-v1 prefix and appends the
-public `player_v2` plus private `player_ownership_v2`. The protocol-3 candidate
-preserves that complete seven-table deployed prefix exactly, then appends twelve
-explicitly versioned tables. No candidate migration rewrites a prefix table or
-uses the frozen legacy `player` as a new authorization path.
+public `player_v2` plus private `player_ownership_v2`. The deployed protocol-3
+schema preserves that complete seven-table prefix exactly, then appends twelve
+explicitly versioned tables. Its migration rewrites no prefix table and does not
+use the frozen legacy `player` as a new authorization path.
 
 The loopback-only proof command:
 
@@ -339,13 +342,15 @@ npm run stdb:verify-additive-migration
 uses the pinned CLI and `--delete-data=never` against disposable loopback-only
 databases. It verifies exact refs 0-18, unchanged seven-table signatures,
 indexes and visibility, empty and synthetic nonempty row preservation, exact
-candidate visibility, a module-to-independent-fixture match, idempotent artifact
+protocol-3 visibility, a module-to-independent-fixture match, idempotent artifact
 republish, and refusal of a guarded v2 rollback after a v3 row is populated.
 This proves only controlled local fixtures; it neither observes Maincloud nor
-authorizes a production publish or world seed.
+authorizes a production republish or world mutation.
 
-A future rollout must keep Worker public auth and the frontend shared-alpha
-switch false while it:
+The historical Alpha 0.3.2 rollout used the following fail-closed sequence. Its
+zero-admission checkpoints describe that earlier pre-founding interval, not the
+current founded realm, and are not reusable expected values for a future
+republish or recovery:
 
 1. obtains explicit approval for the containment deployment that disables both
    production switches, then attests the disabled Worker and frontend state
@@ -385,8 +390,11 @@ switch false while it:
    public/private gates, and runs immediate owner QA with dual-disable handling
    for any discrepancy.
 
-If the CLI requests a compatibility override, the protected aggregate does not
-match the expected state, or the exact additive plan cannot be applied, stop. Do not weaken the
+For any future republish or recovery, derive an explicitly reviewed expected
+aggregate from a fresh, privacy-safe inspection of the current founded state;
+never substitute the historical zero-admission checkpoint. If the CLI requests
+a compatibility override, the protected aggregate does not match that reviewed
+state, or the exact additive plan cannot be applied, stop. Do not weaken the
 publisher, delete data, use `--break-clients`, or write the legacy player table.
 
 See the [activation and recovery runbook](../docs/operations/alpha-activation.md).

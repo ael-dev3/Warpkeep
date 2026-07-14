@@ -11,6 +11,7 @@ describe('RealmAccessibilityControls', () => {
   it('keeps the 61-cell navigator compact and excludes the visual apron', () => {
     const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
     const onHover = vi.fn();
+    const onFocusMap = vi.fn();
     const onSelect = vi.fn();
     const { container } = render(
       <RealmAccessibilityControls
@@ -18,6 +19,7 @@ describe('RealmAccessibilityControls', () => {
         keepCoord={{ q: 0, r: 0 }}
         selectedCoord={{ q: 0, r: 0 }}
         onHover={onHover}
+        onFocusMap={onFocusMap}
         onSelect={onSelect}
       />
     );
@@ -34,6 +36,10 @@ describe('RealmAccessibilityControls', () => {
     const group = screen.getByRole('group', { name: 'Traversable realm cells' });
     expect(within(group).getAllByRole('button', { name: /Select cell/i })).toHaveLength(61);
     expect(within(group).queryByRole('button', { name: 'Select cell 5,0' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Focus realm map for arrow-key navigation'
+    }));
+    expect(onFocusMap).toHaveBeenCalledOnce();
 
     const keep = within(group).getByRole('button', {
       name: 'Select cell 0,0, your Hegemony keep'
@@ -54,6 +60,7 @@ describe('RealmAccessibilityControls', () => {
         keepCoord={{ q: -1, r: 1 }}
         selectedCoord={{ q: -1, r: 1 }}
         onHover={vi.fn()}
+        onFocusMap={vi.fn()}
         onSelect={vi.fn()}
       />
     );

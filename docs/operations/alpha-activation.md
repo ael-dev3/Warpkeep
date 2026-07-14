@@ -1,17 +1,16 @@
 # Warpkeep closed-alpha activation and recovery runbook
 
-This runbook preserves the Alpha 0.2 recovery record and defines the approval
-gates and recorded checkpoint for the protocol-v2 rollout.
+This runbook preserves the Alpha 0.2 and Alpha 0.3.1 recovery records and carries
+their approval boundaries forward to the current protocol-3 realm.
 
-> **Protocol-v2 Alpha 0.3.1 is active; admission remains closed.** The additive
-> module was published to the existing Maincloud database with deletion
-> prohibited, the additive `SessionFamily` migration and independent managed
-> session-cookie secret were staged, and the reviewed Worker and exact-main
-> frontend were enabled in Worker-first order after their paused gates. One
-> privacy-safe owner canary passed. The protected aggregate remains at 61 world
-> tiles with zero admission, player, ownership, orphan, castle, and allowlist
-> rows. These observations are bound to the privately recorded deployment and
-> canary coordinates; they do not authorize any later change.
+> **Alpha 0.3.2 is live on backend protocol 3.** The additive schema was
+> published to the existing Maincloud database with deletion prohibited, the
+> deterministic 1,261-cell Genesis world and 100 close-outward castle slots were
+> seeded, deliberately admitted founders received their permanent castles, and
+> public shared auth and realm entry are enabled. Exact founder counts and identities remain in the
+> private operational record. These observations are bound to the privately
+> recorded deployment and verification coordinates; they do not authorize any
+> later change.
 
 ## Historical activation record
 
@@ -42,12 +41,12 @@ public-auth state is live.
   publication does not approve the Durable Object migration, a secret change,
   deploy, or enable.
 
-## Mandatory v2 rollout order and approval gates
+## Historical mandatory v2 rollout order and approval gates
 
-The rollout is staged and sequential. The reviewed SpacetimeDB change is an
-additive migration: it freezes the deployed five-table prefix and appends a
-versioned public/private player pair. The later Durable Object migration is a
-different additive change with its own approval:
+The Alpha 0.3.1 rollout was staged and sequential. The reviewed SpacetimeDB
+change is an additive migration: it freezes the deployed five-table prefix and
+appends a versioned public/private player pair. The later Durable Object
+migration is a different additive change with its own approval:
 
 1. **Local verification only:** verify module/Worker/browser tests, generated
    bindings, dependency locks, and documentation. No cloud login or mutation.
@@ -79,13 +78,17 @@ If any stage fails or disagrees, stop and keep both switches false. Do not remov
 the additive v2 tables or restore a v1 module: leave the tables inert and use a
 separately reviewed forward fix.
 
-## Protocol-v3 candidate founding checkpoint
+For current protocol-3 recovery, preserve those authority boundaries but use a
+fresh privacy-safe founded aggregate matched to the private current-state
+record. The historical empty-alpha values are not current expectations.
 
-Alpha 0.3.2 adds a read-only, counts-only checkpoint for the interval after each
-separately approved atomic founding action and before wallet snapshots, scans,
-player login, or Terms acceptance. With both production switches already
-disabled and attested, the private Keychain wrapper supplies the Hermes
-credential in memory and invokes the production verifier with:
+## Protocol-v3 founding checkpoints
+
+Alpha 0.3.2 added a read-only, counts-only checkpoint for the interval after
+each separately approved atomic founding action. During the historical
+contained rollout, before wallet snapshots, scans, player login, or Terms
+acceptance, both production switches were disabled and attested; that paused
+profile used:
 
 ```sh
 npm run verify:alpha-production -- \
@@ -94,14 +97,35 @@ npm run verify:alpha-production -- \
   --expected-founder-count=N
 ```
 
-`N` must be the canonical integer `1..100` from the reviewed private founding
-plan. The stage requires the exact seeded world and static sidecars; exactly `N`
-occupied cells, claims, castles, profiles, Mark accounts, allowed rows, and
-enabled rows; zero pre-login and operator state; and all protocol-v3 integrity
-counters at zero. It accepts and prints no FID. Consequently, it does not by
-itself prove which FIDs were admitted or that their claims use the first `N`
-nearest slots; retain those checks in the private founding plan and reducer
-evidence. Any mismatch stops rollout before another founding action.
+`--require-auth-v2` explicitly requires the paused/contained profile. For an
+additional founding action against the currently enabled production profile,
+the private Keychain wrapper must instead supply the Hermes credential in
+memory and invoke:
+
+```sh
+npm run verify:alpha-production -- \
+  --require-auth-v2-enabled \
+  --require-genesis-v3-founded-aggregate \
+  --expected-founder-count=N \
+  --expected-player-count=P \
+  --expected-terms-acceptance-count=T
+```
+
+The verifier does not auto-detect or silently substitute these profiles. Using
+the wrong flag is a hard stop.
+
+`N` must be the canonical founder count `1..100` from the reviewed private
+record. During the historical contained checkpoint, the stage required the
+exact seeded world and static sidecars; exactly `N` occupied cells, claims,
+castles, profiles, Mark accounts, allowed rows, and enabled rows; zero pre-login
+and operator state; and all protocol-v3 integrity counters at zero. In current
+enabled production, `P` and `T` must be the separately reviewed current player
+and Terms-acceptance counts (`0..N`); omitting them silently means zero and must
+not be used when the private aggregate records nonzero values. The verifier
+accepts and prints no FID. Consequently, it does not by itself prove which FIDs
+were admitted or that their claims use the first `N` nearest slots; retain those
+checks in the private founding plan and reducer evidence. Any mismatch stops
+rollout before another founding action.
 
 ## 1. Domain and public coordinates
 
@@ -185,8 +209,8 @@ Hermes credential in memory. The publisher does not trust an operator-entered
 row count: in the same bounded process it attests the exact reviewed CLI binary,
 repeats the current loopback migration proof, verifies the canonical existing
 database name-to-identity mapping, and invokes the exact deployed protocol-v2
-aggregate before the protocol-v3 candidate can publish. The historical first
-v2 publication used the then-deployed v1 aggregate; that weaker shape is not a
+aggregate before the then-candidate protocol-3 release could publish. The
+historical first v2 publication used the then-deployed v1 aggregate; that weaker shape is not a
 valid 0.3.2 pre-publication gate. Publication continues only after
 that exact check, and targets the immutable database identity. The proof emits one SHA-256 receipt;
 the publisher accepts only the exact absolute `bundle.js` it just proved,
@@ -436,9 +460,9 @@ clean profile to confirm:
 8. no secret/proof/token/cookie is captured in screenshots, console, network
    exports, or logs.
 
-Admission of any real FID requires another explicit approval after tokenless
-pending QA. First admission begins at epoch `1`; do not preserve the historical
-epoch-zero policy.
+Admission of any additional real FID requires another explicit approval after
+tokenless pending QA. First admission begins at epoch `1`; do not preserve the
+historical epoch-zero policy.
 
 ## Recovery
 

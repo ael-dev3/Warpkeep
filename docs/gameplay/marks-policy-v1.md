@@ -1,6 +1,6 @@
 # Marks policy v1
 
-Status: **Alpha 0.3.2 candidate; not active in production**
+Status: **Alpha 0.3.2 live policy and account schema; production burn-credit application remains disabled**
 Policy ID: `snap-current-linked-wallet-1to1-v1`
 Last reviewed: 14 July 2026
 

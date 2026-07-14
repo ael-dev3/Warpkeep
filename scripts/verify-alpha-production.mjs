@@ -1005,7 +1005,25 @@ function readExpectedFounderCount(value) {
   return BigInt(value);
 }
 
-function expectedV3StateCounts(stage, expectedFounderCount) {
+function readExpectedFoundedMutableCount(value, label, founders) {
+  if (!Number.isSafeInteger(value) || value < 0 || BigInt(value) > founders) {
+    fail(`protocol-v3 founded aggregate expected ${label} was invalid.`);
+  }
+  return BigInt(value);
+}
+
+function expectedV3StateCounts(
+  stage,
+  expectedFounderCount,
+  expectedPlayerCount = 0,
+  expectedTermsAcceptanceCount = 0,
+) {
+  if (
+    stage !== PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED
+    && (expectedPlayerCount !== 0 || expectedTermsAcceptanceCount !== 0)
+  ) {
+    fail('protocol-v3 authenticated count expectations require the founded aggregate stage.');
+  }
   if (stage === PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED) {
     return EXPECTED_ALPHA_V3_PRESEED_COUNTS;
   }
@@ -1014,13 +1032,26 @@ function expectedV3StateCounts(stage, expectedFounderCount) {
   }
   if (stage === PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED) {
     const founders = readExpectedFounderCount(expectedFounderCount);
+    const players = readExpectedFoundedMutableCount(
+      expectedPlayerCount,
+      'player count',
+      founders,
+    );
+    const termsAcceptances = readExpectedFoundedMutableCount(
+      expectedTermsAcceptanceCount,
+      'Terms acceptance count',
+      founders,
+    );
     return Object.freeze({
       ...EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS,
       occupiedWorldTiles: founders,
       castleSlotClaims: founders,
+      playersV2: players,
+      playerOwnershipsV2: players,
       castles: founders,
       realmProfiles: founders,
       markAccounts: founders,
+      alphaTermsAcceptances: termsAcceptances,
       allowedFids: founders,
       enabledAllowedFids: founders,
     });
@@ -1028,8 +1059,19 @@ function expectedV3StateCounts(stage, expectedFounderCount) {
   fail('protocol-v3 aggregate verification stage was invalid.');
 }
 
-export function verifyExpectedAlphaV3Aggregate(output, stage, expectedFounderCount) {
-  const expectedCounts = expectedV3StateCounts(stage, expectedFounderCount);
+export function verifyExpectedAlphaV3Aggregate(
+  output,
+  stage,
+  expectedFounderCount,
+  expectedPlayerCount = 0,
+  expectedTermsAcceptanceCount = 0,
+) {
+  const expectedCounts = expectedV3StateCounts(
+    stage,
+    expectedFounderCount,
+    expectedPlayerCount,
+    expectedTermsAcceptanceCount,
+  );
   let status;
   try {
     status = JSON.parse(output);
@@ -1132,6 +1174,8 @@ function verifyProtectedAggregateIfConfigured(
   required,
   stage = PROTECTED_AGGREGATE_STAGE.LEGACY,
   expectedFounderCount,
+  expectedPlayerCount = 0,
+  expectedTermsAcceptanceCount = 0,
 ) {
   const normalizedStage = normalizeProtectedAggregateStage(stage);
   const secret = requiredProtectedAggregateSecret(process.env.WARPKEEP_ADMIN_TOKEN_SECRET, required);
@@ -1154,7 +1198,13 @@ function verifyProtectedAggregateIfConfigured(
   } else if (normalizedStage === PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2) {
     verifyExpectedAlphaV2Aggregate(result.stdout);
   } else {
-    verifyExpectedAlphaV3Aggregate(result.stdout, normalizedStage, expectedFounderCount);
+    verifyExpectedAlphaV3Aggregate(
+      result.stdout,
+      normalizedStage,
+      expectedFounderCount,
+      expectedPlayerCount,
+      expectedTermsAcceptanceCount,
+    );
   }
   // Never mirror child-process output: even a future Hermes implementation
   // must not cause this verifier to surface a secret, JWT, or identity.
@@ -1180,6 +1230,8 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
   ]);
   const seen = new Set();
   let expectedFounderCount;
+  let expectedPlayerCount;
+  let expectedTermsAcceptanceCount;
   for (const argument of arguments_) {
     if (argument.startsWith('--expected-founder-count=')) {
       if (expectedFounderCount !== undefined) {
@@ -1190,6 +1242,28 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
         fail('expected founder count must be a canonical integer from 1 through 100.');
       }
       expectedFounderCount = Number(value);
+      continue;
+    }
+    if (argument.startsWith('--expected-player-count=')) {
+      if (expectedPlayerCount !== undefined) {
+        fail('unknown or duplicate command-line argument.');
+      }
+      const value = argument.slice('--expected-player-count='.length);
+      if (!/^(?:0|[1-9]|[1-9]\d|100)$/.test(value)) {
+        fail('expected player count must be a canonical integer from 0 through 100.');
+      }
+      expectedPlayerCount = Number(value);
+      continue;
+    }
+    if (argument.startsWith('--expected-terms-acceptance-count=')) {
+      if (expectedTermsAcceptanceCount !== undefined) {
+        fail('unknown or duplicate command-line argument.');
+      }
+      const value = argument.slice('--expected-terms-acceptance-count='.length);
+      if (!/^(?:0|[1-9]|[1-9]\d|100)$/.test(value)) {
+        fail('expected Terms acceptance count must be a canonical integer from 0 through 100.');
+      }
+      expectedTermsAcceptanceCount = Number(value);
       continue;
     }
     if (!allowed.has(argument) || seen.has(argument)) {
@@ -1215,6 +1289,26 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
   if (requiresFoundedAggregate !== (expectedFounderCount !== undefined)) {
     fail('the founded aggregate stage and expected founder count must be supplied together.');
   }
+  if (
+    !requiresFoundedAggregate
+    && (expectedPlayerCount !== undefined || expectedTermsAcceptanceCount !== undefined)
+  ) {
+    fail('authenticated count expectations require the founded aggregate stage.');
+  }
+  const foundedPlayerCount = expectedPlayerCount ?? 0;
+  const foundedTermsAcceptanceCount = expectedTermsAcceptanceCount ?? 0;
+  if (
+    requiresFoundedAggregate
+    && (
+      foundedPlayerCount > expectedFounderCount
+      || foundedTermsAcceptanceCount > expectedFounderCount
+    )
+  ) {
+    fail('authenticated count expectations cannot exceed the expected founder count.');
+  }
+  if (foundedTermsAcceptanceCount > foundedPlayerCount) {
+    fail('the expected Terms acceptance count cannot exceed the expected player count.');
+  }
   return Object.freeze({
     requireProtectedAggregate: seen.has('--require-protected-aggregate'),
     requireAdditiveV2Aggregate: seen.has('--require-additive-v2-aggregate'),
@@ -1222,6 +1316,8 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     requireGenesisV3SeededEmptyAggregate: seen.has('--require-genesis-v3-seeded-empty-aggregate'),
     requireGenesisV3FoundedAggregate: requiresFoundedAggregate,
     expectedFounderCount,
+    expectedPlayerCount: foundedPlayerCount,
+    expectedTermsAcceptanceCount: foundedTermsAcceptanceCount,
     requireAuthV2: seen.has('--require-auth-v2'),
     requireAuthV2Enabled: seen.has('--require-auth-v2-enabled'),
     aggregateStage,
@@ -1236,6 +1332,8 @@ async function main() {
     requireGenesisV3SeededEmptyAggregate,
     requireGenesisV3FoundedAggregate,
     expectedFounderCount,
+    expectedPlayerCount,
+    expectedTermsAcceptanceCount,
     requireAuthV2,
     requireAuthV2Enabled,
     aggregateStage,
@@ -1260,6 +1358,8 @@ async function main() {
       || requireGenesisV3FoundedAggregate,
     aggregateStage,
     expectedFounderCount,
+    expectedPlayerCount,
+    expectedTermsAcceptanceCount,
   );
 }
 

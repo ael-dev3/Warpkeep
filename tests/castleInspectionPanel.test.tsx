@@ -70,11 +70,14 @@ describe('CastleInspectionPanel', () => {
     expect(profileLink.getAttribute('href')).toBe('https://farcaster.xyz/warpkeeper');
     expect(profileLink.getAttribute('rel')).toContain('noreferrer');
 
-    const warp = screen.getByRole('button', { name: 'WARP CASTLE · 100 MARKS' });
-    expect(warp.getAttribute('aria-disabled')).toBe('true');
+    const warp = screen.getByRole('button', { name: 'CASTLE WARP PREVIEW · 100 MARKS' });
+    expect(warp.hasAttribute('aria-disabled')).toBe(false);
+    expect(warp.getAttribute('aria-expanded')).toBe('false');
+    expect(warp.getAttribute('aria-controls')).not.toBeNull();
     expect((warp as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByText(CASTLE_WARP_PREVIEW_MESSAGE)).toBeNull();
     fireEvent.focus(warp);
+    expect(warp.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByText(CASTLE_WARP_PREVIEW_MESSAGE)).not.toBeNull();
     fireEvent.blur(warp);
     expect(screen.queryByText(CASTLE_WARP_PREVIEW_MESSAGE)).toBeNull();
@@ -107,7 +110,7 @@ describe('CastleInspectionPanel', () => {
       />
     );
 
-    expect(screen.queryByRole('button', { name: /WARP CASTLE/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /CASTLE WARP PREVIEW/i })).toBeNull();
     expect(screen.getByText('Community statistics are not public for this player.')).not.toBeNull();
     expect(document.body.textContent).not.toContain('0xPRIVATE');
     expect(document.body.textContent).not.toContain('PRIVATE_IDENTITY');
@@ -136,7 +139,9 @@ describe('CastleInspectionPanel', () => {
     expect(details?.hasAttribute('open')).toBe(false);
     fireEvent.click(container.querySelector('.castle-inspection summary') as HTMLElement);
     expect(details?.hasAttribute('open')).toBe(true);
+    const summary = container.querySelector('.castle-inspection summary') as HTMLElement;
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
     await waitFor(() => expect(details?.hasAttribute('open')).toBe(false));
+    expect(document.activeElement).toBe(summary);
   });
 });

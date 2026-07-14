@@ -276,8 +276,12 @@ finding.
   display/avatar data and neither persists it in session families nor issues it
   in player JWTs. Remaining public presentation fields are non-authoritative and
   contain no opaque OIDC ownership identity.
-- `WK-RISK-006` (Low): static Pages responses lack CSP, `nosniff`, referrer, and
-  framing headers. No current dangerous HTML/eval sink was found.
+- `WK-RISK-006` (Low, historical checkpoint): static Pages responses lacked
+  CSP, `nosniff`, referrer, and framing headers. No application-owned dangerous
+  HTML/eval sink was found in that review. The later pinned SpacetimeDB browser
+  SDK uses generated `Function(...)` serializers, so current CSP design must be
+  tested at a header-capable host rather than assuming strict `script-src`
+  compatibility.
 - `WK-OPS-003` (Low): a local timeout cannot cancel a reducer already accepted
   by Maincloud, and several admin no-op/audit semantics need a future policy
   cleanup. Operators must inspect before retrying a timed-out mutation.

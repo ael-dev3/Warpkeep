@@ -3,14 +3,15 @@
 Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
 App, Quick Auth, wallet connection, or a client-only permanent identity system.
 
-> **Protocol-v2 Alpha 0.3.1 is active; admission remains closed.** The additive
-> module, reviewed Worker, and exact-main frontend described here are live at
-> their separately recorded production coordinates. The Worker includes the
+> **Protocol-3 Alpha 0.3.2 is active; admission remains gated.** The additive
+> module, expanded Genesis 001, reviewed Worker, and exact-main frontend are live
+> at their separately recorded production coordinates. The Worker includes the
 > additive `SessionFamily` migration and independent managed session-cookie
-> secret. `PUBLIC_AUTH_ENABLED=true` and the exact frontend shared-alpha gate is
-> enabled after paused verification and one privacy-safe owner canary. No FID is
-> admitted, and no player, ownership, castle, allowlist, or world row was
-> mutated.
+> secret. `PUBLIC_AUTH_ENABLED=true` and the exact frontend shared-alpha gate
+> were enabled after paused verification. Deliberately admitted founders occupy
+> the shared frontier; their identities are not part of this public integration
+> record. No further admission or production mutation is authorized by this
+> document.
 
 ## Authority boundary
 
@@ -183,14 +184,20 @@ player, or pass Hermes/admin guards.
 `admin_get_fid_auth_epoch` is retained only as admin-authenticated rollback
 compatibility. The v2 browser/session path never uses it.
 
-## Module protocol-v2 boundary
+## Module protocol-3 boundary
 
 The original public `player` table remains frozen with its exact v1 shape,
 including its opaque OIDC Identity column, and must remain empty. Protocol v2
-does not read, write, or subscribe to it. The active data split is public
-`player_v2` plus private `player_ownership_v2`; the browser subscribes only to
-`world_tile`, `player_v2`, and `castle`, so no ownership Identity is present in
-its query/subscription surface.
+introduced the active public `player_v2` plus private `player_ownership_v2`
+split; protocol 3 preserves that pair and the complete deployed seven-table
+prefix unchanged. It appends the Genesis realm, terrain metadata, permanent
+slot/claim, trusted public profile, private Marks/wallet/scan, and private Terms
+evidence tables without widening browser identity authority. Generated browser
+bindings expose only public shapes, and the active realm subscription reads
+`world_tile`, `world_tile_meta_v1`, `player_v2`, `castle`, `realm_v1`, and
+`realm_profile_v1`. It does not subscribe to the legacy `player` table, private
+ownership, founding claims, wallet records, Mark accounts, burn receipts, scan
+state, or Terms evidence.
 
 The legacy module wires `get_my_admission_status` and `bootstrap_player` remain
 only for client/schema compatibility and immediately fail with
@@ -199,12 +206,13 @@ exact `get_my_admission_status_v2` and `bootstrap_player_v2` wires. Bridge
 resolution continues to use the exact
 `auth_resolver_get_fid_admission_v2` procedure described above.
 
-Hermes operators may read `admin_get_alpha_status_v2`, which returns only
-privacy-safe aggregate counts for legacy rows, v2 player/ownership consistency,
-world state, admission state, protocol version, and seed. It returns no FID,
-Identity, token, proof, cookie, or profile payload. It refuses the aggregate with
-`STATE_INTEGRITY` if canonical terrain or any castle/occupancy backlink is
-inconsistent. The browser separately requires the exact generation name and
+Hermes operators may read `admin_get_alpha_status_v3`, which returns only
+privacy-safe aggregate counts for the preserved legacy/v2 rows and the
+protocol-3 world, founding, profile, Terms, and private accounting invariants.
+It returns no FID, Identity, token, proof, cookie, wallet, receipt, or profile
+payload. It refuses the aggregate with `STATE_INTEGRITY` when canonical terrain,
+slot, claim, castle, occupancy, ownership, or accounting relationships drift.
+The browser separately requires protocol 3 plus the exact generation name and
 numeric seed.
 
 ## Public and server configuration
@@ -222,7 +230,7 @@ VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 
 The Worker configuration is documented in
 [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its
-checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.1
+checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.2
 production override is true. Before any future enable, the server-only v2
 configuration attestation must match the reviewed issuer, origins, SIWF
 coordinates, key ID, Maincloud coordinates, S256 binding, 600-second access
@@ -240,15 +248,17 @@ explicit `ENVIRONMENT=development` bridge remains configurable for local tests.
 
 ## Rollout and approval gates
 
-The v2 rollout completed through the frontend and public-entry gates at the
-recorded Alpha 0.3.1 coordinates. The module change is additive: it preserves the
-exact legacy table prefix and public `player` shape, then appends `player_v2` and
-private `player_ownership_v2`. The recorded guarded publication first ran
+The v2 authentication/session rollout remains the preserved authority boundary
+under live protocol 3. Alpha 0.3.2 completed the additive module, expanded seed,
+founding, frontend, and public-entry gates at its recorded exact coordinates.
+The module preserves the exact five-table legacy prefix plus the deployed v2
+player/ownership pair, then appends twelve protocol-3 tables. The recorded
+guarded publication first ran
 `npm run stdb:verify-additive-migration` against its disposable loopback-only
 server and then bound that proof to the production artifact. The local proof
 checks schema signatures, retained empty and synthetic non-empty legacy rows,
-idempotent republish, v2 consistency, and guarded-v1 rollback refusal; it does
-not itself inspect or mutate Maincloud.
+idempotent republish, v2 consistency, protocol-3 additive preservation, and
+guarded rollback refusal; it does not itself inspect or mutate Maincloud.
 
 The recorded production run obtained a fresh, bounded, read-only aggregate and
 stopped unless the legacy player count and enabled epoch-zero admission count
@@ -260,10 +270,13 @@ same evidence; historical counts never substitute for it.
 
 The recorded checkpoints also completed the additive session-family Durable
 Object migration, independent managed cookie-secret setup, paused Worker and
-frontend deployments, exact v2 aggregate, resolver, discovery/JWKS, retired-v1,
-ownership-isolation, configuration attestation, ordered public-auth/shared-realm
-enablement, and one owner QA canary. No FID was admitted and the final aggregate
-remained empty.
+frontend deployments, exact protocol-3 aggregates, resolver, discovery/JWKS,
+retired-v1, ownership isolation, configuration attestation, ordered
+public-auth/shared-realm enablement, Genesis 001's 1,261 cells and 100
+close-outward slots, and deliberately approved founder admissions. Founder
+identities are intentionally omitted here. Further admissions, profile/wallet
+updates, credits, and world mutations remain separate owner-approved actions.
+Marks apply and spending remain disabled, and no scheduler is installed.
 
 See the [activation and recovery runbook](./operations/alpha-activation.md).
 Only the recorded exact current coordinates attest the backend checkpoint;
@@ -280,8 +293,9 @@ tombstones and storage denial, durable-logout failure, session-family rotation
 and revocation, exact production coordinate pins, exact resolver claims/response,
 profile-claim discard, private-ownership isolation, protocol compatibility,
 local additive-migration proof, retired legacy module wires, v2-only browser
-player data, privacy-safe v2 admin aggregation, single-use in-memory Alpha Terms
-acceptance, dormant anonymous cookie refresh, direct-route normalization, and no
+player data, privacy-safe protocol-3 admin aggregation, private Terms evidence,
+complete founding invariants, single-use in-memory Alpha Terms acceptance,
+dormant anonymous cookie refresh, direct-route normalization, and no
 anonymous/unadmitted connection.
 
 Clean-profile QA is allowed only after every deployment gate has separate

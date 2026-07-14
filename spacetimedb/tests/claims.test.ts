@@ -86,6 +86,8 @@ test('requires the exact issuer, audience, token type, and subject/FID pair', ()
   for (const [payload, code] of [
     [playerPayload({ iss: 'https://other.example.test' }), 'INVALID_ISSUER'],
     [playerPayload({ aud: ['another-audience'] }), 'INVALID_AUDIENCE'],
+    [playerPayload({ aud: [config.audience, 'unrelated-service'] }), 'INVALID_AUDIENCE'],
+    [playerPayload({ aud: [config.audience, config.audience] }), 'INVALID_AUDIENCE'],
     [playerPayload({ token_type: 'browser-session' }), 'INVALID_TOKEN_TYPE'],
     [playerPayload({ sub: 'farcaster:999' }), 'INVALID_SUBJECT'],
   ] as const) {

@@ -709,7 +709,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       'ENTER REALM',
       'SETTINGS',
       'CREDITS',
-      'EXIT'
+      'PATCH NOTES'
     ]);
 
     expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();
