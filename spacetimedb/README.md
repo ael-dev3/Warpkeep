@@ -16,12 +16,22 @@ The production database and issuer run the recorded exact v2 release, but that
 does not attest an arbitrary checkout. Every future republish requires a fresh
 proof, bounded aggregate, recorded authority, and exact-source verification.
 
+> **This checkout contains an unpublished protocol-3 / generation-v2
+> candidate.** It expands Genesis 001 to 1,261 deterministic cells, appends 12
+> versioned tables, and defines 100 permanent castle slots. It has not been
+> published or seeded outside local fixtures. See
+> [Genesis 001 generation v2](./GENESIS_001_GENERATION_V2.md) for exact counts,
+> digests, privacy boundaries, and unfinished release work.
+
 ## Version compatibility
 
 - Installed CLI: `spacetimedb 2.6.1` (commit `052c83fe984a4c4eb7bb4f9afa5c6b1903891d87`)
 - Server package: `spacetimedb 2.6.1`
 - Module TypeScript: `5.6.3`
-- Local backend wire protocol: `2`
+- Deployed backend wire protocol: `2`
+- Local candidate backend wire protocol: `3`
+- Player authentication contract: `2` (unchanged)
+- Local world generation: `2`
 
 Run locally after installing directory dependencies:
 
@@ -32,14 +42,16 @@ pnpm run verify
 
 `pnpm run stdb:build` invokes `spacetime build --module-path .`. Pure tests
 cover JWT principals/claims, session windows, admission/epoch transitions,
-resolver response policy, connection gating, and the deterministic radius-four
-Lowlands map. They do not connect to or publish a database.
+resolver response policy, connection gating, the deterministic radius-20
+Genesis map, inner-61 preservation, castle-slot distribution/connectivity, and
+fail-closed seed planning. They do not connect to or publish a database.
 
 From the repository root, `npm run stdb:verify-additive-migration` runs the
 pinned SpacetimeDB 2.6.1 CLI against disposable loopback-only databases. It
-proves the production-v1 table signatures remain unchanged while the two v2
-tables are appended with `--delete-data=never`. It does not inspect or mutate
-Maincloud and is not production publish approval.
+starts from the independently frozen deployed seven-table checkpoint and proves
+the 12 protocol-3 candidate tables append at refs 7 through 18 with
+`--delete-data=never`. It does not inspect or mutate Maincloud and is not
+production publish approval.
 
 ## Authority and tables
 
@@ -52,14 +64,14 @@ verified Farcaster SIWF
   -> public player_v2/castle/world_tile state
 ```
 
-Private tables:
+Live protocol-v2 private tables:
 
 - `allowed_fid`: manual admission, enabled flag, and per-FID auth epoch.
 - `player_ownership_v2`: the one-to-one FID ↔ opaque SpacetimeDB OIDC Identity
   authorization binding.
 - `admin_audit`: administrative action trace.
 
-Public tables:
+Live protocol-v2 public tables:
 
 - `world_tile`: exactly 61 canonical radius-four Lowlands gameplay cells; the
   30-cell visual apron remains client-only.
@@ -71,11 +83,35 @@ Public tables:
   contains no opaque SpacetimeDB OIDC Identity.
 - `castle`: one level-one keep per admitted FID and one occupant per tile.
 
+The unpublished protocol-3 schema preserves those seven declarations exactly
+and appends public `realm_v1`, `world_tile_meta_v1`, `castle_slot_v1`, and
+`realm_profile_v1`. It appends private `castle_slot_claim_v1`,
+`mark_account_v1`, `snap_burn_credit_v1`, `fid_wallet_attribution_v1`,
+`wallet_attribution_snapshot_v1`, `snap_scan_cursor_v1`,
+`snap_scan_batch_v1`, and `alpha_terms_acceptance_v1`. Authoritative Mark
+totals, FID-bearing slot claims, wallet attribution, burn receipts, scan
+lifecycle, and versioned Terms acceptance are never public. Optional public
+community aggregates remain absent unless the authenticated player accepts the
+exact current Terms version.
+
+The candidate `world_tile` table contains the same frozen declaration, but its
+admin-only seed policy can append exactly 1,200 canonical outer rows after
+validating the original 61. Terrain/content metadata and 100 immutable slot
+coordinates live in sidecar tables, so no deployed row or field is rewritten.
+
 Private-table query/subscription accessors are omitted from generated browser
-bindings. Code generation may retain an inert `PlayerOwnershipV2` schema type,
-but it exposes no rows or subscription authority. The active browser subscribes
-only to `world_tile`, `player_v2`, and `castle`; the generated legacy `player`
-accessor exists solely because the production-compatible table remains public.
+bindings. The protocol-3 candidate bindings expose only the eight public tables:
+the frozen legacy `player` compatibility accessor, active `world_tile`,
+`player_v2`, and `castle`, plus `realm_v1`, `world_tile_meta_v1`,
+`castle_slot_v1`, and `realm_profile_v1`. They contain no accessor for
+`allowed_fid`, `admin_audit`, `player_ownership_v2`, slot claims, authoritative
+Mark accounts, wallet attribution, burn receipts, or scan cursors. Browser
+bindings also omit wallet snapshot metadata, scan batches, and Terms acceptance
+history. The active browser subscribes to exactly six protocol-3 projections:
+`world_tile`, `world_tile_meta_v1`, `player_v2`, `castle`, `realm_v1`, and
+`realm_profile_v1`. It does not subscribe to static slot rows or the frozen
+legacy `player`; that compatibility accessor exists solely because the deployed
+table remains public and must remain empty.
 
 ## Player token and connection contract
 
@@ -173,19 +209,31 @@ bootstrap_player_v2
 Missing/disabled status is handled by the bridge's tokenless pending path before
 any player access token or database connection exists.
 
-`bootstrap_player_v2` is transactional and idempotent. It derives the FID only
-from signed claims, requires current admission, and atomically creates the
-private `player_ownership_v2` binding, public `player_v2` projection, castle,
-and tile occupancy without reading or writing legacy `player`; the first fixture
-receives `0,0`. Missing, partial, duplicate-identity, mismatched, or castle-only
-state fails closed. The local bridge issues no optional profile claims, and the
-module independently ignores any optional profile-shaped JWT fields: new
-`player_v2` rows explicitly insert undefined `username`, `displayName`, and
-`pfpUrl`. A future profile mutation requires a separate reviewed authorization
-path. Admission, bootstrap, admitted-player guards, and the v2 aggregate also
-validate the complete canonical 61-tile/castle graph in both directions; a
-missing or altered terrain row, dangling occupancy, or mismatched castle link
-fails `STATE_INTEGRITY`.
+In the protocol-3 candidate, `admin_allow_fid` is the atomic founding boundary.
+After validating the complete canonical generation, one transaction creates or
+preserves the admission row, permanent slot claim, level-one castle, reverse
+tile occupancy, hidden public profile, zeroed private Mark account, and audit.
+The first three deterministic assignments are the close founding district at
+`(0,0)`, `(2,-1)`, and `(-1,2)`. Repeating allow is idempotent; disabling and
+re-enabling rotate authority without deleting or moving founder state.
+
+`bootstrap_player_v2` is separately transactional and idempotent. It derives
+the FID only from signed claims, requires current admission, and binds the
+already-founded assignment by creating only private `player_ownership_v2` and
+public `player_v2`. It never creates, moves, or replaces a castle and never
+reads or writes legacy `player`. Missing, partial, duplicate-identity,
+mismatched, or castle-only state fails closed. Indexed per-FID checks keep the
+player status/bootstrap/terms hot paths bounded; full 1,261-row integrity scans
+remain on admin seed/founding/audit transitions.
+
+The bridge issues no optional profile claims, and the module ignores any
+profile-shaped JWT fields. Trusted public profile and private wallet snapshots
+have dedicated exact-admin reducers and are sanitized again in the module.
+`accept_alpha_terms_v1` is an idempotent admitted-player transition using the
+current exact Terms version. It first inserts immutable private evidence keyed
+by FID and Terms version, including when aggregate visibility was already on;
+only that genuinely Terms-gated post-bootstrap call exposes aggregate Mark
+fields in `realm_profile_v1`. A later Terms version creates a distinct record.
 
 ## Admin operations
 
@@ -197,6 +245,13 @@ Exact fresh Hermes authority is required for:
 - `admin_bump_auth_epoch`
 - `admin_get_alpha_status`
 - `admin_get_alpha_status_v2`
+- `admin_get_alpha_status_v3`
+- `admin_upsert_realm_profile_v1`
+- `admin_replace_fid_wallet_snapshot_v1`
+- `admin_begin_snap_scan_batch_v1`
+- `admin_credit_snap_burn_v1`
+- `admin_finalize_snap_scan_batch_v1`
+- `admin_get_snap_scan_batch_aggregate_v1`
 - rollback-only `admin_get_fid_auth_epoch`
 
 No real FID is seeded in source or by a verification script. Operator wrappers
@@ -209,15 +264,35 @@ confirmation for mutations.
 castles, admission and audit totals, plus static protocol/world metadata. It
 never returns a FID, Identity, profile, allowlist row, note, or audit record.
 
+`admin_get_alpha_status_v3` remains counts-only while covering all 12 appended
+tables, occupied tiles, and canonical static-world drift in addition to orphan,
+ambiguity, projection, duplicate-reference, and ledger-reconciliation counters.
+The trusted update and
+credit reducers are idempotent and fail closed on policy mismatch, wallet
+ambiguity, chain/contract/implementation/code-hash mismatch, duplicate event or
+burn ID, disabled attribution, overflow, and ledger drift. The retired
+single-row wallet reducer always fails: a complete generation-CAS snapshot is
+required. A scan batch freezes that snapshot, exact cursor, attestation, range,
+credit count, and micros total; credits update batch counters atomically, and
+finalization advances the cursor only after indexed receipt reconciliation.
+The counts-only batch aggregate exposes none of the batch ID, hashes, wallets,
+events, or FIDs. The module does not decide Ethereum finality; a separately
+reviewed two-provider operator must prove that before beginning a batch. The
+local operator's apply transport remains deliberately disabled.
+
 ## Backend compatibility metadata
 
-`WARPKEEP_BACKEND_PROTOCOL_VERSION = 2` is an internal wire contract, separate
-from the player-facing release and the `HEGEMONY_GENESIS_001` realm label.
+Production remains protocol 2. In this unpublished candidate,
+`WARPKEEP_BACKEND_PROTOCOL_VERSION = 3` is an internal wire contract, separate
+from the player-facing release, auth contract 2, world generation 2, and the
+`HEGEMONY_GENESIS_001` realm label.
 `get_alpha_backend_info` is available to every lifecycle-admitted principal,
 including the resolver, and returns only static protocol/world-seed metadata.
 It performs no database lookup and exposes no whitelist, identity, audit, or
 live aggregate data. The browser must reject a protocol/seed mismatch before
-bootstrap or subscription.
+bootstrap or subscription. Consequently, this candidate frontend and the
+currently deployed protocol-2 backend are intentionally incompatible until a
+coordinated reviewed rollout; deploying only one side fails closed.
 
 SpacetimeDB 2.6's default case converter would spell a trailing version digit
 as `_v_2`; the module pins these canonical wire names to exact `_v2`:
@@ -248,11 +323,12 @@ session cookie, private key, or admin credential.
 
 ## Approval-gated schema rollout
 
-No command in this README authorizes external mutation. The protocol-v2
-schema is additive: it preserves the exact five-table production-v1 prefix,
-freezes public legacy `player`, and appends public `player_v2` plus private
-`player_ownership_v2`. No v2 admission, bootstrap, or browser runtime path reads
-or writes the legacy table.
+No command in this README authorizes external mutation. The recorded protocol-2
+schema already preserves the five-table production-v1 prefix and appends the
+public `player_v2` plus private `player_ownership_v2`. The protocol-3 candidate
+preserves that complete seven-table deployed prefix exactly, then appends twelve
+explicitly versioned tables. No candidate migration rewrites a prefix table or
+uses the frozen legacy `player` as a new authorization path.
 
 The loopback-only proof command:
 
@@ -260,39 +336,57 @@ The loopback-only proof command:
 npm run stdb:verify-additive-migration
 ```
 
-uses the pinned CLI and `--delete-data=never` to verify unchanged legacy table
-signatures and product-type order, empty and synthetic nonempty row preservation,
-v2 visibility and constraints, idempotent republish, partial-state detection,
-and refusal of a guarded v1 rollback before any schema change. This proves only the controlled local
-fixtures; it neither observes Maincloud nor authorizes a production publish.
+uses the pinned CLI and `--delete-data=never` against disposable loopback-only
+databases. It verifies exact refs 0-18, unchanged seven-table signatures,
+indexes and visibility, empty and synthetic nonempty row preservation, exact
+candidate visibility, a module-to-independent-fixture match, idempotent artifact
+republish, and refusal of a guarded v2 rollback after a v3 row is populated.
+This proves only controlled local fixtures; it neither observes Maincloud nor
+authorizes a production publish or world seed.
 
 A future rollout must keep Worker public auth and the frontend shared-alpha
 switch false while it:
 
-1. obtains explicit approval for a fresh read-only Maincloud aggregate
+1. obtains explicit approval for the containment deployment that disables both
+   production switches, then attests the disabled Worker and frontend state
+   before any schema or seed mutation;
+2. obtains explicit approval for a fresh read-only Maincloud aggregate
    inspection without exposing row identities;
-2. stops if legacy `player` is not exactly empty, if an enabled epoch-zero row
+3. stops if legacy `player` is not exactly empty, if an enabled epoch-zero row
    exists, or if any aggregate/schema coordinate disagrees; nonzero legacy state
    requires a separately implemented and reviewed migration, never dual-write;
-3. obtains separate explicit approval for the guarded production module publish,
-   whose same-run protected v1 aggregate must independently reproduce the fresh
-   zero result and whose publisher pins the exact reviewed CLI binary plus the
-   canonical existing database identity, then binds the proof's one SHA-256
-   receipt to the exact prebuilt artifact and rechecks it before `--js-path`;
-4. publishes only with `--delete-data=never`, without `--break-clients`, and
-   verifies `admin_get_alpha_status_v2`, exact v2 wires, private ownership
-   isolation, generated bindings, and protocol metadata;
-5. separately approves the additive session-family Durable Object migration and
-   secret configuration;
-6. separately approves a Worker deploy with public auth still false and checks
-   its configuration attestation;
-7. separately approves the v2 frontend deploy with its realm switch false;
-8. requires final authority, then enables Worker public auth, passes its
-   enabled public/private gates, enables/deploys the exact frontend, and runs
-   immediate owner QA with dual-disable handling for any discrepancy.
+4. obtains explicit approval for the guarded production module publish, whose
+   same-run protected aggregate must reproduce the expected seven-table state
+   and whose publisher pins the reviewed CLI binary plus canonical existing
+   database identity, then binds the proof's SHA-256 receipt to the exact
+   prebuilt artifact and rechecks it before `--js-path`;
+5. publishes only with `--delete-data=never`, without `--break-clients`, and
+   verifies exact table refs/access, unchanged v2 auth wires, private-table
+   isolation, protocol-3 metadata, and the post-schema-empty aggregate with the
+   read-only `--require-additive-v3-preseed-aggregate` verifier stage;
+6. separately reviews and approves the generation-v2 seed, which must add
+   exactly 1,200 world rows, 1,261 metadata rows, one realm row, and 100 slots
+   while retaining the pinned inner-61 digest, then proves the exact
+   seeded-but-mutable-state-empty boundary with
+   `--require-genesis-v3-seeded-empty-aggregate`;
+7. generates and reviews browser bindings only after the authoritative schema
+   is known, keeping every private table out of the browser surface;
+8. separately approves any Worker/frontend deploy with public auth and realm
+   entry still false and checks configuration attestation;
+9. before founding, independently reviews the exact counts-only founded-state
+   verifier, then requires final authority for each founding admission and runs
+   `--require-genesis-v3-founded-aggregate --expected-founder-count=N`
+   immediately after every separately approved founding action, before wallet
+   snapshots, scans, player login, or Terms acceptance; exact FID and nearest-slot
+   prefix evidence stays in the private plan because the aggregate exposes no
+   identities;
+10. enables public auth only after all staged aggregates pass, then enables and
+   deploys only the exact reviewed frontend, passes the enabled
+   public/private gates, and runs immediate owner QA with dual-disable handling
+   for any discrepancy.
 
-If the CLI requests a compatibility override, the protected aggregate is not
-zero, or the exact additive plan cannot be applied, stop. Do not weaken the
+If the CLI requests a compatibility override, the protected aggregate does not
+match the expected state, or the exact additive plan cannot be applied, stop. Do not weaken the
 publisher, delete data, use `--break-clients`, or write the legacy player table.
 
 See the [activation and recovery runbook](../docs/operations/alpha-activation.md).

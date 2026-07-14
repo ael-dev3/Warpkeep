@@ -13,6 +13,7 @@ import { useFarcasterAuth } from '../farcaster/FarcasterAuthProvider';
 import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
 import { validateFarcasterOidcSession } from '../farcaster/farcasterOidcSession';
 import {
+  acceptWarpkeepAlphaTerms,
   bootstrapWarpkeepPlayer,
   connectWarpkeep,
   disconnectWarpkeep,
@@ -25,7 +26,8 @@ import {
 } from './warpkeepConnection';
 import {
   IDLE_WARPKEEP_BACKEND_STATE,
-  type WarpkeepBackendState
+  type WarpkeepBackendState,
+  type WarpkeepRealmSnapshot
 } from './warpkeepBackendTypes';
 import {
   hasUsableWarpkeepBridge,
@@ -40,6 +42,10 @@ export type WarpkeepBackendControllerValue = Readonly<{
   sharedAlphaAvailable: boolean;
   /** Recheck admission with the current, still-valid bridge session. */
   checkAgain: () => void;
+  /** Record one explicit, memory-only Terms-gated entry attempt. */
+  beginAlphaTermsAcceptance: () => void;
+  /** Drop an unconsumed attempt when the player cancels the entry flow. */
+  cancelAlphaTermsAcceptance: () => void;
   /** Disconnect immediately; the Farcaster provider clears credentials separately. */
   disconnect: () => void;
 }>;
@@ -55,6 +61,7 @@ export type WarpkeepBackendRuntime = Readonly<{
   readBackendInfo: typeof readWarpkeepBackendInfo;
   readAdmission: typeof readWarpkeepAdmissionStatus;
   bootstrapPlayer: typeof bootstrapWarpkeepPlayer;
+  acceptAlphaTerms: typeof acceptWarpkeepAlphaTerms;
   observeRealm: typeof observeWarpkeepRealm;
   readRealmSnapshot: typeof readWarpkeepRealmSnapshot;
   subscribeRealm: typeof subscribeToWarpkeepRealm;
@@ -66,6 +73,7 @@ const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.freeze({
   readBackendInfo: readWarpkeepBackendInfo,
   readAdmission: readWarpkeepAdmissionStatus,
   bootstrapPlayer: bootstrapWarpkeepPlayer,
+  acceptAlphaTerms: acceptWarpkeepAlphaTerms,
   observeRealm: observeWarpkeepRealm,
   readRealmSnapshot: readWarpkeepRealmSnapshot,
   subscribeRealm: subscribeToWarpkeepRealm
@@ -131,6 +139,11 @@ export function WarpkeepSpacetimeProvider({
   const teardownRef = useRef<(() => void) | undefined>(undefined);
   const generationRef = useRef(0);
   const stateRef = useRef(state);
+  const termsAttemptRef = useRef(0);
+  const completedTermsAttemptRef = useRef(0);
+  const termsIntentGenerationRef = useRef(0);
+  const termsIdentityFidRef = useRef<number | undefined>(undefined);
+  const processTermsAttemptRef = useRef<() => void>(() => undefined);
   stateRef.current = state;
 
   const runActiveTeardown = useCallback(() => {
@@ -141,6 +154,11 @@ export function WarpkeepSpacetimeProvider({
 
   const disconnect = useCallback(() => {
     generationRef.current += 1;
+    termsAttemptRef.current = 0;
+    completedTermsAttemptRef.current = 0;
+    termsIntentGenerationRef.current = 0;
+    termsIdentityFidRef.current = undefined;
+    processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
     // The effect-owned teardown normally consumes the connection. Keep this
     // fail-closed fallback for any connection installed by a runtime before
@@ -158,6 +176,26 @@ export function WarpkeepSpacetimeProvider({
     setState(IDLE_WARPKEEP_BACKEND_STATE);
   }, [runActiveTeardown, runtime]);
 
+  const beginAlphaTermsAcceptance = useCallback(() => {
+    termsAttemptRef.current += 1;
+    processTermsAttemptRef.current();
+  }, []);
+
+  const cancelAlphaTermsAcceptance = useCallback(() => {
+    // Cancellation never revokes a reducer call already sent after explicit
+    // acceptance, but it prevents an unconsumed pre-auth attempt from leaking
+    // into a later remembered/direct-route session.
+    termsAttemptRef.current = completedTermsAttemptRef.current;
+    termsIntentGenerationRef.current += 1;
+    setState((current) => current.phase === 'accepting-terms'
+      ? {
+          phase: 'awaiting-terms',
+          identity: current.identity,
+          admission: 'ready'
+        }
+      : current);
+  }, []);
+
   const checkAgain = useCallback(() => {
     if (
       !sharedAlphaAvailable
@@ -171,6 +209,17 @@ export function WarpkeepSpacetimeProvider({
   }, [farcaster.oidcSession, identity, sharedAlphaAvailable]);
 
   useEffect(() => {
+    if (identity && termsIdentityFidRef.current === undefined) {
+      // A Terms gesture normally precedes authentication, so bind the pending
+      // attempt to the first verified FID without discarding it.
+      termsIdentityFidRef.current = identity.fid;
+    } else if (identity && termsIdentityFidRef.current !== identity.fid) {
+      // Consent recorded for one identity can never authorize another identity
+      // that appears without the normal sign-out/disconnect lifecycle.
+      termsAttemptRef.current = 0;
+      completedTermsAttemptRef.current = 0;
+      termsIdentityFidRef.current = identity.fid;
+    }
     generationRef.current += 1;
     const generation = generationRef.current;
     const previousState = stateRef.current;
@@ -212,6 +261,10 @@ export function WarpkeepSpacetimeProvider({
     let connection: WarpkeepConnection | undefined;
     let cleanupObserver: (() => void) | undefined;
     let subscription: ReturnType<WarpkeepBackendRuntime['subscribeRealm']> | undefined;
+    let publishReadySnapshot: (() => void) | undefined;
+    let activateRealm: (() => void) | undefined;
+    let realmActivated = false;
+    let termsAcceptancePromise: Promise<boolean> | undefined;
     let terminated = false;
     const current = () => active && generationRef.current === generation;
     const terminateConnection = () => {
@@ -224,6 +277,9 @@ export function WarpkeepSpacetimeProvider({
       active = false;
       if (teardownRef.current === terminateConnection) {
         teardownRef.current = undefined;
+      }
+      if (processTermsAttemptRef.current === processTermsAttempt) {
+        processTermsAttemptRef.current = () => undefined;
       }
       const observer = cleanupObserver;
       cleanupObserver = undefined;
@@ -268,6 +324,54 @@ export function WarpkeepSpacetimeProvider({
           realm: retainedReadyState.realm
         }
       : undefined;
+
+    const acknowledgePendingTerms = async (activeConnection: WarpkeepConnection) => {
+      if (termsAcceptancePromise) return termsAcceptancePromise;
+      const attempt = termsAttemptRef.current;
+      if (attempt <= completedTermsAttemptRef.current) return false;
+
+      const currentState = stateRef.current;
+      setState({
+        phase: 'accepting-terms',
+        identity,
+        admission: 'ready',
+        ...(currentState.realm ? { realm: currentState.realm } : {})
+      });
+      const pending = (async () => {
+        await runtime.acceptAlphaTerms(activeConnection);
+        if (!current()) return false;
+        completedTermsAttemptRef.current = Math.max(
+          completedTermsAttemptRef.current,
+          attempt
+        );
+        return true;
+      })();
+      termsAcceptancePromise = pending;
+      try {
+        return await pending;
+      } finally {
+        if (termsAcceptancePromise === pending) termsAcceptancePromise = undefined;
+      }
+    };
+
+    function processTermsAttempt() {
+      const activeConnection = connection;
+      const activate = activateRealm;
+      if (!current() || !activeConnection || !activate) return;
+      const intentGeneration = termsIntentGenerationRef.current;
+      void acknowledgePendingTerms(activeConnection).then((accepted) => {
+        if (
+          !current()
+          || intentGeneration !== termsIntentGenerationRef.current
+          || (!accepted && completedTermsAttemptRef.current === 0)
+        ) return;
+        activate();
+        if (termsAttemptRef.current > completedTermsAttemptRef.current) {
+          processTermsAttempt();
+        }
+      }).catch(fail);
+    }
+    processTermsAttemptRef.current = processTermsAttempt;
 
     const run = async () => {
       setState(reconnectingState ?? { phase: 'connecting', identity });
@@ -319,25 +423,43 @@ export function WarpkeepSpacetimeProvider({
           return;
         }
 
-        const updateRealm = () => {
+        const updateRealm = (observedSnapshot?: WarpkeepRealmSnapshot) => {
           if (!current()) return;
           setState({
             phase: 'ready',
             identity,
             admission: 'ready',
-            realm: runtime.readRealmSnapshot(activeConnection, bridgeFid!)
+            realm: observedSnapshot
+              ?? runtime.readRealmSnapshot(activeConnection, bridgeFid!)
           });
         };
-        cleanupObserver = runtime.observeRealm(activeConnection, bridgeFid!, updateRealm);
-        const startedSubscription = runtime.subscribeRealm(activeConnection, updateRealm, fail);
-        if (!current()) {
-          // A test runtime or SDK failure callback may fire synchronously from
-          // subscribe(). The returned handle was not available to fail(), so
-          // close it here instead of retaining a terminal subscription.
-          startedSubscription.unsubscribe();
+        publishReadySnapshot = () => updateRealm();
+        activateRealm = () => {
+          if (!current()) return;
+          if (realmActivated) {
+            publishReadySnapshot?.();
+            return;
+          }
+          realmActivated = true;
+          cleanupObserver = runtime.observeRealm(activeConnection, bridgeFid!, updateRealm);
+          const startedSubscription = runtime.subscribeRealm(activeConnection, updateRealm, fail);
+          if (!current()) {
+            // A test runtime or SDK failure callback may fire synchronously from
+            // subscribe(). The returned handle was not available to fail(), so
+            // close it here instead of retaining a terminal subscription.
+            startedSubscription.unsubscribe();
+            return;
+          }
+          subscription = startedSubscription;
+        };
+
+        const acceptedNow = await acknowledgePendingTerms(activeConnection);
+        if (!current()) return;
+        if (!acceptedNow && completedTermsAttemptRef.current === 0) {
+          setState({ phase: 'awaiting-terms', identity, admission: 'ready' });
           return;
         }
-        subscription = startedSubscription;
+        activateRealm();
       } catch {
         fail();
       }
@@ -360,8 +482,17 @@ export function WarpkeepSpacetimeProvider({
     state,
     sharedAlphaAvailable,
     checkAgain,
+    beginAlphaTermsAcceptance,
+    cancelAlphaTermsAcceptance,
     disconnect
-  }), [checkAgain, disconnect, sharedAlphaAvailable, state]);
+  }), [
+    beginAlphaTermsAcceptance,
+    cancelAlphaTermsAcceptance,
+    checkAgain,
+    disconnect,
+    sharedAlphaAvailable,
+    state
+  ]);
 
   return (
     <WarpkeepBackendContext.Provider value={value}>

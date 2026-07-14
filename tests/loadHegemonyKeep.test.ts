@@ -2,13 +2,18 @@ import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   calculateKeepNormalization,
+  clearHegemonyKeepBinaryCacheForTests,
+  disposeRealmObject,
   keepAssetPathForQuality,
+  loadHegemonyKeep,
   resolveRealmAssetUrl
 } from '../src/components/realm/loadHegemonyKeep';
+import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
@@ -41,6 +46,12 @@ function readGlbJson(path: string) {
   const jsonLength = bytes.readUInt32LE(12);
   return JSON.parse(bytes.subarray(20, 20 + jsonLength).toString('utf8').trim());
 }
+
+afterEach(() => {
+  clearHegemonyKeepBinaryCacheForTests();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe('Hegemony keep runtime assets', () => {
   it('ships validated high, balanced, and reduced assets inside their transfer budgets', () => {
@@ -85,5 +96,71 @@ describe('Hegemony keep runtime assets', () => {
     expect(normalization.visualHeight).toBeGreaterThan(1);
     expect(normalization.offsetY).toBeGreaterThan(0);
     expect(Object.values(normalization).every(Number.isFinite)).toBe(true);
+  });
+
+  it('integrity-checks and coalesces keep bytes while parsing disposable scene instances', async () => {
+    const compact = ASSETS[2];
+    const source = readFileSync(resolve(ROOT, compact.path));
+    const bytes = source.buffer.slice(
+      source.byteOffset,
+      source.byteOffset + source.byteLength
+    ) as ArrayBuffer;
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      arrayBuffer: async () => bytes.slice(0)
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const parser = vi.fn(async () => {
+      const scene = new THREE.Group();
+      scene.add(new THREE.Mesh(
+        new THREE.BoxGeometry(2, 1.5, 1),
+        new THREE.MeshStandardMaterial()
+      ));
+      return scene;
+    });
+
+    const options = {
+      quality: REALM_QUALITY_SPECS.reduced,
+      baseUrl: '/',
+      maxAnisotropy: 4,
+      parser
+    } as const;
+    const [first, second] = await Promise.all([
+      loadHegemonyKeep(options),
+      loadHegemonyKeep(options)
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(parser).toHaveBeenCalledTimes(2);
+    expect(first.root).not.toBe(second.root);
+    expect(first.assetUrl).toBe('/models/hegemony/hegemony-frontier-keep-compact.glb');
+    disposeRealmObject(first.root);
+    disposeRealmObject(second.root);
+  });
+
+  it('evicts a failed keep request so a later scene can retry cleanly', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => new ArrayBuffer(8)
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        arrayBuffer: async () => new ArrayBuffer(0)
+      });
+    vi.stubGlobal('fetch', fetchMock);
+    const options = {
+      quality: REALM_QUALITY_SPECS.reduced,
+      baseUrl: '/',
+      maxAnisotropy: 1,
+      parser: vi.fn(async () => new THREE.Group())
+    } as const;
+
+    await expect(loadHegemonyKeep(options)).rejects.toThrow(/integrity check/i);
+    await expect(loadHegemonyKeep(options)).rejects.toThrow(/503/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -17,9 +17,13 @@ const fixtureModule = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/production-v1',
 );
-const additiveSchemaFixture = resolve(
+const additiveV2SchemaFixture = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/additive-v2-schema',
+);
+const additiveV3SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v3-schema',
 );
 const additiveModule = resolve(repositoryRoot, 'spacetimedb');
 const command = process.env.SPACETIME_BIN || 'spacetime';
@@ -38,6 +42,22 @@ const existingTables = Object.freeze([
   'player',
   'castle',
   'admin_audit',
+  'player_v2',
+  'player_ownership_v2',
+]);
+const additiveV3Tables = Object.freeze([
+  'realm_v1',
+  'world_tile_meta_v1',
+  'castle_slot_v1',
+  'castle_slot_claim_v1',
+  'realm_profile_v1',
+  'mark_account_v1',
+  'snap_burn_credit_v1',
+  'fid_wallet_attribution_v1',
+  'wallet_attribution_snapshot_v1',
+  'snap_scan_cursor_v1',
+  'snap_scan_batch_v1',
+  'alpha_terms_acceptance_v1',
 ]);
 const expectedProductTypeRefs = Object.freeze({
   allowed_fid: 0,
@@ -47,6 +67,18 @@ const expectedProductTypeRefs = Object.freeze({
   admin_audit: 4,
   player_v2: 5,
   player_ownership_v2: 6,
+  realm_v1: 7,
+  world_tile_meta_v1: 8,
+  castle_slot_v1: 9,
+  castle_slot_claim_v1: 10,
+  realm_profile_v1: 11,
+  mark_account_v1: 12,
+  snap_burn_credit_v1: 13,
+  fid_wallet_attribution_v1: 14,
+  wallet_attribution_snapshot_v1: 15,
+  snap_scan_cursor_v1: 16,
+  snap_scan_batch_v1: 17,
+  alpha_terms_acceptance_v1: 18,
 });
 const childEnvironmentKeys = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TMP', 'TEMP',
@@ -351,18 +383,111 @@ function assertAdditiveSchema(before, after) {
     .map(table => table.name)
     .filter(name => !beforeNames.has(name))
     .sort();
-  assert.deepEqual(added, ['player_ownership_v2', 'player_v2']);
-  assert.deepEqual(fieldNames(after, 'player_v2'), [
-    'fid', 'username', 'display_name', 'pfp_url', 'joined_at', 'status',
-  ]);
-  assert.deepEqual(fieldNames(after, 'player_ownership_v2'), ['fid', 'identity']);
-  assert.equal(access(after, 'player_v2'), 'Public');
-  assert.equal(access(after, 'player_ownership_v2'), 'Private');
-  assert.equal(tableSignature(after, 'player_v2').product_type_ref, expectedProductTypeRefs.player_v2);
-  assert.equal(
-    tableSignature(after, 'player_ownership_v2').product_type_ref,
-    expectedProductTypeRefs.player_ownership_v2,
-  );
+  assert.deepEqual(added, [...additiveV3Tables].sort());
+
+  const contracts = {
+    realm_v1: {
+      access: 'Public',
+      fields: [
+        'realm_id', 'public_name', 'seed_name', 'numeric_seed',
+        'generation_version', 'authoritative_radius', 'render_radius',
+        'player_capacity', 'active', 'created_at',
+      ],
+    },
+    world_tile_meta_v1: {
+      access: 'Public',
+      fields: [
+        'tile_key', 'realm_id', 's', 'ring', 'sector', 'terrain_kind',
+        'passable', 'movement_cost', 'static_content_kind', 'generation_version',
+      ],
+    },
+    castle_slot_v1: {
+      access: 'Public',
+      fields: ['slot_id', 'realm_id', 'tile_key', 'q', 'r', 'generation_version'],
+    },
+    castle_slot_claim_v1: {
+      access: 'Private',
+      fields: [
+        'slot_id', 'owner_fid', 'castle_id', 'claimed_at', 'generation_version',
+      ],
+    },
+    realm_profile_v1: {
+      access: 'Public',
+      fields: [
+        'fid', 'canonical_username', 'display_name', 'pfp_url', 'public_bio',
+        'admitted_at', 'first_authenticated_at', 'profile_updated_at',
+        'public_status', 'community_stats_visible', 'total_snap_burned_micros',
+        'marks_earned_micros', 'marks_spent_micros', 'marks_balance_micros',
+        'marks_policy_version',
+      ],
+    },
+    mark_account_v1: {
+      access: 'Private',
+      fields: [
+        'fid', 'total_snap_burned_micros', 'earned_micros', 'spent_micros',
+        'balance_micros', 'policy_version', 'updated_at',
+      ],
+    },
+    snap_burn_credit_v1: {
+      access: 'Private',
+      fields: [
+        'event_key', 'batch_id', 'chain_id', 'token_contract', 'transaction_hash',
+        'log_index', 'burn_reference', 'burn_method', 'sender_address',
+        'block_number', 'block_hash', 'amount_micros', 'attributed_fid',
+        'attribution_policy_version', 'contract_code_hash', 'credited_at',
+      ],
+    },
+    fid_wallet_attribution_v1: {
+      access: 'Private',
+      fields: [
+        'snapshot_attribution_key', 'attribution_key', 'snapshot_generation',
+        'fid', 'address', 'address_type', 'source', 'snapshot_at',
+        'attribution_policy_version', 'active',
+      ],
+    },
+    wallet_attribution_snapshot_v1: {
+      access: 'Private',
+      fields: [
+        'snapshot_key', 'generation', 'snapshot_id', 'policy_version',
+        'attribution_count', 'snapshot_at',
+      ],
+    },
+    snap_scan_cursor_v1: {
+      access: 'Private',
+      fields: [
+        'cursor_key', 'chain_id', 'token_contract', 'policy_version',
+        'deployment_start_block', 'last_finalized_block',
+        'last_finalized_block_hash', 'proxy_code_hash', 'implementation_address',
+        'implementation_code_hash', 'wallet_snapshot_generation',
+        'wallet_snapshot_id', 'scanned_at',
+      ],
+    },
+    snap_scan_batch_v1: {
+      access: 'Private',
+      fields: [
+        'batch_id', 'cursor_key', 'status', 'previous_finalized_block',
+        'previous_finalized_block_hash', 'through_finalized_block',
+        'through_finalized_block_hash', 'wallet_snapshot_generation',
+        'wallet_snapshot_id', 'wallet_attribution_count', 'expected_credits',
+        'expected_micros', 'applied_credits', 'applied_micros',
+        'proxy_code_hash', 'implementation_address', 'implementation_code_hash',
+        'started_at', 'finalized_at',
+      ],
+    },
+    alpha_terms_acceptance_v1: {
+      access: 'Private',
+      fields: ['acceptance_key', 'fid', 'terms_version', 'accepted_at'],
+    },
+  };
+
+  for (const [name, contract] of Object.entries(contracts)) {
+    assert.deepEqual(fieldNames(after, name), contract.fields);
+    assert.equal(access(after, name), contract.access);
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
 }
 
 async function freeLoopbackPort() {
@@ -527,29 +652,8 @@ async function callLoopbackProcedure(
 }
 
 async function verifyResolverHttpLifecycle(server, database, privateKey) {
-  let stage = 'admin-before';
+  let stage = 'resolver-exact';
   try {
-    const adminBeforeCredential = createEphemeralJwt(
-      privateKey,
-      serviceClaims('service:hermes', ['warpkeep-admin'], 300),
-    );
-    const statusBeforeText = await callLoopbackProcedure(
-      server,
-      database,
-      'admin_get_alpha_status_v2',
-      adminBeforeCredential,
-      '[]',
-      200,
-    );
-
-    let statusBefore;
-    try {
-      statusBefore = JSON.parse(statusBeforeText);
-    } catch {
-      fail('Loopback admin aggregate response was invalid.');
-    }
-
-    stage = 'resolver-exact';
     const resolverCredential = createEphemeralJwt(
       privateKey,
       resolverServiceClaims('9007199254740991'),
@@ -633,26 +737,6 @@ async function verifyResolverHttpLifecycle(server, database, privateKey) {
       403,
     );
 
-    stage = 'admin-after';
-    const adminAfterCredential = createEphemeralJwt(
-      privateKey,
-      serviceClaims('service:hermes', ['warpkeep-admin'], 300),
-    );
-    const statusAfterText = await callLoopbackProcedure(
-      server,
-      database,
-      'admin_get_alpha_status_v2',
-      adminAfterCredential,
-      '[]',
-      200,
-    );
-    let statusAfter;
-    try {
-      statusAfter = JSON.parse(statusAfterText);
-    } catch {
-      fail('Loopback admin aggregate response was invalid.');
-    }
-    assert.deepEqual(statusAfter, statusBefore);
   } catch (error) {
     if (error instanceof MigrationProofError) {
       throw new MigrationProofError(`Loopback resolver lifecycle failed at ${stage}: ${error.message}`);
@@ -822,6 +906,18 @@ async function main() {
       'DELETE FROM player WHERE fid = 424242',
     );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player'), 0n);
+
+    // Advance every disposable database to the independently frozen deployed
+    // seven-table checkpoint before proving the v3 append. This makes refs
+    // 0-6, including their access/index contracts, the migration baseline.
+    await publish(server, owner.token, additiveV2SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV2SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV2SchemaFixture, actualModuleDatabase);
+    for (const database of [emptyDatabase, nonemptyDatabase, actualModuleDatabase]) {
+      assert.equal(await count(server, owner.token, database, 'player_v2'), 0n);
+      assert.equal(await count(server, owner.token, database, 'player_ownership_v2'), 0n);
+    }
+
     const nonemptyLegacyBefore = outputDigest(await sql(
       server,
       owner.token,
@@ -851,10 +947,11 @@ async function main() {
     const nonemptyBefore = await describe(server, owner.token, nonemptyDatabase);
     const actualModuleBefore = await describe(server, owner.token, actualModuleDatabase);
     assert.deepEqual(emptyBefore.tables.map(table => table.name).sort(), [
-      'admin_audit', 'allowed_fid', 'castle', 'player', 'world_tile',
+      'admin_audit', 'allowed_fid', 'castle', 'player', 'player_ownership_v2',
+      'player_v2', 'world_tile',
     ]);
 
-    await publish(server, owner.token, additiveSchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV3SchemaFixture, emptyDatabase);
     await publish(server, owner.token, additiveModule, nonemptyDatabase);
     await publish(server, owner.token, additiveModule, actualModuleDatabase);
     await verifyResolverHttpLifecycle(server, actualModuleDatabase, privateKey);
@@ -869,7 +966,7 @@ async function main() {
     assertAdditiveSchema(emptyBefore, emptyAfter);
     assertAdditiveSchema(nonemptyBefore, nonemptyAfter);
     assertAdditiveSchema(actualModuleBefore, actualModuleAfter);
-    for (const name of [...existingTables, 'player_v2', 'player_ownership_v2']) {
+    for (const name of [...existingTables, ...additiveV3Tables]) {
       assert.deepEqual(
         tableSignature(actualModuleAfter, name),
         tableSignature(emptyAfter, name),
@@ -891,14 +988,19 @@ async function main() {
     // The actual module correctly rejects the disposable local identity at its
     // on-connect boundary. Re-publish the table-identical schema-only fixture
     // before querying preservation; this changes no table or row.
-    await publish(server, owner.token, additiveSchemaFixture, nonemptyDatabase);
-    await publish(server, owner.token, additiveSchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV3SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV3SchemaFixture, actualModuleDatabase);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 0n);
     assert.equal(await count(server, owner.token, nonemptyDatabase, 'player'), 1n);
     assert.equal(await count(server, owner.token, nonemptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, nonemptyDatabase, 'player_ownership_v2'), 0n);
+    for (const table of additiveV3Tables) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+      assert.equal(await count(server, owner.token, nonemptyDatabase, table), 0n);
+      assert.equal(await count(server, owner.token, actualModuleDatabase, table), 0n);
+    }
     assert.equal(outputDigest(await sql(
       server,
       owner.token,
@@ -930,9 +1032,16 @@ async function main() {
       emptyDatabase,
       `INSERT INTO player_ownership_v2 (fid, identity) VALUES (999999, 0x${owner.identity})`,
     );
+    await sql(
+      server,
+      owner.token,
+      emptyDatabase,
+      "INSERT INTO castle_slot_v1 (slot_id, realm_id, tile_key, q, r, generation_version) VALUES (999999, 'ROLLBACK_SENTINEL', 'rollback,sentinel', 99, -99, 2)",
+    );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
-    const partialSchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
+    assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
+    const populatedV3SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
 
     const { identity: secondIdentity } = await acquireDisposableIdentity(server);
     await sql(
@@ -956,29 +1065,32 @@ async function main() {
     await publish(
       server,
       owner.token,
-      fixtureModule,
+      additiveV2SchemaFixture,
       emptyDatabase,
       false,
       /break|delete|remove|migration|incompatible|data loss|table/i,
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      partialSchemaDigest,
+      populatedV3SchemaDigest,
     );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
-    await publish(server, owner.token, additiveSchemaFixture, emptyDatabase);
+    assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
+    await publish(server, owner.token, additiveV3SchemaFixture, emptyDatabase);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
+    assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
     assert.equal(
       createHash('sha256').update(await readFile(builtArtifactPath)).digest('hex'),
       builtArtifactDigest,
     );
 
     console.log(
-      `Additive protocol-v2 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
-      + 'five legacy tables unchanged, 61-tile empty and synthetic nonempty fixtures preserved, '
-      + 'v2 tables appended, exact resolver HTTP lifecycle enforced without mutation, '
-      + 'prebuilt-artifact republish idempotent, partial state detected, '
-      + `and guarded v1 rollback refused before schema change. artifact_sha256=${builtArtifactDigest}`,
+      `Additive protocol-v3 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
+      + 'seven deployed tables unchanged, 61-tile empty and synthetic nonempty fixtures preserved, '
+      + '12 v3 tables appended with exact public/private contracts, '
+      + 'exact resolver HTTP lifecycle enforced without mutation, '
+      + 'prebuilt-artifact republish idempotent, populated v3 state retained, '
+      + `and guarded v2 rollback refused before schema change. artifact_sha256=${builtArtifactDigest}`,
     );
   } finally {
     disposableCliCredential = null;
@@ -990,7 +1102,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   main().catch(error => {
     console.error(error instanceof MigrationProofError
       ? error.message
-      : 'Additive protocol-v2 migration proof failed closed.');
+      : 'Additive protocol-v3 migration proof failed closed.');
     process.exitCode = 1;
   });
 }

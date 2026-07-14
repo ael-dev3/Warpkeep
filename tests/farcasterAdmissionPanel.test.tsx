@@ -22,11 +22,13 @@ afterEach(() => {
 
 describe('FarcasterAdmissionPanel', () => {
   it('renders the exact denied copy with a secure Farcaster request-access link', () => {
+    const onBackToMenu = vi.fn();
     const onCheckAgain = vi.fn();
     const onSignOut = vi.fn();
     render(
       <FarcasterAdmissionPanel
         identity={identity}
+        onBackToMenu={onBackToMenu}
         onCheckAgain={onCheckAgain}
         onSignOut={onSignOut}
         phase="denied"
@@ -50,8 +52,10 @@ describe('FarcasterAdmissionPanel', () => {
     expect(requestAccess.getAttribute('referrerpolicy')).toBe('no-referrer');
 
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }));
     expect(onCheckAgain).toHaveBeenCalledTimes(1);
+    expect(onBackToMenu).toHaveBeenCalledTimes(1);
     expect(onSignOut).toHaveBeenCalledTimes(1);
   });
 
@@ -59,6 +63,7 @@ describe('FarcasterAdmissionPanel', () => {
     render(
       <FarcasterAdmissionPanel
         identity={identity}
+        onBackToMenu={vi.fn()}
         onCheckAgain={vi.fn()}
         onSignOut={vi.fn()}
         phase="error"
@@ -74,6 +79,7 @@ describe('FarcasterAdmissionPanel', () => {
     render(
       <FarcasterAdmissionPanel
         identity={identity}
+        onBackToMenu={vi.fn()}
         onCheckAgain={vi.fn()}
         onSignOut={vi.fn()}
         phase="checking-admission"

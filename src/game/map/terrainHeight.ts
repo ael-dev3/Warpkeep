@@ -4,11 +4,12 @@ import {
   worldToNearestAxial,
   type HexWorldPosition
 } from './hexCoordinates';
-import { terrainCellByCoord } from './generateTerrainMap';
+import { createTerrainCellForCoord, terrainCellByCoord } from './generateTerrainMap';
 import { deriveChannelSeed, seededSignedFloat, seededUnitFloat } from './realmSeed';
 import {
-  HEGEMONY_TERRAIN_PLACEMENTS,
+  EMPTY_TERRAIN_PLACEMENTS,
   placementInfluenceAtWorld,
+  terrainPlacementsForCell,
   type TerrainStructurePlacement
 } from './terrainPlacements';
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
@@ -131,21 +132,24 @@ export function terrainHeightForCell(
   cell: TerrainCell,
   world: HexWorldPosition,
   hexSize: number,
-  placements: readonly TerrainStructurePlacement[] = HEGEMONY_TERRAIN_PLACEMENTS
+  placements: readonly TerrainStructurePlacement[] = EMPTY_TERRAIN_PLACEMENTS
 ): number {
   const center = axialToWorld(cell.coord, hexSize);
   const local = { x: finite(world.x) - center.x, z: finite(world.z) - center.z };
   const naturalHeight = globalLowlandHeight(worldSeed, world) + cellInteriorDetail(cell, local, hexSize);
   let height = naturalHeight;
 
-  placements.forEach((placement) => {
-    if (placement.coord.q !== cell.coord.q || placement.coord.r !== cell.coord.r) return;
+  const placementCoord = worldToNearestAxial(world, hexSize);
+  terrainPlacementsForCell(placements, placementCoord, hexSize).forEach((placement) => {
     const influence = placementInfluenceAtWorld(placement, world, hexSize);
     if (influence <= 0) return;
     const placementCenter = axialToWorld(placement.coord, hexSize);
     const targetLocal = { x: 0, z: 0 };
+    const placementCell = placement.coord.q === cell.coord.q && placement.coord.r === cell.coord.r
+      ? cell
+      : createTerrainCellForCoord(worldSeed, placement.coord);
     const targetHeight = globalLowlandHeight(worldSeed, placementCenter)
-      + cellInteriorDetail(cell, targetLocal, hexSize);
+      + cellInteriorDetail(placementCell, targetLocal, hexSize);
     height += (targetHeight - height) * influence;
   });
   return height;
@@ -155,7 +159,7 @@ export function terrainHeightAtWorld(
   map: RealmTerrainMap,
   world: HexWorldPosition,
   hexSize: number = hegemonyLowlandsSurfaceSpec.hexSize,
-  placements: readonly TerrainStructurePlacement[] = HEGEMONY_TERRAIN_PLACEMENTS
+  placements: readonly TerrainStructurePlacement[] = EMPTY_TERRAIN_PLACEMENTS
 ): number {
   const nearest = worldToNearestAxial(world, hexSize);
   const cell = terrainCellByCoord(map, nearest);

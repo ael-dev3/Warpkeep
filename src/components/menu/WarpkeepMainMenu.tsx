@@ -37,6 +37,7 @@ export type AuthRailRenderControls = Readonly<{
   headingRef: Ref<HTMLHeadingElement>;
   primaryActionRef: Ref<HTMLButtonElement>;
   onCheckAgain: () => void;
+  onBackToMenu: () => void;
   onPresentationReady: () => void;
 }>;
 
@@ -61,6 +62,8 @@ export type WarpkeepMainMenuProps = {
   rememberDevice?: boolean;
   onRememberDeviceChange?: (remember: boolean) => void;
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
+  /** Fired only after the player checks and submits the Alpha Terms dialog. */
+  onAcceptAlphaTermsAttempt?: () => void;
   /** Renders an admission rail whose retry is owned by the Terms gate. */
   renderAuthRailContent?: (controls: AuthRailRenderControls) => ReactNode;
   onRequestAuthRailCheck?: () => void;
@@ -223,6 +226,7 @@ export function WarpkeepMainMenu({
   rememberDevice = false,
   onRememberDeviceChange,
   onRequestAuthenticatedRealm,
+  onAcceptAlphaTermsAttempt,
   renderAuthRailContent,
   onRequestAuthRailCheck,
   authRailAttemptFailed = false,
@@ -522,20 +526,20 @@ export function WarpkeepMainMenu({
         return;
       }
 
+      // Mounted modal surfaces own their complete keyboard boundary, including
+      // Escape. Let their capture listener close exactly once and restore the
+      // command that opened them through the corresponding close callback.
+      if (termsOpen || surface === 'settings' || surface === 'credits') {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
       lastActionModalityRef.current = 'keyboard';
-      if (termsOpen) {
-        event.stopImmediatePropagation();
-        closeTerms();
-      } else if (activeNotice) {
+      if (activeNotice) {
         setActiveNotice(null);
       } else if (authPanelOpen) {
         closeAuthPanel(true);
-      } else if (surface === 'settings') {
-        closeSettings();
-      } else if (surface === 'credits') {
-        closeCredits();
       } else {
         handleRequestReturn();
       }
@@ -543,7 +547,7 @@ export function WarpkeepMainMenu({
 
     document.addEventListener('keydown', handleEscape, true);
     return () => document.removeEventListener('keydown', handleEscape, true);
-  }, [activeNotice, authPanelOpen, closeAuthPanel, closeCredits, closeSettings, closeTerms, handleRequestReturn, interactive, surface, termsOpen]);
+  }, [activeNotice, authPanelOpen, closeAuthPanel, handleRequestReturn, interactive, surface, termsOpen]);
 
   const handleVideoReady = useCallback(() => {
     setVideoState('ready');
@@ -662,6 +666,8 @@ export function WarpkeepMainMenu({
       return;
     }
 
+    onAcceptAlphaTermsAttempt?.();
+
     openAuthPanel(request.keyboardDriven);
     if (request.continuation === 'begin-sign-in') {
       authAttemptStartedRef.current = true;
@@ -684,6 +690,7 @@ export function WarpkeepMainMenu({
     }
   }, [
     authenticatedIdentity,
+    onAcceptAlphaTermsAttempt,
     onRequestAuthenticatedRealm,
     onRequestEnterRealm,
     onRequestFarcasterSignIn,
@@ -940,6 +947,7 @@ export function WarpkeepMainMenu({
               headingRef: authHeadingRef,
               primaryActionRef: authPrimaryActionRef,
               onCheckAgain: handleAuthRailCheck,
+              onBackToMenu: handleBackToCommands,
               onPresentationReady: handleAuthPanelPresentationReady
             }) ?? (
               <FarcasterQrAuthPanel

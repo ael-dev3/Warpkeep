@@ -6,8 +6,9 @@ import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
+  PROTECTED_AGGREGATE_STAGE,
   protectedAggregateChildArguments,
-  verifyExpectedAlphaAggregate,
+  verifyExpectedAlphaV2Aggregate,
 } from './verify-alpha-production.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -327,7 +328,7 @@ export function parseMigrationProofReceipt(output) {
     fail('The current additive migration proof did not produce its exact success receipt.');
   }
   const successLines = output.split(/\r?\n/).filter(line => (
-    line.startsWith('Additive protocol-v2 migration proof passed with SpacetimeDB 2.6.1:')
+    line.startsWith('Additive protocol-v3 migration proof passed with SpacetimeDB 2.6.1:')
   ));
   const digestMatches = [...output.matchAll(/\bartifact_sha256=([0-9a-f]{64})(?=\s|$)/g)];
   if (
@@ -355,7 +356,7 @@ export function runCurrentAdditiveMigrationProof(executable, spawnSyncProcess = 
   return parseMigrationProofReceipt(result.stdout);
 }
 
-export function verifyFreshLegacyAggregate(
+export function verifyFreshProtocolV2Aggregate(
   secret,
   spawnSyncProcess = spawnSync,
 ) {
@@ -366,7 +367,7 @@ export function verifyFreshLegacyAggregate(
   const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
   const result = runBoundedSync(
     process.execPath,
-    protectedAggregateChildArguments(tsxCli, false),
+    protectedAggregateChildArguments(tsxCli, PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2),
     {
       env: {
         WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
@@ -382,7 +383,7 @@ export function verifyFreshLegacyAggregate(
     },
     spawnSyncProcess,
   );
-  verifyExpectedAlphaAggregate(result.stdout);
+  verifyExpectedAlphaV2Aggregate(result.stdout);
 }
 
 export async function publishModule(
@@ -497,7 +498,7 @@ async function main() {
   }
   await validateIssuerDeployment(issuer);
   attestCanonicalDatabase(executable);
-  verifyFreshLegacyAggregate(process.env.WARPKEEP_ADMIN_TOKEN_SECRET);
+  verifyFreshProtocolV2Aggregate(process.env.WARPKEEP_ADMIN_TOKEN_SECRET);
   await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
 }
 

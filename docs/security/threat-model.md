@@ -102,7 +102,8 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Player OIDC access JWT | JavaScript-memory-only confidentiality; exact auth version/claims; 600-second maximum; positive epoch enforcement. |
 | Session-family cookie and Durable Object state | `__Host-`, Secure, HttpOnly, SameSite=Strict; integrity-protected rotating reference; server-side expiry/revocation. |
 | Browser logout-intent tombstone | Non-secret, base-path scoped marker/timestamp only; no FID, proof, token, cookie, family ID, or profile data; 30-day maximum and explicit Terms-gated activation clearing. |
-| Alpha Terms acceptance | Unchecked by default, component-memory only, one entry attempt, no identity or cross-tab/persistent representation. |
+| Alpha Terms gate state | Unchecked by default, component-memory only, one entry attempt, no identity or cross-tab/persistent representation. |
+| Versioned Alpha Terms acceptance evidence | Private immutable FID/version/time row only after authenticated player acceptance; never a public projection and never contains proof, QR, token, cookie, signature, or wallet data. |
 | Worker-to-SpacetimeDB resolver JWT | Server-only, Worker-minted 15 seconds, module rejection ceiling 60 seconds, exact resolver subject/sole role and one-FID binding, fixed Worker destination, never logged. |
 | ES256 private signing key | Worker-managed secret only; absent from source, browser, artifacts, and logs. |
 | Hermes admin secret | Operator/Worker secret only; never placed in browser code, process output, or repository. |
@@ -257,6 +258,11 @@ creation, and world state. Anonymous visitors do not open a database connection.
   acceptance or authorization intent. The concise notice links to standalone
   Alpha Terms and a Privacy Notice; neither the gate nor those project-authored
   documents substitutes for formal legal/privacy review.
+- After an admitted player authenticates and submits the exact current version,
+  SpacetimeDB records private immutable FID/version/time evidence before opening
+  the realm subscription. Cancelling an in-flight acknowledgement prevents its
+  completion from activating a subscription; it does not attempt to erase an
+  already-committed audit row.
 - An access bearer exists only in JavaScript memory and expires within 600
   seconds. It is never persisted to localStorage, IndexedDB, a URL, or a
   browser-readable cookie.
@@ -335,6 +341,11 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
 | Whitelist bypass or private-row disclosure | Module-side admission and v2 private ownership checks on every protected operation; private tables/bindings; exact-zero legacy-player publication gate | Public world/player-v2/castle projections remain intentionally observable. Arbitrary old clients can request the frozen public legacy player table, so it must remain empty; any nonzero preflight count blocks publication. |
+| Browser supplies a spoofed profile or wallet link | Profile and wallet snapshots are accepted only through exact fresh Hermes authority, re-sanitized by the module, and separated into public presentation versus private attribution tables | Trusted Farcaster data can still be stale or incorrect; refresh and correction remain operator responsibilities. |
+| Ambiguous or forged burn credit | Two-provider `eth_chainId` and finalized-block agreement, exact raw-log agreement (including the opaque indexed word), reconciled upgrade history, per-event-block implementation/code/hash attestation, atomic wallet snapshot generations, unique indexed event/burn references, and a two-phase batch that advances its cursor only after exact receipt reconciliation | RPC/provider compromise, a contract upgrade, reorg evidence, attribution ambiguity, or a mismatched frozen total stops crediting and requires review; the module cannot independently query Ethereum, and recovery from an incorrectly planned pending batch remains a reviewed operator action. |
+| Wallet or burn receipt leaks into the browser | Private attribution, snapshot, receipt, batch, cursor, claim, Terms-acceptance, and authoritative Mark tables have no public subscription path; admin reconciliation returns counts only and public profiles contain aggregate values only | Public Ethereum events and public Farcaster wallet links remain observable at their original sources. Linking them to a FID inside Warpkeep creates private operator data that needs retention/deletion review. |
+| External Farcaster avatar tracks a player view | HTTPS-only sanitized avatar URLs and a no-referrer image request policy | The external image host still receives ordinary connection data such as IP address and timing. |
+| Game Marks are mistaken for money or a promised reward | Game-only, non-transferable, non-redeemable/no-cash-value product copy; no wallet connection, approval, payment, custody, or browser scanning | Project-authored Alpha copy is not legal advice; formal legal/privacy review remains required before widening use. |
 | Logout revocation-store failure | Generic `503`, current-cookie expiry, static failure event, and non-secret 30-day browser tombstone that blocks all refresh until explicit Terms-gated activation | A denied tombstone write plus failed server revocation can leave a later storage-enabled context able to resume a copied cookie until family expiry; investigate without logging identifiers or cookie material. |
 | Worker memory/cost exhaustion | Streaming bounds, timeouts, early challenge claim, per-client rate control, and storage cleanup | Aggregate account quotas, telemetry, and alerting remain operational requirements. |
 | Malicious dependency or workflow step obtains deployment authority | Lockfiles, audits, required action SHA pins, checksum verification, job privilege split, and protected `main` required checks | Commit signatures remain disabled; security-update remediation needs a private workflow while automated security PRs are intentionally off. |
@@ -354,8 +365,12 @@ creation, and world state. Anonymous visitors do not open a database connection.
   remains a residual when server revocation also fails: a future context where
   storage works cannot discover a tombstone that was never written.
 - Public game projections are observable to admitted authenticated clients by
-  design; privacy classification must be revisited as state expands. Missing
-  and disabled users receive no access token and cannot connect.
+  design. The protocol-3 candidate adds trusted public Farcaster presentation
+  and, only after intentional entry, aggregate SNAP-burn and Mark figures.
+  Wallet associations, individual burn receipts, private claims, and
+  authoritative balances remain private. Privacy classification and retention
+  must be revisited as state expands. Missing and disabled users receive no
+  access token and cannot connect.
 - The resolver lifecycle exception is required by SpacetimeDB's HTTP procedure
   execution order. A stolen production resolver token presented within its
   15-second lifetime can establish public subscriptions that may persist until
@@ -429,8 +444,8 @@ SpacetimeDB coordinates with separately authorized additive publication,
 deployment, and public-gate changes. It used the Keychain-backed counts-only
 aggregate throughout. It did not expose or rotate a production secret, mutate
 admission, player, ownership, castle, allowlist, or world data, admit a real
-FID, inspect owner identity or credential material, perform high-volume
-production testing, audit
+FID, inspect owner identity or credential material, scan or credit a production
+wallet, perform high-volume production testing, audit
 Farcaster/Cloudflare/GitHub/SpacetimeDB internals, or assess game art, layout,
 and unrelated gameplay design. One owner approved the bounded SIWF canary; only
 privacy-safe state transitions were observed and recorded.

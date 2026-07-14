@@ -82,6 +82,10 @@
   text-wrap: balance;
 }
 
+.warpkeep-alpha-terms__header h2:focus {
+  outline: none;
+}
+
 .warpkeep-alpha-terms__form {
   display: grid;
   gap: 1.35rem;
@@ -202,7 +206,7 @@
 
 @media (max-width: 520px) {
   .warpkeep-alpha-terms {
-    place-items: stretch;
+    place-items: center stretch;
     padding:
       max(0.5rem, env(safe-area-inset-top))
       max(0.5rem, env(safe-area-inset-right))

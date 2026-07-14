@@ -37,9 +37,11 @@ describe('AlphaParticipationTermsDialog', () => {
       'Warpkeep Alpha is experimental and currently developed by one person. Features, rules, availability, and progress may change or be reset at any time.'
     )).not.toBeNull();
     expect(screen.getByText(
-      'Participation will not earn or entitle you to rewards, tokens, points, airdrops, or guaranteed financial gain.'
+      'Participation alone will not earn tokens, airdrops, external rewards, or guaranteed financial gain. Experimental in-game Marks have no cash value and may change or reset.'
     )).not.toBeNull();
-    expect(screen.getByText('There is no promise of future rewards.')).not.toBeNull();
+    expect(screen.getByText(
+      'There is no promise of a future reward, payment, or profit.'
+    )).not.toBeNull();
 
     const heading = screen.getByRole('heading', {
       level: 2,

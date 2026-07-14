@@ -28,7 +28,7 @@
             This notice describes the personal data the current Warpkeep Alpha is designed to use,
             why it is used, where it goes, and the limits of retention and deletion.
           </p>
-          <p class="legal-page__version">Version 0.3.1 · Last updated 14 July 2026</p>
+          <p class="legal-page__version">Version 0.3.2 · Last updated 14 July 2026</p>
           <p class="legal-page__notice">
             This is a factual, project-authored Alpha notice, not a legal-compliance certification
             or legal advice. Formal privacy review and a dedicated legal contact remain future work.
@@ -64,7 +64,9 @@
               authentication, read a Warpkeep session cookie, or connect to SpacetimeDB. Selecting
               <strong>Enter Realm</strong> first opens an unchecked terms gate. Authentication begins
               only after you check the box and continue. The gate state exists only in component
-              memory and is not an identity record or blanket consent to unrelated data uses.
+              memory and is not itself an identity record or blanket consent to unrelated data
+              uses. After an admitted player authenticates, the game records separate private,
+              versioned acceptance evidence as described below.
             </p>
             <p>
               Hosting and network providers may still receive ordinary request data when your
@@ -78,10 +80,20 @@
               <li>
                 <strong>Farcaster sign-in:</strong> your browser and Farcaster provide a signed
                 sign-in message, signature, request identifiers, and public FID so Warpkeep can
-                verify account control. Farcaster's relay may return public username, display-name,
-                avatar, custody, or verification data transiently to the browser, but the v2 bridge
-                accepts, stores, and issues only the verified FID as identity. Optional public
-                profile fields are rejected from the server session and current player write.
+                verify account control. The authentication bridge accepts, stores, and issues only
+                the verified FID as session identity. Separately, trusted Farcaster network data
+                may supply the admitted player's current public username, display name, avatar,
+                bio, custody address, and verified EVM addresses. Presentation fields may be
+                copied into public realm state; wallet associations remain private operator state
+                and are never accepted from the browser as authoritative.
+              </li>
+              <li>
+                <strong>Alpha Terms acceptance:</strong> after an admitted player checks the gate,
+                authenticates, and requests entry, SpacetimeDB stores private, immutable evidence
+                containing the verified FID, exact Terms version, and acceptance time. This is
+                used to enforce the current entry terms and preserve an audit trail. It is not a
+                public projection and does not contain the checkbox state, QR payload, proof,
+                signature, token, cookie, or wallet information.
               </li>
               <li>
                 <strong>Browser and session security:</strong> Warpkeep uses an origin, challenge
@@ -108,12 +120,28 @@
               <li>
                 <strong>Realm data:</strong> SpacetimeDB stores admission, ownership, world, player,
                 castle, and administrative state needed to operate and secure the shared
-                Alpha. Active public player/game projections can expose an admitted player's FID
-                and gameplay presentation to connected clients. The active-v2 opaque-identity
-                ownership mapping, allowlist, and administrative audit rows are private. A frozen
-                legacy public player schema still contains its original public opaque-identity
-                column for wire compatibility. Protocol v2 never reads, writes, or subscribes to
-                that table, and production verification requires it to remain empty.
+                Alpha. Active public player/game projections can expose an admitted player's FID,
+                trusted Farcaster presentation, castle, and gameplay presentation to connected
+                clients. After the player's first intentional Alpha entry, public presentation may
+                also include aggregate SNAP burned and Mark earned, spent, and balance figures.
+                The opaque-identity ownership mapping, allowlist, slot claim, authoritative Mark
+                account, and administrative audit rows are private. A frozen legacy public player
+                schema still contains its original public opaque-identity column for wire
+                compatibility. The current protocol never reads, writes, or subscribes to that
+                table, and production verification requires it to remain empty.
+              </li>
+              <li>
+                <strong>SNAP burns and Marks:</strong> a privacy-bounded operator process may read
+                finalized public Ethereum mainnet events for the pinned SNAP contract and current
+                public Farcaster wallet associations for admitted FIDs. It credits an event only
+                when one eligible sender address maps to exactly one admitted FID. Private state
+                can retain the wallet attribution, transaction and block references, scan cursor,
+                and immutable credit receipt needed for deduplication, correction, and audit. The
+                browser never scans wallets and never receives wallet addresses or individual
+                burn receipts. Warpkeep does not connect a wallet, request a signature or token
+                approval, submit a transaction, take custody, or receive a payment through this
+                process. Marks are experimental game-only accounting units: non-transferable,
+                non-redeemable, without cash value, and subject to correction or reset.
               </li>
               <li>
                 <strong>Operations:</strong> Warpkeep emits a closed list of generic security and
@@ -125,8 +153,9 @@
             <p>
               These data are used only to deliver requested Alpha access and gameplay, verify and
               authorize players, keep sessions, prevent abuse, protect the service, diagnose safe
-              operational failures, and meet applicable legal obligations. Warpkeep's code does not
-              currently add advertising or analytics and the project does not sell player data.
+              operational failures, reconcile the published game-accounting policy, and meet
+              applicable legal obligations. Warpkeep's code does not currently add advertising or
+              analytics and the project does not sell player data.
             </p>
           </section>
 
@@ -161,6 +190,10 @@
                     <td>Component memory for one entry attempt; cleared on cancel, completion, retry, navigation, or unmount.</td>
                   </tr>
                   <tr>
+                    <td>Versioned Alpha Terms acceptance evidence</td>
+                    <td>No fixed Alpha deletion schedule yet. The private FID, exact Terms version, and acceptance time remain while needed to enforce entry terms, resolve disputes, protect the service, and preserve the Alpha audit trail, unless reset or manually deleted.</td>
+                  </tr>
+                  <tr>
                     <td>Sign-in challenge and browser-binding digest</td>
                     <td>Usable for at most five minutes and consumed on a definitive exchange. Expiry makes it unusable and schedules durable cleanup; physical deletion can be subject to provider cleanup and backup retention.</td>
                   </tr>
@@ -192,6 +225,14 @@
                     <td>Game, ownership, admission, and administrative state</td>
                     <td>No fixed Alpha deletion schedule yet. It remains while needed for the shared realm, security, and audit, unless reset or manually deleted.</td>
                   </tr>
+                  <tr>
+                    <td>Trusted Farcaster profile and wallet-attribution snapshot</td>
+                    <td>No fixed Alpha deletion schedule yet. Current public presentation may remain in replicated game state; wallet associations remain private and are retained only while needed for attribution, correction, security, and audit.</td>
+                  </tr>
+                  <tr>
+                    <td>Finalized SNAP burn receipts, scan cursor, and Mark account</td>
+                    <td>No fixed Alpha deletion schedule yet. Private receipts and chain references may remain for deduplication, reproducibility, correction, security, and audit. Only privacy-bounded aggregate figures become public game state.</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -210,9 +251,12 @@
             <h2 id="recipients-transfers">6. Services, recipients, and locations</h2>
             <p>
               The Alpha depends on GitHub Pages for the public site, Cloudflare for the auth bridge
-              and durable session/security state, Farcaster and an Optimism RPC service for account
-              verification, and Clockwork Labs' SpacetimeDB Maincloud for shared realm state.
-              Connected clients receive the public game projections described above. These
+              and durable session/security state, Farcaster network services and an Optimism RPC
+              service for account verification, Ethereum RPC providers for bounded finalized-event
+              reconciliation, and Clockwork Labs' SpacetimeDB Maincloud for shared realm state.
+              Connected clients receive the public game projections described above. A public
+              Farcaster avatar may be loaded from its HTTPS host with a no-referrer browser policy;
+              that host still receives ordinary request data such as the connecting IP. These
               independent services handle data under their own terms and privacy notices.
             </p>
             <p>
@@ -244,10 +288,12 @@
             <h2 id="automation-finance">8. Automated checks and no financial decisions</h2>
             <p>
               Automated rules validate challenges, apply rate limits, check Alpha admission, and
-              revoke invalid sessions. Those rules affect only technical access to this experimental
-              realm. Warpkeep does not use player data for credit scoring, behavioral advertising,
-              or automated decisions that award, promise, or determine financial rewards,
-              airdrops, or guaranteed gains. Alpha participation earns none of those benefits.
+              revoke invalid sessions. Deterministic rules can also quarantine ambiguous burn
+              attribution and apply the published 1:1 decimal-unit conversion to eligible finalized
+              events. Those rules affect only technical access and experimental game accounting.
+              Warpkeep does not use player data for credit scoring, behavioral advertising, or
+              automated decisions that award, promise, or determine financial rewards, airdrops,
+              or guaranteed gains. Alpha participation earns none of those benefits.
             </p>
           </section>
 

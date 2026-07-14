@@ -20,7 +20,7 @@ type CastleLink = Readonly<{
 }>;
 
 /**
- * Bounded bidirectional integrity check for the fixed 61-tile Alpha world.
+ * Bounded bidirectional integrity check for the fixed Genesis 001 world.
  * A castle and its occupied tile must name each other and share coordinates;
  * canonical terrain must not be missing, duplicated, or replaced.
  */

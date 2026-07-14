@@ -2,11 +2,11 @@ import { SenderError, t } from 'spacetimedb/server';
 
 import type { WarpkeepJwtClaims } from '../claims';
 import { evaluateAdmissionEpoch } from '../admissionPolicy';
-import { requireAllowedFid, requireWarpkeepJwt } from '../auth';
+import { requireAdmittedPlayer, requireAllowedFid, requireWarpkeepJwt } from '../auth';
+import { assertGenesisFounderForFid } from '../foundingAuthority';
+import { WARPKEEP_ALPHA_TERMS_VERSION } from '../marksAuthorityPolicy';
 import { evaluatePlayerOwnership } from '../playerOwnershipPolicy';
 import warpkeep from '../schema';
-import { CANONICAL_WORLD_TILES } from '../world';
-import { worldCastleGraphIsConsistent } from '../worldCastleIntegrity';
 
 export type AdmissionStatus =
   | 'not_admitted'
@@ -21,9 +21,7 @@ function admissionStatusV2(ctx: Parameters<typeof requireWarpkeepJwt>[0]): Admis
 
   if (decision === 'missing') return 'not_admitted';
   if (decision !== 'current') return 'disabled';
-  if (!worldCastleGraphIsConsistent(ctx.db.worldTile.iter(), ctx.db.castle.iter())) {
-    throw new SenderError('STATE_INTEGRITY');
-  }
+  assertGenesisFounderForFid(ctx, claims.fid);
 
   const player = ctx.db.playerV2.fid.find(claims.fid);
   const ownership = ctx.db.playerOwnershipV2.fid.find(claims.fid);
@@ -34,13 +32,11 @@ function admissionStatusV2(ctx: Parameters<typeof requireWarpkeepJwt>[0]): Admis
   );
   if (ownershipState === 'unbound') {
     if (ctx.db.playerOwnershipV2.identity.find(ctx.sender) !== null) return 'disabled';
-    if (ctx.db.castle.ownerFid.find(claims.fid) !== null) return 'disabled';
     return 'admitted_needs_bootstrap';
   }
   if (ownershipState !== 'current') return 'disabled';
 
-  const castle = ctx.db.castle.ownerFid.find(claims.fid);
-  return castle === null ? 'disabled' : 'ready';
+  return 'ready';
 }
 
 /** Retained wire contract for old clients, but protocol-v1 admission is retired. */
@@ -58,21 +54,11 @@ export const getMyAdmissionStatusV2 = warpkeep.procedure(
   ctx => ctx.withTx(tx => admissionStatusV2(tx)),
 );
 
-function firstUnoccupiedTile(ctx: Parameters<typeof requireWarpkeepJwt>[0]) {
-  for (const tile of CANONICAL_WORLD_TILES) {
-    const row = ctx.db.worldTile.key.find(tile.key);
-    if (row !== null && row.occupantCastleId === undefined) {
-      return row;
-    }
-  }
-
-  throw new SenderError('WORLD_FULL');
-}
-
 function assertExistingPlayerV2Consistency(
   ctx: Parameters<typeof requireWarpkeepJwt>[0],
   claims: WarpkeepJwtClaims,
 ): void {
+  assertGenesisFounderForFid(ctx, claims.fid);
   const existingPlayer = ctx.db.playerV2.fid.find(claims.fid);
   const existingOwnership = ctx.db.playerOwnershipV2.fid.find(claims.fid);
   const ownershipState = evaluatePlayerOwnership(
@@ -85,9 +71,6 @@ function assertExistingPlayerV2Consistency(
     if (ctx.db.playerOwnershipV2.identity.find(ctx.sender) !== null) {
       throw new SenderError('IDENTITY_MISMATCH');
     }
-    if (ctx.db.castle.ownerFid.find(claims.fid) !== null) {
-      throw new SenderError('STATE_INTEGRITY');
-    }
     return;
   }
 
@@ -99,9 +82,6 @@ function assertExistingPlayerV2Consistency(
     throw new SenderError('IDENTITY_MISMATCH');
   }
 
-  if (ctx.db.castle.ownerFid.find(claims.fid) === null) {
-    throw new SenderError('STATE_INTEGRITY');
-  }
 }
 
 /**
@@ -116,21 +96,25 @@ export const bootstrapPlayer = warpkeep.reducer(
 );
 
 /**
- * Atomic and idempotent: it derives the account key from the bridge JWT,
- * allocates the center tile first, and commits the v2 ownership/projection,
- * castle, and occupancy together without touching the frozen legacy player.
+ * Atomic and idempotent: it derives the account key from the bridge JWT and
+ * links the already-founded permanent assignment. Admission never fabricates
+ * an Identity and first authentication never moves or recreates the castle.
  */
 export const bootstrapPlayerV2 = warpkeep.reducer(
   { name: 'bootstrap_player_v2' },
   ctx => {
     const { claims } = requireAllowedFid(ctx);
-    if (!worldCastleGraphIsConsistent(ctx.db.worldTile.iter(), ctx.db.castle.iter())) {
-      throw new SenderError('STATE_INTEGRITY');
-    }
     assertExistingPlayerV2Consistency(ctx, claims);
-    if (ctx.db.playerV2.fid.find(claims.fid) !== null) return;
+    if (ctx.db.playerV2.fid.find(claims.fid) !== null) {
+      const existingProfile = ctx.db.realmProfileV1.fid.find(claims.fid);
+      if (existingProfile?.firstAuthenticatedAt === undefined) {
+        throw new SenderError('STATE_INTEGRITY');
+      }
+      return;
+    }
 
-    const spawn = firstUnoccupiedTile(ctx);
+    const profile = ctx.db.realmProfileV1.fid.find(claims.fid);
+    if (profile === null) throw new SenderError('STATE_INTEGRITY');
     ctx.db.playerOwnershipV2.insert({
       fid: claims.fid,
       identity: ctx.sender,
@@ -143,24 +127,59 @@ export const bootstrapPlayerV2 = warpkeep.reducer(
       username: undefined,
       displayName: undefined,
       pfpUrl: undefined,
-      joinedAt: ctx.timestamp,
+      joinedAt: profile.admittedAt,
       status: 'active',
     });
-
-    const insertedCastle = ctx.db.castle.insert({
-      castleId: 0n,
-      ownerFid: claims.fid,
-      tileKey: spawn.key,
-      q: spawn.q,
-      r: spawn.r,
-      level: 1,
-      name: `Hegemony Keep ${claims.fid.toString()}`,
-      createdAt: ctx.timestamp,
+    ctx.db.realmProfileV1.fid.update({
+      ...profile,
+      firstAuthenticatedAt: profile.firstAuthenticatedAt ?? ctx.timestamp,
+      profileUpdatedAt: ctx.timestamp,
     });
+  },
+);
 
-    ctx.db.worldTile.key.update({
-      ...spawn,
-      occupantCastleId: insertedCastle.castleId,
+/**
+ * Records the explicit current Alpha agreement after genuine authentication.
+ * This is the only player transition that makes private Mark aggregates public.
+ */
+export const acceptAlphaTermsV1 = warpkeep.reducer(
+  { name: 'accept_alpha_terms_v1' },
+  { termsVersion: t.string(), accepted: t.bool() },
+  (ctx, { termsVersion, accepted }) => {
+    const { claims } = requireAdmittedPlayer(ctx);
+    if (!accepted || termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION) {
+      throw new SenderError('ALPHA_TERMS_REQUIRED');
+    }
+    const profile = ctx.db.realmProfileV1.fid.find(claims.fid);
+    const account = ctx.db.markAccountV1.fid.find(claims.fid);
+    if (profile === null || account === null || profile.firstAuthenticatedAt === undefined) {
+      throw new SenderError('STATE_INTEGRITY');
+    }
+    const acceptanceKey = `${claims.fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`;
+    const existingAcceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(acceptanceKey);
+    if (existingAcceptance === null) {
+      ctx.db.alphaTermsAcceptanceV1.insert({
+        acceptanceKey,
+        fid: claims.fid,
+        termsVersion: WARPKEEP_ALPHA_TERMS_VERSION,
+        acceptedAt: ctx.timestamp,
+      });
+    } else if (
+      existingAcceptance.fid !== claims.fid
+      || existingAcceptance.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION
+    ) {
+      throw new SenderError('ALPHA_TERMS_ACCEPTANCE_CONFLICT');
+    }
+    if (profile.communityStatsVisible) return;
+    ctx.db.realmProfileV1.fid.update({
+      ...profile,
+      publicStatus: 'active',
+      communityStatsVisible: true,
+      totalSnapBurnedMicros: account.totalSnapBurnedMicros,
+      marksEarnedMicros: account.earnedMicros,
+      marksSpentMicros: account.spentMicros,
+      marksBalanceMicros: account.balanceMicros,
+      marksPolicyVersion: account.policyVersion,
     });
   },
 );

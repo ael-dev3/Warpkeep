@@ -1,0 +1,447 @@
+.realm-castle-labels {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.realm-castle-label {
+  position: absolute;
+  top: var(--realm-castle-label-y);
+  left: var(--realm-castle-label-x);
+  display: flex;
+  gap: 0.38rem;
+  align-items: center;
+  min-width: 2.5rem;
+  max-width: 8.25rem;
+  min-height: 2.5rem;
+  box-sizing: border-box;
+  padding: 0.2rem 0.52rem 0.2rem 0.2rem;
+  overflow: hidden;
+  border: 1px solid rgb(239 211 143 / 48%);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgb(18 29 22 / 94%), rgb(51 44 29 / 88%));
+  box-shadow: 0 0.38rem 1rem rgb(15 21 16 / 35%);
+  color: #fff4d9;
+  font: 720 0.68rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.realm-castle-label[data-compact='true'] {
+  width: 2.5rem;
+  padding: 0.16rem;
+}
+
+.realm-castle-label[data-own='true'] {
+  border-color: rgb(245 211 118 / 82%);
+  background: linear-gradient(135deg, rgb(75 61 31 / 96%), rgb(36 41 27 / 91%));
+}
+
+.realm-castle-label:hover,
+.realm-castle-label:focus-visible,
+.realm-castle-label[aria-pressed='true'] {
+  z-index: 2;
+  border-color: #ffe194;
+  outline: 2px solid #ffe194;
+  outline-offset: 2px;
+}
+
+.realm-castle-label > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.realm-castle-avatar {
+  --realm-avatar-size: 2rem;
+  display: grid;
+  flex: 0 0 var(--realm-avatar-size);
+  place-items: center;
+  width: var(--realm-avatar-size);
+  height: var(--realm-avatar-size);
+  overflow: hidden;
+  border: 1px solid rgb(255 235 179 / 58%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, hsl(var(--realm-avatar-hue) 55% 64%), transparent 38%),
+    hsl(var(--realm-avatar-hue) 32% 30%);
+  color: #fff8e3;
+  font-size: calc(var(--realm-avatar-size) * 0.39);
+  font-weight: 820;
+  line-height: 1;
+  text-shadow: 0 1px 4px rgb(0 0 0 / 52%);
+}
+
+.realm-castle-avatar[data-size='compact'] {
+  --realm-avatar-size: 2.08rem;
+}
+
+.realm-castle-avatar[data-size='large'] {
+  --realm-avatar-size: 3.8rem;
+}
+
+.realm-castle-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.castle-inspection {
+  position: absolute;
+  z-index: 6;
+  top: max(clamp(0.75rem, 2vw, 1.7rem), env(safe-area-inset-top));
+  right: max(clamp(0.75rem, 2vw, 1.7rem), env(safe-area-inset-right));
+  width: min(23rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 6.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  color: #f8efd8;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.castle-inspection details {
+  overflow: hidden;
+  border: 1px solid rgb(235 206 128 / 38%);
+  border-radius: 0.22rem;
+  background: linear-gradient(145deg, rgb(17 27 21 / 94%), rgb(41 39 27 / 90%));
+  box-shadow: 0 0.9rem 3rem rgb(12 20 15 / 38%);
+  backdrop-filter: blur(13px) saturate(1.08);
+}
+
+.castle-inspection summary {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.12rem 0.6rem;
+  min-height: 3rem;
+  box-sizing: border-box;
+  padding: 0.62rem 0.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.castle-inspection summary::-webkit-details-marker {
+  display: none;
+}
+
+.castle-inspection summary > span {
+  grid-column: 1;
+  color: #c6d1bc;
+  font-size: 0.58rem;
+  font-weight: 760;
+  letter-spacing: 0.16em;
+}
+
+.castle-inspection summary > strong {
+  grid-column: 1;
+  overflow: hidden;
+  color: #f3d889;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.92rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.castle-inspection summary > small {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: #bec8b7;
+  font-size: 0.57rem;
+  text-transform: uppercase;
+}
+
+.castle-inspection summary:hover,
+.castle-inspection summary:focus-visible {
+  outline: 2px solid #f0d27e;
+  outline-offset: -3px;
+}
+
+.castle-inspection__body {
+  max-height: calc(100vh - 10.1rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding: 0.15rem 0.8rem 0.82rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.castle-inspection__close {
+  display: none;
+}
+
+.castle-inspection__identity {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-top: 1px solid rgb(239 215 151 / 16%);
+  border-bottom: 1px solid rgb(239 215 151 / 16%);
+}
+
+.castle-inspection__identity > div {
+  min-width: 0;
+}
+
+.castle-inspection__identity p,
+.castle-inspection__identity h2,
+.castle-inspection__identity span,
+.castle-inspection__identity small {
+  display: block;
+  margin: 0;
+}
+
+.castle-inspection__identity p {
+  color: #c6d1bc;
+  font-size: 0.55rem;
+  font-weight: 760;
+  letter-spacing: 0.15em;
+}
+
+.castle-inspection__identity h2 {
+  overflow: hidden;
+  color: #fff4d9;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.2rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.castle-inspection__identity span,
+.castle-inspection__identity small {
+  margin-top: 0.1rem;
+  color: #cbd1bf;
+  font-size: 0.64rem;
+}
+
+.castle-inspection__bio,
+.castle-inspection__marks > p {
+  margin: 0.62rem 0;
+  color: #d2d8c9;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.castle-inspection__profile-link {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  color: #f2d37c;
+  font-size: 0.65rem;
+  font-weight: 740;
+  letter-spacing: 0.05em;
+}
+
+.castle-inspection__profile-link:focus-visible {
+  outline: 2px solid #f0d27e;
+  outline-offset: 2px;
+}
+
+.castle-inspection__fields {
+  display: grid;
+  gap: 0;
+  margin: 0.45rem 0 0;
+}
+
+.castle-inspection__field {
+  display: grid;
+  grid-template-columns: minmax(7.8rem, 1fr) minmax(0, 1.25fr);
+  gap: 0.65rem;
+  padding: 0.38rem 0;
+  border-bottom: 1px solid rgb(235 215 164 / 11%);
+  font-size: 0.63rem;
+  line-height: 1.35;
+}
+
+.castle-inspection__field dt {
+  color: #aebba8;
+}
+
+.castle-inspection__field dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #f0e7d2;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.castle-inspection__marks {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgb(236 205 124 / 22%);
+}
+
+.castle-inspection__marks h3,
+.castle-inspection__policy {
+  margin: 0;
+  color: #d9bf76;
+  font-size: 0.57rem;
+  font-weight: 780;
+  letter-spacing: 0.14em;
+}
+
+.castle-inspection__policy {
+  margin-top: 0.55rem !important;
+  overflow-wrap: anywhere;
+}
+
+.castle-inspection__warp-preview {
+  margin-top: 0.75rem;
+}
+
+.castle-inspection__warp-preview button {
+  width: 100%;
+  min-height: 2.8rem;
+  border: 1px dashed rgb(239 204 113 / 56%);
+  border-radius: 0.13rem;
+  background: linear-gradient(135deg, rgb(76 64 38 / 78%), rgb(43 44 31 / 84%));
+  color: #e9d496;
+  font: 760 0.66rem/1.25 Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  cursor: help;
+}
+
+.castle-inspection__warp-preview button:hover,
+.castle-inspection__warp-preview button:focus-visible {
+  border-style: solid;
+  border-color: #f1d17a;
+  outline: 2px solid #f1d17a;
+  outline-offset: 2px;
+}
+
+.castle-inspection__warp-preview p {
+  max-height: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #f7e6b7;
+  font-size: 0.6rem;
+  font-weight: 680;
+  letter-spacing: 0.045em;
+  line-height: 1.45;
+  opacity: 0;
+}
+
+.castle-inspection__warp-preview p[data-visible='true'] {
+  max-height: 8rem;
+  margin-top: 0.55rem;
+  opacity: 1;
+}
+
+.realm-hud__marks {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.35rem 0.48rem;
+  border: 1px solid rgb(232 200 115 / 25%);
+  background: rgb(86 70 37 / 25%);
+}
+
+.realm-hud__marks picture,
+.realm-hud__marks img {
+  display: block;
+  flex: 0 0 2.35rem;
+  width: 2.35rem;
+  height: 2.35rem;
+}
+
+.realm-hud__marks span {
+  display: grid;
+  min-width: 0;
+}
+
+.realm-hud__marks small {
+  color: #bfcbb7;
+  font-size: 0.53rem;
+  font-weight: 760;
+  letter-spacing: 0.16em;
+}
+
+.realm-hud__marks strong {
+  overflow: hidden;
+  color: #f2d37d;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 0.94rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .castle-inspection {
+    top: auto;
+    right: max(0.55rem, env(safe-area-inset-right));
+    bottom: max(4.15rem, calc(env(safe-area-inset-bottom) + 3.6rem));
+    left: max(0.55rem, env(safe-area-inset-left));
+    width: auto;
+    max-height: min(64vh, 32rem);
+  }
+
+  .castle-inspection__body {
+    max-height: min(54vh, 27rem);
+  }
+
+  .castle-inspection__field {
+    grid-template-columns: minmax(6.8rem, 1fr) minmax(0, 1.2fr);
+  }
+
+  .realm-hud__marks {
+    position: static;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    padding: 0.25rem 0.38rem;
+  }
+
+  .castle-inspection__close {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    display: block;
+    width: 100%;
+    min-height: 2.65rem;
+    margin-bottom: 0.65rem;
+    border: 1px solid rgb(235 206 128 / 45%);
+    background: rgb(50 49 34 / 96%);
+    color: #f8e5b2;
+    font: 760 0.62rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: 0.11em;
+  }
+
+  .castle-inspection[data-open='true'] {
+    z-index: 8;
+  }
+
+  .realm-hud__marks picture,
+  .realm-hud__marks img {
+    flex-basis: 1.85rem;
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
+  .realm-hud__marks strong {
+    font-size: 0.76rem;
+  }
+}
+
+@media (max-height: 610px) and (min-width: 681px) {
+  .castle-inspection {
+    top: max(0.55rem, env(safe-area-inset-top));
+    right: max(0.55rem, env(safe-area-inset-right));
+    width: min(20rem, 47vw);
+    max-height: calc(100vh - 1.1rem);
+  }
+
+  .castle-inspection__body {
+    max-height: calc(100vh - 4.8rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .castle-inspection__warp-preview p {
+    transition: none;
+  }
+}

@@ -1,10 +1,16 @@
 import { hegemonyLowlandsSpec } from './hegemonyLowlandsSpec';
-import { axialToWorld, worldToFractionalAxial, type HexWorldPosition } from './hexCoordinates';
+import {
+  axialToWorld,
+  worldToFractionalAxial,
+  worldToNearestAxial,
+  type HexWorldPosition
+} from './hexCoordinates';
 import { deriveChannelSeed, seededUnitFloat } from './realmSeed';
 import { cellInteriorEdgeFalloff } from './terrainHeight';
 import {
-  HEGEMONY_TERRAIN_PLACEMENTS,
+  EMPTY_TERRAIN_PLACEMENTS,
   placementInfluenceAtWorld,
+  terrainPlacementsForCell,
   type TerrainStructurePlacement
 } from './terrainPlacements';
 import type { TerrainCell } from './terrainTypes';
@@ -92,11 +98,15 @@ export function sampleLowlandsColor(
     dryAmount
   );
 
-  const placements = context.placements ?? HEGEMONY_TERRAIN_PLACEMENTS;
-  const placementInfluence = Math.max(
-    0,
-    ...placements.map((placement) => placementInfluenceAtWorld(placement, world, hexSize))
-  );
+  const placements = context.placements ?? EMPTY_TERRAIN_PLACEMENTS;
+  const placementCoord = worldToNearestAxial(world, hexSize);
+  let placementInfluence = 0;
+  terrainPlacementsForCell(placements, placementCoord, hexSize).forEach((placement) => {
+    placementInfluence = Math.max(
+      placementInfluence,
+      placementInfluenceAtWorld(placement, world, hexSize)
+    );
+  });
   if (placementInfluence > 0) {
     const packedEarth = mixColor(
       hegemonyLowlandsSpec.palette.soil,

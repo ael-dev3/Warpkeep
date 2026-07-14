@@ -2,6 +2,10 @@ import * as THREE from 'three';
 
 import type { TerrainDecorationData, TerrainDecorationKind } from '../../game/map/terrainDecorations';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
+import {
+  EMPTY_TERRAIN_PLACEMENTS,
+  type TerrainStructurePlacement
+} from '../../game/map/terrainPlacements';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
 import type { RealmQualitySpec } from './realmQuality';
 
@@ -68,7 +72,8 @@ export function createTerrainDecorationLayers(
   data: TerrainDecorationData,
   map: RealmTerrainMap,
   quality: RealmQualitySpec,
-  hexSize = 1
+  hexSize = 1,
+  placements: readonly TerrainStructurePlacement[] = EMPTY_TERRAIN_PLACEMENTS
 ): TerrainDecorationLayers {
   const group = new THREE.Group();
   group.name = 'hegemony-lowland-details';
@@ -94,7 +99,7 @@ export function createTerrainDecorationLayers(
     points.forEach((point, index) => {
       position.set(
         point.world.x,
-        terrainHeightAtWorld(map, point.world, hexSize) + 0.002,
+        terrainHeightAtWorld(map, point.world, hexSize, placements) + 0.002,
         point.world.z
       );
       quaternion.setFromAxisAngle(axis, point.rotation);

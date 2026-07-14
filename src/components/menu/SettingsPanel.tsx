@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 
 import {
   GRAPHICS_PREFERENCES,
   type GraphicsPreference,
   type GraphicsQualityTier
 } from '../../settings/graphicsPreference';
+import { useModalFocusBoundary } from './useModalFocusBoundary';
 import './SettingsPanel.css';
 
 const GRAPHICS_COPY: Readonly<Record<GraphicsPreference, Readonly<{
@@ -42,11 +43,14 @@ export function SettingsPanel({
   onChange,
   onClose
 }: SettingsPanelProps) {
+  const dialogRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
-  useEffect(() => {
-    headingRef.current?.focus({ preventScroll: true });
-  }, []);
+  useModalFocusBoundary({
+    dialogRef,
+    initialFocusRef: headingRef,
+    onEscape: onClose
+  });
 
   return (
     <div className="warpkeep-settings" role="presentation">
@@ -55,6 +59,7 @@ export function SettingsPanel({
         aria-labelledby="warpkeep-settings-title"
         aria-modal="true"
         className="warpkeep-settings__panel"
+        ref={dialogRef}
         role="dialog"
       >
         <header>

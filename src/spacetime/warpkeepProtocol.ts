@@ -3,7 +3,7 @@
  * product release number or a realm seed; it prevents an activated client from
  * treating an incompatible published module as a playable shared alpha.
  */
-export const WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION = 2;
+export const WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION = 3;
 export const WARPKEEP_EXPECTED_WORLD_SEED = 3_445_214_658;
 export const WARPKEEP_EXPECTED_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 

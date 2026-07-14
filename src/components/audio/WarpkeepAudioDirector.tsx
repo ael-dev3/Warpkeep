@@ -175,6 +175,7 @@ export const WarpkeepAudioDirector = forwardRef<
     [baseUrl]
   );
   const titleTrack = useMemo(() => titleSoundtracks[getRandomTrackIndex()], []);
+  const titleUrl = `${baseUrl}${titleTrack.path}`;
   const initialSceneRef = useRef(scene);
   const preloadMenuRef = useRef(preloadMenu);
   const titleAudioRef = useRef<HTMLAudioElement>(null);
@@ -182,7 +183,9 @@ export const WarpkeepAudioDirector = forwardRef<
     menu: [null, null],
     realm: [null, null]
   });
+  const [titlePrepared, setTitlePrepared] = useState(scene === 'title');
   const [realmPrepared, setRealmPrepared] = useState(false);
+  const titlePreparedRef = useRef(scene === 'title');
   const preparedLoopScenesRef = useRef<Record<AudioLoopScene, boolean>>({
     menu: true,
     realm: false
@@ -207,6 +210,18 @@ export const WarpkeepAudioDirector = forwardRef<
   const getLoopPair = useCallback((loopScene: AudioLoopScene) => {
     return loopAudioRefs.current[loopScene];
   }, []);
+
+  const ensureTitleSource = useCallback(() => {
+    if (!titlePreparedRef.current) {
+      titlePreparedRef.current = true;
+      setTitlePrepared(true);
+    }
+    const titleAudio = titleAudioRef.current;
+    if (titleAudio && !titleAudio.hasAttribute('src')) {
+      titleAudio.setAttribute('src', titleUrl);
+    }
+    if (titleAudio) titleAudio.preload = 'auto';
+  }, [titleUrl]);
 
   const getActiveLoopAudio = useCallback(
     (loopScene: AudioLoopScene) => {
@@ -708,6 +723,7 @@ export const WarpkeepAudioDirector = forwardRef<
 
       const previousScene = requestedSceneRef.current;
       requestedSceneRef.current = nextScene;
+      if (nextScene === 'title') ensureTitleSource();
 
       if (isLoopScene(previousScene) && previousScene !== nextScene) {
         clearLoopSchedule(previousScene);
@@ -751,6 +767,7 @@ export const WarpkeepAudioDirector = forwardRef<
     [
       applyVolumes,
       clearLoopSchedule,
+      ensureTitleSource,
       getActiveLoopAudio,
       markPlaybackBlocked,
       pauseLoopScene,
@@ -793,7 +810,7 @@ export const WarpkeepAudioDirector = forwardRef<
     allAudio.forEach((audio) => {
       audio.muted = false;
     });
-    titleAudio!.preload = 'auto';
+    titleAudio!.preload = titlePreparedRef.current ? 'auto' : 'none';
     getLoopPair('menu')[0] && (getLoopPair('menu')[0]!.preload = preloadMenuRef.current ? 'auto' : 'none');
     getLoopPair('menu')[1] && (getLoopPair('menu')[1]!.preload = 'none');
     getLoopPair('realm').forEach((audio) => {
@@ -926,9 +943,9 @@ export const WarpkeepAudioDirector = forwardRef<
         data-sound-default="on"
         data-track={titleTrack.id}
         data-track-label={titleTrack.label}
-        src={`${baseUrl}${titleTrack.path}`}
+        src={titlePrepared ? titleUrl : undefined}
         loop
-        preload="auto"
+        preload={titlePrepared ? 'auto' : 'none'}
         aria-hidden="true"
         tabIndex={-1}
       />

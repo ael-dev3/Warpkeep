@@ -15,6 +15,7 @@ describe('RealmAccessibilityControls', () => {
     const { container } = render(
       <RealmAccessibilityControls
         cells={surface.playableMap.cells}
+        keepCoord={{ q: 0, r: 0 }}
         selectedCoord={{ q: 0, r: 0 }}
         onHover={onHover}
         onSelect={onSelect}
@@ -27,10 +28,10 @@ describe('RealmAccessibilityControls', () => {
 
     const summary = details?.querySelector('summary');
     if (!(summary instanceof HTMLElement)) throw new Error('missing Realm cell navigator summary');
-    expect(summary.textContent).toMatch(/Realm Cells\s+61/i);
+    expect(summary.textContent).toMatch(/Traversable Cells\s+61/i);
     fireEvent.click(summary);
     expect(details?.hasAttribute('open')).toBe(true);
-    const group = screen.getByRole('group', { name: 'Playable realm cells' });
+    const group = screen.getByRole('group', { name: 'Traversable realm cells' });
     expect(within(group).getAllByRole('button', { name: /Select cell/i })).toHaveLength(61);
     expect(within(group).queryByRole('button', { name: 'Select cell 5,0' })).toBeNull();
 
@@ -43,5 +44,31 @@ describe('RealmAccessibilityControls', () => {
 
     expect(onHover).toHaveBeenCalledWith({ q: 0, r: 0 });
     expect(onSelect).toHaveBeenCalledWith({ q: 1, r: 0 });
+  });
+
+  it('labels the authoritative off-center keep instead of the world center', () => {
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001);
+    render(
+      <RealmAccessibilityControls
+        cells={surface.playableMap.cells}
+        keepCoord={{ q: -1, r: 1 }}
+        selectedCoord={{ q: -1, r: 1 }}
+        onHover={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const summary = document.querySelector('details.realm-cell-navigator > summary');
+    if (!(summary instanceof HTMLElement)) throw new Error('missing Realm cell navigator summary');
+    fireEvent.click(summary);
+    const group = screen.getByRole('group', { name: 'Traversable realm cells' });
+    const keep = within(group).getByRole('button', {
+      name: 'Select cell -1,1, your Hegemony keep'
+    });
+
+    expect(keep.getAttribute('aria-pressed')).toBe('true');
+    expect(keep.getAttribute('data-keep')).toBe('true');
+    expect(within(group).getByRole('button', { name: 'Select cell 0,0' })
+      .getAttribute('data-keep')).toBe('false');
   });
 });

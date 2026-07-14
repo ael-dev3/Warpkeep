@@ -11,30 +11,13 @@ import {
   WARPKEEP_ALPHA_PRIVACY_URL,
   WARPKEEP_ALPHA_TERMS_URL
 } from '../../legal/publicDocuments';
+import { useModalFocusBoundary } from './useModalFocusBoundary';
 import './AlphaParticipationTermsDialog.css';
 
 export type AlphaParticipationTermsDialogProps = Readonly<{
   onCancel: () => void;
   onContinue: () => void;
 }>;
-
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])'
-].join(',');
-
-function getFocusableElements(container: HTMLElement) {
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-    .filter((element) => (
-      !element.hidden
-      && element.getAttribute('aria-hidden') !== 'true'
-      && element.getAttribute('tabindex') !== '-1'
-    ));
-}
 
 export function AlphaParticipationTermsDialog({
   onCancel,
@@ -66,9 +49,11 @@ export function AlphaParticipationTermsDialog({
     onContinue();
   }, [accepted, onContinue]);
 
-  useEffect(() => {
-    headingRef.current?.focus({ preventScroll: true });
-  }, []);
+  useModalFocusBoundary({
+    dialogRef,
+    initialFocusRef: headingRef,
+    onEscape: requestCancel
+  });
 
   useEffect(() => {
     const clearAcceptance = () => {
@@ -92,57 +77,6 @@ export function AlphaParticipationTermsDialog({
       window.removeEventListener('pagehide', handlePageHide, true);
       window.removeEventListener('pageshow', handlePageShow, true);
     };
-  }, [requestCancel]);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const dialog = dialogRef.current;
-      if (!dialog) return;
-
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        requestCancel();
-        return;
-      }
-
-      if (event.key !== 'Tab') return;
-
-      const focusableElements = getFocusableElements(dialog);
-      if (focusableElements.length === 0) {
-        event.preventDefault();
-        headingRef.current?.focus({ preventScroll: true });
-        return;
-      }
-
-      const first = focusableElements[0];
-      const last = focusableElements[focusableElements.length - 1];
-      const activeElement = document.activeElement;
-
-      // The heading receives initial programmatic focus but deliberately is
-      // not part of the normal tab order. Treat any such focus target like an
-      // external target so reverse-Tab cannot escape to the inert page behind
-      // the modal before the player reaches a real control.
-      if (
-        !dialog.contains(activeElement)
-        || !focusableElements.includes(activeElement as HTMLElement)
-      ) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus({ preventScroll: true });
-        return;
-      }
-
-      if (event.shiftKey && activeElement === first) {
-        event.preventDefault();
-        last.focus({ preventScroll: true });
-      } else if (!event.shiftKey && activeElement === last) {
-        event.preventDefault();
-        first.focus({ preventScroll: true });
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [requestCancel]);
 
   return (
@@ -178,8 +112,8 @@ export function AlphaParticipationTermsDialog({
               rules, availability, and progress may change or be reset at any time.
             </p>
             <p>
-              Participation will not earn or entitle you to rewards, tokens, points, airdrops,
-              or guaranteed financial gain.
+              Participation alone will not earn tokens, airdrops, external rewards, or guaranteed
+              financial gain. Experimental in-game Marks have no cash value and may change or reset.
             </p>
             <p className="warpkeep-alpha-terms__documents">
               Review the{' '}
@@ -200,7 +134,9 @@ export function AlphaParticipationTermsDialog({
               </a>
               {' '}before continuing.
             </p>
-            <p className="warpkeep-alpha-terms__warning">There is no promise of future rewards.</p>
+            <p className="warpkeep-alpha-terms__warning">
+              There is no promise of a future reward, payment, or profit.
+            </p>
           </div>
 
           <label className="warpkeep-alpha-terms__acceptance" htmlFor={checkboxId}>

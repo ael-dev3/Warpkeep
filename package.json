@@ -1,7 +1,7 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -14,6 +14,13 @@
     "assets:fetch": "node scripts/fetch-title-assets.mjs",
     "prepare:title-models": "node scripts/prepare-title-models.mjs",
     "prepare:hegemony-keep": "node scripts/prepare-hegemony-frontier-keep.mjs",
+    "prepare:hegemony-mark": "node scripts/prepare-hegemony-mark.mjs",
+    "marks:plan": "tsx scripts/marks/marks-operator.ts plan",
+    "marks:refresh-profiles": "tsx scripts/marks/marks-operator.ts refresh-profiles",
+    "marks:scan": "tsx scripts/marks/marks-operator.ts scan",
+    "marks:apply": "tsx scripts/marks/marks-operator.ts apply",
+    "marks:reconcile": "tsx scripts/marks/marks-operator.ts reconcile",
+    "marks:inspect": "tsx scripts/marks/marks-operator.ts inspect",
     "verify:runtime-assets": "node scripts/verify-runtime-assets.mjs",
     "verify:file-sizes": "node scripts/verify-file-sizes.mjs",
     "stdb:version": "spacetime --version",
@@ -29,6 +36,7 @@
     "stdb:bump-auth-epoch": "tsx scripts/hermes-admin.ts bump-auth-epoch",
     "stdb:inspect-alpha": "tsx scripts/hermes-admin.ts inspect-alpha",
     "stdb:inspect-alpha-v2": "tsx scripts/hermes-admin.ts inspect-alpha-v2",
+    "stdb:inspect-alpha-v3": "tsx scripts/hermes-admin.ts inspect-alpha-v3",
     "test": "vitest --run",
     "typecheck": "tsc -b"
   },
@@ -51,8 +59,9 @@
     "@types/three": "0.185.0",
     "@vitejs/plugin-react": "6.0.2",
     "jsdom": "29.1.1",
-    "typescript": "7.0.2",
+    "sharp": "0.35.3",
     "tsx": "4.23.0",
+    "typescript": "7.0.2",
     "vite": "8.0.16",
     "vitest": "4.1.9"
   }

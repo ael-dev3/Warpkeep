@@ -2,7 +2,7 @@ import { axialToWorld, type HexCoord, type HexWorldPosition } from '../../game/m
 import { sampleLowlandsColor } from '../../game/map/terrainColor';
 import { terrainHeightForCell } from '../../game/map/terrainHeight';
 import {
-  HEGEMONY_TERRAIN_PLACEMENTS,
+  EMPTY_TERRAIN_PLACEMENTS,
   type TerrainStructurePlacement
 } from '../../game/map/terrainPlacements';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
@@ -121,7 +121,7 @@ export function createTerrainGeometryData(
   const options = typeof subdivisionsOrOptions === 'number'
     ? { subdivisionsPerEdge: subdivisionsOrOptions }
     : subdivisionsOrOptions;
-  const placements = options.placements ?? HEGEMONY_TERRAIN_PLACEMENTS;
+  const placements = options.placements ?? EMPTY_TERRAIN_PLACEMENTS;
   const subdivisions = safeSubdivisionCount(options.subdivisionsPerEdge ?? DEFAULT_TERRAIN_SUBDIVISIONS);
   const positions: number[] = [];
   const colors: number[] = [];

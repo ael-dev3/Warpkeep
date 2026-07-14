@@ -33,6 +33,36 @@
   height: 100%;
 }
 
+.warpkeep-experience__scene-loader {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-content: center;
+  justify-items: center;
+  gap: 1rem;
+  color: rgba(224, 196, 133, 0.78);
+  background:
+    radial-gradient(circle at 50% 48%, rgba(92, 45, 124, 0.22), transparent 28%),
+    #010106;
+  font-family: Georgia, "Times New Roman", serif;
+  text-align: center;
+}
+
+.warpkeep-experience__scene-loader span {
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1px solid rgba(227, 194, 122, 0.82);
+  box-shadow: 0 0 1.25rem rgba(128, 73, 174, 0.52);
+  transform: rotate(45deg);
+  animation: warpkeep-scene-loader-pulse 1.4s ease-in-out infinite;
+}
+
+.warpkeep-experience__scene-loader small {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+}
+
 .warpkeep-experience__screen--realm[data-presented="true"] {
   animation: warpkeep-realm-entry 340ms ease-out both;
 }
@@ -49,12 +79,29 @@
   }
 }
 
+@keyframes warpkeep-scene-loader-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: rotate(45deg) scale(0.84);
+  }
+
+  50% {
+    opacity: 1;
+    transform: rotate(45deg) scale(1.08);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .warpkeep-experience__screen {
     transition: none;
   }
 
   .warpkeep-experience__screen--realm[data-presented="true"] {
+    animation: none;
+  }
+
+  .warpkeep-experience__scene-loader span {
     animation: none;
   }
 }

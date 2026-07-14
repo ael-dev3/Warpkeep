@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -26,8 +28,6 @@ import {
   type AuthRailRenderControls,
   type MenuInputModality
 } from './menu/WarpkeepMainMenu';
-import { RealmMapScreen } from './realm/RealmMapScreen';
-import { FarcasterAdmissionPanel } from './auth/FarcasterAdmissionPanel';
 import {
   WarpTransitionOverlay,
   type WarpTransitionOrigin
@@ -51,7 +51,6 @@ import {
   type GraphicsPreference
 } from '../settings/graphicsPreference';
 import { TitleGatewayHint } from './title/TitleGatewayHint';
-import { WarpkeepTitleScreen3D } from './title/WarpkeepTitleScreen3D';
 import {
   fallbackGatewayProjection,
   type WarpkeepTitleScreenHandle
@@ -63,6 +62,30 @@ const REALM_HASH = '#realm';
 const MENU_HISTORY_KEY = 'warpkeepMenu';
 const REALM_HISTORY_KEY = 'warpkeepRealm';
 const TITLE_HINT_DELAY_MS = 5_000;
+
+const WarpkeepTitleScreen3D = lazy(async () => {
+  const module = await import('./title/WarpkeepTitleScreen3D');
+  return { default: module.WarpkeepTitleScreen3D };
+});
+
+const RealmMapScreen = lazy(async () => {
+  const module = await import('./realm/RealmMapScreen');
+  return { default: module.RealmMapScreen };
+});
+
+const FarcasterAdmissionPanel = lazy(async () => {
+  const module = await import('./auth/FarcasterAdmissionPanel');
+  return { default: module.FarcasterAdmissionPanel };
+});
+
+function SceneModuleFallback({ label }: Readonly<{ label: string }>) {
+  return (
+    <div aria-label={label} className="warpkeep-experience__scene-loader" role="status">
+      <span aria-hidden="true" />
+      <small>{label}</small>
+    </div>
+  );
+}
 
 type WarpkeepHistoryState = Record<string, unknown> & {
   [MENU_HISTORY_KEY]?: true;
@@ -251,8 +274,9 @@ export function WarpkeepExperience() {
 
   const cancelFarcasterSignInAndClearDestination = useCallback(() => {
     clearPendingRealmDestination();
+    backend.cancelAlphaTermsAcceptance();
     cancelFarcasterSignIn();
-  }, [cancelFarcasterSignIn, clearPendingRealmDestination]);
+  }, [backend, cancelFarcasterSignIn, clearPendingRealmDestination]);
 
   const gateAnonymousRealmRoute = useCallback(() => {
     // A hash is neither a credential nor Alpha Terms acceptance. Normalize every
@@ -449,7 +473,7 @@ export function WarpkeepExperience() {
     beginMenuTransition(projection, input, true);
   }, [beginMenuTransition]);
 
-  const beginRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
+  const commitRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
     if (
       !backend.sharedAlphaAvailable
       || phaseRef.current !== 'menu'
@@ -463,15 +487,7 @@ export function WarpkeepExperience() {
       return;
     }
 
-    // The Farcaster identity is necessary but not sufficient. Keep the menu
-    // visible while the server checks the private alpha admission record.
-    if (backend.state.phase !== 'ready') {
-      setPendingDestination('realm');
-      if (backend.state.phase === 'denied' || backend.state.phase === 'error') {
-        backend.checkAgain();
-      }
-      return;
-    }
+    if (backend.state.phase !== 'ready') return;
 
     clearPendingRealmDestination();
     blurActiveElement();
@@ -491,6 +507,26 @@ export function WarpkeepExperience() {
     dispatch({ type: 'request-realm' });
   }, [backend, clearPendingRealmDestination]);
 
+  const beginRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
+    if (
+      !backend.sharedAlphaAvailable
+      || phaseRef.current !== 'menu'
+      || returnPreparingRef.current
+    ) {
+      return;
+    }
+    const verifiedIdentity = verifiedIdentityRef.current;
+    if (!verifiedIdentity || verifiedIdentity.fid !== identity.fid) return;
+
+    // A submitted Terms dialog creates only an in-memory entry intent. The
+    // Realm transition waits for the server acknowledgement and admission
+    // lifecycle to return to ready, including for remembered sessions.
+    setPendingDestination('realm');
+    if (backend.state.phase === 'denied' || backend.state.phase === 'error') {
+      backend.checkAgain();
+    }
+  }, [backend]);
+
   useEffect(() => {
     if (
       pendingDestination !== 'realm'
@@ -500,8 +536,8 @@ export function WarpkeepExperience() {
     ) {
       return;
     }
-    beginRealmEntry(verifiedIdentityRef.current);
-  }, [backend.state.phase, beginRealmEntry, pendingDestination]);
+    commitRealmEntry(verifiedIdentityRef.current);
+  }, [backend.state.phase, commitRealmEntry, pendingDestination]);
 
   useEffect(() => {
     if (
@@ -893,11 +929,13 @@ export function WarpkeepExperience() {
       const poster = new Image();
       poster.decoding = 'async';
       poster.src = WARPKEEP_MENU_POSTER_URL;
-      preloadVideo = document.createElement('video');
-      preloadVideo.muted = true;
-      preloadVideo.preload = 'metadata';
-      preloadVideo.src = WARPKEEP_MENU_VIDEO_URL;
-      preloadVideo.load();
+      if (!reducedMotion) {
+        preloadVideo = document.createElement('video');
+        preloadVideo.muted = true;
+        preloadVideo.preload = 'metadata';
+        preloadVideo.src = WARPKEEP_MENU_VIDEO_URL;
+        preloadVideo.load();
+      }
       setMenuPreloadReady(true);
     };
 
@@ -924,7 +962,7 @@ export function WarpkeepExperience() {
         preloadVideo.load();
       }
     };
-  }, [experience.phase, titleReady]);
+  }, [experience.phase, reducedMotion, titleReady]);
 
   const getCurrentGatewayProjection = useCallback(() => (
     titleRef.current?.getGatewayProjection() ?? fallbackGatewayProjection()
@@ -939,12 +977,14 @@ export function WarpkeepExperience() {
         headingRef,
         primaryActionRef,
         onCheckAgain,
+        onBackToMenu,
         onPresentationReady
       }: AuthRailRenderControls) => (
         <FarcasterAdmissionPanel
           headingRef={headingRef}
           identity={admissionIdentity}
           onCheckAgain={onCheckAgain}
+          onBackToMenu={onBackToMenu}
           onPresentationReady={onPresentationReady}
           onSignOut={handleSignOut}
           phase={admissionPhase}
@@ -969,18 +1009,20 @@ export function WarpkeepExperience() {
           aria-hidden={!titleInteractive}
           inert={!titleInteractive ? true : undefined}
         >
-          <WarpkeepTitleScreen3D
-            ref={titleRef}
-            graphicsQuality={resolvedGraphicsQuality}
-            phase={experience.phase === 'transitioning-to-menu'
-              ? 'departing'
-              : experience.phase === 'transitioning-to-title' || returnPreparing
-                ? 'returning'
-                : 'active'}
-            onMeaningfulInteraction={dismissTitleHint}
-            onReady={() => setTitleReady(true)}
-            onRequestEnterMenu={handleTitleEntryRequest}
-          />
+          <Suspense fallback={<SceneModuleFallback label="OPENING THE GATEWAY" />}>
+            <WarpkeepTitleScreen3D
+              ref={titleRef}
+              graphicsQuality={resolvedGraphicsQuality}
+              phase={experience.phase === 'transitioning-to-menu'
+                ? 'departing'
+                : experience.phase === 'transitioning-to-title' || returnPreparing
+                  ? 'returning'
+                  : 'active'}
+              onMeaningfulInteraction={dismissTitleHint}
+              onReady={() => setTitleReady(true)}
+              onRequestEnterMenu={handleTitleEntryRequest}
+            />
+          </Suspense>
         </div>
       ) : null}
 
@@ -1003,6 +1045,7 @@ export function WarpkeepExperience() {
               ? undefined
               : WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE}
             onCancelFarcasterSignIn={cancelFarcasterSignInAndClearDestination}
+            onAcceptAlphaTermsAttempt={backend.beginAlphaTermsAcceptance}
             onDisposeFarcasterSignIn={cancelFarcasterSignIn}
             onRequestAuthenticatedRealm={beginRealmEntry}
             onRequestAuthRailCheck={backend.checkAgain}
@@ -1029,15 +1072,20 @@ export function WarpkeepExperience() {
           aria-hidden={experience.phase !== 'realm'}
           inert={experience.phase !== 'realm' ? true : undefined}
         >
-          <RealmMapScreen
-            identity={realmIdentity}
-            ownCastle={backend.state.realm?.ownCastle}
-            otherCastles={backend.state.realm?.castles}
-            sharedPlayers={backend.state.realm?.players}
-            sharedTiles={backend.state.realm?.tiles}
-            onRequestReturn={returnRealmToMenu}
-            qualityOverride={realmProfileForQuality(resolvedGraphicsQuality)}
-          />
+          <Suspense fallback={<SceneModuleFallback label="ASSEMBLING THE REALM" />}>
+            <RealmMapScreen
+              identity={realmIdentity}
+              ownCastle={backend.state.realm?.ownCastle}
+              otherCastles={backend.state.realm?.castles}
+              sharedPlayers={backend.state.realm?.players}
+              sharedProfiles={backend.state.realm?.profiles}
+              sharedTileMetadata={backend.state.realm?.tileMetadata}
+              sharedTiles={backend.state.realm?.tiles}
+              realmName={backend.state.realm?.realm?.publicName}
+              onRequestReturn={returnRealmToMenu}
+              qualityOverride={realmProfileForQuality(resolvedGraphicsQuality)}
+            />
+          </Suspense>
         </div>
       ) : null}
 

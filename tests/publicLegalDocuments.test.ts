@@ -54,19 +54,26 @@ describe('public Alpha legal documents', () => {
     expect(termsText).toContain('Last updated 14 July 2026');
     expect(termsText).toContain('developed and operated by one person');
     expect(termsText).toContain('may change, break, pause, or be reset');
-    expect(termsText).toContain('will not earn or entitle you to rewards, tokens, points, airdrops');
-    expect(termsText).toContain('There is no current promise of SNAP-linked rewards.');
-    expect(termsText).toContain('does not guarantee an airdrop, reward, or gain');
+    expect(termsText).toContain('will not earn or entitle you to tokens, airdrops, allocations');
+    expect(termsText).toContain('Marks are non-transferable, non-redeemable accounting units');
+    expect(termsText).toContain('ordinary SNAP token burn on Ethereum mainnet');
+    expect(termsText).toContain('neither the burn nor the Marks guarantee an airdrop, payment');
+    expect(termsText).toContain('does not ask the browser to connect a wallet');
+    expect(termsText).toContain('stores private, immutable evidence');
+    expect(termsText).toContain("player's FID, this Terms version");
     expect(termsText).toContain('not sponsored, operated, or endorsed by Farcaster');
     expect(termsText).toContain('not a legal-compliance certification');
+    expect(termsText).not.toContain('tokens, points, airdrops');
   });
 
   it('states actual identity, session, public-state, retention, and rights limits', () => {
     for (const expected of [
       'Last updated 14 July 2026',
       'single-developer project',
+      'private, versioned acceptance evidence',
+      'Versioned Alpha Terms acceptance evidence',
       'Privacy contact request',
-      'accepts, stores, and issues only the verified FID as identity',
+      'accepts, stores, and issues only the verified FID as session identity',
       'Cloudflare supplies the connecting IP',
       'SpacetimeDB stores admission, ownership, world, player',
       'Application logs are designed not to contain FIDs',
@@ -76,6 +83,13 @@ describe('public Alpha legal documents', () => {
       'credential expiry does not itself close that subscription',
       'frozen legacy public player schema',
       'production verification requires it to remain empty',
+      'finalized public Ethereum mainnet events',
+      'wallet associations remain private operator state',
+      'browser never scans wallets',
+      'non-transferable, non-redeemable, without cash value',
+      'Only privacy-bounded aggregate figures become public game state',
+      'Ethereum RPC providers for bounded finalized-event reconciliation',
+      'no-referrer browser policy',
       'authority and active-use windows, not promises',
       'Storage denial may leave the physical key',
       'a later reload may continue to treat an unexpired leftover marker as logout intent',
@@ -93,6 +107,7 @@ describe('public Alpha legal documents', () => {
     }
 
     expect(privacyText).not.toContain('world, player, faction');
+    expect(privacyText).not.toContain('tokens, points, airdrops');
   });
 
   it('makes the narrow-screen retention table a labelled keyboard scroll region', () => {

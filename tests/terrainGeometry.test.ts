@@ -5,7 +5,23 @@ import {
   DEFAULT_TERRAIN_SUBDIVISIONS
 } from '../src/components/realm/createTerrainGeometry';
 import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
+import { axialToWorld } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
+import { createHegemonyKeepPlacement } from '../src/game/map/terrainPlacements';
+
+function footprintHeightRange(
+  positions: Float32Array,
+  center: Readonly<{ x: number; z: number }>,
+  radius: number
+) {
+  const heights: number[] = [];
+  for (let index = 0; index < positions.length; index += 3) {
+    if (Math.hypot(positions[index] - center.x, positions[index + 2] - center.z) <= radius) {
+      heights.push(positions[index + 1]);
+    }
+  }
+  return Math.max(...heights) - Math.min(...heights);
+}
 
 describe('combined lowlands terrain geometry', () => {
   it('builds one finite indexed surface with valid non-degenerate triangles', () => {
@@ -47,5 +63,19 @@ describe('combined lowlands terrain geometry', () => {
     expect(geometry.bounds.minZ).toBeGreaterThan(-11);
     expect(geometry.bounds.maxZ).toBeLessThan(11);
     expect(geometry.bounds.maxY - geometry.bounds.minY).toBeLessThan(0.45);
+  });
+
+  it('tessellates an authoritative off-center keep footprint as a flat foundation', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 4);
+    const coord = { q: 2, r: -1 } as const;
+    const center = axialToWorld(coord, 1);
+    const placement = createHegemonyKeepPlacement('own-keep', coord);
+    const natural = createTerrainGeometryData(map, 1, { placements: [] });
+    const founded = createTerrainGeometryData(map, 1, { placements: [placement] });
+
+    expect(footprintHeightRange(natural.positions, center, placement.footprintRadius))
+      .toBeGreaterThan(0.0001);
+    expect(footprintHeightRange(founded.positions, center, placement.footprintRadius))
+      .toBeLessThan(0.000001);
   });
 });

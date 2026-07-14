@@ -38,6 +38,50 @@ export const AdminAlphaStatusV2 = __t.object("AdminAlphaStatusV2", {
 });
 export type AdminAlphaStatusV2 = __Infer<typeof AdminAlphaStatusV2>;
 
+export const AdminAlphaStatusV3 = __t.object("AdminAlphaStatusV3", {
+  worldTiles: __t.u64(),
+  occupiedWorldTiles: __t.u64(),
+  worldTileMeta: __t.u64(),
+  realms: __t.u64(),
+  castleSlots: __t.u64(),
+  castleSlotClaims: __t.u64(),
+  legacyPlayers: __t.u64(),
+  playersV2: __t.u64(),
+  playerOwnershipsV2: __t.u64(),
+  castles: __t.u64(),
+  realmProfiles: __t.u64(),
+  markAccounts: __t.u64(),
+  snapBurnCredits: __t.u64(),
+  walletAttributions: __t.u64(),
+  walletAttributionSnapshots: __t.u64(),
+  scanCursors: __t.u64(),
+  scanBatches: __t.u64(),
+  alphaTermsAcceptances: __t.u64(),
+  allowedFids: __t.u64(),
+  enabledAllowedFids: __t.u64(),
+  auditEntries: __t.u64(),
+  orphanedPlayerRowsV2: __t.u64(),
+  orphanedOwnershipRowsV2: __t.u64(),
+  orphanedCastleClaims: __t.u64(),
+  orphanedCastles: __t.u64(),
+  orphanedRealmProfiles: __t.u64(),
+  orphanedMarkAccounts: __t.u64(),
+  orphanedBurnCredits: __t.u64(),
+  orphanedTermsAcceptances: __t.u64(),
+  founderStateGaps: __t.u64(),
+  markAccountInvariantViolations: __t.u64(),
+  publicMarkProjectionViolations: __t.u64(),
+  duplicateBurnReferences: __t.u64(),
+  burnAccountReconciliationViolations: __t.u64(),
+  ambiguousActiveWalletAddresses: __t.u64(),
+  staticWorldDriftViolations: __t.u64(),
+  termsAcceptanceInvariantViolations: __t.u64(),
+  protocolVersion: __t.u32(),
+  worldSeed: __t.u32(),
+  worldSeedName: __t.string(),
+});
+export type AdminAlphaStatusV3 = __Infer<typeof AdminAlphaStatusV3>;
+
 export const AdminAudit = __t.object("AdminAudit", {
   id: __t.u64(),
   action: __t.string(),
@@ -47,6 +91,20 @@ export const AdminAudit = __t.object("AdminAudit", {
   note: __t.string(),
 });
 export type AdminAudit = __Infer<typeof AdminAudit>;
+
+export const AdminSnapScanBatchAggregateV1 = __t.object("AdminSnapScanBatchAggregateV1", {
+  status: __t.string(),
+  expectedCredits: __t.u32(),
+  expectedMicros: __t.u128(),
+  appliedCredits: __t.u32(),
+  appliedMicros: __t.u128(),
+  receiptCredits: __t.u32(),
+  receiptMicros: __t.u128(),
+  creditedAccounts: __t.u32(),
+  cursorAdvanced: __t.bool(),
+  internallyConsistent: __t.bool(),
+});
+export type AdminSnapScanBatchAggregateV1 = __Infer<typeof AdminSnapScanBatchAggregateV1>;
 
 export const AllowedFid = __t.object("AllowedFid", {
   fid: __t.u64(),
@@ -65,6 +123,14 @@ export const AlphaBackendInfo = __t.object("AlphaBackendInfo", {
 });
 export type AlphaBackendInfo = __Infer<typeof AlphaBackendInfo>;
 
+export const AlphaTermsAcceptanceV1 = __t.object("AlphaTermsAcceptanceV1", {
+  acceptanceKey: __t.string(),
+  fid: __t.u64(),
+  termsVersion: __t.string(),
+  acceptedAt: __t.timestamp(),
+});
+export type AlphaTermsAcceptanceV1 = __Infer<typeof AlphaTermsAcceptanceV1>;
+
 export const AuthResolverFidAdmissionV2 = __t.object("AuthResolverFidAdmissionV2", {
   state: __t.string(),
   authEpoch: __t.u32(),
@@ -82,6 +148,50 @@ export const Castle = __t.object("Castle", {
   createdAt: __t.timestamp(),
 });
 export type Castle = __Infer<typeof Castle>;
+
+export const CastleSlotClaimV1 = __t.object("CastleSlotClaimV1", {
+  slotId: __t.u32(),
+  ownerFid: __t.u64(),
+  castleId: __t.u64(),
+  claimedAt: __t.timestamp(),
+  generationVersion: __t.u32(),
+});
+export type CastleSlotClaimV1 = __Infer<typeof CastleSlotClaimV1>;
+
+export const CastleSlotV1 = __t.object("CastleSlotV1", {
+  slotId: __t.u32(),
+  realmId: __t.string(),
+  tileKey: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  generationVersion: __t.u32(),
+});
+export type CastleSlotV1 = __Infer<typeof CastleSlotV1>;
+
+export const FidWalletAttributionV1 = __t.object("FidWalletAttributionV1", {
+  snapshotAttributionKey: __t.string(),
+  attributionKey: __t.string(),
+  snapshotGeneration: __t.u64(),
+  fid: __t.u64(),
+  address: __t.string(),
+  addressType: __t.string(),
+  source: __t.string(),
+  snapshotAt: __t.timestamp(),
+  attributionPolicyVersion: __t.string(),
+  active: __t.bool(),
+});
+export type FidWalletAttributionV1 = __Infer<typeof FidWalletAttributionV1>;
+
+export const MarkAccountV1 = __t.object("MarkAccountV1", {
+  fid: __t.u64(),
+  totalSnapBurnedMicros: __t.u128(),
+  earnedMicros: __t.u128(),
+  spentMicros: __t.u128(),
+  balanceMicros: __t.u128(),
+  policyVersion: __t.string(),
+  updatedAt: __t.timestamp(),
+});
+export type MarkAccountV1 = __Infer<typeof MarkAccountV1>;
 
 export const Player = __t.object("Player", {
   fid: __t.u64(),
@@ -110,6 +220,120 @@ export const PlayerV2 = __t.object("PlayerV2", {
 });
 export type PlayerV2 = __Infer<typeof PlayerV2>;
 
+export const RealmProfileV1 = __t.object("RealmProfileV1", {
+  fid: __t.u64(),
+  canonicalUsername: __t.option(__t.string()),
+  displayName: __t.option(__t.string()),
+  pfpUrl: __t.option(__t.string()),
+  publicBio: __t.option(__t.string()),
+  admittedAt: __t.timestamp(),
+  firstAuthenticatedAt: __t.option(__t.timestamp()),
+  profileUpdatedAt: __t.timestamp(),
+  publicStatus: __t.string(),
+  communityStatsVisible: __t.bool(),
+  totalSnapBurnedMicros: __t.option(__t.u128()),
+  marksEarnedMicros: __t.option(__t.u128()),
+  marksSpentMicros: __t.option(__t.u128()),
+  marksBalanceMicros: __t.option(__t.u128()),
+  marksPolicyVersion: __t.option(__t.string()),
+});
+export type RealmProfileV1 = __Infer<typeof RealmProfileV1>;
+
+export const RealmV1 = __t.object("RealmV1", {
+  realmId: __t.string(),
+  publicName: __t.string(),
+  seedName: __t.string(),
+  numericSeed: __t.u32(),
+  generationVersion: __t.u32(),
+  authoritativeRadius: __t.u32(),
+  renderRadius: __t.u32(),
+  playerCapacity: __t.u32(),
+  active: __t.bool(),
+  createdAt: __t.timestamp(),
+});
+export type RealmV1 = __Infer<typeof RealmV1>;
+
+export const SnapBurnCreditV1 = __t.object("SnapBurnCreditV1", {
+  eventKey: __t.string(),
+  batchId: __t.string(),
+  chainId: __t.u32(),
+  tokenContract: __t.string(),
+  transactionHash: __t.string(),
+  logIndex: __t.u32(),
+  burnReference: __t.string(),
+  burnMethod: __t.string(),
+  senderAddress: __t.string(),
+  blockNumber: __t.u64(),
+  blockHash: __t.string(),
+  amountMicros: __t.u128(),
+  attributedFid: __t.u64(),
+  attributionPolicyVersion: __t.string(),
+  contractCodeHash: __t.string(),
+  creditedAt: __t.timestamp(),
+});
+export type SnapBurnCreditV1 = __Infer<typeof SnapBurnCreditV1>;
+
+export const SnapScanBatchV1 = __t.object("SnapScanBatchV1", {
+  batchId: __t.string(),
+  cursorKey: __t.string(),
+  status: __t.string(),
+  previousFinalizedBlock: __t.u64(),
+  previousFinalizedBlockHash: __t.string(),
+  throughFinalizedBlock: __t.u64(),
+  throughFinalizedBlockHash: __t.string(),
+  walletSnapshotGeneration: __t.u64(),
+  walletSnapshotId: __t.string(),
+  walletAttributionCount: __t.u32(),
+  expectedCredits: __t.u32(),
+  expectedMicros: __t.u128(),
+  appliedCredits: __t.u32(),
+  appliedMicros: __t.u128(),
+  proxyCodeHash: __t.string(),
+  implementationAddress: __t.string(),
+  implementationCodeHash: __t.string(),
+  startedAt: __t.timestamp(),
+  finalizedAt: __t.option(__t.timestamp()),
+});
+export type SnapScanBatchV1 = __Infer<typeof SnapScanBatchV1>;
+
+export const SnapScanCursorV1 = __t.object("SnapScanCursorV1", {
+  cursorKey: __t.string(),
+  chainId: __t.u32(),
+  tokenContract: __t.string(),
+  policyVersion: __t.string(),
+  deploymentStartBlock: __t.u64(),
+  lastFinalizedBlock: __t.u64(),
+  lastFinalizedBlockHash: __t.string(),
+  proxyCodeHash: __t.string(),
+  implementationAddress: __t.string(),
+  implementationCodeHash: __t.string(),
+  walletSnapshotGeneration: __t.u64(),
+  walletSnapshotId: __t.string(),
+  scannedAt: __t.timestamp(),
+});
+export type SnapScanCursorV1 = __Infer<typeof SnapScanCursorV1>;
+
+export const WalletAttributionSnapshotV1 = __t.object("WalletAttributionSnapshotV1", {
+  snapshotKey: __t.string(),
+  generation: __t.u64(),
+  snapshotId: __t.string(),
+  policyVersion: __t.string(),
+  attributionCount: __t.u32(),
+  snapshotAt: __t.timestamp(),
+});
+export type WalletAttributionSnapshotV1 = __Infer<typeof WalletAttributionSnapshotV1>;
+
+export const WalletSnapshotEntryV1 = __t.object("WalletSnapshotEntryV1", {
+  attributionKey: __t.string(),
+  fid: __t.u64(),
+  address: __t.string(),
+  addressType: __t.string(),
+  source: __t.string(),
+  attributionPolicyVersion: __t.string(),
+  active: __t.bool(),
+});
+export type WalletSnapshotEntryV1 = __Infer<typeof WalletSnapshotEntryV1>;
+
 export const WorldTile = __t.object("WorldTile", {
   key: __t.string(),
   q: __t.i32(),
@@ -119,4 +343,18 @@ export const WorldTile = __t.object("WorldTile", {
   occupantCastleId: __t.option(__t.u64()),
 });
 export type WorldTile = __Infer<typeof WorldTile>;
+
+export const WorldTileMetaV1 = __t.object("WorldTileMetaV1", {
+  tileKey: __t.string(),
+  realmId: __t.string(),
+  s: __t.i32(),
+  ring: __t.u32(),
+  sector: __t.u32(),
+  terrainKind: __t.string(),
+  passable: __t.bool(),
+  movementCost: __t.u32(),
+  staticContentKind: __t.string(),
+  generationVersion: __t.u32(),
+});
+export type WorldTileMetaV1 = __Infer<typeof WorldTileMetaV1>;
 

@@ -69,6 +69,10 @@
   filter: drop-shadow(0 0.14rem 0.1rem rgb(29 23 33 / 46%));
 }
 
+.realm-map-screen__fallback-foundation {
+  pointer-events: none;
+}
+
 .realm-map-screen__fallback-copy {
   position: absolute;
   z-index: 2;
@@ -134,7 +138,7 @@
 .realm-hud__header > p {
   margin: 0;
   color: #c9d7c4;
-  font-size: 0.57rem;
+  font-size: clamp(0.64rem, 0.72vw, 0.7rem);
   font-weight: 740;
   letter-spacing: 0.18em;
 }
@@ -161,7 +165,7 @@
   padding: 0.15rem 0.34rem;
   border: 1px solid rgb(229 198 119 / 28%);
   color: #e2cc92;
-  font-size: 0.5rem;
+  font-size: clamp(0.61rem, 0.68vw, 0.67rem);
   font-weight: 720;
   letter-spacing: 0.12em;
 }
@@ -198,7 +202,7 @@
 .realm-hud__shared-state {
   margin: -0.08rem 0 0;
   color: #b9c8a9;
-  font-size: 0.5rem;
+  font-size: clamp(0.61rem, 0.68vw, 0.67rem);
   font-weight: 740;
   letter-spacing: 0.105em;
   line-height: 1.4;
@@ -206,7 +210,7 @@
 
 .realm-hud__actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.38rem;
 }
 
@@ -224,7 +228,7 @@
 .realm-hud__actions button {
   min-height: 2.75rem;
   padding: 0.45rem 0.38rem;
-  font-size: 0.56rem;
+  font-size: clamp(0.65rem, 0.72vw, 0.7rem);
   font-weight: 760;
   letter-spacing: 0.075em;
   line-height: 1.25;
@@ -292,6 +296,38 @@
   font-weight: 760;
 }
 
+.realm-cell-navigator__pagination {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.35rem;
+  align-items: center;
+  margin-top: 0.38rem;
+  padding: 0.38rem;
+  border: 1px solid rgb(233 211 151 / 29%);
+  background: rgb(17 28 21 / 91%);
+  box-shadow: 0 0.6rem 1.8rem rgb(20 27 17 / 28%);
+}
+
+.realm-cell-navigator__pagination span {
+  color: #d7dfcb;
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.realm-cell-navigator__pagination button {
+  min-height: 2.35rem;
+  padding: 0 0.55rem;
+  font-size: 0.58rem;
+  font-weight: 720;
+  text-transform: uppercase;
+}
+
+.realm-cell-navigator__pagination button:disabled {
+  opacity: 0.46;
+  cursor: default;
+}
+
 .realm-cell-navigator__grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(2.55rem, 1fr));
@@ -342,7 +378,7 @@
 
   .realm-hud__selection small,
   .realm-hud__hint {
-    font-size: 0.57rem;
+    font-size: 0.64rem;
   }
 
   .realm-hud__hint {
@@ -351,7 +387,7 @@
 
   .realm-hud__actions button {
     min-height: 2.65rem;
-    font-size: 0.51rem;
+    font-size: 0.64rem;
   }
 
   .realm-cell-navigator {

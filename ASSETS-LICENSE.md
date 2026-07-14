@@ -53,6 +53,19 @@ The optimized WARPKEEP stone-letter assemblies were supplied with explicit v0.3 
 
 Attribution: **WARPKEEP Stone Title Assembly by Clawberto**, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The verified `warpkeep-title-assemblies-v1.zip` release attachment is 5,994,957 bytes with SHA-256 `492af33d4b0ff5ab80f2e726b68c2f8d497cd75bbcc036f57f2388e0b4089177`. `npm run assets:fetch` and `npm run prepare:title-models` reconstruct the runtime files through an explicit cache/offline boundary; ordinary builds never fetch release assets.
 
+## Hegemony Mark currency artwork provenance
+
+The Hegemony Mark currency artwork has an explicit CC-BY-4.0 grant in the immutable [Warpkeep-Assets release `hegemony-mark-2026-07-13`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-mark-2026-07-13), pinned to asset-repository commit `23795ce671fa2c7c98e188887b7a444a194a8a1e`. The verified transparent source attachment is a 500×500 RGBA PNG, 407,560 bytes, SHA-256 `059a61fb40d9e04fdaf27327a921ed5a3174ec48c1549512a71fbbb71aeb2b86`. That source/master is not committed to Warpkeep and GitHub Releases are not used as a runtime CDN.
+
+| Runtime size | PNG | Lossless WebP |
+| --- | --- | --- |
+| 32×32 | `public/images/factions/hegemony/marks/hegemony-mark-32.png` — 2,508 bytes, SHA-256 `5a11e27123b287a663d316c2b307e5be6549cee206383dc17c741762df69363e` | `public/images/factions/hegemony/marks/hegemony-mark-32.webp` — 2,060 bytes, SHA-256 `1ad2faaea36b80bfdd2140ea9d401a49d96766a4bf2d7a439a8dbaac814c1449` |
+| 64×64 | `public/images/factions/hegemony/marks/hegemony-mark-64.png` — 8,122 bytes, SHA-256 `773cdd9cae90a5030182d50689a3e6322cb628b8732a528d2a3563c9468b2bbb` | `public/images/factions/hegemony/marks/hegemony-mark-64.webp` — 6,230 bytes, SHA-256 `f99a96695ed7bf7278b5273d8d6362df70e4b7d2112cdddd22adb1912a08289a` |
+| 128×128 | `public/images/factions/hegemony/marks/hegemony-mark-128.png` — 28,910 bytes, SHA-256 `e694e586f9fa061c2ebcfe0a852f53f20a9b90794c3bbf5fd31d514a83bf5728` | `public/images/factions/hegemony/marks/hegemony-mark-128.webp` — 20,364 bytes, SHA-256 `3cbae6967d54a709efb2e9a455040fdb89b5fb1e682ebeddbfda71d39b0b260e` |
+| 256×256 | `public/images/factions/hegemony/marks/hegemony-mark-256.png` — 104,050 bytes, SHA-256 `8515b544c231a78f41f80731b74caeeca1cd93dbad6313a424f95fe669a25852` | `public/images/factions/hegemony/marks/hegemony-mark-256.webp` — 67,172 bytes, SHA-256 `55814b1b150f268426b1a49bffea5a377ca7a62adad526d2e09c48966428dc86` |
+
+Attribution: **Warpkeep Hegemony Mark currency artwork by the Warpkeep project**, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The grant covers the named source PNG and faithful runtime derivatives to the extent copyright and related rights are controlled by the Warpkeep project. It does not license OpenAI services, names, trademarks, third-party rights, or Warpkeep trademarks and canonical identity. The complete release coordinates, deterministic Sharp/libvips settings, decoded-pixel hashes, alpha audit, and visual QA are in the [runtime manifest](docs/reference/factions/hegemony/2026-07-13-hegemony-mark/runtime-manifest.json).
+
 ## Hegemony Frontier Keep provenance
 
 The Hegemony Frontier Keep and its runtime derivatives are project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the v0.3.0 HEAD or a public release while redistribution authority is unresolved. The public models are generated derivatives whose future license follows the source-rights determination, not the fact of conversion.

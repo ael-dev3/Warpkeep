@@ -127,6 +127,7 @@ describe('WarpkeepMainMenu', () => {
     render(<WarpkeepMainMenu active onRequestReturn={onRequestReturn} />);
     const credits = screen.getByRole('button', { name: 'CREDITS' });
 
+    credits.focus();
     fireEvent.click(credits);
     expect(screen.getByRole('dialog', { name: 'Warpkeep credits' })).not.toBeNull();
     const menu = document.querySelector('main.warpkeep-menu');
@@ -134,11 +135,13 @@ describe('WarpkeepMainMenu', () => {
     expect(menu?.hasAttribute('inert')).toBe(true);
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Warpkeep credits' })).toBeNull();
+    expect(document.activeElement).toBe(credits);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
     fireEvent.click(credits);
     fireEvent.click(screen.getByRole('button', { name: /Back to Main Menu/i }));
     expect(screen.queryByRole('dialog', { name: 'Warpkeep credits' })).toBeNull();
+    expect(document.activeElement).toBe(credits);
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onRequestReturn).toHaveBeenCalledTimes(1);
@@ -203,6 +206,11 @@ describe('WarpkeepMainMenu', () => {
     fireEvent.click(screen.getByDisplayValue('balanced'));
     expect(onGraphicsPreferenceChange).toHaveBeenCalledWith('balanced');
     fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'SETTINGS' })).toBeNull();
+    expect(document.activeElement).toBe(settings);
+
+    fireEvent.click(settings);
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO COMMANDS' }));
     expect(screen.queryByRole('dialog', { name: 'SETTINGS' })).toBeNull();
     expect(document.activeElement).toBe(settings);
   });

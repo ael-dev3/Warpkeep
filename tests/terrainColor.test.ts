@@ -4,6 +4,7 @@ import { generateRealmTerrainMap, terrainCellByCoord } from '../src/game/map/gen
 import { axialToWorld } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { sampleLowlandsColor } from '../src/game/map/terrainColor';
+import { createHegemonyKeepPlacement } from '../src/game/map/terrainPlacements';
 
 describe('lowlands terrain color', () => {
   it('is deterministic, finite, and identical from either side of a shared edge', () => {
@@ -27,20 +28,21 @@ describe('lowlands terrain color', () => {
     expect(Object.values(fromFirst).every((channel) => channel >= 0 && channel <= 1)).toBe(true);
   });
 
-  it('applies the packed-earth keep pad only inside its smooth placement influence', () => {
+  it('applies an off-center packed-earth keep pad only inside its smooth placement influence', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 5);
-    const centerCell = terrainCellByCoord(map, { q: 0, r: 0 });
-    if (!centerCell) throw new Error('missing center terrain cell');
+    const centerCell = terrainCellByCoord(map, { q: 2, r: -1 });
+    if (!centerCell) throw new Error('missing keep terrain cell');
     const center = axialToWorld(centerCell.coord, 1);
     const context = {
       cell: centerCell,
       hexSize: 1,
       playableRadius: 4,
-      renderRadius: 5
+      renderRadius: 5,
+      placements: [createHegemonyKeepPlacement('own-keep', centerCell.coord)]
     } as const;
     const padded = sampleLowlandsColor(map.worldSeed, center, context);
     const natural = sampleLowlandsColor(map.worldSeed, center, { ...context, placements: [] });
-    const cellEdge = { x: Math.sqrt(3) / 2, z: 0 };
+    const cellEdge = { x: center.x + Math.sqrt(3) / 2, z: center.z };
     const paddedEdge = sampleLowlandsColor(map.worldSeed, cellEdge, context);
     const naturalEdge = sampleLowlandsColor(map.worldSeed, cellEdge, {
       ...context,

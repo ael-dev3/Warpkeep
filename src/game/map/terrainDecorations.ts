@@ -2,8 +2,9 @@ import { axialToWorld, hexDistance, type HexCoord, type HexWorldPosition } from 
 import { deriveChannelSeed, seededUnitFloat } from './realmSeed';
 import { pointyHexBoundaryDistance } from './terrainHeight';
 import {
-  HEGEMONY_TERRAIN_PLACEMENTS,
+  EMPTY_TERRAIN_PLACEMENTS,
   isPlacementClear,
+  terrainPlacementsForCell,
   type TerrainStructurePlacement
 } from './terrainPlacements';
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
@@ -37,6 +38,7 @@ export type TerrainDecorationQuality = Readonly<{
 
 const CENTER_COORD = { q: 0, r: 0 } as const;
 const MAX_LOCAL_RADIUS = 0.61;
+const STRUCTURE_CLEARANCE = 0.08;
 
 function candidatePoint(
   cell: TerrainCell,
@@ -69,7 +71,7 @@ function createPoint(
     const world = candidatePoint(cell, kind, index, hexSize, attempt);
     const local = { x: world.x - center.x, z: world.z - center.z };
     if (pointyHexBoundaryDistance(local, hexSize) > 0.74) continue;
-    if (!isPlacementClear(placements, world, hexSize)) continue;
+    if (!isPlacementClear(placements, world, hexSize, STRUCTURE_CLEARANCE)) continue;
     return {
       kind,
       coord: cell.coord,
@@ -101,12 +103,18 @@ export function generateTerrainDecorations(
   renderMap: RealmTerrainMap,
   quality: TerrainDecorationQuality,
   hexSize = 1,
-  placements: readonly TerrainStructurePlacement[] = HEGEMONY_TERRAIN_PLACEMENTS
+  placements: readonly TerrainStructurePlacement[] = EMPTY_TERRAIN_PLACEMENTS
 ): TerrainDecorationData {
   const points: TerrainDecorationPoint[] = [];
 
   renderMap.cells.forEach((cell) => {
     const apron = hexDistance(CENTER_COORD, cell.coord) > quality.playableRadius;
+    const localPlacements = terrainPlacementsForCell(
+      placements,
+      cell.coord,
+      hexSize,
+      STRUCTURE_CLEARANCE
+    );
     addKind(
       points,
       cell,
@@ -114,7 +122,7 @@ export function generateTerrainDecorations(
       apron ? quality.greenTuftsPerApronCell : quality.greenTuftsPerPlayableCell,
       hexSize,
       apron,
-      placements
+      localPlacements
     );
     addKind(
       points,
@@ -123,14 +131,14 @@ export function generateTerrainDecorations(
       apron ? quality.dryTuftsPerApronCell : quality.dryTuftsPerPlayableCell,
       hexSize,
       apron,
-      placements
+      localPlacements
     );
 
     const chance = apron ? quality.stoneChanceApron : quality.stoneChancePlayable;
     const stoneSignal = seededUnitFloat(deriveChannelSeed(cell.seed, 0, 0, 'stone-presence'));
     const biasedChance = chance * (0.82 + Math.max(-0.3, cell.rockBias * 0.22));
     if (stoneSignal < biasedChance) {
-      addKind(points, cell, 'stone', 1, hexSize, apron, placements);
+      addKind(points, cell, 'stone', 1, hexSize, apron, localPlacements);
     }
   });
 

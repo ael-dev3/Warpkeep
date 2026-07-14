@@ -2,18 +2,28 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { DbConnection, tables } from '../src/spacetime/module_bindings';
 import {
+  DbConnection,
+  tables,
+  type EventContext
+} from '../src/spacetime/module_bindings';
+import {
+  acceptWarpkeepAlphaTerms,
   connectWarpkeep,
   bootstrapWarpkeepPlayer,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
+  observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
+  WARPKEEP_ALPHA_TERMS_VERSION as BROWSER_ALPHA_TERMS_VERSION,
   type WarpkeepConnection
 } from '../src/spacetime/warpkeepConnection';
+import {
+  WARPKEEP_ALPHA_TERMS_VERSION as MODULE_ALPHA_TERMS_VERSION
+} from '../spacetimedb/src/marksAuthorityPolicy';
 import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
 
 const config: WarpkeepRuntimeConfig = Object.freeze({
@@ -127,7 +137,7 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(window.localStorage.length).toBe(0);
   });
 
-  it('subscribes only to the three admission-gated public tables', () => {
+  it('subscribes only to the six admission-gated public realm projections', () => {
     const subscription = { unsubscribe: vi.fn() };
     const subscriptionBuilder = {
       onApplied: vi.fn(),
@@ -143,8 +153,11 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn())).toBe(subscription);
     expect(subscriptionBuilder.subscribe).toHaveBeenCalledWith([
       tables.worldTile,
+      tables.worldTileMetaV1,
       tables.playerV2,
-      tables.castle
+      tables.castle,
+      tables.realmV1,
+      tables.realmProfileV1
     ]);
   });
 
@@ -154,14 +167,24 @@ describe('Warpkeep authenticated connection boundary', () => {
         getMyAdmissionStatusV2: vi.fn(async () => 'admitted_needs_bootstrap')
       },
       reducers: {
-        bootstrapPlayerV2: vi.fn(async () => undefined)
+        bootstrapPlayerV2: vi.fn(async () => undefined),
+        acceptAlphaTermsV1: vi.fn(async () => undefined)
       }
     } as unknown as WarpkeepConnection;
 
     await expect(readWarpkeepAdmissionStatus(connection)).resolves.toBe('admitted_needs_bootstrap');
     await bootstrapWarpkeepPlayer(connection);
+    await acceptWarpkeepAlphaTerms(connection);
     expect(connection.procedures.getMyAdmissionStatusV2).toHaveBeenCalledWith({});
     expect(connection.reducers.bootstrapPlayerV2).toHaveBeenCalledWith({});
+    expect(connection.reducers.acceptAlphaTermsV1).toHaveBeenCalledWith({
+      termsVersion: '2026-07-14',
+      accepted: true
+    });
+  });
+
+  it('pins the browser and authoritative module to the same Terms version', () => {
+    expect(BROWSER_ALPHA_TERMS_VERSION).toBe(MODULE_ALPHA_TERMS_VERSION);
   });
 
   it('contains no legacy player subscription, cache read, or observer path', () => {
@@ -177,7 +200,7 @@ describe('Warpkeep authenticated connection boundary', () => {
 
   it('rejects an incompatible backend before gameplay admission or subscriptions', async () => {
     const compatible = {
-      protocolVersion: 2,
+      protocolVersion: 3,
       worldSeed: 3_445_214_658,
       worldSeedName: 'HEGEMONY_GENESIS_001'
     };
@@ -199,7 +222,10 @@ describe('Warpkeep authenticated connection boundary', () => {
         worldTile: { iter: function* () { yield {
           key: '0,0', q: 0, r: 0, biome: 'temperate-lowland', terrainSeed: 1, occupantCastleId: 1n
         }; } },
+        worldTileMetaV1: { iter: function* () { return undefined; } },
         playerV2: { iter: function* () { yield { fid: 12_345n, username: 'keeper', displayName: undefined, pfpUrl: undefined, status: 'active' }; } },
+        realmProfileV1: { iter: function* () { return undefined; } },
+        realmV1: { iter: function* () { return undefined; } },
         castle: { iter: function* () {
           yield { castleId: 1n, ownerFid: 12_345n, tileKey: '0,0', q: 0, r: 0, level: 1, name: 'Token Keep' };
           yield { castleId: 2n, ownerFid: 77n, tileKey: '1,0', q: 1, r: 0, level: 1, name: 'Peer Keep' };
@@ -210,6 +236,207 @@ describe('Warpkeep authenticated connection boundary', () => {
     const snapshot = readWarpkeepRealmSnapshot(connection, 12_345);
     expect(snapshot.ownCastle?.name).toBe('Token Keep');
     expect(snapshot.castles).toHaveLength(2);
+  });
+
+  it('maps only the public realm metadata, profile, Marks, and founding presentation', () => {
+    const timestamp = (milliseconds: bigint) => ({
+      toMillis: () => milliseconds
+    });
+    const connection = {
+      db: {
+        worldTile: { iter: function* () { return undefined; } },
+        worldTileMetaV1: { iter: function* () {
+          yield {
+            tileKey: 'GENESIS_001:1,-1',
+            realmId: 'GENESIS_001',
+            s: 0,
+            ring: 1,
+            sector: 6,
+            terrainKind: 'lowland',
+            passable: true,
+            movementCost: 1,
+            staticContentKind: 'castle-slot',
+            generationVersion: 2
+          };
+        } },
+        playerV2: { iter: function* () { return undefined; } },
+        realmProfileV1: { iter: function* () {
+          yield {
+            fid: 12_345n,
+            canonicalUsername: 'warpkeeper',
+            displayName: 'Warp Keeper',
+            pfpUrl: 'https://cdn.example/keeper.png',
+            publicBio: 'Founding the frontier.',
+            admittedAt: timestamp(1_752_408_000_000n),
+            firstAuthenticatedAt: timestamp(1_752_494_400_000n),
+            publicStatus: 'founding-player',
+            communityStatsVisible: true,
+            totalSnapBurnedMicros: 25_000_000n,
+            marksEarnedMicros: 25_000_000n,
+            marksSpentMicros: 1_000_000n,
+            marksBalanceMicros: 24_000_000n,
+            marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1'
+          };
+        } },
+        realmV1: { iter: function* () {
+          yield { realmId: 'ARCHIVE', publicName: 'Archive', active: false };
+          yield {
+            realmId: 'GENESIS_001',
+            publicName: 'The Hegemony · Genesis 001',
+            active: true
+          };
+        } },
+        castle: { iter: function* () {
+          yield {
+            castleId: 1n,
+            ownerFid: 12_345n,
+            tileKey: 'GENESIS_001:1,-1',
+            q: 1,
+            r: -1,
+            level: 2,
+            name: 'Warpkeeper Bastion',
+            createdAt: timestamp(1_752_580_800_000n)
+          };
+        } }
+      }
+    } as unknown as WarpkeepConnection;
+
+    expect(readWarpkeepRealmSnapshot(connection, 12_345)).toEqual({
+      tiles: [],
+      tileMetadata: [{
+        tileKey: 'GENESIS_001:1,-1',
+        realmId: 'GENESIS_001',
+        s: 0,
+        ring: 1,
+        sector: 6,
+        terrainKind: 'lowland',
+        passable: true,
+        movementCost: 1,
+        staticContentKind: 'castle-slot',
+        generationVersion: 2
+      }],
+      players: [],
+      profiles: [{
+        fid: 12_345,
+        canonicalUsername: 'warpkeeper',
+        displayName: 'Warp Keeper',
+        pfpUrl: 'https://cdn.example/keeper.png',
+        publicBio: 'Founding the frontier.',
+        admittedAt: 1_752_408_000_000,
+        firstAuthenticatedAt: 1_752_494_400_000,
+        publicStatus: 'founding-player',
+        communityStatsVisible: true,
+        totalSnapBurnedMicros: 25_000_000n,
+        marksEarnedMicros: 25_000_000n,
+        marksSpentMicros: 1_000_000n,
+        marksBalanceMicros: 24_000_000n,
+        marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1'
+      }],
+      castles: [{
+        castleId: 1,
+        ownerFid: 12_345,
+        tileKey: 'GENESIS_001:1,-1',
+        q: 1,
+        r: -1,
+        level: 2,
+        name: 'Warpkeeper Bastion',
+        foundedAt: 1_752_580_800_000
+      }],
+      realm: {
+        realmId: 'GENESIS_001',
+        publicName: 'The Hegemony · Genesis 001'
+      },
+      ownCastle: {
+        castleId: 1,
+        ownerFid: 12_345,
+        tileKey: 'GENESIS_001:1,-1',
+        q: 1,
+        r: -1,
+        level: 2,
+        name: 'Warpkeeper Bastion',
+        foundedAt: 1_752_580_800_000
+      }
+    });
+  });
+
+  it('publishes one realm snapshot per transaction and removes every table listener', () => {
+    type Listener = (context: EventContext, ...rows: unknown[]) => void;
+    const tableDouble = () => {
+      const listeners: {
+        insert?: Listener;
+        delete?: Listener;
+        update?: Listener;
+      } = {};
+      return {
+        listeners,
+        table: {
+          iter: function* () { return undefined; },
+          onInsert: vi.fn((listener: Listener) => { listeners.insert = listener; }),
+          onDelete: vi.fn((listener: Listener) => { listeners.delete = listener; }),
+          onUpdate: vi.fn((listener: Listener) => { listeners.update = listener; }),
+          removeOnInsert: vi.fn(),
+          removeOnDelete: vi.fn(),
+          removeOnUpdate: vi.fn()
+        }
+      };
+    };
+    const worldTile = tableDouble();
+    const worldTileMetaV1 = tableDouble();
+    const playerV2 = tableDouble();
+    const castle = tableDouble();
+    const realmV1 = tableDouble();
+    const realmProfileV1 = tableDouble();
+    const connection = {
+      db: {
+        worldTile: worldTile.table,
+        worldTileMetaV1: worldTileMetaV1.table,
+        playerV2: playerV2.table,
+        castle: castle.table,
+        realmV1: realmV1.table,
+        realmProfileV1: realmProfileV1.table
+      }
+    } as unknown as WarpkeepConnection;
+    const onChange = vi.fn();
+    const cleanup = observeWarpkeepRealm(connection, 12_345, onChange);
+    const context = (id: string) => ({
+      event: { id, tag: 'Transaction' }
+    }) as unknown as EventContext;
+
+    worldTile.listeners.insert?.({
+      event: { id: 'subscribe-applied', tag: 'SubscribeApplied' }
+    } as unknown as EventContext);
+    expect(onChange).not.toHaveBeenCalled();
+
+    worldTile.listeners.insert?.(context('transaction-1'));
+    playerV2.listeners.update?.(context('transaction-1'));
+    castle.listeners.delete?.(context('transaction-1'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith({
+      tiles: [],
+      tileMetadata: [],
+      players: [],
+      profiles: [],
+      castles: []
+    });
+
+    castle.listeners.insert?.(context('transaction-2'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+
+    cleanup();
+    worldTile.listeners.insert?.(context('transaction-3'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+    for (const source of [
+      worldTile.table,
+      worldTileMetaV1.table,
+      playerV2.table,
+      castle.table,
+      realmV1.table,
+      realmProfileV1.table
+    ]) {
+      expect(source.removeOnInsert).toHaveBeenCalledOnce();
+      expect(source.removeOnDelete).toHaveBeenCalledOnce();
+      expect(source.removeOnUpdate).toHaveBeenCalledOnce();
+    }
   });
 
   it('disconnects a current connection without throwing on a stale socket', () => {

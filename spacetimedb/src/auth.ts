@@ -19,9 +19,9 @@ import {
 } from './claims';
 import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
+import { assertGenesisFounderForFid } from './foundingAuthority';
 import { evaluatePlayerOwnership } from './playerOwnershipPolicy';
 import type warpkeep from './schema';
-import { worldCastleGraphIsConsistent } from './worldCastleIntegrity';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
 
@@ -141,9 +141,7 @@ export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {
   player: NonNullable<ReturnType<typeof ctx.db.playerV2.fid.find>>;
 } {
   const { claims } = requireAllowedFid(ctx);
-  if (!worldCastleGraphIsConsistent(ctx.db.worldTile.iter(), ctx.db.castle.iter())) {
-    throw new SenderError('STATE_INTEGRITY');
-  }
+  assertGenesisFounderForFid(ctx, claims.fid);
   const player = ctx.db.playerV2.fid.find(claims.fid);
   const ownership = ctx.db.playerOwnershipV2.fid.find(claims.fid);
   const ownershipState = evaluatePlayerOwnership(

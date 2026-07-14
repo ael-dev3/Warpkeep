@@ -1,0 +1,305 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-mark-runtime-v1",
+  "designation": {
+    "name": "Mark",
+    "faction": "Hegemony",
+    "role": "main in-game currency"
+  },
+  "sourceRelease": {
+    "repository": "ael-dev3/Warpkeep-Assets",
+    "tag": "hegemony-mark-2026-07-13",
+    "tagCommit": "23795ce671fa2c7c98e188887b7a444a194a8a1e",
+    "releaseName": "Hegemony Mark Currency Reference",
+    "releaseUrl": "https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-mark-2026-07-13",
+    "publishedAt": "2026-07-13T17:25:19Z",
+    "draft": false,
+    "prerelease": false,
+    "provenance": {
+      "suppliedBy": "Ael",
+      "authorization": "Ael explicitly authorized the public deposit in Warpkeep-Assets.",
+      "privateWorkflowMetadata": "intentionally omitted from the public archive",
+      "embeddedContentCredentials": null
+    },
+    "attachment": {
+      "githubAssetId": 475719579,
+      "name": "hegemony-mark-main-currency-transparent.png",
+      "url": "https://github.com/ael-dev3/Warpkeep-Assets/releases/download/hegemony-mark-2026-07-13/hegemony-mark-main-currency-transparent.png",
+      "mediaType": "image/png",
+      "bytes": 407560,
+      "sha256": "059a61fb40d9e04fdaf27327a921ed5a3174ec48c1549512a71fbbb71aeb2b86",
+      "image": {
+        "width": 500,
+        "height": 500,
+        "bitDepth": 8,
+        "colorType": 6,
+        "colorMode": "RGBA",
+        "alpha": true,
+        "interlaced": false,
+        "transparentPixels": 102633,
+        "partiallyTransparentPixels": 3333,
+        "opaquePixels": 144034
+      }
+    },
+    "releaseManifest": {
+      "name": "manifest.json",
+      "bytes": 3592,
+      "sha256": "e0ebd51598853574c710352dbc2b9c640f1dd2c020675de9d664966ee76afed8"
+    },
+    "releaseChecksums": {
+      "name": "SHA256SUMS.txt",
+      "bytes": 288,
+      "sha256": "3aed83545ad491a350407020609aa441e2187392d9ae11905c6dae37aae02167"
+    }
+  },
+  "license": {
+    "spdx": "CC-BY-4.0",
+    "effectiveFrom": "Warpkeep v0.3.0",
+    "attributionParty": "Warpkeep project",
+    "attribution": "Warpkeep Hegemony Mark currency artwork by the Warpkeep project, licensed under CC BY 4.0.",
+    "licenseFile": "LICENSE-CC-BY-4.0",
+    "licenseFileSha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
+    "scope": "The grant covers the named source PNG and these faithful runtime derivatives to the extent copyright and related rights are controlled by the Warpkeep project. It does not license OpenAI services, names, trademarks, third-party rights, or Warpkeep trademarks and canonical identity."
+  },
+  "pipeline": {
+    "sourceRetainedInWarpkeep": false,
+    "runtimeUsesReleaseAsCdn": false,
+    "script": "scripts/prepare-hegemony-mark.mjs",
+    "inputEnvironmentVariable": "WARPKEEP_MARK_SOURCE",
+    "tool": "sharp",
+    "toolVersion": "0.35.3",
+    "libvipsVersion": "8.18.3",
+    "libpngVersion": "1.6.58",
+    "libwebpVersion": "1.6.0",
+    "resize": {
+      "kernel": "lanczos3",
+      "fit": "fill",
+      "fastShrinkOnLoad": false,
+      "simd": false,
+      "concurrency": 1
+    },
+    "png": {
+      "colorMode": "RGBA",
+      "bitDepth": 8,
+      "compressionLevel": 9,
+      "adaptiveFiltering": true,
+      "palette": false,
+      "effort": 10,
+      "progressive": false
+    },
+    "webp": {
+      "lossless": true,
+      "quality": 100,
+      "alphaQuality": 100,
+      "effort": 6,
+      "preset": "icon",
+      "exactTransparentRgb": true
+    }
+  },
+  "runtimeAssets": [
+    {
+      "path": "public/images/factions/hegemony/marks/hegemony-mark-32.png",
+      "format": "png",
+      "width": 32,
+      "height": 32,
+      "bytes": 2508,
+      "sha256": "5a11e27123b287a663d316c2b307e5be6549cee206383dc17c741762df69363e",
+      "decodedRgbaSha256": "99d72e10d0789a0b48555042bf8be247769747eae0c8f2b211e2a2a788c17c44",
+      "alpha": {
+        "transparentPixels": 283,
+        "partiallyTransparentPixels": 276,
+        "opaquePixels": 465
+      },
+      "visibleBoundsAlpha16": {
+        "minX": 2,
+        "minY": 1,
+        "maxX": 29,
+        "maxY": 29
+      }
+    },
+    {
+      "path": "public/images/factions/hegemony/marks/hegemony-mark-32.webp",
+      "format": "webp",
+      "width": 32,
+      "height": 32,
+      "bytes": 2060,
+      "sha256": "1ad2faaea36b80bfdd2140ea9d401a49d96766a4bf2d7a439a8dbaac814c1449",
+      "decodedRgbaSha256": "99d72e10d0789a0b48555042bf8be247769747eae0c8f2b211e2a2a788c17c44",
+      "alpha": {
+        "transparentPixels": 283,
+        "partiallyTransparentPixels": 276,
+        "opaquePixels": 465
+      },
+      "visibleBoundsAlpha16": {
+        "minX": 2,
+        "minY": 1,
+        "maxX": 29,
+        "maxY": 29
+      }
+    },
+    {
+      "path": "public/images/factions/hegemony/marks/hegemony-mark-64.png",
+      "format": "png",
+      "width": 64,
+      "height": 64,
+      "bytes": 8122,
+      "sha256": "773cdd9cae90a5030182d50689a3e6322cb628b8732a528d2a3563c9468b2bbb",
+      "decodedRgbaSha256": "a3c512d665111621a588d2dd6d23e455ffc7d9151d24e5a2f57f3f4dc11e0e47",
+      "alpha": {
+        "transparentPixels": 1429,
+        "partiallyTransparentPixels": 558,
+        "opaquePixels": 2109
+      },
+      "visibleBoundsAlpha16": {
+        "minX": 5,
+        "minY": 3,
+        "maxX": 58,
+        "maxY": 59
+      }
+    },
+    {
+      "path": "public/images/factions/hegemony/marks/hegemony-mark-64.webp",
+      "format": "webp",
+      "width": 64,
+      "height": 64,
+      "bytes": 6230,
+      "sha256": "f99a96695ed7bf7278b5273d8d6362df70e4b7d2112cdddd22adb1912a08289a",
+      "decodedRgbaSha256": "a3c512d665111621a588d2dd6d23e455ffc7d9151d24e5a2f57f3f4dc11e0e47",
+      "alpha": {
+        "transparentPixels": 1429,
+        "partiallyTransparentPixels": 558,
+        "opaquePixels": 2109
+      },
+      "visibleBoundsAlpha16": {
+        "minX": 5,
+        "minY": 3,
+        "maxX": 58,
+        "maxY": 59
+      }
+    },
+    {
+      "path": "public/images/factions/hegemony/marks/hegemony-mark-128.png",
+      "format": "png",
+      "width": 128,
+      "height": 128,
+      "bytes": 28910,
+      "sha256": "e694e586f9fa061c2ebcfe0a852f53f20a9b90794c3bbf5fd31d514a83bf5728",
+      "decodedRgbaSha256": "2244a7aa823aceaf8ac6aa1f12b1fdc2150c13e843dd9072ae0d4285e0a50012",
+      "alpha": {
+        "transparentPixels": 6268,
+        "partiallyTransparentPixels": 1146,
+        "opaquePixels": 8970
+      },
+      "visibleBoundsAlpha16": {
+        "minX": 10,
+        "minY": 6,
+        "maxX": 117,
+        "maxY": 119
+      }
+    },
+    {
+      "path": "public/images/factions/hegemony/marks/hegemony-mark-128.webp",
+      "format": "webp",
+      "width": 128,
+      "height": 128,
+      "bytes": 20364,
+      "sha256": "3cbae6967d54a709efb2e9a455040fdb89b5fb1e682ebeddbfda71d39b0b260e",
+      "decodedRgbaSha256": "2244a7aa823aceaf8ac6aa1f12b1fdc2150c13e843dd9072ae0d4285e0a50012",
+      "alpha": {
+        "transparentPixels": 6268,
+        "partiallyTransparentPixels": 1146,
+        "opaquePixels": 8970
+      },
+      "visibleBoundsAlpha16": {
+        "minX": 10,
+        "minY": 6,
+        "maxX": 117,
+        "maxY": 119
+      }
+    },
+    {
+      "path": "public/images/factions/hegemony/marks/hegemony-mark-256.png",
+      "format": "png",
+      "width": 256,
+      "height": 256,
+      "bytes": 104050,
+      "sha256": "8515b544c231a78f41f80731b74caeeca1cd93dbad6313a424f95fe669a25852",
+      "decodedRgbaSha256": "9854653d8b357ba08d1ce2a8537885d75f6c869d117be8ac1b71427e9c665a5a",
+      "alpha": {
+        "transparentPixels": 26138,
+        "partiallyTransparentPixels": 2368,
+        "opaquePixels": 37030
+      },
+      "visibleBoundsAlpha16": {
+        "minX": 20,
+        "minY": 13,
+        "maxX": 235,
+        "maxY": 239
+      }
+    },
+    {
+      "path": "public/images/factions/hegemony/marks/hegemony-mark-256.webp",
+      "format": "webp",
+      "width": 256,
+      "height": 256,
+      "bytes": 67172,
+      "sha256": "55814b1b150f268426b1a49bffea5a377ca7a62adad526d2e09c48966428dc86",
+      "decodedRgbaSha256": "9854653d8b357ba08d1ce2a8537885d75f6c869d117be8ac1b71427e9c665a5a",
+      "alpha": {
+        "transparentPixels": 26138,
+        "partiallyTransparentPixels": 2368,
+        "opaquePixels": 37030
+      },
+      "visibleBoundsAlpha16": {
+        "minX": 20,
+        "minY": 13,
+        "maxX": 235,
+        "maxY": 239
+      }
+    }
+  ],
+  "visualQa": {
+    "pngAndWebpDecodeToIdenticalRgba": true,
+    "backgrounds": [
+      "#f4efe5",
+      "#0b0d16"
+    ],
+    "alphaEdgeCompositeMeanAbsoluteErrorPerChannel": {
+      "32": {
+        "light": 1.522786,
+        "dark": 0.417318
+      },
+      "64": {
+        "light": 0.771566,
+        "dark": 0.226644
+      },
+      "128": {
+        "light": 0.364583,
+        "dark": 0.114421
+      },
+      "256": {
+        "light": 0.13589,
+        "dark": 0.054927
+      }
+    },
+    "alphaEdgeCompositeMaximumChannelError": {
+      "32": {
+        "light": 19,
+        "dark": 10
+      },
+      "64": {
+        "light": 18,
+        "dark": 11
+      },
+      "128": {
+        "light": 18,
+        "dark": 13
+      },
+      "256": {
+        "light": 15,
+        "dark": 13
+      }
+    },
+    "manualInspection": "The 32 px silhouette, gold outer ring, vertical axis, concentric rings, and lavender core remain readable on both light and near-black backgrounds; no new dark fringe or clipped alpha was observed."
+  }
+}

@@ -160,9 +160,12 @@ npm run stdb:publish:dev
 Use the private Keychain wrapper so the Hermes credential is loaded only into
 bounded publisher memory and forwarded to the protected inspection child over
 stdin; it is excluded from the child environment and every other child process.
-The publisher performs the deployed v1 aggregate
-inspection itself, after attesting the pinned CLI binary, current loopback
-migration proof, and canonical database name-to-identity mapping. It never
+For the historical first v2 publication, the publisher performed the deployed
+v1 aggregate inspection itself. The current protocol-v3 candidate instead
+requires the exact deployed protocol-v2 aggregate, including v2 ownership and
+orphan counters, before it can publish. It does so after attesting the pinned
+CLI binary, current loopback migration proof, and canonical database
+name-to-identity mapping. It never
 accepts a hand-entered legacy-player count. The proof's single SHA-256 receipt
 is bound to the exact prebuilt `bundle.js`; the publisher rechecks those bytes
 and uses `--js-path`, so it cannot silently rebuild a different module between

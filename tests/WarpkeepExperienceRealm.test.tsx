@@ -277,7 +277,7 @@ function createBackendRuntime(
   admissionSequence: readonly WarpkeepAdmissionStatus[] = ['ready'],
   realm: WarpkeepRealmSnapshot = SHARED_REALM,
   backendInfo: unknown = {
-    protocolVersion: 2,
+    protocolVersion: 3,
     worldSeed: 3_445_214_658,
     worldSeedName: 'HEGEMONY_GENESIS_001'
   }
@@ -299,6 +299,7 @@ function createBackendRuntime(
       admissionSequence.length - 1
     )]!),
     bootstrapPlayer: vi.fn(async () => undefined),
+    acceptAlphaTerms: vi.fn(async () => undefined),
     observeRealm: vi.fn(() => vi.fn()),
     readRealmSnapshot: vi.fn(() => realm),
     subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
@@ -321,9 +322,14 @@ type RenderExperienceOptions = {
 function BackendDisconnectProbe() {
   const backend = useWarpkeepBackend();
   return (
-    <button type="button" onClick={backend.disconnect}>
-      TEST BACKEND DISCONNECT
-    </button>
+    <>
+      <button type="button" onClick={backend.disconnect}>
+        TEST BACKEND DISCONNECT
+      </button>
+      <output data-testid="backend-own-keep">
+        {backend.state.realm?.ownCastle?.name ?? ''}
+      </output>
+    </>
   );
 }
 
@@ -411,7 +417,9 @@ beforeEach(async () => {
   window.sessionStorage.clear();
   await Promise.all([
     import('../src/components/auth/FarcasterIdentityBadge'),
-    import('../src/components/auth/FarcasterQrAuthPanel')
+    import('../src/components/auth/FarcasterQrAuthPanel'),
+    import('../src/components/title/WarpkeepTitleScreen3D'),
+    import('../src/components/realm/RealmMapScreen')
   ]);
   vi.useFakeTimers({ now: TEST_NOW });
   window.history.replaceState({ warpkeepMenu: true }, '', '/#menu');
@@ -463,11 +471,13 @@ describe('Warpkeep shared realm admission', () => {
     expect(bridge.exchangeCompletedSignIn).toHaveBeenCalledTimes(1);
     expect(encodeQrCode).toHaveBeenCalledTimes(1);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
     expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_CHANNEL_TOKEN_123456');
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_MESSAGE');
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
     expect(screen.getByText('LEVEL 2')).not.toBeNull();
@@ -496,6 +506,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).not.toHaveBeenCalled();
     expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     const freshDialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
@@ -619,6 +630,51 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).not.toHaveBeenCalled();
     expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(backend.runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+  });
+
+  it('records explicit Terms only after bootstrap and before shared-state subscription', async () => {
+    const backend = createBackendRuntime(['admitted_needs_bootstrap', 'ready']);
+    const order: string[] = [];
+    vi.mocked(backend.runtime.bootstrapPlayer).mockImplementation(async () => {
+      order.push('bootstrap');
+    });
+    vi.mocked(backend.runtime.acceptAlphaTerms).mockImplementation(async () => {
+      order.push('terms');
+    });
+    vi.mocked(backend.runtime.subscribeRealm).mockImplementation((_connection, onApplied) => {
+      order.push('subscribe');
+      onApplied();
+      return { unsubscribe: vi.fn() } as never;
+    });
+    renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(order).toEqual(['bootstrap', 'terms', 'subscribe']);
+    expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledWith(backend.connection);
+  });
+
+  it('fails closed when explicit Terms acknowledgement cannot be recorded', async () => {
+    const backend = createBackendRuntime(['ready']);
+    vi.mocked(backend.runtime.acceptAlphaTerms)
+      .mockRejectedValueOnce(new Error('controlled terms failure'));
+    renderExperience({ runtime: backend.runtime });
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await acceptAlphaParticipationTerms();
+    await settle();
+    await act(async () => vi.advanceTimersByTime(1));
+    await settle();
+
+    expect(backend.runtime.subscribeRealm).not.toHaveBeenCalled();
+    expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('main', { name: 'Hegemony realm' })).toBeNull();
+    expect(screen.getByText('The Hegemony records are temporarily unreachable.')).not.toBeNull();
   });
 
   it('waits for explicit terms acceptance before restoring a valid cookie session on mount or focus', async () => {
@@ -666,6 +722,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settle();
     expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
     expect(window.location.hash).toBe('#realm');
   });
@@ -739,6 +796,7 @@ describe('Warpkeep shared realm admission', () => {
     await acceptAlphaParticipationTerms();
     await settle();
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
 
     await act(async () => vi.advanceTimersByTime(10_000));
@@ -1091,6 +1149,20 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
     expect(backend.runtime.readRealmSnapshot).toHaveBeenCalledTimes(1);
     expect(backend.runtime.disconnect).not.toHaveBeenCalled();
+
+    const observedRealm: WarpkeepRealmSnapshot = {
+      ...SHARED_REALM,
+      castles: SHARED_REALM.castles.map((castle) => (
+        castle.ownerFid === VERIFIED_IDENTITY.fid
+          ? { ...castle, name: 'Observed Bastion' }
+          : castle
+      )),
+      ownCastle: { ...SHARED_REALM.ownCastle!, name: 'Observed Bastion' }
+    };
+    act(() => reportObservedRealm?.(observedRealm));
+    await settle();
+    expect(screen.getByTestId('backend-own-keep').textContent).toBe('Observed Bastion');
+    expect(backend.runtime.readRealmSnapshot).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'TEST BACKEND DISCONNECT' }));
     await settle();

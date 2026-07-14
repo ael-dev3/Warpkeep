@@ -4,6 +4,10 @@ import { axialToWorld, worldToNearestAxial, type HexCoord } from '../../game/map
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
 import { isPlayableRealmCoord, type RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
+import {
+  createHegemonyCastlePlacements,
+  type TerrainStructurePlacement
+} from '../../game/map/terrainPlacements';
 import { createTerrainDecorationLayers } from './createTerrainDecorations';
 import { createTerrainGeometryData, pointyHexCorners } from './createTerrainGeometry';
 import {
@@ -19,9 +23,11 @@ import {
 import {
   REALM_LIGHTING_SPECS,
   resolveRealmPixelRatio,
+  resolveRealmRenderPlan,
   type RealmQualitySpec
 } from './realmQuality';
 import type { KeepLoadStatus } from './realmTypes';
+import type { RealmCastleProjectionFrame } from './realmTypes';
 
 const HEX_SIZE = 1;
 const OVERLAY_LIFT = 0.026;
@@ -34,6 +40,7 @@ export type RealmPeerCastleMarker = Readonly<{
 
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
+  frameFoundingDistrict: () => void;
   focusKeep: () => void;
   recenterKeep: () => void;
   setHovered: (coord: HexCoord | null) => void;
@@ -41,10 +48,23 @@ export type RealmSceneHandle = Readonly<{
   showRealm: () => void;
 }>;
 
+export function foundingDistrictZoomForViewport(
+  playableRadius: number,
+  aspect: number
+) {
+  const radiusProgress = Math.min(1, Math.max(0, (playableRadius - 4) / 16));
+  const narrowViewportAdjustment = Math.min(0.16, Math.max(0, 1 - aspect) * 0.34);
+  return Math.min(0.54, Math.max(
+    0.12,
+    0.3 + radiusProgress * 0.24 - narrowViewportAdjustment
+  ));
+}
+
 export type CreateRealmSceneOptions = Readonly<{
   canvas: HTMLCanvasElement;
   surface: RealmTerrainSurface;
   keepCoord: HexCoord;
+  ownCastleId?: number;
   otherCastles: readonly RealmPeerCastleMarker[];
   quality: RealmQualitySpec;
   reducedMotion: boolean;
@@ -52,6 +72,7 @@ export type CreateRealmSceneOptions = Readonly<{
   onCameraModeChange: (mode: RealmCameraMode) => void;
   onHover: (coord: HexCoord | null) => void;
   onKeepStatusChange: (status: KeepLoadStatus) => void;
+  onCastleProjection: (frame: RealmCastleProjectionFrame) => void;
   onRendererUnavailable: () => void;
   onSelect: (coord: HexCoord) => void;
 }>;
@@ -73,11 +94,13 @@ type PickResult = Readonly<{
 
 function createTerrainGeometry(
   surface: RealmTerrainSurface,
-  quality: RealmQualitySpec
+  subdivisionsPerEdge: number,
+  placements: readonly TerrainStructurePlacement[]
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
-    subdivisionsPerEdge: quality.subdivisionsPerEdge,
-    playableRadius: quality.playableRadius
+    subdivisionsPerEdge,
+    playableRadius: surface.playableMap.radius,
+    placements
   });
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
@@ -114,7 +137,8 @@ function createOverlay(color: THREE.ColorRepresentation, opacity: number) {
 function setOverlay(
   overlay: THREE.LineLoop,
   surface: RealmTerrainSurface,
-  coord: HexCoord | null
+  coord: HexCoord | null,
+  placements: readonly TerrainStructurePlacement[]
 ) {
   if (!coord || !isPlayableRealmCoord(surface, coord)) {
     overlay.visible = false;
@@ -126,7 +150,7 @@ function setOverlay(
     positions.setXYZ(
       index,
       corner.x,
-      terrainHeightAtWorld(surface.renderMap, corner, HEX_SIZE) + OVERLAY_LIFT,
+      terrainHeightAtWorld(surface.renderMap, corner, HEX_SIZE, placements) + OVERLAY_LIFT,
       corner.z
     );
   });
@@ -160,6 +184,24 @@ function activePinchDistance(pointers: ReadonlyMap<number, PointerSample>) {
 }
 
 export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHandle {
+  const renderPlan = resolveRealmRenderPlan(options.quality, {
+    playableRadius: options.surface.playableMap.radius,
+    renderRadius: options.surface.renderMap.radius,
+    playableCellCount: options.surface.playableMap.cells.length,
+    renderCellCount: options.surface.renderMap.cells.length
+  });
+  const runtimeQuality: RealmQualitySpec = {
+    ...options.quality,
+    dynamicShadows: renderPlan.dynamicShadows,
+    shadowMapSize: renderPlan.shadowMapSize
+  };
+  const terrainPlacements = createHegemonyCastlePlacements([
+    { id: 'own-keep', coord: options.keepCoord },
+    ...options.otherCastles.map((castle) => ({
+      id: `peer-castle-${castle.castleId}`,
+      coord: { q: castle.q, r: castle.r }
+    }))
+  ]);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#aebfc0');
   const fog = new THREE.Fog('#aebfc0', options.quality.fogNear, options.quality.fogFar);
@@ -175,13 +217,14 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const lighting = REALM_LIGHTING_SPECS[options.quality.id];
   renderer.toneMappingExposure = lighting.toneMappingExposure;
-  renderer.shadowMap.enabled = options.quality.dynamicShadows;
+  renderer.shadowMap.enabled = renderPlan.dynamicShadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.setClearColor('#aebfc0', 1);
 
   const { data: terrainData, geometry: terrainGeometry } = createTerrainGeometry(
     options.surface,
-    options.quality
+    renderPlan.subdivisionsPerEdge,
+    terrainPlacements
   );
   const terrainMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -191,28 +234,37 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   });
   const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
   terrain.name = 'hegemony-lowlands-surface';
-  terrain.receiveShadow = true;
+  terrain.receiveShadow = renderPlan.dynamicShadows;
   scene.add(terrain);
 
-  const decorationData = generateTerrainDecorations(options.surface.renderMap, options.quality);
+  const decorationData = generateTerrainDecorations(
+    options.surface.renderMap,
+    {
+      ...renderPlan.decorationDensity,
+      playableRadius: options.surface.playableMap.radius
+    },
+    HEX_SIZE,
+    terrainPlacements
+  );
   const decorations = createTerrainDecorationLayers(
     decorationData,
     options.surface.renderMap,
-    options.quality,
-    HEX_SIZE
+    runtimeQuality,
+    HEX_SIZE,
+    terrainPlacements
   );
   scene.add(decorations.group);
 
   const hemisphere = new THREE.HemisphereLight('#f4efd9', '#46523b', 1.1);
   const sun = new THREE.DirectionalLight('#ffe1a8', lighting.sunIntensity);
   sun.position.set(-7.5, 13.5, 8.5);
-  sun.castShadow = options.quality.dynamicShadows;
-  if (options.quality.shadowMapSize > 0) {
-    sun.shadow.mapSize.set(options.quality.shadowMapSize, options.quality.shadowMapSize);
-    sun.shadow.camera.left = -10.5;
-    sun.shadow.camera.right = 10.5;
-    sun.shadow.camera.top = 10.5;
-    sun.shadow.camera.bottom = -10.5;
+  sun.castShadow = renderPlan.dynamicShadows;
+  if (renderPlan.shadowMapSize > 0) {
+    sun.shadow.mapSize.set(renderPlan.shadowMapSize, renderPlan.shadowMapSize);
+    sun.shadow.camera.left = -renderPlan.shadowCameraHalfExtent;
+    sun.shadow.camera.right = renderPlan.shadowCameraHalfExtent;
+    sun.shadow.camera.top = renderPlan.shadowCameraHalfExtent;
+    sun.shadow.camera.bottom = -renderPlan.shadowCameraHalfExtent;
     sun.shadow.camera.near = 0.4;
     sun.shadow.camera.far = 38;
     sun.shadow.bias = -0.00035;
@@ -229,7 +281,12 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   scene.add(hoverOverlay, selectedOverlay);
 
   const keepWorld = axialToWorld(options.keepCoord, HEX_SIZE);
-  const keepGroundY = terrainHeightAtWorld(options.surface.renderMap, keepWorld, HEX_SIZE);
+  const keepGroundY = terrainHeightAtWorld(
+    options.surface.renderMap,
+    keepWorld,
+    HEX_SIZE,
+    terrainPlacements
+  );
   const keepAnchor = new THREE.Group();
   keepAnchor.name = 'hegemony-keep-anchor';
   keepAnchor.position.set(keepWorld.x, keepGroundY + 0.006, keepWorld.z);
@@ -247,25 +304,66 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     roughness: 0.78,
     metalness: 0.04
   });
-  for (const castle of options.otherCastles) {
+  const peerMarkerInstances = new THREE.InstancedMesh(
+    peerMarkerGeometry,
+    peerMarkerMaterial,
+    options.otherCastles.length
+  );
+  peerMarkerInstances.name = 'hegemony-peer-castle-instances';
+  const peerMarkerMatrix = new THREE.Matrix4();
+  const peerMarkerPosition = new THREE.Vector3();
+  const peerMarkerRotation = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    Math.PI / 5
+  );
+  const peerMarkerScale = new THREE.Vector3(1, 1, 1);
+  options.otherCastles.forEach((castle, index) => {
     const world = axialToWorld({ q: castle.q, r: castle.r }, HEX_SIZE);
-    const marker = new THREE.Mesh(peerMarkerGeometry, peerMarkerMaterial);
-    marker.name = `peer-castle-${castle.castleId}`;
-    marker.position.set(
+    peerMarkerPosition.set(
       world.x,
-      terrainHeightAtWorld(options.surface.renderMap, world, HEX_SIZE) + 0.2,
+      terrainHeightAtWorld(options.surface.renderMap, world, HEX_SIZE, terrainPlacements) + 0.2,
       world.z
     );
-    marker.rotation.y = Math.PI / 5;
-    peerMarkerGroup.add(marker);
-  }
+    peerMarkerMatrix.compose(peerMarkerPosition, peerMarkerRotation, peerMarkerScale);
+    peerMarkerInstances.setMatrixAt(index, peerMarkerMatrix);
+  });
+  peerMarkerInstances.instanceMatrix.needsUpdate = true;
+  peerMarkerInstances.computeBoundingSphere();
+  peerMarkerGroup.add(peerMarkerInstances);
   scene.add(peerMarkerGroup);
+
+  const castleLabelAnchors = [
+    ...(options.ownCastleId === undefined ? [] : [{
+      castleId: options.ownCastleId,
+      q: options.keepCoord.q,
+      r: options.keepCoord.r,
+      x: keepWorld.x,
+      y: keepGroundY + 1.12,
+      z: keepWorld.z
+    }]),
+    ...options.otherCastles.map((castle) => {
+      const world = axialToWorld(castle, HEX_SIZE);
+      return {
+        castleId: castle.castleId,
+        q: castle.q,
+        r: castle.r,
+        x: world.x,
+        y: terrainHeightAtWorld(
+          options.surface.renderMap,
+          world,
+          HEX_SIZE,
+          terrainPlacements
+        ) + 0.58,
+        z: world.z
+      };
+    })
+  ];
 
   const contactShadow = new THREE.Mesh(
     new THREE.CircleGeometry(0.69, 40),
     new THREE.MeshBasicMaterial({
       color: '#283020',
-      opacity: options.quality.dynamicShadows ? 0.11 : 0.19,
+      opacity: renderPlan.dynamicShadows ? 0.11 : 0.19,
       transparent: true,
       depthWrite: false,
       toneMapped: false
@@ -282,8 +380,42 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   options.onKeepStatusChange('loading');
 
   let disposed = false;
+  let lastCastleProjectionKey = '';
+  const projectionPoint = new THREE.Vector3();
+  const projectCastleLabels = () => {
+    const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
+    const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
+    const castles = castleLabelAnchors.map((anchor) => {
+      projectionPoint.set(anchor.x, anchor.y, anchor.z);
+      const distance = projectionPoint.distanceTo(cameraController.camera.position);
+      projectionPoint.project(cameraController.camera);
+      return {
+        castleId: anchor.castleId,
+        q: anchor.q,
+        r: anchor.r,
+        x: (projectionPoint.x * 0.5 + 0.5) * width,
+        y: (-projectionPoint.y * 0.5 + 0.5) * height,
+        distance,
+        visible: projectionPoint.z >= -1
+          && projectionPoint.z <= 1
+          && projectionPoint.x >= -1.05
+          && projectionPoint.x <= 1.05
+          && projectionPoint.y >= -1.08
+          && projectionPoint.y <= 1.08
+      };
+    });
+    const projectionKey = `${width}:${height}:${castles.map((castle) => (
+      `${castle.castleId}:${Math.round(castle.x)}:${Math.round(castle.y)}:${castle.visible ? 1 : 0}`
+    )).join('|')}`;
+    if (projectionKey === lastCastleProjectionKey) return;
+    lastCastleProjectionKey = projectionKey;
+    options.onCastleProjection({ width, height, castles });
+  };
   const render = () => {
-    if (!disposed) renderer.render(scene, cameraController.camera);
+    if (!disposed) {
+      renderer.render(scene, cameraController.camera);
+      projectCastleLabels();
+    }
   };
   const cameraController = createRealmCameraController({
     bounds: terrainData.bounds,
@@ -449,7 +581,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   resize();
 
   void loadHegemonyKeep({
-    quality: options.quality,
+    quality: runtimeQuality,
     baseUrl: options.baseUrl,
     maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
   }).then((loaded) => {
@@ -518,16 +650,26 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
 
   return {
     dispose: disposeScene,
+    frameFoundingDistrict: () => {
+      cameraController.recenterKeep();
+      const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
+      const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
+      const targetZoom = foundingDistrictZoomForViewport(
+        options.surface.playableMap.radius,
+        width / height
+      );
+      cameraController.zoomBy(targetZoom - cameraController.getZoom());
+    },
     focusKeep: cameraController.focusKeep,
     recenterKeep: cameraController.recenterKeep,
     setHovered: (coord) => {
       if (disposed) return;
-      setOverlay(hoverOverlay, options.surface, coord);
+      setOverlay(hoverOverlay, options.surface, coord, terrainPlacements);
       render();
     },
     setSelected: (coord) => {
       if (disposed) return;
-      setOverlay(selectedOverlay, options.surface, coord);
+      setOverlay(selectedOverlay, options.surface, coord, terrainPlacements);
       render();
     },
     showRealm: cameraController.showRealm
