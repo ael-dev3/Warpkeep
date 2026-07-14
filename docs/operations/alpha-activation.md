@@ -160,8 +160,11 @@ Run that command only through the private Keychain wrapper that supplies the
 Hermes credential in memory. The publisher does not trust an operator-entered
 row count: in the same bounded process it attests the exact reviewed CLI binary,
 repeats the current loopback migration proof, verifies the canonical existing
-database name-to-identity mapping, and invokes the deployed v1 aggregate before
-publishing by immutable database identity. The proof emits one SHA-256 receipt;
+database name-to-identity mapping, and invokes the exact deployed protocol-v2
+aggregate before the protocol-v3 candidate can publish. The historical first
+v2 publication used the then-deployed v1 aggregate; that weaker shape is not a
+valid 0.3.2 pre-publication gate. Publication continues only after
+that exact check, and targets the immutable database identity. The proof emits one SHA-256 receipt;
 the publisher accepts only the exact absolute `bundle.js` it just proved,
 rechecks that digest immediately before spawning `spacetime publish --js-path`,
 and never rebuilds between proof and publish. Unknown flags, stale/nonzero

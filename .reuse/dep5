@@ -6,7 +6,7 @@ Files: src/** scripts/** tests/** services/auth-bridge/** spacetimedb/** .github
 Copyright: 2026 Warpkeep contributors
 License: Apache-2.0
 
-Files: README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md TRADEMARKS.md LICENSING.md ASSETS-LICENSE.md _AGENT_NOTES.md docs/*.md docs/design/** docs/devlog/** docs/legal/** docs/operations/** docs/plans/** docs/releases/** docs/security/**
+Files: README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md TRADEMARKS.md LICENSING.md ASSETS-LICENSE.md _AGENT_NOTES.md docs/*.md docs/design/** docs/devlog/** docs/gameplay/** docs/legal/** docs/operations/** docs/plans/** docs/releases/** docs/security/**
 Copyright: 2026 Warpkeep contributors
 License: CC-BY-4.0
 
@@ -22,3 +22,8 @@ Files: public/** docs/reference/**
 Copyright: See ASSETS-LICENSE.md and path-specific provenance records
 License: LicenseRef-Warpkeep-Provenance-Required
 Comment: These paths are not relicensed by repository location. Each file retains its confirmed original or path-specific terms; unresolved material remains unresolved.
+
+Files: public/images/factions/hegemony/marks/** docs/reference/factions/hegemony/2026-07-13-hegemony-mark/runtime-manifest.json
+Copyright: 2026 Warpkeep project
+License: CC-BY-4.0
+Comment: Faithful runtime derivatives and metadata from the immutable Warpkeep-Assets Hegemony Mark release; see ASSETS-LICENSE.md.

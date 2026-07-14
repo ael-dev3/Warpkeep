@@ -37,6 +37,7 @@ export type AuthRailRenderControls = Readonly<{
   headingRef: Ref<HTMLHeadingElement>;
   primaryActionRef: Ref<HTMLButtonElement>;
   onCheckAgain: () => void;
+  onBackToMenu: () => void;
   onPresentationReady: () => void;
 }>;
 
@@ -61,6 +62,8 @@ export type WarpkeepMainMenuProps = {
   rememberDevice?: boolean;
   onRememberDeviceChange?: (remember: boolean) => void;
   onRequestAuthenticatedRealm?: (identity: VerifiedFarcasterIdentity) => void;
+  /** Fired only after the player checks and submits the Alpha Terms dialog. */
+  onAcceptAlphaTermsAttempt?: () => void;
   /** Renders an admission rail whose retry is owned by the Terms gate. */
   renderAuthRailContent?: (controls: AuthRailRenderControls) => ReactNode;
   onRequestAuthRailCheck?: () => void;
@@ -223,6 +226,7 @@ export function WarpkeepMainMenu({
   rememberDevice = false,
   onRememberDeviceChange,
   onRequestAuthenticatedRealm,
+  onAcceptAlphaTermsAttempt,
   renderAuthRailContent,
   onRequestAuthRailCheck,
   authRailAttemptFailed = false,
@@ -662,6 +666,8 @@ export function WarpkeepMainMenu({
       return;
     }
 
+    onAcceptAlphaTermsAttempt?.();
+
     openAuthPanel(request.keyboardDriven);
     if (request.continuation === 'begin-sign-in') {
       authAttemptStartedRef.current = true;
@@ -684,6 +690,7 @@ export function WarpkeepMainMenu({
     }
   }, [
     authenticatedIdentity,
+    onAcceptAlphaTermsAttempt,
     onRequestAuthenticatedRealm,
     onRequestEnterRealm,
     onRequestFarcasterSignIn,
@@ -940,6 +947,7 @@ export function WarpkeepMainMenu({
               headingRef: authHeadingRef,
               primaryActionRef: authPrimaryActionRef,
               onCheckAgain: handleAuthRailCheck,
+              onBackToMenu: handleBackToCommands,
               onPresentationReady: handleAuthPanelPresentationReady
             }) ?? (
               <FarcasterQrAuthPanel

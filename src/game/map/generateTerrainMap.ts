@@ -7,6 +7,7 @@ import {
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
 
 export const DEFAULT_REALM_RADIUS = 2;
+const TERRAIN_CELL_INDEX = new WeakMap<RealmTerrainMap, ReadonlyMap<string, TerrainCell>>();
 
 function normalizedSeed(seed: string | number): number {
   return typeof seed === 'string' ? hashSeedString(seed) : seed >>> 0;
@@ -49,6 +50,10 @@ export function generateRealmTerrainMap(seed: string | number, radius = DEFAULT_
 }
 
 export function terrainCellByCoord(map: RealmTerrainMap, coord: HexCoord): TerrainCell | null {
-  const key = hexKey(coord);
-  return map.cells.find((cell) => hexKey(cell.coord) === key) ?? null;
+  let index = TERRAIN_CELL_INDEX.get(map);
+  if (!index) {
+    index = new Map(map.cells.map((cell) => [hexKey(cell.coord), cell] as const));
+    TERRAIN_CELL_INDEX.set(map, index);
+  }
+  return index.get(hexKey(coord)) ?? null;
 }

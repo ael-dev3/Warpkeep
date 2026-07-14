@@ -8,7 +8,10 @@ import type {
   WarpkeepAdmissionStatus,
   WarpkeepCastle,
   WarpkeepPlayer,
+  WarpkeepRealm,
+  WarpkeepRealmProfile,
   WarpkeepRealmSnapshot,
+  WarpkeepWorldTileMetadata,
   WarpkeepWorldTile
 } from './warpkeepBackendTypes';
 import type { WarpkeepRuntimeConfig } from './warpkeepConfig';
@@ -24,6 +27,7 @@ export type WarpkeepConnectionCallbacks = Readonly<{
 export type WarpkeepConnection = DbConnection;
 
 const CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS = 10_000;
+export const WARPKEEP_ALPHA_TERMS_VERSION = '2026-07-14';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
   'not_admitted',
@@ -45,7 +49,11 @@ function toSafeNumber(value: bigint | number | undefined) {
   if (typeof value === 'number') {
     return Number.isSafeInteger(value) ? value : undefined;
   }
-  if (typeof value === 'bigint' && value <= BigInt(Number.MAX_SAFE_INTEGER)) {
+  if (
+    typeof value === 'bigint'
+    && value >= BigInt(Number.MIN_SAFE_INTEGER)
+    && value <= BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
     return Number(value);
   }
   return undefined;
@@ -53,6 +61,15 @@ function toSafeNumber(value: bigint | number | undefined) {
 
 function toOptionalString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function toSafeTimestampMilliseconds(value: { toMillis: () => bigint } | undefined) {
+  if (!value) return undefined;
+  try {
+    return toSafeNumber(value.toMillis());
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -146,7 +163,15 @@ export async function bootstrapWarpkeepPlayer(connection: WarpkeepConnection) {
   await connection.reducers.bootstrapPlayerV2({});
 }
 
-/** Start only the protocol-v2 shared-state subscriptions, never legacy/private/admin tables. */
+/** Authenticated, idempotent acknowledgement; callers must retain gesture intent in memory only. */
+export async function acceptWarpkeepAlphaTerms(connection: WarpkeepConnection) {
+  await connection.reducers.acceptAlphaTermsV1({
+    termsVersion: WARPKEEP_ALPHA_TERMS_VERSION,
+    accepted: true
+  });
+}
+
+/** Start only the protocol-v3 public shared-state subscription, never private/admin tables. */
 export function subscribeToWarpkeepRealm(
   connection: WarpkeepConnection,
   onApplied: () => void,
@@ -156,7 +181,14 @@ export function subscribeToWarpkeepRealm(
     .subscriptionBuilder()
     .onApplied(onApplied)
     .onError(() => onError())
-    .subscribe([tables.worldTile, tables.playerV2, tables.castle]);
+    .subscribe([
+      tables.worldTile,
+      tables.worldTileMetaV1,
+      tables.playerV2,
+      tables.castle,
+      tables.realmV1,
+      tables.realmProfileV1
+    ]);
 }
 
 function readWorldTiles(connection: WarpkeepConnection): WarpkeepWorldTile[] {
@@ -193,12 +225,71 @@ function readPlayers(connection: WarpkeepConnection): WarpkeepPlayer[] {
   return rows.sort((left, right) => left.fid - right.fid);
 }
 
+function readWorldTileMetadata(connection: WarpkeepConnection): WarpkeepWorldTileMetadata[] {
+  const rows: WarpkeepWorldTileMetadata[] = [];
+  for (const row of connection.db.worldTileMetaV1.iter()) {
+    rows.push({
+      tileKey: row.tileKey,
+      realmId: row.realmId,
+      s: row.s,
+      ring: row.ring,
+      sector: row.sector,
+      terrainKind: row.terrainKind,
+      passable: row.passable,
+      movementCost: row.movementCost,
+      staticContentKind: row.staticContentKind,
+      generationVersion: row.generationVersion
+    });
+  }
+  return rows.sort((left, right) => left.ring - right.ring || left.tileKey.localeCompare(right.tileKey));
+}
+
+function readRealmProfiles(connection: WarpkeepConnection): WarpkeepRealmProfile[] {
+  const rows: WarpkeepRealmProfile[] = [];
+  for (const row of connection.db.realmProfileV1.iter()) {
+    const fid = toSafeNumber(row.fid);
+    if (fid === undefined || fid <= 0) continue;
+    const admittedAt = toSafeTimestampMilliseconds(row.admittedAt);
+    const firstAuthenticatedAt = toSafeTimestampMilliseconds(row.firstAuthenticatedAt);
+    rows.push({
+      fid,
+      ...(toOptionalString(row.canonicalUsername) ? { canonicalUsername: row.canonicalUsername! } : {}),
+      ...(toOptionalString(row.displayName) ? { displayName: row.displayName! } : {}),
+      ...(toOptionalString(row.pfpUrl) ? { pfpUrl: row.pfpUrl! } : {}),
+      ...(toOptionalString(row.publicBio) ? { publicBio: row.publicBio! } : {}),
+      ...(admittedAt === undefined ? {} : { admittedAt }),
+      ...(firstAuthenticatedAt === undefined ? {} : { firstAuthenticatedAt }),
+      publicStatus: row.publicStatus,
+      communityStatsVisible: row.communityStatsVisible,
+      ...(row.totalSnapBurnedMicros === undefined
+        ? {}
+        : { totalSnapBurnedMicros: row.totalSnapBurnedMicros }),
+      ...(row.marksEarnedMicros === undefined ? {} : { marksEarnedMicros: row.marksEarnedMicros }),
+      ...(row.marksSpentMicros === undefined ? {} : { marksSpentMicros: row.marksSpentMicros }),
+      ...(row.marksBalanceMicros === undefined ? {} : { marksBalanceMicros: row.marksBalanceMicros }),
+      ...(toOptionalString(row.marksPolicyVersion)
+        ? { marksPolicyVersion: row.marksPolicyVersion! }
+        : {})
+    });
+  }
+  return rows.sort((left, right) => left.fid - right.fid);
+}
+
+function readRealm(connection: WarpkeepConnection): WarpkeepRealm | undefined {
+  const realms = [...connection.db.realmV1.iter()]
+    .filter((row) => row.active)
+    .sort((left, right) => left.realmId.localeCompare(right.realmId));
+  const realm = realms[0];
+  return realm ? { realmId: realm.realmId, publicName: realm.publicName } : undefined;
+}
+
 function readCastles(connection: WarpkeepConnection): WarpkeepCastle[] {
   const rows: WarpkeepCastle[] = [];
   for (const row of connection.db.castle.iter()) {
     const castleId = toSafeNumber(row.castleId);
     const ownerFid = toSafeNumber(row.ownerFid);
     if (castleId === undefined || ownerFid === undefined || ownerFid <= 0) continue;
+    const foundedAt = toSafeTimestampMilliseconds(row.createdAt);
     rows.push({
       castleId,
       ownerFid,
@@ -206,7 +297,8 @@ function readCastles(connection: WarpkeepConnection): WarpkeepCastle[] {
       q: row.q,
       r: row.r,
       level: row.level,
-      name: row.name
+      name: row.name,
+      ...(foundedAt === undefined ? {} : { foundedAt })
     });
   }
   return rows.sort((left, right) => left.castleId - right.castleId);
@@ -218,10 +310,14 @@ export function readWarpkeepRealmSnapshot(
 ): WarpkeepRealmSnapshot {
   const castles = readCastles(connection);
   const ownCastle = castles.find((castle) => castle.ownerFid === ownFid);
+  const realm = readRealm(connection);
   return {
     tiles: readWorldTiles(connection),
+    tileMetadata: readWorldTileMetadata(connection),
     players: readPlayers(connection),
+    profiles: readRealmProfiles(connection),
     castles,
+    ...(realm ? { realm } : {}),
     ...(ownCastle ? { ownCastle } : {})
   };
 }
@@ -238,31 +334,56 @@ export function observeWarpkeepRealm(
   let active = true;
   let latestTransactionEventId: string | undefined;
   const sync = (context: EventContext) => {
-    if (!active || context.event.id === latestTransactionEventId) return;
+    // SubscribeApplied first fills every subscribed table and invokes the
+    // builder's onApplied callback; its subsequent row callbacks would only
+    // rebuild the same full snapshot a second time.
+    if (
+      !active
+      || context.event.tag === 'SubscribeApplied'
+      || context.event.id === latestTransactionEventId
+    ) return;
     latestTransactionEventId = context.event.id;
     onChange(readWarpkeepRealmSnapshot(connection, ownFid));
   };
   connection.db.worldTile.onInsert(sync);
   connection.db.worldTile.onDelete(sync);
   connection.db.worldTile.onUpdate(sync);
+  connection.db.worldTileMetaV1.onInsert(sync);
+  connection.db.worldTileMetaV1.onDelete(sync);
+  connection.db.worldTileMetaV1.onUpdate(sync);
   connection.db.playerV2.onInsert(sync);
   connection.db.playerV2.onDelete(sync);
   connection.db.playerV2.onUpdate(sync);
   connection.db.castle.onInsert(sync);
   connection.db.castle.onDelete(sync);
   connection.db.castle.onUpdate(sync);
+  connection.db.realmV1.onInsert(sync);
+  connection.db.realmV1.onDelete(sync);
+  connection.db.realmV1.onUpdate(sync);
+  connection.db.realmProfileV1.onInsert(sync);
+  connection.db.realmProfileV1.onDelete(sync);
+  connection.db.realmProfileV1.onUpdate(sync);
 
   return () => {
     active = false;
     connection.db.worldTile.removeOnInsert(sync);
     connection.db.worldTile.removeOnDelete(sync);
     connection.db.worldTile.removeOnUpdate(sync);
+    connection.db.worldTileMetaV1.removeOnInsert(sync);
+    connection.db.worldTileMetaV1.removeOnDelete(sync);
+    connection.db.worldTileMetaV1.removeOnUpdate(sync);
     connection.db.playerV2.removeOnInsert(sync);
     connection.db.playerV2.removeOnDelete(sync);
     connection.db.playerV2.removeOnUpdate(sync);
     connection.db.castle.removeOnInsert(sync);
     connection.db.castle.removeOnDelete(sync);
     connection.db.castle.removeOnUpdate(sync);
+    connection.db.realmV1.removeOnInsert(sync);
+    connection.db.realmV1.removeOnDelete(sync);
+    connection.db.realmV1.removeOnUpdate(sync);
+    connection.db.realmProfileV1.removeOnInsert(sync);
+    connection.db.realmProfileV1.removeOnDelete(sync);
+    connection.db.realmProfileV1.removeOnUpdate(sync);
   };
 }
 

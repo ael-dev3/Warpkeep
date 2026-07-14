@@ -6,6 +6,24 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ### Added
 
+- An append-only backend protocol-3 candidate that preserves the deployed
+  seven-table prefix while expanding Genesis 001 to 1,261 authoritative cells,
+  100 deterministic permanent castle slots, and separate terrain/content
+  metadata.
+- Atomic admission-time castle founding, private slot claims, first-login
+  ownership binding, trusted Farcaster public profiles, private versioned wallet
+  snapshots, and server-authoritative fixed-point Mark accounts.
+- Public castle labels and inspection, exact Marks HUD states, paged radius-20
+  navigation, founding-district framing, and an inert 100-Mark castle-warp
+  preview that cannot move a castle or spend Marks.
+- Exact Hegemony Mark PNG/WebP derivatives with release provenance and runtime
+  integrity checks, plus a versioned ordinary SNAP token-burn policy for
+  Ethereum mainnet.
+- A privacy-bounded, stdin-only local Marks operator with two-provider finalized
+  scanning, owner-only reports, reconciliation, Keychain/launchd templates, and
+  production application deliberately disabled pending transport implementation,
+  disposable-local recovery proof and review, and a later separately approved
+  production run plan.
 - A cancellable 3D title-presentation controller with exact asset integrity,
   shared request coalescing, delayed procedural fallback, and smooth quality
   replacement without transient duplicate render loops.
@@ -14,8 +32,13 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ### Changed
 
-- Castle admission now fills the center and nearest hex rings first, keeping
-  new keeps close together while preserving deterministic allocation.
+- Castle-slot admission order now grows outward from the central district;
+  every next slot remains within four hexes of an established slot while the
+  complete permanent set still spans all six sectors.
+- Current Alpha Terms acknowledgment is enforced server-side before public
+  realm subscription. Versioned acceptance evidence stays private, while the
+  Terms and Privacy documents disclose experimental Marks, public aggregates,
+  external PFP requests, and private wallet/burn processing.
 - Realm terrain, packed-earth pads, decoration clearance, SVG fallback, and
   peer markers now derive from the authoritative own-and-peer castle set.
 - Peer castle markers share one instanced draw, terrain placement sampling uses
@@ -27,6 +50,15 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ### Fixed
 
+- Closed an authenticated-session edge that could subscribe without a fresh
+  in-memory Terms gesture for the same FID, and made malformed large-world
+  projections fall back to the bounded legacy surface.
+- Made sector metadata integer-deterministic, prevented the fourth admitted
+  castle from jumping directly to the outer realm, and bounded scanner range
+  allocation before creating work records.
+- The scanner now reads chain ID from both providers, reconciles proxy upgrade
+  history and the opaque indexed event word, and reattests implementation code
+  at every distinct burn-event block.
 - Preserved realm focus and selection across quality changes, ignored metadata-
   only peer updates, and stopped nested HUD controls from triggering map keys.
 - Removed the phantom origin foundation when no castle exists and kept custom
@@ -38,6 +70,29 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   reduced-motion changes.
 - Restored exact modal trigger focus, removed non-interactive heading outlines,
   and improved compact Terms, Credits, project-link, and realm-HUD legibility.
+- Corrected SVG-fallback castle-label projection for aspect-fit canvases,
+  clamped priority labels inside the viewport, and made scenic blockers clearly
+  non-playable in inspection and navigation UI.
+- Prevented a cancelled Terms acknowledgment from opening a late realm
+  subscription, ignored the initial duplicate subscription row event, and made
+  warp-preview Escape handling stay inside its own control.
+- Added radius-aware renderer budgets for the 1,261-cell realm, preserving the
+  existing radius-four quality while bounding expanded-realm terrain and detail
+  geometry across all quality tiers.
+
+### Security and operations
+
+- Added strict protocol-3 preseed and seeded-empty aggregate gates, counts-only
+  inspection, exact private-table omission checks, and a non-destructive local
+  migration rehearsal for both empty and populated legacy fixtures.
+- Strengthened the guarded publisher's final pre-publication stop from the
+  legacy five-count shape to the exact deployed protocol-2 aggregate, including
+  private ownership/orphan counts and protocol/seed metadata.
+- Added transactional pending/finalized scan batches, frozen wallet-snapshot
+  generations, immutable batch-bound receipts, cursor compare-and-swap, and
+  counts-only reconciliation; the local apply command remains hard-disabled
+  until its transport and disposable-local recovery path are implemented and
+  reviewed. Any later production run still requires separate approval.
 
 ## [0.3.1] — 2026-07-13
 

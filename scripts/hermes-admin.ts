@@ -11,7 +11,8 @@ type Command =
   | 'disable-fid'
   | 'bump-auth-epoch'
   | 'inspect-alpha'
-  | 'inspect-alpha-v2';
+  | 'inspect-alpha-v2'
+  | 'inspect-alpha-v3';
 
 const DEFAULT_DATABASE = 'warpkeep-89e4u';
 const DEFAULT_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
@@ -91,10 +92,11 @@ function commandFrom(value: string | undefined): Command {
     || value === 'bump-auth-epoch'
     || value === 'inspect-alpha'
     || value === 'inspect-alpha-v2'
+    || value === 'inspect-alpha-v3'
   ) {
     return value;
   }
-  fail('Usage: hermes-admin.ts <seed-world|allow-fid|disable-fid|bump-auth-epoch|inspect-alpha|inspect-alpha-v2> [...args] [--dry-run] [--confirm]');
+  fail('Usage: hermes-admin.ts <seed-world|allow-fid|disable-fid|bump-auth-epoch|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3> [...args] [--dry-run] [--confirm]');
 }
 
 export function parseHermesArguments(arguments_: readonly string[] = process.argv.slice(2)) {
@@ -113,7 +115,9 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
   }
 
   const command = commandFrom(positional[0]);
-  const inspection = command === 'inspect-alpha' || command === 'inspect-alpha-v2';
+  const inspection = command === 'inspect-alpha'
+    || command === 'inspect-alpha-v2'
+    || command === 'inspect-alpha-v3';
   const expectedPositionals = command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
@@ -315,7 +319,55 @@ export async function readStatus(
   connection: DbConnection,
   protocolV2 = false,
   machineReadable = false,
+  protocolV3 = false,
 ) {
+  if (protocolV3) {
+    const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV3({}));
+    const safeStatus = {
+      worldTiles: status.worldTiles,
+      occupiedWorldTiles: status.occupiedWorldTiles,
+      worldTileMeta: status.worldTileMeta,
+      realms: status.realms,
+      castleSlots: status.castleSlots,
+      castleSlotClaims: status.castleSlotClaims,
+      legacyPlayers: status.legacyPlayers,
+      playersV2: status.playersV2,
+      playerOwnershipsV2: status.playerOwnershipsV2,
+      castles: status.castles,
+      realmProfiles: status.realmProfiles,
+      markAccounts: status.markAccounts,
+      snapBurnCredits: status.snapBurnCredits,
+      walletAttributions: status.walletAttributions,
+      walletAttributionSnapshots: status.walletAttributionSnapshots,
+      scanCursors: status.scanCursors,
+      scanBatches: status.scanBatches,
+      alphaTermsAcceptances: status.alphaTermsAcceptances,
+      allowedFids: status.allowedFids,
+      enabledAllowedFids: status.enabledAllowedFids,
+      auditEntries: status.auditEntries,
+      orphanedPlayerRowsV2: status.orphanedPlayerRowsV2,
+      orphanedOwnershipRowsV2: status.orphanedOwnershipRowsV2,
+      orphanedCastleClaims: status.orphanedCastleClaims,
+      orphanedCastles: status.orphanedCastles,
+      orphanedRealmProfiles: status.orphanedRealmProfiles,
+      orphanedMarkAccounts: status.orphanedMarkAccounts,
+      orphanedBurnCredits: status.orphanedBurnCredits,
+      orphanedTermsAcceptances: status.orphanedTermsAcceptances,
+      founderStateGaps: status.founderStateGaps,
+      markAccountInvariantViolations: status.markAccountInvariantViolations,
+      publicMarkProjectionViolations: status.publicMarkProjectionViolations,
+      duplicateBurnReferences: status.duplicateBurnReferences,
+      burnAccountReconciliationViolations: status.burnAccountReconciliationViolations,
+      ambiguousActiveWalletAddresses: status.ambiguousActiveWalletAddresses,
+      staticWorldDriftViolations: status.staticWorldDriftViolations,
+      termsAcceptanceInvariantViolations: status.termsAcceptanceInvariantViolations,
+      protocolVersion: status.protocolVersion,
+      worldSeed: status.worldSeed,
+      worldSeedName: status.worldSeedName,
+    };
+    console.log(JSON.stringify(printable(safeStatus)));
+    return;
+  }
   if (protocolV2) {
     const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV2({}));
     const safeStatus = {
@@ -407,7 +459,12 @@ async function main() {
     } else if (command === 'bump-auth-epoch' && fid !== undefined && note !== undefined) {
       await withOperationTimeout(connection.reducers.adminBumpAuthEpoch({ fid, note }));
     }
-    await readStatus(connection, command === 'inspect-alpha-v2', machineReadableInspection);
+    await readStatus(
+      connection,
+      command === 'inspect-alpha-v2',
+      machineReadableInspection,
+      command === 'inspect-alpha-v3',
+    );
   } finally {
     connection.disconnect();
   }

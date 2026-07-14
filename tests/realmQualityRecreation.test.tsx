@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const mocked = vi.hoisted(() => {
   const handles: Array<{
     dispose: ReturnType<typeof vi.fn>;
+    frameFoundingDistrict: ReturnType<typeof vi.fn>;
     focusKeep: ReturnType<typeof vi.fn>;
     recenterKeep: ReturnType<typeof vi.fn>;
     setHovered: ReturnType<typeof vi.fn>;
@@ -19,6 +20,7 @@ const mocked = vi.hoisted(() => {
   }) => {
     const handle = {
       dispose: vi.fn(),
+      frameFoundingDistrict: vi.fn(),
       focusKeep: vi.fn(),
       recenterKeep: vi.fn(),
       setHovered: vi.fn(),
@@ -86,7 +88,7 @@ describe('live realm quality recreation', () => {
     const toggle = document.querySelector('details.realm-cell-navigator > summary');
     if (!(toggle instanceof HTMLElement)) throw new Error('missing Realm cell navigator');
     fireEvent.click(toggle);
-    fireEvent.click(within(screen.getByRole('group', { name: 'Playable realm cells' }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Traversable realm cells' }))
       .getByRole('button', { name: 'Select cell 1,0' }));
     expect(screen.getByText('Selected cell 1, 0')).not.toBeNull();
 
@@ -140,6 +142,9 @@ describe('live realm quality recreation', () => {
       keepCoord: { q: 0, r: 0 },
       otherCastles: [{ castleId: 2, q: -1, r: 1 }]
     });
+    expect(mocked.handles[0].frameFoundingDistrict).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Frame the nearby founding keeps' }));
+    expect(mocked.handles[0].frameFoundingDistrict).toHaveBeenCalledTimes(2);
 
     rerender(
       <RealmMapScreen

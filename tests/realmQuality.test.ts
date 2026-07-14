@@ -5,8 +5,13 @@ import {
   REALM_LIGHTING_SPECS,
   REALM_QUALITY_SPECS,
   resolveRealmPixelRatio,
+  resolveRealmRenderPlan,
   selectRealmQuality
 } from '../src/components/realm/realmQuality';
+
+function hexDiscCellCount(radius: number) {
+  return 1 + 3 * radius * (radius + 1);
+}
 
 describe('realm quality profiles', () => {
   it('keeps every profile inside the declared terrain and rendering budgets', () => {
@@ -74,5 +79,71 @@ describe('realm quality profiles', () => {
       .toBe(MIN_REALM_PIXEL_RATIO);
     expect(resolveRealmPixelRatio(32_000, 18_000, 0.4, REALM_QUALITY_SPECS.reduced))
       .toBe(0.4);
+  });
+
+  it('preserves the original radius-four scene quality exactly', () => {
+    const input = {
+      playableRadius: 4,
+      renderRadius: 5,
+      playableCellCount: hexDiscCellCount(4),
+      renderCellCount: hexDiscCellCount(5)
+    } as const;
+    Object.values(REALM_QUALITY_SPECS).forEach((quality) => {
+      const plan = resolveRealmRenderPlan(quality, input);
+      expect(plan.subdivisionsPerEdge).toBe(quality.subdivisionsPerEdge);
+      expect(plan.dynamicShadows).toBe(quality.dynamicShadows);
+      expect(plan.shadowMapSize).toBe(quality.shadowMapSize);
+      expect(plan.decorationDensity).toEqual({
+        greenTuftsPerPlayableCell: quality.greenTuftsPerPlayableCell,
+        greenTuftsPerApronCell: quality.greenTuftsPerApronCell,
+        dryTuftsPerPlayableCell: quality.dryTuftsPerPlayableCell,
+        dryTuftsPerApronCell: quality.dryTuftsPerApronCell,
+        stoneChancePlayable: quality.stoneChancePlayable,
+        stoneChanceApron: quality.stoneChanceApron
+      });
+    });
+
+    const plan = resolveRealmRenderPlan(REALM_QUALITY_SPECS.high, input);
+
+    expect(plan).toMatchObject({
+      expanded: false,
+      subdivisionsPerEdge: 8,
+      estimatedTerrainTriangles: 34_944,
+      dynamicShadows: true,
+      shadowMapSize: 2048,
+      shadowCameraHalfExtent: 10.5,
+      shadowMode: 'full-legacy-realm'
+    });
+  });
+
+  it('bounds radius-twenty geometry and details before allocating the scene', () => {
+    const input = {
+      playableRadius: 20,
+      renderRadius: 22,
+      playableCellCount: hexDiscCellCount(20),
+      renderCellCount: hexDiscCellCount(22)
+    } as const;
+    const high = resolveRealmRenderPlan(REALM_QUALITY_SPECS.high, input);
+    const balanced = resolveRealmRenderPlan(REALM_QUALITY_SPECS.balanced, input);
+    const reduced = resolveRealmRenderPlan(REALM_QUALITY_SPECS.reduced, input);
+
+    expect([high.subdivisionsPerEdge, balanced.subdivisionsPerEdge, reduced.subdivisionsPerEdge])
+      .toEqual([4, 3, 2]);
+    expect([high.estimatedTerrainTriangles, balanced.estimatedTerrainTriangles, reduced.estimatedTerrainTriangles])
+      .toEqual([145_824, 82_026, 36_456]);
+    expect([high.estimatedMaximumDecorationInstances, balanced.estimatedMaximumDecorationInstances, reduced.estimatedMaximumDecorationInstances])
+      .toEqual([6_821, 5_302, 2_780]);
+    [high, balanced, reduced].forEach((plan) => {
+      expect(plan.expanded).toBe(true);
+      expect(plan.estimatedTerrainTriangles).toBeLessThanOrEqual(plan.terrainTriangleBudget);
+      expect(plan.estimatedMaximumDecorationInstances)
+        .toBeLessThanOrEqual(plan.decorationInstanceBudget);
+      expect(plan).toMatchObject({
+        dynamicShadows: false,
+        shadowMapSize: 0,
+        shadowCameraHalfExtent: 0,
+        shadowMode: 'contact-only'
+      });
+    });
   });
 });

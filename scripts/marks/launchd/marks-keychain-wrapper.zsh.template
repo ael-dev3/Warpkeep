@@ -1,0 +1,25 @@
+#!/bin/zsh
+set -euo pipefail
+umask 077
+
+readonly repository="__WARPKEEP_REPOSITORY_ABSOLUTE_PATH__"
+readonly node_executable="__NODE_EXECUTABLE_ABSOLUTE_PATH__"
+readonly report_directory="${HOME}/Library/Application Support/Warpkeep/marks/reports"
+
+/bin/mkdir -p "${report_directory}"
+/bin/chmod 700 "${report_directory}"
+
+# The Keychain item's password is the complete compact scan-input JSON. It is
+# handed directly to the operator over a pipe: never argv, environment, disk,
+# or launchd logs. The operator remains dry-run only.
+/usr/bin/security find-generic-password \
+  -a "warpkeep-marks-operator" \
+  -s "com.warpkeep.marks-scan-input" \
+  -w \
+| "${node_executable}" \
+    "${repository}/node_modules/tsx/dist/cli.mjs" \
+    "${repository}/scripts/marks/marks-operator.ts" \
+    scan \
+    --dry-run \
+    --input-stdin \
+    --report-dir "${report_directory}"

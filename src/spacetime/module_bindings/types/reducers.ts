@@ -6,17 +6,31 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AcceptAlphaTermsV1Reducer from "../accept_alpha_terms_v_1_reducer";
 import AdminAllowFidReducer from "../admin_allow_fid_reducer";
+import AdminBeginSnapScanBatchV1Reducer from "../admin_begin_snap_scan_batch_v_1_reducer";
 import AdminBumpAuthEpochReducer from "../admin_bump_auth_epoch_reducer";
+import AdminCreditSnapBurnV1Reducer from "../admin_credit_snap_burn_v_1_reducer";
 import AdminDisableFidReducer from "../admin_disable_fid_reducer";
+import AdminFinalizeSnapScanBatchV1Reducer from "../admin_finalize_snap_scan_batch_v_1_reducer";
+import AdminReplaceFidWalletSnapshotV1Reducer from "../admin_replace_fid_wallet_snapshot_v_1_reducer";
 import AdminSeedWorldReducer from "../admin_seed_world_reducer";
+import AdminUpsertFidWalletAttributionV1Reducer from "../admin_upsert_fid_wallet_attribution_v_1_reducer";
+import AdminUpsertRealmProfileV1Reducer from "../admin_upsert_realm_profile_v_1_reducer";
 import BootstrapPlayerReducer from "../bootstrap_player_reducer";
 import BootstrapPlayerV2Reducer from "../bootstrap_player_v_2_reducer";
 
+export type AcceptAlphaTermsV1Params = __Infer<typeof AcceptAlphaTermsV1Reducer>;
 export type AdminAllowFidParams = __Infer<typeof AdminAllowFidReducer>;
+export type AdminBeginSnapScanBatchV1Params = __Infer<typeof AdminBeginSnapScanBatchV1Reducer>;
 export type AdminBumpAuthEpochParams = __Infer<typeof AdminBumpAuthEpochReducer>;
+export type AdminCreditSnapBurnV1Params = __Infer<typeof AdminCreditSnapBurnV1Reducer>;
 export type AdminDisableFidParams = __Infer<typeof AdminDisableFidReducer>;
+export type AdminFinalizeSnapScanBatchV1Params = __Infer<typeof AdminFinalizeSnapScanBatchV1Reducer>;
+export type AdminReplaceFidWalletSnapshotV1Params = __Infer<typeof AdminReplaceFidWalletSnapshotV1Reducer>;
 export type AdminSeedWorldParams = __Infer<typeof AdminSeedWorldReducer>;
+export type AdminUpsertFidWalletAttributionV1Params = __Infer<typeof AdminUpsertFidWalletAttributionV1Reducer>;
+export type AdminUpsertRealmProfileV1Params = __Infer<typeof AdminUpsertRealmProfileV1Reducer>;
 export type BootstrapPlayerParams = __Infer<typeof BootstrapPlayerReducer>;
 export type BootstrapPlayerV2Params = __Infer<typeof BootstrapPlayerV2Reducer>;
 

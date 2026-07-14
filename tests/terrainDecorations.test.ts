@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
+import {
+  REALM_QUALITY_SPECS,
+  resolveRealmRenderPlan
+} from '../src/components/realm/realmQuality';
 import { axialToWorld, hexDistance } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
@@ -103,5 +106,27 @@ describe('deterministic lowland decorations', () => {
           .toBeGreaterThanOrEqual(placement.blendRadius + 0.08);
       });
     });
+  });
+
+  it('keeps the expanded radius-twenty detail layer under its deterministic instance ceiling', () => {
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 20, 22);
+    const plan = resolveRealmRenderPlan(REALM_QUALITY_SPECS.high, {
+      playableRadius: surface.playableMap.radius,
+      renderRadius: surface.renderMap.radius,
+      playableCellCount: surface.playableMap.cells.length,
+      renderCellCount: surface.renderMap.cells.length
+    });
+    const details = generateTerrainDecorations(surface.renderMap, {
+      ...plan.decorationDensity,
+      playableRadius: surface.playableMap.radius
+    });
+
+    expect(details.points).toHaveLength(
+      details.counts['green-tuft'] + details.counts['dry-tuft'] + details.counts.stone
+    );
+    expect(details.points.length).toBeLessThanOrEqual(plan.estimatedMaximumDecorationInstances);
+    expect(details.points.length).toBeLessThanOrEqual(plan.decorationInstanceBudget);
+    expect(details.counts['green-tuft']).toBeGreaterThan(details.counts['dry-tuft']);
+    expect(details.counts['dry-tuft']).toBeGreaterThan(details.counts.stone);
   });
 });

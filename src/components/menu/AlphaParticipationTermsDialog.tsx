@@ -112,8 +112,8 @@ export function AlphaParticipationTermsDialog({
               rules, availability, and progress may change or be reset at any time.
             </p>
             <p>
-              Participation will not earn or entitle you to rewards, tokens, points, airdrops,
-              or guaranteed financial gain.
+              Participation alone will not earn tokens, airdrops, external rewards, or guaranteed
+              financial gain. Experimental in-game Marks have no cash value and may change or reset.
             </p>
             <p className="warpkeep-alpha-terms__documents">
               Review the{' '}
@@ -134,7 +134,9 @@ export function AlphaParticipationTermsDialog({
               </a>
               {' '}before continuing.
             </p>
-            <p className="warpkeep-alpha-terms__warning">There is no promise of future rewards.</p>
+            <p className="warpkeep-alpha-terms__warning">
+              There is no promise of a future reward, payment, or profit.
+            </p>
           </div>
 
           <label className="warpkeep-alpha-terms__acceptance" htmlFor={checkboxId}>

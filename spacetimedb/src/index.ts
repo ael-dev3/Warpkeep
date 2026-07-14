@@ -8,6 +8,7 @@ export {
   getMyAdmissionStatusV2,
   bootstrapPlayer,
   bootstrapPlayerV2,
+  acceptAlphaTermsV1,
 } from './reducers/admission';
 export {
   adminSeedWorld,
@@ -16,7 +17,15 @@ export {
   adminBumpAuthEpoch,
   adminGetAlphaStatus,
   adminGetAlphaStatusV2,
+  adminGetAlphaStatusV3,
   adminGetFidAuthEpoch,
+  adminUpsertRealmProfileV1,
+  adminUpsertFidWalletAttributionV1,
+  adminReplaceFidWalletSnapshotV1,
+  adminBeginSnapScanBatchV1,
+  adminCreditSnapBurnV1,
+  adminFinalizeSnapScanBatchV1,
+  adminGetSnapScanBatchAggregateV1,
   authResolverGetFidAdmissionV2,
   getAlphaBackendInfo,
 } from './reducers/admin';

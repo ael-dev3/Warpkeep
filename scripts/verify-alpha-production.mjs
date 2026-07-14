@@ -87,6 +87,97 @@ const EXPECTED_ALPHA_V2_KEYS = Object.freeze([
   'worldSeedName',
 ].sort());
 const EXPECTED_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
+const EXPECTED_WORLD_SEED = 3_445_214_658;
+const MAX_U64 = (1n << 64n) - 1n;
+
+export const PROTECTED_AGGREGATE_STAGE = Object.freeze({
+  LEGACY: 'legacy',
+  ADDITIVE_V2: 'additive-v2',
+  ADDITIVE_V3_PRESEED: 'additive-v3-preseed',
+  GENESIS_V3_SEEDED_EMPTY: 'genesis-v3-seeded-empty',
+});
+
+const V3_STATE_COUNT_FIELDS = Object.freeze([
+  'worldTiles',
+  'occupiedWorldTiles',
+  'worldTileMeta',
+  'realms',
+  'castleSlots',
+  'castleSlotClaims',
+  'legacyPlayers',
+  'playersV2',
+  'playerOwnershipsV2',
+  'castles',
+  'realmProfiles',
+  'markAccounts',
+  'snapBurnCredits',
+  'walletAttributions',
+  'walletAttributionSnapshots',
+  'scanCursors',
+  'scanBatches',
+  'alphaTermsAcceptances',
+  'allowedFids',
+  'enabledAllowedFids',
+]);
+
+const V3_ZERO_INVARIANT_FIELDS = Object.freeze([
+  'orphanedPlayerRowsV2',
+  'orphanedOwnershipRowsV2',
+  'orphanedCastleClaims',
+  'orphanedCastles',
+  'orphanedRealmProfiles',
+  'orphanedMarkAccounts',
+  'orphanedBurnCredits',
+  'orphanedTermsAcceptances',
+  'founderStateGaps',
+  'markAccountInvariantViolations',
+  'publicMarkProjectionViolations',
+  'duplicateBurnReferences',
+  'burnAccountReconciliationViolations',
+  'ambiguousActiveWalletAddresses',
+  'staticWorldDriftViolations',
+  'termsAcceptanceInvariantViolations',
+]);
+
+const EXPECTED_ALPHA_V3_KEYS = Object.freeze([
+  ...V3_STATE_COUNT_FIELDS,
+  ...V3_ZERO_INVARIANT_FIELDS,
+  'auditEntries',
+  'protocolVersion',
+  'worldSeed',
+  'worldSeedName',
+].sort());
+
+const EXPECTED_ALPHA_V3_PRESEED_COUNTS = Object.freeze({
+  worldTiles: 61n,
+  occupiedWorldTiles: 0n,
+  worldTileMeta: 0n,
+  realms: 0n,
+  castleSlots: 0n,
+  castleSlotClaims: 0n,
+  legacyPlayers: 0n,
+  playersV2: 0n,
+  playerOwnershipsV2: 0n,
+  castles: 0n,
+  realmProfiles: 0n,
+  markAccounts: 0n,
+  snapBurnCredits: 0n,
+  walletAttributions: 0n,
+  walletAttributionSnapshots: 0n,
+  scanCursors: 0n,
+  scanBatches: 0n,
+  alphaTermsAcceptances: 0n,
+  allowedFids: 0n,
+  enabledAllowedFids: 0n,
+});
+
+const EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS = Object.freeze({
+  ...EXPECTED_ALPHA_V3_PRESEED_COUNTS,
+  worldTiles: 1_261n,
+  worldTileMeta: 1_261n,
+  realms: 1n,
+  castleSlots: 100n,
+});
 
 function fail(message) {
   throw new Error(`Alpha production verification failed: ${message}`);
@@ -891,6 +982,73 @@ export function verifyExpectedAlphaV2Aggregate(output) {
   }
 }
 
+function readCanonicalV3Count(value, label) {
+  if (typeof value !== 'string' || !/^(?:0|[1-9]\d*)$/.test(value)) {
+    fail(`protocol-v3 aggregate ${label} was not a canonical decimal string.`);
+  }
+  if (value.length > 20) {
+    fail(`protocol-v3 aggregate ${label} exceeded the u64 range.`);
+  }
+  const count = BigInt(value);
+  if (count > MAX_U64) {
+    fail(`protocol-v3 aggregate ${label} exceeded the u64 range.`);
+  }
+  return count;
+}
+
+function expectedV3StateCounts(stage) {
+  if (stage === PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED) {
+    return EXPECTED_ALPHA_V3_PRESEED_COUNTS;
+  }
+  if (stage === PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY) {
+    return EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS;
+  }
+  fail('protocol-v3 aggregate verification stage was invalid.');
+}
+
+export function verifyExpectedAlphaV3Aggregate(output, stage) {
+  const expectedCounts = expectedV3StateCounts(stage);
+  let status;
+  try {
+    status = JSON.parse(output);
+  } catch {
+    fail('protocol-v3 aggregate inspection did not return machine-readable JSON.');
+  }
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    fail('protocol-v3 aggregate inspection returned an invalid status object.');
+  }
+  const actualKeys = Object.keys(status).sort();
+  if (
+    actualKeys.length !== EXPECTED_ALPHA_V3_KEYS.length
+    || actualKeys.some((key, index) => key !== EXPECTED_ALPHA_V3_KEYS[index])
+  ) {
+    fail('protocol-v3 aggregate inspection returned unexpected fields.');
+  }
+
+  for (const field of V3_STATE_COUNT_FIELDS) {
+    const count = readCanonicalV3Count(status[field], field);
+    if (count !== expectedCounts[field]) {
+      fail(`protocol-v3 aggregate ${field} did not match the required rollout stage.`);
+    }
+  }
+  for (const field of V3_ZERO_INVARIANT_FIELDS) {
+    if (readCanonicalV3Count(status[field], field) !== 0n) {
+      fail(`protocol-v3 aggregate invariant ${field} was nonzero.`);
+    }
+  }
+  readCanonicalV3Count(status.auditEntries, 'auditEntries');
+
+  if (typeof status.protocolVersion !== 'number' || status.protocolVersion !== 3) {
+    fail('protocol-v3 aggregate protocolVersion was invalid.');
+  }
+  if (typeof status.worldSeed !== 'number' || status.worldSeed !== EXPECTED_WORLD_SEED) {
+    fail('protocol-v3 aggregate worldSeed was invalid.');
+  }
+  if (typeof status.worldSeedName !== 'string' || status.worldSeedName !== EXPECTED_WORLD_SEED_NAME) {
+    fail('protocol-v3 aggregate worldSeedName was invalid.');
+  }
+}
+
 export function protectedAggregateChildEnvironment(bridge) {
   return Object.freeze({
     WARPKEEP_SPACETIMEDB_URI: process.env.WARPKEEP_SPACETIMEDB_URI ?? DEFAULT_SPACETIMEDB_URI,
@@ -920,16 +1078,39 @@ export function requiredProtectedAggregateSecret(secret, required) {
   return undefined;
 }
 
-export function protectedAggregateChildArguments(tsxCli, protocolV2 = false) {
+function normalizeProtectedAggregateStage(stageOrProtocolV2 = false) {
+  if (typeof stageOrProtocolV2 === 'boolean') {
+    return stageOrProtocolV2
+      ? PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2
+      : PROTECTED_AGGREGATE_STAGE.LEGACY;
+  }
+  if (Object.values(PROTECTED_AGGREGATE_STAGE).includes(stageOrProtocolV2)) {
+    return stageOrProtocolV2;
+  }
+  fail('protected aggregate verification stage was invalid.');
+}
+
+export function protectedAggregateChildArguments(tsxCli, stageOrProtocolV2 = false) {
+  const stage = normalizeProtectedAggregateStage(stageOrProtocolV2);
+  const command = stage === PROTECTED_AGGREGATE_STAGE.LEGACY
+    ? 'inspect-alpha'
+    : stage === PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2
+      ? 'inspect-alpha-v2'
+      : 'inspect-alpha-v3';
   return [
     tsxCli,
     'scripts/hermes-admin.ts',
-    protocolV2 ? 'inspect-alpha-v2' : 'inspect-alpha',
+    command,
     '--json',
   ];
 }
 
-function verifyProtectedAggregateIfConfigured(bridge, required, protocolV2 = false) {
+function verifyProtectedAggregateIfConfigured(
+  bridge,
+  required,
+  stage = PROTECTED_AGGREGATE_STAGE.LEGACY,
+) {
+  const normalizedStage = normalizeProtectedAggregateStage(stage);
   const secret = requiredProtectedAggregateSecret(process.env.WARPKEEP_ADMIN_TOKEN_SECRET, required);
   if (!secret) {
     console.log('alpha status: skipped (no local Hermes credential configured)');
@@ -939,25 +1120,36 @@ function verifyProtectedAggregateIfConfigured(bridge, required, protocolV2 = fal
   const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
   const result = spawnSync(
     process.execPath,
-    protectedAggregateChildArguments(tsxCli, protocolV2),
+    protectedAggregateChildArguments(tsxCli, normalizedStage),
     protectedAggregateChildOptions(repositoryRoot, bridge, secret),
   );
   if (result.error || result.status !== 0 || result.signal) {
     fail('protected aggregate inspection failed.');
   }
-  if (protocolV2) verifyExpectedAlphaV2Aggregate(result.stdout);
-  else verifyExpectedAlphaAggregate(result.stdout);
+  if (normalizedStage === PROTECTED_AGGREGATE_STAGE.LEGACY) {
+    verifyExpectedAlphaAggregate(result.stdout);
+  } else if (normalizedStage === PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2) {
+    verifyExpectedAlphaV2Aggregate(result.stdout);
+  } else {
+    verifyExpectedAlphaV3Aggregate(result.stdout, normalizedStage);
+  }
   // Never mirror child-process output: even a future Hermes implementation
   // must not cause this verifier to surface a secret, JWT, or identity.
-  console.log(protocolV2
-    ? 'alpha status: required additive protocol-v2 aggregate state verified'
-    : 'alpha status: required empty aggregate state verified');
+  const successMessage = {
+    [PROTECTED_AGGREGATE_STAGE.LEGACY]: 'alpha status: required empty aggregate state verified',
+    [PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2]: 'alpha status: required additive protocol-v2 aggregate state verified',
+    [PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED]: 'alpha status: required additive protocol-v3 preseed aggregate state verified',
+    [PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY]: 'alpha status: required Genesis protocol-v3 seeded-empty aggregate state verified',
+  }[normalizedStage];
+  console.log(successMessage);
 }
 
 export function parseProductionVerifierArguments(arguments_ = process.argv.slice(2)) {
   const allowed = new Set([
     '--require-protected-aggregate',
     '--require-additive-v2-aggregate',
+    '--require-additive-v3-preseed-aggregate',
+    '--require-genesis-v3-seeded-empty-aggregate',
     '--require-auth-v2',
     '--require-auth-v2-enabled',
   ]);
@@ -971,11 +1163,24 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
   if (seen.has('--require-auth-v2') && seen.has('--require-auth-v2-enabled')) {
     fail('paused and enabled auth-v2 verification modes are mutually exclusive.');
   }
+  const versionedAggregateStages = [
+    ['--require-additive-v2-aggregate', PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2],
+    ['--require-additive-v3-preseed-aggregate', PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED],
+    ['--require-genesis-v3-seeded-empty-aggregate', PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY],
+  ].filter(([flag]) => seen.has(flag));
+  if (versionedAggregateStages.length > 1) {
+    fail('versioned aggregate verification stages are mutually exclusive.');
+  }
+  const aggregateStage = versionedAggregateStages[0]?.[1]
+    ?? PROTECTED_AGGREGATE_STAGE.LEGACY;
   return Object.freeze({
     requireProtectedAggregate: seen.has('--require-protected-aggregate'),
     requireAdditiveV2Aggregate: seen.has('--require-additive-v2-aggregate'),
+    requireAdditiveV3PreseedAggregate: seen.has('--require-additive-v3-preseed-aggregate'),
+    requireGenesisV3SeededEmptyAggregate: seen.has('--require-genesis-v3-seeded-empty-aggregate'),
     requireAuthV2: seen.has('--require-auth-v2'),
     requireAuthV2Enabled: seen.has('--require-auth-v2-enabled'),
+    aggregateStage,
   });
 }
 
@@ -983,8 +1188,11 @@ async function main() {
   const {
     requireProtectedAggregate,
     requireAdditiveV2Aggregate,
+    requireAdditiveV3PreseedAggregate,
+    requireGenesisV3SeededEmptyAggregate,
     requireAuthV2,
     requireAuthV2Enabled,
+    aggregateStage,
   } = parseProductionVerifierArguments();
   const frontend = httpsOrigin(process.env.WARPKEEP_FRONTEND_URL ?? DEFAULT_FRONTEND, 'WARPKEEP_FRONTEND_URL');
   const bridge = httpsOrigin(process.env.WARPKEEP_AUTH_BRIDGE_URL ?? DEFAULT_BRIDGE, 'WARPKEEP_AUTH_BRIDGE_URL');
@@ -999,8 +1207,11 @@ async function main() {
   await verifyBridge(frontend, bridge, { requireAuthV2, requireAuthV2Enabled });
   verifyProtectedAggregateIfConfigured(
     bridge,
-    requireProtectedAggregate || requireAdditiveV2Aggregate,
-    requireAdditiveV2Aggregate,
+    requireProtectedAggregate
+      || requireAdditiveV2Aggregate
+      || requireAdditiveV3PreseedAggregate
+      || requireGenesisV3SeededEmptyAggregate,
+    aggregateStage,
   );
 }
 

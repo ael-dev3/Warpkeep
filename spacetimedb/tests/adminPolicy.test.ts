@@ -166,7 +166,7 @@ test('the additive v2 status is admin-only, aggregate-only, and leaves legacy st
   const source = readFileSync(new URL('../src/reducers/admin.ts', import.meta.url), 'utf8');
   const legacyStart = source.indexOf('export const adminGetAlphaStatus =');
   const v2Start = source.indexOf('export const adminGetAlphaStatusV2 =');
-  const v2End = source.indexOf('/**\n * Bridge/Hermes can resolve', v2Start);
+  const v2End = source.indexOf('/**\n * Protocol-v3 inspection', v2Start);
   assert.notEqual(legacyStart, -1);
   assert.notEqual(v2Start, -1);
   assert.notEqual(v2End, -1);

@@ -51,7 +51,7 @@ and never falls back to a local or anonymous database identity.
 ## Browser flow and privacy
 
 Selecting **ENTER REALM** opens the concise **ALPHA PARTICIPATION TERMS** gate;
-it does not begin authentication. The unchecked acceptance and its continuation
+it does not begin authentication. The unchecked checkbox state and its continuation
 exist only in component memory. Only checking the explicit agreement and
 selecting **CONTINUE TO SIGN-IN** starts one auth activation. That activation
 may first restore a valid HttpOnly cookie session; otherwise it creates a fresh
@@ -64,10 +64,14 @@ Farcaster channel, QR/deep-link, or SpacetimeDB connection. An unaccepted
 `#realm` route is normalized to the menu. Desktop is QR-first; mobile/coarse
 layouts are deep-link-first with optional QR fallback after acceptance.
 
-The gate stores no identity, tracking record, or persistent acceptance and is
-not represented in `localStorage`, `sessionStorage`, IndexedDB, URLs, cookies,
-or analytics. It is a narrow authentication-start control, not a replacement
-for the linked standalone Alpha Terms and Privacy Notice. Those project-authored
+The local gate stores no identity and is not represented in `localStorage`,
+`sessionStorage`, IndexedDB, URLs, cookies, or analytics. In protocol 3, an
+admitted player who authenticates and submits the exact current version receives
+a separate private immutable SpacetimeDB FID/version/time acceptance record
+before the public realm subscription opens. That record contains no checkbox
+state, proof, QR payload, signature, token, cookie, or wallet data. The gate is a
+narrow authentication-start control, not a replacement for the linked standalone
+Alpha Terms and Privacy Notice. Those project-authored
 documents are not substitutes for formal legal and privacy review.
 
 Each attempt receives a new 32-byte verifier. Only its `S256` digest enters the

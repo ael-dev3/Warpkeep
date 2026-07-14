@@ -12,7 +12,7 @@ function emptyWorld() {
   }));
 }
 
-test('the exact unoccupied canonical 61-tile world is consistent', () => {
+test('the exact unoccupied canonical 1,261-tile world is consistent', () => {
   assert.equal(worldCastleGraphIsConsistent(emptyWorld(), []), true);
 });
 

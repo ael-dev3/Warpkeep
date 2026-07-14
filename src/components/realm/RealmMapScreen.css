@@ -210,7 +210,7 @@
 
 .realm-hud__actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.38rem;
 }
 
@@ -294,6 +294,38 @@
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 0.57rem;
   font-weight: 760;
+}
+
+.realm-cell-navigator__pagination {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.35rem;
+  align-items: center;
+  margin-top: 0.38rem;
+  padding: 0.38rem;
+  border: 1px solid rgb(233 211 151 / 29%);
+  background: rgb(17 28 21 / 91%);
+  box-shadow: 0 0.6rem 1.8rem rgb(20 27 17 / 28%);
+}
+
+.realm-cell-navigator__pagination span {
+  color: #d7dfcb;
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.realm-cell-navigator__pagination button {
+  min-height: 2.35rem;
+  padding: 0 0.55rem;
+  font-size: 0.58rem;
+  font-weight: 720;
+  text-transform: uppercase;
+}
+
+.realm-cell-navigator__pagination button:disabled {
+  opacity: 0.46;
+  cursor: default;
 }
 
 .realm-cell-navigator__grid {

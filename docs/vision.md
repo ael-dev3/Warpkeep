@@ -14,4 +14,6 @@ The intended experience is:
 
 Warpkeep is not a dashboard, financial product, chain-execution client, or local campaign slot. Farcaster identity and social context support shared play; SpacetimeDB reducers remain the sole authority for ownership, resources, timers, movement, and combat.
 
+Game-accounting systems such as Marks can acknowledge deterministic public-world inputs, but they remain server-owned, non-transferable, non-redeemable, without cash value, and subject to Alpha correction or reset. Warpkeep does not turn the browser into a wallet client.
+
 AI may write lore, reports, summaries, quests, and recommendations from read-only snapshots. It must never decide authoritative game outcomes.

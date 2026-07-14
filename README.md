@@ -8,6 +8,8 @@ Alpha 0.3.1 is live. The first Hegemony keep stands in a deterministic 61-cell L
 
 The admission list remains intentionally empty. The site is a real product surface and technical foundation, not a claim that resources, upgrades, units, combat, alliances, chat, or seasons are playable yet.
 
+Alpha 0.3.2 is now being prepared as a source candidate. It expands Genesis 001 to 1,261 deterministic cells and 100 permanent slots ordered outward from the close-knit founding district, adds atomic first-castle founding, trusted Farcaster realm presentation, and private server-authoritative Marks accounting. It is not active in production, and no schema, world, admission, burn credit, or player data is changed merely by this branch.
+
 ## Current foundation
 
 - Standard website SIWF with an independently verifying Cloudflare Worker and short-lived OIDC handoff.
@@ -18,6 +20,8 @@ The admission list remains intentionally empty. The site is a real product surfa
 - Apache-2.0 software and CC-BY-4.0 project-owned creative work from v0.3.0 onward, with historical and external terms preserved.
 
 The canonical player domain is [warpkeep.com](https://warpkeep.com/). Source/master assets and immutable bundles live in [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets); the game repository contains only runtime media and lightweight provenance records.
+
+Marks are experimental, non-transferable, non-redeemable game-accounting units with no cash value. Under the candidate v1 policy, an eligible finalized ordinary SNAP burn on Ethereum mainnet can be reflected 1:1 by six-decimal micro-unit. The browser never connects or scans wallets, requests a wallet signature or approval, submits a transaction, or receives private wallet/event records. See the [versioned Marks policy](docs/gameplay/marks-policy-v1.md).
 
 ## Development
 
@@ -47,13 +51,15 @@ Asset reconstruction is explicit and never part of an ordinary build:
 npm run assets:fetch
 npm run prepare:title-models
 WARPKEEP_KEEP_SOURCE=/authorized/offline/source.glb npm run prepare:hegemony-keep
+WARPKEEP_MARK_SOURCE=/authorized/offline/hegemony-mark.png npm run prepare:hegemony-mark
 ```
 
 The keep source is not publicly mirrored while redistribution authority remains unresolved. Preparation fails closed unless an authorized exact offline copy is supplied.
 
 ## Documentation
 
-- [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md) and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
+- [Alpha 0.3.2 candidate notes](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 live release](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
+- [Marks policy v1](docs/gameplay/marks-policy-v1.md)
 - [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md)
 - [Technical architecture](docs/technical-architecture.md)
 - [Farcaster/OIDC boundary](docs/farcaster-integration.md)

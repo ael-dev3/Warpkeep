@@ -34,17 +34,26 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AcceptAlphaTermsV1Reducer from "./accept_alpha_terms_v_1_reducer";
 import AdminAllowFidReducer from "./admin_allow_fid_reducer";
+import AdminBeginSnapScanBatchV1Reducer from "./admin_begin_snap_scan_batch_v_1_reducer";
 import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
+import AdminCreditSnapBurnV1Reducer from "./admin_credit_snap_burn_v_1_reducer";
 import AdminDisableFidReducer from "./admin_disable_fid_reducer";
+import AdminFinalizeSnapScanBatchV1Reducer from "./admin_finalize_snap_scan_batch_v_1_reducer";
+import AdminReplaceFidWalletSnapshotV1Reducer from "./admin_replace_fid_wallet_snapshot_v_1_reducer";
 import AdminSeedWorldReducer from "./admin_seed_world_reducer";
+import AdminUpsertFidWalletAttributionV1Reducer from "./admin_upsert_fid_wallet_attribution_v_1_reducer";
+import AdminUpsertRealmProfileV1Reducer from "./admin_upsert_realm_profile_v_1_reducer";
 import BootstrapPlayerReducer from "./bootstrap_player_reducer";
 import BootstrapPlayerV2Reducer from "./bootstrap_player_v_2_reducer";
 
 // Import all procedure arg schemas
 import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedure";
 import * as AdminGetAlphaStatusV2Procedure from "./admin_get_alpha_status_v_2_procedure";
+import * as AdminGetAlphaStatusV3Procedure from "./admin_get_alpha_status_v_3_procedure";
 import * as AdminGetFidAuthEpochProcedure from "./admin_get_fid_auth_epoch_procedure";
+import * as AdminGetSnapScanBatchAggregateV1Procedure from "./admin_get_snap_scan_batch_aggregate_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "./get_my_admission_status_procedure";
@@ -52,9 +61,13 @@ import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_
 
 // Import all table schema definitions
 import CastleRow from "./castle_table";
+import CastleSlotV1Row from "./castle_slot_v_1_table";
 import PlayerRow from "./player_table";
 import PlayerV2Row from "./player_v_2_table";
+import RealmProfileV1Row from "./realm_profile_v_1_table";
+import RealmV1Row from "./realm_v_1_table";
 import WorldTileRow from "./world_tile_table";
+import WorldTileMetaV1Row from "./world_tile_meta_v_1_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -79,6 +92,24 @@ const tablesSchema = __schema({
       { name: 'castle_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
     ],
   }, CastleRow),
+  castleSlotV1: __table({
+    name: 'castle_slot_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'castle_slot_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+      { accessor: 'slotId', name: 'castle_slot_v1_slot_id_idx_btree', algorithm: 'btree', columns: [
+        'slotId',
+      ] },
+      { accessor: 'tileKey', name: 'castle_slot_v1_tile_key_idx_btree', algorithm: 'btree', columns: [
+        'tileKey',
+      ] },
+    ],
+    constraints: [
+      { name: 'castle_slot_v1_slot_id_key', constraint: 'unique', columns: ['slotId'] },
+      { name: 'castle_slot_v1_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
+    ],
+  }, CastleSlotV1Row),
   player: __table({
     name: 'player',
     indexes: [
@@ -105,6 +136,28 @@ const tablesSchema = __schema({
       { name: 'player_v2_fid_key', constraint: 'unique', columns: ['fid'] },
     ],
   }, PlayerV2Row),
+  realmProfileV1: __table({
+    name: 'realm_profile_v1',
+    indexes: [
+      { accessor: 'fid', name: 'realm_profile_v1_fid_idx_btree', algorithm: 'btree', columns: [
+        'fid',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_profile_v1_fid_key', constraint: 'unique', columns: ['fid'] },
+    ],
+  }, RealmProfileV1Row),
+  realmV1: __table({
+    name: 'realm_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmV1Row),
   worldTile: __table({
     name: 'world_tile',
     indexes: [
@@ -116,14 +169,39 @@ const tablesSchema = __schema({
       { name: 'world_tile_key_key', constraint: 'unique', columns: ['key'] },
     ],
   }, WorldTileRow),
+  worldTileMetaV1: __table({
+    name: 'world_tile_meta_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'world_tile_meta_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+      { accessor: 'byRealmAndRing', name: 'world_tile_meta_v1_realm_id_ring_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+        'ring',
+      ] },
+      { accessor: 'tileKey', name: 'world_tile_meta_v1_tile_key_idx_btree', algorithm: 'btree', columns: [
+        'tileKey',
+      ] },
+    ],
+    constraints: [
+      { name: 'world_tile_meta_v1_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
+    ],
+  }, WorldTileMetaV1Row),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("accept_alpha_terms_v1", AcceptAlphaTermsV1Reducer),
   __reducerSchema("admin_allow_fid", AdminAllowFidReducer),
+  __reducerSchema("admin_begin_snap_scan_batch_v1", AdminBeginSnapScanBatchV1Reducer),
   __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
+  __reducerSchema("admin_credit_snap_burn_v1", AdminCreditSnapBurnV1Reducer),
   __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
+  __reducerSchema("admin_finalize_snap_scan_batch_v1", AdminFinalizeSnapScanBatchV1Reducer),
+  __reducerSchema("admin_replace_fid_wallet_snapshot_v1", AdminReplaceFidWalletSnapshotV1Reducer),
   __reducerSchema("admin_seed_world", AdminSeedWorldReducer),
+  __reducerSchema("admin_upsert_fid_wallet_attribution_v1", AdminUpsertFidWalletAttributionV1Reducer),
+  __reducerSchema("admin_upsert_realm_profile_v1", AdminUpsertRealmProfileV1Reducer),
   __reducerSchema("bootstrap_player", BootstrapPlayerReducer),
   __reducerSchema("bootstrap_player_v2", BootstrapPlayerV2Reducer),
 );
@@ -132,7 +210,9 @@ const reducersSchema = __reducers(
 const proceduresSchema = __procedures(
   __procedureSchema("admin_get_alpha_status", AdminGetAlphaStatusProcedure.params, AdminGetAlphaStatusProcedure.returnType),
   __procedureSchema("admin_get_alpha_status_v2", AdminGetAlphaStatusV2Procedure.params, AdminGetAlphaStatusV2Procedure.returnType),
+  __procedureSchema("admin_get_alpha_status_v3", AdminGetAlphaStatusV3Procedure.params, AdminGetAlphaStatusV3Procedure.returnType),
   __procedureSchema("admin_get_fid_auth_epoch", AdminGetFidAuthEpochProcedure.params, AdminGetFidAuthEpochProcedure.returnType),
+  __procedureSchema("admin_get_snap_scan_batch_aggregate_v1", AdminGetSnapScanBatchAggregateV1Procedure.params, AdminGetSnapScanBatchAggregateV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
   __procedureSchema("get_my_admission_status", GetMyAdmissionStatusProcedure.params, GetMyAdmissionStatusProcedure.returnType),

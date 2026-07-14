@@ -16,7 +16,7 @@ export const WARPKEEP_HERMES_SUBJECT = 'service:hermes';
 export const WARPKEEP_AUTH_EPOCH_RESOLVER_ROLE = 'warpkeep-auth-epoch-resolver';
 export const WARPKEEP_AUTH_EPOCH_RESOLVER_SUBJECT = 'service:auth-epoch-resolver';
 /** Internal wire contract, intentionally separate from the player-facing app version. */
-export const WARPKEEP_BACKEND_PROTOCOL_VERSION = 2;
+export const WARPKEEP_BACKEND_PROTOCOL_VERSION = 3;
 
 export const MAX_SUPPORTED_FID = BigInt(Number.MAX_SAFE_INTEGER);
 export const MAX_AUTH_EPOCH = 0xffff_ffff;

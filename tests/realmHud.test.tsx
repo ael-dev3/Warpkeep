@@ -22,6 +22,47 @@ function lowlandsCell() {
 }
 
 describe('RealmHud', () => {
+  it('renders loading, unavailable, and exact ready Marks states with a PNG fallback', () => {
+    const common = {
+      identity: { fid: 12_345, username: 'warpkeeper' },
+      ownCastle: { name: 'Warpkeeper Bastion', level: 2 },
+      selectedCell: centerCell(),
+      hoveredCell: null,
+      keepLoadStatus: 'ready' as const,
+      cameraMode: 'realm' as const,
+      quality: 'high' as const,
+      onFocusKeep: vi.fn(),
+      onRecenterKeep: vi.fn(),
+      onShowRealm: vi.fn(),
+      onRequestReturn: vi.fn()
+    };
+    const { container, rerender } = render(
+      <RealmHud {...common} marksStatus="loading" />
+    );
+    expect(screen.getByLabelText('Loading Marks…')).not.toBeNull();
+
+    rerender(<RealmHud {...common} marksStatus="unavailable" />);
+    expect(screen.getByLabelText('Marks not available')).not.toBeNull();
+
+    rerender(
+      <RealmHud
+        {...common}
+        marksStatus="ready"
+        ownProfile={{
+          fid: 12_345,
+          publicStatus: 'active',
+          communityStatsVisible: true,
+          marksBalanceMicros: 123_450_000n
+        }}
+      />
+    );
+    expect(screen.getByLabelText('Marks balance: 123.45 Marks')).not.toBeNull();
+    expect(container.querySelector('source')?.getAttribute('srcset'))
+      .toContain('hegemony-mark-64.webp');
+    expect(container.querySelector('.realm-hud__marks img')?.getAttribute('src'))
+      .toContain('hegemony-mark-64.png');
+  });
+
   it('personalizes the fixed center keep without claiming persistent ownership', () => {
     const onFocusKeep = vi.fn();
     const onRecenterKeep = vi.fn();
@@ -57,6 +98,33 @@ describe('RealmHud', () => {
     expect(onFocusKeep).toHaveBeenCalledTimes(1);
     expect(onRecenterKeep).toHaveBeenCalledTimes(1);
     expect(onRequestReturn).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers the founding-district framing only when nearby keeps can be framed', () => {
+    const onFrameFoundingDistrict = vi.fn();
+    const common = {
+      identity: { fid: 12_345, username: 'warpkeeper' },
+      selectedCell: centerCell(),
+      hoveredCell: null,
+      keepLoadStatus: 'ready' as const,
+      cameraMode: 'realm' as const,
+      quality: 'high' as const,
+      onFocusKeep: vi.fn(),
+      onRecenterKeep: vi.fn(),
+      onShowRealm: vi.fn(),
+      onRequestReturn: vi.fn()
+    };
+    const { rerender } = render(<RealmHud {...common} />);
+    expect(screen.queryByRole('button', { name: 'Frame the nearby founding keeps' })).toBeNull();
+
+    rerender(
+      <RealmHud
+        {...common}
+        onFrameFoundingDistrict={onFrameFoundingDistrict}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Frame the nearby founding keeps' }));
+    expect(onFrameFoundingDistrict).toHaveBeenCalledTimes(1);
   });
 
   it('uses an FID keep title when no username is available', () => {
@@ -97,7 +165,7 @@ describe('RealmHud', () => {
 
     expect(screen.getByText('Temperate Lowlands')).not.toBeNull();
     expect(screen.getByText('Surveying cell 1, 0')).not.toBeNull();
-    expect(screen.getByText('Olive grass · open ground · calm terrain.')).not.toBeNull();
+    expect(screen.getByText('Olive grass · terrain record pending.')).not.toBeNull();
     expect(screen.queryByText(/elevation|soil/i)).toBeNull();
   });
 });

@@ -9,16 +9,17 @@ import {
   readCompatibleWarpkeepBackendInfo
 } from '../src/spacetime/warpkeepProtocol';
 import { readCompatibleWarpkeepBackendInfoV1 } from './fixtures/warpkeepProtocolV1';
+import { readCompatibleWarpkeepBackendInfoV2 } from './fixtures/warpkeepProtocolV2';
 
-describe('Warpkeep backend protocol v2', () => {
-  it('accepts only the v2 backend contract', () => {
-    expect(WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION).toBe(2);
+describe('Warpkeep backend protocol v3', () => {
+  it('accepts only the v3 backend contract', () => {
+    expect(WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION).toBe(3);
     expect(readCompatibleWarpkeepBackendInfo({
-      protocolVersion: 2,
+      protocolVersion: 3,
       worldSeed: WARPKEEP_EXPECTED_WORLD_SEED,
       worldSeedName: WARPKEEP_EXPECTED_WORLD_SEED_NAME
     })).toEqual({
-      protocolVersion: 2,
+      protocolVersion: 3,
       worldSeed: WARPKEEP_EXPECTED_WORLD_SEED,
       worldSeedName: WARPKEEP_EXPECTED_WORLD_SEED_NAME
     });
@@ -40,15 +41,40 @@ describe('Warpkeep backend protocol v2', () => {
     })).toThrow('incompatible');
   });
 
-  it('proves the frozen protocol-v1 browser refuses a protocol-v2 backend', () => {
-    expect(() => readCompatibleWarpkeepBackendInfoV1({
+  it('fails closed on the currently deployed protocol-v2 backend', () => {
+    expect(() => readCompatibleWarpkeepBackendInfo({
       protocolVersion: 2,
+      worldSeed: WARPKEEP_EXPECTED_WORLD_SEED,
+      worldSeedName: WARPKEEP_EXPECTED_WORLD_SEED_NAME,
+    })).toThrow('incompatible');
+  });
+
+  it('proves the frozen protocol-v1 browser refuses a protocol-v3 backend', () => {
+    expect(() => readCompatibleWarpkeepBackendInfoV1({
+      protocolVersion: 3,
       worldSeed: 3_445_214_658,
       worldSeedName: WARPKEEP_EXPECTED_WORLD_SEED_NAME
     })).toThrow('incompatible');
   });
 
-  it('pins every protocol-v2 function to an exact wire name', () => {
+  it('proves the frozen protocol-v2 browser refuses a protocol-v3 backend', () => {
+    expect(readCompatibleWarpkeepBackendInfoV2({
+      protocolVersion: 2,
+      worldSeed: WARPKEEP_EXPECTED_WORLD_SEED,
+      worldSeedName: WARPKEEP_EXPECTED_WORLD_SEED_NAME,
+    })).toEqual({
+      protocolVersion: 2,
+      worldSeed: WARPKEEP_EXPECTED_WORLD_SEED,
+      worldSeedName: WARPKEEP_EXPECTED_WORLD_SEED_NAME,
+    });
+    expect(() => readCompatibleWarpkeepBackendInfoV2({
+      protocolVersion: 3,
+      worldSeed: WARPKEEP_EXPECTED_WORLD_SEED,
+      worldSeedName: WARPKEEP_EXPECTED_WORLD_SEED_NAME,
+    })).toThrow('incompatible');
+  });
+
+  it('keeps the independently versioned v2 auth/gameplay wires exact', () => {
     const bindings = readFileSync(
       resolve(process.cwd(), 'src/spacetime/module_bindings/index.ts'),
       'utf8',

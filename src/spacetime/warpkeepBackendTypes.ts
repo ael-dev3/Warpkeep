@@ -11,8 +11,10 @@ export type WarpkeepBackendPhase =
   | 'connecting'
   | 'reconnecting'
   | 'checking-admission'
+  | 'awaiting-terms'
   | 'denied'
   | 'bootstrapping'
+  | 'accepting-terms'
   | 'ready'
   | 'error';
 
@@ -25,12 +27,52 @@ export type WarpkeepWorldTile = Readonly<{
   occupantCastleId?: number;
 }>;
 
+export type WarpkeepWorldTileMetadata = Readonly<{
+  tileKey: string;
+  realmId: string;
+  s: number;
+  ring: number;
+  sector: number;
+  terrainKind: string;
+  passable: boolean;
+  movementCost: number;
+  staticContentKind: string;
+  generationVersion: number;
+}>;
+
+export type WarpkeepRealm = Readonly<{
+  realmId: string;
+  publicName: string;
+}>;
+
 export type WarpkeepPlayer = Readonly<{
   fid: number;
   username?: string;
   displayName?: string;
   pfpUrl?: string;
   status: string;
+}>;
+
+/**
+ * Public, privacy-bounded realm presentation. Wallet associations, burn-event
+ * receipts, authorization fields, and operator records must never enter this
+ * browser-facing projection.
+ */
+export type WarpkeepRealmProfile = Readonly<{
+  fid: number;
+  canonicalUsername?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  publicBio?: string;
+  admittedAt?: number;
+  firstAuthenticatedAt?: number;
+  publicStatus: string;
+  communityStatsVisible: boolean;
+  totalSnapBurnedMicros?: bigint;
+  marksEarnedMicros?: bigint;
+  marksSpentMicros?: bigint;
+  marksBalanceMicros?: bigint;
+  marksPolicyVersion?: string;
 }>;
 
 export type WarpkeepCastle = Readonly<{
@@ -41,12 +83,16 @@ export type WarpkeepCastle = Readonly<{
   r: number;
   level: number;
   name: string;
+  foundedAt?: number;
 }>;
 
 export type WarpkeepRealmSnapshot = Readonly<{
   tiles: readonly WarpkeepWorldTile[];
+  tileMetadata?: readonly WarpkeepWorldTileMetadata[];
   players: readonly WarpkeepPlayer[];
+  profiles?: readonly WarpkeepRealmProfile[];
   castles: readonly WarpkeepCastle[];
+  realm?: WarpkeepRealm;
   ownCastle?: WarpkeepCastle;
 }>;
 

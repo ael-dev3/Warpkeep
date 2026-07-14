@@ -100,6 +100,50 @@ describe('Hermes machine-readable output', () => {
     });
     expect(rendered).not.toContain('must-not-escape');
   });
+
+  it('projects protocol-v3 inspection without private rows or identifiers', async () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const zeroFields = Object.fromEntries([
+      'worldTiles', 'worldTileMeta', 'realms', 'castleSlots', 'castleSlotClaims',
+      'legacyPlayers', 'playersV2', 'playerOwnershipsV2', 'castles', 'realmProfiles',
+      'markAccounts', 'snapBurnCredits', 'walletAttributions', 'scanCursors',
+      'allowedFids', 'enabledAllowedFids', 'auditEntries', 'orphanedPlayerRowsV2',
+      'orphanedOwnershipRowsV2', 'orphanedCastleClaims', 'orphanedCastles',
+      'orphanedRealmProfiles', 'orphanedMarkAccounts', 'orphanedBurnCredits',
+      'founderStateGaps', 'markAccountInvariantViolations',
+      'publicMarkProjectionViolations', 'duplicateBurnReferences',
+      'burnAccountReconciliationViolations', 'ambiguousActiveWalletAddresses',
+    ].map((key) => [key, 0n]));
+    const status = {
+      ...zeroFields,
+      protocolVersion: 3,
+      worldSeed: 3_445_214_658,
+      worldSeedName: 'HEGEMONY_GENESIS_001',
+      identity: 'must-not-escape',
+      walletAddress: 'must-not-escape',
+      transactionHash: 'must-not-escape',
+    };
+    const connection = {
+      procedures: { adminGetAlphaStatusV3: vi.fn(async () => status) },
+    };
+
+    await readStatus(connection as never, false, true, true);
+    expect(output).toHaveBeenCalledOnce();
+    const rendered = output.mock.calls[0]?.[0] as string;
+    const parsed = JSON.parse(rendered) as Record<string, unknown>;
+    expect(Object.keys(parsed).sort()).toEqual([
+      ...Object.keys(zeroFields),
+      'protocolVersion', 'worldSeed', 'worldSeedName',
+    ].sort());
+    expect(parsed).toMatchObject({
+      worldTiles: '0',
+      snapBurnCredits: '0',
+      ambiguousActiveWalletAddresses: '0',
+      protocolVersion: 3,
+      worldSeedName: 'HEGEMONY_GENESIS_001',
+    });
+    expect(rendered).not.toContain('must-not-escape');
+  });
 });
 
 describe('Hermes command-line boundary', () => {
@@ -164,6 +208,17 @@ describe('Hermes credential destination policy', () => {
     });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('"command":"inspect-alpha-v2"');
+    expect(result.stdout).toContain('"mutation":false');
+    expect(result.stderr).toBe('');
+  });
+
+  it('classifies protocol-v3 aggregate inspection as read-only', () => {
+    const result = runHermes(['inspect-alpha-v3', '--json', '--dry-run'], {
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('"command":"inspect-alpha-v3"');
     expect(result.stdout).toContain('"mutation":false');
     expect(result.stderr).toBe('');
   });

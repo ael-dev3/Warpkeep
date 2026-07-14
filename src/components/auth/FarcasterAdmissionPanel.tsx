@@ -13,6 +13,7 @@ export type FarcasterAdmissionPanelProps = Readonly<{
   headingRef?: Ref<HTMLHeadingElement>;
   primaryActionRef?: Ref<HTMLButtonElement>;
   onPresentationReady?: () => void;
+  onBackToMenu: () => void;
   onCheckAgain: () => void;
   onSignOut: () => void;
 }>;
@@ -39,6 +40,11 @@ const presentationByPhase: Record<Exclude<WarpkeepBackendPhase, 'idle' | 'ready'
     title: 'VERIFYING FRONTIER ACCESS',
     liveMessage: 'Checking frontier access'
   },
+  'awaiting-terms': {
+    eyebrow: 'HEGEMONY FRONTIER ACCESS',
+    title: 'ALPHA TERMS REQUIRED',
+    liveMessage: 'Alpha Terms acceptance is required before realm records open'
+  },
   denied: {
     eyebrow: 'HEGEMONY FRONTIER ACCESS',
     title: 'ENTRY NOT YET GRANTED',
@@ -48,6 +54,11 @@ const presentationByPhase: Record<Exclude<WarpkeepBackendPhase, 'idle' | 'ready'
     eyebrow: 'HEGEMONY FRONTIER ACCESS',
     title: 'ESTABLISHING YOUR KEEP',
     liveMessage: 'Establishing your frontier keep'
+  },
+  'accepting-terms': {
+    eyebrow: 'HEGEMONY FRONTIER ACCESS',
+    title: 'RECORDING ALPHA TERMS',
+    liveMessage: 'Recording your Alpha Terms acceptance'
   },
   error: {
     eyebrow: 'HEGEMONY FRONTIER ACCESS',
@@ -62,6 +73,7 @@ export function FarcasterAdmissionPanel({
   headingRef,
   primaryActionRef,
   onPresentationReady,
+  onBackToMenu,
   onCheckAgain,
   onSignOut
 }: FarcasterAdmissionPanelProps) {
@@ -71,8 +83,10 @@ export function FarcasterAdmissionPanel({
   const busy = phase === 'connecting'
     || phase === 'reconnecting'
     || phase === 'checking-admission'
-    || phase === 'bootstrapping';
+    || phase === 'bootstrapping'
+    || phase === 'accepting-terms';
   const denied = phase === 'denied';
+  const awaitingTerms = phase === 'awaiting-terms';
   const unavailable = phase === 'error';
 
   useEffect(() => {
@@ -138,6 +152,12 @@ export function FarcasterAdmissionPanel({
           </>
         ) : null}
 
+        {awaitingTerms ? (
+          <p className="farcaster-admission-panel__lead" role="status">
+            Return to Enter Realm and accept the current Alpha Terms before Hegemony records open.
+          </p>
+        ) : null}
+
         {unavailable ? (
           <p className="farcaster-admission-panel__lead" role="status">
             The Hegemony records are temporarily unreachable.
@@ -163,7 +183,7 @@ export function FarcasterAdmissionPanel({
             REQUEST ACCESS
           </a>
         ) : null}
-        {!busy ? (
+        {!busy && !awaitingTerms ? (
           <button
             className={denied ? 'farcaster-auth-panel__action' : 'farcaster-auth-panel__action farcaster-auth-panel__action--primary'}
             onClick={onCheckAgain}
@@ -173,6 +193,13 @@ export function FarcasterAdmissionPanel({
             CHECK AGAIN
           </button>
         ) : null}
+        <button
+          className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
+          onClick={onBackToMenu}
+          type="button"
+        >
+          BACK TO MENU
+        </button>
         <button
           className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
           onClick={onSignOut}

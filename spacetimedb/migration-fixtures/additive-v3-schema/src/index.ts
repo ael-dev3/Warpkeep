@@ -1,0 +1,323 @@
+import { schema, table, t } from 'spacetimedb/server';
+
+const allowedFid = table(
+  { name: 'allowed_fid' },
+  {
+    fid: t.u64().primaryKey(),
+    enabled: t.bool(),
+    authEpoch: t.u32(),
+    invitedAt: t.timestamp(),
+    invitedBy: t.string(),
+    note: t.string(),
+  },
+);
+
+const worldTile = table(
+  { name: 'world_tile', public: true },
+  {
+    key: t.string().primaryKey(),
+    q: t.i32(),
+    r: t.i32(),
+    biome: t.string(),
+    terrainSeed: t.u32(),
+    occupantCastleId: t.option(t.u64()),
+  },
+);
+
+const player = table(
+  { name: 'player', public: true },
+  {
+    fid: t.u64().primaryKey(),
+    identity: t.identity().unique(),
+    username: t.option(t.string()),
+    displayName: t.option(t.string()),
+    pfpUrl: t.option(t.string()),
+    joinedAt: t.timestamp(),
+    status: t.string(),
+  },
+);
+
+const castle = table(
+  { name: 'castle', public: true },
+  {
+    castleId: t.u64().primaryKey().autoInc(),
+    ownerFid: t.u64().unique(),
+    tileKey: t.string().unique(),
+    q: t.i32(),
+    r: t.i32(),
+    level: t.i32(),
+    name: t.string(),
+    createdAt: t.timestamp(),
+  },
+);
+
+const adminAudit = table(
+  { name: 'admin_audit' },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    action: t.string(),
+    targetFid: t.option(t.u64()),
+    actorSubject: t.string(),
+    createdAt: t.timestamp(),
+    note: t.string(),
+  },
+);
+
+const playerV2 = table(
+  { name: 'player_v2', public: true },
+  {
+    fid: t.u64().primaryKey(),
+    username: t.option(t.string()),
+    displayName: t.option(t.string()),
+    pfpUrl: t.option(t.string()),
+    joinedAt: t.timestamp(),
+    status: t.string(),
+  },
+);
+
+const playerOwnershipV2 = table(
+  { name: 'player_ownership_v2' },
+  {
+    fid: t.u64().primaryKey(),
+    identity: t.identity().unique(),
+  },
+);
+
+const realmV1 = table(
+  { name: 'realm_v1', public: true },
+  {
+    realmId: t.string().primaryKey(),
+    publicName: t.string(),
+    seedName: t.string(),
+    numericSeed: t.u32(),
+    generationVersion: t.u32(),
+    authoritativeRadius: t.u32(),
+    renderRadius: t.u32(),
+    playerCapacity: t.u32(),
+    active: t.bool(),
+    createdAt: t.timestamp(),
+  },
+);
+
+const worldTileMetaV1 = table(
+  {
+    name: 'world_tile_meta_v1',
+    public: true,
+    indexes: [{
+      accessor: 'byRealmAndRing',
+      algorithm: 'btree',
+      columns: ['realmId', 'ring'] as const,
+    }] as const,
+  },
+  {
+    tileKey: t.string().primaryKey(),
+    realmId: t.string().index(),
+    s: t.i32(),
+    ring: t.u32(),
+    sector: t.u32(),
+    terrainKind: t.string(),
+    passable: t.bool(),
+    movementCost: t.u32(),
+    staticContentKind: t.string(),
+    generationVersion: t.u32(),
+  },
+);
+
+const castleSlotV1 = table(
+  { name: 'castle_slot_v1', public: true },
+  {
+    slotId: t.u32().primaryKey(),
+    realmId: t.string().index(),
+    tileKey: t.string().unique(),
+    q: t.i32(),
+    r: t.i32(),
+    generationVersion: t.u32(),
+  },
+);
+
+const castleSlotClaimV1 = table(
+  { name: 'castle_slot_claim_v1' },
+  {
+    slotId: t.u32().primaryKey(),
+    ownerFid: t.u64().unique(),
+    castleId: t.u64().unique(),
+    claimedAt: t.timestamp(),
+    generationVersion: t.u32(),
+  },
+);
+
+const realmProfileV1 = table(
+  { name: 'realm_profile_v1', public: true },
+  {
+    fid: t.u64().primaryKey(),
+    canonicalUsername: t.option(t.string()),
+    displayName: t.option(t.string()),
+    pfpUrl: t.option(t.string()),
+    publicBio: t.option(t.string()),
+    admittedAt: t.timestamp(),
+    firstAuthenticatedAt: t.option(t.timestamp()),
+    profileUpdatedAt: t.timestamp(),
+    publicStatus: t.string(),
+    communityStatsVisible: t.bool(),
+    totalSnapBurnedMicros: t.option(t.u128()),
+    marksEarnedMicros: t.option(t.u128()),
+    marksSpentMicros: t.option(t.u128()),
+    marksBalanceMicros: t.option(t.u128()),
+    marksPolicyVersion: t.option(t.string()),
+  },
+);
+
+const markAccountV1 = table(
+  { name: 'mark_account_v1' },
+  {
+    fid: t.u64().primaryKey(),
+    totalSnapBurnedMicros: t.u128(),
+    earnedMicros: t.u128(),
+    spentMicros: t.u128(),
+    balanceMicros: t.u128(),
+    policyVersion: t.string(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+const snapBurnCreditV1 = table(
+  { name: 'snap_burn_credit_v1' },
+  {
+    eventKey: t.string().primaryKey(),
+    batchId: t.string().index(),
+    chainId: t.u32(),
+    tokenContract: t.string(),
+    transactionHash: t.string(),
+    logIndex: t.u32(),
+    burnReference: t.string().unique(),
+    burnMethod: t.string(),
+    senderAddress: t.string(),
+    blockNumber: t.u64(),
+    blockHash: t.string(),
+    amountMicros: t.u128(),
+    attributedFid: t.u64().index(),
+    attributionPolicyVersion: t.string(),
+    contractCodeHash: t.string(),
+    creditedAt: t.timestamp(),
+  },
+);
+
+const fidWalletAttributionV1 = table(
+  {
+    name: 'fid_wallet_attribution_v1',
+    indexes: [{
+      accessor: 'bySnapshotAndAddress',
+      algorithm: 'btree',
+      columns: ['snapshotGeneration', 'address'] as const,
+    }] as const,
+  },
+  {
+    snapshotAttributionKey: t.string().primaryKey(),
+    attributionKey: t.string(),
+    snapshotGeneration: t.u64(),
+    fid: t.u64().index(),
+    address: t.string(),
+    addressType: t.string(),
+    source: t.string(),
+    snapshotAt: t.timestamp(),
+    attributionPolicyVersion: t.string(),
+    active: t.bool(),
+  },
+);
+
+const walletAttributionSnapshotV1 = table(
+  { name: 'wallet_attribution_snapshot_v1' },
+  {
+    snapshotKey: t.string().primaryKey(),
+    generation: t.u64(),
+    snapshotId: t.string(),
+    policyVersion: t.string(),
+    attributionCount: t.u32(),
+    snapshotAt: t.timestamp(),
+  },
+);
+
+const snapScanCursorV1 = table(
+  { name: 'snap_scan_cursor_v1' },
+  {
+    cursorKey: t.string().primaryKey(),
+    chainId: t.u32(),
+    tokenContract: t.string(),
+    policyVersion: t.string(),
+    deploymentStartBlock: t.u64(),
+    lastFinalizedBlock: t.u64(),
+    lastFinalizedBlockHash: t.string(),
+    proxyCodeHash: t.string(),
+    implementationAddress: t.string(),
+    implementationCodeHash: t.string(),
+    walletSnapshotGeneration: t.u64(),
+    walletSnapshotId: t.string(),
+    scannedAt: t.timestamp(),
+  },
+);
+
+const snapScanBatchV1 = table(
+  {
+    name: 'snap_scan_batch_v1',
+    indexes: [{
+      accessor: 'byCursorAndStatus',
+      algorithm: 'btree',
+      columns: ['cursorKey', 'status'] as const,
+    }] as const,
+  },
+  {
+    batchId: t.string().primaryKey(),
+    cursorKey: t.string(),
+    status: t.string(),
+    previousFinalizedBlock: t.u64(),
+    previousFinalizedBlockHash: t.string(),
+    throughFinalizedBlock: t.u64(),
+    throughFinalizedBlockHash: t.string(),
+    walletSnapshotGeneration: t.u64(),
+    walletSnapshotId: t.string(),
+    walletAttributionCount: t.u32(),
+    expectedCredits: t.u32(),
+    expectedMicros: t.u128(),
+    appliedCredits: t.u32(),
+    appliedMicros: t.u128(),
+    proxyCodeHash: t.string(),
+    implementationAddress: t.string(),
+    implementationCodeHash: t.string(),
+    startedAt: t.timestamp(),
+    finalizedAt: t.option(t.timestamp()),
+  },
+);
+
+const alphaTermsAcceptanceV1 = table(
+  { name: 'alpha_terms_acceptance_v1' },
+  {
+    acceptanceKey: t.string().primaryKey(),
+    fid: t.u64().index(),
+    termsVersion: t.string(),
+    acceptedAt: t.timestamp(),
+  },
+);
+
+const db = schema({
+  allowedFid,
+  worldTile,
+  player,
+  castle,
+  adminAudit,
+  playerV2,
+  playerOwnershipV2,
+  realmV1,
+  worldTileMetaV1,
+  castleSlotV1,
+  castleSlotClaimV1,
+  realmProfileV1,
+  markAccountV1,
+  snapBurnCreditV1,
+  fidWalletAttributionV1,
+  walletAttributionSnapshotV1,
+  snapScanCursorV1,
+  snapScanBatchV1,
+  alphaTermsAcceptanceV1,
+});
+
+export default db;
