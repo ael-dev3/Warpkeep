@@ -15,6 +15,7 @@ import type {
   FarcasterAuthViewState,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
+import { WARPKEEP_FARCASTER_CHANNEL_URL } from '../../farcaster/farcasterProjectLinks';
 import { AlphaParticipationTermsDialog } from './AlphaParticipationTermsDialog';
 import { CreditsRoll } from './CreditsRoll';
 import { LatestPatchNotesPopover } from './LatestPatchNotesPopover';
@@ -1048,18 +1049,32 @@ export function WarpkeepMainMenu({
               >
                 PROJECT
               </h2>
-              <a
-                aria-label="Open Warpkeep repository on GitHub (opens in a new tab)"
-                className="warpkeep-menu-project__link"
-                href={DEFAULT_WARPKEEP_REPOSITORY_URL}
-                referrerPolicy="no-referrer"
-                rel="noopener noreferrer"
-                tabIndex={interactive ? 0 : -1}
-                target="_blank"
-              >
-                <span>WARPKEEP ON GITHUB</span>
-                <span aria-hidden="true" className="warpkeep-menu-project__external-mark">↗</span>
-              </a>
+              <div className="warpkeep-menu-project__links">
+                <a
+                  aria-label="Open Warpkeep repository on GitHub (opens in a new tab)"
+                  className="warpkeep-menu-project__link"
+                  href={DEFAULT_WARPKEEP_REPOSITORY_URL}
+                  referrerPolicy="no-referrer"
+                  rel="noopener noreferrer"
+                  tabIndex={interactive ? 0 : -1}
+                  target="_blank"
+                >
+                  <span>GITHUB</span>
+                  <span aria-hidden="true" className="warpkeep-menu-project__external-mark">↗</span>
+                </a>
+                <a
+                  aria-label="Open Warpkeep Farcaster channel (opens in a new tab)"
+                  className="warpkeep-menu-project__link"
+                  href={WARPKEEP_FARCASTER_CHANNEL_URL}
+                  referrerPolicy="no-referrer"
+                  rel="noopener noreferrer"
+                  tabIndex={interactive ? 0 : -1}
+                  target="_blank"
+                >
+                  <span>FARCASTER CHANNEL</span>
+                  <span aria-hidden="true" className="warpkeep-menu-project__external-mark">↗</span>
+                </a>
+              </div>
             </section>
           </nav>
           <WarpkeepBuildStamp buildInfo={buildInfo} />
