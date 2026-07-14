@@ -8,11 +8,11 @@ castle atomically.
 This document describes the source candidate. Alpha 0.3.1 remains the live
 production release until the additive schema, seed, operator inputs, admission,
 frontend, and production verification gates are each explicitly approved.
-Before production founding, an exact expected post-founding counts/invariant
-verifier must be implemented and reviewed, then run immediately after every
-separately approved founding action before rollout proceeds. No local test,
-candidate build, or earlier schema-publication approval substitutes for that
-bounded production gate.
+Before production founding, the exact post-founding counts/invariant verifier
+must be independently reviewed, then run with the private plan's expected count
+immediately after every separately approved founding action before rollout
+proceeds. No local test, candidate build, or earlier schema-publication approval
+substitutes for that bounded production gate.
 
 ## Candidate scope
 
@@ -54,10 +54,15 @@ bounded production gate.
   lookups, instanced peer markers, bounded labels, paged navigation, and explicit
   passability metadata. Scenic blockers are never presented as selectable or
   playable cells.
+- A read-only founded-state verifier accepts only a canonical expected count from
+  1 through 100 and requires exact pre-login admission, claim, castle, profile,
+  Mark-account, and occupied-tile counts with every protocol-3 invariant at zero.
+  It neither accepts nor reports FIDs. Exact identities and nearest-slot prefix
+  remain private-plan and reducer-evidence checks rather than aggregate output.
 
 ## Candidate validation
 
-The local candidate passed 721 browser/shared tests and 84 SpacetimeDB module
+The local candidate passed 752 browser/shared tests and 84 SpacetimeDB module
 tests, root and module typechecks, production builds, exact generated-binding
 privacy checks, legal/runtime-asset validation, dependency and secret scans,
 and a disposable additive migration rehearsal from both empty and populated

@@ -93,6 +93,11 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   counts-only reconciliation; the local apply command remains hard-disabled
   until its transport and disposable-local recovery path are implemented and
   reviewed. Any later production run still requires separate approval.
+- Added a privacy-safe founded-state verifier stage with a required canonical
+  expected founder count. It checks the exact seeded world, admission/founding
+  row counts, empty pre-login/operator state, and every protocol-3 integrity
+  counter after each separately approved founding action without accepting or
+  printing FIDs.
 
 ## [0.3.1] — 2026-07-13
 

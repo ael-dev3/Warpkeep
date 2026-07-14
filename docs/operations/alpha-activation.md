@@ -79,6 +79,30 @@ If any stage fails or disagrees, stop and keep both switches false. Do not remov
 the additive v2 tables or restore a v1 module: leave the tables inert and use a
 separately reviewed forward fix.
 
+## Protocol-v3 candidate founding checkpoint
+
+Alpha 0.3.2 adds a read-only, counts-only checkpoint for the interval after each
+separately approved atomic founding action and before wallet snapshots, scans,
+player login, or Terms acceptance. With both production switches already
+disabled and attested, the private Keychain wrapper supplies the Hermes
+credential in memory and invokes the production verifier with:
+
+```sh
+npm run verify:alpha-production -- \
+  --require-auth-v2 \
+  --require-genesis-v3-founded-aggregate \
+  --expected-founder-count=N
+```
+
+`N` must be the canonical integer `1..100` from the reviewed private founding
+plan. The stage requires the exact seeded world and static sidecars; exactly `N`
+occupied cells, claims, castles, profiles, Mark accounts, allowed rows, and
+enabled rows; zero pre-login and operator state; and all protocol-v3 integrity
+counters at zero. It accepts and prints no FID. Consequently, it does not by
+itself prove which FIDs were admitted or that their claims use the first `N`
+nearest slots; retain those checks in the private founding plan and reducer
+evidence. Any mismatch stops rollout before another founding action.
+
 ## 1. Domain and public coordinates
 
 The historical public coordinates are:

@@ -1088,6 +1088,17 @@ describe('protected aggregate child isolation', () => {
     castleSlots: '100',
     auditEntries: '3',
   });
+  const genesisV3FoundedAggregate = Object.freeze({
+    ...genesisV3SeededEmptyAggregate,
+    occupiedWorldTiles: '3',
+    castleSlotClaims: '3',
+    castles: '3',
+    realmProfiles: '3',
+    markAccounts: '3',
+    allowedFids: '3',
+    enabledAllowedFids: '3',
+    auditEntries: '6',
+  });
 
   it('accepts only exact legacy and additive-v2 aggregate objects', () => {
     expect(() => verifyExpectedAlphaAggregate(JSON.stringify({
@@ -1100,7 +1111,7 @@ describe('protected aggregate child isolation', () => {
     expect(() => verifyExpectedAlphaV2Aggregate(JSON.stringify(additiveV2Aggregate))).not.toThrow();
   });
 
-  it('accepts exact protocol-v3 preseed and seeded-empty aggregate stages', () => {
+  it('accepts exact protocol-v3 preseed, seeded-empty, and founded aggregate stages', () => {
     expect(() => verifyExpectedAlphaV3Aggregate(
       JSON.stringify(additiveV3PreseedAggregate),
       PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED,
@@ -1108,6 +1119,11 @@ describe('protected aggregate child isolation', () => {
     expect(() => verifyExpectedAlphaV3Aggregate(
       JSON.stringify(genesisV3SeededEmptyAggregate),
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY,
+    )).not.toThrow();
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(genesisV3FoundedAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      3,
     )).not.toThrow();
   });
 
@@ -1117,10 +1133,12 @@ describe('protected aggregate child isolation', () => {
       for (const [stage, fixture] of [
         [PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED, additiveV3PreseedAggregate],
         [PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY, genesisV3SeededEmptyAggregate],
+        [PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED, genesisV3FoundedAggregate],
       ] as const) {
         expect(() => verifyExpectedAlphaV3Aggregate(
           JSON.stringify({ ...fixture, [field]: '1' }),
           stage,
+          stage === PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED ? 3 : undefined,
         )).toThrow(/invariant/i);
       }
     },
@@ -1141,6 +1159,40 @@ describe('protected aggregate child isolation', () => {
         stage,
       )).toThrow(/rollout stage/i);
     }
+  });
+
+  it.each([
+    'legacyPlayers',
+    'playersV2',
+    'playerOwnershipsV2',
+    'snapBurnCredits',
+    'walletAttributions',
+    'walletAttributionSnapshots',
+    'scanCursors',
+    'scanBatches',
+    'alphaTermsAcceptances',
+  ])('rejects rogue protocol-v3 founded-stage %s rows', field => {
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify({ ...genesisV3FoundedAggregate, [field]: '1' }),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      3,
+    )).toThrow(/rollout stage/i);
+  });
+
+  it.each([
+    'occupiedWorldTiles',
+    'castleSlotClaims',
+    'castles',
+    'realmProfiles',
+    'markAccounts',
+    'allowedFids',
+    'enabledAllowedFids',
+  ])('requires founded-stage %s to equal the private expected count', field => {
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify({ ...genesisV3FoundedAggregate, [field]: '2' }),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      3,
+    )).toThrow(/rollout stage/i);
   });
 
   it.each([
@@ -1172,6 +1224,19 @@ describe('protected aggregate child isolation', () => {
       JSON.stringify(additiveV3PreseedAggregate),
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY,
     )).toThrow(/rollout stage/i);
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(genesisV3SeededEmptyAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      3,
+    )).toThrow(/rollout stage/i);
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(genesisV3FoundedAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY,
+    )).toThrow(/rollout stage/i);
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(genesisV3FoundedAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    )).toThrow(/expected founder count/i);
   });
 
   it.each([
@@ -1249,6 +1314,12 @@ describe('protected aggregate child isolation', () => {
     )).toEqual([
       '/test/tsx', 'scripts/hermes-admin.ts', 'inspect-alpha-v3', '--json',
     ]);
+    expect(protectedAggregateChildArguments(
+      '/test/tsx',
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    )).toEqual([
+      '/test/tsx', 'scripts/hermes-admin.ts', 'inspect-alpha-v3', '--json',
+    ]);
   });
 
   it('rejects unknown or duplicate production-verifier flags', () => {
@@ -1257,6 +1328,8 @@ describe('protected aggregate child isolation', () => {
       requireAdditiveV2Aggregate: false,
       requireAdditiveV3PreseedAggregate: false,
       requireGenesisV3SeededEmptyAggregate: false,
+      requireGenesisV3FoundedAggregate: false,
+      expectedFounderCount: undefined,
       requireAuthV2: false,
       requireAuthV2Enabled: false,
       aggregateStage: PROTECTED_AGGREGATE_STAGE.LEGACY,
@@ -1301,6 +1374,15 @@ describe('protected aggregate child isolation', () => {
       requireGenesisV3SeededEmptyAggregate: true,
       aggregateStage: PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY,
     });
+    expect(parseProductionVerifierArguments([
+      '--require-genesis-v3-founded-aggregate',
+      '--expected-founder-count=3',
+    ])).toEqual({
+      ...defaults,
+      requireGenesisV3FoundedAggregate: true,
+      expectedFounderCount: 3,
+      aggregateStage: PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    });
     expect(() => parseProductionVerifierArguments(['--require-auth-v3']))
       .toThrow(/unknown or duplicate/i);
     expect(() => parseProductionVerifierArguments(['--require-genesis-v2-seeded-empty-aggregate']))
@@ -1321,6 +1403,38 @@ describe('protected aggregate child isolation', () => {
       '--require-additive-v3-preseed-aggregate',
       '--require-genesis-v3-seeded-empty-aggregate',
     ])).toThrow(/mutually exclusive/i);
+    expect(() => parseProductionVerifierArguments([
+      '--require-genesis-v3-seeded-empty-aggregate',
+      '--require-genesis-v3-founded-aggregate',
+      '--expected-founder-count=3',
+    ])).toThrow(/mutually exclusive/i);
+  });
+
+  it.each([
+    [['--require-genesis-v3-founded-aggregate']],
+    [['--expected-founder-count=3']],
+    [['--require-additive-v3-preseed-aggregate', '--expected-founder-count=3']],
+  ])('requires the founded aggregate flag/count pair: %j', arguments_ => {
+    expect(() => parseProductionVerifierArguments(arguments_))
+      .toThrow(/supplied together/i);
+  });
+
+  it.each(['0', '00', '01', '101', '-1', '+1', '1.0', '1e2', 'abc', ''])(
+    'rejects invalid expected founder count %j',
+    value => {
+      expect(() => parseProductionVerifierArguments([
+        '--require-genesis-v3-founded-aggregate',
+        `--expected-founder-count=${value}`,
+      ])).toThrow(/canonical integer/i);
+    },
+  );
+
+  it('rejects duplicate expected founder counts', () => {
+    expect(() => parseProductionVerifierArguments([
+      '--require-genesis-v3-founded-aggregate',
+      '--expected-founder-count=3',
+      '--expected-founder-count=3',
+    ])).toThrow(/unknown or duplicate/i);
   });
 
   it('fails closed when the activation gate requires an unavailable aggregate credential', () => {

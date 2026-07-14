@@ -18,8 +18,12 @@ import {
   readWarpkeepAdmissionStatus,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
+  WARPKEEP_ALPHA_TERMS_VERSION as BROWSER_ALPHA_TERMS_VERSION,
   type WarpkeepConnection
 } from '../src/spacetime/warpkeepConnection';
+import {
+  WARPKEEP_ALPHA_TERMS_VERSION as MODULE_ALPHA_TERMS_VERSION
+} from '../spacetimedb/src/marksAuthorityPolicy';
 import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
 
 const config: WarpkeepRuntimeConfig = Object.freeze({
@@ -177,6 +181,10 @@ describe('Warpkeep authenticated connection boundary', () => {
       termsVersion: '2026-07-14',
       accepted: true
     });
+  });
+
+  it('pins the browser and authoritative module to the same Terms version', () => {
+    expect(BROWSER_ALPHA_TERMS_VERSION).toBe(MODULE_ALPHA_TERMS_VERSION);
   });
 
   it('contains no legacy player subscription, cache read, or observer path', () => {

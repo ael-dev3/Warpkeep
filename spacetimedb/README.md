@@ -373,10 +373,13 @@ switch false while it:
    is known, keeping every private table out of the browser surface;
 8. separately approves any Worker/frontend deploy with public auth and realm
    entry still false and checks configuration attestation;
-9. before founding, implements and reviews an exact expected post-founding
-   counts/invariant verifier, then requires final authority for each founding
-   admission or token-crediting workflow and runs that verifier immediately
-   after every separately approved founding action;
+9. before founding, independently reviews the exact counts-only founded-state
+   verifier, then requires final authority for each founding admission and runs
+   `--require-genesis-v3-founded-aggregate --expected-founder-count=N`
+   immediately after every separately approved founding action, before wallet
+   snapshots, scans, player login, or Terms acceptance; exact FID and nearest-slot
+   prefix evidence stays in the private plan because the aggregate exposes no
+   identities;
 10. enables public auth only after all staged aggregates pass, then enables and
    deploys only the exact reviewed frontend, passes the enabled
    public/private gates, and runs immediate owner QA with dual-disable handling

@@ -281,30 +281,40 @@ exact-head verified, and separately approved at each authority boundary:
 
 1. run `npm run stdb:verify-additive-migration` and retain its local,
    loopback-only artifact receipt;
-2. perform only an explicitly approved, bounded, read-only Maincloud inspection
+2. obtain separate approval to disable and attest production Worker public auth
+   and frontend shared-alpha entry, then keep both disabled through schema, seed,
+   founding, and staged verification;
+3. perform only an explicitly approved, bounded, read-only Maincloud inspection
    and require the complete deployed protocol-v2 aggregate—not merely the
    legacy player count—to match the recorded 61-tile, zero-player/ownership/
    castle/admission state and all integrity invariants;
-3. obtain separate owner approval for the production protocol-v3 schema publish;
-4. publish only through the guarded path, which pins the reviewed CLI and exact
+4. obtain separate owner approval for the production protocol-v3 schema publish;
+5. publish only through the guarded path, which pins the reviewed CLI and exact
    database identity, reruns the local proof and deployed-v2 aggregate, binds
    the single SHA-256 receipt to the prebuilt artifact, uses
    `--delete-data=never`, forbids `--break-clients`, and closes stdin so an
    unexpected prompt stops the operation;
-5. immediately require the exact protocol-v3 preseed aggregate: all 12 appended
+6. immediately require the exact protocol-v3 preseed aggregate: all 12 appended
    tables empty, 61 unoccupied world rows, zero drift/orphan/invariant counts,
    and the expected protocol/seed identity;
-6. obtain a separate owner approval for canonical generation-v2 seeding; never
+7. obtain a separate owner approval for canonical generation-v2 seeding; never
    combine schema publication and seeding into one implied action;
-7. immediately require the exact seeded-empty aggregate: 1,261 world metadata
+8. immediately require the exact seeded-empty aggregate: 1,261 world metadata
    rows and world tiles, one realm, 100 slots, zero claims/founders/private
    operator state/Terms rows, and zero static-world drift or integrity errors;
-8. run profile and wallet source preparation locally with privacy-safe reports;
+9. run profile and wallet source preparation locally with privacy-safe reports;
    install no scheduler until a successful reviewed manual dry run, and require
    separate approval for every operator apply;
-9. admit each FID only through a separately approved atomic founding action;
-10. separately approve and verify the exact frontend artifact and hosted QA;
-11. merge, tag, release, and any configuration change remain distinct approvals.
+10. admit each FID only through a separately approved atomic founding action,
+    then immediately run the read-only
+    `--require-genesis-v3-founded-aggregate --expected-founder-count=N` stage
+    before any wallet snapshot, scan, player login, or Terms write; the stage
+    verifies exact counts and every v3 invariant but intentionally receives and
+    reports no FID, so compare identities and the nearest-slot prefix against the
+    private founding plan and reducer evidence;
+11. separately approve and verify the exact frontend artifact and hosted QA;
+12. re-enabling either production switch, merge, tag, release, and every other
+    configuration change remain distinct approvals.
 
 The current guarded publisher requires the explicit fresh zero-count
 confirmation and forbids `--break-clients`. If preflight or publish reports any

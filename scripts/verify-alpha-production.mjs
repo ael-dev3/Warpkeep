@@ -95,6 +95,7 @@ export const PROTECTED_AGGREGATE_STAGE = Object.freeze({
   ADDITIVE_V2: 'additive-v2',
   ADDITIVE_V3_PRESEED: 'additive-v3-preseed',
   GENESIS_V3_SEEDED_EMPTY: 'genesis-v3-seeded-empty',
+  GENESIS_V3_FOUNDED: 'genesis-v3-founded',
 });
 
 const V3_STATE_COUNT_FIELDS = Object.freeze([
@@ -178,6 +179,7 @@ const EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS = Object.freeze({
   realms: 1n,
   castleSlots: 100n,
 });
+const MAX_GENESIS_FOUNDER_COUNT = 100;
 
 function fail(message) {
   throw new Error(`Alpha production verification failed: ${message}`);
@@ -996,18 +998,38 @@ function readCanonicalV3Count(value, label) {
   return count;
 }
 
-function expectedV3StateCounts(stage) {
+function readExpectedFounderCount(value) {
+  if (!Number.isSafeInteger(value) || value < 1 || value > MAX_GENESIS_FOUNDER_COUNT) {
+    fail('protocol-v3 founded aggregate expected founder count was invalid.');
+  }
+  return BigInt(value);
+}
+
+function expectedV3StateCounts(stage, expectedFounderCount) {
   if (stage === PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED) {
     return EXPECTED_ALPHA_V3_PRESEED_COUNTS;
   }
   if (stage === PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY) {
     return EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS;
   }
+  if (stage === PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED) {
+    const founders = readExpectedFounderCount(expectedFounderCount);
+    return Object.freeze({
+      ...EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS,
+      occupiedWorldTiles: founders,
+      castleSlotClaims: founders,
+      castles: founders,
+      realmProfiles: founders,
+      markAccounts: founders,
+      allowedFids: founders,
+      enabledAllowedFids: founders,
+    });
+  }
   fail('protocol-v3 aggregate verification stage was invalid.');
 }
 
-export function verifyExpectedAlphaV3Aggregate(output, stage) {
-  const expectedCounts = expectedV3StateCounts(stage);
+export function verifyExpectedAlphaV3Aggregate(output, stage, expectedFounderCount) {
+  const expectedCounts = expectedV3StateCounts(stage, expectedFounderCount);
   let status;
   try {
     status = JSON.parse(output);
@@ -1109,6 +1131,7 @@ function verifyProtectedAggregateIfConfigured(
   bridge,
   required,
   stage = PROTECTED_AGGREGATE_STAGE.LEGACY,
+  expectedFounderCount,
 ) {
   const normalizedStage = normalizeProtectedAggregateStage(stage);
   const secret = requiredProtectedAggregateSecret(process.env.WARPKEEP_ADMIN_TOKEN_SECRET, required);
@@ -1131,7 +1154,7 @@ function verifyProtectedAggregateIfConfigured(
   } else if (normalizedStage === PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2) {
     verifyExpectedAlphaV2Aggregate(result.stdout);
   } else {
-    verifyExpectedAlphaV3Aggregate(result.stdout, normalizedStage);
+    verifyExpectedAlphaV3Aggregate(result.stdout, normalizedStage, expectedFounderCount);
   }
   // Never mirror child-process output: even a future Hermes implementation
   // must not cause this verifier to surface a secret, JWT, or identity.
@@ -1140,6 +1163,7 @@ function verifyProtectedAggregateIfConfigured(
     [PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2]: 'alpha status: required additive protocol-v2 aggregate state verified',
     [PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED]: 'alpha status: required additive protocol-v3 preseed aggregate state verified',
     [PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY]: 'alpha status: required Genesis protocol-v3 seeded-empty aggregate state verified',
+    [PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED]: 'alpha status: required Genesis protocol-v3 founded aggregate state verified',
   }[normalizedStage];
   console.log(successMessage);
 }
@@ -1150,11 +1174,24 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     '--require-additive-v2-aggregate',
     '--require-additive-v3-preseed-aggregate',
     '--require-genesis-v3-seeded-empty-aggregate',
+    '--require-genesis-v3-founded-aggregate',
     '--require-auth-v2',
     '--require-auth-v2-enabled',
   ]);
   const seen = new Set();
+  let expectedFounderCount;
   for (const argument of arguments_) {
+    if (argument.startsWith('--expected-founder-count=')) {
+      if (expectedFounderCount !== undefined) {
+        fail('unknown or duplicate command-line argument.');
+      }
+      const value = argument.slice('--expected-founder-count='.length);
+      if (!/^(?:[1-9]|[1-9]\d|100)$/.test(value)) {
+        fail('expected founder count must be a canonical integer from 1 through 100.');
+      }
+      expectedFounderCount = Number(value);
+      continue;
+    }
     if (!allowed.has(argument) || seen.has(argument)) {
       fail('unknown or duplicate command-line argument.');
     }
@@ -1167,17 +1204,24 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     ['--require-additive-v2-aggregate', PROTECTED_AGGREGATE_STAGE.ADDITIVE_V2],
     ['--require-additive-v3-preseed-aggregate', PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED],
     ['--require-genesis-v3-seeded-empty-aggregate', PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY],
+    ['--require-genesis-v3-founded-aggregate', PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED],
   ].filter(([flag]) => seen.has(flag));
   if (versionedAggregateStages.length > 1) {
     fail('versioned aggregate verification stages are mutually exclusive.');
   }
   const aggregateStage = versionedAggregateStages[0]?.[1]
     ?? PROTECTED_AGGREGATE_STAGE.LEGACY;
+  const requiresFoundedAggregate = seen.has('--require-genesis-v3-founded-aggregate');
+  if (requiresFoundedAggregate !== (expectedFounderCount !== undefined)) {
+    fail('the founded aggregate stage and expected founder count must be supplied together.');
+  }
   return Object.freeze({
     requireProtectedAggregate: seen.has('--require-protected-aggregate'),
     requireAdditiveV2Aggregate: seen.has('--require-additive-v2-aggregate'),
     requireAdditiveV3PreseedAggregate: seen.has('--require-additive-v3-preseed-aggregate'),
     requireGenesisV3SeededEmptyAggregate: seen.has('--require-genesis-v3-seeded-empty-aggregate'),
+    requireGenesisV3FoundedAggregate: requiresFoundedAggregate,
+    expectedFounderCount,
     requireAuthV2: seen.has('--require-auth-v2'),
     requireAuthV2Enabled: seen.has('--require-auth-v2-enabled'),
     aggregateStage,
@@ -1190,6 +1234,8 @@ async function main() {
     requireAdditiveV2Aggregate,
     requireAdditiveV3PreseedAggregate,
     requireGenesisV3SeededEmptyAggregate,
+    requireGenesisV3FoundedAggregate,
+    expectedFounderCount,
     requireAuthV2,
     requireAuthV2Enabled,
     aggregateStage,
@@ -1210,8 +1256,10 @@ async function main() {
     requireProtectedAggregate
       || requireAdditiveV2Aggregate
       || requireAdditiveV3PreseedAggregate
-      || requireGenesisV3SeededEmptyAggregate,
+      || requireGenesisV3SeededEmptyAggregate
+      || requireGenesisV3FoundedAggregate,
     aggregateStage,
+    expectedFounderCount,
   );
 }
 
