@@ -3,6 +3,7 @@ import {
   useCallback,
   useLayoutEffect,
   useState,
+  type CSSProperties,
   type PointerEventHandler
 } from 'react';
 
@@ -25,6 +26,7 @@ export type PatchNotesPositionInput = Readonly<{
 }>;
 
 export type PatchNotesPosition = Readonly<{
+  arrowOffset: number;
   left: number;
   top: number;
   placement: PatchNotesPlacement;
@@ -32,6 +34,12 @@ export type PatchNotesPosition = Readonly<{
 
 const DEFAULT_GAP = 14;
 const DEFAULT_MARGIN = 16;
+const PLACEMENT_ORDER: ReadonlyArray<PatchNotesPlacement> = [
+  'above',
+  'right',
+  'left',
+  'below'
+];
 
 function finiteOr(value: number, fallback: number) {
   return Number.isFinite(value) ? value : fallback;
@@ -57,7 +65,7 @@ export function calculatePatchNotesPosition({
   const safeViewportHeight = Math.max(0, finiteOr(viewportHeight, 0));
 
   if (safeViewportWidth === 0 || safeViewportHeight === 0) {
-    return { left: 0, top: 0, placement: 'below' };
+    return { arrowOffset: 0, left: 0, top: 0, placement: 'below' };
   }
 
   const safeMargin = clamp(
@@ -85,19 +93,17 @@ export function calculatePatchNotesPosition({
     below: safeViewportHeight - safeMargin - anchorBottom - safeGap
   };
 
-  let placement: PatchNotesPlacement;
-  if (room.left >= safePanelWidth) {
-    placement = 'left';
-  } else if (room.right >= safePanelWidth) {
-    placement = 'right';
-  } else if (room.above >= safePanelHeight) {
-    placement = 'above';
-  } else if (room.below >= safePanelHeight) {
-    placement = 'below';
-  } else {
-    placement = (Object.entries(room) as Array<[PatchNotesPlacement, number]>)
-      .reduce((best, candidate) => candidate[1] > best[1] ? candidate : best)[0];
-  }
+  const requiredRoom: Record<PatchNotesPlacement, number> = {
+    above: safePanelHeight,
+    below: safePanelHeight,
+    left: safePanelWidth,
+    right: safePanelWidth
+  };
+  const placement = PLACEMENT_ORDER.find((candidate) => (
+    room[candidate] >= requiredRoom[candidate]
+  )) ?? PLACEMENT_ORDER.reduce((best, candidate) => (
+    room[candidate] > room[best] ? candidate : best
+  ));
 
   let desiredLeft = anchorCenterX - safePanelWidth * 0.5;
   let desiredTop = anchorCenterY - safePanelHeight * 0.5;
@@ -111,17 +117,31 @@ export function calculatePatchNotesPosition({
     desiredTop = anchorBottom + safeGap;
   }
 
+  const left = clamp(
+    desiredLeft,
+    safeMargin,
+    Math.max(safeMargin, safeViewportWidth - safeMargin - safePanelWidth)
+  );
+  const top = clamp(
+    desiredTop,
+    safeMargin,
+    Math.max(safeMargin, safeViewportHeight - safeMargin - safePanelHeight)
+  );
+  const verticalArrow = placement === 'left' || placement === 'right';
+  const arrowAxisSize = verticalArrow ? safePanelHeight : safePanelWidth;
+  const arrowInset = Math.min(20, arrowAxisSize * 0.5);
+  const rawArrowOffset = verticalArrow
+    ? anchorCenterY - top
+    : anchorCenterX - left;
+
   return {
-    left: clamp(
-      desiredLeft,
-      safeMargin,
-      Math.max(safeMargin, safeViewportWidth - safeMargin - safePanelWidth)
+    arrowOffset: clamp(
+      rawArrowOffset,
+      arrowInset,
+      Math.max(arrowInset, arrowAxisSize - arrowInset)
     ),
-    top: clamp(
-      desiredTop,
-      safeMargin,
-      Math.max(safeMargin, safeViewportHeight - safeMargin - safePanelHeight)
-    ),
+    left,
+    top,
     placement
   };
 }
@@ -143,6 +163,7 @@ export const LatestPatchNotesPopover = forwardRef<HTMLElement, LatestPatchNotesP
     const patchNotes = getLatestPatchNotes(productVersion);
     const [panelElement, setPanelElement] = useState<HTMLElement | null>(null);
     const [position, setPosition] = useState<PatchNotesPosition>({
+      arrowOffset: 0,
       left: 0,
       top: 0,
       placement: 'left'
@@ -178,6 +199,7 @@ export const LatestPatchNotesPopover = forwardRef<HTMLElement, LatestPatchNotesP
         setPosition((current) => (
           current.left === viewportPosition.left
           && current.top === viewportPosition.top
+          && current.arrowOffset === viewportPosition.arrowOffset
           && current.placement === viewportPosition.placement
             ? current
             : viewportPosition
@@ -214,6 +236,12 @@ export const LatestPatchNotesPopover = forwardRef<HTMLElement, LatestPatchNotesP
       }
     }, [forwardedRef]);
 
+    const panelStyle = {
+      '--warpkeep-patch-notes-arrow-offset': `${position.arrowOffset}px`,
+      left: position.left,
+      top: position.top
+    } as CSSProperties;
+
     return (
       <section
         aria-labelledby="warpkeep-latest-patch-notes-title"
@@ -224,7 +252,8 @@ export const LatestPatchNotesPopover = forwardRef<HTMLElement, LatestPatchNotesP
         onPointerLeave={onPointerLeave}
         ref={setRefs}
         role="region"
-        style={{ left: position.left, top: position.top }}
+        style={panelStyle}
+        tabIndex={0}
       >
         <div aria-hidden="true" className="warpkeep-patch-notes__rail" />
         <header className="warpkeep-patch-notes__header">

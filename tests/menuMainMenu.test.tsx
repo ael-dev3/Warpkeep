@@ -19,6 +19,13 @@ function installMotionPreference(matches = false) {
   }));
 }
 
+function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
+  return screen.getByRole('button', {
+    ...options,
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.3'
+  });
+}
+
 describe('WarpkeepMainMenu', () => {
   beforeEach(() => {
     installMotionPreference();
@@ -38,7 +45,7 @@ describe('WarpkeepMainMenu', () => {
     vi.useRealTimers();
   });
 
-  it('renders the live heading, exact tagline, and four semantic commands in order', () => {
+  it('renders the live heading, exact tagline, and three semantic commands in order', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
 
     expect(screen.getByRole('heading', { level: 1, name: 'WARPKEEP' })).not.toBeNull();
@@ -49,6 +56,7 @@ describe('WarpkeepMainMenu', () => {
       .getAllByRole('button')
       .map((button) => button.textContent);
     expect(commandLabels).toEqual(menuCommands.map((command) => command.label));
+    expect(within(navigation).queryByRole('button', { name: 'PATCH NOTES' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
   });
 
@@ -107,7 +115,7 @@ describe('WarpkeepMainMenu', () => {
   it('refreshes anchored notices and lets patch notes replace them without stealing focus', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
-    const patchNotes = screen.getByRole('button', { name: 'PATCH NOTES' });
+    const patchNotes = getPatchNotesTrigger();
 
     enterRealm.focus();
     fireEvent.click(enterRealm);
@@ -122,6 +130,10 @@ describe('WarpkeepMainMenu', () => {
     expect(refreshedNotice.textContent).toContain('living frontier');
 
     act(() => patchNotes.focus());
+    expect(screen.getByRole('status').textContent).toContain('living frontier');
+    expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
+
+    fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
     expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
@@ -164,12 +176,12 @@ describe('WarpkeepMainMenu', () => {
 
     expect(document.activeElement).toBe(commands[0]);
     fireEvent.keyDown(commands[0], { key: 'ArrowUp' });
-    expect(document.activeElement).toBe(commands[3]);
-    fireEvent.keyDown(commands[3], { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(commands[2]);
+    fireEvent.keyDown(commands[2], { key: 'ArrowDown' });
     expect(document.activeElement).toBe(commands[0]);
     fireEvent.keyDown(commands[0], { key: 'End' });
-    expect(document.activeElement).toBe(commands[3]);
-    fireEvent.keyDown(commands[3], { key: 'Home' });
+    expect(document.activeElement).toBe(commands[2]);
+    fireEvent.keyDown(commands[2], { key: 'Home' });
     expect(document.activeElement).toBe(commands[0]);
 
     const tabEvent = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
@@ -223,19 +235,25 @@ describe('WarpkeepMainMenu', () => {
   it('reveals current patch notes in-site and lets Escape dismiss them before leaving the menu', () => {
     const onRequestReturn = vi.fn();
     render(<WarpkeepMainMenu active onRequestReturn={onRequestReturn} />);
-    const patchNotes = screen.getByRole('button', { name: 'PATCH NOTES' });
+    const patchNotes = getPatchNotesTrigger();
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
     expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
 
     act(() => patchNotes.focus());
+    expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
+
+    fireEvent.click(patchNotes, { detail: 0 });
     const notes = screen.getByRole('region', { name: 'GENESIS REALM QUALITY' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
     expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.3');
     expect(notes.textContent).toContain('one complete, internally consistent Genesis snapshot');
     expect(notes.textContent).toContain('Released 14 July 2026');
+    expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
+    act(() => notes.focus());
+    expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
@@ -248,7 +266,7 @@ describe('WarpkeepMainMenu', () => {
 
   it('previews patch notes on fine-pointer hover and pins or dismisses them on touch', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
-    const patchNotes = screen.getByRole('button', { name: 'PATCH NOTES' });
+    const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
     expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
@@ -269,12 +287,11 @@ describe('WarpkeepMainMenu', () => {
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
     vi.useFakeTimers();
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
-    const patchNotes = screen.getByRole('button', { name: 'PATCH NOTES' });
-    const commandItem = patchNotes.closest('li');
+    const patchNotes = getPatchNotesTrigger();
 
-    fireEvent.pointerEnter(commandItem!, { pointerType: 'mouse' });
+    fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
     expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
-    fireEvent.pointerLeave(commandItem!, { pointerType: 'mouse' });
+    fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
     const panel = screen.getByRole('region', { name: 'GENESIS REALM QUALITY' });
@@ -283,9 +300,11 @@ describe('WarpkeepMainMenu', () => {
     expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
-    fireEvent.click(patchNotes);
+    fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
+    act(() => vi.advanceTimersByTime(500));
     expect(screen.getByRole('region', { name: 'GENESIS REALM QUALITY' })).not.toBeNull();
+    fireEvent.click(patchNotes);
+    expect(screen.queryByRole('region', { name: 'GENESIS REALM QUALITY' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {
@@ -302,6 +321,7 @@ describe('WarpkeepMainMenu', () => {
       hidden: true,
       name: 'Open Warpkeep Farcaster channel (opens in a new tab)'
     });
+    const patchNotes = getPatchNotesTrigger({ hidden: true });
 
     expect(menu?.getAttribute('aria-hidden')).toBe('true');
     expect(menu?.hasAttribute('inert')).toBe(true);
@@ -311,5 +331,7 @@ describe('WarpkeepMainMenu', () => {
     });
     expect(repositoryLink.getAttribute('tabindex')).toBe('-1');
     expect(farcasterLink.getAttribute('tabindex')).toBe('-1');
+    expect((patchNotes as HTMLButtonElement).disabled).toBe(true);
+    expect(patchNotes.getAttribute('tabindex')).toBe('-1');
   });
 });

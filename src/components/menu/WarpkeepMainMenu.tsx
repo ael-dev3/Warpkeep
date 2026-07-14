@@ -21,7 +21,10 @@ import { CreditsRoll } from './CreditsRoll';
 import { LatestPatchNotesPopover } from './LatestPatchNotesPopover';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
 import { SettingsPanel } from './SettingsPanel';
-import { WarpkeepBuildStamp } from './WarpkeepBuildStamp';
+import {
+  WarpkeepBuildStamp,
+  type WarpkeepPatchNotesState
+} from './WarpkeepBuildStamp';
 import { menuCommands, type MenuCommand, type MenuCommandId } from './menuCommands';
 import {
   DEFAULT_WARPKEEP_REPOSITORY_URL,
@@ -255,6 +258,7 @@ export function WarpkeepMainMenu({
   const surfaceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const termsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const patchNotesAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const patchNotesStampRef = useRef<HTMLDivElement | null>(null);
   const patchNotesPanelRef = useRef<HTMLElement | null>(null);
   const patchNotesCloseTimerRef = useRef<number | null>(null);
   const noticeSequenceRef = useRef(0);
@@ -269,7 +273,7 @@ export function WarpkeepMainMenu({
   const lastActionModalityRef = useRef<MenuInputModality>(inputModality);
   const [videoState, setVideoState] = useState<'waiting' | 'ready' | 'error'>('waiting');
   const [activeNotice, setActiveNotice] = useState<ActiveNotice | null>(null);
-  const [patchNotesOpen, setPatchNotesOpen] = useState(false);
+  const [patchNotesState, setPatchNotesState] = useState<WarpkeepPatchNotesState>('closed');
   const [surface, setSurface] = useState<MenuSurface>('commands');
   const [termsRequest, setTermsRequest] = useState<TermsRequest | null>(null);
   const reducedMotion = useReducedMotionPreference();
@@ -277,6 +281,7 @@ export function WarpkeepMainMenu({
   const shouldFocusFirstCommand = focusFirstCommand ?? inputModality === 'keyboard';
   const authPanelOpen = surface === 'farcaster-auth';
   const termsOpen = termsRequest !== null;
+  const patchNotesOpen = patchNotesState !== 'closed';
   const modalSurfaceOpen = termsOpen || surface === 'settings' || surface === 'credits';
   const authenticatedIdentity = authState.phase === 'authenticated'
     ? authState.identity
@@ -303,15 +308,26 @@ export function WarpkeepMainMenu({
     }
   }, []);
 
-  const closePatchNotes = useCallback(() => {
+  const closePatchNotes = useCallback((restoreTriggerFocus = false) => {
     cancelPatchNotesClose();
-    setPatchNotesOpen(false);
+    setPatchNotesState('closed');
+    if (restoreTriggerFocus) {
+      window.requestAnimationFrame(() => {
+        patchNotesAnchorRef.current?.focus({ preventScroll: true });
+      });
+    }
   }, [cancelPatchNotesClose]);
 
-  const openPatchNotes = useCallback(() => {
+  const previewPatchNotes = useCallback(() => {
     cancelPatchNotesClose();
     setActiveNotice(null);
-    setPatchNotesOpen(true);
+    setPatchNotesState((current) => current === 'pinned' ? current : 'preview');
+  }, [cancelPatchNotesClose]);
+
+  const togglePatchNotes = useCallback(() => {
+    cancelPatchNotesClose();
+    setActiveNotice(null);
+    setPatchNotesState((current) => current === 'pinned' ? 'closed' : 'pinned');
   }, [cancelPatchNotesClose]);
 
   const schedulePatchNotesClose = useCallback((pointerType: string) => {
@@ -321,7 +337,7 @@ export function WarpkeepMainMenu({
     cancelPatchNotesClose();
     patchNotesCloseTimerRef.current = window.setTimeout(() => {
       patchNotesCloseTimerRef.current = null;
-      setPatchNotesOpen(false);
+      setPatchNotesState((current) => current === 'preview' ? 'closed' : current);
     }, PATCH_NOTES_POINTER_LEAVE_DELAY_MS);
   }, [cancelPatchNotesClose]);
 
@@ -333,7 +349,7 @@ export function WarpkeepMainMenu({
     }
 
     const isInsidePatchNotes = (target: EventTarget | null) => target instanceof Node && (
-      patchNotesAnchorRef.current?.contains(target)
+      patchNotesStampRef.current?.contains(target)
       || patchNotesPanelRef.current?.contains(target)
     );
     const handleOutsidePointer = (event: PointerEvent) => {
@@ -611,7 +627,7 @@ export function WarpkeepMainMenu({
       event.stopPropagation();
       lastActionModalityRef.current = 'keyboard';
       if (patchNotesOpen) {
-        closePatchNotes();
+        closePatchNotes(true);
       } else if (activeNotice) {
         setActiveNotice(null);
       } else if (authPanelOpen) {
@@ -689,15 +705,6 @@ export function WarpkeepMainMenu({
     anchorElement: HTMLButtonElement,
     keyboardDriven: boolean
   ) => {
-    if (command.id === 'patch-notes') {
-      if (patchNotesOpen) {
-        closePatchNotes();
-      } else {
-        openPatchNotes();
-      }
-      return;
-    }
-
     if (command.id === 'settings') {
       openSettings(anchorElement);
       return;
@@ -734,13 +741,10 @@ export function WarpkeepMainMenu({
     pendingIdentity,
     backendUnavailableMessage,
     farcasterAuthEnabled,
-    patchNotesOpen,
-    closePatchNotes,
     onRequestEnterRealm,
     openCredits,
     openSettings,
     openNotice,
-    openPatchNotes,
     openTerms
   ]);
 
@@ -983,26 +987,9 @@ export function WarpkeepMainMenu({
           >
             <ol className="warpkeep-menu-command-list">
               {menuCommands.map((command, commandIndex) => (
-                <li
-                  className="warpkeep-menu-command-item"
-                  key={command.id}
-                  onPointerEnter={command.id === 'patch-notes'
-                    ? (event) => {
-                        if (event.pointerType !== 'touch') {
-                          openPatchNotes();
-                        }
-                      }
-                    : undefined}
-                  onPointerLeave={command.id === 'patch-notes'
-                    ? (event) => schedulePatchNotesClose(event.pointerType)
-                    : undefined}
-                >
+                <li className="warpkeep-menu-command-item" key={command.id}>
                   <button
-                    aria-controls={command.id === 'patch-notes'
-                      ? 'warpkeep-latest-patch-notes'
-                      : undefined}
                     aria-describedby={activeNotice?.command.id === command.id ? describedNoticeId : undefined}
-                    aria-expanded={command.id === 'patch-notes' ? patchNotesOpen : undefined}
                     className="warpkeep-menu-command"
                     data-command={command.id}
                     data-prominent={commandIndex === 0 ? 'true' : undefined}
@@ -1012,24 +999,8 @@ export function WarpkeepMainMenu({
                       event.currentTarget,
                       event.detail === 0
                     )}
-                    onFocus={command.id === 'patch-notes'
-                      ? () => {
-                          // A pointer activation focuses before it clicks. Let the
-                          // click perform the single toggle in that path; otherwise
-                          // touch/click can open and immediately close the panel.
-                          if (
-                            lastActionModalityRef.current !== 'pointer'
-                            && lastActionModalityRef.current !== 'touch'
-                          ) {
-                            openPatchNotes();
-                          }
-                        }
-                      : undefined}
                     ref={(button) => {
                       commandRefs.current[commandIndex] = button;
-                      if (command.id === 'patch-notes') {
-                        patchNotesAnchorRef.current = button;
-                      }
                     }}
                     tabIndex={interactive ? 0 : -1}
                     type="button"
@@ -1077,7 +1048,30 @@ export function WarpkeepMainMenu({
               </div>
             </section>
           </nav>
-          <WarpkeepBuildStamp buildInfo={buildInfo} />
+          <WarpkeepBuildStamp
+            buildInfo={buildInfo}
+            expanded={patchNotesOpen}
+            groupRef={patchNotesStampRef}
+            interactive={interactive}
+            onPointerEnter={(event) => {
+              if (event.pointerType !== 'touch') {
+                previewPatchNotes();
+              }
+            }}
+            onPointerLeave={(event) => schedulePatchNotesClose(event.pointerType)}
+            onRequestPatchNotes={togglePatchNotes}
+            patchNotesState={patchNotesState}
+            ref={patchNotesAnchorRef}
+          />
+          {patchNotesOpen && patchNotesAnchorRef.current ? (
+            <LatestPatchNotesPopover
+              anchorElement={patchNotesAnchorRef.current}
+              onPointerEnter={cancelPatchNotesClose}
+              onPointerLeave={(event) => schedulePatchNotesClose(event.pointerType)}
+              productVersion={buildInfo?.version ?? WARPKEEP_BUILD_INFO.version}
+              ref={patchNotesPanelRef}
+            />
+          ) : null}
         </>
       ) : (
         <div className="warpkeep-menu-auth-rail">
@@ -1157,15 +1151,6 @@ export function WarpkeepMainMenu({
           notice={activeNotice.notice}
           onDismiss={() => setActiveNotice(null)}
           refreshKey={activeNotice.refreshKey}
-        />
-      ) : null}
-      {patchNotesOpen && patchNotesAnchorRef.current ? (
-        <LatestPatchNotesPopover
-          anchorElement={patchNotesAnchorRef.current}
-          onPointerEnter={cancelPatchNotesClose}
-          onPointerLeave={(event) => schedulePatchNotesClose(event.pointerType)}
-          productVersion={buildInfo?.version ?? WARPKEEP_BUILD_INFO.version}
-          ref={patchNotesPanelRef}
         />
       ) : null}
       </main>

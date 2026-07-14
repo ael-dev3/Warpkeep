@@ -98,6 +98,43 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(projectLink).toContain('min-height: 2.75rem;');
   });
 
+  it('keeps the version disclosure and exact-build link as separate 44px footer targets', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
+      'utf8'
+    );
+    const buildStamp = readCssBlock(css, '.warpkeep-menu-build-stamp {');
+    const versionTrigger = readCssBlock(css, '.warpkeep-menu-build-stamp__version {');
+    const portrait = readCssBlock(css, '@media (orientation: portrait)');
+
+    expect(buildStamp).toContain('display: inline-flex;');
+    expect(versionTrigger).toContain('cursor: pointer;');
+    expect(css).toMatch(
+      /\.warpkeep-menu-build-stamp__version,\s*\.warpkeep-menu-build-stamp__build\s*\{[^}]*min-height:\s*2\.75rem;/s
+    );
+    expect(css).toMatch(
+      /\.warpkeep-menu-build-stamp__build\s*\{[^}]*text-decoration:\s*none;/s
+    );
+    expect(portrait).toMatch(
+      /\.warpkeep-menu-build-stamp\s*\{[^}]*right:\s*max\([^}]*left:\s*auto;/s
+    );
+  });
+
+  it('keeps the patch chronicle clear of its footer targets in short landscape viewports', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/LatestPatchNotesPopover.css'),
+      'utf8'
+    );
+    const shortLandscape = readCssBlock(
+      css,
+      '@media (max-height: 360px) and (orientation: landscape)'
+    );
+
+    expect(shortLandscape).toMatch(
+      /\.warpkeep-patch-notes\s*\{[^}]*max-height:\s*min\(31rem, calc\(100svh - 5\.625rem - env\(safe-area-inset-bottom\)\)\);/s
+    );
+  });
+
   it('frees vertical space at 568x320 without hiding the project link', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
