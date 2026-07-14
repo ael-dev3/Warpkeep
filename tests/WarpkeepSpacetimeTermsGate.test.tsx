@@ -22,6 +22,7 @@ const CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   bridgeUrl: 'https://auth.warpkeep.com',
   issuer: 'https://auth.warpkeep.com',
   audience: 'warpkeep-spacetimedb',
+  publicConfigValid: true,
   sharedAlphaEnabled: true
 });
 

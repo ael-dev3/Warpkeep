@@ -76,7 +76,7 @@ describe('MenuDevelopmentNotice', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
 
     act(() => vi.advanceTimersByTime(5600));
-    expect(onDismiss).toHaveBeenCalledTimes(2);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
     anchor.remove();
   });
 });

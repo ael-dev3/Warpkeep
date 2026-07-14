@@ -1099,6 +1099,12 @@ describe('protected aggregate child isolation', () => {
     enabledAllowedFids: '3',
     auditEntries: '6',
   });
+  const authenticatedGenesisV3FoundedAggregate = Object.freeze({
+    ...genesisV3FoundedAggregate,
+    playersV2: '1',
+    playerOwnershipsV2: '1',
+    alphaTermsAcceptances: '1',
+  });
 
   it('accepts only exact legacy and additive-v2 aggregate objects', () => {
     expect(() => verifyExpectedAlphaAggregate(JSON.stringify({
@@ -1124,6 +1130,13 @@ describe('protected aggregate child isolation', () => {
       JSON.stringify(genesisV3FoundedAggregate),
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
+    )).not.toThrow();
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(authenticatedGenesisV3FoundedAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      3,
+      1,
+      1,
     )).not.toThrow();
   });
 
@@ -1177,6 +1190,54 @@ describe('protected aggregate child isolation', () => {
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
     )).toThrow(/rollout stage/i);
+  });
+
+  it.each([
+    ['playersV2', '2'],
+    ['playerOwnershipsV2', '2'],
+    ['alphaTermsAcceptances', '2'],
+  ])('requires authenticated founded-stage %s to match its exact expectation', (field, value) => {
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify({ ...authenticatedGenesisV3FoundedAggregate, [field]: value }),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      3,
+      1,
+      1,
+    )).toThrow(/rollout stage/i);
+  });
+
+  it('keeps founded-stage authenticated count expectations at zero by default', () => {
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(authenticatedGenesisV3FoundedAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      3,
+    )).toThrow(/rollout stage/i);
+  });
+
+  it.each([
+    [PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED, additiveV3PreseedAggregate],
+    [PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY, genesisV3SeededEmptyAggregate],
+  ] as const)('rejects authenticated expectations outside the founded stage: %s', (stage, fixture) => {
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(fixture),
+      stage,
+      undefined,
+      1,
+      1,
+    )).toThrow(/require the founded aggregate stage/i);
+  });
+
+  it.each([
+    ['player count', 4, 0],
+    ['Terms acceptance count', 0, 4],
+  ])('rejects an expected %s above the founder count', (_label, players, terms) => {
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(genesisV3FoundedAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      3,
+      players,
+      terms,
+    )).toThrow(/was invalid/i);
   });
 
   it.each([
@@ -1330,6 +1391,8 @@ describe('protected aggregate child isolation', () => {
       requireGenesisV3SeededEmptyAggregate: false,
       requireGenesisV3FoundedAggregate: false,
       expectedFounderCount: undefined,
+      expectedPlayerCount: 0,
+      expectedTermsAcceptanceCount: 0,
       requireAuthV2: false,
       requireAuthV2Enabled: false,
       aggregateStage: PROTECTED_AGGREGATE_STAGE.LEGACY,
@@ -1383,6 +1446,19 @@ describe('protected aggregate child isolation', () => {
       expectedFounderCount: 3,
       aggregateStage: PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
     });
+    expect(parseProductionVerifierArguments([
+      '--require-genesis-v3-founded-aggregate',
+      '--expected-founder-count=4',
+      '--expected-player-count=1',
+      '--expected-terms-acceptance-count=1',
+    ])).toEqual({
+      ...defaults,
+      requireGenesisV3FoundedAggregate: true,
+      expectedFounderCount: 4,
+      expectedPlayerCount: 1,
+      expectedTermsAcceptanceCount: 1,
+      aggregateStage: PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    });
     expect(() => parseProductionVerifierArguments(['--require-auth-v3']))
       .toThrow(/unknown or duplicate/i);
     expect(() => parseProductionVerifierArguments(['--require-genesis-v2-seeded-empty-aggregate']))
@@ -1419,6 +1495,15 @@ describe('protected aggregate child isolation', () => {
       .toThrow(/supplied together/i);
   });
 
+  it.each([
+    [['--expected-player-count=0']],
+    [['--expected-terms-acceptance-count=0']],
+    [['--require-additive-v3-preseed-aggregate', '--expected-player-count=0']],
+  ])('rejects founded authenticated expectations at another stage: %j', arguments_ => {
+    expect(() => parseProductionVerifierArguments(arguments_))
+      .toThrow(/require the founded aggregate stage/i);
+  });
+
   it.each(['0', '00', '01', '101', '-1', '+1', '1.0', '1e2', 'abc', ''])(
     'rejects invalid expected founder count %j',
     value => {
@@ -1435,6 +1520,51 @@ describe('protected aggregate child isolation', () => {
       '--expected-founder-count=3',
       '--expected-founder-count=3',
     ])).toThrow(/unknown or duplicate/i);
+  });
+
+  it.each([
+    ['--expected-player-count', ['-1', '00', '01', '+1', '1.0', '1e2', '101', 'abc', '']],
+    ['--expected-terms-acceptance-count', ['-1', '00', '01', '+1', '1.0', '1e2', '101', 'abc', '']],
+  ])('rejects noncanonical or out-of-range %s values', (flag, values) => {
+    for (const value of values) {
+      expect(() => parseProductionVerifierArguments([
+        '--require-genesis-v3-founded-aggregate',
+        '--expected-founder-count=3',
+        `${flag}=${value}`,
+      ])).toThrow(/canonical integer/i);
+    }
+  });
+
+  it.each([
+    '--expected-player-count=1',
+    '--expected-terms-acceptance-count=1',
+  ])('rejects duplicate authenticated count argument %s', argument => {
+    expect(() => parseProductionVerifierArguments([
+      '--require-genesis-v3-founded-aggregate',
+      '--expected-founder-count=3',
+      argument,
+      argument,
+    ])).toThrow(/unknown or duplicate/i);
+  });
+
+  it.each([
+    '--expected-player-count=4',
+    '--expected-terms-acceptance-count=4',
+  ])('rejects authenticated counts above the expected founder count: %s', argument => {
+    expect(() => parseProductionVerifierArguments([
+      '--require-genesis-v3-founded-aggregate',
+      '--expected-founder-count=3',
+      argument,
+    ])).toThrow(/cannot exceed/i);
+  });
+
+  it('rejects a Terms acceptance expectation above the player expectation', () => {
+    expect(() => parseProductionVerifierArguments([
+      '--require-genesis-v3-founded-aggregate',
+      '--expected-founder-count=3',
+      '--expected-player-count=1',
+      '--expected-terms-acceptance-count=2',
+    ])).toThrow(/Terms acceptance count cannot exceed the expected player count/i);
   });
 
   it('fails closed when the activation gate requires an unavailable aggregate credential', () => {

@@ -5,14 +5,13 @@ OIDC access JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the
 static browser app: browser code never receives a signing key, admin secret,
 Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
 
-> **Protocol-v2 Alpha 0.3.1 is active; the checked-in default fails closed.**
-> The v2 access/session and resolver contract described below is live only at
-> its privately recorded production source, deployment, configuration, and
-> canary coordinates. The additive module and Durable Object migration were
-> published/deployed, an independent managed session key was configured, and
-> the exact Worker/frontend gates and owner canary passed. No FID is admitted.
-> `wrangler.toml` deliberately keeps `PUBLIC_AUTH_ENABLED = "false"`; the
-> recorded production override is true.
+> **Alpha 0.3.2 is live on backend protocol 3; the checked-in default fails
+> closed.** The v2 access/session and resolver contract described below remains
+> active at its privately recorded production source, deployment,
+> configuration, and canary coordinates. The 1,261-cell Genesis world is
+> seeded, deliberately admitted founders hold their permanent castles, and
+> public shared auth and realm entry are enabled. `wrangler.toml` deliberately keeps
+> `PUBLIC_AUTH_ENABLED = "false"`; the recorded production override is true.
 
 `https://auth.warpkeep.com` is the canonical bridge coordinate, but its
 existence is not evidence that an arbitrary local v2 source is deployed. Every
@@ -244,7 +243,11 @@ secret management, never Vite variables or committed config.
 ## Approval-gated staged rollout
 
 Alpha 0.3.1 completed the following recorded sequence. Every future redeploy or
-recovery must remain staged and fail closed in the same order:
+recovery must remain staged and fail closed in the same order. The zero check in
+this historical sequence applies only to the frozen legacy `player` table; it
+does not describe the current admission/founder count. A protocol-3 recovery
+must separately match the fresh privacy-safe aggregate to the reviewed private
+current-state record:
 
 1. keep both Worker public auth and the frontend shared-alpha switch false;
 2. run `npm run stdb:verify-additive-migration` from the repository root; its
@@ -259,8 +262,8 @@ recovery must remain staged and fail closed in the same order:
    or deletion;
 4. obtain separate explicit owner approval for the guarded production module
    publish; its same-run protected v1 aggregate must independently reproduce the
-   fresh zero result, while the publisher pins the reviewed CLI binary and
-   canonical existing database identity, uses `--delete-data=never`, never uses
+   fresh legacy-player-zero result, while the publisher pins the reviewed CLI
+   binary and canonical existing database identity, uses `--delete-data=never`, never uses
    `--break-clients`, and closes stdin so compatibility prompts fail closed;
 5. verify `admin_get_alpha_status_v2`, the exact v2 resolver/player wires,
    legacy-wire retirement, private ownership isolation, and active-browser

@@ -23,6 +23,8 @@ export type WarpkeepRuntimeConfig = Readonly<{
   spacetimeUri: string;
   spacetimeDatabase: string;
   audience: string;
+  /** False when an explicitly supplied public coordinate failed validation. */
+  publicConfigValid: boolean;
   /** Explicit public kill switch. Shared alpha remains off unless this is true. */
   sharedAlphaEnabled: boolean;
   /** A public HTTPS bridge base. Undefined means shared-alpha activation is off. */
@@ -84,17 +86,17 @@ function normalizeTrustedOrigin(value: string | undefined, allowLocalHttp: boole
 }
 
 function normalizeDatabaseName(value: string | undefined) {
-  const candidate = cleanOptionalString(value) ?? DEFAULT_SPACETIMEDB_DATABASE;
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate)
-    ? candidate
-    : DEFAULT_SPACETIMEDB_DATABASE;
+  if (value === undefined) return DEFAULT_SPACETIMEDB_DATABASE;
+  const candidate = cleanOptionalString(value);
+  if (!candidate) return undefined;
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(candidate) ? candidate : undefined;
 }
 
 function normalizeAudience(value: string | undefined) {
-  const candidate = cleanOptionalString(value) ?? DEFAULT_WARPKEEP_OIDC_AUDIENCE;
-  return /^[A-Za-z0-9._:-]{3,160}$/.test(candidate)
-    ? candidate
-    : DEFAULT_WARPKEEP_OIDC_AUDIENCE;
+  if (value === undefined) return DEFAULT_WARPKEEP_OIDC_AUDIENCE;
+  const candidate = cleanOptionalString(value);
+  if (!candidate) return undefined;
+  return /^[A-Za-z0-9._:-]{3,160}$/.test(candidate) ? candidate : undefined;
 }
 
 function readSharedAlphaEnabled(value: string | undefined) {
@@ -118,11 +120,19 @@ export function readWarpkeepRuntimeConfig(
     allowLocalHttp
   );
   const issuer = normalizeTrustedOrigin(environment.VITE_WARPKEEP_OIDC_ISSUER, allowLocalHttp);
+  const spacetimeDatabase = normalizeDatabaseName(environment.VITE_SPACETIMEDB_DATABASE);
+  const audience = normalizeAudience(environment.VITE_WARPKEEP_OIDC_AUDIENCE);
+  const publicConfigValid = (
+    (environment.VITE_SPACETIMEDB_URI === undefined || configuredSpacetimeUri !== undefined)
+    && spacetimeDatabase !== undefined
+    && audience !== undefined
+  );
 
   return Object.freeze({
     spacetimeUri: configuredSpacetimeUri ?? DEFAULT_SPACETIMEDB_URI,
-    spacetimeDatabase: normalizeDatabaseName(environment.VITE_SPACETIMEDB_DATABASE),
-    audience: normalizeAudience(environment.VITE_WARPKEEP_OIDC_AUDIENCE),
+    spacetimeDatabase: spacetimeDatabase ?? DEFAULT_SPACETIMEDB_DATABASE,
+    audience: audience ?? DEFAULT_WARPKEEP_OIDC_AUDIENCE,
+    publicConfigValid,
     sharedAlphaEnabled: readSharedAlphaEnabled(environment.VITE_WARPKEEP_SHARED_ALPHA_ENABLED),
     ...(bridgeUrl ? { bridgeUrl } : {}),
     ...(issuer ? { issuer } : {}),
@@ -136,7 +146,12 @@ export function readWarpkeepRuntimeConfig(
  * HTTP is accepted only for an explicit localhost Worker during development.
  */
 export function hasUsableWarpkeepBridge(config: WarpkeepRuntimeConfig) {
-  if (!config.sharedAlphaEnabled || !config.bridgeUrl || !config.issuer) {
+  if (
+    !config.publicConfigValid
+    || !config.sharedAlphaEnabled
+    || !config.bridgeUrl
+    || !config.issuer
+  ) {
     return false;
   }
 

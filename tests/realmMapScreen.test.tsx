@@ -125,7 +125,7 @@ describe('RealmMapScreen', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Select your Hegemony keep' }));
     expect(screen.getByText('Selected cell 0, 0')).not.toBeNull();
-    expect(screen.getByText(/frontier marker is holding/i)).not.toBeNull();
+    expect(screen.getAllByText(/frontier marker is holding/i)).toHaveLength(2);
     expect(marker.getAttribute('transform')).toBe(centerTransform);
   });
 
@@ -222,12 +222,12 @@ describe('RealmMapScreen', () => {
     expect(screen.getByRole('button', {
       name: /Inspect @warpkeeper castle, Server Bastion, cell 1,-1, your castle/i
     })).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'WARP CASTLE · 100 MARKS' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'CASTLE WARP PREVIEW · 100 MARKS' })).not.toBeNull();
     fireEvent.click(screen.getByRole('button', {
       name: /Inspect @peerkeeper castle, Peer Watch, cell -1,1/i
     }));
     expect(screen.getByRole('heading', { level: 2, name: '@peerkeeper' })).not.toBeNull();
-    expect(screen.queryByRole('button', { name: /WARP CASTLE/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /CASTLE WARP PREVIEW/i })).toBeNull();
 
     const foundations = Array.from(container.querySelectorAll(
       '.realm-map-screen__fallback-foundation'
@@ -244,13 +244,20 @@ describe('RealmMapScreen', () => {
     ]);
   });
 
-  it('returns focus to the realm after compact navigator selection so arrow navigation works', () => {
+  it('keeps navigator focus for sequential selection and offers an explicit map-focus action', () => {
     renderFallbackRealm();
     const realm = screen.getByRole('main');
     const selector = openTraversableCellNavigator();
-
-    fireEvent.click(within(selector).getByRole('button', {
+    const cell = within(selector).getByRole('button', {
       name: 'Select cell 0,0, your Hegemony keep'
+    });
+
+    cell.focus();
+    fireEvent.click(cell);
+    expect(document.activeElement).toBe(cell);
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Focus realm map for arrow-key navigation'
     }));
     expect(document.activeElement).toBe(realm);
 

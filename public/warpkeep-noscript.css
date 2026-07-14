@@ -1,0 +1,5 @@
+/* Loaded only from <noscript>; remove the pre-React status from both the
+   visual and accessibility trees before showing the actionable fallback. */
+#root {
+  display: none !important;
+}

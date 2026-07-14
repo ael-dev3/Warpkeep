@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { hexDistance } from '../../game/map/hexCoordinates';
 import type { WarpkeepWorldTileMetadata } from '../../spacetime/warpkeepBackendTypes';
@@ -59,6 +59,7 @@ export function CastleInspectionPanel({
   const [open, setOpen] = useState(inspectionStartsOpen);
   const [warpNoticeVisible, setWarpNoticeVisible] = useState(false);
   const [warpNoticePinned, setWarpNoticePinned] = useState(false);
+  const summaryRef = useRef<HTMLElement>(null);
   const warpNoticeId = useId();
   const titleId = useId();
   const username = castleProfileLabel(profile);
@@ -87,6 +88,7 @@ export function CastleInspectionPanel({
     >
       <details open={open}>
         <summary
+          ref={summaryRef}
           onClick={(event) => {
             event.preventDefault();
             setOpen((current) => !current);
@@ -100,7 +102,10 @@ export function CastleInspectionPanel({
         <div className="castle-inspection__body">
           <button
             className="castle-inspection__close"
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false);
+              summaryRef.current?.focus({ preventScroll: true });
+            }}
             type="button"
           >
             CLOSE RECORD
@@ -184,8 +189,9 @@ export function CastleInspectionPanel({
             >
               <button
                 type="button"
+                aria-controls={warpNoticeId}
                 aria-describedby={warpNoticeId}
-                aria-disabled="true"
+                aria-expanded={warpNoticeVisible}
                 onBlur={hideTransientWarpNotice}
                 onClick={() => {
                   setWarpNoticePinned((pinned) => {
@@ -204,12 +210,10 @@ export function CastleInspectionPanel({
                   }
                 }}
               >
-                WARP CASTLE · 100 MARKS
+                CASTLE WARP PREVIEW · 100 MARKS
               </button>
               <p
                 id={warpNoticeId}
-                role="status"
-                aria-live="polite"
                 data-visible={warpNoticeVisible ? 'true' : 'false'}
               >
                 {warpNoticeVisible

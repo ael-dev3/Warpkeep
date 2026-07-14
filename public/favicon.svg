@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Warpkeep</title>
+  <defs>
+    <linearGradient id="stone" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#25182c"/>
+      <stop offset="1" stop-color="#08070a"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="18" y1="14" x2="46" y2="50" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f0cf86"/>
+      <stop offset="1" stop-color="#a86d30"/>
+    </linearGradient>
+  </defs>
+  <path d="M8 9h48v35L32 59 8 44Z" fill="url(#stone)" stroke="#c9974d" stroke-width="3"/>
+  <path d="M17 16h8l4 22 3-13 3 13 4-22h8l-7 32h-8l-3-11-3 11h-8Z" fill="url(#gold)"/>
+  <path d="M14 9V4h9v5m18 0V4h9v5" fill="none" stroke="#e2bd70" stroke-width="3"/>
+</svg>

@@ -54,6 +54,10 @@
   border: 0;
 }
 
+.warpkeep-settings__choices--audio {
+  margin-top: 1.15rem;
+}
+
 .warpkeep-settings__choices legend {
   margin-bottom: 0.65rem;
 }

@@ -92,6 +92,45 @@ type PickResult = Readonly<{
   keep: boolean;
 }>;
 
+type RealmSceneCleanup = Readonly<{
+  add: (dispose: () => void) => void;
+  dispose: () => void;
+  isDisposed: () => boolean;
+}>;
+
+function createRealmSceneCleanup(): RealmSceneCleanup {
+  const disposers: Array<() => void> = [];
+  let disposed = false;
+
+  const safelyDispose = (dispose: () => void) => {
+    try {
+      dispose();
+    } catch {
+      // Cleanup must continue so one faulty browser or Three.js release path
+      // cannot strand the remaining GPU resources or event listeners.
+    }
+  };
+
+  return {
+    add: (dispose) => {
+      if (disposed) {
+        safelyDispose(dispose);
+        return;
+      }
+      disposers.push(dispose);
+    },
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      while (disposers.length > 0) {
+        const dispose = disposers.pop();
+        if (dispose) safelyDispose(dispose);
+      }
+    },
+    isDisposed: () => disposed
+  };
+}
+
 function createTerrainGeometry(
   surface: RealmTerrainSurface,
   subdivisionsPerEdge: number,
@@ -103,35 +142,45 @@ function createTerrainGeometry(
     placements
   });
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
-  geometry.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
-  geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
-  geometry.computeVertexNormals();
-  geometry.computeBoundingSphere();
-  return { data, geometry };
+  try {
+    geometry.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(data.colors, 3));
+    geometry.setIndex(new THREE.BufferAttribute(data.indices, 1));
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+    return { data, geometry };
+  } catch (error) {
+    geometry.dispose();
+    throw error;
+  }
 }
 
 function createOverlay(color: THREE.ColorRepresentation, opacity: number) {
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-    'position',
-    new THREE.BufferAttribute(new Float32Array(6 * 3), 3).setUsage(THREE.DynamicDrawUsage)
-  );
-  const overlay = new THREE.LineLoop(
-    geometry,
-    new THREE.LineBasicMaterial({
+  let material: THREE.LineBasicMaterial | null = null;
+  try {
+    geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(6 * 3), 3).setUsage(THREE.DynamicDrawUsage)
+    );
+    material = new THREE.LineBasicMaterial({
       color,
       opacity,
       transparent: true,
       depthTest: true,
       depthWrite: false,
       toneMapped: false
-    })
-  );
-  overlay.frustumCulled = false;
-  overlay.renderOrder = 4;
-  overlay.visible = false;
-  return overlay;
+    });
+    const overlay = new THREE.LineLoop(geometry, material);
+    overlay.frustumCulled = false;
+    overlay.renderOrder = 4;
+    overlay.visible = false;
+    return overlay;
+  } catch (error) {
+    material?.dispose();
+    geometry.dispose();
+    throw error;
+  }
 }
 
 function setOverlay(
@@ -184,6 +233,19 @@ function activePinchDistance(pointers: ReadonlyMap<number, PointerSample>) {
 }
 
 export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHandle {
+  const cleanup = createRealmSceneCleanup();
+  try {
+    return initializeRealmScene(options, cleanup);
+  } catch (error) {
+    cleanup.dispose();
+    throw error;
+  }
+}
+
+function initializeRealmScene(
+  options: CreateRealmSceneOptions,
+  cleanup: RealmSceneCleanup
+): RealmSceneHandle {
   const renderPlan = resolveRealmRenderPlan(options.quality, {
     playableRadius: options.surface.playableMap.radius,
     renderRadius: options.surface.renderMap.radius,
@@ -213,6 +275,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     alpha: false,
     powerPreference: 'high-performance'
   });
+  cleanup.add(() => renderer.dispose());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const lighting = REALM_LIGHTING_SPECS[options.quality.id];
@@ -226,12 +289,14 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     renderPlan.subdivisionsPerEdge,
     terrainPlacements
   );
+  cleanup.add(() => terrainGeometry.dispose());
   const terrainMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.96,
     metalness: 0,
     dithering: true
   });
+  cleanup.add(() => terrainMaterial.dispose());
   const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
   terrain.name = 'hegemony-lowlands-surface';
   terrain.receiveShadow = renderPlan.dynamicShadows;
@@ -253,6 +318,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     HEX_SIZE,
     terrainPlacements
   );
+  cleanup.add(decorations.dispose);
   scene.add(decorations.group);
 
   const hemisphere = new THREE.HemisphereLight('#f4efd9', '#46523b', 1.1);
@@ -277,7 +343,9 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   scene.add(hemisphere, sun, skyFill, warmFill);
 
   const hoverOverlay = createOverlay('#f4df9a', 0.72);
+  cleanup.add(() => disposeOverlay(hoverOverlay));
   const selectedOverlay = createOverlay('#fff1b8', 1);
+  cleanup.add(() => disposeOverlay(selectedOverlay));
   scene.add(hoverOverlay, selectedOverlay);
 
   const keepWorld = axialToWorld(options.keepCoord, HEX_SIZE);
@@ -297,6 +365,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   const peerMarkerGroup = new THREE.Group();
   peerMarkerGroup.name = 'hegemony-peer-castle-markers';
   const peerMarkerGeometry = new THREE.ConeGeometry(0.13, 0.36, 5);
+  cleanup.add(() => peerMarkerGeometry.dispose());
   const peerMarkerMaterial = new THREE.MeshStandardMaterial({
     color: '#8f58a2',
     emissive: '#341946',
@@ -304,6 +373,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     roughness: 0.78,
     metalness: 0.04
   });
+  cleanup.add(() => peerMarkerMaterial.dispose());
   const peerMarkerInstances = new THREE.InstancedMesh(
     peerMarkerGeometry,
     peerMarkerMaterial,
@@ -359,16 +429,17 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     })
   ];
 
-  const contactShadow = new THREE.Mesh(
-    new THREE.CircleGeometry(0.69, 40),
-    new THREE.MeshBasicMaterial({
-      color: '#283020',
-      opacity: renderPlan.dynamicShadows ? 0.11 : 0.19,
-      transparent: true,
-      depthWrite: false,
-      toneMapped: false
-    })
-  );
+  const contactShadowGeometry = new THREE.CircleGeometry(0.69, 40);
+  cleanup.add(() => contactShadowGeometry.dispose());
+  const contactShadowMaterial = new THREE.MeshBasicMaterial({
+    color: '#283020',
+    opacity: renderPlan.dynamicShadows ? 0.11 : 0.19,
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false
+  });
+  cleanup.add(() => contactShadowMaterial.dispose());
+  const contactShadow = new THREE.Mesh(contactShadowGeometry, contactShadowMaterial);
   contactShadow.name = 'keep-contact-shadow';
   contactShadow.rotation.x = -Math.PI / 2;
   contactShadow.position.y = 0.005;
@@ -376,10 +447,10 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   keepAnchor.add(contactShadow);
 
   let keepObject = createHegemonyKeepPlaceholder(false);
+  cleanup.add(() => disposeRealmObject(keepObject));
   keepAnchor.add(keepObject);
   options.onKeepStatusChange('loading');
 
-  let disposed = false;
   let lastCastleProjectionKey = '';
   const projectionPoint = new THREE.Vector3();
   const projectCastleLabels = () => {
@@ -412,7 +483,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     options.onCastleProjection({ width, height, castles });
   };
   const render = () => {
-    if (!disposed) {
+    if (!cleanup.isDisposed()) {
       renderer.render(scene, cameraController.camera);
       projectCastleLabels();
     }
@@ -436,12 +507,18 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
       fogFar: options.quality.fogFar
     }
   });
+  cleanup.add(cameraController.dispose);
 
   const raycaster = new THREE.Raycaster();
   const normalizedPointer = new THREE.Vector2();
   const pointers = new Map<number, PointerSample>();
   let lastPinchDistance = 0;
   let resizeObserver: ResizeObserver | null = null;
+  cleanup.add(() => {
+    pointers.clear();
+    lastPinchDistance = 0;
+    delete options.canvas.dataset.dragging;
+  });
 
   const pick = (clientX: number, clientY: number): PickResult | null => {
     const bounds = options.canvas.getBoundingClientRect();
@@ -549,21 +626,28 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   };
   const handleContextLost = (event: Event) => {
     event.preventDefault();
-    if (disposed) return;
+    if (cleanup.isDisposed()) return;
     disposeScene();
     options.onRendererUnavailable();
   };
 
   options.canvas.addEventListener('pointerdown', handlePointerDown);
+  cleanup.add(() => options.canvas.removeEventListener('pointerdown', handlePointerDown));
   options.canvas.addEventListener('pointermove', handlePointerMove);
+  cleanup.add(() => options.canvas.removeEventListener('pointermove', handlePointerMove));
   options.canvas.addEventListener('pointerup', handlePointerUp);
+  cleanup.add(() => options.canvas.removeEventListener('pointerup', handlePointerUp));
   options.canvas.addEventListener('pointercancel', handlePointerCancel);
+  cleanup.add(() => options.canvas.removeEventListener('pointercancel', handlePointerCancel));
   options.canvas.addEventListener('pointerleave', handlePointerLeave);
+  cleanup.add(() => options.canvas.removeEventListener('pointerleave', handlePointerLeave));
   options.canvas.addEventListener('wheel', handleWheel, { passive: false });
+  cleanup.add(() => options.canvas.removeEventListener('wheel', handleWheel));
   options.canvas.addEventListener('webglcontextlost', handleContextLost);
+  cleanup.add(() => options.canvas.removeEventListener('webglcontextlost', handleContextLost));
 
   const resize = () => {
-    if (disposed) return;
+    if (cleanup.isDisposed()) return;
     const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
     const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
     renderer.setPixelRatio(resolveRealmPixelRatio(
@@ -576,8 +660,10 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     cameraController.setViewport(width, height);
   };
   resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
+  if (resizeObserver) cleanup.add(() => resizeObserver?.disconnect());
   resizeObserver?.observe(options.canvas);
   window.addEventListener('resize', resize);
+  cleanup.add(() => window.removeEventListener('resize', resize));
   resize();
 
   void loadHegemonyKeep({
@@ -585,7 +671,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     baseUrl: options.baseUrl,
     maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
   }).then((loaded) => {
-    if (disposed) {
+    if (cleanup.isDisposed()) {
       disposeRealmObject(loaded.root);
       return;
     }
@@ -603,7 +689,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     options.onKeepStatusChange('ready');
     render();
   }).catch(() => {
-    if (disposed) return;
+    if (cleanup.isDisposed()) return;
     keepAnchor.remove(keepObject);
     disposeRealmObject(keepObject);
     keepObject = createHegemonyKeepPlaceholder(true);
@@ -620,32 +706,7 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
   });
 
   function disposeScene() {
-    if (disposed) return;
-    disposed = true;
-    options.canvas.removeEventListener('pointerdown', handlePointerDown);
-    options.canvas.removeEventListener('pointermove', handlePointerMove);
-    options.canvas.removeEventListener('pointerup', handlePointerUp);
-    options.canvas.removeEventListener('pointercancel', handlePointerCancel);
-    options.canvas.removeEventListener('pointerleave', handlePointerLeave);
-    options.canvas.removeEventListener('wheel', handleWheel);
-    options.canvas.removeEventListener('webglcontextlost', handleContextLost);
-    resizeObserver?.disconnect();
-    window.removeEventListener('resize', resize);
-    pointers.clear();
-    lastPinchDistance = 0;
-    delete options.canvas.dataset.dragging;
-    cameraController.dispose();
-    decorations.dispose();
-    terrainGeometry.dispose();
-    terrainMaterial.dispose();
-    disposeOverlay(hoverOverlay);
-    disposeOverlay(selectedOverlay);
-    disposeRealmObject(keepObject);
-    peerMarkerGeometry.dispose();
-    peerMarkerMaterial.dispose();
-    contactShadow.geometry.dispose();
-    (contactShadow.material as THREE.Material).dispose();
-    renderer.dispose();
+    cleanup.dispose();
   }
 
   return {
@@ -663,12 +724,12 @@ export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHa
     focusKeep: cameraController.focusKeep,
     recenterKeep: cameraController.recenterKeep,
     setHovered: (coord) => {
-      if (disposed) return;
+      if (cleanup.isDisposed()) return;
       setOverlay(hoverOverlay, options.surface, coord, terrainPlacements);
       render();
     },
     setSelected: (coord) => {
-      if (disposed) return;
+      if (cleanup.isDisposed()) return;
       setOverlay(selectedOverlay, options.surface, coord, terrainPlacements);
       render();
     },

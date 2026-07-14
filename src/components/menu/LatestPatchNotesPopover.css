@@ -1,0 +1,197 @@
+.warpkeep-patch-notes {
+  position: fixed;
+  z-index: 9;
+  width: min(25rem, calc(100vw - 2rem));
+  max-height: min(31rem, calc(100vh - 2rem));
+  max-height: min(31rem, calc(100svh - 2rem));
+  padding: 1.05rem 1.15rem 1rem 1.35rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid rgba(218, 174, 99, 0.68);
+  border-left-color: rgba(181, 104, 229, 0.82);
+  color: #ead8b8;
+  background:
+    linear-gradient(118deg, rgba(25, 13, 27, 0.985), rgba(9, 7, 12, 0.975)),
+    radial-gradient(circle at 0% 28%, rgba(139, 61, 185, 0.2), transparent 50%);
+  box-shadow:
+    0 1.2rem 3.2rem rgba(3, 2, 5, 0.62),
+    inset 0 0 2.2rem rgba(117, 50, 143, 0.08);
+  font-family: Georgia, "Times New Roman", serif;
+  scrollbar-color: rgba(207, 160, 83, 0.72) rgba(10, 7, 12, 0.6);
+  scrollbar-width: thin;
+  animation: warpkeep-patch-notes-enter 170ms ease-out both;
+}
+
+.warpkeep-patch-notes::before {
+  content: "";
+  position: absolute;
+  width: 0.68rem;
+  height: 0.68rem;
+  border: 1px solid rgba(218, 174, 99, 0.68);
+  border-right: 0;
+  border-bottom: 0;
+  background: #140b17;
+}
+
+.warpkeep-patch-notes[data-placement="left"]::before {
+  top: 50%;
+  right: -0.4rem;
+  transform: translateY(-50%) rotate(135deg);
+}
+
+.warpkeep-patch-notes[data-placement="right"]::before {
+  top: 50%;
+  left: -0.4rem;
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+.warpkeep-patch-notes[data-placement="above"]::before {
+  right: 50%;
+  bottom: -0.4rem;
+  transform: translateX(50%) rotate(225deg);
+}
+
+.warpkeep-patch-notes[data-placement="below"]::before {
+  top: -0.4rem;
+  right: 50%;
+  transform: translateX(50%) rotate(45deg);
+}
+
+.warpkeep-patch-notes__rail {
+  position: absolute;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  left: 0.56rem;
+  width: 1px;
+  background: linear-gradient(transparent, #a15ccd, #d5a357, transparent);
+  opacity: 0.9;
+}
+
+.warpkeep-patch-notes__header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.2rem 0.7rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(206, 158, 80, 0.3);
+}
+
+.warpkeep-patch-notes__eyebrow,
+.warpkeep-patch-notes__date,
+.warpkeep-patch-notes__summary,
+.warpkeep-patch-notes__alpha-notice {
+  margin: 0;
+}
+
+.warpkeep-patch-notes__eyebrow {
+  color: #d8ad61;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1.3;
+}
+
+.warpkeep-patch-notes__date {
+  color: rgba(224, 196, 144, 0.68);
+  font-size: 0.57rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.warpkeep-patch-notes h2 {
+  grid-column: 1 / -1;
+  margin: 0.22rem 0 0;
+  color: #f2dba9;
+  font-size: clamp(1.05rem, 1.6vw, 1.34rem);
+  font-weight: 400;
+  letter-spacing: 0.11em;
+  line-height: 1.2;
+  text-shadow: 0 0 16px rgba(182, 105, 222, 0.2);
+}
+
+.warpkeep-patch-notes__summary {
+  grid-column: 1 / -1;
+  margin-top: 0.32rem;
+  color: rgba(235, 216, 181, 0.9);
+  font-size: 0.82rem;
+  letter-spacing: 0.025em;
+  line-height: 1.45;
+}
+
+.warpkeep-patch-notes__highlights {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.78rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.warpkeep-patch-notes__highlights li {
+  position: relative;
+  padding-left: 1rem;
+  color: #e7d3af;
+  font-size: 0.78rem;
+  letter-spacing: 0.018em;
+  line-height: 1.42;
+}
+
+.warpkeep-patch-notes__highlights li::before {
+  content: "◆";
+  position: absolute;
+  top: 0.05rem;
+  left: 0;
+  color: #b472db;
+  font-size: 0.52rem;
+}
+
+.warpkeep-patch-notes__alpha-notice {
+  margin-top: 0.8rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(206, 158, 80, 0.22);
+  color: rgba(223, 197, 151, 0.7);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+@keyframes warpkeep-patch-notes-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 430px) {
+  .warpkeep-patch-notes {
+    padding: 0.9rem 0.95rem 0.85rem 1.15rem;
+  }
+
+  .warpkeep-patch-notes__header {
+    padding-bottom: 0.6rem;
+  }
+
+  .warpkeep-patch-notes__highlights {
+    gap: 0.38rem;
+    margin-top: 0.62rem;
+  }
+
+  .warpkeep-patch-notes__highlights li {
+    font-size: 0.72rem;
+    line-height: 1.36;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .warpkeep-patch-notes {
+    animation: none;
+  }
+}

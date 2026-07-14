@@ -12,6 +12,7 @@ describe('Warpkeep runtime configuration', () => {
     const config = readWarpkeepRuntimeConfig({});
     expect(config.spacetimeUri).toBe(DEFAULT_SPACETIMEDB_URI);
     expect(config.spacetimeDatabase).toBe(DEFAULT_SPACETIMEDB_DATABASE);
+    expect(config.publicConfigValid).toBe(true);
     expect(config.sharedAlphaEnabled).toBe(false);
     expect(hasUsableWarpkeepBridge(config)).toBe(false);
   });
@@ -70,6 +71,29 @@ describe('Warpkeep runtime configuration', () => {
     }))).toBe(false);
   });
 
+  it.each([
+    ['VITE_SPACETIMEDB_URI', 'not-a-url'],
+    ['VITE_SPACETIMEDB_URI', 'https://user:secret@maincloud.spacetimedb.com'],
+    ['VITE_SPACETIMEDB_URI', ''],
+    ['VITE_SPACETIMEDB_URI', '   '],
+    ['VITE_SPACETIMEDB_DATABASE', 'INVALID_DATABASE'],
+    ['VITE_SPACETIMEDB_DATABASE', ''],
+    ['VITE_SPACETIMEDB_DATABASE', '   '],
+    ['VITE_WARPKEEP_OIDC_AUDIENCE', '*'],
+    ['VITE_WARPKEEP_OIDC_AUDIENCE', ''],
+    ['VITE_WARPKEEP_OIDC_AUDIENCE', '   ']
+  ] as const)('fails closed when explicit public coordinate %s is malformed', (key, value) => {
+    const parsed = readWarpkeepRuntimeConfig({
+      VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'true',
+      VITE_WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',
+      VITE_WARPKEEP_OIDC_ISSUER: 'https://auth.warpkeep.com',
+      [key]: value
+    });
+
+    expect(parsed.publicConfigValid).toBe(false);
+    expect(hasUsableWarpkeepBridge(parsed)).toBe(false);
+  });
+
   it('rejects matching non-root bridge/issuer paths at both parsing and activation gates', () => {
     const parsed = readWarpkeepRuntimeConfig({
       VITE_WARPKEEP_SHARED_ALPHA_ENABLED: 'true',
@@ -84,6 +108,7 @@ describe('Warpkeep runtime configuration', () => {
       spacetimeUri: DEFAULT_SPACETIMEDB_URI,
       spacetimeDatabase: DEFAULT_SPACETIMEDB_DATABASE,
       audience: 'warpkeep-spacetimedb',
+      publicConfigValid: true,
       sharedAlphaEnabled: true,
       bridgeUrl: 'https://auth.warpkeep.com/oidc',
       issuer: 'https://auth.warpkeep.com/oidc'
@@ -95,6 +120,7 @@ describe('Warpkeep runtime configuration', () => {
       spacetimeUri: DEFAULT_SPACETIMEDB_URI,
       spacetimeDatabase: DEFAULT_SPACETIMEDB_DATABASE,
       audience: 'warpkeep-spacetimedb',
+      publicConfigValid: true,
       sharedAlphaEnabled: true,
       bridgeUrl: 'https://auth.warpkeep.invalid',
       issuer: 'https://auth.warpkeep.invalid'

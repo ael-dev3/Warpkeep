@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import type { MenuCommand } from './menuCommands';
 
@@ -105,11 +105,19 @@ export function MenuDevelopmentNotice({
   durationMs = 5600
 }: MenuDevelopmentNoticeProps) {
   const noticeRef = useRef<HTMLDivElement>(null);
+  const dismissedRef = useRef(false);
   const [position, setPosition] = useState<MenuNoticePosition>({
     left: 0,
     top: 0,
     placement: 'below'
   });
+  const dismissOnce = useCallback(() => {
+    if (dismissedRef.current) {
+      return;
+    }
+    dismissedRef.current = true;
+    onDismiss();
+  }, [onDismiss]);
 
   useLayoutEffect(() => {
     const notice = noticeRef.current;
@@ -161,7 +169,7 @@ export function MenuDevelopmentNotice({
   }, [anchorElement, refreshKey]);
 
   useLayoutEffect(() => {
-    const dismissTimer = window.setTimeout(onDismiss, Math.max(0, durationMs));
+    const dismissTimer = window.setTimeout(dismissOnce, Math.max(0, durationMs));
 
     const handleOutsidePointer = (event: PointerEvent) => {
       const eventTarget = event.target;
@@ -173,7 +181,7 @@ export function MenuDevelopmentNotice({
         return;
       }
 
-      onDismiss();
+      dismissOnce();
     };
 
     document.addEventListener('pointerdown', handleOutsidePointer, true);
@@ -182,7 +190,7 @@ export function MenuDevelopmentNotice({
       window.clearTimeout(dismissTimer);
       document.removeEventListener('pointerdown', handleOutsidePointer, true);
     };
-  }, [anchorElement, durationMs, onDismiss, refreshKey]);
+  }, [anchorElement, dismissOnce, durationMs, refreshKey]);
 
   return (
     <div

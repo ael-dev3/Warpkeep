@@ -1670,9 +1670,9 @@ export const WarpkeepTitleScreen3D = forwardRef<
       render();
 
       return teardown;
-    } catch (error) {
+    } catch {
       teardown();
-      console.error('Warpkeep brutalist title screen setup failed:', error);
+      console.error('Warpkeep title scene setup failed; safe fallback activated.');
       setFallback(true);
       return undefined;
     }

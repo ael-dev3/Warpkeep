@@ -163,6 +163,11 @@ export function RealmHud({
   const inspectedTile = tilePresentation(
     inspectingHoveredCell ? hoveredTileMetadata : selectedTileMetadata
   );
+  const selectedIsKeep = isKeepCell(selectedCell, authoritativeKeepCoord);
+  const selectedTile = tilePresentation(selectedTileMetadata);
+  const selectedAnnouncement = selectedIsKeep
+    ? `${ownCastle?.name ?? HEGEMONY_FRONTIER_KEEP.name}. Selected cell ${selectedCell.coord.q}, ${selectedCell.coord.r}. ${keepStatusCopy(keepLoadStatus)}`
+    : `${selectedTile.title}. Selected cell ${selectedCell.coord.q}, ${selectedCell.coord.r}. ${selectedTile.detail}`;
 
   return (
     <section className="realm-hud" aria-labelledby="realm-heading">
@@ -176,7 +181,7 @@ export function RealmHud({
         </div>
       </header>
 
-      <div className="realm-hud__selection" aria-live="polite" aria-atomic="true">
+      <div className="realm-hud__selection">
         <span>{inspectedIsKeep ? ownCastle?.name ?? HEGEMONY_FRONTIER_KEEP.name : inspectedTile.title}</span>
         <strong>
           {inspectingHoveredCell ? 'Surveying' : 'Selected'} cell {inspectedCell.coord.q}, {inspectedCell.coord.r}
@@ -187,6 +192,13 @@ export function RealmHud({
             : inspectedTile.detail}
         </small>
       </div>
+      <p
+        aria-atomic="true"
+        aria-live="polite"
+        className="realm-hud__selection-announcement"
+      >
+        {selectedAnnouncement}
+      </p>
 
 
       <MarksBalance profile={ownProfile} status={marksStatus} />

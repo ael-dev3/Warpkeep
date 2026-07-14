@@ -15,6 +15,7 @@ import type {
   WarpkeepWorldTile
 } from './warpkeepBackendTypes';
 import type { WarpkeepRuntimeConfig } from './warpkeepConfig';
+import { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 import {
   readCompatibleWarpkeepBackendInfo,
   type WarpkeepBackendInfo
@@ -27,7 +28,7 @@ export type WarpkeepConnectionCallbacks = Readonly<{
 export type WarpkeepConnection = DbConnection;
 
 const CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS = 10_000;
-export const WARPKEEP_ALPHA_TERMS_VERSION = '2026-07-14';
+export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
   'not_admitted',
@@ -82,6 +83,9 @@ export function createWarpkeepConnectionBuilder(
   bridgeJwt: string,
   callbacks: WarpkeepConnectionCallbacks = {}
 ) {
+  if (!config.publicConfigValid) {
+    throw new Error('Warpkeep records are unavailable.');
+  }
   if (!isBridgeJwt(bridgeJwt)) {
     throw new Error('Warpkeep requires a valid bridge session before connecting.');
   }

@@ -41,6 +41,19 @@ describe('GitHub workflow security policy', () => {
     expect(source).not.toContain('enablement: true');
   });
 
+  it('refuses a manually dispatched Pages deployment from any non-main ref', () => {
+    const source = workflow('deploy-pages.yml');
+    const build = source.slice(source.indexOf('  build:'), source.indexOf('  deploy:'));
+    const deploy = source.slice(source.indexOf('  deploy:'));
+    const mainRefGuard = /^\s+if:\s*github\.ref\s*==\s*'refs\/heads\/main'\s*$/m;
+
+    expect(source).toMatch(/^\s*workflow_dispatch:\s*$/m);
+    expect(build).toMatch(mainRefGuard);
+    expect(deploy).toMatch(mainRefGuard);
+    expect(source).toContain('group: pages-${{ github.ref }}');
+    expect(source).not.toMatch(/^\s+group:\s*pages\s*$/m);
+  });
+
   it('uses the reviewed Pages uploader with a SHA-pinned nested dependency', () => {
     const source = workflow('deploy-pages.yml');
     expect(source).toContain(

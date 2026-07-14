@@ -1,14 +1,13 @@
 # Deployment and recovery
 
-> **Protocol-v2 Alpha 0.3.1 is active; recovery remains fail-closed.** The
-> existing Maincloud database has the guarded additive v2 schema, and the
-> reviewed Worker with the additive `SessionFamily` migration and independent
-> managed session-cookie secret is live with the exact-main Pages frontend.
-> Public auth and shared-alpha entry were enabled in Worker-first order after
-> paused verification and one owner canary. No FID is admitted, and no player,
-> ownership, castle, allowlist, or world row was mutated. The recovery commands
-> below deliberately restore a disabled posture and never imply approval for a
-> republish, secret change, deploy, or later enable.
+> **Alpha 0.3.2 is live on backend protocol 3; recovery remains fail-closed.**
+> The existing Maincloud database contains the append-only protocol-3 schema,
+> deterministic 1,261-cell Genesis realm, 100 close-outward castle slots, and
+> deliberately admitted founders. Public auth and shared-alpha entry are
+> enabled at the privately recorded exact-source coordinates. The recovery
+> commands below deliberately restore a disabled posture and never imply
+> approval for a republish, secret change, deploy, admission, data mutation, or
+> later enable. Exact founder identities and mutable counts stay private.
 
 ## Pages
 
@@ -17,9 +16,9 @@
 3. Restore public variables with shared alpha disabled.
 4. Merge the exact reviewed commit to `main`; the workflow embeds `${{ github.sha }}`.
 5. Verify the public build reports that full SHA.
-6. Keep shared alpha false through the v2 frontend deployment. Enable only after
-   the module, Durable Object, secret, paused Worker, attestation, frontend, and
-   owner-QA gates pass and a final enable approval is recorded.
+6. Keep shared alpha false through the recovery frontend deployment. Enable only
+   after the current module, Durable Object, secret, paused Worker, attestation,
+   frontend, and owner-QA gates pass and a final enable approval is recorded.
 
 After authenticating GitHub CLI as the repository owner, restore the public repository variables explicitly:
 
@@ -98,6 +97,12 @@ resolver coordinates. Verify this fail-closed distinction locally before any
 approved Worker deploy.
 
 ## SpacetimeDB
+
+The v1-to-v2 publication narrative below is retained as historical recovery
+evidence. It must not be rerun as if the live protocol-3 database were still the
+old 61-cell empty fixture. Any current recovery starts with a fresh protected
+protocol-3 aggregate and follows the non-destructive forward-fix boundaries in
+the [activation runbook](../alpha-activation.md).
 
 Never create a replacement database because a workstation was lost.
 
@@ -205,7 +210,14 @@ disconnect and read static backend metadata while fresh. Protected calls recheck
 expiry, and private/player-mutation/admin authority remains denied; see
 [`threat-model.md`](../../security/threat-model.md).
 
-## Production proof and rollback
+## Historical protocol-v2 proof and current rollback
+
+The two additive-v2 commands in this section describe the recorded historical
+checkpoint. They are not a current-state protocol-3 assertion. For the live
+realm, use the exact enabled/paused auth profile plus the protocol-3 founded
+aggregate flags and private expected founder/player/Terms counts documented in
+the [activation runbook](../alpha-activation.md); never copy those mutable
+counts into this public recovery guide.
 
 ```sh
 WARPKEEP_EXPECTED_DEPLOYED_SHA=<full-pages-sha> \

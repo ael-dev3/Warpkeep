@@ -6,7 +6,44 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ### Added
 
-- An append-only backend protocol-3 candidate that preserves the deployed
+- An in-menu, keyboard/touch/hover-accessible latest-patch chronicle that stays
+  inside Warpkeep and is bundled by exact product version.
+- A persistent soundtrack mute switch, Data Saver/constrained-network-aware
+  speculative media policy, visible pre-React boot shell, no-JavaScript notice,
+  branded crash recovery screen, and vector site icon.
+
+### Changed
+
+- Realm selection announcements, explicit map-focus navigation, castle-record
+  focus return, and the inert 100-Mark warp preview now communicate their state
+  more clearly without duplicate live-region noise.
+- Current agent, architecture, security, recovery, Genesis, terrain, Marks, and
+  release documents now distinguish the live protocol-3 realm from historical
+  protocol-2 checkpoints.
+
+### Fixed
+
+- JWT validation now requires exactly one Warpkeep audience, and explicitly
+  malformed or blank public database coordinates fail closed at both activation
+  and transport boundaries.
+- Partial realm-scene setup failures now release every registered listener,
+  observer, renderer, geometry, material, and object through idempotent reverse
+  cleanup while preserving the original failure.
+- React root failures no longer expose error messages or component stacks in the
+  production console; canonical Terms wording is hash-bound to its accepted
+  version in CI.
+- Manual Pages runs are main-only and ref-isolated for concurrency, preventing a
+  feature-ref dispatch from deploying or cancelling a legitimate main release.
+- The protected founded-state verifier now supports exact privacy-safe live
+  player and Terms counts after earlier founders have entered the realm.
+- Development notices cannot dismiss twice, and patch-note hover content has a
+  reachable pointer grace period plus normal disclosure-button toggling.
+
+## [0.3.2] — 2026-07-14
+
+### Added
+
+- An append-only backend protocol 3 that preserves the deployed
   seven-table prefix while expanding Genesis 001 to 1,261 authoritative cells,
   100 deterministic permanent castle slots, and separate terrain/content
   metadata.
@@ -98,6 +135,13 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   row counts, empty pre-login/operator state, and every protocol-3 integrity
   counter after each separately approved founding action without accepting or
   printing FIDs.
+- Completed the separately gated protocol-3 publication, Genesis 001 expansion,
+  exact frontend deployment, and deliberately approved founding admissions
+  without publishing founder identities. Further admissions and all production
+  mutations remain explicit owner actions; Marks apply, spending, and scheduler
+  installation remain unavailable.
+
+See [Alpha 0.3.2 release notes](docs/releases/alpha-0.3.2.md).
 
 ## [0.3.1] — 2026-07-13
 
@@ -196,7 +240,8 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ael-dev3/Warpkeep/compare/d5f0748dbfff07064a736c2b8d273d6022a03050...v0.3.0
 [0.2.0]: https://github.com/ael-dev3/Warpkeep/compare/f50a277044b8abe23df9fe8aae25dd82b49635b6...d5f0748dbfff07064a736c2b8d273d6022a03050

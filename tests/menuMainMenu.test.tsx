@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepMainMenu } from '../src/components/menu/WarpkeepMainMenu';
@@ -97,10 +97,10 @@ describe('WarpkeepMainMenu', () => {
     expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();
   });
 
-  it('shows distinct anchored notices one at a time without stealing focus', () => {
+  it('refreshes anchored notices and lets patch notes replace them without stealing focus', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
     const enterRealm = screen.getByRole('button', { name: 'ENTER REALM' });
-    const exit = screen.getByRole('button', { name: 'EXIT' });
+    const patchNotes = screen.getByRole('button', { name: 'PATCH NOTES' });
 
     enterRealm.focus();
     fireEvent.click(enterRealm);
@@ -114,12 +114,10 @@ describe('WarpkeepMainMenu', () => {
     expect(refreshedNotice).not.toBe(firstNotice);
     expect(refreshedNotice.textContent).toContain('living frontier');
 
-    exit.focus();
-    fireEvent.click(exit);
-    const developmentNotice = screen.getByRole('status');
-    expect(developmentNotice.textContent).toContain('Return to Title');
-    expect(developmentNotice.textContent).not.toContain('living frontier');
-    expect(document.activeElement).toBe(exit);
+    act(() => patchNotes.focus());
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+    expect(document.activeElement).toBe(patchNotes);
   });
 
   it('opens the dramatic credits roll and uses Escape/back to return without leaving the menu notice open', () => {
@@ -215,18 +213,72 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(settings);
   });
 
-  it('keeps EXIT as an under-construction action and uses the separate return control', () => {
+  it('reveals current patch notes in-site and lets Escape dismiss them before leaving the menu', () => {
     const onRequestReturn = vi.fn();
-    const closeSpy = vi.spyOn(window, 'close').mockImplementation(() => undefined);
     render(<WarpkeepMainMenu active onRequestReturn={onRequestReturn} />);
+    const patchNotes = screen.getByRole('button', { name: 'PATCH NOTES' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'EXIT' }));
-    expect(document.querySelector('.warpkeep-menu-notice')?.textContent).toContain('Return to Title');
-    expect(closeSpy).not.toHaveBeenCalled();
+    expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
+    expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
+    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+
+    act(() => patchNotes.focus());
+    const notes = screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' });
+    expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.2');
+    expect(notes.textContent).toContain('1,261 authoritative realm cells');
+    expect(notes.textContent).toContain('production burn-credit application remain unavailable');
+    expect(within(notes).queryByRole('link')).toBeNull();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+    expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
-    expect(onRequestReturn).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onRequestReturn).toHaveBeenCalledOnce();
+  });
+
+  it('previews patch notes on fine-pointer hover and pins or dismisses them on touch', () => {
+    render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
+    const patchNotes = screen.getByRole('button', { name: 'PATCH NOTES' });
+
+    fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
+    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+
+    fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
+    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+
+    fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
+    patchNotes.focus();
+    fireEvent.click(patchNotes);
+    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+
+    fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
+    fireEvent.click(patchNotes);
+    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+  });
+
+  it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
+    vi.useFakeTimers();
+    render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
+    const patchNotes = screen.getByRole('button', { name: 'PATCH NOTES' });
+    const commandItem = patchNotes.closest('li');
+
+    fireEvent.pointerEnter(commandItem!, { pointerType: 'mouse' });
+    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+    fireEvent.pointerLeave(commandItem!, { pointerType: 'mouse' });
+
+    act(() => vi.advanceTimersByTime(250));
+    const panel = screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' });
+    fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
+    act(() => vi.advanceTimersByTime(200));
+    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
+
+    fireEvent.click(patchNotes);
+    expect(screen.queryByRole('region', { name: 'GENESIS 001 FOUNDING' })).toBeNull();
+    fireEvent.click(patchNotes);
+    expect(screen.getByRole('region', { name: 'GENESIS 001 FOUNDING' })).not.toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

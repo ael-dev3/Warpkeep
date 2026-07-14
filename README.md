@@ -4,24 +4,39 @@
 
 **Every FID has a castle.** Warpkeep is an open-source, Farcaster-native strategy world where identity anchors a keep and SpacetimeDB owns the shared state.
 
-Alpha 0.3.1 is live. The first Hegemony keep stands in a deterministic 61-cell Lowlands realm, and the frontier grows one day at a time. The public build includes the real 3D stone title, an intentional Alpha Terms gate, browser-bound Sign In with Farcaster, rotating HttpOnly sessions, the admission-gated shared realm foundation, responsive WebGL presentation, accessible fallbacks, music, and credits.
+Alpha 0.3.2 is live. Genesis 001 now spans 1,261 deterministic Lowlands cells
+and 100 permanent castle slots ordered outward from a close-knit founding
+district. The public build includes the real 3D stone title, an intentional
+Alpha Terms gate, browser-bound Sign In with Farcaster, rotating HttpOnly
+sessions, protocol-3 shared-realm state, responsive WebGL presentation,
+accessible fallbacks, trusted public castle presentation, Marks balance UI,
+music, and credits.
 
-The admission list remains intentionally empty. The site is a real product surface and technical foundation, not a claim that resources, upgrades, units, combat, alliances, chat, or seasons are playable yet.
-
-Alpha 0.3.2 is now being prepared as a source candidate. It expands Genesis 001 to 1,261 deterministic cells and 100 permanent slots ordered outward from the close-knit founding district, adds atomic first-castle founding, trusted Farcaster realm presentation, and private server-authoritative Marks accounting. It is not active in production, and no schema, world, admission, burn credit, or player data is changed merely by this branch.
+Production remains deliberately admission-gated. Deliberately admitted
+founders now occupy the shared frontier, but public admission is not open and
+every further admission or production-state mutation requires explicit owner
+scope and verification. The site is a real product surface and technical
+foundation, not a claim that resources, upgrades, units, combat, alliances,
+chat, or seasons are playable yet.
 
 ## Current foundation
 
 - Standard website SIWF with an independently verifying Cloudflare Worker and short-lived OIDC handoff.
 - Server-authoritative SpacetimeDB module with private admission/auth-epoch controls and public world/player/castle boundaries.
-- 61 playable Lowlands cells plus a 30-cell visual apron, one detailed owner keep, and lightweight peer markers.
+- 1,261 authoritative Lowlands cells, 100 close-outward permanent castle slots, one detailed owner keep, and lightweight peer markers.
 - Cinematic, balanced, and performance profiles shared by the title and realm; normal modern phones default to balanced.
 - Exact build identity, fail-closed configuration, reduced-motion behavior, keyboard/touch controls, and non-WebGL/model fallbacks.
 - Apache-2.0 software and CC-BY-4.0 project-owned creative work from v0.3.0 onward, with historical and external terms preserved.
 
 The canonical player domain is [warpkeep.com](https://warpkeep.com/). Source/master assets and immutable bundles live in [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets); the game repository contains only runtime media and lightweight provenance records.
 
-Marks are experimental, non-transferable, non-redeemable game-accounting units with no cash value. Under the candidate v1 policy, an eligible finalized ordinary SNAP burn on Ethereum mainnet can be reflected 1:1 by six-decimal micro-unit. The browser never connects or scans wallets, requests a wallet signature or approval, submits a transaction, or receives private wallet/event records. See the [versioned Marks policy](docs/gameplay/marks-policy-v1.md).
+Marks are experimental, non-transferable, non-redeemable game-accounting units
+with no cash value. The versioned v1 policy defines a 1:1 six-decimal
+micro-unit conversion for eligible finalized ordinary SNAP burns on Ethereum
+mainnet, but production credit application, Marks spending, and the scheduler
+remain unavailable. The browser never connects or scans wallets, requests a
+wallet signature or approval, submits a transaction, or receives private
+wallet/event records. See the [versioned Marks policy](docs/gameplay/marks-policy-v1.md).
 
 ## Development
 
@@ -58,7 +73,7 @@ The keep source is not publicly mirrored while redistribution authority remains 
 
 ## Documentation
 
-- [Alpha 0.3.2 candidate notes](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 live release](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
+- [Alpha 0.3.2 release notes](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 history](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
 - [Marks policy v1](docs/gameplay/marks-policy-v1.md)
 - [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md)
 - [Technical architecture](docs/technical-architecture.md)

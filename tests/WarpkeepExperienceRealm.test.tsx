@@ -53,6 +53,7 @@ const TEST_CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   bridgeUrl: TEST_ISSUER,
   issuer: TEST_ISSUER,
   audience: TEST_AUDIENCE,
+  publicConfigValid: true,
   sharedAlphaEnabled: true
 });
 

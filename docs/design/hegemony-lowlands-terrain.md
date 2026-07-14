@@ -126,9 +126,16 @@ Rendering remains demand-driven on initial setup, resize, camera settling, hover
 
 The compact HUD exposes identity, FID, Level 1, active quality, selected coordinates/terrain, Return to Menu, Recenter Keep, Inspect Keep/Realm View, and concise control hints. Clicking or tapping the 3D keep selects the center cell and enters its close view. Arrow keys move among playable cells, Enter/Space inspects the selected keep, Home recenters, and Escape returns.
 
-The previous permanent coordinate matrix is replaced by a collapsed **Realm Cells 61** navigator. Opening it provides exactly 61 semantic cell buttons; none of the 30 apron cells appears there.
+The permanent coordinate matrix is replaced by a collapsed, paginated
+**Traversable Cells** navigator. In the live generation it exposes the 1,101
+passable cells from the 1,261-cell authoritative realm; visual apron cells never
+appear there.
 
-If WebGL2 is unavailable, an illustrated SVG fallback renders all 91 terrain cells, visually distinguishes the 61 playable cells from the apron, shows the personalized fixed center keep marker, and preserves the same HUD and collapsible navigator. A 3D-model failure uses the primitive keep fallback without replacing the working WebGL terrain.
+If WebGL2 is unavailable, an illustrated SVG fallback renders the full
+radius-22 surface (1,519 terrain cells), visually distinguishes the 1,261
+authoritative realm cells from the 258-cell apron, shows the personalized keep
+marker, and preserves the same HUD and paginated navigator. A 3D-model failure
+uses the primitive keep fallback without replacing the working WebGL terrain.
 
 ## Deferred gameplay
 

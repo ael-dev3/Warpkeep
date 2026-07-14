@@ -17,12 +17,14 @@ import type {
 } from '../../farcaster/farcasterAuthTypes';
 import { AlphaParticipationTermsDialog } from './AlphaParticipationTermsDialog';
 import { CreditsRoll } from './CreditsRoll';
+import { LatestPatchNotesPopover } from './LatestPatchNotesPopover';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
 import { SettingsPanel } from './SettingsPanel';
 import { WarpkeepBuildStamp } from './WarpkeepBuildStamp';
 import { menuCommands, type MenuCommand, type MenuCommandId } from './menuCommands';
 import {
   DEFAULT_WARPKEEP_REPOSITORY_URL,
+  WARPKEEP_BUILD_INFO,
   type WarpkeepBuildInfo
 } from '../../build/buildInfo';
 import type {
@@ -79,6 +81,8 @@ export type WarpkeepMainMenuProps = {
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   onGraphicsPreferenceChange?: (preference: GraphicsPreference) => void;
+  audioMuted?: boolean;
+  onAudioMutedChange?: (muted: boolean) => void;
 };
 
 type ActiveNotice = {
@@ -107,6 +111,7 @@ type TermsRequest = {
 const ANONYMOUS_AUTH_STATE: FarcasterAuthViewState = Object.freeze({
   phase: 'anonymous'
 });
+const PATCH_NOTES_POINTER_LEAVE_DELAY_MS = 360;
 
 const FarcasterIdentityBadge = lazy(async () => {
   const module = await import('../auth/FarcasterIdentityBadge');
@@ -238,7 +243,9 @@ export function WarpkeepMainMenu({
   noticeDurationMs = 5600,
   graphicsPreference = 'auto',
   resolvedGraphicsQuality = 'balanced',
-  onGraphicsPreferenceChange
+  onGraphicsPreferenceChange,
+  audioMuted = false,
+  onAudioMutedChange
 }: WarpkeepMainMenuProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const commandRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -246,6 +253,9 @@ export function WarpkeepMainMenu({
   const authPrimaryActionRef = useRef<HTMLButtonElement>(null);
   const surfaceTriggerRef = useRef<HTMLButtonElement | null>(null);
   const termsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const patchNotesAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const patchNotesPanelRef = useRef<HTMLElement | null>(null);
+  const patchNotesCloseTimerRef = useRef<number | null>(null);
   const noticeSequenceRef = useRef(0);
   const didFocusOnRevealRef = useRef(false);
   const playbackBlockedRef = useRef(false);
@@ -258,6 +268,7 @@ export function WarpkeepMainMenu({
   const lastActionModalityRef = useRef<MenuInputModality>(inputModality);
   const [videoState, setVideoState] = useState<'waiting' | 'ready' | 'error'>('waiting');
   const [activeNotice, setActiveNotice] = useState<ActiveNotice | null>(null);
+  const [patchNotesOpen, setPatchNotesOpen] = useState(false);
   const [surface, setSurface] = useState<MenuSurface>('commands');
   const [termsRequest, setTermsRequest] = useState<TermsRequest | null>(null);
   const reducedMotion = useReducedMotionPreference();
@@ -283,6 +294,65 @@ export function WarpkeepMainMenu({
     && onSignOut
     && onRequestAuthenticatedRealm
   );
+
+  const cancelPatchNotesClose = useCallback(() => {
+    if (patchNotesCloseTimerRef.current !== null) {
+      window.clearTimeout(patchNotesCloseTimerRef.current);
+      patchNotesCloseTimerRef.current = null;
+    }
+  }, []);
+
+  const closePatchNotes = useCallback(() => {
+    cancelPatchNotesClose();
+    setPatchNotesOpen(false);
+  }, [cancelPatchNotesClose]);
+
+  const openPatchNotes = useCallback(() => {
+    cancelPatchNotesClose();
+    setActiveNotice(null);
+    setPatchNotesOpen(true);
+  }, [cancelPatchNotesClose]);
+
+  const schedulePatchNotesClose = useCallback((pointerType: string) => {
+    if (pointerType === 'touch') {
+      return;
+    }
+    cancelPatchNotesClose();
+    patchNotesCloseTimerRef.current = window.setTimeout(() => {
+      patchNotesCloseTimerRef.current = null;
+      setPatchNotesOpen(false);
+    }, PATCH_NOTES_POINTER_LEAVE_DELAY_MS);
+  }, [cancelPatchNotesClose]);
+
+  useEffect(() => () => cancelPatchNotesClose(), [cancelPatchNotesClose]);
+
+  useEffect(() => {
+    if (!patchNotesOpen) {
+      return undefined;
+    }
+
+    const isInsidePatchNotes = (target: EventTarget | null) => target instanceof Node && (
+      patchNotesAnchorRef.current?.contains(target)
+      || patchNotesPanelRef.current?.contains(target)
+    );
+    const handleOutsidePointer = (event: PointerEvent) => {
+      if (!isInsidePatchNotes(event.target)) {
+        closePatchNotes();
+      }
+    };
+    const handleFocusChange = (event: FocusEvent) => {
+      if (!isInsidePatchNotes(event.target)) {
+        closePatchNotes();
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointer, true);
+    document.addEventListener('focusin', handleFocusChange, true);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointer, true);
+      document.removeEventListener('focusin', handleFocusChange, true);
+    };
+  }, [closePatchNotes, patchNotesOpen]);
 
   const attemptVideoPlayback = useCallback(() => {
     const video = videoRef.current;
@@ -345,6 +415,7 @@ export function WarpkeepMainMenu({
   useEffect(() => {
     if (!interactive) {
       setActiveNotice(null);
+      closePatchNotes();
       setSurface('commands');
       setTermsRequest(null);
       termsTriggerRef.current = null;
@@ -357,7 +428,7 @@ export function WarpkeepMainMenu({
       didFocusOnRevealRef.current = true;
       commandRefs.current[0]?.focus({ preventScroll: true });
     }
-  }, [interactive, shouldFocusFirstCommand]);
+  }, [closePatchNotes, interactive, shouldFocusFirstCommand]);
 
   useEffect(() => {
     const previousPhase = previousAuthPhaseRef.current;
@@ -418,8 +489,9 @@ export function WarpkeepMainMenu({
   const openSettings = useCallback((anchorElement: HTMLButtonElement) => {
     surfaceTriggerRef.current = anchorElement;
     setActiveNotice(null);
+    closePatchNotes();
     setSurface('settings');
-  }, []);
+  }, [closePatchNotes]);
 
   const closeSettings = useCallback(() => {
     setSurface('commands');
@@ -429,8 +501,9 @@ export function WarpkeepMainMenu({
   const openCredits = useCallback((anchorElement: HTMLButtonElement) => {
     surfaceTriggerRef.current = anchorElement;
     setActiveNotice(null);
+    closePatchNotes();
     setSurface('credits');
-  }, []);
+  }, [closePatchNotes]);
 
   const closeCredits = useCallback(() => {
     setSurface('commands');
@@ -536,7 +609,9 @@ export function WarpkeepMainMenu({
       event.preventDefault();
       event.stopPropagation();
       lastActionModalityRef.current = 'keyboard';
-      if (activeNotice) {
+      if (patchNotesOpen) {
+        closePatchNotes();
+      } else if (activeNotice) {
         setActiveNotice(null);
       } else if (authPanelOpen) {
         closeAuthPanel(true);
@@ -547,7 +622,17 @@ export function WarpkeepMainMenu({
 
     document.addEventListener('keydown', handleEscape, true);
     return () => document.removeEventListener('keydown', handleEscape, true);
-  }, [activeNotice, authPanelOpen, closeAuthPanel, handleRequestReturn, interactive, surface, termsOpen]);
+  }, [
+    activeNotice,
+    authPanelOpen,
+    closeAuthPanel,
+    closePatchNotes,
+    handleRequestReturn,
+    interactive,
+    patchNotesOpen,
+    surface,
+    termsOpen
+  ]);
 
   const handleVideoReady = useCallback(() => {
     setVideoState('ready');
@@ -583,8 +668,9 @@ export function WarpkeepMainMenu({
   const openAuthPanel = useCallback((keyboardDriven: boolean) => {
     authWasKeyboardDrivenRef.current = keyboardDriven;
     setActiveNotice(null);
+    closePatchNotes();
     setSurface('farcaster-auth');
-  }, []);
+  }, [closePatchNotes]);
 
   const openTerms = useCallback((
     continuation: TermsContinuation,
@@ -593,14 +679,24 @@ export function WarpkeepMainMenu({
   ) => {
     termsTriggerRef.current = anchorElement;
     setActiveNotice(null);
+    closePatchNotes();
     setTermsRequest({ continuation, keyboardDriven });
-  }, []);
+  }, [closePatchNotes]);
 
   const handleCommandClick = useCallback((
     command: MenuCommand,
     anchorElement: HTMLButtonElement,
     keyboardDriven: boolean
   ) => {
+    if (command.id === 'patch-notes') {
+      if (patchNotesOpen) {
+        closePatchNotes();
+      } else {
+        openPatchNotes();
+      }
+      return;
+    }
+
     if (command.id === 'settings') {
       openSettings(anchorElement);
       return;
@@ -637,10 +733,13 @@ export function WarpkeepMainMenu({
     pendingIdentity,
     backendUnavailableMessage,
     farcasterAuthEnabled,
+    patchNotesOpen,
+    closePatchNotes,
     onRequestEnterRealm,
     openCredits,
     openSettings,
     openNotice,
+    openPatchNotes,
     openTerms
   ]);
 
@@ -883,9 +982,26 @@ export function WarpkeepMainMenu({
           >
             <ol className="warpkeep-menu-command-list">
               {menuCommands.map((command, commandIndex) => (
-                <li className="warpkeep-menu-command-item" key={command.id}>
+                <li
+                  className="warpkeep-menu-command-item"
+                  key={command.id}
+                  onPointerEnter={command.id === 'patch-notes'
+                    ? (event) => {
+                        if (event.pointerType !== 'touch') {
+                          openPatchNotes();
+                        }
+                      }
+                    : undefined}
+                  onPointerLeave={command.id === 'patch-notes'
+                    ? (event) => schedulePatchNotesClose(event.pointerType)
+                    : undefined}
+                >
                   <button
+                    aria-controls={command.id === 'patch-notes'
+                      ? 'warpkeep-latest-patch-notes'
+                      : undefined}
                     aria-describedby={activeNotice?.command.id === command.id ? describedNoticeId : undefined}
+                    aria-expanded={command.id === 'patch-notes' ? patchNotesOpen : undefined}
                     className="warpkeep-menu-command"
                     data-command={command.id}
                     data-prominent={commandIndex === 0 ? 'true' : undefined}
@@ -895,8 +1011,24 @@ export function WarpkeepMainMenu({
                       event.currentTarget,
                       event.detail === 0
                     )}
+                    onFocus={command.id === 'patch-notes'
+                      ? () => {
+                          // A pointer activation focuses before it clicks. Let the
+                          // click perform the single toggle in that path; otherwise
+                          // touch/click can open and immediately close the panel.
+                          if (
+                            lastActionModalityRef.current !== 'pointer'
+                            && lastActionModalityRef.current !== 'touch'
+                          ) {
+                            openPatchNotes();
+                          }
+                        }
+                      : undefined}
                     ref={(button) => {
                       commandRefs.current[commandIndex] = button;
+                      if (command.id === 'patch-notes') {
+                        patchNotesAnchorRef.current = button;
+                      }
                     }}
                     tabIndex={interactive ? 0 : -1}
                     type="button"
@@ -1012,10 +1144,21 @@ export function WarpkeepMainMenu({
           refreshKey={activeNotice.refreshKey}
         />
       ) : null}
+      {patchNotesOpen && patchNotesAnchorRef.current ? (
+        <LatestPatchNotesPopover
+          anchorElement={patchNotesAnchorRef.current}
+          onPointerEnter={cancelPatchNotesClose}
+          onPointerLeave={(event) => schedulePatchNotesClose(event.pointerType)}
+          productVersion={buildInfo?.version ?? WARPKEEP_BUILD_INFO.version}
+          ref={patchNotesPanelRef}
+        />
+      ) : null}
       </main>
       {surface === 'settings' && interactive ? (
         <SettingsPanel
+          audioMuted={audioMuted}
           onChange={(preference) => onGraphicsPreferenceChange?.(preference)}
+          onAudioMutedChange={onAudioMutedChange}
           onClose={closeSettings}
           preference={graphicsPreference}
           resolvedQuality={resolvedGraphicsQuality}

@@ -1,25 +1,37 @@
 # Warpkeep roadmap
 
-## Live milestone — Alpha 0.3.1 secure living-world foundation
+## Live milestone — Alpha 0.3.2 Genesis founding
 
-Warpkeep's public title, menu, SIWF/OIDC boundary, deterministic 61-cell Lowlands, first authoritative keep projection, and server module are live. The production admission list remains intentionally empty: the world exists, but no player or castle is created until a FID is deliberately admitted.
+Warpkeep's public title, menu, SIWF/OIDC boundary, protocol-3 server module, and
+expanded Genesis 001 are live. The authoritative Lowlands contain 1,261 cells
+and 100 permanent castle slots ordered outward from the close founding district.
+Deliberately admitted founders occupy the shared realm, while public admission
+remains closed and every further admission remains an explicit owner mutation.
 
-Alpha 0.3.1 adds intentional Terms-gated entry, browser-bound Farcaster sign-in,
-short-lived memory-only access authority, rotating HttpOnly session families,
-and the additive privacy-separated player projection. Cinematic/Balanced/Performance
-choices affect the title and realm without changing authentication or authority.
+Alpha 0.3.2 preserves intentional Terms-gated entry, browser-bound Farcaster
+sign-in, short-lived memory-only access authority, rotating HttpOnly session
+families, and privacy-separated player ownership. Admission founds a nearby
+level-one castle atomically; first authentication binds its private ownership,
+while trusted public profile and Marks presentation remain separate from
+identity proof. Cinematic/Balanced/Performance choices affect presentation
+without changing authentication or authority.
 
-## Candidate vertical slice — Alpha 0.3.2 Genesis founding
+## Next vertical slice — resources and construction queues
 
-After a deliberate admission decision:
+The next gameplay expansion should:
 
-1. Preserve the original 61 rows while expanding Genesis 001 to 1,261 cells and 100 nearby castle slots.
-2. Bootstrap one player and level-one castle atomically through the server module.
-3. Prove server-owned castle location/name/level after reload and on a second client.
-4. Resolve trusted Farcaster presentation while keeping wallet attribution private.
-5. Apply the versioned, finalized, two-provider SNAP-burn-to-Mark policy without browser wallet access.
-6. Prove disable/auth-epoch rotation revokes gameplay authorization without deleting state.
-7. Keep private admission, audit, attribution, receipt, and authoritative balance data out of browser subscriptions and diagnostics.
+1. Derive resource production from authoritative terrain and server time.
+2. Accept bounded construction intents and resolve deterministic queue completion on the server.
+3. Preserve castle ownership and queue state across reloads and multiple clients.
+4. Expose only the public resource/building projection required by the browser.
+5. Prove disable/auth-epoch rotation revokes gameplay authorization without deleting state.
+6. Keep private admission, audit, attribution, receipts, and authoritative accounting out of browser subscriptions and diagnostics.
+7. Ship with exact migration, rollback, clean-browser, and protected aggregate evidence before expansion.
+
+The versioned SNAP-burn-to-Mark policy remains a separate operational boundary.
+Production apply, spending, credit runs, and scheduler installation are not part
+of the resources slice and remain unavailable until separately reviewed and
+approved.
 
 ## Gameplay slices
 

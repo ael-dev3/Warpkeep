@@ -3,11 +3,11 @@
 The Alpha 0.3.2 Marks operator is an offline-first, fail-closed macOS utility. It recognizes the canonical normal SNAP `Burned(...)` event on Ethereum mainnet and prepares privacy-safe 1:1 Mark-credit dry runs. It does not connect a browser wallet, initiate a burn, write directly to database tables, or make a production credit.
 
 `marks:apply` is deliberately unavailable. It always exits with
-`MARKS_APPLY_DISABLED`, even when `--confirm` is supplied. The candidate module
-has private generation-CAS wallet snapshots and a resumable two-phase scan
-batch, but this utility intentionally has no admin application transport until
-that end-to-end path and a fresh production approval gate are separately
-reviewed. Do not bypass it with direct table writes.
+`MARKS_APPLY_DISABLED`, even when `--confirm` is supplied. The deployed
+protocol-3 module has private generation-CAS wallet snapshots and a resumable
+two-phase scan batch, but this utility intentionally has no admin application
+transport until that end-to-end path and a fresh production approval gate are
+separately reviewed. Do not bypass it with direct table writes.
 
 ## Commands and network defaults
 
@@ -52,7 +52,7 @@ Omit `cursor` for the first dry run. Copy the cursor from the prior private repo
 
 `marks:reconcile` accepts exactly `scan` and `database` aggregate objects. Each contains `policyId`, integer `creditedEvents`, integer `creditedAccounts`, and decimal-string `creditedMicros`. All four fields must match exactly and the micros total must fit the u128 ledger bound. Obtain the database aggregate only through the separate canonical, counts-only Keychain wrapper; this runner intentionally has no general-purpose SpacetimeDB endpoint or table-write transport.
 
-The unpublished server transaction is intentionally two phase. A complete
+The deployed, currently unused server transaction is intentionally two phase. A complete
 wallet snapshot is replaced atomically only when no batch is pending. Batch
 begin compare-and-swaps the exact finalized cursor and freezes the snapshot
 generation/count, range hashes, implementation attestation, expected receipt

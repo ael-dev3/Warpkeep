@@ -86,7 +86,7 @@ describe('RealmHud', () => {
     expect(screen.getByText('FID 12345')).not.toBeNull();
     expect(screen.getByText('LEVEL 1')).not.toBeNull();
     expect(screen.getByText('Hegemony Frontier Keep')).not.toBeNull();
-    expect(screen.getByText(/frontier keep stands ready for this expedition/i)).not.toBeNull();
+    expect(screen.getAllByText(/frontier keep stands ready for this expedition/i)).toHaveLength(2);
     expect(screen.getByText('Selected cell 0, 0')).not.toBeNull();
     expect(screen.getByText('QUALITY HIGH')).not.toBeNull();
     expect(screen.queryByText(/elevation|soil/i)).toBeNull();
@@ -148,7 +148,7 @@ describe('RealmHud', () => {
   });
 
   it('names the territory currently being surveyed without exposing terrain internals', () => {
-    render(
+    const { container } = render(
       <RealmHud
         identity={{ fid: 98_765 }}
         selectedCell={centerCell()}
@@ -167,5 +167,9 @@ describe('RealmHud', () => {
     expect(screen.getByText('Surveying cell 1, 0')).not.toBeNull();
     expect(screen.getByText('Olive grass · terrain record pending.')).not.toBeNull();
     expect(screen.queryByText(/elevation|soil/i)).toBeNull();
+    const selectionAnnouncement = container.querySelector('.realm-hud__selection-announcement');
+    expect(selectionAnnouncement?.getAttribute('aria-live')).toBe('polite');
+    expect(selectionAnnouncement?.textContent).toContain('Selected cell 0, 0');
+    expect(selectionAnnouncement?.textContent).not.toContain('Surveying');
   });
 });

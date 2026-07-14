@@ -1,20 +1,19 @@
-# Warpkeep Alpha 0.3.2 candidate
+# Warpkeep Alpha 0.3.2
 
-Alpha 0.3.2 is the Genesis 001 founding candidate. It expands the deterministic
+Alpha 0.3.2 is the live Genesis 001 founding release. It expands the deterministic
 Hegemony realm, introduces trusted public castle presentation and private
 server-owned Mark accounting, and makes first admission create a nearby level-one
 castle atomically.
 
-This document describes the source candidate. Alpha 0.3.1 remains the live
-production release until the additive schema, seed, operator inputs, admission,
-frontend, and production verification gates are each explicitly approved.
-Before production founding, the exact post-founding counts/invariant verifier
-must be independently reviewed, then run with the private plan's expected count
-immediately after every separately approved founding action before rollout
-proceeds. No local test, candidate build, or earlier schema-publication approval
-substitutes for that bounded production gate.
+The tagged release, additive protocol-3 schema, expanded seed, exact frontend,
+and deliberately approved founding admissions are live at their separately
+recorded production coordinates. Founder identities are intentionally absent
+from this public release record. This completed rollout does not authorize a
+further admission, profile or wallet update, burn credit, scheduler install, or
+other production mutation; each remains a separately scoped owner action with
+fresh verification.
 
-## Candidate scope
+## Release scope
 
 - Genesis 001 grows from the exact original 61 radius-four rows to 1,261
   radius-20 rows, preserving every deployed row and seed field.
@@ -60,29 +59,34 @@ substitutes for that bounded production gate.
   It neither accepts nor reports FIDs. Exact identities and nearest-slot prefix
   remain private-plan and reducer-evidence checks rather than aggregate output.
 
-## Candidate validation
+## Release validation
 
-The local candidate passed 752 browser/shared tests and 84 SpacetimeDB module
-tests, root and module typechecks, production builds, exact generated-binding
-privacy checks, legal/runtime-asset validation, dependency and secret scans,
-and a disposable additive migration rehearsal from both empty and populated
-protocol-2 fixtures. The migration artifact SHA-256 was
+Before rollout, the source candidate passed 752 browser/shared tests and 84
+SpacetimeDB module tests, root and module typechecks, production builds, exact
+generated-binding privacy checks, legal/runtime-asset validation, dependency
+and secret scans, and a disposable additive migration rehearsal from both empty
+and populated protocol-2 fixtures. The migration artifact SHA-256 was
 `ea9a5327a367423957053f404936d41b7e4d98206b9e6d5c6c9f95f475701435`.
 
-These local results are evidence for the source candidate only. They are not a
-claim that protocol 3, Genesis 001 expansion, founding, Marks, or Alpha 0.3.2 is
-live in production.
+Those local results remain source evidence rather than production evidence.
+The live claim depends on the tagged exact source, recorded protocol-3 and
+Genesis 001 coordinates, deployed frontend build, bounded production
+attestations, and protected post-founding verification. Historical test output
+never substitutes for a fresh check before a future mutation.
 
-## Release boundary
+## Live state and remaining boundaries
 
-The implementation and tests do not authorize a production mutation. Publishing
-the additive SpacetimeDB schema, seeding 1,200 outer rows and sidecars, applying
-profile/wallet snapshots, crediting burns, admitting FIDs, deploying the
-frontend, merging, tagging, and releasing each remain gated actions. A rollout
-must first obtain separate approval to disable and attest both production public
-auth and frontend realm entry, then keep both disabled through schema, seed, and
-staged verification. Re-enabling either switch is another separately approved,
-attested deployment. Scheduler installation remains unperformed and is gated on
-a successful reviewed manual dry run with private inputs. Any drift, privacy
-leak, provider disagreement, unexpected schema shape, or invariant mismatch
-stops the rollout.
+Protocol 3, the 1,261-cell seed and sidecars, all 100 close-outward castle slots,
+the exact Alpha 0.3.2 frontend, and deliberately admitted founders are live.
+Admission remains gated rather than public, and the production founder set is
+not a convenience fixture for diagnostics. No new FID, profile, wallet
+snapshot, credit receipt, or world state may be created or changed without
+explicit owner scope and the corresponding pre/post invariant checks.
+
+Marks accounts and public balance presentation are part of the live schema and
+UI, but `marks:apply` remains hard-disabled, spending remains disabled, no
+production burn-credit run is authorized by this release, and no scheduler is
+installed. A future run still requires reviewed private inputs, a successful
+bounded dry run and reconciliation, explicit production approval, and a tested
+recovery path. Any drift, privacy leak, provider disagreement, unexpected
+schema shape, or invariant mismatch is a hard stop.

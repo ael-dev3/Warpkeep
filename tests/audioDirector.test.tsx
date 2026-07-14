@@ -166,6 +166,25 @@ describe('audio director helpers', () => {
 });
 
 describe('WarpkeepAudioDirector', () => {
+  it('applies and updates the player soundtrack mute preference to every source', () => {
+    const mutedAtPlay: boolean[] = [];
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(function (
+      this: HTMLMediaElement
+    ) {
+      mutedAtPlay.push(this.muted);
+      pausedMedia.set(this, false);
+      return Promise.resolve();
+    });
+    const { container, rerender } = render(<WarpkeepAudioDirector muted />);
+    const audio = [...container.querySelectorAll('audio')];
+    expect(audio.every(source => source.muted)).toBe(true);
+    expect(mutedAtPlay.length).toBeGreaterThan(0);
+    expect(mutedAtPlay.every(Boolean)).toBe(true);
+
+    rerender(<WarpkeepAudioDirector muted={false} />);
+    expect(audio.every(source => !source.muted)).toBe(true);
+  });
+
   it('retains one random title theme, caches the menu pair, and keeps the realm pair source-free', () => {
     const { container } = render(<WarpkeepAudioDirector />);
     const title = getAudio(container, 'title');

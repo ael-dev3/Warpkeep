@@ -1,12 +1,12 @@
-# Warpkeep threat model — Alpha 0.2 historical baseline and active v2 boundary
+# Warpkeep threat model — historical baseline and active Alpha 0.3.2 boundary
 
-Status: the Alpha 0.2 evidence remains historical. The protocol-v2 module,
-additive session-family storage, independent managed cookie secret, reviewed
-Worker, and exact-main frontend are live at their separately recorded Alpha
-0.3.1 production coordinates. Worker auth and shared-alpha entry were enabled
-in order after paused verification and one privacy-safe owner canary; no FID is
-admitted. This is not an OWASP ASVS certification or a penetration-test
-attestation.
+Status: the Alpha 0.2 and Alpha 0.3.1 evidence remains historical. Alpha 0.3.2
+is live on backend protocol 3 at its separately recorded production
+coordinates: the deterministic 1,261-cell Genesis world and 100 close-outward
+slots are seeded, deliberately admitted founders hold permanent castles, and
+Worker auth plus shared-alpha realm entry are enabled. Exact founder counts and
+identities remain private. This is not an OWASP ASVS certification or a
+penetration-test attestation.
 
 ## Scope and revision
 
@@ -30,33 +30,36 @@ deployment, configuration, aggregate, and owner-canary coordinates. It does not
 make an arbitrary checkout or later deployment trusted, and every future
 activation must repeat the fail-closed gates.
 
-## Deployed v2 status and continuing authority boundary
+## Deployed Alpha 0.3.2 status and continuing authority boundary
 
-The checked-out v2 target has exact `auth_version: 2`, positive auth epochs,
-tokenless pending sessions, a `__Host-` session cookie, server-side family
-rotation/revocation, a dedicated resolver principal/procedure, protocol 2, and
-retired public v1 challenge/exchange routes. The bridge persists and issues only
-the verified FID. SpacetimeDB freezes the deployed public `player` table as an
-inert legacy contract and appends identity-free public `player_v2` plus private
+The deployed protocol-3 target retains exact `auth_version: 2`, positive auth
+epochs, tokenless pending sessions, a `__Host-` session cookie, server-side
+family rotation/revocation, a dedicated resolver principal/procedure, backend
+protocol 3, and retired public v1 challenge/exchange routes. The bridge persists
+and issues only the verified FID. SpacetimeDB freezes the deployed public
+`player` table as an inert legacy contract and appends identity-free public
+`player_v2` plus private
 `player_ownership_v2`. Worker `PUBLIC_AUTH_ENABLED` and frontend
 `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` are true only at the recorded enabled
-Alpha 0.3.1 production coordinates; the checked-in Worker default remains
+Alpha 0.3.2 production coordinates; the checked-in Worker default remains
 false so a normal redeploy fails closed.
 
 The repository includes a pinned SpacetimeDB 2.6.1 loopback rehearsal proving
-the five legacy tables remain unchanged while the v2 pair is appended, empty and
-synthetic nonempty fixtures retain their data, a second publication is
-idempotent, partial state is detected, and the guarded v1 rollback is refused
-before any schema change. That command is local repository evidence only. The
-separately approved guarded publication and post-publish probes attest the
-recorded Maincloud checkpoint; neither substitutes for the other.
+the five legacy tables remain unchanged while the v2 pair and 12 protocol-3
+tables are appended, empty and synthetic nonempty fixtures retain their data, a
+second publication is idempotent, partial state is detected, and guarded
+rollback is refused before schema change. That command is local repository
+evidence only. The separately approved guarded publication and post-publish
+probes attest the recorded Maincloud checkpoint; neither substitutes for the
+other.
 
-The production rollout completed the guarded Maincloud publication, additive
-Durable Object migration, independent managed cookie-secret setup, paused
-Worker/frontend verification, ordered enablement, and one owner canary. It
-changed no admission, player, ownership, castle, allowlist, or world data. No
-DNS/account change or real-FID admission is claimed here, and historical Alpha
-0.2 evidence is not proof of the current v2 coordinates.
+The historical Alpha 0.3.1 rollout completed the guarded protocol-v2 Maincloud
+publication, additive Durable Object migration, independent managed
+cookie-secret setup, paused Worker/frontend verification, ordered enablement,
+and one owner canary without changing admission or world data. Alpha 0.3.2 later
+completed the additive protocol-3 publication, deterministic seed, deliberate
+founding actions, and enabled shared-realm verification. Historical Alpha 0.2
+or Alpha 0.3.1 evidence is not proof of the current protocol-3 coordinates.
 
 ## System and data flow
 
@@ -365,7 +368,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
   remains a residual when server revocation also fails: a future context where
   storage works cannot discover a tombstone that was never written.
 - Public game projections are observable to admitted authenticated clients by
-  design. The protocol-3 candidate adds trusted public Farcaster presentation
+  design. The live protocol-3 release adds trusted public Farcaster presentation
   and, only after intentional entry, aggregate SNAP-burn and Mark figures.
   Wallet associations, individual burn receipts, private claims, and
   authoritative balances remain private. Privacy classification and retention
@@ -388,17 +391,25 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - Static Pages responses currently lack several defense-in-depth headers,
   including HSTS. Hosting-layer header support or a fronting service is a future
   production requirement.
+- A strict main-app CSP cannot yet remove dynamic evaluation: the pinned
+  SpacetimeDB browser SDK constructs generated serializers with `Function(...)`.
+  Roll out CSP through header-level report-only telemetry and real auth/realm
+  browser QA before enforcement; meta CSP cannot provide `frame-ancestors`,
+  reporting, or a safe local-development policy.
 - Distributed Worker rate limiting is active. Alerting, key-rotation drills,
   incident response, and operational history are not yet mature enough for
   production assurance.
-- The deployed v2 backend is production state only at the recorded exact source,
-  deployment, schema, aggregate, and probe coordinates. The reviewed design
-  preserves the five-table prefix, freezes legacy `player`, and appends
-  `player_v2` plus `player_ownership_v2`. For every future republish, the local
-  pinned-CLI proof does not replace fresh read-only production inspection or
-  explicit approval. A nonzero legacy-player count or any v2/orphan state
-  blocks that operation. No delete, break-client, database-recreation, or
-  schema-rollback path is authorized.
+- The deployed protocol-3 backend is production state only at the recorded exact
+  source, deployment, schema, aggregate, and probe coordinates. The reviewed
+  design preserves the five-table prefix, freezes legacy `player`, appends
+  `player_v2` plus `player_ownership_v2`, and then appends 12 protocol-3 tables.
+  For every future republish, the local pinned-CLI proof does not replace fresh
+  read-only production inspection or explicit approval. A nonzero legacy-player
+  count, an orphan or inconsistent graph, or any mismatch from the separately
+  reviewed current founded aggregate blocks that operation. Valid admitted and
+  player state must never be mistaken for the historical zero-admission
+  checkpoint. No delete, break-client, database-recreation, or schema-rollback
+  path is authorized.
 - GitHub `main` protection is active with pull-request enforcement including
   administrators, strict required checks, stale-review dismissal, conversation
   resolution, linear history, and no force-push/delete. Required commit
@@ -422,12 +433,13 @@ creation, and world state. Anonymous visitors do not open a database connection.
   `VITE_WARPKEEP_SHARED_ALPHA_ENABLED=false` while the separately approved
   additive module is inspected and verified, the session-family Durable Object
   is migrated, secrets are configured, and Worker/frontend heads are
-  independently deployed and attested. Pre-publication requires exactly zero
-  legacy players; post-publication requires zero v2 pair and orphan counters.
-  Containment leaves the additive tables inert and uses a forward fix rather
-  than destructive rollback. The current Alpha 0.3.1 coordinates progressed
-  through those gates to an explicitly recorded enabled canary; that state is
-  not a reusable authorization for a future deploy.
+  independently deployed and attested. Every publication requires exactly zero
+  legacy players and zero orphan/inconsistency counters; expected valid founder,
+  castle, admission, and v2 pair counts come from a fresh privacy-safe aggregate,
+  not the historical empty checkpoint. Containment leaves additive tables inert
+  and uses a forward fix rather than destructive rollback. The current Alpha
+  0.3.2 coordinates progressed through separately recorded gates to an enabled
+  shared realm; that state is not reusable authorization for a future deploy.
 - Public v1 challenge/exchange routes remain retired after Worker cutover; the
   legacy admin raw-epoch procedure exists only for rollback compatibility and
   is never an implicit v2 fallback.
@@ -439,13 +451,14 @@ creation, and world state. Anonymous visitors do not open a database connection.
 
 ## Exclusions
 
-This review combined bounded, read-only checks of owned GitHub, Cloudflare, and
-SpacetimeDB coordinates with separately authorized additive publication,
-deployment, and public-gate changes. It used the Keychain-backed counts-only
-aggregate throughout. It did not expose or rotate a production secret, mutate
-admission, player, ownership, castle, allowlist, or world data, admit a real
-FID, inspect owner identity or credential material, scan or credit a production
-wallet, perform high-volume production testing, audit
+The historical Alpha 0.3.1 review combined bounded, read-only checks of owned
+GitHub, Cloudflare, and SpacetimeDB coordinates with separately authorized
+additive publication, deployment, and public-gate changes. It used the
+Keychain-backed counts-only aggregate throughout. That review did not expose or
+rotate a production secret, mutate admission, player, ownership, castle,
+allowlist, or world data, admit a real FID, inspect owner identity or credential
+material, scan or credit a production wallet, perform high-volume production
+testing, audit
 Farcaster/Cloudflare/GitHub/SpacetimeDB internals, or assess game art, layout,
 and unrelated gameplay design. One owner approved the bounded SIWF canary; only
 privacy-safe state transitions were observed and recorded.
@@ -461,6 +474,9 @@ The recorded Alpha 0.3.1 checkpoints completed the separately authorized
 Maincloud inspection/publication, post-publication aggregate/orphan checks,
 additive Durable Object migration, independent managed cookie secret, paused
 Worker/frontend deployments, configuration attestation, ordered enable gates,
-and owner QA. Future recovery still begins with both switches false and repeats
-each recorded gate. This document does not authorize a future republish, secret
-change, deploy, data mutation, or enable.
+and owner QA. Alpha 0.3.2 subsequently completed the separately authorized
+protocol-3 publication, 1,261-cell seed, deliberate founder admissions, and
+shared-realm activation. Future recovery still begins with both switches false
+and repeats each applicable gate against fresh current-state aggregates. This
+document does not authorize a future republish, secret change, deploy, data
+mutation, or enable.

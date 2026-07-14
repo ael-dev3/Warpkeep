@@ -8,6 +8,7 @@ type RealmAccessibilityControlsProps = Readonly<{
   keepCoord: HexCoord;
   selectedCoord: HexCoord;
   onHover: (coord: HexCoord | null) => void;
+  onFocusMap: () => void;
   onSelect: (coord: HexCoord) => void;
 }>;
 
@@ -21,6 +22,7 @@ export function RealmAccessibilityControls({
   keepCoord,
   selectedCoord,
   onHover,
+  onFocusMap,
   onSelect
 }: RealmAccessibilityControlsProps) {
   const selectedIndex = useMemo(() => cells.findIndex((cell) => (
@@ -49,6 +51,15 @@ export function RealmAccessibilityControls({
   return (
     <details className="realm-cell-navigator">
       <summary>Traversable Cells <span>{cells.length}</span></summary>
+      <div className="realm-cell-navigator__map-focus">
+        <button
+          aria-label="Focus realm map for arrow-key navigation"
+          onClick={onFocusMap}
+          type="button"
+        >
+          Focus map
+        </button>
+      </div>
       {pageCount > 1 ? (
         <div className="realm-cell-navigator__pagination" aria-label="Realm cell pages">
           <button
