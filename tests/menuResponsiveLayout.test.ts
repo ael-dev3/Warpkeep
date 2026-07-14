@@ -82,6 +82,22 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(notice).not.toContain('gradient(');
   });
 
+  it('keeps both project destinations balanced, tappable, and bounded on narrow rails', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
+      'utf8'
+    );
+    const projectLinks = readCssBlock(css, '.warpkeep-menu-project__links {');
+    const projectLink = readCssBlock(css, '.warpkeep-menu-project__link {');
+
+    expect(projectLinks).toContain('display: flex;');
+    expect(projectLinks).toContain('width: 100%;');
+    expect(projectLink).toContain('flex: 1 1 0;');
+    expect(projectLink).toContain('min-width: 0;');
+    expect(projectLink).toContain('max-width: 12rem;');
+    expect(projectLink).toContain('min-height: 2.75rem;');
+  });
+
   it('frees vertical space at 568x320 without hiding the project link', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),

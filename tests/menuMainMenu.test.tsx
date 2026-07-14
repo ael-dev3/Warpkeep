@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WarpkeepMainMenu } from '../src/components/menu/WarpkeepMainMenu';
 import { menuCommands } from '../src/components/menu/menuCommands';
 import { DEFAULT_WARPKEEP_REPOSITORY_URL } from '../src/build/buildInfo';
+import { WARPKEEP_FARCASTER_CHANNEL_URL } from '../src/farcaster/farcasterProjectLinks';
 
 function installMotionPreference(matches = false) {
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
@@ -51,21 +52,27 @@ describe('WarpkeepMainMenu', () => {
     expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
   });
 
-  it('exposes the canonical project repository as a hardened external link', () => {
+  it('exposes the canonical project and community destinations as hardened external links', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
 
     const project = screen.getByRole('region', { name: 'PROJECT' });
     const repositoryLink = within(project).getByRole('link', {
       name: 'Open Warpkeep repository on GitHub (opens in a new tab)'
     });
+    const farcasterLink = within(project).getByRole('link', {
+      name: 'Open Warpkeep Farcaster channel (opens in a new tab)'
+    });
 
     expect(repositoryLink.getAttribute('href')).toBe(DEFAULT_WARPKEEP_REPOSITORY_URL);
-    expect(repositoryLink.getAttribute('target')).toBe('_blank');
-    expect(repositoryLink.getAttribute('rel')?.split(/\s+/)).toEqual(
-      expect.arrayContaining(['noopener', 'noreferrer'])
-    );
-    expect(repositoryLink.getAttribute('referrerpolicy')).toBe('no-referrer');
-    expect(repositoryLink.getAttribute('tabindex')).toBe('0');
+    expect(farcasterLink.getAttribute('href')).toBe(WARPKEEP_FARCASTER_CHANNEL_URL);
+    for (const link of [repositoryLink, farcasterLink]) {
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')?.split(/\s+/)).toEqual(
+        expect.arrayContaining(['noopener', 'noreferrer'])
+      );
+      expect(link.getAttribute('referrerpolicy')).toBe('no-referrer');
+      expect(link.getAttribute('tabindex')).toBe('0');
+    }
   });
 
   it('routes ENTER REALM to its live callback only after Terms acceptance', () => {
@@ -291,6 +298,10 @@ describe('WarpkeepMainMenu', () => {
       hidden: true,
       name: 'Open Warpkeep repository on GitHub (opens in a new tab)'
     });
+    const farcasterLink = screen.getByRole('link', {
+      hidden: true,
+      name: 'Open Warpkeep Farcaster channel (opens in a new tab)'
+    });
 
     expect(menu?.getAttribute('aria-hidden')).toBe('true');
     expect(menu?.hasAttribute('inert')).toBe(true);
@@ -299,5 +310,6 @@ describe('WarpkeepMainMenu', () => {
       expect(button.getAttribute('tabindex')).toBe('-1');
     });
     expect(repositoryLink.getAttribute('tabindex')).toBe('-1');
+    expect(farcasterLink.getAttribute('tabindex')).toBe('-1');
   });
 });

@@ -43,7 +43,11 @@ illustrated fallback bound to the same canonical 1,261-cell snapshot. See the
 [Alpha 0.3.3 release notes](docs/releases/alpha-0.3.3.md) for its validation
 scope and honest residual limits.
 
-The canonical player domain is [warpkeep.com](https://warpkeep.com/). Source/master assets and immutable bundles live in [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets); the game repository contains only runtime media and lightweight provenance records.
+The canonical player domain is [warpkeep.com](https://warpkeep.com/), and the
+main community home is the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep).
+Source/master assets and immutable bundles live in [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets);
+the game repository contains only runtime media and lightweight provenance
+records.
 
 Marks are experimental, non-transferable, non-redeemable game-accounting units
 with no cash value. The versioned v1 policy defines a 1:1 six-decimal

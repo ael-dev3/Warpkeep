@@ -313,12 +313,23 @@
   line-height: 1.2;
 }
 
+.warpkeep-menu-project__links {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  width: 100%;
+  gap: clamp(0.2rem, 0.7vw, 0.55rem);
+}
+
 .warpkeep-menu-project__link {
   display: inline-flex;
+  flex: 1 1 0;
   align-items: center;
   justify-content: center;
+  min-width: 0;
+  max-width: 12rem;
   min-height: 2.75rem;
-  padding: 0.4rem 0.65rem;
+  padding: 0.4rem clamp(0.35rem, 0.75vw, 0.65rem);
   color: rgba(231, 203, 150, 0.88);
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(0.63rem, 0.8vw, 0.76rem);
