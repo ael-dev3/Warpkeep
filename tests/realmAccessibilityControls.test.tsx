@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   RealmAccessibilityControls,
+  type RealmNavigatorCameraPreset,
   type RealmNavigatorCloseReason,
   type RealmNavigatorCoordinateJump,
   type RealmNavigatorCastle
@@ -12,19 +13,21 @@ import {
 const CASTLES = Object.freeze([
   { castleId: 1, label: '@warpkeeper', name: 'Genesis Bastion', q: 0, r: 0 },
   { castleId: 2, label: '@peer', name: 'Peer Watch', q: 1, r: -1 },
-  { castleId: 3, label: 'FID 77', name: 'Lowland Hold', q: -2, r: 1 }
+  { castleId: 3, label: 'Hegemony Keep', name: 'Lowland Hold', q: -2, r: 1 }
 ]);
 
 function ControlledNavigator({
   onActivateCastle,
   onRequestClose,
   coordinateJump,
+  cameraPresets,
   triggerRef,
   onOuterEscape
 }: Readonly<{
   onActivateCastle: (castle: RealmNavigatorCastle) => void;
   onRequestClose: (reason: RealmNavigatorCloseReason) => void;
   coordinateJump?: RealmNavigatorCoordinateJump;
+  cameraPresets?: readonly RealmNavigatorCameraPreset[];
   triggerRef?: Ref<HTMLButtonElement>;
   onOuterEscape?: () => void;
 }>) {
@@ -44,6 +47,7 @@ function ControlledNavigator({
         }}
         onActivateCastle={onActivateCastle}
         coordinateJump={coordinateJump}
+        cameraPresets={cameraPresets}
         triggerRef={triggerRef}
       />
     </div>
@@ -53,7 +57,7 @@ function ControlledNavigator({
 afterEach(cleanup);
 
 describe('RealmAccessibilityControls', () => {
-  it('opens a compact controlled castle navigator without selecting on focus', async () => {
+  it('opens a compact controlled Explore surface without selecting on focus', async () => {
     const onActivateCastle = vi.fn();
     const onRequestClose = vi.fn();
     render(
@@ -63,7 +67,10 @@ describe('RealmAccessibilityControls', () => {
       />
     );
 
-    const trigger = screen.getByRole('button', { name: /Realm Navigator 3/i });
+    const trigger = screen.getByRole('button', {
+      name: 'Explore realm, 3 founded castles'
+    });
+    expect(trigger.textContent).toBe('Explore 3 CASTLES');
     expect(trigger.getAttribute('aria-haspopup')).toBe('dialog');
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -72,7 +79,7 @@ describe('RealmAccessibilityControls', () => {
     expect(onActivateCastle).not.toHaveBeenCalled();
     fireEvent.click(trigger);
 
-    const dialog = screen.getByRole('dialog', { name: 'Realm Navigator' });
+    const dialog = screen.getByRole('dialog', { name: 'Explore' });
     expect(dialog.getAttribute('aria-modal')).toBe('false');
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     const search = screen.getByRole('searchbox', { name: 'Search founded castles' });
@@ -100,9 +107,40 @@ describe('RealmAccessibilityControls', () => {
     expect(within(list).getByRole('button', { name: /Lowland Hold/ })).not.toBeNull();
     expect(onActivateCastle).toHaveBeenCalledOnce();
 
-    fireEvent.click(screen.getByRole('button', { name: 'CLOSE NAVIGATOR' }));
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE EXPLORE' }));
     expect(onRequestClose).toHaveBeenCalledWith('close-button');
     expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('activates a camera preset, closes Explore, and restores trigger focus', async () => {
+    const onActivateCastle = vi.fn();
+    const onRequestClose = vi.fn();
+    const showRealm = vi.fn();
+    const focusKeep = vi.fn();
+    render(
+      <ControlledNavigator
+        onActivateCastle={onActivateCastle}
+        onRequestClose={onRequestClose}
+        cameraPresets={[
+          { id: 'realm', label: 'Realm View', active: true, onActivate: showRealm },
+          { id: 'keep', label: 'My Keep', onActivate: focusKeep }
+        ]}
+      />
+    );
+
+    const trigger = screen.getByRole('button', { name: /Explore realm, 3 founded castles/i });
+    fireEvent.click(trigger);
+    const views = screen.getByRole('region', { name: 'Realm views' });
+    expect(within(views).getByRole('button', { name: 'Realm View' }).getAttribute('aria-pressed'))
+      .toBe('true');
+
+    fireEvent.click(within(views).getByRole('button', { name: 'My Keep' }));
+    expect(focusKeep).toHaveBeenCalledOnce();
+    expect(showRealm).not.toHaveBeenCalled();
+    expect(onActivateCastle).not.toHaveBeenCalled();
+    expect(onRequestClose).toHaveBeenCalledWith('camera-preset');
+    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
@@ -118,7 +156,7 @@ describe('RealmAccessibilityControls', () => {
         coordinateJump={{ validate, onActivate }}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: /Realm Navigator 3/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Explore realm, 3 founded castles/i }));
 
     const q = screen.getByRole('textbox', { name: 'q coordinate' });
     const r = screen.getByRole('textbox', { name: 'r coordinate' });
@@ -161,7 +199,7 @@ describe('RealmAccessibilityControls', () => {
       />
     );
 
-    const trigger = screen.getByRole('button', { name: /Realm Navigator 3/i });
+    const trigger = screen.getByRole('button', { name: /Explore realm, 3 founded castles/i });
     expect(triggerRef.current).toBe(trigger);
     fireEvent.click(trigger);
     const search = screen.getByRole('searchbox', { name: 'Search founded castles' });

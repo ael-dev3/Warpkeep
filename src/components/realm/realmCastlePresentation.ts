@@ -14,8 +14,13 @@ import type {
 export const CASTLE_LABEL_MAX_DESKTOP = 28;
 export const CASTLE_LABEL_MAX_MOBILE = 10;
 export const CASTLE_LABEL_FAR_DISTANCE = 24;
+export const CASTLE_LABEL_GAP_PIXELS = 6;
 
 const CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT = 4;
+const CASTLE_LABEL_EDGE_MARGIN = 4;
+const CASTLE_LABEL_FULL_WIDTH = 132;
+const CASTLE_LABEL_FULL_HEIGHT = 44;
+const CASTLE_LABEL_PRIORITY_NUDGE_PIXELS = 12;
 
 export type RealmCastlePublicPresentation = WarpkeepRealmProfile;
 
@@ -33,9 +38,23 @@ function projectionNumberKey(value: number, scale = 1) {
  */
 export function realmCastleProjectionFrameKey(frame: RealmCastleProjectionFrame) {
   return `${projectionNumberKey(frame.width)}:${projectionNumberKey(frame.height)}:${frame.castles.map((castle) => {
-    const bounds = castle.castleBounds;
-    const boundsKey = bounds
-      ? [bounds.left, bounds.top, bounds.right, bounds.bottom]
+    const boundsKey = castle.castleBounds
+      ? [
+          castle.castleBounds.left,
+          castle.castleBounds.top,
+          castle.castleBounds.right,
+          castle.castleBounds.bottom
+        ]
+          .map((value) => projectionNumberKey(value))
+          .join(',')
+      : '-';
+    const conservativeBoundsKey = castle.conservativeCastleBounds
+      ? [
+          castle.conservativeCastleBounds.left,
+          castle.conservativeCastleBounds.top,
+          castle.conservativeCastleBounds.right,
+          castle.conservativeCastleBounds.bottom
+        ]
           .map((value) => projectionNumberKey(value))
           .join(',')
       : '-';
@@ -47,7 +66,8 @@ export function realmCastleProjectionFrameKey(frame: RealmCastleProjectionFrame)
       projectionNumberKey(castle.distance, CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT),
       distanceBand,
       castle.visible ? 1 : 0,
-      boundsKey
+      boundsKey,
+      conservativeBoundsKey
     ].join(':');
   }).join('|')}`;
 }
@@ -156,13 +176,17 @@ function intersects(first: Bounds, second: Bounds) {
     && first.bottom > second.top;
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
 function labelBounds(
   castle: RealmCastleScreenProjection,
   compact: boolean,
   yOffset: number
 ): Bounds {
-  const width = compact ? 42 : 132;
-  const height = compact ? 42 : 44;
+  const width = compact ? 42 : CASTLE_LABEL_FULL_WIDTH;
+  const height = compact ? 42 : CASTLE_LABEL_FULL_HEIGHT;
   return {
     left: castle.x - width / 2,
     right: castle.x + width / 2,
@@ -171,13 +195,9 @@ function labelBounds(
   };
 }
 
-function labelWidth(compact: boolean) {
-  return compact ? 42 : 132;
-}
-
 /**
- * Bounded label placement for up to 100 castles. Own and selected labels are
- * retained first and can shift vertically; all other collisions are culled.
+ * Bounded label placement for up to 100 castles. Every accepted marker keeps
+ * its public identity text and remains attached to its projected castle.
  */
 export function resolveVisibleCastleLabels(
   frame: RealmCastleProjectionFrame,
@@ -205,32 +225,26 @@ export function resolveVisibleCastleLabels(
   for (const castle of candidates) {
     if (accepted.length >= maximumLabels) break;
     const priority = castle.castleId === selectedCastleId || castle.castleId === ownCastleId;
-    const compact = !priority && castle.distance > CASTLE_LABEL_FAR_DISTANCE;
-    const width = labelWidth(compact);
-    const projectedCastle = priority
-      ? {
-          ...castle,
-          x: Math.min(
-            frame.width - 4 - width / 2,
-            Math.max(4 + width / 2, castle.x)
-          )
-        }
-      : castle;
-    const offsets = priority ? [0, -48, 48, -96, 96] : [0];
-    const yOffset = offsets.find((offset) => {
-      const bounds = labelBounds(projectedCastle, compact, offset);
-      return bounds.left >= 4
-        && bounds.right <= frame.width - 4
-        && bounds.top >= 4
-        && bounds.bottom <= frame.height - 4
-        && accepted.every((entry) => !intersects(bounds, entry.bounds));
-    });
-    if (yOffset === undefined) continue;
+    const compact = false;
+    const minimumX = CASTLE_LABEL_EDGE_MARGIN + CASTLE_LABEL_FULL_WIDTH / 2;
+    const maximumX = frame.width - CASTLE_LABEL_EDGE_MARGIN - CASTLE_LABEL_FULL_WIDTH / 2;
+    const minimumY = CASTLE_LABEL_EDGE_MARGIN + CASTLE_LABEL_FULL_HEIGHT;
+    const maximumY = frame.height - CASTLE_LABEL_EDGE_MARGIN;
+    if (maximumX < minimumX || maximumY < minimumY) continue;
+    const x = clamp(castle.x, minimumX, maximumX);
+    const y = clamp(castle.y, minimumY, maximumY);
+    const nudge = Math.hypot(x - castle.x, y - castle.y);
+    if (nudge > (priority ? CASTLE_LABEL_PRIORITY_NUDGE_PIXELS : 0)) continue;
+    const projectedCastle = { ...castle, x, y };
+    const bounds = labelBounds(projectedCastle, compact, 0);
+    if (
+      (castle.castleBounds && intersects(bounds, castle.castleBounds))
+      || accepted.some((entry) => intersects(bounds, entry.bounds))
+    ) continue;
     accepted.push({
       ...projectedCastle,
-      y: projectedCastle.y + yOffset,
       compact,
-      bounds: labelBounds(projectedCastle, compact, yOffset)
+      bounds
     });
   }
 
@@ -258,18 +272,19 @@ export function fallbackCastleProjection(
   const centerX = contentLeft + (world.x - viewBox.x) * scale;
   const centerY = contentTop + (-world.z - viewBox.y) * scale;
   const markerHalfSize = Math.max(10, Math.abs(scale) * 0.64);
-  const labelGap = 4;
+  const castleBounds = {
+    left: centerX - markerHalfSize,
+    top: centerY - markerHalfSize,
+    right: centerX + markerHalfSize,
+    bottom: centerY + markerHalfSize
+  };
   return {
     ...castle,
     x: centerX,
-    y: centerY - markerHalfSize - labelGap,
+    y: centerY - markerHalfSize - CASTLE_LABEL_GAP_PIXELS,
     distance: hexDistance({ q: 0, r: 0 }, castle),
     visible: true,
-    castleBounds: {
-      left: centerX - markerHalfSize,
-      top: centerY - markerHalfSize,
-      right: centerX + markerHalfSize,
-      bottom: centerY + markerHalfSize
-    }
+    castleBounds,
+    conservativeCastleBounds: castleBounds
   };
 }

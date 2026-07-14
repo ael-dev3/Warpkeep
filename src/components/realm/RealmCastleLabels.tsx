@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import type { RealmCastleProjection } from './RealmMapScreen';
 import {
@@ -14,6 +14,104 @@ export type CastleLabelRecord = Readonly<{
   profile: RealmCastlePublicPresentation;
 }>;
 
+const PROFILE_SNAPSHOT_PIXELS = Object.freeze({
+  compact: 96,
+  normal: 128,
+  large: 192
+} satisfies Record<'compact' | 'normal' | 'large', number>);
+
+function StaticProfileAvatarSnapshot({
+  monogram,
+  safeUrl,
+  snapshotPixels
+}: Readonly<{
+  monogram: string;
+  safeUrl: string;
+  snapshotPixels: number;
+}>) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const image = new Image();
+    const detachImage = () => {
+      image.onload = null;
+      image.onerror = null;
+      image.removeAttribute('src');
+    };
+    const retainFallback = () => {
+      if (active) setReady(false);
+      detachImage();
+    };
+
+    image.decoding = 'async';
+    image.referrerPolicy = 'no-referrer';
+    image.onerror = retainFallback;
+    image.onload = () => {
+      if (!active) {
+        detachImage();
+        return;
+      }
+
+      const canvas = canvasRef.current;
+      const sourceWidth = image.naturalWidth;
+      const sourceHeight = image.naturalHeight;
+      try {
+        if (!canvas || sourceWidth <= 0 || sourceHeight <= 0) {
+          throw new Error('Profile image has no drawable dimensions.');
+        }
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('Canvas 2D rendering is unavailable.');
+
+        const sourceSize = Math.min(sourceWidth, sourceHeight);
+        const sourceX = (sourceWidth - sourceSize) / 2;
+        const sourceY = (sourceHeight - sourceSize) / 2;
+        context.clearRect(0, 0, snapshotPixels, snapshotPixels);
+        context.drawImage(
+          image,
+          sourceX,
+          sourceY,
+          sourceSize,
+          sourceSize,
+          0,
+          0,
+          snapshotPixels,
+          snapshotPixels
+        );
+        setReady(true);
+      } catch {
+        setReady(false);
+      } finally {
+        detachImage();
+      }
+    };
+    image.src = safeUrl;
+
+    return () => {
+      active = false;
+      detachImage();
+    };
+  }, [safeUrl, snapshotPixels]);
+
+  return (
+    <>
+      <canvas
+        aria-hidden="true"
+        height={snapshotPixels}
+        ref={canvasRef}
+        style={{
+          display: ready ? 'block' : 'none',
+          height: '100%',
+          width: '100%'
+        }}
+        width={snapshotPixels}
+      />
+      {!ready ? <span>{monogram}</span> : null}
+    </>
+  );
+}
+
 export function CastleProfileAvatar({
   profile,
   size = 'normal'
@@ -22,10 +120,8 @@ export function CastleProfileAvatar({
   size?: 'compact' | 'normal' | 'large';
 }>) {
   const safeUrl = safeRealmProfileImageUrl(profile.pfpUrl);
-  const [failed, setFailed] = useState(false);
+  const snapshotPixels = PROFILE_SNAPSHOT_PIXELS[size];
   const monogram = castleProfileMonogram(profile);
-
-  useEffect(() => setFailed(false), [safeUrl]);
 
   return (
     <span
@@ -34,18 +130,14 @@ export function CastleProfileAvatar({
       data-size={size}
       style={{ '--realm-avatar-hue': String((monogram.codePointAt(0) ?? 87) % 360) } as CSSProperties}
     >
-      {safeUrl && !failed ? (
-        <img
-          alt=""
-          decoding="async"
-          loading="eager"
-          onError={() => setFailed(true)}
-          referrerPolicy="no-referrer"
-          src={safeUrl}
+      {safeUrl ? (
+        <StaticProfileAvatarSnapshot
+          key={`${size}:${safeUrl}`}
+          monogram={monogram}
+          safeUrl={safeUrl}
+          snapshotPixels={snapshotPixels}
         />
-      ) : (
-        <span>{monogram}</span>
-      )}
+      ) : <span>{monogram}</span>}
     </span>
   );
 }
