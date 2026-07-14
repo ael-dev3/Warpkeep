@@ -4,8 +4,9 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-Alpha 0.3.3 is the current source-candidate patch line. It has not been deployed,
-tagged, or released; the verified public production baseline remains Alpha 0.3.2.
+No player-facing changes are recorded after Alpha 0.3.3.
+
+## [0.3.3] — 2026-07-14
 
 ### Added
 
@@ -86,20 +87,21 @@ tagged, or released; the verified public production baseline remains Alpha 0.3.2
 
 ### Security and privacy
 
-- Public image sinks share a fail-closed HTTPS policy that excludes credentials
-  and literal local, private, or special-use hosts; visible PFP requests
-  send no referrer and retain a stable neutral fallback on failure.
+- Public image sinks share a fail-closed HTTPS policy that excludes credentials,
+  every literal-IP origin, and non-HTTPS schemes; visible PFP requests send no
+  referrer and retain a stable neutral fallback on failure.
 - A bounded profile-maintenance workflow accepts private input only outside
   command arguments, preserves sanitized last-known-good public fields, requires
   a short-lived one-use reviewed plan, avoids re-fetching during apply, performs
   a fresh read-only post-check, and emits privacy-safe audit outcomes. It is
   limited to already founded profiles and cannot alter admission, castles,
   wallets, or Marks.
-- The candidate changes no backend protocol, schema, Terms/authentication
-  version, admission rule, wallet boundary, or production data. No deployment or
-  profile backfill is implied by these source changes.
+- This release changes no backend protocol, schema, Terms/authentication
+  version, admission rule, wallet boundary, or production data. Rollout publishes
+  only frontend Pages assets; no backend, schema, Worker, or profile-backfill
+  operation occurred.
 
-See [Alpha 0.3.3 development notes](docs/releases/alpha-0.3.3.md).
+See [Alpha 0.3.3 release notes](docs/releases/alpha-0.3.3.md).
 
 ## [0.3.2] — 2026-07-14
 
@@ -302,7 +304,8 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ael-dev3/Warpkeep/compare/d5f0748dbfff07064a736c2b8d273d6022a03050...v0.3.0

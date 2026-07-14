@@ -2,10 +2,11 @@
 
 ## Current state
 
-The checked-in package is the in-development Alpha 0.3.3 patch line. It is not
-deployed; Alpha 0.3.2 remains the verified public production baseline.
+The checked-in package is the live Alpha 0.3.3 patch line. The public menu build
+stamp identifies the exact deployed source; an annotated release tag is created
+only after that deployed commit passes exact-build verification.
 
-Warpkeep Alpha 0.3.2 has a live title/menu, an explicit Alpha Terms gate,
+Warpkeep Alpha 0.3.3 has a live title/menu, an explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
 least-privilege Cloudflare Worker OIDC bridge, and a non-destructively published
 protocol-3 SpacetimeDB module. Genesis 001 contains 1,261 authoritative cells
