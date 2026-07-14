@@ -1,17 +1,25 @@
 # Warpkeep QA Observatory
 
-The QA Observatory is a read-only, machine-bound production presentation path.
-It is not a player, administrator, Farcaster, admission, or Terms bypass. The
-normal Warpkeep product flow remains unchanged.
+The QA Observatory includes a read-only, machine-bound production presentation
+path and a separate synthetic local journey lab. Neither path is a player,
+administrator, Farcaster, admission, or Terms bypass. The normal Warpkeep
+product flow remains unchanged.
 
-The browser QA pages use deterministic, synthetic FID-free fixtures. They never
-receive a production snapshot, Secure Enclave key, player session, administrator
-secret, SpacetimeDB credential, or Farcaster proof. Separately, an owner-private
+The observer browser page uses a deterministic, synthetic FID-free fixture. No
+browser QA page receives a production snapshot, Secure Enclave key, player
+session, administrator secret, SpacetimeDB credential, or Farcaster proof.
+Separately, an owner-private
 Unix-domain-socket broker may ask the native helper for one bounded sanitized
 snapshot during an explicitly approved local runner probe. The bridge uses a
 fresh internal 15-second snapshot-resolver credential only to call one fixed
 read-only procedure, validates its exact response, and discards the credential
 before returning sanitized JSON.
+
+The journey lab must use one internal synthetic renderer key because the player
+presentation validates ownership consistency. That key is generated from the
+fixed local fixture, is never a real identity, and never leaves React memory.
+The lab has no channel URL, decodable QR payload, auth provider, backend client,
+browser credential, persistence, or production authority.
 
 ## Authority boundaries
 
@@ -99,6 +107,40 @@ For browser QA, run the local dev server and open
 only a deterministic local fixture, visibly identifies itself as read-only, and
 cannot expose player-owned controls.
 
+For the complete synthetic presentation matrix, bind Vite explicitly to
+loopback and open the journey lab:
+
+```sh
+npm run dev -- --host 127.0.0.1
+```
+
+```text
+http://127.0.0.1:5173/dev/qa-journey.html
+```
+
+The lab is compiled active only for the Vite serve command and rejects every
+hostname except exact loopback (`localhost`, `127.0.0.1`, or IPv6 loopback).
+This is local transport confinement, not hardware identity or device
+attestation; its safety comes from having no production authority or data.
+The production build has one explicit HTML input (`index.html`), then scans the
+artifact for every journey/observer entry and marker. The old standalone player
+fixture was removed; the journey lab supersedes it without a live PFP or remote
+asset URL.
+
+The default `journey` view walks through the real menu and Terms component, then
+uses controls to advance a non-scannable synthetic auth presentation through
+verification and pending admission. Checking admission changes only local React
+state. The authenticated entry requires the Terms checkbox again before the
+synthetic canonical Realm mounts. Direct scenario selection is available for
+visual isolation, and `?autocycle=1&interval=6000` cycles the presentation-only
+views every six seconds. The interval is bounded to 2–30 seconds. This is a QA
+fixture shortcut, not a credential or route into the deployed game.
+The modal remains above and blocks every lab control, auto-cycle excludes the
+interactive journey and Terms fixture, direct authenticated views are
+presentation-only, and external-origin link clicks are suppressed inside the
+lab. A real WebGL run may still fetch ordinary same-origin game assets from the
+loopback Vite server so the Realm renderer can be visually tested.
+
 ## Approval-gated activation
 
 Local tests and helper compilation do not authorize production changes. These
@@ -125,10 +167,11 @@ replace periodic human testing of genuine Farcaster and Terms consent.
 
 ## Autonomous local QA cycles
 
-The cycle runner invokes an exact, attested allowlist of repository validation
-scripts and a version-pinned local SpacetimeDB CLI for the local-only module
-checks. That allowlist contains no deploy, publish, enrollment, administrator,
-player-authentication, or browser command. It supplies an isolated runtime home,
+The cycle runner invokes an exact, attested package-script contract and a
+version-pinned local SpacetimeDB CLI for the local-only module checks. The
+synthetic test-file list is hard-coded in the reviewed runner. Neither list
+contains a deploy, publish, enrollment, administrator, player-authentication,
+or browser command. It supplies an isolated runtime home,
 temporary directory, and npm cache; disables npm debug-log retention and user
 npm configuration; and discards child stdout and stderr. A report contains only
 the tier, overall status, check identifiers, and durations.
@@ -168,7 +211,15 @@ data to browser JavaScript.
 
 The tiers intentionally trade coverage for hourly cost:
 
-- `quick` runs the focused observer/security tests and root typecheck.
+- `quick` runs the focused observer/security tests, an explicit synthetic app
+  state lane, and root typecheck. The synthetic lane covers Terms, every
+  Farcaster and backend-admission presentation phase, title/menu transitions,
+  settings, credits, patch notes, menu-to-Realm orchestration, canonical
+  readiness, Realm HUD/accessibility/inspection/interaction, and both
+  player/observer Realm fixtures. The journey harness test fails on `fetch`,
+  XHR, WebSocket, EventSource, cookie, IndexedDB, or any Storage operation.
+  Other selected lifecycle tests deliberately exercise isolated jsdom storage
+  fixtures; none can reach a user's browser store or production service.
 - `standard` runs all root unit tests, typecheck, runtime-asset verification,
   and file-size policy.
 - `deep` adds a production build, every auth-bridge typecheck/test, and the
@@ -201,6 +252,14 @@ an immutable execution boundary. Keep it uninstalled until its absolute paths,
 source revision or installed-copy attestation, local time window, local broker,
 machine enrollment, and remote read-only gate have been reviewed and separately
 approved. Do not run `launchctl` as part of repository validation.
+
+This workstation instead uses the private Codex desktop automation
+`warpkeep-12-hour-local-qa` for those twelve hourly cycles. Its prompt runs the
+exact broker-off runner, may open only the loopback synthetic journey lab, and
+forbids real Terms/authentication, production mutation, deployment, key work,
+commits, pushes, and LaunchAgent installation. The automation is not stored in
+this repository and grants no production authority. Disable or edit it through
+Codex automation controls; do not add a second operating-system scheduler.
 
 ## Residual risk and revocation
 

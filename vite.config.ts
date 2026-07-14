@@ -59,15 +59,22 @@ export function resolveDeploymentBase(environment: DeploymentEnvironment = proce
 const deploymentBase = resolveDeploymentBase();
 const productVersion = readWarpkeepPackageVersion();
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: deploymentBase,
   build: {
+    // The public application is the sole HTML build entry. Local QA pages are
+    // served by Vite in development and can never become an accidental
+    // production entry through directory discovery or a future config change.
+    rollupOptions: {
+      input: resolve(process.cwd(), 'index.html')
+    },
     // Three.js is isolated behind the title/realm boundaries and compresses to
     // roughly 150 KiB. Keep the warning just above that single vendor chunk so
     // any renewed application-bundle growth still fails visibly.
     chunkSizeWarningLimit: 600
   },
   define: {
+    __WARPKEEP_LOCAL_QA__: JSON.stringify(command === 'serve'),
     __WARPKEEP_PRODUCT_VERSION__: JSON.stringify(productVersion)
   },
   plugins: [react()],
@@ -79,4 +86,4 @@ export default defineConfig({
     // `node:test` module fixtures under jsdom/Vitest.
     include: ['tests/**/*.{test,spec}.{ts,tsx}']
   }
-});
+}));

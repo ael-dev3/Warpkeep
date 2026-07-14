@@ -1,12 +1,32 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-import { RealmObserverQaHarness } from './RealmObserverQaHarness';
+import { assertLocalQaRuntime } from './localQaRuntime';
 import '../styles/global.css';
 import './realmObserverQa.css';
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <RealmObserverQaHarness />
-  </React.StrictMode>
-);
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+
+async function startLocalObserver() {
+  try {
+    assertLocalQaRuntime();
+    const { RealmObserverQaHarness } = await import('./RealmObserverQaHarness');
+    root.render(
+      <React.StrictMode>
+        <RealmObserverQaHarness />
+      </React.StrictMode>
+    );
+  } catch {
+    root.render(
+      <main className="realm-observer-qa-status" role="alert">
+        <section>
+          <p>LOCAL QA DISABLED</p>
+          <h1>Observer unavailable</h1>
+          <span>This page opens only through an exact loopback Vite development URL.</span>
+        </section>
+      </main>
+    );
+  }
+}
+
+void startLocalObserver();

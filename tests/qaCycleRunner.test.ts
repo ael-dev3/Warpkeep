@@ -143,7 +143,36 @@ describe('local autonomous QA cycle runner', () => {
     const quick = checksForTier('quick');
     const standard = checksForTier('standard');
     const deep = checksForTier('deep');
-    expect(quick.map((check) => check.id)).toEqual(['targeted-unit', 'typecheck']);
+    expect(quick.map((check) => check.id)).toEqual([
+      'targeted-unit',
+      'synthetic-app-states',
+      'typecheck'
+    ]);
+    const syntheticAppStates = quick.find((check) => check.id === 'synthetic-app-states');
+    expect(syntheticAppStates?.args).toEqual([
+      'test',
+      '--',
+      'tests/qaJourneyLab.test.tsx',
+      'tests/localQaRuntime.test.ts',
+      'tests/alphaParticipationTermsDialog.test.tsx',
+      'tests/farcasterQrAuthPanel.test.tsx',
+      'tests/farcasterAdmissionPanel.test.tsx',
+      'tests/menuFarcasterAuthIntegration.test.tsx',
+      'tests/WarpkeepExperienceRealm.test.tsx',
+      'tests/WarpkeepExperience.test.tsx',
+      'tests/WarpkeepSpacetimeTermsGate.test.tsx',
+      'tests/WarpkeepSpacetimeCanonicalReadiness.test.tsx',
+      'tests/menuMainMenu.test.tsx',
+      'tests/settingsPanel.test.tsx',
+      'tests/creditsRoll.test.tsx',
+      'tests/warpkeepBuildStamp.test.tsx',
+      'tests/latestPatchNotes.test.ts',
+      'tests/realmMapScreen.test.tsx',
+      'tests/realmAccessibilityControls.test.tsx',
+      'tests/realmInteractionState.test.ts',
+      'tests/castleInspectionPanel.test.tsx',
+      'tests/realmHud.test.tsx'
+    ]);
     expect(standard.map((check) => check.id)).toEqual([
       'full-unit', 'typecheck', 'runtime-assets', 'file-sizes'
     ]);

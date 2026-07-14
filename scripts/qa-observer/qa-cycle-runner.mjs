@@ -98,12 +98,41 @@ const QUICK_TESTS = Object.freeze([
   'tests/realmObserverProductionExclusion.test.ts',
 ]);
 
+const SYNTHETIC_APP_STATE_TESTS = Object.freeze([
+  'tests/qaJourneyLab.test.tsx',
+  'tests/localQaRuntime.test.ts',
+  'tests/alphaParticipationTermsDialog.test.tsx',
+  'tests/farcasterQrAuthPanel.test.tsx',
+  'tests/farcasterAdmissionPanel.test.tsx',
+  'tests/menuFarcasterAuthIntegration.test.tsx',
+  'tests/WarpkeepExperienceRealm.test.tsx',
+  'tests/WarpkeepExperience.test.tsx',
+  'tests/WarpkeepSpacetimeTermsGate.test.tsx',
+  'tests/WarpkeepSpacetimeCanonicalReadiness.test.tsx',
+  'tests/menuMainMenu.test.tsx',
+  'tests/settingsPanel.test.tsx',
+  'tests/creditsRoll.test.tsx',
+  'tests/warpkeepBuildStamp.test.tsx',
+  'tests/latestPatchNotes.test.ts',
+  'tests/realmMapScreen.test.tsx',
+  'tests/realmAccessibilityControls.test.tsx',
+  'tests/realmInteractionState.test.ts',
+  'tests/castleInspectionPanel.test.tsx',
+  'tests/realmHud.test.tsx',
+]);
+
 const CHECKS = Object.freeze({
   targetedUnit: Object.freeze({
     id: 'targeted-unit',
     executable: NPM_EXECUTABLE,
     args: Object.freeze(['test', '--', ...QUICK_TESTS]),
     timeoutMs: 5 * 60 * 1_000,
+  }),
+  syntheticAppStates: Object.freeze({
+    id: 'synthetic-app-states',
+    executable: NPM_EXECUTABLE,
+    args: Object.freeze(['test', '--', ...SYNTHETIC_APP_STATE_TESTS]),
+    timeoutMs: 6 * 60 * 1_000,
   }),
   fullUnit: Object.freeze({
     id: 'full-unit',
@@ -196,7 +225,11 @@ const CHECKS = Object.freeze({
 });
 
 const TIER_CHECKS = Object.freeze({
-  quick: Object.freeze([CHECKS.targetedUnit, CHECKS.typecheck]),
+  quick: Object.freeze([
+    CHECKS.targetedUnit,
+    CHECKS.syntheticAppStates,
+    CHECKS.typecheck,
+  ]),
   standard: Object.freeze([
     CHECKS.fullUnit,
     CHECKS.typecheck,

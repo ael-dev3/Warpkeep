@@ -4,11 +4,20 @@ import { relative, resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '..');
 const dist = resolve(root, 'dist');
 const forbiddenPathFragments = Object.freeze([
+  'qa-journey.html',
   'realm-observer-qa.html',
   'realm-qa.html'
 ]);
 const forbiddenContent = Object.freeze([
   'http://127.0.0.1:41731',
+  'WarpkeepQaJourneyLab',
+  'qaJourneyMain',
+  'qaJourneyFixture',
+  'WARPKEEP QA JOURNEY LAB',
+  'SYNTHETIC · LOOPBACK ONLY · NO LIVE AUTHORITY',
+  'SYNTHETIC · LOOPBACK ONLY · EXTERNAL LINKS DISABLED',
+  'QA_UNSCANNABLE_QR_DATA_URL',
+  'Synthetic QA Keeper',
   'RealmObserverQaHarness',
   'realmObserverQaMain',
   'realmObserverFixtureSnapshot',
@@ -33,7 +42,8 @@ for (const path of filesUnder(dist)) {
   if (forbiddenPathFragments.some((fragment) => relativePath.includes(fragment))) {
     throw new Error(`Local QA entry leaked into production output: ${relativePath}`);
   }
-  if (statSync(path).size > 10 * 1024 * 1024) continue;
+  const mustScanRegardlessOfSize = /\.(?:css|html|js|json|mjs|txt)$/i.test(relativePath);
+  if (statSync(path).size > 10 * 1024 * 1024 && !mustScanRegardlessOfSize) continue;
   const content = readFileSync(path, 'utf8');
   const leaked = forbiddenContent.find((marker) => content.includes(marker));
   if (leaked) throw new Error(`Local QA marker ${JSON.stringify(leaked)} leaked into ${relativePath}.`);
