@@ -478,6 +478,7 @@ describe('realm profile and PFP presentation regressions', () => {
       anchor: { x: 180, y: 140 },
       x: 220,
       y: 180,
+      width: 96,
       bounds: { left: 172, top: 136, right: 268, bottom: 180 }
     } as const;
     render(
@@ -485,7 +486,17 @@ describe('realm profile and PFP presentation regressions', () => {
         <RealmCastleLabels
           labels={[]}
           clusters={[cluster]}
-          records={new Map()}
+          records={new Map([[7, {
+            castle: {
+              castleId: 7,
+              ownerFid: 7_001,
+              q: 1,
+              r: -1,
+              level: 1,
+              name: 'Fixture Keep'
+            },
+            profile: profile({ canonicalUsername: 'fixturekeeper' })
+          }]])}
           inspectorId="castle-inspector"
           inspectorOpen={false}
           onActivate={vi.fn()}
@@ -495,11 +506,18 @@ describe('realm profile and PFP presentation regressions', () => {
     );
 
     const button = screen.getByRole('button', {
-      name: 'Focus nearest keeper among 3 clustered castles'
+      name: 'Focus @fixturekeeper and 2 nearby keepers'
     });
-    expect(button.textContent).toBe('3KEEPERS');
+    expect(button.textContent).toBe('@fixturekeeper+2');
     expect(button.getAttribute('data-cluster-count')).toBe('3');
+    expect(button.getAttribute('data-representative-castle-id')).toBe('7');
+    expect(button.getAttribute('data-displaced')).toBe('true');
     expect(button.getAttribute('style')).toContain('--realm-castle-cluster-x: 220px');
+    const leader = document.querySelector<HTMLElement>('[data-realm-cluster-leader]');
+    expect(leader?.dataset.active).toBe('true');
+    expect(leader?.getAttribute('data-representative-castle-id')).toBe('7');
+    expect(leader?.style.getPropertyValue('--realm-castle-anchor-x')).toBe('180px');
+    expect(leader?.style.getPropertyValue('--realm-castle-anchor-y')).toBe('140px');
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
     expect(onMapPointerDown).not.toHaveBeenCalled();
     fireEvent.click(button);

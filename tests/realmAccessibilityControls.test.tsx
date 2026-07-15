@@ -98,6 +98,10 @@ describe('RealmAccessibilityControls', () => {
     expect(own.getAttribute('aria-pressed')).toBe('false');
     expect(selected.getAttribute('aria-pressed')).toBe('true');
     const community = screen.getByRole('region', { name: 'Warpkeep community' });
+    expect(community.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .not.toBe(0);
+    expect(community.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .not.toBe(0);
     const feedbackLink = within(community).getByRole('link', {
       name: 'Open the Warpkeep Farcaster channel to share feedback (opens in a new tab)'
     });

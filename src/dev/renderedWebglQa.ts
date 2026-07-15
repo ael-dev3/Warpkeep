@@ -4,6 +4,12 @@ export const RENDERED_WEBGL_QA_FIXTURE_ID = 'synthetic-canonical-100' as const;
 export const RENDERED_WEBGL_QA_CASTLE_COUNT = 100;
 export const RENDERED_WEBGL_QA_DEFAULT_QUALITY: RealmQuality = 'balanced';
 export const RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS = 120_000;
+/**
+ * React may replace the map subtree during a responsive layout commit. Keep
+ * the last accepted renderer result through that one bounded transition, but
+ * still fail closed when the map does not return.
+ */
+export const RENDERED_WEBGL_QA_RENDERER_ABSENCE_GRACE_MILLISECONDS = 250;
 
 export type RenderedWebglQaOptions = Readonly<{
   quality: RealmQuality;

@@ -4,6 +4,7 @@ import {
   REALM_IDENTITY_CLUSTER_HEIGHT,
   REALM_IDENTITY_CLUSTER_MAXIMUM_GRID_POINTS,
   REALM_IDENTITY_CLUSTER_WIDTH,
+  REALM_IDENTITY_SINGLE_WIDTH,
   resolveRealmCastleIdentityClusters,
   type RealmCastleIdentityClusterPlacementDiagnostics
 } from '../src/components/realm/realmCastleIdentityClusters';
@@ -89,6 +90,7 @@ describe('realm castle identity clusters', () => {
       .toEqual([10, 11]);
     expect(layout.overflowCastleIds).toEqual([]);
     layout.clusters.forEach((cluster) => {
+      expect(cluster.width).toBe(REALM_IDENTITY_SINGLE_WIDTH);
       expect(cluster.bounds.left).toBeGreaterThanOrEqual(safeArea.left);
       expect(cluster.bounds.top).toBeGreaterThanOrEqual(safeArea.top);
       expect(cluster.bounds.right).toBeLessThanOrEqual(safeArea.right);

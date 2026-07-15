@@ -254,25 +254,61 @@ export function RealmCastleLabels({
       })}
       {clusters.map((cluster) => {
         const count = cluster.castleIds.length;
+        const representative = records.get(cluster.representativeCastleId);
+        const representativeLabel = representative
+          ? castleProfileLabel(representative.profile)
+          : 'Keeper identity pending';
+        const additionalKeeperCount = Math.max(0, count - 1);
+        const leader = realmCastleLabelLeaderGeometry({
+          x: cluster.x,
+          y: cluster.y,
+          projectedAnchor: cluster.anchor
+        });
         const style = {
           '--realm-castle-cluster-x': `${cluster.x}px`,
-          '--realm-castle-cluster-y': `${cluster.y}px`
+          '--realm-castle-cluster-y': `${cluster.y}px`,
+          '--realm-castle-cluster-width': `${cluster.width}px`,
+          '--realm-castle-anchor-x': `${cluster.anchor.x}px`,
+          '--realm-castle-anchor-y': `${cluster.anchor.y}px`,
+          '--realm-castle-leader-length': `${leader.length}px`,
+          '--realm-castle-leader-angle': `${leader.angleRadians}rad`
         } as CSSProperties;
         return (
-          <button
-            type="button"
-            aria-label={`Focus nearest keeper among ${count} clustered castles`}
-            className="realm-castle-cluster"
-            data-cluster-count={count}
-            data-realm-castle-cluster=""
-            key={cluster.key}
-            style={style}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => onActivateCluster(cluster)}
-          >
-            <strong>{count}</strong>
-            <span>{count === 1 ? 'KEEPER' : 'KEEPERS'}</span>
-          </button>
+          <Fragment key={cluster.key}>
+            <span
+              aria-hidden="true"
+              className="realm-castle-label__leader realm-castle-cluster__leader"
+              data-active={leader.displaced ? 'true' : 'false'}
+              data-realm-cluster-leader=""
+              data-representative-castle-id={cluster.representativeCastleId}
+              hidden={!leader.displaced}
+              style={style}
+            />
+            <button
+              type="button"
+              aria-label={additionalKeeperCount > 0
+                ? `Focus ${representativeLabel} and ${additionalKeeperCount} nearby ${additionalKeeperCount === 1 ? 'keeper' : 'keepers'}`
+                : `Focus ${representativeLabel} castle`}
+              className="realm-castle-cluster"
+              data-cluster-count={count}
+              data-displaced={leader.displaced ? 'true' : 'false'}
+              data-representative-castle-id={cluster.representativeCastleId}
+              data-realm-castle-cluster=""
+              style={style}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => onActivateCluster(cluster)}
+            >
+              <span className="realm-castle-cluster__identity">{representativeLabel}</span>
+              {additionalKeeperCount > 0 ? (
+                <strong
+                  aria-hidden="true"
+                  className="realm-castle-cluster__more"
+                >
+                  +{additionalKeeperCount}
+                </strong>
+              ) : null}
+            </button>
+          </Fragment>
         );
       })}
     </div>

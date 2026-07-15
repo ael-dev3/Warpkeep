@@ -40,6 +40,7 @@ const mocked = vi.hoisted(() => {
   const handles: Array<{
     dispose: ReturnType<typeof vi.fn>;
     focusCastle: ReturnType<typeof vi.fn>;
+    focusCastleGroup: ReturnType<typeof vi.fn>;
     focusCell: ReturnType<typeof vi.fn>;
     frameFoundingDistrict: ReturnType<typeof vi.fn>;
     focusKeep: ReturnType<typeof vi.fn>;
@@ -55,6 +56,7 @@ const mocked = vi.hoisted(() => {
     const handle = {
       dispose: vi.fn(),
       focusCastle: vi.fn(),
+      focusCastleGroup: vi.fn(),
       focusCell: vi.fn(),
       frameFoundingDistrict: vi.fn(),
       focusKeep: vi.fn(),
@@ -510,11 +512,16 @@ describe('live realm quality recreation', () => {
     const cluster = await waitFor(() => {
       expect(screen.queryByRole('button', { name: pendingLabelName })).toBeNull();
       return screen.getByRole('button', {
-        name: 'Focus nearest keeper among 1 clustered castles'
+        name: 'Focus Keeper identity pending castle'
       });
     });
 
     fireEvent.click(cluster);
+    const representativeCastleId = Number(cluster.dataset.representativeCastleId);
+    expect(Number.isSafeInteger(representativeCastleId)).toBe(true);
+    expect(mocked.handles[0]!.focusCastleGroup)
+      .toHaveBeenLastCalledWith([representativeCastleId]);
+    expect(mocked.handles[0]!.focusCastle).not.toHaveBeenCalledWith(representativeCastleId);
     await waitFor(() => {
       const focusedLabels = document.querySelectorAll<HTMLButtonElement>(
         'button.realm-castle-label[data-focused="true"]'

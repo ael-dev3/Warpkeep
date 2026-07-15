@@ -43,9 +43,9 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
   expectedQuality: RenderedWebglBrowserProbeQuality;
   interaction: RenderedWebglBrowserProbeInteraction;
   minimumLabelCount: number;
-  /** Present only after a real cluster control has been activated. */
+  /** Confirms a real cluster control existed immediately before activation. */
   clusterButtonCountBefore?: number;
-  /** Present only after a real cluster control has been activated. */
+  /** Confirms that control represented at least one castle before activation. */
   clusterMemberCountBefore?: number;
   url: string;
   viewport: Readonly<{ width: number; height: number }>;

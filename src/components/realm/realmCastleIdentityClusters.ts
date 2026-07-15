@@ -6,7 +6,10 @@ import type {
   RealmScreenRect
 } from './realmMeasuredLabelLayout';
 
+/** Width for a true multi-keeper aggregate in constrained overview layouts. */
 export const REALM_IDENTITY_CLUSTER_WIDTH = 96;
+/** A displaced singleton still gets enough room for a readable username. */
+export const REALM_IDENTITY_SINGLE_WIDTH = 124;
 export const REALM_IDENTITY_CLUSTER_HEIGHT = 44;
 export const REALM_IDENTITY_CLUSTER_MAXIMUM_GRID_POINTS = 8_192;
 
@@ -27,6 +30,7 @@ export type RealmCastleIdentityCluster = Readonly<{
   anchor: RealmScreenPoint;
   x: number;
   y: number;
+  width: number;
   bounds: RealmScreenRect;
 }>;
 
@@ -107,11 +111,15 @@ function expandRect(rect: RealmScreenRect, pixels: number): RealmScreenRect {
   };
 }
 
-function boundsAt(x: number, y: number): RealmScreenRect {
+function clusterWidth(memberCount: number) {
+  return memberCount === 1 ? REALM_IDENTITY_SINGLE_WIDTH : REALM_IDENTITY_CLUSTER_WIDTH;
+}
+
+function boundsAt(x: number, y: number, width: number): RealmScreenRect {
   return {
-    left: x - REALM_IDENTITY_CLUSTER_WIDTH / 2,
+    left: x - width / 2,
     top: y - REALM_IDENTITY_CLUSTER_HEIGHT,
-    right: x + REALM_IDENTITY_CLUSTER_WIDTH / 2,
+    right: x + width / 2,
     bottom: y
   };
 }
@@ -226,10 +234,11 @@ function createPlacementAxis(
 
 function createPlacementSpace(
   safeArea: RealmScreenRect,
+  width: number,
   diagnostics: MutablePlacementDiagnostics
 ): PlacementSpace {
-  const minimumX = safeArea.left + REALM_IDENTITY_CLUSTER_WIDTH / 2;
-  const maximumX = safeArea.right - REALM_IDENTITY_CLUSTER_WIDTH / 2;
+  const minimumX = safeArea.left + width / 2;
+  const maximumX = safeArea.right - width / 2;
   const minimumY = safeArea.top + REALM_IDENTITY_CLUSTER_HEIGHT;
   const maximumY = safeArea.bottom;
   diagnostics.safeAreaGridBuildCount += 1;
@@ -356,6 +365,7 @@ function nearestClusterRepresentative(
 function findPlacementCandidate(
   anchor: RealmScreenPoint,
   placementSpace: PlacementSpace,
+  width: number,
   diagnostics: MutablePlacementDiagnostics,
   available: (point: RealmScreenPoint) => boolean
 ) {
@@ -378,8 +388,8 @@ function findPlacementCandidate(
     { x: anchor.x, y: anchor.y },
     { x: anchor.x, y: anchor.y - 52 },
     { x: anchor.x, y: anchor.y + 52 },
-    { x: anchor.x + 108, y: anchor.y },
-    { x: anchor.x - 108, y: anchor.y }
+    { x: anchor.x + width + 12, y: anchor.y },
+    { x: anchor.x - width - 12, y: anchor.y }
   ].map((point) => ({
     x: clamp(point.x, minimumX, maximumX),
     y: clamp(point.y, minimumY, maximumY)
@@ -401,7 +411,9 @@ function findPlacementCandidate(
     : Number.POSITIVE_INFINITY;
   const localRadius = Math.min(maximumRadius, Math.max(
     1,
-    Number.isFinite(xStep) ? Math.ceil(108 / xStep) : 0,
+    Number.isFinite(xStep)
+      ? Math.ceil((width + 12) / xStep)
+      : 0,
     Number.isFinite(yStep) ? Math.ceil(52 / yStep) : 0
   ));
   const localCandidates = [...preferred];
@@ -542,17 +554,26 @@ export function resolveRealmCastleIdentityClusters(
   const occupied = input.occupiedRects.filter(validRect).map((rect) => (
     expandRect(rect, collisionPadding)
   ));
-  const placementSpace = createPlacementSpace(input.safeAreaBounds, diagnostics);
+  const placementSpaces = new Map<number, PlacementSpace>();
+  const placementSpaceForWidth = (width: number) => {
+    const existing = placementSpaces.get(width);
+    if (existing) return existing;
+    const created = createPlacementSpace(input.safeAreaBounds, width, diagnostics);
+    placementSpaces.set(width, created);
+    return created;
+  };
   const placed: RealmCastleIdentityCluster[] = [];
   const overflow: number[] = [];
 
   components.forEach((component) => {
+    const width = clusterWidth(component.castleIds.length);
     const candidate = findPlacementCandidate(
       component.anchor,
-      placementSpace,
+      placementSpaceForWidth(width),
+      width,
       diagnostics,
       (point) => {
-        const bounds = expandRect(boundsAt(point.x, point.y), collisionPadding);
+        const bounds = expandRect(boundsAt(point.x, point.y, width), collisionPadding);
         return !occupied.some((rect) => intersects(bounds, rect))
           && !placed.some((cluster) => (
             intersects(bounds, expandRect(cluster.bounds, collisionPadding))
@@ -573,6 +594,7 @@ export function resolveRealmCastleIdentityClusters(
       const mergedIds = [...nearest.castleIds, ...component.castleIds]
         .sort((left, right) => left - right);
       const mergedAnchor = centroid(mergedIds, projectionById);
+      const mergedWidth = clusterWidth(mergedIds.length);
       placed[index] = Object.freeze({
         ...nearest,
         key: `cluster-${mergedIds[0]}-${mergedIds.length}`,
@@ -583,7 +605,9 @@ export function resolveRealmCastleIdentityClusters(
           projectionById,
           input.preferredRepresentativeCastleIds
         ),
-        anchor: Object.freeze(mergedAnchor)
+        anchor: Object.freeze(mergedAnchor),
+        width: mergedWidth,
+        bounds: Object.freeze(boundsAt(nearest.x, nearest.y, mergedWidth))
       });
       return;
     }
@@ -600,7 +624,8 @@ export function resolveRealmCastleIdentityClusters(
       anchor: Object.freeze({ ...component.anchor }),
       x: candidate.x,
       y: candidate.y,
-      bounds: Object.freeze(boundsAt(candidate.x, candidate.y))
+      width,
+      bounds: Object.freeze(boundsAt(candidate.x, candidate.y, width))
     }));
   });
 

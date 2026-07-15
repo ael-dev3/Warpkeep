@@ -85,12 +85,12 @@
 
 .realm-castle-label[data-compact="true"] {
   justify-content: center;
-  width: 6.75rem;
-  min-width: 6.75rem;
-  max-width: 6.75rem;
+  width: auto;
+  min-width: 7.75rem;
+  max-width: 10.5rem;
   min-height: 1.875rem;
   padding: 0.16rem 0.48rem;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
 }
 
 .realm-castle-label-measurements {
@@ -117,14 +117,13 @@
   z-index: 1;
   top: 0;
   left: 0;
-  display: inline-grid;
-  grid-template-columns: auto auto;
+  display: inline-flex;
   gap: 0.3rem;
   align-items: center;
   justify-content: center;
-  width: 6rem;
-  min-width: 6rem;
-  max-width: 6rem;
+  width: var(--realm-castle-cluster-width);
+  min-width: var(--realm-castle-cluster-width);
+  max-width: var(--realm-castle-cluster-width);
   height: 2.75rem;
   min-height: 2.75rem;
   box-sizing: border-box;
@@ -143,15 +142,28 @@
   cursor: zoom-in;
 }
 
-.realm-castle-cluster strong {
-  color: #f0d58c;
-  font: 800 0.82rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+.realm-castle-cluster__identity {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff7e5;
+  font: 800 0.75rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.realm-castle-cluster span {
-  color: #c9a7ea;
-  font: 800 0.58rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0.055em;
+.realm-castle-cluster__more {
+  flex: 0 0 auto;
+  padding: 0.18rem 0.25rem;
+  border: 1px solid rgb(240 213 140 / 26%);
+  border-radius: 999px;
+  background: rgb(7 6 11 / 32%);
+  color: #f0d58c;
+  font: 850 0.625rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.realm-castle-cluster__leader {
+  background: linear-gradient(90deg, rgb(201 167 234 / 32%), rgb(240 213 140 / 76%));
+  box-shadow: 0 0 0.35rem rgb(201 167 234 / 22%);
 }
 
 .realm-castle-cluster:hover,

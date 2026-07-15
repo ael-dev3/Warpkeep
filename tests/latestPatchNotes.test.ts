@@ -20,6 +20,12 @@ describe('latest in-menu patch notes', () => {
       releasedOn: '14 JUL 2026',
       title: 'GENESIS REALM QUALITY'
     });
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /crowded names consolidate without hiding the keeps/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /first-view Realm Council link/i
+    );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 14 July 2026');
     expect(getLatestPatchNotes('0.3.2')?.title).toBe('GENESIS 001 FOUNDING');
     expect(getLatestPatchNotes('0.0.0')).toBeUndefined();

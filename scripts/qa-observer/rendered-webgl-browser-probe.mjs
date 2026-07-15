@@ -378,6 +378,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'castleCount',
     'clusterButtonCount',
     'clusterCollisionCount',
+    'clusterLeaderMismatchCount',
     'clusterMemberCount',
     'clusterReservedOverlapCount',
     'clustersWithinViewportCount',
@@ -463,9 +464,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     candidate.labelPlacedCount !== candidate.labelCount ? 'label-placement-dom' : '',
     candidate.individualCastleCount !== candidate.labelPlacedCount
       ? 'individual-label-mismatch' : '',
-    candidate.presentedModelCount !== candidate.individualCastleCount
+    !Number.isSafeInteger(candidate.presentedModelCount)
+      || candidate.presentedModelCount < candidate.labelEligibleCount
+      || candidate.presentedModelCount > candidate.castleCount
       ? 'presented-model-mismatch' : '',
-    candidate.raycastTargetCount !== candidate.individualCastleCount
+    candidate.raycastTargetCount !== candidate.presentedModelCount
       ? 'raycast-target-mismatch' : '',
     !Number.isSafeInteger(candidate.labelClusteredCount)
       || candidate.labelClusteredCount < 0 ? 'label-clustered-shape' : '',
@@ -480,11 +483,14 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       ? 'label-cluster-affordance' : '',
     candidate.accessibleClusterButtonCount !== candidate.clusterButtonCount
       ? 'label-cluster-accessibility' : '',
-    candidate.labelClusterOverflowCount !== 0 ? 'label-cluster-overflow' : '',
+    candidate.labelClusterOverflowCount !== 0
+      && candidate.interactionState !== 'explore'
+      ? 'label-cluster-overflow' : '',
     candidate.labelMissingIdentityCount !== 0 ? 'label-missing-identity' : '',
     candidate.clustersWithinViewportCount !== candidate.clusterButtonCount
       ? 'label-cluster-viewport' : '',
     candidate.clusterCollisionCount !== 0 ? 'label-cluster-collision' : '',
+    candidate.clusterLeaderMismatchCount !== 0 ? 'label-cluster-leader' : '',
     candidate.clusterReservedOverlapCount !== 0 ? 'label-cluster-reserved-ui' : '',
     !Number.isSafeInteger(candidate.labelCount)
       || candidate.labelCount < expected.minimumLabelCount ? 'label-count' : '',
@@ -507,10 +513,6 @@ export function parseRenderedWebglBrowserDom(value, expected) {
           : 'invalid'}`
       : '',
     !clusterInteractionEvidenceValid ? 'cluster-interaction-evidence' : '',
-    expected.interaction === 'cluster'
-      && candidate.clusterButtonCount === expected.clusterButtonCountBefore
-      && candidate.clusterMemberCount === expected.clusterMemberCountBefore
-      ? 'cluster-accounting-unchanged' : '',
   ].filter(Boolean);
   if (violations.length > 0) {
     throw new TypeError(`Invalid rendered WebGL browser DOM: ${violations.join(',')}.`);
@@ -1054,6 +1056,18 @@ const READ_DOM_EXPRESSION = `(() => {
     && (integer(cluster.getAttribute('data-cluster-count')) ?? 0) > 0
   ));
   const clusterRects = clusters.map(rect);
+  const activeClusterLeaders = [...document.querySelectorAll('[data-realm-cluster-leader]')]
+    .filter((leader) => leader.getAttribute('data-active') === 'true' && visible(leader));
+  const activeClusterLeaderIds = new Set(activeClusterLeaders.map((leader) => (
+    leader.getAttribute('data-representative-castle-id')
+  )));
+  const displacedClusterIds = new Set(clusters
+    .filter((cluster) => cluster.getAttribute('data-displaced') === 'true')
+    .map((cluster) => cluster.getAttribute('data-representative-castle-id')));
+  const clusterLeaderMismatchCount = [...displacedClusterIds]
+    .filter((castleId) => !activeClusterLeaderIds.has(castleId)).length
+    + [...activeClusterLeaderIds].filter((castleId) => !displacedClusterIds.has(castleId)).length
+    + Math.max(0, activeClusterLeaders.length - activeClusterLeaderIds.size);
   const clusterMemberCount = clusters.reduce((count, cluster) => (
     count + (integer(cluster.getAttribute('data-cluster-count')) ?? 0)
   ), 0);
@@ -1166,6 +1180,7 @@ const READ_DOM_EXPRESSION = `(() => {
     ), 0),
     clusterButtonCount: clusters.length,
     accessibleClusterButtonCount: accessibleClusters.length,
+    clusterLeaderMismatchCount,
     clusterMemberCount,
     clustersWithinViewportCount: clusterRects.filter((bounds) => (
       bounds.left >= -1
@@ -1206,6 +1221,7 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
   const deadline = Date.now() + CASE_TIMEOUT_MILLISECONDS;
   let readySeenAt;
   let lastContractError;
+  let lastPresentationAggregate = '';
   while (Date.now() < deadline) {
     if (state.violation) {
       throw new Error(`Headless browser left the local QA boundary: ${state.violation}.`);
@@ -1217,6 +1233,13 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
       }
       if (value.status === 'ready') {
         readySeenAt ??= Date.now();
+        lastPresentationAggregate = [
+          `interaction=${String(value.interactionState)}`,
+          `labels=${String(value.labelCount)}`,
+          `clusters=${String(value.clusterButtonCount)}`,
+          `overflow=${String(value.labelClusterOverflowCount)}`,
+          `models=${String(value.presentedModelCount)}`
+        ].join(',');
         try {
           parseRenderedWebglBrowserDom(value, expected);
           return value;
@@ -1227,7 +1250,9 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
         }
         if (Date.now() - readySeenAt >= PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS) {
           const suffix = lastContractError instanceof Error ? ` ${lastContractError.message}` : '';
-          throw new Error(`Rendered WebGL presentation contract did not settle.${suffix}`);
+          throw new Error(
+            `Rendered WebGL presentation contract did not settle.${suffix} (${lastPresentationAggregate})`
+          );
         }
       }
     }

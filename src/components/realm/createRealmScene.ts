@@ -127,6 +127,8 @@ export type RealmInteractionTarget =
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
   focusCastle: (castleId: number) => void;
+  /** Frames a named collision cluster at approach distance, preserving context. */
+  focusCastleGroup: (castleIds: readonly number[]) => void;
   focusCell: (coord: HexCoord) => void;
   frameFoundingDistrict: () => void;
   focusKeep: () => void;
@@ -1144,6 +1146,28 @@ function initializeRealmScene(
         height: castleFocusSize.height,
         footprintDiameter: castleFocusSize.footprintDiameter
       });
+    },
+    focusCastleGroup: (castleIds) => {
+      if (cleanup.isDisposed()) return;
+      const requestedIds = new Set(castleIds.filter((castleId) => Number.isSafeInteger(castleId)));
+      const castles = authoritativeCastles.filter((castle) => requestedIds.has(castle.castleId));
+      if (castles.length === 0) return;
+      const minimumX = Math.min(...castles.map((castle) => castle.x));
+      const maximumX = Math.max(...castles.map((castle) => castle.x));
+      const minimumZ = Math.min(...castles.map((castle) => castle.z));
+      const maximumZ = Math.max(...castles.map((castle) => castle.z));
+      const groupFootprint = Math.max(
+        castleFocusSize.footprintDiameter,
+        maximumX - minimumX + castleFocusSize.footprintDiameter,
+        maximumZ - minimumZ + castleFocusSize.footprintDiameter
+      );
+      cameraController.frameAt({
+        x: (minimumX + maximumX) / 2,
+        y: castles.reduce((sum, castle) => sum + castle.groundY, 0) / castles.length,
+        z: (minimumZ + maximumZ) / 2,
+        height: castleFocusSize.height,
+        footprintDiameter: groupFootprint
+      }, 0.68);
     },
     focusCell: (coord) => {
       if (cleanup.isDisposed() || !isPlayableRealmCoord(options.surface, coord)) return;

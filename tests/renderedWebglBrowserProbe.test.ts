@@ -308,6 +308,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelReservedOverlapCount: 0,
       clusterButtonCount: 0,
       accessibleClusterButtonCount: 0,
+      clusterLeaderMismatchCount: 0,
       clusterMemberCount: 0,
       clustersWithinViewportCount: 0,
       clusterCollisionCount: 0,
@@ -333,12 +334,17 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => parseRenderedWebglBrowserDom({ ...ready, quality: 'high' }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
-      presentedModelCount: 100
+      presentedModelCount: 101,
+      raycastTargetCount: 101
     }, expected)).toThrow(/presented-model-mismatch/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       raycastTargetCount: 100
     }, expected)).toThrow(/raycast-target-mismatch/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      clusterLeaderMismatchCount: 1
+    }, expected)).toThrow(/cluster-leader/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       readyOverlayVisible: true
@@ -400,6 +406,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelEligibleCount: 20,
       labelUnplacedCount: 2,
       labelClusteredCount: 2,
+      presentedModelCount: 20,
+      raycastTargetCount: 20,
       clusterButtonCount: 1,
       accessibleClusterButtonCount: 1,
       clusterMemberCount: 2,
@@ -429,12 +437,12 @@ describe('rendered WebGL headless browser probe contract', () => {
       clusterButtonCountBefore: 2,
       clusterMemberCountBefore: 5
     })).toThrow(/focused-readable-label-dom-focus/i);
-    expect(() => parseRenderedWebglBrowserDom(clustered, {
+    expect(parseRenderedWebglBrowserDom(clustered, {
       ...clusterCase,
       minimumLabelCount: 1,
       clusterButtonCountBefore: 1,
       clusterMemberCountBefore: 2
-    })).toThrow(/cluster-accounting-unchanged/i);
+    })).toMatchObject({ renderer: 'webgl' });
 
     const exploreCase = renderedWebglBrowserProbeCases(41_733)[7]!;
     expect(parseRenderedWebglBrowserDom({
@@ -444,6 +452,11 @@ describe('rendered WebGL headless browser probe contract', () => {
       viewportHeight: exploreCase.viewport.height,
       documentWidth: exploreCase.viewport.width,
       interactionState: 'explore',
+      labelEligibleCount: 19,
+      labelUnplacedCount: 1,
+      labelClusterOverflowCount: 1,
+      presentedModelCount: 19,
+      raycastTargetCount: 19,
       exploreCastleCount: 100,
       exploreAccessibleCastleCount: 100
     }, { ...exploreCase, minimumLabelCount: 1 })).toMatchObject({ renderer: 'webgl' });

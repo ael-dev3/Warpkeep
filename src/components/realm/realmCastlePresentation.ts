@@ -21,7 +21,7 @@ const CASTLE_LABEL_EDGE_MARGIN = 4;
 const CASTLE_LABEL_FULL_WIDTH = 132;
 const CASTLE_LABEL_FULL_HEIGHT = 44;
 /** Conservative initial fallback until the DOM reports exact compact label dimensions. */
-export const CASTLE_LABEL_COMPACT_WIDTH = 108;
+export const CASTLE_LABEL_COMPACT_WIDTH = 124;
 export const CASTLE_LABEL_COMPACT_HEIGHT = 30;
 const CASTLE_LABEL_PRIORITY_NUDGE_PIXELS = 40;
 const CASTLE_LABEL_STANDARD_NUDGE_PIXELS = 32;

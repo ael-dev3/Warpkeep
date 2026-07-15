@@ -189,6 +189,23 @@ fixture data only: no real identity, FID, PFP URL, player profile, wallet,
 Terms record, auth state, production attestation, or remote profile host is read
 or accepted.
 
+Castle-model availability is deliberately independent of two-dimensional label
+placement. Every canonical castle candidate remains available to the scene's
+own frustum and LOD presentation, with the same set available for raycasting.
+Label collision handling may move an identity into a keeper cluster, but it
+must never remove the corresponding world model or interaction target.
+
+Keeper clusters preserve identity rather than falling back to anonymous count
+chips. A displaced singleton uses a 124-pixel username chip; a true
+multi-keeper aggregate uses a 96-pixel representative-username chip with a
+`+N` remainder. A cluster displaced from its projected anchor has exactly one
+connector associated with the same representative castle, while an
+undisplaced cluster has no active connector. Activating a cluster stores a
+durable group camera target and frames all of its member castles at approach
+distance. It also focuses the representative identity label for keyboard and
+screen-reader continuity. A renderer recreation caused by a quality change
+restores the group framing instead of collapsing to a close-up of one castle.
+
 Bind Vite to loopback explicitly, then have the small contract helper print the
 exact local URL for one reviewed quality mode:
 
@@ -213,8 +230,11 @@ A rendered pass is valid only when the map root exposes
 `data-rendered-webgl-status="ready"`. `fallback`, `error`, `closed`, or a
 permanent `loading` state is a failed/unfinished check; the fallback is visibly
 labeled “not a render pass.” The overlay exposes only fixture ID, selected
-quality, castle count, renderer result, and a bounded local-ready duration. It
-does not retain or transport those values.
+quality, castle count, renderer result, and a bounded time-to-first-ready
+duration. Once accepted, that first-ready attestation remains stable through
+ordinary long-session DOM mutations; a real renderer transition, invalid
+marker, or sustained map loss still fails closed. The page does not retain or
+transport those values.
 
 This page is compiled only for Vite serve mode and rejects every non-loopback
 hostname. Its page code has no browser-automation dependency. Run the separate
@@ -262,10 +282,24 @@ quality, and a ready duration within the 120-second fixture bound. The responsiv
 contract additionally checks exact viewport dimensions, horizontal overflow,
 map coverage, text-bearing in-bounds castle labels, label collisions, visible
 UI exclusion regions, aggregate projection-eligible/placed/unplaced label
-coverage, one-to-one individual-castle/label accounting, collision-free keeper
-clusters with zero unrepresented overflow or missing synthetic identity,
-independently reported live mesh/raycast counts, displaced-label roof
-connectors, 44px primary controls,
+coverage, one-to-one placed-label/individual-label accounting, and complete
+clustered/overflow accounting. Keeper clusters must remain accessible,
+collision-free, inside the viewport, outside reserved UI, and free of missing
+synthetic identity. Cluster overflow must be zero outside Explore; the Explore
+case may report accounted label overflow because its accessibility surface
+separately exposes all 100 castles. Displaced individual labels and displaced
+clusters must have matching anchor connectors.
+
+World-model telemetry is checked independently from label density: presented
+model count must be at least the projection-eligible label count and no greater
+than the canonical castle count, while raycast-target count must equal presented
+model count. This permits a castle to remain visible and interactive when its
+individual label is clustered, but never permits an eligible identity label to
+outnumber available castle models. Cluster activation must start from a real
+accessible cluster and finish with the representative label focused and
+readable; the cluster count is allowed to remain unchanged because semantic
+group framing can preserve the deterministic overview layout. The remaining
+contract checks 44px primary controls,
 inspector/Explore state, and page warnings/errors.
 
 For each accepted state Chrome captures one transient PNG in memory. A strict,

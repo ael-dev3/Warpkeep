@@ -151,7 +151,7 @@ describe('RealmMapScreen', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', {
-        name: 'Focus nearest keeper among 1 clustered castles'
+        name: 'Focus Keeper identity pending castle'
       })).not.toBeNull();
     });
     expect(document.querySelector('.realm-map-screen__fallback-peer-castle')).toBeNull();

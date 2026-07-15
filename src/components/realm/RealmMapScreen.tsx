@@ -531,7 +531,9 @@ function CanonicalRealmMapScreen({
       : 'unavailable';
   const focusedCastleId = interaction.cameraTarget.kind === 'castle'
     ? interaction.cameraTarget.castleId
-    : undefined;
+    : interaction.cameraTarget.kind === 'castle-cluster'
+      ? interaction.cameraTarget.representativeCastleId
+      : undefined;
   const labelLayoutContextRef = useRef({
     ownCastleId: observerMode ? undefined : ownCastle.castleId,
     selectedCastleId: selectedCastle?.castleId,
@@ -672,6 +674,11 @@ function CanonicalRealmMapScreen({
       if (!root || frame.width <= 0 || frame.height <= 0) return;
       const context = labelLayoutContextRef.current;
       const candidateCastles = frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES);
+      // Castle existence is a world concern, not a label-layout concern. Keep
+      // every canonical candidate available to the scene's own frustum/LOD
+      // culling so a crowded nameplate can never erase its castle or raycast
+      // target and leave a detached identity affordance behind.
+      const renderableCastleIds = candidateCastles.map((castle) => castle.castleId);
       const directIntentCastleIds = new Set([
         context.selectedCastleId,
         context.hoveredCastleId,
@@ -730,9 +737,8 @@ function CanonicalRealmMapScreen({
         }
       }
       if (measurementLabels.size === 0) {
-        const presentedCastleIds = provisional.map((label) => label.castleId);
-        presentedCastleIdsRef.current = presentedCastleIds;
-        sceneRef.current?.setPresentedCastleIds(presentedCastleIds);
+        presentedCastleIdsRef.current = renderableCastleIds;
+        sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
         root.dataset.labelEligibleCount = String(eligibleLabelCount);
         root.dataset.labelPlacedCount = String(provisional.length);
         root.dataset.labelUnplacedCount = String(Math.max(0, eligibleLabelCount - provisional.length));
@@ -926,9 +932,8 @@ function CanonicalRealmMapScreen({
         clusterLayoutSignatureRef.current = clusterSignature;
         setVisibleCastleClusters(clusterLayout.clusters);
       }
-      const presentedCastleIds = layout.placements.map((placement) => placement.castleId);
-      presentedCastleIdsRef.current = presentedCastleIds;
-      sceneRef.current?.setPresentedCastleIds(presentedCastleIds);
+      presentedCastleIdsRef.current = renderableCastleIds;
+      sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
       const placementsById = new Map(layout.placements.map((placement) => [placement.castleId, placement]));
       for (const [castleId, button] of buttons) {
         applyCastleLabelPlacement(button, leaders.get(castleId), placementsById.get(castleId));
@@ -1099,6 +1104,9 @@ function CanonicalRealmMapScreen({
       scene.setHovered(hoveredCoordRef.current);
       const cameraTarget: RealmCameraTarget = interactionRef.current.cameraTarget;
       if (cameraTarget.kind === 'castle') scene.focusCastle(cameraTarget.castleId);
+      else if (cameraTarget.kind === 'castle-cluster') {
+        scene.focusCastleGroup(cameraTarget.castleIds);
+      }
       else if (cameraTarget.kind === 'cell') scene.focusCell(cameraTarget.coord);
       else if (cameraTarget.kind === 'keep') scene.recenterKeep();
       else if (cameraTarget.kind === 'founding-district') scene.frameFoundingDistrict();
@@ -1181,16 +1189,16 @@ function CanonicalRealmMapScreen({
     dispatchInteraction({
       type: 'set-camera-target',
       target: {
-        kind: 'castle',
-        castleId: castle.castleId,
-        coord: { q: castle.q, r: castle.r }
+        kind: 'castle-cluster',
+        castleIds: cluster.castleIds,
+        representativeCastleId: castle.castleId
       }
     });
     dispatchInteraction({
       type: 'request-castle-label-focus',
       castleId: castle.castleId
     });
-    sceneRef.current?.focusCastle(castle.castleId);
+    sceneRef.current?.focusCastleGroup(cluster.castleIds);
   }, [selectCastle]);
 
   const selectFromNavigator = useCallback((coord: HexCoord) => {
