@@ -45,6 +45,9 @@ scope and honest residual limits.
 
 The canonical player domain is [warpkeep.com](https://warpkeep.com/), and the
 main community home is the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep).
+Durable public bug reports and realm wishes can be submitted through the
+[Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose);
+security-sensitive reports must follow [SECURITY.md](SECURITY.md) instead.
 Source/master assets and immutable bundles live in [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets);
 the game repository contains only runtime media and lightweight provenance
 records.

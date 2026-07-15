@@ -9,6 +9,20 @@ Thank you for helping build Warpkeep in the open. Contributions should keep the 
 - Do not copy third-party code, fonts, models, audio, video, images, or references without compatible terms and a provenance record.
 - Generated or AI-assisted work must be reviewed by the contributor and must not knowingly include incompatible third-party material. AI assistance does not automatically determine copyright status or licensing.
 
+## Realm Council intake
+
+Use the [Warpkeep Farcaster channel](https://farcaster.xyz/~/channel/warpkeep)
+for open conversation, early ideas, and community stories. Use the
+[Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose)
+for a durable public bug report or realm wish that contributors can triage.
+
+Keep every public report privacy-safe. Describe only public product behavior or
+a reproduction using synthetic/local data. Do not attach private logs or
+screenshots, and never include tokens, proofs, QR payloads, wallet/account
+identifiers, personal data, or credentialed URLs. Security-sensitive behavior
+does not belong in Realm Council intake; follow [SECURITY.md](SECURITY.md) and
+wait for a private reporting channel.
+
 ## Licensing of contributions
 
 Contributions included in a release follow the licensing policy for that release and material category:

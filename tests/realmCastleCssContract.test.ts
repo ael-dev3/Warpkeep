@@ -144,6 +144,7 @@ describe('compact Realm CSS contract', () => {
     expect(exploreTrigger).toContain('min-height: 3.35rem;');
     expect(exploreControls).toContain('min-height: 2.75rem;');
     expect(communityLink).toContain('min-height: 2.75rem;');
+    expect(communityLink).toContain('font: 760 0.6875rem/1.2 Inter');
     expect(jumpInput).toContain('min-width: 2.75rem;');
     expect(castleLabel).toContain('min-width: 2.75rem;');
     expect(castleLabel).toContain('min-height: 2.75rem;');
@@ -156,6 +157,11 @@ describe('compact Realm CSS contract', () => {
     const dialog = block(MAP, '.realm-cell-navigator__dialog {');
     const presets = block(MAP, '.realm-cell-navigator__presets > div {');
     const jump = block(MAP, '.realm-cell-navigator__jump fieldset {');
+    const narrowest = block(MAP, '@media (max-width: 360px) {');
+    const narrowestCommunityActions = block(
+      narrowest,
+      '.realm-cell-navigator__community-actions {'
+    );
     const castleSecondaryCopy = block(
       MAP,
       '.realm-cell-navigator__castles span,\n.realm-cell-navigator__castles small {'
@@ -168,6 +174,7 @@ describe('compact Realm CSS contract', () => {
     expect(jump).toContain('min-width: 0;');
     expect(jump).toContain('box-sizing: border-box;');
     expect(castleSecondaryCopy).toContain('font-size: 0.8125rem;');
+    expect(narrowestCommunityActions).toContain('grid-template-columns: minmax(0, 1fr);');
 
     for (const obsoleteSelector of [
       '.realm-cell-navigator summary',

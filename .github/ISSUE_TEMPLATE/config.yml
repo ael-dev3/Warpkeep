@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/ael-dev3/Warpkeep/security/policy
+    about: Do not disclose sensitive details publicly; follow the private reporting instructions.
+  - name: Warpkeep Farcaster channel
+    url: https://farcaster.xyz/~/channel/warpkeep
+    about: Join open conversation, share early ideas, and tell stories from Genesis 001.

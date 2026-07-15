@@ -10,7 +10,10 @@ import {
 } from 'react';
 
 import type { HexCoord } from '../../game/map/hexCoordinates';
-import { WARPKEEP_FARCASTER_CHANNEL_URL } from '../../farcaster/farcasterProjectLinks';
+import {
+  WARPKEEP_FARCASTER_CHANNEL_URL,
+  WARPKEEP_GITHUB_ISSUE_INTAKE_URL
+} from '../../farcaster/farcasterProjectLinks';
 
 export type RealmNavigatorCastle = Readonly<{
   castleId: number;
@@ -194,16 +197,27 @@ export function RealmAccessibilityControls({
             className="realm-cell-navigator__community"
           >
             <span>REALM COUNCIL</span>
-            <p>Share feedback, wishes, and the stories shaping Genesis 001.</p>
-            <a
-              aria-label="Open the Warpkeep Farcaster channel to share feedback (opens in a new tab)"
-              href={WARPKEEP_FARCASTER_CHANNEL_URL}
-              referrerPolicy="no-referrer"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              WARPKEEP CHANNEL <span aria-hidden="true">↗</span>
-            </a>
+            <p>Talk on Farcaster, or leave a durable bug report or realm wish.</p>
+            <div className="realm-cell-navigator__community-actions">
+              <a
+                aria-label="Open the Warpkeep Farcaster channel to share feedback (opens in a new tab)"
+                href={WARPKEEP_FARCASTER_CHANNEL_URL}
+                referrerPolicy="no-referrer"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                CHANNEL <span aria-hidden="true">↗</span>
+              </a>
+              <a
+                aria-label="Propose / report a Warpkeep bug or realm wish on GitHub (opens in a new tab)"
+                href={WARPKEEP_GITHUB_ISSUE_INTAKE_URL}
+                referrerPolicy="no-referrer"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                PROPOSE / REPORT <span aria-hidden="true">↗</span>
+              </a>
+            </div>
           </section>
 
           {cameraPresets.length > 0 ? (

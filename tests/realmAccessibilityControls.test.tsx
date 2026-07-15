@@ -2,7 +2,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { createRef, useState, type Ref } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { WARPKEEP_FARCASTER_CHANNEL_URL } from '../src/farcaster/farcasterProjectLinks';
+import {
+  WARPKEEP_FARCASTER_CHANNEL_URL,
+  WARPKEEP_GITHUB_ISSUE_INTAKE_URL
+} from '../src/farcaster/farcasterProjectLinks';
 import {
   RealmAccessibilityControls,
   type RealmNavigatorCameraPreset,
@@ -109,6 +112,15 @@ describe('RealmAccessibilityControls', () => {
     expect(feedbackLink.getAttribute('target')).toBe('_blank');
     expect(feedbackLink.getAttribute('rel')).toBe('noopener noreferrer');
     expect(feedbackLink.getAttribute('referrerpolicy')).toBe('no-referrer');
+    const intakeLink = within(community).getByRole('link', {
+      name: 'Propose / report a Warpkeep bug or realm wish on GitHub (opens in a new tab)'
+    });
+    expect(intakeLink.getAttribute('href')).toBe(WARPKEEP_GITHUB_ISSUE_INTAKE_URL);
+    expect(intakeLink.getAttribute('target')).toBe('_blank');
+    expect(intakeLink.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(intakeLink.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(feedbackLink.compareDocumentPosition(intakeLink) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .not.toBe(0);
 
     fireEvent.focus(selected);
     expect(onActivateCastle).not.toHaveBeenCalled();

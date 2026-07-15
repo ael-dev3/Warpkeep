@@ -1,0 +1,17 @@
+name: Security contact request
+description: Request a private reporting channel without disclosing any vulnerability details.
+title: "[Security contact request] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form only when GitHub Private Vulnerability Reporting is unavailable. This public issue must request a private channel and contain **no vulnerability details or evidence**.
+
+        Read [SECURITY.md](https://github.com/ael-dev3/Warpkeep/security/policy) before submitting. Never include or attach tokens, proofs, QR payloads, wallet or account identifiers, private logs, personal data, credentialed URLs, reproduction steps, or affected-user information.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Content-free request
+      options:
+        - label: I included no security details, evidence, reproduction steps, tokens, proofs, QR payloads, wallet or account identifiers, private logs, personal data, or credentialed URLs; I am requesting a private channel only.
+          required: true

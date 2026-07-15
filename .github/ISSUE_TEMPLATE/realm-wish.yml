@@ -1,0 +1,58 @@
+name: Realm wish
+description: Propose a focused quality-of-life, worldbuilding, accessibility, or community improvement.
+title: "[Realm wish] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Warpkeep is an experimental one-person Alpha and every system may change. A submitted wish is public community input, not a promise of implementation, rewards, an airdrop, or financial value.
+
+        **Do not include or attach tokens, proofs, QR payloads, wallet or account identifiers, private logs, personal data, or credentialed URLs.** Follow [SECURITY.md](https://github.com/ael-dev3/Warpkeep/security/policy) for security-sensitive behavior.
+  - type: dropdown
+    id: theme
+    attributes:
+      label: Theme
+      options:
+        - Quality of life or interface clarity
+        - Realm atmosphere or worldbuilding
+        - Accessibility
+        - Community or open-source workflow
+        - Future strategy play
+        - Other focused improvement
+    validations:
+      required: true
+  - type: textarea
+    id: player-need
+    attributes:
+      label: Player need
+      description: What real player experience, confusion, or opportunity should this improve?
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Focused proposal
+      description: Describe the smallest useful change and how a player would notice it.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: warpkeep-fit
+    attributes:
+      label: Why it fits Warpkeep
+      description: Optional lore, Farcaster-native, open-source, or long-term strategy context.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public Alpha acknowledgment
+      options:
+        - label: I removed tokens, proofs, QR payloads, wallet or account identifiers, private logs, personal data, and credentialed URLs; this wish contains only public or synthetic information.
+          required: true
+        - label: I understand this public Alpha wish creates no reward, airdrop, entitlement, financial gain, or implementation promise.
+          required: true
+        - label: This is not a security vulnerability. I will follow SECURITY.md instead for security-sensitive behavior.
+          required: true
