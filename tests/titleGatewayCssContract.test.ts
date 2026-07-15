@@ -7,6 +7,15 @@ const source = readFileSync(
   resolve(process.cwd(), 'src/components/title/WarpkeepTitleScreen.css'),
   'utf8'
 );
+const titleScreenSource = readFileSync(
+  resolve(process.cwd(), 'src/components/title/WarpkeepTitleScreen3D.tsx'),
+  'utf8'
+);
+const fallbackSource = readFileSync(
+  resolve(process.cwd(), 'src/components/title/WarpkeepTitleScreenFallback.tsx'),
+  'utf8'
+);
+const indexHtml = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 
 function block(selector: string) {
   const selectorIndex = source.indexOf(selector);
@@ -33,16 +42,17 @@ describe('title gateway CSS contract', () => {
     expect(gateway).toContain('transform: translate(-50%, -50%);');
   });
 
-  it('uses an unboxed immediate wordmark and a flat compact hint', () => {
-    const placeholder = block('.warpkeep-title-loading-wordmark {');
+  it('keeps title framing free of programmatic wordmarks and a flat compact hint', () => {
     const notice = block('.warpkeep-gateway-notice {');
     const hint = block('.warpkeep-title-entry-hint {');
 
-    expect(placeholder).toContain('pointer-events: none;');
-    expect(placeholder).not.toMatch(/(?:background|border)\s*:/);
-    expect(source).toMatch(
-      /\.warpkeep-title-loading-wordmark\[data-ready="true"\]\s*\{[\s\S]*?opacity:\s*0;/
-    );
+    expect(source).not.toContain('warpkeep-title-loading-wordmark');
+    expect(source).not.toContain('warpkeep-fallback-wordmark');
+    expect(source).not.toContain('warpkeep-fallback-title-stage');
+    expect(titleScreenSource).not.toContain('warpkeep-title-loading-wordmark');
+    expect(titleScreenSource).not.toContain('titleSceneSpec.title.text');
+    expect(fallbackSource).not.toContain('MonumentWordmark');
+    expect(indexHtml).not.toContain('warpkeep-boot-title');
     expect(notice).toContain('background: var(--warpkeep-surface-bg');
     expect(notice).toContain('box-shadow: var(--warpkeep-surface-shadow');
     expect(notice).toContain('backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));');
@@ -52,10 +62,4 @@ describe('title gateway CSS contract', () => {
     expect(hint).not.toContain('gradient(');
   });
 
-  it('keeps the fallback wordmark within the same balanced composition', () => {
-    expect(block('\n.warpkeep-fallback-title-stage {')).toContain('width: min(84vw, 1800px);');
-    expect(source).toMatch(
-      /@media \(max-width: 720px\), \(orientation: portrait\)[\s\S]*?\.warpkeep-fallback-title-stage\s*\{[\s\S]*?width:\s*86vw;/
-    );
-  });
 });

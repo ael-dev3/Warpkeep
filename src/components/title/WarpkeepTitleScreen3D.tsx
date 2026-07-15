@@ -12,7 +12,6 @@ import {
   type BlackHoleGatewayHandle
 } from './BlackHoleGateway';
 import { WarpkeepTitleScreenFallback } from './WarpkeepTitleScreenFallback';
-import { layoutBrutalistGlyphs } from './brutalistGlyphs';
 import {
   calculateGatewayInteractionRadius,
   calculateGatewayProximity
@@ -40,13 +39,11 @@ import {
   type GatewayVfxResponse
 } from './gatewayVfxSpec';
 import { dampValue, isMousePointerType, normalizePointerPosition } from './titleInteraction';
-import { createBrutalistGlyphGeometry } from './titleGeometry';
-import { createConcreteTextures, type ConcreteTextureSet } from './titleTextures';
 import {
-  disposeObject3DResources
+  disposeObject3DResources,
+  WARPKEEP_TITLE_LAYOUT
 } from './loadWarpkeepTitle';
 import { createTitlePresentationController } from './titlePresentationController';
-import { isTitleStartupPresentationReady } from './titlePresentationMachine';
 import { calculateTitleResponsiveLayout, titlePortraitAspect } from './titleLayout';
 import { calculateGalaxyGrowth, createSpiralGalaxyLayout, titleSceneSpec } from './titleSceneSpec';
 import {
@@ -72,11 +69,6 @@ type GalaxyAssembly = {
   disc: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   discMaterial: THREE.ShaderMaterial;
   particleCount: number;
-};
-
-type TitleAssembly = {
-  group: THREE.Group;
-  safeWidth: number;
 };
 
 function canUseWebGL() {
@@ -650,66 +642,8 @@ function createGalaxy(
   };
 }
 
-function createTitleAssembly(textures: ConcreteTextureSet): TitleAssembly {
-  const group = new THREE.Group();
-  const faceMaterial = new THREE.MeshStandardMaterial({
-    color: titleSceneSpec.palette.concrete,
-    map: textures.color,
-    bumpMap: textures.bump,
-    bumpScale: titleSceneSpec.title.bumpScale,
-    roughnessMap: textures.roughness,
-    roughness: titleSceneSpec.title.roughness,
-    metalness: titleSceneSpec.title.metalness,
-    emissive: 0x0c0b10,
-    emissiveIntensity: 0.012
-  });
-  const sideMaterial = new THREE.MeshStandardMaterial({
-    color: titleSceneSpec.palette.concreteShadow,
-    map: textures.color,
-    bumpMap: textures.bump,
-    bumpScale: titleSceneSpec.title.bumpScale * 0.72,
-    roughnessMap: textures.roughness,
-    roughness: titleSceneSpec.title.sideRoughness,
-    metalness: titleSceneSpec.title.metalness,
-    emissive: 0x080810,
-    emissiveIntensity: 0.01
-  });
-  const layout = layoutBrutalistGlyphs(
-    titleSceneSpec.title.text,
-    titleSceneSpec.title.height
-  );
-  const createdGeometries: THREE.BufferGeometry[] = [];
-
-  try {
-    layout.placements.forEach(({ character, glyph, x, index }) => {
-      const geometry = createBrutalistGlyphGeometry(glyph, {
-        height: titleSceneSpec.title.height,
-        depth: titleSceneSpec.title.depth,
-        bevelSize: titleSceneSpec.title.bevelSize,
-        bevelThickness: titleSceneSpec.title.bevelThickness,
-        uvOffset: [index * 0.173, index * 0.097]
-      });
-      createdGeometries.push(geometry);
-
-      const mesh = new THREE.Mesh(geometry, [faceMaterial, sideMaterial]);
-      mesh.name = `warpkeep-title-${character}-${index}`;
-      mesh.position.x = x - layout.width * 0.5;
-      group.add(mesh);
-    });
-  } catch (error) {
-    createdGeometries.forEach((geometry) => geometry.dispose());
-    faceMaterial.dispose();
-    sideMaterial.dispose();
-    throw error;
-  }
-
-  const safeWidth = layout.width + titleSceneSpec.title.depth * 0.22;
-  return { group, safeWidth };
-}
-
-function disposeScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer, textures: THREE.Texture[]) {
+function disposeScene(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
   disposeObject3DResources(scene);
-  textures.forEach((texture) => texture.dispose());
   renderer.renderLists.dispose();
   renderer.dispose();
 }
@@ -741,7 +675,6 @@ export const WarpkeepTitleScreen3D = forwardRef<
   const graphicsQualityRef = useRef(graphicsQuality);
   const qualityChangeHandlerRef = useRef<((quality: typeof graphicsQuality) => void) | null>(null);
   const [fallback, setFallback] = useState(false);
-  const [titlePresentationReady, setTitlePresentationReady] = useState(false);
   phaseRef.current = phase;
   graphicsQualityRef.current = graphicsQuality;
   callbacksRef.current = { onRequestEnterMenu, onReady, onMeaningfulInteraction };
@@ -819,7 +752,6 @@ export const WarpkeepTitleScreen3D = forwardRef<
     const pointerTarget = { x: 0, y: 0 };
     const pointerCurrent = { x: 0, y: 0 };
     const pointerScreen = { x: 0, y: 0, active: false };
-    const textures: THREE.Texture[] = [];
     const notifyReady = () => {
       if (gatewayReady && visibleTitleReady && !readyNotifiedRef.current) {
         readyNotifiedRef.current = true;
@@ -860,7 +792,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
       gatewayVfx?.dispose();
       gatewayVfx = null;
       if (scene && renderer) {
-        disposeScene(scene, renderer, textures);
+        disposeScene(scene, renderer);
       }
       gatewayRef.current?.setProjectedPosition(0, 0, 0, 0, false);
       renderer?.domElement.remove();
@@ -1076,18 +1008,10 @@ export const WarpkeepTitleScreen3D = forwardRef<
       };
       syncGalaxyDensity(activeGatewayVfxQuality, pixelRatio);
 
-      let concreteTextures: ConcreteTextureSet | null = null;
       const createFallbackTitle = () => {
-        if (!concreteTextures) {
-          concreteTextures = createConcreteTextures();
-          const maxAnisotropy = Math.min(8, renderer?.capabilities.getMaxAnisotropy() ?? 1);
-          [concreteTextures.color, concreteTextures.bump, concreteTextures.roughness]
-            .forEach((texture) => {
-              texture.anisotropy = maxAnisotropy;
-              textures.push(texture);
-            });
-        }
-        return createTitleAssembly(concreteTextures);
+        const group = new THREE.Group();
+        group.name = 'warpkeep-title-model-unavailable';
+        return { group, safeWidth: WARPKEEP_TITLE_LAYOUT.safeWidth };
       };
       renderer.domElement.dataset.titleModelState = 'loading';
       renderer.domElement.dataset.titleModelQuality = activeGraphicsQuality;
@@ -1126,9 +1050,6 @@ export const WarpkeepTitleScreen3D = forwardRef<
           renderer.domElement.dataset.titleModelState = titleState.phase;
           renderer.domElement.dataset.titleModelProfile =
             titleState.activeProfile ?? (titleState.fallbackLocked ? 'fallback' : 'pending');
-          if (isTitleStartupPresentationReady(titleState.phase)) {
-            setTitlePresentationReady(true);
-          }
           refreshTitleLayout();
           notifyReady();
         }
@@ -1716,14 +1637,6 @@ export const WarpkeepTitleScreen3D = forwardRef<
       data-title-phase={phase}
     >
       <div ref={mountRef} className="warpkeep-title-canvas-shell" aria-hidden="true" />
-      <div
-        aria-hidden="true"
-        className="warpkeep-title-loading-wordmark"
-        data-ready={titlePresentationReady ? 'true' : 'false'}
-      >
-        {titleSceneSpec.title.text}
-      </div>
-      <h1 className="sr-only">{titleSceneSpec.title.text}</h1>
       <BlackHoleGateway
         ref={gatewayRef}
         onActivate={requestEnter}

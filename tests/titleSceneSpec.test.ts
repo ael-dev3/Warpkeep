@@ -6,17 +6,7 @@ import {
 } from '../src/components/title/titleSceneSpec';
 
 describe('Warpkeep brutalist galaxy title specification', () => {
-  it('keeps the title monumental, deeply extruded, premium, and non-metallic', () => {
-    expect(titleSceneSpec.title.text).toBe('WARPKEEP');
-    expect(titleSceneSpec.title.roughness).toBeGreaterThanOrEqual(0.88);
-    expect(titleSceneSpec.title.roughness).toBeLessThanOrEqual(0.96);
-    expect(titleSceneSpec.title.sideRoughness).toBeGreaterThan(titleSceneSpec.title.roughness);
-    expect(titleSceneSpec.title.sideRoughness).toBeLessThanOrEqual(1);
-    expect(titleSceneSpec.title.metalness).toBe(0);
-    expect(titleSceneSpec.title.bumpScale).toBeGreaterThan(0);
-    expect(titleSceneSpec.title.bumpScale).toBeLessThanOrEqual(0.018);
-    expect(titleSceneSpec.title.depth / titleSceneSpec.title.height).toBeGreaterThanOrEqual(0.4);
-    expect(titleSceneSpec.title.bevelSize).toBeLessThanOrEqual(0.02);
+  it('keeps the verified title model framed generously across desktop and mobile', () => {
     expect(titleSceneSpec.title.desktopViewportWidth).toBeGreaterThanOrEqual(0.8);
     expect(titleSceneSpec.title.desktopViewportWidth).toBeLessThanOrEqual(0.84);
     expect(titleSceneSpec.title.mobileViewportWidth).toBeGreaterThanOrEqual(0.82);
