@@ -371,6 +371,7 @@ const warpkeep = schema({
 for (const name of [
   'auth_resolver_get_fid_admission_v2',
   'qa_observer_get_realm_snapshot_v1',
+  'qa_observer_get_realm_attestation_v2',
   'get_my_admission_status_v2',
   'bootstrap_player_v2',
   'admin_get_alpha_status_v2',

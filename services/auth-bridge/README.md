@@ -29,7 +29,7 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v2/session/refresh` | Rotates the session reference and returns a fresh access token only for an authorized family. |
 | `POST` | `/v2/session/logout` | Revokes the server-side family and expires the cookie; fails closed if durable revocation cannot be confirmed. |
 | `POST` | `/v1/qa/challenge` | Server-only, zero-body 60-second challenge for the one registered read-only QA device. Disabled by default. |
-| `POST` | `/v1/qa/realm-snapshot` | Server-only proof exchange returning one bounded, FID-free Realm presentation snapshot. |
+| `POST` | `/v1/qa/realm-snapshot` | Server-only proof exchange returning one bounded aggregate Realm attestation; the v1 path is a compatibility name. |
 | `POST` | `/v1/admin/token` | Server-only five-minute Hermes/admin JWT. |
 | `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free structured resolver check. |
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
@@ -96,11 +96,55 @@ signature verification, so a wrong signature cannot be retried. After proof,
 the Worker mints a fresh 15-second token with exact subject
 `service:qa-snapshot-resolver`, sole role
 `warpkeep-qa-snapshot-resolver`, and `device_thumbprint`. It calls only the
-fixed Maincloud procedure `qa_observer_get_realm_snapshot_v1` with `[]`, never
+fixed Maincloud procedure `qa_observer_get_realm_attestation_v2` with `[]`, never
 returns that token, rejects redirects and malformed/oversized responses, and
-returns only the strict sanitized snapshot. The projection requires 1–100
-castles and contains no FID, identity, PFP URL, auth/session material, admission,
-Terms, wallet, receipt, Marks, audit, or mutation surface.
+returns only the strict aggregate attestation. The retained
+`qa_observer_get_realm_snapshot_v1` schema wire immediately fails with
+`QA_OBSERVER_V1_DISABLED`; it performs no authentication, transaction, or
+database read and can no longer return its former response.
+
+The `/v1/qa/realm-snapshot` route and `realm.snapshot` scope remain unchanged as
+device-proof compatibility names. They do not authorize or return per-player
+Realm data. The successful Worker response is exactly:
+
+```text
+{
+  version: 2,
+  protocolVersion: 3,
+  worldSeed: 3445214658,
+  worldSeedName: "HEGEMONY_GENESIS_001",
+  worldTileCount: 1261,
+  worldTileMetaCount: 1261,
+  realm: {
+    realmId: "GENESIS_001",
+    numericSeed: 3445214658,
+    generationVersion: 2,
+    authoritativeRadius: 20,
+    renderRadius: 22,
+    playerCapacity: 100
+  },
+  aggregates: {
+    castleCount: u32,
+    profileCount: u32,
+    foundedCount: u32,
+    activeCount: u32
+  }
+}
+```
+
+Validation requires 1–100 castles, equal castle/profile counts, and
+`foundedCount + activeCount === castleCount`. No per-castle collection, castle
+ID, coordinate, keep or player name, username, display name, bio, portrait
+signal, FID, Identity, PFP URL, auth/session material, admission, Terms, wallet,
+receipt, Marks, audit, or mutation surface leaves the server.
+
+This closed Worker response is not by itself a complete aggregate-only
+principal boundary. SpacetimeDB lifecycle admission currently lets the same
+fresh QA resolver establish identity-bearing public-table subscriptions that
+can outlive the 15-second token. `QA_OBSERVER_ENABLED` must remain `false`
+until the observer uses an isolated module/database or identity-free replica
+with no player/profile subscription surface, in addition to the local
+caller-binding prerequisites.
 
 ## Browser proof contract
 

@@ -98,6 +98,32 @@ describe('measured realm label layout', () => {
     expect(result.culled.filter((entry) => entry.reason === 'capacity')).toHaveLength(2);
   });
 
+  it('keeps a directly hovered identity visible with an explained bounded displacement', () => {
+    const denseRoofArea = { left: 95, top: 30, right: 305, bottom: 195 };
+    const result = resolveMeasuredRealmLabelLayout({
+      anchors: [
+        candidate(1, { priority: 'near', x: 200, y: 160 }),
+        candidate(2, { priority: 'hovered', x: 200, y: 160 })
+      ],
+      viewportBounds: viewport,
+      safeAreaBounds: safeArea,
+      reservedUiRects: [denseRoofArea],
+      mandatoryCastleIds: [2],
+      maximumLabels: 2,
+      collisionPaddingPixels: 0
+    });
+
+    expect(result.placements.map((placement) => placement.castleId)).toContain(2);
+    const hovered = result.placements.find((placement) => placement.castleId === 2)!;
+    expect(overlaps(hovered.bounds, denseRoofArea)).toBe(false);
+    expect(Math.hypot(
+      hovered.x - hovered.projectedAnchor.x,
+      hovered.y - hovered.projectedAnchor.y
+    )).toBeGreaterThan(40);
+    expect(hovered.layoutAnchor).toEqual({ x: 200, y: 160 });
+    expect(result.culled).toContainEqual({ castleId: 1, reason: 'reserved-ui' });
+  });
+
   it('attempts all 100 bounded candidates before collision culling', () => {
     const result = resolveMeasuredRealmLabelLayout({
       anchors: Array.from({ length: 100 }, (_, index) => candidate(index + 1, {
@@ -134,6 +160,24 @@ describe('measured realm label layout', () => {
     expect(result.placements[0].presentation).toBe('compact');
     expect(result.placements[0].bounds.right - result.placements[0].bounds.left).toBe(84);
     expect(result.placements[0].bounds.bottom - result.placements[0].bounds.top).toBe(28);
+  });
+
+  it('prefers compact text-bearing presentation for far desktop identities', () => {
+    const result = resolveMeasuredRealmLabelLayout({
+      anchors: [candidate(1, {
+        priority: 'far',
+        measurements: {
+          full: { offsetX: -100, offsetY: -40, width: 200, height: 40 },
+          compact
+        }
+      })],
+      viewportBounds: { left: 0, top: 0, right: 1_000, bottom: 700 },
+      safeAreaBounds: { left: 10, top: 10, right: 990, bottom: 690 },
+      reservedUiRects: [],
+      maximumLabels: 1
+    });
+
+    expect(result.placements[0].presentation).toBe('compact');
   });
 
   it('retains a prior member across small distance-order jitter', () => {

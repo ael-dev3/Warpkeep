@@ -53,6 +53,7 @@ import {
 } from './spacetimeAuthEpochResolver'
 import {
   QA_SNAPSHOT_TIMEOUT_MILLISECONDS,
+  SPACETIMEDB_QA_SNAPSHOT_PROCEDURE,
   SpacetimeHttpQaObserverResolver,
   qaSnapshotResolverFailureStage,
   type QaObserverSnapshotResolver,
@@ -697,7 +698,7 @@ async function configurationAttestation(
     qaObserverMaxRegistrationLifetimeMilliseconds: QA_OBSERVER_MAX_REGISTRATION_LIFETIME_MILLISECONDS,
     qaSnapshotResolverTokenTtlSeconds: QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
     qaSnapshotResolverTimeoutMilliseconds: QA_SNAPSHOT_TIMEOUT_MILLISECONDS,
-    qaSnapshotProcedure: 'qa_observer_get_realm_snapshot_v1',
+    qaSnapshotProcedure: SPACETIMEDB_QA_SNAPSHOT_PROCEDURE,
     environment: config.environment,
     browserBinding: 'S256',
     accessTokenTtlSeconds: PLAYER_TOKEN_TTL_SECONDS,

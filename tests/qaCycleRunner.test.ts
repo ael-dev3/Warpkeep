@@ -41,6 +41,10 @@ import {
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const temporaryRoots: string[] = [];
+const darwinSandboxIt = process.platform === 'darwin'
+  && process.env.WARPKEEP_QA_SOCKET_TMP === undefined
+  ? it
+  : it.skip;
 
 async function temporaryRoot() {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'warpkeep-qa-cycle-')));
@@ -51,7 +55,10 @@ async function temporaryRoot() {
 async function temporarySocketRoot() {
   // Darwin's Unix socket path ceiling is much shorter than a runner-isolated
   // TMPDIR can be. Keep this test transport independent of that environment.
-  const root = await realpath(await mkdtemp('/tmp/wkq-'));
+  const root = await realpath(await mkdtemp(join(
+    process.env.WARPKEEP_QA_SOCKET_TMP ?? '/tmp',
+    'wkq-'
+  )));
   await chmod(root, 0o700);
   temporaryRoots.push(root);
   return root;
@@ -100,7 +107,7 @@ function passingReport(): QaCycleReport {
 
 function sanitizedObserverSnapshot() {
   return {
-    version: 1,
+    version: 2,
     protocolVersion: 3,
     worldSeed: 3_445_214_658,
     worldSeedName: 'HEGEMONY_GENESIS_001',
@@ -114,16 +121,12 @@ function sanitizedObserverSnapshot() {
       renderRadius: 22,
       playerCapacity: 100
     },
-    castles: [{
-      castleId: 1,
-      tileKey: '0,0',
-      q: 0,
-      r: 0,
-      level: 1,
-      name: 'Synthetic Test Keep',
-      portraitAvailable: false,
-      publicStatus: 'founded'
-    }]
+    aggregates: {
+      castleCount: 1,
+      profileCount: 1,
+      foundedCount: 1,
+      activeCount: 0
+    }
   };
 }
 
@@ -135,6 +138,134 @@ afterEach(async () => {
 });
 
 describe('local autonomous QA cycle runner', () => {
+  darwinSandboxIt('enforces source-write and unrelated Unix-socket denials in the real macOS sandbox', async () => {
+    const runtimeRoot = await temporaryRoot();
+    const allowedSocketRoot = await temporarySocketRoot();
+    const directories = Object.fromEntries([
+      'runtime-home',
+      'runtime-tmp',
+      'npm-cache',
+      'build-output',
+      'root-tsc-cache',
+      'root-vite-cache',
+      'root-vite-config',
+      'auth-vite-cache',
+      'auth-vite-config',
+      'spacetime-dist',
+      'spacetime-v1-dist',
+      'spacetime-v2-dist',
+      'spacetime-v3-dist'
+    ].map((name) => [name, join(runtimeRoot, name)]));
+    await Promise.all(Object.values(directories).map((path) => mkdir(path, {
+      recursive: true,
+      mode: 0o700
+    })));
+    const sandboxOptions = {
+      observatoryRoot: join(
+        process.env.HOME ?? '/Users/invalid',
+        'Library/Application Support/Warpkeep/qa-observatory'
+      ),
+      repositoryRoot,
+      userHome: process.env.HOME ?? '/Users/invalid',
+      spacetimeCliRoot: dirname(qaCycleEnvironment().SPACETIME_BIN),
+      runtimeHome: directories['runtime-home'],
+      runtimeTmp: directories['runtime-tmp'],
+      npmCache: directories['npm-cache'],
+      socketTmpRoot: allowedSocketRoot,
+      buildOutputRoot: directories['build-output'],
+      rootTscCacheRoot: directories['root-tsc-cache'],
+      rootViteCacheRoot: directories['root-vite-cache'],
+      rootViteConfigRoot: directories['root-vite-config'],
+      authViteCacheRoot: directories['auth-vite-cache'],
+      authViteConfigRoot: directories['auth-vite-config'],
+      spacetimeDistRoot: directories['spacetime-dist'],
+      spacetimeV1DistRoot: directories['spacetime-v1-dist'],
+      spacetimeV2DistRoot: directories['spacetime-v2-dist'],
+      spacetimeV3DistRoot: directories['spacetime-v3-dist']
+    } as const;
+    const environment = {
+      ...qaCycleEnvironment(),
+      HOME: sandboxOptions.runtimeHome,
+      TMPDIR: sandboxOptions.runtimeTmp,
+      npm_config_cache: sandboxOptions.npmCache,
+      WARPKEEP_QA_SOCKET_TMP: allowedSocketRoot
+    };
+    const executeProgram = (program: string) => runCommandCheck({
+      id: 'sandbox-contract',
+      executable: process.execPath,
+      args: ['-e', program],
+      timeoutMs: 5_000
+    }, {
+      cwd: repositoryRoot,
+      environment,
+      commandContract: (check) => qaNetworkSandboxContract(check, {
+        platform: 'darwin',
+        ...sandboxOptions
+      })
+    });
+
+    const forbiddenSourcePath = join(
+      repositoryRoot,
+      'scripts/qa-observer/.sandbox-write-probe'
+    );
+    await rm(forbiddenSourcePath, { force: true });
+    const sourceWrite = await executeProgram(
+      `require('node:fs').writeFileSync(${JSON.stringify(forbiddenSourcePath)},'forbidden')`
+    );
+    expect(sourceWrite.status).toBe('fail');
+    await expect(readFile(forbiddenSourcePath, 'utf8')).rejects.toThrow();
+
+    const hardlinkSourcePath = join(
+      repositoryRoot,
+      'scripts/qa-observer/.sandbox-hardlink-source'
+    );
+    const hardlinkDestinationPath = join(sandboxOptions.runtimeTmp, 'hardlink-destination');
+    await writeFile(hardlinkSourcePath, 'original', { mode: 0o600 });
+    try {
+      const hardlinkWrite = await executeProgram([
+        "const fs=require('node:fs');",
+        `fs.linkSync(${JSON.stringify(hardlinkSourcePath)},${JSON.stringify(hardlinkDestinationPath)});`,
+        `fs.appendFileSync(${JSON.stringify(hardlinkDestinationPath)},'changed');`
+      ].join(''));
+      expect(hardlinkWrite.status).toBe('fail');
+      await expect(readFile(hardlinkSourcePath, 'utf8')).resolves.toBe('original');
+    } finally {
+      await rm(hardlinkDestinationPath, { force: true });
+      await rm(hardlinkSourcePath, { force: true });
+    }
+
+    const allowedRuntimePath = join(sandboxOptions.runtimeTmp, 'allowed.txt');
+    const runtimeWrite = await executeProgram(
+      `require('node:fs').writeFileSync(${JSON.stringify(allowedRuntimePath)},'allowed')`
+    );
+    expect(runtimeWrite.status).toBe('pass');
+    await expect(readFile(allowedRuntimePath, 'utf8')).resolves.toBe('allowed');
+
+    const socketProgram = (socketPath: string) => [
+      "const socket=require('node:net').connect({path:",
+      JSON.stringify(socketPath),
+      '});',
+      "socket.once('connect',()=>socket.end());",
+      "socket.once('close',()=>process.exit(0));",
+      "socket.once('error',()=>process.exit(7));",
+      'setTimeout(()=>process.exit(8),1000);'
+    ].join('');
+    await withLocalBroker((_request, response) => response.end(), async (socketPath) => {
+      expect((await executeProgram(socketProgram(socketPath))).status).toBe('fail');
+    });
+    const allowedSocketPath = join(allowedSocketRoot, 'allowed.sock');
+    const allowedServer = createServer();
+    await new Promise<void>((resolveListen, rejectListen) => {
+      allowedServer.once('error', rejectListen);
+      allowedServer.listen(allowedSocketPath, () => resolveListen());
+    });
+    try {
+      expect((await executeProgram(socketProgram(allowedSocketPath))).status).toBe('pass');
+    } finally {
+      await new Promise<void>((resolveClose) => allowedServer.close(() => resolveClose()));
+    }
+  }, 20_000);
+
   it('wraps the entire macOS check process tree in the exact loopback-only network sandbox', () => {
     const check = {
       id: 'bounded-test',
@@ -145,12 +276,63 @@ describe('local autonomous QA cycle runner', () => {
     expect(qaNetworkSandboxContract(check, {
       platform: 'darwin',
       observatoryRoot: '/Users/test/Library/Application Support/Warpkeep/qa-observatory',
+      repositoryRoot: '/Users/test/projects/Warpkeep',
+      userHome: '/Users/test',
+      spacetimeCliRoot: '/Users/test/.local/share/spacetime/bin/2.6.1',
+      runtimeHome: '/Users/test/Library/Application Support/Warpkeep/qa-observatory/runtime-home',
+      runtimeTmp: '/Users/test/Library/Application Support/Warpkeep/qa-observatory/tmp',
+      npmCache: '/Users/test/Library/Application Support/Warpkeep/qa-observatory/npm-cache',
+      socketTmpRoot: '/private/tmp/wkqa-test',
+      buildOutputRoot: '/Users/test/projects/Warpkeep/dist',
+      rootTscCacheRoot: '/Users/test/projects/Warpkeep/node_modules/.tmp',
+      rootViteCacheRoot: '/Users/test/projects/Warpkeep/node_modules/.vite',
+      rootViteConfigRoot: '/Users/test/projects/Warpkeep/node_modules/.vite-temp',
+      authViteCacheRoot: '/Users/test/projects/Warpkeep/services/auth-bridge/node_modules/.vite',
+      authViteConfigRoot: '/Users/test/projects/Warpkeep/services/auth-bridge/node_modules/.vite-temp',
+      spacetimeDistRoot: '/Users/test/projects/Warpkeep/spacetimedb/dist',
+      spacetimeV1DistRoot: '/Users/test/projects/Warpkeep/spacetimedb/migration-fixtures/production-v1/dist',
+      spacetimeV2DistRoot: '/Users/test/projects/Warpkeep/spacetimedb/migration-fixtures/additive-v2-schema/dist',
+      spacetimeV3DistRoot: '/Users/test/projects/Warpkeep/spacetimedb/migration-fixtures/additive-v3-schema/dist',
       profilePath: '/reviewed/qa-cycle-network.sb'
     })).toEqual({
       executable: '/usr/bin/sandbox-exec',
       args: [
         '-D',
         'OBSERVATORY_ROOT=/Users/test/Library/Application Support/Warpkeep/qa-observatory',
+        '-D',
+        'REPOSITORY_ROOT=/Users/test/projects/Warpkeep',
+        '-D',
+        'USER_HOME=/Users/test',
+        '-D',
+        'SPACETIME_CLI_ROOT=/Users/test/.local/share/spacetime/bin/2.6.1',
+        '-D',
+        'RUNTIME_HOME=/Users/test/Library/Application Support/Warpkeep/qa-observatory/runtime-home',
+        '-D',
+        'RUNTIME_TMP=/Users/test/Library/Application Support/Warpkeep/qa-observatory/tmp',
+        '-D',
+        'NPM_CACHE=/Users/test/Library/Application Support/Warpkeep/qa-observatory/npm-cache',
+        '-D',
+        'SOCKET_TMP_ROOT=/private/tmp/wkqa-test',
+        '-D',
+        'BUILD_OUTPUT_ROOT=/Users/test/projects/Warpkeep/dist',
+        '-D',
+        'ROOT_TSC_CACHE_ROOT=/Users/test/projects/Warpkeep/node_modules/.tmp',
+        '-D',
+        'ROOT_VITE_CACHE_ROOT=/Users/test/projects/Warpkeep/node_modules/.vite',
+        '-D',
+        'ROOT_VITE_CONFIG_ROOT=/Users/test/projects/Warpkeep/node_modules/.vite-temp',
+        '-D',
+        'AUTH_VITE_CACHE_ROOT=/Users/test/projects/Warpkeep/services/auth-bridge/node_modules/.vite',
+        '-D',
+        'AUTH_VITE_CONFIG_ROOT=/Users/test/projects/Warpkeep/services/auth-bridge/node_modules/.vite-temp',
+        '-D',
+        'SPACETIME_DIST_ROOT=/Users/test/projects/Warpkeep/spacetimedb/dist',
+        '-D',
+        'SPACETIME_V1_DIST_ROOT=/Users/test/projects/Warpkeep/spacetimedb/migration-fixtures/production-v1/dist',
+        '-D',
+        'SPACETIME_V2_DIST_ROOT=/Users/test/projects/Warpkeep/spacetimedb/migration-fixtures/additive-v2-schema/dist',
+        '-D',
+        'SPACETIME_V3_DIST_ROOT=/Users/test/projects/Warpkeep/spacetimedb/migration-fixtures/additive-v3-schema/dist',
         '-f',
         '/reviewed/qa-cycle-network.sb',
         process.execPath,
@@ -173,6 +355,14 @@ describe('local autonomous QA cycle runner', () => {
       ...check,
       networkBoundary: 'self-contained-browser'
     }, { platform: 'darwin' })).toThrow(/self-contained browser boundary/i);
+    expect(() => qaNetworkSandboxContract(check, {
+      platform: 'darwin',
+      userHome: 'relative-home'
+    })).toThrow(/sandbox path/i);
+    expect(() => qaNetworkSandboxContract(check, {
+      platform: 'darwin',
+      repositoryRoot: '/reviewed\0suffix'
+    })).toThrow(/sandbox path/i);
   });
 
   it('selects predictable tiers and exposes only static non-mutating checks', () => {
@@ -185,9 +375,10 @@ describe('local autonomous QA cycle runner', () => {
     const standard = checksForTier('standard');
     const deep = checksForTier('deep');
     expect(quick.map((check) => check.id)).toEqual([
+      'rendered-webgl-browser',
+      'sandbox-boundary',
       'targeted-unit',
       'synthetic-app-states',
-      'rendered-webgl-browser',
       'typecheck'
     ]);
     const syntheticAppStates = quick.find((check) => check.id === 'synthetic-app-states');
@@ -225,8 +416,16 @@ describe('local autonomous QA cycle runner', () => {
     expect(renderedWebglBrowser?.args).toEqual([
       join(repositoryRoot, 'scripts/qa-observer/rendered-webgl-browser-probe.mjs')
     ]);
+    const sandboxBoundary = quick.find((check) => check.id === 'sandbox-boundary');
+    expect(sandboxBoundary).toMatchObject({
+      executable: process.execPath,
+      args: [],
+      timeoutMs: 10_000
+    });
+    expect(sandboxBoundary?.networkBoundary).toBeUndefined();
     expect(standard.map((check) => check.id)).toEqual([
-      'full-unit', 'typecheck', 'rendered-webgl-browser', 'runtime-assets', 'file-sizes'
+      'rendered-webgl-browser', 'sandbox-boundary', 'full-unit', 'typecheck',
+      'runtime-assets', 'file-sizes'
     ]);
     expect(deep.map((check) => check.id)).toEqual(expect.arrayContaining([
       'production-build',
@@ -242,7 +441,7 @@ describe('local autonomous QA cycle runner', () => {
     );
   });
 
-  it('attests the exact package-script contract before autonomous execution', async () => {
+  it('attests exact package-script, disabled production-gate, and sandbox contracts', async () => {
     const root = await temporaryRoot();
     const contracts = [
       ['package.json', 'warpkeep', {
@@ -276,6 +475,16 @@ describe('local autonomous QA cycle runner', () => {
       join(root, 'scripts/qa-observer/qa-cycle-network.sb'),
       await readFile(join(repositoryRoot, 'scripts/qa-observer/qa-cycle-network.sb'), 'utf8')
     );
+    const disabledProductionGates = [
+      '[vars]',
+      'PUBLIC_AUTH_ENABLED = "false"',
+      'QA_OBSERVER_ENABLED = "false"',
+      ''
+    ].join('\n');
+    await writeFile(
+      join(root, 'services/auth-bridge/wrangler.toml'),
+      disabledProductionGates
+    );
     await expect(attestQaRepository(root)).resolves.toBeUndefined();
     await writeFile(join(root, 'package.json'), JSON.stringify({
       name: 'warpkeep',
@@ -288,6 +497,37 @@ describe('local autonomous QA cycle runner', () => {
       private: true,
       scripts: contracts[0][2]
     }));
+    for (const unsafeProductionGates of [
+      disabledProductionGates.replace(
+        'PUBLIC_AUTH_ENABLED = "false"',
+        'PUBLIC_AUTH_ENABLED = "true"'
+      ),
+      disabledProductionGates.replace(
+        'QA_OBSERVER_ENABLED = "false"',
+        'QA_OBSERVER_ENABLED = "true"'
+      ),
+      disabledProductionGates.replace(
+        'QA_OBSERVER_ENABLED = "false"',
+        'QA_OBSERVER_ENABLED = "false"\nQA_OBSERVER_ENABLED = "false"'
+      ),
+      ...[
+        'QA_OBSERVER_PUBLIC_JWK',
+        'QA_OBSERVER_KEY_REGISTERED_AT',
+        'QA_OBSERVER_KEY_EXPIRES_AT'
+      ].map((key) => `${disabledProductionGates}${key} = "forbidden"\n`)
+    ]) {
+      await writeFile(
+        join(root, 'services/auth-bridge/wrangler.toml'),
+        unsafeProductionGates
+      );
+      await expect(attestQaRepository(root)).rejects.toThrow(
+        'production gate contract mismatch'
+      );
+    }
+    await writeFile(
+      join(root, 'services/auth-bridge/wrangler.toml'),
+      disabledProductionGates
+    );
     await writeFile(
       join(root, 'scripts/qa-observer/qa-cycle-network.sb'),
       '(version 1)\n(allow default)\n'
@@ -302,9 +542,12 @@ describe('local autonomous QA cycle runner', () => {
     expect(environment.SPACETIME_BIN).toMatch(
       /\/\.local\/share\/spacetime\/bin\/2\.6\.1\/spacetimedb-cli$/,
     );
+    expect(environment.WARPKEEP_QA_SOCKET_TMP).toMatch(/^\/private\/tmp\/wkqa-/);
     expect(environment.PATH).not.toContain(`${process.env.HOME}/.local/bin`);
     expect(environment.npm_config_userconfig).toBe('/dev/null');
     expect(environment.npm_config_logs_max).toBe('0');
+    expect(environment.GIT_CONFIG_GLOBAL).toBe('/dev/null');
+    expect(environment.GIT_CONFIG_NOSYSTEM).toBe('1');
   });
 
   it('enforces process timeouts without retaining child output', async () => {
@@ -329,6 +572,40 @@ describe('local autonomous QA cycle runner', () => {
     expect(result.durationMs).toBeLessThan(5_000);
     expect(JSON.stringify(result)).not.toContain('PRIVATE_PAYLOAD');
     expect(Object.keys(result).sort()).toEqual(['durationMs', 'id', 'status']);
+  });
+
+  it('terminates background descendants even when the check leader exits successfully', async () => {
+    const root = await temporaryRoot();
+    const pidPath = join(root, 'descendant.pid');
+    const program = [
+      "const {spawn}=require('node:child_process');",
+      `const child=spawn(${JSON.stringify(process.execPath)},['-e','setInterval(()=>{},60000)'],{stdio:'ignore'});`,
+      'child.unref();',
+      `require('node:fs').writeFileSync(${JSON.stringify(pidPath)},String(child.pid));`
+    ].join('');
+    const result = await runCommandCheck({
+      id: 'bounded-test',
+      executable: process.execPath,
+      args: ['-e', program],
+      timeoutMs: 5_000
+    }, {
+      cwd: root,
+      commandContract: (check) => ({ executable: check.executable, args: check.args })
+    });
+    expect(result.status).toBe('pass');
+    const descendantPid = Number(await readFile(pidPath, 'utf8'));
+    expect(Number.isSafeInteger(descendantPid)).toBe(true);
+    let alive = true;
+    for (let attempt = 0; attempt < 50 && alive; attempt += 1) {
+      try {
+        process.kill(descendantPid, 0);
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
+      } catch {
+        alive = false;
+      }
+    }
+    if (alive) process.kill(descendantPid, 'SIGKILL');
+    expect(alive).toBe(false);
   });
 
   it('uses an owner-only overlap lock and never replaces an active owner', async () => {
@@ -437,7 +714,7 @@ describe('local autonomous QA cycle runner', () => {
     })).rejects.toThrow('Unsafe local QA broker socket');
   });
 
-  it('validates and discards only the bounded FID-free Unix-socket snapshot', async () => {
+  it('validates and discards only the bounded identity-free Unix-socket attestation', async () => {
     let observed: Readonly<{ method?: string; url?: string; origin?: string }> = {};
     await withLocalBroker((request, response) => {
       observed = {
@@ -530,5 +807,51 @@ describe('local autonomous QA cycle runner', () => {
     expect(template).not.toContain('--broker=health');
     expect(template).not.toContain('--broker=snapshot');
     expect(template).not.toMatch(/(?:RunAtLoad|KeepAlive|launchctl)/);
+  });
+
+  it('stops before repository tests when the parent sandbox boundary does not pass', async () => {
+    const executed: string[] = [];
+    const report = await runQaCycle({
+      startedAt: new Date(),
+      tier: 'quick',
+      broker: 'off',
+      executeCheck: async (check) => {
+        executed.push(check.id);
+        return {
+          id: check.id,
+          status: check.id === 'sandbox-boundary' ? 'fail' : 'pass',
+          durationMs: 1
+        };
+      }
+    });
+
+    expect(executed).toEqual(['rendered-webgl-browser', 'sandbox-boundary']);
+    expect(report.status).toBe('fail');
+    expect(report.checks).toEqual([
+      { id: 'rendered-webgl-browser', status: 'pass', durationMs: 1 },
+      { id: 'sandbox-boundary', status: 'fail', durationMs: 1 }
+    ]);
+  });
+
+  it('also stops when the parent sandbox boundary cannot be executed', async () => {
+    const executed: string[] = [];
+    const report = await runQaCycle({
+      startedAt: new Date(),
+      tier: 'quick',
+      broker: 'off',
+      executeCheck: async (check) => {
+        executed.push(check.id);
+        if (check.id === 'sandbox-boundary') throw new Error('unavailable');
+        return { id: check.id, status: 'pass', durationMs: 1 };
+      }
+    });
+
+    expect(executed).toEqual(['rendered-webgl-browser', 'sandbox-boundary']);
+    expect(report.status).toBe('fail');
+    expect(report.checks.at(-1)).toEqual({
+      id: 'sandbox-boundary',
+      status: 'fail',
+      durationMs: 0
+    });
   });
 });

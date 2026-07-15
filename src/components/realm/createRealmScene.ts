@@ -28,6 +28,7 @@ import {
   CASTLE_GROUND_LIFT,
   createRealmCastleInstanceLayer,
   type RealmCastleInstanceLayer,
+  type RealmCastleInstancePresentationTelemetry,
   type RealmCastleInstanceRecord
 } from './realmCastleInstanceLayer';
 import {
@@ -42,10 +43,15 @@ import {
   realmCastleProjectionFrameKey
 } from './realmCastlePresentation';
 import {
+  createRealmEnvironmentDepth,
+  REALM_SKY_FALLBACK_COLOR
+} from './createRealmEnvironment';
+import {
   deriveCastleRoofProjectionSamples,
   projectCastleRoofScreenTop,
   type RealmCastleRoofProjectionSample
 } from './realmCastleProjectionGeometry';
+import { createRealmAmbientScheduler } from './realmAmbientScheduler';
 import {
   REALM_LIGHTING_SPECS,
   resolveRealmPixelRatio,
@@ -126,6 +132,7 @@ export type RealmSceneHandle = Readonly<{
   focusKeep: () => void;
   recenterKeep: () => void;
   setHovered: (coord: HexCoord | null) => void;
+  setPresentedCastleIds: (castleIds: readonly number[]) => void;
   setSelected: (coord: HexCoord | null) => void;
   setSelectedCastleId: (castleId: number | null) => void;
   setComposition: (composition: RealmCameraComposition) => void;
@@ -192,6 +199,10 @@ export type CreateRealmSceneOptions = Readonly<{
   onKeepStatusChange: (status: KeepLoadStatus) => void;
   /** Fired only after every authoritative castle has a real GLB instance. */
   onCastlesReady?: (castleCount: number) => void;
+  /** Live counts derived from populated instance meshes after presentation masking. */
+  onCastlePresentationTelemetry?: (
+    telemetry: RealmCastleInstancePresentationTelemetry
+  ) => void;
   onCastleProjection: (frame: RealmCastleProjectionFrame) => void;
   onRendererUnavailable: () => void;
   /** @deprecated Prefer onTargetSelect for castle identity-aware interaction. */
@@ -329,15 +340,32 @@ function disposeOverlay(overlay: THREE.LineLoop) {
   (overlay.material as THREE.Material).dispose();
 }
 
-function pointerDistance(first: PointerSample, second: PointerSample) {
+function pointerDistance(
+  first: Readonly<{ x: number; y: number }>,
+  second: Readonly<{ x: number; y: number }>
+) {
   return Math.hypot(first.x - second.x, first.y - second.y);
 }
 
-function activePinchDistance(pointers: ReadonlyMap<number, PointerSample>) {
+export type RealmPinchGesture = Readonly<{
+  centroid: Readonly<{ x: number; y: number }>;
+  distance: number;
+}>;
+
+export function resolveRealmPinchGesture(
+  pointers: ReadonlyMap<number, Readonly<{ x: number; y: number }>>
+): RealmPinchGesture | null {
   const iterator = pointers.values();
   const first = iterator.next().value;
   const second = iterator.next().value;
-  return first && second ? pointerDistance(first, second) : 0;
+  if (!first || !second) return null;
+  return Object.freeze({
+    centroid: Object.freeze({
+      x: (first.x + second.x) * 0.5,
+      y: (first.y + second.y) * 0.5
+    }),
+    distance: pointerDistance(first, second)
+  });
 }
 
 function castleLodPolicyForQuality(quality: RealmQualitySpec): CastleLodPolicy {
@@ -396,9 +424,16 @@ function initializeRealmScene(
     }))
   ]);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#9498a6');
-  const fog = new THREE.Fog('#9498a6', options.quality.fogNear, options.quality.fogFar);
+  scene.background = new THREE.Color(REALM_SKY_FALLBACK_COLOR);
+  const fog = new THREE.Fog(
+    REALM_SKY_FALLBACK_COLOR,
+    options.quality.fogNear,
+    options.quality.fogFar
+  );
   scene.fog = fog;
+  const environment = createRealmEnvironmentDepth(options.quality.id);
+  cleanup.add(environment.dispose);
+  scene.add(environment.group);
 
   const renderer = new THREE.WebGLRenderer({
     canvas: options.canvas,
@@ -413,7 +448,7 @@ function initializeRealmScene(
   renderer.toneMappingExposure = lighting.toneMappingExposure;
   renderer.shadowMap.enabled = renderPlan.dynamicShadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
-  renderer.setClearColor('#9498a6', 1);
+  renderer.setClearColor(REALM_SKY_FALLBACK_COLOR, 1);
 
   const { data: terrainData, geometry: terrainGeometry } = createTerrainGeometry(
     options.surface,
@@ -545,6 +580,9 @@ function initializeRealmScene(
   options.onKeepStatusChange(authoritativeCastles.length > 0 ? 'loading' : 'ready');
 
   let lastCastleProjectionKey = '';
+  let lastCastlePresentationTelemetryKey = '';
+  let presentedCastleIds: ReadonlySet<number> | null = null;
+  let presentedCastleKey = '*';
   let renderPendingWhileHidden = false;
   let pendingCastlesReadyCount: number | null = null;
   const projectionPoint = new THREE.Vector3();
@@ -634,7 +672,9 @@ function initializeRealmScene(
         distance,
         castleBounds,
         conservativeCastleBounds,
-        visible
+        visible,
+        presented: visible
+          && (presentedCastleIds === null || presentedCastleIds.has(anchor.castleId))
       };
     });
     const frame = { width, height, castles };
@@ -659,11 +699,25 @@ function initializeRealmScene(
       viewportHeight,
       selectedCastleId
     );
+    const presentationTelemetry = castleLayer?.getPresentationTelemetry()
+      ?? Object.freeze({ presentedModelCount: 0, raycastTargetCount: 0 });
+    const presentationTelemetryKey = (
+      `${presentationTelemetry.presentedModelCount}:${presentationTelemetry.raycastTargetCount}`
+    );
+    if (presentationTelemetryKey !== lastCastlePresentationTelemetryKey) {
+      lastCastlePresentationTelemetryKey = presentationTelemetryKey;
+      options.onCastlePresentationTelemetry?.(presentationTelemetry);
+    }
+    environment.group.position.copy(cameraController.camera.position);
     renderer.render(scene, cameraController.camera);
     projectCastleLabels();
     if (pendingCastlesReadyCount !== null) {
       const castleCount = pendingCastlesReadyCount;
-      if (castleCount > 0 && (castleLayer?.getPacking().totalVisible ?? 0) === 0) {
+      if (
+        castleCount > 0
+        && (presentedCastleIds === null || presentedCastleIds.size > 0)
+        && (castleLayer?.getPacking().totalVisible ?? 0) === 0
+      ) {
         throw new Error('Hegemony castle instances produced no visible rendered packing.');
       }
       pendingCastlesReadyCount = null;
@@ -695,11 +749,20 @@ function initializeRealmScene(
   };
   document.addEventListener('visibilitychange', handleRenderVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
+  const ambientScheduler = createRealmAmbientScheduler({
+    enabled: decorations.animated
+      && options.quality.id !== 'reduced'
+      && !options.reducedMotion,
+    onStep: (elapsedSeconds) => {
+      if (!cleanup.isDisposed() && decorations.updateWind(elapsedSeconds)) render();
+    }
+  });
+  cleanup.add(ambientScheduler.dispose);
 
   const raycaster = new THREE.Raycaster();
   const normalizedPointer = new THREE.Vector2();
   const pointers = new Map<number, PointerSample>();
-  let lastPinchDistance = 0;
+  let lastPinchGesture: RealmPinchGesture | null = null;
   let pendingHoverPoint: Readonly<{ x: number; y: number }> | null = null;
   let hoverAnimationFrame = 0;
   let resizeObserver: ResizeObserver | null = null;
@@ -708,7 +771,7 @@ function initializeRealmScene(
     hoverAnimationFrame = 0;
     pendingHoverPoint = null;
     pointers.clear();
-    lastPinchDistance = 0;
+    lastPinchGesture = null;
     delete options.canvas.dataset.dragging;
   });
 
@@ -787,7 +850,7 @@ function initializeRealmScene(
     });
     if (pointers.size > 1) {
       pointers.forEach((sample) => { sample.dragged = true; });
-      lastPinchDistance = activePinchDistance(pointers);
+      lastPinchGesture = resolveRealmPinchGesture(pointers);
     }
     cancelPendingHover();
     options.canvas.dataset.dragging = 'true';
@@ -810,11 +873,23 @@ function initializeRealmScene(
       sample.dragged = true;
     }
     if (pointers.size >= 2) {
-      const nextDistance = activePinchDistance(pointers);
-      if (lastPinchDistance > 0 && nextDistance > 0) {
-        cameraController.zoomBy(Math.log(nextDistance / lastPinchDistance) * 0.78);
+      const nextPinchGesture = resolveRealmPinchGesture(pointers);
+      if (lastPinchGesture && nextPinchGesture) {
+        const centroidDeltaX = nextPinchGesture.centroid.x - lastPinchGesture.centroid.x;
+        const centroidDeltaY = nextPinchGesture.centroid.y - lastPinchGesture.centroid.y;
+        if (Math.abs(centroidDeltaX) >= 0.01 || Math.abs(centroidDeltaY) >= 0.01) {
+          cameraController.panByPixels(centroidDeltaX, centroidDeltaY);
+        }
+        if (lastPinchGesture.distance > 0 && nextPinchGesture.distance > 0) {
+          const canvasBounds = options.canvas.getBoundingClientRect();
+          cameraController.zoomByAt(
+            Math.log(nextPinchGesture.distance / lastPinchGesture.distance) * 0.78,
+            nextPinchGesture.centroid.x - canvasBounds.left,
+            nextPinchGesture.centroid.y - canvasBounds.top
+          );
+        }
       }
-      lastPinchDistance = nextDistance;
+      lastPinchGesture = nextPinchGesture;
       return;
     }
     if (!sample.dragged) return;
@@ -845,7 +920,13 @@ function initializeRealmScene(
         }
       }
     }
-    lastPinchDistance = activePinchDistance(pointers);
+    lastPinchGesture = resolveRealmPinchGesture(pointers);
+    if (pointers.size === 1) {
+      pointers.forEach((remaining) => {
+        remaining.previousX = remaining.x;
+        remaining.previousY = remaining.y;
+      });
+    }
     if (pointers.size === 0) {
       delete options.canvas.dataset.dragging;
       if (cancelled) dispatchHover(null);
@@ -989,6 +1070,9 @@ function initializeRealmScene(
       return;
     }
 
+    if (presentedCastleIds !== null) {
+      nextLayer.setPresentedCastleIds([...presentedCastleIds]);
+    }
     castleLayer = nextLayer;
     castleRoofSamplesByLod = nextRoofSamplesByLod;
     fallbackCastleRoofSamples = nextRoofSamplesByLod.get(castleLodPolicy.maximumLod)
@@ -1097,6 +1181,17 @@ function initializeRealmScene(
     setHovered: (coord) => {
       if (cleanup.isDisposed()) return;
       setOverlay(hoverOverlay, options.surface, coord, terrainPlacements);
+      render();
+    },
+    setPresentedCastleIds: (castleIds) => {
+      if (cleanup.isDisposed()) return;
+      const ordered = [...new Set(castleIds)].sort((left, right) => left - right);
+      const key = ordered.join(',');
+      if (key === presentedCastleKey) return;
+      presentedCastleIds = new Set(ordered);
+      presentedCastleKey = key;
+      castleLayer?.setPresentedCastleIds(ordered);
+      lastCastleProjectionKey = '';
       render();
     },
     setSelected: (coord) => {

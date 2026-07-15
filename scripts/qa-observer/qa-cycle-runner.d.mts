@@ -45,9 +45,26 @@ export function checksForTier(tier: QaTier): readonly QaCheck[];
 export function qaNetworkSandboxContract(
   check: QaCheck,
   options?: Readonly<{
+    authViteCacheRoot?: string;
+    authViteConfigRoot?: string;
+    buildOutputRoot?: string;
+    npmCache?: string;
     observatoryRoot?: string;
     platform?: NodeJS.Platform;
     profilePath?: string;
+    repositoryRoot?: string;
+    rootTscCacheRoot?: string;
+    rootViteCacheRoot?: string;
+    rootViteConfigRoot?: string;
+    runtimeHome?: string;
+    runtimeTmp?: string;
+    socketTmpRoot?: string;
+    spacetimeCliRoot?: string;
+    spacetimeDistRoot?: string;
+    spacetimeV1DistRoot?: string;
+    spacetimeV2DistRoot?: string;
+    spacetimeV3DistRoot?: string;
+    userHome?: string;
   }>,
 ): Readonly<{ executable: string; args: readonly string[] }>;
 export function runCommandCheck(

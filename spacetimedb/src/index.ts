@@ -29,4 +29,7 @@ export {
   authResolverGetFidAdmissionV2,
   getAlphaBackendInfo,
 } from './reducers/admin';
-export { qaObserverGetRealmSnapshotV1 } from './reducers/qaObserver';
+export {
+  qaObserverGetRealmSnapshotV1,
+  qaObserverGetRealmAttestationV2,
+} from './reducers/qaObserver';

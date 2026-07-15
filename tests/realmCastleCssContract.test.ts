@@ -50,6 +50,7 @@ describe('compact Realm CSS contract', () => {
       '.realm-castle-label__leader[hidden],\n.realm-castle-label__leader[data-active="false"] {'
     );
     const compactLabel = block(PRESENTATION, '.realm-castle-label[data-compact="true"] {');
+    const identityCluster = block(PRESENTATION, '.realm-castle-cluster {');
     const avatarCanvas = block(PRESENTATION, '.realm-castle-avatar canvas {');
 
     expect(label).toContain('top: 0;');
@@ -63,6 +64,10 @@ describe('compact Realm CSS contract', () => {
     expect(compactLabel).toContain('width: 6.75rem;');
     expect(compactLabel).toContain('min-height: 1.875rem;');
     expect(PRESENTATION).toContain('.realm-castle-label__identity');
+    expect(identityCluster).toContain('width: 6rem;');
+    expect(identityCluster).toContain('height: 2.75rem;');
+    expect(identityCluster).toContain('pointer-events: auto;');
+    expect(identityCluster).toContain('cursor: zoom-in;');
     expect(leader).toContain('var(--realm-castle-anchor-x)');
     expect(leader).toContain('var(--realm-castle-anchor-y)');
     expect(leader).toContain('var(--realm-castle-leader-length)');

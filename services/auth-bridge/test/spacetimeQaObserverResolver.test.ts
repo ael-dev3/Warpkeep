@@ -14,34 +14,16 @@ import type { QaSnapshotResolverTokenClaims } from '../src/types'
 const DEVICE_THUMBPRINT = 'A'.repeat(43)
 const NOW = 1_800_000_000_000
 
-function rawCastle(overrides: Partial<Record<number, unknown>> = {}): unknown[] {
-  const value: unknown[] = [
-    1,
-    '0,0',
-    0,
-    0,
-    1,
-    'Genesis Keep',
-    { some: 'founder' },
-    { none: [] },
-    true,
-    { some: 'Public bio' },
-    'active',
-  ]
-  for (const [index, replacement] of Object.entries(overrides)) value[Number(index)] = replacement
-  return value
-}
-
-function rawSnapshot(castles: unknown[] = [rawCastle()]): unknown[] {
+function rawSnapshot(aggregates: unknown[] = [1, 1, 0, 1]): unknown[] {
   return [
-    1,
+    2,
     3,
     3_445_214_658,
     'HEGEMONY_GENESIS_001',
     1_261,
     1_261,
     ['GENESIS_001', 3_445_214_658, 2, 20, 22, 100],
-    castles,
+    aggregates,
   ]
 }
 
@@ -95,7 +77,7 @@ describe('Spacetime QA observer resolver', () => {
     const snapshot = await resolver(fetcher as QaSnapshotFetch, { signer }).resolve(DEVICE_THUMBPRINT)
 
     expect(snapshot).toEqual({
-      version: 1,
+      version: 2,
       protocolVersion: 3,
       worldSeed: 3_445_214_658,
       worldSeedName: 'HEGEMONY_GENESIS_001',
@@ -109,18 +91,12 @@ describe('Spacetime QA observer resolver', () => {
         renderRadius: 22,
         playerCapacity: 100,
       },
-      castles: [{
-        castleId: 1,
-        tileKey: '0,0',
-        q: 0,
-        r: 0,
-        level: 1,
-        name: 'Genesis Keep',
-        canonicalUsername: 'founder',
-        portraitAvailable: true,
-        publicBio: 'Public bio',
-        publicStatus: 'active',
-      }],
+      aggregates: {
+        castleCount: 1,
+        profileCount: 1,
+        foundedCount: 0,
+        activeCount: 1,
+      },
     })
     expect(signer).toHaveBeenCalledOnce()
     const claims = signer.mock.calls[0]?.[0]
@@ -138,7 +114,7 @@ describe('Spacetime QA observer resolver', () => {
 
     const [input, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit]
     expect(input.toString()).toBe(
-      'https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/qa_observer_get_realm_snapshot_v1',
+      'https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/qa_observer_get_realm_attestation_v2',
     )
     expect(init.method).toBe('POST')
     expect(init.body).toBe('[]')
@@ -153,32 +129,30 @@ describe('Spacetime QA observer resolver', () => {
     expect(JSON.stringify(snapshot)).not.toContain('private-qa-resolver-token')
   })
 
-  it('accepts only canonical named SATS options and omits absent public fields', () => {
-    const snapshot = parseQaObserverSnapshot(JSON.stringify(rawSnapshot([
-      rawCastle({ 6: { none: [] }, 7: { some: 'Display' }, 9: { none: [] } }),
-    ])), 'application/json')
-    expect(snapshot.castles[0]).toEqual({
-      castleId: 1,
-      tileKey: '0,0',
-      q: 0,
-      r: 0,
-      level: 1,
-      name: 'Genesis Keep',
-      displayName: 'Display',
-      portraitAvailable: true,
-      publicStatus: 'active',
+  it('accepts only the exact aggregate SATS product and contains no identity surface', () => {
+    const snapshot = parseQaObserverSnapshot(JSON.stringify(rawSnapshot([2, 2, 1, 1])), 'application/json')
+    expect(snapshot.aggregates).toEqual({
+      castleCount: 2,
+      profileCount: 2,
+      foundedCount: 1,
+      activeCount: 1,
     })
-    expect(snapshot.castles[0]).not.toHaveProperty('canonicalUsername')
-    expect(snapshot.castles[0]).not.toHaveProperty('publicBio')
+    const serialized = JSON.stringify(snapshot)
+    for (const forbidden of [
+      'castleId', 'tileKey', 'username', 'displayName', 'publicBio', 'portrait', 'fid',
+    ]) expect(serialized.toLowerCase()).not.toContain(forbidden.toLowerCase())
 
-    for (const invalid of [null, 'founder', { some: 'founder', none: [] }, { none: null }, { 0: 'founder' }]) {
-      expect(() => parseQaObserverSnapshot(JSON.stringify(rawSnapshot([
-        rawCastle({ 6: invalid }),
-      ])), 'application/json')).toThrow(QaSnapshotResolverFailure)
-    }
+    const legacyIdentityProjection = rawSnapshot([[
+      1, '0,0', 0, 0, 1, 'Genesis Keep', { some: 'founder' }, { none: [] },
+      true, { some: 'Public bio' }, 'active',
+    ]])
+    expect(() => parseQaObserverSnapshot(
+      JSON.stringify(legacyIdentityProjection),
+      'application/json',
+    )).toThrow(QaSnapshotResolverFailure)
   })
 
-  it('rejects static drift, privacy/shape expansion, unsafe identifiers, duplicates, and over-capacity results', () => {
+  it('rejects static drift, privacy/shape expansion, and inconsistent aggregate results', () => {
     const invalidSnapshots: unknown[] = []
     for (const index of [0, 1, 2, 3, 4, 5]) {
       const value = structuredClone(rawSnapshot())
@@ -190,15 +164,12 @@ describe('Spacetime QA observer resolver', () => {
     invalidSnapshots.push(realmDrift)
     invalidSnapshots.push([...rawSnapshot(), { fid: 1 }])
     invalidSnapshots.push(rawSnapshot([]))
-    invalidSnapshots.push(rawSnapshot([rawCastle({ 0: Number.MAX_SAFE_INTEGER + 1 })]))
-    invalidSnapshots.push(rawSnapshot([rawCastle(), rawCastle({ 0: 1, 1: '1,0', 2: 1 })]))
-    invalidSnapshots.push(rawSnapshot(Array.from({ length: 101 }, (_, index) => rawCastle({
-      0: index + 1,
-      1: `${index},0`,
-      2: index,
-    }))))
-    invalidSnapshots.push(rawSnapshot([rawCastle({ 1: '0,1', 2: 0, 3: 0 })]))
-    invalidSnapshots.push(rawSnapshot([rawCastle({ 10: 'private' })]))
+    invalidSnapshots.push(rawSnapshot([0, 0, 0, 0]))
+    invalidSnapshots.push(rawSnapshot([101, 101, 100, 1]))
+    invalidSnapshots.push(rawSnapshot([2, 1, 1, 1]))
+    invalidSnapshots.push(rawSnapshot([2, 2, 0, 1]))
+    invalidSnapshots.push(rawSnapshot([1, 1, 0, 1, 7]))
+    invalidSnapshots.push(rawSnapshot([1, 1, 0, { fid: 1 }]))
 
     for (const invalid of invalidSnapshots) {
       expect(() => parseQaObserverSnapshot(JSON.stringify(invalid), 'application/json')).toThrow(

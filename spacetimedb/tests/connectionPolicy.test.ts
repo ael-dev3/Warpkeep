@@ -87,7 +87,7 @@ test('the QA snapshot guard independently revalidates only the fresh exact princ
   assert.doesNotMatch(qaGate, /requireAdmin|requireAllowedFid|requireAdmittedPlayer|requireAuthEpochResolver/);
 });
 
-test('the QA principal is accepted by exactly one fixed no-argument read procedure', () => {
+test('the QA principal is accepted only by v2 while the deployed v1 wire fails closed', () => {
   const reducerDirectory = new URL('../src/reducers/', import.meta.url);
   const files = readdirSync(reducerDirectory)
     .filter(file => file.endsWith('.ts'));
@@ -99,18 +99,26 @@ test('the QA principal is accepted by exactly one fixed no-argument read procedu
 
   const procedure = uses[0]!.source;
   assert.match(procedure, /name: 'qa_observer_get_realm_snapshot_v1'/);
-  assert.match(procedure, /qaObserverRealmSnapshotV1,\s*ctx\s*=>/);
-  assert.match(procedure, /requireQaSnapshotResolver\(tx\)/);
-  assert.match(procedure, /assertGenesisFoundingGraph\(tx\)/);
-  assert.match(procedure, /buildQaObserverRealmSnapshot/);
-  assert.doesNotMatch(procedure, /\.(?:insert|update|delete)\s*\(/);
+  assert.match(procedure, /qaObserverRealmSnapshotV1,\s*_ctx\s*=>\s*\{\s*throw new SenderError\('QA_OBSERVER_V1_DISABLED'\)/);
+  const v1Start = procedure.indexOf('export const qaObserverGetRealmSnapshotV1');
+  const v2Start = procedure.indexOf('export const qaObserverGetRealmAttestationV2');
+  assert.ok(v1Start >= 0 && v2Start > v1Start);
+  assert.doesNotMatch(procedure.slice(v1Start, v2Start), /withTx|requireQaSnapshotResolver|tx\.db\./);
 
-  const guardAt = procedure.indexOf('requireQaSnapshotResolver(tx)');
-  const firstReadAt = procedure.indexOf('tx.db.');
+  const activeProcedure = procedure.slice(v2Start);
+  assert.match(activeProcedure, /name: 'qa_observer_get_realm_attestation_v2'/);
+  assert.match(activeProcedure, /qaObserverRealmAttestationV2,\s*ctx\s*=>/);
+  assert.match(activeProcedure, /requireQaSnapshotResolver\(tx\)/);
+  assert.match(activeProcedure, /assertGenesisFoundingGraph\(tx\)/);
+  assert.match(activeProcedure, /buildQaObserverRealmAttestationV2/);
+  assert.doesNotMatch(activeProcedure, /\.(?:insert|update|delete)\s*\(/);
+
+  const guardAt = activeProcedure.indexOf('requireQaSnapshotResolver(tx)');
+  const firstReadAt = activeProcedure.indexOf('tx.db.');
   assert.ok(guardAt >= 0 && firstReadAt > guardAt);
 });
 
-test('the QA snapshot procedure wire spelling is pinned exactly in schema metadata', () => {
+test('both additive QA procedure wire spellings are pinned exactly in schema metadata', () => {
   const source = readFileSync(new URL('../src/schema.ts', import.meta.url), 'utf8');
   const explicitNamesStart = source.indexOf('for (const name of [');
   const explicitNamesEnd = source.indexOf(']) {', explicitNamesStart);
@@ -122,24 +130,29 @@ test('the QA snapshot procedure wire spelling is pinned exactly in schema metada
     explicitNames.match(/'qa_observer_get_realm_snapshot_v1'/g)?.length,
     1,
   );
+  assert.equal(
+    explicitNames.match(/'qa_observer_get_realm_attestation_v2'/g)?.length,
+    1,
+  );
   assert.doesNotMatch(explicitNames, /qa_observer_get_realm_snapshot_v_1/);
+  assert.doesNotMatch(explicitNames, /qa_observer_get_realm_attestation_v_2/);
 
   const registration = source.slice(explicitNamesEnd, source.indexOf('export default', explicitNamesEnd));
   assert.match(registration, /sourceName: name, canonicalName: name/);
 });
 
-test('the QA snapshot SATS product field order and privacy boundary stay exact', () => {
+test('the v2 QA attestation SATS product exposes only world state and exact aggregates', () => {
   const source = readFileSync(new URL('../src/reducers/qaObserver.ts', import.meta.url), 'utf8');
-  const realmStart = source.indexOf("const qaObserverRealmV1 = t.object");
-  const castleStart = source.indexOf("const qaObserverCastleV1 = t.object");
-  const snapshotStart = source.indexOf("const qaObserverRealmSnapshotV1 = t.object");
-  const procedureStart = source.indexOf('/**', snapshotStart);
-  assert.ok(realmStart >= 0 && castleStart > realmStart);
-  assert.ok(snapshotStart > castleStart && procedureStart > snapshotStart);
+  const realmStart = source.indexOf("const qaObserverRealmV2 = t.object");
+  const aggregatesStart = source.indexOf("const qaObserverRealmAggregatesV2 = t.object");
+  const attestationStart = source.indexOf("const qaObserverRealmAttestationV2 = t.object");
+  const procedureStart = source.indexOf('/**', attestationStart);
+  assert.ok(realmStart >= 0 && aggregatesStart > realmStart);
+  assert.ok(attestationStart > aggregatesStart && procedureStart > attestationStart);
 
   const fields = (block: string) => [...block.matchAll(/^  ([a-zA-Z][a-zA-Z0-9]*):/gm)]
     .map(match => match[1]);
-  assert.deepEqual(fields(source.slice(realmStart, castleStart)), [
+  assert.deepEqual(fields(source.slice(realmStart, aggregatesStart)), [
     'realmId',
     'numericSeed',
     'generationVersion',
@@ -147,21 +160,14 @@ test('the QA snapshot SATS product field order and privacy boundary stay exact',
     'renderRadius',
     'playerCapacity',
   ]);
-  assert.deepEqual(fields(source.slice(castleStart, snapshotStart)), [
-    'castleId',
-    'tileKey',
-    'q',
-    'r',
-    'level',
-    'name',
-    'canonicalUsername',
-    'displayName',
-    'portraitAvailable',
-    'publicBio',
-    'publicStatus',
+  assert.deepEqual(fields(source.slice(aggregatesStart, attestationStart)), [
+    'castleCount',
+    'profileCount',
+    'foundedCount',
+    'activeCount',
   ]);
-  const snapshotSchema = source.slice(snapshotStart, procedureStart);
-  assert.deepEqual(fields(snapshotSchema), [
+  const attestationSchema = source.slice(attestationStart, procedureStart);
+  assert.deepEqual(fields(attestationSchema), [
     'version',
     'protocolVersion',
     'worldSeed',
@@ -169,10 +175,17 @@ test('the QA snapshot SATS product field order and privacy boundary stay exact',
     'worldTileCount',
     'worldTileMetaCount',
     'realm',
-    'castles',
+    'aggregates',
   ]);
   for (const forbidden of [
     'fid',
+    'castleid',
+    'tilekey',
+    'username',
+    'displayname',
+    'bio',
+    'portrait',
+    'coordinates',
     'identity',
     'admission',
     'ownership',
@@ -184,7 +197,7 @@ test('the QA snapshot SATS product field order and privacy boundary stay exact',
     'pfp',
     'url',
   ]) {
-    assert.doesNotMatch(snapshotSchema.toLowerCase(), new RegExp(forbidden));
+    assert.doesNotMatch(attestationSchema.toLowerCase(), new RegExp(forbidden));
   }
 });
 

@@ -6,7 +6,7 @@ import { parseQaObserverSnapshot } from '../scripts/qa-observer/observer-snapsho
 
 function snapshot() {
   return {
-    version: 1,
+    version: 2,
     protocolVersion: 3,
     worldSeed: 3_445_214_658,
     worldSeedName: 'HEGEMONY_GENESIS_001',
@@ -20,29 +20,22 @@ function snapshot() {
       renderRadius: 22,
       playerCapacity: 100
     },
-    castles: [{
-      castleId: 1,
-      tileKey: '0,1',
-      q: 0,
-      r: 1,
-      level: 2,
-      name: 'Observed Keep',
-      canonicalUsername: 'public-name',
-      displayName: 'Public Name',
-      portraitAvailable: true,
-      publicBio: 'Public profile text.',
-      publicStatus: 'active'
-    }]
+    aggregates: {
+      castleCount: 2,
+      profileCount: 2,
+      foundedCount: 1,
+      activeCount: 1
+    }
   };
 }
 
 describe('local QA Observatory security boundary', () => {
-  it('accepts only the exact canonical, FID-free Realm projection', () => {
+  it('accepts only the exact canonical aggregate attestation', () => {
     const parsed = parseQaObserverSnapshot(snapshot());
     expect(parsed).toEqual(snapshot());
     expect(Object.isFrozen(parsed)).toBe(true);
     expect(Object.isFrozen(parsed?.realm)).toBe(true);
-    expect(Object.isFrozen(parsed?.castles[0])).toBe(true);
+    expect(Object.isFrozen(parsed?.aggregates)).toBe(true);
 
     for (const candidate of [
       { ...snapshot(), fid: 1 },
@@ -50,29 +43,24 @@ describe('local QA Observatory security boundary', () => {
       { ...snapshot(), castles: [] },
       { ...snapshot(), worldTileCount: 1_260 },
       { ...snapshot(), realm: { ...snapshot().realm, identity: 'opaque' } },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], ownerFid: 1 }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], pfpUrl: 'https://example.test/pfp' }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], tileKey: '1,0' }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], canonicalUsername: 'Not Canonical' }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], displayName: 'Trusted\u202eexe' }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], name: ` ${snapshot().castles[0].name}` }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], name: 'Observed  Keep' }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], name: 'n'.repeat(81) }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], publicBio: null }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], publicStatus: 'pending' }] },
-      { ...snapshot(), castles: [{ ...snapshot().castles[0], q: 20, r: 20, tileKey: '20,20' }] },
-      { ...snapshot(), castles: [snapshot().castles[0], snapshot().castles[0]] },
-      { ...snapshot(), castles: [
-        { ...snapshot().castles[0], castleId: 2 },
-        { ...snapshot().castles[0], castleId: 1, q: 1, r: 0, tileKey: '1,0' }
-      ] },
-      { ...snapshot(), castles: [
-        snapshot().castles[0],
-        { ...snapshot().castles[0], castleId: 2 }
-      ] },
+      { ...snapshot(), aggregates: { ...snapshot().aggregates, fid: 1 } },
+      { ...snapshot(), aggregates: { ...snapshot().aggregates, castleId: 1 } },
+      { ...snapshot(), aggregates: { ...snapshot().aggregates, castleCount: 0, profileCount: 0 } },
+      { ...snapshot(), aggregates: { ...snapshot().aggregates, castleCount: 101, profileCount: 101 } },
+      { ...snapshot(), aggregates: { ...snapshot().aggregates, profileCount: 1 } },
+      { ...snapshot(), aggregates: { ...snapshot().aggregates, foundedCount: 0 } },
+      { ...snapshot(), aggregates: { ...snapshot().aggregates, activeCount: -1 } },
+      { ...snapshot(), aggregates: { ...snapshot().aggregates, activeCount: 1.5 } },
+      { ...snapshot(), version: 1 },
     ]) {
       expect(parseQaObserverSnapshot(candidate)).toBeUndefined();
     }
+
+    const serialized = JSON.stringify(parsed);
+    for (const forbidden of [
+      'castleId', 'ownerFid', 'tileKey', 'username', 'displayName', 'publicBio',
+      'portrait', 'coordinates',
+    ]) expect(serialized.toLowerCase()).not.toContain(forbidden.toLowerCase());
   });
 
   it('keeps the native credential non-exportable and fixed-purpose', () => {
@@ -168,8 +156,28 @@ describe('local QA Observatory security boundary', () => {
     expect(profile).toContain('(deny network*)');
     expect(profile).toContain('(local ip "localhost:*")');
     expect(profile).toContain('(remote ip "localhost:*")');
-    expect(profile).toContain('(subpath observatory-root)');
+    expect(profile).not.toContain('(remote unix-socket (subpath observatory-root))');
+    expect(profile).toContain('(remote unix-socket (subpath socket-tmp-root))');
+    expect(profile).not.toContain('(remote unix-socket (subpath "/private/tmp"))');
     expect(profile).not.toMatch(/\(allow network\*\)\s*$/m);
     expect(profile).not.toMatch(/remote ip "\*:\*"/);
+    expect(profile).toContain('(deny file-write*)');
+    expect(profile).not.toContain('(allow file-write* (subpath repository-root))');
+    expect(profile).not.toContain('(allow file-write* (subpath observatory-root))');
+    expect(profile).not.toContain('(allow file-write* (subpath "/private/tmp"))');
+    expect(profile).toContain('(allow file-write* (subpath build-output-root))');
+    expect(profile).toContain('(allow file-write* (subpath root-vite-cache-root))');
+    expect(profile).toContain('(allow file-write* (subpath root-vite-config-root))');
+    expect(profile).toContain('(allow file-write* (subpath spacetime-dist-root))');
+    expect(profile).toContain('(deny file-read* (subpath user-home))');
+    expect(profile).toContain('(deny file-read* (subpath "/private/tmp"))');
+    expect(profile).toContain('(allow file-read-metadata (subpath user-home))');
+    expect(profile).not.toContain('(allow file-read* (subpath observatory-root))');
+    expect(profile).toContain('(allow file-read* (subpath runtime-home))');
+    expect(profile).toContain('(allow file-read* (subpath spacetime-cli-root))');
+    expect(profile).toContain('(deny process-exec (subpath observatory-root))');
+    expect(profile).toContain('(deny process-exec (literal "/usr/bin/security"))');
+    expect(profile).toContain('(deny process-exec (literal "/bin/launchctl"))');
+    expect(profile).toContain('(deny mach-lookup (global-name "com.apple.securityd"))');
   });
 });

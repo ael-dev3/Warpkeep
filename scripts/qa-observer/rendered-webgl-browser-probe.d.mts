@@ -2,14 +2,39 @@ import type { ChildProcess } from 'node:child_process';
 
 export const RENDERED_WEBGL_QA_CHROME:
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+export const RENDERED_WEBGL_QA_CHROME_APP: '/Applications/Google Chrome.app';
+export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: 'EQHXZ8M8AV';
+
+export function parseHeadlessChromeCodeSignature(value: unknown): Readonly<{
+  executable: typeof RENDERED_WEBGL_QA_CHROME;
+  identifier: 'com.google.Chrome';
+  teamIdentifier: typeof RENDERED_WEBGL_QA_CHROME_TEAM_ID;
+}>;
+
+export function attestHeadlessChromeCodeSignature(options?: Readonly<{
+  execFileAsync?: (
+    executable: string,
+    arguments_: readonly string[],
+    options: Readonly<Record<string, unknown>>
+  ) => Promise<Readonly<{ stdout?: string; stderr?: string }>>;
+}>): Promise<Readonly<{
+  executable: typeof RENDERED_WEBGL_QA_CHROME;
+  identifier: 'com.google.Chrome';
+  teamIdentifier: typeof RENDERED_WEBGL_QA_CHROME_TEAM_ID;
+}>>;
 
 export type RenderedWebglBrowserProbeQuality = 'high' | 'balanced' | 'reduced';
-export type RenderedWebglBrowserProbeInteraction = 'default' | 'inspector' | 'explore';
+export type RenderedWebglBrowserProbeInteraction =
+  | 'default'
+  | 'inspector'
+  | 'explore'
+  | 'cluster';
 
 export type RenderedWebglBrowserProbeCase = Readonly<{
   id:
     | 'desktop-high'
     | 'desktop-balanced'
+    | 'desktop-balanced-cluster'
     | 'desktop-reduced'
     | 'desktop-invalid-fallback'
     | 'mobile-balanced'
@@ -18,6 +43,10 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
   expectedQuality: RenderedWebglBrowserProbeQuality;
   interaction: RenderedWebglBrowserProbeInteraction;
   minimumLabelCount: number;
+  /** Present only after a real cluster control has been activated. */
+  clusterButtonCountBefore?: number;
+  /** Present only after a real cluster control has been activated. */
+  clusterMemberCountBefore?: number;
   url: string;
   viewport: Readonly<{ width: number; height: number }>;
 }>;
@@ -47,6 +76,14 @@ export function spawnHeadlessChromeProbe(
     spawnProcess?: (...arguments_: Parameters<typeof import('node:child_process').spawn>) => ChildProcess;
   }>
 ): ChildProcess;
+
+export function terminateHeadlessChromeProcessGroup(
+  child: ChildProcess | undefined,
+  options?: Readonly<{
+    terminateProcessGroup?: (child: ChildProcess, signal: NodeJS.Signals) => void;
+    wait?: (milliseconds: number) => Promise<unknown>;
+  }>
+): Promise<void>;
 
 export function parseDevtoolsActivePort(value: string): Readonly<{
   port: number;

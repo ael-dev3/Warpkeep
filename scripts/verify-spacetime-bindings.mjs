@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -63,7 +64,7 @@ async function main() {
     throw new Error('Committed bindings do not declare the pinned SpacetimeDB CLI version.');
   }
 
-  const stagingDirectory = await mkdtemp(join(dirname(committedDirectory), '.verify-bindings-'));
+  const stagingDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-verify-bindings-'));
   try {
     generate(stagingDirectory);
     const differences = await compareTrees(committedDirectory, stagingDirectory);

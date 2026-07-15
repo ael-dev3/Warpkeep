@@ -99,7 +99,8 @@ export function requireWarpkeepConnection(
 /**
  * Static compatibility metadata remains available to ordinary admitted,
  * administrator, and admission-resolver connections. The QA principal is
- * deliberately excluded so its sole callable procedure is the v1 snapshot.
+ * deliberately excluded so its sole callable procedure is the v2 aggregate
+ * attestation; the retained v1 wire fails before entering this guard.
  */
 export function requireWarpkeepMetadataConnection(
   ctx: WarpkeepReducerContext,

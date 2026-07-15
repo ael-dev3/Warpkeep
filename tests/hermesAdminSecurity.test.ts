@@ -20,6 +20,11 @@ function runHermes(
 ) {
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH,
+    // Preserve the autonomous runner's one sandbox-authorized IPC namespace.
+    // `tsx` creates a short-lived Unix socket before evaluating Hermes; falling
+    // back to shared `/tmp` would fail the boundary for the wrong reason.
+    TMPDIR: process.env.TMPDIR,
+    WARPKEEP_QA_SOCKET_TMP: process.env.WARPKEEP_QA_SOCKET_TMP,
     WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
     WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
     WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',

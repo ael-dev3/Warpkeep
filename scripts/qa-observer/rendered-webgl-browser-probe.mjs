@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createServer as createHttpServer, request as httpRequest } from 'node:http';
 import {
   chmod,
@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { inflateSync } from 'node:zlib';
 
 import {
@@ -22,6 +23,11 @@ import {
 
 export const RENDERED_WEBGL_QA_CHROME =
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+export const RENDERED_WEBGL_QA_CHROME_APP = '/Applications/Google Chrome.app';
+export const RENDERED_WEBGL_QA_CHROME_TEAM_ID = 'EQHXZ8M8AV';
+
+const CODESIGN_EXECUTABLE = '/usr/bin/codesign';
+const execFileAsync = promisify(execFile);
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..', '..');
 const CHROME_STARTUP_TIMEOUT_MILLISECONDS = 15_000;
@@ -32,6 +38,8 @@ const PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS = 5_000;
 const SCREENSHOT_MAXIMUM_CHUNKS = 4_096;
 const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 const TERMINATION_GRACE_MILLISECONDS = 2_000;
+const CODESIGN_TIMEOUT_MILLISECONDS = 15_000;
+const CODESIGN_MAXIMUM_BYTES = 64 * 1_024;
 
 const DESKTOP_VIEWPORT = Object.freeze({ width: 1_440, height: 900 });
 const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
@@ -49,6 +57,97 @@ function exactPrivateDirectory(value) {
     throw new TypeError('Invalid private Chrome profile directory.');
   }
   return value;
+}
+
+export function parseHeadlessChromeCodeSignature(value) {
+  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > CODESIGN_MAXIMUM_BYTES) {
+    throw new TypeError('Invalid reviewed Chrome code signature.');
+  }
+  const fields = new Map();
+  for (const line of value.split(/\r?\n/u)) {
+    const separator = line.indexOf('=');
+    if (separator < 1) continue;
+    const key = line.slice(0, separator);
+    if (!['Executable', 'Identifier', 'TeamIdentifier'].includes(key)) continue;
+    if (fields.has(key)) throw new TypeError('Invalid reviewed Chrome code signature.');
+    fields.set(key, line.slice(separator + 1));
+  }
+  if (
+    fields.size !== 3
+    || fields.get('Executable') !== RENDERED_WEBGL_QA_CHROME
+    || fields.get('Identifier') !== 'com.google.Chrome'
+    || fields.get('TeamIdentifier') !== RENDERED_WEBGL_QA_CHROME_TEAM_ID
+  ) throw new TypeError('Invalid reviewed Chrome code signature.');
+  return Object.freeze({
+    executable: fields.get('Executable'),
+    identifier: fields.get('Identifier'),
+    teamIdentifier: fields.get('TeamIdentifier'),
+  });
+}
+
+export async function attestHeadlessChromeCodeSignature(options = {}) {
+  const execute = options.execFileAsync ?? execFileAsync;
+  const commandOptions = Object.freeze({
+    encoding: 'utf8',
+    env: Object.freeze({ LANG: 'C', PATH: '/usr/bin:/bin' }),
+    maxBuffer: CODESIGN_MAXIMUM_BYTES,
+    timeout: CODESIGN_TIMEOUT_MILLISECONDS,
+    windowsHide: true,
+  });
+  await execute(CODESIGN_EXECUTABLE, [
+    '--verify',
+    '--deep',
+    RENDERED_WEBGL_QA_CHROME_APP,
+  ], commandOptions);
+  const inspected = await execute(CODESIGN_EXECUTABLE, [
+    '-dv',
+    '--verbose=4',
+    RENDERED_WEBGL_QA_CHROME_APP,
+  ], commandOptions);
+  return parseHeadlessChromeCodeSignature(inspected?.stderr);
+}
+
+async function readReviewedChromeExecutableIdentity() {
+  const metadata = await lstat(RENDERED_WEBGL_QA_CHROME, { bigint: true });
+  const expectedUid = typeof process.getuid === 'function'
+    ? BigInt(process.getuid())
+    : undefined;
+  if (
+    !metadata.isFile()
+    || metadata.isSymbolicLink()
+    || metadata.nlink !== 1n
+    || (metadata.mode & 0o002n) !== 0n
+    || (expectedUid !== undefined && metadata.uid !== 0n && metadata.uid !== expectedUid)
+  ) throw new Error('The reviewed Google Chrome executable is unavailable.');
+  return Object.freeze({
+    ctimeNs: metadata.ctimeNs.toString(),
+    dev: metadata.dev.toString(),
+    gid: metadata.gid.toString(),
+    ino: metadata.ino.toString(),
+    mode: metadata.mode.toString(),
+    mtimeNs: metadata.mtimeNs.toString(),
+    nlink: metadata.nlink.toString(),
+    size: metadata.size.toString(),
+    uid: metadata.uid.toString(),
+  });
+}
+
+function exactChromeExecutableIdentity(left, right) {
+  return Object.keys(left).every((key) => left[key] === right[key])
+    && Object.keys(right).length === Object.keys(left).length;
+}
+
+async function attestStableHeadlessChromeExecutable(expectedIdentity) {
+  const before = await readReviewedChromeExecutableIdentity();
+  if (expectedIdentity && !exactChromeExecutableIdentity(before, expectedIdentity)) {
+    throw new Error('The reviewed Google Chrome executable changed before launch.');
+  }
+  await attestHeadlessChromeCodeSignature();
+  const after = await readReviewedChromeExecutableIdentity();
+  if (!exactChromeExecutableIdentity(before, after)) {
+    throw new Error('The reviewed Google Chrome executable changed during attestation.');
+  }
+  return after;
 }
 
 /**
@@ -72,6 +171,14 @@ export function renderedWebglBrowserProbeCases(port) {
       id: 'desktop-balanced',
       expectedQuality: 'balanced',
       interaction: 'default',
+      minimumLabelCount: 14,
+      url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
+      viewport: DESKTOP_VIEWPORT,
+    }),
+    Object.freeze({
+      id: 'desktop-balanced-cluster',
+      expectedQuality: 'balanced',
+      interaction: 'cluster',
       minimumLabelCount: 14,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: DESKTOP_VIEWPORT,
@@ -136,6 +243,8 @@ export function headlessChromeProbeContract(profileDirectory) {
       `--user-data-dir=${profile}`,
       '--disable-background-networking',
       '--disable-breakpad',
+      '--disable-crash-reporter',
+      `--crash-dumps-dir=${join(profile, 'crash-dumps')}`,
       '--disable-client-side-phishing-detection',
       '--disable-component-extensions-with-background-pages',
       '--disable-component-update',
@@ -161,6 +270,7 @@ export function headlessChromeProbeContract(profileDirectory) {
       cwd: REPOSITORY_ROOT,
       detached: true,
       env: Object.freeze({
+        BREAKPAD_DUMP_LOCATION: join(profile, 'crash-dumps'),
         HOME: profile,
         LANG: 'en_US.UTF-8',
         PATH: '/usr/bin:/bin',
@@ -264,28 +374,48 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   const candidate = exactRecord(value, 'Invalid rendered WebGL browser DOM.');
   const keys = Object.keys(candidate).sort();
   const expectedKeys = [
+    'accessibleClusterButtonCount',
     'castleCount',
+    'clusterButtonCount',
+    'clusterCollisionCount',
+    'clusterMemberCount',
+    'clusterReservedOverlapCount',
+    'clustersWithinViewportCount',
     'documentWidth',
+    'exploreAccessibleCastleCount',
+    'exploreCastleCount',
     'fixture',
+    'focusedReadableLabelDomFocusCount',
+    'focusedReadableLabelCount',
     'href',
     'interactionState',
+    'individualCastleCount',
     'labelCollisionCount',
     'labelCount',
+    'labelEligibleCount',
+    'labelClusteredCount',
+    'labelClusterOverflowCount',
     'labelLeaderMismatchCount',
+    'labelPlacedCount',
+    'labelMissingIdentityCount',
     'labelReservedOverlapCount',
+    'labelUnplacedCount',
     'labelsTextBearingCount',
     'labelsWithinViewportCount',
     'mapRenderer',
     'mapViewportCovered',
     'quality',
+    'raycastTargetCount',
     'readyAfterMilliseconds',
+    'readyOverlayVisible',
     'renderer',
+    'presentedModelCount',
     'status',
     'undersizedPrimaryControlCount',
     'undersizedPrimaryControlKinds',
     'viewportHeight',
     'viewportWidth',
-  ];
+  ].sort();
   if (
     keys.length !== expectedKeys.length
     || keys.some((key, index) => key !== expectedKeys[index])
@@ -298,6 +428,19 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     ))
     || candidate.undersizedPrimaryControlKinds.length !== candidate.undersizedPrimaryControlCount
   ) throw new TypeError('Invalid rendered WebGL browser DOM: touch-target-shape.');
+  const expectedFocusedReadableLabelCount = (
+    expected.interaction === 'inspector' || expected.interaction === 'cluster' ? 1 : 0
+  );
+  const expectedFocusedReadableLabelDomFocusCount = expected.interaction === 'cluster' ? 1 : 0;
+  const expectedExploreCastleCount = expected.interaction === 'explore'
+    ? candidate.castleCount
+    : 0;
+  const clusterInteractionEvidenceValid = expected.interaction !== 'cluster' || (
+    Number.isSafeInteger(expected.clusterButtonCountBefore)
+    && expected.clusterButtonCountBefore > 0
+    && Number.isSafeInteger(expected.clusterMemberCountBefore)
+    && expected.clusterMemberCountBefore > 0
+  );
   const violations = [
     candidate.href !== expected.url ? 'href' : '',
     candidate.status !== 'ready' ? 'status' : '',
@@ -307,10 +450,53 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     candidate.viewportHeight !== expected.viewport.height ? 'viewport-height' : '',
     candidate.documentWidth !== expected.viewport.width ? 'horizontal-overflow' : '',
     candidate.interactionState !== expected.interaction ? 'interaction' : '',
+    candidate.readyOverlayVisible !== false ? 'ready-overlay-visible' : '',
     candidate.mapViewportCovered !== true ? 'map-coverage' : '',
+    !Number.isSafeInteger(candidate.labelEligibleCount)
+      || candidate.labelEligibleCount < 0 ? 'label-eligible-shape' : '',
+    !Number.isSafeInteger(candidate.labelPlacedCount)
+      || candidate.labelPlacedCount < 0 ? 'label-placed-shape' : '',
+    !Number.isSafeInteger(candidate.labelUnplacedCount)
+      || candidate.labelUnplacedCount < 0 ? 'label-unplaced-shape' : '',
+    candidate.labelEligibleCount !== candidate.labelPlacedCount + candidate.labelUnplacedCount
+      ? 'label-coverage-total' : '',
+    candidate.labelPlacedCount !== candidate.labelCount ? 'label-placement-dom' : '',
+    candidate.individualCastleCount !== candidate.labelPlacedCount
+      ? 'individual-label-mismatch' : '',
+    candidate.presentedModelCount !== candidate.individualCastleCount
+      ? 'presented-model-mismatch' : '',
+    candidate.raycastTargetCount !== candidate.individualCastleCount
+      ? 'raycast-target-mismatch' : '',
+    !Number.isSafeInteger(candidate.labelClusteredCount)
+      || candidate.labelClusteredCount < 0 ? 'label-clustered-shape' : '',
+    !Number.isSafeInteger(candidate.labelClusterOverflowCount)
+      || candidate.labelClusterOverflowCount < 0 ? 'label-cluster-overflow-shape' : '',
+    candidate.labelUnplacedCount
+      !== candidate.labelClusteredCount + candidate.labelClusterOverflowCount
+      ? 'label-cluster-accounting' : '',
+    candidate.clusterMemberCount !== candidate.labelClusteredCount
+      ? 'label-cluster-membership' : '',
+    candidate.labelClusteredCount > 0 && candidate.clusterButtonCount < 1
+      ? 'label-cluster-affordance' : '',
+    candidate.accessibleClusterButtonCount !== candidate.clusterButtonCount
+      ? 'label-cluster-accessibility' : '',
+    candidate.labelClusterOverflowCount !== 0 ? 'label-cluster-overflow' : '',
+    candidate.labelMissingIdentityCount !== 0 ? 'label-missing-identity' : '',
+    candidate.clustersWithinViewportCount !== candidate.clusterButtonCount
+      ? 'label-cluster-viewport' : '',
+    candidate.clusterCollisionCount !== 0 ? 'label-cluster-collision' : '',
+    candidate.clusterReservedOverlapCount !== 0 ? 'label-cluster-reserved-ui' : '',
     !Number.isSafeInteger(candidate.labelCount)
       || candidate.labelCount < expected.minimumLabelCount ? 'label-count' : '',
     candidate.labelsTextBearingCount !== candidate.labelCount ? 'label-text' : '',
+    candidate.focusedReadableLabelCount !== expectedFocusedReadableLabelCount
+      ? 'focused-readable-label' : '',
+    candidate.focusedReadableLabelDomFocusCount !== expectedFocusedReadableLabelDomFocusCount
+      ? 'focused-readable-label-dom-focus' : '',
+    candidate.exploreCastleCount !== expectedExploreCastleCount
+      ? 'explore-castle-coverage' : '',
+    candidate.exploreAccessibleCastleCount !== candidate.exploreCastleCount
+      ? 'explore-castle-accessibility' : '',
     candidate.labelsWithinViewportCount !== candidate.labelCount ? 'label-viewport' : '',
     candidate.labelCollisionCount !== 0 ? 'label-collision' : '',
     candidate.labelLeaderMismatchCount !== 0 ? 'label-leader' : '',
@@ -320,6 +506,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
           ? candidate.undersizedPrimaryControlKinds.join('|')
           : 'invalid'}`
       : '',
+    !clusterInteractionEvidenceValid ? 'cluster-interaction-evidence' : '',
+    expected.interaction === 'cluster'
+      && candidate.clusterButtonCount === expected.clusterButtonCountBefore
+      && candidate.clusterMemberCount === expected.clusterMemberCountBefore
+      ? 'cluster-accounting-unchanged' : '',
   ].filter(Boolean);
   if (violations.length > 0) {
     throw new TypeError(`Invalid rendered WebGL browser DOM: ${violations.join(',')}.`);
@@ -694,18 +885,34 @@ function terminateProcessGroup(child, signal) {
   }
 }
 
-async function terminateChrome(child) {
-  if (!child || child.exitCode !== null || child.signalCode !== null) return;
-  const closed = new Promise((resolveClose) => child.once('close', resolveClose));
-  terminateProcessGroup(child, 'SIGTERM');
-  await Promise.race([closed, delay(TERMINATION_GRACE_MILLISECONDS)]);
-  if (child.exitCode === null && child.signalCode === null) {
-    terminateProcessGroup(child, 'SIGKILL');
-    await Promise.race([closed, delay(TERMINATION_GRACE_MILLISECONDS)]);
+export async function terminateHeadlessChromeProcessGroup(child, options = {}) {
+  if (!child?.pid) return;
+  const terminate = options.terminateProcessGroup ?? terminateProcessGroup;
+  const wait = options.wait ?? delay;
+  const leaderRunning = child.exitCode === null && child.signalCode === null;
+  const closed = leaderRunning
+    ? new Promise((resolveClose) => child.once('close', resolveClose))
+    : Promise.resolve();
+  terminate(child, 'SIGTERM');
+  if (leaderRunning) {
+    await Promise.race([closed, wait(TERMINATION_GRACE_MILLISECONDS)]);
+  }
+  // Always sweep the original Chrome process group. The leader can exit before
+  // helpers that ignored SIGTERM, and an early return would orphan them.
+  terminate(child, 'SIGKILL');
+  if (leaderRunning) {
+    await Promise.race([closed, wait(TERMINATION_GRACE_MILLISECONDS)]);
   }
 }
 
-async function createLoopbackViteServer() {
+async function createLoopbackViteServer(runtimeDirectory) {
+  const privateRuntime = exactPrivateDirectory(runtimeDirectory);
+  const packageJson = JSON.parse(await readFile(join(REPOSITORY_ROOT, 'package.json'), 'utf8'));
+  if (
+    packageJson?.name !== 'warpkeep'
+    || typeof packageJson.version !== 'string'
+    || !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(packageJson.version)
+  ) throw new Error('Invalid rendered WebGL package contract.');
   let vite;
   let expectedHost;
   const httpServer = createHttpServer((request, response) => {
@@ -761,9 +968,22 @@ async function createLoopbackViteServer() {
   }
   expectedHost = `127.0.0.1:${exactPort(address.port)}`;
   try {
-    const { createServer: createViteServer } = await import('vite');
+    const [viteModule, reactPluginModule] = await Promise.all([
+      import('vite'),
+      import('@vitejs/plugin-react'),
+    ]);
+    const createViteServer = viteModule.createServer;
+    const reactPlugin = reactPluginModule.default;
     vite = await createViteServer({
       root: REPOSITORY_ROOT,
+      cacheDir: join(privateRuntime, 'vite-cache'),
+      configFile: false,
+      envFile: false,
+      plugins: [reactPlugin()],
+      define: {
+        __WARPKEEP_LOCAL_QA__: 'true',
+        __WARPKEEP_PRODUCT_VERSION__: JSON.stringify(packageJson.version),
+      },
       appType: 'spa',
       logLevel: 'silent',
       server: {
@@ -771,6 +991,10 @@ async function createLoopbackViteServer() {
         middlewareMode: true,
         port: address.port,
         strictPort: true,
+        fs: {
+          strict: true,
+          allow: [REPOSITORY_ROOT],
+        },
         hmr: {
           clientPort: address.port,
           host: '127.0.0.1',
@@ -817,6 +1041,22 @@ const READ_DOM_EXPRESSION = `(() => {
     && left.bottom > right.top;
   const labels = [...document.querySelectorAll('button.realm-castle-label')].filter(visible);
   const labelRects = labels.map(rect);
+  const focusedReadableLabels = labels.filter((label) => (
+    label.getAttribute('data-focused') === 'true'
+    && (label.textContent ?? '').trim().length > 0
+  ));
+  const clusters = [...document.querySelectorAll('[data-realm-castle-cluster]')].filter(visible);
+  const accessibleClusters = clusters.filter((cluster) => (
+    cluster instanceof HTMLButtonElement
+    && !cluster.disabled
+    && cluster.tabIndex >= 0
+    && (cluster.getAttribute('aria-label') ?? '').trim().length > 0
+    && (integer(cluster.getAttribute('data-cluster-count')) ?? 0) > 0
+  ));
+  const clusterRects = clusters.map(rect);
+  const clusterMemberCount = clusters.reduce((count, cluster) => (
+    count + (integer(cluster.getAttribute('data-cluster-count')) ?? 0)
+  ), 0);
   const activeLeaders = [...document.querySelectorAll('[data-realm-label-leader]')]
     .filter((leader) => leader.getAttribute('data-active') === 'true' && visible(leader));
   const activeLeaderIds = new Set(activeLeaders.map((leader) => leader.getAttribute('data-castle-id')));
@@ -837,15 +1077,35 @@ const READ_DOM_EXPRESSION = `(() => {
       if (overlaps(labelRects[leftIndex], labelRects[rightIndex])) labelCollisionCount += 1;
     }
   }
+  let clusterCollisionCount = 0;
+  for (let leftIndex = 0; leftIndex < clusterRects.length; leftIndex += 1) {
+    if (labelRects.some((bounds) => overlaps(clusterRects[leftIndex], bounds))) {
+      clusterCollisionCount += 1;
+    }
+    for (let rightIndex = leftIndex + 1; rightIndex < clusterRects.length; rightIndex += 1) {
+      if (overlaps(clusterRects[leftIndex], clusterRects[rightIndex])) clusterCollisionCount += 1;
+    }
+  }
   const primaryControls = [...document.querySelectorAll(
     '.realm-hud__actions button, .realm-cell-navigator > button, '
       + '.realm-cell-navigator__dialog button, .realm-cell-navigator__dialog input, '
       + '.realm-cell-navigator__dialog a, '
-      + '.castle-inspection button, .castle-inspection a'
+      + '.castle-inspection button, .castle-inspection a, '
+      + '[data-realm-castle-cluster]'
   )].filter(visible);
   const mapRect = map ? rect(map) : null;
   const dialog = document.querySelector('.realm-cell-navigator__dialog');
   const inspector = document.querySelector('.castle-inspection');
+  const exploreCastleButtons = [...document.querySelectorAll(
+    '.realm-cell-navigator__castles button'
+  )].filter(visible);
+  const exploreAccessibleCastleButtons = exploreCastleButtons.filter((button) => (
+    button instanceof HTMLButtonElement
+    && !button.disabled
+    && button.tabIndex >= 0
+    && (button.getAttribute('aria-label') ?? '').trim().length > 0
+    && (button.textContent ?? '').trim().length > 0
+  ));
   const undersizedPrimaryControls = primaryControls.filter((control) => {
     const bounds = rect(control);
     return bounds.width < 44 || bounds.height < 44;
@@ -853,6 +1113,7 @@ const READ_DOM_EXPRESSION = `(() => {
   return {
     href: location.href,
     status: overlay?.getAttribute('data-rendered-webgl-status') ?? null,
+    readyOverlayVisible: visible(overlay),
     renderer: overlay?.getAttribute('data-renderer') ?? null,
     mapRenderer: map?.getAttribute('data-renderer') ?? null,
     fixture: overlay?.getAttribute('data-fixture') ?? null,
@@ -872,9 +1133,26 @@ const READ_DOM_EXPRESSION = `(() => {
       && mapRect.bottom <= innerHeight + 1
       && mapRect.width >= innerWidth - 1
       && mapRect.height >= innerHeight - 1,
-    interactionState: visible(inspector) ? 'inspector' : visible(dialog) ? 'explore' : 'default',
+    interactionState: visible(inspector)
+      ? 'inspector'
+      : visible(dialog)
+        ? 'explore'
+        : focusedReadableLabels.length > 0 ? 'cluster' : 'default',
+    individualCastleCount: integer(map?.getAttribute('data-individual-castle-count')),
+    presentedModelCount: integer(map?.getAttribute('data-presented-model-count')),
+    raycastTargetCount: integer(map?.getAttribute('data-raycast-target-count')),
     labelCount: labels.length,
+    labelEligibleCount: integer(map?.getAttribute('data-label-eligible-count')),
+    labelClusteredCount: integer(map?.getAttribute('data-label-clustered-count')),
+    labelClusterOverflowCount: integer(map?.getAttribute('data-label-cluster-overflow-count')),
+    labelMissingIdentityCount: integer(map?.getAttribute('data-label-missing-identity-count')),
+    labelPlacedCount: integer(map?.getAttribute('data-label-placed-count')),
+    labelUnplacedCount: integer(map?.getAttribute('data-label-unplaced-count')),
     labelsTextBearingCount: labels.filter((label) => (label.textContent ?? '').trim().length > 0).length,
+    focusedReadableLabelCount: focusedReadableLabels.length,
+    focusedReadableLabelDomFocusCount: focusedReadableLabels.filter((label) => (
+      document.activeElement === label
+    )).length,
     labelsWithinViewportCount: labelRects.filter((bounds) => (
       bounds.left >= -1
       && bounds.top >= -1
@@ -886,6 +1164,21 @@ const READ_DOM_EXPRESSION = `(() => {
     labelReservedOverlapCount: labelRects.reduce((count, bounds) => (
       count + (reserved.some((reservedBounds) => overlaps(bounds, reservedBounds)) ? 1 : 0)
     ), 0),
+    clusterButtonCount: clusters.length,
+    accessibleClusterButtonCount: accessibleClusters.length,
+    clusterMemberCount,
+    clustersWithinViewportCount: clusterRects.filter((bounds) => (
+      bounds.left >= -1
+      && bounds.top >= -1
+      && bounds.right <= innerWidth + 1
+      && bounds.bottom <= innerHeight + 1
+    )).length,
+    clusterCollisionCount,
+    clusterReservedOverlapCount: clusterRects.reduce((count, bounds) => (
+      count + (reserved.some((reservedBounds) => overlaps(bounds, reservedBounds)) ? 1 : 0)
+    ), 0),
+    exploreCastleCount: exploreCastleButtons.length,
+    exploreAccessibleCastleCount: exploreAccessibleCastleButtons.length,
     undersizedPrimaryControlCount: undersizedPrimaryControls.length,
     undersizedPrimaryControlKinds: undersizedPrimaryControls.map((control) => {
       const bounds = rect(control);
@@ -963,7 +1256,90 @@ async function captureRenderedCasePixels(session, viewport) {
 }
 
 async function applyRenderedCaseInteraction(session, interaction) {
-  if (interaction === 'default') return;
+  if (interaction === 'default') return Object.freeze({});
+  if (interaction === 'cluster') {
+    const showRealm = await session.command('Runtime.evaluate', {
+      expression: `(() => {
+        const visible = (element) => {
+          if (!element) return false;
+          const style = getComputedStyle(element);
+          const bounds = element.getBoundingClientRect();
+          return style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && Number(style.opacity || '1') > 0
+            && bounds.width > 0
+            && bounds.height > 0;
+        };
+        const target = [...document.querySelectorAll('button')].find((button) => (
+          button instanceof HTMLButtonElement
+          && button.getAttribute('aria-label') === 'Show Full Realm'
+          && !button.disabled
+          && button.tabIndex >= 0
+          && visible(button)
+        ));
+        if (!(target instanceof HTMLButtonElement)) return false;
+        target.click();
+        return true;
+      })()`,
+      returnByValue: true,
+    });
+    if (showRealm?.exceptionDetails || showRealm?.result?.value !== true) {
+      throw new Error('Rendered WebGL QA full-realm interaction failed.');
+    }
+
+    const deadline = Date.now() + PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS;
+    while (Date.now() < deadline) {
+      const evaluation = await session.command('Runtime.evaluate', {
+        expression: `(() => {
+          const integer = (value) => /^\\d+$/.test(value ?? '') ? Number(value) : null;
+          const visible = (element) => {
+            if (!element) return false;
+            const style = getComputedStyle(element);
+            const bounds = element.getBoundingClientRect();
+            return style.display !== 'none'
+              && style.visibility !== 'hidden'
+              && Number(style.opacity || '1') > 0
+              && bounds.width > 0
+              && bounds.height > 0;
+          };
+          const clusters = [...document.querySelectorAll('[data-realm-castle-cluster]')]
+            .filter(visible);
+          const target = clusters.find((cluster) => (
+            cluster instanceof HTMLButtonElement
+            && !cluster.disabled
+            && cluster.tabIndex >= 0
+            && (cluster.getAttribute('aria-label') ?? '').trim().length > 0
+            && (integer(cluster.getAttribute('data-cluster-count')) ?? 0) > 0
+          ));
+          if (!(target instanceof HTMLButtonElement)) return { clicked: false };
+          const clusterMemberCountBefore = clusters.reduce((count, cluster) => (
+            count + (integer(cluster.getAttribute('data-cluster-count')) ?? 0)
+          ), 0);
+          const clusterButtonCountBefore = clusters.length;
+          target.focus({ preventScroll: true });
+          target.click();
+          return { clicked: true, clusterButtonCountBefore, clusterMemberCountBefore };
+        })()`,
+        returnByValue: true,
+      });
+      const evidence = evaluation?.result?.value;
+      if (
+        !evaluation?.exceptionDetails
+        && evidence?.clicked === true
+        && Number.isSafeInteger(evidence.clusterButtonCountBefore)
+        && evidence.clusterButtonCountBefore > 0
+        && Number.isSafeInteger(evidence.clusterMemberCountBefore)
+        && evidence.clusterMemberCountBefore > 0
+      ) {
+        return Object.freeze({
+          clusterButtonCountBefore: evidence.clusterButtonCountBefore,
+          clusterMemberCountBefore: evidence.clusterMemberCountBefore,
+        });
+      }
+      await delay(100);
+    }
+    throw new Error('Rendered WebGL QA cluster interaction failed.');
+  }
   const selector = interaction === 'inspector'
     ? 'button.realm-castle-label'
     : interaction === 'explore'
@@ -972,8 +1348,25 @@ async function applyRenderedCaseInteraction(session, interaction) {
   if (!selector) throw new Error('Invalid rendered WebGL QA interaction.');
   const evaluation = await session.command('Runtime.evaluate', {
     expression: `(() => {
-      const target = document.querySelector(${JSON.stringify(selector)});
+      const visible = (element) => {
+        if (!element) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0;
+      };
+      const target = [...document.querySelectorAll(${JSON.stringify(selector)})].find((button) => (
+        button instanceof HTMLButtonElement
+        && !button.disabled
+        && button.tabIndex >= 0
+        && (button.getAttribute('aria-label') ?? '').trim().length > 0
+        && visible(button)
+      ));
       if (!(target instanceof HTMLButtonElement)) return false;
+      target.focus({ preventScroll: true });
       target.click();
       return true;
     })()`,
@@ -982,6 +1375,7 @@ async function applyRenderedCaseInteraction(session, interaction) {
   if (evaluation?.exceptionDetails || evaluation?.result?.value !== true) {
     throw new Error('Rendered WebGL QA interaction failed.');
   }
+  return Object.freeze({});
 }
 
 async function runRenderedCase(session, probeCase, state) {
@@ -998,10 +1392,14 @@ async function runRenderedCase(session, probeCase, state) {
   await waitForAcceptedRenderedDom(session, baseline, state);
   await captureRenderedCasePixels(session, probeCase.viewport);
   if (probeCase.interaction !== 'default') {
-    await applyRenderedCaseInteraction(session, probeCase.interaction);
+    const interactionEvidence = await applyRenderedCaseInteraction(
+      session,
+      probeCase.interaction
+    );
     const interacted = Object.freeze({
       ...probeCase,
-      minimumLabelCount: 0,
+      ...interactionEvidence,
+      minimumLabelCount: 1,
     });
     await waitForAcceptedRenderedDom(session, interacted, state);
     await captureRenderedCasePixels(session, probeCase.viewport);
@@ -1009,10 +1407,7 @@ async function runRenderedCase(session, probeCase, state) {
 }
 
 export async function runRenderedWebglBrowserProbe() {
-  const chromeMetadata = await lstat(RENDERED_WEBGL_QA_CHROME);
-  if (!chromeMetadata.isFile() || chromeMetadata.isSymbolicLink()) {
-    throw new Error('The reviewed Google Chrome executable is unavailable.');
-  }
+  const reviewedChromeIdentity = await attestStableHeadlessChromeExecutable();
   const temporaryProfileDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-webgl-qa-'));
 
   let chrome;
@@ -1028,10 +1423,15 @@ export async function runRenderedWebglBrowserProbe() {
     ) throw new Error('The disposable Chrome profile path is unsafe.');
     const profileDirectory = await realpath(temporaryProfileDirectory);
     await chmod(profileDirectory, 0o700);
-    vite = await createLoopbackViteServer();
+    vite = await createLoopbackViteServer(profileDirectory);
     const cases = renderedWebglBrowserProbeCases(vite.port);
     const loopbackOrigin = `http://127.0.0.1:${vite.port}`;
+    await attestStableHeadlessChromeExecutable(reviewedChromeIdentity);
     chrome = spawnHeadlessChromeProbe(profileDirectory);
+    const launchedChromeIdentity = await readReviewedChromeExecutableIdentity();
+    if (!exactChromeExecutableIdentity(reviewedChromeIdentity, launchedChromeIdentity)) {
+      throw new Error('The reviewed Google Chrome executable changed at launch.');
+    }
     const endpoint = await waitForDevtoolsEndpoint(profileDirectory, chrome);
     const targets = await readBoundedHttpJson(endpoint.port, '/json/list');
     const target = selectBlankPageTarget(targets, endpoint.port);
@@ -1139,7 +1539,7 @@ export async function runRenderedWebglBrowserProbe() {
     }
   } finally {
     devtools?.close();
-    await terminateChrome(chrome);
+    await terminateHeadlessChromeProcessGroup(chrome);
     await vite?.close();
     await rm(temporaryProfileDirectory, { recursive: true, force: true });
   }
@@ -1153,7 +1553,7 @@ async function main() {
   }
   try {
     await runRenderedWebglBrowserProbe();
-    process.stdout.write('Warpkeep rendered WebGL QA passed: 7 synthetic responsive cases.\n');
+    process.stdout.write('Warpkeep rendered WebGL QA passed: 8 synthetic responsive cases.\n');
   } catch {
     process.stderr.write('Warpkeep rendered WebGL QA failed closed.\n');
     process.exitCode = 1;

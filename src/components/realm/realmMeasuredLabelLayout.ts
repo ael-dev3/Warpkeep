@@ -1,4 +1,4 @@
-export type RealmLabelPriority = 'selected' | 'own' | 'near' | 'far';
+export type RealmLabelPriority = 'selected' | 'hovered' | 'own' | 'near' | 'far';
 
 /**
  * `compact` still carries a short public identity string. It is deliberately
@@ -91,6 +91,12 @@ export type RealmMeasuredLabelLayoutInput = Readonly<{
   safeAreaBounds: RealmScreenRect;
   reservedUiRects: readonly RealmScreenRect[];
   maximumLabels: number;
+  /**
+   * Mandatory identities may use any collision-free point in the safe map
+   * region. This is reserved for direct player intent (selection, hover, or
+   * the player's own keep), never for increasing normal label density.
+   */
+  mandatoryCastleIds?: readonly number[];
   previousPlacements?: readonly RealmLabelPlacement[];
   hysteresis?: Partial<RealmLabelHysteresis>;
   collisionPaddingPixels?: number;
@@ -134,9 +140,10 @@ const DIRECT_ATTACHMENT_OFFSET: readonly RealmLabelOffset[] = Object.freeze([
 
 const PRIORITY_RANK: Readonly<Record<RealmLabelPriority, number>> = {
   selected: 0,
-  own: 1,
-  near: 2,
-  far: 3
+  hovered: 1,
+  own: 2,
+  near: 3,
+  far: 4
 };
 
 function finiteNonNegative(value: number | undefined, fallback: number) {
@@ -267,6 +274,51 @@ function placementProposals(
 }
 
 /**
+ * Direct intent must not disappear merely because its roof is inside a dense
+ * district. Search the bounded safe region from nearest to farthest and retain
+ * the original roof as `layoutAnchor` so a connector always explains any
+ * displacement. The grid is derived from the measured label and is therefore
+ * bounded by the viewport rather than by castle count.
+ */
+function mandatorySafeAreaProposals(
+  anchor: RealmScreenPoint,
+  measurement: RealmMeasuredLabelRectangle,
+  safeArea: RealmScreenRect
+) {
+  const minimumX = safeArea.left - measurement.offsetX;
+  const maximumX = safeArea.right - measurement.offsetX - measurement.width;
+  const minimumY = safeArea.top - measurement.offsetY;
+  const maximumY = safeArea.bottom - measurement.offsetY - measurement.height;
+  if (maximumX < minimumX || maximumY < minimumY) return [];
+
+  const stepX = Math.max(16, Math.min(48, measurement.width * 0.45));
+  const stepY = Math.max(14, Math.min(36, measurement.height * 0.8));
+  const points: PlacementProposal[] = [];
+  for (let y = minimumY; y <= maximumY + 0.001; y += stepY) {
+    for (let x = minimumX; x <= maximumX + 0.001; x += stepX) {
+      points.push({
+        x: Math.min(maximumX, x),
+        y: Math.min(maximumY, y),
+        layoutAnchor: anchor
+      });
+    }
+  }
+  points.push({
+    x: clamp(anchor.x, minimumX, maximumX),
+    y: clamp(anchor.y, minimumY, maximumY),
+    layoutAnchor: anchor
+  });
+  return points.sort((left, right) => (
+    Math.hypot(left.x - anchor.x, left.y - anchor.y)
+      - Math.hypot(right.x - anchor.x, right.y - anchor.y)
+    || left.y - right.y
+    || left.x - right.x
+  )).filter((point, index, ordered) => (
+    ordered.findIndex((candidate) => candidate.x === point.x && candidate.y === point.y) === index
+  ));
+}
+
+/**
  * Resolves measured castle labels without React, DOM reads, or projection work.
  * Feeding `placements` back as `previousPlacements` preserves membership
  * hysteresis while positions continue following every projected camera frame.
@@ -282,6 +334,9 @@ export function resolveMeasuredRealmLabelLayout(
   const collisionPadding = finiteNonNegative(input.collisionPaddingPixels, 2);
   const membershipDistance = finiteNonNegative(input.hysteresis?.membershipDistance, 0);
   const previousPlacements = input.previousPlacements ?? [];
+  const mandatoryCastleIds = new Set(
+    (input.mandatoryCastleIds ?? []).filter((castleId) => Number.isSafeInteger(castleId))
+  );
   const previousById = new Map(previousPlacements.map((placement) => [
     placement.castleId,
     placement
@@ -362,9 +417,10 @@ export function resolveMeasuredRealmLabelLayout(
       measurement: candidate.measurements.compact,
       offsets: COMPACT_ATTACHMENT_OFFSETS
     };
-    const preferCompact = input.viewportBounds.right - input.viewportBounds.left <= 680
-      && candidate.priority !== 'selected'
-      && candidate.priority !== 'own';
+    const preferCompact = candidate.priority === 'far'
+      || (input.viewportBounds.right - input.viewportBounds.left <= 680
+        && candidate.priority !== 'selected'
+        && candidate.priority !== 'own');
     const presentations: readonly Readonly<{
       presentation: RealmLabelPresentation;
       measurement: RealmMeasuredLabelRectangle | undefined;
@@ -372,47 +428,70 @@ export function resolveMeasuredRealmLabelLayout(
     }>[] = preferCompact
       ? [compactPresentation, fullPresentation]
       : [fullPresentation, compactPresentation];
-    const maximumNudgePixels = candidate.priority === 'selected' || candidate.priority === 'own'
+    const mandatory = mandatoryCastleIds.has(candidate.castleId);
+    const maximumNudgePixels = candidate.priority === 'selected'
+      || candidate.priority === 'hovered'
+      || candidate.priority === 'own'
       ? MAX_PRIORITY_NUDGE_PIXELS
       : MAX_STANDARD_NUDGE_PIXELS;
 
     for (const option of presentations) {
       if (!validMeasurement(option.measurement)) continue;
       sawMeasurement = true;
-      const proposals = placementProposals(
+      const attachedProposals = placementProposals(
         anchor,
         option.measurement,
         safeArea,
         maximumNudgePixels,
         option.offsets
       );
-      for (const proposal of proposals) {
-        const bounds = boundsAt(proposal, option.measurement);
-        const paddedBounds = expandRect(bounds, collisionPadding);
-        if (reservedUiRects.some((reserved) => intersects(paddedBounds, reserved))) {
-          sawReservedUi = true;
-          continue;
+      const proposalGroups: Array<() => readonly PlacementProposal[]> = [
+        () => attachedProposals
+      ];
+      if (mandatory) {
+        // Generate the wider grid lazily: the normal roof attachment succeeds
+        // in the common case, so camera motion does not pay for a viewport-wide
+        // search on every frame merely because the own castle is mandatory.
+        proposalGroups.push(() => mandatorySafeAreaProposals(
+          anchor,
+          option.measurement!,
+          safeArea
+        ).filter((proposal) => (
+          !attachedProposals.some((attached) => (
+            attached.x === proposal.x && attached.y === proposal.y
+          ))
+        )));
+      }
+      for (const proposals of proposalGroups) {
+        for (const proposal of proposals()) {
+          const bounds = boundsAt(proposal, option.measurement);
+          const paddedBounds = expandRect(bounds, collisionPadding);
+          if (reservedUiRects.some((reserved) => intersects(paddedBounds, reserved))) {
+            sawReservedUi = true;
+            continue;
+          }
+          if (associatedCastleBounds && intersects(bounds, associatedCastleBounds)) {
+            sawAssociatedCastle = true;
+            continue;
+          }
+          sawSafeWithoutReservedUi = true;
+          if (placements.some((placement) => intersects(paddedBounds, placement.bounds))) {
+            sawLabelCollision = true;
+            continue;
+          }
+          accepted = {
+            castleId: candidate.castleId,
+            x: proposal.x,
+            y: proposal.y,
+            projectedAnchor: anchor,
+            layoutAnchor: proposal.layoutAnchor,
+            priority: candidate.priority,
+            presentation: option.presentation,
+            bounds
+          };
+          break;
         }
-        if (associatedCastleBounds && intersects(bounds, associatedCastleBounds)) {
-          sawAssociatedCastle = true;
-          continue;
-        }
-        sawSafeWithoutReservedUi = true;
-        if (placements.some((placement) => intersects(paddedBounds, placement.bounds))) {
-          sawLabelCollision = true;
-          continue;
-        }
-        accepted = {
-          castleId: candidate.castleId,
-          x: proposal.x,
-          y: proposal.y,
-          projectedAnchor: anchor,
-          layoutAnchor: proposal.layoutAnchor,
-          priority: candidate.priority,
-          presentation: option.presentation,
-          bounds
-        };
-        break;
+        if (accepted) break;
       }
       if (accepted) break;
     }

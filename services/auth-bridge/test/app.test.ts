@@ -1145,7 +1145,7 @@ describe('Warpkeep auth bridge', () => {
       qaObserverMaxRegistrationLifetimeMilliseconds: 366 * 24 * 60 * 60 * 1_000,
       qaSnapshotResolverTokenTtlSeconds: 15,
       qaSnapshotResolverTimeoutMilliseconds: 5_000,
-      qaSnapshotProcedure: 'qa_observer_get_realm_snapshot_v1',
+      qaSnapshotProcedure: 'qa_observer_get_realm_attestation_v2',
       environment: 'production',
       browserBinding: 'S256',
       accessTokenTtlSeconds: 600,

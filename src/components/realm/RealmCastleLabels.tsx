@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import type { RealmCastleProjection } from './RealmMapScreen';
+import type { RealmCastleIdentityCluster } from './realmCastleIdentityClusters';
 import {
   castleProfileLabel,
   castleProfileMonogram,
@@ -145,22 +146,28 @@ export function CastleProfileAvatar({
 
 export function RealmCastleLabels({
   labels,
+  clusters = [],
   records,
   selectedCastleId,
   inspectorCastleId,
+  focusedCastleId,
   ownCastleId,
   inspectorId,
   inspectorOpen,
-  onActivate
+  onActivate,
+  onActivateCluster = () => undefined
 }: Readonly<{
   labels: readonly VisibleCastleLabel[];
+  clusters?: readonly RealmCastleIdentityCluster[];
   records: ReadonlyMap<number, CastleLabelRecord>;
   selectedCastleId?: number;
   inspectorCastleId?: number;
+  focusedCastleId?: number;
   ownCastleId?: number;
   inspectorId: string;
   inspectorOpen: boolean;
   onActivate: (castle: RealmCastleProjection) => void;
+  onActivateCluster?: (cluster: RealmCastleIdentityCluster) => void;
 }>) {
   return (
     <div className="realm-castle-labels" aria-label="Visible player castles">
@@ -199,6 +206,7 @@ export function RealmCastleLabels({
         const profileLabel = castleProfileLabel(record.profile);
         const own = label.castleId === ownCastleId;
         const selected = label.castleId === selectedCastleId;
+        const focused = label.castleId === focusedCastleId;
         const expanded = label.castleId === inspectorCastleId && inspectorOpen;
         const leader = realmCastleLabelLeaderGeometry(label);
         const positionStyle = {
@@ -230,6 +238,7 @@ export function RealmCastleLabels({
               data-castle-id={label.castleId}
               data-compact={label.compact ? 'true' : 'false'}
               data-displaced={leader.displaced ? 'true' : 'false'}
+              data-focused={focused ? 'true' : 'false'}
               data-own={own ? 'true' : 'false'}
               style={positionStyle}
               onPointerDown={(event) => event.stopPropagation()}
@@ -241,6 +250,29 @@ export function RealmCastleLabels({
               <span className="realm-castle-label__identity">{profileLabel}</span>
             </button>
           </Fragment>
+        );
+      })}
+      {clusters.map((cluster) => {
+        const count = cluster.castleIds.length;
+        const style = {
+          '--realm-castle-cluster-x': `${cluster.x}px`,
+          '--realm-castle-cluster-y': `${cluster.y}px`
+        } as CSSProperties;
+        return (
+          <button
+            type="button"
+            aria-label={`Focus nearest keeper among ${count} clustered castles`}
+            className="realm-castle-cluster"
+            data-cluster-count={count}
+            data-realm-castle-cluster=""
+            key={cluster.key}
+            style={style}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => onActivateCluster(cluster)}
+          >
+            <strong>{count}</strong>
+            <span>{count === 1 ? 'KEEPER' : 'KEEPERS'}</span>
+          </button>
         );
       })}
     </div>

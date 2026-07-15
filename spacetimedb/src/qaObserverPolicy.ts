@@ -15,7 +15,7 @@ import {
   planCanonicalWorldSeed,
 } from './worldSeedPolicy';
 
-export const QA_OBSERVER_SNAPSHOT_VERSION = 1;
+export const QA_OBSERVER_ATTESTATION_VERSION = 2;
 export const QA_OBSERVER_MAX_CASTLES = 100;
 export const QA_OBSERVER_MAX_CASTLE_NAME_CHARACTERS = 80;
 
@@ -69,22 +69,8 @@ export type QaObserverSnapshotSource = Readonly<{
   profiles: Iterable<QaObserverProfileSource>;
 }>;
 
-export type QaObserverCastleProjection = Readonly<{
-  castleId: bigint;
-  tileKey: string;
-  q: number;
-  r: number;
-  level: number;
-  name: string;
-  canonicalUsername?: string;
-  displayName?: string;
-  portraitAvailable: boolean;
-  publicBio?: string;
-  publicStatus: string;
-}>;
-
-export type QaObserverRealmSnapshot = Readonly<{
-  version: 1;
+export type QaObserverRealmAttestationV2 = Readonly<{
+  version: 2;
   protocolVersion: number;
   worldSeed: number;
   worldSeedName: string;
@@ -98,7 +84,12 @@ export type QaObserverRealmSnapshot = Readonly<{
     renderRadius: number;
     playerCapacity: number;
   }>;
-  castles: readonly QaObserverCastleProjection[];
+  aggregates: Readonly<{
+    castleCount: number;
+    profileCount: number;
+    foundedCount: number;
+    activeCount: number;
+  }>;
 }>;
 
 export class QaObserverSnapshotError extends Error {
@@ -169,13 +160,15 @@ function validateStaticState(source: QaObserverSnapshotSource): {
 }
 
 /**
- * Construct the only bridge-visible QA projection. FIDs are used transiently
- * for the server-side castle/profile join and are never copied into output.
+ * Construct the only bridge-visible QA attestation. Private and public player
+ * fields are inspected transiently to verify the founding graph, but no
+ * per-player value, identifier, label, coordinate, or portrait signal can be
+ * represented by the output type.
  */
-export function buildQaObserverRealmSnapshot(
+export function buildQaObserverRealmAttestationV2(
   source: QaObserverSnapshotSource,
   protocolVersion: number,
-): QaObserverRealmSnapshot {
+): QaObserverRealmAttestationV2 {
   if (
     !Number.isInteger(protocolVersion)
     || protocolVersion < 0
@@ -192,7 +185,8 @@ export function buildQaObserverRealmSnapshot(
   if (profilesByFid.size !== castles.length) fail();
 
   const ownerFids = new Set<bigint>();
-  const projections: QaObserverCastleProjection[] = [];
+  let foundedCount = 0;
+  let activeCount = 0;
   for (const castle of castles) {
     if (castle.castleId <= 0n || castle.ownerFid <= 0n || ownerFids.has(castle.ownerFid)) fail();
     ownerFids.add(castle.ownerFid);
@@ -207,31 +201,13 @@ export function buildQaObserverRealmSnapshot(
       fail();
     }
     if (!trustedProfilesEqual(profile, normalizedProfile)) fail();
-
-    projections.push(Object.freeze({
-      castleId: castle.castleId,
-      tileKey: castle.tileKey,
-      q: castle.q,
-      r: castle.r,
-      level: castle.level,
-      name: readCastleName(castle.name),
-      ...(normalizedProfile.canonicalUsername === undefined
-        ? {}
-        : { canonicalUsername: normalizedProfile.canonicalUsername }),
-      ...(normalizedProfile.displayName === undefined
-        ? {}
-        : { displayName: normalizedProfile.displayName }),
-      portraitAvailable: normalizedProfile.pfpUrl !== undefined,
-      ...(normalizedProfile.publicBio === undefined
-        ? {}
-        : { publicBio: normalizedProfile.publicBio }),
-      publicStatus: profile.publicStatus,
-    }));
+    readCastleName(castle.name);
+    if (profile.publicStatus === 'active') activeCount += 1;
+    else foundedCount += 1;
   }
-  projections.sort((left, right) => left.castleId < right.castleId ? -1 : left.castleId > right.castleId ? 1 : 0);
 
   return Object.freeze({
-    version: QA_OBSERVER_SNAPSHOT_VERSION,
+    version: QA_OBSERVER_ATTESTATION_VERSION,
     protocolVersion,
     worldSeed: CANONICAL_REALM.numericSeed,
     worldSeedName: CANONICAL_REALM.seedName,
@@ -245,6 +221,11 @@ export function buildQaObserverRealmSnapshot(
       renderRadius: CANONICAL_REALM.renderRadius,
       playerCapacity: CANONICAL_REALM.playerCapacity,
     }),
-    castles: Object.freeze(projections),
+    aggregates: Object.freeze({
+      castleCount: castles.length,
+      profileCount: profilesByFid.size,
+      foundedCount,
+      activeCount,
+    }),
   });
 }

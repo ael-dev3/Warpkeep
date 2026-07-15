@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   QA_OBSERVER_MAX_CASTLES,
   QaObserverSnapshotError,
-  buildQaObserverRealmSnapshot,
+  buildQaObserverRealmAttestationV2,
   type QaObserverSnapshotSource,
 } from '../src/qaObserverPolicy';
 import {
@@ -60,7 +60,7 @@ function arrays(source: QaObserverSnapshotSource) {
 
 function assertInvalid(source: QaObserverSnapshotSource): void {
   assert.throws(
-    () => buildQaObserverRealmSnapshot(source, 3),
+    () => buildQaObserverRealmAttestationV2(source, 3),
     (error: unknown) => error instanceof QaObserverSnapshotError
       && error.message === 'QA_OBSERVER_SNAPSHOT_INVALID',
   );
@@ -79,9 +79,9 @@ function collectObjectKeys(value: unknown, into = new Set<string>()): Set<string
   return into;
 }
 
-test('builds the exact bounded v1 projection while withholding private join keys and PFP URLs', () => {
-  const snapshot = buildQaObserverRealmSnapshot(fixture(), 3);
-  assert.deepEqual(Object.keys(snapshot), [
+test('builds an exact bounded v2 aggregate attestation with no player or castle projection', () => {
+  const attestation = buildQaObserverRealmAttestationV2(fixture(), 3);
+  assert.deepEqual(Object.keys(attestation), [
     'version',
     'protocolVersion',
     'worldSeed',
@@ -89,9 +89,9 @@ test('builds the exact bounded v1 projection while withholding private join keys
     'worldTileCount',
     'worldTileMetaCount',
     'realm',
-    'castles',
+    'aggregates',
   ]);
-  assert.deepEqual(Object.keys(snapshot.realm), [
+  assert.deepEqual(Object.keys(attestation.realm), [
     'realmId',
     'numericSeed',
     'generationVersion',
@@ -99,67 +99,52 @@ test('builds the exact bounded v1 projection while withholding private join keys
     'renderRadius',
     'playerCapacity',
   ]);
-  assert.deepEqual(Object.keys(snapshot.castles[0]!), [
-    'castleId',
-    'tileKey',
-    'q',
-    'r',
-    'level',
-    'name',
-    'canonicalUsername',
-    'displayName',
-    'portraitAvailable',
-    'publicBio',
-    'publicStatus',
+  assert.deepEqual(Object.keys(attestation.aggregates), [
+    'castleCount',
+    'profileCount',
+    'foundedCount',
+    'activeCount',
   ]);
-  assert.deepEqual(Object.keys(snapshot.castles[1]!), [
-    'castleId',
-    'tileKey',
-    'q',
-    'r',
-    'level',
-    'name',
-    'portraitAvailable',
-    'publicStatus',
-  ]);
-  assert.equal(snapshot.version, 1);
-  assert.equal(snapshot.realm.realmId, CANONICAL_REALM.realmId);
-  assert.equal(snapshot.castles[0]!.portraitAvailable, true);
-  assert.equal(snapshot.castles[1]!.portraitAvailable, false);
+  assert.equal(attestation.version, 2);
+  assert.equal(attestation.realm.realmId, CANONICAL_REALM.realmId);
+  assert.deepEqual(attestation.aggregates, {
+    castleCount: 2,
+    profileCount: 2,
+    foundedCount: 1,
+    activeCount: 1,
+  });
 
-  const keys = collectObjectKeys(snapshot);
+  const keys = collectObjectKeys(attestation);
   for (const forbidden of [
-    'fid',
-    'identity',
-    'admission',
-    'ownership',
-    'terms',
-    'wallet',
-    'audit',
-    'mark',
-    'timestamp',
-    'pfp',
-    'url',
-    'burn',
+    'castles', 'profiles', 'castleId', 'ownerFid', 'tileKey', 'q', 'r',
+    'level', 'name', 'canonicalUsername', 'displayName', 'portraitAvailable',
+    'publicBio', 'publicStatus', 'pfpUrl', 'identity', 'admission', 'ownership',
+    'terms', 'wallet', 'audit',
   ]) {
     assert.equal(
-      [...keys].some(key => key.toLowerCase().includes(forbidden)),
+      keys.has(forbidden),
       false,
-      `forbidden output key fragment: ${forbidden}`,
+      `forbidden output key: ${forbidden}`,
     );
   }
+  const serialized = JSON.stringify(attestation);
+  for (const forbiddenValue of [
+    'founder.one', 'Founder One', 'Building in Genesis 001.',
+    'https://cdn.example.test/founder-one.png', 'Keep 1', '10000',
+  ]) assert.equal(serialized.includes(forbiddenValue), false);
 });
 
-test('sorts by castle ID deterministically and permits no more than 100 projections', () => {
+test('returns only stable aggregate counts and permits no more than 100 founders', () => {
   const source = arrays(fixture(QA_OBSERVER_MAX_CASTLES));
   source.castles.reverse();
   source.profiles.reverse();
-  const snapshot = buildQaObserverRealmSnapshot(source, 3);
-  assert.equal(snapshot.castles.length, 100);
-  assert.deepEqual(
-    snapshot.castles.map(castle => castle.castleId),
-    Array.from({ length: 100 }, (_, index) => BigInt(index + 1)),
-  );
+  const attestation = buildQaObserverRealmAttestationV2(source, 3);
+  assert.deepEqual(attestation.aggregates, {
+    castleCount: 100,
+    profileCount: 100,
+    foundedCount: 99,
+    activeCount: 1,
+  });
 });
 
 test('fails closed when the realm contains no castle projection', () => {
@@ -285,7 +270,7 @@ test('rejects an invalid protocol version without inspecting a snapshot', () => 
     Number.POSITIVE_INFINITY,
   ]) {
     assert.throws(
-      () => buildQaObserverRealmSnapshot(fixture(), protocolVersion),
+      () => buildQaObserverRealmAttestationV2(fixture(), protocolVersion),
       QaObserverSnapshotError,
     );
   }

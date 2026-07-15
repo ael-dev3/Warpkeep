@@ -24,7 +24,7 @@ let qaPrivateKey: CryptoKey
 let qaPublicJwk: PublicEcJwk
 
 const SNAPSHOT: QaObserverRealmSnapshot = Object.freeze({
-  version: 1,
+  version: 2,
   protocolVersion: 3,
   worldSeed: 3_445_214_658,
   worldSeedName: 'HEGEMONY_GENESIS_001',
@@ -38,17 +38,12 @@ const SNAPSHOT: QaObserverRealmSnapshot = Object.freeze({
     renderRadius: 22,
     playerCapacity: 100,
   }),
-  castles: Object.freeze([Object.freeze({
-    castleId: 1,
-    tileKey: '0,0',
-    q: 0,
-    r: 0,
-    level: 1,
-    name: 'Genesis Keep',
-    canonicalUsername: 'observer-fixture',
-    portraitAvailable: true,
-    publicStatus: 'active',
-  })]),
+  aggregates: Object.freeze({
+    castleCount: 1,
+    profileCount: 1,
+    foundedCount: 0,
+    activeCount: 1,
+  }),
 })
 
 beforeAll(async () => {
@@ -233,7 +228,10 @@ describe('machine-bound QA observer bridge', () => {
     expect(await replay.json()).toMatchObject({ error: { code: 'qa_challenge_invalid' } })
     expect(h.resolve).toHaveBeenCalledTimes(1)
     const serialized = JSON.stringify(SNAPSHOT)
-    for (const forbidden of ['fid', 'identity', 'token', 'authEpoch', 'pfpUrl', 'marks']) {
+    for (const forbidden of [
+      'fid', 'identity', 'token', 'authEpoch', 'pfpUrl', 'marks', 'castleId',
+      'tileKey', 'username', 'displayName', 'publicBio', 'portraitAvailable',
+    ]) {
       expect(serialized.toLowerCase()).not.toContain(forbidden.toLowerCase())
     }
     expect(h.events).toContain('qa_snapshot_succeeded')

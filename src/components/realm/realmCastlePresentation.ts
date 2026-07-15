@@ -93,6 +93,24 @@ export function realmCastleLabelLeaderGeometry(
   });
 }
 
+/**
+ * Privacy-safe aggregate used by rendered QA. It counts only castle roof
+ * anchors that are projection-eligible inside the current viewport; no castle
+ * identity or coordinate leaves the presentation layer.
+ */
+export function realmEligibleCastleProjectionCount(frame: RealmCastleProjectionFrame) {
+  if (frame.width <= 0 || frame.height <= 0) return 0;
+  return frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES).filter((castle) => (
+    castle.visible
+    && Number.isFinite(castle.x)
+    && Number.isFinite(castle.y)
+    && castle.x >= 0
+    && castle.x <= frame.width
+    && castle.y >= 0
+    && castle.y <= frame.height
+  )).length;
+}
+
 function projectionNumberKey(value: number, scale = 1) {
   return Number.isFinite(value) ? Math.round(value * scale) : 'invalid';
 }
@@ -131,6 +149,7 @@ export function realmCastleProjectionFrameKey(frame: RealmCastleProjectionFrame)
       projectionNumberKey(castle.distance, CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT),
       distanceBand,
       castle.visible ? 1 : 0,
+      castle.presented ? 1 : 0,
       boundsKey,
       conservativeBoundsKey
     ].join(':');
@@ -174,12 +193,21 @@ export function publicProfileForCastle(
   ownIdentity?: RealmIdentity
 ): RealmCastlePublicPresentation {
   const authoritative = profiles.find((profile) => profile.fid === fid);
-  if (authoritative) {
-    return publicPresentationFromProfile(authoritative);
-  }
-
   const player = players.find((candidate) => candidate.fid === fid);
   const identity = ownIdentity?.fid === fid ? ownIdentity : undefined;
+  if (authoritative) {
+    const profile = publicPresentationFromProfile(authoritative);
+    return {
+      ...profile,
+      canonicalUsername: profile.canonicalUsername
+        ?? normalizeRealmUsername(player?.username ?? identity?.username),
+      displayName: profile.displayName
+        ?? boundedDisplayText(player?.displayName ?? identity?.displayName, 80),
+      pfpUrl: profile.pfpUrl
+        ?? safeRealmProfileImageUrl(player?.pfpUrl ?? identity?.pfpUrl)
+    };
+  }
+
   return {
     canonicalUsername: normalizeRealmUsername(player?.username ?? identity?.username),
     displayName: boundedDisplayText(player?.displayName ?? identity?.displayName, 80),
@@ -188,9 +216,17 @@ export function publicProfileForCastle(
   };
 }
 
-export function castleProfileLabel(profile: RealmCastlePublicPresentation) {
+export function castleProfileUsername(profile: RealmCastlePublicPresentation) {
   const username = normalizeRealmUsername(profile.canonicalUsername);
-  return username ? `@${username}` : profile.displayName ?? 'Hegemony Keep';
+  return username ? `@${username}` : undefined;
+}
+
+export function castleProfileIdentityReady(profile: RealmCastlePublicPresentation) {
+  return castleProfileUsername(profile) !== undefined;
+}
+
+export function castleProfileLabel(profile: RealmCastlePublicPresentation) {
+  return castleProfileUsername(profile) ?? 'Keeper identity pending';
 }
 
 export function castleProfileMonogram(profile: RealmCastlePublicPresentation) {
@@ -278,7 +314,8 @@ export function resolveVisibleCastleLabels(
   frame: RealmCastleProjectionFrame,
   ownCastleId: number | undefined,
   selectedCastleId: number | undefined,
-  maximumLabels = CASTLE_LABEL_LAYOUT_MAX_CASTLES
+  maximumLabels = CASTLE_LABEL_LAYOUT_MAX_CASTLES,
+  hoveredCastleId?: number
 ): readonly VisibleCastleLabel[] {
   const boundedMaximumLabels = Number.isFinite(maximumLabels)
     ? Math.min(CASTLE_LABEL_LAYOUT_MAX_CASTLES, Math.max(0, Math.floor(maximumLabels)))
@@ -290,8 +327,9 @@ export function resolveVisibleCastleLabels(
     .sort((left, right) => {
       const priority = (castle: RealmCastleScreenProjection) => (
         castle.castleId === selectedCastleId ? 0
-          : castle.castleId === ownCastleId ? 1
-            : 2
+          : castle.castleId === hoveredCastleId ? 1
+            : castle.castleId === ownCastleId ? 2
+              : 3
       );
       return priority(left) - priority(right)
         || left.distance - right.distance
@@ -301,7 +339,9 @@ export function resolveVisibleCastleLabels(
   const accepted: Array<VisibleCastleLabel & { bounds: Bounds }> = [];
   for (const castle of candidates) {
     if (accepted.length >= boundedMaximumLabels) break;
-    const priority = castle.castleId === selectedCastleId || castle.castleId === ownCastleId;
+    const priority = castle.castleId === selectedCastleId
+      || castle.castleId === hoveredCastleId
+      || castle.castleId === ownCastleId;
     const fullAttempt = { compact: false, offsets: [{ x: 0, y: 0 }] } as const;
     const compactAttempt = { compact: true, offsets: COMPACT_LABEL_ATTACHMENT_OFFSETS } as const;
     const preferCompact = frame.width <= 680 && !priority;

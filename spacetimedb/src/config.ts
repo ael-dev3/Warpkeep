@@ -16,9 +16,9 @@ export const WARPKEEP_HERMES_SUBJECT = 'service:hermes';
 export const WARPKEEP_AUTH_EPOCH_RESOLVER_ROLE = 'warpkeep-auth-epoch-resolver';
 export const WARPKEEP_AUTH_EPOCH_RESOLVER_SUBJECT = 'service:auth-epoch-resolver';
 /**
- * Internal bridge-only principal for the bounded, privacy-sanitized QA realm
- * snapshot. It is neither a player nor an administrator and is never returned
- * to a browser or local QA process.
+ * Internal bridge-only principal for the bounded, aggregate-only QA realm
+ * attestation. It is neither a player nor an administrator and is never
+ * returned to a browser or local QA process.
  */
 export const WARPKEEP_QA_SNAPSHOT_RESOLVER_ROLE = 'warpkeep-qa-snapshot-resolver';
 export const WARPKEEP_QA_SNAPSHOT_RESOLVER_SUBJECT = 'service:qa-snapshot-resolver';

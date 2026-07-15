@@ -84,13 +84,14 @@ afterEach(() => {
 });
 
 describe('realm profile and PFP presentation regressions', () => {
-  it('prefers the trusted username, then display name, then a neutral keep label', () => {
+  it('uses only a trusted username as map identity and reports missing identity honestly', () => {
     expect(castleProfileLabel(profile({
       canonicalUsername: 'warpkeeper',
       displayName: 'Warp Keeper'
     }))).toBe('@warpkeeper');
-    expect(castleProfileLabel(profile({ displayName: 'Warp Keeper' }))).toBe('Warp Keeper');
-    expect(castleProfileLabel(profile())).toBe('Hegemony Keep');
+    expect(castleProfileLabel(profile({ displayName: 'Warp Keeper' })))
+      .toBe('Keeper identity pending');
+    expect(castleProfileLabel(profile())).toBe('Keeper identity pending');
   });
 
   it('derives monograms from public names and never falls back to FID digits', () => {
@@ -247,6 +248,7 @@ describe('realm profile and PFP presentation regressions', () => {
         records={new Map([[7, { castle, profile: presentation }]])}
         selectedCastleId={7}
         inspectorCastleId={7}
+        focusedCastleId={7}
         ownCastleId={7}
         inspectorId="castle-inspector"
         inspectorOpen
@@ -255,10 +257,11 @@ describe('realm profile and PFP presentation regressions', () => {
     );
     const { rerender } = render(renderLabels(profile()));
     let button = screen.getByRole('button', {
-      name: 'Inspect Hegemony Keep castle, Fixture Keep, cell 1,-1, your castle'
+      name: 'Inspect Keeper identity pending castle, Fixture Keep, cell 1,-1, your castle'
     });
     expect(button.querySelector('img')).toBeNull();
     expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('W');
+    expect(button.dataset.focused).toBe('true');
 
     const trusted = profile({
       canonicalUsername: 'fixturekeeper',
@@ -376,7 +379,7 @@ describe('realm profile and PFP presentation regressions', () => {
           {
             castle: {
               castleId: 7,
-              ownerFid: 539_854,
+              ownerFid: Number.MAX_SAFE_INTEGER,
               q: 1,
               r: -1,
               level: 1,
@@ -396,12 +399,12 @@ describe('realm profile and PFP presentation regressions', () => {
 
     const worldLabels = screen.getByLabelText('Visible player castles');
     const button = within(worldLabels).getByRole('button', {
-      name: 'Inspect Hegemony Keep castle, Frontier Keep, cell 1,-1, your castle'
+      name: 'Inspect Keeper identity pending castle, Frontier Keep, cell 1,-1, your castle'
     });
     const visibleLabel = Array.from(button.children).find((child) => (
-      child.textContent === 'Hegemony Keep'
+      child.textContent === 'Keeper identity pending'
     ));
-    expect(visibleLabel?.textContent).toBe('Hegemony Keep');
+    expect(visibleLabel?.textContent).toBe('Keeper identity pending');
     expect(visibleLabel?.textContent).not.toMatch(/^FID\b/i);
     expect(button.getAttribute('aria-label')).not.toMatch(/^Inspect FID\b/i);
     expect(button.getAttribute('aria-pressed')).toBe('true');
@@ -435,7 +438,7 @@ describe('realm profile and PFP presentation regressions', () => {
             {
               castle: {
                 castleId: 7,
-                ownerFid: 539_854,
+                ownerFid: Number.MAX_SAFE_INTEGER,
                 q: 1,
                 r: -1,
                 level: 1,
@@ -456,12 +459,50 @@ describe('realm profile and PFP presentation regressions', () => {
 
     const button = screen.getByRole('button', { name: /Inspect @warpkeeper castle/i });
     expect(within(button).getByText('@warpkeeper')).not.toBeNull();
-    expect(button.textContent).not.toMatch(/FID\s*539854/i);
+    expect(button.textContent).not.toMatch(/FID\s*9007199254740991/i);
     expect(document.querySelectorAll('[data-measure-castle-id]')).toHaveLength(1);
     expect(document.querySelectorAll('[data-measure-compact-castle-id]')).toHaveLength(1);
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
     expect(onMapPointerDown).not.toHaveBeenCalled();
     fireEvent.click(button);
     expect(onActivate).toHaveBeenCalledOnce();
+  });
+
+  it('exposes clustered castles as a small keyboard and pointer zoom affordance', () => {
+    const onMapPointerDown = vi.fn();
+    const onActivateCluster = vi.fn();
+    const cluster = {
+      key: 'cluster-7-3',
+      castleIds: [7, 8, 9],
+      representativeCastleId: 7,
+      anchor: { x: 180, y: 140 },
+      x: 220,
+      y: 180,
+      bounds: { left: 172, top: 136, right: 268, bottom: 180 }
+    } as const;
+    render(
+      <div onPointerDown={onMapPointerDown}>
+        <RealmCastleLabels
+          labels={[]}
+          clusters={[cluster]}
+          records={new Map()}
+          inspectorId="castle-inspector"
+          inspectorOpen={false}
+          onActivate={vi.fn()}
+          onActivateCluster={onActivateCluster}
+        />
+      </div>
+    );
+
+    const button = screen.getByRole('button', {
+      name: 'Focus nearest keeper among 3 clustered castles'
+    });
+    expect(button.textContent).toBe('3KEEPERS');
+    expect(button.getAttribute('data-cluster-count')).toBe('3');
+    expect(button.getAttribute('style')).toContain('--realm-castle-cluster-x: 220px');
+    fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
+    expect(onMapPointerDown).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    expect(onActivateCluster).toHaveBeenCalledWith(cluster);
   });
 });

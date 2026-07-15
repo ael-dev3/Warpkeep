@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocked = vi.hoisted(() => {
@@ -8,6 +8,24 @@ const mocked = vi.hoisted(() => {
     quality: { id: string };
     reducedMotion: boolean;
     onCastlesReady?: (castleCount: number) => void;
+    onCastlePresentationTelemetry?: (telemetry: {
+      presentedModelCount: number;
+      raycastTargetCount: number;
+    }) => void;
+    onCastleProjection?: (frame: {
+      width: number;
+      height: number;
+      castles: readonly {
+        castleId: number;
+        q: number;
+        r: number;
+        x: number;
+        y: number;
+        distance: number;
+        visible: boolean;
+        presented: boolean;
+      }[];
+    }) => void;
     onTargetHover?: (target: {
       kind: 'castle' | 'terrain';
       castleId?: number;
@@ -27,6 +45,7 @@ const mocked = vi.hoisted(() => {
     focusKeep: ReturnType<typeof vi.fn>;
     recenterKeep: ReturnType<typeof vi.fn>;
     setHovered: ReturnType<typeof vi.fn>;
+    setPresentedCastleIds: ReturnType<typeof vi.fn>;
     setSelected: ReturnType<typeof vi.fn>;
     setSelectedCastleId: ReturnType<typeof vi.fn>;
     setComposition: ReturnType<typeof vi.fn>;
@@ -41,6 +60,7 @@ const mocked = vi.hoisted(() => {
       focusKeep: vi.fn(),
       recenterKeep: vi.fn(),
       setHovered: vi.fn(),
+      setPresentedCastleIds: vi.fn(),
       setSelected: vi.fn(),
       setSelectedCastleId: vi.fn(),
       setComposition: vi.fn(),
@@ -406,6 +426,113 @@ describe('live realm quality recreation', () => {
       .toContain('Peer Watch · q 2, r -1');
     expect(scene.setSelectedCastleId).toHaveBeenLastCalledWith(2);
     expect(scene.focusCastle).toHaveBeenLastCalledWith(2);
+  });
+
+  it('publishes only aggregate live instance and raycast telemetry on the realm root', () => {
+    installWebGlProbe();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={createCanonicalGenesisSnapshot(CANONICAL_TEST_FID)}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => options.onCastlePresentationTelemetry?.({
+      presentedModelCount: 1,
+      raycastTargetCount: 1
+    }));
+
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    expect(realm.dataset.presentedModelCount).toBe('1');
+    expect(realm.dataset.raycastTargetCount).toBe('1');
+    expect(realm.outerHTML).not.toMatch(/(?:fid|token|proof|qr|identity)=/i);
+  });
+
+  it('lets camera focus alone own a clustered identity until realm navigation clears it', async () => {
+    installWebGlProbe();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={createCanonicalGenesisSnapshot({
+          ownFid: CANONICAL_TEST_FID,
+          peerFid: 77
+        })}
+        onRequestReturn={vi.fn()}
+        presentationMode="observer"
+        qualityOverride="balanced"
+      />
+    );
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => {
+      options.onCastlesReady?.(2);
+      options.onTargetHover?.({
+        kind: 'castle',
+        castleId: 2,
+        coord: { q: 2, r: -1 }
+      });
+      options.onCastleProjection?.({
+        width: 1_440,
+        height: 900,
+        castles: [
+          {
+            castleId: 1,
+            q: 0,
+            r: 0,
+            x: 460,
+            y: 420,
+            distance: 4,
+            visible: true,
+            presented: true
+          },
+          {
+            castleId: 2,
+            q: 2,
+            r: -1,
+            x: 980,
+            y: 430,
+            distance: 5,
+            visible: true,
+            presented: true
+          }
+        ]
+      });
+    });
+
+    const pendingLabelName = /Inspect Keeper identity pending castle, Peer Watch, cell 2,-1/i;
+    await waitFor(() => expect(screen.getByRole('button', {
+      name: pendingLabelName
+    }).dataset.focused).toBe('false'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Full Realm' }));
+    const cluster = await waitFor(() => {
+      expect(screen.queryByRole('button', { name: pendingLabelName })).toBeNull();
+      return screen.getByRole('button', {
+        name: 'Focus nearest keeper among 1 clustered castles'
+      });
+    });
+
+    fireEvent.click(cluster);
+    await waitFor(() => {
+      const focusedLabels = document.querySelectorAll<HTMLButtonElement>(
+        'button.realm-castle-label[data-focused="true"]'
+      );
+      expect(focusedLabels).toHaveLength(1);
+      expect(focusedLabels[0]!.textContent?.trim().length).toBeGreaterThan(0);
+      expect(document.activeElement).toBe(focusedLabels[0]);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Full Realm' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: pendingLabelName })).toBeNull();
+      expect(document.querySelectorAll(
+        'button.realm-castle-label[data-focused="true"]'
+      )).toHaveLength(0);
+      expect(document.querySelectorAll('button[data-realm-castle-cluster]').length)
+        .toBeGreaterThan(0);
+    });
   });
 
   it('gates hidden map interaction while canonical castle presentation is loading', () => {

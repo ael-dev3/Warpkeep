@@ -1,10 +1,12 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { rmSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import {
   chmod,
   lstat,
   mkdir,
+  mkdtemp,
   open,
   readFile,
   readdir,
@@ -13,8 +15,10 @@ import {
   rm,
   stat,
   unlink,
+  writeFile,
 } from 'node:fs/promises';
 import { homedir } from 'node:os';
+import { createServer as createNetServer } from 'node:net';
 import { basename, dirname, join, parse, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseQaObserverSnapshot } from './observer-snapshot.mjs';
@@ -28,10 +32,63 @@ const OBSERVATORY_ROOT = join(
   'qa-observatory',
 );
 const REPORTS_DIRECTORY = join(OBSERVATORY_ROOT, 'reports');
+const AUDIT_DIRECTORY = join(OBSERVATORY_ROOT, 'audit');
+const HELPER_DIRECTORY = join(OBSERVATORY_ROOT, 'bin');
 const LOCK_PATH = join(OBSERVATORY_ROOT, 'qa-cycle.lock');
 const RUNTIME_HOME = join(OBSERVATORY_ROOT, 'runtime-home');
 const RUNTIME_TMP = join(OBSERVATORY_ROOT, 'tmp');
 const NPM_CACHE = join(OBSERVATORY_ROOT, 'npm-cache');
+const SOCKET_TMP_ROOT = join(
+  '/private/tmp',
+  `wkqa-${typeof process.getuid === 'function' ? process.getuid() : 'local'}-${randomBytes(6).toString('hex')}`,
+);
+process.once('exit', () => {
+  try {
+    rmSync(SOCKET_TMP_ROOT, { recursive: true, force: true });
+  } catch {
+    // A failed cleanup cannot widen the owner-private socket authority.
+  }
+});
+const BUILD_OUTPUT_ROOT = join(REPOSITORY_ROOT, 'dist');
+const ROOT_TSC_CACHE_ROOT = join(REPOSITORY_ROOT, 'node_modules', '.tmp');
+const ROOT_VITE_CACHE_ROOT = join(REPOSITORY_ROOT, 'node_modules', '.vite');
+const ROOT_VITE_CONFIG_ROOT = join(REPOSITORY_ROOT, 'node_modules', '.vite-temp');
+const AUTH_VITE_CACHE_ROOT = join(
+  REPOSITORY_ROOT,
+  'services',
+  'auth-bridge',
+  'node_modules',
+  '.vite',
+);
+const AUTH_VITE_CONFIG_ROOT = join(
+  REPOSITORY_ROOT,
+  'services',
+  'auth-bridge',
+  'node_modules',
+  '.vite-temp',
+);
+const SPACETIME_DIST_ROOT = join(REPOSITORY_ROOT, 'spacetimedb', 'dist');
+const SPACETIME_V1_DIST_ROOT = join(
+  REPOSITORY_ROOT,
+  'spacetimedb',
+  'migration-fixtures',
+  'production-v1',
+  'dist',
+);
+const SPACETIME_V2_DIST_ROOT = join(
+  REPOSITORY_ROOT,
+  'spacetimedb',
+  'migration-fixtures',
+  'additive-v2-schema',
+  'dist',
+);
+const SPACETIME_V3_DIST_ROOT = join(
+  REPOSITORY_ROOT,
+  'spacetimedb',
+  'migration-fixtures',
+  'additive-v3-schema',
+  'dist',
+);
 const BROKER_SOCKET_PATH = join(OBSERVATORY_ROOT, 'broker.sock');
 const BROKER_HEALTH_PATH = '/healthz';
 const BROKER_SNAPSHOT_PATH = '/snapshot';
@@ -43,21 +100,102 @@ const NETWORK_SANDBOX_PROFILE = join(
   'qa-observer',
   'qa-cycle-network.sb',
 );
+const PRODUCTION_BRIDGE_CONFIG = join(
+  REPOSITORY_ROOT,
+  'services',
+  'auth-bridge',
+  'wrangler.toml',
+);
+const PRODUCTION_GATE_MAXIMUM_BYTES = 64 * 1_024;
+const EXPECTED_DISABLED_PRODUCTION_GATES = Object.freeze([
+  Object.freeze({
+    key: 'PUBLIC_AUTH_ENABLED',
+    line: 'PUBLIC_AUTH_ENABLED = "false"',
+  }),
+  Object.freeze({
+    key: 'QA_OBSERVER_ENABLED',
+    line: 'QA_OBSERVER_ENABLED = "false"',
+  }),
+]);
+const FORBIDDEN_QA_REGISTRATION_KEYS = Object.freeze([
+  'QA_OBSERVER_PUBLIC_JWK',
+  'QA_OBSERVER_KEY_REGISTERED_AT',
+  'QA_OBSERVER_KEY_EXPIRES_AT',
+]);
 const EXPECTED_NETWORK_SANDBOX_PROFILE = `(version 1)
 
 (define observatory-root (param "OBSERVATORY_ROOT"))
+(define repository-root (param "REPOSITORY_ROOT"))
+(define user-home (param "USER_HOME"))
+(define spacetime-cli-root (param "SPACETIME_CLI_ROOT"))
+(define runtime-home (param "RUNTIME_HOME"))
+(define runtime-tmp (param "RUNTIME_TMP"))
+(define npm-cache (param "NPM_CACHE"))
+(define socket-tmp-root (param "SOCKET_TMP_ROOT"))
+(define build-output-root (param "BUILD_OUTPUT_ROOT"))
+(define root-tsc-cache-root (param "ROOT_TSC_CACHE_ROOT"))
+(define root-vite-cache-root (param "ROOT_VITE_CACHE_ROOT"))
+(define root-vite-config-root (param "ROOT_VITE_CONFIG_ROOT"))
+(define auth-vite-cache-root (param "AUTH_VITE_CACHE_ROOT"))
+(define auth-vite-config-root (param "AUTH_VITE_CONFIG_ROOT"))
+(define spacetime-dist-root (param "SPACETIME_DIST_ROOT"))
+(define spacetime-v1-dist-root (param "SPACETIME_V1_DIST_ROOT"))
+(define spacetime-v2-dist-root (param "SPACETIME_V2_DIST_ROOT"))
+(define spacetime-v3-dist-root (param "SPACETIME_V3_DIST_ROOT"))
 
-; Preserve ordinary local build/test behavior while removing all non-loopback
-; network authority from the complete process tree. Unix sockets are limited
-; to owner-private QA/temp locations used by the reviewed fixtures.
+; Every repository-owned child is limited to numeric loopback TCP and one
+; fresh owner-private Unix-socket directory. Shared /private/tmp control
+; sockets and the persistent observatory broker are outside this authority.
 (allow default)
 (deny network*)
 (allow network* (local ip "localhost:*"))
 (allow network* (remote ip "localhost:*"))
-(allow network* (local unix-socket (subpath "/private/tmp")))
-(allow network* (remote unix-socket (subpath "/private/tmp")))
-(allow network* (local unix-socket (subpath observatory-root)))
-(allow network* (remote unix-socket (subpath observatory-root)))
+(allow network* (local unix-socket (subpath socket-tmp-root)))
+(allow network* (remote unix-socket (subpath socket-tmp-root)))
+
+; Source, scripts, dependencies, reports, audit records, and the installed
+; helper are read-only. Only disposable runtime state and exact reviewed build
+; or tool caches can be changed by repository code.
+(deny file-write*)
+(allow file-write* (subpath runtime-home))
+(allow file-write* (subpath runtime-tmp))
+(allow file-write* (subpath npm-cache))
+(allow file-write* (subpath socket-tmp-root))
+(allow file-write* (subpath build-output-root))
+(allow file-write* (subpath root-tsc-cache-root))
+(allow file-write* (subpath root-vite-cache-root))
+(allow file-write* (subpath root-vite-config-root))
+(allow file-write* (subpath auth-vite-cache-root))
+(allow file-write* (subpath auth-vite-config-root))
+(allow file-write* (subpath spacetime-dist-root))
+(allow file-write* (subpath spacetime-v1-dist-root))
+(allow file-write* (subpath spacetime-v2-dist-root))
+(allow file-write* (subpath spacetime-v3-dist-root))
+(allow file-write* (literal "/dev/null"))
+
+; Do not expose the rest of the signed-in account or shared temporary files.
+; The checkout, isolated runtime, exact socket root, and pinned CLI are the
+; complete read exceptions required by the autonomous local fixtures.
+(deny file-read* (subpath user-home))
+(deny file-read* (subpath "/private/tmp"))
+(allow file-read-metadata (subpath user-home))
+(allow file-read-metadata (subpath "/private/tmp"))
+(allow file-read* (subpath repository-root))
+(allow file-read* (subpath runtime-home))
+(allow file-read* (subpath runtime-tmp))
+(allow file-read* (subpath npm-cache))
+(allow file-read* (subpath socket-tmp-root))
+(allow file-read* (subpath spacetime-cli-root))
+
+; Mutable repository code cannot invoke the installed observer/helper or the
+; macOS credential and control-plane command-line surfaces.
+(deny process-exec (subpath observatory-root))
+(deny process-exec (literal "/usr/bin/security"))
+(deny process-exec (literal "/usr/bin/osascript"))
+(deny process-exec (literal "/usr/bin/open"))
+(deny process-exec (literal "/bin/launchctl"))
+(deny mach-lookup (global-name "com.apple.securityd"))
+(deny mach-lookup (global-name "com.apple.securityd.xpc"))
 `;
 const NPM_EXECUTABLE = join(dirname(process.execPath), 'npm');
 const RENDERED_WEBGL_BROWSER_PROBE = join(
@@ -76,6 +214,7 @@ const SPACETIME_CLI = join(
   SPACETIME_CLI_VERSION,
   'spacetimedb-cli',
 );
+const SPACETIME_CLI_ROOT = dirname(SPACETIME_CLI);
 const REPORT_VERSION = 1;
 const REPORT_RETENTION_DAYS = 14;
 const MAX_REPORTS = 200;
@@ -83,6 +222,44 @@ const MAX_CYCLE_MILLISECONDS = 50 * 60 * 1_000;
 const STALE_LOCK_MILLISECONDS = 55 * 60 * 1_000;
 const KILL_GRACE_MILLISECONDS = 2_000;
 const REPORT_NAME = /^qa-\d{8}T\d{9}Z-[a-f0-9]{8}\.json$/;
+const SANDBOX_PROBE_SUFFIX = basename(SOCKET_TMP_ROOT);
+const SANDBOX_BOUNDARY_PATHS = Object.freeze({
+  allowedFile: join(SOCKET_TMP_ROOT, `.sandbox-allowed-${SANDBOX_PROBE_SUFFIX}`),
+  allowedSocket: join(SOCKET_TMP_ROOT, 'sandbox-allowed.sock'),
+  auditSentinel: join(AUDIT_DIRECTORY, `.sandbox-private-${SANDBOX_PROBE_SUFFIX}`),
+  helperSentinel: join(HELPER_DIRECTORY, `.sandbox-private-${SANDBOX_PROBE_SUFFIX}`),
+  reportSentinel: join(REPORTS_DIRECTORY, `.sandbox-private-${SANDBOX_PROBE_SUFFIX}`),
+  sourceProbe: join(
+    REPOSITORY_ROOT,
+    'scripts',
+    'qa-observer',
+    `.sandbox-source-${SANDBOX_PROBE_SUFFIX}`,
+  ),
+});
+
+function sandboxBoundaryProgram(unrelatedSocketPath) {
+  const privateSentinels = [
+    SANDBOX_BOUNDARY_PATHS.auditSentinel,
+    SANDBOX_BOUNDARY_PATHS.helperSentinel,
+    SANDBOX_BOUNDARY_PATHS.reportSentinel,
+  ];
+  return [
+    "const fs=require('node:fs');",
+    "const net=require('node:net');",
+    `const privateSentinels=${JSON.stringify(privateSentinels)};`,
+    `const sourceProbe=${JSON.stringify(SANDBOX_BOUNDARY_PATHS.sourceProbe)};`,
+    `const allowedFile=${JSON.stringify(SANDBOX_BOUNDARY_PATHS.allowedFile)};`,
+    `const allowedSocket=${JSON.stringify(SANDBOX_BOUNDARY_PATHS.allowedSocket)};`,
+    `const unrelatedSocket=${JSON.stringify(unrelatedSocketPath)};`,
+    "const denied=(operation,cleanup)=>{try{operation();try{cleanup?.();}catch{}return false;}catch(error){return ['EPERM','EACCES'].includes(error?.code);}};",
+    "if(!privateSentinels.every((path)=>denied(()=>fs.readFileSync(path))))process.exit(20);",
+    "if(!privateSentinels.every((path)=>denied(()=>fs.appendFileSync(path,'forbidden'))))process.exit(21);",
+    "if(!denied(()=>fs.writeFileSync(sourceProbe,'forbidden',{flag:'wx'}),()=>fs.unlinkSync(sourceProbe)))process.exit(22);",
+    "try{fs.writeFileSync(allowedFile,'allowed',{flag:'wx',mode:0o600});if(fs.readFileSync(allowedFile,'utf8')!=='allowed')process.exit(23);fs.unlinkSync(allowedFile);}catch{process.exit(24);}",
+    "const canConnect=(path)=>new Promise((resolve)=>{let settled=false;const socket=net.createConnection({path});const finish=(value)=>{if(settled)return;settled=true;clearTimeout(timer);socket.destroy();resolve(value);};const timer=setTimeout(()=>finish(false),1500);socket.once('connect',()=>finish(true));socket.once('error',()=>finish(false));});",
+    "(async()=>{if(await canConnect(unrelatedSocket))process.exit(25);if(!await canConnect(allowedSocket))process.exit(26);})().catch(()=>process.exit(27));",
+  ].join('');
+}
 
 const EXPECTED_PACKAGE_CONTRACTS = Object.freeze([
   Object.freeze({
@@ -205,6 +382,12 @@ const CHECKS = Object.freeze({
     networkBoundary: 'self-contained-browser',
     timeoutMs: 9 * 60 * 1_000,
   }),
+  sandboxBoundary: Object.freeze({
+    id: 'sandbox-boundary',
+    executable: process.execPath,
+    args: Object.freeze([]),
+    timeoutMs: 10 * 1_000,
+  }),
   authBridgeTypecheck: Object.freeze({
     id: 'auth-bridge-typecheck',
     executable: NPM_EXECUTABLE,
@@ -267,23 +450,26 @@ const CHECKS = Object.freeze({
 
 const TIER_CHECKS = Object.freeze({
   quick: Object.freeze([
+    CHECKS.renderedWebglBrowser,
+    CHECKS.sandboxBoundary,
     CHECKS.targetedUnit,
     CHECKS.syntheticAppStates,
-    CHECKS.renderedWebglBrowser,
     CHECKS.typecheck,
   ]),
   standard: Object.freeze([
+    CHECKS.renderedWebglBrowser,
+    CHECKS.sandboxBoundary,
     CHECKS.fullUnit,
     CHECKS.typecheck,
-    CHECKS.renderedWebglBrowser,
     CHECKS.runtimeAssets,
     CHECKS.fileSizes,
   ]),
   deep: Object.freeze([
+    CHECKS.renderedWebglBrowser,
+    CHECKS.sandboxBoundary,
     CHECKS.fullUnit,
     CHECKS.typecheck,
     CHECKS.build,
-    CHECKS.renderedWebglBrowser,
     CHECKS.runtimeAssets,
     CHECKS.fileSizes,
     CHECKS.authBridgeTypecheck,
@@ -315,7 +501,9 @@ export function qaCycleEnvironment() {
       '/bin',
     ].join(':'),
     HOME: RUNTIME_HOME,
-    TMPDIR: RUNTIME_TMP,
+    // `tsx` and local SpacetimeDB fixtures create Unix IPC below TMPDIR, so
+    // temp files and sockets share the one fresh sandbox-authorized namespace.
+    TMPDIR: SOCKET_TMP_ROOT,
     LANG: 'en_US.UTF-8',
     CI: '1',
     NO_COLOR: '1',
@@ -323,6 +511,8 @@ export function qaCycleEnvironment() {
     // `spacetime` launcher, whose lookup is intentionally unavailable inside
     // the isolated runtime HOME.
     SPACETIME_BIN: SPACETIME_CLI,
+    // Reviewed local fixtures can create sockets only in this fresh namespace.
+    WARPKEEP_QA_SOCKET_TMP: SOCKET_TMP_ROOT,
     npm_config_audit: 'false',
     npm_config_cache: NPM_CACHE,
     npm_config_fund: 'false',
@@ -330,6 +520,8 @@ export function qaCycleEnvironment() {
     npm_config_logs_max: '0',
     npm_config_update_notifier: 'false',
     npm_config_userconfig: '/dev/null',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
   });
 }
 
@@ -503,14 +695,86 @@ export function qaNetworkSandboxContract(check, options = {}) {
     });
   }
   const observatoryRoot = options.observatoryRoot ?? OBSERVATORY_ROOT;
-  if (typeof observatoryRoot !== 'string' || !observatoryRoot.startsWith('/')) {
-    throw new TypeError('Invalid QA observatory root.');
+  const repositoryRoot = options.repositoryRoot ?? REPOSITORY_ROOT;
+  const userHome = options.userHome ?? homedir();
+  const spacetimeCliRoot = options.spacetimeCliRoot ?? SPACETIME_CLI_ROOT;
+  const runtimeHome = options.runtimeHome ?? RUNTIME_HOME;
+  const runtimeTmp = options.runtimeTmp ?? RUNTIME_TMP;
+  const npmCache = options.npmCache ?? NPM_CACHE;
+  const socketTmpRoot = options.socketTmpRoot ?? SOCKET_TMP_ROOT;
+  const buildOutputRoot = options.buildOutputRoot ?? BUILD_OUTPUT_ROOT;
+  const rootTscCacheRoot = options.rootTscCacheRoot ?? ROOT_TSC_CACHE_ROOT;
+  const rootViteCacheRoot = options.rootViteCacheRoot ?? ROOT_VITE_CACHE_ROOT;
+  const rootViteConfigRoot = options.rootViteConfigRoot ?? ROOT_VITE_CONFIG_ROOT;
+  const authViteCacheRoot = options.authViteCacheRoot ?? AUTH_VITE_CACHE_ROOT;
+  const authViteConfigRoot = options.authViteConfigRoot ?? AUTH_VITE_CONFIG_ROOT;
+  const spacetimeDistRoot = options.spacetimeDistRoot ?? SPACETIME_DIST_ROOT;
+  const spacetimeV1DistRoot = options.spacetimeV1DistRoot ?? SPACETIME_V1_DIST_ROOT;
+  const spacetimeV2DistRoot = options.spacetimeV2DistRoot ?? SPACETIME_V2_DIST_ROOT;
+  const spacetimeV3DistRoot = options.spacetimeV3DistRoot ?? SPACETIME_V3_DIST_ROOT;
+  for (const path of [
+    observatoryRoot,
+    repositoryRoot,
+    userHome,
+    spacetimeCliRoot,
+    runtimeHome,
+    runtimeTmp,
+    npmCache,
+    socketTmpRoot,
+    buildOutputRoot,
+    rootTscCacheRoot,
+    rootViteCacheRoot,
+    rootViteConfigRoot,
+    authViteCacheRoot,
+    authViteConfigRoot,
+    spacetimeDistRoot,
+    spacetimeV1DistRoot,
+    spacetimeV2DistRoot,
+    spacetimeV3DistRoot,
+  ]) {
+    if (typeof path !== 'string' || !path.startsWith('/') || path.includes('\0')) {
+      throw new TypeError('Invalid QA sandbox path.');
+    }
   }
   return Object.freeze({
     executable: SANDBOX_EXECUTABLE,
     args: Object.freeze([
       '-D',
       `OBSERVATORY_ROOT=${observatoryRoot}`,
+      '-D',
+      `REPOSITORY_ROOT=${repositoryRoot}`,
+      '-D',
+      `USER_HOME=${userHome}`,
+      '-D',
+      `SPACETIME_CLI_ROOT=${spacetimeCliRoot}`,
+      '-D',
+      `RUNTIME_HOME=${runtimeHome}`,
+      '-D',
+      `RUNTIME_TMP=${runtimeTmp}`,
+      '-D',
+      `NPM_CACHE=${npmCache}`,
+      '-D',
+      `SOCKET_TMP_ROOT=${socketTmpRoot}`,
+      '-D',
+      `BUILD_OUTPUT_ROOT=${buildOutputRoot}`,
+      '-D',
+      `ROOT_TSC_CACHE_ROOT=${rootTscCacheRoot}`,
+      '-D',
+      `ROOT_VITE_CACHE_ROOT=${rootViteCacheRoot}`,
+      '-D',
+      `ROOT_VITE_CONFIG_ROOT=${rootViteConfigRoot}`,
+      '-D',
+      `AUTH_VITE_CACHE_ROOT=${authViteCacheRoot}`,
+      '-D',
+      `AUTH_VITE_CONFIG_ROOT=${authViteConfigRoot}`,
+      '-D',
+      `SPACETIME_DIST_ROOT=${spacetimeDistRoot}`,
+      '-D',
+      `SPACETIME_V1_DIST_ROOT=${spacetimeV1DistRoot}`,
+      '-D',
+      `SPACETIME_V2_DIST_ROOT=${spacetimeV2DistRoot}`,
+      '-D',
+      `SPACETIME_V3_DIST_ROOT=${spacetimeV3DistRoot}`,
       '-f',
       options.profilePath ?? NETWORK_SANDBOX_PROFILE,
       check.executable,
@@ -551,6 +815,11 @@ export function runCommandCheck(check, options = {}) {
       clearTimeout(timeoutTimer);
       clearTimeout(killTimer);
       clearTimeout(hardStopTimer);
+      // A check is complete only when its whole detached process group is
+      // gone. Successful commands are not allowed to leave background servers
+      // or other descendants carrying the sandbox authority into later checks.
+      terminateProcessGroup(child, 'SIGTERM');
+      terminateProcessGroup(child, 'SIGKILL');
       resolveCheck(Object.freeze({
         id: check.id,
         status,
@@ -586,6 +855,74 @@ export function runCommandCheck(check, options = {}) {
     child.once('error', () => finish(timedOut ? 'timeout' : 'fail'));
     child.once('close', (code) => finish(timedOut ? 'timeout' : code === 0 ? 'pass' : 'fail'));
   });
+}
+
+async function listenBoundarySocket(socketPath) {
+  const server = createNetServer((socket) => socket.end());
+  await new Promise((resolveListen, rejectListen) => {
+    const reject = (error) => {
+      server.off('error', reject);
+      rejectListen(error);
+    };
+    server.once('error', reject);
+    server.listen(socketPath, () => {
+      server.off('error', reject);
+      resolveListen();
+    });
+  });
+  await chmod(socketPath, 0o600);
+  return server;
+}
+
+async function closeBoundarySocket(server) {
+  if (!server) return;
+  await new Promise((resolveClose) => server.close(() => resolveClose()));
+}
+
+async function runSandboxBoundaryCheck(check, timeoutMs) {
+  if (check !== CHECKS.sandboxBoundary || process.platform !== 'darwin') {
+    throw new Error('Unsupported QA sandbox boundary preflight.');
+  }
+  const unrelatedRoot = await mkdtemp('/private/tmp/wkqd-');
+  const unrelatedSocketPath = join(unrelatedRoot, 'denied.sock');
+  let allowedServer;
+  let unrelatedServer;
+  const privateSentinels = [
+    SANDBOX_BOUNDARY_PATHS.auditSentinel,
+    SANDBOX_BOUNDARY_PATHS.helperSentinel,
+    SANDBOX_BOUNDARY_PATHS.reportSentinel,
+  ];
+  try {
+    await Promise.all([
+      ensurePrivateDirectory(AUDIT_DIRECTORY),
+      ensurePrivateDirectory(HELPER_DIRECTORY),
+      ensurePrivateDirectory(REPORTS_DIRECTORY),
+      ensurePrivateDirectory(SOCKET_TMP_ROOT),
+    ]);
+    await Promise.all(privateSentinels.map((path) => writeFile(
+      path,
+      'sandbox-boundary\n',
+      { encoding: 'utf8', flag: 'wx', mode: 0o600 },
+    )));
+    allowedServer = await listenBoundarySocket(SANDBOX_BOUNDARY_PATHS.allowedSocket);
+    unrelatedServer = await listenBoundarySocket(unrelatedSocketPath);
+    return await runCommandCheck(Object.freeze({
+      ...check,
+      args: Object.freeze(['-e', sandboxBoundaryProgram(unrelatedSocketPath)]),
+    }), { timeoutMs });
+  } finally {
+    await Promise.allSettled([
+      closeBoundarySocket(allowedServer),
+      closeBoundarySocket(unrelatedServer),
+    ]);
+    await Promise.all([
+      ...privateSentinels.map((path) => rm(path, { force: true })),
+      rm(SANDBOX_BOUNDARY_PATHS.allowedFile, { force: true }),
+      rm(SANDBOX_BOUNDARY_PATHS.allowedSocket, { force: true }),
+      rm(SANDBOX_BOUNDARY_PATHS.sourceProbe, { force: true }),
+      rm(unrelatedRoot, { recursive: true, force: true }),
+    ]);
+  }
 }
 
 async function requireOwnerPrivateSocket(socketPath) {
@@ -717,6 +1054,7 @@ export async function runQaCycle(options = {}) {
     ? tierForLocalHour(startedAt.getHours())
     : requestedTier;
   const checks = checksForTier(tier);
+  const usesDefaultExecutor = options.executeCheck === undefined;
   const execute = options.executeCheck ?? runCommandCheck;
   const deadline = startedAt.valueOf() + MAX_CYCLE_MILLISECONDS;
   const results = [];
@@ -750,12 +1088,18 @@ export async function runQaCycle(options = {}) {
       break;
     }
     try {
-      results.push(await execute(check, {
-        cwd: REPOSITORY_ROOT,
-        timeoutMs: Math.min(check.timeoutMs, remaining),
-      }));
+      const timeoutMs = Math.min(check.timeoutMs, remaining);
+      const result = usesDefaultExecutor && check === CHECKS.sandboxBoundary
+        ? await runSandboxBoundaryCheck(check, timeoutMs)
+        : await execute(check, {
+            cwd: REPOSITORY_ROOT,
+            timeoutMs,
+          });
+      results.push(result);
+      if (check === CHECKS.sandboxBoundary && result.status !== 'pass') break;
     } catch {
       results.push(Object.freeze({ id: check.id, status: 'fail', durationMs: 0 }));
+      if (check === CHECKS.sandboxBoundary) break;
     }
   }
 
@@ -934,6 +1278,40 @@ export async function attestQaRepository(repositoryRoot = REPOSITORY_ROOT) {
       }
     }
   }
+  const productionBridgeConfigPath = repositoryRoot === REPOSITORY_ROOT
+    ? PRODUCTION_BRIDGE_CONFIG
+    : join(repositoryRoot, 'services', 'auth-bridge', 'wrangler.toml');
+  const productionBridgeMetadata = await lstat(productionBridgeConfigPath);
+  if (
+    !productionBridgeMetadata.isFile()
+    || productionBridgeMetadata.isSymbolicLink()
+    || productionBridgeMetadata.size < 1
+    || productionBridgeMetadata.size > PRODUCTION_GATE_MAXIMUM_BYTES
+  ) throw new Error('Repository production gate contract mismatch.');
+  const productionBridgeConfig = await readFile(productionBridgeConfigPath, 'utf8');
+  const activeLines = productionBridgeConfig
+    .split('\n')
+    .map((line) => line.trimStart())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+  let currentTable = '';
+  const occurrences = new Map(EXPECTED_DISABLED_PRODUCTION_GATES.map(({ key }) => [key, []]));
+  for (const line of activeLines) {
+    if (line.startsWith('[')) currentTable = line.trimEnd();
+    for (const { key } of EXPECTED_DISABLED_PRODUCTION_GATES) {
+      if (line.includes(key)) occurrences.get(key).push({ line, table: currentTable });
+    }
+    if (FORBIDDEN_QA_REGISTRATION_KEYS.some((key) => line.includes(key))) {
+      throw new Error('Repository production gate contract mismatch.');
+    }
+  }
+  for (const { key, line } of EXPECTED_DISABLED_PRODUCTION_GATES) {
+    const matches = occurrences.get(key);
+    if (
+      matches.length !== 1
+      || matches[0].line !== line
+      || matches[0].table !== '[vars]'
+    ) throw new Error('Repository production gate contract mismatch.');
+  }
   const profilePath = join(
     repositoryRoot,
     'scripts',
@@ -980,6 +1358,17 @@ async function main() {
       ensurePrivateDirectory(RUNTIME_HOME),
       ensurePrivateDirectory(RUNTIME_TMP),
       ensurePrivateDirectory(NPM_CACHE),
+      ensurePrivateDirectory(SOCKET_TMP_ROOT),
+      ensurePrivateDirectory(BUILD_OUTPUT_ROOT),
+      ensurePrivateDirectory(ROOT_TSC_CACHE_ROOT),
+      ensurePrivateDirectory(ROOT_VITE_CACHE_ROOT),
+      ensurePrivateDirectory(ROOT_VITE_CONFIG_ROOT),
+      ensurePrivateDirectory(AUTH_VITE_CACHE_ROOT),
+      ensurePrivateDirectory(AUTH_VITE_CONFIG_ROOT),
+      ensurePrivateDirectory(SPACETIME_DIST_ROOT),
+      ensurePrivateDirectory(SPACETIME_V1_DIST_ROOT),
+      ensurePrivateDirectory(SPACETIME_V2_DIST_ROOT),
+      ensurePrivateDirectory(SPACETIME_V3_DIST_ROOT),
     ]);
     await attestQaRepository();
   } catch {

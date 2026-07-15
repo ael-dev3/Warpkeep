@@ -6,7 +6,7 @@ const TOP_LEVEL_KEYS = Object.freeze([
   'worldTileCount',
   'worldTileMetaCount',
   'realm',
-  'castles',
+  'aggregates',
 ]);
 const REALM_KEYS = Object.freeze([
   'realmId',
@@ -16,16 +16,12 @@ const REALM_KEYS = Object.freeze([
   'renderRadius',
   'playerCapacity',
 ]);
-const REQUIRED_CASTLE_KEYS = Object.freeze([
-  'castleId', 'tileKey', 'q', 'r', 'level', 'name', 'portraitAvailable', 'publicStatus',
+const AGGREGATE_KEYS = Object.freeze([
+  'castleCount',
+  'profileCount',
+  'foundedCount',
+  'activeCount',
 ]);
-const OPTIONAL_CASTLE_KEYS = Object.freeze([
-  'canonicalUsername', 'displayName', 'publicBio',
-]);
-const CASTLE_KEYS = new Set([...REQUIRED_CASTLE_KEYS, ...OPTIONAL_CASTLE_KEYS]);
-const FORBIDDEN_TEXT = /[\u0000-\u001f\u007f-\u009f\u061c\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff<>]/u;
-const USERNAME = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
-const PUBLIC_STATUSES = new Set(['founded', 'active']);
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -41,25 +37,11 @@ function safeInteger(value, minimum, maximum) {
   return Number.isSafeInteger(value) && value >= minimum && value <= maximum;
 }
 
-function safeString(value, maximum, allowEmpty = false) {
-  return typeof value === 'string'
-    && [...value].length <= maximum
-    && (allowEmpty || [...value].length > 0)
-    && value === value.trim()
-    && !FORBIDDEN_TEXT.test(value)
-    && !/\s{2,}/u.test(value);
-}
-
-function optionalString(value, maximum) {
-  return value === undefined || safeString(value, maximum);
-}
-
 function freezeSnapshot(value) {
-  const castles = Object.freeze(value.castles.map(castle => Object.freeze({ ...castle })));
   return Object.freeze({
     ...value,
     realm: Object.freeze({ ...value.realm }),
-    castles,
+    aggregates: Object.freeze({ ...value.aggregates }),
   });
 }
 
@@ -71,7 +53,7 @@ function freezeSnapshot(value) {
 export function parseQaObserverSnapshot(value) {
   if (!isRecord(value) || !hasExactKeys(value, TOP_LEVEL_KEYS)) return undefined;
   if (
-    value.version !== 1
+    value.version !== 2
     || value.protocolVersion !== 3
     || value.worldSeed !== 3_445_214_658
     || value.worldSeedName !== 'HEGEMONY_GENESIS_001'
@@ -85,58 +67,16 @@ export function parseQaObserverSnapshot(value) {
     || value.realm.authoritativeRadius !== 20
     || value.realm.renderRadius !== 22
     || value.realm.playerCapacity !== 100
-    || !Array.isArray(value.castles)
-    || value.castles.length < 1
-    || value.castles.length > value.realm.playerCapacity
+    || !isRecord(value.aggregates)
+    || !hasExactKeys(value.aggregates, AGGREGATE_KEYS)
+    || !safeInteger(value.aggregates.castleCount, 1, value.realm.playerCapacity)
+    || value.aggregates.profileCount !== value.aggregates.castleCount
+    || !safeInteger(value.aggregates.foundedCount, 0, value.aggregates.castleCount)
+    || !safeInteger(value.aggregates.activeCount, 0, value.aggregates.castleCount)
+    || value.aggregates.foundedCount + value.aggregates.activeCount
+      !== value.aggregates.castleCount
   ) return undefined;
 
-  const castleIds = new Set();
-  const tileKeys = new Set();
-  const castles = [];
-  let previousCastleId = 0;
-  for (const candidate of value.castles) {
-    if (!isRecord(candidate)) return undefined;
-    const keys = Object.keys(candidate);
-    if (
-      keys.some(key => !CASTLE_KEYS.has(key))
-      || REQUIRED_CASTLE_KEYS.some(key => !Object.hasOwn(candidate, key))
-      || !safeInteger(candidate.castleId, 1, Number.MAX_SAFE_INTEGER)
-      || !safeInteger(candidate.q, -20, 20)
-      || !safeInteger(candidate.r, -20, 20)
-      || Math.max(Math.abs(candidate.q), Math.abs(candidate.r), Math.abs(-candidate.q - candidate.r)) > 20
-      || !safeInteger(candidate.level, 1, 1_000)
-      || !safeString(candidate.tileKey, 32)
-      || candidate.tileKey !== `${candidate.q},${candidate.r}`
-      || !safeString(candidate.name, 80)
-      || typeof candidate.portraitAvailable !== 'boolean'
-      || !safeString(candidate.publicStatus, 16)
-      || !PUBLIC_STATUSES.has(candidate.publicStatus)
-      || !optionalString(candidate.canonicalUsername, 64)
-      || (candidate.canonicalUsername !== undefined && !USERNAME.test(candidate.canonicalUsername))
-      || !optionalString(candidate.displayName, 80)
-      || !optionalString(candidate.publicBio, 320)
-      || castleIds.has(candidate.castleId)
-      || tileKeys.has(candidate.tileKey)
-      || candidate.castleId <= previousCastleId
-    ) return undefined;
-    castleIds.add(candidate.castleId);
-    tileKeys.add(candidate.tileKey);
-    previousCastleId = candidate.castleId;
-    castles.push({
-      castleId: candidate.castleId,
-      tileKey: candidate.tileKey,
-      q: candidate.q,
-      r: candidate.r,
-      level: candidate.level,
-      name: candidate.name,
-      portraitAvailable: candidate.portraitAvailable,
-      publicStatus: candidate.publicStatus,
-      ...(candidate.canonicalUsername === undefined
-        ? {} : { canonicalUsername: candidate.canonicalUsername }),
-      ...(candidate.displayName === undefined ? {} : { displayName: candidate.displayName }),
-      ...(candidate.publicBio === undefined ? {} : { publicBio: candidate.publicBio }),
-    });
-  }
   return freezeSnapshot({
     version: value.version,
     protocolVersion: value.protocolVersion,
@@ -152,6 +92,11 @@ export function parseQaObserverSnapshot(value) {
       renderRadius: value.realm.renderRadius,
       playerCapacity: value.realm.playerCapacity,
     },
-    castles,
+    aggregates: {
+      castleCount: value.aggregates.castleCount,
+      profileCount: value.aggregates.profileCount,
+      foundedCount: value.aggregates.foundedCount,
+      activeCount: value.aggregates.activeCount,
+    },
   });
 }

@@ -156,6 +156,20 @@ describe('realm interaction state', () => {
     expect(secondFocus.keyboardIntent).toEqual({ sequence: 2, target: { kind: 'map' } });
   });
 
+  it('retains a pending castle-label focus intent for asynchronous cluster reveal', () => {
+    const initial = createRealmInteractionState({ q: 0, r: 0 });
+    const focused = realmInteractionReducer(initial, {
+      type: 'request-castle-label-focus',
+      castleId: 77
+    });
+
+    expect(focused.keyboardIntent).toEqual({
+      sequence: 1,
+      target: { kind: 'castle-label', castleId: 77 }
+    });
+    expect(focused.cameraTarget).toEqual({ kind: 'realm' });
+  });
+
   it('retains semantic overview, district, and keep camera targets for scene restoration', () => {
     const initial = createRealmInteractionState({ q: 0, r: 0 });
     const district = realmInteractionReducer(initial, {

@@ -1,19 +1,5 @@
-export type QaObserverCastle = Readonly<{
-  castleId: number;
-  tileKey: string;
-  q: number;
-  r: number;
-  level: number;
-  name: string;
-  canonicalUsername?: string;
-  displayName?: string;
-  portraitAvailable: boolean;
-  publicBio?: string;
-  publicStatus: string;
-}>;
-
 export type QaObserverSnapshot = Readonly<{
-  version: 1;
+  version: 2;
   protocolVersion: 3;
   worldSeed: number;
   worldSeedName: string;
@@ -27,7 +13,12 @@ export type QaObserverSnapshot = Readonly<{
     renderRadius: number;
     playerCapacity: number;
   }>;
-  castles: readonly QaObserverCastle[];
+  aggregates: Readonly<{
+    castleCount: number;
+    profileCount: number;
+    foundedCount: number;
+    activeCount: number;
+  }>;
 }>;
 
 export function parseQaObserverSnapshot(value: unknown): QaObserverSnapshot | undefined;

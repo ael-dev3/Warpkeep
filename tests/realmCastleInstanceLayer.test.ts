@@ -170,4 +170,76 @@ describe('realm castle instance layer', () => {
     });
     layer.dispose();
   });
+
+  it('renders and raycasts only the castle IDs paired with placed identity labels', () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const compactPrefab = prefab('compact', geometry, material);
+    const layer = createRealmCastleInstanceLayer({
+      castles: [castle(2, -1.5, 0), castle(4, 1.5, 0)],
+      prefabs: new Map([['compact', {
+        ...compactPrefab,
+        primitives: [
+          ...compactPrefab.primitives,
+          { ...compactPrefab.primitives[0]!, sourceMeshName: 'castle-compact-accent' }
+        ]
+      }]]),
+      policy: COMPACT_ONLY_POLICY,
+      dynamicShadows: false
+    });
+    const sceneCamera = camera();
+    layer.setPresentedCastleIds([4, 4]);
+    layer.update(sceneCamera, 900);
+
+    expect(layer.getPacking().totalVisible).toBe(1);
+    expect(layer.getPacking().buckets.compact.map((entry) => entry.castleId)).toEqual([4]);
+    expect(layer.getPresentationTelemetry()).toEqual({
+      presentedModelCount: 1,
+      raycastTargetCount: 1
+    });
+    const liveCastleMesh = layer.group.children[0] as THREE.InstancedMesh;
+    // Simulate a presentation-mask implementation that updated its plan but
+    // left an extra live model instance behind. Telemetry must expose it.
+    liveCastleMesh.count = 2;
+    expect(layer.getPresentationTelemetry()).toEqual({
+      presentedModelCount: 2,
+      raycastTargetCount: 1
+    });
+    liveCastleMesh.count = 1;
+    expect((layer.group.children[0] as THREE.InstancedMesh).count).toBe(1);
+    expect((layer.group.getObjectByName(
+      'hegemony-castle-contact-shadows'
+    ) as THREE.InstancedMesh).count).toBe(1);
+
+    const raycaster = new THREE.Raycaster();
+    const rayAt = (target: THREE.Vector3) => {
+      raycaster.set(
+        sceneCamera.position,
+        target.sub(sceneCamera.position).normalize()
+      );
+      return layer.raycast(raycaster);
+    };
+    expect(rayAt(new THREE.Vector3(-1.5, 0.5, 0))).toBeNull();
+    expect(rayAt(new THREE.Vector3(1.5, 0.5, 0))).toEqual({
+      castleId: 4,
+      coord: { q: 4, r: -4 }
+    });
+
+    expect(() => layer.setPresentedCastleIds([999])).toThrow(
+      'Invalid presented castle identity set.'
+    );
+    layer.setPresentedCastleIds(null);
+    layer.update(sceneCamera, 900);
+    expect(layer.getPacking().totalVisible).toBe(2);
+    expect(layer.getPresentationTelemetry()).toEqual({
+      presentedModelCount: 2,
+      raycastTargetCount: 2
+    });
+    layer.clear();
+    expect(layer.getPresentationTelemetry()).toEqual({
+      presentedModelCount: 0,
+      raycastTargetCount: 0
+    });
+    layer.dispose();
+  });
 });

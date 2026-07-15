@@ -42,6 +42,7 @@ vi.mock('../src/components/realm/loadHegemonyKeep', async (importOriginal) => {
 
 import {
   createRealmScene,
+  resolveRealmPinchGesture,
   type CreateRealmSceneOptions
 } from '../src/components/realm/createRealmScene';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
@@ -123,6 +124,68 @@ describe('realm scene setup cleanup', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('resolves a stable two-pointer centroid and separation', () => {
+    expect(resolveRealmPinchGesture(new Map([
+      [1, { x: 40, y: 80 }],
+      [2, { x: 100, y: 120 }]
+    ]))).toEqual({
+      centroid: { x: 70, y: 100 },
+      distance: Math.hypot(60, 40)
+    });
+    expect(resolveRealmPinchGesture(new Map([[1, { x: 40, y: 80 }]]))).toBeNull();
+  });
+
+  it('enables bounded ambience only for visible-motion high and balanced scenes', () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+    const surface = createRealmTerrainSurface('realm-ambient-gating', 4, 5);
+
+    const reduced = createRealmScene(createOptions(document.createElement('canvas'), {
+      surface,
+      quality: REALM_QUALITY_SPECS.reduced
+    }));
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    reduced.dispose();
+
+    const reducedMotion = createRealmScene(createOptions(document.createElement('canvas'), {
+      surface,
+      quality: REALM_QUALITY_SPECS.high,
+      reducedMotion: true
+    }));
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    reducedMotion.dispose();
+
+    const animated = createRealmScene(createOptions(document.createElement('canvas'), {
+      surface,
+      quality: REALM_QUALITY_SPECS.balanced,
+      reducedMotion: false
+    }));
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 180);
+    animated.dispose();
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+  });
+
+  it('renders the procedural environment centred on the active camera', () => {
+    const onCastlePresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(document.createElement('canvas'), {
+      reducedMotion: true,
+      onCastlePresentationTelemetry
+    }));
+    const renderCall = webglState.instances[0].render.mock.calls.at(-1);
+    const renderedScene = renderCall?.[0] as THREE.Scene;
+    const camera = renderCall?.[1] as THREE.PerspectiveCamera;
+    const environment = renderedScene.getObjectByName('realm-environment-depth');
+
+    expect(environment).toBeTruthy();
+    expect(environment?.position.equals(camera.position)).toBe(true);
+    expect(onCastlePresentationTelemetry).toHaveBeenCalledWith({
+      presentedModelCount: 0,
+      raycastTargetCount: 0
+    });
+
+    sceneHandle.dispose();
   });
 
   it('releases partial GPU and browser resources when late setup throws', () => {
@@ -427,6 +490,69 @@ describe('realm scene setup cleanup', () => {
       pointerType: 'touch'
     });
     expect(onTargetSelect).not.toHaveBeenCalled();
+
+    scene.dispose();
+  });
+
+  it('pans by the moving pinch centroid without changing the final pinch scale', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 },
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) }
+    });
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-pinch-centroid', 4, 5),
+      reducedMotion: true
+    }));
+    scene.frameFoundingDistrict();
+    const renderer = webglState.instances[0];
+    const camera = renderer.render.mock.calls.at(-1)?.[1] as THREE.PerspectiveCamera;
+    const initialPosition = camera.position.clone();
+
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 1,
+      clientX: 300,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 2,
+      clientX: 500,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 1,
+      clientX: 320,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 2,
+      clientX: 520,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+
+    expect(camera.position.y).toBeCloseTo(initialPosition.y, 5);
+    expect(Math.hypot(
+      camera.position.x - initialPosition.x,
+      camera.position.z - initialPosition.z
+    )).toBeGreaterThan(0.001);
 
     scene.dispose();
   });

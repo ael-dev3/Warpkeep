@@ -45,6 +45,7 @@ export type RealmInteractionAction =
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
   | Readonly<{ type: 'open-navigator' }>
   | Readonly<{ type: 'close-navigator' }>
+  | Readonly<{ type: 'request-castle-label-focus'; castleId: number }>
   | Readonly<{ type: 'request-map-focus' }>;
 
 export type RealmEscapeDecision = 'close-inspector' | 'close-navigator' | 'request-exit';
@@ -154,6 +155,15 @@ export function realmInteractionReducer(
         ...state,
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, { kind: 'navigator-trigger' })
+      };
+
+    case 'request-castle-label-focus':
+      return {
+        ...state,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'castle-label',
+          castleId: action.castleId
+        })
       };
 
     case 'request-map-focus':

@@ -8,7 +8,6 @@ private let challengePath = "/v1/qa/challenge"
 private let snapshotPath = "/v1/qa/realm-snapshot"
 private let snapshotScope = "realm.snapshot"
 private let maximumResponseBytes = 256 * 1024
-private let maximumSafeJsonInteger: Int64 = 9_007_199_254_740_991
 private let requestTimeoutSeconds: TimeInterval = 8
 private let resourceTimeoutSeconds: TimeInterval = 10
 
@@ -518,14 +517,6 @@ private func exactInt64(_ value: Any?) -> Int64? {
     return Double(integer) == double ? integer : nil
 }
 
-private func exactBool(_ value: Any?) -> Bool? {
-    guard
-        let number = value as? NSNumber,
-        CFGetTypeID(number) == CFBooleanGetTypeID()
-    else { return nil }
-    return number.boolValue
-}
-
 private func parseChallenge(_ data: Data, expectedThumbprint: String) throws -> DeviceChallenge {
     let value = try exactDictionary(data, keys: [
         "version", "requestId", "challenge", "expiresAt", "keyThumbprint", "scope", "signingInput",
@@ -579,58 +570,10 @@ private let forbiddenSnapshotKeys: Set<String> = [
     "fid", "identity", "admission", "ownership", "terms", "wallet", "audit",
     "token", "session", "authEpoch", "allowedFid", "pfpUrl", "marksBalanceMicros",
     "totalSnapBurnedMicros", "firstAuthenticatedAt", "admittedAt", "profileUpdatedAt",
+    "castles", "castleId", "ownerFid", "tileKey", "q", "r", "level", "name",
+    "canonicalUsername", "username", "displayName", "publicBio", "bio",
+    "portraitAvailable", "portrait", "publicStatus", "coordinates", "location",
 ]
-
-private func isEcmaScriptWhitespace(_ scalar: Unicode.Scalar) -> Bool {
-    switch scalar.value {
-    case 0x0009...0x000d, 0x0020, 0x00a0, 0x1680, 0x2000...0x200a,
-         0x2028...0x2029, 0x202f, 0x205f, 0x3000, 0xfeff:
-        return true
-    default:
-        return false
-    }
-}
-
-private func isForbiddenSnapshotScalar(_ scalar: Unicode.Scalar) -> Bool {
-    switch scalar.value {
-    case 0x0000...0x001f, 0x007f...0x009f, 0x061c, 0x200b...0x200f,
-         0x202a...0x202e, 0x2060, 0x2066...0x2069, 0xfeff, 0x003c, 0x003e:
-        return true
-    default:
-        return false
-    }
-}
-
-private func safeSnapshotString(_ value: Any?, maximum: Int) -> String? {
-    guard let string = value as? String else { return nil }
-    let scalars = string.unicodeScalars
-    guard
-        !scalars.isEmpty,
-        scalars.count <= maximum,
-        let first = scalars.first,
-        let last = scalars.last,
-        !isEcmaScriptWhitespace(first),
-        !isEcmaScriptWhitespace(last)
-    else { return nil }
-
-    var previousWasWhitespace = false
-    for scalar in scalars {
-        guard !isForbiddenSnapshotScalar(scalar) else { return nil }
-        let isWhitespace = isEcmaScriptWhitespace(scalar)
-        guard !(previousWasWhitespace && isWhitespace) else { return nil }
-        previousWasWhitespace = isWhitespace
-    }
-    return string
-}
-
-private func optionalSnapshotString(
-    _ dictionary: [String: Any],
-    key: String,
-    maximum: Int
-) -> String? {
-    guard dictionary.keys.contains(key) else { return "" }
-    return safeSnapshotString(dictionary[key], maximum: maximum)
-}
 
 private func rejectForbiddenSnapshotKeys(_ value: Any) throws {
     if let dictionary = value as? [String: Any] {
@@ -644,12 +587,18 @@ private func rejectForbiddenSnapshotKeys(_ value: Any) throws {
 }
 
 private func validateSnapshot(_ data: Data) throws -> Data {
-    let value = try exactDictionary(data, keys: [
-        "version", "protocolVersion", "worldSeed", "worldSeedName", "worldTileCount",
-        "worldTileMetaCount", "realm", "castles",
-    ])
     guard
-        exactInt64(value["version"]) == 1,
+        data.count <= maximumResponseBytes,
+        let value = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else {
+        throw QaDeviceError.invalidResponse
+    }
+    try rejectForbiddenSnapshotKeys(value)
+    guard Set(value.keys) == [
+        "version", "protocolVersion", "worldSeed", "worldSeedName", "worldTileCount",
+        "worldTileMetaCount", "realm", "aggregates",
+    ],
+        exactInt64(value["version"]) == 2,
         exactInt64(value["protocolVersion"]) == 3,
         exactInt64(value["worldSeed"]) == 3_445_214_658,
         value["worldSeedName"] as? String == "HEGEMONY_GENESIS_001",
@@ -666,66 +615,32 @@ private func validateSnapshot(_ data: Data) throws -> Data {
         exactInt64(realm["authoritativeRadius"]) == 20,
         exactInt64(realm["renderRadius"]) == 22,
         exactInt64(realm["playerCapacity"]) == 100,
-        let castles = value["castles"] as? [[String: Any]],
-        !castles.isEmpty,
-        castles.count <= 100
+        let aggregates = value["aggregates"] as? [String: Any],
+        Set(aggregates.keys) == [
+            "castleCount", "profileCount", "foundedCount", "activeCount",
+        ],
+        let castleCount = exactInt64(aggregates["castleCount"]),
+        (1...100).contains(castleCount),
+        exactInt64(aggregates["profileCount"]) == castleCount,
+        let foundedCount = exactInt64(aggregates["foundedCount"]),
+        (0...castleCount).contains(foundedCount),
+        let activeCount = exactInt64(aggregates["activeCount"]),
+        (0...castleCount).contains(activeCount),
+        foundedCount + activeCount == castleCount
     else {
         throw QaDeviceError.invalidResponse
     }
-    let castleKeys: Set<String> = [
-        "castleId", "tileKey", "q", "r", "level", "name", "canonicalUsername",
-        "displayName", "portraitAvailable", "publicBio", "publicStatus",
-    ]
-    var castleIds = Set<Int64>()
-    var tileKeys = Set<String>()
-    var previousCastleId: Int64 = 0
-    for castle in castles {
-        guard Set(castle.keys).isSubset(of: castleKeys) else {
-            throw QaDeviceError.invalidResponse
-        }
-        let required: Set<String> = [
-            "castleId", "tileKey", "q", "r", "level", "name", "portraitAvailable", "publicStatus",
-        ]
-        guard
-            required.isSubset(of: Set(castle.keys)),
-            let castleId = exactInt64(castle["castleId"]),
-            (1...maximumSafeJsonInteger).contains(castleId),
-            let q = exactInt64(castle["q"]), (-20...20).contains(q),
-            let r = exactInt64(castle["r"]), (-20...20).contains(r),
-            max(max(abs(q), abs(r)), abs(-q - r)) <= 20,
-            let level = exactInt64(castle["level"]), (1...1_000).contains(level),
-            let tileKey = safeSnapshotString(castle["tileKey"], maximum: 32),
-            tileKey == "\(q),\(r)",
-            safeSnapshotString(castle["name"], maximum: 80) != nil,
-            exactBool(castle["portraitAvailable"]) != nil,
-            let publicStatus = safeSnapshotString(castle["publicStatus"], maximum: 16),
-            publicStatus == "founded" || publicStatus == "active",
-            let canonicalUsername = optionalSnapshotString(
-                castle, key: "canonicalUsername", maximum: 64
-            ),
-            canonicalUsername.isEmpty || canonicalUsername.range(
-                of: "^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$",
-                options: .regularExpression
-            ) != nil,
-            optionalSnapshotString(castle, key: "displayName", maximum: 80) != nil,
-            optionalSnapshotString(castle, key: "publicBio", maximum: 320) != nil,
-            !castleIds.contains(castleId),
-            !tileKeys.contains(tileKey),
-            castleId > previousCastleId
-        else {
-            throw QaDeviceError.invalidResponse
-        }
-        castleIds.insert(castleId)
-        tileKeys.insert(tileKey)
-        previousCastleId = castleId
-    }
-    try rejectForbiddenSnapshotKeys(value)
     return try jsonData(value)
 }
 
-private func implementationSnapshot(_ castles: [[String: Any]]) -> [String: Any] {
+private func implementationSnapshot(
+    castleCount: Int64 = 2,
+    profileCount: Int64 = 2,
+    foundedCount: Int64 = 1,
+    activeCount: Int64 = 1
+) -> [String: Any] {
     [
-        "version": 1,
+        "version": 2,
         "protocolVersion": 3,
         "worldSeed": 3_445_214_658,
         "worldSeedName": "HEGEMONY_GENESIS_001",
@@ -739,28 +654,12 @@ private func implementationSnapshot(_ castles: [[String: Any]]) -> [String: Any]
             "renderRadius": 22,
             "playerCapacity": 100,
         ],
-        "castles": castles,
-    ]
-}
-
-private func implementationCastle(
-    id: Int64,
-    q: Int64,
-    r: Int64,
-    username: String = "public-name"
-) -> [String: Any] {
-    [
-        "castleId": id,
-        "tileKey": "\(q),\(r)",
-        "q": q,
-        "r": r,
-        "level": 2,
-        "name": "Observed Keep",
-        "canonicalUsername": username,
-        "displayName": "Public Name",
-        "portraitAvailable": true,
-        "publicBio": "Public profile text.",
-        "publicStatus": "active",
+        "aggregates": [
+            "castleCount": castleCount,
+            "profileCount": profileCount,
+            "foundedCount": foundedCount,
+            "activeCount": activeCount,
+        ],
     ]
 }
 
@@ -774,38 +673,36 @@ private func requireSnapshotRejection(_ snapshot: [String: Any]) throws {
 }
 
 private func runSnapshotValidationImplementationSelfTest() throws {
-    let first = implementationCastle(id: 1, q: 0, r: 1)
-    let second = implementationCastle(id: 2, q: 1, r: 0, username: "public-name-2")
-    _ = try validateSnapshot(try jsonData(implementationSnapshot([first, second])))
+    _ = try validateSnapshot(try jsonData(implementationSnapshot()))
 
-    var invalid = first
-    invalid["displayName"] = "Trusted\u{202e}exe"
-    try requireSnapshotRejection(implementationSnapshot([invalid]))
+    var invalid = implementationSnapshot()
+    invalid["version"] = 1
+    try requireSnapshotRejection(invalid)
 
-    invalid = first
-    invalid["canonicalUsername"] = "Not-Canonical"
-    try requireSnapshotRejection(implementationSnapshot([invalid]))
+    invalid = implementationSnapshot()
+    invalid["castleId"] = 1
+    try requireSnapshotRejection(invalid)
 
-    invalid = implementationCastle(id: 1, q: 20, r: 20)
-    try requireSnapshotRejection(implementationSnapshot([invalid]))
+    invalid = implementationSnapshot()
+    guard var aggregates = invalid["aggregates"] as? [String: Any] else {
+        throw QaDeviceError.signatureFailed
+    }
+    aggregates["username"] = "private-identity"
+    invalid["aggregates"] = aggregates
+    try requireSnapshotRejection(invalid)
 
-    invalid = first
-    invalid["name"] = String(repeating: "n", count: 81)
-    try requireSnapshotRejection(implementationSnapshot([invalid]))
+    try requireSnapshotRejection(implementationSnapshot(castleCount: 0, profileCount: 0))
+    try requireSnapshotRejection(implementationSnapshot(castleCount: 101, profileCount: 101))
+    try requireSnapshotRejection(implementationSnapshot(profileCount: 1))
+    try requireSnapshotRejection(implementationSnapshot(foundedCount: 0, activeCount: 1))
 
-    invalid = first
-    invalid["publicBio"] = NSNull()
-    try requireSnapshotRejection(implementationSnapshot([invalid]))
-
-    invalid = first
-    invalid["castleId"] = maximumSafeJsonInteger + 1
-    try requireSnapshotRejection(implementationSnapshot([invalid]))
-
-    let descending = implementationCastle(id: 1, q: 1, r: 0)
-    try requireSnapshotRejection(implementationSnapshot([second, descending]))
-
-    let duplicateTile = implementationCastle(id: 2, q: 0, r: 1)
-    try requireSnapshotRejection(implementationSnapshot([first, duplicateTile]))
+    invalid = implementationSnapshot()
+    invalid["castles"] = [[
+        "castleId": 1,
+        "name": "Observed Keep",
+        "canonicalUsername": "public-name",
+    ]]
+    try requireSnapshotRejection(invalid)
 }
 
 private func runImplementationSelfTest() throws {

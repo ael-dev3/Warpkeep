@@ -3,8 +3,8 @@ import type { QaSnapshotResolverTokenClaims } from './types'
 
 export const QA_SNAPSHOT_TIMEOUT_MILLISECONDS = 5_000
 export const MAX_QA_SNAPSHOT_RESPONSE_BYTES = 256 * 1_024
-export const SPACETIMEDB_QA_SNAPSHOT_PROCEDURE = 'qa_observer_get_realm_snapshot_v1'
-export const QA_OBSERVER_SNAPSHOT_VERSION = 1
+export const SPACETIMEDB_QA_SNAPSHOT_PROCEDURE = 'qa_observer_get_realm_attestation_v2'
+export const QA_OBSERVER_SNAPSHOT_VERSION = 2
 export const QA_OBSERVER_MAX_CASTLES = 100
 
 const EXPECTED_PROTOCOL_VERSION = 3
@@ -18,8 +18,6 @@ const EXPECTED_AUTHORITATIVE_RADIUS = 20
 const EXPECTED_RENDER_RADIUS = 22
 const EXPECTED_PLAYER_CAPACITY = 100
 const DATABASE_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
-const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/
-const SAFE_PUBLIC_STATUS = new Set(['founded', 'active'])
 const encoder = new TextEncoder()
 
 export const QA_SNAPSHOT_FAILURE_STAGES = Object.freeze([
@@ -52,22 +50,8 @@ function fail(stage: QaSnapshotFailureStage): never {
   throw new QaSnapshotResolverFailure(stage)
 }
 
-export type QaObserverCastleSnapshot = Readonly<{
-  castleId: number
-  tileKey: string
-  q: number
-  r: number
-  level: number
-  name: string
-  canonicalUsername?: string
-  displayName?: string
-  portraitAvailable: boolean
-  publicBio?: string
-  publicStatus: string
-}>
-
 export type QaObserverRealmSnapshot = Readonly<{
-  version: 1
+  version: 2
   protocolVersion: number
   worldSeed: number
   worldSeedName: string
@@ -81,7 +65,12 @@ export type QaObserverRealmSnapshot = Readonly<{
     renderRadius: number
     playerCapacity: number
   }>
-  castles: readonly QaObserverCastleSnapshot[]
+  aggregates: Readonly<{
+    castleCount: number
+    profileCount: number
+    foundedCount: number
+    activeCount: number
+  }>
 }>
 
 export interface QaObserverSnapshotResolver {
@@ -140,18 +129,6 @@ function u32(value: unknown): number {
   return value as number
 }
 
-function i32(value: unknown): number {
-  if (!Number.isSafeInteger(value) || (value as number) < -0x8000_0000 || (value as number) > 0x7fff_ffff) {
-    return fail('response_validation')
-  }
-  return value as number
-}
-
-function positiveSafeInteger(value: unknown): number {
-  if (!Number.isSafeInteger(value) || (value as number) < 1) return fail('response_validation')
-  return value as number
-}
-
 function exactString(value: unknown, maximumCharacters: number): string {
   if (
     typeof value !== 'string'
@@ -163,55 +140,6 @@ function exactString(value: unknown, maximumCharacters: number): string {
     || /\s{2,}/u.test(value)
   ) return fail('response_validation')
   return value
-}
-
-/** Accept only canonical named SATS option variants, never null/string shortcuts. */
-function optionString(value: unknown, maximumCharacters: number): string | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return fail('response_validation')
-  const record = value as Record<string, unknown>
-  const keys = Object.keys(record)
-  if (keys.length !== 1) return fail('response_validation')
-  if (keys[0] === 'none') {
-    if (!Array.isArray(record.none) || record.none.length !== 0) return fail('response_validation')
-    return undefined
-  }
-  if (keys[0] !== 'some') return fail('response_validation')
-  return exactString(record.some, maximumCharacters)
-}
-
-function parseCastle(value: unknown): QaObserverCastleSnapshot {
-  if (!Array.isArray(value) || value.length !== 11) return fail('response_validation')
-  const castleId = positiveSafeInteger(value[0])
-  const q = i32(value[2])
-  const r = i32(value[3])
-  const tileKey = exactString(value[1], 32)
-  if (tileKey !== `${q},${r}` || Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r)) > EXPECTED_AUTHORITATIVE_RADIUS) {
-    return fail('response_validation')
-  }
-  const level = i32(value[4])
-  if (level < 1 || level > 1_000) return fail('response_validation')
-  const canonicalUsername = optionString(value[6], 64)
-  if (canonicalUsername !== undefined && !USERNAME_PATTERN.test(canonicalUsername)) {
-    return fail('response_validation')
-  }
-  const displayName = optionString(value[7], 80)
-  if (typeof value[8] !== 'boolean') return fail('response_validation')
-  const publicBio = optionString(value[9], 320)
-  const publicStatus = exactString(value[10], 16)
-  if (!SAFE_PUBLIC_STATUS.has(publicStatus)) return fail('response_validation')
-  return Object.freeze({
-    castleId,
-    tileKey,
-    q,
-    r,
-    level,
-    name: exactString(value[5], 80),
-    ...(canonicalUsername === undefined ? {} : { canonicalUsername }),
-    ...(displayName === undefined ? {} : { displayName }),
-    portraitAvailable: value[8],
-    ...(publicBio === undefined ? {} : { publicBio }),
-    publicStatus,
-  })
 }
 
 export function parseQaObserverSnapshot(raw: string, contentType: string | null): QaObserverRealmSnapshot {
@@ -234,11 +162,13 @@ export function parseQaObserverSnapshot(raw: string, contentType: string | null)
   const worldTileCount = u32(value[4])
   const worldTileMetaCount = u32(value[5])
   const realmValue = value[6]
-  const castlesValue = value[7]
-  if (!Array.isArray(realmValue) || realmValue.length !== 6 || !Array.isArray(castlesValue)) {
-    return fail('response_validation')
-  }
-  if (castlesValue.length < 1 || castlesValue.length > QA_OBSERVER_MAX_CASTLES) {
+  const aggregatesValue = value[7]
+  if (
+    !Array.isArray(realmValue)
+    || realmValue.length !== 6
+    || !Array.isArray(aggregatesValue)
+    || aggregatesValue.length !== 4
+  ) {
     return fail('response_validation')
   }
 
@@ -249,6 +179,12 @@ export function parseQaObserverSnapshot(raw: string, contentType: string | null)
     authoritativeRadius: u32(realmValue[3]),
     renderRadius: u32(realmValue[4]),
     playerCapacity: u32(realmValue[5]),
+  })
+  const aggregates = Object.freeze({
+    castleCount: u32(aggregatesValue[0]),
+    profileCount: u32(aggregatesValue[1]),
+    foundedCount: u32(aggregatesValue[2]),
+    activeCount: u32(aggregatesValue[3]),
   })
   if (
     version !== QA_OBSERVER_SNAPSHOT_VERSION
@@ -263,32 +199,21 @@ export function parseQaObserverSnapshot(raw: string, contentType: string | null)
     || realm.authoritativeRadius !== EXPECTED_AUTHORITATIVE_RADIUS
     || realm.renderRadius !== EXPECTED_RENDER_RADIUS
     || realm.playerCapacity !== EXPECTED_PLAYER_CAPACITY
+    || aggregates.castleCount < 1
+    || aggregates.castleCount > QA_OBSERVER_MAX_CASTLES
+    || aggregates.profileCount !== aggregates.castleCount
+    || aggregates.foundedCount + aggregates.activeCount !== aggregates.castleCount
   ) return fail('response_validation')
 
-  const castles = castlesValue.map(parseCastle)
-  const castleIds = new Set<number>()
-  const tileKeys = new Set<string>()
-  let previousCastleId = 0
-  for (const castle of castles) {
-    if (
-      castleIds.has(castle.castleId)
-      || tileKeys.has(castle.tileKey)
-      || castle.castleId <= previousCastleId
-    ) return fail('response_validation')
-    castleIds.add(castle.castleId)
-    tileKeys.add(castle.tileKey)
-    previousCastleId = castle.castleId
-  }
-
   return Object.freeze({
-    version: 1,
+    version: 2,
     protocolVersion,
     worldSeed,
     worldSeedName,
     worldTileCount,
     worldTileMetaCount,
     realm,
-    castles: Object.freeze(castles),
+    aggregates,
   })
 }
 

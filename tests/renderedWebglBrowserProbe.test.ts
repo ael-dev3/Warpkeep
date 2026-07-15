@@ -1,20 +1,43 @@
 import { describe, expect, it, vi } from 'vitest';
 import { deflateSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import {
   analyzeRenderedWebglPngScreenshot,
+  attestHeadlessChromeCodeSignature,
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
   parseDevtoolsActivePort,
+  parseHeadlessChromeCodeSignature,
   parseRenderedWebglBrowserDom,
   RENDERED_WEBGL_QA_CHROME,
+  RENDERED_WEBGL_QA_CHROME_APP,
+  RENDERED_WEBGL_QA_CHROME_TEAM_ID,
   renderedWebglBrowserProbeCases,
   selectBlankPageTarget,
-  spawnHeadlessChromeProbe
+  spawnHeadlessChromeProbe,
+  terminateHeadlessChromeProcessGroup
 } from '../scripts/qa-observer/rendered-webgl-browser-probe.mjs';
 
 describe('rendered WebGL headless browser probe contract', () => {
-  it('fixes seven responsive and interaction cases to one numeric loopback origin', () => {
+  it('uses an inline fail-closed Vite configuration and disposable cache', () => {
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain('configFile: false');
+    expect(source).toContain('envFile: false');
+    expect(source).toContain('plugins: [reactPlugin()]');
+    expect(source).toContain("__WARPKEEP_LOCAL_QA__: 'true'");
+    expect(source).toContain('__WARPKEEP_PRODUCT_VERSION__: JSON.stringify(packageJson.version)');
+    expect(source).toContain("cacheDir: join(privateRuntime, 'vite-cache')");
+    expect(source).toContain('allow: [REPOSITORY_ROOT]');
+    expect(source).toContain('attestStableHeadlessChromeExecutable(reviewedChromeIdentity)');
+    expect(source).toContain('readReviewedChromeExecutableIdentity()');
+  });
+
+  it('fixes eight responsive and interaction cases to one numeric loopback origin', () => {
     expect(renderedWebglBrowserProbeCases(41_733)).toEqual([
       {
         id: 'desktop-high',
@@ -28,6 +51,14 @@ describe('rendered WebGL headless browser probe contract', () => {
         id: 'desktop-balanced',
         expectedQuality: 'balanced',
         interaction: 'default',
+        minimumLabelCount: 14,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
+        viewport: { width: 1440, height: 900 }
+      },
+      {
+        id: 'desktop-balanced-cluster',
+        expectedQuality: 'balanced',
+        interaction: 'cluster',
         minimumLabelCount: 14,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 1440, height: 900 }
@@ -86,6 +117,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       '--remote-debugging-port=0',
       `--user-data-dir=${profile}`,
       '--disable-background-networking',
+      '--disable-crash-reporter',
       '--disable-component-extensions-with-background-pages',
       '--disable-component-update',
       '--disable-default-apps',
@@ -104,6 +136,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       shell: false,
       stdio: 'ignore',
       env: {
+        BREAKPAD_DUMP_LOCATION: `${profile}/crash-dumps`,
         HOME: profile,
         TMPDIR: profile,
         PATH: '/usr/bin:/bin'
@@ -122,6 +155,72 @@ describe('rendered WebGL headless browser probe contract', () => {
       { ...contract.options }
     );
     expect(() => headlessChromeProbeContract('relative/profile')).toThrow(/profile/i);
+  });
+
+  it('sweeps the original Chrome process group after its leader has exited', async () => {
+    const terminateProcessGroup = vi.fn();
+    const wait = vi.fn().mockResolvedValue(undefined);
+
+    await terminateHeadlessChromeProcessGroup({
+      pid: 4321,
+      exitCode: 0,
+      signalCode: null
+    } as never, { terminateProcessGroup, wait });
+
+    expect(terminateProcessGroup.mock.calls).toEqual([
+      [expect.objectContaining({ pid: 4321 }), 'SIGTERM'],
+      [expect.objectContaining({ pid: 4321 }), 'SIGKILL']
+    ]);
+    expect(wait).not.toHaveBeenCalled();
+  });
+
+  it('attests the exact Google-signed Chrome application before launch', async () => {
+    expect(parseHeadlessChromeCodeSignature([
+      `Executable=${RENDERED_WEBGL_QA_CHROME}`,
+      'Identifier=com.google.Chrome',
+      `TeamIdentifier=${RENDERED_WEBGL_QA_CHROME_TEAM_ID}`,
+      ''
+    ].join('\n'))).toEqual({
+      executable: RENDERED_WEBGL_QA_CHROME,
+      identifier: 'com.google.Chrome',
+      teamIdentifier: RENDERED_WEBGL_QA_CHROME_TEAM_ID
+    });
+    expect(() => parseHeadlessChromeCodeSignature([
+      `Executable=${RENDERED_WEBGL_QA_CHROME}`,
+      'Identifier=com.google.Chrome',
+      'TeamIdentifier=UNREVIEWED'
+    ].join('\n'))).toThrow(/signature/i);
+
+    const execute = vi.fn()
+      .mockResolvedValueOnce({ stdout: '', stderr: '' })
+      .mockResolvedValueOnce({
+        stdout: '',
+        stderr: [
+          `Executable=${RENDERED_WEBGL_QA_CHROME}`,
+          'Identifier=com.google.Chrome',
+          `TeamIdentifier=${RENDERED_WEBGL_QA_CHROME_TEAM_ID}`,
+          ''
+        ].join('\n')
+      });
+    await expect(attestHeadlessChromeCodeSignature({
+      execFileAsync: execute
+    })).resolves.toEqual({
+      executable: RENDERED_WEBGL_QA_CHROME,
+      identifier: 'com.google.Chrome',
+      teamIdentifier: RENDERED_WEBGL_QA_CHROME_TEAM_ID
+    });
+    expect(execute).toHaveBeenNthCalledWith(
+      1,
+      '/usr/bin/codesign',
+      ['--verify', '--deep', RENDERED_WEBGL_QA_CHROME_APP],
+      expect.objectContaining({ timeout: 15_000, maxBuffer: 64 * 1024 })
+    );
+    expect(execute).toHaveBeenNthCalledWith(
+      2,
+      '/usr/bin/codesign',
+      ['-dv', '--verbose=4', RENDERED_WEBGL_QA_CHROME_APP],
+      expect.objectContaining({ timeout: 15_000, maxBuffer: 64 * 1024 })
+    );
   });
 
   it('accepts only a strict owner-local DevTools endpoint and blank page target', () => {
@@ -175,7 +274,7 @@ describe('rendered WebGL headless browser probe contract', () => {
   });
 
   it('attests exact ready DOM state and fails closed on fallback, mismatch, or excess data', () => {
-    const expected = renderedWebglBrowserProbeCases(41_733)[3]!;
+    const expected = renderedWebglBrowserProbeCases(41_733)[4]!;
     const ready = {
       href: expected.url,
       status: 'ready',
@@ -190,12 +289,32 @@ describe('rendered WebGL headless browser probe contract', () => {
       documentWidth: 1440,
       mapViewportCovered: true,
       interactionState: 'default',
+      individualCastleCount: 18,
+      presentedModelCount: 18,
+      raycastTargetCount: 18,
       labelCount: 18,
+      labelEligibleCount: 18,
+      labelClusteredCount: 0,
+      labelClusterOverflowCount: 0,
+      labelMissingIdentityCount: 0,
+      labelPlacedCount: 18,
+      labelUnplacedCount: 0,
       labelsTextBearingCount: 18,
+      focusedReadableLabelDomFocusCount: 0,
+      focusedReadableLabelCount: 0,
       labelsWithinViewportCount: 18,
       labelCollisionCount: 0,
       labelLeaderMismatchCount: 0,
       labelReservedOverlapCount: 0,
+      clusterButtonCount: 0,
+      accessibleClusterButtonCount: 0,
+      clusterMemberCount: 0,
+      clustersWithinViewportCount: 0,
+      clusterCollisionCount: 0,
+      clusterReservedOverlapCount: 0,
+      exploreCastleCount: 0,
+      exploreAccessibleCastleCount: 0,
+      readyOverlayVisible: false,
       undersizedPrimaryControlCount: 0,
       undersizedPrimaryControlKinds: []
     } as const;
@@ -214,13 +333,120 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => parseRenderedWebglBrowserDom({ ...ready, quality: 'high' }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
+      presentedModelCount: 100
+    }, expected)).toThrow(/presented-model-mismatch/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      raycastTargetCount: 100
+    }, expected)).toThrow(/raycast-target-mismatch/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      readyOverlayVisible: true
+    }, expected)).toThrow(/ready-overlay-visible/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelUnplacedCount: 1
+    }, expected)).toThrow(/label-coverage-total/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelEligibleCount: 19,
+      labelUnplacedCount: 1,
+      labelClusterOverflowCount: 1
+    }, expected)).toThrow(/label-cluster-overflow/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelEligibleCount: 19,
+      labelUnplacedCount: 1,
+      labelClusteredCount: 1,
+      clusterButtonCount: 1
+    }, expected)).toThrow(/label-cluster-membership/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
       labelLeaderMismatchCount: 1
     }, expected)).toThrow(/label-leader/i);
-    expect(() => parseRenderedWebglBrowserDom({ ...ready, fid: 539_854 }, expected)).toThrow(/DOM/i);
+    expect(() => parseRenderedWebglBrowserDom({ ...ready, fid: 7 }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       readyAfterMilliseconds: 120_001
     }, expected)).toThrow(/observation/i);
+
+    const inspectorCase = renderedWebglBrowserProbeCases(41_733)[6]!;
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      href: inspectorCase.url,
+      quality: inspectorCase.expectedQuality,
+      viewportWidth: inspectorCase.viewport.width,
+      viewportHeight: inspectorCase.viewport.height,
+      documentWidth: inspectorCase.viewport.width,
+      interactionState: 'inspector',
+      labelCount: 0,
+      labelEligibleCount: 0,
+      labelPlacedCount: 0,
+      labelUnplacedCount: 0,
+      individualCastleCount: 0,
+      presentedModelCount: 0,
+      raycastTargetCount: 0,
+      labelsTextBearingCount: 0,
+      labelsWithinViewportCount: 0
+    }, { ...inspectorCase, minimumLabelCount: 1 })).toThrow(/label-count|focused-readable-label/i);
+
+    const clusterCase = renderedWebglBrowserProbeCases(41_733)[2]!;
+    const clustered = {
+      ...ready,
+      href: clusterCase.url,
+      interactionState: 'cluster',
+      focusedReadableLabelDomFocusCount: 1,
+      focusedReadableLabelCount: 1,
+      labelEligibleCount: 20,
+      labelUnplacedCount: 2,
+      labelClusteredCount: 2,
+      clusterButtonCount: 1,
+      accessibleClusterButtonCount: 1,
+      clusterMemberCount: 2,
+      clustersWithinViewportCount: 1
+    } as const;
+    expect(parseRenderedWebglBrowserDom(clustered, {
+      ...clusterCase,
+      minimumLabelCount: 1,
+      clusterButtonCountBefore: 2,
+      clusterMemberCountBefore: 5
+    })).toMatchObject({ renderer: 'webgl' });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...clustered,
+      accessibleClusterButtonCount: 0
+    }, {
+      ...clusterCase,
+      minimumLabelCount: 1,
+      clusterButtonCountBefore: 2,
+      clusterMemberCountBefore: 5
+    })).toThrow(/cluster-accessibility/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...clustered,
+      focusedReadableLabelDomFocusCount: 0
+    }, {
+      ...clusterCase,
+      minimumLabelCount: 1,
+      clusterButtonCountBefore: 2,
+      clusterMemberCountBefore: 5
+    })).toThrow(/focused-readable-label-dom-focus/i);
+    expect(() => parseRenderedWebglBrowserDom(clustered, {
+      ...clusterCase,
+      minimumLabelCount: 1,
+      clusterButtonCountBefore: 1,
+      clusterMemberCountBefore: 2
+    })).toThrow(/cluster-accounting-unchanged/i);
+
+    const exploreCase = renderedWebglBrowserProbeCases(41_733)[7]!;
+    expect(parseRenderedWebglBrowserDom({
+      ...ready,
+      href: exploreCase.url,
+      viewportWidth: exploreCase.viewport.width,
+      viewportHeight: exploreCase.viewport.height,
+      documentWidth: exploreCase.viewport.width,
+      interactionState: 'explore',
+      exploreCastleCount: 100,
+      exploreAccessibleCastleCount: 100
+    }, { ...exploreCase, minimumLabelCount: 1 })).toMatchObject({ renderer: 'webgl' });
   });
 
   it('reduces an in-memory Chrome PNG to bounded visual evidence and rejects blank output', () => {

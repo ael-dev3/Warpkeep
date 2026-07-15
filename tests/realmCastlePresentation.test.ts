@@ -8,12 +8,14 @@ import {
   CASTLE_LABEL_FAR_DISTANCE,
   CASTLE_LABEL_GAP_PIXELS,
   CASTLE_LABEL_LAYOUT_MAX_CASTLES,
+  castleProfileIdentityReady,
   castleProfileLabel,
   fallbackCastleProjection,
   farcasterProfileUrl,
   formatPublicMarkMicros,
   publicProfileForCastle,
   realmCastleLabelLeaderGeometry,
+  realmEligibleCastleProjectionCount,
   realmCastleProjectionFrameKey,
   resolveVisibleCastleLabels,
   safeRealmProfileImageUrl,
@@ -22,6 +24,20 @@ import {
 import type { WarpkeepRealmProfile } from '../src/spacetime/warpkeepBackendTypes';
 
 describe('realm castle public presentation', () => {
+  it('counts only finite, in-viewport, projection-visible castle identities', () => {
+    expect(realmEligibleCastleProjectionCount({
+      width: 400,
+      height: 300,
+      castles: [
+        { castleId: 1, q: 0, r: 0, x: 0, y: 0, distance: 1, visible: true },
+        { castleId: 2, q: 1, r: 0, x: 400, y: 300, distance: 2, visible: true },
+        { castleId: 3, q: 2, r: 0, x: -1, y: 100, distance: 3, visible: true },
+        { castleId: 4, q: 3, r: 0, x: 100, y: 100, distance: 4, visible: false },
+        { castleId: 5, q: 4, r: 0, x: Number.NaN, y: 100, distance: 5, visible: true }
+      ]
+    })).toBe(2);
+  });
+
   it('uses safe fallbacks and strips directional/control characters from legacy player data', () => {
     const profile = publicProfileForCastle(42, [], [{
       fid: 42,
@@ -86,6 +102,31 @@ describe('realm castle public presentation', () => {
       publicBio: 'Fixture public bio.',
       communityStatsVisible: false
     });
+
+    expect(publicProfileForCastle(42, [{
+      ...authoritative,
+      canonicalUsername: '',
+      displayName: '',
+      pfpUrl: ''
+    }], [{
+      fid: 42,
+      username: 'player-fallback',
+      displayName: 'Player Fallback',
+      pfpUrl: 'https://images.example/player.png',
+      status: 'active'
+    }])).toMatchObject({
+      canonicalUsername: 'player-fallback',
+      displayName: 'Player Fallback',
+      pfpUrl: 'https://images.example/player.png'
+    });
+    expect(castleProfileIdentityReady({
+      canonicalUsername: 'player-fallback',
+      communityStatsVisible: false
+    })).toBe(true);
+    expect(castleProfileIdentityReady({
+      displayName: 'Display Name Only',
+      communityStatsVisible: false
+    })).toBe(false);
   });
 
   it('accepts credential-free HTTPS portraits and rejects unsafe profile links', () => {
@@ -283,5 +324,12 @@ describe('realm castle public presentation', () => {
       .not.toBe(realmCastleProjectionFrameKey(frame(CASTLE_LABEL_FAR_DISTANCE + 0.01)));
     expect(realmCastleProjectionFrameKey(frame(10)))
       .not.toBe(realmCastleProjectionFrameKey(frame(10.3)));
+    expect(realmCastleProjectionFrameKey({
+      ...frame(10),
+      castles: frame(10).castles.map((castle) => ({ ...castle, presented: true }))
+    })).not.toBe(realmCastleProjectionFrameKey({
+      ...frame(10),
+      castles: frame(10).castles.map((castle) => ({ ...castle, presented: false }))
+    }));
   });
 });

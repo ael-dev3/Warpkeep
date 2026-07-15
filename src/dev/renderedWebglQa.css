@@ -28,6 +28,11 @@ body,
   pointer-events: none;
 }
 
+/* Keep aggregate evidence in the DOM for the probe without covering labels. */
+.rendered-webgl-qa__status[data-rendered-webgl-status='ready'] {
+  visibility: hidden;
+}
+
 .rendered-webgl-qa__status > span,
 .rendered-webgl-qa__status > small {
   color: #c9a7ea;

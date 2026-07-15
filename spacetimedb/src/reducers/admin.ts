@@ -348,7 +348,7 @@ const adminSnapScanBatchAggregateV1 = t.object('AdminSnapScanBatchAggregateV1', 
 });
 
 /**
- * Safe for ordinary permitted connections. The QA snapshot principal is
+ * Safe for ordinary permitted connections. The QA attestation principal is
  * intentionally rejected so it has exactly one callable procedure.
  */
 export const getAlphaBackendInfo = warpkeep.procedure(

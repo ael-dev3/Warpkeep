@@ -22,6 +22,8 @@ export type RealmCastleScreenProjection = Readonly<{
   y: number;
   distance: number;
   visible: boolean;
+  /** True only when the individual castle mesh is paired with a placed label. */
+  presented?: boolean;
   /** Calibrated roof silhouette used to keep its own label unobstructed. */
   castleBounds?: RealmCastleScreenBounds;
   /** Conservative projected model prism, kept separate from label attachment. */
