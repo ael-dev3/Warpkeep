@@ -136,16 +136,23 @@ a connection token. Epoch zero is never valid player authority. Optional
 they are never a bootstrap profile-write channel.
 
 `onConnect` accepts only a currently enabled player whose token epoch matches
-the private row, a fresh exact Hermes administrator, or the exact fresh resolver
-principal required because SpacetimeDB executes the lifecycle hook before HTTP
-procedures. Missing, disabled, epoch-mismatched, expired, malformed, and
-unrelated principals cannot connect. A resolver credential presented while
-fresh can technically establish a WebSocket and public-table subscriptions that
-may persist until transport disconnect, and can call static
-`get_alpha_backend_info` while fresh. It cannot read private tables, bootstrap
-or mutate as a player, or pass Hermes/admin guards; protected calls independently
-recheck expiry. Gameplay reducers repeat player admission and private-ownership
-checks. A missing public/private half or an identity mismatch fails closed.
+the private row, a fresh exact Hermes administrator, the exact fresh admission
+resolver, or the exact fresh QA snapshot resolver. Both resolver principals are
+required because SpacetimeDB executes the lifecycle hook before HTTP procedures.
+Missing, disabled, epoch-mismatched, expired, malformed, and unrelated
+principals cannot connect. A resolver credential presented while fresh can
+technically establish a WebSocket and public-table subscriptions that may
+persist until transport disconnect. The admission resolver can call static
+`get_alpha_backend_info` while fresh; the QA resolver is explicitly rejected
+there. The QA resolver's procedure surface is aggregate-only, but its lifecycle
+admission can still open identity-bearing public `player`, `castle`, `player_v2`,
+and `realm_profile_v1` subscriptions while fresh. Therefore the checked-in QA
+gate must remain disabled until the observer moves to an isolated module/database
+or identity-free replica with no such subscription surface. Neither resolver can
+read private tables, bootstrap or mutate as a player, or pass Hermes/admin guards; protected calls
+independently recheck expiry. Gameplay reducers repeat player admission and
+private-ownership checks. A missing public/private half or an identity mismatch
+fails closed.
 
 The separate admin principal remains exact:
 
@@ -189,6 +196,60 @@ enabled epoch-zero row is an invalid state and fails closed rather than being
 reported as enabled. The resolver has no private, player-mutation, or admin
 authority; its bounded public-subscription/static-metadata capability is the
 documented lifecycle residual above.
+
+The active bridge-internal QA procedure is fixed and has no arguments:
+
+```txt
+qa_observer_get_realm_attestation_v2()
+```
+
+The deployed-schema-compatible v1 wire remains registered only for additive
+migration safety:
+
+```txt
+qa_observer_get_realm_snapshot_v1()
+```
+
+It immediately throws `QA_OBSERVER_V1_DISABLED` before authentication,
+transaction entry, or any database read, and cannot return its former
+identity-bearing response.
+
+The active v2 procedure accepts only exact
+`sub: "service:qa-snapshot-resolver"` with sole role
+`["warpkeep-qa-snapshot-resolver"]`. The bridge and module both require the
+same 15-second JWT ceiling and reject any stale,
+pre-issued, player-shaped, admin-shaped, or admission-resolver-shaped token.
+The credential is not exposed to browser code and no other guard or procedure
+accepts it.
+
+Before returning, the procedure validates the complete canonical Genesis
+founding graph and revalidates the world, static metadata, castle links, and
+trusted profile projections. Any missing, duplicate, drifted, or unsanitized
+row fails closed. The v2 HTTP SATS-JSON response is exactly:
+
+```text
+[
+  2,
+  3,
+  3445214658,
+  "HEGEMONY_GENESIS_001",
+  1261,
+  1261,
+  ["GENESIS_001", 3445214658, 2, 20, 22, 100],
+  [castleCount, profileCount, foundedCount, activeCount]
+]
+```
+
+The four aggregate values are unsigned 32-bit integers. Validation requires
+1–100 castles, exact castle/profile count equality, and
+`foundedCount + activeCount === castleCount`; each profile must have only the
+trusted `founded` or `active` public status. The response contains no per-castle
+collection, castle ID, tile key, coordinate, level, keep or player name,
+username, display name, bio, portrait signal, public status string, FID,
+SpacetimeDB Identity, admission or ownership state, Terms state, wallet
+attribution, audit data, Marks, burn data, timestamp, or PFP URL. FIDs and
+profile fields exist only transiently inside the module for integrity checks
+and never cross the procedure boundary.
 
 `admin_get_fid_auth_epoch({ fid })` remains byte-compatible and admin-only for
 rollback. It returns a raw epoch/baseline zero and must not be used for new v2
@@ -290,8 +351,9 @@ Production and this checkout use
 `WARPKEEP_BACKEND_PROTOCOL_VERSION = 3` as an internal wire contract, separate
 from the player-facing release, auth contract 2, world generation 2, and the
 `HEGEMONY_GENESIS_001` realm label.
-`get_alpha_backend_info` is available to every lifecycle-admitted principal,
-including the resolver, and returns only static protocol/world-seed metadata.
+`get_alpha_backend_info` is available to lifecycle-admitted players, Hermes
+administrators, and the admission resolver; the QA resolver is explicitly
+rejected. It returns only static protocol/world-seed metadata.
 It performs no database lookup and exposes no whitelist, identity, audit, or
 live aggregate data. The browser must reject a protocol/seed mismatch before
 bootstrap or subscription. The browser and backend must continue to agree on

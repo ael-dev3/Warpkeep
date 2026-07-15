@@ -14,13 +14,18 @@ afterEach(() => {
 });
 
 function renderDialog(overrides?: Partial<{
+  continueLabel: 'CONTINUE TO SIGN-IN' | 'CONTINUE TO ACCESS CHECK' | 'CONTINUE TO REALM';
   onCancel: () => void;
   onContinue: () => void;
 }>) {
   const onCancel = overrides?.onCancel ?? vi.fn();
   const onContinue = overrides?.onContinue ?? vi.fn();
   const result = render(
-    <AlphaParticipationTermsDialog onCancel={onCancel} onContinue={onContinue} />
+    <AlphaParticipationTermsDialog
+      continueLabel={overrides?.continueLabel}
+      onCancel={onCancel}
+      onContinue={onContinue}
+    />
   );
 
   return { ...result, onCancel, onContinue };
@@ -70,6 +75,20 @@ describe('AlphaParticipationTermsDialog', () => {
     fireEvent.click(acceptance);
     expect(acceptance.checked).toBe(false);
     expect(continueButton.disabled).toBe(true);
+  });
+
+  it.each([
+    'CONTINUE TO ACCESS CHECK',
+    'CONTINUE TO REALM'
+  ] as const)('describes the exact gated next step as %s', (continueLabel) => {
+    renderDialog({ continueLabel });
+
+    const continueButton = screen.getByRole('button', {
+      name: continueLabel
+    }) as HTMLButtonElement;
+    expect(continueButton.disabled).toBe(true);
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(continueButton.disabled).toBe(false);
   });
 
   it('offers the stable full Terms and Privacy documents before consent without starting auth', () => {

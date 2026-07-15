@@ -15,3 +15,15 @@ SIGNING_KEY_JWK={"kty":"EC","crv":"P-256","x":"...","y":"...","d":"...","kid":"w
 ADMIN_TOKEN_SECRET=replace-me
 # Use a separate high-entropy secret; never reuse the admin or signing key.
 SESSION_COOKIE_KEY=replace-me-separately
+# Independent fail-closed QA observer gate. Enabling additionally requires one
+# complete dedicated SpacetimeDB URI/database/audience tuple and one exact public
+# P-256 JWK plus canonical RFC 3339 registration and expiry times. The dedicated
+# database and audience must differ from the gameplay values above. The tuple is
+# intentionally absent until an identity-free observer target is approved.
+QA_OBSERVER_ENABLED=false
+# QA_OBSERVER_SPACETIMEDB_URI=https://maincloud.spacetimedb.com
+# QA_OBSERVER_SPACETIMEDB_DATABASE=warpkeep-qa-observer-dev
+# QA_OBSERVER_OIDC_AUDIENCE=warpkeep-qa-observer-spacetimedb
+# QA_OBSERVER_PUBLIC_JWK={"kty":"EC","crv":"P-256","x":"...","y":"..."}
+# QA_OBSERVER_KEY_REGISTERED_AT=2026-07-14T00:00:00.000Z
+# QA_OBSERVER_KEY_EXPIRES_AT=2026-10-15T00:00:00.000Z

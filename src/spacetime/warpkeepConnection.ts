@@ -3,7 +3,7 @@ import {
   tables,
   type EventContext,
   type SubscriptionHandle
-} from './module_bindings';
+} from './playerModuleBindings';
 import type {
   WarpkeepAdmissionStatus,
   WarpkeepCastle,

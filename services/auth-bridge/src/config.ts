@@ -3,6 +3,9 @@ import type { WorkerEnv } from './types'
 export const PLAYER_TOKEN_TTL_SECONDS = 10 * 60
 export const ADMIN_TOKEN_TTL_SECONDS = 5 * 60
 export const INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS = 15
+export const QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS = 15
+export const QA_OBSERVER_CHALLENGE_TTL_MILLISECONDS = 60 * 1_000
+export const QA_OBSERVER_MAX_REGISTRATION_LIFETIME_MILLISECONDS = 366 * 24 * 60 * 60 * 1_000
 export const SESSION_FAMILY_TTL_SECONDS = 30 * 24 * 60 * 60
 export const CHALLENGE_TTL_MILLISECONDS = 5 * 60 * 1000
 export const MAX_REQUEST_BYTES = 16 * 1024
@@ -12,6 +15,13 @@ export const MIN_SESSION_COOKIE_KEY_BYTES = 32
 export const MAX_SESSION_COOKIE_KEY_BYTES = 512
 export const PRODUCTION_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
 export const PRODUCTION_SPACETIMEDB_DATABASE = 'warpkeep-89e4u'
+export const PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
+
+export type QaObserverSpacetimeDbConfig = Readonly<{
+  uri: string
+  database: string
+  audience: string
+}>
 
 export interface BridgeConfig {
   issuer: string
@@ -28,6 +38,11 @@ export interface BridgeConfig {
   spacetimeDbUri: string
   spacetimeDbDatabase: string
   publicAuthEnabled: boolean
+  qaObserverEnabled: boolean
+  qaObserverSpacetimeDb?: QaObserverSpacetimeDbConfig
+  qaObserverPublicJwk?: PublicEcJwk
+  qaObserverKeyRegisteredAt?: number
+  qaObserverKeyExpiresAt?: number
   environment: 'development' | 'production'
 }
 
@@ -38,6 +53,13 @@ export interface PrivateEcJwk extends JsonWebKey {
   y: string
   d: string
   kid?: string
+}
+
+export interface PublicEcJwk extends JsonWebKey {
+  kty: 'EC'
+  crv: 'P-256'
+  x: string
+  y: string
 }
 
 export class ConfigurationError extends Error {
@@ -170,11 +192,77 @@ function parseSpacetimeDbDatabase(value: string): string {
   return value
 }
 
+function parseAudience(value: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value)) {
+    throw new ConfigurationError()
+  }
+  return value
+}
+
 function parsePublicAuthEnabled(value: string): boolean {
   if (value !== 'true' && value !== 'false') {
     throw new ConfigurationError()
   }
   return value === 'true'
+}
+
+function isCanonicalBase64UrlCoordinate(value: string): boolean {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(value)) return false
+  try {
+    const binary = atob(`${value.replace(/-/g, '+').replace(/_/g, '/')}=`)
+    if (binary.length !== 32) return false
+    let encoded = ''
+    for (let index = 0; index < binary.length; index += 1) {
+      encoded += binary.charAt(index)
+    }
+    return btoa(encoded).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_') === value
+  } catch {
+    return false
+  }
+}
+
+function parseQaObserverPublicJwk(value: string): PublicEcJwk {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw new ConfigurationError()
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new ConfigurationError()
+  }
+  const record = parsed as Record<string, unknown>
+  const keys = Object.keys(record)
+  if (
+    keys.length !== 4
+    || keys.some(key => !['kty', 'crv', 'x', 'y'].includes(key))
+    || record.kty !== 'EC'
+    || record.crv !== 'P-256'
+    || typeof record.x !== 'string'
+    || !isCanonicalBase64UrlCoordinate(record.x)
+    || typeof record.y !== 'string'
+    || !isCanonicalBase64UrlCoordinate(record.y)
+  ) {
+    throw new ConfigurationError()
+  }
+  return Object.freeze({
+    kty: 'EC',
+    crv: 'P-256',
+    x: record.x,
+    y: record.y,
+  })
+}
+
+function parseQaObserverExpiry(value: string): number {
+  const parsed = Date.parse(value)
+  if (
+    !Number.isSafeInteger(parsed)
+    || parsed < 0
+    || new Date(parsed).toISOString() !== value
+  ) {
+    throw new ConfigurationError()
+  }
+  return parsed
 }
 
 export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
@@ -227,6 +315,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
 
   const spacetimeDbUri = parseSpacetimeDbUri(required(env, 'SPACETIMEDB_URI'), production)
   const spacetimeDbDatabase = parseSpacetimeDbDatabase(required(env, 'SPACETIMEDB_DATABASE'))
+  const audience = parseAudience(env.OIDC_AUDIENCE?.trim() || 'warpkeep-spacetimedb')
   if (
     production
     && (
@@ -246,6 +335,54 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     throw new ConfigurationError()
   }
 
+  const qaObserverEnabled = parsePublicAuthEnabled(required(env, 'QA_OBSERVER_ENABLED'))
+  const qaSpacetimeDbUriValue = env.QA_OBSERVER_SPACETIMEDB_URI?.trim()
+  const qaSpacetimeDbDatabaseValue = env.QA_OBSERVER_SPACETIMEDB_DATABASE?.trim()
+  const qaAudienceValue = env.QA_OBSERVER_OIDC_AUDIENCE?.trim()
+  const qaUpstreamValues = [qaSpacetimeDbUriValue, qaSpacetimeDbDatabaseValue, qaAudienceValue]
+  if (!qaUpstreamValues.every(Boolean) && qaUpstreamValues.some(Boolean)) {
+    throw new ConfigurationError()
+  }
+  if (qaObserverEnabled && !qaUpstreamValues.every(Boolean)) {
+    throw new ConfigurationError()
+  }
+  const qaObserverSpacetimeDb = qaUpstreamValues.every(Boolean)
+    ? Object.freeze({
+        uri: parseSpacetimeDbUri(qaSpacetimeDbUriValue!, production),
+        database: parseSpacetimeDbDatabase(qaSpacetimeDbDatabaseValue!),
+        audience: parseAudience(qaAudienceValue!),
+      })
+    : undefined
+  if (
+    qaObserverSpacetimeDb
+    && (
+      (production && qaObserverSpacetimeDb.uri !== PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI)
+      || qaObserverSpacetimeDb.database === spacetimeDbDatabase
+      || qaObserverSpacetimeDb.audience === audience
+    )
+  ) {
+    throw new ConfigurationError()
+  }
+  const qaPublicJwkValue = env.QA_OBSERVER_PUBLIC_JWK?.trim()
+  const qaRegisteredAtValue = env.QA_OBSERVER_KEY_REGISTERED_AT?.trim()
+  const qaExpiryValue = env.QA_OBSERVER_KEY_EXPIRES_AT?.trim()
+  const qaRegistrationValues = [qaPublicJwkValue, qaRegisteredAtValue, qaExpiryValue]
+  if (!qaRegistrationValues.every(Boolean) && qaRegistrationValues.some(Boolean)) {
+    throw new ConfigurationError()
+  }
+  if (qaObserverEnabled && !qaRegistrationValues.every(Boolean)) {
+    throw new ConfigurationError()
+  }
+  const qaObserverPublicJwk = qaPublicJwkValue
+    ? parseQaObserverPublicJwk(qaPublicJwkValue)
+    : undefined
+  const qaObserverKeyExpiresAt = qaExpiryValue
+    ? parseQaObserverExpiry(qaExpiryValue)
+    : undefined
+  const qaObserverKeyRegisteredAt = qaRegisteredAtValue
+    ? parseQaObserverExpiry(qaRegisteredAtValue)
+    : undefined
+
   return {
     issuer,
     issuerUrl,
@@ -253,7 +390,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     domain,
     siweUri,
     farcasterRpcUrl,
-    audience: env.OIDC_AUDIENCE?.trim() || 'warpkeep-spacetimedb',
+    audience,
     keyId: parseKeyId(configuredKid),
     privateJwk,
     adminTokenSecret,
@@ -261,6 +398,11 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     spacetimeDbUri,
     spacetimeDbDatabase,
     publicAuthEnabled: parsePublicAuthEnabled(required(env, 'PUBLIC_AUTH_ENABLED')),
+    qaObserverEnabled,
+    ...(qaObserverSpacetimeDb ? { qaObserverSpacetimeDb } : {}),
+    ...(qaObserverPublicJwk ? { qaObserverPublicJwk } : {}),
+    ...(qaObserverKeyRegisteredAt === undefined ? {} : { qaObserverKeyRegisteredAt }),
+    ...(qaObserverKeyExpiresAt === undefined ? {} : { qaObserverKeyExpiresAt }),
     environment,
   }
 }

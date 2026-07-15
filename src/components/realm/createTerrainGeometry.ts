@@ -1,4 +1,9 @@
-import { axialToWorld, type HexCoord, type HexWorldPosition } from '../../game/map/hexCoordinates';
+import {
+  axialToWorld,
+  hexKey,
+  type HexCoord,
+  type HexWorldPosition
+} from '../../game/map/hexCoordinates';
 import { sampleLowlandsColor } from '../../game/map/terrainColor';
 import { terrainHeightForCell } from '../../game/map/terrainHeight';
 import {
@@ -6,6 +11,7 @@ import {
   type TerrainStructurePlacement
 } from '../../game/map/terrainPlacements';
 import type { RealmTerrainMap } from '../../game/map/terrainTypes';
+import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 
 const SQRT_3 = Math.sqrt(3);
 const CORNER_COUNT = 6;
@@ -116,6 +122,7 @@ export function createTerrainGeometryData(
     subdivisionsPerEdge?: number;
     playableRadius?: number;
     placements?: readonly TerrainStructurePlacement[];
+    terrainKindsByKey?: ReadonlyMap<string, RealmTerrainKind>;
   }> = DEFAULT_TERRAIN_SUBDIVISIONS
 ): TerrainGeometryData {
   const options = typeof subdivisionsOrOptions === 'number'
@@ -153,6 +160,7 @@ export function createTerrainGeometryData(
       hexSize,
       playableRadius: options.playableRadius ?? Math.max(0, map.radius - 1),
       renderRadius: map.radius,
+      terrainKind: options.terrainKindsByKey?.get(hexKey(cell.coord)),
       placements
     });
     const index = positions.length / 3;

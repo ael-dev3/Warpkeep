@@ -258,6 +258,68 @@ describe('realm perspective camera math', () => {
     controller.dispose();
   });
 
+  it('keeps close-view panning effective after focus blending reaches the keep', () => {
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn()
+    });
+    controller.setViewport(1_280, 720);
+    controller.focusKeep();
+    const before = controller.getPose();
+
+    controller.panByPixels(96, -48);
+    const after = controller.getPose();
+
+    expect(after.mode).toBe('keep');
+    expect(Math.hypot(
+      after.focus.x - before.focus.x,
+      after.focus.z - before.focus.z
+    )).toBeGreaterThan(0.01);
+    expect(Math.hypot(
+      after.target.x - before.target.x,
+      after.target.z - before.target.z
+    )).toBeGreaterThan(0.01);
+    controller.dispose();
+  });
+
+  it('keeps an off-centre ground point anchored beneath a stationary pinch', () => {
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn()
+    });
+    const width = 1_280;
+    const height = 720;
+    const localX = 940;
+    const localY = 260;
+    const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const groundPoint = () => {
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(
+        (localX / width) * 2 - 1,
+        1 - (localY / height) * 2
+      ), controller.camera);
+      const point = raycaster.ray.intersectPlane(ground, new THREE.Vector3());
+      expect(point).not.toBeNull();
+      return point as THREE.Vector3;
+    };
+    controller.setViewport(width, height);
+    controller.frameAt(KEEP, 0.46);
+    const before = groundPoint();
+
+    controller.zoomByAt(0.16, localX, localY);
+    const after = groundPoint();
+
+    expect(controller.getZoom()).toBeCloseTo(0.62, 6);
+    expect(after.distanceTo(before)).toBeLessThan(0.000001);
+    controller.dispose();
+  });
+
   it('focuses an arbitrary castle and recomposes immediately for reduced motion', () => {
     const render = vi.fn();
     const closedComposition = {
@@ -319,6 +381,28 @@ describe('realm perspective camera math', () => {
       openComposition.focusPadding
     )).toBe(true);
     expect(render).toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('frames an arbitrary founding center at a bounded approach zoom', () => {
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn()
+    });
+    const district = { ...KEEP, x: 4, z: -3 };
+
+    controller.setViewport(390, 844);
+    controller.frameAt(district, 0.562);
+
+    expect(controller.getZoom()).toBeCloseTo(0.562, 6);
+    expect(controller.getMode()).toBe('approach');
+    expect(controller.getPose().focus.x).toBeCloseTo(district.x, 6);
+    expect(controller.getPose().focus.z).toBeCloseTo(district.z, 6);
+    expect(controller.projectPoint({ x: district.x, y: 0, z: district.z }).x)
+      .toBeCloseTo(controller.getSafeViewport().centerX, 6);
     controller.dispose();
   });
 

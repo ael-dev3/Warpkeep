@@ -12,6 +12,8 @@ const keepLoadState = vi.hoisted(() => ({
   load: vi.fn(() => new Promise<unknown>(() => undefined))
 }));
 
+const environmentState = vi.hoisted(() => ({ failNext: false }));
+
 vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
 
@@ -40,11 +42,28 @@ vi.mock('../src/components/realm/loadHegemonyKeep', async (importOriginal) => {
   return { ...actual, loadHegemonyKeep: keepLoadState.load };
 });
 
+vi.mock('../src/components/realm/createRealmEnvironment', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/components/realm/createRealmEnvironment')>();
+  return {
+    ...actual,
+    createRealmEnvironmentDepth: (...args: Parameters<typeof actual.createRealmEnvironmentDepth>) => {
+      if (environmentState.failNext) {
+        environmentState.failNext = false;
+        throw new Error('synthetic environment allocation failure');
+      }
+      return actual.createRealmEnvironmentDepth(...args);
+    }
+  };
+});
+
 import {
   createRealmScene,
+  resolveRealmPinchGesture,
   type CreateRealmSceneOptions
 } from '../src/components/realm/createRealmScene';
+import { hexKey } from '../src/game/map/hexCoordinates';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import { DEFAULT_REALM_CAMERA_SPEC } from '../src/components/realm/realmCameraController';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
@@ -79,12 +98,21 @@ function createOptions(
   canvas: HTMLCanvasElement,
   overrides: Partial<CreateRealmSceneOptions> = {}
 ): CreateRealmSceneOptions {
+  const surface = overrides.surface
+    ?? createRealmTerrainSurface('realm-scene-cleanup', 0, 0);
   return {
     canvas,
-    surface: createRealmTerrainSurface('realm-scene-cleanup', 0, 0),
+    surface,
     keepCoord: { q: 0, r: 0 },
     ownCastleId: 1,
     otherCastles: [],
+    terrainMetadata: surface.playableMap.cells.map((cell) => ({
+      tileKey: hexKey(cell.coord),
+      terrainKind: 'lowland',
+      staticContentKind: cell.coord.q === 0 && cell.coord.r === 0
+        ? 'castle-slot'
+        : 'empty'
+    })),
     quality: REALM_QUALITY_SPECS.reduced,
     reducedMotion: false,
     baseUrl: '/',
@@ -108,6 +136,7 @@ describe('realm scene setup cleanup', () => {
     webglState.instances.length = 0;
     keepLoadState.load.mockReset();
     keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
+    environmentState.failNext = false;
     resizeObservers.length = 0;
     vi.stubGlobal('ResizeObserver', class ResizeObserver {
       disconnect = vi.fn();
@@ -123,6 +152,156 @@ describe('realm scene setup cleanup', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('resolves a stable two-pointer centroid and separation', () => {
+    expect(resolveRealmPinchGesture(new Map([
+      [1, { x: 40, y: 80 }],
+      [2, { x: 100, y: 120 }]
+    ]))).toEqual({
+      centroid: { x: 70, y: 100 },
+      distance: Math.hypot(60, 40)
+    });
+    expect(resolveRealmPinchGesture(new Map([[1, { x: 40, y: 80 }]]))).toBeNull();
+  });
+
+  it('enables bounded ambience only for visible-motion high and balanced scenes', () => {
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+    const surface = createRealmTerrainSurface('realm-ambient-gating', 4, 5);
+
+    const reduced = createRealmScene(createOptions(document.createElement('canvas'), {
+      surface,
+      quality: REALM_QUALITY_SPECS.reduced
+    }));
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    reduced.dispose();
+
+    const reducedMotion = createRealmScene(createOptions(document.createElement('canvas'), {
+      surface,
+      quality: REALM_QUALITY_SPECS.high,
+      reducedMotion: true
+    }));
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    reducedMotion.dispose();
+
+    const animated = createRealmScene(createOptions(document.createElement('canvas'), {
+      surface,
+      quality: REALM_QUALITY_SPECS.balanced,
+      reducedMotion: false
+    }));
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 180);
+    animated.dispose();
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+  });
+
+  it('renders the procedural environment centred on the active camera', () => {
+    const canvas = document.createElement('canvas');
+    const onCastlePresentationTelemetry = vi.fn();
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      onCastlePresentationTelemetry,
+      onTerrainPresentationTelemetry
+    }));
+    const renderCall = webglState.instances[0].render.mock.calls.at(-1);
+    const renderedScene = renderCall?.[0] as THREE.Scene;
+    const camera = renderCall?.[1] as THREE.PerspectiveCamera;
+    const environment = renderedScene.getObjectByName('realm-environment-depth');
+
+    expect(environment).toBeTruthy();
+    expect(environment?.position.equals(camera.position)).toBe(true);
+    expect(renderedScene.environment).toBeInstanceOf(THREE.Texture);
+    expect(renderedScene.environmentIntensity).toBeGreaterThanOrEqual(0.25);
+    expect(renderedScene.environmentIntensity).toBeLessThanOrEqual(0.4);
+    expect(canvas.dataset.environmentLighting).toBe('procedural');
+    expect(onCastlePresentationTelemetry).toHaveBeenCalledWith({
+      presentedModelCount: 0,
+      raycastTargetCount: 0
+    });
+    expect(onTerrainPresentationTelemetry).toHaveBeenCalledWith({
+      semanticCellCount: 1,
+      semanticKindCount: 1,
+      semanticFeatureCount: 0,
+      semanticFeatureDrawCalls: 0,
+      totalDetailInstanceCount: expect.any(Number),
+      totalDetailDrawCalls: expect.any(Number)
+    });
+
+    sceneHandle.dispose();
+  });
+
+  it('aims the existing neutral fill at the camera without changing terrain irradiance or PBR budgets', () => {
+    const sceneHandle = createRealmScene(createOptions(document.createElement('canvas'), {
+      reducedMotion: true
+    }));
+    const renderedScene = webglState.instances[0].render.mock.calls.at(-1)?.[0] as THREE.Scene;
+    const directionalLights = renderedScene.children.filter(
+      (child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight
+    );
+    const hemisphereLights = renderedScene.children.filter(
+      (child): child is THREE.HemisphereLight => child instanceof THREE.HemisphereLight
+    );
+    const cameraFill = renderedScene.getObjectByName(
+      'realm-camera-facing-fill'
+    ) as THREE.DirectionalLight | undefined;
+
+    expect(directionalLights).toHaveLength(3);
+    expect(hemisphereLights).toHaveLength(1);
+    expect(directionalLights.map((light) => `#${light.color.getHexString()}`).sort()).toEqual([
+      '#a991d0',
+      '#d5d9e2',
+      '#ffddb0'
+    ].sort());
+    expect(cameraFill).toBeInstanceOf(THREE.DirectionalLight);
+
+    const normalizedPosition = cameraFill!.position.clone().normalize();
+    const normalizedHorizontalPosition = new THREE.Vector2(
+      cameraFill!.position.x,
+      cameraFill!.position.z
+    ).normalize();
+    const cameraAzimuth = THREE.MathUtils.degToRad(DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees);
+    const cameraHorizontalDirection = new THREE.Vector2(
+      Math.sin(cameraAzimuth),
+      Math.cos(cameraAzimuth)
+    );
+    const horizontalAlignment = normalizedHorizontalPosition.dot(cameraHorizontalDirection);
+    const upwardIrradiance = cameraFill!.intensity * normalizedPosition.y;
+    const cameraFacingIrradiance = cameraFill!.intensity
+      * Math.hypot(normalizedPosition.x, normalizedPosition.z)
+      * horizontalAlignment;
+
+    expect(horizontalAlignment).toBeGreaterThan(0.995);
+    expect(upwardIrradiance).toBeGreaterThanOrEqual(0.105);
+    expect(upwardIrradiance).toBeLessThanOrEqual(0.115);
+    expect(cameraFacingIrradiance).toBeGreaterThanOrEqual(0.34);
+    expect(cameraFacingIrradiance).toBeLessThanOrEqual(0.39);
+
+    const terrain = renderedScene.getObjectByName('hegemony-lowlands-surface') as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshStandardMaterial
+    >;
+    expect(terrain.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(terrain.material.vertexColors).toBe(true);
+    expect(terrain.material.roughness).toBe(0.96);
+    expect(terrain.material.metalness).toBe(0);
+
+    sceneHandle.dispose();
+  });
+
+  it('retains direct-light playability when procedural environment allocation fails', () => {
+    const canvas = document.createElement('canvas');
+    environmentState.failNext = true;
+    const sceneHandle = createRealmScene(createOptions(canvas, { reducedMotion: true }));
+    const renderedScene = webglState.instances[0].render.mock.calls.at(-1)?.[0] as THREE.Scene;
+
+    expect(canvas.dataset.environmentLighting).toBe('direct-light-fallback');
+    expect(renderedScene.environment).toBeNull();
+    expect(renderedScene.getObjectByName('realm-environment-depth')).toBeUndefined();
+    expect(renderedScene.children.some((child) => child instanceof THREE.DirectionalLight))
+      .toBe(true);
+
+    sceneHandle.dispose();
   });
 
   it('releases partial GPU and browser resources when late setup throws', () => {
@@ -286,7 +465,8 @@ describe('realm scene setup cleanup', () => {
       onCastlesReady
     }));
 
-    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledTimes(1));
+    expect(onCastlesReady).not.toHaveBeenCalled();
     scene.setHovered({ q: 0, r: 0 });
     scene.setSelected({ q: 0, r: 0 });
     scene.setSelectedCastleId(1);
@@ -295,6 +475,8 @@ describe('realm scene setup cleanup', () => {
     hidden = false;
     document.dispatchEvent(new Event('visibilitychange'));
     expect(webglState.instances[0].render).toHaveBeenCalledTimes(1);
+    expect(onCastlesReady).toHaveBeenCalledOnce();
+    expect(onCastlesReady).toHaveBeenCalledWith(1);
     document.dispatchEvent(new Event('visibilitychange'));
     expect(webglState.instances[0].render).toHaveBeenCalledTimes(1);
 
@@ -424,6 +606,69 @@ describe('realm scene setup cleanup', () => {
       pointerType: 'touch'
     });
     expect(onTargetSelect).not.toHaveBeenCalled();
+
+    scene.dispose();
+  });
+
+  it('pans by the moving pinch centroid without changing the final pinch scale', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 },
+      setPointerCapture: { configurable: true, value: vi.fn() },
+      releasePointerCapture: { configurable: true, value: vi.fn() },
+      hasPointerCapture: { configurable: true, value: vi.fn(() => true) }
+    });
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-pinch-centroid', 4, 5),
+      reducedMotion: true
+    }));
+    scene.frameFoundingDistrict();
+    const renderer = webglState.instances[0];
+    const camera = renderer.render.mock.calls.at(-1)?.[1] as THREE.PerspectiveCamera;
+    const initialPosition = camera.position.clone();
+
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 1,
+      clientX: 300,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 2,
+      clientX: 500,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 1,
+      clientX: 320,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    dispatchPointer(canvas, 'pointermove', {
+      pointerId: 2,
+      clientX: 520,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+
+    expect(camera.position.y).toBeCloseTo(initialPosition.y, 5);
+    expect(Math.hypot(
+      camera.position.x - initialPosition.x,
+      camera.position.z - initialPosition.z
+    )).toBeGreaterThan(0.001);
 
     scene.dispose();
   });

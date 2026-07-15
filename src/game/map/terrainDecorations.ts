@@ -1,5 +1,12 @@
-import { axialToWorld, hexDistance, type HexCoord, type HexWorldPosition } from './hexCoordinates';
+import {
+  axialToWorld,
+  hexDistance,
+  hexKey,
+  type HexCoord,
+  type HexWorldPosition
+} from './hexCoordinates';
 import { deriveChannelSeed, seededUnitFloat } from './realmSeed';
+import type { RealmTerrainKind } from './realmTerrainSemantics';
 import { pointyHexBoundaryDistance } from './terrainHeight';
 import {
   EMPTY_TERRAIN_PLACEMENTS,
@@ -103,11 +110,18 @@ export function generateTerrainDecorations(
   renderMap: RealmTerrainMap,
   quality: TerrainDecorationQuality,
   hexSize = 1,
-  placements: readonly TerrainStructurePlacement[] = EMPTY_TERRAIN_PLACEMENTS
+  placements: readonly TerrainStructurePlacement[] = EMPTY_TERRAIN_PLACEMENTS,
+  terrainKindsByKey?: ReadonlyMap<string, RealmTerrainKind>
 ): TerrainDecorationData {
   const points: TerrainDecorationPoint[] = [];
 
   renderMap.cells.forEach((cell) => {
+    const terrainKind = terrainKindsByKey?.get(hexKey(cell.coord));
+    if (
+      terrainKind === 'ridge'
+      || terrainKind === 'lake'
+      || terrainKind === 'ancient-stone'
+    ) return;
     const apron = hexDistance(CENTER_COORD, cell.coord) > quality.playableRadius;
     const localPlacements = terrainPlacementsForCell(
       placements,

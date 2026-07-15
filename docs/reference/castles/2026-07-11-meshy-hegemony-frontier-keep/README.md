@@ -1,6 +1,8 @@
-# Hegemony Frontier Keep — Source Archive and Runtime Derivative
+# Hegemony Frontier Keep — Historical Source and Derivative Record
 
-Ael-supplied GLB source archive for Warpkeep Hegemony castle art direction and the derived public Realm landmark.
+Ael-supplied GLB source archive for Warpkeep Hegemony castle art direction and
+the former Realm landmark. Neither the source nor the former runtime
+derivatives is present in the current runtime tree.
 
 ## Provenance
 
@@ -19,29 +21,32 @@ Ael-supplied GLB source archive for Warpkeep Hegemony castle art direction and t
 - No animations or cameras
 - Position bounds: `[-0.950408, -0.679886, -0.665247]` to `[0.948223, 0.674411, 0.663394]`
 
-## Runtime derivatives
+## Historical runtime derivatives
 
-The original archive is intentionally **not** loaded by the runtime. Three optimized derivatives are available, and the selected Realm quality profile fetches exactly one only after an authenticated player enters the Realm:
+The original archive was never loaded by the runtime. Three optimized
+derivatives were formerly available; the paths below are historical identifiers,
+not links to current files:
 
 | Profile | Runtime file | Bytes | Triangles | Uploaded vertices | Textures | SHA-256 |
 | --- | --- | ---: | ---: | ---: | --- | --- |
-| High | [`hegemony-frontier-keep-high.glb`](../../../../public/models/hegemony/hegemony-frontier-keep-high.glb) | 2,256,092 | 56,466 | 55,704 | four 2048×2048 WebP maps | `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c` |
-| Balanced | [`hegemony-frontier-keep-balanced.glb`](../../../../public/models/hegemony/hegemony-frontier-keep-balanced.glb) | 2,064,100 | 37,634 | 40,632 | four 2048×2048 WebP maps | `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4` |
-| Compact | [`hegemony-frontier-keep-compact.glb`](../../../../public/models/hegemony/hegemony-frontier-keep-compact.glb) | 760,916 | 17,536 | 24,766 | four 1024×1024 WebP maps | `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b` |
+| High | `hegemony-frontier-keep-high.glb` | 2,256,092 | 56,466 | 55,704 | four 2048×2048 WebP maps | `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c` |
+| Balanced | `hegemony-frontier-keep-balanced.glb` | 2,064,100 | 37,634 | 40,632 | four 2048×2048 WebP maps | `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4` |
+| Compact | `hegemony-frontier-keep-compact.glb` | 760,916 | 17,536 | 24,766 | four 1024×1024 WebP maps | `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b` |
 
 All three models contain one mesh, one primitive, one material, and base-color, metallic-roughness, normal, and restrained emissive maps. They require `EXT_meshopt_compression`, `EXT_texture_webp`, and `KHR_mesh_quantization`. Cinematic uses High, normal phones use Balanced, and Performance uses Compact.
 
-`loadHegemonyKeep` dynamically imports `GLTFLoader` and the Meshopt decoder, chooses the quality-appropriate URL beneath Vite's active `BASE_URL`, generates no duplicate fetch, and normalizes the model to a 1.48-unit footprint. The keep's closed gate faces `+Z` at yaw `0`, toward the default strategy camera. Its lowest foundation point is grounded to the placement surface and its horizontal bounds are centered before placement. The title, menu, and authentication flow never fetch either model.
+The active Realm loader no longer references these paths. The technical notes
+below describe the historical implementation only.
 
 ## Reproducible preparation
 
 Run the checked-in development script from the repository root:
 
 ```sh
-npm run prepare:hegemony-keep
+npm run prepare:hegemony-frontier-keep:historical
 ```
 
-The script pins `@gltf-transform/cli` 4.4.1, verifies the untouched source hash and byte length, builds all three outputs in a temporary directory, generates MikkTSpace tangents, applies high-level Meshopt compression and 14/10/12-bit position/normal/UV quantization, validates the outputs, and checks their exact bytes, hashes, triangle counts, uploaded vertex counts, image counts, and required extensions before copying them into `public/models/hegemony/`.
+The script pins `@gltf-transform/cli` 4.4.1, verifies the untouched source hash and byte length, builds all three outputs in a temporary directory, generates MikkTSpace tangents, applies high-level Meshopt compression and 14/10/12-bit position/normal/UV quantization, validates the outputs, and checks their exact bytes, hashes, triangle counts, uploaded vertex counts, image counts, and required extensions before copying them into `public/models/hegemony/`. The active verifier then rejects those retired paths; this command is for private provenance comparison, not restoration.
 
 High uses a `0.06` simplification ratio, `0.008` error, and 2048-pixel textures. Balanced uses `0.04`, `0.012`, and 2048 pixels. Compact uses `0.018`, `0.018`, and 1024 pixels. All use WebP textures plus flatten, join, weld, and prune transforms. The exact arguments and expected hashes are recorded in [`scripts/prepare-hegemony-frontier-keep.mjs`](../../../../scripts/prepare-hegemony-frontier-keep.mjs) and [`manifest.json`](manifest.json).
 

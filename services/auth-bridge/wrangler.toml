@@ -19,6 +19,7 @@ OIDC_KEY_ID = "warpkeep-alpha-2026-07-01"
 SPACETIMEDB_URI = "https://maincloud.spacetimedb.com"
 SPACETIMEDB_DATABASE = "warpkeep-89e4u"
 PUBLIC_AUTH_ENABLED = "false"
+QA_OBSERVER_ENABLED = "false"
 
 [[routes]]
 pattern = "auth.warpkeep.com"
@@ -27,6 +28,10 @@ custom_domain = true
 [[durable_objects.bindings]]
 name = "CHALLENGE_REPLAY_GUARD"
 class_name = "ChallengeReplayGuard"
+
+[[durable_objects.bindings]]
+name = "QA_CHALLENGE_REPLAY_GUARD"
+class_name = "QaChallengeReplayGuard"
 
 [[durable_objects.bindings]]
 name = "AUTH_RATE_LIMITER"
@@ -47,3 +52,7 @@ new_sqlite_classes = ["AuthRateLimiter"]
 [[migrations]]
 tag = "v3"
 new_sqlite_classes = ["SessionFamily"]
+
+[[migrations]]
+tag = "v4"
+new_sqlite_classes = ["QaChallengeReplayGuard"]

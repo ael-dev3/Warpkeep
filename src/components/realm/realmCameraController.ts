@@ -437,6 +437,63 @@ export function projectRealmPointToViewport(
   return projectRealmPointFromView(pose.position, pose.target, pose.fov, point, viewport);
 }
 
+function intersectRealmGroundAtViewportPoint(
+  pose: RealmCameraPose,
+  xInput: number,
+  yInput: number,
+  viewportInput: RealmCameraViewport = pose.viewport
+): RealmCameraPoint | null {
+  const viewport = normalizeViewport(viewportInput);
+  const x = finite(xInput, viewport.width * 0.5);
+  const y = finite(yInput, viewport.height * 0.5);
+  const forwardOffset = {
+    x: pose.target.x - pose.position.x,
+    y: pose.target.y - pose.position.y,
+    z: pose.target.z - pose.position.z
+  };
+  const forwardLength = Math.hypot(
+    forwardOffset.x,
+    forwardOffset.y,
+    forwardOffset.z
+  );
+  if (!Number.isFinite(forwardLength) || forwardLength < 0.000001) return null;
+  const forward = {
+    x: forwardOffset.x / forwardLength,
+    y: forwardOffset.y / forwardLength,
+    z: forwardOffset.z / forwardLength
+  };
+  const rightLength = Math.hypot(forward.z, forward.x);
+  if (!Number.isFinite(rightLength) || rightLength < 0.000001) return null;
+  const right = {
+    x: -forward.z / rightLength,
+    y: 0,
+    z: forward.x / rightLength
+  };
+  const up = {
+    x: right.y * forward.z - right.z * forward.y,
+    y: right.z * forward.x - right.x * forward.z,
+    z: right.x * forward.y - right.y * forward.x
+  };
+  const ndcX = (x / viewport.width) * 2 - 1;
+  const ndcY = 1 - (y / viewport.height) * 2;
+  const verticalScale = Math.tan(radians(pose.fov) * 0.5);
+  const horizontalScale = verticalScale * (viewport.width / viewport.height);
+  const ray = {
+    x: forward.x + right.x * ndcX * horizontalScale + up.x * ndcY * verticalScale,
+    y: forward.y + right.y * ndcX * horizontalScale + up.y * ndcY * verticalScale,
+    z: forward.z + right.z * ndcX * horizontalScale + up.z * ndcY * verticalScale
+  };
+  if (!Number.isFinite(ray.y) || Math.abs(ray.y) < 0.000001) return null;
+  const distance = -pose.position.y / ray.y;
+  if (!Number.isFinite(distance) || distance <= 0) return null;
+  const point = {
+    x: pose.position.x + ray.x * distance,
+    y: 0,
+    z: pose.position.z + ray.z * distance
+  };
+  return Object.values(point).every(Number.isFinite) ? point : null;
+}
+
 function boundsFromProjections(
   projections: readonly RealmScreenProjection[]
 ): RealmScreenBounds {
@@ -786,6 +843,7 @@ function compositionDistance(first: RealmCompositionState, second: RealmComposit
 export type RealmCameraController = Readonly<{
   camera: THREE.PerspectiveCamera;
   dispose: () => void;
+  frameAt: (focus: RealmKeepFocus, zoom: number) => void;
   focusAt: (focus: RealmKeepFocus) => void;
   focusKeep: () => void;
   getMode: () => RealmCameraMode;
@@ -800,6 +858,7 @@ export type RealmCameraController = Readonly<{
   setViewport: (width: number, height: number) => void;
   showRealm: () => void;
   zoomBy: (amount: number) => void;
+  zoomByAt: (amount: number, localX: number, localY: number) => void;
   zoomByWheel: (deltaY: number, deltaMode: number) => void;
 }>;
 
@@ -979,6 +1038,12 @@ export function createRealmCameraController(
       if (frame) window.cancelAnimationFrame(frame);
       document.removeEventListener('visibilitychange', handleVisibility);
     },
+    frameAt: (next, zoom) => {
+      targetFocusIsKeep = false;
+      targetFocus = normalizeKeepFocus(next, targetFocus);
+      targetPan = { x: targetFocus.x, z: targetFocus.z };
+      setZoomTarget(zoom);
+    },
     focusAt: (next) => {
       targetFocusIsKeep = false;
       targetFocus = normalizeKeepFocus(next, targetFocus);
@@ -1007,7 +1072,8 @@ export function createRealmCameraController(
       );
       const worldPerPixel = (pose.visibleHalfHeight * 2) / Math.max(1, height);
       const azimuth = radians(spec.azimuthDegrees);
-      targetPan = clampRealmPan({
+      const previousPan = targetPan;
+      const nextPan = clampRealmPan({
         x: targetPan.x - Math.cos(azimuth) * deltaX * worldPerPixel
           - Math.sin(azimuth) * deltaY * worldPerPixel,
         z: targetPan.z + Math.sin(azimuth) * deltaX * worldPerPixel
@@ -1018,6 +1084,19 @@ export function createRealmCameraController(
       pose.visibleHalfHeight * (pose.safeViewport.height / height),
       pose.safeViewport.aspect,
       spec.panMargin);
+      const actualDelta = {
+        x: nextPan.x - previousPan.x,
+        z: nextPan.z - previousPan.z
+      };
+      targetPan = nextPan;
+      if (Math.abs(actualDelta.x) > 0.000001 || Math.abs(actualDelta.z) > 0.000001) {
+        targetFocusIsKeep = false;
+        targetFocus = {
+          ...targetFocus,
+          x: targetFocus.x + actualDelta.x,
+          z: targetFocus.z + actualDelta.z
+        };
+      }
       invalidate();
     },
     projectPoint: (point) => projectRealmPointToViewport(lastPose, point, { width, height }),
@@ -1087,6 +1166,92 @@ export function createRealmCameraController(
       setZoomTarget(0);
     },
     zoomBy: (amount) => setZoomTarget(targetZoom + finite(amount, 0)),
+    zoomByAt: (amount, localX, localY) => {
+      const nextZoom = clamp(targetZoom + finite(amount, 0), 0, 1);
+      if (Math.abs(nextZoom - targetZoom) <= 0.000001) return;
+      const viewport = { width, height };
+      const composition = stateComposition(targetComposition);
+      const beforePose = deriveRealmCameraPoseForViewport(
+        targetZoom,
+        targetPan,
+        options.bounds,
+        targetFocus,
+        viewport,
+        composition,
+        spec
+      );
+      const beforeAnchor = intersectRealmGroundAtViewportPoint(
+        beforePose,
+        localX,
+        localY,
+        viewport
+      );
+      const preliminaryPose = deriveRealmCameraPoseForViewport(
+        nextZoom,
+        targetPan,
+        options.bounds,
+        targetFocus,
+        viewport,
+        composition,
+        spec
+      );
+      const basePan = clampRealmPan(
+        targetPan,
+        options.bounds,
+        nextZoom,
+        preliminaryPose.visibleHalfHeight * (preliminaryPose.safeViewport.height / height),
+        preliminaryPose.safeViewport.aspect,
+        spec.panMargin
+      );
+      const afterPose = deriveRealmCameraPoseForViewport(
+        nextZoom,
+        basePan,
+        options.bounds,
+        targetFocus,
+        viewport,
+        composition,
+        spec
+      );
+      const afterAnchor = intersectRealmGroundAtViewportPoint(
+        afterPose,
+        localX,
+        localY,
+        viewport
+      );
+      targetZoom = nextZoom;
+      targetPan = basePan;
+      if (beforeAnchor && afterAnchor) {
+        const desiredShift = {
+          x: beforeAnchor.x - afterAnchor.x,
+          z: beforeAnchor.z - afterAnchor.z
+        };
+        const shiftedPan = clampRealmPan(
+          {
+            x: basePan.x + desiredShift.x,
+            z: basePan.z + desiredShift.z
+          },
+          options.bounds,
+          nextZoom,
+          afterPose.visibleHalfHeight * (afterPose.safeViewport.height / height),
+          afterPose.safeViewport.aspect,
+          spec.panMargin
+        );
+        const actualShift = {
+          x: shiftedPan.x - basePan.x,
+          z: shiftedPan.z - basePan.z
+        };
+        targetPan = shiftedPan;
+        if (Math.abs(actualShift.x) > 0.000001 || Math.abs(actualShift.z) > 0.000001) {
+          targetFocusIsKeep = false;
+          targetFocus = {
+            ...targetFocus,
+            x: targetFocus.x + actualShift.x,
+            z: targetFocus.z + actualShift.z
+          };
+        }
+      }
+      invalidate();
+    },
     zoomByWheel: (deltaY, deltaMode) => {
       const normalized = normalizeWheelDelta(deltaY, deltaMode, height);
       setZoomTarget(targetZoom - normalized * 0.00072);

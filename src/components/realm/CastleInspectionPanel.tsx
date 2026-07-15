@@ -49,6 +49,7 @@ export type CastleInspectionPanelProps = Readonly<{
   castle: CastleInspectionRecord;
   profile: RealmCastlePublicPresentation;
   own: boolean;
+  observer?: boolean;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
 }>;
@@ -58,17 +59,18 @@ export function CastleInspectionPanel({
   castle,
   profile,
   own,
+  observer = false,
   onRequestClose,
   focusTargetRef
 }: CastleInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = `${id}-title`;
   const username = castleProfileLabel(profile);
-  const profileUrl = farcasterProfileUrl(profile.canonicalUsername);
-  const totalSnapBurned = profile.communityStatsVisible
+  const profileUrl = observer ? undefined : farcasterProfileUrl(profile.canonicalUsername);
+  const totalSnapBurned = !observer && profile.communityStatsVisible
     ? formatPublicMarkMicros(profile.totalSnapBurnedMicros)
     : undefined;
-  const marksBalance = profile.communityStatsVisible
+  const marksBalance = !observer && profile.communityStatsVisible
     ? formatPublicMarkMicros(profile.marksBalanceMicros)
     : undefined;
   const foundedDate = formatPublicRealmDate(castle.foundedAt);
@@ -109,7 +111,7 @@ export function CastleInspectionPanel({
           <header className="castle-inspection__identity">
             <CastleProfileAvatar profile={profile} size="large" />
             <div>
-              <p>{own ? 'YOUR CASTLE' : 'PLAYER CASTLE'}</p>
+              <p>{observer ? 'PUBLIC CASTLE' : own ? 'YOUR CASTLE' : 'PLAYER CASTLE'}</p>
               <h2 id={titleId}>{username}</h2>
               {profile.displayName ? <span>{profile.displayName}</span> : null}
             </div>

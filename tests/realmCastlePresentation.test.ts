@@ -7,19 +7,37 @@ import {
 import {
   CASTLE_LABEL_FAR_DISTANCE,
   CASTLE_LABEL_GAP_PIXELS,
-  CASTLE_LABEL_MAX_DESKTOP,
+  CASTLE_LABEL_LAYOUT_MAX_CASTLES,
+  castleProfileIdentityReady,
   castleProfileLabel,
   fallbackCastleProjection,
   farcasterProfileUrl,
   formatPublicMarkMicros,
   publicProfileForCastle,
+  realmCastleLabelLeaderGeometry,
+  realmEligibleCastleProjectionCount,
   realmCastleProjectionFrameKey,
   resolveVisibleCastleLabels,
   safeRealmProfileImageUrl,
   sectorForRealmCoord
 } from '../src/components/realm/realmCastlePresentation';
+import type { WarpkeepRealmProfile } from '../src/spacetime/warpkeepBackendTypes';
 
 describe('realm castle public presentation', () => {
+  it('counts only finite, in-viewport, projection-visible castle identities', () => {
+    expect(realmEligibleCastleProjectionCount({
+      width: 400,
+      height: 300,
+      castles: [
+        { castleId: 1, q: 0, r: 0, x: 0, y: 0, distance: 1, visible: true },
+        { castleId: 2, q: 1, r: 0, x: 400, y: 300, distance: 2, visible: true },
+        { castleId: 3, q: 2, r: 0, x: -1, y: 100, distance: 3, visible: true },
+        { castleId: 4, q: 3, r: 0, x: 100, y: 100, distance: 4, visible: false },
+        { castleId: 5, q: 4, r: 0, x: Number.NaN, y: 100, distance: 5, visible: true }
+      ]
+    })).toBe(2);
+  });
+
   it('uses safe fallbacks and strips directional/control characters from legacy player data', () => {
     const profile = publicProfileForCastle(42, [], [{
       fid: 42,
@@ -30,15 +48,92 @@ describe('realm castle public presentation', () => {
     }]);
 
     expect(profile).toMatchObject({
-      fid: 42,
       canonicalUsername: 'alice',
       displayName: 'Alice Keeper',
       communityStatsVisible: false
     });
+    expect(profile).not.toHaveProperty('fid');
     expect(castleProfileLabel(profile)).toBe('@alice');
     expect(safeRealmProfileImageUrl(profile.pfpUrl)).toBeUndefined();
     expect(farcasterProfileUrl(profile.canonicalUsername))
       .toBe('https://farcaster.xyz/alice');
+  });
+
+  it('whitelists only Realm presentation fields from a fuller subscription profile', () => {
+    const authoritative = {
+      fid: 42,
+      canonicalUsername: 'keeper',
+      displayName: 'Fixture Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+      publicBio: 'Fixture public bio.',
+      admittedAt: Date.UTC(2026, 6, 1),
+      firstAuthenticatedAt: Date.UTC(2026, 6, 2),
+      publicStatus: 'active',
+      communityStatsVisible: true,
+      totalSnapBurnedMicros: 200_000_000n,
+      marksEarnedMicros: 200_000_000n,
+      marksSpentMicros: 50_000_000n,
+      marksBalanceMicros: 150_000_000n,
+      marksPolicyVersion: 'fixture-policy-v1',
+      updatedAt: Date.UTC(2026, 6, 3),
+      operatorNote: 'fixture-only'
+    } satisfies WarpkeepRealmProfile & Readonly<{
+      updatedAt: number;
+      operatorNote: string;
+    }>;
+
+    expect(publicProfileForCastle(42, [authoritative], [])).toStrictEqual({
+      canonicalUsername: 'keeper',
+      displayName: 'Fixture Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+      publicBio: 'Fixture public bio.',
+      communityStatsVisible: true,
+      totalSnapBurnedMicros: 200_000_000n,
+      marksBalanceMicros: 150_000_000n
+    });
+
+    expect(publicProfileForCastle(42, [{
+      ...authoritative,
+      communityStatsVisible: false
+    }], [])).toStrictEqual({
+      canonicalUsername: 'keeper',
+      displayName: 'Fixture Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+      publicBio: 'Fixture public bio.',
+      communityStatsVisible: false
+    });
+
+    expect(publicProfileForCastle(42, [{
+      ...authoritative,
+      canonicalUsername: '',
+      displayName: '',
+      pfpUrl: ''
+    }], [{
+      fid: 42,
+      username: 'player-fallback',
+      displayName: 'Player Fallback',
+      pfpUrl: 'https://images.example/player.png',
+      status: 'active'
+    }])).toMatchObject({
+      canonicalUsername: 'player-fallback',
+      displayName: 'Player Fallback',
+      pfpUrl: 'https://images.example/player.png'
+    });
+    expect(castleProfileIdentityReady({
+      canonicalUsername: 'player-fallback',
+      communityStatsVisible: false
+    })).toBe(true);
+    expect(castleProfileIdentityReady({
+      displayName: 'Display Name Only',
+      communityStatsVisible: false
+    })).toBe(true);
+    expect(castleProfileLabel({
+      displayName: 'Display Name Only',
+      communityStatsVisible: false
+    })).toBe('Display Name Only');
+    expect(castleProfileLabel({
+      communityStatsVisible: false
+    })).toBe('Hegemony Keep');
   });
 
   it('accepts credential-free HTTPS portraits and rejects unsafe profile links', () => {
@@ -68,7 +163,27 @@ describe('realm castle public presentation', () => {
     expect(sectorForRealmCoord({ q: 1, r: -1 })).toBe(6);
   });
 
-  it('caps and collision-culls labels without detaching a lower-priority collision', () => {
+  it('attempts every castle in the bounded 100-castle presentation budget', () => {
+    const castles = Array.from({ length: CASTLE_LABEL_LAYOUT_MAX_CASTLES }, (_, index) => ({
+      castleId: index + 1,
+      q: index,
+      r: 0,
+      x: 100 + (index % 25) * 150,
+      y: 70 + Math.floor(index / 25) * 70,
+      distance: index + 1,
+      visible: true
+    }));
+
+    const resolved = resolveVisibleCastleLabels({ width: 3_850, height: 360, castles }, 1, 100);
+
+    expect(resolved).toHaveLength(CASTLE_LABEL_LAYOUT_MAX_CASTLES);
+    expect(resolved.every((castle) => (
+      castle.projectedAnchor.x === castles[castle.castleId - 1]?.x
+      && castle.projectedAnchor.y === castles[castle.castleId - 1]?.y
+    ))).toBe(true);
+  });
+
+  it('retains selected/own identity with a compact roof-attached fallback', () => {
     const castles = Array.from({ length: 100 }, (_, index) => ({
       castleId: index + 1,
       q: index,
@@ -78,8 +193,8 @@ describe('realm castle public presentation', () => {
       distance: index + 1,
       visible: true
     }));
-    // Force own and selected into the same initial collision cluster. Selected
-    // wins deterministically; own is culled instead of floating elsewhere.
+    // Force own and selected into the same collision cluster. Selected stays
+    // full; own retains readable identity in the compact berth above its roof.
     castles[98] = { ...castles[98], x: 240, y: 160, distance: 99 };
     castles[99] = { ...castles[99], x: 240, y: 160, distance: 100 };
 
@@ -89,13 +204,34 @@ describe('realm castle public presentation', () => {
       100
     );
 
-    expect(resolved.length).toBeLessThanOrEqual(CASTLE_LABEL_MAX_DESKTOP);
     expect(resolved.some((castle) => castle.castleId === 100)).toBe(true);
-    expect(resolved.some((castle) => castle.castleId === 99)).toBe(false);
-    expect(resolved.every((castle) => castle.compact === false)).toBe(true);
+    expect(resolved.find((castle) => castle.castleId === 100)?.compact).toBe(false);
+    expect(resolved.find((castle) => castle.castleId === 99)).toMatchObject({
+      compact: true,
+      x: 240,
+      y: 110,
+      projectedAnchor: { x: 240, y: 160 }
+    });
   });
 
-  it('permits only a small selected or own nudge into the safe area', () => {
+  it('marks only meaningful label displacement for a decorative roof connector', () => {
+    expect(realmCastleLabelLeaderGeometry({
+      x: 180,
+      y: 140,
+      projectedAnchor: { x: 180, y: 140 }
+    })).toEqual({ displaced: false, length: 0, angleRadians: 0 });
+    expect(realmCastleLabelLeaderGeometry({
+      x: 180,
+      y: 90,
+      projectedAnchor: { x: 180, y: 140 }
+    })).toMatchObject({
+      displaced: true,
+      length: 50,
+      angleRadians: -Math.PI / 2
+    });
+  });
+
+  it('permits only small roof-associated nudges into the safe area', () => {
     const resolved = resolveVisibleCastleLabels({
       width: 320,
       height: 300,
@@ -195,5 +331,12 @@ describe('realm castle public presentation', () => {
       .not.toBe(realmCastleProjectionFrameKey(frame(CASTLE_LABEL_FAR_DISTANCE + 0.01)));
     expect(realmCastleProjectionFrameKey(frame(10)))
       .not.toBe(realmCastleProjectionFrameKey(frame(10.3)));
+    expect(realmCastleProjectionFrameKey({
+      ...frame(10),
+      castles: frame(10).castles.map((castle) => ({ ...castle, presented: true }))
+    })).not.toBe(realmCastleProjectionFrameKey({
+      ...frame(10),
+      castles: frame(10).castles.map((castle) => ({ ...castle, presented: false }))
+    }));
   });
 });

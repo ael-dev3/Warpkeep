@@ -53,6 +53,7 @@ import {
   type ProfileApplyAuditReason,
   type ProfileApplyAuditStage,
 } from './profile-apply-audit';
+import { readWarpkeepPackageVersion } from '../warpkeep-package-version.mjs';
 
 const DEFAULT_REPORT_DIRECTORY = join(
   homedir(),
@@ -70,6 +71,7 @@ const SUBSCRIPTION_TIMEOUT_MS = 15_000;
 const CONNECTION_TIMEOUT_MS = 12_000;
 export const PROFILE_REDUCER_DEADLINE_MS = 12_000;
 const COMMANDS = new Set(['plan', 'refresh', 'apply', 'inspect']);
+const PRODUCT_VERSION = readWarpkeepPackageVersion();
 
 type Command = 'plan' | 'refresh' | 'apply' | 'inspect';
 type ParsedArguments = Readonly<{
@@ -778,7 +780,7 @@ export async function executeProfilesOperator(arguments_: ParsedArguments): Prom
     const safe = Object.freeze({
       schemaVersion: 2,
       command: 'profiles-plan',
-      productVersion: '0.3.3',
+      productVersion: PRODUCT_VERSION,
       networkDefault: false,
       productionMutationAvailable: PROFILE_SOURCE_READY,
       profileRefreshBlocked: !PROFILE_SOURCE_READY,

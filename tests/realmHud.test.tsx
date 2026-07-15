@@ -42,8 +42,6 @@ describe('RealmHud', () => {
         {...common}
         marksStatus="ready"
         ownProfile={{
-          fid: 12_345,
-          publicStatus: 'active',
           communityStatsVisible: true,
           marksBalanceMicros: 123_450_000n
         }}
@@ -65,13 +63,13 @@ describe('RealmHud', () => {
       />
     );
 
-    expect(screen.getByText('GENESIS 001')).not.toBeNull();
+    expect(screen.getByText('GENESIS 001 · 1,261 CELLS')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Hegemony Keep' })).not.toBeNull();
     expect(screen.getByText('Hegemony Keeper')).not.toBeNull();
     expect(screen.getByText('LEVEL 1')).not.toBeNull();
     expect(screen.queryByText(/FID 98765/i)).toBeNull();
     expect(screen.queryByLabelText('Shared realm state')).toBeNull();
-    expect(document.body.textContent).not.toMatch(/1,261 CELLS|movement cost|generation|Drag to survey/i);
+    expect(document.body.textContent).not.toMatch(/movement cost|generation|Drag to survey/i);
   });
 
   it('shows only a concise explicit selection record', () => {
@@ -88,9 +86,7 @@ describe('RealmHud', () => {
         selectedCell={terrainCell(2, -1)}
         selectedCastle={{ name: 'Peer Watch', level: 3, q: 2, r: -1 }}
         selectedCastleProfile={{
-          fid: 77,
           canonicalUsername: 'peerkeeper',
-          publicStatus: 'founding-player',
           communityStatsVisible: false
         }}
       />
@@ -112,17 +108,23 @@ describe('RealmHud', () => {
       <RealmHud
         {...common}
         ownProfile={{
-          fid: 12_345,
           canonicalUsername: 'warpkeeper',
-          publicStatus: 'active',
           communityStatsVisible: false
         }}
       />
     );
     expect(liveRegion?.textContent).toBe(initialAnnouncement);
 
-    rerender(<RealmHud {...common} selectedCell={terrainCell(1, 0)} />);
-    expect(liveRegion?.textContent).toContain('Selected cell 1, 0');
+    rerender(
+      <RealmHud
+        {...common}
+        selectedCell={terrainCell(1, 0)}
+        selectedTerrainKind="heath"
+      />
+    );
+    expect(liveRegion?.textContent).toContain('Amethyst Heath. Selected cell 1, 0');
+    expect(screen.getByLabelText('Current selection').textContent)
+      .toContain('Amethyst Heath · q 1, r 0');
   });
 
   it('offers stable Menu and Home actions without camera-mode label churn', () => {

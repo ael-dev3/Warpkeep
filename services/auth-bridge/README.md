@@ -28,6 +28,8 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v2/farcaster/exchange` | Verifies SIWF and creates a rotating server-side session family. |
 | `POST` | `/v2/session/refresh` | Rotates the session reference and returns a fresh access token only for an authorized family. |
 | `POST` | `/v2/session/logout` | Revokes the server-side family and expires the cookie; fails closed if durable revocation cannot be confirmed. |
+| `POST` | `/v1/qa/challenge` | Server-only, zero-body 60-second challenge for the one registered read-only QA device. Disabled by default. |
+| `POST` | `/v1/qa/realm-snapshot` | Server-only proof exchange returning one bounded aggregate Realm attestation; the v1 path is a compatibility name. |
 | `POST` | `/v1/admin/token` | Server-only five-minute Hermes/admin JWT. |
 | `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free structured resolver check. |
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
@@ -42,6 +44,23 @@ accept only a completed zero-byte stream, validate every present
 secrets such as `channelToken`, custody fields, verification lists, and relay
 metadata.
 
+The QA routes are a separate service boundary, not browser/player
+authentication. They reject every request carrying an `Origin`, emit no CORS
+headers, reject query parameters and unknown JSON fields, and remain unavailable
+unless `QA_OBSERVER_ENABLED` is exactly `true` with one all-or-none dedicated
+SpacetimeDB URI/database/audience tuple plus one all-or-none registered public
+P-256 JWK, canonical RFC 3339 registration timestamp, and canonical expiry.
+The observer database and audience must both differ from the gameplay values;
+partial tuples and any fallback to gameplay coordinates fail closed. The
+production observer origin is additionally pinned to exact
+`https://maincloud.spacetimedb.com`, so a configured credential cannot be sent
+to another HTTPS origin. The checked-in gate is `false` and the dedicated tuple
+is absent, independent of `PUBLIC_AUTH_ENABLED`.
+The key must remain valid beyond the one-minute challenge window and its expiry
+may be no more than 366 days after the fixed registration timestamp; the
+boundary is checked again on every QA request so annual owner review cannot be
+bypassed by a stale deployment.
+
 Challenge, exchange, refresh, and server-only credential routes use distributed
 Durable Object rolling windows.
 Browser Origin/no-Origin trust gates run before quota consumption, while the
@@ -51,6 +70,90 @@ only a versioned SHA-256 bucket name is retained. Denials return `429` with a
 bounded `Retry-After`, limiter failures return `503`, and expired objects use
 `deleteAll()` to remove SQLite metadata and alarms. Edge/global monitoring is
 still required because per-client controls do not cap aggregate traffic.
+
+## Machine-bound read-only QA contract
+
+`POST /v1/qa/challenge` accepts no body. Its exact response is
+`{ version: 1, requestId, challenge, expiresAt, keyThumbprint, scope:
+"realm.snapshot", signingInput }`. `requestId` and `challenge` are random
+base64url values, `keyThumbprint` is the RFC 7638 SHA-256 thumbprint of the one
+registered JWK, and `expiresAt` is epoch milliseconds at most 60 seconds after
+creation. The dedicated `QA_CHALLENGE_REPLAY_GUARD` Durable Object provides the
+atomic one-attempt boundary and fully deallocates abandoned records at expiry.
+
+The helper must reconstruct rather than trust the echoed canonical UTF-8 ASCII
+input. It has exact LF separators and no trailing newline:
+
+```text
+warpkeep-qa-observer-v1
+issuer=<exact configured issuer>
+endpoint=/v1/qa/realm-snapshot
+scope=realm.snapshot
+requestId=<requestId>
+challenge=<challenge>
+keyThumbprint=<RFC 7638 thumbprint>
+expiresAt=<decimal epoch milliseconds>
+```
+
+`POST /v1/qa/realm-snapshot` accepts exactly `{ requestId, signature }`, where
+`signature` is an unpadded base64url 64-byte IEEE-P1363 P-256 ECDSA signature
+(`r || s`) over the canonical input. A submitted challenge is consumed before
+signature verification, so a wrong signature cannot be retried. After proof,
+the Worker mints a fresh 15-second token with exact subject
+`service:qa-snapshot-resolver`, sole role
+`warpkeep-qa-snapshot-resolver`, and `device_thumbprint`. It calls only the
+fixed `qa_observer_get_realm_attestation_v2` procedure on the configured
+dedicated observer database with `[]`. Its JWT uses only the dedicated observer
+audience, which the canonical game module rejects. The Worker never returns
+that token, rejects redirects and malformed/oversized responses, and returns
+only the strict aggregate attestation. The retained
+`qa_observer_get_realm_snapshot_v1` schema wire immediately fails with
+`QA_OBSERVER_V1_DISABLED`; it performs no authentication, transaction, or
+database read and can no longer return its former response.
+
+The `/v1/qa/realm-snapshot` route and `realm.snapshot` scope remain unchanged as
+device-proof compatibility names. They do not authorize or return per-player
+Realm data. The successful Worker response is exactly:
+
+```text
+{
+  version: 2,
+  protocolVersion: 3,
+  worldSeed: 3445214658,
+  worldSeedName: "HEGEMONY_GENESIS_001",
+  worldTileCount: 1261,
+  worldTileMetaCount: 1261,
+  realm: {
+    realmId: "GENESIS_001",
+    numericSeed: 3445214658,
+    generationVersion: 2,
+    authoritativeRadius: 20,
+    renderRadius: 22,
+    playerCapacity: 100
+  },
+  aggregates: {
+    castleCount: u32,
+    profileCount: u32,
+    foundedCount: u32,
+    activeCount: u32
+  }
+}
+```
+
+Validation requires 1–100 castles, equal castle/profile counts, and
+`foundedCount + activeCount === castleCount`. No per-castle collection, castle
+ID, coordinate, keep or player name, username, display name, bio, portrait
+signal, FID, Identity, PFP URL, auth/session material, admission, Terms, wallet,
+receipt, Marks, audit, or mutation surface leaves the server.
+
+This closed Worker response is not by itself a complete aggregate-only
+principal boundary. The bridge now refuses to mint or send the observer token
+without a different database and audience and never falls back to the gameplay
+target. Configuration separation does not prove that a future target's schema
+is identity-free. `QA_OBSERVER_ENABLED` must remain `false` until an isolated
+module/database or identity-free replica with no player/profile subscription
+surface is reviewed and deployed, in addition to the local caller-binding
+prerequisites.
 
 ## Browser proof contract
 
@@ -217,24 +320,38 @@ issuer/origin/database contract. `FARCASTER_RPC_URL`, `SIGNING_KEY_JWK`,
 `ADMIN_TOKEN_SECRET`, and the independent `SESSION_COOKIE_KEY` are managed
 Worker secrets. Both symmetric secrets require at least 32 random bytes and
 all three secret materials must be pairwise distinct, including the private
-`d` scalar inside `SIGNING_KEY_JWK`. `CHALLENGE_REPLAY_GUARD`, `AUTH_RATE_LIMITER`, and
-`SESSION_FAMILIES` are separate SQLite Durable Object bindings; the additive
-`SessionFamily` migration requires explicit operator approval before any Worker
-deployment.
+`d` scalar inside `SIGNING_KEY_JWK`. `CHALLENGE_REPLAY_GUARD`,
+`AUTH_RATE_LIMITER`, and `SESSION_FAMILIES` are separate SQLite Durable Object
+bindings. `QA_CHALLENGE_REPLAY_GUARD` is a fourth isolated SQLite binding; its
+additive `QaChallengeReplayGuard` migration requires explicit operator approval
+before any Worker deployment. `QA_OBSERVER_SPACETIMEDB_URI`,
+`QA_OBSERVER_SPACETIMEDB_DATABASE`, and `QA_OBSERVER_OIDC_AUDIENCE` are one
+all-or-none tuple and have no gameplay fallback; the database and audience must
+both differ from the player/auth resolver target, and production pins the tuple's
+origin to exact `https://maincloud.spacetimedb.com`. `QA_OBSERVER_PUBLIC_JWK`,
+`QA_OBSERVER_KEY_REGISTERED_AT`, and `QA_OBSERVER_KEY_EXPIRES_AT` are required
+as one exact tuple only when the independent QA gate is enabled. Registration
+and expiry are canonical RFC 3339 timestamps; their interval may not exceed 366
+days, so an old excessive expiry cannot become valid merely as time passes.
+Keep the registered public key in managed Worker configuration so the machine
+fingerprint does not become public repository metadata.
 
 The production browser and Pages activation gate separately pin the exact bridge
 and issuer `https://auth.warpkeep.com`, audience `warpkeep-spacetimedb`, and the
 same Maincloud/database pair. Development remains explicitly configurable and is
 not accepted as a production activation profile.
 
-The server-only `POST /v1/admin/config-attestation` route returns only
-`{ profile: "warpkeep-auth-v2", digest, publicAuthEnabled }` after admin-secret
-authentication. The SHA-256 digest covers issuer, origins, SIWF coordinates,
-audience, key ID, Maincloud coordinates, environment, S256 binding, 600-second
-access lifetime, 15-second resolver lifetime, five-second resolver timeout,
-five-minute challenge lifetime, 30-day family ceiling, exact cookie attributes,
-and public-auth state. Operators must compare it with the reviewed expected
-configuration; it is not a deployment action and reveals no secret.
+The server-only `POST /v1/admin/config-attestation` route additionally returns
+the independent QA gate, observer URI/database/audience tuple, registered
+public-key fingerprint, canonical registration/expiry timestamps, and maximum
+registration lifetime after admin-secret authentication. The SHA-256 digest
+covers issuer, origins, SIWF coordinates, gameplay audience/key/Maincloud
+coordinates, observer URI/database/audience coordinates, environment, S256
+binding, player/resolver lifetimes, QA scope/procedure/lifetimes, both gates,
+the registered QA fingerprint/registration/expiry/lifetime, the 30-day family
+ceiling, and exact cookie attributes. Operators must compare it with the
+reviewed expected configuration; it is not a deployment action and reveals no
+secret material.
 
 Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use
 separate development keys. Set real secrets only through approved Cloudflare

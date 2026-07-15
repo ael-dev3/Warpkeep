@@ -72,8 +72,6 @@ function profile(
   overrides: Partial<RealmCastlePublicPresentation> = {}
 ): RealmCastlePublicPresentation {
   return {
-    fid: 7_001,
-    publicStatus: 'founding-player',
     communityStatsVisible: false,
     ...overrides
   };
@@ -86,12 +84,13 @@ afterEach(() => {
 });
 
 describe('realm profile and PFP presentation regressions', () => {
-  it('prefers the trusted username, then display name, then a neutral keep label', () => {
+  it('uses the trusted public identity fallback sequence without exposing internal IDs', () => {
     expect(castleProfileLabel(profile({
       canonicalUsername: 'warpkeeper',
       displayName: 'Warp Keeper'
     }))).toBe('@warpkeeper');
-    expect(castleProfileLabel(profile({ displayName: 'Warp Keeper' }))).toBe('Warp Keeper');
+    expect(castleProfileLabel(profile({ displayName: 'Warp Keeper' })))
+      .toBe('Warp Keeper');
     expect(castleProfileLabel(profile())).toBe('Hegemony Keep');
   });
 
@@ -99,7 +98,8 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(castleProfileMonogram(profile({ canonicalUsername: 'warpkeeper' }))).toBe('W');
     expect(castleProfileMonogram(profile({ displayName: 'Sentinel' }))).toBe('S');
     expect(castleProfileMonogram(profile())).toBe('W');
-    expect(castleProfileMonogram(profile({ fid: 12_345 }))).toBe('W');
+    const legacyFidPresentation = { ...profile(), fid: 12_345 };
+    expect(castleProfileMonogram(legacyFidPresentation)).toBe('W');
     expect(castleProfileMonogram(profile())).not.toMatch(/[0-9]/);
 
     const { container, rerender } = render(<CastleProfileAvatar profile={profile()} />);
@@ -108,7 +108,7 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(crest?.textContent).not.toContain('7001');
     expect((crest as HTMLElement | null)?.style.getPropertyValue('--realm-avatar-hue')).toBe('87');
 
-    rerender(<CastleProfileAvatar profile={profile({ fid: 12_345 })} />);
+    rerender(<CastleProfileAvatar profile={legacyFidPresentation} />);
     expect(crest?.textContent).toBe('W');
     expect((crest as HTMLElement | null)?.style.getPropertyValue('--realm-avatar-hue')).toBe('87');
   });
@@ -191,7 +191,7 @@ describe('realm profile and PFP presentation regressions', () => {
     rerender(<CastleProfileAvatar profile={{
       ...presentation,
       pfpUrl: 'https://cdn.warpkeep.com/profiles/alice-new.png',
-      publicStatus: 'active'
+      displayName: 'Alice Keeper'
     }} />);
     expect(mockProfileImages).toHaveLength(2);
     expect(container.querySelector('img')).toBeNull();
@@ -231,7 +231,8 @@ describe('realm profile and PFP presentation regressions', () => {
       y: 140,
       distance: 2,
       visible: true,
-      compact: false
+      compact: false,
+      projectedAnchor: { x: 180, y: 140 }
     } as const;
     const castle = {
       castleId: 7,
@@ -247,6 +248,7 @@ describe('realm profile and PFP presentation regressions', () => {
         records={new Map([[7, { castle, profile: presentation }]])}
         selectedCastleId={7}
         inspectorCastleId={7}
+        focusedCastleId={7}
         ownCastleId={7}
         inspectorId="castle-inspector"
         inspectorOpen
@@ -259,6 +261,7 @@ describe('realm profile and PFP presentation regressions', () => {
     });
     expect(button.querySelector('img')).toBeNull();
     expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('W');
+    expect(button.dataset.focused).toBe('true');
 
     const trusted = profile({
       canonicalUsername: 'fixturekeeper',
@@ -281,6 +284,100 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('');
     expect(button.querySelector('.realm-castle-avatar')?.textContent).not.toMatch(/[0-9]/);
     expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
+  });
+
+  it('keeps a policy-limit username complete in semantics while compact presentation truncates in CSS', () => {
+    const canonicalUsername = `q${'a'.repeat(62)}z`;
+    const castle = {
+      castleId: 7,
+      ownerFid: 7_001,
+      q: 1,
+      r: -1,
+      level: 1,
+      name: 'Fixture Keep'
+    } as const;
+    render(
+      <RealmCastleLabels
+        labels={[{
+          castleId: 7,
+          q: 1,
+          r: -1,
+          x: 180,
+          y: 140,
+          distance: 2,
+          visible: true,
+          compact: true,
+          projectedAnchor: { x: 180, y: 140 }
+        }]}
+        records={new Map([[7, {
+          castle,
+          profile: profile({ canonicalUsername })
+        }]])}
+        inspectorId="castle-inspector"
+        inspectorOpen={false}
+        onActivate={vi.fn()}
+      />
+    );
+
+    const label = screen.getByRole('button', {
+      name: `Inspect @${canonicalUsername} castle, Fixture Keep, cell 1,-1`
+    });
+    expect(canonicalUsername).toHaveLength(64);
+    expect(label.dataset.compact).toBe('true');
+    expect(label.querySelector('.realm-castle-label__identity')?.textContent)
+      .toBe(`@${canonicalUsername}`);
+  });
+
+  it('exposes a synthetic-safe displacement marker and only shows a decorative roof leader when needed', () => {
+    const castle = {
+      castleId: 7,
+      ownerFid: 7_001,
+      q: 1,
+      r: -1,
+      level: 1,
+      name: 'Fixture Keep'
+    } as const;
+    const renderLabel = (y: number, projectedY: number) => (
+      <RealmCastleLabels
+        labels={[{
+          castleId: 7,
+          q: 1,
+          r: -1,
+          x: 180,
+          y,
+          distance: 2,
+          visible: true,
+          compact: true,
+          projectedAnchor: { x: 180, y: projectedY }
+        }]}
+        records={new Map([[7, {
+          castle,
+          profile: profile({ canonicalUsername: 'fixturekeeper' })
+        }]])}
+        inspectorId="castle-inspector"
+        inspectorOpen={false}
+        onActivate={vi.fn()}
+      />
+    );
+    const { container, rerender } = render(renderLabel(90, 140));
+    let button = screen.getByRole('button', { name: /Inspect @fixturekeeper castle/i });
+    let leader = container.querySelector<HTMLElement>('[data-realm-label-leader]');
+
+    expect(button.dataset.displaced).toBe('true');
+    expect(button.style.getPropertyValue('--realm-castle-anchor-x')).toBe('180px');
+    expect(button.style.getPropertyValue('--realm-castle-anchor-y')).toBe('140px');
+    expect(leader?.dataset.active).toBe('true');
+    expect(leader?.hidden).toBe(false);
+    expect(leader?.getAttribute('aria-hidden')).toBe('true');
+    expect(leader?.textContent).toBe('');
+    expect(leader?.style.getPropertyValue('--realm-castle-leader-length')).toBe('50px');
+
+    rerender(renderLabel(140, 140));
+    button = screen.getByRole('button', { name: /Inspect @fixturekeeper castle/i });
+    leader = container.querySelector<HTMLElement>('[data-realm-label-leader]');
+    expect(button.dataset.displaced).toBe('false');
+    expect(leader?.dataset.active).toBe('false');
+    expect(leader?.hidden).toBe(true);
   });
 
   it.each([
@@ -316,14 +413,15 @@ describe('realm profile and PFP presentation regressions', () => {
           y: 140,
           distance: 2,
           visible: true,
-          compact: false
+          compact: false,
+          projectedAnchor: { x: 180, y: 140 }
         }]}
         records={new Map([[
           7,
           {
             castle: {
               castleId: 7,
-              ownerFid: 539_854,
+              ownerFid: Number.MAX_SAFE_INTEGER,
               q: 1,
               r: -1,
               level: 1,
@@ -374,14 +472,15 @@ describe('realm profile and PFP presentation regressions', () => {
             y: 140,
             distance: 2,
             visible: true,
-            compact: true
+            compact: true,
+            projectedAnchor: { x: 180, y: 140 }
           }]}
           records={new Map([[
             7,
             {
               castle: {
                 castleId: 7,
-                ownerFid: 539_854,
+                ownerFid: Number.MAX_SAFE_INTEGER,
                 q: 1,
                 r: -1,
                 level: 1,
@@ -401,9 +500,69 @@ describe('realm profile and PFP presentation regressions', () => {
     );
 
     const button = screen.getByRole('button', { name: /Inspect @warpkeeper castle/i });
+    expect(within(button).getByText('@warpkeeper')).not.toBeNull();
+    expect(button.textContent).not.toMatch(/FID\s*9007199254740991/i);
+    expect(document.querySelectorAll('[data-measure-castle-id]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-measure-compact-castle-id]')).toHaveLength(1);
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
     expect(onMapPointerDown).not.toHaveBeenCalled();
     fireEvent.click(button);
     expect(onActivate).toHaveBeenCalledOnce();
+  });
+
+  it('exposes clustered castles as a small keyboard and pointer zoom affordance', () => {
+    const onMapPointerDown = vi.fn();
+    const onActivateCluster = vi.fn();
+    const cluster = {
+      key: 'cluster-7-3',
+      castleIds: [7, 8, 9],
+      representativeCastleId: 7,
+      anchor: { x: 180, y: 140 },
+      x: 220,
+      y: 180,
+      width: 96,
+      bounds: { left: 172, top: 136, right: 268, bottom: 180 }
+    } as const;
+    render(
+      <div onPointerDown={onMapPointerDown}>
+        <RealmCastleLabels
+          labels={[]}
+          clusters={[cluster]}
+          records={new Map([[7, {
+            castle: {
+              castleId: 7,
+              ownerFid: 7_001,
+              q: 1,
+              r: -1,
+              level: 1,
+              name: 'Fixture Keep'
+            },
+            profile: profile({ canonicalUsername: 'fixturekeeper' })
+          }]])}
+          inspectorId="castle-inspector"
+          inspectorOpen={false}
+          onActivate={vi.fn()}
+          onActivateCluster={onActivateCluster}
+        />
+      </div>
+    );
+
+    const button = screen.getByRole('button', {
+      name: 'Focus @fixturekeeper castle, Fixture Keep, cell 1,-1, and 2 nearby keepers'
+    });
+    expect(button.textContent).toBe('@fixturekeeper+2');
+    expect(button.getAttribute('data-cluster-count')).toBe('3');
+    expect(button.getAttribute('data-representative-castle-id')).toBe('7');
+    expect(button.getAttribute('data-displaced')).toBe('true');
+    expect(button.getAttribute('style')).toContain('--realm-castle-cluster-x: 220px');
+    const leader = document.querySelector<HTMLElement>('[data-realm-cluster-leader]');
+    expect(leader?.dataset.active).toBe('true');
+    expect(leader?.getAttribute('data-representative-castle-id')).toBe('7');
+    expect(leader?.style.getPropertyValue('--realm-castle-anchor-x')).toBe('180px');
+    expect(leader?.style.getPropertyValue('--realm-castle-anchor-y')).toBe('140px');
+    fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
+    expect(onMapPointerDown).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    expect(onActivateCluster).toHaveBeenCalledWith(cluster);
   });
 });

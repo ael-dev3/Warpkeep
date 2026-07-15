@@ -44,6 +44,18 @@ function block(source: string, marker: string) {
 describe('compact Realm CSS contract', () => {
   it('projects each castle label once and presents profile images as static canvas snapshots', () => {
     const label = block(PRESENTATION, '.realm-castle-label {');
+    const leader = block(PRESENTATION, '.realm-castle-label__leader {');
+    const inactiveLeader = block(
+      PRESENTATION,
+      '.realm-castle-label__leader[hidden],\n.realm-castle-label__leader[data-active="false"] {'
+    );
+    const compactLabel = block(PRESENTATION, '.realm-castle-label[data-compact="true"] {');
+    const narrowPresentation = block(PRESENTATION, '@media (max-width: 680px) {');
+    const narrowCompactLabel = block(
+      narrowPresentation,
+      '.realm-castle-label[data-compact="true"] {'
+    );
+    const identityCluster = block(PRESENTATION, '.realm-castle-cluster {');
     const avatarCanvas = block(PRESENTATION, '.realm-castle-avatar canvas {');
 
     expect(label).toContain('top: 0;');
@@ -51,8 +63,33 @@ describe('compact Realm CSS contract', () => {
     expect(label).toContain('translate3d(');
     expect(label).toContain('var(--realm-castle-label-x)');
     expect(label).toContain('var(--realm-castle-label-y)');
+    expect(label).toContain('translate(-50%, -100%);');
+    expect(label).toContain('z-index: 1;');
     expect(PRESENTATION).not.toMatch(/top:\s*var\(--realm-castle-label-y\)/);
     expect(PRESENTATION).not.toMatch(/left:\s*var\(--realm-castle-label-x\)/);
+    expect(compactLabel).toContain('width: 7.75rem;');
+    expect(compactLabel).toContain('min-width: 7.75rem;');
+    expect(compactLabel).toContain('max-width: 7.75rem;');
+    expect(compactLabel).toContain('min-height: 1.875rem;');
+    expect(compactLabel).toContain('font-size: 0.8125rem;');
+    expect(narrowCompactLabel).toContain('width: 7.5rem;');
+    expect(narrowCompactLabel).toContain('min-width: 7.5rem;');
+    expect(narrowCompactLabel).toContain('max-width: 7.5rem;');
+    expect(narrowCompactLabel).toContain('font-size: 0.75rem;');
+    expect(PRESENTATION).toContain('.realm-castle-label__identity');
+    expect(PRESENTATION).toContain('font-size: 0.8125rem;');
+    expect(PRESENTATION).toContain('font: 800 0.8125rem/1 Inter');
+    expect(identityCluster).toContain('width: var(--realm-castle-cluster-width);');
+    expect(identityCluster).toContain('height: 2.75rem;');
+    expect(identityCluster).toContain('pointer-events: auto;');
+    expect(identityCluster).toContain('cursor: zoom-in;');
+    expect(identityCluster).toContain('translate(-50%, -100%);');
+    expect(leader).toContain('var(--realm-castle-anchor-x)');
+    expect(leader).toContain('var(--realm-castle-anchor-y)');
+    expect(leader).toContain('var(--realm-castle-leader-length)');
+    expect(leader).toContain('rotate(var(--realm-castle-leader-angle))');
+    expect(leader).toContain('pointer-events: none;');
+    expect(inactiveLeader).toContain('display: none;');
 
     expect(avatarCanvas).toContain('display: block;');
     expect(avatarCanvas).toContain('width: 100%;');
@@ -101,6 +138,8 @@ describe('compact Realm CSS contract', () => {
     const hudButton = block(MAP, '.realm-hud__actions button {');
     const exploreTrigger = block(MAP, '.realm-cell-navigator > button {');
     const exploreControls = block(MAP, '.realm-cell-navigator__heading button,');
+    const communityLink = block(MAP, '.realm-cell-navigator__community a {');
+    const jumpInput = block(MAP, '.realm-cell-navigator__jump input {');
     const castleLabel = block(PRESENTATION, '.realm-castle-label {');
     const dismiss = block(PRESENTATION, '.castle-inspection__dismiss {');
     const profileLink = block(PRESENTATION, '.castle-inspection__profile-link {');
@@ -116,6 +155,9 @@ describe('compact Realm CSS contract', () => {
     expect(hudButton).toContain('min-height: 2.75rem;');
     expect(exploreTrigger).toContain('min-height: 3.35rem;');
     expect(exploreControls).toContain('min-height: 2.75rem;');
+    expect(communityLink).toContain('min-height: 2.75rem;');
+    expect(communityLink).toContain('font: 760 0.6875rem/1.2 Inter');
+    expect(jumpInput).toContain('min-width: 2.75rem;');
     expect(castleLabel).toContain('min-width: 2.75rem;');
     expect(castleLabel).toContain('min-height: 2.75rem;');
     expect(dismiss).toContain('min-height: 2.75rem;');
@@ -127,6 +169,11 @@ describe('compact Realm CSS contract', () => {
     const dialog = block(MAP, '.realm-cell-navigator__dialog {');
     const presets = block(MAP, '.realm-cell-navigator__presets > div {');
     const jump = block(MAP, '.realm-cell-navigator__jump fieldset {');
+    const narrowest = block(MAP, '@media (max-width: 360px) {');
+    const narrowestCommunityActions = block(
+      narrowest,
+      '.realm-cell-navigator__community-actions {'
+    );
     const castleSecondaryCopy = block(
       MAP,
       '.realm-cell-navigator__castles span,\n.realm-cell-navigator__castles small {'
@@ -139,6 +186,7 @@ describe('compact Realm CSS contract', () => {
     expect(jump).toContain('min-width: 0;');
     expect(jump).toContain('box-sizing: border-box;');
     expect(castleSecondaryCopy).toContain('font-size: 0.8125rem;');
+    expect(narrowestCommunityActions).toContain('grid-template-columns: minmax(0, 1fr);');
 
     for (const obsoleteSelector of [
       '.realm-cell-navigator summary',
@@ -197,6 +245,7 @@ describe('compact Realm CSS contract', () => {
 
   it('keeps narrow portrait and short-landscape controls bounded and mutually clear', () => {
     const narrow = block(MAP, '@media (max-width: 430px) {');
+    const compactest = block(MAP, '@media (max-width: 360px) {');
     const shortMap = block(MAP, '@media (max-height: 600px) and (min-width: 581px) {');
     const shortPresentation = block(
       PRESENTATION,
@@ -205,10 +254,15 @@ describe('compact Realm CSS contract', () => {
     const narrowHud = block(narrow, '.realm-hud {');
     const narrowBadges = block(narrow, '.realm-hud__badges {');
     const narrowJump = block(narrow, '.realm-cell-navigator__jump fieldset {');
+    const compactestExploreCount = block(
+      compactest,
+      '.realm-cell-navigator > button span {'
+    );
     const shortHud = block(shortMap, '.realm-hud {');
     const shortActions = block(shortMap, '.realm-hud__actions {');
     const shortExplore = block(shortMap, '.realm-cell-navigator {');
     const shortDialog = block(shortMap, '.realm-cell-navigator__dialog {');
+    const shortJump = block(shortMap, '.realm-cell-navigator__jump fieldset {');
     const shortInspector = block(shortPresentation, '.castle-inspection {');
     const shortVisibleUi = block(
       shortMap,
@@ -218,6 +272,8 @@ describe('compact Realm CSS contract', () => {
     expect(narrowHud).toContain('width: min(13.75rem,');
     expect(narrowBadges).toContain('display: none;');
     expect(narrowJump).toContain('grid-template-columns: auto minmax(0, 1fr);');
+    expect(compactestExploreCount).toContain('display: none;');
+    expect(EXPLORE_COMPONENT).toContain('aria-label={`Explore realm, ${castles.length} founded');
 
     expect(shortHud).toContain('width: min(13.5rem, 31vw);');
     expect(shortActions).toContain('width: 8.75rem;');
@@ -228,6 +284,7 @@ describe('compact Realm CSS contract', () => {
     expect(shortDialog).toContain('bottom: max(0.45rem, env(safe-area-inset-bottom));');
     expect(shortDialog).toContain('width: min(18rem, 43vw);');
     expect(shortDialog).toContain('max-height: none;');
+    expect(shortJump).toContain('grid-template-columns: auto minmax(2.75rem, 1fr);');
     expect(shortVisibleUi).toContain('visibility: visible;');
     expect(shortVisibleUi).toContain('pointer-events: auto;');
     expect(shortMap).toContain(

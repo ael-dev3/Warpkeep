@@ -6,11 +6,15 @@ import {
   MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS,
   MAX_HERMES_ADMIN_SESSION_SECONDS,
   MAX_PLAYER_SESSION_SECONDS,
+  MAX_QA_SNAPSHOT_RESOLVER_SESSION_SECONDS,
+  QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS,
   isAuthEpochResolverJwt,
   isHermesAdminJwt,
+  isQaSnapshotResolverJwt,
   parseFidClaim,
   readFreshAuthEpochResolverJwt,
   readFreshHermesAdminJwt,
+  readFreshQaSnapshotResolverJwt,
   readFreshWarpkeepPlayerJwt,
   readWarpkeepBaseJwt,
   readWarpkeepJwt,
@@ -26,6 +30,9 @@ test('security authority windows stay pinned to the production limits', () => {
   assert.equal(MAX_PLAYER_SESSION_SECONDS, 600);
   assert.equal(MAX_HERMES_ADMIN_SESSION_SECONDS, 300);
   assert.equal(MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS, 60);
+  assert.equal(QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS, 15);
+  assert.equal(MAX_QA_SNAPSHOT_RESOLVER_SESSION_SECONDS, 15);
+  assert.equal(QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS, MAX_QA_SNAPSHOT_RESOLVER_SESSION_SECONDS);
 });
 
 function playerPayload(overrides: Record<string, unknown> = {}) {
@@ -70,6 +77,21 @@ function adminPayload(overrides: Record<string, unknown> = {}) {
     roles: ['warpkeep-admin'],
     iat,
     exp: iat + MAX_HERMES_ADMIN_SESSION_SECONDS,
+    ...overrides,
+  };
+}
+
+function qaSnapshotResolverPayload(overrides: Record<string, unknown> = {}) {
+  const iat = 1_700_000_000;
+  return {
+    iss: config.issuer,
+    sub: 'service:qa-snapshot-resolver',
+    aud: [config.audience],
+    token_type: config.tokenType,
+    roles: ['warpkeep-qa-snapshot-resolver'],
+    device_thumbprint: 'A'.repeat(43),
+    iat,
+    exp: iat + QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS,
     ...overrides,
   };
 }
@@ -322,4 +344,107 @@ test('rejects resolver impersonation, role expansion, expiry, and sessions over 
     ),
     (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_AUTH_RESOLVER_SESSION',
   );
+});
+
+test('accepts only the exact fresh QA snapshot resolver principal', () => {
+  const payload = qaSnapshotResolverPayload();
+  const base = readWarpkeepBaseJwt(payload, config);
+  assert.equal(isQaSnapshotResolverJwt(base), true);
+  assert.equal(isHermesAdminJwt(base), false);
+  assert.equal(isAuthEpochResolverJwt(base), false);
+
+  const expiresAt = 1_700_000_000 + QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS;
+  const fresh = readFreshQaSnapshotResolverJwt(
+    payload,
+    BigInt(expiresAt) * 1_000_000n - 1n,
+    config,
+  );
+  assert.equal(fresh.subject, 'service:qa-snapshot-resolver');
+  assert.deepEqual(fresh.roles, ['warpkeep-qa-snapshot-resolver']);
+  assert.equal(fresh.deviceThumbprint, 'A'.repeat(43));
+});
+
+test('the canonical game module rejects the dedicated observer audience', () => {
+  assert.throws(
+    () => readWarpkeepBaseJwt(qaSnapshotResolverPayload({
+      aud: ['warpkeep-qa-observer-spacetimedb'],
+    }), config),
+    (error: unknown) => error instanceof ClaimValidationError
+      && error.code === 'INVALID_AUDIENCE',
+  );
+});
+
+test('rejects QA resolver impersonation, role expansion, custom authority claims, and invalid windows', () => {
+  const nowMicros = 1_700_000_001n * 1_000_000n;
+  for (const payload of [
+    qaSnapshotResolverPayload({ sub: 'service:hermes' }),
+    qaSnapshotResolverPayload({ sub: 'service:auth-epoch-resolver' }),
+    qaSnapshotResolverPayload({ roles: ['warpkeep-admin'] }),
+    qaSnapshotResolverPayload({ roles: ['warpkeep-qa-snapshot-resolver', 'warpkeep-admin'] }),
+    qaSnapshotResolverPayload({ roles: [] }),
+    qaSnapshotResolverPayload({ fid: '12345' }),
+    qaSnapshotResolverPayload({ auth_version: 2 }),
+    qaSnapshotResolverPayload({ auth_epoch: 1 }),
+    qaSnapshotResolverPayload({ session_iat: 1_700_000_000 }),
+    qaSnapshotResolverPayload({ session_exp: 1_700_000_600 }),
+    qaSnapshotResolverPayload({ resolver_fid: '12345' }),
+    qaSnapshotResolverPayload({ device_thumbprint: undefined }),
+    qaSnapshotResolverPayload({ device_thumbprint: null }),
+    qaSnapshotResolverPayload({ device_thumbprint: 123 }),
+    qaSnapshotResolverPayload({ device_thumbprint: 'A'.repeat(42) }),
+    qaSnapshotResolverPayload({ device_thumbprint: 'A'.repeat(44) }),
+    qaSnapshotResolverPayload({ device_thumbprint: `${'A'.repeat(42)}=` }),
+    qaSnapshotResolverPayload({ device_thumbprint: `${'A'.repeat(42)}+` }),
+    qaSnapshotResolverPayload({ device_thumbprint: `${'A'.repeat(42)}/` }),
+    qaSnapshotResolverPayload({ device_thumbprint: `${'A'.repeat(42)} ` }),
+    qaSnapshotResolverPayload({ iat: undefined }),
+    qaSnapshotResolverPayload({ iat: '1700000000' }),
+    qaSnapshotResolverPayload({ exp: undefined }),
+    qaSnapshotResolverPayload({ exp: '1700000015' }),
+    qaSnapshotResolverPayload({ exp: 1_700_000_000.5 }),
+    qaSnapshotResolverPayload({ exp: Number.MAX_SAFE_INTEGER + 1 }),
+    qaSnapshotResolverPayload({ exp: 1_700_000_000 }),
+    qaSnapshotResolverPayload({
+      exp: 1_700_000_000 + MAX_QA_SNAPSHOT_RESOLVER_SESSION_SECONDS + 1,
+    }),
+  ]) {
+    assert.throws(
+      () => readFreshQaSnapshotResolverJwt(payload, nowMicros, config),
+      (error: unknown) => error instanceof ClaimValidationError
+        && error.code === 'INVALID_QA_SNAPSHOT_RESOLVER_SESSION',
+    );
+  }
+});
+
+test('expires QA resolver authority at module time and rejects pre-issuance use', () => {
+  const issuedAt = 1_700_000_000;
+  const expiresAt = issuedAt + QA_SNAPSHOT_RESOLVER_ISSUANCE_SECONDS;
+  for (const currentTimeMicros of [
+    BigInt(issuedAt) * 1_000_000n - 1n,
+    BigInt(expiresAt) * 1_000_000n,
+    BigInt(expiresAt + 1) * 1_000_000n,
+    -1n,
+  ]) {
+    assert.throws(
+      () => readFreshQaSnapshotResolverJwt(
+        qaSnapshotResolverPayload(),
+        currentTimeMicros,
+        config,
+      ),
+      (error: unknown) => error instanceof ClaimValidationError
+        && error.code === 'INVALID_QA_SNAPSHOT_RESOLVER_SESSION',
+    );
+  }
+});
+
+test('QA resolver claims are rejected by every player, admin, and admission-resolver parser', () => {
+  const payload = qaSnapshotResolverPayload();
+  const nowMicros = 1_700_000_001n * 1_000_000n;
+  for (const read of [
+    () => readFreshWarpkeepPlayerJwt(payload, nowMicros, config),
+    () => readFreshHermesAdminJwt(payload, nowMicros, config),
+    () => readFreshAuthEpochResolverJwt(payload, nowMicros, config),
+  ]) {
+    assert.throws(read, ClaimValidationError);
+  }
 });

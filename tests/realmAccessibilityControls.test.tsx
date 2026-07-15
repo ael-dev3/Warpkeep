@@ -3,6 +3,10 @@ import { createRef, useState, type Ref } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  WARPKEEP_FARCASTER_CHANNEL_URL,
+  WARPKEEP_GITHUB_ISSUE_INTAKE_URL
+} from '../src/farcaster/farcasterProjectLinks';
+import {
   RealmAccessibilityControls,
   type RealmNavigatorCameraPreset,
   type RealmNavigatorCloseReason,
@@ -96,6 +100,27 @@ describe('RealmAccessibilityControls', () => {
     expect(own.getAttribute('data-own')).toBe('true');
     expect(own.getAttribute('aria-pressed')).toBe('false');
     expect(selected.getAttribute('aria-pressed')).toBe('true');
+    const community = screen.getByRole('region', { name: 'Warpkeep community' });
+    expect(community.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .not.toBe(0);
+    expect(community.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .not.toBe(0);
+    const feedbackLink = within(community).getByRole('link', {
+      name: 'Open the Warpkeep Farcaster channel to share feedback (opens in a new tab)'
+    });
+    expect(feedbackLink.getAttribute('href')).toBe(WARPKEEP_FARCASTER_CHANNEL_URL);
+    expect(feedbackLink.getAttribute('target')).toBe('_blank');
+    expect(feedbackLink.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(feedbackLink.getAttribute('referrerpolicy')).toBe('no-referrer');
+    const intakeLink = within(community).getByRole('link', {
+      name: 'Propose / report a Warpkeep bug or realm wish on GitHub (opens in a new tab)'
+    });
+    expect(intakeLink.getAttribute('href')).toBe(WARPKEEP_GITHUB_ISSUE_INTAKE_URL);
+    expect(intakeLink.getAttribute('target')).toBe('_blank');
+    expect(intakeLink.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(intakeLink.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(feedbackLink.compareDocumentPosition(intakeLink) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .not.toBe(0);
 
     fireEvent.focus(selected);
     expect(onActivateCastle).not.toHaveBeenCalled();

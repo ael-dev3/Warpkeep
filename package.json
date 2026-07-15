@@ -1,19 +1,22 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.3",
+  "version": "0.3.4",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/verify-production-dist-exclusions.mjs",
     "preview": "vite preview",
     "validate:pages-config": "node scripts/validate-pages-deploy-config.mjs",
     "verify:licenses": "node scripts/verify-license-policy.mjs",
     "verify:alpha-production": "node scripts/verify-alpha-production.mjs",
     "assets:fetch": "node scripts/fetch-title-assets.mjs",
+    "assets:fetch:castle": "node scripts/fetch-hegemony-castle-assets.mjs",
+    "tools:fetch:gltfpack": "node scripts/fetch-gltfpack-tool.mjs",
     "prepare:title-models": "node scripts/prepare-title-models.mjs",
-    "prepare:hegemony-keep": "node scripts/prepare-hegemony-frontier-keep.mjs",
+    "prepare:hegemony-castle": "node scripts/prepare-hegemony-main-castle.mjs",
+    "prepare:hegemony-frontier-keep:historical": "node scripts/prepare-hegemony-frontier-keep.mjs",
     "prepare:hegemony-mark": "node scripts/prepare-hegemony-mark.mjs",
     "marks:plan": "tsx scripts/marks/marks-operator.ts plan",
     "marks:scan": "tsx scripts/marks/marks-operator.ts scan",
@@ -24,6 +27,10 @@
     "profiles:refresh": "tsx scripts/profiles/profiles-operator.ts refresh",
     "profiles:apply": "tsx scripts/profiles/profiles-operator.ts apply",
     "profiles:inspect": "tsx scripts/profiles/profiles-operator.ts inspect",
+    "qa:observer:build-helper": "scripts/qa-observer/build-macos-helper.zsh",
+    "qa:observer:broker": "node scripts/qa-observer/qa-observer-broker.mjs",
+    "qa:observer:cycle": "node scripts/qa-observer/qa-cycle-runner.mjs",
+    "qa:rendered-webgl": "node scripts/qa-observer/rendered-webgl-browser-probe.mjs",
     "verify:runtime-assets": "node scripts/verify-runtime-assets.mjs",
     "verify:file-sizes": "node scripts/verify-file-sizes.mjs",
     "stdb:version": "spacetime --version",
@@ -66,6 +73,7 @@
     "tsx": "4.23.0",
     "typescript": "7.0.2",
     "vite": "8.0.16",
-    "vitest": "4.1.9"
+    "vitest": "4.1.9",
+    "yaml": "2.9.0"
   }
 }

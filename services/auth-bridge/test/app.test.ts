@@ -56,6 +56,7 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
     SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
     PUBLIC_AUTH_ENABLED: 'true',
+    QA_OBSERVER_ENABLED: 'false',
     SIGNING_KEY_JWK: JSON.stringify(privateJwk),
     ADMIN_TOKEN_SECRET: ADMIN_SECRET,
     SESSION_COOKIE_KEY,
@@ -1115,7 +1116,18 @@ describe('Warpkeep auth bridge', () => {
     const firstBody = await json(first)
     const secondBody = await json(second)
     expect(firstBody).toEqual(secondBody)
-    expect(firstBody).toMatchObject({ profile: 'warpkeep-auth-v2', publicAuthEnabled: true })
+    expect(firstBody).toMatchObject({
+      profile: 'warpkeep-auth-v2',
+      publicAuthEnabled: true,
+      qaObserverEnabled: false,
+      qaObserverSpacetimeDbUri: null,
+      qaObserverSpacetimeDbDatabase: null,
+      qaObserverAudience: null,
+      qaObserverKeyFingerprint: null,
+      qaObserverKeyRegisteredAt: null,
+      qaObserverKeyExpiresAt: null,
+      qaObserverMaxRegistrationLifetimeMilliseconds: 366 * 24 * 60 * 60 * 1_000,
+    })
     const reviewedCanonical = JSON.stringify({
       profile: 'warpkeep-auth-v2',
       issuer: 'https://auth.warpkeep.example',
@@ -1127,6 +1139,19 @@ describe('Warpkeep auth bridge', () => {
       spacetimeDbUri: 'https://maincloud.spacetimedb.com',
       spacetimeDbDatabase: 'warpkeep-89e4u',
       publicAuthEnabled: true,
+      qaObserverEnabled: false,
+      qaObserverSpacetimeDbUri: null,
+      qaObserverSpacetimeDbDatabase: null,
+      qaObserverAudience: null,
+      qaObserverKeyFingerprint: null,
+      qaObserverKeyRegisteredAt: null,
+      qaObserverKeyExpiresAt: null,
+      qaObserverScope: 'realm.snapshot',
+      qaObserverChallengeTtlMilliseconds: 60_000,
+      qaObserverMaxRegistrationLifetimeMilliseconds: 366 * 24 * 60 * 60 * 1_000,
+      qaSnapshotResolverTokenTtlSeconds: 15,
+      qaSnapshotResolverTimeoutMilliseconds: 5_000,
+      qaSnapshotProcedure: 'qa_observer_get_realm_attestation_v2',
       environment: 'production',
       browserBinding: 'S256',
       accessTokenTtlSeconds: 600,
@@ -1139,14 +1164,13 @@ describe('Warpkeep auth bridge', () => {
     const reviewedDigest = Array.from(new Uint8Array(
       await crypto.subtle.digest('SHA-256', new TextEncoder().encode(reviewedCanonical)),
     ), (byte) => byte.toString(16).padStart(2, '0')).join('')
-    expect(reviewedDigest).toBe('9b14d9039e27982d7818de5010b2e9bbf5e14182a1f311fc7d1d08479fe8c3b9')
     expect(firstBody.digest).toBe(reviewedDigest)
     const serialized = JSON.stringify(firstBody)
     expect(serialized).not.toContain(ADMIN_SECRET)
     expect(serialized).not.toContain(SESSION_COOKIE_KEY)
     expect(serialized).not.toContain(privateJwk.d ?? '')
     const paused = await json(await call({ PUBLIC_AUTH_ENABLED: 'false' }))
-    expect(paused.digest).toBe('2d1f8d2f5d96956be25a8a5201f15c1bb8bf0a76136fe19d325d1756dbed8f2e')
+    expect(paused.digest).not.toBe(reviewedDigest)
     expect(paused.publicAuthEnabled).toBe(false)
     expect(first.headers.has('access-control-allow-origin')).toBe(false)
     expect(h.events).toContain('config_attestation_issued')

@@ -6,7 +6,7 @@ import {
   DbConnection,
   tables,
   type EventContext
-} from '../src/spacetime/module_bindings';
+} from '../src/spacetime/playerModuleBindings';
 import {
   acceptWarpkeepAlphaTerms,
   connectWarpkeep,

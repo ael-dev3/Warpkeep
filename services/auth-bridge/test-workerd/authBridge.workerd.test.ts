@@ -3,8 +3,12 @@ import { runInDurableObject } from 'cloudflare:test'
 import { createSiweMessage } from 'viem/siwe'
 import { describe, expect, it, vi } from 'vitest'
 import { createAuthBridge } from '../src/app'
+import {
+  DurableObjectQaObserverChallengeStore,
+  createQaObserverChallenge,
+} from '../src/qaObserver'
 import type { BridgeConfig } from '../src/config'
-import type { AdmissionResolution, WorkerEnv } from '../src/types'
+import type { AdmissionResolution, DurableObjectNamespace, WorkerEnv } from '../src/types'
 
 const ORIGIN = 'https://warpkeep.test'
 const DOMAIN = 'warpkeep.test'
@@ -36,6 +40,7 @@ const CONFIG: BridgeConfig = {
   spacetimeDbUri: 'https://maincloud.spacetimedb.com',
   spacetimeDbDatabase: 'warpkeep-test',
   publicAuthEnabled: true,
+  qaObserverEnabled: false,
   environment: 'production',
 }
 
@@ -106,6 +111,28 @@ function harness() {
 }
 
 describe('auth bridge production bindings in workerd', () => {
+  it('isolates QA challenges in their dedicated Durable Object and atomically consumes once', async () => {
+    const store = new DurableObjectQaObserverChallengeStore(
+      env.QA_CHALLENGE_REPLAY_GUARD as unknown as DurableObjectNamespace,
+    )
+    const createdAt = Date.now()
+    const challenge = createQaObserverChallenge(
+      CONFIG.issuer,
+      'A'.repeat(43),
+      createdAt,
+      createdAt + 60_000,
+    )
+    await store.put(challenge)
+    await expect(store.get(challenge.requestId)).resolves.toEqual(challenge)
+    const consumed = await Promise.all([
+      store.consume(challenge.requestId),
+      store.consume(challenge.requestId),
+    ])
+    expect(consumed.filter(Boolean)).toHaveLength(1)
+    expect(consumed.find(Boolean)).toEqual(challenge)
+    await expect(store.get(challenge.requestId)).resolves.toBeNull()
+  })
+
   it('keeps an S256 mismatch retryable, consumes the correct retry, and rejects its replay', async () => {
     const h = harness()
     const bridgeEnv = env as unknown as WorkerEnv

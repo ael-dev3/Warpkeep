@@ -19,6 +19,9 @@ function unsafePublicImageHostname(hostname: string) {
   return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized);
 }
 
+export const WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH =
+  '/images/factions/hegemony/marks/hegemony-mark-128.png';
+
 /**
  * Browser-safe public image URL policy for all untrusted identity surfaces.
  * It blocks local names and all literal IP targets before the DOM can issue a
@@ -41,4 +44,23 @@ export function safePublicHttpsImageUrl(value: string | undefined) {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * The local observer never receives a profile URL. Its boolean portrait signal
+ * may select only this repository-owned placeholder on the current origin.
+ */
+export function safeWarpkeepProfileImageUrl(value: string | undefined) {
+  if (
+    value === WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH
+    && typeof window !== 'undefined'
+  ) {
+    try {
+      const resolved = new URL(value, window.location.origin);
+      return resolved.origin === window.location.origin ? resolved.toString() : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return safePublicHttpsImageUrl(value);
 }

@@ -68,7 +68,7 @@ export function createHegemonyCastlePlacements(
 }
 
 export const HEGEMONY_KEEP_PLACEMENT = createHegemonyKeepPlacement(
-  'hegemony-frontier-keep',
+  'hegemony-main-castle',
   { q: 0, r: 0 }
 );
 

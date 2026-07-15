@@ -220,6 +220,81 @@ export const PlayerV2 = __t.object("PlayerV2", {
 });
 export type PlayerV2 = __Infer<typeof PlayerV2>;
 
+export const QaObserverCastleV1 = __t.object("QaObserverCastleV1", {
+  castleId: __t.u64(),
+  tileKey: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  level: __t.i32(),
+  name: __t.string(),
+  canonicalUsername: __t.option(__t.string()),
+  displayName: __t.option(__t.string()),
+  portraitAvailable: __t.bool(),
+  publicBio: __t.option(__t.string()),
+  publicStatus: __t.string(),
+});
+export type QaObserverCastleV1 = __Infer<typeof QaObserverCastleV1>;
+
+export const QaObserverRealmAggregatesV2 = __t.object("QaObserverRealmAggregatesV2", {
+  castleCount: __t.u32(),
+  profileCount: __t.u32(),
+  foundedCount: __t.u32(),
+  activeCount: __t.u32(),
+});
+export type QaObserverRealmAggregatesV2 = __Infer<typeof QaObserverRealmAggregatesV2>;
+
+export const QaObserverRealmAttestationV2 = __t.object("QaObserverRealmAttestationV2", {
+  version: __t.u32(),
+  protocolVersion: __t.u32(),
+  worldSeed: __t.u32(),
+  worldSeedName: __t.string(),
+  worldTileCount: __t.u32(),
+  worldTileMetaCount: __t.u32(),
+  get realm() {
+    return QaObserverRealmV2;
+  },
+  get aggregates() {
+    return QaObserverRealmAggregatesV2;
+  },
+});
+export type QaObserverRealmAttestationV2 = __Infer<typeof QaObserverRealmAttestationV2>;
+
+export const QaObserverRealmSnapshotV1 = __t.object("QaObserverRealmSnapshotV1", {
+  version: __t.u32(),
+  protocolVersion: __t.u32(),
+  worldSeed: __t.u32(),
+  worldSeedName: __t.string(),
+  worldTileCount: __t.u32(),
+  worldTileMetaCount: __t.u32(),
+  get realm() {
+    return QaObserverRealmV1;
+  },
+  get castles() {
+    return __t.array(QaObserverCastleV1);
+  },
+});
+export type QaObserverRealmSnapshotV1 = __Infer<typeof QaObserverRealmSnapshotV1>;
+
+export const QaObserverRealmV1 = __t.object("QaObserverRealmV1", {
+  realmId: __t.string(),
+  numericSeed: __t.u32(),
+  generationVersion: __t.u32(),
+  authoritativeRadius: __t.u32(),
+  renderRadius: __t.u32(),
+  playerCapacity: __t.u32(),
+});
+export type QaObserverRealmV1 = __Infer<typeof QaObserverRealmV1>;
+
+export const QaObserverRealmV2 = __t.object("QaObserverRealmV2", {
+  realmId: __t.string(),
+  numericSeed: __t.u32(),
+  generationVersion: __t.u32(),
+  authoritativeRadius: __t.u32(),
+  renderRadius: __t.u32(),
+  playerCapacity: __t.u32(),
+});
+export type QaObserverRealmV2 = __Infer<typeof QaObserverRealmV2>;
+
 export const RealmProfileV1 = __t.object("RealmProfileV1", {
   fid: __t.u64(),
   canonicalUsername: __t.option(__t.string()),

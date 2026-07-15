@@ -25,10 +25,12 @@ import {
   type PrivateEndpoint,
 } from './operator-transport';
 import { SNAP_MARK_POLICY_ID, SnapBurnPolicyError } from './snap-burn-policy';
+import { readWarpkeepPackageVersion } from '../warpkeep-package-version.mjs';
 
 const MAX_PRIVATE_INPUT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_REPORT_DIRECTORY = join(homedir(), 'Library', 'Application Support', 'Warpkeep', 'marks', 'reports');
 const COMMANDS = new Set(['plan', 'scan', 'apply', 'reconcile', 'inspect']);
+const PRODUCT_VERSION = readWarpkeepPackageVersion();
 
 type CommandName = 'plan' | 'scan' | 'apply' | 'reconcile' | 'inspect';
 type ParsedArguments = Readonly<{
@@ -226,7 +228,7 @@ async function runPlan(arguments_: ParsedArguments) {
   const report = Object.freeze({
     schemaVersion: 1,
     command: 'plan',
-    productVersion: '0.3.3',
+    productVersion: PRODUCT_VERSION,
     policyId: SNAP_MARK_POLICY_ID,
     networkDefault: false,
     productionMutationAvailable: false,

@@ -78,6 +78,32 @@ stones. Canonical density is bounded per profile and reduced further in the
 visual apron. Terrain and detail work remains demand-driven and pauses while the
 document is hidden.
 
+Canonical metadata also gives every authoritative cell one of seven restrained
+terrain presentations:
+
+| Terrain | Cells | Presentation |
+| --- | ---: | --- |
+| Lowland | 266 | moss and packed-soil substrate |
+| Meadow | 274 | lighter grass and dried-gold interior |
+| Forest | 280 | cooler ground with low procedural coppices |
+| Heath | 281 | muted amethyst heather |
+| Ridge | 59 | weathered stone outcrops |
+| Lake | 48 | opaque, low-profile slate water |
+| Ancient stone | 53 | compact monoliths and cool stone |
+
+The semantic tint fades completely at shared cell edges, preserving the one
+continuous mesh rather than drawing a categorical hex board. The 258-cell
+visual apron has no authoritative metadata and remains neutral. Vertical
+features are suppressed on all 100 founding slots and inside every occupied
+castle clearance. Generic grass and stones are removed from scenic blockers,
+so semantic features reallocate the existing detail budget rather than adding
+an unbounded layer. At runtime the five possible semantic instance families
+plus the three generic families remain at no more than eight detail draw calls.
+
+Static-content values such as `resource-capable`, `core-capable`, and `reserve`
+are future placement capability only. The renderer deliberately exposes no
+resource, Core, reward, or gameplay marker from those values.
+
 ## Real castle rendering
 
 Every visible founded castle uses a verified Hegemony castle GLB. The ordinary
@@ -86,13 +112,36 @@ castle. Realm presentation remains branded-loading until all authoritative
 castles have real instances; model failure switches the whole view to the
 canonical illustrated fallback instead of presenting mixed representations.
 
-The authorized preparation pipeline produces three integrity-pinned LODs:
+The project-internally authorized preparation pipeline produces three
+integrity-pinned Hegemony Main Castle LODs:
 
-| LOD | Runtime path | Bytes | Triangles | Textures | SHA-256 |
+| LOD | Runtime path | Bytes | Triangles | Embedded images / profile texture target | SHA-256 |
 | --- | --- | ---: | ---: | --- | --- |
-| High | `public/models/hegemony/hegemony-frontier-keep-high.glb` | 2,256,092 | 56,466 | four 2048×2048 WebP | `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c` |
-| Balanced | `public/models/hegemony/hegemony-frontier-keep-balanced.glb` | 2,064,100 | 37,634 | four 2048×2048 WebP | `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4` |
-| Compact | `public/models/hegemony/hegemony-frontier-keep-compact.glb` | 760,916 | 17,536 | four 1024×1024 WebP | `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b` |
+| High | `public/models/hegemony/hegemony-main-castle-high.glb` | 1,934,920 | 67,680 | two 2048×2048 WebP images | `9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2` |
+| Balanced | `public/models/hegemony/hegemony-main-castle-balanced.glb` | 1,172,132 | 40,353 | two 1024×1024 WebP images | `aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e` |
+| Compact | `public/models/hegemony/hegemony-main-castle-compact.glb` | 508,508 | 19,086 | two 512×512 WebP images | `de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29` |
+
+The source is the checksum-pinned `HegemonyMainCastle.glb` member from the
+public `hegemony-frontier-keep-3d-2026-07-14` release. On 2026-07-15, the
+project owner authorized project-internal runtime integration and deterministic
+derivative preparation. That limited authorization is not a separate public
+open license, redistribution/third-party derivative permission, trademark
+grant, or canonical-identity grant; the full provenance boundary is in the
+dated castle record.
+
+The runtime preparation stage explicitly rewrites the embedded atlases with
+pinned Sharp/libvips before geometry simplification. It preserves the High
+source payloads exactly, uses lossless WebP for resized normal maps, and uses
+quality-90 WebP for resized base color. The verifier decodes and checks both
+dimensions and per-image hashes, so a profile cannot silently retain a larger
+atlas.
+
+The asset verifier also pins each LOD's VEC3 quantized position component type,
+exact three-axis accessor bounds, scene graph, and uniform mesh/root transforms.
+High and Balanced retain identical extents; Compact retains 99.68% of their
+quantized width, 100% of their height, and 99.50% of their depth. This makes a
+silent proportion or transform collapse an asset-policy failure instead of
+relying only on byte hashes or triangle counts.
 
 Each required LOD is fetched and parsed once per mounted realm. A scene-lifetime
 repository owns its geometry, materials, and textures; deterministic
@@ -105,18 +154,17 @@ final lease disposes each shared GPU resource exactly once.
 Higher-detail residency is explicitly bounded. High permits at most eight High
 and 24 Balanced castles; Balanced permits at most 24 Balanced castles; Reduced
 uses Compact throughout. With all 100 slots visible and promoted, those ceilings
-bound castle geometry to 2,547,392, 2,235,952, and 1,753,600 triangles
+bound castle geometry to 2,807,760, 2,419,008, and 1,908,600 triangles
 respectively. Because each GLB has one primitive, the 100-castle High case still
 uses at most three castle instance draw calls plus one shared contact-shadow draw
-call. Four fully promoted castles contain 225,864 High, 150,536 Balanced, or
-70,144 Compact triangles.
+call. Four fully promoted castles contain 270,720 High, 161,412 Balanced, or
+76,344 Compact triangles.
 
-High and Balanced contain the same four 2K texture images, so the repository
-rebinds Balanced materials to High's verified texture objects and disposes the
-duplicates. Together with Compact's four 1K textures, the conservative
-uncompressed RGBA8-plus-mip estimate is about 106.7 MiB instead of about
-192 MiB without cross-LOD reuse. This is a static upper-bound estimate, not a
-claim about browser- or GPU-specific compression.
+Derivative transfer sizes and geometry counts are integrity-pinned, but decoded
+GPU memory is device- and browser-dependent. The prefab repository owns one
+resource set per resident LOD and shares textures only after material and
+decoded-image compatibility are proven; no memory estimate is inferred solely
+from compressed transfer bytes.
 
 Normalization uses one uniform scale, centers X/Z, and aligns the lowest source
 point to the local foundation. Authored material differences are preserved;
@@ -124,6 +172,13 @@ only unsafe numeric extremes are bounded. Warm frontier sunlight, neutral stone
 light, cool amethyst fill, restrained ACES exposure, and one footprint-sized
 contact shadow per visible castle provide depth without stretching a realm-wide
 shadow map over 1,519 cells.
+
+PBR separation comes from an asset-free procedural equirectangular environment,
+not a network HDR download. High, Balanced, and Reduced generate bounded
+256×128, 128×64, and 64×32 maps with intensities 0.36, 0.32, and 0.28. The map,
+visible sun disc, and directional light share one direction. Allocation failure
+keeps the solid sky and direct lights playable; local controlled WebGL QA
+requires the aggregate `procedural` environment status.
 
 ## Identity and interaction
 

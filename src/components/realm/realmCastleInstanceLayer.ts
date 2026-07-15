@@ -26,6 +26,15 @@ export type RealmCastleInstanceHit = Readonly<{
   coord: HexCoord;
 }>;
 
+/**
+ * Live evidence derived from the populated InstancedMesh buckets themselves.
+ * These counts intentionally do not trust the requested presentation mask.
+ */
+export type RealmCastleInstancePresentationTelemetry = Readonly<{
+  presentedModelCount: number;
+  raycastTargetCount: number;
+}>;
+
 export type RealmCastleInstanceLayer = Readonly<{
   group: THREE.Group;
   /** Repack visible castles when screen-space LOD or frustum membership changes. */
@@ -34,6 +43,12 @@ export type RealmCastleInstanceLayer = Readonly<{
     viewportHeight: number,
     selectedCastleId?: number
   ) => void;
+  /**
+   * Limits rendering and raycasting to the current viewport presentation set.
+   * Identity labels may be placed or clustered independently. `null` is the
+   * initialization state before the first projection frame.
+   */
+  setPresentedCastleIds: (castleIds: readonly number[] | null) => void;
   /** Raycasts only castle instances. Terrain fallback belongs to the scene. */
   raycast: (raycaster: THREE.Raycaster) => RealmCastleInstanceHit | null;
   /** Detaches instance nodes without disposing repository-owned resources. */
@@ -41,6 +56,7 @@ export type RealmCastleInstanceLayer = Readonly<{
   /** Releases only layer-owned accents; prefab leases remain scene-owned. */
   dispose: () => void;
   getPacking: () => CastleInstancePacking<RealmCastleInstanceRecord>;
+  getPresentationTelemetry: () => RealmCastleInstancePresentationTelemetry;
 }>;
 
 export type CreateRealmCastleInstanceLayerOptions = Readonly<{
@@ -66,6 +82,17 @@ function projectedDiameterPixels(
   const halfFovRadians = THREE.MathUtils.degToRad(camera.fov * 0.5);
   return radius * Math.max(1, viewportHeight)
     / Math.max(0.001, distance * Math.tan(halfFovRadians));
+}
+
+/**
+ * A footprint diameter bounds each horizontal axis, not their diagonal. The
+ * conservative sphere therefore includes two horizontal half-extents plus
+ * the vertical half-extent so edge castles cannot disappear prematurely.
+ */
+export function castleFrustumRadius(footprintDiameter: number, visualHeight: number) {
+  const halfFootprint = Math.max(0, footprintDiameter) * 0.5;
+  const halfHeight = Math.max(0, visualHeight) * 0.5;
+  return Math.hypot(halfFootprint, halfFootprint, halfHeight);
 }
 
 function packingKey(packing: CastleInstancePacking<RealmCastleInstanceRecord>) {
@@ -178,7 +205,7 @@ export function createRealmCastleInstanceLayer(
   const loadedPrefabs = [...options.prefabs.values()];
   const maximumFootprint = Math.max(...loadedPrefabs.map((prefab) => prefab.footprintDiameter));
   const maximumHeight = Math.max(...loadedPrefabs.map((prefab) => prefab.visualHeight));
-  const castleRadius = Math.hypot(maximumFootprint * 0.5, maximumHeight * 0.5);
+  const castleRadius = castleFrustumRadius(maximumFootprint, maximumHeight);
   const center = new THREE.Vector3();
   const sphere = new THREE.Sphere(center, castleRadius);
   const frustum = new THREE.Frustum();
@@ -198,6 +225,8 @@ export function createRealmCastleInstanceLayer(
   let packing = packCastleInstances<RealmCastleInstanceRecord>([], {
     policy: options.policy
   });
+  let presentedCastleIds: ReadonlySet<number> | null = null;
+  let presentedCastleKey = '*';
 
   const update = (
     camera: THREE.PerspectiveCamera,
@@ -222,7 +251,8 @@ export function createRealmCastleInstanceLayer(
           viewportHeight
         ),
         cameraDistance,
-        visible: frustum.intersectsSphere(sphere),
+        visible: frustum.intersectsSphere(sphere)
+          && (presentedCastleIds === null || presentedCastleIds.has(castle.castleId)),
         data: castle
       };
     }), {
@@ -330,9 +360,61 @@ export function createRealmCastleInstanceLayer(
     if (firstError) throw firstError;
   };
 
+  const getPresentationTelemetry = (): RealmCastleInstancePresentationTelemetry => {
+    if (cleared) {
+      return Object.freeze({ presentedModelCount: 0, raycastTargetCount: 0 });
+    }
+
+    let presentedModelCount = 0;
+    CASTLE_LODS.forEach((lod) => {
+      const lodMeshes = meshesByLod.get(lod);
+      if (!lodMeshes || lodMeshes.meshes.length === 0) return;
+      // Any populated prefab primitive can put castle pixels on screen, so use
+      // the highest live primitive count. Deliberately do not clamp this to the
+      // packing plan: even one stale/unmasked primitive must remain observable
+      // to the probe instead of being hidden by the requested mask.
+      presentedModelCount += Math.max(...lodMeshes.meshes.map((mesh) => mesh.count));
+    });
+
+    const raycastTargetIds = new Set<number>();
+    meshOwners.forEach((lod, mesh) => {
+      const liveTargetCount = Math.min(mesh.count, packing.buckets[lod].length);
+      for (let instanceId = 0; instanceId < liveTargetCount; instanceId += 1) {
+        const castleId = packing.resolveCastleId(lod, instanceId);
+        if (castleId !== undefined) raycastTargetIds.add(castleId);
+      }
+    });
+
+    return Object.freeze({
+      presentedModelCount,
+      raycastTargetCount: raycastTargetIds.size
+    });
+  };
+
   return Object.freeze({
     group,
     update,
+    setPresentedCastleIds: (castleIds) => {
+      if (cleared) return;
+      if (castleIds === null) {
+        if (presentedCastleIds === null) return;
+        presentedCastleIds = null;
+        presentedCastleKey = '*';
+        lastPackingKey = '';
+        return;
+      }
+      const ordered = [...new Set(castleIds)].sort((left, right) => left - right);
+      if (ordered.some((castleId) => (
+        !Number.isSafeInteger(castleId) || !castleById.has(castleId)
+      ))) {
+        throw new Error('Invalid presented castle identity set.');
+      }
+      const key = ordered.join(',');
+      if (key === presentedCastleKey) return;
+      presentedCastleIds = new Set(ordered);
+      presentedCastleKey = key;
+      lastPackingKey = '';
+    },
     raycast,
     clear,
     dispose: () => {
@@ -358,6 +440,7 @@ export function createRealmCastleInstanceLayer(
       }
       if (firstError) throw firstError;
     },
-    getPacking: () => packing
+    getPacking: () => packing,
+    getPresentationTelemetry
   });
 }

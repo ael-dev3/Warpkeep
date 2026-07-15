@@ -367,9 +367,11 @@ const warpkeep = schema({
 });
 
 // SpacetimeDB 2.6's default case converter separates a trailing digit from
-// its prefix (`v2` -> `v_2`). Pin every protocol-v2 wire spelling explicitly.
+// its prefix (`v2` -> `v_2`). Pin every versioned wire spelling explicitly.
 for (const name of [
   'auth_resolver_get_fid_admission_v2',
+  'qa_observer_get_realm_snapshot_v1',
+  'qa_observer_get_realm_attestation_v2',
   'get_my_admission_status_v2',
   'bootstrap_player_v2',
   'admin_get_alpha_status_v2',

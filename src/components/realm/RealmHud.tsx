@@ -1,10 +1,13 @@
 import { useRef } from 'react';
 
-import { HEGEMONY_FRONTIER_KEEP } from '../../game/map/hegemonyLandmarks';
+import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 import type { HexCoord } from '../../game/map/hexCoordinates';
+import {
+  realmTerrainLabel,
+  type RealmTerrainKind
+} from '../../game/map/realmTerrainSemantics';
 import type { TerrainCell } from '../../game/map/terrainTypes';
 import type { RealmIdentity } from './realmTypes';
-import type { WarpkeepRealmProfile } from '../../spacetime/warpkeepBackendTypes';
 import {
   castleProfileLabel,
   formatPublicMarkMicros,
@@ -14,27 +17,24 @@ import {
 type RealmHudProps = Readonly<{
   identity: RealmIdentity;
   ownCastle?: Readonly<{ name: string; level: number }>;
-  ownProfile?: WarpkeepRealmProfile;
+  ownProfile?: RealmCastlePublicPresentation;
   marksStatus?: 'loading' | 'unavailable' | 'ready';
   keepCoord?: HexCoord;
   selectedCell: TerrainCell;
+  selectedTerrainKind?: RealmTerrainKind;
   selectedCastle?: Readonly<{ name: string; level: number; q: number; r: number }>;
   selectedCastleProfile?: RealmCastlePublicPresentation;
   onRecenterKeep: () => void;
   onRequestReturn: () => void;
 }>;
 
-function keeperLabel(identity: RealmIdentity, profile: WarpkeepRealmProfile | undefined) {
+function keeperLabel(identity: RealmIdentity, profile: RealmCastlePublicPresentation | undefined) {
   if (profile) return castleProfileLabel(profile);
   return identity.username ? `@${identity.username.replace(/^@+/, '')}` : 'Hegemony Keeper';
 }
 
 function isKeepCell(cell: TerrainCell, keepCoord: HexCoord) {
   return cell.coord.q === keepCoord.q && cell.coord.r === keepCoord.r;
-}
-
-function terrainLabel(cell: TerrainCell) {
-  return cell.biome === 'temperate-lowland' ? 'Temperate Lowlands' : 'Realm Terrain';
 }
 
 function publicAssetUrl(path: string) {
@@ -46,7 +46,7 @@ function MarksBalance({
   profile,
   status
 }: Readonly<{
-  profile: WarpkeepRealmProfile | undefined;
+  profile: RealmCastlePublicPresentation | undefined;
   status: NonNullable<RealmHudProps['marksStatus']>;
 }>) {
   const formatted = status === 'ready'
@@ -89,6 +89,7 @@ export function RealmHud({
   marksStatus = 'unavailable',
   keepCoord,
   selectedCell,
+  selectedTerrainKind,
   selectedCastle,
   selectedCastleProfile,
   onRecenterKeep,
@@ -96,14 +97,14 @@ export function RealmHud({
 }: RealmHudProps) {
   const authoritativeKeepCoord = keepCoord ?? { q: 0, r: 0 };
   const selectedIsKeep = isKeepCell(selectedCell, authoritativeKeepCoord);
-  const selectedTerrainLabel = terrainLabel(selectedCell);
+  const selectedTerrainLabel = realmTerrainLabel(selectedTerrainKind);
   const selectedCastleLabel = selectedCastleProfile
     ? castleProfileLabel(selectedCastleProfile)
     : 'Hegemony Keep';
   const selectedTitle = selectedCastle
     ? selectedCastle.name
     : selectedIsKeep
-      ? ownCastle?.name ?? HEGEMONY_FRONTIER_KEEP.name
+      ? ownCastle?.name ?? HEGEMONY_MAIN_CASTLE.name
       : selectedTerrainLabel;
   const selectedEyebrow = selectedCastle
     ? selectedCastleLabel
@@ -131,11 +132,11 @@ export function RealmHud({
     <>
       <section className="realm-hud" aria-labelledby="realm-heading">
         <header className="realm-hud__header">
-          <p>GENESIS 001</p>
+          <p>GENESIS 001 · 1,261 CELLS</p>
           <h1 id="realm-heading">{ownCastle?.name ?? 'Hegemony Keep'}</h1>
           <span className="realm-hud__keeper">{keeperLabel(identity, ownProfile)}</span>
           <div className="realm-hud__badges" aria-label="Keep status">
-            <span>LEVEL {ownCastle?.level ?? HEGEMONY_FRONTIER_KEEP.level}</span>
+            <span>LEVEL {ownCastle?.level ?? HEGEMONY_MAIN_CASTLE.level}</span>
           </div>
         </header>
 

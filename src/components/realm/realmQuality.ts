@@ -1,4 +1,4 @@
-import { HEGEMONY_FRONTIER_KEEP } from '../../game/map/hegemonyLandmarks';
+import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 
 export type RealmQuality = 'high' | 'balanced' | 'reduced';
 
@@ -12,6 +12,41 @@ export const REALM_LIGHTING_SPECS: Readonly<Record<RealmQuality, RealmLightingSp
   balanced: { toneMappingExposure: 1, sunIntensity: 1.85 },
   reduced: { toneMappingExposure: 0.98, sunIntensity: 1.7 }
 };
+
+export type RealmEnvironmentSpec = Readonly<{
+  textureWidth: 64 | 128 | 256;
+  textureHeight: 32 | 64 | 128;
+  environmentIntensity: number;
+  sunDiscSegments: 12 | 20 | 28;
+}>;
+
+/**
+ * Tiny, bounded procedural IBL profiles. The maps deliberately remain far
+ * below typical HDR asset sizes: they provide restrained material separation
+ * and horizon fill without adding a network fetch or a large GPU allocation.
+ */
+export const REALM_ENVIRONMENT_SPECS: Readonly<
+  Record<RealmQuality, RealmEnvironmentSpec>
+> = Object.freeze({
+  high: Object.freeze({
+    textureWidth: 256,
+    textureHeight: 128,
+    environmentIntensity: 0.36,
+    sunDiscSegments: 28
+  }),
+  balanced: Object.freeze({
+    textureWidth: 128,
+    textureHeight: 64,
+    environmentIntensity: 0.32,
+    sunDiscSegments: 20
+  }),
+  reduced: Object.freeze({
+    textureWidth: 64,
+    textureHeight: 32,
+    environmentIntensity: 0.28,
+    sunDiscSegments: 12
+  })
+});
 
 export type RealmQualitySpec = Readonly<{
   id: RealmQuality;
@@ -72,7 +107,7 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     stoneChanceApron: 0.28,
     dynamicShadows: true,
     shadowMapSize: 2048,
-    keepAssetPath: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.high,
+    keepAssetPath: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.high,
     pixelRatioCap: 2,
     maxDrawingBufferPixels: 8_400_000,
     fogNear: 28,
@@ -89,7 +124,7 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     stoneChanceApron: 0.22,
     dynamicShadows: true,
     shadowMapSize: 1024,
-    keepAssetPath: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.balanced,
+    keepAssetPath: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.balanced,
     pixelRatioCap: 1.75,
     maxDrawingBufferPixels: 5_200_000,
     fogNear: 34,
@@ -106,7 +141,7 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     stoneChanceApron: 0.08,
     dynamicShadows: false,
     shadowMapSize: 0,
-    keepAssetPath: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact,
+    keepAssetPath: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.compact,
     pixelRatioCap: 1.25,
     maxDrawingBufferPixels: 2_400_000,
     fogNear: 30,

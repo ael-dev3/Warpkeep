@@ -11,6 +11,9 @@ import {
   INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
   MAX_REQUEST_BYTES,
   PLAYER_TOKEN_TTL_SECONDS,
+  QA_OBSERVER_CHALLENGE_TTL_MILLISECONDS,
+  QA_OBSERVER_MAX_REGISTRATION_LIFETIME_MILLISECONDS,
+  QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
   SESSION_FAMILY_TTL_SECONDS,
   publicJwk,
   readBridgeConfig,
@@ -19,6 +22,18 @@ import {
 import { DurableObjectChallengeStore } from './challengeStore'
 import { FarcasterVerifierUnavailableError, createOfficialFarcasterVerifier } from './farcaster'
 import { adminClaims, playerClaims, randomId, randomSiweNonce, signEs256Jwt } from './jwt'
+import {
+  QA_OBSERVER_CHALLENGE_PATH,
+  QA_OBSERVER_SCOPE,
+  QA_OBSERVER_SNAPSHOT_PATH,
+  DurableObjectQaObserverChallengeStore,
+  canonicalQaObserverSigningInput,
+  createQaObserverChallenge,
+  importQaObserverVerificationKey,
+  qaObserverKeyThumbprint,
+  sameQaObserverChallengeRecord,
+  verifyQaObserverSignature,
+} from './qaObserver'
 import { DurableObjectRateLimiter } from './rateLimit'
 import {
   DurableObjectSessionFamilyStore,
@@ -36,6 +51,14 @@ import {
   authEpochResolverFailureStage,
   type AuthEpochResolverFailureStage,
 } from './spacetimeAuthEpochResolver'
+import {
+  QA_SNAPSHOT_TIMEOUT_MILLISECONDS,
+  SPACETIMEDB_QA_SNAPSHOT_PROCEDURE,
+  SpacetimeHttpQaObserverResolver,
+  qaSnapshotResolverFailureStage,
+  type QaObserverSnapshotResolver,
+  type QaSnapshotFailureStage,
+} from './spacetimeQaObserverResolver'
 import type {
   AdmissionResolution,
   AuthEpochResolver,
@@ -44,6 +67,7 @@ import type {
   ChallengeStore,
   FarcasterVerifier,
   PublicIdentity,
+  QaObserverChallengeStore,
   RateLimitAction,
   RateLimiter,
   SafeLogEvent,
@@ -80,6 +104,15 @@ const V2_LOGOUT_PATH = '/v2/session/logout'
 const LEGACY_CHALLENGE_PATH = '/v1/farcaster/challenge'
 const LEGACY_EXCHANGE_PATH = '/v1/farcaster/exchange'
 
+const QA_SNAPSHOT_FAILURE_EVENTS: Readonly<Record<QaSnapshotFailureStage, SafeLogEvent>> = Object.freeze({
+  signing: 'qa_snapshot_failed_signing',
+  fetch_request: 'qa_snapshot_failed_fetch_request',
+  fetch_body: 'qa_snapshot_failed_fetch_body',
+  timeout: 'qa_snapshot_failed_timeout',
+  upstream_status: 'qa_snapshot_failed_upstream_status',
+  response_validation: 'qa_snapshot_failed_response_validation',
+})
+
 const AUTH_EPOCH_FAILURE_EVENTS: Readonly<Record<AuthEpochResolverFailureStage, SafeLogEvent>> = Object.freeze({
   signing: 'auth_epoch_failed_signing',
   fetch_request: 'auth_epoch_failed_fetch_request',
@@ -109,6 +142,8 @@ export interface AuthBridgeDependencies {
   verifier?: FarcasterVerifier
   authEpochResolver?: AuthEpochResolver
   sessionFamilyStore?: SessionFamilyStore
+  qaChallengeStore?: QaObserverChallengeStore
+  qaSnapshotResolver?: QaObserverSnapshotResolver
   rateLimiter?: RateLimiter
   signer?: typeof signEs256Jwt
   configReader?: (env: WorkerEnv) => BridgeConfig
@@ -184,10 +219,24 @@ function requireAdminNoOrigin(request: Request): void {
   }
 }
 
+function requireQaNoOrigin(request: Request): void {
+  if (request.headers.has('origin')) {
+    throw new HttpError(403, 'qa_browser_forbidden', 'This endpoint is available only to the registered QA helper.')
+  }
+}
+
 function isServerOnlyAdminPath(pathname: string): boolean {
   return pathname === '/v1/admin/token'
     || pathname === AUTH_EPOCH_PROBE_PATH
     || pathname === CONFIG_ATTESTATION_PATH
+}
+
+function isQaObserverPath(pathname: string): boolean {
+  return pathname === QA_OBSERVER_CHALLENGE_PATH || pathname === QA_OBSERVER_SNAPSHOT_PATH
+}
+
+function isServerOnlyPath(pathname: string): boolean {
+  return isServerOnlyAdminPath(pathname) || isQaObserverPath(pathname)
 }
 
 function isPublicAuthPath(pathname: string): boolean {
@@ -204,6 +253,11 @@ function logAuthEpochFailure(logger: SafeLogger, error: unknown): void {
   logger.event('auth_epoch_failed')
   const stage = authEpochResolverFailureStage(error)
   if (stage) logger.event(AUTH_EPOCH_FAILURE_EVENTS[stage])
+}
+
+function logQaSnapshotFailure(logger: SafeLogger, error: unknown): void {
+  const stage = qaSnapshotResolverFailureStage(error)
+  if (stage) logger.event(QA_SNAPSHOT_FAILURE_EVENTS[stage])
 }
 
 function allowedPreflight(request: Request, config: BridgeConfig): Response {
@@ -332,6 +386,66 @@ function requireString(value: unknown, name: string, maxLength: number): string 
     throw new HttpError(400, 'invalid_request', `Invalid ${name}.`)
   }
   return value
+}
+
+function parseQaSnapshotExchange(body: Record<string, unknown>): {
+  requestId: string
+  signature: string
+} {
+  requireExactKeys(body, ['requestId', 'signature'])
+  const requestId = requireString(body.requestId, 'requestId', 128)
+  const signature = requireString(body.signature, 'signature', 86)
+  if (
+    requestId.length < 24
+    || !/^[A-Za-z0-9_-]+$/.test(requestId)
+    || !/^[A-Za-z0-9_-]{86}$/.test(signature)
+  ) {
+    throw new HttpError(400, 'invalid_request', 'Invalid QA observer proof.')
+  }
+  return { requestId, signature }
+}
+
+async function activeQaObserverRegistration(
+  config: BridgeConfig,
+  currentTime: number,
+  minimumRemainingMilliseconds = 0,
+): Promise<{
+  publicJwk: NonNullable<BridgeConfig['qaObserverPublicJwk']>
+  keyRegisteredAt: number
+  keyExpiresAt: number
+  keyThumbprint: string
+}> {
+  const publicJwk = config.qaObserverPublicJwk
+  const keyRegisteredAt = config.qaObserverKeyRegisteredAt
+  const keyExpiresAt = config.qaObserverKeyExpiresAt
+  if (
+    !publicJwk
+    || keyRegisteredAt === undefined
+    || keyExpiresAt === undefined
+    || !Number.isSafeInteger(currentTime)
+    || currentTime < 0
+    || !Number.isSafeInteger(minimumRemainingMilliseconds)
+    || minimumRemainingMilliseconds < 0
+  ) throw new ConfigurationError()
+  if (
+    keyRegisteredAt > currentTime
+    || keyExpiresAt <= keyRegisteredAt
+    || keyExpiresAt - keyRegisteredAt > QA_OBSERVER_MAX_REGISTRATION_LIFETIME_MILLISECONDS
+    || keyExpiresAt <= currentTime + minimumRemainingMilliseconds
+  ) {
+    throw new HttpError(403, 'qa_device_expired', 'The registered QA device is not authorized.')
+  }
+  let keyThumbprint: string
+  try {
+    const [fingerprint] = await Promise.all([
+      qaObserverKeyThumbprint(publicJwk),
+      importQaObserverVerificationKey(publicJwk),
+    ])
+    keyThumbprint = fingerprint
+  } catch {
+    throw new ConfigurationError()
+  }
+  return { publicJwk, keyRegisteredAt, keyExpiresAt, keyThumbprint }
 }
 
 function canonicalFid(value: unknown): string {
@@ -556,7 +670,10 @@ async function timingSafeSecretMatch(provided: string, expected: string): Promis
   return difference === 0
 }
 
-async function configurationAttestation(config: BridgeConfig): Promise<string> {
+async function configurationAttestation(
+  config: BridgeConfig,
+  qaObserverKeyFingerprint: string | null,
+): Promise<string> {
   const canonical = JSON.stringify({
     profile: 'warpkeep-auth-v2',
     issuer: config.issuer,
@@ -568,6 +685,23 @@ async function configurationAttestation(config: BridgeConfig): Promise<string> {
     spacetimeDbUri: config.spacetimeDbUri,
     spacetimeDbDatabase: config.spacetimeDbDatabase,
     publicAuthEnabled: config.publicAuthEnabled,
+    qaObserverEnabled: config.qaObserverEnabled,
+    qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,
+    qaObserverSpacetimeDbDatabase: config.qaObserverSpacetimeDb?.database ?? null,
+    qaObserverAudience: config.qaObserverSpacetimeDb?.audience ?? null,
+    qaObserverKeyFingerprint,
+    qaObserverKeyRegisteredAt: config.qaObserverKeyRegisteredAt === undefined
+      ? null
+      : new Date(config.qaObserverKeyRegisteredAt).toISOString(),
+    qaObserverKeyExpiresAt: config.qaObserverKeyExpiresAt === undefined
+      ? null
+      : new Date(config.qaObserverKeyExpiresAt).toISOString(),
+    qaObserverScope: QA_OBSERVER_SCOPE,
+    qaObserverChallengeTtlMilliseconds: QA_OBSERVER_CHALLENGE_TTL_MILLISECONDS,
+    qaObserverMaxRegistrationLifetimeMilliseconds: QA_OBSERVER_MAX_REGISTRATION_LIFETIME_MILLISECONDS,
+    qaSnapshotResolverTokenTtlSeconds: QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
+    qaSnapshotResolverTimeoutMilliseconds: QA_SNAPSHOT_TIMEOUT_MILLISECONDS,
+    qaSnapshotProcedure: SPACETIMEDB_QA_SNAPSHOT_PROCEDURE,
     environment: config.environment,
     browserBinding: 'S256',
     accessTokenTtlSeconds: PLAYER_TOKEN_TTL_SECONDS,
@@ -593,18 +727,22 @@ function adminCredential(request: Request): string | null {
   return token.length > 0 ? token : null
 }
 
-async function rejectAdminBody(request: Request): Promise<void> {
+async function rejectServerOnlyBody(
+  request: Request,
+  errorCode: 'admin_body_not_allowed' | 'qa_body_not_allowed',
+  publicMessage: string,
+): Promise<void> {
   if (request.headers.has('content-length')) {
     const advertisedLength = request.headers.get('content-length')
     if (advertisedLength === null || !/^\d+$/.test(advertisedLength)) {
-      throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+      throw new HttpError(400, errorCode, publicMessage)
     }
     const byteLength = Number(advertisedLength)
     if (!Number.isSafeInteger(byteLength) || byteLength > MAX_REQUEST_BYTES) {
       throw new HttpError(413, 'body_too_large', 'Request body is too large.')
     }
     if (byteLength > 0) {
-      throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+      throw new HttpError(400, errorCode, publicMessage)
     }
   }
   if (!request.body) return
@@ -617,7 +755,7 @@ async function rejectAdminBody(request: Request): Promise<void> {
         if (done) return
         if (!value || value.byteLength === 0) continue
         cancelReaderBestEffort(reader)
-        throw new HttpError(400, 'admin_body_not_allowed', 'This endpoint does not accept a request body.')
+        throw new HttpError(400, errorCode, publicMessage)
       }
     } finally {
       try {
@@ -627,6 +765,22 @@ async function rejectAdminBody(request: Request): Promise<void> {
       }
     }
   })
+}
+
+function rejectAdminBody(request: Request): Promise<void> {
+  return rejectServerOnlyBody(
+    request,
+    'admin_body_not_allowed',
+    'This endpoint does not accept a request body.',
+  )
+}
+
+function rejectQaBody(request: Request): Promise<void> {
+  return rejectServerOnlyBody(
+    request,
+    'qa_body_not_allowed',
+    'The QA challenge endpoint does not accept a request body.',
+  )
 }
 
 async function verifyFarcasterWithDeadline(
@@ -666,6 +820,11 @@ function defaultChallengeStore(env: WorkerEnv): ChallengeStore {
   return new DurableObjectChallengeStore(env.CHALLENGE_REPLAY_GUARD)
 }
 
+function defaultQaChallengeStore(env: WorkerEnv): QaObserverChallengeStore {
+  if (!env.QA_CHALLENGE_REPLAY_GUARD) throw new ConfigurationError()
+  return new DurableObjectQaObserverChallengeStore(env.QA_CHALLENGE_REPLAY_GUARD)
+}
+
 function defaultRateLimiter(env: WorkerEnv): RateLimiter {
   if (!env.AUTH_RATE_LIMITER) throw new ConfigurationError()
   return new DurableObjectRateLimiter(env.AUTH_RATE_LIMITER)
@@ -674,6 +833,25 @@ function defaultRateLimiter(env: WorkerEnv): RateLimiter {
 function defaultSessionFamilyStore(env: WorkerEnv): SessionFamilyStore {
   if (!env.SESSION_FAMILIES) throw new ConfigurationError()
   return new DurableObjectSessionFamilyStore(env.SESSION_FAMILIES)
+}
+
+function defaultQaSnapshotResolver(
+  config: BridgeConfig,
+  signer: typeof signEs256Jwt,
+  clock: () => number,
+): QaObserverSnapshotResolver {
+  const upstream = config.qaObserverSpacetimeDb
+  if (!upstream) throw new ConfigurationError()
+  return new SpacetimeHttpQaObserverResolver({
+    uri: upstream.uri,
+    database: upstream.database,
+    issuer: config.issuer,
+    audience: upstream.audience,
+    timeoutMs: QA_SNAPSHOT_TIMEOUT_MILLISECONDS,
+  }, {
+    signer: claims => signer(config, claims),
+    clock,
+  })
 }
 
 function sessionFamilyRecord(
@@ -844,6 +1022,14 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             'Farcaster sign-in is temporarily paused for security hardening.',
           )
         }
+        if (isQaObserverPath(url.pathname) && !config.qaObserverEnabled) {
+          logger.event('qa_observer_paused')
+          throw new HttpError(
+            503,
+            'qa_observer_paused',
+            'The read-only QA observer is disabled.',
+          )
+        }
         if (request.method === 'OPTIONS' && isCredentialedPath(url.pathname)) {
           return allowedPreflight(request, config)
         }
@@ -872,6 +1058,151 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
 
         if (request.method === 'GET' && url.pathname === '/.well-known/jwks.json') {
           return json({ keys: [publicJwk(config)] }, 200, publicCorsHeaders(request, config))
+        }
+
+        if (request.method === 'POST' && url.pathname === QA_OBSERVER_CHALLENGE_PATH) {
+          requireQaNoOrigin(request)
+          if (url.search) {
+            throw new HttpError(400, 'qa_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          await enforceRateLimit(request, 'qa-challenge', env, dependencies.rateLimiter, logger)
+          await rejectQaBody(request)
+          const createdAt = now()
+          const registration = await activeQaObserverRegistration(
+            config,
+            createdAt,
+            QA_OBSERVER_CHALLENGE_TTL_MILLISECONDS,
+          )
+          const challenge = createQaObserverChallenge(
+            config.issuer,
+            registration.keyThumbprint,
+            createdAt,
+            createdAt + QA_OBSERVER_CHALLENGE_TTL_MILLISECONDS,
+          )
+          try {
+            await (dependencies.qaChallengeStore ?? defaultQaChallengeStore(env)).put(challenge)
+          } catch {
+            logger.event('qa_challenge_rejected')
+            throw new HttpError(503, 'qa_challenge_unavailable', 'The QA observer is temporarily unavailable.')
+          }
+          logger.event('qa_challenge_issued')
+          return json({
+            version: 1,
+            requestId: challenge.requestId,
+            challenge: challenge.challenge,
+            expiresAt: challenge.expiresAt,
+            keyThumbprint: challenge.keyThumbprint,
+            scope: challenge.scope,
+            signingInput: challenge.signingInput,
+          }, 201)
+        }
+
+        if (request.method === 'POST' && url.pathname === QA_OBSERVER_SNAPSHOT_PATH) {
+          requireQaNoOrigin(request)
+          if (url.search) {
+            throw new HttpError(400, 'qa_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          await enforceRateLimit(request, 'qa-snapshot', env, dependencies.rateLimiter, logger)
+          const input = parseQaSnapshotExchange(await parseObjectBody(request))
+          const exchangeTime = now()
+          const registration = await activeQaObserverRegistration(config, exchangeTime)
+          const store = dependencies.qaChallengeStore ?? defaultQaChallengeStore(env)
+          let challenge
+          try {
+            challenge = await store.get(input.requestId)
+          } catch {
+            throw new HttpError(503, 'qa_challenge_unavailable', 'The QA observer is temporarily unavailable.')
+          }
+          if (!challenge) {
+            logger.event('qa_challenge_rejected')
+            throw new HttpError(401, 'qa_challenge_invalid', 'The QA observer proof is invalid or already used.')
+          }
+          let expectedSigningInput: string
+          try {
+            expectedSigningInput = canonicalQaObserverSigningInput({
+              issuer: config.issuer,
+              requestId: challenge.requestId,
+              challenge: challenge.challenge,
+              keyThumbprint: registration.keyThumbprint,
+              expiresAt: challenge.expiresAt,
+            })
+          } catch {
+            throw new ConfigurationError()
+          }
+          if (
+            challenge.createdAt > exchangeTime
+            || challenge.expiresAt <= exchangeTime
+            || challenge.expiresAt > challenge.createdAt + QA_OBSERVER_CHALLENGE_TTL_MILLISECONDS
+            || challenge.keyThumbprint !== registration.keyThumbprint
+            || challenge.scope !== QA_OBSERVER_SCOPE
+            || challenge.signingInput !== expectedSigningInput
+          ) {
+            logger.event('qa_challenge_rejected')
+            throw new HttpError(401, 'qa_challenge_invalid', 'The QA observer proof is invalid or already used.')
+          }
+
+          // Claim before signature verification so every submitted proof has
+          // exactly one attempt and no valid contender can reach Maincloud twice.
+          let claimed
+          try {
+            claimed = await store.consume(input.requestId)
+          } catch {
+            throw new HttpError(503, 'qa_challenge_unavailable', 'The QA observer is temporarily unavailable.')
+          }
+          if (!claimed || !sameQaObserverChallengeRecord(claimed, challenge)) {
+            logger.event('qa_challenge_rejected')
+            throw new HttpError(401, 'qa_challenge_invalid', 'The QA observer proof is invalid or already used.')
+          }
+
+          let verified: boolean
+          try {
+            verified = await verifyQaObserverSignature(
+              registration.publicJwk,
+              challenge.signingInput,
+              input.signature,
+            )
+          } catch {
+            throw new ConfigurationError()
+          }
+          if (!verified) {
+            logger.event('qa_signature_rejected')
+            throw new HttpError(401, 'qa_proof_invalid', 'The QA observer proof is invalid or already used.')
+          }
+          const verifiedAt = now()
+          if (
+            !Number.isSafeInteger(verifiedAt)
+            || verifiedAt < exchangeTime
+            || verifiedAt >= challenge.expiresAt
+            || verifiedAt >= registration.keyExpiresAt
+          ) {
+            logger.event('qa_snapshot_rejected')
+            throw new HttpError(401, 'qa_challenge_expired', 'The QA observer proof has expired.')
+          }
+
+          let snapshot
+          try {
+            snapshot = await (
+              dependencies.qaSnapshotResolver
+              ?? defaultQaSnapshotResolver(config, dependencies.signer ?? signEs256Jwt, now)
+            ).resolve(registration.keyThumbprint)
+          } catch (error) {
+            logQaSnapshotFailure(logger, error)
+            if (qaSnapshotResolverFailureStage(error)) {
+              throw new HttpError(503, 'qa_snapshot_unavailable', 'The QA Realm snapshot is temporarily unavailable.')
+            }
+            throw error
+          }
+          const completedAt = now()
+          if (
+            !Number.isSafeInteger(completedAt)
+            || completedAt < verifiedAt
+            || completedAt >= registration.keyExpiresAt
+          ) {
+            logger.event('qa_snapshot_rejected')
+            throw new HttpError(401, 'qa_device_expired', 'The registered QA device is not authorized.')
+          }
+          logger.event('qa_snapshot_succeeded')
+          return json(snapshot)
         }
 
         if (request.method === 'POST' && url.pathname === V2_CHALLENGE_PATH) {
@@ -1224,26 +1555,55 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           if (url.search) {
             throw new HttpError(400, 'admin_query_not_allowed', 'This endpoint does not accept query parameters.')
           }
-          const digest = await configurationAttestation(config)
+          let qaObserverKeyFingerprint: string | null = null
+          if (config.qaObserverPublicJwk) {
+            try {
+              qaObserverKeyFingerprint = await qaObserverKeyThumbprint(config.qaObserverPublicJwk)
+            } catch {
+              throw new ConfigurationError()
+            }
+          }
+          const digest = await configurationAttestation(config, qaObserverKeyFingerprint)
           logger.event('config_attestation_issued')
           return json({
             profile: 'warpkeep-auth-v2',
             digest,
             publicAuthEnabled: config.publicAuthEnabled,
+            qaObserverEnabled: config.qaObserverEnabled,
+            qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,
+            qaObserverSpacetimeDbDatabase: config.qaObserverSpacetimeDb?.database ?? null,
+            qaObserverAudience: config.qaObserverSpacetimeDb?.audience ?? null,
+            qaObserverKeyFingerprint,
+            qaObserverKeyRegisteredAt: config.qaObserverKeyRegisteredAt === undefined
+              ? null
+              : new Date(config.qaObserverKeyRegisteredAt).toISOString(),
+            qaObserverKeyExpiresAt: config.qaObserverKeyExpiresAt === undefined
+              ? null
+              : new Date(config.qaObserverKeyExpiresAt).toISOString(),
+            qaObserverMaxRegistrationLifetimeMilliseconds: QA_OBSERVER_MAX_REGISTRATION_LIFETIME_MILLISECONDS,
           })
         }
 
         throw new HttpError(404, 'not_found', 'Route not found.')
       } catch (error) {
         if (error instanceof HttpError) {
-          return errorResponse(error, isServerOnlyAdminPath(url.pathname) ? {} : publicCorsHeaders(request, config))
+          if (url.pathname === QA_OBSERVER_CHALLENGE_PATH) logger.event('qa_challenge_rejected')
+          if (url.pathname === QA_OBSERVER_SNAPSHOT_PATH) logger.event('qa_snapshot_rejected')
+          return errorResponse(error, isServerOnlyPath(url.pathname) ? {} : publicCorsHeaders(request, config))
+        }
+        if (error instanceof ConfigurationError) {
+          logger.event('configuration_error')
+          return errorResponse(
+            new HttpError(503, 'service_misconfigured', 'Authentication service is not configured.'),
+            isServerOnlyPath(url.pathname) ? {} : publicCorsHeaders(request, config),
+          )
         }
         // Do not attach `error`, request body, headers, or any request-derived
         // fields to logs: those can contain SIWF proof or credentials.
         logger.event('internal_error')
         return errorResponse(
           new HttpError(500, 'internal_error', 'Authentication service failed.'),
-          isServerOnlyAdminPath(url.pathname) ? {} : publicCorsHeaders(request, config),
+          isServerOnlyPath(url.pathname) ? {} : publicCorsHeaders(request, config),
         )
       }
     },

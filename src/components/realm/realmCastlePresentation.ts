@@ -1,6 +1,6 @@
 import { axialToWorld, hexDistance, type HexCoord } from '../../game/map/hexCoordinates';
 import { formatMarkMicros } from '../../marks/marksPolicy';
-import { safePublicHttpsImageUrl } from '../../security/publicImageUrl';
+import { safeWarpkeepProfileImageUrl } from '../../security/publicImageUrl';
 import type {
   WarpkeepPlayer,
   WarpkeepRealmProfile
@@ -11,8 +11,8 @@ import type {
   RealmIdentity
 } from './realmTypes';
 
-export const CASTLE_LABEL_MAX_DESKTOP = 28;
-export const CASTLE_LABEL_MAX_MOBILE = 10;
+export const CASTLE_LABEL_LAYOUT_MAX_CASTLES = 100;
+export const CASTLE_LABEL_LEADER_MIN_DISPLACEMENT_PIXELS = 12;
 export const CASTLE_LABEL_FAR_DISTANCE = 24;
 export const CASTLE_LABEL_GAP_PIXELS = 6;
 
@@ -20,13 +20,96 @@ const CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT = 4;
 const CASTLE_LABEL_EDGE_MARGIN = 4;
 const CASTLE_LABEL_FULL_WIDTH = 132;
 const CASTLE_LABEL_FULL_HEIGHT = 44;
-const CASTLE_LABEL_PRIORITY_NUDGE_PIXELS = 12;
+/** Conservative initial fallback until the DOM reports exact compact label dimensions. */
+export const CASTLE_LABEL_COMPACT_WIDTH = 124;
+export const CASTLE_LABEL_COMPACT_HEIGHT = 30;
+const CASTLE_LABEL_PRIORITY_NUDGE_PIXELS = 40;
+const CASTLE_LABEL_STANDARD_NUDGE_PIXELS = 32;
 
-export type RealmCastlePublicPresentation = WarpkeepRealmProfile;
+type LabelAttachmentOffset = Readonly<{ x: number; y: number }>;
+
+// Fallback rendering mirrors the measured solver: dense labels stay above the
+// same roof in a short vertical stack rather than drifting across the map.
+const COMPACT_LABEL_ATTACHMENT_OFFSETS: readonly LabelAttachmentOffset[] = Object.freeze([
+  { x: 0, y: 0 },
+  { x: 0, y: -50 },
+  { x: 58, y: 0 },
+  { x: -58, y: 0 },
+  { x: 58, y: -50 },
+  { x: -58, y: -50 },
+  { x: 0, y: -96 }
+]);
+
+/**
+ * The deliberately small profile projection available to Realm presentation
+ * components. Keep subscription, admission, authentication, and policy data
+ * behind `publicProfileForCastle`; a castle record already owns the FID used
+ * to associate this display data with a place in the world.
+ */
+export type RealmCastlePublicPresentation = Readonly<{
+  canonicalUsername?: string;
+  displayName?: string;
+  pfpUrl?: string;
+  publicBio?: string;
+  communityStatsVisible: boolean;
+  totalSnapBurnedMicros?: bigint;
+  marksBalanceMicros?: bigint;
+}>;
 
 export type VisibleCastleLabel = RealmCastleScreenProjection & Readonly<{
   compact: boolean;
+  /** Original roof projection retained even when collision layout moves the label. */
+  projectedAnchor: Readonly<{ x: number; y: number }>;
 }>;
+
+export type RealmCastleLabelLeaderGeometry = Readonly<{
+  displaced: boolean;
+  length: number;
+  angleRadians: number;
+}>;
+
+export function realmCastleLabelLeaderGeometry(
+  label: Readonly<{
+    x: number;
+    y: number;
+    projectedAnchor: Readonly<{ x: number; y: number }>;
+  }>
+): RealmCastleLabelLeaderGeometry {
+  const deltaX = label.x - label.projectedAnchor.x;
+  const deltaY = label.y - label.projectedAnchor.y;
+  if (
+    !Number.isFinite(deltaX)
+    || !Number.isFinite(deltaY)
+    || !Number.isFinite(label.projectedAnchor.x)
+    || !Number.isFinite(label.projectedAnchor.y)
+  ) {
+    return Object.freeze({ displaced: false, length: 0, angleRadians: 0 });
+  }
+  const length = Math.hypot(deltaX, deltaY);
+  return Object.freeze({
+    displaced: length >= CASTLE_LABEL_LEADER_MIN_DISPLACEMENT_PIXELS,
+    length,
+    angleRadians: Math.atan2(deltaY, deltaX)
+  });
+}
+
+/**
+ * Privacy-safe aggregate used by rendered QA. It counts only castle roof
+ * anchors that are projection-eligible inside the current viewport; no castle
+ * identity or coordinate leaves the presentation layer.
+ */
+export function realmEligibleCastleProjectionCount(frame: RealmCastleProjectionFrame) {
+  if (frame.width <= 0 || frame.height <= 0) return 0;
+  return frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES).filter((castle) => (
+    castle.visible
+    && Number.isFinite(castle.x)
+    && Number.isFinite(castle.y)
+    && castle.x >= 0
+    && castle.x <= frame.width
+    && castle.y >= 0
+    && castle.y <= frame.height
+  )).length;
+}
 
 function projectionNumberKey(value: number, scale = 1) {
   return Number.isFinite(value) ? Math.round(value * scale) : 'invalid';
@@ -66,6 +149,7 @@ export function realmCastleProjectionFrameKey(frame: RealmCastleProjectionFrame)
       projectionNumberKey(castle.distance, CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT),
       distanceBand,
       castle.visible ? 1 : 0,
+      castle.presented ? 1 : 0,
       boundsKey,
       conservativeBoundsKey
     ].join(':');
@@ -85,6 +169,23 @@ export function normalizeRealmUsername(value: string | undefined) {
   return boundedDisplayText(value, 64)?.replace(/^@+/, '');
 }
 
+function publicPresentationFromProfile(
+  profile: WarpkeepRealmProfile
+): RealmCastlePublicPresentation {
+  const communityStatsVisible = profile.communityStatsVisible === true;
+  return {
+    canonicalUsername: normalizeRealmUsername(profile.canonicalUsername),
+    displayName: boundedDisplayText(profile.displayName, 80),
+    pfpUrl: safeRealmProfileImageUrl(profile.pfpUrl),
+    publicBio: boundedDisplayText(profile.publicBio, 320),
+    communityStatsVisible,
+    ...(communityStatsVisible ? {
+      totalSnapBurnedMicros: profile.totalSnapBurnedMicros,
+      marksBalanceMicros: profile.marksBalanceMicros
+    } : {})
+  };
+}
+
 export function publicProfileForCastle(
   fid: number,
   profiles: readonly WarpkeepRealmProfile[],
@@ -92,30 +193,43 @@ export function publicProfileForCastle(
   ownIdentity?: RealmIdentity
 ): RealmCastlePublicPresentation {
   const authoritative = profiles.find((profile) => profile.fid === fid);
+  const player = players.find((candidate) => candidate.fid === fid);
+  const identity = ownIdentity?.fid === fid ? ownIdentity : undefined;
   if (authoritative) {
+    const profile = publicPresentationFromProfile(authoritative);
     return {
-      ...authoritative,
-      canonicalUsername: normalizeRealmUsername(authoritative.canonicalUsername),
-      displayName: boundedDisplayText(authoritative.displayName, 80),
-      publicBio: boundedDisplayText(authoritative.publicBio, 320)
+      ...profile,
+      canonicalUsername: profile.canonicalUsername
+        ?? normalizeRealmUsername(player?.username ?? identity?.username),
+      displayName: profile.displayName
+        ?? boundedDisplayText(player?.displayName ?? identity?.displayName, 80),
+      pfpUrl: profile.pfpUrl
+        ?? safeRealmProfileImageUrl(player?.pfpUrl ?? identity?.pfpUrl)
     };
   }
 
-  const player = players.find((candidate) => candidate.fid === fid);
-  const identity = ownIdentity?.fid === fid ? ownIdentity : undefined;
   return {
-    fid,
     canonicalUsername: normalizeRealmUsername(player?.username ?? identity?.username),
     displayName: boundedDisplayText(player?.displayName ?? identity?.displayName, 80),
-    pfpUrl: player?.pfpUrl ?? identity?.pfpUrl,
-    publicStatus: player?.status ?? 'profile-pending',
+    pfpUrl: safeRealmProfileImageUrl(player?.pfpUrl ?? identity?.pfpUrl),
     communityStatsVisible: false
   };
 }
 
-export function castleProfileLabel(profile: RealmCastlePublicPresentation) {
+export function castleProfileUsername(profile: RealmCastlePublicPresentation) {
   const username = normalizeRealmUsername(profile.canonicalUsername);
-  return username ? `@${username}` : profile.displayName ?? 'Hegemony Keep';
+  return username ? `@${username}` : undefined;
+}
+
+export function castleProfileIdentityReady(profile: RealmCastlePublicPresentation) {
+  return castleProfileUsername(profile) !== undefined
+    || boundedDisplayText(profile.displayName, 80) !== undefined;
+}
+
+export function castleProfileLabel(profile: RealmCastlePublicPresentation) {
+  return castleProfileUsername(profile)
+    ?? boundedDisplayText(profile.displayName, 80)
+    ?? 'Hegemony Keep';
 }
 
 export function castleProfileMonogram(profile: RealmCastlePublicPresentation) {
@@ -125,7 +239,7 @@ export function castleProfileMonogram(profile: RealmCastlePublicPresentation) {
 }
 
 export function safeRealmProfileImageUrl(value: string | undefined) {
-  return safePublicHttpsImageUrl(value);
+  return safeWarpkeepProfileImageUrl(value);
 }
 
 export function farcasterProfileUrl(username: string | undefined) {
@@ -185,8 +299,8 @@ function labelBounds(
   compact: boolean,
   yOffset: number
 ): Bounds {
-  const width = compact ? 42 : CASTLE_LABEL_FULL_WIDTH;
-  const height = compact ? 42 : CASTLE_LABEL_FULL_HEIGHT;
+  const width = compact ? CASTLE_LABEL_COMPACT_WIDTH : CASTLE_LABEL_FULL_WIDTH;
+  const height = compact ? CASTLE_LABEL_COMPACT_HEIGHT : CASTLE_LABEL_FULL_HEIGHT;
   return {
     left: castle.x - width / 2,
     right: castle.x + width / 2,
@@ -203,18 +317,22 @@ export function resolveVisibleCastleLabels(
   frame: RealmCastleProjectionFrame,
   ownCastleId: number | undefined,
   selectedCastleId: number | undefined,
-  maximumLabels = frame.width <= 680
-    ? CASTLE_LABEL_MAX_MOBILE
-    : CASTLE_LABEL_MAX_DESKTOP
+  maximumLabels = CASTLE_LABEL_LAYOUT_MAX_CASTLES,
+  hoveredCastleId?: number
 ): readonly VisibleCastleLabel[] {
-  if (frame.width <= 0 || frame.height <= 0 || maximumLabels <= 0) return [];
+  const boundedMaximumLabels = Number.isFinite(maximumLabels)
+    ? Math.min(CASTLE_LABEL_LAYOUT_MAX_CASTLES, Math.max(0, Math.floor(maximumLabels)))
+    : 0;
+  if (frame.width <= 0 || frame.height <= 0 || boundedMaximumLabels <= 0) return [];
   const candidates = frame.castles
+    .slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES)
     .filter((castle) => castle.visible)
     .sort((left, right) => {
       const priority = (castle: RealmCastleScreenProjection) => (
         castle.castleId === selectedCastleId ? 0
-          : castle.castleId === ownCastleId ? 1
-            : 2
+          : castle.castleId === hoveredCastleId ? 1
+            : castle.castleId === ownCastleId ? 2
+              : 3
       );
       return priority(left) - priority(right)
         || left.distance - right.distance
@@ -223,29 +341,58 @@ export function resolveVisibleCastleLabels(
 
   const accepted: Array<VisibleCastleLabel & { bounds: Bounds }> = [];
   for (const castle of candidates) {
-    if (accepted.length >= maximumLabels) break;
-    const priority = castle.castleId === selectedCastleId || castle.castleId === ownCastleId;
-    const compact = false;
-    const minimumX = CASTLE_LABEL_EDGE_MARGIN + CASTLE_LABEL_FULL_WIDTH / 2;
-    const maximumX = frame.width - CASTLE_LABEL_EDGE_MARGIN - CASTLE_LABEL_FULL_WIDTH / 2;
-    const minimumY = CASTLE_LABEL_EDGE_MARGIN + CASTLE_LABEL_FULL_HEIGHT;
-    const maximumY = frame.height - CASTLE_LABEL_EDGE_MARGIN;
-    if (maximumX < minimumX || maximumY < minimumY) continue;
-    const x = clamp(castle.x, minimumX, maximumX);
-    const y = clamp(castle.y, minimumY, maximumY);
-    const nudge = Math.hypot(x - castle.x, y - castle.y);
-    if (nudge > (priority ? CASTLE_LABEL_PRIORITY_NUDGE_PIXELS : 0)) continue;
-    const projectedCastle = { ...castle, x, y };
-    const bounds = labelBounds(projectedCastle, compact, 0);
-    if (
-      (castle.castleBounds && intersects(bounds, castle.castleBounds))
-      || accepted.some((entry) => intersects(bounds, entry.bounds))
-    ) continue;
-    accepted.push({
-      ...projectedCastle,
-      compact,
-      bounds
-    });
+    if (accepted.length >= boundedMaximumLabels) break;
+    const priority = castle.castleId === selectedCastleId
+      || castle.castleId === hoveredCastleId
+      || castle.castleId === ownCastleId;
+    const fullAttempt = { compact: false, offsets: [{ x: 0, y: 0 }] } as const;
+    const compactAttempt = { compact: true, offsets: COMPACT_LABEL_ATTACHMENT_OFFSETS } as const;
+    const preferCompact = frame.width <= 680 && !priority;
+    const presentationAttempts: readonly Readonly<{
+      compact: boolean;
+      offsets: readonly LabelAttachmentOffset[];
+    }>[] = preferCompact
+      ? [compactAttempt, fullAttempt]
+      : [fullAttempt, compactAttempt];
+
+    let nextLabel: (VisibleCastleLabel & { bounds: Bounds }) | undefined;
+    for (const attempt of presentationAttempts) {
+      const width = attempt.compact ? CASTLE_LABEL_COMPACT_WIDTH : CASTLE_LABEL_FULL_WIDTH;
+      const height = attempt.compact ? CASTLE_LABEL_COMPACT_HEIGHT : CASTLE_LABEL_FULL_HEIGHT;
+      const minimumX = CASTLE_LABEL_EDGE_MARGIN + width / 2;
+      const maximumX = frame.width - CASTLE_LABEL_EDGE_MARGIN - width / 2;
+      const minimumY = CASTLE_LABEL_EDGE_MARGIN + height;
+      const maximumY = frame.height - CASTLE_LABEL_EDGE_MARGIN;
+      if (maximumX < minimumX || maximumY < minimumY) continue;
+
+      for (const offset of attempt.offsets) {
+        const attachedX = castle.x + offset.x;
+        const attachedY = castle.y + offset.y;
+        const x = clamp(attachedX, minimumX, maximumX);
+        const y = clamp(attachedY, minimumY, maximumY);
+        const safeAreaNudge = Math.hypot(x - attachedX, y - attachedY);
+        if (safeAreaNudge > (
+          priority ? CASTLE_LABEL_PRIORITY_NUDGE_PIXELS : CASTLE_LABEL_STANDARD_NUDGE_PIXELS
+        )) continue;
+        const projectedCastle = { ...castle, x, y };
+        const bounds = labelBounds(projectedCastle, attempt.compact, 0);
+        if (
+          (castle.castleBounds && intersects(bounds, castle.castleBounds))
+          || accepted.some((entry) => intersects(bounds, entry.bounds))
+        ) continue;
+        nextLabel = {
+          ...projectedCastle,
+          compact: attempt.compact,
+          projectedAnchor: { x: castle.x, y: castle.y },
+          bounds
+        };
+        break;
+      }
+      if (nextLabel) break;
+    }
+    if (nextLabel) {
+      accepted.push(nextLabel);
+    }
   }
 
   return accepted.map(({ bounds: _bounds, ...label }) => label);

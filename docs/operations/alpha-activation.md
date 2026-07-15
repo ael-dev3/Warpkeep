@@ -392,16 +392,40 @@ call the server-only, zero-body `/v1/admin/config-attestation`. It must return:
 {
   "profile": "warpkeep-auth-v2",
   "digest": "<reviewed SHA-256 digest>",
-  "publicAuthEnabled": false
+  "publicAuthEnabled": false,
+  "qaObserverEnabled": false,
+  "qaObserverSpacetimeDbUri": null,
+  "qaObserverSpacetimeDbDatabase": null,
+  "qaObserverAudience": null,
+  "qaObserverKeyFingerprint": null,
+  "qaObserverKeyRegisteredAt": null,
+  "qaObserverKeyExpiresAt": null,
+  "qaObserverMaxRegistrationLifetimeMilliseconds": 31622400000
 }
 ```
 
+The three observer-target fields must either all be null or match the separately
+reviewed tuple. In production, the observer origin is pinned to exact
+`https://maincloud.spacetimedb.com`; its database and audience must both differ
+from gameplay. A configured tuple does not prove that its target is
+identity-free, so the QA gate remains false until that module/database or
+replica has been independently reviewed.
+
+The QA fingerprint, registration timestamp, and expiry may be non-null only as
+one tuple after their separately approved machine-enrollment step; the QA gate
+still remains false during the paused deployment. Never copy the fingerprint
+into public release evidence.
+
 Compare the digest with the reviewed expected issuer, origin/SIWF coordinates,
-audience, key ID, Maincloud coordinates, S256 binding, 600-second access
-lifetime, 15-second resolver lifetime, five-second resolver timeout, five-minute
-challenge lifetime, 30-day family lifetime, cookie attributes, environment,
-and false public-auth state. Never print the admin credential. A mismatch blocks
-frontend deployment and all enablement.
+audience, key ID, gameplay Maincloud/database coordinates, dedicated observer
+Maincloud/database/audience coordinates, S256 binding, 600-second access
+lifetime, 15-second resolver lifetime, five-second resolver timeout,
+five-minute challenge lifetime, 30-day family lifetime, cookie attributes,
+environment, false public-auth state, independent QA gate, registered QA
+fingerprint, registration/expiry timestamps, maximum registration lifetime,
+one-minute QA challenge, 15-second QA resolver, and fixed snapshot procedure.
+Never print the admin credential. A mismatch blocks frontend deployment and all
+enablement.
 
 The protected resolver probe must exercise the structured v2 resolver without
 returning an epoch/FID/JWT/upstream body. Discovery must advertise

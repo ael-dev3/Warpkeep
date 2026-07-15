@@ -1,0 +1,74 @@
+(version 1)
+
+(define observatory-root (param "OBSERVATORY_ROOT"))
+(define repository-root (param "REPOSITORY_ROOT"))
+(define user-home (param "USER_HOME"))
+(define spacetime-cli-root (param "SPACETIME_CLI_ROOT"))
+(define runtime-home (param "RUNTIME_HOME"))
+(define runtime-tmp (param "RUNTIME_TMP"))
+(define npm-cache (param "NPM_CACHE"))
+(define socket-tmp-root (param "SOCKET_TMP_ROOT"))
+(define build-output-root (param "BUILD_OUTPUT_ROOT"))
+(define root-tsc-cache-root (param "ROOT_TSC_CACHE_ROOT"))
+(define root-vite-cache-root (param "ROOT_VITE_CACHE_ROOT"))
+(define root-vite-config-root (param "ROOT_VITE_CONFIG_ROOT"))
+(define auth-vite-cache-root (param "AUTH_VITE_CACHE_ROOT"))
+(define auth-vite-config-root (param "AUTH_VITE_CONFIG_ROOT"))
+(define spacetime-dist-root (param "SPACETIME_DIST_ROOT"))
+(define spacetime-v1-dist-root (param "SPACETIME_V1_DIST_ROOT"))
+(define spacetime-v2-dist-root (param "SPACETIME_V2_DIST_ROOT"))
+(define spacetime-v3-dist-root (param "SPACETIME_V3_DIST_ROOT"))
+
+; Every repository-owned child is limited to numeric loopback TCP and one
+; fresh owner-private Unix-socket directory. Shared /private/tmp control
+; sockets and the persistent observatory broker are outside this authority.
+(allow default)
+(deny network*)
+(allow network* (local ip "localhost:*"))
+(allow network* (remote ip "localhost:*"))
+(allow network* (local unix-socket (subpath socket-tmp-root)))
+(allow network* (remote unix-socket (subpath socket-tmp-root)))
+
+; Source, scripts, dependencies, reports, audit records, and the installed
+; helper are read-only. Only disposable runtime state and exact reviewed build
+; or tool caches can be changed by repository code.
+(deny file-write*)
+(allow file-write* (subpath runtime-home))
+(allow file-write* (subpath runtime-tmp))
+(allow file-write* (subpath npm-cache))
+(allow file-write* (subpath socket-tmp-root))
+(allow file-write* (subpath build-output-root))
+(allow file-write* (subpath root-tsc-cache-root))
+(allow file-write* (subpath root-vite-cache-root))
+(allow file-write* (subpath root-vite-config-root))
+(allow file-write* (subpath auth-vite-cache-root))
+(allow file-write* (subpath auth-vite-config-root))
+(allow file-write* (subpath spacetime-dist-root))
+(allow file-write* (subpath spacetime-v1-dist-root))
+(allow file-write* (subpath spacetime-v2-dist-root))
+(allow file-write* (subpath spacetime-v3-dist-root))
+(allow file-write* (literal "/dev/null"))
+
+; Do not expose the rest of the signed-in account or shared temporary files.
+; The checkout, isolated runtime, exact socket root, and pinned CLI are the
+; complete read exceptions required by the autonomous local fixtures.
+(deny file-read* (subpath user-home))
+(deny file-read* (subpath "/private/tmp"))
+(allow file-read-metadata (subpath user-home))
+(allow file-read-metadata (subpath "/private/tmp"))
+(allow file-read* (subpath repository-root))
+(allow file-read* (subpath runtime-home))
+(allow file-read* (subpath runtime-tmp))
+(allow file-read* (subpath npm-cache))
+(allow file-read* (subpath socket-tmp-root))
+(allow file-read* (subpath spacetime-cli-root))
+
+; Mutable repository code cannot invoke the installed observer/helper or the
+; macOS credential and control-plane command-line surfaces.
+(deny process-exec (subpath observatory-root))
+(deny process-exec (literal "/usr/bin/security"))
+(deny process-exec (literal "/usr/bin/osascript"))
+(deny process-exec (literal "/usr/bin/open"))
+(deny process-exec (literal "/bin/launchctl"))
+(deny mach-lookup (global-name "com.apple.securityd"))
+(deny mach-lookup (global-name "com.apple.securityd.xpc"))

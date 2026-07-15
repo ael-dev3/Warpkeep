@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   MIN_REALM_PIXEL_RATIO,
+  REALM_ENVIRONMENT_SPECS,
   REALM_LIGHTING_SPECS,
   REALM_QUALITY_SPECS,
   resolveRealmPixelRatio,
@@ -51,6 +52,34 @@ describe('realm quality profiles', () => {
       high: { toneMappingExposure: 1.02, sunIntensity: 2 },
       balanced: { toneMappingExposure: 1, sunIntensity: 1.85 },
       reduced: { toneMappingExposure: 0.98, sunIntensity: 1.7 }
+    });
+  });
+
+  it('bounds the procedural environment maps and keeps reflections restrained', () => {
+    expect(REALM_ENVIRONMENT_SPECS).toEqual({
+      high: {
+        textureWidth: 256,
+        textureHeight: 128,
+        environmentIntensity: 0.36,
+        sunDiscSegments: 28
+      },
+      balanced: {
+        textureWidth: 128,
+        textureHeight: 64,
+        environmentIntensity: 0.32,
+        sunDiscSegments: 20
+      },
+      reduced: {
+        textureWidth: 64,
+        textureHeight: 32,
+        environmentIntensity: 0.28,
+        sunDiscSegments: 12
+      }
+    });
+    Object.values(REALM_ENVIRONMENT_SPECS).forEach((spec) => {
+      expect(spec.textureWidth).toBe(spec.textureHeight * 2);
+      expect(spec.environmentIntensity).toBeGreaterThanOrEqual(0.25);
+      expect(spec.environmentIntensity).toBeLessThanOrEqual(0.4);
     });
   });
 

@@ -16,7 +16,10 @@ import type {
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
 import { WARPKEEP_FARCASTER_CHANNEL_URL } from '../../farcaster/farcasterProjectLinks';
-import { AlphaParticipationTermsDialog } from './AlphaParticipationTermsDialog';
+import {
+  AlphaParticipationTermsDialog,
+  type AlphaParticipationTermsContinueLabel
+} from './AlphaParticipationTermsDialog';
 import { CreditsRoll } from './CreditsRoll';
 import { LatestPatchNotesPopover } from './LatestPatchNotesPopover';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
@@ -111,6 +114,22 @@ type TermsRequest = {
   continuation: TermsContinuation;
   keyboardDriven: boolean;
 };
+
+function termsContinueLabel(
+  continuation: TermsContinuation | undefined
+): AlphaParticipationTermsContinueLabel {
+  if (continuation === 'enter-authenticated' || continuation === 'legacy-enter') {
+    return 'CONTINUE TO REALM';
+  }
+  if (
+    continuation === 'show-pending'
+    || continuation === 'refresh-session'
+    || continuation === 'check-auth-rail'
+  ) {
+    return 'CONTINUE TO ACCESS CHECK';
+  }
+  return 'CONTINUE TO SIGN-IN';
+}
 
 const ANONYMOUS_AUTH_STATE: FarcasterAuthViewState = Object.freeze({
   phase: 'anonymous'
@@ -1169,6 +1188,7 @@ export function WarpkeepMainMenu({
       ) : null}
       {termsOpen && interactive ? (
         <AlphaParticipationTermsDialog
+          continueLabel={termsContinueLabel(termsRequest?.continuation)}
           onCancel={closeTerms}
           onContinue={handleTermsContinue}
         />

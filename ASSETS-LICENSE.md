@@ -66,18 +66,58 @@ The Hegemony Mark currency artwork has an explicit CC-BY-4.0 grant in the immuta
 
 Attribution: **Warpkeep Hegemony Mark currency artwork by the Warpkeep project**, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The grant covers the named source PNG and faithful runtime derivatives to the extent copyright and related rights are controlled by the Warpkeep project. It does not license OpenAI services, names, trademarks, third-party rights, or Warpkeep trademarks and canonical identity. The complete release coordinates, deterministic Sharp/libvips settings, decoded-pixel hashes, alpha audit, and visual QA are in the [runtime manifest](docs/reference/factions/hegemony/2026-07-13-hegemony-mark/runtime-manifest.json).
 
-## Hegemony Frontier Keep provenance
+## Historical Hegemony Frontier Keep provenance
 
-The Hegemony Frontier Keep and its runtime derivatives are project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the v0.3.0 HEAD or a public release while redistribution authority is unresolved. The public models are generated derivatives whose future license follows the source-rights determination, not the fact of conversion.
+The Hegemony Frontier Keep and its former runtime derivatives were project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the current tree or a public release while redistribution authority is unresolved. The three former runtime derivatives are also retired and absent; their future license follows the source-rights determination, not the fact of conversion.
 
 | Intended use | Repository file | Technical record |
 | --- | --- | --- |
 | Restricted source record | Not present in v0.3.0 HEAD/public releases | 63,263,296 bytes, SHA-256 `fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d`, 941,298 source triangles, four embedded JPEG textures. Never served at runtime. |
-| High runtime keep | `public/models/hegemony/hegemony-frontier-keep-high.glb` | 2,256,092 bytes, SHA-256 `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c`, 56,466 triangles, four 2048×2048 WebP textures, Meshopt compression. |
-| Balanced runtime keep | `public/models/hegemony/hegemony-frontier-keep-balanced.glb` | 2,064,100 bytes, SHA-256 `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4`, 37,634 triangles, four 2048×2048 WebP textures, Meshopt compression. |
-| Compact runtime keep | `public/models/hegemony/hegemony-frontier-keep-compact.glb` | 760,916 bytes, SHA-256 `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b`, 17,536 triangles, four 1024×1024 WebP textures, Meshopt compression. |
+| Former high runtime keep | `public/models/hegemony/hegemony-frontier-keep-high.glb` — absent | 2,256,092 bytes, SHA-256 `ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c`, 56,466 triangles, four 2048×2048 WebP textures, Meshopt compression. |
+| Former balanced runtime keep | `public/models/hegemony/hegemony-frontier-keep-balanced.glb` — absent | 2,064,100 bytes, SHA-256 `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4`, 37,634 triangles, four 2048×2048 WebP textures, Meshopt compression. |
+| Former compact runtime keep | `public/models/hegemony/hegemony-frontier-keep-compact.glb` — absent | 760,916 bytes, SHA-256 `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b`, 17,536 triangles, four 1024×1024 WebP textures, Meshopt compression. |
 
-All three runtime files are reproducible with `npm run prepare:hegemony-keep` when an authorized exact source copy is supplied through `WARPKEEP_KEEP_SOURCE`. The pinned preparation pipeline and complete technical metadata are recorded in the dated castle record.
+The retired files remain technically reproducible for private provenance checks with `npm run prepare:hegemony-frontier-keep:historical` when an authorized exact source copy is supplied through `WARPKEEP_KEEP_SOURCE`. That command deliberately produces files rejected by the active runtime verifier; it is not an installation or restoration command. The pinned historical pipeline and complete technical metadata are recorded in the dated castle record.
+
+## Hegemony Main Castle runtime derivatives
+
+The active Hegemony Main Castle runtime files are deterministic derivatives of
+`HegemonyMainCastle.glb` from the public
+[`hegemony-frontier-keep-3d-2026-07-14`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-frontier-keep-3d-2026-07-14)
+Warpkeep-Assets release. The release attachment
+[`hegemony-frontier-keep-3d-sources-v1.zip`](https://github.com/ael-dev3/Warpkeep-Assets/releases/download/hegemony-frontier-keep-3d-2026-07-14/hegemony-frontier-keep-3d-sources-v1.zip)
+is 10,672,929 bytes with SHA-256
+`c029a636ee0a791ca54072d5f32fcf68263677951fd59c338dfe242264335d5f`.
+Its exact member
+`hegemony-frontier-keep-3d-sources-v1/HegemonyMainCastle.glb` is 2,233,564
+bytes with SHA-256
+`b33755f14bbed0855cf738ba8fb2dbdde9cf56e976b7f108a2259dd478a9b580`.
+
+On 2026-07-15, the Warpkeep project owner explicitly authorized
+**project-internal runtime integration and deterministic derivative
+preparation** for this named source. That authorization is deliberately
+limited: it does not assign a separate public open license, relicense the
+source as CC-BY-4.0 or Apache-2.0, create a general third-party derivative or
+redistribution grant, or grant trademark or canonical-identity rights. The
+public archive's own status remains
+`public-archive-authorized-no-separate-open-license`; any broader distribution
+or relicensing decision needs separate documented authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| High runtime castle | `public/models/hegemony/hegemony-main-castle-high.glb` | 1,934,920 bytes, SHA-256 `9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2`, 67,680 triangles, 153,439 uploaded vertices, unsigned 32-bit indices, two embedded WebP images, Meshopt compression. |
+| Balanced runtime castle | `public/models/hegemony/hegemony-main-castle-balanced.glb` | 1,172,132 bytes, SHA-256 `aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e`, 40,353 triangles, 78,928 uploaded vertices, unsigned 32-bit indices, two embedded 1024×1024 WebP images, Meshopt compression. |
+| Compact runtime castle | `public/models/hegemony/hegemony-main-castle-compact.glb` | 508,508 bytes, SHA-256 `de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29`, 19,086 triangles, 34,098 uploaded vertices, unsigned 16-bit indices, two embedded 512×512 WebP images, Meshopt compression. |
+
+The browser serves only the checked-in, integrity-verified derivatives; GitHub
+Release attachments are never a runtime CDN. Reconstruct them with
+`npm run assets:fetch:castle`, `npm run tools:fetch:gltfpack`, and
+`npm run prepare:hegemony-castle`; the preparation script verifies the release
+coordinates, archive and member hashes, archive safety, attested system unzip,
+pinned Sharp/libvips/libwebp atlas rewriting, pinned `gltfpack` 1.2 binary,
+isolated optimizer environment, output hashes, GLB structure, decoded image
+dimensions and hashes, and required extensions.
+The dated castle record preserves the exact profiles and authorization boundary.
 
 ## Trademark and endorsement note
 

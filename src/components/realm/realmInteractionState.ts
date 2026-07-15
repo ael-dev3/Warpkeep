@@ -10,6 +10,11 @@ export type RealmCameraTarget =
   | Readonly<{ kind: 'founding-district' }>
   | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
+  | Readonly<{
+      kind: 'castle-cluster';
+      castleIds: readonly number[];
+      representativeCastleId: number;
+    }>
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>;
 
 export type RealmKeyboardTarget =
@@ -45,6 +50,7 @@ export type RealmInteractionAction =
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
   | Readonly<{ type: 'open-navigator' }>
   | Readonly<{ type: 'close-navigator' }>
+  | Readonly<{ type: 'request-castle-label-focus'; castleId: number }>
   | Readonly<{ type: 'request-map-focus' }>;
 
 export type RealmEscapeDecision = 'close-inspector' | 'close-navigator' | 'request-exit';
@@ -67,6 +73,13 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'founding-district') return { kind: 'founding-district' };
   if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
+  if (target.kind === 'castle-cluster') {
+    return {
+      kind: 'castle-cluster',
+      castleIds: [...target.castleIds],
+      representativeCastleId: target.representativeCastleId
+    };
+  }
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
 }
 
@@ -154,6 +167,15 @@ export function realmInteractionReducer(
         ...state,
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, { kind: 'navigator-trigger' })
+      };
+
+    case 'request-castle-label-focus':
+      return {
+        ...state,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'castle-label',
+          castleId: action.castleId
+        })
       };
 
     case 'request-map-focus':

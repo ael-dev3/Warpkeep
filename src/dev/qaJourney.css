@@ -1,0 +1,158 @@
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #08060d;
+}
+
+.qa-journey {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.qa-journey__controls,
+.qa-journey__flow-controls,
+.qa-journey__restore-controls {
+  position: fixed;
+  z-index: 15;
+  border: 1px solid rgb(227 190 105 / 48%);
+  border-radius: 0.55rem;
+  color: #fff7e5;
+  background: rgb(7 7 12 / 94%);
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 52%);
+  font: 700 0.68rem/1.2 Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.qa-journey[data-modal-active='true'] :is(
+  .qa-journey__controls,
+  .qa-journey__flow-controls,
+  .qa-journey__restore-controls
+) {
+  pointer-events: none;
+  opacity: 0.22;
+}
+
+.qa-journey__controls {
+  top: max(0.7rem, env(safe-area-inset-top));
+  left: max(0.7rem, env(safe-area-inset-left));
+  display: grid;
+  gap: 0.55rem;
+  width: min(19rem, calc(100vw - 1.4rem));
+  padding: 0.7rem;
+}
+
+.qa-journey__controls > div,
+.qa-journey__controls label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.qa-journey__controls strong {
+  color: #f0d58c;
+  font-size: 0.72rem;
+}
+
+.qa-journey__controls span,
+.qa-journey__flow-controls span {
+  color: #c9a7ea;
+  font-size: 0.58rem;
+}
+
+.qa-journey__controls :is(button, select),
+.qa-journey__flow-controls button,
+.qa-journey__restore-controls {
+  min-height: 44px;
+  border: 1px solid rgb(227 190 105 / 35%);
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  color: #fff7e5;
+  background: rgb(255 255 255 / 6%);
+  font: inherit;
+}
+
+.qa-journey__controls :is(button, select):focus-visible,
+.qa-journey__flow-controls button:focus-visible,
+.qa-journey__restore-controls:focus-visible {
+  outline: 2px solid #c68bed;
+  outline-offset: 2px;
+}
+
+.qa-journey__flow-controls {
+  right: max(0.7rem, env(safe-area-inset-right));
+  bottom: max(0.7rem, env(safe-area-inset-bottom));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: calc(100vw - 1.4rem);
+  padding: 0.55rem;
+}
+
+.qa-journey__restore-controls {
+  top: max(0.7rem, env(safe-area-inset-top));
+  right: max(0.7rem, env(safe-area-inset-right));
+}
+
+.qa-journey__auth-stage,
+.qa-journey__modal-stage,
+.qa-journey__disabled {
+  display: grid;
+  width: 100%;
+  min-height: 100%;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 38%, rgb(104 53 133 / 26%), transparent 32rem),
+    linear-gradient(rgb(4 4 8 / 72%), rgb(4 4 8 / 92%)),
+    url('/images/menu/warpkeep-menu-poster-v2.webp') center / cover;
+}
+
+.qa-journey__auth-stage .warpkeep-menu-auth-rail {
+  position: static;
+  width: min(36rem, calc(100vw - 2rem));
+}
+
+.qa-journey__disabled section {
+  display: grid;
+  gap: 0.6rem;
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 1.25rem;
+  border: 1px solid rgb(227 190 105 / 42%);
+  border-radius: 0.55rem;
+  color: #fff7e5;
+  background: rgb(7 7 12 / 94%);
+  text-align: center;
+}
+
+.qa-journey__disabled :is(p, h1, span) {
+  margin: 0;
+}
+
+.qa-journey__disabled p {
+  color: #c9a7ea;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.qa-journey__disabled h1 {
+  color: #f0d58c;
+  font: 500 1.35rem/1.2 Georgia, "Times New Roman", serif;
+}
+
+@media (max-width: 620px) {
+  .qa-journey__controls {
+    width: min(15rem, calc(100vw - 1rem));
+  }
+
+  .qa-journey__flow-controls {
+    right: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+  }
+}

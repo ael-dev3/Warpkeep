@@ -6,7 +6,7 @@ import {
   REALM_QUALITY_SPECS,
   resolveRealmRenderPlan
 } from '../src/components/realm/realmQuality';
-import { axialToWorld, hexDistance } from '../src/game/map/hexCoordinates';
+import { axialToWorld, hexDistance, hexKey } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { generateTerrainDecorations } from '../src/game/map/terrainDecorations';
@@ -87,6 +87,63 @@ describe('deterministic lowland decorations', () => {
       .toBeLessThan(high.points.filter((point) => !point.apron).length);
   });
 
+  it('moves high-quality tufts deterministically and keeps reduced quality static', () => {
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
+    const highDetails = generateTerrainDecorations(
+      surface.renderMap,
+      decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
+      1,
+      HEGEMONY_TERRAIN_PLACEMENTS
+    );
+    const first = createTerrainDecorationLayers(
+      highDetails,
+      surface.renderMap,
+      REALM_QUALITY_SPECS.high
+    );
+    const second = createTerrainDecorationLayers(
+      highDetails,
+      surface.renderMap,
+      REALM_QUALITY_SPECS.high
+    );
+    const firstTufts = first.group.getObjectByName('terrain-green-tufts') as THREE.InstancedMesh;
+    const secondTufts = second.group.getObjectByName('terrain-green-tufts') as THREE.InstancedMesh;
+    const matrix = new THREE.Matrix4();
+    firstTufts.getMatrixAt(0, matrix);
+    const initial = [...matrix.elements];
+
+    expect(first.animated).toBe(true);
+    expect(first.updateWind(0.18)).toBe(true);
+    expect(second.updateWind(0.18)).toBe(true);
+    firstTufts.getMatrixAt(0, matrix);
+    const firstFrame = [...matrix.elements];
+    secondTufts.getMatrixAt(0, matrix);
+    expect([...matrix.elements]).toEqual(firstFrame);
+    expect(firstFrame).not.toEqual(initial);
+    expect(first.updateWind(0.18)).toBe(false);
+
+    const reducedDetails = generateTerrainDecorations(
+      surface.renderMap,
+      decorationQuality(REALM_QUALITY_SPECS.reduced, surface.playableMap.radius)
+    );
+    const reduced = createTerrainDecorationLayers(
+      reducedDetails,
+      surface.renderMap,
+      REALM_QUALITY_SPECS.reduced
+    );
+    const reducedTufts = reduced.group.getObjectByName('terrain-green-tufts') as THREE.InstancedMesh;
+    reducedTufts.getMatrixAt(0, matrix);
+    const reducedInitial = [...matrix.elements];
+    expect(reduced.animated).toBe(false);
+    expect(reduced.updateWind(0.18)).toBe(false);
+    reducedTufts.getMatrixAt(0, matrix);
+    expect([...matrix.elements]).toEqual(reducedInitial);
+
+    first.dispose();
+    second.dispose();
+    reduced.dispose();
+    expect(first.updateWind(0.36)).toBe(false);
+  });
+
   it('clears deterministic decoration footprints around off-center own and nearby peer castles', () => {
     const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
     const placements = createHegemonyCastlePlacements([
@@ -137,6 +194,24 @@ describe('deterministic lowland decorations', () => {
     expect(details.points.length).toBeLessThanOrEqual(plan.decorationInstanceBudget);
     expect(details.counts['green-tuft']).toBeGreaterThan(details.counts['dry-tuft']);
     expect(details.counts['dry-tuft']).toBeGreaterThan(details.counts.stone);
+  });
+
+  it('does not scatter generic grass or stones across semantic blockers', () => {
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
+    const blockerKinds = new Map(surface.renderMap.cells.map((cell) => [
+      hexKey(cell.coord),
+      'lake' as const
+    ]));
+    const details = generateTerrainDecorations(
+      surface.renderMap,
+      decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
+      1,
+      [],
+      blockerKinds
+    );
+
+    expect(details.points).toHaveLength(0);
+    expect(details.counts).toEqual({ 'green-tuft': 0, 'dry-tuft': 0, stone: 0 });
   });
 
   it('releases unique instance buffers exactly once when decoration layers are recreated', () => {

@@ -2,8 +2,12 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
-import { measuredRealmComposition } from '../src/components/realm/realmMeasuredComposition';
+import {
+  measuredRealmComposition,
+  measuredVisibleRealmUiRects
+} from '../src/components/realm/realmMeasuredComposition';
 import type { RealmIdentity } from '../src/components/realm/realmTypes';
+import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
 import type { CanonicalWarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
 import {
   CANONICAL_TEST_FID,
@@ -39,6 +43,46 @@ afterEach(() => {
 });
 
 describe('RealmMapScreen', () => {
+  it('does not reserve label space for hidden Realm chrome', () => {
+    const root = document.createElement('main');
+    const visible = document.createElement('section');
+    const visibilityHidden = document.createElement('section');
+    const displayNone = document.createElement('section');
+    visible.className = 'realm-hud';
+    visibilityHidden.className = 'realm-hud__actions';
+    visibilityHidden.style.visibility = 'hidden';
+    displayNone.className = 'castle-inspection';
+    displayNone.style.display = 'none';
+    root.append(visible, visibilityHidden, displayNone);
+
+    const rect = (left: number, top: number, right: number, bottom: number) => ({
+      left,
+      top,
+      right,
+      bottom,
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+      toJSON: () => ({})
+    }) as DOMRect;
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(rect(100, 50, 900, 650));
+    vi.spyOn(visible, 'getBoundingClientRect').mockReturnValue(rect(120, 70, 320, 190));
+    vi.spyOn(visibilityHidden, 'getBoundingClientRect').mockReturnValue(rect(120, 580, 320, 630));
+    vi.spyOn(displayNone, 'getBoundingClientRect').mockReturnValue(rect(650, 70, 880, 630));
+
+    expect(measuredVisibleRealmUiRects(root, [
+      '.realm-hud',
+      '.realm-hud__actions',
+      '.castle-inspection'
+    ])).toEqual([{
+      left: 20,
+      top: 20,
+      right: 220,
+      bottom: 140
+    }]);
+  });
+
   it('reserves a short-landscape Explore panel from the right camera edge', () => {
     const root = document.createElement('main');
     const hud = document.createElement('section');
@@ -99,12 +143,20 @@ describe('RealmMapScreen', () => {
     expect(within(actions).getByRole('button', { name: 'Recenter Keep' }).textContent).toBe('Home');
   });
 
-  it('opens a castle record only after explicit Explore activation', () => {
+  it('keeps an unnamed castle marker visible with a neutral direct identity', async () => {
     const snapshot = createCanonicalGenesisSnapshot({
       ownFid: CANONICAL_TEST_FID,
       peerFid: 77
     });
     renderFallbackRealm({ snapshot });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', {
+        name: 'Inspect Hegemony Keep castle, Peer Watch, cell 2,-1'
+      })).not.toBeNull();
+    });
+    expect(document.querySelector('.realm-map-screen__fallback-peer-castle'))
+      .not.toBeNull();
 
     const exploreTrigger = screen.getByRole('button', {
       name: 'Explore realm, 2 founded castles'
@@ -129,6 +181,25 @@ describe('RealmMapScreen', () => {
     expect(screen.getByLabelText('Current selection').textContent)
       .toContain('Peer Watch · q 2, r -1');
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).toBe(document.activeElement);
+  });
+
+  it('renders every 100-castle fallback marker with zero direct-label silhouette overlap', async () => {
+    const realm = createRenderedWebglQaFixtureRealm();
+    const { container } = renderFallbackRealm(realm);
+    const markers = container.querySelectorAll<SVGGElement>(
+      '.realm-map-screen__fallback-keep, .realm-map-screen__fallback-peer-castle'
+    );
+    const markerCastleIds = new Set(
+      [...markers].map((marker) => marker.dataset.castleId)
+    );
+
+    expect(realm.snapshot.castles).toHaveLength(100);
+    expect(markers).toHaveLength(realm.snapshot.castles.length);
+    expect(markerCastleIds.size).toBe(realm.snapshot.castles.length);
+    await waitFor(() => {
+      expect(screen.getByRole('main', { name: 'Hegemony realm' })
+        .getAttribute('data-label-castle-overlap-count')).toBe('0');
+    });
   });
 
   it('changes camera presets without opening a castle record', () => {
@@ -170,17 +241,17 @@ describe('RealmMapScreen', () => {
     });
   });
 
-  it('keeps the authoritative keep fixed while keyboard selection moves over terrain', () => {
+  it('keeps the authoritative keep fixed while keyboard selection moves over terrain', async () => {
     renderFallbackRealm();
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
-    const marker = screen.getByTestId('realm-keep-marker');
+    const marker = await waitFor(() => screen.getByTestId('realm-keep-marker'));
     const markerTransform = marker.getAttribute('transform');
     const currentSelection = () => screen.getByLabelText('Current selection');
 
     expect(currentSelection().textContent).toContain('Warpkeeper Bastion · q 0, r 0');
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
 
-    expect(currentSelection().textContent).toContain('Temperate Lowlands · q 1, r 0');
+    expect(currentSelection().textContent).toContain('Lowland Forest · q 1, r 0');
     expect(marker.getAttribute('transform')).toBe(markerTransform);
     expect(screen.queryByRole('dialog')).toBeNull();
 
@@ -258,7 +329,8 @@ describe('RealmMapScreen', () => {
       snapshot: createCanonicalGenesisSnapshot(fid)
     });
 
-    expect(container.querySelector('.realm-hud__keeper')?.textContent).toBe('Hegemony Keep');
+    expect(container.querySelector('.realm-hud__keeper')?.textContent)
+      .toBe('Hegemony Keep');
     expect(screen.queryByText('FID 98765 Keep')).toBeNull();
     expect(screen.queryByRole('heading', { name: /^FID\b/i })).toBeNull();
   });

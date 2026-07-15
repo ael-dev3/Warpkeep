@@ -506,6 +506,58 @@
   font-weight: 800;
 }
 
+.realm-cell-navigator__community {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.58rem 0.62rem;
+  border: 1px solid rgb(201 167 234 / 22%);
+  border-radius: 0.48rem;
+  background: linear-gradient(135deg, rgb(78 40 95 / 52%), rgb(18 14 24 / 72%));
+}
+
+.realm-cell-navigator__community > span {
+  color: var(--realm-lavender);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+}
+
+.realm-cell-navigator__community p {
+  margin: 0;
+  color: var(--realm-muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.realm-cell-navigator__community-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: 0.22rem;
+}
+
+.realm-cell-navigator__community a {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 0.58rem;
+  border: 1px solid rgb(225 190 105 / 38%);
+  border-radius: 0.38rem;
+  color: var(--realm-electrum);
+  font: 760 0.6875rem/1.2 Inter, ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+  text-decoration: none;
+}
+
+.realm-cell-navigator__community a:hover,
+.realm-cell-navigator__community a:focus-visible {
+  border-color: var(--realm-electrum);
+  outline: 2px solid var(--realm-electrum);
+  outline-offset: 2px;
+}
+
 .realm-cell-navigator__jump fieldset {
   display: grid;
   grid-template-columns: auto 1fr auto 1fr;
@@ -524,7 +576,7 @@
 
 .realm-cell-navigator__jump input {
   width: 100%;
-  min-width: 0;
+  min-width: 2.75rem;
   box-sizing: border-box;
   padding: 0 0.45rem;
 }
@@ -629,6 +681,16 @@
   }
 }
 
+@media (max-width: 360px) {
+  .realm-cell-navigator__community-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .realm-cell-navigator > button span {
+    display: none;
+  }
+}
+
 @media (max-height: 600px) and (min-width: 581px) {
   .realm-hud {
     top: max(0.45rem, env(safe-area-inset-top));
@@ -670,6 +732,10 @@
     left: auto;
     width: min(18rem, 43vw);
     max-height: none;
+  }
+
+  .realm-cell-navigator__jump fieldset {
+    grid-template-columns: auto minmax(2.75rem, 1fr);
   }
 
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud,
