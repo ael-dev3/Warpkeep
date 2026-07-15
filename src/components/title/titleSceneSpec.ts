@@ -8,17 +8,8 @@ export type SpiralGalaxyLayout = {
 
 export const titleSceneSpec = {
   title: {
-    text: 'WARPKEEP',
-    roughness: 0.92,
-    sideRoughness: 0.96,
-    metalness: 0,
-    bumpScale: 0.014,
     desktopViewportWidth: 0.82,
     mobileViewportWidth: 0.84,
-    height: 2.18,
-    depth: 0.98,
-    bevelSize: 0.012,
-    bevelThickness: 0.018,
     shinePeriodSeconds: 32
   },
   galaxy: {

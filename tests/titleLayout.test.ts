@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutBrutalistGlyphs } from '../src/components/title/brutalistGlyphs';
+import { WARPKEEP_TITLE_LAYOUT } from '../src/components/title/loadWarpkeepTitle';
 import { calculateTitleResponsiveLayout } from '../src/components/title/titleLayout';
 import { titleSceneSpec } from '../src/components/title/titleSceneSpec';
 
@@ -19,12 +19,8 @@ function visibleWorldWidth(width: number, height: number) {
 }
 
 describe('Warpkeep title responsive layout', () => {
-  it('keeps the continuous wordmark inside its safe width at every required viewport', () => {
-    const wordWidth = layoutBrutalistGlyphs(
-      titleSceneSpec.title.text,
-      titleSceneSpec.title.height
-    ).width;
-    const safeWidth = wordWidth + titleSceneSpec.title.depth * 0.22;
+  it('keeps the integrity-verified 3D title model inside its safe width at every required viewport', () => {
+    const safeWidth = WARPKEEP_TITLE_LAYOUT.safeWidth;
 
     requiredViewports.forEach(([width, height]) => {
       const visibleWidth = visibleWorldWidth(width, height);
@@ -34,7 +30,6 @@ describe('Warpkeep title responsive layout', () => {
         : titleSceneSpec.title.desktopViewportWidth;
       expect(layout.scale).toBeGreaterThan(0);
       expect(safeWidth * layout.scale).toBeLessThanOrEqual(visibleWidth * expectedRatio + 1e-10);
-      expect(wordWidth * layout.scale).toBeLessThan(visibleWidth);
     });
   });
 

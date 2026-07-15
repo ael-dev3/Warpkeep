@@ -129,7 +129,9 @@ describe('Warpkeep document fallback', () => {
     const status = root?.querySelector('[role="status"]');
 
     expect(root?.querySelector('.warpkeep-boot')).not.toBeNull();
-    expect(root?.querySelector('#warpkeep-boot-title')?.textContent).toBe('WARPKEEP');
+    expect(root?.querySelector('#warpkeep-boot-title')).toBeNull();
+    expect(root?.querySelector('.warpkeep-boot')?.getAttribute('aria-label')).toBe('Warpkeep is opening');
+    expect(root?.textContent).not.toContain('WARPKEEP');
     expect(status?.getAttribute('aria-live')).toBe('polite');
     expect(status?.textContent).toContain('Opening the realm…');
     expect(indexHtml).toContain('href="/warpkeep-boot.css"');
