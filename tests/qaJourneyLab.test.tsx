@@ -30,6 +30,37 @@ let storageClear: ReturnType<typeof vi.spyOn>;
 let cookieWrite: ReturnType<typeof vi.spyOn>;
 let indexedDbOpen: ReturnType<typeof vi.fn>;
 
+const QA_SCENARIO_LANDMARKS = {
+  journey: { role: 'navigation', name: 'Hegemony main menu' },
+  menu: { role: 'navigation', name: 'Hegemony main menu' },
+  terms: { role: 'dialog', name: 'ALPHA PARTICIPATION TERMS' },
+  'auth-creating': { role: 'heading', name: 'CLAIM YOUR KEEP' },
+  'auth-awaiting': { role: 'heading', name: 'CLAIM YOUR KEEP' },
+  'auth-qr-error': { role: 'heading', name: 'CLAIM YOUR KEEP' },
+  'auth-verifying': { role: 'heading', name: 'VERIFYING HEGEMONY RECORD' },
+  'admission-pending': { role: 'heading', name: 'ENTRY NOT YET GRANTED' },
+  'auth-authenticated': { role: 'heading', name: 'HEGEMONY RECORD VERIFIED' },
+  'auth-expired': { role: 'heading', name: 'AUTHENTICATION EXPIRED' },
+  'auth-error': { role: 'heading', name: 'AUTHENTICATION FAILED' },
+  'admission-connecting': { role: 'heading', name: 'OPENING HEGEMONY RECORDS' },
+  'admission-reconnecting': { role: 'heading', name: 'REOPENING HEGEMONY RECORDS' },
+  'admission-checking': { role: 'heading', name: 'VERIFYING FRONTIER ACCESS' },
+  'admission-awaiting-terms': { role: 'heading', name: 'ALPHA TERMS REQUIRED' },
+  'admission-denied': { role: 'heading', name: 'ENTRY NOT YET GRANTED' },
+  'admission-bootstrapping': { role: 'heading', name: 'ESTABLISHING YOUR KEEP' },
+  'admission-accepting-terms': { role: 'heading', name: 'RECORDING ALPHA TERMS' },
+  'admission-opening-realm': { role: 'heading', name: 'OPENING GENESIS 001…' },
+  'admission-error': { role: 'heading', name: 'HEGEMONY RECORDS UNREACHABLE' },
+  'realm-player': { role: 'main', name: 'Hegemony realm' },
+  'realm-observer': { role: 'main', name: 'Hegemony realm QA observer' }
+} as const satisfies Readonly<Record<
+  QaJourneyScenario,
+  Readonly<{
+    role: 'dialog' | 'heading' | 'main' | 'navigation';
+    name: string;
+  }>
+>>;
+
 function expectNoExternalSideEffects() {
   expect(fetchImpl).not.toHaveBeenCalled();
   expect(storageRead).not.toHaveBeenCalled();
@@ -148,6 +179,18 @@ describe('Warpkeep local QA journey lab', () => {
     expect(boundQaAutoCycleInterval(2_000)).toBe(2_000);
     expect(boundQaAutoCycleInterval(30_001)).toBe(6_000);
   });
+
+  it.each(QA_JOURNEY_SCENARIOS)(
+    'mounts the manifest-backed $id state without external authority',
+    ({ id }) => {
+      render(<WarpkeepQaJourneyLab initialScenario={id} />);
+      const root = document.querySelector<HTMLElement>('.qa-journey');
+      expect(root?.getAttribute('data-qa-scenario')).toBe(id);
+      const landmark = QA_SCENARIO_LANDMARKS[id];
+      expect(screen.getByRole(landmark.role, { name: landmark.name })).not.toBeNull();
+      expectNoExternalSideEffects();
+    }
+  );
 
   it('runs the complete Terms, synthetic auth, admission, and realm journey without authority', async () => {
     render(<WarpkeepQaJourneyLab initialScenario="journey" />);

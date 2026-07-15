@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { generateRealmTerrainMap, terrainCellByCoord } from '../src/game/map/generateTerrainMap';
 import { axialToWorld } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
+import type { RealmTerrainKind } from '../src/game/map/realmTerrainSemantics';
 import { sampleLowlandsColor } from '../src/game/map/terrainColor';
 import { createHegemonyKeepPlacement } from '../src/game/map/terrainPlacements';
 
@@ -53,5 +54,48 @@ describe('lowlands terrain color', () => {
     expect(paddedEdge.r).toBeCloseTo(naturalEdge.r, 10);
     expect(paddedEdge.g).toBeCloseTo(naturalEdge.g, 10);
     expect(paddedEdge.b).toBeCloseTo(naturalEdge.b, 10);
+  });
+
+  it('distinguishes semantic cell interiors while preserving shared-edge continuity', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 5);
+    const first = terrainCellByCoord(map, { q: 0, r: 0 });
+    const second = terrainCellByCoord(map, { q: 1, r: 0 });
+    if (!first || !second) throw new Error('missing adjacent terrain cells');
+    const firstCenter = axialToWorld(first.coord, 1);
+    const sharedEdge = { x: Math.sqrt(3) / 2, z: 0 };
+    const context = { hexSize: 1, playableRadius: 4, renderRadius: 5 } as const;
+    const terrainKinds: readonly RealmTerrainKind[] = [
+      'lowland',
+      'meadow',
+      'forest',
+      'heath',
+      'ridge',
+      'lake',
+      'ancient-stone'
+    ];
+    const centerColors = terrainKinds
+      .map((terrainKind) => sampleLowlandsColor(map.worldSeed, firstCenter, {
+        ...context,
+        cell: first,
+        terrainKind
+      }));
+    const uniqueCenterColors = new Set(centerColors.map((color) => (
+      `${color.r.toFixed(5)}:${color.g.toFixed(5)}:${color.b.toFixed(5)}`
+    )));
+    const forestEdge = sampleLowlandsColor(map.worldSeed, sharedEdge, {
+      ...context,
+      cell: first,
+      terrainKind: 'forest'
+    });
+    const lakeEdge = sampleLowlandsColor(map.worldSeed, sharedEdge, {
+      ...context,
+      cell: second,
+      terrainKind: 'lake'
+    });
+
+    expect(uniqueCenterColors.size).toBe(7);
+    expect(forestEdge.r).toBeCloseTo(lakeEdge.r, 10);
+    expect(forestEdge.g).toBeCloseTo(lakeEdge.g, 10);
+    expect(forestEdge.b).toBeCloseTo(lakeEdge.b, 10);
   });
 });

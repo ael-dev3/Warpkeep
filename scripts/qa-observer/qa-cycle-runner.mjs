@@ -40,7 +40,7 @@ const RUNTIME_TMP = join(OBSERVATORY_ROOT, 'tmp');
 const NPM_CACHE = join(OBSERVATORY_ROOT, 'npm-cache');
 const SOCKET_TMP_ROOT = join(
   '/private/tmp',
-  `wkqa-${typeof process.getuid === 'function' ? process.getuid() : 'local'}-${randomBytes(6).toString('hex')}`,
+  `q${randomBytes(8).toString('base64url')}`,
 );
 process.once('exit', () => {
   try {
@@ -92,6 +92,7 @@ const SPACETIME_V3_DIST_ROOT = join(
 const BROKER_SOCKET_PATH = join(OBSERVATORY_ROOT, 'broker.sock');
 const BROKER_HEALTH_PATH = '/healthz';
 const BROKER_SNAPSHOT_PATH = '/snapshot';
+const BROKER_SNAPSHOT_MAXIMUM_BYTES = 16 * 1024;
 const MAX_UNIX_SOCKET_PATH_BYTES = 90;
 const SANDBOX_EXECUTABLE = '/usr/bin/sandbox-exec';
 const NETWORK_SANDBOX_PROFILE = join(
@@ -215,7 +216,7 @@ const SPACETIME_CLI = join(
   'spacetimedb-cli',
 );
 const SPACETIME_CLI_ROOT = dirname(SPACETIME_CLI);
-const REPORT_VERSION = 1;
+const REPORT_VERSION = 2;
 const REPORT_RETENTION_DAYS = 14;
 const MAX_REPORTS = 200;
 const MAX_CYCLE_MILLISECONDS = 50 * 60 * 1_000;
@@ -343,6 +344,7 @@ const CHECKS = Object.freeze({
     id: 'synthetic-app-states',
     executable: NPM_EXECUTABLE,
     args: Object.freeze(['test', '--', ...SYNTHETIC_APP_STATE_TESTS]),
+    maximumAttempts: 2,
     timeoutMs: 6 * 60 * 1_000,
   }),
   fullUnit: Object.freeze({
@@ -379,6 +381,7 @@ const CHECKS = Object.freeze({
     id: 'rendered-webgl-browser',
     executable: process.execPath,
     args: Object.freeze([RENDERED_WEBGL_BROWSER_PROBE]),
+    maximumAttempts: 2,
     networkBoundary: 'self-contained-browser',
     timeoutMs: 9 * 60 * 1_000,
   }),
@@ -931,7 +934,10 @@ async function requireOwnerPrivateSocket(socketPath) {
   }
   const parentPath = dirname(socketPath);
   const expectedUid = typeof process.getuid === 'function' ? process.getuid() : undefined;
-  const [parent, socket] = await Promise.all([lstat(parentPath), lstat(socketPath)]);
+  const [parent, socket] = await Promise.all([
+    lstat(parentPath),
+    lstat(socketPath, { bigint: true }),
+  ]);
   if (
     !parent.isDirectory()
     || parent.isSymbolicLink()
@@ -940,9 +946,19 @@ async function requireOwnerPrivateSocket(socketPath) {
     || resolve(await realpath(parentPath)) !== resolve(parentPath)
     || !socket.isSocket()
     || socket.isSymbolicLink()
-    || (expectedUid !== undefined && socket.uid !== expectedUid)
-    || (socket.mode & 0o077) !== 0
+    || (expectedUid !== undefined && socket.uid !== BigInt(expectedUid))
+    || (socket.mode & 0o077n) !== 0n
+    || socket.nlink !== 1n
   ) throw new Error('Unsafe local QA broker socket.');
+  return [
+    socket.dev,
+    socket.ino,
+    socket.uid,
+    socket.gid,
+    socket.mode,
+    socket.nlink,
+    socket.ctimeNs,
+  ].join(':');
 }
 
 function headerValue(headers, name) {
@@ -956,7 +972,7 @@ async function readBrokerJson(path, maximumBytes, options = {}) {
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000) {
     throw new TypeError('Invalid broker timeout.');
   }
-  await requireOwnerPrivateSocket(socketPath);
+  const expectedSocketIdentity = await requireOwnerPrivateSocket(socketPath);
   return new Promise((resolveJson, rejectJson) => {
     let settled = false;
     let response;
@@ -979,15 +995,23 @@ async function readBrokerJson(path, maximumBytes, options = {}) {
       response = incoming;
       const advertised = headerValue(incoming.headers, 'content-length');
       const contentType = headerValue(incoming.headers, 'content-type');
+      const cacheControl = headerValue(incoming.headers, 'cache-control');
+      const contentEncoding = headerValue(incoming.headers, 'content-encoding');
+      const transferEncoding = headerValue(incoming.headers, 'transfer-encoding');
+      const contentTypeOptions = headerValue(incoming.headers, 'x-content-type-options');
+      const noStore = typeof cacheControl === 'string'
+        && cacheControl.split(',').some((directive) => directive.trim().toLowerCase() === 'no-store');
       if (
         incoming.statusCode !== 200
         || typeof contentType !== 'string'
         || !/^application\/json(?:\s*;\s*charset=utf-8)?$/i.test(contentType)
-        || (advertised !== undefined && (
-          typeof advertised !== 'string'
-          || !/^\d+$/.test(advertised)
-          || Number(advertised) > maximumBytes
-        ))
+        || typeof advertised !== 'string'
+        || !/^\d+$/.test(advertised)
+        || Number(advertised) > maximumBytes
+        || !noStore
+        || contentTypeOptions?.toLowerCase() !== 'nosniff'
+        || contentEncoding !== undefined
+        || transferEncoding !== undefined
       ) {
         incoming.destroy();
         finish(() => rejectJson(new Error('Invalid local QA broker response.')));
@@ -1005,13 +1029,23 @@ async function readBrokerJson(path, maximumBytes, options = {}) {
       });
       incoming.once('error', () => finish(() => rejectJson(new Error('Local QA broker response failed.'))));
       incoming.once('end', () => {
-        finish(() => {
-          try {
-            resolveJson(JSON.parse(Buffer.concat(chunks, total).toString('utf8')));
-          } catch {
-            rejectJson(new Error('Invalid local QA broker response.'));
-          }
-        });
+        void requireOwnerPrivateSocket(socketPath).then((currentSocketIdentity) => {
+          finish(() => {
+            try {
+              if (
+                currentSocketIdentity !== expectedSocketIdentity
+                || Number(advertised) !== total
+                || !incoming.complete
+                || Object.keys(incoming.trailers).length !== 0
+              ) throw new Error('Local QA broker boundary changed.');
+              resolveJson(JSON.parse(Buffer.concat(chunks, total).toString('utf8')));
+            } catch {
+              rejectJson(new Error('Invalid local QA broker response.'));
+            }
+          });
+        }).catch(() => finish(() => rejectJson(
+          new Error('Local QA broker boundary changed.'),
+        )));
       });
     });
     timeout = setTimeout(() => {
@@ -1040,7 +1074,7 @@ export async function probeLocalBrokerHealth(options = {}) {
 }
 
 export async function probeLocalBrokerSnapshot(options = {}) {
-  const body = await readBrokerJson(BROKER_SNAPSHOT_PATH, 256 * 1_024, {
+  const body = await readBrokerJson(BROKER_SNAPSHOT_PATH, BROKER_SNAPSHOT_MAXIMUM_BYTES, {
     socketPath: options.socketPath,
     timeoutMs: options.timeoutMs ?? 30_000,
   });
@@ -1069,12 +1103,14 @@ export async function runQaCycle(options = {}) {
         id: `broker-${options.broker}`,
         status: 'pass',
         durationMs: Math.max(0, Date.now() - brokerStarted),
+        attempts: 1,
       }));
     } catch {
       results.push(Object.freeze({
         id: `broker-${options.broker}`,
         status: 'fail',
         durationMs: Math.max(0, Date.now() - brokerStarted),
+        attempts: 1,
       }));
     }
   } else if (options.broker !== undefined && options.broker !== 'off') {
@@ -1084,23 +1120,66 @@ export async function runQaCycle(options = {}) {
   for (const check of checks) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      results.push(Object.freeze({ id: check.id, status: 'timeout', durationMs: 0 }));
+      results.push(Object.freeze({
+        id: check.id,
+        status: 'timeout',
+        durationMs: 0,
+        attempts: 0,
+      }));
       break;
     }
-    try {
-      const timeoutMs = Math.min(check.timeoutMs, remaining);
-      const result = usesDefaultExecutor && check === CHECKS.sandboxBoundary
-        ? await runSandboxBoundaryCheck(check, timeoutMs)
-        : await execute(check, {
-            cwd: REPOSITORY_ROOT,
-            timeoutMs,
-          });
-      results.push(result);
-      if (check === CHECKS.sandboxBoundary && result.status !== 'pass') break;
-    } catch {
-      results.push(Object.freeze({ id: check.id, status: 'fail', durationMs: 0 }));
-      if (check === CHECKS.sandboxBoundary) break;
+    const maximumAttempts = check.maximumAttempts ?? 1;
+    if (!Number.isSafeInteger(maximumAttempts) || maximumAttempts < 1 || maximumAttempts > 2) {
+      results.push(Object.freeze({
+        id: check.id,
+        status: 'fail',
+        durationMs: 0,
+        attempts: 0,
+      }));
+      break;
     }
+    const checkDeadline = Math.min(deadline, Date.now() + check.timeoutMs);
+    let attempts = 0;
+    let durationMs = 0;
+    let status = 'timeout';
+    while (attempts < maximumAttempts) {
+      const attemptRemaining = checkDeadline - Date.now();
+      if (attemptRemaining <= 0) {
+        status = 'timeout';
+        break;
+      }
+      attempts += 1;
+      try {
+        const attempt = usesDefaultExecutor && check === CHECKS.sandboxBoundary
+          ? await runSandboxBoundaryCheck(check, attemptRemaining)
+          : await execute(check, {
+              cwd: REPOSITORY_ROOT,
+              timeoutMs: attemptRemaining,
+            });
+        if (
+          attempt === null
+          || typeof attempt !== 'object'
+          || Array.isArray(attempt)
+          || Object.keys(attempt).sort().join(',') !== 'durationMs,id,status'
+          || attempt.id !== check.id
+          || !['pass', 'fail', 'timeout'].includes(attempt.status)
+          || !Number.isSafeInteger(attempt.durationMs)
+          || attempt.durationMs < 0
+          || attempt.durationMs > MAX_CYCLE_MILLISECONDS
+        ) {
+          status = 'fail';
+          break;
+        }
+        durationMs = Math.min(MAX_CYCLE_MILLISECONDS, durationMs + attempt.durationMs);
+        status = attempt.status;
+      } catch {
+        status = 'fail';
+      }
+      if (status === 'pass') break;
+    }
+    const result = Object.freeze({ id: check.id, status, durationMs, attempts });
+    results.push(result);
+    if (check === CHECKS.sandboxBoundary && result.status !== 'pass') break;
   }
 
   const finishedAt = new Date();
@@ -1158,18 +1237,22 @@ function sanitizeReport(report) {
       check === null
       || typeof check !== 'object'
       || Array.isArray(check)
-      || Object.keys(check).sort().join(',') !== 'durationMs,id,status'
+      || Object.keys(check).sort().join(',') !== 'attempts,durationMs,id,status'
       || typeof check.id !== 'string'
       || !/^[a-z0-9-]{1,48}$/.test(check.id)
       || !['pass', 'fail', 'timeout'].includes(check.status)
       || !Number.isSafeInteger(check.durationMs)
       || check.durationMs < 0
       || check.durationMs > MAX_CYCLE_MILLISECONDS
+      || !Number.isSafeInteger(check.attempts)
+      || check.attempts < 0
+      || check.attempts > 2
     ) throw new TypeError('Invalid QA report check.');
     return Object.freeze({
       id: check.id,
       status: check.status,
       durationMs: check.durationMs,
+      attempts: check.attempts,
     });
   });
   return Object.freeze({
@@ -1404,7 +1487,12 @@ async function main() {
       broker: argumentsValue.broker,
       status: 'fail',
       durationMs: 0,
-      checks: Object.freeze([{ id: 'runner', status: 'fail', durationMs: 0 }]),
+      checks: Object.freeze([{
+        id: 'runner',
+        status: 'fail',
+        durationMs: 0,
+        attempts: 0,
+      }]),
     });
   }
 
@@ -1416,7 +1504,12 @@ async function main() {
       status: 'fail',
       checks: Object.freeze([
         ...report.checks,
-        Object.freeze({ id: 'runner-lock-release', status: 'fail', durationMs: 0 }),
+        Object.freeze({
+          id: 'runner-lock-release',
+          status: 'fail',
+          durationMs: 0,
+          attempts: 0,
+        }),
       ]),
     });
   }

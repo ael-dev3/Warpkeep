@@ -115,8 +115,16 @@ describe('RealmHud', () => {
     );
     expect(liveRegion?.textContent).toBe(initialAnnouncement);
 
-    rerender(<RealmHud {...common} selectedCell={terrainCell(1, 0)} />);
-    expect(liveRegion?.textContent).toContain('Selected cell 1, 0');
+    rerender(
+      <RealmHud
+        {...common}
+        selectedCell={terrainCell(1, 0)}
+        selectedTerrainKind="heath"
+      />
+    );
+    expect(liveRegion?.textContent).toContain('Amethyst Heath. Selected cell 1, 0');
+    expect(screen.getByLabelText('Current selection').textContent)
+      .toContain('Amethyst Heath · q 1, r 0');
   });
 
   it('offers stable Menu and Home actions without camera-mode label churn', () => {

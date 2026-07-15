@@ -7,6 +7,12 @@ import {
   type HexCoord
 } from '../../game/map/hexCoordinates';
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
+import { generateRealmTerrainFeatures } from '../../game/map/realmTerrainFeatures';
+import {
+  indexRealmTerrainSemantics,
+  type RealmTerrainKind,
+  type RealmTerrainSemanticRow
+} from '../../game/map/realmTerrainSemantics';
 import { isPlayableRealmCoord, type RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
 import {
@@ -14,6 +20,7 @@ import {
   type TerrainStructurePlacement
 } from '../../game/map/terrainPlacements';
 import { createTerrainDecorationLayers } from './createTerrainDecorations';
+import { createRealmTerrainFeatureLayers } from './createRealmTerrainFeatures';
 import { createTerrainGeometryData, pointyHexCorners } from './createTerrainGeometry';
 import {
   DEFAULT_CASTLE_LOD_POLICY,
@@ -44,6 +51,7 @@ import {
 } from './realmCastlePresentation';
 import {
   createRealmEnvironmentDepth,
+  REALM_SUN_LIGHT_POSITION,
   REALM_SKY_FALLBACK_COLOR
 } from './createRealmEnvironment';
 import {
@@ -124,6 +132,15 @@ export type RealmInteractionTarget =
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
   | Readonly<{ kind: 'terrain'; coord: HexCoord }>;
 
+export type RealmTerrainPresentationTelemetry = Readonly<{
+  semanticCellCount: number;
+  semanticKindCount: number;
+  semanticFeatureCount: number;
+  semanticFeatureDrawCalls: number;
+  totalDetailInstanceCount: number;
+  totalDetailDrawCalls: number;
+}>;
+
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
   focusCastle: (castleId: number) => void;
@@ -189,6 +206,7 @@ export type CreateRealmSceneOptions = Readonly<{
   keepCoord: HexCoord;
   ownCastleId?: number;
   otherCastles: readonly RealmPeerCastleMarker[];
+  terrainMetadata: readonly RealmTerrainSemanticRow[];
   quality: RealmQualitySpec;
   reducedMotion: boolean;
   baseUrl: string;
@@ -206,6 +224,7 @@ export type CreateRealmSceneOptions = Readonly<{
     telemetry: RealmCastleInstancePresentationTelemetry
   ) => void;
   onCastleProjection: (frame: RealmCastleProjectionFrame) => void;
+  onTerrainPresentationTelemetry?: (telemetry: RealmTerrainPresentationTelemetry) => void;
   onRendererUnavailable: () => void;
   /** @deprecated Prefer onTargetSelect for castle identity-aware interaction. */
   onSelect: (coord: HexCoord) => void;
@@ -264,12 +283,14 @@ function createRealmSceneCleanup(): RealmSceneCleanup {
 function createTerrainGeometry(
   surface: RealmTerrainSurface,
   subdivisionsPerEdge: number,
-  placements: readonly TerrainStructurePlacement[]
+  placements: readonly TerrainStructurePlacement[],
+  terrainKindsByKey: ReadonlyMap<string, RealmTerrainKind>
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
     subdivisionsPerEdge,
     playableRadius: surface.playableMap.radius,
-    placements
+    placements,
+    terrainKindsByKey
   });
   const geometry = new THREE.BufferGeometry();
   try {
@@ -418,8 +439,14 @@ function initializeRealmScene(
     dynamicShadows: renderPlan.dynamicShadows,
     shadowMapSize: renderPlan.shadowMapSize
   };
+  const terrainSemantics = indexRealmTerrainSemantics(
+    options.surface,
+    options.terrainMetadata
+  );
   const terrainPlacements = createHegemonyCastlePlacements([
-    { id: 'own-keep', coord: options.keepCoord },
+    ...(options.ownCastleId === undefined
+      ? []
+      : [{ id: 'own-keep', coord: options.keepCoord }]),
     ...options.otherCastles.map((castle) => ({
       id: `peer-castle-${castle.castleId}`,
       coord: { q: castle.q, r: castle.r }
@@ -433,9 +460,6 @@ function initializeRealmScene(
     options.quality.fogFar
   );
   scene.fog = fog;
-  const environment = createRealmEnvironmentDepth(options.quality.id);
-  cleanup.add(environment.dispose);
-  scene.add(environment.group);
 
   const renderer = new THREE.WebGLRenderer({
     canvas: options.canvas,
@@ -452,10 +476,26 @@ function initializeRealmScene(
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.setClearColor(REALM_SKY_FALLBACK_COLOR, 1);
 
+  let environmentGroup: THREE.Group | undefined;
+  try {
+    const environment = createRealmEnvironmentDepth(options.quality.id);
+    cleanup.add(environment.dispose);
+    scene.add(environment.group);
+    environmentGroup = environment.group;
+    scene.environment = environment.environmentMap;
+    scene.environmentIntensity = environment.environmentIntensity;
+    options.canvas.dataset.environmentLighting = 'procedural';
+  } catch {
+    // Direct lights and the solid sky fallback remain sufficient for play.
+    // Controlled local browser QA attests this aggregate state separately.
+    options.canvas.dataset.environmentLighting = 'direct-light-fallback';
+  }
+
   const { data: terrainData, geometry: terrainGeometry } = createTerrainGeometry(
     options.surface,
     renderPlan.subdivisionsPerEdge,
-    terrainPlacements
+    terrainPlacements,
+    terrainSemantics.terrainKindsByKey
   );
   cleanup.add(() => terrainGeometry.dispose());
   const terrainMaterial = new THREE.MeshStandardMaterial({
@@ -477,7 +517,8 @@ function initializeRealmScene(
       playableRadius: options.surface.playableMap.radius
     },
     HEX_SIZE,
-    terrainPlacements
+    terrainPlacements,
+    terrainSemantics.terrainKindsByKey
   );
   const decorations = createTerrainDecorationLayers(
     decorationData,
@@ -489,9 +530,45 @@ function initializeRealmScene(
   cleanup.add(decorations.dispose);
   scene.add(decorations.group);
 
+  const semanticFeatureData = generateRealmTerrainFeatures(
+    options.surface.renderMap,
+    terrainSemantics.terrainKindsByKey,
+    runtimeQuality.id,
+    HEX_SIZE,
+    terrainPlacements,
+    terrainSemantics.castleSlotKeys
+  );
+  const totalDetailInstanceCount = decorationData.points.length
+    + semanticFeatureData.points.length;
+  if (totalDetailInstanceCount > renderPlan.decorationInstanceBudget) {
+    throw new Error('REALM_TERRAIN_TOTAL_DETAIL_BUDGET_EXCEEDED');
+  }
+  const semanticFeatures = createRealmTerrainFeatureLayers(
+    semanticFeatureData,
+    options.surface.renderMap,
+    runtimeQuality,
+    HEX_SIZE,
+    terrainPlacements
+  );
+  cleanup.add(semanticFeatures.dispose);
+  scene.add(semanticFeatures.group);
+  options.onTerrainPresentationTelemetry?.(Object.freeze({
+    semanticCellCount: terrainSemantics.terrainKindsByKey.size,
+    semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
+      .filter((count) => count > 0).length,
+    semanticFeatureCount: semanticFeatures.instanceCount,
+    semanticFeatureDrawCalls: semanticFeatures.drawCalls,
+    totalDetailInstanceCount,
+    totalDetailDrawCalls: decorations.drawCalls + semanticFeatures.drawCalls
+  }));
+
   const hemisphere = new THREE.HemisphereLight('#ece9f4', '#332c3c', 0.84);
   const sun = new THREE.DirectionalLight('#ffddb0', lighting.sunIntensity);
-  sun.position.set(-7.5, 13.5, 8.5);
+  sun.position.set(
+    REALM_SUN_LIGHT_POSITION.x,
+    REALM_SUN_LIGHT_POSITION.y,
+    REALM_SUN_LIGHT_POSITION.z
+  );
   sun.castShadow = renderPlan.dynamicShadows;
   if (renderPlan.shadowMapSize > 0) {
     sun.shadow.mapSize.set(renderPlan.shadowMapSize, renderPlan.shadowMapSize);
@@ -710,7 +787,7 @@ function initializeRealmScene(
       lastCastlePresentationTelemetryKey = presentationTelemetryKey;
       options.onCastlePresentationTelemetry?.(presentationTelemetry);
     }
-    environment.group.position.copy(cameraController.camera.position);
+    environmentGroup?.position.copy(cameraController.camera.position);
     renderer.render(scene, cameraController.camera);
     projectCastleLabels();
     if (pendingCastlesReadyCount !== null) {

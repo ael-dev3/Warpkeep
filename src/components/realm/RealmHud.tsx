@@ -2,6 +2,10 @@ import { useRef } from 'react';
 
 import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 import type { HexCoord } from '../../game/map/hexCoordinates';
+import {
+  realmTerrainLabel,
+  type RealmTerrainKind
+} from '../../game/map/realmTerrainSemantics';
 import type { TerrainCell } from '../../game/map/terrainTypes';
 import type { RealmIdentity } from './realmTypes';
 import {
@@ -17,6 +21,7 @@ type RealmHudProps = Readonly<{
   marksStatus?: 'loading' | 'unavailable' | 'ready';
   keepCoord?: HexCoord;
   selectedCell: TerrainCell;
+  selectedTerrainKind?: RealmTerrainKind;
   selectedCastle?: Readonly<{ name: string; level: number; q: number; r: number }>;
   selectedCastleProfile?: RealmCastlePublicPresentation;
   onRecenterKeep: () => void;
@@ -30,10 +35,6 @@ function keeperLabel(identity: RealmIdentity, profile: RealmCastlePublicPresenta
 
 function isKeepCell(cell: TerrainCell, keepCoord: HexCoord) {
   return cell.coord.q === keepCoord.q && cell.coord.r === keepCoord.r;
-}
-
-function terrainLabel(cell: TerrainCell) {
-  return cell.biome === 'temperate-lowland' ? 'Temperate Lowlands' : 'Realm Terrain';
 }
 
 function publicAssetUrl(path: string) {
@@ -88,6 +89,7 @@ export function RealmHud({
   marksStatus = 'unavailable',
   keepCoord,
   selectedCell,
+  selectedTerrainKind,
   selectedCastle,
   selectedCastleProfile,
   onRecenterKeep,
@@ -95,7 +97,7 @@ export function RealmHud({
 }: RealmHudProps) {
   const authoritativeKeepCoord = keepCoord ?? { q: 0, r: 0 };
   const selectedIsKeep = isKeepCell(selectedCell, authoritativeKeepCoord);
-  const selectedTerrainLabel = terrainLabel(selectedCell);
+  const selectedTerrainLabel = realmTerrainLabel(selectedTerrainKind);
   const selectedCastleLabel = selectedCastleProfile
     ? castleProfileLabel(selectedCastleProfile)
     : 'Hegemony Keep';

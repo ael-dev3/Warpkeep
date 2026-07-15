@@ -15,7 +15,12 @@ const OBSERVATORY_DIRECTORY = join(
 const SOCKET_PATH = join(OBSERVATORY_DIRECTORY, 'broker.sock');
 // Keep safely below Darwin's short sockaddr_un path ceiling.
 const MAX_UNIX_SOCKET_PATH_BYTES = 90;
-const MAX_HELPER_BYTES = 256 * 1024;
+const MAX_HELPER_BYTES = 16 * 1024;
+const MAX_HEADER_BYTES = 8 * 1024;
+const MAX_CONNECTIONS = 8;
+const HEADER_TIMEOUT_MILLISECONDS = 2_000;
+const REQUEST_TIMEOUT_MILLISECONDS = 2_000;
+const RESPONSE_TIMEOUT_MILLISECONDS = 30_000;
 // The helper performs two bounded HTTPS exchanges (challenge, then snapshot).
 // Keep the broker above their combined 20-second ceiling without making it
 // unbounded or changing the 60-second challenge lifetime.
@@ -32,6 +37,7 @@ let cachedAt = 0;
 let cacheExpiryTimer;
 let activeRead;
 let shuttingDown = false;
+let boundSocketIdentity;
 
 function clearSnapshotCache() {
   cachedSnapshot = undefined;
@@ -65,6 +71,18 @@ function requireHelperBoundary() {
   requireOwnerOnlyPath(OBSERVATORY_DIRECTORY, true);
   requireOwnerOnlyPath(dirname(helperPath), true);
   requireOwnerOnlyPath(helperPath);
+  const metadata = lstatSync(helperPath, { bigint: true });
+  return [
+    metadata.dev,
+    metadata.ino,
+    metadata.uid,
+    metadata.gid,
+    metadata.mode,
+    metadata.nlink,
+    metadata.size,
+    metadata.mtimeNs,
+    metadata.ctimeNs,
+  ].join(':');
 }
 
 function requireAbsentSocket() {
@@ -90,26 +108,34 @@ function requireSocketPathFits() {
   }
 }
 
-function requireSocketBoundary() {
-  const metadata = lstatSync(SOCKET_PATH);
+function requireSocketBoundary(expectedIdentity) {
+  const metadata = lstatSync(SOCKET_PATH, { bigint: true });
   const expectedUid = typeof process.getuid === 'function' ? process.getuid() : undefined;
   if (
     metadata.isSymbolicLink()
     || !metadata.isSocket()
-    || (expectedUid !== undefined && metadata.uid !== expectedUid)
-    || (metadata.mode & 0o077) !== 0
+    || (expectedUid !== undefined && metadata.uid !== BigInt(expectedUid))
+    || (metadata.mode & 0o077n) !== 0n
+    || metadata.nlink !== 1n
   ) throw new Error('QA broker socket boundary is unavailable.');
+  const identity = [
+    metadata.dev,
+    metadata.ino,
+    metadata.uid,
+    metadata.gid,
+    metadata.mode,
+    metadata.nlink,
+    metadata.ctimeNs,
+  ].join(':');
+  if (expectedIdentity !== undefined && identity !== expectedIdentity) {
+    throw new Error('QA broker socket boundary changed.');
+  }
+  return identity;
 }
 
 function removeOwnedSocket() {
   try {
-    const metadata = lstatSync(SOCKET_PATH);
-    const expectedUid = typeof process.getuid === 'function' ? process.getuid() : undefined;
-    if (
-      metadata.isSymbolicLink()
-      || !metadata.isSocket()
-      || (expectedUid !== undefined && metadata.uid !== expectedUid)
-    ) return;
+    requireSocketBoundary(boundSocketIdentity);
     unlinkSync(SOCKET_PATH);
   } catch (error) {
     if (error && typeof error === 'object' && error.code === 'ENOENT') return;
@@ -119,6 +145,7 @@ function removeOwnedSocket() {
 function safeHeaders() {
   return {
     'cache-control': 'no-store',
+    connection: 'close',
     'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
     'referrer-policy': 'no-referrer',
@@ -138,8 +165,9 @@ function sendJson(response, status, value) {
 
 function runHelper() {
   return new Promise((resolve, reject) => {
+    let expectedHelperIdentity;
     try {
-      requireHelperBoundary();
+      expectedHelperIdentity = requireHelperBoundary();
     } catch {
       reject(new Error('QA helper unavailable.'));
       return;
@@ -178,6 +206,14 @@ function runHelper() {
     child.once('error', () => finish(() => reject(new Error('QA helper unavailable.'))));
     child.once('close', (code) => {
       if (settled) return;
+      try {
+        if (requireHelperBoundary() !== expectedHelperIdentity) {
+          throw new Error('QA helper boundary changed.');
+        }
+      } catch {
+        finish(() => reject(new Error('QA helper boundary changed.')));
+        return;
+      }
       if (code !== 0) {
         finish(() => reject(new Error('QA helper rejected the request.')));
         return;
@@ -212,24 +248,27 @@ async function readSnapshot() {
   return activeRead;
 }
 
-const server = createServer(async (request, response) => {
-  let url;
+const server = createServer({ maxHeaderSize: MAX_HEADER_BYTES }, async (request, response) => {
   try {
-    url = new URL(request.url ?? '/', 'http://warpkeep.local');
+    requireSocketBoundary(boundSocketIdentity);
   } catch {
-    sendJson(response, 400, { error: 'invalid_request' });
+    sendJson(response, 503, { error: 'broker_unavailable' });
     return;
   }
+  const requestPath = request.url;
   if (
-    request.method !== 'GET'
-    || url.search !== ''
-    || url.hash !== ''
-    || (url.pathname !== '/healthz' && url.pathname !== '/snapshot')
+    request.httpVersion !== '1.1'
+    || request.method !== 'GET'
+    || request.headers['content-length'] !== undefined
+    || request.headers['transfer-encoding'] !== undefined
+    || request.headers.upgrade !== undefined
+    || request.headers.expect !== undefined
+    || (requestPath !== '/healthz' && requestPath !== '/snapshot')
   ) {
     sendJson(response, 404, { error: 'not_found' });
     return;
   }
-  if (url.pathname === '/healthz') {
+  if (requestPath === '/healthz') {
     sendJson(response, 200, { ok: true, mode: 'read-only' });
     return;
   }
@@ -239,6 +278,14 @@ const server = createServer(async (request, response) => {
     sendJson(response, 503, { error: 'snapshot_unavailable' });
   }
 });
+
+server.maxConnections = MAX_CONNECTIONS;
+server.maxHeadersCount = 16;
+server.headersTimeout = HEADER_TIMEOUT_MILLISECONDS;
+server.requestTimeout = REQUEST_TIMEOUT_MILLISECONDS;
+server.timeout = RESPONSE_TIMEOUT_MILLISECONDS;
+server.keepAliveTimeout = 1;
+server.maxRequestsPerSocket = 1;
 
 server.on('clientError', (_error, socket) => {
   socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
@@ -250,6 +297,7 @@ function shutdown(exitCode = 0) {
   clearSnapshotCache();
   server.close(() => {
     removeOwnedSocket();
+    boundSocketIdentity = undefined;
     process.exit(exitCode);
   });
 }
@@ -274,7 +322,7 @@ function start() {
   server.listen(SOCKET_PATH, () => {
     try {
       chmodSync(SOCKET_PATH, 0o600);
-      requireSocketBoundary();
+      boundSocketIdentity = requireSocketBoundary();
       process.stdout.write('Warpkeep QA broker listening on an owner-private local socket.\n');
     } catch {
       shutdown(1);

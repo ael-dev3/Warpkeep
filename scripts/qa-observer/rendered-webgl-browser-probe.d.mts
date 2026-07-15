@@ -107,6 +107,13 @@ export function parseRenderedWebglBrowserDom(
   quality: RenderedWebglBrowserProbeQuality;
   castleCount: 100;
   readyAfterMilliseconds: number;
+  environmentLighting: 'procedural';
+  semanticTerrainCellCount: 1261;
+  semanticTerrainKindCount: 7;
+  semanticTerrainFeatureCount: number;
+  semanticTerrainFeatureDrawCalls: number;
+  totalTerrainDetailInstanceCount: number;
+  totalTerrainDetailDrawCalls: number;
 }>;
 
 export function analyzeRenderedWebglPngScreenshot(

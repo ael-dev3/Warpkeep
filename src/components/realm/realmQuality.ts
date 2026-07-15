@@ -13,6 +13,41 @@ export const REALM_LIGHTING_SPECS: Readonly<Record<RealmQuality, RealmLightingSp
   reduced: { toneMappingExposure: 0.98, sunIntensity: 1.7 }
 };
 
+export type RealmEnvironmentSpec = Readonly<{
+  textureWidth: 64 | 128 | 256;
+  textureHeight: 32 | 64 | 128;
+  environmentIntensity: number;
+  sunDiscSegments: 12 | 20 | 28;
+}>;
+
+/**
+ * Tiny, bounded procedural IBL profiles. The maps deliberately remain far
+ * below typical HDR asset sizes: they provide restrained material separation
+ * and horizon fill without adding a network fetch or a large GPU allocation.
+ */
+export const REALM_ENVIRONMENT_SPECS: Readonly<
+  Record<RealmQuality, RealmEnvironmentSpec>
+> = Object.freeze({
+  high: Object.freeze({
+    textureWidth: 256,
+    textureHeight: 128,
+    environmentIntensity: 0.36,
+    sunDiscSegments: 28
+  }),
+  balanced: Object.freeze({
+    textureWidth: 128,
+    textureHeight: 64,
+    environmentIntensity: 0.32,
+    sunDiscSegments: 20
+  }),
+  reduced: Object.freeze({
+    textureWidth: 64,
+    textureHeight: 32,
+    environmentIntensity: 0.28,
+    sunDiscSegments: 12
+  })
+});
+
 export type RealmQualitySpec = Readonly<{
   id: RealmQuality;
   subdivisionsPerEdge: number;

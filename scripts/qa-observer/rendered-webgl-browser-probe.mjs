@@ -44,6 +44,11 @@ const CODESIGN_MAXIMUM_BYTES = 64 * 1_024;
 const DESKTOP_VIEWPORT = Object.freeze({ width: 1_440, height: 900 });
 const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
+const TERRAIN_PRESENTATION_BUDGETS = Object.freeze({
+  high: Object.freeze({ semanticFeatureCount: 1_100, totalDetailInstanceCount: 7_000 }),
+  balanced: Object.freeze({ semanticFeatureCount: 800, totalDetailInstanceCount: 5_500 }),
+  reduced: Object.freeze({ semanticFeatureCount: 400, totalDetailInstanceCount: 3_000 }),
+});
 
 function exactPort(value) {
   if (!Number.isSafeInteger(value) || value < 1 || value > 65_535) {
@@ -383,6 +388,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'clusterReservedOverlapCount',
     'clustersWithinViewportCount',
     'documentWidth',
+    'environmentLighting',
     'exploreAccessibleCastleCount',
     'exploreCastleCount',
     'fixture',
@@ -411,7 +417,13 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'readyOverlayVisible',
     'renderer',
     'presentedModelCount',
+    'semanticTerrainCellCount',
+    'semanticTerrainFeatureCount',
+    'semanticTerrainFeatureDrawCalls',
+    'semanticTerrainKindCount',
     'status',
+    'totalTerrainDetailDrawCalls',
+    'totalTerrainDetailInstanceCount',
     'undersizedPrimaryControlCount',
     'undersizedPrimaryControlKinds',
     'viewportHeight',
@@ -442,6 +454,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     && Number.isSafeInteger(expected.clusterMemberCountBefore)
     && expected.clusterMemberCountBefore > 0
   );
+  const terrainBudgets = TERRAIN_PRESENTATION_BUDGETS[expected.expectedQuality];
   const violations = [
     candidate.href !== expected.url ? 'href' : '',
     candidate.status !== 'ready' ? 'status' : '',
@@ -453,6 +466,27 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     candidate.interactionState !== expected.interaction ? 'interaction' : '',
     candidate.readyOverlayVisible !== false ? 'ready-overlay-visible' : '',
     candidate.mapViewportCovered !== true ? 'map-coverage' : '',
+    candidate.environmentLighting !== 'procedural' ? 'environment-lighting' : '',
+    candidate.semanticTerrainCellCount !== 1_261 ? 'semantic-terrain-cell-count' : '',
+    candidate.semanticTerrainKindCount !== 7 ? 'semantic-terrain-kind-count' : '',
+    !terrainBudgets
+      || !Number.isSafeInteger(candidate.semanticTerrainFeatureCount)
+      || candidate.semanticTerrainFeatureCount < 1
+      || candidate.semanticTerrainFeatureCount > terrainBudgets.semanticFeatureCount
+      ? 'semantic-terrain-feature-budget' : '',
+    !Number.isSafeInteger(candidate.semanticTerrainFeatureDrawCalls)
+      || candidate.semanticTerrainFeatureDrawCalls < 1
+      || candidate.semanticTerrainFeatureDrawCalls > 5
+      ? 'semantic-terrain-feature-draw-calls' : '',
+    !terrainBudgets
+      || !Number.isSafeInteger(candidate.totalTerrainDetailInstanceCount)
+      || candidate.totalTerrainDetailInstanceCount < candidate.semanticTerrainFeatureCount
+      || candidate.totalTerrainDetailInstanceCount > terrainBudgets.totalDetailInstanceCount
+      ? 'total-terrain-detail-budget' : '',
+    !Number.isSafeInteger(candidate.totalTerrainDetailDrawCalls)
+      || candidate.totalTerrainDetailDrawCalls < candidate.semanticTerrainFeatureDrawCalls
+      || candidate.totalTerrainDetailDrawCalls > 8
+      ? 'total-terrain-detail-draw-calls' : '',
     !Number.isSafeInteger(candidate.labelEligibleCount)
       || candidate.labelEligibleCount < 0 ? 'label-eligible-shape' : '',
     !Number.isSafeInteger(candidate.labelPlacedCount)
@@ -517,13 +551,23 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   if (violations.length > 0) {
     throw new TypeError(`Invalid rendered WebGL browser DOM: ${violations.join(',')}.`);
   }
-  return parseRenderedWebglQaObservation({
+  const observation = parseRenderedWebglQaObservation({
     version: 1,
     fixture: candidate.fixture,
     renderer: candidate.renderer,
     quality: candidate.quality,
     castleCount: candidate.castleCount,
     readyAfterMilliseconds: candidate.readyAfterMilliseconds,
+  });
+  return Object.freeze({
+    ...observation,
+    environmentLighting: 'procedural',
+    semanticTerrainCellCount: candidate.semanticTerrainCellCount,
+    semanticTerrainKindCount: candidate.semanticTerrainKindCount,
+    semanticTerrainFeatureCount: candidate.semanticTerrainFeatureCount,
+    semanticTerrainFeatureDrawCalls: candidate.semanticTerrainFeatureDrawCalls,
+    totalTerrainDetailInstanceCount: candidate.totalTerrainDetailInstanceCount,
+    totalTerrainDetailDrawCalls: candidate.totalTerrainDetailDrawCalls,
   });
 }
 
@@ -1025,6 +1069,7 @@ async function createLoopbackViteServer(runtimeDirectory) {
 const READ_DOM_EXPRESSION = `(() => {
   const overlay = document.querySelector('[data-rendered-webgl-status]');
   const map = document.querySelector('.realm-map-screen');
+  const canvas = map?.querySelector('canvas');
   const integer = (value) => /^\\d+$/.test(value ?? '') ? Number(value) : null;
   const rect = (element) => element.getBoundingClientRect();
   const visible = (element) => {
@@ -1134,6 +1179,19 @@ const READ_DOM_EXPRESSION = `(() => {
     quality: overlay?.getAttribute('data-quality') ?? null,
     castleCount: integer(overlay?.getAttribute('data-castle-count')),
     readyAfterMilliseconds: integer(overlay?.getAttribute('data-ready-after-ms')),
+    environmentLighting: canvas?.getAttribute('data-environment-lighting') ?? null,
+    semanticTerrainCellCount: integer(map?.getAttribute('data-semantic-terrain-cell-count')),
+    semanticTerrainKindCount: integer(map?.getAttribute('data-semantic-terrain-kind-count')),
+    semanticTerrainFeatureCount: integer(map?.getAttribute('data-semantic-terrain-feature-count')),
+    semanticTerrainFeatureDrawCalls: integer(
+      map?.getAttribute('data-semantic-terrain-feature-draw-calls')
+    ),
+    totalTerrainDetailInstanceCount: integer(
+      map?.getAttribute('data-total-terrain-detail-instance-count')
+    ),
+    totalTerrainDetailDrawCalls: integer(
+      map?.getAttribute('data-total-terrain-detail-draw-calls')
+    ),
     viewportWidth: innerWidth,
     viewportHeight: innerHeight,
     documentWidth: Math.max(

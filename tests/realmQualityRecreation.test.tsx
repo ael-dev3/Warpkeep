@@ -225,7 +225,7 @@ describe('live realm quality recreation', () => {
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
     expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Temperate Lowlands · q 1, r 0');
+      .toContain('Lowland Forest · q 1, r 0');
 
     rerender(
       <RealmMapScreen
@@ -241,7 +241,7 @@ describe('live realm quality recreation', () => {
     expect(mocked.handles[1]!.setSelected).toHaveBeenCalledWith({ q: 1, r: 0 });
     act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(1));
     expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Temperate Lowlands · q 1, r 0');
+      .toContain('Lowland Forest · q 1, r 0');
     expect(screen.getByRole('main', { name: 'Hegemony realm' }).getAttribute('data-quality'))
       .toBe('balanced');
   });
@@ -631,7 +631,7 @@ describe('live realm quality recreation', () => {
     expect(scene.focusCell).toHaveBeenCalledWith({ q: 1, r: 0 });
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
     expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Temperate Lowlands · q 1, r 0');
+      .toContain('Lowland Forest · q 1, r 0');
     expect(document.activeElement).toBe(screen.getByRole('main', { name: 'Hegemony realm' }));
   });
 
@@ -655,7 +655,7 @@ describe('live realm quality recreation', () => {
 
     expect(scene.focusCell).toHaveBeenCalledWith({ q: 1, r: 0 });
     expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Temperate Lowlands · q 1, r 0');
+      .toContain('Lowland Forest · q 1, r 0');
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
   });
 });

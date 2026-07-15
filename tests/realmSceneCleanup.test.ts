@@ -12,6 +12,8 @@ const keepLoadState = vi.hoisted(() => ({
   load: vi.fn(() => new Promise<unknown>(() => undefined))
 }));
 
+const environmentState = vi.hoisted(() => ({ failNext: false }));
+
 vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
 
@@ -40,11 +42,26 @@ vi.mock('../src/components/realm/loadHegemonyKeep', async (importOriginal) => {
   return { ...actual, loadHegemonyKeep: keepLoadState.load };
 });
 
+vi.mock('../src/components/realm/createRealmEnvironment', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/components/realm/createRealmEnvironment')>();
+  return {
+    ...actual,
+    createRealmEnvironmentDepth: (...args: Parameters<typeof actual.createRealmEnvironmentDepth>) => {
+      if (environmentState.failNext) {
+        environmentState.failNext = false;
+        throw new Error('synthetic environment allocation failure');
+      }
+      return actual.createRealmEnvironmentDepth(...args);
+    }
+  };
+});
+
 import {
   createRealmScene,
   resolveRealmPinchGesture,
   type CreateRealmSceneOptions
 } from '../src/components/realm/createRealmScene';
+import { hexKey } from '../src/game/map/hexCoordinates';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 
@@ -80,12 +97,21 @@ function createOptions(
   canvas: HTMLCanvasElement,
   overrides: Partial<CreateRealmSceneOptions> = {}
 ): CreateRealmSceneOptions {
+  const surface = overrides.surface
+    ?? createRealmTerrainSurface('realm-scene-cleanup', 0, 0);
   return {
     canvas,
-    surface: createRealmTerrainSurface('realm-scene-cleanup', 0, 0),
+    surface,
     keepCoord: { q: 0, r: 0 },
     ownCastleId: 1,
     otherCastles: [],
+    terrainMetadata: surface.playableMap.cells.map((cell) => ({
+      tileKey: hexKey(cell.coord),
+      terrainKind: 'lowland',
+      staticContentKind: cell.coord.q === 0 && cell.coord.r === 0
+        ? 'castle-slot'
+        : 'empty'
+    })),
     quality: REALM_QUALITY_SPECS.reduced,
     reducedMotion: false,
     baseUrl: '/',
@@ -109,6 +135,7 @@ describe('realm scene setup cleanup', () => {
     webglState.instances.length = 0;
     keepLoadState.load.mockReset();
     keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
+    environmentState.failNext = false;
     resizeObservers.length = 0;
     vi.stubGlobal('ResizeObserver', class ResizeObserver {
       disconnect = vi.fn();
@@ -168,10 +195,13 @@ describe('realm scene setup cleanup', () => {
   });
 
   it('renders the procedural environment centred on the active camera', () => {
+    const canvas = document.createElement('canvas');
     const onCastlePresentationTelemetry = vi.fn();
-    const sceneHandle = createRealmScene(createOptions(document.createElement('canvas'), {
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
       reducedMotion: true,
-      onCastlePresentationTelemetry
+      onCastlePresentationTelemetry,
+      onTerrainPresentationTelemetry
     }));
     const renderCall = webglState.instances[0].render.mock.calls.at(-1);
     const renderedScene = renderCall?.[0] as THREE.Scene;
@@ -180,10 +210,37 @@ describe('realm scene setup cleanup', () => {
 
     expect(environment).toBeTruthy();
     expect(environment?.position.equals(camera.position)).toBe(true);
+    expect(renderedScene.environment).toBeInstanceOf(THREE.Texture);
+    expect(renderedScene.environmentIntensity).toBeGreaterThanOrEqual(0.25);
+    expect(renderedScene.environmentIntensity).toBeLessThanOrEqual(0.4);
+    expect(canvas.dataset.environmentLighting).toBe('procedural');
     expect(onCastlePresentationTelemetry).toHaveBeenCalledWith({
       presentedModelCount: 0,
       raycastTargetCount: 0
     });
+    expect(onTerrainPresentationTelemetry).toHaveBeenCalledWith({
+      semanticCellCount: 1,
+      semanticKindCount: 1,
+      semanticFeatureCount: 0,
+      semanticFeatureDrawCalls: 0,
+      totalDetailInstanceCount: expect.any(Number),
+      totalDetailDrawCalls: expect.any(Number)
+    });
+
+    sceneHandle.dispose();
+  });
+
+  it('retains direct-light playability when procedural environment allocation fails', () => {
+    const canvas = document.createElement('canvas');
+    environmentState.failNext = true;
+    const sceneHandle = createRealmScene(createOptions(canvas, { reducedMotion: true }));
+    const renderedScene = webglState.instances[0].render.mock.calls.at(-1)?.[0] as THREE.Scene;
+
+    expect(canvas.dataset.environmentLighting).toBe('direct-light-fallback');
+    expect(renderedScene.environment).toBeNull();
+    expect(renderedScene.getObjectByName('realm-environment-depth')).toBeUndefined();
+    expect(renderedScene.children.some((child) => child instanceof THREE.DirectionalLight))
+      .toBe(true);
 
     sceneHandle.dispose();
   });

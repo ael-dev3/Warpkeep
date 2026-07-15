@@ -13,6 +13,7 @@ import {
   terrainPlacementsForCell,
   type TerrainStructurePlacement
 } from './terrainPlacements';
+import type { RealmTerrainKind } from './realmTerrainSemantics';
 import type { TerrainCell } from './terrainTypes';
 
 export type TerrainRgb = Readonly<{ r: number; g: number; b: number }>;
@@ -22,8 +23,22 @@ export type TerrainColorContext = Readonly<{
   hexSize?: number;
   playableRadius: number;
   renderRadius: number;
+  terrainKind?: RealmTerrainKind;
   placements?: readonly TerrainStructurePlacement[];
 }>;
+
+const TERRAIN_KIND_PALETTE: Readonly<Record<RealmTerrainKind, Readonly<{
+  color: TerrainRgb;
+  strength: number;
+}>>> = Object.freeze({
+  lowland: Object.freeze({ color: { r: 0.36, g: 0.46, b: 0.26 }, strength: 0.14 }),
+  meadow: Object.freeze({ color: { r: 0.55, g: 0.57, b: 0.29 }, strength: 0.34 }),
+  forest: Object.freeze({ color: { r: 0.2, g: 0.34, b: 0.25 }, strength: 0.5 }),
+  heath: Object.freeze({ color: { r: 0.39, g: 0.3, b: 0.42 }, strength: 0.44 }),
+  ridge: Object.freeze({ color: { r: 0.39, g: 0.38, b: 0.35 }, strength: 0.58 }),
+  lake: Object.freeze({ color: { r: 0.22, g: 0.4, b: 0.46 }, strength: 0.72 }),
+  'ancient-stone': Object.freeze({ color: { r: 0.34, g: 0.31, b: 0.38 }, strength: 0.62 })
+});
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -97,6 +112,11 @@ export function sampleLowlandsColor(
     hegemonyLowlandsSpec.palette.dryGrass,
     dryAmount
   );
+
+  if (context.terrainKind) {
+    const semantic = TERRAIN_KIND_PALETTE[context.terrainKind];
+    color = mixColor(color, semantic.color, semantic.strength * cellInfluence);
+  }
 
   const placements = context.placements ?? EMPTY_TERRAIN_PLACEMENTS;
   const placementCoord = worldToNearestAxial(world, hexSize);

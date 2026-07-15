@@ -1,0 +1,159 @@
+import * as THREE from 'three';
+import { describe, expect, it, vi } from 'vitest';
+
+import { createRealmTerrainFeatureLayers } from '../src/components/realm/createRealmTerrainFeatures';
+import {
+  REALM_QUALITY_SPECS,
+  resolveRealmRenderPlan
+} from '../src/components/realm/realmQuality';
+import { hexKey, parseHexKey } from '../src/game/map/hexCoordinates';
+import {
+  generateRealmTerrainFeatures,
+  REALM_TERRAIN_FEATURE_BUDGETS
+} from '../src/game/map/realmTerrainFeatures';
+import { indexRealmTerrainSemantics } from '../src/game/map/realmTerrainSemantics';
+import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import { generateTerrainDecorations } from '../src/game/map/terrainDecorations';
+import { createHegemonyCastlePlacements } from '../src/game/map/terrainPlacements';
+import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
+
+function canonicalInput() {
+  const snapshot = createCanonicalGenesisSnapshot();
+  const surface = createRealmTerrainSurface(
+    snapshot.realm.numericSeed,
+    snapshot.realm.authoritativeRadius,
+    snapshot.realm.renderRadius
+  );
+  const semantics = indexRealmTerrainSemantics(surface, snapshot.tileMetadata);
+  const castleSlotCoords = [...semantics.castleSlotKeys].map((key) => {
+    const coord = parseHexKey(key);
+    if (!coord) throw new Error(`invalid canonical tile key ${key}`);
+    return coord;
+  });
+  const placements = createHegemonyCastlePlacements(castleSlotCoords.map((coord, index) => ({
+    id: `castle-slot-${index + 1}`,
+    coord
+  })));
+  return { placements, semantics, snapshot, surface };
+}
+
+describe('semantic realm terrain features', () => {
+  it('is deterministic, quality-bounded, and suppresses every founding slot', () => {
+    const { placements, semantics, surface } = canonicalInput();
+    const high = generateRealmTerrainFeatures(
+      surface.renderMap,
+      semantics.terrainKindsByKey,
+      'high',
+      1,
+      placements,
+      semantics.castleSlotKeys
+    );
+    const repeat = generateRealmTerrainFeatures(
+      surface.renderMap,
+      semantics.terrainKindsByKey,
+      'high',
+      1,
+      placements,
+      semantics.castleSlotKeys
+    );
+    const balanced = generateRealmTerrainFeatures(
+      surface.renderMap,
+      semantics.terrainKindsByKey,
+      'balanced',
+      1,
+      placements,
+      semantics.castleSlotKeys
+    );
+    const reduced = generateRealmTerrainFeatures(
+      surface.renderMap,
+      semantics.terrainKindsByKey,
+      'reduced',
+      1,
+      placements,
+      semantics.castleSlotKeys
+    );
+
+    expect(high).toEqual(repeat);
+    expect(high.points.length).toBeGreaterThan(balanced.points.length);
+    expect(balanced.points.length).toBeGreaterThan(reduced.points.length);
+    expect(high.points.length).toBeLessThanOrEqual(REALM_TERRAIN_FEATURE_BUDGETS.high);
+    expect(balanced.points.length).toBeLessThanOrEqual(REALM_TERRAIN_FEATURE_BUDGETS.balanced);
+    expect(reduced.points.length).toBeLessThanOrEqual(REALM_TERRAIN_FEATURE_BUDGETS.reduced);
+    expect(Object.values(high.counts).every((count) => count > 0)).toBe(true);
+    expect(high.points.every((point) => !semantics.castleSlotKeys.has(hexKey(point.coord))))
+      .toBe(true);
+    expect(high.points.every((point) => (
+      Number.isFinite(point.world.x)
+      && Number.isFinite(point.world.z)
+      && Number.isFinite(point.rotation)
+      && Number.isFinite(point.scale)
+    ))).toBe(true);
+  });
+
+  it('reallocates rather than exceeds the existing radius-twenty detail budget', () => {
+    const { placements, semantics, surface } = canonicalInput();
+    for (const quality of ['high', 'balanced', 'reduced'] as const) {
+      const spec = REALM_QUALITY_SPECS[quality];
+      const plan = resolveRealmRenderPlan(spec, {
+        playableRadius: surface.playableMap.radius,
+        renderRadius: surface.renderMap.radius,
+        playableCellCount: surface.playableMap.cells.length,
+        renderCellCount: surface.renderMap.cells.length
+      });
+      const generic = generateTerrainDecorations(
+        surface.renderMap,
+        { ...plan.decorationDensity, playableRadius: surface.playableMap.radius },
+        1,
+        placements,
+        semantics.terrainKindsByKey
+      );
+      const semantic = generateRealmTerrainFeatures(
+        surface.renderMap,
+        semantics.terrainKindsByKey,
+        quality,
+        1,
+        placements,
+        semantics.castleSlotKeys
+      );
+
+      expect(generic.points.length + semantic.points.length)
+        .toBeLessThanOrEqual(plan.decorationInstanceBudget);
+    }
+  });
+
+  it('allocates at most one instanced draw call per feature family and disposes once', () => {
+    const { placements, semantics, surface } = canonicalInput();
+    const data = generateRealmTerrainFeatures(
+      surface.renderMap,
+      semantics.terrainKindsByKey,
+      'reduced',
+      1,
+      placements,
+      semantics.castleSlotKeys
+    );
+    const instanceDispose = vi.spyOn(THREE.InstancedMesh.prototype, 'dispose');
+    const layer = createRealmTerrainFeatureLayers(
+      data,
+      surface.renderMap,
+      REALM_QUALITY_SPECS.reduced,
+      1,
+      placements
+    );
+
+    expect(layer.group.name).toBe('realm-semantic-terrain-features');
+    expect(layer.instanceCount).toBe(data.points.length);
+    expect(layer.drawCalls).toBeGreaterThan(0);
+    expect(layer.drawCalls).toBeLessThanOrEqual(5);
+    layer.group.children.forEach((child) => {
+      const mesh = child as THREE.InstancedMesh;
+      expect(mesh.boundingBox).not.toBeNull();
+      expect(mesh.boundingSphere).not.toBeNull();
+      expect((mesh.material as THREE.Material).transparent).toBe(false);
+    });
+
+    layer.dispose();
+    layer.dispose();
+    expect(instanceDispose).toHaveBeenCalledTimes(layer.drawCalls);
+    instanceDispose.mockRestore();
+  });
+});

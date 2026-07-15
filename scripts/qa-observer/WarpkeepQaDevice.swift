@@ -7,7 +7,8 @@ private let bridgeOrigin = "https://auth.warpkeep.com"
 private let challengePath = "/v1/qa/challenge"
 private let snapshotPath = "/v1/qa/realm-snapshot"
 private let snapshotScope = "realm.snapshot"
-private let maximumResponseBytes = 256 * 1024
+private let maximumChallengeResponseBytes = 16 * 1024
+private let maximumSnapshotResponseBytes = 16 * 1024
 private let requestTimeoutSeconds: TimeInterval = 8
 private let resourceTimeoutSeconds: TimeInterval = 10
 
@@ -47,9 +48,13 @@ private func jsonData(_ value: Any) throws -> Data {
     try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes])
 }
 
-private func exactDictionary(_ data: Data, keys: Set<String>) throws -> [String: Any] {
+private func exactDictionary(
+    _ data: Data,
+    keys: Set<String>,
+    maximumBytes: Int
+) throws -> [String: Any] {
     guard
-        data.count <= maximumResponseBytes,
+        data.count <= maximumBytes,
         let value = try JSONSerialization.jsonObject(with: data) as? [String: Any],
         Set(value.keys) == keys
     else {
@@ -411,7 +416,11 @@ private struct BridgeResponse {
     let response: HTTPURLResponse
 }
 
-private func boundedResponse(for request: URLRequest, expectedURL: URL) async throws -> BridgeResponse {
+private func boundedResponse(
+    for request: URLRequest,
+    expectedURL: URL,
+    maximumBytes: Int
+) async throws -> BridgeResponse {
     try await withCheckedThrowingContinuation { continuation in
         let configuration = URLSessionConfiguration.ephemeral
         configuration.httpCookieAcceptPolicy = .never
@@ -430,7 +439,7 @@ private func boundedResponse(for request: URLRequest, expectedURL: URL) async th
         queue.qualityOfService = .utility
         let delegate = BoundedDataDelegate(
             expectedURL: expectedURL,
-            maximumBytes: maximumResponseBytes
+            maximumBytes: maximumBytes
         ) { result in
             continuation.resume(with: result)
         }
@@ -444,7 +453,26 @@ private func boundedResponse(for request: URLRequest, expectedURL: URL) async th
     }
 }
 
-private func post(path: String, body: Data?) async throws -> BridgeResponse {
+private func isExactJsonContentType(_ value: String?) -> Bool {
+    guard let value else { return false }
+    let parts = value
+        .split(separator: ";", omittingEmptySubsequences: false)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+    guard parts.count == 1 || parts.count == 2, parts[0] == "application/json" else {
+        return false
+    }
+    return parts.count == 1 || parts[1] == "charset=utf-8" || parts[1] == "charset=\"utf-8\""
+}
+
+private func hasExactNoStoreDirective(_ value: String?) -> Bool {
+    guard let value else { return false }
+    return value
+        .split(separator: ",", omittingEmptySubsequences: false)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        .contains("no-store")
+}
+
+private func post(path: String, body: Data?, maximumBytes: Int) async throws -> BridgeResponse {
     guard let url = URL(string: bridgeOrigin + path), url.scheme == "https", url.host == "auth.warpkeep.com" else {
         throw QaDeviceError.networkUnavailable
     }
@@ -464,18 +492,21 @@ private func post(path: String, body: Data?) async throws -> BridgeResponse {
 
     let bounded: BridgeResponse
     do {
-        bounded = try await boundedResponse(for: request, expectedURL: url)
+        bounded = try await boundedResponse(
+            for: request,
+            expectedURL: url,
+            maximumBytes: maximumBytes
+        )
     } catch {
         throw QaDeviceError.networkUnavailable
     }
     let http = bounded.response
     guard
-        bounded.data.count <= maximumResponseBytes,
+        bounded.data.count <= maximumBytes,
         http.url == url,
-        http.statusCode >= 200,
-        http.statusCode < 300,
-        http.value(forHTTPHeaderField: "Content-Type")?.lowercased().hasPrefix("application/json") == true,
-        http.value(forHTTPHeaderField: "Cache-Control")?.lowercased().contains("no-store") == true
+        http.statusCode == 200,
+        isExactJsonContentType(http.value(forHTTPHeaderField: "Content-Type")),
+        hasExactNoStoreDirective(http.value(forHTTPHeaderField: "Cache-Control"))
     else {
         throw QaDeviceError.invalidResponse
     }
@@ -520,7 +551,7 @@ private func exactInt64(_ value: Any?) -> Int64? {
 private func parseChallenge(_ data: Data, expectedThumbprint: String) throws -> DeviceChallenge {
     let value = try exactDictionary(data, keys: [
         "version", "requestId", "challenge", "expiresAt", "keyThumbprint", "scope", "signingInput",
-    ])
+    ], maximumBytes: maximumChallengeResponseBytes)
     guard
         exactInt64(value["version"]) == 1,
         value["scope"] as? String == snapshotScope,
@@ -588,7 +619,7 @@ private func rejectForbiddenSnapshotKeys(_ value: Any) throws {
 
 private func validateSnapshot(_ data: Data) throws -> Data {
     guard
-        data.count <= maximumResponseBytes,
+        data.count <= maximumSnapshotResponseBytes,
         let value = try JSONSerialization.jsonObject(with: data) as? [String: Any]
     else {
         throw QaDeviceError.invalidResponse
@@ -706,6 +737,15 @@ private func runSnapshotValidationImplementationSelfTest() throws {
 }
 
 private func runImplementationSelfTest() throws {
+    guard
+        isExactJsonContentType("application/json"),
+        isExactJsonContentType("Application/JSON; Charset=UTF-8"),
+        !isExactJsonContentType("application/jsonp"),
+        !isExactJsonContentType("application/json; charset=utf-8; profile=private"),
+        hasExactNoStoreDirective("private, no-store"),
+        !hasExactNoStoreDirective("private, x-no-store")
+    else { throw QaDeviceError.invalidResponse }
+
     let attributes: [String: Any] = [
         kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
         kSecAttrKeySizeInBits as String: 256,
@@ -741,7 +781,11 @@ private func runImplementationSelfTest() throws {
 private func fetchSnapshot(privateKey: SecKey) async throws -> Data {
     let material = try publicKeyMaterial(for: privateKey)
     let challenge = try parseChallenge(
-        try await post(path: challengePath, body: nil).data,
+        try await post(
+            path: challengePath,
+            body: nil,
+            maximumBytes: maximumChallengeResponseBytes
+        ).data,
         expectedThumbprint: material.thumbprint
     )
     let signature = try sign(challenge.signingInput, with: privateKey)
@@ -750,7 +794,11 @@ private func fetchSnapshot(privateKey: SecKey) async throws -> Data {
         "signature": signature,
     ])
     return try validateSnapshot(
-        try await post(path: snapshotPath, body: exchangeBody).data
+        try await post(
+            path: snapshotPath,
+            body: exchangeBody,
+            maximumBytes: maximumSnapshotResponseBytes
+        ).data
     )
 }
 

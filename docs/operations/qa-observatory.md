@@ -53,7 +53,11 @@ browser credential, persistence, or production authority.
   listens only on `~/Library/Application Support/Warpkeep/qa-observatory/broker.sock`,
   whose directory is mode `0700` and socket is mode `0600`; it has no TCP
   listener, CORS policy, or browser route. It writes no attestation to disk and
-  clears its bounded in-memory attestation cache after 30 seconds.
+  clears its bounded in-memory attestation cache after 30 seconds. The broker
+  caps its connection count, accepts one request per socket, rejects request
+  bodies and upgrade semantics, and re-attests both the socket inode and helper
+  executable identity across each operation. Helper stdout and each bridge
+  response are capped at 16 KiB.
 
 ## Bridge wire contract
 
@@ -161,6 +165,11 @@ The lab is compiled active only for the Vite serve command and rejects every
 hostname except exact loopback (`localhost`, `127.0.0.1`, or IPv6 loopback).
 This is local transport confinement, not hardware identity or device
 attestation; its safety comes from having no production authority or data.
+Any process on this Mac can in principle request the loopback fixture while its
+development server is running. That is intentional: hardware-gating synthetic
+pixels would add fragility without protecting player authority. Only the
+optional aggregate production observer uses the Secure Enclave device key, and
+that gate remains disabled until the approval checkpoints below are satisfied.
 The production build has one explicit HTML input (`index.html`), then scans the
 artifact for every journey/observer entry and marker. The old standalone player
 fixture was removed; the journey lab supersedes it without a live PFP or remote
@@ -374,7 +383,8 @@ player-authentication, Terms bypass, or production URL command. It supplies an
 isolated runtime home,
 temporary directory, and npm cache; disables npm debug-log retention and user
 npm configuration; and discards child stdout and stderr. A report contains only
-the tier, overall status, check identifiers, and durations.
+the tier, overall status, check identifiers, durations, and bounded attempt
+counts.
 
 The runner is deliberately not described as a complete operating-system sandbox.
 On this Mac, every reviewed non-browser child check runs under the checked-in,
@@ -442,8 +452,9 @@ use TCP, CORS, a browser, redirects, or credentials.
 issuing one bounded `GET /snapshot` through the same owner-private Unix socket.
 The broker may then ask the native helper for its single aggregate-only v2
 attestation. The runner never receives the device key, helper proof, resolver
-credential, or any identity-bearing response. It caps the body at 256 KiB,
-validates the complete
+credential, or any identity-bearing response. It requires an exact JSON,
+`no-store`, `nosniff`, fixed-length response capped at 16 KiB; rechecks that the
+Unix-socket identity did not change during the response; validates the complete
 aggregate-only schema again, discards the data, and records only pass/fail/duration.
 This mode is appropriate only after the separately approved broker, stable
 signing/caller-bound design, and remote read gate are active. It never supplies
@@ -454,7 +465,8 @@ The tiers intentionally trade coverage for hourly cost:
 - `quick` runs the eight-case responsive rendered-WebGL browser probe, the real
   parent-level sandbox boundary preflight, focused observer/security tests, an
   explicit synthetic app state lane, and root typecheck.
-  The synthetic lane covers Terms, every
+  The synthetic lane has one manifest-backed assertion for all 22 supported
+  local scenarios and covers Terms, every
   Farcaster and backend-admission presentation phase, title/menu transitions,
   settings, credits, patch notes, menu-to-Realm orchestration, canonical
   readiness, Realm HUD/accessibility/inspection/interaction, and both
@@ -477,6 +489,15 @@ environment allowlist and routes child stdout and stderr to `/dev/null`; its
 private JSON report never contains either stream. Any timeout, failed check,
 invalid response, unsafe filesystem state, command-contract mismatch, or
 malformed report makes the cycle fail.
+
+The rendered-browser and synthetic-state lanes may make at most two attempts.
+They share the original per-check deadline, so a timed-out first attempt cannot
+extend the check or the cycle; only a fast transient failure can receive a fresh
+retry. Each browser attempt owns a new disposable Chrome profile and performs
+its normal `finally` teardown before returning. The sandbox boundary and every
+build, typecheck, asset, bridge, and SpacetimeDB check remain single-attempt.
+A retry success is recorded as `attempts: 2` in the privacy-safe aggregate
+report rather than being silently flattened into a first-pass result.
 
 Terse JSON reports are atomically created with mode `0600` under
 `~/Library/Application Support/Warpkeep/qa-observatory/reports`. Directories use

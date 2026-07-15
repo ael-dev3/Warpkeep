@@ -6,6 +6,7 @@ export type QaCheck = Readonly<{
   id: string;
   executable: string;
   args: readonly string[];
+  maximumAttempts?: 1 | 2;
   networkBoundary?: 'self-contained-browser';
   timeoutMs: number;
 }>;
@@ -16,15 +17,22 @@ export type QaCheckResult = Readonly<{
   durationMs: number;
 }>;
 
+export type QaCycleCheckResult = Readonly<{
+  id: string;
+  status: QaCheckStatus;
+  durationMs: number;
+  attempts: 0 | 1 | 2;
+}>;
+
 export type QaCycleReport = Readonly<{
-  version: 1;
+  version: 2;
   startedAt: string;
   finishedAt: string;
   tier: QaTier;
   broker: QaBrokerMode;
   status: 'pass' | 'fail';
   durationMs: number;
-  checks: readonly QaCheckResult[];
+  checks: readonly QaCycleCheckResult[];
 }>;
 
 export class QaCycleLockError extends Error {}

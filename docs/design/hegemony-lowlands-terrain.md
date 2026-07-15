@@ -78,6 +78,32 @@ stones. Canonical density is bounded per profile and reduced further in the
 visual apron. Terrain and detail work remains demand-driven and pauses while the
 document is hidden.
 
+Canonical metadata also gives every authoritative cell one of seven restrained
+terrain presentations:
+
+| Terrain | Cells | Presentation |
+| --- | ---: | --- |
+| Lowland | 266 | moss and packed-soil substrate |
+| Meadow | 274 | lighter grass and dried-gold interior |
+| Forest | 280 | cooler ground with low procedural coppices |
+| Heath | 281 | muted amethyst heather |
+| Ridge | 59 | weathered stone outcrops |
+| Lake | 48 | opaque, low-profile slate water |
+| Ancient stone | 53 | compact monoliths and cool stone |
+
+The semantic tint fades completely at shared cell edges, preserving the one
+continuous mesh rather than drawing a categorical hex board. The 258-cell
+visual apron has no authoritative metadata and remains neutral. Vertical
+features are suppressed on all 100 founding slots and inside every occupied
+castle clearance. Generic grass and stones are removed from scenic blockers,
+so semantic features reallocate the existing detail budget rather than adding
+an unbounded layer. At runtime the five possible semantic instance families
+plus the three generic families remain at no more than eight detail draw calls.
+
+Static-content values such as `resource-capable`, `core-capable`, and `reserve`
+are future placement capability only. The renderer deliberately exposes no
+resource, Core, reward, or gameplay marker from those values.
+
 ## Real castle rendering
 
 Every visible founded castle uses a verified Hegemony castle GLB. The ordinary
@@ -139,6 +165,13 @@ only unsafe numeric extremes are bounded. Warm frontier sunlight, neutral stone
 light, cool amethyst fill, restrained ACES exposure, and one footprint-sized
 contact shadow per visible castle provide depth without stretching a realm-wide
 shadow map over 1,519 cells.
+
+PBR separation comes from an asset-free procedural equirectangular environment,
+not a network HDR download. High, Balanced, and Reduced generate bounded
+256×128, 128×64, and 64×32 maps with intensities 0.36, 0.32, and 0.28. The map,
+visible sun disc, and directional light share one direction. Allocation failure
+keeps the solid sky and direct lights playable; local controlled WebGL QA
+requires the aggregate `procedural` environment status.
 
 ## Identity and interaction
 

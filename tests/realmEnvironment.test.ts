@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createRealmEnvironmentDepth,
+  REALM_SUN_DIRECTION,
   sampleRealmSkyGradient
 } from '../src/components/realm/createRealmEnvironment';
+import { REALM_ENVIRONMENT_SPECS } from '../src/components/realm/realmQuality';
 
 describe('Realm procedural environment depth', () => {
   it('samples a deterministic bounded horizon-to-zenith gradient', () => {
@@ -35,8 +37,13 @@ describe('Realm procedural environment depth', () => {
       THREE.MeshBasicMaterial
     >;
     const reducedDome = reduced.group.getObjectByName('realm-procedural-sky-dome') as THREE.Mesh;
+    const firstSun = first.group.getObjectByName('realm-procedural-sun-disc') as THREE.Mesh<
+      THREE.CircleGeometry,
+      THREE.MeshBasicMaterial
+    >;
 
     expect(firstDome).toBeTruthy();
+    expect(firstSun).toBeTruthy();
     expect(Array.from(firstDome.geometry.getAttribute('color').array)).toEqual(
       Array.from(secondDome.geometry.getAttribute('color').array)
     );
@@ -47,14 +54,104 @@ describe('Realm procedural environment depth', () => {
     expect(firstDome.material.fog).toBe(false);
     expect(firstDome.material.toneMapped).toBe(false);
     expect(firstDome.frustumCulled).toBe(false);
+    const visibleSunDirection = firstSun.position.clone().normalize();
+    expect(visibleSunDirection.x).toBeCloseTo(REALM_SUN_DIRECTION.x, 12);
+    expect(visibleSunDirection.y).toBeCloseTo(REALM_SUN_DIRECTION.y, 12);
+    expect(visibleSunDirection.z).toBeCloseTo(REALM_SUN_DIRECTION.z, 12);
+    expect(firstSun.material.depthTest).toBe(false);
+    expect(firstSun.material.depthWrite).toBe(false);
+    expect(firstSun.material.toneMapped).toBe(false);
+    expect(firstSun.frustumCulled).toBe(false);
 
     const disposeGeometry = vi.spyOn(firstDome.geometry, 'dispose');
     const disposeMaterial = vi.spyOn(firstDome.material, 'dispose');
+    const disposeSunGeometry = vi.spyOn(firstSun.geometry, 'dispose');
+    const disposeSunMaterial = vi.spyOn(firstSun.material, 'dispose');
+    const disposeEnvironmentMap = vi.spyOn(first.environmentMap, 'dispose');
     first.dispose();
     first.dispose();
     expect(disposeGeometry).toHaveBeenCalledOnce();
     expect(disposeMaterial).toHaveBeenCalledOnce();
+    expect(disposeSunGeometry).toHaveBeenCalledOnce();
+    expect(disposeSunMaterial).toHaveBeenCalledOnce();
+    expect(disposeEnvironmentMap).toHaveBeenCalledOnce();
     second.dispose();
     reduced.dispose();
+  });
+
+  it('generates deterministic, quality-bounded equirectangular environment maps', () => {
+    const high = createRealmEnvironmentDepth('high');
+    const highAgain = createRealmEnvironmentDepth('high');
+    const balanced = createRealmEnvironmentDepth('balanced');
+    const reduced = createRealmEnvironmentDepth('reduced');
+
+    for (const [quality, environment] of [
+      ['high', high],
+      ['balanced', balanced],
+      ['reduced', reduced]
+    ] as const) {
+      const spec = REALM_ENVIRONMENT_SPECS[quality];
+      expect(environment.environmentMap).toBeInstanceOf(THREE.DataTexture);
+      expect(environment.environmentMap.image.width).toBe(spec.textureWidth);
+      expect(environment.environmentMap.image.height).toBe(spec.textureHeight);
+      expect(environment.environmentMap.image.data).toHaveLength(
+        spec.textureWidth * spec.textureHeight * 4
+      );
+      expect(environment.environmentMap.mapping).toBe(THREE.EquirectangularReflectionMapping);
+      expect(environment.environmentMap.colorSpace).toBe(THREE.SRGBColorSpace);
+      expect(environment.environmentMap.generateMipmaps).toBe(false);
+      expect(environment.environmentIntensity).toBe(spec.environmentIntensity);
+    }
+
+    const highData = high.environmentMap.image.data!;
+    const highAgainData = highAgain.environmentMap.image.data!;
+    const balancedData = balanced.environmentMap.image.data!;
+    const reducedData = reduced.environmentMap.image.data!;
+    expect(Array.from(highData)).toEqual(Array.from(highAgainData));
+    expect(reducedData.length).toBeLessThan(balancedData.length);
+    expect(balancedData.length).toBeLessThan(highData.length);
+
+    high.dispose();
+    highAgain.dispose();
+    balanced.dispose();
+    reduced.dispose();
+  });
+
+  it('aligns the generated reflection highlight with the visible sun direction', () => {
+    const environment = createRealmEnvironmentDepth('high');
+    const width = environment.environmentMap.image.width;
+    const height = environment.environmentMap.image.height;
+    const data = environment.environmentMap.image.data!;
+    let brightestPixel = 0;
+    let brightestLuminance = -1;
+
+    for (let pixel = 0; pixel < width * height; pixel += 1) {
+      const offset = pixel * 4;
+      const luminance = data[offset] * 0.2126
+        + data[offset + 1] * 0.7152
+        + data[offset + 2] * 0.0722;
+      if (luminance > brightestLuminance) {
+        brightestLuminance = luminance;
+        brightestPixel = pixel;
+      }
+    }
+
+    const x = brightestPixel % width;
+    const y = Math.floor(brightestPixel / width);
+    const latitude = (((y + 0.5) / height) - 0.5) * Math.PI;
+    const longitude = (((x + 0.5) / width) - 0.5) * Math.PI * 2;
+    const highlightDirection = new THREE.Vector3(
+      Math.cos(latitude) * Math.cos(longitude),
+      Math.sin(latitude),
+      Math.cos(latitude) * Math.sin(longitude)
+    );
+    const sunDirection = new THREE.Vector3(
+      REALM_SUN_DIRECTION.x,
+      REALM_SUN_DIRECTION.y,
+      REALM_SUN_DIRECTION.z
+    );
+
+    expect(THREE.MathUtils.radToDeg(highlightDirection.angleTo(sunDirection))).toBeLessThan(2);
+    environment.dispose();
   });
 });

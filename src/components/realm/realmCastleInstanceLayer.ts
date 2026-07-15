@@ -44,8 +44,9 @@ export type RealmCastleInstanceLayer = Readonly<{
     selectedCastleId?: number
   ) => void;
   /**
-   * Limits individual rendering and raycasting to castles with placed public
-   * identity labels. `null` is the initialization state before first layout.
+   * Limits rendering and raycasting to the current viewport presentation set.
+   * Identity labels may be placed or clustered independently. `null` is the
+   * initialization state before the first projection frame.
    */
   setPresentedCastleIds: (castleIds: readonly number[] | null) => void;
   /** Raycasts only castle instances. Terrain fallback belongs to the scene. */

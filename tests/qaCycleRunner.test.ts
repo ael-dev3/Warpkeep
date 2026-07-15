@@ -94,14 +94,14 @@ async function withLocalBroker(
 
 function passingReport(): QaCycleReport {
   return {
-    version: 1,
+    version: 2,
     startedAt: '2026-07-14T08:00:00.000Z',
     finishedAt: '2026-07-14T08:00:01.000Z',
     tier: 'quick',
     broker: 'off',
     status: 'pass',
     durationMs: 1_000,
-    checks: [{ id: 'targeted-unit', status: 'pass', durationMs: 900 }]
+    checks: [{ id: 'targeted-unit', status: 'pass', durationMs: 900, attempts: 1 }]
   };
 }
 
@@ -127,6 +127,16 @@ function sanitizedObserverSnapshot() {
       foundedCount: 1,
       activeCount: 0
     }
+  };
+}
+
+function brokerJsonHeaders(body: string, overrides: Record<string, string> = {}) {
+  return {
+    'cache-control': 'no-store',
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': String(Buffer.byteLength(body)),
+    'x-content-type-options': 'nosniff',
+    ...overrides
   };
 }
 
@@ -382,6 +392,7 @@ describe('local autonomous QA cycle runner', () => {
       'typecheck'
     ]);
     const syntheticAppStates = quick.find((check) => check.id === 'synthetic-app-states');
+    expect(syntheticAppStates?.maximumAttempts).toBe(2);
     expect(syntheticAppStates?.args).toEqual([
       'test',
       '--',
@@ -413,6 +424,7 @@ describe('local autonomous QA cycle runner', () => {
     const renderedWebglBrowser = quick.find((check) => check.id === 'rendered-webgl-browser');
     expect(renderedWebglBrowser?.executable).toBe(process.execPath);
     expect(renderedWebglBrowser?.networkBoundary).toBe('self-contained-browser');
+    expect(renderedWebglBrowser?.maximumAttempts).toBe(2);
     expect(renderedWebglBrowser?.args).toEqual([
       join(repositoryRoot, 'scripts/qa-observer/rendered-webgl-browser-probe.mjs')
     ]);
@@ -439,6 +451,74 @@ describe('local autonomous QA cycle runner', () => {
     expect(JSON.stringify({ quick, standard, deep })).not.toMatch(
       /(?:deploy|publish|seed-world|allow-fid|disable-fid|bump-auth|apply|reconcile|secret|token|credential)/i
     );
+  });
+
+  it('retries only the reviewed local fixture lanes once and records the aggregate attempt count', async () => {
+    const calls = new Map<string, number>();
+    const report = await runQaCycle({
+      startedAt: new Date(),
+      tier: 'quick',
+      broker: 'off',
+      executeCheck: async (check) => {
+        const attempt = (calls.get(check.id) ?? 0) + 1;
+        calls.set(check.id, attempt);
+        const transient = ['rendered-webgl-browser', 'synthetic-app-states'].includes(check.id);
+        return {
+          id: check.id,
+          status: transient && attempt === 1 ? 'fail' : 'pass',
+          durationMs: attempt
+        };
+      }
+    });
+
+    expect(report.status).toBe('pass');
+    expect(Object.fromEntries(calls)).toEqual({
+      'rendered-webgl-browser': 2,
+      'sandbox-boundary': 1,
+      'targeted-unit': 1,
+      'synthetic-app-states': 2,
+      typecheck: 1
+    });
+    expect(report.checks.find((check) => check.id === 'rendered-webgl-browser')).toEqual({
+      id: 'rendered-webgl-browser',
+      status: 'pass',
+      durationMs: 3,
+      attempts: 2
+    });
+    expect(report.checks.find((check) => check.id === 'synthetic-app-states')).toEqual({
+      id: 'synthetic-app-states',
+      status: 'pass',
+      durationMs: 3,
+      attempts: 2
+    });
+    expect(report.checks.find((check) => check.id === 'sandbox-boundary')?.attempts).toBe(1);
+    expect(JSON.stringify(report)).not.toMatch(/(?:output|stderr|stdout|payload|token|credential)/i);
+  });
+
+  it('stops a persistently failing rendered fixture at the two-attempt cap', async () => {
+    let renderedAttempts = 0;
+    const report = await runQaCycle({
+      startedAt: new Date(),
+      tier: 'quick',
+      broker: 'off',
+      executeCheck: async (check) => {
+        if (check.id === 'rendered-webgl-browser') renderedAttempts += 1;
+        return {
+          id: check.id,
+          status: check.id === 'rendered-webgl-browser' ? 'fail' : 'pass',
+          durationMs: 1
+        };
+      }
+    });
+
+    expect(renderedAttempts).toBe(2);
+    expect(report.status).toBe('fail');
+    expect(report.checks[0]).toEqual({
+      id: 'rendered-webgl-browser',
+      status: 'fail',
+      durationMs: 2,
+      attempts: 2
+    });
   });
 
   it('attests exact package-script, disabled production-gate, and sandbox contracts', async () => {
@@ -542,7 +622,8 @@ describe('local autonomous QA cycle runner', () => {
     expect(environment.SPACETIME_BIN).toMatch(
       /\/\.local\/share\/spacetime\/bin\/2\.6\.1\/spacetimedb-cli$/,
     );
-    expect(environment.WARPKEEP_QA_SOCKET_TMP).toMatch(/^\/private\/tmp\/wkqa-/);
+    expect(environment.WARPKEEP_QA_SOCKET_TMP)
+      .toMatch(/^\/private\/tmp\/q[A-Za-z0-9_-]{11}$/);
     expect(environment.PATH).not.toContain(`${process.env.HOME}/.local/bin`);
     expect(environment.npm_config_userconfig).toBe('/dev/null');
     expect(environment.npm_config_logs_max).toBe('0');
@@ -700,8 +781,9 @@ describe('local autonomous QA cycle runner', () => {
         url: request.url,
         origin: typeof request.headers.origin === 'string' ? request.headers.origin : undefined
       };
-      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-      response.end(JSON.stringify({ ok: true, mode: 'read-only' }));
+      const body = JSON.stringify({ ok: true, mode: 'read-only' });
+      response.writeHead(200, brokerJsonHeaders(body));
+      response.end(body);
     }, async (socketPath) => {
       await expect(probeLocalBrokerHealth({ socketPath })).resolves.toBeUndefined();
     });
@@ -722,8 +804,9 @@ describe('local autonomous QA cycle runner', () => {
         url: request.url,
         origin: typeof request.headers.origin === 'string' ? request.headers.origin : undefined
       };
-      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
-      response.end(JSON.stringify(sanitizedObserverSnapshot()));
+      const body = JSON.stringify(sanitizedObserverSnapshot());
+      response.writeHead(200, brokerJsonHeaders(body));
+      response.end(body);
     }, async (socketPath) => {
       await expect(probeLocalBrokerSnapshot({ socketPath })).resolves.toBeUndefined();
     });
@@ -744,27 +827,52 @@ describe('local autonomous QA cycle runner', () => {
     expect(report.checks[0]).toEqual({
       id: 'broker-snapshot',
       status: 'pass',
-      durationMs: expect.any(Number)
+      durationMs: expect.any(Number),
+      attempts: 1
     });
-    expect(Object.keys(report.checks[0]!).sort()).toEqual(['durationMs', 'id', 'status']);
+    expect(Object.keys(report.checks[0]!).sort()).toEqual([
+      'attempts', 'durationMs', 'id', 'status'
+    ]);
     expect(JSON.stringify(report)).not.toMatch(/(?:castleId|worldSeed|fid|publicBio|portraitAvailable)/i);
   });
 
   it('rejects oversized or identity-bearing snapshot responses', async () => {
     await withLocalBroker((_request, response) => {
-      response.writeHead(200, { 'content-type': 'application/json' });
-      response.end(JSON.stringify({ ...sanitizedObserverSnapshot(), fid: 424242 }));
+      const body = JSON.stringify({ ...sanitizedObserverSnapshot(), fid: 424242 });
+      response.writeHead(200, brokerJsonHeaders(body));
+      response.end(body);
     }, async (socketPath) => {
       await expect(probeLocalBrokerSnapshot({ socketPath })).rejects.toThrow();
     });
     await withLocalBroker((_request, response) => {
       response.writeHead(200, {
-        'content-type': 'application/json',
-        'content-length': String(256 * 1_024 + 1)
+        ...brokerJsonHeaders('{}'),
+        'content-length': String(16 * 1_024 + 1)
       });
       response.end('{}');
     }, async (socketPath) => {
       await expect(probeLocalBrokerSnapshot({ socketPath })).rejects.toThrow();
+    });
+  });
+
+  it('rejects a broker response without the exact no-store and nosniff envelope', async () => {
+    const body = JSON.stringify({ ok: true, mode: 'read-only' });
+    await withLocalBroker((_request, response) => {
+      response.writeHead(200, brokerJsonHeaders(body, { 'cache-control': 'private' }));
+      response.end(body);
+    }, async (socketPath) => {
+      await expect(probeLocalBrokerHealth({ socketPath })).rejects.toThrow(
+        'Invalid local QA broker response'
+      );
+    });
+
+    await withLocalBroker((_request, response) => {
+      response.writeHead(200, brokerJsonHeaders(body, { 'x-content-type-options': 'sniff' }));
+      response.end(body);
+    }, async (socketPath) => {
+      await expect(probeLocalBrokerHealth({ socketPath })).rejects.toThrow(
+        'Invalid local QA broker response'
+      );
     });
   });
 
@@ -828,8 +936,8 @@ describe('local autonomous QA cycle runner', () => {
     expect(executed).toEqual(['rendered-webgl-browser', 'sandbox-boundary']);
     expect(report.status).toBe('fail');
     expect(report.checks).toEqual([
-      { id: 'rendered-webgl-browser', status: 'pass', durationMs: 1 },
-      { id: 'sandbox-boundary', status: 'fail', durationMs: 1 }
+      { id: 'rendered-webgl-browser', status: 'pass', durationMs: 1, attempts: 1 },
+      { id: 'sandbox-boundary', status: 'fail', durationMs: 1, attempts: 1 }
     ]);
   });
 
@@ -851,7 +959,8 @@ describe('local autonomous QA cycle runner', () => {
     expect(report.checks.at(-1)).toEqual({
       id: 'sandbox-boundary',
       status: 'fail',
-      durationMs: 0
+      durationMs: 0,
+      attempts: 1
     });
   });
 });

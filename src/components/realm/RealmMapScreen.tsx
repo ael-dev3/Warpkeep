@@ -22,9 +22,15 @@ import {
   isPlayableRealmCoord,
   type RealmTerrainSurface
 } from '../../game/map/realmTerrainSurface';
+import {
+  isRealmTerrainKind
+} from '../../game/map/realmTerrainSemantics';
 import { createHegemonyCastlePlacements } from '../../game/map/terrainPlacements';
 import type { TerrainCell } from '../../game/map/terrainTypes';
-import type { CanonicalWarpkeepRealmSnapshot } from '../../spacetime/warpkeepBackendTypes';
+import type {
+  CanonicalWarpkeepRealmSnapshot,
+  WarpkeepWorldTileMetadata
+} from '../../spacetime/warpkeepBackendTypes';
 import { isCanonicalGenesisSnapshot } from '../../spacetime/canonicalGenesisSnapshot';
 import { CastleInspectionPanel } from './CastleInspectionPanel';
 import { RealmAccessibilityControls } from './RealmAccessibilityControls';
@@ -42,7 +48,8 @@ import {
   createRealmScene,
   type RealmInteractionTarget,
   type RealmPeerCastleMarker,
-  type RealmSceneHandle
+  type RealmSceneHandle,
+  type RealmTerrainPresentationTelemetry
 } from './createRealmScene';
 import {
   pointyHexCorners,
@@ -218,6 +225,36 @@ function useStablePeerCastleMarkers(
   return stableMarkersRef.current;
 }
 
+function sameRealmTerrainMetadata(
+  first: readonly WarpkeepWorldTileMetadata[],
+  second: readonly WarpkeepWorldTileMetadata[]
+) {
+  if (first === second) return true;
+  return first.length === second.length && first.every((row, index) => {
+    const candidate = second[index];
+    return candidate !== undefined
+      && row.tileKey === candidate.tileKey
+      && row.realmId === candidate.realmId
+      && row.s === candidate.s
+      && row.ring === candidate.ring
+      && row.sector === candidate.sector
+      && row.terrainKind === candidate.terrainKind
+      && row.passable === candidate.passable
+      && row.movementCost === candidate.movementCost
+      && row.staticContentKind === candidate.staticContentKind
+      && row.generationVersion === candidate.generationVersion;
+  });
+}
+
+/** Preserve the GPU scene when a fresh snapshot changes presentation only. */
+function useStableRealmTerrainMetadata(rows: readonly WarpkeepWorldTileMetadata[]) {
+  const stableRowsRef = useRef(rows);
+  if (!sameRealmTerrainMetadata(stableRowsRef.current, rows)) {
+    stableRowsRef.current = rows;
+  }
+  return stableRowsRef.current;
+}
+
 function directionForKey(key: string): HexCoord | null {
   switch (key) {
     case 'ArrowRight': return { q: 1, r: 0 };
@@ -373,7 +410,7 @@ function CanonicalRealmMapScreen({
   const ownCastle = snapshot.ownCastle;
   const sharedPlayers = snapshot.players;
   const sharedProfiles = snapshot.profiles;
-  const sharedTileMetadata = snapshot.tileMetadata;
+  const sharedTileMetadata = useStableRealmTerrainMetadata(snapshot.tileMetadata);
   const otherCastles = snapshot.castles;
   const surface = useMemo(
     () => createRealmTerrainSurface(
@@ -460,11 +497,17 @@ function CanonicalRealmMapScreen({
   const fallbackFoundations = useMemo(() => terrainPlacements.map((placement, index) => {
     const world = axialToWorld(placement.coord, HEX_SIZE);
     const cell = terrainCellByCoord(surface.renderMap, placement.coord);
+    const terrainKindCandidate = tileMetadataByKey.get(
+      hexKey(placement.coord)
+    )?.terrainKind;
     const color = sampleLowlandsColor(surface.renderMap.worldSeed, world, {
       cell: cell ?? undefined,
       hexSize: HEX_SIZE,
       playableRadius: surface.playableMap.radius,
       renderRadius: surface.renderMap.radius,
+      terrainKind: isRealmTerrainKind(terrainKindCandidate)
+        ? terrainKindCandidate
+        : undefined,
       placements: terrainPlacements
     });
     return {
@@ -473,7 +516,7 @@ function CanonicalRealmMapScreen({
       gradientId: `realm-fallback-foundation-${index}`,
       world
     };
-  }), [surface, terrainPlacements]);
+  }), [surface, terrainPlacements, tileMetadataByKey]);
   const quality = useMemo(() => initialQuality(qualityOverride), [qualityOverride]);
   const qualitySpec = REALM_QUALITY_SPECS[quality];
   const [rendererMode, setRendererMode] = useState<RendererMode>('loading');
@@ -498,9 +541,6 @@ function CanonicalRealmMapScreen({
   const [hoveredCastleId, setHoveredCastleId] = useState<number>();
   const [visibleCastleLabels, setVisibleCastleLabels] = useState<readonly VisibleCastleLabel[]>([]);
   const [visibleCastleClusters, setVisibleCastleClusters] = useState<readonly RealmCastleIdentityCluster[]>([]);
-  const presentedCastleIdSet = useMemo(() => new Set(
-    visibleCastleLabels.map((label) => label.castleId)
-  ), [visibleCastleLabels]);
   const latestProjectionRef = useRef<RealmCastleProjectionFrame>({ width: 0, height: 0, castles: [] });
   const previousLabelLayoutRef = useRef<readonly RealmLabelPlacement[]>([]);
   const labelProjectionRafRef = useRef<number | null>(null);
@@ -518,6 +558,10 @@ function CanonicalRealmMapScreen({
   const reducedMotion = useReducedMotionPreference();
   const viewBox = useMemo(() => viewBoxForSurface(surface), [surface]);
   const selectedCell = selectedCellFor(surface, selectedCoord, keepCoord);
+  const selectedTerrainKindCandidate = tileMetadataByKey.get(hexKey(selectedCoord))?.terrainKind;
+  const selectedTerrainKind = isRealmTerrainKind(selectedTerrainKindCandidate)
+    ? selectedTerrainKindCandidate
+    : undefined;
   const selectedCastle = interaction.selectedCastle
     ? allCastles.find((castle) => castle.castleId === interaction.selectedCastle?.castleId)
     : undefined;
@@ -950,6 +994,19 @@ function CanonicalRealmMapScreen({
     root.dataset.raycastTargetCount = String(telemetry.raycastTargetCount);
   }, []);
 
+  const updateTerrainPresentationTelemetry = useCallback((
+    telemetry: RealmTerrainPresentationTelemetry
+  ) => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.dataset.semanticTerrainCellCount = String(telemetry.semanticCellCount);
+    root.dataset.semanticTerrainKindCount = String(telemetry.semanticKindCount);
+    root.dataset.semanticTerrainFeatureCount = String(telemetry.semanticFeatureCount);
+    root.dataset.semanticTerrainFeatureDrawCalls = String(telemetry.semanticFeatureDrawCalls);
+    root.dataset.totalTerrainDetailInstanceCount = String(telemetry.totalDetailInstanceCount);
+    root.dataset.totalTerrainDetailDrawCalls = String(telemetry.totalDetailDrawCalls);
+  }, []);
+
   const updateSceneComposition = useCallback(() => {
     if (compositionRafRef.current !== null) return;
     compositionRafRef.current = window.requestAnimationFrame(() => {
@@ -1064,6 +1121,12 @@ function CanonicalRealmMapScreen({
       if (rootRef.current) {
         rootRef.current.dataset.presentedModelCount = '0';
         rootRef.current.dataset.raycastTargetCount = '0';
+        rootRef.current.dataset.semanticTerrainCellCount = '0';
+        rootRef.current.dataset.semanticTerrainKindCount = '0';
+        rootRef.current.dataset.semanticTerrainFeatureCount = '0';
+        rootRef.current.dataset.semanticTerrainFeatureDrawCalls = '0';
+        rootRef.current.dataset.totalTerrainDetailInstanceCount = '0';
+        rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
       }
       setVisibleCastleLabels([]);
       setVisibleCastleClusters([]);
@@ -1074,6 +1137,7 @@ function CanonicalRealmMapScreen({
         keepCoord,
         ownCastleId: observerMode ? undefined : ownCastle.castleId,
         otherCastles: peerCastles,
+        terrainMetadata: sharedTileMetadata,
         quality: qualitySpec,
         reducedMotion,
         baseUrl: import.meta.env.BASE_URL || '/',
@@ -1092,6 +1156,7 @@ function CanonicalRealmMapScreen({
           updateSceneComposition();
         },
         onCastlePresentationTelemetry: updateCastlePresentationTelemetry,
+        onTerrainPresentationTelemetry: updateTerrainPresentationTelemetry,
         onCastleProjection: updateCastleProjection,
         onRendererUnavailable: markRendererUnavailable,
         onSelect: () => undefined,
@@ -1119,7 +1184,7 @@ function CanonicalRealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateSceneComposition]);
+  }, [handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedTileMetadata, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateSceneComposition, updateTerrainPresentationTelemetry]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);
@@ -1299,7 +1364,10 @@ function CanonicalRealmMapScreen({
                 cell,
                 hexSize: HEX_SIZE,
                 playableRadius: surface.playableMap.radius,
-                renderRadius: surface.renderMap.radius
+                renderRadius: surface.renderMap.radius,
+                terrainKind: isRealmTerrainKind(tileMetadata?.terrainKind)
+                  ? tileMetadata.terrainKind
+                  : undefined
               });
               return (
                 <polygon
@@ -1331,9 +1399,10 @@ function CanonicalRealmMapScreen({
                 />
               ))}
             </g>
-            {!observerMode && presentedCastleIdSet.has(ownCastle.castleId) ? (
+            {!observerMode ? (
               <g
                 className="realm-map-screen__fallback-keep"
+                data-castle-id={ownCastle.castleId}
                 data-testid="realm-keep-marker"
                 aria-label={`Your Hegemony keep at cell ${keepCoord.q},${keepCoord.r}`}
                 transform={`translate(${axialToWorld(keepCoord, HEX_SIZE).x} ${-axialToWorld(keepCoord, HEX_SIZE).z})`}
@@ -1344,12 +1413,13 @@ function CanonicalRealmMapScreen({
                 <path d="M-0.52-0.28L-0.36-0.62L-0.2-0.28M0.2-0.28L0.36-0.62L0.52-0.28" fill="#a58949" stroke="#5b4936" strokeWidth="0.025" />
               </g>
             ) : null}
-            {peerCastles.filter((castle) => presentedCastleIdSet.has(castle.castleId)).map((castle) => {
+            {peerCastles.map((castle) => {
               const world = axialToWorld({ q: castle.q, r: castle.r }, HEX_SIZE);
               return (
                 <g
                   aria-label={`Hegemony castle marker at cell ${castle.q},${castle.r}`}
                   className="realm-map-screen__fallback-peer-castle"
+                  data-castle-id={castle.castleId}
                   key={castle.castleId}
                   transform={`translate(${world.x} ${-world.z})`}
                 >
@@ -1401,6 +1471,7 @@ function CanonicalRealmMapScreen({
           {observerMode ? (
             <RealmObserverHud
               selectedCell={selectedCell}
+              selectedTerrainKind={selectedTerrainKind}
               selectedCastle={selectedCastle}
               selectedCastleProfile={selectedCastle
                 ? profileRecords.get(selectedCastle.castleId)?.profile
@@ -1416,6 +1487,7 @@ function CanonicalRealmMapScreen({
               marksStatus={marksStatus}
               keepCoord={keepCoord}
               selectedCell={selectedCell}
+              selectedTerrainKind={selectedTerrainKind}
               selectedCastle={selectedCastle}
               selectedCastleProfile={selectedCastle
                 ? profileRecords.get(selectedCastle.castleId)?.profile

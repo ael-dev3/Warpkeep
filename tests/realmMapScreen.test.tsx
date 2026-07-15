@@ -7,6 +7,7 @@ import {
   measuredVisibleRealmUiRects
 } from '../src/components/realm/realmMeasuredComposition';
 import type { RealmIdentity } from '../src/components/realm/realmTypes';
+import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
 import type { CanonicalWarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
 import {
   CANONICAL_TEST_FID,
@@ -142,7 +143,7 @@ describe('RealmMapScreen', () => {
     expect(within(actions).getByRole('button', { name: 'Recenter Keep' }).textContent).toBe('Home');
   });
 
-  it('accounts for a castle without a username in a cluster until Explore activation', async () => {
+  it('keeps a castle marker visible when its identity label is clustered', async () => {
     const snapshot = createCanonicalGenesisSnapshot({
       ownFid: CANONICAL_TEST_FID,
       peerFid: 77
@@ -154,7 +155,8 @@ describe('RealmMapScreen', () => {
         name: 'Focus Keeper identity pending castle'
       })).not.toBeNull();
     });
-    expect(document.querySelector('.realm-map-screen__fallback-peer-castle')).toBeNull();
+    expect(document.querySelector('.realm-map-screen__fallback-peer-castle'))
+      .not.toBeNull();
 
     const exploreTrigger = screen.getByRole('button', {
       name: 'Explore realm, 2 founded castles'
@@ -179,6 +181,21 @@ describe('RealmMapScreen', () => {
     expect(screen.getByLabelText('Current selection').textContent)
       .toContain('Peer Watch · q 2, r -1');
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).toBe(document.activeElement);
+  });
+
+  it('renders one static fallback marker for every castle in the 100-castle fixture', () => {
+    const realm = createRenderedWebglQaFixtureRealm();
+    const { container } = renderFallbackRealm(realm);
+    const markers = container.querySelectorAll<SVGGElement>(
+      '.realm-map-screen__fallback-keep, .realm-map-screen__fallback-peer-castle'
+    );
+    const markerCastleIds = new Set(
+      [...markers].map((marker) => marker.dataset.castleId)
+    );
+
+    expect(realm.snapshot.castles).toHaveLength(100);
+    expect(markers).toHaveLength(realm.snapshot.castles.length);
+    expect(markerCastleIds.size).toBe(realm.snapshot.castles.length);
   });
 
   it('changes camera presets without opening a castle record', () => {
@@ -230,7 +247,7 @@ describe('RealmMapScreen', () => {
     expect(currentSelection().textContent).toContain('Warpkeeper Bastion · q 0, r 0');
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
 
-    expect(currentSelection().textContent).toContain('Temperate Lowlands · q 1, r 0');
+    expect(currentSelection().textContent).toContain('Lowland Forest · q 1, r 0');
     expect(marker.getAttribute('transform')).toBe(markerTransform);
     expect(screen.queryByRole('dialog')).toBeNull();
 

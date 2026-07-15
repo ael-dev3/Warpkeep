@@ -171,7 +171,7 @@ describe('realm castle instance layer', () => {
     layer.dispose();
   });
 
-  it('renders and raycasts only the castle IDs paired with placed identity labels', () => {
+  it('renders and raycasts only castle IDs in the viewport presentation set', () => {
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const material = new THREE.MeshBasicMaterial();
     const compactPrefab = prefab('compact', geometry, material);

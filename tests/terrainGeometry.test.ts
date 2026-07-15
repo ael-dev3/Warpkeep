@@ -78,4 +78,21 @@ describe('combined lowlands terrain geometry', () => {
     expect(footprintHeightRange(founded.positions, center, placement.footprintRadius))
       .toBeLessThan(0.000001);
   });
+
+  it('changes semantic color only, never the shared terrain topology', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 2);
+    const neutral = createTerrainGeometryData(map, 1);
+    const semantic = createTerrainGeometryData(map, 1, {
+      terrainKindsByKey: new Map(map.cells.map((cell, index) => [
+        `${cell.coord.q},${cell.coord.r}`,
+        index % 2 === 0 ? 'forest' as const : 'lake' as const
+      ]))
+    });
+
+    expect(semantic.positions).toEqual(neutral.positions);
+    expect(semantic.indices).toEqual(neutral.indices);
+    expect(semantic.triangleCount).toBe(neutral.triangleCount);
+    expect(semantic.vertexCount).toBe(neutral.vertexCount);
+    expect(semantic.colors).not.toEqual(neutral.colors);
+  });
 });

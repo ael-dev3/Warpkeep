@@ -284,6 +284,13 @@ describe('rendered WebGL headless browser probe contract', () => {
       quality: 'balanced',
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
+      environmentLighting: 'procedural',
+      semanticTerrainCellCount: 1_261,
+      semanticTerrainKindCount: 7,
+      semanticTerrainFeatureCount: 700,
+      semanticTerrainFeatureDrawCalls: 5,
+      totalTerrainDetailInstanceCount: 5_000,
+      totalTerrainDetailDrawCalls: 8,
       viewportWidth: 1440,
       viewportHeight: 900,
       documentWidth: 1440,
@@ -323,7 +330,14 @@ describe('rendered WebGL headless browser probe contract', () => {
       renderer: 'webgl',
       quality: 'balanced',
       castleCount: 100,
-      readyAfterMilliseconds: 2_412
+      readyAfterMilliseconds: 2_412,
+      environmentLighting: 'procedural',
+      semanticTerrainCellCount: 1_261,
+      semanticTerrainKindCount: 7,
+      semanticTerrainFeatureCount: 700,
+      semanticTerrainFeatureDrawCalls: 5,
+      totalTerrainDetailInstanceCount: 5_000,
+      totalTerrainDetailDrawCalls: 8
     });
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
@@ -332,6 +346,42 @@ describe('rendered WebGL headless browser probe contract', () => {
       mapRenderer: 'fallback'
     }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({ ...ready, quality: 'high' }, expected)).toThrow(/DOM/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      environmentLighting: 'direct-light-fallback'
+    }, expected)).toThrow(/environment-lighting/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      semanticTerrainCellCount: 1_260
+    }, expected)).toThrow(/semantic-terrain-cell-count/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      semanticTerrainKindCount: 6
+    }, expected)).toThrow(/semantic-terrain-kind-count/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      semanticTerrainFeatureCount: 0
+    }, expected)).toThrow(/semantic-terrain-feature-budget/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      semanticTerrainFeatureCount: 801
+    }, expected)).toThrow(/semantic-terrain-feature-budget/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      semanticTerrainFeatureDrawCalls: 0
+    }, expected)).toThrow(/semantic-terrain-feature-draw-calls/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      semanticTerrainFeatureDrawCalls: 6
+    }, expected)).toThrow(/semantic-terrain-feature-draw-calls/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      totalTerrainDetailInstanceCount: 5_501
+    }, expected)).toThrow(/total-terrain-detail-budget/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      totalTerrainDetailDrawCalls: 9
+    }, expected)).toThrow(/total-terrain-detail-draw-calls/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       presentedModelCount: 101,
@@ -375,6 +425,34 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...ready,
       readyAfterMilliseconds: 120_001
     }, expected)).toThrow(/observation/i);
+
+    for (const [caseIndex, quality, semanticFeatureCount, totalDetailInstanceCount] of [
+      [0, 'high', 1_100, 7_000],
+      [3, 'reduced', 400, 3_000]
+    ] as const) {
+      const qualityCase = renderedWebglBrowserProbeCases(41_733)[caseIndex]!;
+      const qualityReady = {
+        ...ready,
+        href: qualityCase.url,
+        quality,
+        semanticTerrainFeatureCount: semanticFeatureCount,
+        totalTerrainDetailInstanceCount: totalDetailInstanceCount
+      };
+      expect(parseRenderedWebglBrowserDom(qualityReady, qualityCase)).toMatchObject({
+        quality,
+        semanticTerrainFeatureCount: semanticFeatureCount,
+        totalTerrainDetailInstanceCount: totalDetailInstanceCount
+      });
+      expect(() => parseRenderedWebglBrowserDom({
+        ...qualityReady,
+        semanticTerrainFeatureCount: semanticFeatureCount + 1,
+        totalTerrainDetailInstanceCount: totalDetailInstanceCount
+      }, qualityCase)).toThrow(/semantic-terrain-feature-budget/i);
+      expect(() => parseRenderedWebglBrowserDom({
+        ...qualityReady,
+        totalTerrainDetailInstanceCount: totalDetailInstanceCount + 1
+      }, qualityCase)).toThrow(/total-terrain-detail-budget/i);
+    }
 
     const inspectorCase = renderedWebglBrowserProbeCases(41_733)[6]!;
     expect(() => parseRenderedWebglBrowserDom({

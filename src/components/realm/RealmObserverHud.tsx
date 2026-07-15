@@ -1,3 +1,7 @@
+import {
+  realmTerrainLabel,
+  type RealmTerrainKind
+} from '../../game/map/realmTerrainSemantics';
 import type { TerrainCell } from '../../game/map/terrainTypes';
 import {
   castleProfileLabel,
@@ -6,18 +10,16 @@ import {
 
 type RealmObserverHudProps = Readonly<{
   selectedCell: TerrainCell;
+  selectedTerrainKind?: RealmTerrainKind;
   selectedCastle?: Readonly<{ name: string; q: number; r: number }>;
   selectedCastleProfile?: RealmCastlePublicPresentation;
   onShowRealm: () => void;
   onRequestReturn: () => void;
 }>;
 
-function terrainLabel(cell: TerrainCell) {
-  return cell.biome === 'temperate-lowland' ? 'Temperate Lowlands' : 'Realm Terrain';
-}
-
 export function RealmObserverHud({
   selectedCell,
+  selectedTerrainKind,
   selectedCastle,
   selectedCastleProfile,
   onShowRealm,
@@ -25,7 +27,7 @@ export function RealmObserverHud({
 }: RealmObserverHudProps) {
   const selection = selectedCastle
     ? `${selectedCastleProfile ? `${castleProfileLabel(selectedCastleProfile)} · ` : ''}${selectedCastle.name}`
-    : terrainLabel(selectedCell);
+    : realmTerrainLabel(selectedTerrainKind);
 
   return (
     <>

@@ -6,7 +6,7 @@ import {
   REALM_QUALITY_SPECS,
   resolveRealmRenderPlan
 } from '../src/components/realm/realmQuality';
-import { axialToWorld, hexDistance } from '../src/game/map/hexCoordinates';
+import { axialToWorld, hexDistance, hexKey } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { generateTerrainDecorations } from '../src/game/map/terrainDecorations';
@@ -194,6 +194,24 @@ describe('deterministic lowland decorations', () => {
     expect(details.points.length).toBeLessThanOrEqual(plan.decorationInstanceBudget);
     expect(details.counts['green-tuft']).toBeGreaterThan(details.counts['dry-tuft']);
     expect(details.counts['dry-tuft']).toBeGreaterThan(details.counts.stone);
+  });
+
+  it('does not scatter generic grass or stones across semantic blockers', () => {
+    const surface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 4, 5);
+    const blockerKinds = new Map(surface.renderMap.cells.map((cell) => [
+      hexKey(cell.coord),
+      'lake' as const
+    ]));
+    const details = generateTerrainDecorations(
+      surface.renderMap,
+      decorationQuality(REALM_QUALITY_SPECS.high, surface.playableMap.radius),
+      1,
+      [],
+      blockerKinds
+    );
+
+    expect(details.points).toHaveLength(0);
+    expect(details.counts).toEqual({ 'green-tuft': 0, 'dry-tuft': 0, stone: 0 });
   });
 
   it('releases unique instance buffers exactly once when decoration layers are recreated', () => {
