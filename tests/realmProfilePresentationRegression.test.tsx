@@ -84,14 +84,14 @@ afterEach(() => {
 });
 
 describe('realm profile and PFP presentation regressions', () => {
-  it('uses only a trusted username as map identity and reports missing identity honestly', () => {
+  it('uses the trusted public identity fallback sequence without exposing internal IDs', () => {
     expect(castleProfileLabel(profile({
       canonicalUsername: 'warpkeeper',
       displayName: 'Warp Keeper'
     }))).toBe('@warpkeeper');
     expect(castleProfileLabel(profile({ displayName: 'Warp Keeper' })))
-      .toBe('Keeper identity pending');
-    expect(castleProfileLabel(profile())).toBe('Keeper identity pending');
+      .toBe('Warp Keeper');
+    expect(castleProfileLabel(profile())).toBe('Hegemony Keep');
   });
 
   it('derives monograms from public names and never falls back to FID digits', () => {
@@ -257,7 +257,7 @@ describe('realm profile and PFP presentation regressions', () => {
     );
     const { rerender } = render(renderLabels(profile()));
     let button = screen.getByRole('button', {
-      name: 'Inspect Keeper identity pending castle, Fixture Keep, cell 1,-1, your castle'
+      name: 'Inspect Hegemony Keep castle, Fixture Keep, cell 1,-1, your castle'
     });
     expect(button.querySelector('img')).toBeNull();
     expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('W');
@@ -399,12 +399,12 @@ describe('realm profile and PFP presentation regressions', () => {
 
     const worldLabels = screen.getByLabelText('Visible player castles');
     const button = within(worldLabels).getByRole('button', {
-      name: 'Inspect Keeper identity pending castle, Frontier Keep, cell 1,-1, your castle'
+      name: 'Inspect Hegemony Keep castle, Frontier Keep, cell 1,-1, your castle'
     });
     const visibleLabel = Array.from(button.children).find((child) => (
-      child.textContent === 'Keeper identity pending'
+      child.textContent === 'Hegemony Keep'
     ));
-    expect(visibleLabel?.textContent).toBe('Keeper identity pending');
+    expect(visibleLabel?.textContent).toBe('Hegemony Keep');
     expect(visibleLabel?.textContent).not.toMatch(/^FID\b/i);
     expect(button.getAttribute('aria-label')).not.toMatch(/^Inspect FID\b/i);
     expect(button.getAttribute('aria-pressed')).toBe('true');
@@ -506,7 +506,7 @@ describe('realm profile and PFP presentation regressions', () => {
     );
 
     const button = screen.getByRole('button', {
-      name: 'Focus @fixturekeeper and 2 nearby keepers'
+      name: 'Focus @fixturekeeper castle, Fixture Keep, cell 1,-1, and 2 nearby keepers'
     });
     expect(button.textContent).toBe('@fixturekeeper+2');
     expect(button.getAttribute('data-cluster-count')).toBe('3');

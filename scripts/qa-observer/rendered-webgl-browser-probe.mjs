@@ -434,11 +434,19 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'accessibleClusterButtonCount',
     'castleCount',
     'closeQaObserverControlState',
+    'clusterAttachmentViolationCount',
     'clusterButtonCount',
+    'clusterCastleOverlapCount',
     'clusterCollisionCount',
+    'clusterHitTestViolationCount',
+    'clusterIdentityPresentationViolationCount',
     'clusterLeaderMismatchCount',
+    'clusterMaximumAnchorDisplacement',
+    'clusterMemberDistanceViolationCount',
     'clusterMemberCount',
+    'clusterPlacementBindingViolationCount',
     'clusterReservedOverlapCount',
+    'clusterRepresentativeAnchorViolationCount',
     'clustersWithinViewportCount',
     'documentWidth',
     'environmentLighting',
@@ -457,8 +465,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'labelClusteredCount',
     'labelClusterOverflowCount',
     'labelAttachmentViolationCount',
+    'labelHitTestViolationCount',
+    'labelIdentityPresentationViolationCount',
     'labelLeaderMismatchCount',
     'labelMaximumAnchorDisplacement',
+    'labelPlacementBindingViolationCount',
     'labelPlacedCount',
     'labelMissingIdentityCount',
     'labelReservedOverlapCount',
@@ -587,9 +598,10 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       ? 'label-cluster-affordance' : '',
     candidate.accessibleClusterButtonCount !== candidate.clusterButtonCount
       ? 'label-cluster-accessibility' : '',
-    candidate.labelClusterOverflowCount !== 0
-      && candidate.interactionState !== 'explore'
-      ? 'label-cluster-overflow' : '',
+    // A roof-adjacent identity is preferable to a detached badge. When a
+    // constrained viewport cannot place one within the bounded attachment
+    // radius, exact coverage accounting routes it to the separately exercised
+    // Explore surface instead of failing or floating the control elsewhere.
     candidate.labelMissingIdentityCount !== 0 ? 'label-missing-identity' : '',
     candidate.labelAccountingValid !== true ? 'label-accounting' : '',
     !Number.isSafeInteger(candidate.labelMaximumAnchorDisplacement)
@@ -600,9 +612,44 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     !Number.isSafeInteger(candidate.labelAttachmentViolationCount)
       || candidate.labelAttachmentViolationCount !== 0
       ? 'label-attachment' : '',
+    !Number.isSafeInteger(candidate.labelPlacementBindingViolationCount)
+      || candidate.labelPlacementBindingViolationCount !== 0
+      ? 'label-placement-binding' : '',
+    !Number.isSafeInteger(candidate.labelIdentityPresentationViolationCount)
+      || candidate.labelIdentityPresentationViolationCount !== 0
+      ? 'label-identity-presentation' : '',
+    !Number.isSafeInteger(candidate.labelHitTestViolationCount)
+      || candidate.labelHitTestViolationCount !== 0
+      ? 'label-hit-test' : '',
     candidate.clustersWithinViewportCount !== candidate.clusterButtonCount
       ? 'label-cluster-viewport' : '',
     candidate.clusterCollisionCount !== 0 ? 'label-cluster-collision' : '',
+    !Number.isSafeInteger(candidate.clusterRepresentativeAnchorViolationCount)
+      || candidate.clusterRepresentativeAnchorViolationCount !== 0
+      ? 'label-cluster-representative-anchor' : '',
+    !Number.isSafeInteger(candidate.clusterCastleOverlapCount)
+      || candidate.clusterCastleOverlapCount !== 0
+      ? 'label-cluster-castle-overlap' : '',
+    !Number.isSafeInteger(candidate.clusterMemberDistanceViolationCount)
+      || candidate.clusterMemberDistanceViolationCount !== 0
+      ? 'label-cluster-member-distance' : '',
+    !Number.isSafeInteger(candidate.clusterMaximumAnchorDisplacement)
+      || candidate.clusterMaximumAnchorDisplacement < 0
+      || candidate.clusterMaximumAnchorDisplacement
+        > RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS
+      ? 'label-cluster-anchor-displacement' : '',
+    !Number.isSafeInteger(candidate.clusterAttachmentViolationCount)
+      || candidate.clusterAttachmentViolationCount !== 0
+      ? 'label-cluster-attachment' : '',
+    !Number.isSafeInteger(candidate.clusterPlacementBindingViolationCount)
+      || candidate.clusterPlacementBindingViolationCount !== 0
+      ? 'label-cluster-placement-binding' : '',
+    !Number.isSafeInteger(candidate.clusterIdentityPresentationViolationCount)
+      || candidate.clusterIdentityPresentationViolationCount !== 0
+      ? 'label-cluster-identity-presentation' : '',
+    !Number.isSafeInteger(candidate.clusterHitTestViolationCount)
+      || candidate.clusterHitTestViolationCount !== 0
+      ? 'label-cluster-hit-test' : '',
     candidate.clusterLeaderMismatchCount !== 0 ? 'label-cluster-leader' : '',
     candidate.clusterReservedOverlapCount !== 0 ? 'label-cluster-reserved-ui' : '',
     !Number.isSafeInteger(candidate.labelCount)
@@ -1166,11 +1213,15 @@ const READ_DOM_EXPRESSION = `(() => {
   const labelMaximumAnchorDisplacement = ${RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS};
   const labelCoordinateSerializationEpsilon = ${RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS};
   const labelAngleToleranceRadians = ${RENDERED_WEBGL_QA_LABEL_ANGLE_TOLERANCE_RADIANS};
+  const placementBindingTolerancePixels = 1;
+  const minimumIdentityFontPixels = 12;
+  const minimumIdentityEffectiveOpacity = 0.9;
   const overlay = document.querySelector('[data-rendered-webgl-status]');
   const map = document.querySelector('.realm-map-screen');
   const canvas = map?.querySelector('canvas');
   const integer = (value) => /^\\d+$/.test(value ?? '') ? Number(value) : null;
   const rect = (element) => element.getBoundingClientRect();
+  const mapRect = map ? rect(map) : null;
   const visible = (element) => {
     if (!element) return false;
     const style = getComputedStyle(element);
@@ -1180,6 +1231,78 @@ const READ_DOM_EXPRESSION = `(() => {
       && Number(style.opacity || '1') > 0
       && bounds.width > 0
       && bounds.height > 0;
+  };
+  const cssUnitNumber = (element, property, unit) => {
+    const value = getComputedStyle(element).getPropertyValue(property).trim();
+    if (!value.endsWith(unit)) return Number.NaN;
+    const parsed = Number(value.slice(0, -unit.length));
+    return Number.isFinite(parsed) ? parsed : Number.NaN;
+  };
+  const normalizedAngleDifference = (left, right) => Math.abs(Math.atan2(
+    Math.sin(left - right),
+    Math.cos(left - right)
+  ));
+  const effectiveOpacity = (element) => {
+    let opacity = 1;
+    let current = element;
+    while (current instanceof Element) {
+      const parsed = Number(getComputedStyle(current).opacity || '1');
+      if (!Number.isFinite(parsed)) return 0;
+      opacity *= parsed;
+      if (current === map) break;
+      current = current.parentElement;
+    }
+    return opacity;
+  };
+  const textColourVisible = (style) => {
+    const colour = String(style.color || '').replace(/\\s+/g, '').toLowerCase();
+    const fill = String(style.webkitTextFillColor || style.color || '')
+      .replace(/\\s+/g, '')
+      .toLowerCase();
+    const transparent = (value) => value === 'transparent'
+      || value === 'rgba(0,0,0,0)';
+    return !transparent(colour) && !transparent(fill);
+  };
+  const identityPresentationValid = (control, selector) => {
+    const identities = control.querySelectorAll(selector);
+    if (identities.length !== 1) return false;
+    const identity = identities[0];
+    if (!(identity instanceof HTMLElement) || !visible(identity)) return false;
+    const controlBounds = rect(control);
+    const identityBounds = rect(identity);
+    const style = getComputedStyle(identity);
+    const fontSize = Number.parseFloat(style.fontSize);
+    return (identity.textContent ?? '').trim().length > 0
+      && Number.isFinite(fontSize)
+      && fontSize >= minimumIdentityFontPixels
+      && identityBounds.width > 0
+      && identityBounds.height >= fontSize - placementBindingTolerancePixels
+      && identityBounds.left >= controlBounds.left - placementBindingTolerancePixels
+      && identityBounds.top >= controlBounds.top - placementBindingTolerancePixels
+      && identityBounds.right <= controlBounds.right + placementBindingTolerancePixels
+      && identityBounds.bottom <= controlBounds.bottom + placementBindingTolerancePixels
+      && effectiveOpacity(identity) >= minimumIdentityEffectiveOpacity
+      && textColourVisible(style);
+  };
+  const placementBindingValid = (control, xProperty, yProperty) => {
+    if (!mapRect) return false;
+    const x = cssUnitNumber(control, xProperty, 'px');
+    const y = cssUnitNumber(control, yProperty, 'px');
+    const bounds = rect(control);
+    const renderedX = (bounds.left + bounds.right) / 2 - mapRect.left;
+    const renderedY = bounds.bottom - mapRect.top;
+    return Number.isFinite(x)
+      && Number.isFinite(y)
+      && Math.abs(renderedX - x) <= placementBindingTolerancePixels
+      && Math.abs(renderedY - y) <= placementBindingTolerancePixels;
+  };
+  const interiorHitTestValid = (control) => {
+    const bounds = rect(control);
+    const hit = document.elementFromPoint(
+      (bounds.left + bounds.right) / 2,
+      (bounds.top + bounds.bottom) / 2
+    );
+    return hit !== null && (hit === control || control.contains(hit));
   };
   const elementState = (element) => !element ? 'absent' : visible(element) ? 'visible' : 'hidden';
   const overlaps = (left, right) => left.left < right.right
@@ -1203,31 +1326,98 @@ const READ_DOM_EXPRESSION = `(() => {
   const clusterRects = clusters.map(rect);
   const activeClusterLeaders = [...document.querySelectorAll('[data-realm-cluster-leader]')]
     .filter((leader) => leader.getAttribute('data-active') === 'true' && visible(leader));
-  const activeClusterLeaderIds = new Set(activeClusterLeaders.map((leader) => (
-    leader.getAttribute('data-representative-castle-id')
-  )));
-  const displacedClusterIds = new Set(clusters
+  const validClusterKey = (value) => typeof value === 'string'
+    && /^cluster-\\d+-\\d+$/.test(value);
+  const activeClusterLeaderKeyList = activeClusterLeaders.map((leader) => (
+    leader.getAttribute('data-cluster-key')
+  ));
+  const displacedClusterKeyList = clusters
     .filter((cluster) => cluster.getAttribute('data-displaced') === 'true')
-    .map((cluster) => cluster.getAttribute('data-representative-castle-id')));
-  const clusterLeaderMismatchCount = [...displacedClusterIds]
-    .filter((castleId) => !activeClusterLeaderIds.has(castleId)).length
-    + [...activeClusterLeaderIds].filter((castleId) => !displacedClusterIds.has(castleId)).length
-    + Math.max(0, activeClusterLeaders.length - activeClusterLeaderIds.size);
+    .map((cluster) => cluster.getAttribute('data-cluster-key'));
+  const activeClusterLeaderKeys = new Set(activeClusterLeaderKeyList.filter(validClusterKey));
+  const displacedClusterKeys = new Set(displacedClusterKeyList.filter(validClusterKey));
+  const clusterLeaderMismatchCount = activeClusterLeaderKeyList.filter((key) => (
+    !validClusterKey(key)
+  )).length
+    + displacedClusterKeyList.filter((key) => !validClusterKey(key)).length
+    + [...displacedClusterKeys].filter((key) => !activeClusterLeaderKeys.has(key)).length
+    + [...activeClusterLeaderKeys].filter((key) => !displacedClusterKeys.has(key)).length
+    + Math.max(0, activeClusterLeaderKeyList.length - activeClusterLeaderKeys.size)
+    + Math.max(0, displacedClusterKeyList.length - displacedClusterKeys.size);
   const clusterMemberCount = clusters.reduce((count, cluster) => (
     count + (integer(cluster.getAttribute('data-cluster-count')) ?? 0)
   ), 0);
+  const clusterAttachmentTelemetry = clusters.map((cluster) => {
+    const clusterKey = cluster.getAttribute('data-cluster-key');
+    const x = cssUnitNumber(cluster, '--realm-castle-cluster-x', 'px');
+    const y = cssUnitNumber(cluster, '--realm-castle-cluster-y', 'px');
+    const anchorX = cssUnitNumber(cluster, '--realm-castle-anchor-x', 'px');
+    const anchorY = cssUnitNumber(cluster, '--realm-castle-anchor-y', 'px');
+    const distance = Math.hypot(x - anchorX, y - anchorY);
+    const markedDisplaced = cluster.getAttribute('data-displaced') === 'true';
+    const matchingLeaders = activeClusterLeaders.filter((leader) => (
+      validClusterKey(clusterKey)
+      && leader.getAttribute('data-cluster-key') === clusterKey
+    ));
+    const leader = matchingLeaders[0];
+    const expectedAngle = Math.atan2(y - anchorY, x - anchorX);
+    const leaderLength = leader
+      ? cssUnitNumber(leader, '--realm-castle-leader-length', 'px')
+      : Number.NaN;
+    const leaderAngle = leader
+      ? cssUnitNumber(leader, '--realm-castle-leader-angle', 'rad')
+      : Number.NaN;
+    const classificationValid = markedDisplaced
+      ? distance >= 12 - labelCoordinateSerializationEpsilon
+      : distance < 12 + labelCoordinateSerializationEpsilon;
+    const connectorValid = markedDisplaced
+      ? matchingLeaders.length === 1
+        && Math.abs(leaderLength - distance) <= 0.1
+        && normalizedAngleDifference(leaderAngle, expectedAngle) <= labelAngleToleranceRadians
+      : matchingLeaders.length === 0;
+    return {
+      distance,
+      attachmentValid: validClusterKey(clusterKey)
+        && Number.isFinite(distance)
+        && distance <= labelMaximumAnchorDisplacement + labelCoordinateSerializationEpsilon
+        && classificationValid
+        && connectorValid,
+      placementBindingValid: placementBindingValid(
+        cluster,
+        '--realm-castle-cluster-x',
+        '--realm-castle-cluster-y'
+      ),
+      identityPresentationValid: identityPresentationValid(
+        cluster,
+        '.realm-castle-cluster__identity'
+      ),
+      hitTestValid: interiorHitTestValid(cluster)
+    };
+  });
+  const rawClusterMaximumAnchorDisplacement = clusterAttachmentTelemetry.reduce(
+    (maximum, entry) => Number.isFinite(entry.distance)
+      ? Math.max(maximum, entry.distance)
+      : maximum,
+    0
+  );
+  const reportedClusterMaximumAnchorDisplacement = rawClusterMaximumAnchorDisplacement
+    > labelMaximumAnchorDisplacement + labelCoordinateSerializationEpsilon
+    ? Math.ceil(rawClusterMaximumAnchorDisplacement)
+    : Math.min(labelMaximumAnchorDisplacement, Math.ceil(rawClusterMaximumAnchorDisplacement));
+  const clusterAttachmentViolationCount = clusterAttachmentTelemetry.filter((entry) => (
+    !entry.attachmentValid
+  )).length;
+  const clusterPlacementBindingViolationCount = clusterAttachmentTelemetry.filter((entry) => (
+    !entry.placementBindingValid
+  )).length;
+  const clusterIdentityPresentationViolationCount = clusterAttachmentTelemetry.filter((entry) => (
+    !entry.identityPresentationValid
+  )).length;
+  const clusterHitTestViolationCount = clusterAttachmentTelemetry.filter((entry) => (
+    !entry.hitTestValid
+  )).length;
   const activeLeaders = [...document.querySelectorAll('[data-realm-label-leader]')]
     .filter((leader) => leader.getAttribute('data-active') === 'true' && visible(leader));
-  const cssUnitNumber = (element, property, unit) => {
-    const value = getComputedStyle(element).getPropertyValue(property).trim();
-    if (!value.endsWith(unit)) return Number.NaN;
-    const parsed = Number(value.slice(0, -unit.length));
-    return Number.isFinite(parsed) ? parsed : Number.NaN;
-  };
-  const normalizedAngleDifference = (left, right) => Math.abs(Math.atan2(
-    Math.sin(left - right),
-    Math.cos(left - right)
-  ));
   const labelAttachmentTelemetry = labels.map((label) => {
     const castleId = label.getAttribute('data-castle-id');
     const x = cssUnitNumber(label, '--realm-castle-label-x', 'px');
@@ -1257,10 +1447,20 @@ const READ_DOM_EXPRESSION = `(() => {
       : matchingLeaders.length === 0;
     return {
       distance,
-      valid: Number.isFinite(distance)
+      attachmentValid: Number.isFinite(distance)
         && distance <= labelMaximumAnchorDisplacement + labelCoordinateSerializationEpsilon
         && classificationValid
-        && connectorValid
+        && connectorValid,
+      placementBindingValid: placementBindingValid(
+        label,
+        '--realm-castle-label-x',
+        '--realm-castle-label-y'
+      ),
+      identityPresentationValid: identityPresentationValid(
+        label,
+        '.realm-castle-label__identity'
+      ),
+      hitTestValid: interiorHitTestValid(label)
     };
   });
   const rawLabelMaximumAnchorDisplacement = labelAttachmentTelemetry.reduce(
@@ -1274,7 +1474,16 @@ const READ_DOM_EXPRESSION = `(() => {
     ? Math.ceil(rawLabelMaximumAnchorDisplacement)
     : Math.min(labelMaximumAnchorDisplacement, Math.ceil(rawLabelMaximumAnchorDisplacement));
   const labelAttachmentViolationCount = labelAttachmentTelemetry.filter((entry) => (
-    !entry.valid
+    !entry.attachmentValid
+  )).length;
+  const labelPlacementBindingViolationCount = labelAttachmentTelemetry.filter((entry) => (
+    !entry.placementBindingValid
+  )).length;
+  const labelIdentityPresentationViolationCount = labelAttachmentTelemetry.filter((entry) => (
+    !entry.identityPresentationValid
+  )).length;
+  const labelHitTestViolationCount = labelAttachmentTelemetry.filter((entry) => (
+    !entry.hitTestValid
   )).length;
   const activeLeaderIds = new Set(activeLeaders.map((leader) => leader.getAttribute('data-castle-id')));
   const displacedLabelIds = new Set(labels
@@ -1310,7 +1519,6 @@ const READ_DOM_EXPRESSION = `(() => {
       + '.castle-inspection button, .castle-inspection a, '
       + '[data-realm-castle-cluster]'
   )].filter(visible);
-  const mapRect = map ? rect(map) : null;
   const dialog = document.querySelector('.realm-cell-navigator__dialog');
   const inspector = document.querySelector('.castle-inspection');
   const exploreCastleButtons = [...document.querySelectorAll(
@@ -1394,6 +1602,9 @@ const READ_DOM_EXPRESSION = `(() => {
     )).length,
     labelCollisionCount,
     labelAttachmentViolationCount,
+    labelPlacementBindingViolationCount,
+    labelIdentityPresentationViolationCount,
+    labelHitTestViolationCount,
     labelLeaderMismatchCount,
     labelMaximumAnchorDisplacement: reportedLabelMaximumAnchorDisplacement,
     labelReservedOverlapCount: labelRects.reduce((count, bounds) => (
@@ -1401,7 +1612,21 @@ const READ_DOM_EXPRESSION = `(() => {
     ), 0),
     clusterButtonCount: clusters.length,
     accessibleClusterButtonCount: accessibleClusters.length,
+    clusterRepresentativeAnchorViolationCount: integer(
+      map?.getAttribute('data-cluster-representative-anchor-violation-count')
+    ),
+    clusterCastleOverlapCount: integer(
+      map?.getAttribute('data-cluster-castle-overlap-count')
+    ),
+    clusterMemberDistanceViolationCount: integer(
+      map?.getAttribute('data-cluster-member-distance-violation-count')
+    ),
+    clusterAttachmentViolationCount,
+    clusterPlacementBindingViolationCount,
+    clusterIdentityPresentationViolationCount,
+    clusterHitTestViolationCount,
     clusterLeaderMismatchCount,
+    clusterMaximumAnchorDisplacement: reportedClusterMaximumAnchorDisplacement,
     clusterMemberCount,
     clustersWithinViewportCount: clusterRects.filter((bounds) => (
       bounds.left >= -1

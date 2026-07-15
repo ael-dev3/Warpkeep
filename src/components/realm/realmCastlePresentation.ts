@@ -222,11 +222,14 @@ export function castleProfileUsername(profile: RealmCastlePublicPresentation) {
 }
 
 export function castleProfileIdentityReady(profile: RealmCastlePublicPresentation) {
-  return castleProfileUsername(profile) !== undefined;
+  return castleProfileUsername(profile) !== undefined
+    || boundedDisplayText(profile.displayName, 80) !== undefined;
 }
 
 export function castleProfileLabel(profile: RealmCastlePublicPresentation) {
-  return castleProfileUsername(profile) ?? 'Keeper identity pending';
+  return castleProfileUsername(profile)
+    ?? boundedDisplayText(profile.displayName, 80)
+    ?? 'Hegemony Keep';
 }
 
 export function castleProfileMonogram(profile: RealmCastlePublicPresentation) {

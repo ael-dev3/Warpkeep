@@ -74,6 +74,15 @@ import type {
 
 const HEX_SIZE = 1;
 const OVERLAY_LIFT = 0.026;
+const CAMERA_FILL_HORIZONTAL_DISTANCE = 10;
+const CAMERA_FILL_HEIGHT = 3;
+// Preserve the former neutral fill's upward irradiance while moving its
+// horizontal direction onto the fixed Realm camera azimuth. This reveals
+// camera-facing castle materials without globally brightening the terrain.
+const CAMERA_FILL_UPWARD_IRRADIANCE = 0.1094;
+const CAMERA_FILL_INTENSITY = CAMERA_FILL_UPWARD_IRRADIANCE
+  * Math.hypot(CAMERA_FILL_HORIZONTAL_DISTANCE, CAMERA_FILL_HEIGHT)
+  / CAMERA_FILL_HEIGHT;
 
 type RealmCastleLabelScreenPoint = Readonly<{ x: number; y: number }>;
 
@@ -583,8 +592,14 @@ function initializeRealmScene(
   }
   const skyFill = new THREE.DirectionalLight('#a991d0', 0.56);
   skyFill.position.set(8, 6.5, -9);
-  const neutralFill = new THREE.DirectionalLight('#d5d9e2', 0.24);
-  neutralFill.position.set(-5, 4, -6);
+  const cameraAzimuth = THREE.MathUtils.degToRad(DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees);
+  const neutralFill = new THREE.DirectionalLight('#d5d9e2', CAMERA_FILL_INTENSITY);
+  neutralFill.name = 'realm-camera-facing-fill';
+  neutralFill.position.set(
+    Math.sin(cameraAzimuth) * CAMERA_FILL_HORIZONTAL_DISTANCE,
+    CAMERA_FILL_HEIGHT,
+    Math.cos(cameraAzimuth) * CAMERA_FILL_HORIZONTAL_DISTANCE
+  );
   scene.add(hemisphere, sun, skyFill, neutralFill);
 
   const hoverOverlay = createOverlay('#f4df9a', 0.72);

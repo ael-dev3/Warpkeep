@@ -58,6 +58,7 @@ describe('compact Realm CSS contract', () => {
     expect(label).toContain('translate3d(');
     expect(label).toContain('var(--realm-castle-label-x)');
     expect(label).toContain('var(--realm-castle-label-y)');
+    expect(label).toContain('translate(-50%, -100%);');
     expect(label).toContain('z-index: 1;');
     expect(PRESENTATION).not.toMatch(/top:\s*var\(--realm-castle-label-y\)/);
     expect(PRESENTATION).not.toMatch(/left:\s*var\(--realm-castle-label-x\)/);
@@ -65,13 +66,15 @@ describe('compact Realm CSS contract', () => {
     expect(compactLabel).toContain('min-width: 7.75rem;');
     expect(compactLabel).toContain('max-width: 10.5rem;');
     expect(compactLabel).toContain('min-height: 1.875rem;');
-    expect(compactLabel).toContain('font-size: 0.75rem;');
+    expect(compactLabel).toContain('font-size: 0.8125rem;');
     expect(PRESENTATION).toContain('.realm-castle-label__identity');
-    expect(PRESENTATION).toContain('font: 800 0.75rem/1 Inter');
+    expect(PRESENTATION).toContain('font-size: 0.8125rem;');
+    expect(PRESENTATION).toContain('font: 800 0.8125rem/1 Inter');
     expect(identityCluster).toContain('width: var(--realm-castle-cluster-width);');
     expect(identityCluster).toContain('height: 2.75rem;');
     expect(identityCluster).toContain('pointer-events: auto;');
     expect(identityCluster).toContain('cursor: zoom-in;');
+    expect(identityCluster).toContain('translate(-50%, -100%);');
     expect(leader).toContain('var(--realm-castle-anchor-x)');
     expect(leader).toContain('var(--realm-castle-anchor-y)');
     expect(leader).toContain('var(--realm-castle-leader-length)');

@@ -453,7 +453,7 @@ describe('live realm quality recreation', () => {
     expect(realm.outerHTML).not.toMatch(/(?:fid|token|proof|qr|identity)=/i);
   });
 
-  it('lets camera focus alone own a clustered identity until realm navigation clears it', async () => {
+  it('keeps a neutral direct identity operable across full-realm camera changes', async () => {
     installWebGlProbe();
     render(
       <RealmMapScreen
@@ -503,43 +503,33 @@ describe('live realm quality recreation', () => {
       });
     });
 
-    const pendingLabelName = /Inspect Keeper identity pending castle, Peer Watch, cell 2,-1/i;
+    const pendingLabelName = /Inspect Hegemony Keep castle, Peer Watch, cell 2,-1/i;
     await waitFor(() => expect(screen.getByRole('button', {
       name: pendingLabelName
     }).dataset.focused).toBe('false'));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show Full Realm' }));
-    const cluster = await waitFor(() => {
-      expect(screen.queryByRole('button', { name: pendingLabelName })).toBeNull();
-      return screen.getByRole('button', {
-        name: 'Focus Keeper identity pending castle'
-      });
-    });
-
-    fireEvent.click(cluster);
-    const representativeCastleId = Number(cluster.dataset.representativeCastleId);
-    expect(Number.isSafeInteger(representativeCastleId)).toBe(true);
-    expect(mocked.handles[0]!.focusCastleGroup)
-      .toHaveBeenLastCalledWith([representativeCastleId]);
-    expect(mocked.handles[0]!.focusCastle).not.toHaveBeenCalledWith(representativeCastleId);
+    const directLabel = screen.getByRole('button', { name: pendingLabelName });
+    fireEvent.click(directLabel);
+    expect(mocked.handles[0]!.focusCastle).toHaveBeenLastCalledWith(2);
     await waitFor(() => {
       const focusedLabels = document.querySelectorAll<HTMLButtonElement>(
         'button.realm-castle-label[data-focused="true"]'
       );
       expect(focusedLabels).toHaveLength(1);
       expect(focusedLabels[0]!.textContent?.trim().length).toBeGreaterThan(0);
-      expect(document.activeElement).toBe(focusedLabels[0]);
+      expect(focusedLabels[0]).toBe(directLabel);
     });
 
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
     fireEvent.click(screen.getByRole('button', { name: 'Show Full Realm' }));
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: pendingLabelName })).toBeNull();
+      expect(screen.getByRole('button', { name: pendingLabelName })).toBe(directLabel);
       expect(document.querySelectorAll(
         'button.realm-castle-label[data-focused="true"]'
       )).toHaveLength(0);
-      expect(document.querySelectorAll('button[data-realm-castle-cluster]').length)
-        .toBeGreaterThan(0);
+      expect(document.querySelectorAll('button[data-realm-castle-cluster]')).toHaveLength(0);
     });
+    expect(mocked.handles[0]!.showRealm).toHaveBeenCalled();
   });
 
   it('gates hidden map interaction while canonical castle presentation is loading', () => {

@@ -80,6 +80,7 @@
 .realm-castle-label__identity {
   min-width: 0;
   overflow: hidden;
+  font-size: 0.8125rem;
   text-overflow: ellipsis;
 }
 
@@ -90,7 +91,7 @@
   max-width: 10.5rem;
   min-height: 1.875rem;
   padding: 0.16rem 0.48rem;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
 }
 
 .realm-castle-label-measurements {
@@ -146,7 +147,7 @@
   min-width: 0;
   overflow: hidden;
   color: #fff7e5;
-  font: 800 0.75rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  font: 800 0.8125rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

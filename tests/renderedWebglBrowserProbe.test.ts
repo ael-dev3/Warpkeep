@@ -347,6 +347,9 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelClusterOverflowCount: 0,
       labelAccountingValid: true,
       labelAttachmentViolationCount: 0,
+      labelPlacementBindingViolationCount: 0,
+      labelIdentityPresentationViolationCount: 0,
+      labelHitTestViolationCount: 0,
       labelMissingIdentityCount: 0,
       labelMaximumAnchorDisplacement: 96,
       labelPlacedCount: 18,
@@ -360,7 +363,15 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelReservedOverlapCount: 0,
       clusterButtonCount: 0,
       accessibleClusterButtonCount: 0,
+      clusterRepresentativeAnchorViolationCount: 0,
+      clusterCastleOverlapCount: 0,
+      clusterMemberDistanceViolationCount: 0,
+      clusterAttachmentViolationCount: 0,
+      clusterPlacementBindingViolationCount: 0,
+      clusterIdentityPresentationViolationCount: 0,
+      clusterHitTestViolationCount: 0,
       clusterLeaderMismatchCount: 0,
+      clusterMaximumAnchorDisplacement: 0,
       clusterMemberCount: 0,
       clustersWithinViewportCount: 0,
       clusterCollisionCount: 0,
@@ -453,12 +464,14 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...ready,
       labelUnplacedCount: 1
     }, expected)).toThrow(/label-coverage-total/i);
-    expect(() => parseRenderedWebglBrowserDom({
+    expect(parseRenderedWebglBrowserDom({
       ...ready,
       labelEligibleCount: 19,
       labelUnplacedCount: 1,
-      labelClusterOverflowCount: 1
-    }, expected)).toThrow(/label-cluster-overflow/i);
+      labelClusterOverflowCount: 1,
+      presentedModelCount: 19,
+      raycastTargetCount: 19
+    }, expected)).toMatchObject({ renderer: 'webgl' });
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       labelEligibleCount: 19,
@@ -478,6 +491,27 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...ready,
       labelAttachmentViolationCount: 1
     }, expected)).toThrow(/label-attachment/i);
+    for (const [field, failure] of [
+      ['labelPlacementBindingViolationCount', /label-placement-binding/i],
+      ['labelIdentityPresentationViolationCount', /label-identity-presentation/i],
+      ['labelHitTestViolationCount', /label-hit-test/i],
+      ['clusterAttachmentViolationCount', /cluster-attachment/i],
+      ['clusterRepresentativeAnchorViolationCount', /cluster-representative-anchor/i],
+      ['clusterCastleOverlapCount', /cluster-castle-overlap/i],
+      ['clusterMemberDistanceViolationCount', /cluster-member-distance/i],
+      ['clusterPlacementBindingViolationCount', /cluster-placement-binding/i],
+      ['clusterIdentityPresentationViolationCount', /cluster-identity-presentation/i],
+      ['clusterHitTestViolationCount', /cluster-hit-test/i]
+    ] as const) {
+      expect(() => parseRenderedWebglBrowserDom({
+        ...ready,
+        [field]: 1
+      }, expected)).toThrow(failure);
+    }
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      clusterMaximumAnchorDisplacement: 113
+    }, expected)).toThrow(/cluster-anchor-displacement/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       labelAccountingValid: false

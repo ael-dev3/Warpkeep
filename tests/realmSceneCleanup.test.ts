@@ -63,6 +63,7 @@ import {
 } from '../src/components/realm/createRealmScene';
 import { hexKey } from '../src/game/map/hexCoordinates';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import { DEFAULT_REALM_CAMERA_SPEC } from '../src/components/realm/realmCameraController';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
@@ -226,6 +227,64 @@ describe('realm scene setup cleanup', () => {
       totalDetailInstanceCount: expect.any(Number),
       totalDetailDrawCalls: expect.any(Number)
     });
+
+    sceneHandle.dispose();
+  });
+
+  it('aims the existing neutral fill at the camera without changing terrain irradiance or PBR budgets', () => {
+    const sceneHandle = createRealmScene(createOptions(document.createElement('canvas'), {
+      reducedMotion: true
+    }));
+    const renderedScene = webglState.instances[0].render.mock.calls.at(-1)?.[0] as THREE.Scene;
+    const directionalLights = renderedScene.children.filter(
+      (child): child is THREE.DirectionalLight => child instanceof THREE.DirectionalLight
+    );
+    const hemisphereLights = renderedScene.children.filter(
+      (child): child is THREE.HemisphereLight => child instanceof THREE.HemisphereLight
+    );
+    const cameraFill = renderedScene.getObjectByName(
+      'realm-camera-facing-fill'
+    ) as THREE.DirectionalLight | undefined;
+
+    expect(directionalLights).toHaveLength(3);
+    expect(hemisphereLights).toHaveLength(1);
+    expect(directionalLights.map((light) => `#${light.color.getHexString()}`).sort()).toEqual([
+      '#a991d0',
+      '#d5d9e2',
+      '#ffddb0'
+    ].sort());
+    expect(cameraFill).toBeInstanceOf(THREE.DirectionalLight);
+
+    const normalizedPosition = cameraFill!.position.clone().normalize();
+    const normalizedHorizontalPosition = new THREE.Vector2(
+      cameraFill!.position.x,
+      cameraFill!.position.z
+    ).normalize();
+    const cameraAzimuth = THREE.MathUtils.degToRad(DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees);
+    const cameraHorizontalDirection = new THREE.Vector2(
+      Math.sin(cameraAzimuth),
+      Math.cos(cameraAzimuth)
+    );
+    const horizontalAlignment = normalizedHorizontalPosition.dot(cameraHorizontalDirection);
+    const upwardIrradiance = cameraFill!.intensity * normalizedPosition.y;
+    const cameraFacingIrradiance = cameraFill!.intensity
+      * Math.hypot(normalizedPosition.x, normalizedPosition.z)
+      * horizontalAlignment;
+
+    expect(horizontalAlignment).toBeGreaterThan(0.995);
+    expect(upwardIrradiance).toBeGreaterThanOrEqual(0.105);
+    expect(upwardIrradiance).toBeLessThanOrEqual(0.115);
+    expect(cameraFacingIrradiance).toBeGreaterThanOrEqual(0.34);
+    expect(cameraFacingIrradiance).toBeLessThanOrEqual(0.39);
+
+    const terrain = renderedScene.getObjectByName('hegemony-lowlands-surface') as THREE.Mesh<
+      THREE.BufferGeometry,
+      THREE.MeshStandardMaterial
+    >;
+    expect(terrain.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(terrain.material.vertexColors).toBe(true);
+    expect(terrain.material.roughness).toBe(0.96);
+    expect(terrain.material.metalness).toBe(0);
 
     sceneHandle.dispose();
   });

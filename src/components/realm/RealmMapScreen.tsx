@@ -39,6 +39,8 @@ import {
   type CastleLabelRecord
 } from './RealmCastleLabels';
 import {
+  REALM_IDENTITY_CLUSTER_MAX_MEMBER_DISTANCE_PIXELS,
+  realmCastleClusterMembershipSignature,
   realmCastleIdentityCoverageValid,
   resolveRealmCastleIdentityClusters,
   type RealmCastleIdentityCluster
@@ -88,7 +90,8 @@ import {
 import {
   resolveMeasuredRealmLabelLayout,
   type RealmLabelPlacement,
-  type RealmMeasuredLabelRectangle
+  type RealmMeasuredLabelRectangle,
+  type RealmScreenRect
 } from './realmMeasuredLabelLayout';
 import {
   createRealmInteractionState,
@@ -143,6 +146,23 @@ function sameCoord(first: HexCoord | null, second: HexCoord | null) {
   return first.q === second.q && first.r === second.r;
 }
 
+function validRealmScreenRect(rect: RealmScreenRect | undefined): rect is RealmScreenRect {
+  return rect !== undefined
+    && Number.isFinite(rect.left)
+    && Number.isFinite(rect.top)
+    && Number.isFinite(rect.right)
+    && Number.isFinite(rect.bottom)
+    && rect.right > rect.left
+    && rect.bottom > rect.top;
+}
+
+function realmScreenRectsOverlap(first: RealmScreenRect, second: RealmScreenRect) {
+  return first.left < second.right
+    && first.right > second.left
+    && first.top < second.bottom
+    && first.bottom > second.top;
+}
+
 function applyCastleLabelPlacement(
   button: HTMLButtonElement,
   leader: HTMLElement | undefined,
@@ -169,6 +189,49 @@ function applyCastleLabelPlacement(
   button.dataset.displaced = geometry.displaced ? 'true' : 'false';
   button.style.setProperty('--realm-castle-label-x', labelX);
   button.style.setProperty('--realm-castle-label-y', labelY);
+  button.style.setProperty('--realm-castle-anchor-x', anchorX);
+  button.style.setProperty('--realm-castle-anchor-y', anchorY);
+
+  if (!leader) return;
+  leader.hidden = !geometry.displaced;
+  leader.dataset.active = geometry.displaced ? 'true' : 'false';
+  leader.style.setProperty('--realm-castle-anchor-x', anchorX);
+  leader.style.setProperty('--realm-castle-anchor-y', anchorY);
+  leader.style.setProperty('--realm-castle-leader-length', `${geometry.length.toFixed(2)}px`);
+  leader.style.setProperty('--realm-castle-leader-angle', `${geometry.angleRadians.toFixed(6)}rad`);
+}
+
+function applyCastleClusterPlacement(
+  button: HTMLButtonElement,
+  leader: HTMLElement | undefined,
+  cluster: RealmCastleIdentityCluster | undefined
+) {
+  if (!cluster) {
+    button.style.visibility = 'hidden';
+    button.tabIndex = -1;
+    button.dataset.displaced = 'false';
+    if (leader) {
+      leader.hidden = true;
+      leader.dataset.active = 'false';
+    }
+    return;
+  }
+
+  const geometry = realmCastleLabelLeaderGeometry({
+    x: cluster.x,
+    y: cluster.y,
+    projectedAnchor: cluster.anchor
+  });
+  const clusterX = `${cluster.x.toFixed(2)}px`;
+  const clusterY = `${cluster.y.toFixed(2)}px`;
+  const anchorX = `${cluster.anchor.x.toFixed(2)}px`;
+  const anchorY = `${cluster.anchor.y.toFixed(2)}px`;
+  button.style.visibility = 'visible';
+  button.tabIndex = 0;
+  button.dataset.displaced = geometry.displaced ? 'true' : 'false';
+  button.style.setProperty('--realm-castle-cluster-x', clusterX);
+  button.style.setProperty('--realm-castle-cluster-y', clusterY);
+  button.style.setProperty('--realm-castle-cluster-width', `${cluster.width.toFixed(2)}px`);
   button.style.setProperty('--realm-castle-anchor-x', anchorX);
   button.style.setProperty('--realm-castle-anchor-y', anchorY);
 
@@ -724,16 +787,10 @@ function CanonicalRealmMapScreen({
       // culling so a crowded nameplate can never erase its castle or raycast
       // target and leave a detached identity affordance behind.
       const renderableCastleIds = candidateCastles.map((castle) => castle.castleId);
-      const directIntentCastleIds = new Set([
-        context.selectedCastleId,
-        context.hoveredCastleId,
-        context.focusedCastleId,
-        context.ownCastleId
-      ].filter((castleId): castleId is number => castleId !== undefined));
-      const labelCastles = candidateCastles.filter((castle) => (
-        identityReadyCastleIdsRef.current.has(castle.castleId)
-        || directIntentCastleIds.has(castle.castleId)
-      ));
+      // Every visible keep receives a trustworthy public label. Missing
+      // profile data falls back to a neutral keep name instead of silently
+      // removing the castle from the spatial identity layer.
+      const labelCastles = candidateCastles;
       const maximumLabels = labelCastles.length;
       const eligibleLabelCount = realmEligibleCastleProjectionCount({
         ...frame,
@@ -758,6 +815,20 @@ function CanonicalRealmMapScreen({
           const castleId = Number(leader.dataset.castleId);
           if (Number.isSafeInteger(castleId)) leaders.set(castleId, leader);
         });
+      const clusterButtons = new Map<string, HTMLButtonElement>();
+      root.querySelectorAll<HTMLButtonElement>(
+        'button[data-realm-castle-cluster][data-cluster-key]'
+      ).forEach((button) => {
+        const clusterKey = button.dataset.clusterKey;
+        if (clusterKey) clusterButtons.set(clusterKey, button);
+      });
+      const clusterLeaders = new Map<string, HTMLElement>();
+      root.querySelectorAll<HTMLElement>(
+        '[data-realm-cluster-leader][data-cluster-key]'
+      ).forEach((leader) => {
+        const clusterKey = leader.dataset.clusterKey;
+        if (clusterKey) clusterLeaders.set(clusterKey, leader);
+      });
       const measurementLabels = new Map<number, HTMLElement>();
       root.querySelectorAll<HTMLElement>('.realm-castle-label--measurement[data-measure-castle-id]')
         .forEach((label) => {
@@ -803,6 +874,9 @@ function CanonicalRealmMapScreen({
         root.dataset.labelUnplacedCount = String(Math.max(0, eligibleLabelCount - provisional.length));
         root.dataset.individualCastleCount = String(provisional.length);
         root.dataset.labelClusteredCount = '0';
+        root.dataset.clusterRepresentativeAnchorViolationCount = '0';
+        root.dataset.clusterCastleOverlapCount = '0';
+        root.dataset.clusterMemberDistanceViolationCount = '0';
         root.dataset.labelClusterOverflowCount = String(Math.max(
           0,
           eligibleLabelCount - provisional.length
@@ -939,12 +1013,20 @@ function CanonicalRealmMapScreen({
       const clusterCastleIds = [...eligibleCastleIds]
         .filter((castleId) => !placedCastleIds.has(castleId))
         .sort((left, right) => left - right);
+      const castleCollisionBounds = candidateCastles
+        .filter((castle) => castle.visible)
+        .map((castle) => castle.castleBounds)
+        .filter(validRealmScreenRect);
       const clusterLayout = resolveRealmCastleIdentityClusters({
         projections: candidateCastles,
         clusterCastleIds,
         preferredRepresentativeCastleIds: identityReadyCastleIdsRef.current,
         safeAreaBounds,
-        occupiedRects: [...reservedUiRects, ...layout.placements.map((placement) => placement.bounds)],
+        occupiedRects: [
+          ...reservedUiRects,
+          ...layout.placements.map((placement) => placement.bounds)
+        ],
+        protectedCastleRects: castleCollisionBounds,
         maximumClusters: frame.width <= 680 ? 3 : 6,
         collisionPaddingPixels: 4
       });
@@ -971,6 +1053,36 @@ function CanonicalRealmMapScreen({
         count + cluster.castleIds.length
       ), 0));
       root.dataset.labelClusterOverflowCount = String(clusterLayout.overflowCastleIds.length);
+      const clusterProjectionById = new Map(candidateCastles.map((castle) => [
+        castle.castleId,
+        castle
+      ]));
+      root.dataset.clusterRepresentativeAnchorViolationCount = String(
+        clusterLayout.clusters.filter((cluster) => {
+          const representative = clusterProjectionById.get(cluster.representativeCastleId);
+          return representative === undefined || Math.hypot(
+            representative.x - cluster.anchor.x,
+            representative.y - cluster.anchor.y
+          ) > 0.015;
+        }).length
+      );
+      root.dataset.clusterCastleOverlapCount = String(
+        clusterLayout.clusters.filter((cluster) => castleCollisionBounds.some((bounds) => (
+          realmScreenRectsOverlap(cluster.bounds, bounds)
+        ))).length
+      );
+      root.dataset.clusterMemberDistanceViolationCount = String(
+        clusterLayout.clusters.filter((cluster) => {
+          const representative = clusterProjectionById.get(cluster.representativeCastleId);
+          return representative === undefined || cluster.castleIds.some((castleId) => {
+            const member = clusterProjectionById.get(castleId);
+            return member === undefined || Math.hypot(
+              member.x - representative.x,
+              member.y - representative.y
+            ) > REALM_IDENTITY_CLUSTER_MAX_MEMBER_DISTANCE_PIXELS;
+          });
+        }).length
+      );
       root.dataset.labelAccountingValid = String(realmCastleIdentityCoverageValid({
         eligibleCastleIds: [...eligibleCastleIds],
         individualCastleIds: layout.placements.map((placement) => placement.castleId),
@@ -998,9 +1110,7 @@ function CanonicalRealmMapScreen({
         labelMembershipSignatureRef.current = signature;
         setVisibleCastleLabels(nextLabels);
       }
-      const clusterSignature = clusterLayout.clusters.map((cluster) => (
-        `${cluster.key}:${cluster.castleIds.join('.')}:${Math.round(cluster.x)}:${Math.round(cluster.y)}`
-      )).join('|');
+      const clusterSignature = realmCastleClusterMembershipSignature(clusterLayout.clusters);
       if (clusterSignature !== clusterLayoutSignatureRef.current) {
         clusterLayoutSignatureRef.current = clusterSignature;
         setVisibleCastleClusters(clusterLayout.clusters);
@@ -1010,6 +1120,14 @@ function CanonicalRealmMapScreen({
       const placementsById = new Map(layout.placements.map((placement) => [placement.castleId, placement]));
       for (const [castleId, button] of buttons) {
         applyCastleLabelPlacement(button, leaders.get(castleId), placementsById.get(castleId));
+      }
+      const clustersByKey = new Map(clusterLayout.clusters.map((cluster) => [cluster.key, cluster]));
+      for (const [clusterKey, button] of clusterButtons) {
+        applyCastleClusterPlacement(
+          button,
+          clusterLeaders.get(clusterKey),
+          clustersByKey.get(clusterKey)
+        );
       }
     });
   }, []);

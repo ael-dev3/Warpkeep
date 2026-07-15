@@ -1,10 +1,11 @@
+import {
+  REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS,
+  type RealmScreenPoint,
+  type RealmScreenRect
+} from './realmMeasuredLabelLayout';
 import type {
   RealmCastleScreenProjection
 } from './realmTypes';
-import type {
-  RealmScreenPoint,
-  RealmScreenRect
-} from './realmMeasuredLabelLayout';
 
 /** Width for a true multi-keeper aggregate in constrained overview layouts. */
 export const REALM_IDENTITY_CLUSTER_WIDTH = 96;
@@ -12,6 +13,11 @@ export const REALM_IDENTITY_CLUSTER_WIDTH = 96;
 export const REALM_IDENTITY_SINGLE_WIDTH = 124;
 export const REALM_IDENTITY_CLUSTER_HEIGHT = 44;
 export const REALM_IDENTITY_CLUSTER_MAXIMUM_GRID_POINTS = 8_192;
+/** Aggregate identity remains attached to its representative castle roof. */
+export const REALM_IDENTITY_CLUSTER_MAX_ANCHOR_DISPLACEMENT_PIXELS =
+  REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS;
+/** A "nearby" aggregate may never hide a long spatial chain. */
+export const REALM_IDENTITY_CLUSTER_MAX_MEMBER_DISTANCE_PIXELS = 160;
 
 export type RealmCastleIdentityClusterPlacementDiagnostics = Readonly<{
   safeAreaGridBuildCount: number;
@@ -42,6 +48,18 @@ export type RealmCastleIdentityClusterLayout = Readonly<{
    */
   overflowCastleIds: readonly number[];
 }>;
+
+/**
+ * React owns only aggregate membership. Camera-frame positions are applied to
+ * the existing DOM controls imperatively, just like direct castle labels.
+ */
+export function realmCastleClusterMembershipSignature(
+  clusters: readonly RealmCastleIdentityCluster[]
+) {
+  return clusters.map((cluster) => (
+    `${cluster.key}:${cluster.castleIds.join('.')}:${cluster.representativeCastleId}:${cluster.width}`
+  )).join('|');
+}
 
 export type RealmCastleIdentityCoverageInput = Readonly<{
   eligibleCastleIds: readonly number[];
@@ -118,6 +136,8 @@ export type RealmCastleIdentityClusterLayoutInput = Readonly<{
   preferredRepresentativeCastleIds?: ReadonlySet<number>;
   safeAreaBounds: RealmScreenRect;
   occupiedRects: readonly RealmScreenRect[];
+  /** Projected castle silhouettes use exact overlap, not UI collision padding. */
+  protectedCastleRects?: readonly RealmScreenRect[];
   maximumClusters?: number;
   collisionPaddingPixels?: number;
   /** Optional deterministic work telemetry for synthetic QA and regression tests. */
@@ -207,7 +227,7 @@ function centroid(
   };
 }
 
-function connectedComponents(
+function boundedNeighborhoods(
   castleIds: readonly number[],
   projections: ReadonlyMap<number, RealmCastleScreenProjection>
 ) {
@@ -217,64 +237,24 @@ function connectedComponents(
     const seed = [...remaining].sort((left, right) => left - right)[0]!;
     remaining.delete(seed);
     const members = [seed];
-    const queue = [seed];
-    while (queue.length > 0) {
-      const currentId = queue.shift()!;
-      const current = projections.get(currentId)!;
-      [...remaining].sort((left, right) => left - right).forEach((candidateId) => {
-        const candidate = projections.get(candidateId)!;
-        if (
-          Math.abs(candidate.x - current.x) <= 132
-          && Math.abs(candidate.y - current.y) <= 88
-        ) {
-          remaining.delete(candidateId);
-          members.push(candidateId);
-          queue.push(candidateId);
-        }
-      });
-    }
+    const seedProjection = projections.get(seed)!;
+    // Use a seed-bounded neighbourhood instead of transitive connectivity.
+    // Otherwise a long chain of individually close castles can collapse into
+    // one spatially dishonest aggregate spanning much of the viewport.
+    [...remaining].sort((left, right) => left - right).forEach((candidateId) => {
+      const candidate = projections.get(candidateId)!;
+      if (
+        Math.abs(candidate.x - seedProjection.x) <= 132
+        && Math.abs(candidate.y - seedProjection.y) <= 88
+      ) {
+        remaining.delete(candidateId);
+        members.push(candidateId);
+      }
+    });
     members.sort((left, right) => left - right);
     components.push({ castleIds: members, anchor: centroid(members, projections) });
   }
   return components;
-}
-
-function mergeToCapacity(
-  input: MutableCluster[],
-  maximumClusters: number,
-  projections: ReadonlyMap<number, RealmCastleScreenProjection>
-) {
-  const clusters = input.map((cluster) => ({
-    castleIds: [...cluster.castleIds],
-    anchor: { ...cluster.anchor }
-  }));
-  while (clusters.length > maximumClusters) {
-    let bestLeft = 0;
-    let bestRight = 1;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    for (let left = 0; left < clusters.length; left += 1) {
-      for (let right = left + 1; right < clusters.length; right += 1) {
-        const distance = Math.hypot(
-          clusters[left]!.anchor.x - clusters[right]!.anchor.x,
-          clusters[left]!.anchor.y - clusters[right]!.anchor.y
-        );
-        const currentKey = `${clusters[left]!.castleIds[0]}:${clusters[right]!.castleIds[0]}`;
-        const bestKey = `${clusters[bestLeft]!.castleIds[0]}:${clusters[bestRight]!.castleIds[0]}`;
-        if (distance < bestDistance || (distance === bestDistance && currentKey < bestKey)) {
-          bestDistance = distance;
-          bestLeft = left;
-          bestRight = right;
-        }
-      }
-    }
-    const castleIds = [
-      ...clusters[bestLeft]!.castleIds,
-      ...clusters[bestRight]!.castleIds
-    ].sort((left, right) => left - right);
-    clusters[bestLeft] = { castleIds, anchor: centroid(castleIds, projections) };
-    clusters.splice(bestRight, 1);
-  }
-  return clusters;
 }
 
 function pointKey(point: RealmScreenPoint) {
@@ -400,16 +380,35 @@ function squaredDistance(point: RealmScreenPoint, anchor: RealmScreenPoint) {
   return x * x + y * y;
 }
 
+function withinClusterAttachmentRadius(
+  point: RealmScreenPoint,
+  anchor: RealmScreenPoint
+) {
+  return squaredDistance(point, anchor)
+    <= REALM_IDENTITY_CLUSTER_MAX_ANCHOR_DISPLACEMENT_PIXELS ** 2;
+}
+
 function nearestClusterRepresentative(
   castleIds: readonly number[],
   anchor: RealmScreenPoint,
   projections: ReadonlyMap<number, RealmCastleScreenProjection>,
   preferredCastleIds?: ReadonlySet<number>
 ) {
+  const spatiallyHonestMembers = castleIds.filter((candidateId) => {
+    const candidate = projections.get(candidateId)!;
+    return castleIds.every((memberId) => {
+      const member = projections.get(memberId)!;
+      return Math.hypot(member.x - candidate.x, member.y - candidate.y)
+        <= REALM_IDENTITY_CLUSTER_MAX_MEMBER_DISTANCE_PIXELS;
+    });
+  });
+  const representativePool = spatiallyHonestMembers.length > 0
+    ? spatiallyHonestMembers
+    : castleIds;
   const preferredMembers = preferredCastleIds
-    ? castleIds.filter((castleId) => preferredCastleIds.has(castleId))
+    ? representativePool.filter((castleId) => preferredCastleIds.has(castleId))
     : [];
-  const candidates = preferredMembers.length > 0 ? preferredMembers : castleIds;
+  const candidates = preferredMembers.length > 0 ? preferredMembers : representativePool;
   let representative = candidates[0]!;
   let representativeDistance = squaredDistance(projections.get(representative)!, anchor);
   for (let index = 1; index < candidates.length; index += 1) {
@@ -451,9 +450,11 @@ function findPlacementCandidate(
   const preferred = [
     { x: anchor.x, y: anchor.y },
     { x: anchor.x, y: anchor.y - 52 },
-    { x: anchor.x, y: anchor.y + 52 },
-    { x: anchor.x + width + 12, y: anchor.y },
-    { x: anchor.x - width - 12, y: anchor.y }
+    { x: anchor.x + 58, y: anchor.y },
+    { x: anchor.x - 58, y: anchor.y },
+    { x: anchor.x + 58, y: anchor.y - 52 },
+    { x: anchor.x - 58, y: anchor.y - 52 },
+    { x: anchor.x, y: anchor.y - 96 }
   ].map((point) => ({
     x: clamp(point.x, minimumX, maximumX),
     y: clamp(point.y, minimumY, maximumY)
@@ -509,6 +510,7 @@ function findPlacementCandidate(
       if (candidateKeys.has(key)) return false;
       candidateKeys.add(key);
     }
+    if (!withinClusterAttachmentRadius(point, anchor)) return false;
     diagnostics.placementCandidateCount += 1;
     diagnostics.placementCandidateEvaluationCount += 1;
     return available(point);
@@ -528,7 +530,17 @@ function findPlacementCandidate(
     const point = { x: xCoordinates[column]!, y: yCoordinates[row]! };
     return tryCandidate(point, false) ? point : undefined;
   };
-  for (let radius = localRadius + 1; radius <= maximumRadius; radius += 1) {
+  const maximumAttachmentGridRadius = Math.max(
+    1,
+    Number.isFinite(xStep)
+      ? Math.ceil(REALM_IDENTITY_CLUSTER_MAX_ANCHOR_DISPLACEMENT_PIXELS / xStep)
+      : 0,
+    Number.isFinite(yStep)
+      ? Math.ceil(REALM_IDENTITY_CLUSTER_MAX_ANCHOR_DISPLACEMENT_PIXELS / yStep)
+      : 0
+  );
+  const boundedMaximumRadius = Math.min(maximumRadius, maximumAttachmentGridRadius);
+  for (let radius = localRadius + 1; radius <= boundedMaximumRadius; radius += 1) {
     const top = centerRow - radius;
     const bottom = centerRow + radius;
     const left = centerColumn - radius;
@@ -607,17 +619,14 @@ export function resolveRealmCastleIdentityClusters(
   const collisionPadding = Number.isFinite(input.collisionPaddingPixels)
     ? Math.max(0, input.collisionPaddingPixels!)
     : 4;
-  const components = mergeToCapacity(
-    connectedComponents(castleIds, projectionById),
-    maximumClusters,
-    projectionById
-  ).sort((left, right) => (
+  const components = boundedNeighborhoods(castleIds, projectionById).sort((left, right) => (
     right.castleIds.length - left.castleIds.length
     || left.castleIds[0]! - right.castleIds[0]!
   ));
   const occupied = input.occupiedRects.filter(validRect).map((rect) => (
     expandRect(rect, collisionPadding)
   ));
+  const protectedCastles = (input.protectedCastleRects ?? []).filter(validRect);
   const placementSpaces = new Map<number, PlacementSpace>();
   const placementSpaceForWidth = (width: number) => {
     const existing = placementSpaces.get(width);
@@ -630,62 +639,58 @@ export function resolveRealmCastleIdentityClusters(
   const overflow: number[] = [];
 
   components.forEach((component) => {
+    if (placed.length >= maximumClusters) {
+      overflow.push(...component.castleIds);
+      return;
+    }
     const width = clusterWidth(component.castleIds.length);
-    const candidate = findPlacementCandidate(
+    const representativeCastleId = nearestClusterRepresentative(
+      component.castleIds,
       component.anchor,
+      projectionById,
+      input.preferredRepresentativeCastleIds
+    );
+    const representativeProjection = projectionById.get(representativeCastleId)!;
+    const representativeAnchor = {
+      x: representativeProjection.x,
+      y: representativeProjection.y
+    };
+    const maximumMemberDistance = component.castleIds.reduce((maximum, castleId) => {
+      const projection = projectionById.get(castleId)!;
+      return Math.max(maximum, Math.hypot(
+        projection.x - representativeAnchor.x,
+        projection.y - representativeAnchor.y
+      ));
+    }, 0);
+    if (maximumMemberDistance > REALM_IDENTITY_CLUSTER_MAX_MEMBER_DISTANCE_PIXELS) {
+      overflow.push(...component.castleIds);
+      return;
+    }
+    const candidate = findPlacementCandidate(
+      representativeAnchor,
       placementSpaceForWidth(width),
       width,
       diagnostics,
       (point) => {
-        const bounds = expandRect(boundsAt(point.x, point.y, width), collisionPadding);
-        return !occupied.some((rect) => intersects(bounds, rect))
+        const rawBounds = boundsAt(point.x, point.y, width);
+        const bounds = expandRect(rawBounds, collisionPadding);
+        return !protectedCastles.some((rect) => intersects(rawBounds, rect))
+          && !occupied.some((rect) => intersects(bounds, rect))
           && !placed.some((cluster) => (
             intersects(bounds, expandRect(cluster.bounds, collisionPadding))
           ));
       }
     );
     if (!candidate) {
-      if (placed.length === 0) {
-        overflow.push(...component.castleIds);
-        return;
-      }
-      const nearest = [...placed].sort((left, right) => (
-        Math.hypot(left.anchor.x - component.anchor.x, left.anchor.y - component.anchor.y)
-          - Math.hypot(right.anchor.x - component.anchor.x, right.anchor.y - component.anchor.y)
-        || left.representativeCastleId - right.representativeCastleId
-      ))[0]!;
-      const index = placed.indexOf(nearest);
-      const mergedIds = [...nearest.castleIds, ...component.castleIds]
-        .sort((left, right) => left - right);
-      const mergedAnchor = centroid(mergedIds, projectionById);
-      const mergedWidth = clusterWidth(mergedIds.length);
-      placed[index] = Object.freeze({
-        ...nearest,
-        key: `cluster-${mergedIds[0]}-${mergedIds.length}`,
-        castleIds: Object.freeze(mergedIds),
-        representativeCastleId: nearestClusterRepresentative(
-          mergedIds,
-          mergedAnchor,
-          projectionById,
-          input.preferredRepresentativeCastleIds
-        ),
-        anchor: Object.freeze(mergedAnchor),
-        width: mergedWidth,
-        bounds: Object.freeze(boundsAt(nearest.x, nearest.y, mergedWidth))
-      });
+      overflow.push(...component.castleIds);
       return;
     }
     const members = Object.freeze([...component.castleIds]);
     placed.push(Object.freeze({
       key: `cluster-${members[0]}-${members.length}`,
       castleIds: members,
-      representativeCastleId: nearestClusterRepresentative(
-        members,
-        component.anchor,
-        projectionById,
-        input.preferredRepresentativeCastleIds
-      ),
-      anchor: Object.freeze({ ...component.anchor }),
+      representativeCastleId,
+      anchor: Object.freeze(representativeAnchor),
       x: candidate.x,
       y: candidate.y,
       width,

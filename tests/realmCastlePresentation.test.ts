@@ -126,7 +126,14 @@ describe('realm castle public presentation', () => {
     expect(castleProfileIdentityReady({
       displayName: 'Display Name Only',
       communityStatsVisible: false
-    })).toBe(false);
+    })).toBe(true);
+    expect(castleProfileLabel({
+      displayName: 'Display Name Only',
+      communityStatsVisible: false
+    })).toBe('Display Name Only');
+    expect(castleProfileLabel({
+      communityStatsVisible: false
+    })).toBe('Hegemony Keep');
   });
 
   it('accepts credential-free HTTPS portraits and rejects unsafe profile links', () => {

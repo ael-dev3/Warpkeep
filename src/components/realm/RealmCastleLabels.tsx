@@ -257,7 +257,10 @@ export function RealmCastleLabels({
         const representative = records.get(cluster.representativeCastleId);
         const representativeLabel = representative
           ? castleProfileLabel(representative.profile)
-          : 'Keeper identity pending';
+          : 'Hegemony Keep';
+        const representativeDescription = representative
+          ? `${representativeLabel} castle, ${representative.castle.name}, cell ${representative.castle.q},${representative.castle.r}`
+          : `${representativeLabel} castle`;
         const additionalKeeperCount = Math.max(0, count - 1);
         const leader = realmCastleLabelLeaderGeometry({
           x: cluster.x,
@@ -279,6 +282,7 @@ export function RealmCastleLabels({
               aria-hidden="true"
               className="realm-castle-label__leader realm-castle-cluster__leader"
               data-active={leader.displaced ? 'true' : 'false'}
+              data-cluster-key={cluster.key}
               data-realm-cluster-leader=""
               data-representative-castle-id={cluster.representativeCastleId}
               hidden={!leader.displaced}
@@ -287,9 +291,10 @@ export function RealmCastleLabels({
             <button
               type="button"
               aria-label={additionalKeeperCount > 0
-                ? `Focus ${representativeLabel} and ${additionalKeeperCount} nearby ${additionalKeeperCount === 1 ? 'keeper' : 'keepers'}`
-                : `Focus ${representativeLabel} castle`}
+                ? `Focus ${representativeDescription}, and ${additionalKeeperCount} nearby ${additionalKeeperCount === 1 ? 'keeper' : 'keepers'}`
+                : `Focus ${representativeDescription}`}
               className="realm-castle-cluster"
+              data-cluster-key={cluster.key}
               data-cluster-count={count}
               data-displaced={leader.displaced ? 'true' : 'false'}
               data-representative-castle-id={cluster.representativeCastleId}

@@ -143,7 +143,7 @@ describe('RealmMapScreen', () => {
     expect(within(actions).getByRole('button', { name: 'Recenter Keep' }).textContent).toBe('Home');
   });
 
-  it('keeps a castle marker visible when its identity label is clustered', async () => {
+  it('keeps an unnamed castle marker visible with a neutral direct identity', async () => {
     const snapshot = createCanonicalGenesisSnapshot({
       ownFid: CANONICAL_TEST_FID,
       peerFid: 77
@@ -152,7 +152,7 @@ describe('RealmMapScreen', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', {
-        name: 'Focus Keeper identity pending castle'
+        name: 'Inspect Hegemony Keep castle, Peer Watch, cell 2,-1'
       })).not.toBeNull();
     });
     expect(document.querySelector('.realm-map-screen__fallback-peer-castle'))
@@ -166,7 +166,7 @@ describe('RealmMapScreen', () => {
     expect(exploreTrigger.getAttribute('aria-expanded')).toBe('true');
     const explore = screen.getByRole('dialog', { name: 'Explore' });
     const peer = within(explore).getByRole('button', {
-      name: /Inspect Keeper identity pending, Peer Watch, q 2, r -1/i
+      name: /Inspect Hegemony Keep, Peer Watch, q 2, r -1/i
     });
 
     peer.focus();
@@ -175,7 +175,7 @@ describe('RealmMapScreen', () => {
 
     fireEvent.click(peer);
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
-    const record = screen.getByRole('dialog', { name: 'Keeper identity pending' });
+    const record = screen.getByRole('dialog', { name: 'Hegemony Keep' });
     expect(within(record).getByText('Peer Watch')).not.toBeNull();
     expect(within(record).getByText('q 2 · r -1')).not.toBeNull();
     expect(screen.getByLabelText('Current selection').textContent)
@@ -225,13 +225,13 @@ describe('RealmMapScreen', () => {
     }));
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Explore' })).getByRole(
       'button',
-      { name: /Inspect Keeper identity pending, Peer Watch, q 2, r -1/i }
+      { name: /Inspect Hegemony Keep, Peer Watch, q 2, r -1/i }
     ));
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE RECORD' }));
 
     await waitFor(() => {
       const label = screen.queryByRole('button', {
-        name: /Inspect Keeper identity pending castle, Peer Watch, cell 2,-1/i
+        name: /Inspect Hegemony Keep castle, Peer Watch, cell 2,-1/i
       });
       expect(document.activeElement).toBe(label ?? screen.getByRole('main', { name: 'Hegemony realm' }));
     });
@@ -326,7 +326,7 @@ describe('RealmMapScreen', () => {
     });
 
     expect(container.querySelector('.realm-hud__keeper')?.textContent)
-      .toBe('Keeper identity pending');
+      .toBe('Hegemony Keep');
     expect(screen.queryByText('FID 98765 Keep')).toBeNull();
     expect(screen.queryByRole('heading', { name: /^FID\b/i })).toBeNull();
   });
