@@ -322,6 +322,28 @@ describe('realm perspective camera math', () => {
     controller.dispose();
   });
 
+  it('frames an arbitrary founding center at a bounded approach zoom', () => {
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn()
+    });
+    const district = { ...KEEP, x: 4, z: -3 };
+
+    controller.setViewport(390, 844);
+    controller.frameAt(district, 0.562);
+
+    expect(controller.getZoom()).toBeCloseTo(0.562, 6);
+    expect(controller.getMode()).toBe('approach');
+    expect(controller.getPose().focus.x).toBeCloseTo(district.x, 6);
+    expect(controller.getPose().focus.z).toBeCloseTo(district.z, 6);
+    expect(controller.projectPoint({ x: district.x, y: 0, z: district.z }).x)
+      .toBeCloseTo(controller.getSafeViewport().centerX, 6);
+    controller.dispose();
+  });
+
   it('damps live composition updates without replacing the camera', () => {
     let pendingFrame: FrameRequestCallback | undefined;
     const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {

@@ -1,4 +1,4 @@
-import { HEGEMONY_FRONTIER_KEEP } from '../../game/map/hegemonyLandmarks';
+import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 
 export type RealmQuality = 'high' | 'balanced' | 'reduced';
 
@@ -72,7 +72,7 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     stoneChanceApron: 0.28,
     dynamicShadows: true,
     shadowMapSize: 2048,
-    keepAssetPath: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.high,
+    keepAssetPath: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.high,
     pixelRatioCap: 2,
     maxDrawingBufferPixels: 8_400_000,
     fogNear: 28,
@@ -89,7 +89,7 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     stoneChanceApron: 0.22,
     dynamicShadows: true,
     shadowMapSize: 1024,
-    keepAssetPath: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.balanced,
+    keepAssetPath: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.balanced,
     pixelRatioCap: 1.75,
     maxDrawingBufferPixels: 5_200_000,
     fogNear: 34,
@@ -106,7 +106,7 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     stoneChanceApron: 0.08,
     dynamicShadows: false,
     shadowMapSize: 0,
-    keepAssetPath: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact,
+    keepAssetPath: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.compact,
     pixelRatioCap: 1.25,
     maxDrawingBufferPixels: 2_400_000,
     fogNear: 30,

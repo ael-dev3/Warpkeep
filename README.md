@@ -84,11 +84,18 @@ Asset reconstruction is explicit and never part of an ordinary build:
 ```sh
 npm run assets:fetch
 npm run prepare:title-models
-WARPKEEP_KEEP_SOURCE=/authorized/offline/source.glb npm run prepare:hegemony-keep
+npm run assets:fetch:castle
+npm run tools:fetch:gltfpack
+npm run prepare:hegemony-castle
 WARPKEEP_MARK_SOURCE=/authorized/offline/hegemony-mark.png npm run prepare:hegemony-mark
 ```
 
-The keep source is not publicly mirrored while redistribution authority remains unresolved. Preparation fails closed unless an authorized exact offline copy is supplied.
+The Main Castle preparation pipeline verifies the public-release archive, exact
+source member, checksum-pinned `gltfpack` tool, and derived outputs before it
+writes runtime files. On 2026-07-15 the project owner authorized
+project-internal runtime integration and deterministic derivative preparation;
+this is not a separate public open license, redistribution grant, or trademark
+grant. See the [dated castle provenance record](docs/reference/castles/2026-07-15-hegemony-main-castle/).
 
 ## Documentation
 

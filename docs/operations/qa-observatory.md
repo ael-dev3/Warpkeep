@@ -1,9 +1,9 @@
 # Warpkeep QA Observatory
 
 The QA Observatory includes a read-only, machine-bound production presentation
-path and a separate synthetic local journey lab. Neither path is a player,
-administrator, Farcaster, admission, or Terms bypass. The normal Warpkeep
-product flow remains unchanged.
+path, a separate synthetic local journey lab, and a local rendered-WebGL
+fixture. None is a player, administrator, Farcaster, admission, or Terms
+bypass. The normal Warpkeep product flow remains unchanged.
 
 The observer browser page uses a deterministic, synthetic FID-free fixture. No
 browser QA page receives a production snapshot, Secure Enclave key, player
@@ -141,6 +141,80 @@ presentation-only, and external-origin link clicks are suppressed inside the
 lab. A real WebGL run may still fetch ordinary same-origin game assets from the
 loopback Vite server so the Realm renderer can be visually tested.
 
+## Rendered WebGL fixture
+
+The rendered-WebGL page is a separate local visual check for the real Realm
+renderer. It always uses 100 deterministic synthetic castles at every
+canonical slot. Its owners, keep names, usernames, and portrait flags are
+fixture data only: no real identity, FID, PFP URL, player profile, wallet,
+Terms record, auth state, production snapshot, or remote profile host is read
+or accepted.
+
+Bind Vite to loopback explicitly, then have the small contract helper print the
+exact local URL for one reviewed quality mode:
+
+```sh
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+node scripts/qa-observer/rendered-webgl-qa-contract.mjs --url high 5173
+```
+
+The helper only formats the URL; it does not start a server or browser, make a
+network request, read browser state, or write a report. Open the printed URL in
+a local browser for interactive visual review. The page accepts exactly one
+reviewed `quality` value:
+`?quality=high`, `balanced`, or `reduced`. Duplicate or unrelated query
+parameters and any other value fail closed to the reviewed `balanced` default.
+The selected value is passed directly to the actual Realm quality override, so
+each reviewed query exercises its corresponding castle LOD and render budget.
+If the reviewed loopback port is busy, choose an unused local port explicitly
+in both commands rather than allowing Vite to select one implicitly.
+
+A rendered pass is valid only when the map root exposes
+`.realm-map-screen[data-renderer="webgl"]` and the local overlay exposes
+`data-rendered-webgl-status="ready"`. `fallback`, `error`, `closed`, or a
+permanent `loading` state is a failed/unfinished check; the fallback is visibly
+labeled “not a render pass.” The overlay exposes only fixture ID, selected
+quality, castle count, renderer result, and a bounded local-ready duration. It
+does not retain or transport those values.
+
+This page is compiled only for Vite serve mode and rejects every non-loopback
+hostname. Its page code has no browser-automation dependency. Run the separate
+machine-local rendered probe with:
+
+```sh
+npm run qa:rendered-webgl
+```
+
+The probe uses the installed
+`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` in new headless
+mode. It atomically binds an in-process Vite middleware server to a numeric
+`127.0.0.1` port selected by the kernel, creates a fresh owner-private temporary
+Chrome profile, and begins at `about:blank`. Extensions, saved browser state,
+Keychain access, first-run/default-app behavior, sync, updates, metrics, and
+background networking are disabled. A deny-by-default host resolver plus Chrome
+DevTools request interception blocks every page request and navigation outside
+the selected numeric loopback origin. Same-origin Vite WebSocket and renderer
+Blob URLs are allowed; alternate ports, `localhost`, HTTPS, data URLs, and
+foreign origins fail the run.
+
+Chrome then visits the exact fixture route for `high`, `balanced`, and `reduced`,
+plus one invalid query that must fall back to `balanced`. Every case must expose
+`renderer=webgl`, `status=ready`, fixture `synthetic-canonical-100`, castle count
+`100`, the expected effective quality, and a ready duration within the
+120-second fixture bound. Fallback, error, timeout, an unexpected target, or
+foreign network activity fails closed. Chrome, Vite, and the temporary profile
+are torn down in a `finally` path. The probe takes no screenshot and retains no
+DOM, console, network, identity, or timing payload. Its parent QA report records
+only the aggregate check identifier, pass/fail/timeout status, and total
+duration.
+
+The exact browser probe runs in quick, standard, and deep QA cycles. Unit tests
+exercise its URL, process-spawn, endpoint, network-boundary, and DOM-attestation
+contracts without launching Chrome. If an owner chooses to retain an interactive
+screenshot, save it manually outside the worktree as an owner-only (`0600`)
+private artifact after review; the fixture itself creates no screenshot or
+report.
+
 ## Approval-gated activation
 
 Local tests and helper compilation do not authorize production changes. These
@@ -167,11 +241,12 @@ replace periodic human testing of genuine Farcaster and Terms consent.
 
 ## Autonomous local QA cycles
 
-The cycle runner invokes an exact, attested package-script contract and a
-version-pinned local SpacetimeDB CLI for the local-only module checks. The
-synthetic test-file list is hard-coded in the reviewed runner. Neither list
-contains a deploy, publish, enrollment, administrator, player-authentication,
-or browser command. It supplies an isolated runtime home,
+The cycle runner invokes an exact, attested package-script contract, the exact
+headless rendered-WebGL probe described above, and a version-pinned local
+SpacetimeDB CLI for local-only module checks. The synthetic test-file list and
+browser-probe path are hard-coded in the reviewed runner. No check contains a
+deploy, publish, enrollment, administrator, player-authentication, Terms bypass,
+or production URL command. It supplies an isolated runtime home,
 temporary directory, and npm cache; disables npm debug-log retention and user
 npm configuration; and discards child stdout and stderr. A report contains only
 the tier, overall status, check identifiers, and durations.
@@ -212,7 +287,8 @@ data to browser JavaScript.
 The tiers intentionally trade coverage for hourly cost:
 
 - `quick` runs the focused observer/security tests, an explicit synthetic app
-  state lane, and root typecheck. The synthetic lane covers Terms, every
+  state lane, the four-case rendered-WebGL browser probe, and root typecheck.
+  The synthetic lane covers Terms, every
   Farcaster and backend-admission presentation phase, title/menu transitions,
   settings, credits, patch notes, menu-to-Realm orchestration, canonical
   readiness, Realm HUD/accessibility/inspection/interaction, and both
@@ -220,9 +296,10 @@ The tiers intentionally trade coverage for hourly cost:
   XHR, WebSocket, EventSource, cookie, IndexedDB, or any Storage operation.
   Other selected lifecycle tests deliberately exercise isolated jsdom storage
   fixtures; none can reach a user's browser store or production service.
-- `standard` runs all root unit tests, typecheck, runtime-asset verification,
-  and file-size policy.
-- `deep` adds a production build, every auth-bridge typecheck/test, and the
+- `standard` runs all root unit tests, typecheck, the rendered-WebGL browser
+  probe, runtime-asset verification, and file-size policy.
+- `deep` adds a production build, repeats the rendered-WebGL browser probe,
+  every auth-bridge typecheck/test, and the
   SpacetimeDB typecheck, pure tests, local module build, committed-binding
   verification, and non-destructive additive-migration proof.
 - `auto` selects deep on local hours divisible by six, standard on other local
@@ -255,11 +332,13 @@ approved. Do not run `launchctl` as part of repository validation.
 
 This workstation instead uses the private Codex desktop automation
 `warpkeep-12-hour-local-qa` for those twelve hourly cycles. Its prompt runs the
-exact broker-off runner, may open only the loopback synthetic journey lab, and
-forbids real Terms/authentication, production mutation, deployment, key work,
-commits, pushes, and LaunchAgent installation. The automation is not stored in
-this repository and grants no production authority. Disable or edit it through
-Codex automation controls; do not add a second operating-system scheduler.
+exact broker-off runner, including its fresh-profile loopback rendered probe,
+may open only the loopback synthetic journey lab for additional visual review,
+and forbids real Terms/authentication, production mutation, deployment, key
+work, commits, pushes, and LaunchAgent installation. The automation is not
+stored in this repository and grants no production authority. Disable or edit
+it through Codex automation controls; do not add a second operating-system
+scheduler.
 
 ## Residual risk and revocation
 

@@ -117,6 +117,17 @@ afterEach(() => {
 });
 
 describe('Warpkeep local QA journey lab', () => {
+  it('keeps the synthetic QR presentation SVG structurally closed exactly once', () => {
+    const encodedMarkup = QA_UNSCANNABLE_QR_DATA_URL.split(',', 2)[1];
+    expect(encodedMarkup).toBeTruthy();
+
+    const markup = decodeURIComponent(encodedMarkup!);
+    expect(markup).toMatch(/^<svg\b/);
+    expect(markup).toContain('NOT SCANNABLE');
+    expect(markup.endsWith('</svg>')).toBe(true);
+    expect(markup.match(/<\/svg>/g)).toHaveLength(1);
+  });
+
   it('parses only bounded, enumerated local presentation options', () => {
     expect(readQaJourneyOptions('?scenario=auth-awaiting&autocycle=1&interval=2500')).toEqual({
       scenario: 'auth-awaiting',

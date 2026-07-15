@@ -286,7 +286,8 @@ describe('realm scene setup cleanup', () => {
       onCastlesReady
     }));
 
-    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledTimes(1));
+    expect(onCastlesReady).not.toHaveBeenCalled();
     scene.setHovered({ q: 0, r: 0 });
     scene.setSelected({ q: 0, r: 0 });
     scene.setSelectedCastleId(1);
@@ -295,6 +296,8 @@ describe('realm scene setup cleanup', () => {
     hidden = false;
     document.dispatchEvent(new Event('visibilitychange'));
     expect(webglState.instances[0].render).toHaveBeenCalledTimes(1);
+    expect(onCastlesReady).toHaveBeenCalledOnce();
+    expect(onCastlesReady).toHaveBeenCalledWith(1);
     document.dispatchEvent(new Event('visibilitychange'));
     expect(webglState.instances[0].render).toHaveBeenCalledTimes(1);
 

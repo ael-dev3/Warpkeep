@@ -114,7 +114,7 @@ describe('realm castle public presentation', () => {
     expect(sectorForRealmCoord({ q: 1, r: -1 })).toBe(6);
   });
 
-  it('caps and collision-culls labels without detaching a lower-priority collision', () => {
+  it('caps labels and retains selected/own identity with a compact roof-attached fallback', () => {
     const castles = Array.from({ length: 100 }, (_, index) => ({
       castleId: index + 1,
       q: index,
@@ -124,8 +124,8 @@ describe('realm castle public presentation', () => {
       distance: index + 1,
       visible: true
     }));
-    // Force own and selected into the same initial collision cluster. Selected
-    // wins deterministically; own is culled instead of floating elsewhere.
+    // Force own and selected into the same collision cluster. Selected stays
+    // full; own retains readable identity in the compact berth above its roof.
     castles[98] = { ...castles[98], x: 240, y: 160, distance: 99 };
     castles[99] = { ...castles[99], x: 240, y: 160, distance: 100 };
 
@@ -137,11 +137,15 @@ describe('realm castle public presentation', () => {
 
     expect(resolved.length).toBeLessThanOrEqual(CASTLE_LABEL_MAX_DESKTOP);
     expect(resolved.some((castle) => castle.castleId === 100)).toBe(true);
-    expect(resolved.some((castle) => castle.castleId === 99)).toBe(false);
-    expect(resolved.every((castle) => castle.compact === false)).toBe(true);
+    expect(resolved.find((castle) => castle.castleId === 100)?.compact).toBe(false);
+    expect(resolved.find((castle) => castle.castleId === 99)).toMatchObject({
+      compact: true,
+      x: 240,
+      y: 110
+    });
   });
 
-  it('permits only a small selected or own nudge into the safe area', () => {
+  it('permits only small roof-associated nudges into the safe area', () => {
     const resolved = resolveVisibleCastleLabels({
       width: 320,
       height: 300,

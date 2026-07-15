@@ -146,6 +146,7 @@ describe('local autonomous QA cycle runner', () => {
     expect(quick.map((check) => check.id)).toEqual([
       'targeted-unit',
       'synthetic-app-states',
+      'rendered-webgl-browser',
       'typecheck'
     ]);
     const syntheticAppStates = quick.find((check) => check.id === 'synthetic-app-states');
@@ -171,10 +172,19 @@ describe('local autonomous QA cycle runner', () => {
       'tests/realmAccessibilityControls.test.tsx',
       'tests/realmInteractionState.test.ts',
       'tests/castleInspectionPanel.test.tsx',
-      'tests/realmHud.test.tsx'
+      'tests/realmHud.test.tsx',
+      'tests/renderedWebglQaFixture.test.ts',
+      'tests/renderedWebglQaHarness.test.tsx',
+      'tests/renderedWebglQaContract.test.ts',
+      'tests/renderedWebglBrowserProbe.test.ts'
+    ]);
+    const renderedWebglBrowser = quick.find((check) => check.id === 'rendered-webgl-browser');
+    expect(renderedWebglBrowser?.executable).toBe(process.execPath);
+    expect(renderedWebglBrowser?.args).toEqual([
+      join(repositoryRoot, 'scripts/qa-observer/rendered-webgl-browser-probe.mjs')
     ]);
     expect(standard.map((check) => check.id)).toEqual([
-      'full-unit', 'typecheck', 'runtime-assets', 'file-sizes'
+      'full-unit', 'typecheck', 'rendered-webgl-browser', 'runtime-assets', 'file-sizes'
     ]);
     expect(deep.map((check) => check.id)).toEqual(expect.arrayContaining([
       'production-build',
@@ -199,6 +209,7 @@ describe('local autonomous QA cycle runner', () => {
         build: 'tsc -b && vite build && node scripts/verify-production-dist-exclusions.mjs',
         'verify:runtime-assets': 'node scripts/verify-runtime-assets.mjs',
         'verify:file-sizes': 'node scripts/verify-file-sizes.mjs',
+        'qa:rendered-webgl': 'node scripts/qa-observer/rendered-webgl-browser-probe.mjs',
         'stdb:verify-bindings': 'node scripts/verify-spacetime-bindings.mjs',
         'stdb:verify-additive-migration': 'node scripts/verify-spacetime-additive-migration.mjs'
       }],

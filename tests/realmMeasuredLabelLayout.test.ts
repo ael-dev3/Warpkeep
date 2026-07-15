@@ -9,7 +9,7 @@ import {
 const viewport = { left: 0, top: 0, right: 400, bottom: 300 } as const;
 const safeArea = { left: 10, top: 10, right: 390, bottom: 290 } as const;
 const full = { offsetX: -50, offsetY: -30, width: 100, height: 30 } as const;
-const avatar = { offsetX: -18, offsetY: -36, width: 36, height: 36 } as const;
+const compact = { offsetX: -42, offsetY: -28, width: 84, height: 28 } as const;
 
 function candidate(
   castleId: number,
@@ -22,7 +22,7 @@ function candidate(
     inFrontOfCamera: true,
     priority: 'near',
     distance: castleId,
-    measurements: { full, avatar },
+    measurements: { full, compact },
     ...overrides
   };
 }
@@ -98,13 +98,13 @@ describe('measured realm label layout', () => {
     expect(result.culled.filter((entry) => entry.reason === 'capacity')).toHaveLength(2);
   });
 
-  it('keeps full identity presentation for accepted far labels', () => {
+  it('keeps text-bearing compact identity presentation for accepted far mobile labels', () => {
     const result = resolveMeasuredRealmLabelLayout({
       anchors: [candidate(1, {
         priority: 'far',
         measurements: {
           full: { offsetX: -100, offsetY: -40, width: 200, height: 40 },
-          avatar
+          compact
         }
       })],
       viewportBounds: viewport,
@@ -113,9 +113,9 @@ describe('measured realm label layout', () => {
       maximumLabels: 1
     });
 
-    expect(result.placements[0].presentation).toBe('full');
-    expect(result.placements[0].bounds.right - result.placements[0].bounds.left).toBe(200);
-    expect(result.placements[0].bounds.bottom - result.placements[0].bounds.top).toBe(40);
+    expect(result.placements[0].presentation).toBe('compact');
+    expect(result.placements[0].bounds.right - result.placements[0].bounds.left).toBe(84);
+    expect(result.placements[0].bounds.bottom - result.placements[0].bounds.top).toBe(28);
   });
 
   it('retains a prior member across small distance-order jitter', () => {
@@ -206,7 +206,7 @@ describe('measured realm label layout', () => {
     expect(result.culled).toEqual([{ castleId: 1, reason: 'reserved-ui' }]);
   });
 
-  it('culls a lower-priority collision instead of detaching it from its castle', () => {
+  it('keeps an own castle identity in a compact, roof-attached berth after a selected collision', () => {
     const result = resolveMeasuredRealmLabelLayout({
       anchors: [
         candidate(1, { priority: 'own', x: 200, y: 160 }),
@@ -218,11 +218,58 @@ describe('measured realm label layout', () => {
       maximumLabels: 2
     });
 
-    expect(result.placements.map((placement) => placement.castleId)).toEqual([2]);
-    expect(result.culled).toContainEqual({ castleId: 1, reason: 'collision' });
+    expect(result.placements.map((placement) => placement.castleId)).toEqual([2, 1]);
+    expect(result.placements[0]).toMatchObject({
+      castleId: 2,
+      presentation: 'full',
+      x: 200,
+      y: 160
+    });
+    expect(result.placements[1]).toMatchObject({
+      castleId: 1,
+      presentation: 'compact',
+      projectedAnchor: { x: 200, y: 160 },
+      layoutAnchor: { x: 200, y: 160 },
+      x: 200,
+      y: 110
+    });
+    expect(overlaps(result.placements[0].bounds, result.placements[1].bounds)).toBe(false);
   });
 
-  it('allows only a tightly bounded safe-area nudge for selected or own labels', () => {
+  it('keeps compact collision fallbacks outside reserved UI and their own castle', () => {
+    const reserved = { left: 150, top: 90, right: 250, bottom: 124 };
+    const result = resolveMeasuredRealmLabelLayout({
+      anchors: [
+        candidate(1, {
+          priority: 'selected',
+          x: 200,
+          y: 170,
+          occlusionBounds: { left: 165, top: 176, right: 235, bottom: 240 }
+        }),
+        candidate(2, {
+          priority: 'own',
+          x: 200,
+          y: 170,
+          occlusionBounds: { left: 165, top: 176, right: 235, bottom: 240 }
+        })
+      ],
+      viewportBounds: viewport,
+      safeAreaBounds: safeArea,
+      reservedUiRects: [reserved],
+      maximumLabels: 2,
+      collisionPaddingPixels: 0
+    });
+
+    expect(result.placements.map((placement) => placement.castleId)).toEqual([1, 2]);
+    expect(result.placements[1]).toMatchObject({ presentation: 'compact' });
+    result.placements.forEach((placement) => {
+      expect(overlaps(placement.bounds, reserved)).toBe(false);
+      expect(overlaps(placement.bounds, { left: 165, top: 176, right: 235, bottom: 240 }))
+        .toBe(false);
+    });
+  });
+
+  it('uses bounded nudges and a roof-adjacent compact berth at the mobile edge', () => {
     const selected = resolveMeasuredRealmLabelLayout({
       anchors: [candidate(1, { priority: 'selected', x: 50 })],
       viewportBounds: viewport,
@@ -237,14 +284,32 @@ describe('measured realm label layout', () => {
       reservedUiRects: [],
       maximumLabels: 1
     });
+    const detachedPeer = resolveMeasuredRealmLabelLayout({
+      anchors: [candidate(1, { priority: 'near', x: 15 })],
+      viewportBounds: viewport,
+      safeAreaBounds: safeArea,
+      reservedUiRects: [],
+      maximumLabels: 1
+    });
 
     expect(selected.placements[0]).toMatchObject({ x: 60, y: 120 });
     expect(Math.hypot(
       selected.placements[0].x - selected.placements[0].projectedAnchor.x,
       selected.placements[0].y - selected.placements[0].projectedAnchor.y
-    )).toBeLessThanOrEqual(12);
-    expect(peer.placements).toEqual([]);
-    expect(peer.culled).toEqual([{ castleId: 1, reason: 'no-safe-placement' }]);
+    )).toBeLessThanOrEqual(40);
+    expect(peer.placements[0]).toMatchObject({
+      presentation: 'compact',
+      x: 52,
+      y: 120
+    });
+    expect(detachedPeer.placements[0]).toMatchObject({
+      presentation: 'compact',
+      projectedAnchor: { x: 15, y: 120 },
+      layoutAnchor: { x: 15, y: 120 },
+      x: 73,
+      y: 120
+    });
+    expect(detachedPeer.culled).toEqual([]);
   });
 
   it('retains a label directly above its own projected silhouette', () => {
@@ -269,7 +334,7 @@ describe('measured realm label layout', () => {
     )).toBe(false);
   });
 
-  it('culls instead of moving a label down across its own castle silhouette', () => {
+  it('uses a compact upward berth instead of crossing its own castle silhouette', () => {
     const result = resolveMeasuredRealmLabelLayout({
       anchors: [candidate(1, {
         x: 200,
@@ -283,7 +348,16 @@ describe('measured realm label layout', () => {
       collisionPaddingPixels: 0
     });
 
-    expect(result.placements).toEqual([]);
-    expect(result.culled).toEqual([{ castleId: 1, reason: 'associated-castle' }]);
+    expect(result.placements).toHaveLength(1);
+    expect(result.placements[0]).toMatchObject({
+      castleId: 1,
+      presentation: 'compact',
+      x: 200,
+      y: 60
+    });
+    expect(overlaps(
+      result.placements[0].bounds,
+      { left: 150, top: 100, right: 250, bottom: 220 }
+    )).toBe(false);
   });
 });

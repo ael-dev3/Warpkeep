@@ -55,6 +55,8 @@ import type { RealmIdentity } from './realmTypes';
 import type { RealmCastleProjectionFrame } from './realmTypes';
 import {
   CASTLE_LABEL_FAR_DISTANCE,
+  CASTLE_LABEL_COMPACT_HEIGHT,
+  CASTLE_LABEL_COMPACT_WIDTH,
   castleProfileLabel,
   fallbackCastleProjection,
   publicProfileForCastle,
@@ -64,6 +66,7 @@ import {
 import {
   resolveMeasuredRealmLabelLayout,
   type RealmLabelPlacement,
+  type RealmMeasuredLabelRectangle,
   type RealmScreenRect
 } from './realmMeasuredLabelLayout';
 import {
@@ -441,6 +444,11 @@ function CanonicalRealmMapScreen({
   const compositionRafRef = useRef<number | null>(null);
   const safeAreaInsetsRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
   const labelMembershipSignatureRef = useRef('');
+  const labelMeasurementCacheRef = useRef(new Map<string, Readonly<{
+    element: HTMLElement;
+    measurement: RealmMeasuredLabelRectangle;
+    text: string;
+  }>>());
   const reducedMotion = useReducedMotionPreference();
   const viewBox = useMemo(() => viewBoxForSurface(surface), [surface]);
   const selectedCell = selectedCellFor(surface, selectedCoord, keepCoord);
@@ -582,6 +590,23 @@ function CanonicalRealmMapScreen({
           const castleId = Number(label.dataset.measureCastleId);
           if (Number.isSafeInteger(castleId)) measurementLabels.set(castleId, label);
         });
+      const compactMeasurementLabels = new Map<number, HTMLElement>();
+      root.querySelectorAll<HTMLElement>(
+        '.realm-castle-label--measurement[data-measure-compact-castle-id]'
+      ).forEach((label) => {
+        const castleId = Number(label.dataset.measureCompactCastleId);
+        if (Number.isSafeInteger(castleId)) compactMeasurementLabels.set(castleId, label);
+      });
+      for (const cacheKey of labelMeasurementCacheRef.current.keys()) {
+        const [castleIdCopy, presentation] = cacheKey.split(':');
+        const castleId = Number(castleIdCopy);
+        const current = presentation === 'compact'
+          ? compactMeasurementLabels
+          : measurementLabels;
+        if (!Number.isSafeInteger(castleId) || !current.has(castleId)) {
+          labelMeasurementCacheRef.current.delete(cacheKey);
+        }
+      }
       if (measurementLabels.size === 0) {
         const signature = provisional.map((label) => `${label.castleId}:${label.compact}`).join('|');
         if (signature !== labelMembershipSignatureRef.current) {
@@ -611,18 +636,43 @@ function CanonicalRealmMapScreen({
         return rect.width > 0 && rect.height > 0 ? [toRelativeRect(rect)] : [];
       });
       const anchors = frame.castles.map((castle) => {
-        const button = buttons.get(castle.castleId);
         const measurementLabel = measurementLabels.get(castle.castleId);
-        const rect = button?.getBoundingClientRect()
-          ?? measurementLabel?.getBoundingClientRect();
-        const avatarRect = (button ?? measurementLabel)
-          ?.querySelector<HTMLElement>('.realm-castle-avatar')
-          ?.getBoundingClientRect();
-        const full = rect && rect.width > 0 && rect.height > 0
-          ? { offsetX: -rect.width / 2, offsetY: -rect.height, width: rect.width, height: rect.height }
-          : undefined;
-        const avatarWidth = avatarRect ? Math.max(44, avatarRect.width + 8) : 44;
-        const avatarHeight = avatarRect ? Math.max(44, avatarRect.height + 8) : 44;
+        const compactMeasurementLabel = compactMeasurementLabels.get(castle.castleId);
+        const measuredRectangle = (
+          element: HTMLElement | undefined,
+          presentation: 'full' | 'compact'
+        ) => {
+          if (!element) return undefined;
+          const cacheKey = `${castle.castleId}:${presentation}`;
+          const text = element.textContent ?? '';
+          const cached = labelMeasurementCacheRef.current.get(cacheKey);
+          if (cached && cached.element === element && cached.text === text) {
+            return cached.measurement;
+          }
+          const rect = element.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            const measurement = {
+              offsetX: -rect.width / 2,
+              offsetY: -rect.height,
+              width: rect.width,
+              height: rect.height
+            };
+            labelMeasurementCacheRef.current.set(cacheKey, {
+              element,
+              measurement,
+              text
+            });
+            return measurement;
+          }
+          return undefined;
+        };
+        const full = measuredRectangle(measurementLabel, 'full');
+        const compact = measuredRectangle(compactMeasurementLabel, 'compact') ?? {
+          offsetX: -CASTLE_LABEL_COMPACT_WIDTH / 2,
+          offsetY: -CASTLE_LABEL_COMPACT_HEIGHT,
+          width: CASTLE_LABEL_COMPACT_WIDTH,
+          height: CASTLE_LABEL_COMPACT_HEIGHT
+        };
         return {
           castleId: castle.castleId,
           x: castle.x,
@@ -637,12 +687,7 @@ function CanonicalRealmMapScreen({
           occlusionBounds: castle.castleBounds,
           measurements: {
             full,
-            avatar: {
-              offsetX: -avatarWidth / 2,
-              offsetY: -avatarHeight,
-              width: avatarWidth,
-              height: avatarHeight
-            }
+            compact
           }
         };
       });
@@ -669,7 +714,7 @@ function CanonicalRealmMapScreen({
           ...projection,
           x: placement.x,
           y: placement.y,
-          compact: placement.presentation === 'avatar'
+          compact: placement.presentation === 'compact'
         }] : [];
       });
       const signature = nextLabels.map((label) => `${label.castleId}:${label.compact}`).join('|');
@@ -1053,13 +1098,15 @@ function CanonicalRealmMapScreen({
               const world = axialToWorld({ q: castle.q, r: castle.r }, HEX_SIZE);
               return (
                 <g
-                  aria-label={`Frontier keep marker at cell ${castle.q},${castle.r}`}
+                  aria-label={`Hegemony castle marker at cell ${castle.q},${castle.r}`}
                   className="realm-map-screen__fallback-peer-castle"
                   key={castle.castleId}
                   transform={`translate(${world.x} ${-world.z})`}
                 >
-                  <circle cx="0" cy="0" fill="#7d4d90" r="0.16" stroke="#ecd3a3" strokeWidth="0.035" />
-                  <path d="M-0.13 0.04L0-0.22L0.13 0.04Z" fill="#d7ae5e" />
+                  <path d="M-0.55 0.36V-0.28H-0.36V-0.52H-0.18V-0.28H0.18V-0.52H0.36V-0.28H0.55V0.36Z" fill="#c9b0d3" stroke="#4f374f" strokeWidth="0.035" />
+                  <path d="M-0.64 0.36H0.64L0.52 0.5H-0.52Z" fill="#725176" />
+                  <path d="M-0.11 0.36V0.02Q0-0.11 0.11 0.02V0.36Z" fill="#3d3041" />
+                  <path d="M-0.52-0.28L-0.36-0.62L-0.2-0.28M0.2-0.28L0.36-0.62L0.52-0.28" fill="#b38e4e" stroke="#59414f" strokeWidth="0.025" />
                 </g>
               );
             })}

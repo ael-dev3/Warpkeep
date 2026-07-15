@@ -44,6 +44,7 @@ function block(source: string, marker: string) {
 describe('compact Realm CSS contract', () => {
   it('projects each castle label once and presents profile images as static canvas snapshots', () => {
     const label = block(PRESENTATION, '.realm-castle-label {');
+    const compactLabel = block(PRESENTATION, '.realm-castle-label[data-compact="true"] {');
     const avatarCanvas = block(PRESENTATION, '.realm-castle-avatar canvas {');
 
     expect(label).toContain('top: 0;');
@@ -53,6 +54,9 @@ describe('compact Realm CSS contract', () => {
     expect(label).toContain('var(--realm-castle-label-y)');
     expect(PRESENTATION).not.toMatch(/top:\s*var\(--realm-castle-label-y\)/);
     expect(PRESENTATION).not.toMatch(/left:\s*var\(--realm-castle-label-x\)/);
+    expect(compactLabel).toContain('width: 6.75rem;');
+    expect(compactLabel).toContain('min-height: 1.875rem;');
+    expect(PRESENTATION).toContain('.realm-castle-label__identity');
 
     expect(avatarCanvas).toContain('display: block;');
     expect(avatarCanvas).toContain('width: 100%;');

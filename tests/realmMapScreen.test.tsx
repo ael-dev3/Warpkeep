@@ -106,6 +106,10 @@ describe('RealmMapScreen', () => {
     });
     renderFallbackRealm({ snapshot });
 
+    const peerMarker = document.querySelector('.realm-map-screen__fallback-peer-castle');
+    expect(peerMarker?.querySelectorAll('path')).toHaveLength(4);
+    expect(peerMarker?.querySelector('circle')).toBeNull();
+
     const exploreTrigger = screen.getByRole('button', {
       name: 'Explore realm, 2 founded castles'
     });

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  castleFrustumRadius,
   createRealmCastleInstanceLayer,
   type RealmCastleInstanceRecord
 } from '../src/components/realm/realmCastleInstanceLayer';
@@ -61,6 +62,11 @@ function camera() {
 }
 
 describe('realm castle instance layer', () => {
+  it('uses a conservative three-axis frustum sphere for edge castles', () => {
+    expect(castleFrustumRadius(1.48, 1.62)).toBeCloseTo(1.323, 3);
+    expect(castleFrustumRadius(-1, -1)).toBe(0);
+  });
+
   it('keeps all 100 visible castles on shared real prefab resources', () => {
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const material = new THREE.MeshBasicMaterial();

@@ -1,0 +1,180 @@
+{
+  "archive": "warpkeep-hegemony-main-castle-2026-07-15",
+  "recordedAt": "2026-07-15",
+  "purpose": "Public source-archive provenance and project-internal runtime derivative record for the active Hegemony Main Castle",
+  "source": {
+    "repository": "ael-dev3/Warpkeep-Assets",
+    "repositoryCommit": "0cd2d506c352885850fc15759603baccbad669e7",
+    "sourceIntroductionCommit": "9963722765c7935391d85d943b3c4f0163f0c5a8",
+    "release": {
+      "tag": "hegemony-frontier-keep-3d-2026-07-14",
+      "attachment": "hegemony-frontier-keep-3d-sources-v1.zip",
+      "url": "https://github.com/ael-dev3/Warpkeep-Assets/releases/download/hegemony-frontier-keep-3d-2026-07-14/hegemony-frontier-keep-3d-sources-v1.zip",
+      "bytes": 10672929,
+      "sha256": "c029a636ee0a791ca54072d5f32fcf68263677951fd59c338dfe242264335d5f"
+    },
+    "member": {
+      "path": "hegemony-frontier-keep-3d-sources-v1/HegemonyMainCastle.glb",
+      "bytes": 2233564,
+      "sha256": "b33755f14bbed0855cf738ba8fb2dbdde9cf56e976b7f108a2259dd478a9b580"
+    },
+    "licenseStatus": "public-archive-authorized-no-separate-open-license"
+  },
+  "sourceGltf": {
+    "container": "GLB",
+    "version": 2,
+    "scenes": 1,
+    "nodes": 1,
+    "meshes": 1,
+    "primitives": 1,
+    "materials": 1,
+    "images": 2,
+    "imageFormat": "WebP",
+    "imageResolution": [2048, 2048],
+    "embeddedImages": [
+      {
+        "name": "WK_HeroCastle_NormalAtlas",
+        "role": "normal",
+        "bytes": 79450,
+        "sha256": "3ff2fa16d17b08d91551f5b52ee8419a821c4e726c2296c0c539daee3f23149a"
+      },
+      {
+        "name": "WK_HeroCastle_BaseColorAtlas",
+        "role": "baseColor",
+        "bytes": 69426,
+        "sha256": "27c90266612844c619d6a79d5db5701454ce6209e91cab47247eeb8fd065517a"
+      }
+    ],
+    "triangles": 73070,
+    "positionVertices": 173299,
+    "indexComponentType": 5125,
+    "animations": 0,
+    "extensionsRequired": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "positionBounds": {
+      "min": [-6.41045, 0, -4.93809],
+      "max": [6.41045, 14.062, 4.92809]
+    },
+    "gateFacingAxis": "+Z",
+    "yawRadians": 0
+  },
+  "projectAuthorization": {
+    "recordedAt": "2026-07-15",
+    "authorizedBy": "Warpkeep project owner",
+    "scope": [
+      "project-internal runtime integration",
+      "deterministic derivative preparation for the Warpkeep project"
+    ],
+    "notGranted": [
+      "separate public open license",
+      "CC-BY-4.0 or Apache-2.0 relicensing of source or derivatives",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights"
+    ],
+    "note": "The authorization is limited to project-internal use and does not change the public archive's no-separate-open-license boundary."
+  },
+  "runtimeDerivatives": {
+    "browserRuntime": "checked-in derivatives only; release attachments are never a runtime CDN",
+    "sourceFetchScript": "scripts/fetch-hegemony-castle-assets.mjs",
+    "preparationScript": "scripts/prepare-hegemony-main-castle.mjs",
+    "verificationScript": "scripts/verify-runtime-assets.mjs",
+    "tool": {
+      "name": "gltfpack",
+      "version": "1.2",
+      "source": "zeux/meshoptimizer release v1.2",
+      "integrityPinned": true,
+      "processIsolation": "private temporary cwd and HOME/TMPDIR; PATH=/usr/bin:/bin; C locale; no inherited developer credentials"
+    },
+    "textureTool": {
+      "name": "Sharp",
+      "version": "0.35.3",
+      "libvipsVersion": "8.18.3",
+      "libwebpVersion": "1.6.0",
+      "resizeKernel": "Lanczos3",
+      "normalEncoding": "lossless WebP, effort 6",
+      "baseColorEncoding": "WebP quality 90, effort 6, smart subsampling"
+    },
+    "integrityControls": [
+      "release attachment byte and SHA-256 verification",
+      "safe ZIP path, duplicate, and symlink rejection",
+      "exact source-member byte and SHA-256 verification",
+      "checksum-pinned native gltfpack binary verification",
+      "attested absolute system unzip executable; no PATH lookup",
+      "manual GitHub release redirect validation followed by redirect:error payload fetch",
+      "complete physical-buffer coverage and byte-identical Meshopt payload verification before atlas substitution",
+      "exact derivative bytes and SHA-256 verification",
+      "GLB structure, triangle, vertex, index, atlas dimensions, embedded image bytes/hashes, material atlas metadata, and extension verification"
+    ],
+    "extensionsRequired": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "profiles": {
+      "high": {
+        "path": "public/models/hegemony/hegemony-main-castle-high.glb",
+        "bytes": 1934920,
+        "sha256": "9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2",
+        "simplifyRatio": 0.75,
+        "simplifyError": 0.004,
+        "textureLimit": 2048,
+        "triangles": 67680,
+        "uploadVertices": 153439,
+        "indexComponentType": 5125,
+        "meshes": 1,
+        "primitives": 1,
+        "materials": 1,
+        "images": 2,
+        "embeddedImages": [
+          { "name": "WK_HeroCastle_NormalAtlas", "bytes": 79450, "sha256": "3ff2fa16d17b08d91551f5b52ee8419a821c4e726c2296c0c539daee3f23149a", "width": 2048, "height": 2048 },
+          { "name": "WK_HeroCastle_BaseColorAtlas", "bytes": 69426, "sha256": "27c90266612844c619d6a79d5db5701454ce6209e91cab47247eeb8fd065517a", "width": 2048, "height": 2048 }
+        ]
+      },
+      "balanced": {
+        "path": "public/models/hegemony/hegemony-main-castle-balanced.glb",
+        "bytes": 1172132,
+        "sha256": "aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e",
+        "simplifyRatio": 0.42,
+        "simplifyError": 0.012,
+        "textureLimit": 1024,
+        "triangles": 40353,
+        "uploadVertices": 78928,
+        "indexComponentType": 5125,
+        "meshes": 1,
+        "primitives": 1,
+        "materials": 1,
+        "images": 2,
+        "embeddedImages": [
+          { "name": "WK_HeroCastle_NormalAtlas", "bytes": 192188, "sha256": "1074250bd5d8bcb6889f14f5ad1a7f12e748853140bf8c7a6e6d69ce254d23e7", "width": 1024, "height": 1024 },
+          { "name": "WK_HeroCastle_BaseColorAtlas", "bytes": 58470, "sha256": "f48aef508f4f548035e2db4fafc1a52d117d67ebd5264f1f3fcb6545bf25dc6d", "width": 1024, "height": 1024 }
+        ]
+      },
+      "compact": {
+        "path": "public/models/hegemony/hegemony-main-castle-compact.glb",
+        "bytes": 508508,
+        "sha256": "de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29",
+        "simplifyRatio": 0.25,
+        "simplifyError": 0.018,
+        "textureLimit": 512,
+        "triangles": 19086,
+        "uploadVertices": 34098,
+        "indexComponentType": 5123,
+        "meshes": 1,
+        "primitives": 1,
+        "materials": 1,
+        "images": 2,
+        "embeddedImages": [
+          { "name": "WK_HeroCastle_NormalAtlas", "bytes": 82498, "sha256": "712b27a1f21435c8f232dddc0e7122cedd93553eb17b4e5b6370417d3e437ba3", "width": 512, "height": 512 },
+          { "name": "WK_HeroCastle_BaseColorAtlas", "bytes": 22098, "sha256": "7465d0ffebd3e7da60831bda33d240f3b9d6516d71922a5b5df920b930568c75", "width": 512, "height": 512 }
+        ],
+        "positionBounds": {
+          "min": [-6.389847983, 0, -4.888312794],
+          "max": [6.389809055, 14.062000218, 4.928393334]
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,11 @@
 export type RealmLabelPriority = 'selected' | 'own' | 'near' | 'far';
 
-export type RealmLabelPresentation = 'full' | 'avatar';
+/**
+ * `compact` still carries a short public identity string. It is deliberately
+ * not an avatar-only mode: a castle marker without readable identity is not a
+ * useful map affordance in a dense founding district.
+ */
+export type RealmLabelPresentation = 'full' | 'compact';
 
 export type RealmScreenPoint = Readonly<{
   x: number;
@@ -37,7 +42,8 @@ export type RealmProjectedLabelAnchor = Readonly<{
   occlusionBounds?: RealmScreenRect;
   measurements: Readonly<{
     full?: RealmMeasuredLabelRectangle;
-    avatar?: RealmMeasuredLabelRectangle;
+    /** Compact, text-bearing label measurement. */
+    compact?: RealmMeasuredLabelRectangle;
   }>;
 }>;
 
@@ -101,7 +107,30 @@ type PlacementProposal = Readonly<{
   layoutAnchor: RealmScreenPoint;
 }>;
 
-const MAX_PRIORITY_NUDGE_PIXELS = 12;
+type RealmLabelOffset = Readonly<{ x: number; y: number }>;
+
+const MAX_PRIORITY_NUDGE_PIXELS = 40;
+const MAX_STANDARD_NUDGE_PIXELS = 32;
+
+/**
+ * Dense labels remain tied to the roof they describe. Compact labels first
+ * stay directly above the roof, then use a small upward stack. These are
+ * layout offsets from the projected roof, not free-floating screen
+ * coordinates.
+ */
+const COMPACT_ATTACHMENT_OFFSETS: readonly RealmLabelOffset[] = Object.freeze([
+  { x: 0, y: 0 },
+  { x: 0, y: -50 },
+  { x: 58, y: 0 },
+  { x: -58, y: 0 },
+  { x: 58, y: -50 },
+  { x: -58, y: -50 },
+  { x: 0, y: -96 }
+]);
+
+const DIRECT_ATTACHMENT_OFFSET: readonly RealmLabelOffset[] = Object.freeze([
+  { x: 0, y: 0 }
+]);
 
 const PRIORITY_RANK: Readonly<Record<RealmLabelPriority, number>> = {
   selected: 0,
@@ -212,22 +241,29 @@ function placementProposals(
   anchor: RealmScreenPoint,
   measurement: RealmMeasuredLabelRectangle,
   safeArea: RealmScreenRect,
-  maximumNudgePixels: number
+  maximumNudgePixels: number,
+  offsets: readonly RealmLabelOffset[]
 ) {
-  const attached = { x: anchor.x, y: anchor.y, layoutAnchor: anchor };
-  const proposal = clampProposalToSafeArea(
-    attached,
-    measurement,
-    safeArea,
-    maximumNudgePixels
-  );
-  return proposal ? [proposal] : [];
-}
-
-function presentationFor(_priority: RealmLabelPriority): RealmLabelPresentation {
-  // Capacity and collision culling already bound density. Every marker that
-  // survives those checks must retain the player's visible identity label.
-  return 'full';
+  const proposals: PlacementProposal[] = [];
+  for (const offset of offsets) {
+    const attached = {
+      x: anchor.x + offset.x,
+      y: anchor.y + offset.y,
+      layoutAnchor: anchor
+    };
+    const proposal = clampProposalToSafeArea(
+      attached,
+      measurement,
+      safeArea,
+      maximumNudgePixels
+    );
+    if (!proposal) continue;
+    if (proposals.some((existing) => existing.x === proposal.x && existing.y === proposal.y)) {
+      continue;
+    }
+    proposals.push(proposal);
+  }
+  return proposals;
 }
 
 /**
@@ -301,67 +337,90 @@ export function resolveMeasuredRealmLabelLayout(
       continue;
     }
 
-    const presentation = presentationFor(candidate.priority);
-    const measurement = presentation === 'avatar'
-      ? candidate.measurements.avatar
-      : candidate.measurements.full;
-    if (!validMeasurement(measurement)) {
-      culled.push({ castleId: candidate.castleId, reason: 'unmeasured' });
-      continue;
-    }
     if (!safeArea) {
       culled.push({ castleId: candidate.castleId, reason: 'no-safe-placement' });
       continue;
     }
-
-    const proposals = placementProposals(
-      anchor,
-      measurement,
-      safeArea,
-      candidate.priority === 'selected' || candidate.priority === 'own'
-        ? MAX_PRIORITY_NUDGE_PIXELS
-        : 0
-    );
     let accepted: RealmLabelPlacement | undefined;
     let sawSafeWithoutReservedUi = false;
     let sawReservedUi = false;
     let sawAssociatedCastle = false;
     let sawLabelCollision = false;
+    let sawMeasurement = false;
     const associatedCastleBounds = candidate.occlusionBounds
       && validRect(candidate.occlusionBounds)
       ? candidate.occlusionBounds
       : undefined;
-    for (const proposal of proposals) {
-      const bounds = boundsAt(proposal, measurement);
-      const paddedBounds = expandRect(bounds, collisionPadding);
-      if (reservedUiRects.some((reserved) => intersects(paddedBounds, reserved))) {
-        sawReservedUi = true;
-        continue;
+
+    const fullPresentation = {
+      presentation: 'full' as const,
+      measurement: candidate.measurements.full,
+      offsets: DIRECT_ATTACHMENT_OFFSET
+    };
+    const compactPresentation = {
+      presentation: 'compact' as const,
+      measurement: candidate.measurements.compact,
+      offsets: COMPACT_ATTACHMENT_OFFSETS
+    };
+    const preferCompact = input.viewportBounds.right - input.viewportBounds.left <= 680
+      && candidate.priority !== 'selected'
+      && candidate.priority !== 'own';
+    const presentations: readonly Readonly<{
+      presentation: RealmLabelPresentation;
+      measurement: RealmMeasuredLabelRectangle | undefined;
+      offsets: readonly RealmLabelOffset[];
+    }>[] = preferCompact
+      ? [compactPresentation, fullPresentation]
+      : [fullPresentation, compactPresentation];
+    const maximumNudgePixels = candidate.priority === 'selected' || candidate.priority === 'own'
+      ? MAX_PRIORITY_NUDGE_PIXELS
+      : MAX_STANDARD_NUDGE_PIXELS;
+
+    for (const option of presentations) {
+      if (!validMeasurement(option.measurement)) continue;
+      sawMeasurement = true;
+      const proposals = placementProposals(
+        anchor,
+        option.measurement,
+        safeArea,
+        maximumNudgePixels,
+        option.offsets
+      );
+      for (const proposal of proposals) {
+        const bounds = boundsAt(proposal, option.measurement);
+        const paddedBounds = expandRect(bounds, collisionPadding);
+        if (reservedUiRects.some((reserved) => intersects(paddedBounds, reserved))) {
+          sawReservedUi = true;
+          continue;
+        }
+        if (associatedCastleBounds && intersects(bounds, associatedCastleBounds)) {
+          sawAssociatedCastle = true;
+          continue;
+        }
+        sawSafeWithoutReservedUi = true;
+        if (placements.some((placement) => intersects(paddedBounds, placement.bounds))) {
+          sawLabelCollision = true;
+          continue;
+        }
+        accepted = {
+          castleId: candidate.castleId,
+          x: proposal.x,
+          y: proposal.y,
+          projectedAnchor: anchor,
+          layoutAnchor: proposal.layoutAnchor,
+          priority: candidate.priority,
+          presentation: option.presentation,
+          bounds
+        };
+        break;
       }
-      if (associatedCastleBounds && intersects(bounds, associatedCastleBounds)) {
-        sawAssociatedCastle = true;
-        continue;
-      }
-      sawSafeWithoutReservedUi = true;
-      if (placements.some((placement) => intersects(paddedBounds, placement.bounds))) {
-        sawLabelCollision = true;
-        continue;
-      }
-      accepted = {
-        castleId: candidate.castleId,
-        x: proposal.x,
-        y: proposal.y,
-        projectedAnchor: anchor,
-        layoutAnchor: proposal.layoutAnchor,
-        priority: candidate.priority,
-        presentation,
-        bounds
-      };
-      break;
+      if (accepted) break;
     }
 
     if (accepted) {
       placements.push(accepted);
+    } else if (!sawMeasurement) {
+      culled.push({ castleId: candidate.castleId, reason: 'unmeasured' });
     } else if (sawLabelCollision && sawSafeWithoutReservedUi) {
       culled.push({ castleId: candidate.castleId, reason: 'collision' });
     } else if (sawAssociatedCastle) {

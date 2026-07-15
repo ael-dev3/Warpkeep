@@ -786,6 +786,7 @@ function compositionDistance(first: RealmCompositionState, second: RealmComposit
 export type RealmCameraController = Readonly<{
   camera: THREE.PerspectiveCamera;
   dispose: () => void;
+  frameAt: (focus: RealmKeepFocus, zoom: number) => void;
   focusAt: (focus: RealmKeepFocus) => void;
   focusKeep: () => void;
   getMode: () => RealmCameraMode;
@@ -978,6 +979,12 @@ export function createRealmCameraController(
       disposed = true;
       if (frame) window.cancelAnimationFrame(frame);
       document.removeEventListener('visibilitychange', handleVisibility);
+    },
+    frameAt: (next, zoom) => {
+      targetFocusIsKeep = false;
+      targetFocus = normalizeKeepFocus(next, targetFocus);
+      targetPan = { x: targetFocus.x, z: targetFocus.z };
+      setZoomTarget(zoom);
     },
     focusAt: (next) => {
       targetFocusIsKeep = false;

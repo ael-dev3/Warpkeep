@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createHegemonyKeepPrefabRepository,
@@ -11,9 +11,25 @@ function loadedKeep(root: THREE.Group, suffix: string) {
     root,
     visualHeight: 1.056,
     footprintDiameter: 1.48,
-    assetUrl: `/models/hegemony/hegemony-frontier-keep-${suffix}.glb`
+    assetUrl: `/models/hegemony/hegemony-main-castle-${suffix}.glb`
   };
 }
+
+class SyntheticImageBitmap {
+  readonly width = 64;
+  readonly height = 64;
+  readonly close = vi.fn();
+}
+
+function textureWithSource(source: unknown) {
+  const texture = new THREE.Texture();
+  texture.source.data = source;
+  return texture;
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('Hegemony keep prefab repository', () => {
   it('coalesces concurrent load/parse and disposes shared resources on only the final lease', async () => {
@@ -102,9 +118,11 @@ describe('Hegemony keep prefab repository', () => {
     expect(loader).toHaveBeenCalledTimes(2);
   });
 
-  it('deduplicates the integrity-pinned High/Balanced 2K texture set across LODs', async () => {
+  it('deduplicates compatible High/Balanced texture sets across LODs', async () => {
+    vi.stubGlobal('ImageBitmap', SyntheticImageBitmap);
     const makeMaterial = () => {
-      const textures = Array.from({ length: 4 }, () => new THREE.Texture());
+      const bitmapSources = Array.from({ length: 4 }, () => new SyntheticImageBitmap());
+      const textures = bitmapSources.map(textureWithSource);
       const material = new THREE.MeshStandardMaterial({
         map: textures[0],
         emissiveMap: textures[1],
@@ -112,7 +130,7 @@ describe('Hegemony keep prefab repository', () => {
         metalnessMap: textures[3],
         roughnessMap: textures[3]
       });
-      return { material, textures };
+      return { bitmapSources, material, textures };
     };
     const high = makeMaterial();
     const balanced = makeMaterial();
@@ -147,13 +165,99 @@ describe('Hegemony keep prefab repository', () => {
     expect(balancedMaterial.roughnessMap).toBe(highMaterial.roughnessMap);
     expect(textureDisposals.reduce((total, dispose) => total + dispose.mock.calls.length, 0))
       .toBe(4);
+    expect(balanced.bitmapSources.every((source) => source.close.mock.calls.length === 1)).toBe(true);
+    expect(high.bitmapSources.every((source) => source.close.mock.calls.length === 0)).toBe(true);
 
     highLease.release();
     expect(textureDisposals.reduce((total, dispose) => total + dispose.mock.calls.length, 0))
       .toBe(4);
+    expect(high.bitmapSources.every((source) => source.close.mock.calls.length === 0)).toBe(true);
     balancedLease.release();
     expect(textureDisposals.reduce((total, dispose) => total + dispose.mock.calls.length, 0))
       .toBe(8);
+    expect(high.bitmapSources.every((source) => source.close.mock.calls.length === 1)).toBe(true);
+  });
+
+  it('closes one shared ImageBitmap source exactly once on final release', async () => {
+    vi.stubGlobal('ImageBitmap', SyntheticImageBitmap);
+    const bitmap = new SyntheticImageBitmap();
+    const map = textureWithSource(bitmap);
+    const normalMap = textureWithSource(bitmap);
+    const material = new THREE.MeshStandardMaterial({ map, normalMap });
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material));
+    const repository = createHegemonyKeepPrefabRepository({
+      loader: vi.fn(async () => loadedKeep(root, 'compact'))
+    });
+
+    const lease = await repository.acquire('compact');
+    lease.release();
+    lease.release();
+
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
+  it('never structurally closes an HTML-image-like texture source', async () => {
+    vi.stubGlobal('ImageBitmap', SyntheticImageBitmap);
+    const source = { width: 64, height: 64, close: vi.fn() };
+    const material = new THREE.MeshStandardMaterial({ map: textureWithSource(source) });
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material));
+    const repository = createHegemonyKeepPrefabRepository({
+      loader: vi.fn(async () => loadedKeep(root, 'compact'))
+    });
+
+    (await repository.acquire('compact')).release();
+
+    expect(source.close).not.toHaveBeenCalled();
+  });
+
+  it('continues closing retained bitmap sources when one close throws', async () => {
+    vi.stubGlobal('ImageBitmap', SyntheticImageBitmap);
+    const first = new SyntheticImageBitmap();
+    const second = new SyntheticImageBitmap();
+    first.close.mockImplementation(() => { throw new Error('synthetic bitmap close failure'); });
+    const material = new THREE.MeshStandardMaterial({
+      map: textureWithSource(first),
+      normalMap: textureWithSource(second)
+    });
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material));
+    const repository = createHegemonyKeepPrefabRepository({
+      loader: vi.fn(async () => loadedKeep(root, 'compact'))
+    });
+    const lease = await repository.acquire('compact');
+
+    expect(() => lease.release()).toThrow(/bitmap close failure/i);
+    expect(first.close).toHaveBeenCalledOnce();
+    expect(second.close).toHaveBeenCalledOnce();
+  });
+
+  it('disposes an already-loaded root when prefab validation rejects it', async () => {
+    vi.stubGlobal('ImageBitmap', SyntheticImageBitmap);
+    const bitmap = new SyntheticImageBitmap();
+    const texture = textureWithSource(bitmap);
+    const textureDispose = vi.spyOn(texture, 'dispose');
+    const material = new THREE.MeshStandardMaterial({ map: texture });
+    const materialDispose = vi.spyOn(material, 'dispose');
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material));
+    const invalid = {
+      ...loadedKeep(root, 'compact'),
+      visualHeight: Number.NaN
+    };
+    const repository = createHegemonyKeepPrefabRepository({
+      loader: vi.fn(async () => invalid)
+    });
+
+    await expect(repository.acquire('compact')).rejects.toThrow(/invalid normalized bounds/i);
+
+    expect(geometryDispose).toHaveBeenCalledOnce();
+    expect(materialDispose).toHaveBeenCalledOnce();
+    expect(textureDispose).toHaveBeenCalledOnce();
+    expect(bitmap.close).toHaveBeenCalledOnce();
   });
 
   it('keeps a failed per-LOD load coalesced and fail-closed for the session', async () => {

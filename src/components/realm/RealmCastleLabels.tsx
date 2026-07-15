@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import type { RealmCastleProjection } from './RealmMapScreen';
 import {
@@ -166,20 +166,29 @@ export function RealmCastleLabels({
       <div className="realm-castle-label-measurements" aria-hidden="true">
         {[...records.values()].map((record) => {
           const monogram = castleProfileMonogram(record.profile);
+          const profileLabel = castleProfileLabel(record.profile);
           return (
-            <span
-              className="realm-castle-label realm-castle-label--measurement"
-              data-measure-castle-id={record.castle.castleId}
-              key={`measure-${record.castle.castleId}`}
-            >
+            <Fragment key={`measure-${record.castle.castleId}`}>
               <span
-                className="realm-castle-avatar"
-                style={{ '--realm-avatar-hue': String((monogram.codePointAt(0) ?? 87) % 360) } as CSSProperties}
+                className="realm-castle-label realm-castle-label--measurement"
+                data-measure-castle-id={record.castle.castleId}
               >
-                <span>{monogram}</span>
+                <span
+                  className="realm-castle-avatar"
+                  style={{ '--realm-avatar-hue': String((monogram.codePointAt(0) ?? 87) % 360) } as CSSProperties}
+                >
+                  <span>{monogram}</span>
+                </span>
+                <span className="realm-castle-label__identity">{profileLabel}</span>
               </span>
-              <span>{castleProfileLabel(record.profile)}</span>
-            </span>
+              <span
+                className="realm-castle-label realm-castle-label--measurement"
+                data-compact="true"
+                data-measure-compact-castle-id={record.castle.castleId}
+              >
+                <span className="realm-castle-label__identity">{profileLabel}</span>
+              </span>
+            </Fragment>
           );
         })}
       </div>
@@ -209,11 +218,10 @@ export function RealmCastleLabels({
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => onActivate(record.castle)}
           >
-            <CastleProfileAvatar
-              profile={record.profile}
-              size={label.compact ? 'compact' : 'normal'}
-            />
-            {!label.compact ? <span>{profileLabel}</span> : null}
+            {!label.compact ? (
+              <CastleProfileAvatar profile={record.profile} size="normal" />
+            ) : null}
+            <span className="realm-castle-label__identity">{profileLabel}</span>
           </button>
         );
       })}

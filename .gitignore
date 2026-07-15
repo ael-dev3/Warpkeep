@@ -7,3 +7,4 @@ dist
 coverage
 *.local
 .cache/warpkeep-assets/
+.cache/warpkeep-tools/

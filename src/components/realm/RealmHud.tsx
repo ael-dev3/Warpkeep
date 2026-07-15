@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 
-import { HEGEMONY_FRONTIER_KEEP } from '../../game/map/hegemonyLandmarks';
+import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 import type { HexCoord } from '../../game/map/hexCoordinates';
 import type { TerrainCell } from '../../game/map/terrainTypes';
 import type { RealmIdentity } from './realmTypes';
@@ -102,7 +102,7 @@ export function RealmHud({
   const selectedTitle = selectedCastle
     ? selectedCastle.name
     : selectedIsKeep
-      ? ownCastle?.name ?? HEGEMONY_FRONTIER_KEEP.name
+      ? ownCastle?.name ?? HEGEMONY_MAIN_CASTLE.name
       : selectedTerrainLabel;
   const selectedEyebrow = selectedCastle
     ? selectedCastleLabel
@@ -134,7 +134,7 @@ export function RealmHud({
           <h1 id="realm-heading">{ownCastle?.name ?? 'Hegemony Keep'}</h1>
           <span className="realm-hud__keeper">{keeperLabel(identity, ownProfile)}</span>
           <div className="realm-hud__badges" aria-label="Keep status">
-            <span>LEVEL {ownCastle?.level ?? HEGEMONY_FRONTIER_KEEP.level}</span>
+            <span>LEVEL {ownCastle?.level ?? HEGEMONY_MAIN_CASTLE.level}</span>
           </div>
         </header>
 

@@ -52,15 +52,20 @@
   outline-offset: 2px;
 }
 
-.realm-castle-label > span:last-child {
+.realm-castle-label__identity {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .realm-castle-label[data-compact="true"] {
-  width: 2.75rem;
-  padding: 0.2rem;
+  justify-content: center;
+  width: 6.75rem;
+  min-width: 6.75rem;
+  max-width: 6.75rem;
+  min-height: 1.875rem;
+  padding: 0.16rem 0.48rem;
+  font-size: 0.625rem;
 }
 
 .realm-castle-label-measurements {

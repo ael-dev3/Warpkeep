@@ -6,6 +6,7 @@ const dist = resolve(root, 'dist');
 const forbiddenPathFragments = Object.freeze([
   'qa-journey.html',
   'realm-observer-qa.html',
+  'realm-rendered-webgl-qa.html',
   'realm-qa.html'
 ]);
 const forbiddenContent = Object.freeze([
@@ -27,7 +28,14 @@ const forbiddenContent = Object.freeze([
   'Public presentation preview',
   'violetwarden',
   'stonekeeper',
-  'frontierseer'
+  'frontierseer',
+  'RenderedWebglQaHarness',
+  'realmRenderedWebglQaMain',
+  'renderedWebglQaFixtureSnapshot',
+  'createRenderedWebglQaFixtureRealm',
+  'LOCAL RENDERED WEBGL QA',
+  'SYNTHETIC · 100 CASTLES · NO AUTHORITY',
+  'synthetic-canonical-100'
 ]);
 
 function filesUnder(directory) {

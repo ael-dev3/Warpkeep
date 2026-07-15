@@ -1,27 +1,30 @@
 import * as THREE from 'three';
 
-import { HEGEMONY_FRONTIER_KEEP } from '../../game/map/hegemonyLandmarks';
+import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 import type { RealmQuality, RealmQualitySpec } from './realmQuality';
+import {
+  closeImageBitmapOnce,
+  imageBitmapSourceForTexture
+} from './realmTextureResources';
 
-const KEEP_TARGET_DIAMETER = 1.48;
 export const DEFAULT_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 20_000;
 const MAX_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 60_000;
 
 export const HEGEMONY_KEEP_RUNTIME_ASSETS = Object.freeze({
   high: Object.freeze({
-    path: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.high,
-    bytes: 2_256_092,
-    sha256: 'ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c'
+    path: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.high,
+    bytes: 1_934_920,
+    sha256: '9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2'
   }),
   balanced: Object.freeze({
-    path: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.balanced,
-    bytes: 2_064_100,
-    sha256: 'bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4'
+    path: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.balanced,
+    bytes: 1_172_132,
+    sha256: 'aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e'
   }),
   reduced: Object.freeze({
-    path: HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact,
-    bytes: 760_916,
-    sha256: '9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b'
+    path: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.compact,
+    bytes: 508_508,
+    sha256: 'de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29'
   })
 });
 
@@ -65,9 +68,9 @@ export function resolveRealmAssetUrl(baseUrl: string, assetPath: string) {
   return `${normalizedBase}${assetPath.replace(/^\/+/, '')}`;
 }
 export function keepAssetPathForQuality(quality: RealmQuality) {
-  if (quality === 'high') return HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.high;
-  if (quality === 'balanced') return HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.balanced;
-  return HEGEMONY_FRONTIER_KEEP.runtimeAssetPaths.compact;
+  if (quality === 'high') return HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.high;
+  if (quality === 'balanced') return HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.balanced;
+  return HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.compact;
 }
 
 function keepRuntimeAssetForPath(path: string): KeepRuntimeAsset {
@@ -92,6 +95,59 @@ function normalizedRequestTimeout(timeoutMs: number | undefined) {
   ));
 }
 
+export async function readExactKeepResponseBody(
+  response: Response,
+  expectedBytes: number
+) {
+  if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0) {
+    throw new Error('Invalid Hegemony keep response limit.');
+  }
+  const declared = response.headers.get('content-length');
+  const contentEncoding = response.headers.get('content-encoding');
+  if (declared !== null) {
+    if (!/^\d+$/.test(declared)) {
+      throw new Error('Hegemony keep response has an invalid Content-Length.');
+    }
+    const declaredBytes = Number(declared);
+    if (!Number.isSafeInteger(declaredBytes) || declaredBytes > expectedBytes) {
+      throw new Error('Hegemony keep response exceeds its exact byte budget.');
+    }
+    if (!contentEncoding && declaredBytes !== expectedBytes) {
+      throw new Error('Hegemony keep response does not match its exact byte budget.');
+    }
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Hegemony keep response body is not streamable.');
+  const output = new Uint8Array(expectedBytes);
+  let offset = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (
+        !ArrayBuffer.isView(value)
+        || value.BYTES_PER_ELEMENT !== 1
+        || offset + value.byteLength > expectedBytes
+      ) {
+        try {
+          await reader.cancel('Hegemony keep response exceeded its exact byte budget.');
+        } catch {
+          // Preserve the bounded-read failure even if stream cancellation fails.
+        }
+        throw new Error('Hegemony keep response exceeds its exact byte budget.');
+      }
+      output.set(value, offset);
+      offset += value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (offset !== expectedBytes) {
+    throw new Error('Hegemony keep response does not match its exact byte budget.');
+  }
+  return output.buffer;
+}
+
 function requestKeepBinary(
   assetUrl: string,
   asset: KeepRuntimeAsset,
@@ -106,12 +162,13 @@ function requestKeepBinary(
   const fetchRequest = Promise.resolve()
     .then(() => fetch(assetUrl, {
       credentials: 'same-origin',
+      redirect: 'error',
       signal: abortController.signal
     }))
     .then(async (response) => {
       if (!response.ok) throw new Error(`Hegemony keep request failed with ${response.status}.`);
-      const bytes = await response.arrayBuffer();
-      if (bytes.byteLength !== asset.bytes || await sha256Hex(bytes) !== asset.sha256) {
+      const bytes = await readExactKeepResponseBody(response, asset.bytes);
+      if (await sha256Hex(bytes) !== asset.sha256) {
         throw new Error('Hegemony keep model failed its integrity check.');
       }
       return bytes;
@@ -155,7 +212,7 @@ export function calculateKeepNormalization(
     maxY: number;
     maxZ: number;
   }>,
-  targetDiameter = KEEP_TARGET_DIAMETER
+  targetDiameter = HEGEMONY_MAIN_CASTLE.targetFootprintDiameter
 ): KeepNormalization {
   const width = Math.max(0.001, bounds.maxX - bounds.minX);
   const depth = Math.max(0.001, bounds.maxZ - bounds.minZ);
@@ -223,7 +280,7 @@ export async function loadHegemonyKeep(
     normalization.offsetY,
     normalization.offsetZ
   );
-  scene.rotation.y = HEGEMONY_FRONTIER_KEEP.yawRadians;
+  scene.rotation.y = HEGEMONY_MAIN_CASTLE.yawRadians;
   scene.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
     object.castShadow = options.quality.dynamicShadows;
@@ -232,7 +289,7 @@ export async function loadHegemonyKeep(
     materials.forEach((material) => tuneKeepMaterial(material, options.maxAnisotropy));
   });
   const root = new THREE.Group();
-  root.name = HEGEMONY_FRONTIER_KEEP.id;
+  root.name = HEGEMONY_MAIN_CASTLE.id;
   root.add(scene);
   return {
     root,
@@ -246,27 +303,73 @@ export function clearHegemonyKeepBinaryCacheForTests() {
   keepBinaryRequests.clear();
 }
 
-function disposeMaterial(material: THREE.Material, textures: Set<THREE.Texture>) {
-  const textureMaterial = material as THREE.Material & Record<string, unknown>;
-  [
-    'alphaMap', 'aoMap', 'bumpMap', 'displacementMap', 'emissiveMap',
-    'map', 'metalnessMap', 'normalMap', 'roughnessMap'
-  ].forEach((key) => {
-    const texture = textureMaterial[key];
-    if (texture instanceof THREE.Texture && !textures.has(texture)) {
-      textures.add(texture);
-      texture.dispose();
+function disposeMaterial(
+  material: THREE.Material,
+  textures: Set<THREE.Texture>,
+  closedBitmapSources: WeakSet<ImageBitmap>
+) {
+  const materialTextures = new Set<THREE.Texture>();
+  for (const value of Object.values(material)) {
+    if (value instanceof THREE.Texture) {
+      materialTextures.add(value);
+    } else if (Array.isArray(value)) {
+      value.forEach((candidate) => {
+        if (candidate instanceof THREE.Texture) materialTextures.add(candidate);
+      });
     }
-  });
-  material.dispose();
+  }
+  let firstError: unknown;
+  for (const texture of materialTextures) {
+    if (textures.has(texture)) continue;
+    textures.add(texture);
+    const bitmapSource = imageBitmapSourceForTexture(texture);
+    try {
+      texture.dispose();
+    } catch (error) {
+      firstError ??= error;
+    }
+    if (bitmapSource) {
+      try {
+        closeImageBitmapOnce(bitmapSource, closedBitmapSources);
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+  }
+  try {
+    material.dispose();
+  } catch (error) {
+    firstError ??= error;
+  }
+  if (firstError) throw firstError;
 }
 
 export function disposeRealmObject(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
   const textures = new Set<THREE.Texture>();
+  const closedBitmapSources = new WeakSet<ImageBitmap>();
+  let firstError: unknown;
   root.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
-    object.geometry.dispose();
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.forEach((material) => disposeMaterial(material, textures));
+    if (!geometries.has(object.geometry)) {
+      geometries.add(object.geometry);
+      try {
+        object.geometry.dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
+    }
+    const meshMaterials = Array.isArray(object.material) ? object.material : [object.material];
+    meshMaterials.forEach((material) => {
+      if (materials.has(material)) return;
+      materials.add(material);
+      try {
+        disposeMaterial(material, textures, closedBitmapSources);
+      } catch (error) {
+        firstError ??= error;
+      }
+    });
   });
+  if (firstError) throw firstError;
 }

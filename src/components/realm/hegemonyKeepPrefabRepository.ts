@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 
 import {
+  disposeRealmObject,
   loadHegemonyKeep,
   type HegemonyKeepLoadResult
 } from './loadHegemonyKeep';
 import { REALM_QUALITY_SPECS } from './realmQuality';
 import type { CastleLod } from './castleInstancePlanning';
+import {
+  closeImageBitmapOnce,
+  uniqueImageBitmapSources
+} from './realmTextureResources';
 
 export type HegemonyKeepPrefabPrimitive = Readonly<{
   geometry: THREE.BufferGeometry;
@@ -51,8 +56,9 @@ export type CreateHegemonyKeepPrefabRepositoryOptions = Readonly<{
   maxAnisotropy?: number;
   loader?: HegemonyKeepPrefabLoader;
   /**
-   * The integrity-pinned High/Balanced GLBs contain the same 2K texture set.
-   * Custom loaders must opt in because the repository cannot prove their bytes.
+   * Permit compatible High/Balanced textures to be shared when their decoded
+   * dimensions and authored material state match. Custom loaders must opt in
+   * because the repository cannot prove their source bytes.
    */
   shareHighResolutionTextures?: boolean;
 }>;
@@ -61,6 +67,7 @@ type PrefabResources = Readonly<{
   geometries: readonly THREE.BufferGeometry[];
   materials: readonly THREE.Material[];
   textures: readonly THREE.Texture[];
+  bitmapSources: readonly ImageBitmap[];
 }>;
 
 type InternalPrefab = Readonly<{
@@ -162,7 +169,8 @@ function createInternalPrefab(
     resources: Object.freeze({
       geometries: Object.freeze([...geometrySet]),
       materials: Object.freeze([...materialSet]),
-      textures: Object.freeze([...textureSet])
+      textures: Object.freeze([...textureSet]),
+      bitmapSources: uniqueImageBitmapSources(textureSet)
     })
   });
 }
@@ -254,17 +262,21 @@ function compatibleMaterial(left: THREE.Material, right: THREE.Material) {
 }
 
 /**
- * Shares only texture objects. Geometry and material instances remain per LOD,
- * preserving authored mesh/material state while avoiding a second 2K GPU set.
+ * Shares only compatible texture objects. Geometry and material instances
+ * remain per LOD, preserving authored mesh/material state.
  */
 function shareHighResolutionTextureSet(
   canonical: InternalPrefab,
   incoming: InternalPrefab
-): Readonly<{ internal: InternalPrefab; duplicates: readonly THREE.Texture[] }> {
+): Readonly<{
+  internal: InternalPrefab;
+  duplicateBitmapSources: readonly ImageBitmap[];
+  duplicateTextures: readonly THREE.Texture[];
+}> {
   const canonicalMaterials = orderedPrefabMaterials(canonical.prefab);
   const incomingMaterials = orderedPrefabMaterials(incoming.prefab);
   if (canonicalMaterials.length !== incomingMaterials.length) {
-    return { internal: incoming, duplicates: [] };
+    return { internal: incoming, duplicateBitmapSources: [], duplicateTextures: [] };
   }
 
   const assignments: TextureAssignment[] = [];
@@ -272,19 +284,19 @@ function shareHighResolutionTextureSet(
     const canonicalMaterial = canonicalMaterials[index];
     const incomingMaterial = incomingMaterials[index];
     if (!compatibleMaterial(canonicalMaterial, incomingMaterial)) {
-      return { internal: incoming, duplicates: [] };
+      return { internal: incoming, duplicateBitmapSources: [], duplicateTextures: [] };
     }
     const canonicalTextures = materialTextureEntries(canonicalMaterial);
     const incomingTextures = materialTextureEntries(incomingMaterial);
     if (
       canonicalTextures.length !== incomingTextures.length
       || canonicalTextures.some(([key], textureIndex) => key !== incomingTextures[textureIndex]?.[0])
-    ) return { internal: incoming, duplicates: [] };
+    ) return { internal: incoming, duplicateBitmapSources: [], duplicateTextures: [] };
     for (let textureIndex = 0; textureIndex < canonicalTextures.length; textureIndex += 1) {
       const [key, canonicalTexture] = canonicalTextures[textureIndex];
       const duplicate = incomingTextures[textureIndex]?.[1];
       if (!duplicate || !compatibleTexture(canonicalTexture, duplicate)) {
-        return { internal: incoming, duplicates: [] };
+        return { internal: incoming, duplicateBitmapSources: [], duplicateTextures: [] };
       }
       assignments.push({
         canonical: canonicalTexture,
@@ -300,24 +312,31 @@ function shareHighResolutionTextureSet(
   if (
     assignedIncomingTextures.size !== incoming.resources.textures.length
     || assignedCanonicalTextures.size !== canonical.resources.textures.length
-  ) return { internal: incoming, duplicates: [] };
+  ) return { internal: incoming, duplicateBitmapSources: [], duplicateTextures: [] };
 
   assignments.forEach(({ canonical: texture, key, material }) => {
     material[key] = texture;
   });
   const textures = new Set<THREE.Texture>();
   incoming.resources.materials.forEach((material) => collectMaterialTextures(material, textures));
-  const duplicates = incoming.resources.textures.filter((texture) => !textures.has(texture));
+  const duplicateTextures = incoming.resources.textures.filter((texture) => !textures.has(texture));
+  const bitmapSources = uniqueImageBitmapSources(textures);
+  const retainedBitmapSources = new Set(bitmapSources);
+  const duplicateBitmapSources = incoming.resources.bitmapSources.filter((source) => (
+    !retainedBitmapSources.has(source)
+  ));
   return {
     internal: Object.freeze({
       prefab: incoming.prefab,
       resources: Object.freeze({
         geometries: incoming.resources.geometries,
         materials: incoming.resources.materials,
-        textures: Object.freeze([...textures])
+        textures: Object.freeze([...textures]),
+        bitmapSources
       })
     }),
-    duplicates: Object.freeze(duplicates)
+    duplicateBitmapSources: Object.freeze(duplicateBitmapSources),
+    duplicateTextures: Object.freeze(duplicateTextures)
   };
 }
 
@@ -338,6 +357,8 @@ export function createHegemonyKeepPrefabRepository(
   const entries = new Map<CastleLod, CacheEntry>();
   const retainCounts = new Map<SharedResource, number>();
   const disposedResources = new WeakSet<SharedResource>();
+  const bitmapRetainCounts = new Map<ImageBitmap, number>();
+  const closedBitmapSources = new WeakSet<ImageBitmap>();
   let highResolutionCanonical: InternalPrefab | undefined;
 
   const retain = (resources: PrefabResources) => {
@@ -345,8 +366,14 @@ export function createHegemonyKeepPrefabRepository(
     if (shared.some((resource) => disposedResources.has(resource))) {
       throw new Error('Cannot retain a disposed Hegemony keep prefab resource.');
     }
+    if (resources.bitmapSources.some((source) => closedBitmapSources.has(source))) {
+      throw new Error('Cannot retain a closed Hegemony keep ImageBitmap source.');
+    }
     shared.forEach((resource) => {
       retainCounts.set(resource, (retainCounts.get(resource) ?? 0) + 1);
+    });
+    resources.bitmapSources.forEach((source) => {
+      bitmapRetainCounts.set(source, (bitmapRetainCounts.get(source) ?? 0) + 1);
     });
   };
 
@@ -370,11 +397,38 @@ export function createHegemonyKeepPrefabRepository(
         firstError ??= error;
       }
     });
+    resources.bitmapSources.forEach((source) => {
+      const count = bitmapRetainCounts.get(source);
+      if (count === undefined || count <= 0) {
+        firstError ??= new Error('Hegemony keep ImageBitmap retain count underflow.');
+        return;
+      }
+      if (count > 1) {
+        bitmapRetainCounts.set(source, count - 1);
+        return;
+      }
+      bitmapRetainCounts.delete(source);
+      try {
+        closeImageBitmapOnce(source, closedBitmapSources);
+      } catch (error) {
+        firstError ??= error;
+      }
+    });
     if (firstError) throw firstError;
   };
 
   const prepareInternalPrefab = (lod: CastleLod, loaded: HegemonyKeepLoadResult) => {
-    let internal = createInternalPrefab(lod, loaded);
+    let internal: InternalPrefab;
+    try {
+      internal = createInternalPrefab(lod, loaded);
+    } catch (error) {
+      try {
+        disposeRealmObject(loaded.root);
+      } catch {
+        // Preserve the validation failure while still attempting full cleanup.
+      }
+      throw error;
+    }
     if (shareHighResolutionTextures && (lod === 'high' || lod === 'balanced')) {
       const canonicalAvailable = highResolutionCanonical
         && highResolutionCanonical.resources.textures.every((texture) => (
@@ -383,12 +437,19 @@ export function createHegemonyKeepPrefabRepository(
       if (canonicalAvailable && highResolutionCanonical) {
         const shared = shareHighResolutionTextureSet(highResolutionCanonical, internal);
         internal = shared.internal;
-        shared.duplicates.forEach((texture) => {
+        shared.duplicateTextures.forEach((texture) => {
           disposedResources.add(texture);
           try {
             texture.dispose();
           } catch {
             // The duplicate is already detached; keep preparing the real prefab.
+          }
+        });
+        shared.duplicateBitmapSources.forEach((source) => {
+          try {
+            closeImageBitmapOnce(source, closedBitmapSources);
+          } catch {
+            // Detached duplicate cleanup cannot invalidate the retained prefab.
           }
         });
       } else {

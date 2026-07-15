@@ -20,7 +20,25 @@ const CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT = 4;
 const CASTLE_LABEL_EDGE_MARGIN = 4;
 const CASTLE_LABEL_FULL_WIDTH = 132;
 const CASTLE_LABEL_FULL_HEIGHT = 44;
-const CASTLE_LABEL_PRIORITY_NUDGE_PIXELS = 12;
+/** Conservative initial fallback until the DOM reports exact compact label dimensions. */
+export const CASTLE_LABEL_COMPACT_WIDTH = 108;
+export const CASTLE_LABEL_COMPACT_HEIGHT = 30;
+const CASTLE_LABEL_PRIORITY_NUDGE_PIXELS = 40;
+const CASTLE_LABEL_STANDARD_NUDGE_PIXELS = 32;
+
+type LabelAttachmentOffset = Readonly<{ x: number; y: number }>;
+
+// Fallback rendering mirrors the measured solver: dense labels stay above the
+// same roof in a short vertical stack rather than drifting across the map.
+const COMPACT_LABEL_ATTACHMENT_OFFSETS: readonly LabelAttachmentOffset[] = Object.freeze([
+  { x: 0, y: 0 },
+  { x: 0, y: -50 },
+  { x: 58, y: 0 },
+  { x: -58, y: 0 },
+  { x: 58, y: -50 },
+  { x: -58, y: -50 },
+  { x: 0, y: -96 }
+]);
 
 /**
  * The deliberately small profile projection available to Realm presentation
@@ -209,8 +227,8 @@ function labelBounds(
   compact: boolean,
   yOffset: number
 ): Bounds {
-  const width = compact ? 42 : CASTLE_LABEL_FULL_WIDTH;
-  const height = compact ? 42 : CASTLE_LABEL_FULL_HEIGHT;
+  const width = compact ? CASTLE_LABEL_COMPACT_WIDTH : CASTLE_LABEL_FULL_WIDTH;
+  const height = compact ? CASTLE_LABEL_COMPACT_HEIGHT : CASTLE_LABEL_FULL_HEIGHT;
   return {
     left: castle.x - width / 2,
     right: castle.x + width / 2,
@@ -249,27 +267,53 @@ export function resolveVisibleCastleLabels(
   for (const castle of candidates) {
     if (accepted.length >= maximumLabels) break;
     const priority = castle.castleId === selectedCastleId || castle.castleId === ownCastleId;
-    const compact = false;
-    const minimumX = CASTLE_LABEL_EDGE_MARGIN + CASTLE_LABEL_FULL_WIDTH / 2;
-    const maximumX = frame.width - CASTLE_LABEL_EDGE_MARGIN - CASTLE_LABEL_FULL_WIDTH / 2;
-    const minimumY = CASTLE_LABEL_EDGE_MARGIN + CASTLE_LABEL_FULL_HEIGHT;
-    const maximumY = frame.height - CASTLE_LABEL_EDGE_MARGIN;
-    if (maximumX < minimumX || maximumY < minimumY) continue;
-    const x = clamp(castle.x, minimumX, maximumX);
-    const y = clamp(castle.y, minimumY, maximumY);
-    const nudge = Math.hypot(x - castle.x, y - castle.y);
-    if (nudge > (priority ? CASTLE_LABEL_PRIORITY_NUDGE_PIXELS : 0)) continue;
-    const projectedCastle = { ...castle, x, y };
-    const bounds = labelBounds(projectedCastle, compact, 0);
-    if (
-      (castle.castleBounds && intersects(bounds, castle.castleBounds))
-      || accepted.some((entry) => intersects(bounds, entry.bounds))
-    ) continue;
-    accepted.push({
-      ...projectedCastle,
-      compact,
-      bounds
-    });
+    const fullAttempt = { compact: false, offsets: [{ x: 0, y: 0 }] } as const;
+    const compactAttempt = { compact: true, offsets: COMPACT_LABEL_ATTACHMENT_OFFSETS } as const;
+    const preferCompact = frame.width <= 680 && !priority;
+    const presentationAttempts: readonly Readonly<{
+      compact: boolean;
+      offsets: readonly LabelAttachmentOffset[];
+    }>[] = preferCompact
+      ? [compactAttempt, fullAttempt]
+      : [fullAttempt, compactAttempt];
+
+    let nextLabel: (VisibleCastleLabel & { bounds: Bounds }) | undefined;
+    for (const attempt of presentationAttempts) {
+      const width = attempt.compact ? CASTLE_LABEL_COMPACT_WIDTH : CASTLE_LABEL_FULL_WIDTH;
+      const height = attempt.compact ? CASTLE_LABEL_COMPACT_HEIGHT : CASTLE_LABEL_FULL_HEIGHT;
+      const minimumX = CASTLE_LABEL_EDGE_MARGIN + width / 2;
+      const maximumX = frame.width - CASTLE_LABEL_EDGE_MARGIN - width / 2;
+      const minimumY = CASTLE_LABEL_EDGE_MARGIN + height;
+      const maximumY = frame.height - CASTLE_LABEL_EDGE_MARGIN;
+      if (maximumX < minimumX || maximumY < minimumY) continue;
+
+      for (const offset of attempt.offsets) {
+        const attachedX = castle.x + offset.x;
+        const attachedY = castle.y + offset.y;
+        const x = clamp(attachedX, minimumX, maximumX);
+        const y = clamp(attachedY, minimumY, maximumY);
+        const safeAreaNudge = Math.hypot(x - attachedX, y - attachedY);
+        if (safeAreaNudge > (
+          priority ? CASTLE_LABEL_PRIORITY_NUDGE_PIXELS : CASTLE_LABEL_STANDARD_NUDGE_PIXELS
+        )) continue;
+        const projectedCastle = { ...castle, x, y };
+        const bounds = labelBounds(projectedCastle, attempt.compact, 0);
+        if (
+          (castle.castleBounds && intersects(bounds, castle.castleBounds))
+          || accepted.some((entry) => intersects(bounds, entry.bounds))
+        ) continue;
+        nextLabel = {
+          ...projectedCastle,
+          compact: attempt.compact,
+          bounds
+        };
+        break;
+      }
+      if (nextLabel) break;
+    }
+    if (nextLabel) {
+      accepted.push(nextLabel);
+    }
   }
 
   return accepted.map(({ bounds: _bounds, ...label }) => label);

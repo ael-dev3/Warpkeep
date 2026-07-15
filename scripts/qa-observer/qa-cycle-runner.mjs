@@ -37,6 +37,12 @@ const BROKER_HEALTH_PATH = '/healthz';
 const BROKER_SNAPSHOT_PATH = '/snapshot';
 const MAX_UNIX_SOCKET_PATH_BYTES = 90;
 const NPM_EXECUTABLE = join(dirname(process.execPath), 'npm');
+const RENDERED_WEBGL_BROWSER_PROBE = join(
+  REPOSITORY_ROOT,
+  'scripts',
+  'qa-observer',
+  'rendered-webgl-browser-probe.mjs',
+);
 const SPACETIME_CLI_VERSION = '2.6.1';
 const SPACETIME_CLI = join(
   homedir(),
@@ -65,6 +71,7 @@ const EXPECTED_PACKAGE_CONTRACTS = Object.freeze([
       build: 'tsc -b && vite build && node scripts/verify-production-dist-exclusions.mjs',
       'verify:runtime-assets': 'node scripts/verify-runtime-assets.mjs',
       'verify:file-sizes': 'node scripts/verify-file-sizes.mjs',
+      'qa:rendered-webgl': 'node scripts/qa-observer/rendered-webgl-browser-probe.mjs',
       'stdb:verify-bindings': 'node scripts/verify-spacetime-bindings.mjs',
       'stdb:verify-additive-migration': 'node scripts/verify-spacetime-additive-migration.mjs',
     }),
@@ -119,6 +126,10 @@ const SYNTHETIC_APP_STATE_TESTS = Object.freeze([
   'tests/realmInteractionState.test.ts',
   'tests/castleInspectionPanel.test.tsx',
   'tests/realmHud.test.tsx',
+  'tests/renderedWebglQaFixture.test.ts',
+  'tests/renderedWebglQaHarness.test.tsx',
+  'tests/renderedWebglQaContract.test.ts',
+  'tests/renderedWebglBrowserProbe.test.ts',
 ]);
 
 const CHECKS = Object.freeze({
@@ -163,6 +174,12 @@ const CHECKS = Object.freeze({
     executable: NPM_EXECUTABLE,
     args: Object.freeze(['run', 'verify:file-sizes']),
     timeoutMs: 60 * 1_000,
+  }),
+  renderedWebglBrowser: Object.freeze({
+    id: 'rendered-webgl-browser',
+    executable: process.execPath,
+    args: Object.freeze([RENDERED_WEBGL_BROWSER_PROBE]),
+    timeoutMs: 9 * 60 * 1_000,
   }),
   authBridgeTypecheck: Object.freeze({
     id: 'auth-bridge-typecheck',
@@ -228,11 +245,13 @@ const TIER_CHECKS = Object.freeze({
   quick: Object.freeze([
     CHECKS.targetedUnit,
     CHECKS.syntheticAppStates,
+    CHECKS.renderedWebglBrowser,
     CHECKS.typecheck,
   ]),
   standard: Object.freeze([
     CHECKS.fullUnit,
     CHECKS.typecheck,
+    CHECKS.renderedWebglBrowser,
     CHECKS.runtimeAssets,
     CHECKS.fileSizes,
   ]),
@@ -240,6 +259,7 @@ const TIER_CHECKS = Object.freeze({
     CHECKS.fullUnit,
     CHECKS.typecheck,
     CHECKS.build,
+    CHECKS.renderedWebglBrowser,
     CHECKS.runtimeAssets,
     CHECKS.fileSizes,
     CHECKS.authBridgeTypecheck,

@@ -400,6 +400,10 @@ describe('realm profile and PFP presentation regressions', () => {
     );
 
     const button = screen.getByRole('button', { name: /Inspect @warpkeeper castle/i });
+    expect(within(button).getByText('@warpkeeper')).not.toBeNull();
+    expect(button.textContent).not.toMatch(/FID\s*539854/i);
+    expect(document.querySelectorAll('[data-measure-castle-id]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-measure-compact-castle-id]')).toHaveLength(1);
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
     expect(onMapPointerDown).not.toHaveBeenCalled();
     fireEvent.click(button);

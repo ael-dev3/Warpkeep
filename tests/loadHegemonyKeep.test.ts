@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import * as THREE from 'three';
@@ -20,24 +20,33 @@ const ROOT = resolve(import.meta.dirname, '..');
 const ASSETS = [
   {
     quality: 'high' as const,
-    path: 'public/models/hegemony/hegemony-frontier-keep-high.glb',
-    bytes: 2_256_092,
-    sha256: 'ed2593a2e427c496c2eaa582f56c20290816d272c5d5b8800cdf554ecc8a296c',
-    maxBytes: 10_000_000
+    path: 'public/models/hegemony/hegemony-main-castle-high.glb',
+    bytes: 1_934_920,
+    sha256: '9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2',
+    triangles: 67_680,
+    vertices: 153_439,
+    indexComponentType: 5_125,
+    maxBytes: 2_000_000
   },
   {
     quality: 'balanced' as const,
-    path: 'public/models/hegemony/hegemony-frontier-keep-balanced.glb',
-    bytes: 2_064_100,
-    sha256: 'bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4',
-    maxBytes: 2_500_000
+    path: 'public/models/hegemony/hegemony-main-castle-balanced.glb',
+    bytes: 1_172_132,
+    sha256: 'aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e',
+    triangles: 40_353,
+    vertices: 78_928,
+    indexComponentType: 5_125,
+    maxBytes: 1_200_000
   },
   {
     quality: 'reduced' as const,
-    path: 'public/models/hegemony/hegemony-frontier-keep-compact.glb',
-    bytes: 760_916,
-    sha256: '9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b',
-    maxBytes: 4_000_000
+    path: 'public/models/hegemony/hegemony-main-castle-compact.glb',
+    bytes: 508_508,
+    sha256: 'de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29',
+    triangles: 19_086,
+    vertices: 34_098,
+    indexComponentType: 5_123,
+    maxBytes: 520_000
   }
 ];
 
@@ -55,6 +64,15 @@ afterEach(() => {
 });
 
 describe('Hegemony keep runtime assets', () => {
+  it('does not ship the retired unresolved-rights Frontier Keep derivatives', () => {
+    for (const profile of ['high', 'balanced', 'compact']) {
+      expect(existsSync(resolve(
+        ROOT,
+        `public/models/hegemony/hegemony-frontier-keep-${profile}.glb`
+      ))).toBe(false);
+    }
+  });
+
   it('ships validated high, balanced, and reduced assets inside their transfer budgets', () => {
     ASSETS.forEach((asset) => {
       const path = resolve(ROOT, asset.path);
@@ -70,7 +88,11 @@ describe('Hegemony keep runtime assets', () => {
       ]));
       expect(json.scenes).toHaveLength(1);
       expect(json.meshes).toHaveLength(1);
-      expect(json.images).toHaveLength(4);
+      expect(json.images).toHaveLength(2);
+      const primitive = json.meshes[0].primitives[0];
+      expect(json.accessors[primitive.indices].count / 3).toBe(asset.triangles);
+      expect(json.accessors[primitive.indices].componentType).toBe(asset.indexComponentType);
+      expect(json.accessors[primitive.attributes.POSITION].count).toBe(asset.vertices);
     });
   });
 
@@ -79,23 +101,23 @@ describe('Hegemony keep runtime assets', () => {
     expect(keepAssetPathForQuality('balanced')).toContain('-balanced.glb');
     expect(keepAssetPathForQuality('reduced')).toContain('-compact.glb');
     expect(resolveRealmAssetUrl('/Warpkeep/', keepAssetPathForQuality('high')))
-      .toBe('/Warpkeep/models/hegemony/hegemony-frontier-keep-high.glb');
+      .toBe('/Warpkeep/models/hegemony/hegemony-main-castle-high.glb');
   });
 
   it('normalizes the source footprint to 74 percent of one hex diameter', () => {
     const normalization = calculateKeepNormalization({
-      minX: -0.94968,
-      minY: -0.67927,
-      minZ: -0.66523,
-      maxX: 0.94756,
-      maxY: 0.67433,
-      maxZ: 0.6629
+      minX: -6.41045,
+      minY: 0,
+      minZ: -4.93809,
+      maxX: 6.41045,
+      maxY: 14.062,
+      maxZ: 4.92809
     });
 
-    expect(normalization.scale).toBeCloseTo(0.78, 2);
+    expect(normalization.scale).toBeCloseTo(0.11544, 4);
     expect(normalization.footprintDiameter).toBeCloseTo(1.48, 6);
-    expect(normalization.visualHeight).toBeGreaterThan(1);
-    expect(normalization.offsetY).toBeGreaterThan(0);
+    expect(normalization.visualHeight).toBeGreaterThan(1.6);
+    expect(normalization.offsetY).toBeCloseTo(0, 8);
     expect(Object.values(normalization).every(Number.isFinite)).toBe(true);
   });
 
@@ -106,10 +128,12 @@ describe('Hegemony keep runtime assets', () => {
       source.byteOffset,
       source.byteOffset + source.byteLength
     ) as ArrayBuffer;
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
+    const fetchMock = vi.fn(async (
+      _input: RequestInfo | URL,
+      _init?: RequestInit
+    ) => new Response(bytes.slice(0), {
       status: 200,
-      arrayBuffer: async () => bytes.slice(0)
+      headers: { 'content-length': String(bytes.byteLength) }
     }));
     vi.stubGlobal('fetch', fetchMock);
     const parsedMaterials: THREE.MeshStandardMaterial[] = [];
@@ -143,6 +167,10 @@ describe('Hegemony keep runtime assets', () => {
     ]);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      credentials: 'same-origin',
+      redirect: 'error'
+    });
     expect(parser).toHaveBeenCalledTimes(2);
     parsedMaterials.forEach((material) => {
       expect(material.metalness).toBe(0.74);
@@ -151,23 +179,15 @@ describe('Hegemony keep runtime assets', () => {
       expect(material.emissiveIntensity).toBe(0.8);
     });
     expect(first.root).not.toBe(second.root);
-    expect(first.assetUrl).toBe('/models/hegemony/hegemony-frontier-keep-compact.glb');
+    expect(first.assetUrl).toBe('/models/hegemony/hegemony-main-castle-compact.glb');
     disposeRealmObject(first.root);
     disposeRealmObject(second.root);
   });
 
   it('evicts a failed keep request so a later scene can retry cleanly', async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        arrayBuffer: async () => new ArrayBuffer(8)
-      })
-      .mockResolvedValueOnce({
-        ok: false,
-        status: 503,
-        arrayBuffer: async () => new ArrayBuffer(0)
-      });
+      .mockResolvedValueOnce(new Response(new Uint8Array(8), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }));
     vi.stubGlobal('fetch', fetchMock);
     const options = {
       quality: REALM_QUALITY_SPECS.reduced,
@@ -176,9 +196,32 @@ describe('Hegemony keep runtime assets', () => {
       parser: vi.fn(async () => new THREE.Group())
     } as const;
 
-    await expect(loadHegemonyKeep(options)).rejects.toThrow(/integrity check/i);
+    await expect(loadHegemonyKeep(options)).rejects.toThrow(/exact byte budget/i);
     await expect(loadHegemonyKeep(options)).rejects.toThrow(/503/);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects an oversized streaming body before buffering beyond the asset budget', async () => {
+    const compact = ASSETS[2];
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(compact.bytes));
+        controller.enqueue(new Uint8Array(1));
+      },
+      cancel() {
+        cancelled = true;
+      }
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(body, { status: 200 })));
+
+    await expect(loadHegemonyKeep({
+      quality: REALM_QUALITY_SPECS.reduced,
+      baseUrl: '/',
+      maxAnisotropy: 1,
+      parser: vi.fn(async () => new THREE.Group())
+    })).rejects.toThrow(/exceeds its exact byte budget/i);
+    expect(cancelled).toBe(true);
   });
 
   it('bounds a stalled model request and aborts the underlying fetch', async () => {
@@ -203,5 +246,66 @@ describe('Hegemony keep runtime assets', () => {
     await rejection;
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(signal?.aborted).toBe(true);
+  });
+
+  it('closes a decoded ImageBitmap once when disposing an unleased parsed object', () => {
+    class SyntheticImageBitmap {
+      readonly width = 64;
+      readonly height = 64;
+      readonly close = vi.fn();
+    }
+    vi.stubGlobal('ImageBitmap', SyntheticImageBitmap);
+    const bitmap = new SyntheticImageBitmap();
+    const firstTexture = new THREE.Texture();
+    const secondTexture = new THREE.Texture();
+    firstTexture.source.data = bitmap;
+    secondTexture.source.data = bitmap;
+    const material = new THREE.MeshStandardMaterial({
+      map: firstTexture,
+      normalMap: secondTexture
+    });
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material));
+
+    disposeRealmObject(root);
+
+    expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
+  it('continues disposing every unique resource when an earlier texture throws', () => {
+    class SyntheticImageBitmap {
+      readonly width = 64;
+      readonly height = 64;
+      readonly close = vi.fn();
+    }
+    vi.stubGlobal('ImageBitmap', SyntheticImageBitmap);
+    const firstBitmap = new SyntheticImageBitmap();
+    const secondBitmap = new SyntheticImageBitmap();
+    const firstTexture = new THREE.Texture();
+    const secondTexture = new THREE.Texture();
+    firstTexture.source.data = firstBitmap;
+    secondTexture.source.data = secondBitmap;
+    const firstDispose = vi.spyOn(firstTexture, 'dispose').mockImplementation(() => {
+      throw new Error('synthetic texture disposal failure');
+    });
+    const secondDispose = vi.spyOn(secondTexture, 'dispose');
+    const material = new THREE.MeshStandardMaterial({
+      map: firstTexture,
+      normalMap: secondTexture
+    });
+    const materialDispose = vi.spyOn(material, 'dispose');
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material), new THREE.Mesh(geometry, material));
+
+    expect(() => disposeRealmObject(root)).toThrow(/texture disposal failure/i);
+
+    expect(geometryDispose).toHaveBeenCalledOnce();
+    expect(firstDispose).toHaveBeenCalledOnce();
+    expect(secondDispose).toHaveBeenCalledOnce();
+    expect(firstBitmap.close).toHaveBeenCalledOnce();
+    expect(secondBitmap.close).toHaveBeenCalledOnce();
+    expect(materialDispose).toHaveBeenCalledOnce();
   });
 });

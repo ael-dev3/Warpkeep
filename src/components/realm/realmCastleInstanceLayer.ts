@@ -68,6 +68,17 @@ function projectedDiameterPixels(
     / Math.max(0.001, distance * Math.tan(halfFovRadians));
 }
 
+/**
+ * A footprint diameter bounds each horizontal axis, not their diagonal. The
+ * conservative sphere therefore includes two horizontal half-extents plus
+ * the vertical half-extent so edge castles cannot disappear prematurely.
+ */
+export function castleFrustumRadius(footprintDiameter: number, visualHeight: number) {
+  const halfFootprint = Math.max(0, footprintDiameter) * 0.5;
+  const halfHeight = Math.max(0, visualHeight) * 0.5;
+  return Math.hypot(halfFootprint, halfFootprint, halfHeight);
+}
+
 function packingKey(packing: CastleInstancePacking<RealmCastleInstanceRecord>) {
   return CASTLE_LODS.map((lod) => (
     `${lod}:${packing.buckets[lod].map((entry) => entry.castleId).join(',')}`
@@ -178,7 +189,7 @@ export function createRealmCastleInstanceLayer(
   const loadedPrefabs = [...options.prefabs.values()];
   const maximumFootprint = Math.max(...loadedPrefabs.map((prefab) => prefab.footprintDiameter));
   const maximumHeight = Math.max(...loadedPrefabs.map((prefab) => prefab.visualHeight));
-  const castleRadius = Math.hypot(maximumFootprint * 0.5, maximumHeight * 0.5);
+  const castleRadius = castleFrustumRadius(maximumFootprint, maximumHeight);
   const center = new THREE.Vector3();
   const sphere = new THREE.Sphere(center, castleRadius);
   const frustum = new THREE.Frustum();

@@ -96,7 +96,7 @@ body,
 
 .qa-journey__restore-controls {
   top: max(0.7rem, env(safe-area-inset-top));
-  left: max(0.7rem, env(safe-area-inset-left));
+  right: max(0.7rem, env(safe-area-inset-right));
 }
 
 .qa-journey__auth-stage,
