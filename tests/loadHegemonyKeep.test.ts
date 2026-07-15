@@ -11,6 +11,7 @@ import {
   disposeRealmObject,
   keepAssetPathForQuality,
   loadHegemonyKeep,
+  prepareHegemonyKeepScene,
   resolveRealmAssetUrl
 } from '../src/components/realm/loadHegemonyKeep';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
@@ -119,6 +120,38 @@ describe('Hegemony keep runtime assets', () => {
     expect(normalization.visualHeight).toBeGreaterThan(1.6);
     expect(normalization.offsetY).toBeCloseTo(0, 8);
     expect(Object.values(normalization).every(Number.isFinite)).toBe(true);
+  });
+
+  it('uses the shared production preparation contract for normalized visual roots', () => {
+    const scene = new THREE.Group();
+    const material = new THREE.MeshStandardMaterial({
+      metalness: 1,
+      roughness: 0.05
+    });
+    scene.add(new THREE.Mesh(new THREE.BoxGeometry(4, 2, 2), material));
+
+    const prepared = prepareHegemonyKeepScene(scene, {
+      dynamicShadows: true,
+      maxAnisotropy: 4
+    });
+
+    expect(prepared.root.name).toBe('hegemony-main-castle');
+    expect(prepared.root.children).toEqual([scene]);
+    expect(prepared.footprintDiameter).toBeCloseTo(1.48, 8);
+    expect(prepared.visualHeight).toBeCloseTo(0.74, 8);
+    expect(scene.scale.x).toBeCloseTo(0.37, 8);
+    expect(scene.scale.y).toBeCloseTo(0.37, 8);
+    expect(scene.scale.z).toBeCloseTo(0.37, 8);
+    expect(scene.position.x).toBeCloseTo(0, 8);
+    expect(scene.position.y).toBeCloseTo(0.37, 8);
+    expect(scene.position.z).toBeCloseTo(0, 8);
+    expect(scene.rotation.y).toBe(0);
+    expect((scene.children[0] as THREE.Mesh).castShadow).toBe(true);
+    expect((scene.children[0] as THREE.Mesh).receiveShadow).toBe(true);
+    expect(material.metalness).toBe(0.92);
+    expect(material.roughness).toBe(0.2);
+
+    disposeRealmObject(prepared.root);
   });
 
   it('integrity-checks and coalesces keep bytes while parsing disposable scene instances', async () => {

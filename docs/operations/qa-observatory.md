@@ -322,16 +322,19 @@ by the journey lab, so this lane does not claim title-screen interaction
 coverage; title presentation remains covered by its focused component and visual
 contract tests until a separate authority-free browser fixture is justified.
 
-Chrome runs twelve fixed cases: every quality at 1440×900, a 1920×1080 balanced
+Chrome runs fourteen fixed cases: every quality at 1440×900, a 1920×1080 balanced
 presentation, a 1024×768 tablet inspector, one invalid query that must fail
 closed to `balanced`, balanced and reduced presentation in a 390×844 narrow
 responsive viewport, an accessible narrow-layout keeper-cluster focus action, an
 opened narrow-layout castle inspector, and an opened 667×375 short-landscape
-Explore surface. Two additional balanced cases use the same synthetic fixture
-in player presentation at 1440×900 and 390×844; each requires Recenter Keep and
-Return to Menu while rejecting the observer badge and Close QA Observer control.
-The narrow player case exercises the real compact Menu/Home rail, Explore
-affordance, and touch-target contract. These browser
+Explore surface. Four additional balanced cases use the same synthetic fixture
+in player presentation: default states at 1440×900 and 390×844, an explicit
+castle inspector at 1024×768, and an opened Explore surface at 667×375. Each
+requires Recenter Keep and Return to Menu while rejecting the observer badge and
+Close QA Observer control. The narrow player cases exercise the real compact
+Menu/Home rail, tablet inspector, short-landscape Explorer, and touch-target
+contract; the two interactive player cases additionally require that Menu/Home
+remain visible after their surface opens. These browser
 cases prove responsive layout, not mobile-device
 or touch emulation; scene-level pointer tests separately exercise anchored pinch
 and pan behavior. Every baseline
@@ -357,6 +360,22 @@ sheet reserves every label berth, because its accessibility surface separately
 exposes all 100 castles. The pre-click baseline still requires in-bounds
 text-bearing labels. Displaced individual labels and displaced
 clusters must have matching anchor connectors.
+
+The desktop balanced case also derives one bounded point below a roof-attached
+label, proves that point and a five-move path are genuinely on the WebGL canvas,
+then requires a normal press/release to open that castle's inspector. It rejects
+any drag, label selection, inspector, or Explore churn before the press, so a
+DOM label or terrain fallback cannot satisfy the instanced-keep activation lane.
+
+A separate local-only source-versus-runtime lane compares the authorized,
+hash-pinned source keep against the high, balanced, and compact runtime keeps
+at a fixed 384×384 WebGL target using the same scene preparation. The source
+archive is an owner-provided local prerequisite: a missing, unsafe, or
+hash-mismatched archive fails the entire probe closed. It is read only into
+memory behind one exact no-store loopback route, zeroed during teardown, and is
+never included in a build. The lane emits only bounded aggregate coverage,
+colour, and silhouette metrics; it retains or reports no source bytes,
+screenshots, raw pixels, archive paths, hashes, identities, or browser logs.
 
 Failed label-capacity checks include only a bounded, closed-shape aggregate of
 cull-reason categories and counts. They never include castle IDs, usernames,
@@ -537,7 +556,7 @@ data to browser JavaScript.
 
 The tiers intentionally trade coverage for hourly cost:
 
-- `quick` runs the twelve-case responsive rendered-WebGL browser probe plus its
+- `quick` runs the fourteen-case responsive rendered-WebGL browser probe plus its
   shared-envelope real-browser journey lane, the real
   parent-level sandbox boundary preflight, focused observer/security tests, an
   explicit synthetic app state lane, and root typecheck.

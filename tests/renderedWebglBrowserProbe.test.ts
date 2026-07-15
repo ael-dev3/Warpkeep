@@ -7,16 +7,21 @@ import { resolve } from 'node:path';
 
 import {
   analyzeRenderedWebglPngScreenshot,
+  applyRenderedWebglCaseInteraction,
   attestHeadlessChromeCodeSignature,
+  closeRenderedWebglLoopbackServer,
+  cleanupRenderedWebglProbeResources,
   DevtoolsPipeSession,
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
   parseHeadlessChromeCodeSignature,
   parseRenderedWebglBrowserDom,
+  parseRenderedWebglInspectorLabelActivationEvidence,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
   RENDERED_WEBGL_QA_CASE_COUNT,
   RENDERED_WEBGL_QA_CHROME_TEAM_ID,
+  RENDERED_WEBGL_QA_VITE_FS_DENY,
   renderedWebglLabelAnchorDistanceTelemetry,
   renderedWebglLabelDisplacementClassificationValid,
   renderedWebglBrowserProbeCases,
@@ -105,6 +110,109 @@ async function attachedFakeChromePipe(
 }
 
 describe('rendered WebGL headless browser probe contract', () => {
+  it('zeroizes the source and removes the private profile even if Vite shutdown rejects', async () => {
+    const calls: string[] = [];
+    const closeFailure = new Error('synthetic Vite close failure');
+    const source = { private: true };
+
+    await expect(cleanupRenderedWebglProbeResources({
+      castleLodVisualSource: source,
+      devtools: { close: () => { calls.push('devtools'); } },
+      disposeCastleLodVisualEvidenceSource: (value) => {
+        expect(value).toBe(source);
+        calls.push('zeroize');
+      },
+      removeProfile: () => { calls.push('remove-profile'); },
+      terminate: () => { calls.push('terminate'); },
+      vite: { close: () => {
+        calls.push('vite');
+        throw closeFailure;
+      } }
+    })).rejects.toBe(closeFailure);
+
+    expect(calls).toEqual([
+      'devtools',
+      'terminate',
+      'vite',
+      'zeroize',
+      'remove-profile'
+    ]);
+  });
+
+  it('closes every tracked loopback socket before awaiting Vite shutdown', async () => {
+    const calls: string[] = [];
+    const normalSocket = { destroy: () => { calls.push('normal-socket'); } };
+    const upgradedSocket = { destroy: () => { calls.push('upgraded-socket'); } };
+    const httpServer = {
+      close: (callback: (error?: Error) => void) => {
+        calls.push('http-close');
+        callback();
+      },
+      closeAllConnections: () => { calls.push('http-connections'); }
+    };
+    const vite = { close: async () => { calls.push('vite-close'); } };
+
+    await closeRenderedWebglLoopbackServer({
+      httpServer,
+      sockets: new Set([normalSocket, upgradedSocket]),
+      vite
+    });
+
+    expect(calls).toEqual([
+      'http-close',
+      'http-connections',
+      'normal-socket',
+      'upgraded-socket',
+      'vite-close'
+    ]);
+  });
+
+  it('does not hide a loopback close failure after destroying tracked sockets', async () => {
+    const calls: string[] = [];
+    const failure = new Error('synthetic loopback close failure');
+    const httpServer = {
+      close: (callback: (error?: Error) => void) => {
+        calls.push('http-close');
+        callback(failure);
+      },
+      closeAllConnections: () => { calls.push('http-connections'); }
+    };
+    const socket = { destroy: () => { calls.push('socket'); } };
+    const vite = { close: async () => { calls.push('vite-close'); } };
+
+    await expect(closeRenderedWebglLoopbackServer({
+      httpServer,
+      sockets: new Set([socket]),
+      vite
+    })).rejects.toBe(failure);
+    expect(calls).toEqual(['http-close', 'http-connections', 'socket', 'vite-close']);
+  });
+
+  it('resolves the complete Vite deny contract instead of replacing its defaults', async () => {
+    const { resolveConfig } = await import('vite');
+    const resolved = await resolveConfig({
+      configFile: false,
+      envFile: false,
+      logLevel: 'silent',
+      root: process.cwd(),
+      server: {
+        fs: {
+          allow: [process.cwd()],
+          deny: [...RENDERED_WEBGL_QA_VITE_FS_DENY],
+          strict: true
+        }
+      }
+    }, 'serve', 'development', 'development');
+
+    expect(resolved.server.fs.deny).toEqual([
+      '.env',
+      '.env.*',
+      '*.{crt,pem}',
+      '**/.git/**',
+      '**/.cache/**'
+    ]);
+  });
+
   it('uses an inline fail-closed Vite configuration and disposable cache', () => {
     const source = readFileSync(resolve(
       process.cwd(),
@@ -112,11 +220,30 @@ describe('rendered WebGL headless browser probe contract', () => {
     ), 'utf8');
     expect(source).toContain('configFile: false');
     expect(source).toContain('envFile: false');
-    expect(source).toContain('plugins: [reactPlugin()]');
+    expect(source).toContain('plugins: [reactPlugin(), ...localQaPlugins]');
+    expect(source).toContain('castleLodVisualEvidenceSourceVitePlugin(castleLodVisualSource)');
+    expect(source).toContain('runCastleLodVisualEvidenceBrowserCase(devtools');
+    expect(source).toContain('onCastleLodVisualEvidence?.(castleLodVisualEvidence)');
+    expect(source).toContain('aggregate castle LOD fidelity ${JSON.stringify(lodMetrics)}');
     expect(source).toContain("__WARPKEEP_LOCAL_QA__: 'true'");
     expect(source).toContain('__WARPKEEP_PRODUCT_VERSION__: JSON.stringify(packageJson.version)');
     expect(source).toContain("cacheDir: join(privateRuntime, 'vite-cache')");
     expect(source).toContain('allow: [REPOSITORY_ROOT]');
+    expect(source).toContain('deny: RENDERED_WEBGL_QA_VITE_FS_DENY');
+    expect(source).toContain('assertCastleLodVisualEvidenceLoopbackBoundary(vite.port)');
+    expect(source).toContain('cleanupRenderedWebglProbeResources({');
+    expect(source).toContain(
+      'options.disposeCastleLodVisualEvidenceSource(options.castleLodVisualSource)'
+    );
+    expect(source).toContain('await attempt(() => options.removeProfile?.());');
+    expect(source).toContain('onCastleLodVisualBoundary?.(castleLodVisualBoundary)');
+    expect(RENDERED_WEBGL_QA_VITE_FS_DENY).toEqual([
+      '.env',
+      '.env.*',
+      '*.{crt,pem}',
+      '**/.git/**',
+      '**/.cache/**'
+    ]);
     expect(source).toContain('attestStableHeadlessChromeExecutable(reviewedChromeIdentity)');
     expect(source).toContain('readReviewedChromeExecutableIdentity()');
     expect(source).toContain("'--remote-debugging-pipe'");
@@ -130,6 +257,45 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain("method === 'Target.targetCrashed'");
     expect(source).toContain("method === 'Target.detachedFromTarget'");
     expect(source).toContain("method === 'Inspector.detached'");
+  });
+
+  it('records only structural inspector label activation evidence', async () => {
+    expect(parseRenderedWebglInspectorLabelActivationEvidence({
+      inspectorLabelActivated: true
+    })).toEqual({ inspectorLabelActivated: true });
+    expect(() => parseRenderedWebglInspectorLabelActivationEvidence({
+      inspectorLabelActivated: false
+    })).toThrow(/inspector label evidence/i);
+    expect(() => parseRenderedWebglInspectorLabelActivationEvidence({
+      castleId: 1,
+      inspectorLabelActivated: true
+    })).toThrow(/inspector label evidence/i);
+
+    const command = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>
+    ) => {
+      if (method === 'Runtime.evaluate') {
+        return {
+          result: {
+            type: 'object',
+            value: { inspectorLabelActivated: true }
+          }
+        };
+      }
+      return {};
+    });
+
+    await expect(applyRenderedWebglCaseInteraction({ command }, 'inspector')).resolves.toEqual({
+      inspectorLabelActivated: true
+    });
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining('button.realm-castle-label'),
+      returnByValue: true
+    }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining('target.click()')
+    }));
   });
 
   it('activates the accepted baseline cluster without an intermediary camera transition', () => {
@@ -156,7 +322,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(renderedWebglLabelDisplacementClassificationValid(12.015, false)).toBe(false);
   });
 
-  it('fixes twelve responsive, interaction, and presentation cases to one numeric loopback origin', () => {
+  it('fixes fourteen responsive, interaction, and presentation cases to one numeric loopback origin', () => {
     const cases = renderedWebglBrowserProbeCases(41_733);
     expect(cases).toHaveLength(RENDERED_WEBGL_QA_CASE_COUNT);
     expect(new Set(cases.map((probeCase) => probeCase.id)).size).toBe(
@@ -197,6 +363,16 @@ describe('rendered WebGL headless browser probe contract', () => {
         interaction: 'inspector',
         minimumLabelCount: 12,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
+        viewport: { width: 1024, height: 768 }
+      },
+      {
+        id: 'tablet-balanced-player-inspector',
+        expectedPlayerActionControlState: 'visible',
+        expectedPresentationMode: 'player',
+        expectedQuality: 'balanced',
+        interaction: 'inspector',
+        minimumLabelCount: 12,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 1024, height: 768 }
       },
       {
@@ -251,6 +427,16 @@ describe('rendered WebGL headless browser probe contract', () => {
         interaction: 'explore',
         minimumLabelCount: 6,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
+        viewport: { width: 667, height: 375 }
+      },
+      {
+        id: 'short-landscape-balanced-player-explore',
+        expectedPlayerActionControlState: 'visible',
+        expectedPresentationMode: 'player',
+        expectedQuality: 'balanced',
+        interaction: 'explore',
+        minimumLabelCount: 6,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 667, height: 375 }
       },
       {
@@ -897,6 +1083,91 @@ describe('rendered WebGL headless browser probe contract', () => {
       closeQaObserverControlState: 'visible'
     }, playerCase)).toThrow(/player-observer-close/i);
 
+    const tabletPlayerInspectorCase = renderedWebglBrowserProbeCases(41_733)
+      .find((probeCase) => probeCase.id === 'tablet-balanced-player-inspector')!;
+    const tabletPlayerInspectorExpected = {
+      ...tabletPlayerInspectorCase,
+      minimumLabelCount: 1
+    };
+    const tabletPlayerInspectorReady = {
+      ...playerReady,
+      href: tabletPlayerInspectorCase.url,
+      viewportWidth: tabletPlayerInspectorCase.viewport.width,
+      viewportHeight: tabletPlayerInspectorCase.viewport.height,
+      documentWidth: tabletPlayerInspectorCase.viewport.width,
+      interactionState: 'inspector',
+      focusedReadableLabelCount: 1
+    } as const;
+    expect(parseRenderedWebglBrowserDom(
+      tabletPlayerInspectorReady,
+      tabletPlayerInspectorExpected
+    )).toMatchObject({ presentationMode: 'player' });
+    // An inspector can leave its source label in place and retain DOM focus,
+    // or reserve tablet screen space and correctly cull it to avoid a
+    // keep/UI overlap. Direct label-action evidence is asserted separately.
+    expect(parseRenderedWebglBrowserDom({
+      ...tabletPlayerInspectorReady,
+      focusedReadableLabelCount: 1,
+      focusedReadableLabelDomFocusCount: 1
+    }, tabletPlayerInspectorExpected)).toMatchObject({ presentationMode: 'player' });
+    expect(parseRenderedWebglBrowserDom({
+      ...tabletPlayerInspectorReady,
+      focusedReadableLabelCount: 0,
+      focusedReadableLabelDomFocusCount: 0
+    }, tabletPlayerInspectorExpected)).toMatchObject({ presentationMode: 'player' });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...tabletPlayerInspectorReady,
+      focusedReadableLabelCount: tabletPlayerInspectorReady.labelCount + 1
+    }, tabletPlayerInspectorExpected)).toThrow(/focused-readable-label-shape/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...tabletPlayerInspectorReady,
+      focusedReadableLabelCount: 0,
+      focusedReadableLabelDomFocusCount: 1
+    }, tabletPlayerInspectorExpected)).toThrow(/focused-readable-label-dom-focus-shape/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...tabletPlayerInspectorReady,
+      recenterKeepControlState: 'hidden'
+    }, tabletPlayerInspectorExpected)).toThrow(/player-recenter-control/i);
+
+    const shortLandscapePlayerExploreCase = renderedWebglBrowserProbeCases(41_733)
+      .find((probeCase) => probeCase.id === 'short-landscape-balanced-player-explore')!;
+    const shortLandscapePlayerExploreExpected = {
+      ...shortLandscapePlayerExploreCase,
+      minimumLabelCount: 0
+    };
+    const shortLandscapePlayerExploreReady = {
+      ...playerReady,
+      href: shortLandscapePlayerExploreCase.url,
+      viewportWidth: shortLandscapePlayerExploreCase.viewport.width,
+      viewportHeight: shortLandscapePlayerExploreCase.viewport.height,
+      documentWidth: shortLandscapePlayerExploreCase.viewport.width,
+      interactionState: 'explore',
+      labelCount: 0,
+      labelEligibleCount: 0,
+      labelPlacedCount: 0,
+      labelUnplacedCount: 0,
+      labelClusteredCount: 0,
+      clusterButtonCount: 0,
+      accessibleClusterButtonCount: 0,
+      clusterMemberCount: 0,
+      clustersWithinViewportCount: 0,
+      individualCastleCount: 0,
+      presentedModelCount: 0,
+      raycastTargetCount: 0,
+      labelsTextBearingCount: 0,
+      labelsWithinViewportCount: 0,
+      exploreCastleCount: 100,
+      exploreAccessibleCastleCount: 100
+    } as const;
+    expect(parseRenderedWebglBrowserDom(
+      shortLandscapePlayerExploreReady,
+      shortLandscapePlayerExploreExpected
+    )).toMatchObject({ presentationMode: 'player' });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...shortLandscapePlayerExploreReady,
+      returnToMenuControlState: 'hidden'
+    }, shortLandscapePlayerExploreExpected)).toThrow(/player-return-control/i);
+
     const inspectorCase = renderedWebglBrowserProbeCases(41_733)
       .find((probeCase) => probeCase.id === 'mobile-reduced-inspector')!;
     expect(() => parseRenderedWebglBrowserDom({
@@ -916,7 +1187,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       raycastTargetCount: 0,
       labelsTextBearingCount: 0,
       labelsWithinViewportCount: 0
-    }, { ...inspectorCase, minimumLabelCount: 1 })).toThrow(/label-count|focused-readable-label/i);
+    }, { ...inspectorCase, minimumLabelCount: 1 })).toThrow(/label-count/i);
 
     const exploreOnlyCase = renderedWebglBrowserProbeCases(41_733)
       .find((probeCase) => probeCase.id === 'short-landscape-explore')!;
@@ -998,6 +1269,16 @@ describe('rendered WebGL headless browser probe contract', () => {
       clusterButtonCountBefore: 2,
       clusterMemberCountBefore: 5
     })).toThrow(/focused-readable-label-dom-focus/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...clustered,
+      focusedReadableLabelCount: 0,
+      focusedReadableLabelDomFocusCount: 0
+    }, {
+      ...clusterCase,
+      minimumLabelCount: 1,
+      clusterButtonCountBefore: 2,
+      clusterMemberCountBefore: 5
+    })).toThrow(/focused-readable-label/i);
     expect(parseRenderedWebglBrowserDom(clustered, {
       ...clusterCase,
       minimumLabelCount: 1,

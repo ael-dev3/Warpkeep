@@ -12,14 +12,19 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { inflateSync } from 'node:zlib';
 
+import { analyzeRenderedWebglPngScreenshot } from './png-visual-aggregate.mjs';
 import {
   parseRenderedWebglQaObservation,
   RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS,
   RENDERED_WEBGL_QA_ROUTE,
   renderedWebglQaUrl,
 } from './rendered-webgl-qa-contract.mjs';
+
+// The journey lane is dynamically loaded during the probe. Keep its shared
+// screenshot reducer in a leaf module rather than letting it import this CLI
+// module while this module's top-level await is still evaluating.
+export { analyzeRenderedWebglPngScreenshot };
 
 export const RENDERED_WEBGL_QA_CHROME =
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -36,7 +41,6 @@ const CDP_PIPE_MAXIMUM_OUTBOUND_BYTES = 512 * 1_024;
 const CDP_PIPE_MAXIMUM_INBOUND_BYTES = 16 * 1_024 * 1_024;
 const CDP_PIPE_MAXIMUM_PENDING_COMMANDS = 1_024;
 const PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS = 5_000;
-const SCREENSHOT_MAXIMUM_CHUNKS = 4_096;
 const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 const TERMINATION_GRACE_MILLISECONDS = 2_000;
 const CODESIGN_TIMEOUT_MILLISECONDS = 15_000;
@@ -47,10 +51,35 @@ const FULL_HD_VIEWPORT = Object.freeze({ width: 1_920, height: 1_080 });
 const TABLET_VIEWPORT = Object.freeze({ width: 1_024, height: 768 });
 const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
-export const RENDERED_WEBGL_QA_CASE_COUNT = 12;
+export const RENDERED_WEBGL_QA_CASE_COUNT = 14;
 export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS = 112;
 export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS = 0.015;
+// Supplying `server.fs.deny` replaces Vite's defaults instead of appending to
+// them. Keep Vite 8's four reviewed defaults explicitly, then add the source
+// cache boundary required by the local LOD evidence route.
+export const RENDERED_WEBGL_QA_VITE_FS_DENY = Object.freeze([
+  '.env',
+  '.env.*',
+  '*.{crt,pem}',
+  '**/.git/**',
+  '**/.cache/**',
+]);
 const RENDERED_WEBGL_QA_LABEL_ANGLE_TOLERANCE_RADIANS = 0.002;
+const RENDERED_WEBGL_QA_CASTLE_POINTER_ACTIVATION_CASE_ID = 'desktop-balanced';
+// Castle labels attach immediately above the projected roof. This depth is
+// deliberately below the interactive label and inside the rendered keep body
+// at the reviewed desktop framing, so the browser must deliver a real canvas
+// pointer sequence to the decoded/instanced GLB rather than invoke a DOM
+// label action.
+const RENDERED_WEBGL_QA_CASTLE_POINTER_DEPTH_PIXELS = 48;
+const RENDERED_WEBGL_QA_CASTLE_POINTER_MOVE_OFFSETS = Object.freeze([
+  Object.freeze({ x: -4, y: 0 }),
+  Object.freeze({ x: -2, y: 2 }),
+  Object.freeze({ x: 2, y: 2 }),
+  Object.freeze({ x: 4, y: 0 }),
+  Object.freeze({ x: 0, y: 0 }),
+]);
+const RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS = 10_000;
 const TERRAIN_PRESENTATION_BUDGETS = Object.freeze({
   high: Object.freeze({ semanticFeatureCount: 1_100, totalDetailInstanceCount: 7_000 }),
   balanced: Object.freeze({ semanticFeatureCount: 800, totalDetailInstanceCount: 5_500 }),
@@ -263,6 +292,23 @@ export function renderedWebglBrowserProbeCases(port) {
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: TABLET_VIEWPORT,
     }),
+    // Player chrome has different identity, action, and inspection semantics
+    // from the read-only observer. Exercise the tablet docked inspector with
+    // the real player HUD rather than assuming the observer case covers it.
+    Object.freeze({
+      id: 'tablet-balanced-player-inspector',
+      expectedPlayerActionControlState: 'visible',
+      expectedPresentationMode: 'player',
+      expectedQuality: 'balanced',
+      interaction: 'inspector',
+      minimumLabelCount: 12,
+      url: renderedWebglQaUrl({
+        mode: 'player',
+        port: selectedPort,
+        quality: 'balanced'
+      }),
+      viewport: TABLET_VIEWPORT,
+    }),
     Object.freeze({
       id: 'mobile-balanced-cluster',
       expectedPresentationMode: 'observer',
@@ -315,6 +361,24 @@ export function renderedWebglBrowserProbeCases(port) {
       interaction: 'explore',
       minimumLabelCount: 6,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
+      viewport: SHORT_LANDSCAPE_VIEWPORT,
+    }),
+    // This height-specific player layout retains the compact Menu/Home rail
+    // alongside the right-docked Explorer. It is intentionally distinct from
+    // the observer Explore case, whose read-only chrome cannot prove that
+    // player controls remain usable in the same constrained viewport.
+    Object.freeze({
+      id: 'short-landscape-balanced-player-explore',
+      expectedPlayerActionControlState: 'visible',
+      expectedPresentationMode: 'player',
+      expectedQuality: 'balanced',
+      interaction: 'explore',
+      minimumLabelCount: 6,
+      url: renderedWebglQaUrl({
+        mode: 'player',
+        port: selectedPort,
+        quality: 'balanced'
+      }),
       viewport: SHORT_LANDSCAPE_VIEWPORT,
     }),
     Object.freeze({
@@ -421,6 +485,68 @@ function exactRecord(value, message) {
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) throw new TypeError(message);
   return value;
+}
+
+/**
+ * The local browser fixture derives this point from a roof-attached label but
+ * intentionally returns only page coordinates. Castle IDs, FIDs, names, and
+ * profile data must never cross the probe boundary.
+ */
+export function parseRenderedWebglCastleCanvasPointerTarget(value) {
+  const candidate = exactRecord(value, 'Invalid rendered WebGL canvas pointer target.');
+  if (
+    !exactMessageKeys(candidate, new Set(['x', 'y']))
+    || !Number.isFinite(candidate.x)
+    || !Number.isFinite(candidate.y)
+    || candidate.x < 0
+    || candidate.y < 0
+    || candidate.x > RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS
+    || candidate.y > RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS
+  ) throw new TypeError('Invalid rendered WebGL canvas pointer target.');
+  return Object.freeze({ x: candidate.x, y: candidate.y });
+}
+
+export function parseRenderedWebglCastlePointerMoveState(value) {
+  const candidate = exactRecord(value, 'Invalid rendered WebGL canvas pointer state.');
+  if (
+    !exactMessageKeys(candidate, new Set([
+      'canvasTarget',
+      'dragging',
+      'inspectorOpen',
+      'navigatorOpen',
+      'renderer',
+      'selectedCastleLabelCount',
+    ]))
+    || candidate.canvasTarget !== true
+    || candidate.dragging !== false
+    || candidate.inspectorOpen !== false
+    || candidate.navigatorOpen !== false
+    || candidate.renderer !== 'webgl'
+    || !Number.isSafeInteger(candidate.selectedCastleLabelCount)
+    || candidate.selectedCastleLabelCount !== 0
+  ) throw new TypeError('Invalid rendered WebGL canvas pointer state.');
+  return Object.freeze({
+    canvasTarget: true,
+    dragging: false,
+    inspectorOpen: false,
+    navigatorOpen: false,
+    renderer: 'webgl',
+    selectedCastleLabelCount: 0,
+  });
+}
+
+/**
+ * Confirms that the local inspector lane invoked one real, accessible castle
+ * label. The evidence is deliberately structural: it never carries a castle
+ * ID, identity, profile field, or rendered label text across the QA boundary.
+ */
+export function parseRenderedWebglInspectorLabelActivationEvidence(value) {
+  const candidate = exactRecord(value, 'Invalid rendered WebGL inspector label evidence.');
+  if (
+    !exactMessageKeys(candidate, new Set(['inspectorLabelActivated']))
+    || candidate.inspectorLabelActivated !== true
+  ) throw new TypeError('Invalid rendered WebGL inspector label evidence.');
+  return Object.freeze({ inspectorLabelActivated: true });
 }
 
 export function selectBlankPageTarget(value) {
@@ -588,10 +714,19 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   if (
     !validLabelCullReasonAggregate(candidate.labelCullReasons)
   ) throw new TypeError('Invalid rendered WebGL browser DOM: label-cull-reasons-shape.');
-  const expectedFocusedReadableLabelCount = (
-    expected.interaction === 'inspector' || expected.interaction === 'cluster' ? 1 : 0
-  );
-  const expectedFocusedReadableLabelDomFocusCount = expected.interaction === 'cluster' ? 1 : 0;
+  // A cluster must leave its revealed label focused; that label is the
+  // interaction surface under test. An inspector, however, can legitimately
+  // reserve screen space that causes its source label to be culled by the
+  // collision-safe layout. If it survives, focus can remain on either the
+  // label or the newly opened inspector. Inspector activation is instead
+  // proven directly by the bounded label-action evidence below the browser
+  // boundary.
+  const expectedFocusedReadableLabelCount = expected.interaction === 'cluster'
+    ? 1
+    : expected.interaction === 'inspector' ? undefined : 0;
+  const expectedFocusedReadableLabelDomFocusCount = expected.interaction === 'cluster'
+    ? 1
+    : expected.interaction === 'inspector' ? undefined : 0;
   const expectedExploreCastleCount = expected.interaction === 'explore'
     ? candidate.castleCount
     : 0;
@@ -604,8 +739,14 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   const presentationControlsMayBeOccluded = ['inspector', 'explore'].includes(
     expected.interaction
   );
+  const expectedPlayerActionControlState = expected.expectedPlayerActionControlState;
   const expectedPresentationControlStateValid = (state) => state === 'visible'
     || (presentationControlsMayBeOccluded && state === 'hidden');
+  const expectedPlayerActionControlStateValid = (state) => (
+    expectedPlayerActionControlState === undefined
+      ? expectedPresentationControlStateValid(state)
+      : state === expectedPlayerActionControlState
+  );
   const terrainBudgets = TERRAIN_PRESENTATION_BUDGETS[expected.expectedQuality];
   const violations = [
     candidate.href !== expected.url ? 'href' : '',
@@ -733,9 +874,19 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     !Number.isSafeInteger(candidate.labelCount)
       || candidate.labelCount < expected.minimumLabelCount ? 'label-count' : '',
     candidate.labelsTextBearingCount !== candidate.labelCount ? 'label-text' : '',
-    candidate.focusedReadableLabelCount !== expectedFocusedReadableLabelCount
+    !Number.isSafeInteger(candidate.focusedReadableLabelCount)
+      || candidate.focusedReadableLabelCount < 0
+      || candidate.focusedReadableLabelCount > candidate.labelCount
+      ? 'focused-readable-label-shape' : '',
+    !Number.isSafeInteger(candidate.focusedReadableLabelDomFocusCount)
+      || candidate.focusedReadableLabelDomFocusCount < 0
+      || candidate.focusedReadableLabelDomFocusCount > candidate.focusedReadableLabelCount
+      ? 'focused-readable-label-dom-focus-shape' : '',
+    expectedFocusedReadableLabelCount !== undefined
+      && candidate.focusedReadableLabelCount !== expectedFocusedReadableLabelCount
       ? 'focused-readable-label' : '',
-    candidate.focusedReadableLabelDomFocusCount !== expectedFocusedReadableLabelDomFocusCount
+    expectedFocusedReadableLabelDomFocusCount !== undefined
+      && candidate.focusedReadableLabelDomFocusCount !== expectedFocusedReadableLabelDomFocusCount
       ? 'focused-readable-label-dom-focus' : '',
     candidate.exploreCastleCount !== expectedExploreCastleCount
       ? 'explore-castle-coverage' : '',
@@ -751,11 +902,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
           : 'invalid'}`
       : '',
     (expected.expectedPresentationMode === 'player'
-      ? !expectedPresentationControlStateValid(candidate.recenterKeepControlState)
+      ? !expectedPlayerActionControlStateValid(candidate.recenterKeepControlState)
       : candidate.recenterKeepControlState !== 'absent')
       ? `${expected.expectedPresentationMode}-recenter-control` : '',
     (expected.expectedPresentationMode === 'player'
-      ? !expectedPresentationControlStateValid(candidate.returnToMenuControlState)
+      ? !expectedPlayerActionControlStateValid(candidate.returnToMenuControlState)
       : candidate.returnToMenuControlState !== 'absent')
       ? `${expected.expectedPresentationMode}-return-control` : '',
     (expected.expectedPresentationMode === 'observer'
@@ -790,165 +941,6 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     totalTerrainDetailInstanceCount: candidate.totalTerrainDetailInstanceCount,
     totalTerrainDetailDrawCalls: candidate.totalTerrainDetailDrawCalls,
   });
-}
-
-function paethPredictor(left, above, upperLeft) {
-  const prediction = left + above - upperLeft;
-  const leftDistance = Math.abs(prediction - left);
-  const aboveDistance = Math.abs(prediction - above);
-  const upperLeftDistance = Math.abs(prediction - upperLeft);
-  if (leftDistance <= aboveDistance && leftDistance <= upperLeftDistance) return left;
-  return aboveDistance <= upperLeftDistance ? above : upperLeft;
-}
-
-/**
- * Decodes only the strict PNG shape emitted by the reviewed Chrome screenshot
- * command. Pixels stay in memory for the duration of this call and are reduced
- * immediately to non-identifying aggregate colour evidence.
- */
-export function analyzeRenderedWebglPngScreenshot(value, viewport) {
-  if (!Buffer.isBuffer(value) || value.byteLength < 64 || value.byteLength > SCREENSHOT_MAXIMUM_BYTES) {
-    throw new TypeError('Invalid rendered WebGL screenshot.');
-  }
-  if (!Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).equals(value.subarray(0, 8))) {
-    throw new TypeError('Invalid rendered WebGL screenshot.');
-  }
-  if (
-    !viewport
-    || !Number.isSafeInteger(viewport.width)
-    || !Number.isSafeInteger(viewport.height)
-    || viewport.width < 320
-    || viewport.height < 320
-    || viewport.width > 1_920
-    || viewport.height > 1_080
-  ) throw new TypeError('Invalid rendered WebGL screenshot viewport.');
-
-  let cursor = 8;
-  let chunkCount = 0;
-  let header;
-  let ended = false;
-  const compressed = [];
-  let compressedBytes = 0;
-  while (cursor < value.byteLength) {
-    if (cursor + 12 > value.byteLength || chunkCount >= SCREENSHOT_MAXIMUM_CHUNKS) {
-      throw new TypeError('Invalid rendered WebGL screenshot.');
-    }
-    const length = value.readUInt32BE(cursor);
-    const type = value.toString('ascii', cursor + 4, cursor + 8);
-    const dataStart = cursor + 8;
-    const dataEnd = dataStart + length;
-    const next = dataEnd + 4;
-    if (length > SCREENSHOT_MAXIMUM_BYTES || next > value.byteLength) {
-      throw new TypeError('Invalid rendered WebGL screenshot.');
-    }
-    chunkCount += 1;
-    if (type === 'IHDR') {
-      if (header || length !== 13) throw new TypeError('Invalid rendered WebGL screenshot.');
-      header = {
-        width: value.readUInt32BE(dataStart),
-        height: value.readUInt32BE(dataStart + 4),
-        bitDepth: value[dataStart + 8],
-        colorType: value[dataStart + 9],
-        compression: value[dataStart + 10],
-        filter: value[dataStart + 11],
-        interlace: value[dataStart + 12],
-      };
-    } else if (type === 'IDAT') {
-      if (!header || ended) throw new TypeError('Invalid rendered WebGL screenshot.');
-      compressedBytes += length;
-      if (compressedBytes > SCREENSHOT_MAXIMUM_BYTES) {
-        throw new TypeError('Invalid rendered WebGL screenshot.');
-      }
-      compressed.push(value.subarray(dataStart, dataEnd));
-    } else if (type === 'IEND') {
-      if (!header || length !== 0 || ended) throw new TypeError('Invalid rendered WebGL screenshot.');
-      ended = true;
-      cursor = next;
-      break;
-    }
-    cursor = next;
-  }
-  if (
-    !header
-    || !ended
-    || cursor !== value.byteLength
-    || compressed.length === 0
-    || header.width !== viewport.width
-    || header.height !== viewport.height
-    || header.bitDepth !== 8
-    || ![2, 6].includes(header.colorType)
-    || header.compression !== 0
-    || header.filter !== 0
-    || header.interlace !== 0
-  ) throw new TypeError('Invalid rendered WebGL screenshot.');
-
-  const bytesPerPixel = header.colorType === 6 ? 4 : 3;
-  const stride = header.width * bytesPerPixel;
-  const expectedInflatedBytes = (stride + 1) * header.height;
-  const inflated = inflateSync(Buffer.concat(compressed, compressedBytes), {
-    maxOutputLength: expectedInflatedBytes,
-  });
-  if (inflated.byteLength !== expectedInflatedBytes) {
-    throw new TypeError('Invalid rendered WebGL screenshot.');
-  }
-  const pixels = Buffer.allocUnsafe(stride * header.height);
-  let sourceOffset = 0;
-  for (let y = 0; y < header.height; y += 1) {
-    const filterType = inflated[sourceOffset++];
-    if (filterType > 4) throw new TypeError('Invalid rendered WebGL screenshot.');
-    const rowOffset = y * stride;
-    for (let x = 0; x < stride; x += 1) {
-      const left = x >= bytesPerPixel ? pixels[rowOffset + x - bytesPerPixel] : 0;
-      const above = y > 0 ? pixels[rowOffset + x - stride] : 0;
-      const upperLeft = y > 0 && x >= bytesPerPixel
-        ? pixels[rowOffset + x - stride - bytesPerPixel]
-        : 0;
-      const prediction = filterType === 0 ? 0
-        : filterType === 1 ? left
-          : filterType === 2 ? above
-            : filterType === 3 ? Math.floor((left + above) / 2)
-              : paethPredictor(left, above, upperLeft);
-      pixels[rowOffset + x] = (inflated[sourceOffset++] + prediction) & 0xff;
-    }
-  }
-
-  const colours = new Set();
-  let minimumLuminance = 255;
-  let maximumLuminance = 0;
-  let opaqueSamples = 0;
-  let sampleCount = 0;
-  for (let yStep = 1; yStep <= 9; yStep += 1) {
-    const y = Math.floor(header.height * (0.16 + (0.68 * yStep) / 10));
-    for (let xStep = 1; xStep <= 13; xStep += 1) {
-      const x = Math.floor(header.width * (0.12 + (0.76 * xStep) / 14));
-      const offset = y * stride + x * bytesPerPixel;
-      const red = pixels[offset];
-      const green = pixels[offset + 1];
-      const blue = pixels[offset + 2];
-      const alpha = bytesPerPixel === 4 ? pixels[offset + 3] : 255;
-      const luminance = Math.round(0.2126 * red + 0.7152 * green + 0.0722 * blue);
-      colours.add(`${red >> 4}:${green >> 4}:${blue >> 4}`);
-      minimumLuminance = Math.min(minimumLuminance, luminance);
-      maximumLuminance = Math.max(maximumLuminance, luminance);
-      if (alpha >= 250) opaqueSamples += 1;
-      sampleCount += 1;
-    }
-  }
-  const result = Object.freeze({
-    distinctColourBuckets: colours.size,
-    luminanceRange: maximumLuminance - minimumLuminance,
-    opaqueSamples,
-    sampleCount,
-  });
-  pixels.fill(0);
-  inflated.fill(0);
-  if (
-    result.sampleCount < 100
-    || result.opaqueSamples !== result.sampleCount
-    || result.distinctColourBuckets < 8
-    || result.luminanceRange < 28
-  ) throw new TypeError('Rendered WebGL screenshot did not contain credible visual output.');
-  return result;
 }
 
 function delay(milliseconds) {
@@ -1470,8 +1462,95 @@ export async function terminateHeadlessChromeProcessGroup(child, options = {}) {
   }
 }
 
-async function createLoopbackViteServer(runtimeDirectory) {
+/**
+ * Teardown is deliberately best-effort in sequence, not a short-circuiting
+ * `finally`: an error while closing Vite must not retain the authorized source
+ * buffer or owner-private Chrome profile. The first cleanup failure remains
+ * observable only after every independent cleanup action was attempted.
+ */
+export async function cleanupRenderedWebglProbeResources(options = {}) {
+  let firstFailure;
+  const attempt = async (operation) => {
+    try {
+      await operation();
+    } catch (error) {
+      firstFailure ??= error;
+    }
+  };
+  await attempt(() => options.devtools?.close());
+  await attempt(() => (options.terminate ?? terminateHeadlessChromeProcessGroup)(options.chrome));
+  await attempt(() => options.vite?.close());
+  await attempt(() => {
+    if (options.castleLodVisualSource && options.disposeCastleLodVisualEvidenceSource) {
+      options.disposeCastleLodVisualEvidenceSource(options.castleLodVisualSource);
+    }
+  });
+  await attempt(() => options.removeProfile?.());
+  if (firstFailure) throw firstFailure;
+}
+
+/**
+ * Middleware-mode Vite leaves the owner-created HTTP server responsible for
+ * upgraded HMR sockets. Node's `closeAllConnections()` deliberately excludes
+ * those sockets, so retain and destroy every accepted socket before awaiting
+ * the listener close. This is deterministic teardown, not a timeout: any
+ * socket that could keep the local-only server alive is explicitly closed.
+ */
+export async function closeRenderedWebglLoopbackServer(options = {}) {
+  const httpServer = options.httpServer;
+  const vite = options.vite;
+  const sockets = options.sockets;
+  if (
+    !httpServer
+    || typeof httpServer.close !== 'function'
+    || typeof httpServer.closeAllConnections !== 'function'
+    || !vite
+    || typeof vite.close !== 'function'
+    || !sockets
+    || typeof sockets[Symbol.iterator] !== 'function'
+  ) throw new TypeError('Invalid rendered WebGL loopback server teardown.');
+
+  const failures = [];
+  const closedHttpServer = new Promise((resolveClose, rejectClose) => {
+    try {
+      httpServer.close((error) => {
+        if (error) rejectClose(error);
+        else resolveClose();
+      });
+    } catch (error) {
+      rejectClose(error);
+    }
+  });
+  try {
+    httpServer.closeAllConnections();
+  } catch (error) {
+    failures.push(error);
+  }
+  for (const socket of sockets) {
+    try {
+      if (!socket || typeof socket.destroy !== 'function') {
+        throw new TypeError('Invalid rendered WebGL loopback socket.');
+      }
+      socket.destroy();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  const closed = await Promise.allSettled([
+    closedHttpServer,
+    Promise.resolve().then(() => vite.close()),
+  ]);
+  for (const result of closed) {
+    if (result.status === 'rejected') failures.push(result.reason);
+  }
+  if (failures.length > 0) throw failures[0];
+}
+
+async function createLoopbackViteServer(runtimeDirectory, localQaPlugins = []) {
   const privateRuntime = exactPrivateDirectory(runtimeDirectory);
+  if (!Array.isArray(localQaPlugins) || localQaPlugins.some((plugin) => (
+    plugin === null || typeof plugin !== 'object' || typeof plugin.name !== 'string'
+  ))) throw new TypeError('Invalid local QA Vite plugin.');
   const packageJson = JSON.parse(await readFile(join(REPOSITORY_ROOT, 'package.json'), 'utf8'));
   if (
     packageJson?.name !== 'warpkeep'
@@ -1480,6 +1559,7 @@ async function createLoopbackViteServer(runtimeDirectory) {
   ) throw new Error('Invalid rendered WebGL package contract.');
   let vite;
   let expectedHost;
+  const sockets = new Set();
   const httpServer = createHttpServer((request, response) => {
     const remoteAddress = request.socket.remoteAddress;
     if (
@@ -1502,6 +1582,10 @@ async function createLoopbackViteServer(runtimeDirectory) {
       response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       response.end('Not Found\n');
     });
+  });
+  httpServer.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
   });
   httpServer.on('upgrade', (request, socket) => {
     if (
@@ -1527,8 +1611,11 @@ async function createLoopbackViteServer(runtimeDirectory) {
   });
   const address = httpServer.address();
   if (address === null || typeof address === 'string' || address.address !== '127.0.0.1') {
-    httpServer.closeAllConnections();
-    await new Promise((resolveClose) => httpServer.close(() => resolveClose()));
+    await closeRenderedWebglLoopbackServer({
+      httpServer,
+      sockets,
+      vite: { close: () => undefined },
+    });
     throw new Error('Vite did not bind the exact loopback interface.');
   }
   expectedHost = `127.0.0.1:${exactPort(address.port)}`;
@@ -1544,7 +1631,7 @@ async function createLoopbackViteServer(runtimeDirectory) {
       cacheDir: join(privateRuntime, 'vite-cache'),
       configFile: false,
       envFile: false,
-      plugins: [reactPlugin()],
+      plugins: [reactPlugin(), ...localQaPlugins],
       define: {
         __WARPKEEP_LOCAL_QA__: 'true',
         __WARPKEEP_PRODUCT_VERSION__: JSON.stringify(packageJson.version),
@@ -1559,6 +1646,11 @@ async function createLoopbackViteServer(runtimeDirectory) {
         fs: {
           strict: true,
           allow: [REPOSITORY_ROOT],
+          // The visual-evidence lane has one explicit in-memory source route.
+          // Never let Vite's generic /@fs path expose the cached source archive
+          // (or any other asset cache) merely because the repository root is
+          // otherwise available to local development module resolution.
+          deny: RENDERED_WEBGL_QA_VITE_FS_DENY,
         },
         hmr: {
           clientPort: address.port,
@@ -1569,18 +1661,17 @@ async function createLoopbackViteServer(runtimeDirectory) {
       },
     });
   } catch (error) {
-    httpServer.closeAllConnections();
-    await new Promise((resolveClose) => httpServer.close(() => resolveClose()));
+    await closeRenderedWebglLoopbackServer({
+      httpServer,
+      sockets,
+      vite: vite ?? { close: () => undefined },
+    });
     throw error;
   }
   return Object.freeze({
     port: address.port,
     async close() {
-      httpServer.closeAllConnections();
-      await Promise.allSettled([
-        new Promise((resolveClose) => httpServer.close(() => resolveClose())),
-        vite.close(),
-      ]);
+      await closeRenderedWebglLoopbackServer({ httpServer, sockets, vite });
     },
   });
 }
@@ -2120,7 +2211,131 @@ async function captureRenderedCasePixels(session, viewport) {
   }
 }
 
-async function applyRenderedCaseInteraction(session, interaction) {
+async function readRenderedWebglCastleCanvasPointerTarget(session) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const canvas = document.querySelector('.realm-map-screen__canvas');
+      if (!(canvas instanceof HTMLCanvasElement)) return null;
+      const bounds = canvas.getBoundingClientRect();
+      const depth = ${RENDERED_WEBGL_QA_CASTLE_POINTER_DEPTH_PIXELS};
+      const moveOffsets = ${JSON.stringify(RENDERED_WEBGL_QA_CASTLE_POINTER_MOVE_OFFSETS)};
+      const insideCanvas = (x, y) => (
+        Number.isFinite(x)
+        && Number.isFinite(y)
+        && x >= bounds.left + 1
+        && y >= bounds.top + 1
+        && x <= bounds.right - 1
+        && y <= bounds.bottom - 1
+        && document.elementFromPoint(x, y) === canvas
+      );
+      const centreX = (bounds.left + bounds.right) * 0.5;
+      const centreY = (bounds.top + bounds.bottom) * 0.5;
+      const candidates = [...document.querySelectorAll('button.realm-castle-label')]
+        .map((label) => {
+          const style = getComputedStyle(label);
+          const anchorX = Number.parseFloat(style.getPropertyValue('--realm-castle-anchor-x'));
+          const anchorY = Number.parseFloat(style.getPropertyValue('--realm-castle-anchor-y'));
+          const x = bounds.left + anchorX;
+          const y = bounds.top + anchorY + depth;
+          return {
+            x,
+            y,
+            centreDistance: Math.hypot(x - centreX, y - centreY),
+          };
+        })
+        .filter((candidate) => (
+          insideCanvas(candidate.x, candidate.y)
+          && moveOffsets.every((offset) => insideCanvas(
+            candidate.x + offset.x,
+            candidate.y + offset.y
+          ))
+        ))
+        .sort((left, right) => left.centreDistance - right.centreDistance);
+      const target = candidates[0];
+      return target ? {
+        x: Math.round(target.x * 100) / 100,
+        y: Math.round(target.y * 100) / 100,
+      } : null;
+    })()`,
+    returnByValue: true,
+  });
+  if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL canvas pointer target evaluation failed.');
+  }
+  return parseRenderedWebglCastleCanvasPointerTarget(evaluation.result.value);
+}
+
+async function readRenderedWebglCastlePointerMoveState(session, target) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const canvas = document.querySelector('.realm-map-screen__canvas');
+      const map = document.querySelector('.realm-map-screen');
+      return {
+        canvasTarget: canvas instanceof HTMLCanvasElement
+          && document.elementFromPoint(${target.x}, ${target.y}) === canvas,
+        dragging: canvas?.getAttribute('data-dragging') === 'true',
+        inspectorOpen: document.querySelector('.castle-inspection') !== null,
+        navigatorOpen: document.querySelector('.realm-cell-navigator__dialog') !== null,
+        renderer: map?.getAttribute('data-renderer') ?? null,
+        selectedCastleLabelCount: document.querySelectorAll(
+          'button.realm-castle-label[aria-pressed="true"]'
+        ).length,
+      };
+    })()`,
+    returnByValue: true,
+  });
+  if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL canvas pointer state evaluation failed.');
+  }
+  return parseRenderedWebglCastlePointerMoveState(evaluation.result.value);
+}
+
+/**
+ * Replays a short real-pointer path entirely on the WebGL canvas, verifies
+ * that hover processing did not open or select a UI surface, then activates
+ * the rendered castle with one normal pointer press/release pair.
+ */
+export async function applyRenderedWebglCastleCanvasInteraction(session) {
+  const target = await readRenderedWebglCastleCanvasPointerTarget(session);
+  for (const offset of RENDERED_WEBGL_QA_CASTLE_POINTER_MOVE_OFFSETS) {
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: target.x + offset.x,
+      y: target.y + offset.y,
+      button: 'none',
+      buttons: 0,
+      pointerType: 'mouse',
+    });
+  }
+  try {
+    await readRenderedWebglCastlePointerMoveState(session, target);
+  } catch {
+    throw new Error('Rendered WebGL QA pointer-move UI churn.');
+  }
+  await session.command('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x: target.x,
+    y: target.y,
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    pointerType: 'mouse',
+  });
+  await session.command('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: target.x,
+    y: target.y,
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    pointerType: 'mouse',
+  });
+  return Object.freeze({
+    pointerMoveCount: RENDERED_WEBGL_QA_CASTLE_POINTER_MOVE_OFFSETS.length,
+  });
+}
+
+export async function applyRenderedWebglCaseInteraction(session, interaction) {
   if (interaction === 'default') return Object.freeze({});
   if (interaction === 'cluster') {
     // The accepted baseline frame already proves the mobile fixture is fully
@@ -2229,6 +2444,9 @@ async function applyRenderedCaseInteraction(session, interaction) {
       ? '.realm-cell-navigator > button'
       : '';
   if (!selector) throw new Error('Invalid rendered WebGL QA interaction.');
+  const successfulInteractionEvidence = interaction === 'inspector'
+    ? '{ inspectorLabelActivated: true }'
+    : 'true';
   const evaluation = await session.command('Runtime.evaluate', {
     expression: `(() => {
       const visible = (element) => {
@@ -2251,13 +2469,17 @@ async function applyRenderedCaseInteraction(session, interaction) {
       if (!(target instanceof HTMLButtonElement)) return false;
       target.focus({ preventScroll: true });
       target.click();
-      return true;
+      return ${successfulInteractionEvidence};
     })()`,
     returnByValue: true,
   });
-  if (evaluation?.exceptionDetails || evaluation?.result?.value !== true) {
+  if (evaluation?.exceptionDetails) {
     throw new Error('Rendered WebGL QA interaction failed.');
   }
+  if (interaction === 'inspector') {
+    return parseRenderedWebglInspectorLabelActivationEvidence(evaluation?.result?.value);
+  }
+  if (evaluation?.result?.value !== true) throw new Error('Rendered WebGL QA interaction failed.');
   return Object.freeze({});
 }
 
@@ -2274,11 +2496,34 @@ async function runRenderedCase(session, probeCase, state) {
   const baseline = Object.freeze({ ...probeCase, interaction: 'default' });
   await waitForAcceptedRenderedDom(session, baseline, state);
   await captureRenderedCasePixels(session, probeCase.viewport);
+  if (probeCase.id === RENDERED_WEBGL_QA_CASTLE_POINTER_ACTIVATION_CASE_ID) {
+    const canvasInteraction = await applyRenderedWebglCastleCanvasInteraction(session);
+    if (
+      canvasInteraction.pointerMoveCount
+      !== RENDERED_WEBGL_QA_CASTLE_POINTER_MOVE_OFFSETS.length
+    ) throw new Error('Rendered WebGL canvas pointer sequence was incomplete.');
+    // The inspector is available only for a castle target. Requiring it after
+    // an actual canvas press/release therefore proves the decoded, instanced
+    // GLB won the scene raycast over terrain; a label click cannot satisfy
+    // this lane because every candidate was verified as canvas-hit before
+    // input was dispatched.
+    const canvasActivated = Object.freeze({
+      ...probeCase,
+      interaction: 'inspector',
+      minimumLabelCount: 1,
+    });
+    await waitForAcceptedRenderedDom(session, canvasActivated, state);
+    await captureRenderedCasePixels(session, probeCase.viewport);
+  }
   if (probeCase.interaction !== 'default') {
-    const interactionEvidence = await applyRenderedCaseInteraction(
+    const interactionEvidence = await applyRenderedWebglCaseInteraction(
       session,
       probeCase.interaction
     );
+    if (
+      probeCase.interaction === 'inspector'
+      && interactionEvidence.inspectorLabelActivated !== true
+    ) throw new Error('Rendered WebGL QA inspector label activation evidence failed.');
     const interacted = Object.freeze({
       ...probeCase,
       ...interactionEvidence,
@@ -2294,11 +2539,29 @@ async function runRenderedCase(session, probeCase, state) {
   }
 }
 
-export async function runRenderedWebglBrowserProbe() {
+/**
+ * Runs the established rendered fixture matrix. Callers continue to receive
+ * the numeric rendered-case count; an optional callback receives only the
+ * already-validated aggregate LOD fidelity metrics from the separate private
+ * source comparison lane.
+ */
+export async function runRenderedWebglBrowserProbe(options = {}) {
+  const onCastleLodVisualBoundary = options?.onCastleLodVisualBoundary;
+  const onCastleLodVisualEvidence = options?.onCastleLodVisualEvidence;
+  if (
+    onCastleLodVisualBoundary !== undefined
+    && typeof onCastleLodVisualBoundary !== 'function'
+  ) throw new TypeError('Invalid castle LOD visual boundary callback.');
+  if (
+    onCastleLodVisualEvidence !== undefined
+    && typeof onCastleLodVisualEvidence !== 'function'
+  ) throw new TypeError('Invalid castle LOD visual evidence callback.');
   const reviewedChromeIdentity = await attestStableHeadlessChromeExecutable();
   const temporaryProfileDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-webgl-qa-'));
 
   let chrome;
+  let castleLodVisualSource;
+  let disposeCastleLodVisualEvidenceSource;
   let devtools;
   let vite;
   try {
@@ -2311,10 +2574,19 @@ export async function runRenderedWebglBrowserProbe() {
     ) throw new Error('The disposable Chrome profile path is unsafe.');
     const profileDirectory = await realpath(temporaryProfileDirectory);
     await chmod(profileDirectory, 0o700);
-    vite = await createLoopbackViteServer(profileDirectory);
+    const castleLodVisualProbe = await import('./castle-lod-visual-browser-probe.mjs');
+    disposeCastleLodVisualEvidenceSource = castleLodVisualProbe.disposeCastleLodVisualEvidenceSource;
+    castleLodVisualSource = castleLodVisualProbe.loadCastleLodVisualEvidenceSource();
+    vite = await createLoopbackViteServer(profileDirectory, [
+      castleLodVisualProbe.castleLodVisualEvidenceSourceVitePlugin(castleLodVisualSource)
+    ]);
+    const castleLodVisualBoundary = await castleLodVisualProbe
+      .assertCastleLodVisualEvidenceLoopbackBoundary(vite.port);
+    onCastleLodVisualBoundary?.(castleLodVisualBoundary);
     const cases = renderedWebglBrowserProbeCases(vite.port);
     const journeyProbe = await import('./qa-journey-browser-probe.mjs');
     const journeyCases = journeyProbe.qaJourneyBrowserProbeCases(vite.port);
+    const castleLodVisualUrl = castleLodVisualProbe.castleLodVisualEvidenceUrl(vite.port);
     const isAllowedProbeResourceUrl = (value) => (
       isAllowedRenderedWebglPageUrl(value, `http://127.0.0.1:${vite.port}`)
       || journeyProbe.isAllowedQaJourneyResourceUrl(value)
@@ -2335,6 +2607,7 @@ export async function runRenderedWebglBrowserProbe() {
       allowedUrls: new Set([
         ...cases.map((probeCase) => probeCase.url),
         ...journeyCases.map((probeCase) => probeCase.url),
+        castleLodVisualUrl,
       ]),
       targetId: '',
     };
@@ -2479,15 +2752,28 @@ export async function runRenderedWebglBrowserProbe() {
     } catch (error) {
       throw new Error('Synthetic journey browser lane failed.', { cause: error });
     }
+    try {
+      const castleLodVisualEvidence = await castleLodVisualProbe.runCastleLodVisualEvidenceBrowserCase(devtools, {
+        port: vite.port,
+        state,
+      });
+      onCastleLodVisualEvidence?.(castleLodVisualEvidence);
+    } catch (error) {
+      throw new Error('Local castle LOD visual evidence lane failed.', { cause: error });
+    }
     if (state.violation) {
       throw new Error(`Headless browser left the local QA boundary: ${state.violation}.`);
     }
     return RENDERED_WEBGL_QA_CASE_COUNT;
   } finally {
-    devtools?.close();
-    await terminateHeadlessChromeProcessGroup(chrome);
-    await vite?.close();
-    await rm(temporaryProfileDirectory, { recursive: true, force: true });
+    await cleanupRenderedWebglProbeResources({
+      castleLodVisualSource,
+      chrome,
+      devtools,
+      disposeCastleLodVisualEvidenceSource,
+      removeProfile: () => rm(temporaryProfileDirectory, { recursive: true, force: true }),
+      vite,
+    });
   }
 }
 
@@ -2498,9 +2784,24 @@ async function main() {
     return;
   }
   try {
-    const passedCaseCount = await runRenderedWebglBrowserProbe();
+    let castleLodVisualBoundary;
+    let castleLodVisualEvidence;
+    const passedCaseCount = await runRenderedWebglBrowserProbe({
+      onCastleLodVisualBoundary: (boundary) => {
+        castleLodVisualBoundary = boundary;
+      },
+      onCastleLodVisualEvidence: (evidence) => {
+        castleLodVisualEvidence = evidence;
+      },
+    });
+    const lodMetrics = castleLodVisualEvidence?.profiles;
+    if (!lodMetrics || !castleLodVisualBoundary) {
+      throw new Error('Castle LOD visual evidence did not complete.');
+    }
+    const lodFidelitySummary = `aggregate castle LOD fidelity ${JSON.stringify(lodMetrics)}`;
     process.stdout.write(
-      `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases and 25 journey checks.\n`
+      `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases, 25 journey checks, and `
+      + `loopback LOD boundary ${JSON.stringify(castleLodVisualBoundary)}, ${lodFidelitySummary}.\n`
     );
   } catch {
     process.stderr.write('Warpkeep rendered WebGL QA failed closed.\n');
@@ -2510,4 +2811,9 @@ async function main() {
 
 const isMain = process.argv[1]
   && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) void main();
+// Keep the command-line entrypoint attached to module evaluation. The probe
+// owns short-lived browser and server handles, and an unobserved async call
+// can make shell reporting depend on host scheduling even though the exported
+// runner correctly fails closed. Top-level await makes the package script's
+// exit status and final aggregate line authoritative too.
+if (isMain) await main();

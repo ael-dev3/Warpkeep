@@ -4,9 +4,17 @@ export const RENDERED_WEBGL_QA_CHROME:
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 export const RENDERED_WEBGL_QA_CHROME_APP: '/Applications/Google Chrome.app';
 export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: 'EQHXZ8M8AV';
-export const RENDERED_WEBGL_QA_CASE_COUNT: 12;
+export const RENDERED_WEBGL_QA_CASE_COUNT: 14;
 export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS: 112;
 export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS: 0.015;
+/** Vite 8 default deny patterns plus the local asset-cache boundary. */
+export const RENDERED_WEBGL_QA_VITE_FS_DENY: readonly [
+  '.env',
+  '.env.*',
+  '*.{crt,pem}',
+  '**/.git/**',
+  '**/.cache/**'
+];
 
 export function renderedWebglLabelAnchorDistanceTelemetry(distance: number): Readonly<{
   reportedDistance: number;
@@ -43,6 +51,7 @@ export type RenderedWebglBrowserProbeInteraction =
   | 'inspector'
   | 'explore'
   | 'cluster';
+export type RenderedWebglBrowserProbeControlState = 'visible' | 'hidden' | 'absent';
 
 export type RenderedWebglBrowserProbeCase = Readonly<{
   id:
@@ -50,6 +59,7 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'desktop-balanced'
     | 'full-hd-balanced'
     | 'tablet-balanced-inspector'
+    | 'tablet-balanced-player-inspector'
     | 'mobile-balanced-cluster'
     | 'desktop-reduced'
     | 'desktop-invalid-fallback'
@@ -57,9 +67,12 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'mobile-balanced-player'
     | 'mobile-balanced'
     | 'mobile-reduced-inspector'
-    | 'short-landscape-explore';
+    | 'short-landscape-explore'
+    | 'short-landscape-balanced-player-explore';
   expectedQuality: RenderedWebglBrowserProbeQuality;
   expectedPresentationMode: RenderedWebglBrowserProbePresentationMode;
+  /** Strict player HUD state required after a constrained interactive surface opens. */
+  expectedPlayerActionControlState?: RenderedWebglBrowserProbeControlState;
   interaction: RenderedWebglBrowserProbeInteraction;
   minimumLabelCount: number;
   /** Confirms a real cluster control existed immediately before activation. */
@@ -103,6 +116,27 @@ export function terminateHeadlessChromeProcessGroup(
     wait?: (milliseconds: number) => Promise<unknown>;
   }>
 ): Promise<void>;
+
+/** Attempts all cleanup actions even if one rejects, then rethrows the first failure. */
+export function cleanupRenderedWebglProbeResources(options?: Readonly<{
+  castleLodVisualSource?: unknown;
+  chrome?: ChildProcess;
+  devtools?: Readonly<{ close(): unknown }>;
+  disposeCastleLodVisualEvidenceSource?: (source: unknown) => unknown;
+  removeProfile?: () => unknown;
+  terminate?: (child: ChildProcess | undefined) => unknown;
+  vite?: Readonly<{ close(): unknown }>;
+}>): Promise<void>;
+
+/** Closes all accepted HTTP/HMR sockets before awaiting the loopback listener. */
+export function closeRenderedWebglLoopbackServer(options: Readonly<{
+  httpServer: Readonly<{
+    close(callback: (error?: Error) => void): unknown;
+    closeAllConnections(): unknown;
+  }>;
+  sockets: Iterable<Readonly<{ destroy(): unknown }>>;
+  vite: Readonly<{ close(): unknown }>;
+}>): Promise<void>;
 
 export function selectBlankPageTarget(value: unknown): Readonly<{
   targetId: string;
@@ -154,6 +188,48 @@ export function parseRenderedWebglBrowserDom(
   totalTerrainDetailDrawCalls: number;
 }>;
 
+/** Bounded page coordinates only; no castle, profile, or identity data. */
+export function parseRenderedWebglCastleCanvasPointerTarget(value: unknown): Readonly<{
+  x: number;
+  y: number;
+}>;
+
+export function parseRenderedWebglCastlePointerMoveState(value: unknown): Readonly<{
+  canvasTarget: true;
+  dragging: false;
+  inspectorOpen: false;
+  navigatorOpen: false;
+  renderer: 'webgl';
+  selectedCastleLabelCount: 0;
+}>;
+
+/** Structural local-QA evidence only; it never includes a castle or identity value. */
+export function parseRenderedWebglInspectorLabelActivationEvidence(value: unknown): Readonly<{
+  inspectorLabelActivated: true;
+}>;
+
+export type RenderedWebglCastleCanvasPointerSession = Readonly<{
+  command: (
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
+  ) => Promise<unknown>;
+}>;
+
+export function applyRenderedWebglCastleCanvasInteraction(
+  session: RenderedWebglCastleCanvasPointerSession
+): Promise<Readonly<{ pointerMoveCount: 5 }>>;
+
+export type RenderedWebglBrowserProbeInteractionEvidence = Readonly<{
+  clusterButtonCountBefore?: number;
+  clusterMemberCountBefore?: number;
+  inspectorLabelActivated?: true;
+}>;
+
+export function applyRenderedWebglCaseInteraction(
+  session: RenderedWebglCastleCanvasPointerSession,
+  interaction: RenderedWebglBrowserProbeInteraction
+): Promise<RenderedWebglBrowserProbeInteractionEvidence>;
+
 export function analyzeRenderedWebglPngScreenshot(
   value: Buffer,
   viewport: Readonly<{ width: number; height: number }>
@@ -164,4 +240,24 @@ export function analyzeRenderedWebglPngScreenshot(
   sampleCount: number;
 }>;
 
-export function runRenderedWebglBrowserProbe(): Promise<12>;
+export type RenderedWebglCastleLodVisualEvidence = Readonly<{
+  renderer: 'webgl';
+  targetPixels: 384;
+  profiles: Readonly<Record<'high' | 'balanced' | 'compact', Readonly<{
+    coverageDeltaBasisPoints: number;
+    meanColorDelta: number;
+    silhouetteIouBasisPoints: number;
+  }>>>;
+}>;
+
+/** Status-only confirmation of the live local source-route boundary. */
+export type RenderedWebglCastleLodVisualBoundary = Readonly<{
+  archiveStatus: number;
+  exactStatus: number;
+  queryStatus: number;
+}>;
+
+export function runRenderedWebglBrowserProbe(options?: Readonly<{
+  onCastleLodVisualBoundary?: (boundary: RenderedWebglCastleLodVisualBoundary) => void;
+  onCastleLodVisualEvidence?: (evidence: RenderedWebglCastleLodVisualEvidence) => void;
+}>): Promise<14>;

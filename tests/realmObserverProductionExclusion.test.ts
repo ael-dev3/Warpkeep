@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 const LOCAL_QA_HTML_ENTRIES = Object.freeze([
   'dev/qa-journey.html',
   'dev/realm-observer-qa.html',
-  'dev/realm-rendered-webgl-qa.html'
+  'dev/realm-rendered-webgl-qa.html',
+  'dev/castle-lod-visual-evidence.html'
 ]);
 
 const LOCAL_QA_CONNECT_SOURCES = Object.freeze([
@@ -48,6 +49,10 @@ describe('local QA production exclusion', () => {
       expect(policies[0]?.getAttribute('content'), entry).toBe(
         LOCAL_QA_CONTENT_SECURITY_POLICY
       );
+      const icons = parsed.querySelectorAll('link[rel="icon"]');
+      expect(icons, entry).toHaveLength(1);
+      expect(icons[0]?.getAttribute('href'), entry).toBe('/favicon.svg');
+      expect(icons[0]?.getAttribute('type'), entry).toBe('image/svg+xml');
     }
 
     expect(LOCAL_QA_CONTENT_SECURITY_POLICY).not.toContain("'unsafe-eval'");
@@ -88,6 +93,10 @@ describe('local QA production exclusion', () => {
     );
     const renderedMain = readFileSync(
       resolve(root, 'src/dev/realmRenderedWebglQaMain.tsx'),
+      'utf8'
+    );
+    const castleLodVisualMain = readFileSync(
+      resolve(root, 'src/dev/castleLodVisualEvidenceMain.ts'),
       'utf8'
     );
     const journeyMain = readFileSync(resolve(root, 'src/dev/qaJourneyMain.tsx'), 'utf8');
@@ -133,6 +142,9 @@ describe('local QA production exclusion', () => {
     expect(renderedMain).toContain('assertLocalQaRuntime()');
     expect(renderedMain).toContain("import('./RenderedWebglQaHarness')");
     expect(renderedMain).not.toMatch(/^import .*RenderedWebglQaHarness/m);
+    expect(castleLodVisualMain).toContain('assertLocalQaRuntime()');
+    expect(castleLodVisualMain).toContain("'/_warpkeep-local-qa/hegemony-main-castle-source.glb'");
+    expect(castleLodVisualMain).not.toMatch(/(?:useFarcasterAuth|FarcasterAuthProvider|useWarpkeepBackend|WarpkeepSpacetimeProvider)/);
     expect(journeyMain).toContain('assertLocalQaRuntime()');
     expect(journeyMain).toContain("import('./WarpkeepQaJourneyLab')");
     expect(journeyMain).not.toMatch(/^import .*WarpkeepQaJourneyLab/m);
@@ -156,10 +168,12 @@ describe('local QA production exclusion', () => {
     expect(verifier).toContain('WARPKEEP QA JOURNEY LAB');
     expect(verifier).toContain('realm-observer-qa.html');
     expect(verifier).toContain('realm-rendered-webgl-qa.html');
+    expect(verifier).toContain('castle-lod-visual-evidence.html');
     expect(verifier).toContain('realmObserverFixtureSnapshot');
     expect(verifier).toContain('createRealmObserverFixtureRealm');
     expect(verifier).toContain('QA OBSERVER · READ ONLY');
     expect(verifier).toContain('RenderedWebglQaHarness');
+    expect(verifier).toContain('castleLodVisualEvidenceMain');
     expect(verifier).toContain('createRenderedWebglQaFixtureRealm');
     expect(verifier).toContain('LOCAL RENDERED WEBGL QA');
     expect(verifier).toContain('QA_OBSERVER_ENABLED');

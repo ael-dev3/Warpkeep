@@ -4,7 +4,7 @@
 
 **Every FID has a castle.** Warpkeep is an open-source, Farcaster-native strategy world where identity anchors a keep and SpacetimeDB owns the shared state.
 
-Alpha 0.3.3 is live. Genesis 001 spans 1,261 deterministic Lowlands cells
+Alpha 0.3.4 is the current Pages-only release. Genesis 001 spans 1,261 deterministic Lowlands cells
 and 100 permanent castle slots ordered outward from a close-knit founding
 district. The public build includes the real 3D stone title, an intentional
 Alpha Terms gate, browser-bound Sign In with Farcaster, rotating HttpOnly
@@ -20,18 +20,18 @@ scope and verification. The site is a real product surface and technical
 foundation, not a claim that resources, upgrades, units, combat, alliances,
 chat, or seasons are playable yet.
 
-The checked-in `0.3.4` source is a Pages-only candidate, not a deployment or
-tag claim; the verified public release remains Alpha 0.3.3 until its exact
-commit completes the protected release gates. The candidate admits only one
-exact, complete Genesis 001 snapshot; renders every
-visible founded castle with a shared real Hegemony GLB LOD; separates hover,
-selection, inspection, camera, and keyboard-focus state; and introduces a
-compact safe-area-aware HUD, inspector, navigator, and camera composition. Its
-public profile presentation is bounded and sanitized, with neutral nonnumeric
-fallbacks. The patch preserves the Alpha 0.3.2 authentication, protocol,
-admission, world, castle, wallet, and Marks authority boundaries.
+Alpha 0.3.4 replaces the earlier Frontier Keep derivatives with the optimized
+high, balanced, and compact Hegemony Main Castle GLBs. It admits only one exact,
+complete Genesis 001 snapshot; renders every visible founded castle with a
+shared real Hegemony GLB LOD; separates hover, selection, inspection, camera,
+and keyboard-focus state; and introduces a compact safe-area-aware HUD,
+inspector, navigator, and camera composition. Its public profile presentation
+is bounded and sanitized, with neutral nonnumeric fallbacks. The patch preserves
+the Alpha 0.3.2 authentication, protocol, admission, world, castle, wallet,
+and Marks authority boundaries. The protected Pages workflow and exact build
+stamp remain the source of truth for the public deployment coordinate.
 
-## Live Alpha 0.3.3 foundation
+## Alpha 0.3.4 foundation
 
 - Standard website SIWF with an independently verifying Cloudflare Worker and short-lived OIDC handoff.
 - Server-authoritative SpacetimeDB module with private admission/auth-epoch controls and public world/player/castle boundaries.
@@ -40,11 +40,11 @@ admission, world, castle, wallet, and Marks authority boundaries.
 - Exact build identity, fail-closed configuration, reduced-motion behavior, keyboard/touch controls, and non-WebGL/model fallbacks.
 - Apache-2.0 software and CC-BY-4.0 project-owned creative work from v0.3.0 onward, with historical and external terms preserved.
 
-Alpha 0.3.3 replaces the peer-marker presentation with real
-instanced keeps, removes the standalone 61-cell browser fallback, and keeps the
+Alpha 0.3.3 replaced the peer-marker presentation with real
+instanced keeps, removed the standalone 61-cell browser fallback, and kept the
 illustrated fallback bound to the same canonical 1,261-cell snapshot. See the
-[Alpha 0.3.3 release notes](docs/releases/alpha-0.3.3.md) for its validation
-scope and honest residual limits.
+[Alpha 0.3.4 release notes](docs/releases/alpha-0.3.4.md) for its validation
+scope, release boundary, and honest residual limits.
 
 The canonical player domain is [warpkeep.com](https://warpkeep.com/), and the
 main community home is the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep).

@@ -1,4 +1,4 @@
-import { analyzeRenderedWebglPngScreenshot } from './rendered-webgl-browser-probe.mjs';
+import { analyzeRenderedWebglPngScreenshot } from './png-visual-aggregate.mjs';
 import {
   QA_JOURNEY_SCENARIO_MANIFEST,
   QA_UNSCANNABLE_QR_DATA_URL,

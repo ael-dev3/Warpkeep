@@ -7,6 +7,7 @@ const forbiddenPathFragments = Object.freeze([
   'qa-journey.html',
   'realm-observer-qa.html',
   'realm-rendered-webgl-qa.html',
+  'castle-lod-visual-evidence.html',
   'realm-qa.html'
 ]);
 const forbiddenContent = Object.freeze([
@@ -41,6 +42,9 @@ const forbiddenContent = Object.freeze([
   'LOCAL RENDERED WEBGL QA',
   'SYNTHETIC · 100 CASTLES · NO AUTHORITY',
   'synthetic-canonical-100',
+  'castleLodVisualEvidenceMain',
+  'warpkeep-local-castle-lod-source',
+  'hegemony-main-castle-source.glb',
   // The browser release is deliberately independent of the disabled,
   // machine-bound QA observer service. A Pages-only candidate must never ship
   // its endpoint, procedure, or configuration names to player JavaScript.

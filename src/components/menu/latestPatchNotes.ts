@@ -37,17 +37,18 @@ const ALPHA_0_3_3_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 });
 
 const ALPHA_0_3_4_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: 'LOCAL CANDIDATE',
+  releasedOn: '15 JUL 2026',
   title: 'REALM QUALITY FOLLOW-THROUGH',
   summary:
-    'Alpha 0.3.4 is the next Pages-only candidate, tightening the Genesis realm presentation without changing player authority.',
+    'Alpha 0.3.4 tightens the Genesis realm presentation without changing player authority.',
   highlights: Object.freeze([
     'Castle labels stay attached to the visible keep silhouette through dense clusters, viewport changes, and responsive layouts.',
-    'The exact compact Hegemony GLB is decoded, instanced, and pointer-raycast in a local regression before terrain can be selected.',
-    'The rendered browser matrix now exercises the complete mobile player HUD at 390×844 as well as desktop, tablet, and short-landscape views.',
-    'Local QA remains excluded from production Pages assets. This candidate does not publish a Worker, SpacetimeDB module, profile refresh, admission, world, castle, wallet, or Marks change.'
+    'Optimized Hegemony Main Castle models now replace the earlier Frontier Keep derivatives across the shared realm.',
+    'The exact compact Hegemony GLB is decoded, instanced, and activated from the WebGL canvas in a local regression before terrain can be selected.',
+    'The rendered browser matrix now exercises complete player layouts across desktop, tablet, mobile, and short-landscape views.',
+    'Local QA remains excluded from production Pages assets. This release does not publish a Worker, SpacetimeDB module, profile refresh, admission, world, castle, wallet, or Marks change.'
   ]),
-  alphaNotice: 'Local candidate — not deployed or tagged. Alpha systems remain experimental and may change.'
+  alphaNotice: 'Released 15 July 2026. Alpha systems remain experimental and may change.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =

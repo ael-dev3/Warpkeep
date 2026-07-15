@@ -49,6 +49,23 @@ export type HegemonyKeepLoadResult = Readonly<{
   assetUrl: string;
 }>;
 
+/**
+ * The renderer-facing portion of a verified keep load. Keeping this in one
+ * shared function ensures local visual evidence and production instancing use
+ * the same ground alignment, target footprint, yaw, material containment,
+ * texture colour space, and shadow flags.
+ */
+export type PreparedHegemonyKeepScene = Readonly<{
+  root: THREE.Group;
+  visualHeight: number;
+  footprintDiameter: number;
+}>;
+
+export type PrepareHegemonyKeepSceneOptions = Readonly<{
+  dynamicShadows: boolean;
+  maxAnisotropy: number;
+}>;
+
 export type LoadHegemonyKeepOptions = Readonly<{
   quality: RealmQualitySpec;
   baseUrl: string;
@@ -255,6 +272,52 @@ function tuneKeepMaterial(material: THREE.Material, anisotropy: number) {
   material.needsUpdate = true;
 }
 
+/**
+ * Normalizes an already integrity-verified parsed GLB into the production
+ * castle coordinate frame. It intentionally owns no network or cache state,
+ * so a local, source-pinned QA page can exercise the identical visual path
+ * without gaining access to player or backend authority.
+ */
+export function prepareHegemonyKeepScene(
+  scene: THREE.Object3D,
+  options: PrepareHegemonyKeepSceneOptions
+): PreparedHegemonyKeepScene {
+  const box = new THREE.Box3().setFromObject(scene);
+  const normalization = calculateKeepNormalization({
+    minX: box.min.x,
+    minY: box.min.y,
+    minZ: box.min.z,
+    maxX: box.max.x,
+    maxY: box.max.y,
+    maxZ: box.max.z
+  });
+  const maxAnisotropy = Number.isFinite(options.maxAnisotropy)
+    ? Math.max(1, options.maxAnisotropy)
+    : 1;
+  scene.scale.setScalar(normalization.scale);
+  scene.position.set(
+    normalization.offsetX,
+    normalization.offsetY,
+    normalization.offsetZ
+  );
+  scene.rotation.y = HEGEMONY_MAIN_CASTLE.yawRadians;
+  scene.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    object.castShadow = options.dynamicShadows;
+    object.receiveShadow = true;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.forEach((material) => tuneKeepMaterial(material, maxAnisotropy));
+  });
+  const root = new THREE.Group();
+  root.name = HEGEMONY_MAIN_CASTLE.id;
+  root.add(scene);
+  return {
+    root,
+    visualHeight: normalization.visualHeight,
+    footprintDiameter: normalization.footprintDiameter,
+  };
+}
+
 export async function loadHegemonyKeep(
   options: LoadHegemonyKeepOptions
 ): Promise<HegemonyKeepLoadResult> {
@@ -265,36 +328,12 @@ export async function loadHegemonyKeep(
     bytes.slice(0),
     assetUrl.slice(0, assetUrl.lastIndexOf('/') + 1)
   );
-  const box = new THREE.Box3().setFromObject(scene);
-  const normalization = calculateKeepNormalization({
-    minX: box.min.x,
-    minY: box.min.y,
-    minZ: box.min.z,
-    maxX: box.max.x,
-    maxY: box.max.y,
-    maxZ: box.max.z
+  const prepared = prepareHegemonyKeepScene(scene, {
+    dynamicShadows: options.quality.dynamicShadows,
+    maxAnisotropy: options.maxAnisotropy
   });
-  scene.scale.setScalar(normalization.scale);
-  scene.position.set(
-    normalization.offsetX,
-    normalization.offsetY,
-    normalization.offsetZ
-  );
-  scene.rotation.y = HEGEMONY_MAIN_CASTLE.yawRadians;
-  scene.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return;
-    object.castShadow = options.quality.dynamicShadows;
-    object.receiveShadow = true;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.forEach((material) => tuneKeepMaterial(material, options.maxAnisotropy));
-  });
-  const root = new THREE.Group();
-  root.name = HEGEMONY_MAIN_CASTLE.id;
-  root.add(scene);
   return {
-    root,
-    visualHeight: normalization.visualHeight,
-    footprintDiameter: normalization.footprintDiameter,
+    ...prepared,
     assetUrl
   };
 }

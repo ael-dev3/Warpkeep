@@ -315,12 +315,15 @@ describe('real-browser synthetic journey probe', () => {
     ), 'utf8');
 
     expect(renderedSource).toContain("await import('./qa-journey-browser-probe.mjs')");
+    expect(renderedSource).toContain("from './png-visual-aggregate.mjs'");
     expect(renderedSource).toContain('...journeyCases.map((probeCase) => probeCase.url)');
     expect(renderedSource).toContain(
       'await journeyProbe.runQaJourneyBrowserCases(devtools, journeyCases, state)'
     );
     expect(journeySource).toContain("session.command('Page.captureScreenshot'");
     expect(journeySource).toContain('bytes.fill(0)');
+    expect(journeySource).toContain("from './png-visual-aggregate.mjs'");
+    expect(journeySource).not.toContain("from './rendered-webgl-browser-probe.mjs'");
     expect(journeySource).toContain(
       'qrSource === ${JSON.stringify(QA_UNSCANNABLE_QR_DATA_URL)}'
     );
