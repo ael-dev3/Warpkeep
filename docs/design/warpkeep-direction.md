@@ -15,11 +15,11 @@ The game should feel like a blend of:
 - open-source moddability,
 - and player-driven social stories.
 
-It should not start as a full Civilization clone, a full Rise of Kingdoms clone, or a giant MMO. The first version should be small, legible, and playable.
+It should not start as a simulation-heavy 4X clone, a full-scale mobile kingdom-management game, or a giant MMO. The first version should be small, legible, and playable.
 
 ## Core thesis
 
-The strongest idea is not "browser Civ."
+The strongest idea is not "browser 4X."
 
 The stronger thesis is:
 
@@ -68,17 +68,17 @@ The game should prioritize social legibility over simulation size.
 
 ## Design inspiration
 
-Warpkeep can borrow useful patterns from classic 4X games, mobile strategy games, and sci-fi/fantasy faction fiction, but it should not copy any source literally.
+Warpkeep can learn from broad patterns in classic 4X games, mobile strategy games, and sci-fi/fantasy faction fiction, but its names, institutions, symbols, history, and visual identity should be created for Warpkeep.
 
 Useful inspirations:
 
-- Civilization-style empire loops: explore, grow, produce, research, fight, expand.
-- Rise of Kingdoms-style pacing: timers, asynchronous actions, alliances, seasons, events.
+- Classic empire loops: explore, grow, produce, research, fight, expand.
+- Asynchronous strategy pacing: timers, alliances, seasons, and events.
 - Farcaster-native social apps: public identity, social graph, casts, mini apps, channel culture.
-- Hyperion-inspired faction themes: hegemony, outer human cultures, machine intelligence, network civilization.
+- Warpkeep-native faction themes: fortified order, self-governing frontier keeps, machine pressure, and network civilization.
 - Broader sci-fi/fantasy strategy themes: order versus frontier autonomy versus artificial intelligence.
 
-The implementation target should begin closer to a "Civ 1 skeleton" than a "Civ 4 simulation."
+The implementation target should begin as a small, deterministic strategy skeleton rather than a simulation-heavy empire game.
 
 Start with the smallest complete loop:
 
@@ -166,15 +166,15 @@ This is important because a social strategy game must feel alive with:
 
 PvE pressure can carry the early game until enough humans exist for deeper faction politics.
 
-## Future second human faction: Ousters
+## Future second human faction concept: The Farwake Compact
 
-A later playable human faction should be the Ousters.
+A possible later playable human faction is the Farwake Compact. This is a future design concept, not a shipped faction or promised feature.
 
-The Ousters should stay closer to the Hyperion-inspired reference point than a generic renamed frontier faction. The faction name "Ousters" and the core outer-human faction feel are intentionally part of the current thematic direction.
+In Warpkeep lore, the Farwake is the shifting fringe beyond the Hegemony's stable relay lanes. Its keeps survive through local knowledge, mutual pacts, and the ability to reorganize when routes or resources change. The Compact is the voluntary network those keeps form without surrendering local rule.
 
 Faction identity:
 
-- outer human culture,
+- distant frontier communities,
 - frontier autonomy,
 - adaptation,
 - self-governance,
@@ -183,7 +183,7 @@ Faction identity:
 - looser social order,
 - more emergent politics.
 
-The Ousters should feel like a real alternative to the Hegemony, not merely a "rebels" skin.
+The Farwake Compact should feel like a real alternative to the Hegemony, not merely a "rebels" skin.
 
 They are not anti-human. They are a different human answer to the same network civilization problem.
 
@@ -191,11 +191,11 @@ The Hegemony says:
 
 > order protects humanity.
 
-The Ousters say:
+The Farwake Compact says:
 
 > freedom and adaptation preserve humanity.
 
-Warpkeep should keep the Ousters close enough to the intended reference point to preserve their faction identity, while still developing the faction into original Warpkeep worldbuilding over time.
+Its culture, institutions, symbols, architecture, and history should grow from Warpkeep's own network-as-geography premise and the consequences of these mechanics.
 
 ## Possible faction contrast
 
@@ -212,7 +212,7 @@ The Hegemony:
 - official infrastructure,
 - regulated economy.
 
-The Ousters:
+The Farwake Compact:
 
 - freedom,
 - adaptation,
@@ -243,11 +243,11 @@ A possible future mechanic:
 
 Hegemony players cannot attack other Hegemony players. This is not merely a rule; it expresses the faction fantasy. The Hegemony provides order and internal security.
 
-Ousters may be allowed to attack members of their own faction, but those actions should be visible and socially meaningful.
+Farwake Compact members may be allowed to attack members of their own faction, but those actions should be visible and socially meaningful.
 
 This creates an unwritten social contract:
 
-- Ousters have freedom,
+- Compact keeps have freedom,
 - betrayal is possible,
 - aggression is visible,
 - reputation matters,
@@ -255,12 +255,12 @@ This creates an unwritten social contract:
 
 This mechanic should not be added too early. It is promising, but it requires enough active players to matter and enough safeguards to prevent griefing.
 
-If implemented, Ouster same-faction attacks should have:
+If implemented, Compact same-faction attacks should have:
 
 - clear logs,
 - public reports,
 - reputation effects,
-- possible exile/ouster mechanics,
+- possible exile or compact-sanction mechanics,
 - cooldowns or limits,
 - faction-level retaliation tools,
 - and strong anti-abuse rules.
@@ -269,7 +269,7 @@ The important distinction:
 
 > Hegemony order is enforced by system rules.
 >
-> Ouster order is enforced by social consequences.
+> Compact order is enforced by social consequences.
 
 That distinction should become one of the game's clearest faction choices.
 
@@ -289,7 +289,7 @@ Potential public outputs:
 - faction leaderboards,
 - heroic defense records,
 - betrayal/exile records,
-- Ouster retaliation records,
+- Farwake retaliation records,
 - Hegemony defense campaigns,
 - faction propaganda,
 - seasonal recaps.
@@ -403,23 +403,23 @@ The first season should create a clean identity:
 
 Working title:
 
-> Ouster Contact Season
+> Farwake Accord Season
 
 Premise:
 
-The Ousters appear as a second human faction after the Hegemony/Core loop is already playable.
+The Farwake Compact appears as a second human faction after the Hegemony/Core loop is already playable.
 
 The season should introduce:
 
 - faction choice,
-- Ouster keeps,
-- Ouster scouting bonuses,
-- Ouster autonomy mechanics,
+- Farwake keeps,
+- Farwake scouting bonuses,
+- Compact autonomy mechanics,
 - public faction conflict,
 - limited PvP,
-- and possibly Ouster same-faction aggression with social consequences.
+- and possibly Compact same-faction aggression with social consequences.
 
-Do not introduce the Ousters until the game has enough active players and enough systems to make the faction choice meaningful.
+Do not introduce the Farwake Compact until the game has enough active players and enough systems to make the faction choice meaningful.
 
 ## Data model direction
 
@@ -455,7 +455,7 @@ Possible later entities:
 - faction_laws
 - community_realms
 - modules
-- ouster_conflict_logs
+- farwake_conflict_logs
 - hegemony_campaigns
 - faction_markets
 - player_trade_offers
@@ -545,7 +545,7 @@ After the MVP works, add depth gradually:
 
 ### Phase 3
 
-- Ousters as second human faction.
+- Farwake Compact as a second human faction.
 - Social reputation.
 - Controlled PvP.
 - Faction contrast.
@@ -557,7 +557,7 @@ After the MVP works, add depth gradually:
 - Community realms.
 - Modding hooks.
 - More advanced strategy systems.
-- Ouster self-governance mechanics.
+- Farwake self-governance mechanics.
 
 ### Phase 5
 
@@ -572,7 +572,7 @@ After the MVP works, add depth gradually:
 
 ## Important product warning
 
-Do not try to build a full Civ/RoK-style MMO immediately.
+Do not try to build a full-scale 4X MMO immediately.
 
 That is too large for the first version and will likely bury the strongest idea.
 
@@ -651,17 +651,15 @@ Useful themes:
 - social graph as geography,
 - official markets versus informal economies.
 
-The current faction direction intentionally includes Hyperion-inspired language and themes, especially:
+The current faction direction begins with three Warpkeep-native positions:
 
-- Hegemony of Man,
-- Ousters,
-- Core-like machine intelligence.
+- the Hegemony protects a stable founding district through coordinated rule;
+- the Core applies nonhuman pressure through hostile network infrastructure;
+- the Farwake Compact offers a future model of voluntary frontier coordination.
 
-However, Warpkeep should still become its own game world over time.
+All faction names, institutions, symbols, slogans, architecture, terminology, and history should originate within Warpkeep. Genre-level themes may inform a design problem, but no named external work should be used as a faction template or fidelity target. Do not reuse distinctive faction names, structures, imagery, characters, places, objects, or plot architecture from another setting.
 
-Avoid importing too many exact names, places, objects, or plot structures from any single existing IP.
-
-A small amount of homage or community-native reference is acceptable. The goal is to develop a distinct Farcaster-native strategy setting.
+New lore should follow from Warpkeep's own mechanics: Farcaster identity as geography, keeps as persistent social anchors, public reputation, seasonal pressure, and deterministic shared-world rules.
 
 ## Naming guidance
 
@@ -688,7 +686,9 @@ Faction naming direction:
 
 - Hegemony of Man or The Hegemony for the initial playable faction.
 - The Core for the AI faction.
-- Ousters for the later second human faction.
+- The Farwake Compact as the working concept for a later second human faction.
+
+Future names remain subject to an originality and confusing-similarity review before they become canonical. A working design name does not claim a shipped feature.
 
 ## Success criteria
 
@@ -711,7 +711,7 @@ A successful later Warpkeep is one where players can also say:
 
 - I chose a faction because its philosophy fit my play style.
 - Hegemony felt ordered and safe.
-- Ousters felt free and risky.
+- The Farwake Compact felt free and risky.
 - The Core created pressure.
 - Player reputation mattered.
 - The economy felt faction-specific.

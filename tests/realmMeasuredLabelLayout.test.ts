@@ -98,6 +98,24 @@ describe('measured realm label layout', () => {
     expect(result.culled.filter((entry) => entry.reason === 'capacity')).toHaveLength(2);
   });
 
+  it('attempts all 100 bounded candidates before collision culling', () => {
+    const result = resolveMeasuredRealmLabelLayout({
+      anchors: Array.from({ length: 100 }, (_, index) => candidate(index + 1, {
+        x: 180 + (index % 5),
+        y: 160 + (index % 3),
+        distance: index
+      })),
+      viewportBounds: viewport,
+      safeAreaBounds: safeArea,
+      reservedUiRects: [],
+      maximumLabels: 100
+    });
+
+    expect(result.placements.length + result.culled.length).toBe(100);
+    expect(result.culled.some((entry) => entry.reason === 'capacity')).toBe(false);
+    expect(result.culled.some((entry) => entry.reason === 'collision')).toBe(true);
+  });
+
   it('keeps text-bearing compact identity presentation for accepted far mobile labels', () => {
     const result = resolveMeasuredRealmLabelLayout({
       anchors: [candidate(1, {

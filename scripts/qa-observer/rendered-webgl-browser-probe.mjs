@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 
 import {
   parseRenderedWebglQaObservation,
@@ -27,7 +28,14 @@ const CHROME_STARTUP_TIMEOUT_MILLISECONDS = 15_000;
 const CASE_TIMEOUT_MILLISECONDS = RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS + 5_000;
 const CDP_COMMAND_TIMEOUT_MILLISECONDS = 10_000;
 const HTTP_RESPONSE_MAXIMUM_BYTES = 256 * 1_024;
+const PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS = 5_000;
+const SCREENSHOT_MAXIMUM_CHUNKS = 4_096;
+const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 const TERMINATION_GRACE_MILLISECONDS = 2_000;
+
+const DESKTOP_VIEWPORT = Object.freeze({ width: 1_440, height: 900 });
+const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
+const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
 
 function exactPort(value) {
   if (!Number.isSafeInteger(value) || value < 1 || value > 65_535) {
@@ -53,24 +61,60 @@ export function renderedWebglBrowserProbeCases(port) {
   const origin = `http://127.0.0.1:${selectedPort}`;
   return Object.freeze([
     Object.freeze({
-      id: 'high',
+      id: 'desktop-high',
       expectedQuality: 'high',
+      interaction: 'default',
+      minimumLabelCount: 14,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'high' }),
+      viewport: DESKTOP_VIEWPORT,
     }),
     Object.freeze({
-      id: 'balanced',
+      id: 'desktop-balanced',
       expectedQuality: 'balanced',
+      interaction: 'default',
+      minimumLabelCount: 14,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
+      viewport: DESKTOP_VIEWPORT,
     }),
     Object.freeze({
-      id: 'reduced',
+      id: 'desktop-reduced',
       expectedQuality: 'reduced',
+      interaction: 'default',
+      minimumLabelCount: 10,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'reduced' }),
+      viewport: DESKTOP_VIEWPORT,
     }),
     Object.freeze({
-      id: 'invalid-fallback',
+      id: 'desktop-invalid-fallback',
       expectedQuality: 'balanced',
+      interaction: 'default',
+      minimumLabelCount: 14,
       url: `${origin}${RENDERED_WEBGL_QA_ROUTE}?quality=invalid`,
+      viewport: DESKTOP_VIEWPORT,
+    }),
+    Object.freeze({
+      id: 'mobile-balanced',
+      expectedQuality: 'balanced',
+      interaction: 'default',
+      minimumLabelCount: 10,
+      url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
+      viewport: MOBILE_VIEWPORT,
+    }),
+    Object.freeze({
+      id: 'mobile-reduced-inspector',
+      expectedQuality: 'reduced',
+      interaction: 'inspector',
+      minimumLabelCount: 8,
+      url: renderedWebglQaUrl({ port: selectedPort, quality: 'reduced' }),
+      viewport: MOBILE_VIEWPORT,
+    }),
+    Object.freeze({
+      id: 'short-landscape-explore',
+      expectedQuality: 'balanced',
+      interaction: 'explore',
+      minimumLabelCount: 6,
+      url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
+      viewport: SHORT_LANDSCAPE_VIEWPORT,
     }),
   ]);
 }
@@ -221,22 +265,65 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   const keys = Object.keys(candidate).sort();
   const expectedKeys = [
     'castleCount',
+    'documentWidth',
     'fixture',
     'href',
+    'interactionState',
+    'labelCollisionCount',
+    'labelCount',
+    'labelLeaderMismatchCount',
+    'labelReservedOverlapCount',
+    'labelsTextBearingCount',
+    'labelsWithinViewportCount',
     'mapRenderer',
+    'mapViewportCovered',
     'quality',
     'readyAfterMilliseconds',
     'renderer',
     'status',
+    'undersizedPrimaryControlCount',
+    'undersizedPrimaryControlKinds',
+    'viewportHeight',
+    'viewportWidth',
   ];
   if (
     keys.length !== expectedKeys.length
     || keys.some((key, index) => key !== expectedKeys[index])
-    || candidate.href !== expected.url
-    || candidate.status !== 'ready'
-    || candidate.mapRenderer !== 'webgl'
-    || candidate.quality !== expected.expectedQuality
-  ) throw new TypeError('Invalid rendered WebGL browser DOM.');
+  ) throw new TypeError('Invalid rendered WebGL browser DOM: shape.');
+  if (
+    !Array.isArray(candidate.undersizedPrimaryControlKinds)
+    || candidate.undersizedPrimaryControlKinds.length > 32
+    || candidate.undersizedPrimaryControlKinds.some((value) => (
+      typeof value !== 'string' || !/^[a-z][a-z0-9_.-]{0,160}:\d{1,4}x\d{1,4}$/.test(value)
+    ))
+    || candidate.undersizedPrimaryControlKinds.length !== candidate.undersizedPrimaryControlCount
+  ) throw new TypeError('Invalid rendered WebGL browser DOM: touch-target-shape.');
+  const violations = [
+    candidate.href !== expected.url ? 'href' : '',
+    candidate.status !== 'ready' ? 'status' : '',
+    candidate.mapRenderer !== 'webgl' ? 'renderer' : '',
+    candidate.quality !== expected.expectedQuality ? 'quality' : '',
+    candidate.viewportWidth !== expected.viewport.width ? 'viewport-width' : '',
+    candidate.viewportHeight !== expected.viewport.height ? 'viewport-height' : '',
+    candidate.documentWidth !== expected.viewport.width ? 'horizontal-overflow' : '',
+    candidate.interactionState !== expected.interaction ? 'interaction' : '',
+    candidate.mapViewportCovered !== true ? 'map-coverage' : '',
+    !Number.isSafeInteger(candidate.labelCount)
+      || candidate.labelCount < expected.minimumLabelCount ? 'label-count' : '',
+    candidate.labelsTextBearingCount !== candidate.labelCount ? 'label-text' : '',
+    candidate.labelsWithinViewportCount !== candidate.labelCount ? 'label-viewport' : '',
+    candidate.labelCollisionCount !== 0 ? 'label-collision' : '',
+    candidate.labelLeaderMismatchCount !== 0 ? 'label-leader' : '',
+    candidate.labelReservedOverlapCount !== 0 ? 'label-reserved-ui' : '',
+    candidate.undersizedPrimaryControlCount !== 0
+      ? `touch-target:${Array.isArray(candidate.undersizedPrimaryControlKinds)
+          ? candidate.undersizedPrimaryControlKinds.join('|')
+          : 'invalid'}`
+      : '',
+  ].filter(Boolean);
+  if (violations.length > 0) {
+    throw new TypeError(`Invalid rendered WebGL browser DOM: ${violations.join(',')}.`);
+  }
   return parseRenderedWebglQaObservation({
     version: 1,
     fixture: candidate.fixture,
@@ -245,6 +332,165 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     castleCount: candidate.castleCount,
     readyAfterMilliseconds: candidate.readyAfterMilliseconds,
   });
+}
+
+function paethPredictor(left, above, upperLeft) {
+  const prediction = left + above - upperLeft;
+  const leftDistance = Math.abs(prediction - left);
+  const aboveDistance = Math.abs(prediction - above);
+  const upperLeftDistance = Math.abs(prediction - upperLeft);
+  if (leftDistance <= aboveDistance && leftDistance <= upperLeftDistance) return left;
+  return aboveDistance <= upperLeftDistance ? above : upperLeft;
+}
+
+/**
+ * Decodes only the strict PNG shape emitted by the reviewed Chrome screenshot
+ * command. Pixels stay in memory for the duration of this call and are reduced
+ * immediately to non-identifying aggregate colour evidence.
+ */
+export function analyzeRenderedWebglPngScreenshot(value, viewport) {
+  if (!Buffer.isBuffer(value) || value.byteLength < 64 || value.byteLength > SCREENSHOT_MAXIMUM_BYTES) {
+    throw new TypeError('Invalid rendered WebGL screenshot.');
+  }
+  if (!Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).equals(value.subarray(0, 8))) {
+    throw new TypeError('Invalid rendered WebGL screenshot.');
+  }
+  if (
+    !viewport
+    || !Number.isSafeInteger(viewport.width)
+    || !Number.isSafeInteger(viewport.height)
+    || viewport.width < 320
+    || viewport.height < 320
+    || viewport.width > 1_920
+    || viewport.height > 1_080
+  ) throw new TypeError('Invalid rendered WebGL screenshot viewport.');
+
+  let cursor = 8;
+  let chunkCount = 0;
+  let header;
+  let ended = false;
+  const compressed = [];
+  let compressedBytes = 0;
+  while (cursor < value.byteLength) {
+    if (cursor + 12 > value.byteLength || chunkCount >= SCREENSHOT_MAXIMUM_CHUNKS) {
+      throw new TypeError('Invalid rendered WebGL screenshot.');
+    }
+    const length = value.readUInt32BE(cursor);
+    const type = value.toString('ascii', cursor + 4, cursor + 8);
+    const dataStart = cursor + 8;
+    const dataEnd = dataStart + length;
+    const next = dataEnd + 4;
+    if (length > SCREENSHOT_MAXIMUM_BYTES || next > value.byteLength) {
+      throw new TypeError('Invalid rendered WebGL screenshot.');
+    }
+    chunkCount += 1;
+    if (type === 'IHDR') {
+      if (header || length !== 13) throw new TypeError('Invalid rendered WebGL screenshot.');
+      header = {
+        width: value.readUInt32BE(dataStart),
+        height: value.readUInt32BE(dataStart + 4),
+        bitDepth: value[dataStart + 8],
+        colorType: value[dataStart + 9],
+        compression: value[dataStart + 10],
+        filter: value[dataStart + 11],
+        interlace: value[dataStart + 12],
+      };
+    } else if (type === 'IDAT') {
+      if (!header || ended) throw new TypeError('Invalid rendered WebGL screenshot.');
+      compressedBytes += length;
+      if (compressedBytes > SCREENSHOT_MAXIMUM_BYTES) {
+        throw new TypeError('Invalid rendered WebGL screenshot.');
+      }
+      compressed.push(value.subarray(dataStart, dataEnd));
+    } else if (type === 'IEND') {
+      if (!header || length !== 0 || ended) throw new TypeError('Invalid rendered WebGL screenshot.');
+      ended = true;
+      cursor = next;
+      break;
+    }
+    cursor = next;
+  }
+  if (
+    !header
+    || !ended
+    || cursor !== value.byteLength
+    || compressed.length === 0
+    || header.width !== viewport.width
+    || header.height !== viewport.height
+    || header.bitDepth !== 8
+    || ![2, 6].includes(header.colorType)
+    || header.compression !== 0
+    || header.filter !== 0
+    || header.interlace !== 0
+  ) throw new TypeError('Invalid rendered WebGL screenshot.');
+
+  const bytesPerPixel = header.colorType === 6 ? 4 : 3;
+  const stride = header.width * bytesPerPixel;
+  const expectedInflatedBytes = (stride + 1) * header.height;
+  const inflated = inflateSync(Buffer.concat(compressed, compressedBytes), {
+    maxOutputLength: expectedInflatedBytes,
+  });
+  if (inflated.byteLength !== expectedInflatedBytes) {
+    throw new TypeError('Invalid rendered WebGL screenshot.');
+  }
+  const pixels = Buffer.allocUnsafe(stride * header.height);
+  let sourceOffset = 0;
+  for (let y = 0; y < header.height; y += 1) {
+    const filterType = inflated[sourceOffset++];
+    if (filterType > 4) throw new TypeError('Invalid rendered WebGL screenshot.');
+    const rowOffset = y * stride;
+    for (let x = 0; x < stride; x += 1) {
+      const left = x >= bytesPerPixel ? pixels[rowOffset + x - bytesPerPixel] : 0;
+      const above = y > 0 ? pixels[rowOffset + x - stride] : 0;
+      const upperLeft = y > 0 && x >= bytesPerPixel
+        ? pixels[rowOffset + x - stride - bytesPerPixel]
+        : 0;
+      const prediction = filterType === 0 ? 0
+        : filterType === 1 ? left
+          : filterType === 2 ? above
+            : filterType === 3 ? Math.floor((left + above) / 2)
+              : paethPredictor(left, above, upperLeft);
+      pixels[rowOffset + x] = (inflated[sourceOffset++] + prediction) & 0xff;
+    }
+  }
+
+  const colours = new Set();
+  let minimumLuminance = 255;
+  let maximumLuminance = 0;
+  let opaqueSamples = 0;
+  let sampleCount = 0;
+  for (let yStep = 1; yStep <= 9; yStep += 1) {
+    const y = Math.floor(header.height * (0.16 + (0.68 * yStep) / 10));
+    for (let xStep = 1; xStep <= 13; xStep += 1) {
+      const x = Math.floor(header.width * (0.12 + (0.76 * xStep) / 14));
+      const offset = y * stride + x * bytesPerPixel;
+      const red = pixels[offset];
+      const green = pixels[offset + 1];
+      const blue = pixels[offset + 2];
+      const alpha = bytesPerPixel === 4 ? pixels[offset + 3] : 255;
+      const luminance = Math.round(0.2126 * red + 0.7152 * green + 0.0722 * blue);
+      colours.add(`${red >> 4}:${green >> 4}:${blue >> 4}`);
+      minimumLuminance = Math.min(minimumLuminance, luminance);
+      maximumLuminance = Math.max(maximumLuminance, luminance);
+      if (alpha >= 250) opaqueSamples += 1;
+      sampleCount += 1;
+    }
+  }
+  const result = Object.freeze({
+    distinctColourBuckets: colours.size,
+    luminanceRange: maximumLuminance - minimumLuminance,
+    opaqueSamples,
+    sampleCount,
+  });
+  pixels.fill(0);
+  inflated.fill(0);
+  if (
+    result.sampleCount < 100
+    || result.opaqueSamples !== result.sampleCount
+    || result.distinctColourBuckets < 8
+    || result.luminanceRange < 28
+  ) throw new TypeError('Rendered WebGL screenshot did not contain credible visual output.');
+  return result;
 }
 
 function delay(milliseconds) {
@@ -554,6 +800,56 @@ const READ_DOM_EXPRESSION = `(() => {
   const overlay = document.querySelector('[data-rendered-webgl-status]');
   const map = document.querySelector('.realm-map-screen');
   const integer = (value) => /^\\d+$/.test(value ?? '') ? Number(value) : null;
+  const rect = (element) => element.getBoundingClientRect();
+  const visible = (element) => {
+    if (!element) return false;
+    const style = getComputedStyle(element);
+    const bounds = rect(element);
+    return style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && Number(style.opacity || '1') > 0
+      && bounds.width > 0
+      && bounds.height > 0;
+  };
+  const overlaps = (left, right) => left.left < right.right
+    && left.right > right.left
+    && left.top < right.bottom
+    && left.bottom > right.top;
+  const labels = [...document.querySelectorAll('button.realm-castle-label')].filter(visible);
+  const labelRects = labels.map(rect);
+  const activeLeaders = [...document.querySelectorAll('[data-realm-label-leader]')]
+    .filter((leader) => leader.getAttribute('data-active') === 'true' && visible(leader));
+  const activeLeaderIds = new Set(activeLeaders.map((leader) => leader.getAttribute('data-castle-id')));
+  const displacedLabelIds = new Set(labels
+    .filter((label) => label.getAttribute('data-displaced') === 'true')
+    .map((label) => label.getAttribute('data-castle-id')));
+  const labelLeaderMismatchCount = [...displacedLabelIds]
+    .filter((castleId) => !activeLeaderIds.has(castleId)).length
+    + [...activeLeaderIds].filter((castleId) => !displacedLabelIds.has(castleId)).length
+    + Math.max(0, activeLeaders.length - activeLeaderIds.size);
+  const reserved = [...document.querySelectorAll(
+    '.realm-hud, .castle-inspection, .realm-hud__actions, '
+      + '.realm-cell-navigator > button, .realm-cell-navigator__dialog'
+  )].filter(visible).map(rect);
+  let labelCollisionCount = 0;
+  for (let leftIndex = 0; leftIndex < labelRects.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < labelRects.length; rightIndex += 1) {
+      if (overlaps(labelRects[leftIndex], labelRects[rightIndex])) labelCollisionCount += 1;
+    }
+  }
+  const primaryControls = [...document.querySelectorAll(
+    '.realm-hud__actions button, .realm-cell-navigator > button, '
+      + '.realm-cell-navigator__dialog button, .realm-cell-navigator__dialog input, '
+      + '.realm-cell-navigator__dialog a, '
+      + '.castle-inspection button, .castle-inspection a'
+  )].filter(visible);
+  const mapRect = map ? rect(map) : null;
+  const dialog = document.querySelector('.realm-cell-navigator__dialog');
+  const inspector = document.querySelector('.castle-inspection');
+  const undersizedPrimaryControls = primaryControls.filter((control) => {
+    const bounds = rect(control);
+    return bounds.width < 44 || bounds.height < 44;
+  });
   return {
     href: location.href,
     status: overlay?.getAttribute('data-rendered-webgl-status') ?? null,
@@ -563,34 +859,153 @@ const READ_DOM_EXPRESSION = `(() => {
     quality: overlay?.getAttribute('data-quality') ?? null,
     castleCount: integer(overlay?.getAttribute('data-castle-count')),
     readyAfterMilliseconds: integer(overlay?.getAttribute('data-ready-after-ms')),
+    viewportWidth: innerWidth,
+    viewportHeight: innerHeight,
+    documentWidth: Math.max(
+      document.documentElement?.scrollWidth ?? 0,
+      document.body?.scrollWidth ?? 0
+    ),
+    mapViewportCovered: Boolean(mapRect)
+      && mapRect.left >= -1
+      && mapRect.top >= -1
+      && mapRect.right <= innerWidth + 1
+      && mapRect.bottom <= innerHeight + 1
+      && mapRect.width >= innerWidth - 1
+      && mapRect.height >= innerHeight - 1,
+    interactionState: visible(inspector) ? 'inspector' : visible(dialog) ? 'explore' : 'default',
+    labelCount: labels.length,
+    labelsTextBearingCount: labels.filter((label) => (label.textContent ?? '').trim().length > 0).length,
+    labelsWithinViewportCount: labelRects.filter((bounds) => (
+      bounds.left >= -1
+      && bounds.top >= -1
+      && bounds.right <= innerWidth + 1
+      && bounds.bottom <= innerHeight + 1
+    )).length,
+    labelCollisionCount,
+    labelLeaderMismatchCount,
+    labelReservedOverlapCount: labelRects.reduce((count, bounds) => (
+      count + (reserved.some((reservedBounds) => overlaps(bounds, reservedBounds)) ? 1 : 0)
+    ), 0),
+    undersizedPrimaryControlCount: undersizedPrimaryControls.length,
+    undersizedPrimaryControlKinds: undersizedPrimaryControls.map((control) => {
+      const bounds = rect(control);
+      const className = typeof control.className === 'string' && control.className
+        ? '.' + control.className.trim().replace(/\\s+/g, '.')
+        : '';
+      return control.tagName.toLowerCase() + className
+        + ':' + Math.round(bounds.width) + 'x' + Math.round(bounds.height);
+    }),
   };
 })()`;
 
-async function waitForRenderedCase(session, probeCase, state) {
-  await session.command('Page.navigate', { url: probeCase.url });
+async function readRenderedCaseDom(session) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: READ_DOM_EXPRESSION,
+    returnByValue: true,
+  });
+  if (evaluation?.exceptionDetails || !evaluation?.result || evaluation.result.type !== 'object') {
+    throw new Error('Headless browser DOM evaluation failed.');
+  }
+  return evaluation.result.value;
+}
+
+async function waitForAcceptedRenderedDom(session, expected, state) {
   const deadline = Date.now() + CASE_TIMEOUT_MILLISECONDS;
+  let readySeenAt;
+  let lastContractError;
   while (Date.now() < deadline) {
-    if (state.violation) throw new Error('Headless browser left the local QA boundary.');
-    const evaluation = await session.command('Runtime.evaluate', {
-      expression: READ_DOM_EXPRESSION,
-      returnByValue: true,
-    });
-    if (evaluation?.exceptionDetails || !evaluation?.result || evaluation.result.type !== 'object') {
-      throw new Error('Headless browser DOM evaluation failed.');
+    if (state.violation) {
+      throw new Error(`Headless browser left the local QA boundary: ${state.violation}.`);
     }
-    const value = evaluation.result.value;
-    if (value?.href === probeCase.url) {
+    const value = await readRenderedCaseDom(session);
+    if (value?.href === expected.url) {
       if (['fallback', 'error', 'closed'].includes(value.status)) {
         throw new Error('Rendered WebGL QA failed closed.');
       }
       if (value.status === 'ready') {
-        parseRenderedWebglBrowserDom(value, probeCase);
-        return;
+        readySeenAt ??= Date.now();
+        try {
+          parseRenderedWebglBrowserDom(value, expected);
+          return value;
+        } catch (error) {
+          lastContractError = error;
+          // Camera, measured labels, and responsive UI settle asynchronously.
+          // Continue until the complete visual contract is simultaneously true.
+        }
+        if (Date.now() - readySeenAt >= PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS) {
+          const suffix = lastContractError instanceof Error ? ` ${lastContractError.message}` : '';
+          throw new Error(`Rendered WebGL presentation contract did not settle.${suffix}`);
+        }
       }
     }
     await delay(100);
   }
   throw new Error('Rendered WebGL QA case timed out.');
+}
+
+async function captureRenderedCasePixels(session, viewport) {
+  const result = await session.command('Page.captureScreenshot', {
+    captureBeyondViewport: false,
+    format: 'png',
+    fromSurface: true,
+  });
+  if (
+    typeof result?.data !== 'string'
+    || result.data.length > Math.ceil(SCREENSHOT_MAXIMUM_BYTES * 4 / 3) + 4
+    || !/^[A-Za-z0-9+/]+={0,2}$/.test(result.data)
+  ) throw new Error('Headless browser screenshot failed.');
+  const screenshotBytes = Buffer.from(result.data, 'base64');
+  try {
+    analyzeRenderedWebglPngScreenshot(screenshotBytes, viewport);
+  } finally {
+    screenshotBytes.fill(0);
+  }
+}
+
+async function applyRenderedCaseInteraction(session, interaction) {
+  if (interaction === 'default') return;
+  const selector = interaction === 'inspector'
+    ? 'button.realm-castle-label'
+    : interaction === 'explore'
+      ? '.realm-cell-navigator > button'
+      : '';
+  if (!selector) throw new Error('Invalid rendered WebGL QA interaction.');
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const target = document.querySelector(${JSON.stringify(selector)});
+      if (!(target instanceof HTMLButtonElement)) return false;
+      target.click();
+      return true;
+    })()`,
+    returnByValue: true,
+  });
+  if (evaluation?.exceptionDetails || evaluation?.result?.value !== true) {
+    throw new Error('Rendered WebGL QA interaction failed.');
+  }
+}
+
+async function runRenderedCase(session, probeCase, state) {
+  await session.command('Emulation.setDeviceMetricsOverride', {
+    width: probeCase.viewport.width,
+    height: probeCase.viewport.height,
+    screenWidth: probeCase.viewport.width,
+    screenHeight: probeCase.viewport.height,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await session.command('Page.navigate', { url: probeCase.url });
+  const baseline = Object.freeze({ ...probeCase, interaction: 'default' });
+  await waitForAcceptedRenderedDom(session, baseline, state);
+  await captureRenderedCasePixels(session, probeCase.viewport);
+  if (probeCase.interaction !== 'default') {
+    await applyRenderedCaseInteraction(session, probeCase.interaction);
+    const interacted = Object.freeze({
+      ...probeCase,
+      minimumLabelCount: 0,
+    });
+    await waitForAcceptedRenderedDom(session, interacted, state);
+    await captureRenderedCasePixels(session, probeCase.viewport);
+  }
 }
 
 export async function runRenderedWebglBrowserProbe() {
@@ -652,6 +1067,26 @@ export async function runRenderedWebglBrowserProbe() {
         state.violation = 'page-side-effect';
         return;
       }
+      if (method === 'Runtime.exceptionThrown') {
+        // Record only the category. Console/error payloads are deliberately
+        // neither copied into reports nor retained by the probe.
+        state.violation = 'runtime-exception';
+        return;
+      }
+      if (
+        method === 'Runtime.consoleAPICalled'
+        && ['assert', 'error'].includes(params?.type)
+      ) {
+        state.violation = 'console-error';
+        return;
+      }
+      if (
+        method === 'Log.entryAdded'
+        && ['error', 'warning'].includes(params?.entry?.level)
+      ) {
+        state.violation = params.entry.level === 'warning' ? 'log-warning' : 'log-error';
+        return;
+      }
       if (method === 'Target.targetCreated' || method === 'Target.targetInfoChanged') {
         const targetInfo = params?.targetInfo;
         if (
@@ -681,6 +1116,7 @@ export async function runRenderedWebglBrowserProbe() {
     await Promise.all([
       devtools.command('Page.enable'),
       devtools.command('Runtime.enable'),
+      devtools.command('Log.enable'),
       devtools.command('Network.enable'),
       devtools.command('Page.setDownloadBehavior', { behavior: 'deny' }),
       devtools.command('Target.setDiscoverTargets', {
@@ -692,9 +1128,15 @@ export async function runRenderedWebglBrowserProbe() {
       }),
     ]);
     for (const probeCase of cases) {
-      await waitForRenderedCase(devtools, probeCase, state);
+      try {
+        await runRenderedCase(devtools, probeCase, state);
+      } catch (error) {
+        throw new Error(`Rendered WebGL case ${probeCase.id} failed.`, { cause: error });
+      }
     }
-    if (state.violation) throw new Error('Headless browser left the local QA boundary.');
+    if (state.violation) {
+      throw new Error(`Headless browser left the local QA boundary: ${state.violation}.`);
+    }
   } finally {
     devtools?.close();
     await terminateChrome(chrome);
@@ -711,7 +1153,7 @@ async function main() {
   }
   try {
     await runRenderedWebglBrowserProbe();
-    process.stdout.write('Warpkeep rendered WebGL QA passed: 4 synthetic loopback cases.\n');
+    process.stdout.write('Warpkeep rendered WebGL QA passed: 7 synthetic responsive cases.\n');
   } catch {
     process.stderr.write('Warpkeep rendered WebGL QA failed closed.\n');
     process.exitCode = 1;

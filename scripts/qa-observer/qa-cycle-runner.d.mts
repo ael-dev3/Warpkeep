@@ -6,6 +6,7 @@ export type QaCheck = Readonly<{
   id: string;
   executable: string;
   args: readonly string[];
+  networkBoundary?: 'self-contained-browser';
   timeoutMs: number;
 }>;
 
@@ -41,12 +42,24 @@ export function acquireQaCycleLock(
 ): Promise<Readonly<{ runId: string; release(): Promise<void> }>>;
 export function tierForLocalHour(hour: number): QaTier;
 export function checksForTier(tier: QaTier): readonly QaCheck[];
+export function qaNetworkSandboxContract(
+  check: QaCheck,
+  options?: Readonly<{
+    observatoryRoot?: string;
+    platform?: NodeJS.Platform;
+    profilePath?: string;
+  }>,
+): Readonly<{ executable: string; args: readonly string[] }>;
 export function runCommandCheck(
   check: QaCheck,
   options?: Readonly<{
     cwd?: string;
     timeoutMs?: number;
     environment?: Readonly<Record<string, string>>;
+    commandContract?: (check: QaCheck) => Readonly<{
+      executable: string;
+      args: readonly string[];
+    }>;
   }>,
 ): Promise<QaCheckResult>;
 export function probeLocalBrokerHealth(

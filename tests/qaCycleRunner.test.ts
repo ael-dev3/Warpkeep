@@ -31,6 +31,7 @@ import {
   probeLocalBrokerHealth,
   probeLocalBrokerSnapshot,
   prunePrivateReports,
+  qaNetworkSandboxContract,
   runCommandCheck,
   runQaCycle,
   tierForLocalHour,
@@ -134,6 +135,46 @@ afterEach(async () => {
 });
 
 describe('local autonomous QA cycle runner', () => {
+  it('wraps the entire macOS check process tree in the exact loopback-only network sandbox', () => {
+    const check = {
+      id: 'bounded-test',
+      executable: process.execPath,
+      args: ['--version'],
+      timeoutMs: 1_000
+    } as const;
+    expect(qaNetworkSandboxContract(check, {
+      platform: 'darwin',
+      observatoryRoot: '/Users/test/Library/Application Support/Warpkeep/qa-observatory',
+      profilePath: '/reviewed/qa-cycle-network.sb'
+    })).toEqual({
+      executable: '/usr/bin/sandbox-exec',
+      args: [
+        '-D',
+        'OBSERVATORY_ROOT=/Users/test/Library/Application Support/Warpkeep/qa-observatory',
+        '-f',
+        '/reviewed/qa-cycle-network.sb',
+        process.execPath,
+        '--version'
+      ]
+    });
+    expect(qaNetworkSandboxContract(check, { platform: 'linux' })).toEqual({
+      executable: process.execPath,
+      args: ['--version']
+    });
+    const rendered = checksForTier('quick').find((candidate) => (
+      candidate.id === 'rendered-webgl-browser'
+    ));
+    expect(rendered).toBeDefined();
+    expect(qaNetworkSandboxContract(rendered!, { platform: 'darwin' })).toEqual({
+      executable: process.execPath,
+      args: [join(repositoryRoot, 'scripts/qa-observer/rendered-webgl-browser-probe.mjs')]
+    });
+    expect(() => qaNetworkSandboxContract({
+      ...check,
+      networkBoundary: 'self-contained-browser'
+    }, { platform: 'darwin' })).toThrow(/self-contained browser boundary/i);
+  });
+
   it('selects predictable tiers and exposes only static non-mutating checks', () => {
     expect(tierForLocalHour(8)).toBe('quick');
     expect(tierForLocalHour(9)).toBe('standard');
@@ -180,6 +221,7 @@ describe('local autonomous QA cycle runner', () => {
     ]);
     const renderedWebglBrowser = quick.find((check) => check.id === 'rendered-webgl-browser');
     expect(renderedWebglBrowser?.executable).toBe(process.execPath);
+    expect(renderedWebglBrowser?.networkBoundary).toBe('self-contained-browser');
     expect(renderedWebglBrowser?.args).toEqual([
       join(repositoryRoot, 'scripts/qa-observer/rendered-webgl-browser-probe.mjs')
     ]);
@@ -229,6 +271,11 @@ describe('local autonomous QA cycle runner', () => {
       await mkdir(dirname(join(root, path)), { recursive: true });
       await writeFile(join(root, path), JSON.stringify({ name, private: true, scripts }));
     }
+    await mkdir(join(root, 'scripts/qa-observer'), { recursive: true });
+    await writeFile(
+      join(root, 'scripts/qa-observer/qa-cycle-network.sb'),
+      await readFile(join(repositoryRoot, 'scripts/qa-observer/qa-cycle-network.sb'), 'utf8')
+    );
     await expect(attestQaRepository(root)).resolves.toBeUndefined();
     await writeFile(join(root, 'package.json'), JSON.stringify({
       name: 'warpkeep',
@@ -236,6 +283,16 @@ describe('local autonomous QA cycle runner', () => {
       scripts: { ...contracts[0][2], test: 'node unreviewed-script.mjs' }
     }));
     await expect(attestQaRepository(root)).rejects.toThrow('command contract mismatch');
+    await writeFile(join(root, 'package.json'), JSON.stringify({
+      name: 'warpkeep',
+      private: true,
+      scripts: contracts[0][2]
+    }));
+    await writeFile(
+      join(root, 'scripts/qa-observer/qa-cycle-network.sb'),
+      '(version 1)\n(allow default)\n'
+    );
+    await expect(attestQaRepository(root)).rejects.toThrow('network sandbox contract mismatch');
   });
 
   it('keeps production builds production-like while pinning SpacetimeDB outside the isolated HOME', () => {
@@ -257,7 +314,16 @@ describe('local autonomous QA cycle runner', () => {
       executable: process.execPath,
       args: ['-e', "process.stdout.write('PRIVATE_PAYLOAD');setTimeout(()=>{},60000)"],
       timeoutMs: 40
-    }, { cwd: root });
+    }, {
+      cwd: root,
+      // The complete Vitest process is already inside the outer runner sandbox
+      // during autonomous cycles. Avoid trying to enter a second macOS sandbox
+      // solely for this nested process-lifecycle fixture.
+      commandContract: (check) => ({
+        executable: check.executable,
+        args: check.args
+      })
+    });
 
     expect(result.status).toBe('timeout');
     expect(result.durationMs).toBeLessThan(5_000);

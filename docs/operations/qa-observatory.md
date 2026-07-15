@@ -197,23 +197,34 @@ the selected numeric loopback origin. Same-origin Vite WebSocket and renderer
 Blob URLs are allowed; alternate ports, `localhost`, HTTPS, data URLs, and
 foreign origins fail the run.
 
-Chrome then visits the exact fixture route for `high`, `balanced`, and `reduced`,
-plus one invalid query that must fall back to `balanced`. Every case must expose
-`renderer=webgl`, `status=ready`, fixture `synthetic-canonical-100`, castle count
-`100`, the expected effective quality, and a ready duration within the
-120-second fixture bound. Fallback, error, timeout, an unexpected target, or
-foreign network activity fails closed. Chrome, Vite, and the temporary profile
-are torn down in a `finally` path. The probe takes no screenshot and retains no
-DOM, console, network, identity, or timing payload. Its parent QA report records
-only the aggregate check identifier, pass/fail/timeout status, and total
-duration.
+Chrome runs seven fixed cases: every quality at 1440×900, one invalid query that
+must fail closed to `balanced`, balanced and reduced presentation at 390×844,
+an opened mobile castle inspector, and an opened 667×375 short-landscape
+Explore surface. Every baseline must expose `renderer=webgl`, `status=ready`,
+fixture `synthetic-canonical-100`, castle count `100`, the expected effective
+quality, and a ready duration within the 120-second fixture bound. The responsive
+contract additionally checks exact viewport dimensions, horizontal overflow,
+map coverage, text-bearing in-bounds castle labels, label collisions, visible
+UI exclusion regions, displaced-label roof connectors, 44px primary controls,
+inspector/Explore state, and page warnings/errors.
+
+For each accepted state Chrome captures one transient PNG in memory. A strict,
+bounded decoder immediately reduces it to opaque-sample, colour-bucket, and
+luminance-range evidence so a blank/black or implausibly uniform frame cannot
+pass on DOM metadata alone. Pixel buffers and encoded PNG bytes are discarded
+inside the case; no screenshot, DOM, console message, network payload, identity,
+or per-case timing is written to disk or included in a QA report. Fallback,
+error, timeout, an unexpected target, foreign network activity, page diagnostic,
+layout violation, or implausible pixels fails closed. Chrome, Vite, and the
+temporary profile are torn down in a `finally` path. The parent QA report records
+only the aggregate check identifier, pass/fail/timeout status, and total duration.
 
 The exact browser probe runs in quick, standard, and deep QA cycles. Unit tests
-exercise its URL, process-spawn, endpoint, network-boundary, and DOM-attestation
-contracts without launching Chrome. If an owner chooses to retain an interactive
-screenshot, save it manually outside the worktree as an owner-only (`0600`)
-private artifact after review; the fixture itself creates no screenshot or
-report.
+exercise its URL, process-spawn, endpoint, network-boundary, DOM-attestation,
+and bounded PNG-decoder contracts without launching Chrome. If an owner chooses
+to retain a separate interactive screenshot, save it manually outside the
+worktree as an owner-only (`0600`) private artifact after review; the automated
+fixture retains no screenshot or standalone report.
 
 ## Approval-gated activation
 
@@ -252,10 +263,21 @@ npm configuration; and discards child stdout and stderr. A report contains only
 the tier, overall status, check identifiers, and durations.
 
 The runner is deliberately not described as an operating-system sandbox.
-Reviewed repository code and the signed-in macOS account remain trust boundaries:
-a malicious test or compiler process could try to use that user's ordinary
-filesystem, Keychain, or network authority. Package-script attestation prevents
-simple command redirection but cannot make arbitrary repository code harmless.
+On this Mac, every reviewed non-browser child check now runs under the checked-in,
+exact-content-attested `sandbox-exec` profile
+`scripts/qa-observer/qa-cycle-network.sb`. The complete child process tree may
+use only loopback IP plus owner-private QA and temporary Unix sockets; all other
+network operations are denied by the operating system. The rendered-WebGL check
+is the one explicit exception because Chrome cannot start safely inside a
+second macOS sandbox without disabling Chrome's own sandbox. It retains its
+fresh profile, deny-by-default host resolver, DevTools request interception,
+exact numeric-loopback origin, and foreign-network fail-closed contract.
+`sandbox-exec` is deprecated and is only a network containment layer: reviewed
+repository code and the signed-in macOS account remain trust boundaries, and a
+malicious test or compiler process could still try to use that user's ordinary
+filesystem or Keychain authority.
+Package-script and sandbox-profile attestation prevent simple command
+redirection or policy drift but cannot make arbitrary repository code harmless.
 Run this only from a reviewed Warpkeep checkout; use a separate restricted macOS
 account or stronger OS isolation before treating untrusted changes as executable.
 The machine-bound QA credential remains narrower: repository checks never receive
@@ -287,7 +309,7 @@ data to browser JavaScript.
 The tiers intentionally trade coverage for hourly cost:
 
 - `quick` runs the focused observer/security tests, an explicit synthetic app
-  state lane, the four-case rendered-WebGL browser probe, and root typecheck.
+  state lane, the seven-case responsive rendered-WebGL browser probe, and root typecheck.
   The synthetic lane covers Terms, every
   Farcaster and backend-admission presentation phase, title/menu transitions,
   settings, credits, patch notes, menu-to-Realm orchestration, canonical

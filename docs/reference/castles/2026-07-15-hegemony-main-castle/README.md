@@ -60,6 +60,23 @@ The Compact profile preserves the full source height. Its verified source-space
 bounds are `[-6.389847983, 0, -4.888312794]` to
 `[6.389809055, 14.062000218, 4.928393334]`.
 
+## Upstream replacement review
+
+The public asset repository was re-inventoried at commit
+`0cd2d506c352885850fc15759603baccbad669e7` on 2026-07-15. It had no newer
+castle release, branch, or open replacement PR. The other castle member in the
+same pinned archive, `Warpkeep_Hegemony_Frontier_Keep_High.glb`, remains a
+historical source rather than an authorized runtime replacement: it is
+2,256,092 bytes with four 2048×2048 textures and has no recorded project-runtime
+integration authorization. By comparison, the active Main Castle profiles are
+1,934,920, 1,172,132, and 508,508 bytes with two atlases each.
+
+The reviewed decision is therefore to retain this Main Castle LOD set. A future
+replacement requires a newer immutable source record, explicit runtime and
+deterministic-derivative authority, and measured browser gains; a lower triangle
+count alone is not sufficient when source bytes, texture count, provenance, or
+runtime authority regress.
+
 ## Reproducible preparation
 
 From the repository root, acquire only the pinned source archive and pinned

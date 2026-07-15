@@ -36,6 +36,29 @@ const BROKER_SOCKET_PATH = join(OBSERVATORY_ROOT, 'broker.sock');
 const BROKER_HEALTH_PATH = '/healthz';
 const BROKER_SNAPSHOT_PATH = '/snapshot';
 const MAX_UNIX_SOCKET_PATH_BYTES = 90;
+const SANDBOX_EXECUTABLE = '/usr/bin/sandbox-exec';
+const NETWORK_SANDBOX_PROFILE = join(
+  REPOSITORY_ROOT,
+  'scripts',
+  'qa-observer',
+  'qa-cycle-network.sb',
+);
+const EXPECTED_NETWORK_SANDBOX_PROFILE = `(version 1)
+
+(define observatory-root (param "OBSERVATORY_ROOT"))
+
+; Preserve ordinary local build/test behavior while removing all non-loopback
+; network authority from the complete process tree. Unix sockets are limited
+; to owner-private QA/temp locations used by the reviewed fixtures.
+(allow default)
+(deny network*)
+(allow network* (local ip "localhost:*"))
+(allow network* (remote ip "localhost:*"))
+(allow network* (local unix-socket (subpath "/private/tmp")))
+(allow network* (remote unix-socket (subpath "/private/tmp")))
+(allow network* (local unix-socket (subpath observatory-root)))
+(allow network* (remote unix-socket (subpath observatory-root)))
+`;
 const NPM_EXECUTABLE = join(dirname(process.execPath), 'npm');
 const RENDERED_WEBGL_BROWSER_PROBE = join(
   REPOSITORY_ROOT,
@@ -179,6 +202,7 @@ const CHECKS = Object.freeze({
     id: 'rendered-webgl-browser',
     executable: process.execPath,
     args: Object.freeze([RENDERED_WEBGL_BROWSER_PROBE]),
+    networkBoundary: 'self-contained-browser',
     timeoutMs: 9 * 60 * 1_000,
   }),
   authBridgeTypecheck: Object.freeze({
@@ -449,6 +473,52 @@ export function checksForTier(tier) {
   return checks;
 }
 
+export function qaNetworkSandboxContract(check, options = {}) {
+  if (
+    check === null
+    || typeof check !== 'object'
+    || typeof check.executable !== 'string'
+    || !check.executable.startsWith('/')
+    || !Array.isArray(check.args)
+    || check.args.some((argument) => typeof argument !== 'string')
+    || ![undefined, 'self-contained-browser'].includes(check.networkBoundary)
+  ) throw new TypeError('Invalid QA check command.');
+  if (check.networkBoundary === 'self-contained-browser') {
+    if (
+      check.id !== 'rendered-webgl-browser'
+      || check.executable !== process.execPath
+      || check.args.length !== 1
+      || check.args[0] !== RENDERED_WEBGL_BROWSER_PROBE
+    ) throw new TypeError('Invalid self-contained browser boundary.');
+    return Object.freeze({
+      executable: check.executable,
+      args: Object.freeze([...check.args]),
+    });
+  }
+  const platform = options.platform ?? process.platform;
+  if (platform !== 'darwin') {
+    return Object.freeze({
+      executable: check.executable,
+      args: Object.freeze([...check.args]),
+    });
+  }
+  const observatoryRoot = options.observatoryRoot ?? OBSERVATORY_ROOT;
+  if (typeof observatoryRoot !== 'string' || !observatoryRoot.startsWith('/')) {
+    throw new TypeError('Invalid QA observatory root.');
+  }
+  return Object.freeze({
+    executable: SANDBOX_EXECUTABLE,
+    args: Object.freeze([
+      '-D',
+      `OBSERVATORY_ROOT=${observatoryRoot}`,
+      '-f',
+      options.profilePath ?? NETWORK_SANDBOX_PROFILE,
+      check.executable,
+      ...check.args,
+    ]),
+  });
+}
+
 function terminateProcessGroup(child, signal) {
   if (!child?.pid) return;
   try {
@@ -498,7 +568,10 @@ export function runCommandCheck(check, options = {}) {
     }, timeoutMs);
 
     try {
-      child = spawn(check.executable, [...check.args], {
+      const command = options.commandContract
+        ? options.commandContract(check)
+        : qaNetworkSandboxContract(check);
+      child = spawn(command.executable, [...command.args], {
         cwd: options.cwd ?? REPOSITORY_ROOT,
         env: options.environment ?? qaCycleEnvironment(),
         detached: true,
@@ -860,6 +933,29 @@ export async function attestQaRepository(repositoryRoot = REPOSITORY_ROOT) {
         throw new Error('Repository command contract mismatch.');
       }
     }
+  }
+  const profilePath = join(
+    repositoryRoot,
+    'scripts',
+    'qa-observer',
+    'qa-cycle-network.sb',
+  );
+  const profileMetadata = await lstat(profilePath);
+  if (
+    !profileMetadata.isFile()
+    || profileMetadata.isSymbolicLink()
+    || profileMetadata.size !== Buffer.byteLength(EXPECTED_NETWORK_SANDBOX_PROFILE)
+    || await readFile(profilePath, 'utf8') !== EXPECTED_NETWORK_SANDBOX_PROFILE
+  ) throw new Error('Repository network sandbox contract mismatch.');
+
+  if (process.platform === 'darwin') {
+    const sandboxMetadata = await lstat(SANDBOX_EXECUTABLE);
+    if (
+      !sandboxMetadata.isFile()
+      || sandboxMetadata.isSymbolicLink()
+      || sandboxMetadata.uid !== 0
+      || (sandboxMetadata.mode & 0o022) !== 0
+    ) throw new Error('System network sandbox is unavailable.');
   }
 }
 

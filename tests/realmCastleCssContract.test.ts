@@ -44,6 +44,11 @@ function block(source: string, marker: string) {
 describe('compact Realm CSS contract', () => {
   it('projects each castle label once and presents profile images as static canvas snapshots', () => {
     const label = block(PRESENTATION, '.realm-castle-label {');
+    const leader = block(PRESENTATION, '.realm-castle-label__leader {');
+    const inactiveLeader = block(
+      PRESENTATION,
+      '.realm-castle-label__leader[hidden],\n.realm-castle-label__leader[data-active="false"] {'
+    );
     const compactLabel = block(PRESENTATION, '.realm-castle-label[data-compact="true"] {');
     const avatarCanvas = block(PRESENTATION, '.realm-castle-avatar canvas {');
 
@@ -52,11 +57,18 @@ describe('compact Realm CSS contract', () => {
     expect(label).toContain('translate3d(');
     expect(label).toContain('var(--realm-castle-label-x)');
     expect(label).toContain('var(--realm-castle-label-y)');
+    expect(label).toContain('z-index: 1;');
     expect(PRESENTATION).not.toMatch(/top:\s*var\(--realm-castle-label-y\)/);
     expect(PRESENTATION).not.toMatch(/left:\s*var\(--realm-castle-label-x\)/);
     expect(compactLabel).toContain('width: 6.75rem;');
     expect(compactLabel).toContain('min-height: 1.875rem;');
     expect(PRESENTATION).toContain('.realm-castle-label__identity');
+    expect(leader).toContain('var(--realm-castle-anchor-x)');
+    expect(leader).toContain('var(--realm-castle-anchor-y)');
+    expect(leader).toContain('var(--realm-castle-leader-length)');
+    expect(leader).toContain('rotate(var(--realm-castle-leader-angle))');
+    expect(leader).toContain('pointer-events: none;');
+    expect(inactiveLeader).toContain('display: none;');
 
     expect(avatarCanvas).toContain('display: block;');
     expect(avatarCanvas).toContain('width: 100%;');
@@ -105,6 +117,8 @@ describe('compact Realm CSS contract', () => {
     const hudButton = block(MAP, '.realm-hud__actions button {');
     const exploreTrigger = block(MAP, '.realm-cell-navigator > button {');
     const exploreControls = block(MAP, '.realm-cell-navigator__heading button,');
+    const communityLink = block(MAP, '.realm-cell-navigator__community a {');
+    const jumpInput = block(MAP, '.realm-cell-navigator__jump input {');
     const castleLabel = block(PRESENTATION, '.realm-castle-label {');
     const dismiss = block(PRESENTATION, '.castle-inspection__dismiss {');
     const profileLink = block(PRESENTATION, '.castle-inspection__profile-link {');
@@ -120,6 +134,8 @@ describe('compact Realm CSS contract', () => {
     expect(hudButton).toContain('min-height: 2.75rem;');
     expect(exploreTrigger).toContain('min-height: 3.35rem;');
     expect(exploreControls).toContain('min-height: 2.75rem;');
+    expect(communityLink).toContain('min-height: 2.75rem;');
+    expect(jumpInput).toContain('min-width: 2.75rem;');
     expect(castleLabel).toContain('min-width: 2.75rem;');
     expect(castleLabel).toContain('min-height: 2.75rem;');
     expect(dismiss).toContain('min-height: 2.75rem;');
@@ -218,6 +234,7 @@ describe('compact Realm CSS contract', () => {
     const shortActions = block(shortMap, '.realm-hud__actions {');
     const shortExplore = block(shortMap, '.realm-cell-navigator {');
     const shortDialog = block(shortMap, '.realm-cell-navigator__dialog {');
+    const shortJump = block(shortMap, '.realm-cell-navigator__jump fieldset {');
     const shortInspector = block(shortPresentation, '.castle-inspection {');
     const shortVisibleUi = block(
       shortMap,
@@ -239,6 +256,7 @@ describe('compact Realm CSS contract', () => {
     expect(shortDialog).toContain('bottom: max(0.45rem, env(safe-area-inset-bottom));');
     expect(shortDialog).toContain('width: min(18rem, 43vw);');
     expect(shortDialog).toContain('max-height: none;');
+    expect(shortJump).toContain('grid-template-columns: auto minmax(2.75rem, 1fr);');
     expect(shortVisibleUi).toContain('visibility: visible;');
     expect(shortVisibleUi).toContain('pointer-events: auto;');
     expect(shortMap).toContain(

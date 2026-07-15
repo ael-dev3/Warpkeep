@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { deflateSync } from 'node:zlib';
 
 import {
+  analyzeRenderedWebglPngScreenshot,
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
   parseDevtoolsActivePort,
@@ -12,27 +14,63 @@ import {
 } from '../scripts/qa-observer/rendered-webgl-browser-probe.mjs';
 
 describe('rendered WebGL headless browser probe contract', () => {
-  it('fixes the four reviewed cases to one numeric loopback origin', () => {
+  it('fixes seven responsive and interaction cases to one numeric loopback origin', () => {
     expect(renderedWebglBrowserProbeCases(41_733)).toEqual([
       {
-        id: 'high',
+        id: 'desktop-high',
         expectedQuality: 'high',
-        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=high'
+        interaction: 'default',
+        minimumLabelCount: 14,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=high',
+        viewport: { width: 1440, height: 900 }
       },
       {
-        id: 'balanced',
+        id: 'desktop-balanced',
         expectedQuality: 'balanced',
-        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced'
+        interaction: 'default',
+        minimumLabelCount: 14,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
+        viewport: { width: 1440, height: 900 }
       },
       {
-        id: 'reduced',
+        id: 'desktop-reduced',
         expectedQuality: 'reduced',
-        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=reduced'
+        interaction: 'default',
+        minimumLabelCount: 10,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=reduced',
+        viewport: { width: 1440, height: 900 }
       },
       {
-        id: 'invalid-fallback',
+        id: 'desktop-invalid-fallback',
         expectedQuality: 'balanced',
-        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=invalid'
+        interaction: 'default',
+        minimumLabelCount: 14,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=invalid',
+        viewport: { width: 1440, height: 900 }
+      },
+      {
+        id: 'mobile-balanced',
+        expectedQuality: 'balanced',
+        interaction: 'default',
+        minimumLabelCount: 10,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
+        viewport: { width: 390, height: 844 }
+      },
+      {
+        id: 'mobile-reduced-inspector',
+        expectedQuality: 'reduced',
+        interaction: 'inspector',
+        minimumLabelCount: 8,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=reduced',
+        viewport: { width: 390, height: 844 }
+      },
+      {
+        id: 'short-landscape-explore',
+        expectedQuality: 'balanced',
+        interaction: 'explore',
+        minimumLabelCount: 6,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
+        viewport: { width: 667, height: 375 }
       }
     ]);
     expect(() => renderedWebglBrowserProbeCases(0)).toThrow(/port/i);
@@ -146,7 +184,20 @@ describe('rendered WebGL headless browser probe contract', () => {
       fixture: 'synthetic-canonical-100',
       quality: 'balanced',
       castleCount: 100,
-      readyAfterMilliseconds: 2_412
+      readyAfterMilliseconds: 2_412,
+      viewportWidth: 1440,
+      viewportHeight: 900,
+      documentWidth: 1440,
+      mapViewportCovered: true,
+      interactionState: 'default',
+      labelCount: 18,
+      labelsTextBearingCount: 18,
+      labelsWithinViewportCount: 18,
+      labelCollisionCount: 0,
+      labelLeaderMismatchCount: 0,
+      labelReservedOverlapCount: 0,
+      undersizedPrimaryControlCount: 0,
+      undersizedPrimaryControlKinds: []
     } as const;
     expect(parseRenderedWebglBrowserDom(ready, expected)).toMatchObject({
       renderer: 'webgl',
@@ -161,10 +212,65 @@ describe('rendered WebGL headless browser probe contract', () => {
       mapRenderer: 'fallback'
     }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({ ...ready, quality: 'high' }, expected)).toThrow(/DOM/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelLeaderMismatchCount: 1
+    }, expected)).toThrow(/label-leader/i);
     expect(() => parseRenderedWebglBrowserDom({ ...ready, fid: 539_854 }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       readyAfterMilliseconds: 120_001
     }, expected)).toThrow(/observation/i);
+  });
+
+  it('reduces an in-memory Chrome PNG to bounded visual evidence and rejects blank output', () => {
+    const chunk = (type: string, data: Buffer) => {
+      const length = Buffer.alloc(4);
+      length.writeUInt32BE(data.byteLength);
+      return Buffer.concat([length, Buffer.from(type, 'ascii'), data, Buffer.alloc(4)]);
+    };
+    const createPng = (blank: boolean) => {
+      const width = 320;
+      const height = 320;
+      const header = Buffer.alloc(13);
+      header.writeUInt32BE(width, 0);
+      header.writeUInt32BE(height, 4);
+      header[8] = 8;
+      header[9] = 6;
+      const rows = Buffer.alloc((width * 4 + 1) * height);
+      for (let y = 0; y < height; y += 1) {
+        const row = y * (width * 4 + 1);
+        rows[row] = 0;
+        for (let x = 0; x < width; x += 1) {
+          const offset = row + 1 + x * 4;
+          rows[offset] = blank ? 0 : (x * 7 + y * 3) & 0xff;
+          rows[offset + 1] = blank ? 0 : (x * 2 + y * 11) & 0xff;
+          rows[offset + 2] = blank ? 0 : (x * 13 + y * 5) & 0xff;
+          rows[offset + 3] = 255;
+        }
+      }
+      return Buffer.concat([
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+        chunk('IHDR', header),
+        chunk('IDAT', deflateSync(rows)),
+        chunk('IEND', Buffer.alloc(0))
+      ]);
+    };
+
+    expect(analyzeRenderedWebglPngScreenshot(
+      createPng(false),
+      { width: 320, height: 320 }
+    )).toMatchObject({
+      sampleCount: 117,
+      opaqueSamples: 117
+    });
+    expect(() => analyzeRenderedWebglPngScreenshot(
+      createPng(true),
+      { width: 320, height: 320 }
+    )).toThrow(/credible visual output/i);
+    expect(() => analyzeRenderedWebglPngScreenshot(
+      createPng(false),
+      { width: 321, height: 320 }
+    )).toThrow(/screenshot/i);
   });
 });

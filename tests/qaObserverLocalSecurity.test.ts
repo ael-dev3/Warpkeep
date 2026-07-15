@@ -159,4 +159,17 @@ describe('local QA Observatory security boundary', () => {
     expect(source).toContain('<integer>63</integer>');
     expect(source).not.toMatch(/EnvironmentVariables|https:\/\/|token|secret|credential/i);
   });
+
+  it('denies non-loopback network authority to every autonomous macOS check process', () => {
+    const profile = readFileSync(
+      resolve(process.cwd(), 'scripts/qa-observer/qa-cycle-network.sb'),
+      'utf8'
+    );
+    expect(profile).toContain('(deny network*)');
+    expect(profile).toContain('(local ip "localhost:*")');
+    expect(profile).toContain('(remote ip "localhost:*")');
+    expect(profile).toContain('(subpath observatory-root)');
+    expect(profile).not.toMatch(/\(allow network\*\)\s*$/m);
+    expect(profile).not.toMatch(/remote ip "\*:\*"/);
+  });
 });

@@ -11,8 +11,8 @@ import type {
   RealmIdentity
 } from './realmTypes';
 
-export const CASTLE_LABEL_MAX_DESKTOP = 28;
-export const CASTLE_LABEL_MAX_MOBILE = 10;
+export const CASTLE_LABEL_LAYOUT_MAX_CASTLES = 100;
+export const CASTLE_LABEL_LEADER_MIN_DISPLACEMENT_PIXELS = 12;
 export const CASTLE_LABEL_FAR_DISTANCE = 24;
 export const CASTLE_LABEL_GAP_PIXELS = 6;
 
@@ -58,7 +58,40 @@ export type RealmCastlePublicPresentation = Readonly<{
 
 export type VisibleCastleLabel = RealmCastleScreenProjection & Readonly<{
   compact: boolean;
+  /** Original roof projection retained even when collision layout moves the label. */
+  projectedAnchor: Readonly<{ x: number; y: number }>;
 }>;
+
+export type RealmCastleLabelLeaderGeometry = Readonly<{
+  displaced: boolean;
+  length: number;
+  angleRadians: number;
+}>;
+
+export function realmCastleLabelLeaderGeometry(
+  label: Readonly<{
+    x: number;
+    y: number;
+    projectedAnchor: Readonly<{ x: number; y: number }>;
+  }>
+): RealmCastleLabelLeaderGeometry {
+  const deltaX = label.x - label.projectedAnchor.x;
+  const deltaY = label.y - label.projectedAnchor.y;
+  if (
+    !Number.isFinite(deltaX)
+    || !Number.isFinite(deltaY)
+    || !Number.isFinite(label.projectedAnchor.x)
+    || !Number.isFinite(label.projectedAnchor.y)
+  ) {
+    return Object.freeze({ displaced: false, length: 0, angleRadians: 0 });
+  }
+  const length = Math.hypot(deltaX, deltaY);
+  return Object.freeze({
+    displaced: length >= CASTLE_LABEL_LEADER_MIN_DISPLACEMENT_PIXELS,
+    length,
+    angleRadians: Math.atan2(deltaY, deltaX)
+  });
+}
 
 function projectionNumberKey(value: number, scale = 1) {
   return Number.isFinite(value) ? Math.round(value * scale) : 'invalid';
@@ -245,12 +278,14 @@ export function resolveVisibleCastleLabels(
   frame: RealmCastleProjectionFrame,
   ownCastleId: number | undefined,
   selectedCastleId: number | undefined,
-  maximumLabels = frame.width <= 680
-    ? CASTLE_LABEL_MAX_MOBILE
-    : CASTLE_LABEL_MAX_DESKTOP
+  maximumLabels = CASTLE_LABEL_LAYOUT_MAX_CASTLES
 ): readonly VisibleCastleLabel[] {
-  if (frame.width <= 0 || frame.height <= 0 || maximumLabels <= 0) return [];
+  const boundedMaximumLabels = Number.isFinite(maximumLabels)
+    ? Math.min(CASTLE_LABEL_LAYOUT_MAX_CASTLES, Math.max(0, Math.floor(maximumLabels)))
+    : 0;
+  if (frame.width <= 0 || frame.height <= 0 || boundedMaximumLabels <= 0) return [];
   const candidates = frame.castles
+    .slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES)
     .filter((castle) => castle.visible)
     .sort((left, right) => {
       const priority = (castle: RealmCastleScreenProjection) => (
@@ -265,7 +300,7 @@ export function resolveVisibleCastleLabels(
 
   const accepted: Array<VisibleCastleLabel & { bounds: Bounds }> = [];
   for (const castle of candidates) {
-    if (accepted.length >= maximumLabels) break;
+    if (accepted.length >= boundedMaximumLabels) break;
     const priority = castle.castleId === selectedCastleId || castle.castleId === ownCastleId;
     const fullAttempt = { compact: false, offsets: [{ x: 0, y: 0 }] } as const;
     const compactAttempt = { compact: true, offsets: COMPACT_LABEL_ATTACHMENT_OFFSETS } as const;
@@ -305,6 +340,7 @@ export function resolveVisibleCastleLabels(
         nextLabel = {
           ...projectedCastle,
           compact: attempt.compact,
+          projectedAnchor: { x: castle.x, y: castle.y },
           bounds
         };
         break;

@@ -45,7 +45,10 @@ import {
   sampleLowlandsColor
 } from './createTerrainGeometry';
 import type { RealmCameraMode } from './realmCameraController';
-import { measuredRealmComposition } from './realmMeasuredComposition';
+import {
+  measuredRealmComposition,
+  measuredVisibleRealmUiRects
+} from './realmMeasuredComposition';
 import {
   REALM_QUALITY_SPECS,
   selectRealmQuality,
@@ -57,17 +60,18 @@ import {
   CASTLE_LABEL_FAR_DISTANCE,
   CASTLE_LABEL_COMPACT_HEIGHT,
   CASTLE_LABEL_COMPACT_WIDTH,
+  CASTLE_LABEL_LAYOUT_MAX_CASTLES,
   castleProfileLabel,
   fallbackCastleProjection,
   publicProfileForCastle,
+  realmCastleLabelLeaderGeometry,
   resolveVisibleCastleLabels,
   type VisibleCastleLabel
 } from './realmCastlePresentation';
 import {
   resolveMeasuredRealmLabelLayout,
   type RealmLabelPlacement,
-  type RealmMeasuredLabelRectangle,
-  type RealmScreenRect
+  type RealmMeasuredLabelRectangle
 } from './realmMeasuredLabelLayout';
 import {
   createRealmInteractionState,
@@ -120,6 +124,44 @@ function clamp(value: number, minimum: number, maximum: number) {
 function sameCoord(first: HexCoord | null, second: HexCoord | null) {
   if (first === null || second === null) return first === second;
   return first.q === second.q && first.r === second.r;
+}
+
+function applyCastleLabelPlacement(
+  button: HTMLButtonElement,
+  leader: HTMLElement | undefined,
+  placement: RealmLabelPlacement | undefined
+) {
+  if (!placement) {
+    button.style.visibility = 'hidden';
+    button.tabIndex = -1;
+    button.dataset.displaced = 'false';
+    if (leader) {
+      leader.hidden = true;
+      leader.dataset.active = 'false';
+    }
+    return;
+  }
+
+  const geometry = realmCastleLabelLeaderGeometry(placement);
+  const labelX = `${placement.x.toFixed(2)}px`;
+  const labelY = `${placement.y.toFixed(2)}px`;
+  const anchorX = `${placement.projectedAnchor.x.toFixed(2)}px`;
+  const anchorY = `${placement.projectedAnchor.y.toFixed(2)}px`;
+  button.style.visibility = 'visible';
+  button.tabIndex = 0;
+  button.dataset.displaced = geometry.displaced ? 'true' : 'false';
+  button.style.setProperty('--realm-castle-label-x', labelX);
+  button.style.setProperty('--realm-castle-label-y', labelY);
+  button.style.setProperty('--realm-castle-anchor-x', anchorX);
+  button.style.setProperty('--realm-castle-anchor-y', anchorY);
+
+  if (!leader) return;
+  leader.hidden = !geometry.displaced;
+  leader.dataset.active = geometry.displaced ? 'true' : 'false';
+  leader.style.setProperty('--realm-castle-anchor-x', anchorX);
+  leader.style.setProperty('--realm-castle-anchor-y', anchorY);
+  leader.style.setProperty('--realm-castle-leader-length', `${geometry.length.toFixed(2)}px`);
+  leader.style.setProperty('--realm-castle-leader-angle', `${geometry.angleRadians.toFixed(6)}rad`);
 }
 
 function samePeerCastleMarkers(
@@ -465,13 +507,11 @@ function CanonicalRealmMapScreen({
       : 'unavailable';
   const labelLayoutContextRef = useRef({
     ownCastleId: observerMode ? undefined : ownCastle.castleId,
-    selectedCastleId: selectedCastle?.castleId,
-    reducedQuality: quality === 'reduced'
+    selectedCastleId: selectedCastle?.castleId
   });
   labelLayoutContextRef.current = {
     ownCastleId: observerMode ? undefined : ownCastle.castleId,
-    selectedCastleId: selectedCastle?.castleId,
-    reducedQuality: quality === 'reduced'
+    selectedCastleId: selectedCastle?.castleId
   };
 
   useEffect(() => {
@@ -569,11 +609,10 @@ function CanonicalRealmMapScreen({
       const root = rootRef.current;
       if (!root || frame.width <= 0 || frame.height <= 0) return;
       const context = labelLayoutContextRef.current;
-      const maximumLabels = context.reducedQuality
-        ? (frame.width <= 680 ? 10 : 14)
-        : frame.width <= 680 ? 10 : 28;
+      const maximumLabels = Math.min(frame.castles.length, CASTLE_LABEL_LAYOUT_MAX_CASTLES);
+      const labelCastles = frame.castles.slice(0, maximumLabels);
       const provisional = resolveVisibleCastleLabels(
-        frame,
+        { ...frame, castles: labelCastles },
         context.ownCastleId,
         context.selectedCastleId,
         maximumLabels
@@ -583,6 +622,12 @@ function CanonicalRealmMapScreen({
         .forEach((button) => {
           const castleId = Number(button.dataset.castleId);
           if (Number.isSafeInteger(castleId)) buttons.set(castleId, button);
+        });
+      const leaders = new Map<number, HTMLElement>();
+      root.querySelectorAll<HTMLElement>('[data-realm-label-leader][data-castle-id]')
+        .forEach((leader) => {
+          const castleId = Number(leader.dataset.castleId);
+          if (Number.isSafeInteger(castleId)) leaders.set(castleId, leader);
         });
       const measurementLabels = new Map<number, HTMLElement>();
       root.querySelectorAll<HTMLElement>('.realm-castle-label--measurement[data-measure-castle-id]')
@@ -616,26 +661,14 @@ function CanonicalRealmMapScreen({
         return;
       }
 
-      const rootRect = root.getBoundingClientRect();
-      const toRelativeRect = (rect: DOMRect): RealmScreenRect => ({
-        left: rect.left - rootRect.left,
-        top: rect.top - rootRect.top,
-        right: rect.right - rootRect.left,
-        bottom: rect.bottom - rootRect.top
-      });
-      const reservedUiRects = [
+      const reservedUiRects = measuredVisibleRealmUiRects(root, [
         '.realm-hud',
         '.castle-inspection',
         '.realm-hud__actions',
         '.realm-cell-navigator > button',
         '.realm-cell-navigator__dialog'
-      ].flatMap((selector) => {
-        const element = root.querySelector<HTMLElement>(selector);
-        if (!element) return [];
-        const rect = element.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0 ? [toRelativeRect(rect)] : [];
-      });
-      const anchors = frame.castles.map((castle) => {
+      ]);
+      const anchors = labelCastles.map((castle) => {
         const measurementLabel = measurementLabels.get(castle.castleId);
         const compactMeasurementLabel = compactMeasurementLabels.get(castle.castleId);
         const measuredRectangle = (
@@ -707,14 +740,15 @@ function CanonicalRealmMapScreen({
         collisionPaddingPixels: 4
       });
       previousLabelLayoutRef.current = layout.placements;
-      const projectionById = new Map(frame.castles.map((castle) => [castle.castleId, castle]));
+      const projectionById = new Map(labelCastles.map((castle) => [castle.castleId, castle]));
       const nextLabels = layout.placements.flatMap((placement): VisibleCastleLabel[] => {
         const projection = projectionById.get(placement.castleId);
         return projection ? [{
           ...projection,
           x: placement.x,
           y: placement.y,
-          compact: placement.presentation === 'compact'
+          compact: placement.presentation === 'compact',
+          projectedAnchor: placement.projectedAnchor
         }] : [];
       });
       const signature = nextLabels.map((label) => `${label.castleId}:${label.compact}`).join('|');
@@ -724,16 +758,7 @@ function CanonicalRealmMapScreen({
       }
       const placementsById = new Map(layout.placements.map((placement) => [placement.castleId, placement]));
       for (const [castleId, button] of buttons) {
-        const placement = placementsById.get(castleId);
-        if (!placement) {
-          button.style.visibility = 'hidden';
-          button.tabIndex = -1;
-          continue;
-        }
-        button.style.visibility = 'visible';
-        button.tabIndex = 0;
-        button.style.setProperty('--realm-castle-label-x', `${placement.x.toFixed(2)}px`);
-        button.style.setProperty('--realm-castle-label-y', `${placement.y.toFixed(2)}px`);
+        applyCastleLabelPlacement(button, leaders.get(castleId), placementsById.get(castleId));
       }
     });
   }, []);

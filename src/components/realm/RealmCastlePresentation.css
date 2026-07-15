@@ -6,8 +6,33 @@
   pointer-events: none;
 }
 
+.realm-castle-label__leader {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: var(--realm-castle-leader-length);
+  height: 1px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(229 193 108 / 34%), rgb(244 213 134 / 78%));
+  box-shadow: 0 0 0.35rem rgb(229 193 108 / 22%);
+  transform: translate3d(
+    var(--realm-castle-anchor-x),
+    var(--realm-castle-anchor-y),
+    0
+  ) rotate(var(--realm-castle-leader-angle));
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+
+.realm-castle-label__leader[hidden],
+.realm-castle-label__leader[data-active="false"] {
+  display: none;
+}
+
 .realm-castle-label {
   position: absolute;
+  z-index: 1;
   top: 0;
   left: 0;
   display: inline-flex;

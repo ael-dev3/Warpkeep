@@ -4,11 +4,22 @@ export const RENDERED_WEBGL_QA_CHROME:
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 export type RenderedWebglBrowserProbeQuality = 'high' | 'balanced' | 'reduced';
+export type RenderedWebglBrowserProbeInteraction = 'default' | 'inspector' | 'explore';
 
 export type RenderedWebglBrowserProbeCase = Readonly<{
-  id: 'high' | 'balanced' | 'reduced' | 'invalid-fallback';
+  id:
+    | 'desktop-high'
+    | 'desktop-balanced'
+    | 'desktop-reduced'
+    | 'desktop-invalid-fallback'
+    | 'mobile-balanced'
+    | 'mobile-reduced-inspector'
+    | 'short-landscape-explore';
   expectedQuality: RenderedWebglBrowserProbeQuality;
+  interaction: RenderedWebglBrowserProbeInteraction;
+  minimumLabelCount: number;
   url: string;
+  viewport: Readonly<{ width: number; height: number }>;
 }>;
 
 export type HeadlessChromeProbeContract = Readonly<{
@@ -59,6 +70,16 @@ export function parseRenderedWebglBrowserDom(
   quality: RenderedWebglBrowserProbeQuality;
   castleCount: 100;
   readyAfterMilliseconds: number;
+}>;
+
+export function analyzeRenderedWebglPngScreenshot(
+  value: Buffer,
+  viewport: Readonly<{ width: number; height: number }>
+): Readonly<{
+  distinctColourBuckets: number;
+  luminanceRange: number;
+  opaqueSamples: number;
+  sampleCount: number;
 }>;
 
 export function runRenderedWebglBrowserProbe(): Promise<void>;

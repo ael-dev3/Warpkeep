@@ -1,0 +1,15 @@
+(version 1)
+
+(define observatory-root (param "OBSERVATORY_ROOT"))
+
+; Preserve ordinary local build/test behavior while removing all non-loopback
+; network authority from the complete process tree. Unix sockets are limited
+; to owner-private QA/temp locations used by the reviewed fixtures.
+(allow default)
+(deny network*)
+(allow network* (local ip "localhost:*"))
+(allow network* (remote ip "localhost:*"))
+(allow network* (local unix-socket (subpath "/private/tmp")))
+(allow network* (remote unix-socket (subpath "/private/tmp")))
+(allow network* (local unix-socket (subpath observatory-root)))
+(allow network* (remote unix-socket (subpath observatory-root)))

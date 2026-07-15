@@ -230,7 +230,8 @@ describe('realm profile and PFP presentation regressions', () => {
       y: 140,
       distance: 2,
       visible: true,
-      compact: false
+      compact: false,
+      projectedAnchor: { x: 180, y: 140 }
     } as const;
     const castle = {
       castleId: 7,
@@ -282,6 +283,58 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
   });
 
+  it('exposes a synthetic-safe displacement marker and only shows a decorative roof leader when needed', () => {
+    const castle = {
+      castleId: 7,
+      ownerFid: 7_001,
+      q: 1,
+      r: -1,
+      level: 1,
+      name: 'Fixture Keep'
+    } as const;
+    const renderLabel = (y: number, projectedY: number) => (
+      <RealmCastleLabels
+        labels={[{
+          castleId: 7,
+          q: 1,
+          r: -1,
+          x: 180,
+          y,
+          distance: 2,
+          visible: true,
+          compact: true,
+          projectedAnchor: { x: 180, y: projectedY }
+        }]}
+        records={new Map([[7, {
+          castle,
+          profile: profile({ canonicalUsername: 'fixturekeeper' })
+        }]])}
+        inspectorId="castle-inspector"
+        inspectorOpen={false}
+        onActivate={vi.fn()}
+      />
+    );
+    const { container, rerender } = render(renderLabel(90, 140));
+    let button = screen.getByRole('button', { name: /Inspect @fixturekeeper castle/i });
+    let leader = container.querySelector<HTMLElement>('[data-realm-label-leader]');
+
+    expect(button.dataset.displaced).toBe('true');
+    expect(button.style.getPropertyValue('--realm-castle-anchor-x')).toBe('180px');
+    expect(button.style.getPropertyValue('--realm-castle-anchor-y')).toBe('140px');
+    expect(leader?.dataset.active).toBe('true');
+    expect(leader?.hidden).toBe(false);
+    expect(leader?.getAttribute('aria-hidden')).toBe('true');
+    expect(leader?.textContent).toBe('');
+    expect(leader?.style.getPropertyValue('--realm-castle-leader-length')).toBe('50px');
+
+    rerender(renderLabel(140, 140));
+    button = screen.getByRole('button', { name: /Inspect @fixturekeeper castle/i });
+    leader = container.querySelector<HTMLElement>('[data-realm-label-leader]');
+    expect(button.dataset.displaced).toBe('false');
+    expect(leader?.dataset.active).toBe('false');
+    expect(leader?.hidden).toBe(true);
+  });
+
   it.each([
     'http://cdn.warpkeep.com/profile.png',
     'data:image/png;base64,AA==',
@@ -315,7 +368,8 @@ describe('realm profile and PFP presentation regressions', () => {
           y: 140,
           distance: 2,
           visible: true,
-          compact: false
+          compact: false,
+          projectedAnchor: { x: 180, y: 140 }
         }]}
         records={new Map([[
           7,
@@ -373,7 +427,8 @@ describe('realm profile and PFP presentation regressions', () => {
             y: 140,
             distance: 2,
             visible: true,
-            compact: true
+            compact: true,
+            projectedAnchor: { x: 180, y: 140 }
           }]}
           records={new Map([[
             7,

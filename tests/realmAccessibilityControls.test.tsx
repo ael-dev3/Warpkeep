@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { createRef, useState, type Ref } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { WARPKEEP_FARCASTER_CHANNEL_URL } from '../src/farcaster/farcasterProjectLinks';
 import {
   RealmAccessibilityControls,
   type RealmNavigatorCameraPreset,
@@ -96,6 +97,14 @@ describe('RealmAccessibilityControls', () => {
     expect(own.getAttribute('data-own')).toBe('true');
     expect(own.getAttribute('aria-pressed')).toBe('false');
     expect(selected.getAttribute('aria-pressed')).toBe('true');
+    const community = screen.getByRole('region', { name: 'Warpkeep community' });
+    const feedbackLink = within(community).getByRole('link', {
+      name: 'Open the Warpkeep Farcaster channel to share feedback (opens in a new tab)'
+    });
+    expect(feedbackLink.getAttribute('href')).toBe(WARPKEEP_FARCASTER_CHANNEL_URL);
+    expect(feedbackLink.getAttribute('target')).toBe('_blank');
+    expect(feedbackLink.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(feedbackLink.getAttribute('referrerpolicy')).toBe('no-referrer');
 
     fireEvent.focus(selected);
     expect(onActivateCastle).not.toHaveBeenCalled();

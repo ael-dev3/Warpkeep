@@ -2,7 +2,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
-import { measuredRealmComposition } from '../src/components/realm/realmMeasuredComposition';
+import {
+  measuredRealmComposition,
+  measuredVisibleRealmUiRects
+} from '../src/components/realm/realmMeasuredComposition';
 import type { RealmIdentity } from '../src/components/realm/realmTypes';
 import type { CanonicalWarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
 import {
@@ -39,6 +42,46 @@ afterEach(() => {
 });
 
 describe('RealmMapScreen', () => {
+  it('does not reserve label space for hidden Realm chrome', () => {
+    const root = document.createElement('main');
+    const visible = document.createElement('section');
+    const visibilityHidden = document.createElement('section');
+    const displayNone = document.createElement('section');
+    visible.className = 'realm-hud';
+    visibilityHidden.className = 'realm-hud__actions';
+    visibilityHidden.style.visibility = 'hidden';
+    displayNone.className = 'castle-inspection';
+    displayNone.style.display = 'none';
+    root.append(visible, visibilityHidden, displayNone);
+
+    const rect = (left: number, top: number, right: number, bottom: number) => ({
+      left,
+      top,
+      right,
+      bottom,
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+      toJSON: () => ({})
+    }) as DOMRect;
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(rect(100, 50, 900, 650));
+    vi.spyOn(visible, 'getBoundingClientRect').mockReturnValue(rect(120, 70, 320, 190));
+    vi.spyOn(visibilityHidden, 'getBoundingClientRect').mockReturnValue(rect(120, 580, 320, 630));
+    vi.spyOn(displayNone, 'getBoundingClientRect').mockReturnValue(rect(650, 70, 880, 630));
+
+    expect(measuredVisibleRealmUiRects(root, [
+      '.realm-hud',
+      '.realm-hud__actions',
+      '.castle-inspection'
+    ])).toEqual([{
+      left: 20,
+      top: 20,
+      right: 220,
+      bottom: 140
+    }]);
+  });
+
   it('reserves a short-landscape Explore panel from the right camera edge', () => {
     const root = document.createElement('main');
     const hud = document.createElement('section');

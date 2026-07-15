@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import type { HexCoord } from '../../game/map/hexCoordinates';
+import { WARPKEEP_FARCASTER_CHANNEL_URL } from '../../farcaster/farcasterProjectLinks';
 
 export type RealmNavigatorCastle = Readonly<{
   castleId: number;
@@ -254,6 +255,23 @@ export function RealmAccessibilityControls({
                 : 'No founded castles are available.'}
             </p>
           )}
+
+          <section
+            aria-label="Warpkeep community"
+            className="realm-cell-navigator__community"
+          >
+            <span>REALM COUNCIL</span>
+            <p>Share feedback, wishes, and the stories shaping Genesis 001.</p>
+            <a
+              aria-label="Open the Warpkeep Farcaster channel to share feedback (opens in a new tab)"
+              href={WARPKEEP_FARCASTER_CHANNEL_URL}
+              referrerPolicy="no-referrer"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              WARPKEEP CHANNEL <span aria-hidden="true">↗</span>
+            </a>
+          </section>
 
           {coordinateJump ? (
             <form className="realm-cell-navigator__jump" onSubmit={handleJump}>

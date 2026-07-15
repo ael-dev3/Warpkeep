@@ -7,12 +7,13 @@ import {
 import {
   CASTLE_LABEL_FAR_DISTANCE,
   CASTLE_LABEL_GAP_PIXELS,
-  CASTLE_LABEL_MAX_DESKTOP,
+  CASTLE_LABEL_LAYOUT_MAX_CASTLES,
   castleProfileLabel,
   fallbackCastleProjection,
   farcasterProfileUrl,
   formatPublicMarkMicros,
   publicProfileForCastle,
+  realmCastleLabelLeaderGeometry,
   realmCastleProjectionFrameKey,
   resolveVisibleCastleLabels,
   safeRealmProfileImageUrl,
@@ -114,7 +115,27 @@ describe('realm castle public presentation', () => {
     expect(sectorForRealmCoord({ q: 1, r: -1 })).toBe(6);
   });
 
-  it('caps labels and retains selected/own identity with a compact roof-attached fallback', () => {
+  it('attempts every castle in the bounded 100-castle presentation budget', () => {
+    const castles = Array.from({ length: CASTLE_LABEL_LAYOUT_MAX_CASTLES }, (_, index) => ({
+      castleId: index + 1,
+      q: index,
+      r: 0,
+      x: 100 + (index % 25) * 150,
+      y: 70 + Math.floor(index / 25) * 70,
+      distance: index + 1,
+      visible: true
+    }));
+
+    const resolved = resolveVisibleCastleLabels({ width: 3_850, height: 360, castles }, 1, 100);
+
+    expect(resolved).toHaveLength(CASTLE_LABEL_LAYOUT_MAX_CASTLES);
+    expect(resolved.every((castle) => (
+      castle.projectedAnchor.x === castles[castle.castleId - 1]?.x
+      && castle.projectedAnchor.y === castles[castle.castleId - 1]?.y
+    ))).toBe(true);
+  });
+
+  it('retains selected/own identity with a compact roof-attached fallback', () => {
     const castles = Array.from({ length: 100 }, (_, index) => ({
       castleId: index + 1,
       q: index,
@@ -135,13 +156,30 @@ describe('realm castle public presentation', () => {
       100
     );
 
-    expect(resolved.length).toBeLessThanOrEqual(CASTLE_LABEL_MAX_DESKTOP);
     expect(resolved.some((castle) => castle.castleId === 100)).toBe(true);
     expect(resolved.find((castle) => castle.castleId === 100)?.compact).toBe(false);
     expect(resolved.find((castle) => castle.castleId === 99)).toMatchObject({
       compact: true,
       x: 240,
-      y: 110
+      y: 110,
+      projectedAnchor: { x: 240, y: 160 }
+    });
+  });
+
+  it('marks only meaningful label displacement for a decorative roof connector', () => {
+    expect(realmCastleLabelLeaderGeometry({
+      x: 180,
+      y: 140,
+      projectedAnchor: { x: 180, y: 140 }
+    })).toEqual({ displaced: false, length: 0, angleRadians: 0 });
+    expect(realmCastleLabelLeaderGeometry({
+      x: 180,
+      y: 90,
+      projectedAnchor: { x: 180, y: 140 }
+    })).toMatchObject({
+      displaced: true,
+      length: 50,
+      angleRadians: -Math.PI / 2
     });
   });
 
