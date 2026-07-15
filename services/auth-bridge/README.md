@@ -47,9 +47,15 @@ metadata.
 The QA routes are a separate service boundary, not browser/player
 authentication. They reject every request carrying an `Origin`, emit no CORS
 headers, reject query parameters and unknown JSON fields, and remain unavailable
-unless `QA_OBSERVER_ENABLED` is exactly `true` with one all-or-none registered
-public P-256 JWK, canonical RFC 3339 registration timestamp, and canonical
-expiry. The checked-in gate is `false`, independent of `PUBLIC_AUTH_ENABLED`.
+unless `QA_OBSERVER_ENABLED` is exactly `true` with one all-or-none dedicated
+SpacetimeDB URI/database/audience tuple plus one all-or-none registered public
+P-256 JWK, canonical RFC 3339 registration timestamp, and canonical expiry.
+The observer database and audience must both differ from the gameplay values;
+partial tuples and any fallback to gameplay coordinates fail closed. The
+production observer origin is additionally pinned to exact
+`https://maincloud.spacetimedb.com`, so a configured credential cannot be sent
+to another HTTPS origin. The checked-in gate is `false` and the dedicated tuple
+is absent, independent of `PUBLIC_AUTH_ENABLED`.
 The key must remain valid beyond the one-minute challenge window and its expiry
 may be no more than 366 days after the fixed registration timestamp; the
 boundary is checked again on every QA request so annual owner review cannot be
@@ -96,9 +102,11 @@ signature verification, so a wrong signature cannot be retried. After proof,
 the Worker mints a fresh 15-second token with exact subject
 `service:qa-snapshot-resolver`, sole role
 `warpkeep-qa-snapshot-resolver`, and `device_thumbprint`. It calls only the
-fixed Maincloud procedure `qa_observer_get_realm_attestation_v2` with `[]`, never
-returns that token, rejects redirects and malformed/oversized responses, and
-returns only the strict aggregate attestation. The retained
+fixed `qa_observer_get_realm_attestation_v2` procedure on the configured
+dedicated observer database with `[]`. Its JWT uses only the dedicated observer
+audience, which the canonical game module rejects. The Worker never returns
+that token, rejects redirects and malformed/oversized responses, and returns
+only the strict aggregate attestation. The retained
 `qa_observer_get_realm_snapshot_v1` schema wire immediately fails with
 `QA_OBSERVER_V1_DISABLED`; it performs no authentication, transaction, or
 database read and can no longer return its former response.
@@ -139,12 +147,13 @@ signal, FID, Identity, PFP URL, auth/session material, admission, Terms, wallet,
 receipt, Marks, audit, or mutation surface leaves the server.
 
 This closed Worker response is not by itself a complete aggregate-only
-principal boundary. SpacetimeDB lifecycle admission currently lets the same
-fresh QA resolver establish identity-bearing public-table subscriptions that
-can outlive the 15-second token. `QA_OBSERVER_ENABLED` must remain `false`
-until the observer uses an isolated module/database or identity-free replica
-with no player/profile subscription surface, in addition to the local
-caller-binding prerequisites.
+principal boundary. The bridge now refuses to mint or send the observer token
+without a different database and audience and never falls back to the gameplay
+target. Configuration separation does not prove that a future target's schema
+is identity-free. `QA_OBSERVER_ENABLED` must remain `false` until an isolated
+module/database or identity-free replica with no player/profile subscription
+surface is reviewed and deployed, in addition to the local caller-binding
+prerequisites.
 
 ## Browser proof contract
 
@@ -315,7 +324,11 @@ all three secret materials must be pairwise distinct, including the private
 `AUTH_RATE_LIMITER`, and `SESSION_FAMILIES` are separate SQLite Durable Object
 bindings. `QA_CHALLENGE_REPLAY_GUARD` is a fourth isolated SQLite binding; its
 additive `QaChallengeReplayGuard` migration requires explicit operator approval
-before any Worker deployment. `QA_OBSERVER_PUBLIC_JWK`,
+before any Worker deployment. `QA_OBSERVER_SPACETIMEDB_URI`,
+`QA_OBSERVER_SPACETIMEDB_DATABASE`, and `QA_OBSERVER_OIDC_AUDIENCE` are one
+all-or-none tuple and have no gameplay fallback; the database and audience must
+both differ from the player/auth resolver target, and production pins the tuple's
+origin to exact `https://maincloud.spacetimedb.com`. `QA_OBSERVER_PUBLIC_JWK`,
 `QA_OBSERVER_KEY_REGISTERED_AT`, and `QA_OBSERVER_KEY_EXPIRES_AT` are required
 as one exact tuple only when the independent QA gate is enabled. Registration
 and expiry are canonical RFC 3339 timestamps; their interval may not exceed 366
@@ -329,14 +342,16 @@ same Maincloud/database pair. Development remains explicitly configurable and is
 not accepted as a production activation profile.
 
 The server-only `POST /v1/admin/config-attestation` route additionally returns
-the independent QA gate, registered public-key fingerprint, canonical
-registration/expiry timestamps, and maximum registration lifetime after
-admin-secret authentication. The SHA-256 digest covers issuer,
-origins, SIWF coordinates, audience, key ID, Maincloud coordinates, environment,
-S256 binding, player/resolver lifetimes, QA scope/procedure/lifetimes, both
-gates, the registered QA fingerprint/registration/expiry/lifetime, the 30-day family ceiling, and
-exact cookie attributes. Operators must compare it with the reviewed expected
-configuration; it is not a deployment action and reveals no secret material.
+the independent QA gate, observer URI/database/audience tuple, registered
+public-key fingerprint, canonical registration/expiry timestamps, and maximum
+registration lifetime after admin-secret authentication. The SHA-256 digest
+covers issuer, origins, SIWF coordinates, gameplay audience/key/Maincloud
+coordinates, observer URI/database/audience coordinates, environment, S256
+binding, player/resolver lifetimes, QA scope/procedure/lifetimes, both gates,
+the registered QA fingerprint/registration/expiry/lifetime, the 30-day family
+ceiling, and exact cookie attributes. Operators must compare it with the
+reviewed expected configuration; it is not a deployment action and reveals no
+secret material.
 
 Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use
 separate development keys. Set real secrets only through approved Cloudflare

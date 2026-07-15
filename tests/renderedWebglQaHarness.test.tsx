@@ -29,12 +29,30 @@ describe('rendered WebGL local QA harness', () => {
     });
     expect(status.dataset.fixture).toBe('synthetic-canonical-100');
     expect(status.dataset.castleCount).toBe('100');
+    expect(status.dataset.presentationMode).toBe('observer');
     expect(status.dataset.quality).toBe('reduced');
     expect(status.dataset.renderer).toBe('fallback');
     expect(screen.getByText('STATIC FALLBACK — NOT A RENDER PASS')).not.toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(screen.getByRole('main', { name: 'Hegemony realm QA observer' })
       .getAttribute('data-presentation-mode')).toBe('observer');
+  });
+
+  it('renders the bounded synthetic player presentation without observer-only controls', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+
+    render(<RenderedWebglQaHarness presentationMode="player" quality="balanced" />);
+
+    const status = screen.getByText('LOCAL RENDERED WEBGL QA').closest('aside');
+    if (!(status instanceof HTMLElement)) throw new Error('missing rendered QA status');
+    await waitFor(() => expect(status.dataset.renderer).toBe('fallback'));
+    expect(status.dataset.presentationMode).toBe('player');
+    expect(screen.getByRole('main', { name: 'Hegemony realm' })
+      .getAttribute('data-presentation-mode')).toBe('player');
+    expect(screen.getByRole('button', { name: 'Recenter Keep' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Return to Menu' })).not.toBeNull();
+    expect(screen.queryByText('QA OBSERVER · READ ONLY')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Close QA Observer' })).toBeNull();
   });
 
   it('fails closed when its deterministic fixture cannot initialize', () => {

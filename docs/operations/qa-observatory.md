@@ -216,19 +216,22 @@ screen-reader continuity. A renderer recreation caused by a quality change
 restores the group framing instead of collapsing to a close-up of one castle.
 
 Bind Vite to loopback explicitly, then have the small contract helper print the
-exact local URL for one reviewed quality mode:
+exact local URL for one reviewed quality and presentation mode:
 
 ```sh
 npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
 node scripts/qa-observer/rendered-webgl-qa-contract.mjs --url high 5173
+# Optional synthetic player presentation:
+node scripts/qa-observer/rendered-webgl-qa-contract.mjs --url balanced 5173 player
 ```
 
 The helper only formats the URL; it does not start a server or browser, make a
 network request, read browser state, or write a report. Open the printed URL in
 a local browser for interactive visual review. The page accepts exactly one
-reviewed `quality` value:
-`?quality=high`, `balanced`, or `reduced`. Duplicate or unrelated query
-parameters and any other value fail closed to the reviewed `balanced` default.
+reviewed `quality` value (`high`, `balanced`, or `reduced`) and one optional
+`mode` value (`observer` or `player`). The read-only observer is the default.
+Duplicate, unrelated, or invalid query parameters fail closed to the reviewed
+balanced observer fixture.
 The selected value is passed directly to the actual Realm quality override, so
 each reviewed query exercises its corresponding castle LOD and render budget.
 If the reviewed loopback port is busy, choose an unused local port explicitly
@@ -278,11 +281,14 @@ Vite cache inside the disposable Chrome profile. This prevents an earlier test
 from redirecting the later host-side browser through mutable Vite configuration
 or cache state.
 
-Chrome runs eight fixed cases: every quality at 1440×900, one invalid query that
+Chrome runs nine fixed cases: every quality at 1440×900, one invalid query that
 must fail closed to `balanced`, balanced and reduced presentation in a 390×844
 narrow responsive viewport, an accessible desktop keeper-cluster focus action,
 an opened narrow-layout castle inspector, and an opened 667×375 short-landscape
-Explore surface. These browser cases prove responsive layout, not mobile-device
+Explore surface. One additional 1440×900 balanced case uses the same synthetic
+fixture in player presentation and requires Recenter Keep and Return to Menu
+while rejecting the observer badge and Close QA Observer control. These browser
+cases prove responsive layout, not mobile-device
 or touch emulation; scene-level pointer tests separately exercise anchored pinch
 and pan behavior. Every baseline
 must expose `renderer=webgl`, `status=ready`,
@@ -292,7 +298,8 @@ contract additionally checks exact viewport dimensions, horizontal overflow,
 map coverage, text-bearing in-bounds castle labels, label collisions, visible
 UI exclusion regions, aggregate projection-eligible/placed/unplaced label
 coverage, one-to-one placed-label/individual-label accounting, and complete
-clustered/overflow accounting. Keeper clusters must remain accessible,
+clustered/overflow accounting. The map's privacy-safe exact set-membership
+accounting flag must also be true; no identity keys are exported. Keeper clusters must remain accessible,
 collision-free, inside the viewport, outside reserved UI, and free of missing
 synthetic identity. Cluster overflow must be zero outside Explore; the Explore
 case may report accounted label overflow because its accessibility surface
@@ -358,10 +365,13 @@ remain separate one-time checkpoints:
    confirm zero game-state and private-data changes;
 11. install a reviewed non-root LaunchAgent only after the supervised local run passes.
 
-The current checkout does not satisfy checkpoints 4 or 5: its resolver still
-shares the public-table subscription surface and its helper is ad-hoc signed.
-Accordingly the checked-in production gate remains disabled. No live gate query
-or key enrollment was performed.
+The bridge-side fallback described by checkpoint 4 is now removed: an enabled
+gate requires a complete dedicated URI/database/audience tuple, and both the
+database and audience must differ from gameplay. The checked-in tuple remains
+absent because no identity-free target has been reviewed or deployed, so
+checkpoint 4 is not yet satisfied. Checkpoint 5 is also unsatisfied because the
+helper is ad-hoc signed. Accordingly the checked-in production gate remains
+disabled. No live gate query or key enrollment was performed.
 
 Daily operation after activation needs no QR scan or human input, but it does not
 replace periodic human testing of genuine Farcaster and Terms consent.
@@ -431,10 +441,11 @@ The machine-bound QA credential remains narrower: repository checks never
 receive it and sandboxed child checks cannot reach its broker socket. Other
 same-user processes could still ask the native helper for its fixed aggregate
 attestation operation, which is why the gate stays inactive until separate-account
-or authenticated-XPC isolation exists. Independently, the current resolver can
-establish public identity-bearing subscriptions while its short credential is
-fresh; the gate must also stay inactive until an isolated identity-free observer
-module/database or replica removes that authority. The runner retains its isolated `HOME`;
+or authenticated-XPC isolation exists. Independently, the bridge now requires
+a distinct observer database and audience and has no gameplay fallback, but the
+gate must stay inactive until the configured target is an audited identity-free
+module/database or replica with no player/profile subscription surface. The
+runner retains its isolated `HOME`;
 it does not reopen the signed-in user's SpacetimeDB config directory.
 
 Run a single local cycle manually:
@@ -462,7 +473,7 @@ data to browser JavaScript.
 
 The tiers intentionally trade coverage for hourly cost:
 
-- `quick` runs the eight-case responsive rendered-WebGL browser probe, the real
+- `quick` runs the nine-case responsive rendered-WebGL browser probe, the real
   parent-level sandbox boundary preflight, focused observer/security tests, an
   explicit synthetic app state lane, and root typecheck.
   The synthetic lane has one manifest-backed assertion for all 22 supported
@@ -536,9 +547,9 @@ other local accounts and browser-origin spoofing, but it cannot distinguish mali
 already executing as the same macOS user. The narrow output and lack of any
 mutation capability limit that risk; stable signing, XPC/code-identity controls,
 and a restricted QA account remain required before enrollment. Those controls
-do not resolve the separate public-subscription capability of the current QA
-resolver; isolated identity-free observer infrastructure is also required before
-activation. Keep QA
+do not prove the future observer target is identity-free; isolated infrastructure
+with no player/profile subscription surface is also required before activation.
+Keep QA
 screenshots and reports private, mode `0600`, with short retention.
 
 The checked-in helper is locally ad-hoc signed. Long-term Keychain access across

@@ -357,4 +357,34 @@ describe('Warpkeep local QA journey lab', () => {
     expect(screen.getByTestId('realm-static-fallback')).not.toBeNull();
     expectNoExternalSideEffects();
   });
+
+  it('promotes the exact Explore identity into player inspection without authority', async () => {
+    render(<WarpkeepQaJourneyLab initialScenario="realm-player" />);
+    await settlePresentation();
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Explore realm, 4 founded castles'
+    }));
+    const explore = screen.getByRole('dialog', { name: 'Explore' });
+    fireEvent.change(within(explore).getByRole('searchbox', {
+      name: 'Search founded castles'
+    }), { target: { value: 'sentinel-two' } });
+    const target = within(explore).getByRole('button', {
+      name: /Inspect @sentinel-two, Cinderwatch Keep/
+    });
+    fireEvent.click(target);
+    await settlePresentation();
+
+    const inspector = screen.getByRole('dialog', { name: '@sentinel-two' });
+    expect(within(inspector).getByText('Cinderwatch Keep')).not.toBeNull();
+    const focusedLabels = document.querySelectorAll<HTMLButtonElement>(
+      'button.realm-castle-label[data-castle-id="102"][data-focused="true"]'
+    );
+    expect(focusedLabels).toHaveLength(1);
+    expect(focusedLabels[0]?.querySelector('.realm-castle-label__identity')?.textContent)
+      .toBe('@sentinel-two');
+    expect(document.querySelector('.realm-map-screen')?.getAttribute('data-label-accounting-valid'))
+      .toBe('true');
+    expectNoExternalSideEffects();
+  });
 });

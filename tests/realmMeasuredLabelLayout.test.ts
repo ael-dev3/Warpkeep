@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS,
   resolveMeasuredRealmLabelLayout,
   type RealmProjectedLabelAnchor,
   type RealmScreenRect
@@ -120,8 +121,27 @@ describe('measured realm label layout', () => {
       hovered.x - hovered.projectedAnchor.x,
       hovered.y - hovered.projectedAnchor.y
     )).toBeGreaterThan(40);
+    expect(Math.hypot(
+      hovered.x - hovered.projectedAnchor.x,
+      hovered.y - hovered.projectedAnchor.y
+    )).toBeLessThanOrEqual(REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS);
     expect(hovered.layoutAnchor).toEqual({ x: 200, y: 160 });
     expect(result.culled).toContainEqual({ castleId: 1, reason: 'reserved-ui' });
+  });
+
+  it('culls mandatory identity placement when only detached safe space remains', () => {
+    const result = resolveMeasuredRealmLabelLayout({
+      anchors: [candidate(1, { priority: 'selected', x: 100, y: 160 })],
+      viewportBounds: viewport,
+      safeAreaBounds: safeArea,
+      reservedUiRects: [{ left: 0, top: 0, right: 260, bottom: 300 }],
+      mandatoryCastleIds: [1],
+      maximumLabels: 1,
+      collisionPaddingPixels: 0
+    });
+
+    expect(result.placements).toEqual([]);
+    expect(result.culled).toEqual([{ castleId: 1, reason: 'reserved-ui' }]);
   });
 
   it('attempts all 100 bounded candidates before collision culling', () => {
@@ -138,6 +158,12 @@ describe('measured realm label layout', () => {
     });
 
     expect(result.placements.length + result.culled.length).toBe(100);
+    result.placements.forEach((placement) => {
+      expect(Math.hypot(
+        placement.x - placement.projectedAnchor.x,
+        placement.y - placement.projectedAnchor.y
+      )).toBeLessThanOrEqual(REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS);
+    });
     expect(result.culled.some((entry) => entry.reason === 'capacity')).toBe(false);
     expect(result.culled.some((entry) => entry.reason === 'collision')).toBe(true);
   });

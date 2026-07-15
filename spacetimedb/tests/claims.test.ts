@@ -364,6 +364,16 @@ test('accepts only the exact fresh QA snapshot resolver principal', () => {
   assert.equal(fresh.deviceThumbprint, 'A'.repeat(43));
 });
 
+test('the canonical game module rejects the dedicated observer audience', () => {
+  assert.throws(
+    () => readWarpkeepBaseJwt(qaSnapshotResolverPayload({
+      aud: ['warpkeep-qa-observer-spacetimedb'],
+    }), config),
+    (error: unknown) => error instanceof ClaimValidationError
+      && error.code === 'INVALID_AUDIENCE',
+  );
+});
+
 test('rejects QA resolver impersonation, role expansion, custom authority claims, and invalid windows', () => {
   const nowMicros = 1_700_000_001n * 1_000_000n;
   for (const payload of [

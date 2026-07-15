@@ -94,15 +94,19 @@ separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 The server-only config attestation profile is `warpkeep-auth-v2`. Its
 fail-closed recovery target has `publicAuthEnabled: false`; the current Alpha
 0.3.2 active target has `publicAuthEnabled: true`. It covers
-issuer/origins/SIWF coordinates, key and Maincloud coordinates, S256, the
-600-second access TTL, 15-second resolver TTL, five-second resolver timeout,
-five-minute challenge TTL, maximum-30-day family, and exact `__Host-` cookie
-attributes. Record only the reviewed digest and observed deployment version.
+issuer/origins/SIWF coordinates, gameplay key/Maincloud coordinates, the
+observer URI/database/audience tuple and gate, S256, the 600-second access TTL,
+15-second resolver TTL, five-second resolver timeout, five-minute challenge TTL,
+maximum-30-day family, and exact `__Host-` cookie attributes. Record only the
+reviewed digest and observed deployment version.
 
-Production Worker configuration pins resolver calls to exact
-`https://maincloud.spacetimedb.com` and `warpkeep-89e4u`. Alternate resolver
-coordinates are permitted only under explicit `ENVIRONMENT=development` for
-local/test use and must never be treated as a production recovery profile.
+Production Worker configuration pins both resolver origins to exact
+`https://maincloud.spacetimedb.com` and pins the gameplay database to
+`warpkeep-89e4u`. Any production observer tuple must use that origin plus a
+separately reviewed database and audience that both differ from gameplay; the
+tuple itself does not attest an identity-free schema. Alternate origins are
+permitted only under explicit `ENVIRONMENT=development` for local/test use and
+must never be treated as a production recovery profile.
 
 Browser continuity defaults **Keep me signed in on this device** to false.
 Sign-out writes only a non-secret, base-path-scoped `logout-v1:<timestamp>`

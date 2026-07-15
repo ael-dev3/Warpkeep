@@ -43,6 +43,70 @@ export type RealmCastleIdentityClusterLayout = Readonly<{
   overflowCastleIds: readonly number[];
 }>;
 
+export type RealmCastleIdentityCoverageInput = Readonly<{
+  eligibleCastleIds: readonly number[];
+  individualCastleIds: readonly number[];
+  clusters: readonly Pick<
+    RealmCastleIdentityCluster,
+    'castleIds' | 'representativeCastleId'
+  >[];
+  overflowCastleIds: readonly number[];
+  exploreCastleIds: readonly number[];
+}>;
+
+/**
+ * Privacy-safe exact membership proof for the dense identity layer. Every
+ * projection-eligible castle must appear in exactly one map outcome and remain
+ * discoverable through Explore. Callers expose only the resulting boolean;
+ * exact castle membership stays inside the presentation layer.
+ */
+export function realmCastleIdentityCoverageValid(
+  input: RealmCastleIdentityCoverageInput
+) {
+  const validIds = (ids: readonly number[]) => ids.every((id) => (
+    Number.isSafeInteger(id) && id > 0
+  ));
+  const uniqueSet = (ids: readonly number[]) => {
+    if (!validIds(ids)) return null;
+    const set = new Set(ids);
+    return set.size === ids.length ? set : null;
+  };
+
+  const eligible = uniqueSet(input.eligibleCastleIds);
+  const individual = uniqueSet(input.individualCastleIds);
+  const overflow = uniqueSet(input.overflowCastleIds);
+  const explore = uniqueSet(input.exploreCastleIds);
+  if (!eligible || !individual || !overflow || !explore) return false;
+
+  const clustered = new Set<number>();
+  for (const cluster of input.clusters) {
+    const members = uniqueSet(cluster.castleIds);
+    if (
+      !members
+      || members.size === 0
+      || !members.has(cluster.representativeCastleId)
+    ) return false;
+    for (const castleId of members) {
+      if (clustered.has(castleId)) return false;
+      clustered.add(castleId);
+    }
+  }
+
+  const accounted = new Set<number>();
+  for (const group of [individual, clustered, overflow]) {
+    for (const castleId of group) {
+      if (accounted.has(castleId)) return false;
+      accounted.add(castleId);
+    }
+  }
+
+  if (accounted.size !== eligible.size) return false;
+  for (const castleId of eligible) {
+    if (!accounted.has(castleId) || !explore.has(castleId)) return false;
+  }
+  return true;
+}
+
 export type RealmCastleIdentityClusterLayoutInput = Readonly<{
   projections: readonly RealmCastleScreenProjection[];
   clusterCastleIds: readonly number[];

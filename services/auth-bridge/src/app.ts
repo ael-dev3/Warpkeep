@@ -686,6 +686,9 @@ async function configurationAttestation(
     spacetimeDbDatabase: config.spacetimeDbDatabase,
     publicAuthEnabled: config.publicAuthEnabled,
     qaObserverEnabled: config.qaObserverEnabled,
+    qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,
+    qaObserverSpacetimeDbDatabase: config.qaObserverSpacetimeDb?.database ?? null,
+    qaObserverAudience: config.qaObserverSpacetimeDb?.audience ?? null,
     qaObserverKeyFingerprint,
     qaObserverKeyRegisteredAt: config.qaObserverKeyRegisteredAt === undefined
       ? null
@@ -837,11 +840,13 @@ function defaultQaSnapshotResolver(
   signer: typeof signEs256Jwt,
   clock: () => number,
 ): QaObserverSnapshotResolver {
+  const upstream = config.qaObserverSpacetimeDb
+  if (!upstream) throw new ConfigurationError()
   return new SpacetimeHttpQaObserverResolver({
-    uri: config.spacetimeDbUri,
-    database: config.spacetimeDbDatabase,
+    uri: upstream.uri,
+    database: upstream.database,
     issuer: config.issuer,
-    audience: config.audience,
+    audience: upstream.audience,
     timeoutMs: QA_SNAPSHOT_TIMEOUT_MILLISECONDS,
   }, {
     signer: claims => signer(config, claims),
@@ -1565,6 +1570,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             digest,
             publicAuthEnabled: config.publicAuthEnabled,
             qaObserverEnabled: config.qaObserverEnabled,
+            qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,
+            qaObserverSpacetimeDbDatabase: config.qaObserverSpacetimeDb?.database ?? null,
+            qaObserverAudience: config.qaObserverSpacetimeDb?.audience ?? null,
             qaObserverKeyFingerprint,
             qaObserverKeyRegisteredAt: config.qaObserverKeyRegisteredAt === undefined
               ? null

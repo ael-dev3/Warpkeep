@@ -304,15 +304,18 @@ creation, and world state. Anonymous visitors do not open a database connection.
   Maincloud origin, and database. Custom destinations are limited to secret-free
   dry runs.
 - A server-only configuration attestation hashes the reviewed v2 issuer,
-  origins, SIWF coordinates, key/database coordinates, access/resolver/
+  origins, SIWF coordinates, gameplay key/database coordinates, dedicated QA
+  observer URI/database/audience coordinates and gate, access/resolver/
   challenge/family lifetimes (including the exact five-minute challenge),
   resolver timeout, cookie attributes, and public-auth state without returning
   a secret.
 - Production frontend activation and Pages validation require exact
   `https://auth.warpkeep.com` bridge/issuer, `warpkeep-spacetimedb` audience,
   `https://maincloud.spacetimedb.com` service, and `warpkeep-89e4u` database.
-  The Worker separately pins its production resolver to that Maincloud/database
-  pair; only explicit development profiles remain configurable.
+  The Worker pins both production resolver origins to that Maincloud origin and
+  pins the gameplay database to that database. A production QA tuple additionally
+  requires a distinct, independently reviewed database and audience; only
+  explicit development profiles may use alternate origins.
 - Admin requests reject redirects and use connection, operation, and child
   process deadlines with cleanup.
 - Workflow actions are pinned to reviewed immutable commits, and repository

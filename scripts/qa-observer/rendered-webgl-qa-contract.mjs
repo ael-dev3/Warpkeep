@@ -4,10 +4,18 @@ export const RENDERED_WEBGL_QA_CASTLE_COUNT = 100;
 export const RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS = 120_000;
 
 const QUALITY_VALUES = new Set(['high', 'balanced', 'reduced']);
+const PRESENTATION_MODE_VALUES = new Set(['observer', 'player']);
 
 function quality(value) {
   if (typeof value !== 'string' || !QUALITY_VALUES.has(value)) {
     throw new TypeError('Invalid rendered WebGL QA quality.');
+  }
+  return value;
+}
+
+function presentationMode(value) {
+  if (typeof value !== 'string' || !PRESENTATION_MODE_VALUES.has(value)) {
+    throw new TypeError('Invalid rendered WebGL QA presentation mode.');
   }
   return value;
 }
@@ -26,9 +34,13 @@ function port(value) {
  */
 export function renderedWebglQaUrl(options = {}) {
   const selectedQuality = quality(options.quality ?? 'balanced');
+  const selectedPresentationMode = presentationMode(options.mode ?? 'observer');
   const selectedPort = port(options.port ?? 5173);
   const url = new URL(RENDERED_WEBGL_QA_ROUTE, `http://127.0.0.1:${selectedPort}`);
   url.searchParams.set('quality', selectedQuality);
+  if (selectedPresentationMode !== 'observer') {
+    url.searchParams.set('mode', selectedPresentationMode);
+  }
   return url.toString();
 }
 
@@ -53,6 +65,7 @@ export function parseRenderedWebglQaObservation(value) {
   const expectedKeys = [
     'castleCount',
     'fixture',
+    'presentationMode',
     'quality',
     'readyAfterMilliseconds',
     'renderer',
@@ -66,6 +79,8 @@ export function parseRenderedWebglQaObservation(value) {
     || candidate.fixture !== RENDERED_WEBGL_QA_FIXTURE_ID
     || candidate.renderer !== 'webgl'
     || candidate.castleCount !== RENDERED_WEBGL_QA_CASTLE_COUNT
+    || typeof candidate.presentationMode !== 'string'
+    || !PRESENTATION_MODE_VALUES.has(candidate.presentationMode)
     || typeof candidate.quality !== 'string'
     || !QUALITY_VALUES.has(candidate.quality)
     || !Number.isSafeInteger(candidate.readyAfterMilliseconds)
@@ -78,6 +93,7 @@ export function parseRenderedWebglQaObservation(value) {
     version: 1,
     fixture: RENDERED_WEBGL_QA_FIXTURE_ID,
     renderer: 'webgl',
+    presentationMode: candidate.presentationMode,
     quality: candidate.quality,
     castleCount: RENDERED_WEBGL_QA_CASTLE_COUNT,
     readyAfterMilliseconds: candidate.readyAfterMilliseconds,
@@ -85,19 +101,24 @@ export function parseRenderedWebglQaObservation(value) {
 }
 
 function usage() {
-  return 'Usage: node scripts/qa-observer/rendered-webgl-qa-contract.mjs --url [high|balanced|reduced] [port]';
+  return 'Usage: node scripts/qa-observer/rendered-webgl-qa-contract.mjs --url [high|balanced|reduced] [port] [observer|player]';
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
   const arguments_ = process.argv.slice(2);
-  if (arguments_[0] !== '--url' || arguments_.length > 3) {
+  if (arguments_[0] !== '--url' || arguments_.length > 4) {
     process.stderr.write(`${usage()}\n`);
     process.exitCode = 2;
   } else {
     try {
       const selectedQuality = arguments_[1] ?? 'balanced';
       const selectedPort = arguments_[2] === undefined ? 5173 : Number(arguments_[2]);
-      process.stdout.write(`${renderedWebglQaUrl({ quality: selectedQuality, port: selectedPort })}\n`);
+      const selectedPresentationMode = arguments_[3] ?? 'observer';
+      process.stdout.write(`${renderedWebglQaUrl({
+        mode: selectedPresentationMode,
+        quality: selectedQuality,
+        port: selectedPort
+      })}\n`);
     } catch {
       process.stderr.write(`${usage()}\n`);
       process.exitCode = 2;

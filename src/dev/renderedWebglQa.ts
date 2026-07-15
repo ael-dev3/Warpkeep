@@ -3,6 +3,7 @@ import type { RealmQuality } from '../components/realm/realmQuality';
 export const RENDERED_WEBGL_QA_FIXTURE_ID = 'synthetic-canonical-100' as const;
 export const RENDERED_WEBGL_QA_CASTLE_COUNT = 100;
 export const RENDERED_WEBGL_QA_DEFAULT_QUALITY: RealmQuality = 'balanced';
+export const RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE = 'observer' as const;
 export const RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS = 120_000;
 /**
  * React may replace the map subtree during a responsive layout commit. Keep
@@ -12,33 +13,61 @@ export const RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS = 120_000;
 export const RENDERED_WEBGL_QA_RENDERER_ABSENCE_GRACE_MILLISECONDS = 250;
 
 export type RenderedWebglQaOptions = Readonly<{
+  presentationMode: RenderedWebglQaPresentationMode;
   quality: RealmQuality;
 }>;
+
+export type RenderedWebglQaPresentationMode = 'observer' | 'player';
 
 export type RenderedWebglQaRenderer = 'loading' | 'webgl' | 'fallback' | 'closed' | 'error';
 
 export type RenderedWebglQaStatus = 'loading' | 'ready' | 'fallback' | 'closed' | 'error';
 
 const RENDERED_WEBGL_QA_QUALITIES = new Set<RealmQuality>(['high', 'balanced', 'reduced']);
+const RENDERED_WEBGL_QA_PRESENTATION_MODES = new Set<RenderedWebglQaPresentationMode>([
+  'observer',
+  'player'
+]);
 
 function isRealmQuality(value: string | null): value is RealmQuality {
   return value !== null && RENDERED_WEBGL_QA_QUALITIES.has(value as RealmQuality);
 }
 
+function isRenderedWebglQaPresentationMode(
+  value: string | null
+): value is RenderedWebglQaPresentationMode {
+  return value !== null
+    && RENDERED_WEBGL_QA_PRESENTATION_MODES.has(value as RenderedWebglQaPresentationMode);
+}
+
 /**
- * The standalone development page accepts one intentionally small presentation
- * option. Duplicate or unknown query strings cannot select a route, host,
- * identity, asset, or authority; they fall back to the reviewed balanced
- * fixture.
+ * The standalone development page accepts only one reviewed quality and one
+ * reviewed synthetic presentation mode. Duplicate or unknown query strings
+ * cannot select a route, host, identity, asset, or authority; they fall back
+ * to the balanced read-only observer fixture.
  */
 export function readRenderedWebglQaOptions(search: string): RenderedWebglQaOptions {
   const entries = [...new URLSearchParams(search).entries()];
-  const requestedQuality = entries.length === 1 && entries[0]?.[0] === 'quality'
-    ? entries[0][1]
+  const keys = entries.map(([key]) => key);
+  const acceptedShape = entries.length <= 2
+    && new Set(keys).size === keys.length
+    && keys.every((key) => key === 'quality' || key === 'mode');
+  const requestedQuality = acceptedShape
+    ? entries.find(([key]) => key === 'quality')?.[1] ?? null
     : null;
+  const requestedPresentationMode = acceptedShape
+    ? entries.find(([key]) => key === 'mode')?.[1] ?? null
+    : null;
+  const qualityValid = requestedQuality === null || isRealmQuality(requestedQuality);
+  const presentationModeValid = requestedPresentationMode === null
+    || isRenderedWebglQaPresentationMode(requestedPresentationMode);
+  const accepted = acceptedShape && qualityValid && presentationModeValid;
   return Object.freeze({
-    quality: isRealmQuality(requestedQuality)
-      ? requestedQuality
+    presentationMode: accepted && requestedPresentationMode !== null
+      ? requestedPresentationMode as RenderedWebglQaPresentationMode
+      : RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
+    quality: accepted && requestedQuality !== null
+      ? requestedQuality as RealmQuality
       : RENDERED_WEBGL_QA_DEFAULT_QUALITY
   });
 }

@@ -13,7 +13,11 @@ describe('rendered WebGL QA contract', () => {
     expect(renderedWebglQaUrl({ quality: 'high', port: 41_732 })).toBe(
       'http://127.0.0.1:41732/dev/realm-rendered-webgl-qa.html?quality=high'
     );
+    expect(renderedWebglQaUrl({ mode: 'player', quality: 'balanced', port: 41_732 })).toBe(
+      'http://127.0.0.1:41732/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player'
+    );
     expect(() => renderedWebglQaUrl({ quality: 'unknown' as never })).toThrow(/quality/i);
+    expect(() => renderedWebglQaUrl({ mode: 'unknown' as never })).toThrow(/mode/i);
     expect(() => renderedWebglQaUrl({ port: 0 })).toThrow(/port/i);
   });
 
@@ -22,6 +26,7 @@ describe('rendered WebGL QA contract', () => {
       version: 1,
       fixture: 'synthetic-canonical-100',
       renderer: 'webgl',
+      presentationMode: 'observer',
       quality: 'balanced',
       castleCount: 100,
       readyAfterMilliseconds: 1_245
@@ -31,6 +36,10 @@ describe('rendered WebGL QA contract', () => {
     expect(() => parseRenderedWebglQaObservation({
       ...observation,
       renderer: 'fallback'
+    })).toThrow(/observation/i);
+    expect(() => parseRenderedWebglQaObservation({
+      ...observation,
+      presentationMode: 'admin'
     })).toThrow(/observation/i);
     expect(() => parseRenderedWebglQaObservation({
       ...observation,

@@ -4,6 +4,19 @@ export const RENDERED_WEBGL_QA_CHROME:
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 export const RENDERED_WEBGL_QA_CHROME_APP: '/Applications/Google Chrome.app';
 export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: 'EQHXZ8M8AV';
+export const RENDERED_WEBGL_QA_CASE_COUNT: 9;
+export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS: 112;
+export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS: 0.015;
+
+export function renderedWebglLabelAnchorDistanceTelemetry(distance: number): Readonly<{
+  reportedDistance: number;
+  violation: boolean;
+}>;
+
+export function renderedWebglLabelDisplacementClassificationValid(
+  distance: number,
+  markedDisplaced: boolean
+): boolean;
 
 export function parseHeadlessChromeCodeSignature(value: unknown): Readonly<{
   executable: typeof RENDERED_WEBGL_QA_CHROME;
@@ -24,6 +37,7 @@ export function attestHeadlessChromeCodeSignature(options?: Readonly<{
 }>>;
 
 export type RenderedWebglBrowserProbeQuality = 'high' | 'balanced' | 'reduced';
+export type RenderedWebglBrowserProbePresentationMode = 'observer' | 'player';
 export type RenderedWebglBrowserProbeInteraction =
   | 'default'
   | 'inspector'
@@ -37,10 +51,12 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'desktop-balanced-cluster'
     | 'desktop-reduced'
     | 'desktop-invalid-fallback'
+    | 'desktop-balanced-player'
     | 'mobile-balanced'
     | 'mobile-reduced-inspector'
     | 'short-landscape-explore';
   expectedQuality: RenderedWebglBrowserProbeQuality;
+  expectedPresentationMode: RenderedWebglBrowserProbePresentationMode;
   interaction: RenderedWebglBrowserProbeInteraction;
   minimumLabelCount: number;
   /** Confirms a real cluster control existed immediately before activation. */
@@ -104,6 +120,7 @@ export function parseRenderedWebglBrowserDom(
   version: 1;
   fixture: 'synthetic-canonical-100';
   renderer: 'webgl';
+  presentationMode: RenderedWebglBrowserProbePresentationMode;
   quality: RenderedWebglBrowserProbeQuality;
   castleCount: 100;
   readyAfterMilliseconds: number;
@@ -126,4 +143,4 @@ export function analyzeRenderedWebglPngScreenshot(
   sampleCount: number;
 }>;
 
-export function runRenderedWebglBrowserProbe(): Promise<void>;
+export function runRenderedWebglBrowserProbe(): Promise<9>;

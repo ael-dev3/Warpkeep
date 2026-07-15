@@ -92,9 +92,10 @@ export type RealmMeasuredLabelLayoutInput = Readonly<{
   reservedUiRects: readonly RealmScreenRect[];
   maximumLabels: number;
   /**
-   * Mandatory identities may use any collision-free point in the safe map
-   * region. This is reserved for direct player intent (selection, hover, or
-   * the player's own keep), never for increasing normal label density.
+   * Mandatory identities may use any collision-free point inside the bounded
+   * roof-attachment radius. This is reserved for direct player intent
+   * (selection, hover, or the player's own keep), never for increasing normal
+   * label density.
    */
   mandatoryCastleIds?: readonly number[];
   previousPlacements?: readonly RealmLabelPlacement[];
@@ -114,6 +115,13 @@ type PlacementProposal = Readonly<{
 }>;
 
 type RealmLabelOffset = Readonly<{ x: number; y: number }>;
+
+/**
+ * A readable castle identity must stay visibly associated with its projected
+ * roof. Wider displacement belongs in the deterministic cluster/Explore
+ * fallback instead of turning a direct username into a floating map label.
+ */
+export const REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS = 112;
 
 const MAX_PRIORITY_NUDGE_PIXELS = 40;
 const MAX_STANDARD_NUDGE_PIXELS = 32;
@@ -220,6 +228,14 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+function withinMaximumAnchorDisplacement(
+  point: Readonly<{ x: number; y: number }>,
+  anchor: RealmScreenPoint
+) {
+  return Math.hypot(point.x - anchor.x, point.y - anchor.y)
+    <= REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS;
+}
+
 function clampProposalToSafeArea(
   proposal: PlacementProposal,
   measurement: RealmMeasuredLabelRectangle,
@@ -264,7 +280,7 @@ function placementProposals(
       safeArea,
       maximumNudgePixels
     );
-    if (!proposal) continue;
+    if (!proposal || !withinMaximumAnchorDisplacement(proposal, anchor)) continue;
     if (proposals.some((existing) => existing.x === proposal.x && existing.y === proposal.y)) {
       continue;
     }
@@ -274,11 +290,10 @@ function placementProposals(
 }
 
 /**
- * Direct intent must not disappear merely because its roof is inside a dense
- * district. Search the bounded safe region from nearest to farthest and retain
- * the original roof as `layoutAnchor` so a connector always explains any
- * displacement. The grid is derived from the measured label and is therefore
- * bounded by the viewport rather than by castle count.
+ * Direct intent gets a wider, but still roof-bounded, search than ordinary
+ * labels. Retain the original roof as `layoutAnchor` so a connector explains
+ * every meaningful displacement. If no collision-free point exists within
+ * the fixed attachment radius, clustering/Explore remains the honest fallback.
  */
 function mandatorySafeAreaProposals(
   anchor: RealmScreenPoint,
@@ -294,20 +309,38 @@ function mandatorySafeAreaProposals(
   const stepX = Math.max(16, Math.min(48, measurement.width * 0.45));
   const stepY = Math.max(14, Math.min(36, measurement.height * 0.8));
   const points: PlacementProposal[] = [];
-  for (let y = minimumY; y <= maximumY + 0.001; y += stepY) {
-    for (let x = minimumX; x <= maximumX + 0.001; x += stepX) {
-      points.push({
+  const searchMinimumX = Math.max(
+    minimumX,
+    anchor.x - REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS
+  );
+  const searchMaximumX = Math.min(
+    maximumX,
+    anchor.x + REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS
+  );
+  const searchMinimumY = Math.max(
+    minimumY,
+    anchor.y - REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS
+  );
+  const searchMaximumY = Math.min(
+    maximumY,
+    anchor.y + REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS
+  );
+  for (let y = searchMinimumY; y <= searchMaximumY + 0.001; y += stepY) {
+    for (let x = searchMinimumX; x <= searchMaximumX + 0.001; x += stepX) {
+      const point = {
         x: Math.min(maximumX, x),
         y: Math.min(maximumY, y),
         layoutAnchor: anchor
-      });
+      };
+      if (withinMaximumAnchorDisplacement(point, anchor)) points.push(point);
     }
   }
-  points.push({
+  const clampedAnchor = {
     x: clamp(anchor.x, minimumX, maximumX),
     y: clamp(anchor.y, minimumY, maximumY),
     layoutAnchor: anchor
-  });
+  };
+  if (withinMaximumAnchorDisplacement(clampedAnchor, anchor)) points.push(clampedAnchor);
   return points.sort((left, right) => (
     Math.hypot(left.x - anchor.x, left.y - anchor.y)
       - Math.hypot(right.x - anchor.x, right.y - anchor.y)
@@ -464,6 +497,9 @@ export function resolveMeasuredRealmLabelLayout(
       }
       for (const proposals of proposalGroups) {
         for (const proposal of proposals()) {
+          // Keep this final guard at the acceptance boundary so future proposal
+          // sources cannot accidentally bypass the public attachment contract.
+          if (!withinMaximumAnchorDisplacement(proposal, anchor)) continue;
           const bounds = boundsAt(proposal, option.measurement);
           const paddedBounds = expandRect(bounds, collisionPadding);
           if (reservedUiRects.some((reserved) => intersects(paddedBounds, reserved))) {

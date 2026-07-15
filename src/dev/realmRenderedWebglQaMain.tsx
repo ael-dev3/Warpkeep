@@ -17,7 +17,10 @@ async function startRenderedWebglQa() {
     const options = readRenderedWebglQaOptions(window.location.search);
     root.render(
       <React.StrictMode>
-        <RenderedWebglQaHarness quality={options.quality} />
+        <RenderedWebglQaHarness
+          presentationMode={options.presentationMode}
+          quality={options.quality}
+        />
       </React.StrictMode>
     );
   } catch {

@@ -13,7 +13,10 @@ import {
   parseRenderedWebglBrowserDom,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
+  RENDERED_WEBGL_QA_CASE_COUNT,
   RENDERED_WEBGL_QA_CHROME_TEAM_ID,
+  renderedWebglLabelAnchorDistanceTelemetry,
+  renderedWebglLabelDisplacementClassificationValid,
   renderedWebglBrowserProbeCases,
   selectBlankPageTarget,
   spawnHeadlessChromeProbe,
@@ -37,10 +40,31 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain('readReviewedChromeExecutableIdentity()');
   });
 
-  it('fixes eight responsive and interaction cases to one numeric loopback origin', () => {
-    expect(renderedWebglBrowserProbeCases(41_733)).toEqual([
+  it('tolerates only two-decimal coordinate serialization at attachment boundaries', () => {
+    expect(renderedWebglLabelAnchorDistanceTelemetry(112.014)).toEqual({
+      reportedDistance: 112,
+      violation: false
+    });
+    expect(renderedWebglLabelAnchorDistanceTelemetry(112.016)).toEqual({
+      reportedDistance: 113,
+      violation: true
+    });
+    expect(renderedWebglLabelDisplacementClassificationValid(11.986, true)).toBe(true);
+    expect(renderedWebglLabelDisplacementClassificationValid(11.984, true)).toBe(false);
+    expect(renderedWebglLabelDisplacementClassificationValid(12.014, false)).toBe(true);
+    expect(renderedWebglLabelDisplacementClassificationValid(12.015, false)).toBe(false);
+  });
+
+  it('fixes nine responsive, interaction, and presentation cases to one numeric loopback origin', () => {
+    const cases = renderedWebglBrowserProbeCases(41_733);
+    expect(cases).toHaveLength(RENDERED_WEBGL_QA_CASE_COUNT);
+    expect(new Set(cases.map((probeCase) => probeCase.id)).size).toBe(
+      RENDERED_WEBGL_QA_CASE_COUNT
+    );
+    expect(cases).toEqual([
       {
         id: 'desktop-high',
+        expectedPresentationMode: 'observer',
         expectedQuality: 'high',
         interaction: 'default',
         minimumLabelCount: 14,
@@ -49,6 +73,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       },
       {
         id: 'desktop-balanced',
+        expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
         minimumLabelCount: 14,
@@ -57,6 +82,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       },
       {
         id: 'desktop-balanced-cluster',
+        expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'cluster',
         minimumLabelCount: 14,
@@ -65,6 +91,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       },
       {
         id: 'desktop-reduced',
+        expectedPresentationMode: 'observer',
         expectedQuality: 'reduced',
         interaction: 'default',
         minimumLabelCount: 10,
@@ -73,6 +100,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       },
       {
         id: 'desktop-invalid-fallback',
+        expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
         minimumLabelCount: 14,
@@ -81,6 +109,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       },
       {
         id: 'mobile-balanced',
+        expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
         minimumLabelCount: 10,
@@ -89,6 +118,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       },
       {
         id: 'mobile-reduced-inspector',
+        expectedPresentationMode: 'observer',
         expectedQuality: 'reduced',
         interaction: 'inspector',
         minimumLabelCount: 8,
@@ -97,11 +127,21 @@ describe('rendered WebGL headless browser probe contract', () => {
       },
       {
         id: 'short-landscape-explore',
+        expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'explore',
         minimumLabelCount: 6,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 667, height: 375 }
+      },
+      {
+        id: 'desktop-balanced-player',
+        expectedPresentationMode: 'player',
+        expectedQuality: 'balanced',
+        interaction: 'default',
+        minimumLabelCount: 14,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
+        viewport: { width: 1440, height: 900 }
       }
     ]);
     expect(() => renderedWebglBrowserProbeCases(0)).toThrow(/port/i);
@@ -281,6 +321,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       renderer: 'webgl',
       mapRenderer: 'webgl',
       fixture: 'synthetic-canonical-100',
+      presentationMode: 'observer',
+      mapPresentationMode: 'observer',
       quality: 'balanced',
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
@@ -303,7 +345,10 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelEligibleCount: 18,
       labelClusteredCount: 0,
       labelClusterOverflowCount: 0,
+      labelAccountingValid: true,
+      labelAttachmentViolationCount: 0,
       labelMissingIdentityCount: 0,
+      labelMaximumAnchorDisplacement: 96,
       labelPlacedCount: 18,
       labelUnplacedCount: 0,
       labelsTextBearingCount: 18,
@@ -322,12 +367,17 @@ describe('rendered WebGL headless browser probe contract', () => {
       clusterReservedOverlapCount: 0,
       exploreCastleCount: 0,
       exploreAccessibleCastleCount: 0,
+      recenterKeepControlState: 'absent',
+      returnToMenuControlState: 'absent',
+      observerBadgeState: 'visible',
+      closeQaObserverControlState: 'visible',
       readyOverlayVisible: false,
       undersizedPrimaryControlCount: 0,
       undersizedPrimaryControlKinds: []
     } as const;
     expect(parseRenderedWebglBrowserDom(ready, expected)).toMatchObject({
       renderer: 'webgl',
+      presentationMode: 'observer',
       quality: 'balanced',
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
@@ -420,6 +470,26 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...ready,
       labelLeaderMismatchCount: 1
     }, expected)).toThrow(/label-leader/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelMaximumAnchorDisplacement: 113
+    }, expected)).toThrow(/label-anchor-displacement/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelAttachmentViolationCount: 1
+    }, expected)).toThrow(/label-attachment/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelAccountingValid: false
+    }, expected)).toThrow(/label-accounting/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      recenterKeepControlState: 'visible'
+    }, expected)).toThrow(/observer-recenter-control/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      observerBadgeState: 'hidden'
+    }, expected)).toThrow(/observer-observer-badge/i);
     expect(() => parseRenderedWebglBrowserDom({ ...ready, fid: 7 }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
@@ -453,6 +523,38 @@ describe('rendered WebGL headless browser probe contract', () => {
         totalTerrainDetailInstanceCount: totalDetailInstanceCount + 1
       }, qualityCase)).toThrow(/total-terrain-detail-budget/i);
     }
+
+    const playerCase = renderedWebglBrowserProbeCases(41_733)[8]!;
+    const playerReady = {
+      ...ready,
+      href: playerCase.url,
+      presentationMode: 'player',
+      mapPresentationMode: 'player',
+      recenterKeepControlState: 'visible',
+      returnToMenuControlState: 'visible',
+      observerBadgeState: 'absent',
+      closeQaObserverControlState: 'absent'
+    } as const;
+    expect(parseRenderedWebglBrowserDom(playerReady, playerCase)).toMatchObject({
+      presentationMode: 'player',
+      quality: 'balanced'
+    });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...playerReady,
+      recenterKeepControlState: 'hidden'
+    }, playerCase)).toThrow(/player-recenter-control/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...playerReady,
+      returnToMenuControlState: 'hidden'
+    }, playerCase)).toThrow(/player-return-control/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...playerReady,
+      observerBadgeState: 'visible'
+    }, playerCase)).toThrow(/player-observer-badge/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...playerReady,
+      closeQaObserverControlState: 'visible'
+    }, playerCase)).toThrow(/player-observer-close/i);
 
     const inspectorCase = renderedWebglBrowserProbeCases(41_733)[6]!;
     expect(() => parseRenderedWebglBrowserDom({

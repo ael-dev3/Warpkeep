@@ -9,6 +9,7 @@ import {
   RENDERED_WEBGL_QA_RENDERER_ABSENCE_GRACE_MILLISECONDS,
   renderedWebglQaRendererForReadyTiming,
   renderedWebglQaStatusForRenderer,
+  type RenderedWebglQaPresentationMode,
   type RenderedWebglQaRenderer
 } from './renderedWebglQa';
 import {
@@ -27,6 +28,7 @@ type RenderedWebglQaObservation = Readonly<{
 }>;
 
 export type RenderedWebglQaHarnessProps = Readonly<{
+  presentationMode?: RenderedWebglQaPresentationMode;
   quality: RealmQuality;
   /** Test seam for the deterministic local fixture only. */
   createFixtureRealm?: () => RealmObserverHarnessRealm;
@@ -70,6 +72,7 @@ function statusCopy(observation: RenderedWebglQaObservation, phase: RenderedWebg
 }
 
 export function RenderedWebglQaHarness({
+  presentationMode = 'observer',
   quality,
   createFixtureRealm = createRenderedWebglQaFixtureRealm
 }: RenderedWebglQaHarnessProps) {
@@ -171,6 +174,7 @@ export function RenderedWebglQaHarness({
         className="rendered-webgl-qa__status"
         data-castle-count={RENDERED_WEBGL_QA_CASTLE_COUNT}
         data-fixture={RENDERED_WEBGL_QA_FIXTURE_ID}
+        data-presentation-mode={presentationMode}
         data-quality={quality}
         data-rendered-webgl-status={status}
         data-renderer={observation.renderer}
@@ -188,7 +192,7 @@ export function RenderedWebglQaHarness({
         <RealmMapScreen
           identity={phase.realm.identity}
           onRequestReturn={() => setPhase({ kind: 'closed' })}
-          presentationMode="observer"
+          presentationMode={presentationMode}
           qualityOverride={quality}
           snapshot={phase.realm.snapshot}
         />

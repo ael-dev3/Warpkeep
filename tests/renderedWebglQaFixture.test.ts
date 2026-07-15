@@ -8,6 +8,7 @@ import {
 import {
   boundedRenderedWebglQaReadyMilliseconds,
   RENDERED_WEBGL_QA_CASTLE_COUNT,
+  RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
   RENDERED_WEBGL_QA_DEFAULT_QUALITY,
   RENDERED_WEBGL_QA_FIXTURE_ID,
   readRenderedWebglQaOptions,
@@ -32,7 +33,7 @@ describe('rendered WebGL local QA fixture', () => {
     expect(serialized).toContain('Synthetic Keep 100');
   });
 
-  it('adapts the local fixture through the observer-only presentation path', () => {
+  it('adapts one synthetic fixture for both bounded presentation paths', () => {
     const realm = createRenderedWebglQaFixtureRealm();
 
     expect(realm.snapshot.castles).toHaveLength(RENDERED_WEBGL_QA_CASTLE_COUNT);
@@ -42,17 +43,33 @@ describe('rendered WebGL local QA fixture', () => {
     expect(realm.snapshot.ownCastle.castleId).toBe(900_000);
   });
 
-  it('accepts only the three reviewed quality modes and bounds local timing', () => {
-    expect(readRenderedWebglQaOptions('?quality=high')).toEqual({ quality: 'high' });
-    expect(readRenderedWebglQaOptions('?quality=balanced')).toEqual({ quality: 'balanced' });
-    expect(readRenderedWebglQaOptions('?quality=reduced')).toEqual({ quality: 'reduced' });
+  it('accepts only reviewed quality and presentation modes and bounds local timing', () => {
+    expect(readRenderedWebglQaOptions('?quality=high')).toEqual({
+      presentationMode: 'observer',
+      quality: 'high'
+    });
+    expect(readRenderedWebglQaOptions('?quality=balanced&mode=player')).toEqual({
+      presentationMode: 'player',
+      quality: 'balanced'
+    });
+    expect(readRenderedWebglQaOptions('?mode=observer&quality=reduced')).toEqual({
+      presentationMode: 'observer',
+      quality: 'reduced'
+    });
     expect(readRenderedWebglQaOptions('?quality=high&host=example.invalid')).toEqual({
+      presentationMode: RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
       quality: RENDERED_WEBGL_QA_DEFAULT_QUALITY
     });
     expect(readRenderedWebglQaOptions('?quality=unsafe')).toEqual({
+      presentationMode: RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
+      quality: RENDERED_WEBGL_QA_DEFAULT_QUALITY
+    });
+    expect(readRenderedWebglQaOptions('?quality=high&mode=unsafe')).toEqual({
+      presentationMode: RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
       quality: RENDERED_WEBGL_QA_DEFAULT_QUALITY
     });
     expect(readRenderedWebglQaOptions('?quality=high&quality=reduced')).toEqual({
+      presentationMode: RENDERED_WEBGL_QA_DEFAULT_PRESENTATION_MODE,
       quality: RENDERED_WEBGL_QA_DEFAULT_QUALITY
     });
     expect(boundedRenderedWebglQaReadyMilliseconds(100, 1_700)).toBe(1_600);

@@ -46,6 +46,17 @@ const SNAPSHOT: QaObserverRealmSnapshot = Object.freeze({
   }),
 })
 
+const RAW_SPACETIME_SNAPSHOT = Object.freeze([
+  2,
+  3,
+  3_445_214_658,
+  'HEGEMONY_GENESIS_001',
+  1_261,
+  1_261,
+  Object.freeze(['GENESIS_001', 3_445_214_658, 2, 20, 22, 100]),
+  Object.freeze([1, 1, 0, 1]),
+])
+
 beforeAll(async () => {
   const signingPair = await crypto.subtle.generateKey(
     { name: 'ECDSA', namedCurve: 'P-256' },
@@ -83,6 +94,9 @@ function environment(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     SESSION_COOKIE_KEY,
     SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
     SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+    QA_OBSERVER_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+    QA_OBSERVER_SPACETIMEDB_DATABASE: 'warpkeep-qa-observer-test',
+    QA_OBSERVER_OIDC_AUDIENCE: 'warpkeep-qa-observer-spacetimedb',
     PUBLIC_AUTH_ENABLED: 'false',
     QA_OBSERVER_ENABLED: 'true',
     QA_OBSERVER_PUBLIC_JWK: JSON.stringify(qaPublicJwk),
@@ -119,6 +133,7 @@ function makeNonCanonicalBase64Url(value: string, unusedBitMask = 15): string {
 
 function harness(options: {
   resolver?: { resolve(deviceThumbprint: string): Promise<QaObserverRealmSnapshot> }
+  useDefaultResolver?: boolean
 } = {}) {
   let now = NOW
   const events: SafeLogEvent[] = []
@@ -126,7 +141,7 @@ function harness(options: {
   const rateCheck = vi.fn(async (_request: Request, _action: RateLimitAction) => ({ allowed: true as const }))
   const app = createAuthBridge({
     qaChallengeStore: new MemoryQaObserverChallengeStore(),
-    qaSnapshotResolver: { resolve },
+    ...(options.useDefaultResolver ? {} : { qaSnapshotResolver: { resolve } }),
     rateLimiter: { check: rateCheck },
     logger: { event: event => events.push(event) },
     now: () => now,
@@ -198,11 +213,83 @@ describe('machine-bound QA observer bridge', () => {
       profile: 'warpkeep-auth-v2',
       publicAuthEnabled: false,
       qaObserverEnabled: true,
+      qaObserverSpacetimeDbUri: 'https://maincloud.spacetimedb.com',
+      qaObserverSpacetimeDbDatabase: 'warpkeep-qa-observer-test',
+      qaObserverAudience: 'warpkeep-qa-observer-spacetimedb',
       qaObserverKeyFingerprint: await qaObserverKeyThumbprint(qaPublicJwk),
       qaObserverKeyRegisteredAt: new Date(NOW).toISOString(),
       qaObserverKeyExpiresAt: new Date(NOW + 24 * 60 * 60 * 1_000).toISOString(),
       qaObserverMaxRegistrationLifetimeMilliseconds: QA_OBSERVER_MAX_REGISTRATION_LIFETIME_MILLISECONDS,
     })
+  })
+
+  it('requires a complete dedicated observer target, pins production origin, and rejects gameplay reuse', async () => {
+    const h = harness()
+    const invalidOverrides: readonly Partial<WorkerEnv>[] = [
+      {
+        QA_OBSERVER_SPACETIMEDB_URI: undefined,
+        QA_OBSERVER_SPACETIMEDB_DATABASE: undefined,
+        QA_OBSERVER_OIDC_AUDIENCE: undefined,
+      },
+      { QA_OBSERVER_SPACETIMEDB_DATABASE: undefined },
+      { QA_OBSERVER_OIDC_AUDIENCE: undefined },
+      { QA_OBSERVER_SPACETIMEDB_URI: undefined },
+      { QA_OBSERVER_SPACETIMEDB_DATABASE: 'warpkeep-89e4u' },
+      { QA_OBSERVER_OIDC_AUDIENCE: 'warpkeep-spacetimedb' },
+      { QA_OBSERVER_SPACETIMEDB_URI: 'http://maincloud.spacetimedb.com' },
+      { QA_OBSERVER_SPACETIMEDB_URI: 'https://attacker.example' },
+      { QA_OBSERVER_SPACETIMEDB_DATABASE: 'warpkeep/qa-observer' },
+      { QA_OBSERVER_OIDC_AUDIENCE: 'observer audience with spaces' },
+    ]
+
+    for (const overrides of invalidOverrides) {
+      const response = await h.app.fetch(post('/v1/qa/challenge'), environment(overrides))
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'service_misconfigured' },
+      })
+    }
+
+    const partialWhilePaused = await h.app.fetch(post('/v1/qa/challenge'), environment({
+      QA_OBSERVER_ENABLED: 'false',
+      QA_OBSERVER_SPACETIMEDB_DATABASE: undefined,
+    }))
+    expect(partialWhilePaused.status).toBe(503)
+    await expect(partialWhilePaused.json()).resolves.toMatchObject({
+      error: { code: 'service_misconfigured' },
+    })
+  })
+
+  it('uses only the dedicated observer target and audience in the default resolver', async () => {
+    const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify(RAW_SPACETIME_SNAPSHOT),
+      { headers: { 'content-type': 'application/json' } },
+    ))
+    try {
+      const h = harness({ useDefaultResolver: true })
+      const issued = await challenge(h)
+      const response = await h.app.fetch(post('/v1/qa/realm-snapshot', {
+        requestId: issued.requestId,
+        signature: await sign(String(issued.signingInput)),
+      }), environment())
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual(SNAPSHOT)
+      expect(upstream).toHaveBeenCalledOnce()
+      const [input, init] = upstream.mock.calls[0] as unknown as [URL, RequestInit]
+      expect(input.toString()).toBe(
+        'https://maincloud.spacetimedb.com/v1/database/warpkeep-qa-observer-test/call/qa_observer_get_realm_attestation_v2',
+      )
+      expect(input.toString()).not.toContain('/database/warpkeep-89e4u/')
+      const authorization = new Headers(init.headers).get('authorization')
+      expect(authorization).toMatch(/^Bearer [^.]+\.[^.]+\.[^.]+$/)
+      const payloadSegment = authorization!.slice('Bearer '.length).split('.')[1]
+      const payload = JSON.parse(atob(payloadSegment.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>
+      expect(payload.aud).toEqual(['warpkeep-qa-observer-spacetimedb'])
+      expect(payload.aud).not.toEqual(['warpkeep-spacetimedb'])
+    } finally {
+      upstream.mockRestore()
+    }
   })
 
   it('verifies one raw P-256 proof, returns only the strict sanitized snapshot, and rejects replay', async () => {

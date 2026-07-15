@@ -56,6 +56,12 @@ export interface WorkerEnv {
   SPACETIMEDB_URI?: string
   /** Non-secret database name used only by the Worker auth-epoch lookup. */
   SPACETIMEDB_DATABASE?: string
+  /** Candidate dedicated QA origin; production-pinned and independently reviewed before activation. */
+  QA_OBSERVER_SPACETIMEDB_URI?: string
+  /** Candidate dedicated QA database; distinct from gameplay and reviewed as identity-free before use. */
+  QA_OBSERVER_SPACETIMEDB_DATABASE?: string
+  /** Dedicated observer JWT audience, distinct from the gameplay audience. */
+  QA_OBSERVER_OIDC_AUDIENCE?: string
   /** Emergency public-auth kill switch. Trust coordinates remain immutable. */
   PUBLIC_AUTH_ENABLED?: string
   /** Independent fail-closed gate for the machine-bound read-only QA observer. */

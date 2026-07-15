@@ -39,6 +39,7 @@ import {
   type CastleLabelRecord
 } from './RealmCastleLabels';
 import {
+  realmCastleIdentityCoverageValid,
   resolveRealmCastleIdentityClusters,
   type RealmCastleIdentityCluster
 } from './realmCastleIdentityClusters';
@@ -781,6 +782,20 @@ function CanonicalRealmMapScreen({
         }
       }
       if (measurementLabels.size === 0) {
+        const eligibleCastleIds = candidateCastles.filter((castle) => (
+          castle.visible
+          && Number.isFinite(castle.x)
+          && Number.isFinite(castle.y)
+          && castle.x >= 0
+          && castle.x <= frame.width
+          && castle.y >= 0
+          && castle.y <= frame.height
+        )).map((castle) => castle.castleId);
+        const placedCastleIds = provisional.map((label) => label.castleId);
+        const placedCastleIdSet = new Set(placedCastleIds);
+        const overflowCastleIds = eligibleCastleIds.filter((castleId) => (
+          !placedCastleIdSet.has(castleId)
+        ));
         presentedCastleIdsRef.current = renderableCastleIds;
         sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
         root.dataset.labelEligibleCount = String(eligibleLabelCount);
@@ -792,6 +807,13 @@ function CanonicalRealmMapScreen({
           0,
           eligibleLabelCount - provisional.length
         ));
+        root.dataset.labelAccountingValid = String(realmCastleIdentityCoverageValid({
+          eligibleCastleIds,
+          individualCastleIds: placedCastleIds,
+          clusters: [],
+          overflowCastleIds,
+          exploreCastleIds: allCastlesRef.current.map((castle) => castle.castleId)
+        }));
         root.dataset.labelMissingIdentityCount = String(candidateCastles.filter((castle) => (
           castle.visible
           && castle.x >= 0
@@ -949,6 +971,13 @@ function CanonicalRealmMapScreen({
         count + cluster.castleIds.length
       ), 0));
       root.dataset.labelClusterOverflowCount = String(clusterLayout.overflowCastleIds.length);
+      root.dataset.labelAccountingValid = String(realmCastleIdentityCoverageValid({
+        eligibleCastleIds: [...eligibleCastleIds],
+        individualCastleIds: layout.placements.map((placement) => placement.castleId),
+        clusters: clusterLayout.clusters,
+        overflowCastleIds: clusterLayout.overflowCastleIds,
+        exploreCastleIds: allCastlesRef.current.map((castle) => castle.castleId)
+      }));
       root.dataset.labelMissingIdentityCount = String([...eligibleCastleIds].filter((castleId) => (
         !identityReadyCastleIdsRef.current.has(castleId)
       )).length);

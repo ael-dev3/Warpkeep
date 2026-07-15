@@ -41,9 +41,9 @@ function resolver(fetcher: QaSnapshotFetch, options: {
 } = {}) {
   return new SpacetimeHttpQaObserverResolver({
     uri: 'https://maincloud.spacetimedb.com',
-    database: 'warpkeep-89e4u',
+    database: 'warpkeep-qa-observer-test',
     issuer: 'https://auth.warpkeep.example',
-    audience: 'warpkeep-spacetimedb',
+    audience: 'warpkeep-qa-observer-spacetimedb',
     timeoutMs: options.timeoutMs ?? QA_SNAPSHOT_TIMEOUT_MILLISECONDS,
   }, {
     fetcher,
@@ -103,7 +103,7 @@ describe('Spacetime QA observer resolver', () => {
     expect(claims).toMatchObject({
       iss: 'https://auth.warpkeep.example',
       sub: 'service:qa-snapshot-resolver',
-      aud: ['warpkeep-spacetimedb'],
+      aud: ['warpkeep-qa-observer-spacetimedb'],
       token_type: 'spacetime-access',
       roles: ['warpkeep-qa-snapshot-resolver'],
       device_thumbprint: DEVICE_THUMBPRINT,
@@ -114,7 +114,7 @@ describe('Spacetime QA observer resolver', () => {
 
     const [input, init] = fetcher.mock.calls[0] as unknown as [URL, RequestInit]
     expect(input.toString()).toBe(
-      'https://maincloud.spacetimedb.com/v1/database/warpkeep-89e4u/call/qa_observer_get_realm_attestation_v2',
+      'https://maincloud.spacetimedb.com/v1/database/warpkeep-qa-observer-test/call/qa_observer_get_realm_attestation_v2',
     )
     expect(init.method).toBe('POST')
     expect(init.body).toBe('[]')
