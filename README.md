@@ -1,121 +1,59 @@
 # Warpkeep
 
-## [Play at warpkeep.com](https://warpkeep.com/)
+[Play at warpkeep.com](https://warpkeep.com/) · [Farcaster channel](https://farcaster.xyz/~/channel/warpkeep) · [Latest release](https://github.com/ael-dev3/Warpkeep/releases/tag/v0.3.4) · [Report a bug](https://github.com/ael-dev3/Warpkeep/issues/new/choose) · [Security](SECURITY.md)
 
-**Every FID has a castle.** Warpkeep is an open-source, Farcaster-native strategy world where identity anchors a keep and SpacetimeDB owns the shared state.
+Warpkeep is an open-source, Farcaster-connected persistent-world alpha. Alpha
+0.3.4 is an admission-gated Genesis 001 preview, not a complete strategy game.
+Each admitted founder has a permanent castle in the shared Lowlands. SpacetimeDB
+is authoritative for admission, world, player, and castle state; the browser is
+only the presentation layer.
 
-Alpha 0.3.4 is the current Pages-only release. Genesis 001 spans 1,261 deterministic Lowlands cells
-and 100 permanent castle slots ordered outward from a close-knit founding
-district. The public build includes the real 3D stone title, an intentional
-Alpha Terms gate, browser-bound Sign In with Farcaster, rotating HttpOnly
-sessions, protocol-3 shared-realm state, responsive WebGL presentation,
-one exact canonical readiness boundary, real instanced Hegemony keeps for every
-visible founder, a safe-area-aware HUD and camera, accessible fallbacks, bounded
-public castle presentation, Marks balance UI, music, and credits.
+## Current alpha
 
-Production remains deliberately admission-gated. Deliberately admitted
-founders now occupy the shared frontier, but public admission is not open and
-every further admission or production-state mutation requires explicit owner
-scope and verification. The site is a real product surface and technical
-foundation, not a claim that resources, upgrades, units, combat, alliances,
-chat, or seasons are playable yet.
+- A model-only 3D title, menu, and responsive realm presentation.
+- Shared Lowlands exploration, castle selection, inspection, and navigation.
+- Hegemony castle models with device-appropriate visual quality levels.
+- An admission-gated Farcaster identity-entry boundary and bounded public
+  profile presentation.
+- Read-only Marks-balance presentation. Marks are experimental,
+  non-transferable accounting units with no cash value.
 
-Alpha 0.3.4 replaces the earlier Frontier Keep derivatives with the optimized
-high, balanced, and compact Hegemony Main Castle GLBs. It admits only one exact,
-complete Genesis 001 snapshot; renders every visible founded castle with a
-shared real Hegemony GLB LOD; separates hover, selection, inspection, camera,
-and keyboard-focus state; and introduces a compact safe-area-aware HUD,
-inspector, navigator, and camera composition. Its public profile presentation
-is bounded and sanitized, with neutral nonnumeric fallbacks. The patch preserves
-the Alpha 0.3.2 authentication, protocol, admission, world, castle, wallet,
-and Marks authority boundaries. The protected Pages workflow and exact build
-stamp remain the source of truth for the public deployment coordinate.
+## Not yet playable
 
-## Alpha 0.3.4 foundation
+Resources, upgrades, construction, units, combat, alliances, chat, seasons,
+wallet actions, Marks crediting or spending, and public admission are not
+available. Participation does not promise rewards, airdrops, or financial gain.
 
-- Standard website SIWF with an independently verifying Cloudflare Worker and short-lived OIDC handoff.
-- Server-authoritative SpacetimeDB module with private admission/auth-epoch controls and public world/player/castle boundaries.
-- 1,261 authoritative Lowlands cells, 100 close-outward permanent castle slots, and shared real-castle LOD rendering for founded keeps.
-- Cinematic, balanced, and performance profiles shared by the title and realm; normal modern phones default to balanced.
-- Exact build identity, fail-closed configuration, reduced-motion behavior, keyboard/touch controls, and non-WebGL/model fallbacks.
-- Apache-2.0 software and CC-BY-4.0 project-owned creative work from v0.3.0 onward, with historical and external terms preserved.
+## Release and project guide
 
-Alpha 0.3.3 replaced the peer-marker presentation with real
-instanced keeps, removed the standalone 61-cell browser fallback, and kept the
-illustrated fallback bound to the same canonical 1,261-cell snapshot. See the
-[Alpha 0.3.4 release notes](docs/releases/alpha-0.3.4.md) for its validation
-scope, release boundary, and honest residual limits.
+Current release: [v0.3.4](https://github.com/ael-dev3/Warpkeep/releases/tag/v0.3.4)
+at [089430e](https://github.com/ael-dev3/Warpkeep/commit/089430ecec83b72756104b33632673bdc6c2d8f1).
+It is a Pages-only release: it does not publish a Worker or SpacetimeDB
+module/schema, or alter admission, profiles, world data, castles, wallets, or
+Marks.
 
-The canonical player domain is [warpkeep.com](https://warpkeep.com/), and the
-main community home is the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep).
-Durable public bug reports and realm wishes can be submitted through the
-[Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose);
-security-sensitive reports must follow [SECURITY.md](SECURITY.md) instead.
-Source/master assets and immutable bundles live in [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets);
-the game repository contains only runtime media and lightweight provenance
-records.
-
-Marks are experimental, non-transferable, non-redeemable game-accounting units
-with no cash value. The versioned v1 policy defines a 1:1 six-decimal
-micro-unit conversion for eligible finalized ordinary SNAP burns on Ethereum
-mainnet, but production credit application, Marks spending, and the scheduler
-remain unavailable. The browser never connects or scans wallets, requests a
-wallet signature or approval, submits a transaction, or receives private
-wallet/event records. See the [versioned Marks policy](docs/gameplay/marks-policy-v1.md).
+- [Alpha 0.3.4 release notes](docs/releases/alpha-0.3.4.md)
+- [Technical architecture](docs/technical-architecture.md)
+- [Product direction and roadmap](docs/design/warpkeep-direction.md) and [next slice](docs/design/roadmap.md)
+- [Farcaster integration boundary](docs/farcaster-integration.md)
+- [Asset licensing and provenance](ASSETS-LICENSE.md)
+- [Versioning and release policy](docs/releases/versioning.md)
 
 ## Development
 
-Requirements: Node.js 22. Backend verification additionally uses pnpm 11.7.0, Wrangler 4.110.0, and SpacetimeDB CLI/module 2.6.1.
+Requires Node.js 22. Backend tooling is documented in its own package areas.
 
-```sh
-npm ci
-npm run dev
-```
+    npm ci
+    npm run dev
 
-Primary checks:
-
-```sh
-npm run verify:licenses
-npm run verify:runtime-assets
-npm run verify:file-sizes
-npm test
-npm run typecheck
-npm run build
-GITHUB_PAGES=true DEPLOY_BASE=/ npm run build
-npm audit
-```
-
-Asset reconstruction is explicit and never part of an ordinary build:
-
-```sh
-npm run assets:fetch
-npm run prepare:title-models
-npm run assets:fetch:castle
-npm run tools:fetch:gltfpack
-npm run prepare:hegemony-castle
-WARPKEEP_MARK_SOURCE=/authorized/offline/hegemony-mark.png npm run prepare:hegemony-mark
-```
-
-The Main Castle preparation pipeline verifies the public-release archive, exact
-source member, checksum-pinned `gltfpack` tool, and derived outputs before it
-writes runtime files. On 2026-07-15 the project owner authorized
-project-internal runtime integration and deterministic derivative preparation;
-this is not a separate public open license, redistribution grant, or trademark
-grant. See the [dated castle provenance record](docs/reference/castles/2026-07-15-hegemony-main-castle/).
-
-## Documentation
-
-- [Alpha 0.3.3 release notes](docs/releases/alpha-0.3.3.md), [Alpha 0.3.2 history](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 history](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
-- [Marks policy v1](docs/gameplay/marks-policy-v1.md)
-- [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md)
-- [Technical architecture](docs/technical-architecture.md)
-- [Farcaster/OIDC boundary](docs/farcaster-integration.md)
-- [Hegemony Lowlands renderer](docs/design/hegemony-lowlands-terrain.md)
-- [Engineering lessons](docs/devlog/2026-07-alpha-0.2-auth-and-release-lessons.md)
-- [Reconstruction and disaster recovery](docs/operations/reconstruction/README.md)
-- [Versioning and release policy](docs/releases/versioning.md)
-- [Asset licensing and provenance](ASSETS-LICENSE.md)
+Asset reconstruction is intentional and never part of an ordinary build. Runtime
+media and lightweight provenance records are stored here; authorized source
+bundles are maintained in [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets).
 
 ## Contributing and security
 
-Focused contributions, provenance improvements, security fixes, and thoughtful product feedback are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Never place signing keys, admin secrets, SIWF proofs, bearer tokens, private RPC credentials, or deployment credentials in browser variables, commits, issues, logs, screenshots, or example files.
+Focused contributions, provenance improvements, security fixes, and thoughtful
+product feedback are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Never put
+signing keys, admin secrets, SIWF proofs, bearer tokens, private RPC credentials,
+or deployment credentials in browser variables, commits, issues, logs,
+screenshots, or example files.

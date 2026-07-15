@@ -1,38 +1,45 @@
-# Technical Architecture
+# Technical architecture
 
-## Stack
+Warpkeep is an admission-gated persistent-world alpha. The current player
+experience is realm exploration and castle presentation; economy, combat, and
+social systems are deliberately not live.
 
-- Frontend: Vite, React, TypeScript.
-- Styling: plain CSS with desktop-first responsive layouts.
-- Tests: Vitest for deterministic game logic.
-- Auth: standard web SIWF client, a trusted Farcaster-to-OIDC bridge, and a proof-free browser presentation state in `src/farcaster`.
-- Game logic: pure TypeScript reducers in `src/game/systems`.
-- Multiplayer alpha: generated SpacetimeDB client bindings in `src/spacetime`, a server module in `spacetimedb/`, and the private-FID admission design in `docs/spacetime-db-plan.md`.
-- Release identity: the package version is the product source of truth; the browser receives an immutable build SHA through `src/build` and the policy lives in `docs/releases/versioning.md`.
-- AI direction: typed flavor interface in `src/ai`.
+## Authority boundaries
 
-## Folder map
+- The browser owns presentation and short-lived client state only. It never
+  decides admission, castle ownership, resource totals, timers, or outcomes.
+- The Farcaster identity bridge verifies sign-in and brokers bounded browser
+  sessions. It is separate from game authority and public admission.
+- The SpacetimeDB module is authoritative for admission, world, player, and
+  castle state. Private ownership and administrative records are not public
+  browser authority.
+- Public projections exist for display and navigation. They do not grant a
+  player power to alter authoritative state.
 
-```txt
-/src
-  /ai              future AI flavor interfaces
-  /components      React UI panels
-  /farcaster       SIWF request, verification, and ephemeral identity state
-  /game
-    /constants     resource/unit/building constants
-    /mockData      mocked nearby castles and seed player
-    /models        TypeScript state model
-    /systems       deterministic reducers and game loop functions
-  /spacetime       authenticated connection provider and generated bindings
-  /styles          global visual system
-/tests             game logic tests
-/docs              product and architecture docs
-```
+## Client presentation
 
-## State rule
+The player is built with React, TypeScript, Vite, Three.js/WebGL, and responsive
+CSS. The title, menu, and realm share quality preferences while preserving
+reduced-motion and non-WebGL fallbacks. Model assets are integrity-pinned and
+loaded only when their screen needs them.
 
-Frontend state is temporary. The closed-alpha SpacetimeDB module already owns admitted player/castle/world authority; future gameplay reducers will own resources and timers as well. The frontend sends intents and never decides final resource totals, keep ownership, or timer completion. Its shared-alpha kill switch defaults off and requires an exact public bridge/issuer configuration before it creates any SIWF or SpacetimeDB activity.
+## Delivery
 
-## Determinism rule
+Semantic versions name release lines; an immutable tag and build SHA identify a
+specific public deployment. Protected CI validates the frontend, release
+configuration, provenance, and additive compatibility before the Pages workflow
+publishes a frontend release. Worker and SpacetimeDB operations are separate
+release decisions.
 
-Game correctness must stay in deterministic code. AI-generated content may summarize, decorate, or recommend, but it must not mutate authoritative state directly.
+## Repository guide
+
+- src/components — player presentation
+- src/farcaster — identity-entry state and browser boundary
+- src/spacetime — generated client boundary
+- spacetimedb — authoritative server module
+- scripts — build, asset, and release tooling
+- docs — current decisions, release records, and provenance
+
+For the current product scope, start with the [README](../README.md),
+[product direction](design/warpkeep-direction.md), [roadmap](design/roadmap.md),
+and [latest release notes](releases/alpha-0.3.4.md).

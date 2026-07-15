@@ -6,25 +6,15 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [0.3.4] — 2026-07-15
 
-- Labels preserve their roof-attached placement and readable identity through
-  dense castle clusters, viewport changes, and the reserved HUD/inspector
-  regions.
-- The optimized high, balanced, and compact Hegemony Main Castle GLBs replace
-  the prior Frontier Keep derivatives while keeping shared instancing and LOD
-  budgets intact.
-- A local regression decodes the exact compact Hegemony GLB, instances it, and
-  requires a real canvas pointer path to open the intended castle inspector
-  before terrain fallback can apply.
-- The rendered-WebGL matrix includes desktop, tablet, mobile, and
-  short-landscape player presentation lanes, while the narrow Explore sheet
-  recognizes its complete accessible castle list when the intentional
-  full-sheet layout reserves all map-label space.
-- A local-only source-versus-runtime WebGL lane checks bounded aggregate visual
-  fidelity for high, balanced, and compact keeps without retaining source bytes,
-  screenshots, raw pixels, identities, or browser logs.
-- This release is Pages-only: local QA, the disabled QA observer, Worker
-  changes, SpacetimeDB module publication, profile refresh, admission, world,
-  castle, wallet, and Marks operations are outside its release scope.
+- Replaced earlier Frontier Keep derivatives with optimized Hegemony castle
+  models and device-appropriate quality levels in the Genesis realm.
+- Improved castle label placement, selection, inspection, navigation, and
+  compact responsive realm presentation.
+- Made the title route model-only by removing legacy HTML, SVG, loader, and
+  procedural wordmark paths.
+- Kept the release Pages-only; no Worker, Durable Object, SpacetimeDB,
+  admission, profile, world, castle, wallet, Marks, scan, or burn operation was
+  part of the deployment.
 
 ## [0.3.3] — 2026-07-14
 
@@ -324,7 +314,8 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.0...v0.3.1
