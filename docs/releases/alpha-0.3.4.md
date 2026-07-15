@@ -46,7 +46,9 @@ The candidate passed 128 root test files / 1,251 tests, typecheck, production
 build with production-exclusion verification, 18 pinned runtime assets,
 file-size and license policy, zero-vulnerability dependency audit, 417 verified
 registry signatures, 144 attestations, and the local rendered-WebGL probe (12
-rendered cases plus 25 journey checks).
+rendered cases plus 25 journey checks). A 16-check deep local cycle also
+passed with the QA broker disabled, covering the root, auth-bridge, and
+SpacetimeDB build/binding/migration lanes.
 
 ## Remaining release gates
 
