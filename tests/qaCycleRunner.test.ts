@@ -397,6 +397,7 @@ describe('local autonomous QA cycle runner', () => {
       'test',
       '--',
       'tests/qaJourneyLab.test.tsx',
+      'tests/qaJourneyBrowserProbe.test.ts',
       'tests/localQaRuntime.test.ts',
       'tests/alphaParticipationTermsDialog.test.tsx',
       'tests/farcasterQrAuthPanel.test.tsx',

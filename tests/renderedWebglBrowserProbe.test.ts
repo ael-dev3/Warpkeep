@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { deflateSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -6,9 +8,9 @@ import { resolve } from 'node:path';
 import {
   analyzeRenderedWebglPngScreenshot,
   attestHeadlessChromeCodeSignature,
+  DevtoolsPipeSession,
   headlessChromeProbeContract,
   isAllowedRenderedWebglPageUrl,
-  parseDevtoolsActivePort,
   parseHeadlessChromeCodeSignature,
   parseRenderedWebglBrowserDom,
   RENDERED_WEBGL_QA_CHROME,
@@ -22,6 +24,85 @@ import {
   spawnHeadlessChromeProbe,
   terminateHeadlessChromeProcessGroup
 } from '../scripts/qa-observer/rendered-webgl-browser-probe.mjs';
+
+function cdpPipeFrame(value: unknown) {
+  return Buffer.from(`${JSON.stringify(value)}\0`, 'utf8');
+}
+
+function fakeChromePipe() {
+  const child = new EventEmitter() as EventEmitter & {
+    exitCode: number | null;
+    signalCode: NodeJS.Signals | null;
+    pid: number;
+    stdio: Array<PassThrough | null>;
+  };
+  child.exitCode = null;
+  child.signalCode = null;
+  child.pid = 4321;
+  child.stdio = [null, null, null, new PassThrough(), new PassThrough()];
+  return child;
+}
+
+const TEST_TARGET_ID = 'ABCDEF1234567890';
+const TEST_SESSION_ID = '1234567890ABCDEF';
+const TEST_BROWSER_CONTEXT_ID = 'FEDCBA0987654321';
+
+function blankTargetInfo(attached: boolean) {
+  return {
+    attached,
+    browserContextId: TEST_BROWSER_CONTEXT_ID,
+    canAccessOpener: false,
+    targetId: TEST_TARGET_ID,
+    title: '',
+    type: 'page',
+    url: 'about:blank'
+  };
+}
+
+async function attachedFakeChromePipe(
+  eventHandler: (method: string) => void = () => undefined
+) {
+  const child = fakeChromePipe();
+  const parentWrites = child.stdio[3]!;
+  const chromeWrites = child.stdio[4]!;
+  const commands: Array<Record<string, unknown>> = [];
+  let inbound = Buffer.alloc(0);
+  parentWrites.on('data', (chunk: Buffer) => {
+    inbound = Buffer.concat([inbound, chunk]);
+    for (let delimiter = inbound.indexOf(0); delimiter >= 0; delimiter = inbound.indexOf(0)) {
+      const frame = inbound.subarray(0, delimiter);
+      inbound = inbound.subarray(delimiter + 1);
+      const command = JSON.parse(frame.toString('utf8')) as Record<string, unknown>;
+      commands.push(command);
+      if (command.method === 'Target.getTargets') {
+        chromeWrites.write(cdpPipeFrame({
+          id: command.id,
+          result: { targetInfos: [blankTargetInfo(false)] }
+        }));
+      } else if (command.method === 'Target.attachToTarget') {
+        chromeWrites.write(cdpPipeFrame({
+          method: 'Target.attachedToTarget',
+          params: {
+            sessionId: TEST_SESSION_ID,
+            targetInfo: blankTargetInfo(true),
+            waitingForDebugger: false
+          }
+        }));
+        chromeWrites.write(cdpPipeFrame({
+          id: command.id,
+          result: { sessionId: TEST_SESSION_ID }
+        }));
+      }
+    }
+  });
+  const pipe = new DevtoolsPipeSession(child as never, eventHandler);
+  await pipe.open();
+  const target = selectBlankPageTarget(await pipe.browserCommand('Target.getTargets', {
+    filter: [{ type: 'page', exclude: false }, { exclude: true }]
+  }));
+  await pipe.attachToPage(target.targetId);
+  return { child, commands, pipe };
+}
 
 describe('rendered WebGL headless browser probe contract', () => {
   it('uses an inline fail-closed Vite configuration and disposable cache', () => {
@@ -38,6 +119,17 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain('allow: [REPOSITORY_ROOT]');
     expect(source).toContain('attestStableHeadlessChromeExecutable(reviewedChromeIdentity)');
     expect(source).toContain('readReviewedChromeExecutableIdentity()');
+    expect(source).toContain("'--remote-debugging-pipe'");
+    expect(source).toContain("stdio: Object.freeze(['ignore', 'ignore', 'ignore', 'pipe', 'pipe'])");
+    expect(source).not.toContain('DevToolsActivePort');
+    expect(source).not.toContain("'/json/list'");
+    expect(source).not.toContain('new WebSocket(');
+    expect(source).not.toMatch(/--remote-debugging-(?:address|port)=/);
+    expect(source).toContain("await devtools.browserCommand('Target.getTargets', {");
+    expect(source).toContain("method === 'Target.targetDestroyed'");
+    expect(source).toContain("method === 'Target.targetCrashed'");
+    expect(source).toContain("method === 'Target.detachedFromTarget'");
+    expect(source).toContain("method === 'Inspector.detached'");
   });
 
   it('tolerates only two-decimal coordinate serialization at attachment boundaries', () => {
@@ -153,8 +245,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(contract.executable).toBe(RENDERED_WEBGL_QA_CHROME);
     expect(contract.args).toEqual(expect.arrayContaining([
       '--headless=new',
-      '--remote-debugging-address=127.0.0.1',
-      '--remote-debugging-port=0',
+      '--remote-debugging-pipe',
       `--user-data-dir=${profile}`,
       '--disable-background-networking',
       '--disable-crash-reporter',
@@ -174,7 +265,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(contract.options).toMatchObject({
       detached: true,
       shell: false,
-      stdio: 'ignore',
+      stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'],
       env: {
         BREAKPAD_DUMP_LOCATION: `${profile}/crash-dumps`,
         HOME: profile,
@@ -182,6 +273,9 @@ describe('rendered WebGL headless browser probe contract', () => {
         PATH: '/usr/bin:/bin'
       }
     });
+    expect(contract.args).not.toContain(expect.stringMatching(
+      /^--remote-debugging-(?:address|port)=/
+    ));
 
     const fakeChild = { pid: 1234 };
     const spawnProcess = vi.fn(() => fakeChild);
@@ -263,33 +357,196 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
   });
 
-  it('accepts only a strict owner-local DevTools endpoint and blank page target', () => {
-    expect(parseDevtoolsActivePort('41321\n/devtools/browser/12345678-abcd\n')).toEqual({
-      port: 41_321,
-      browserPath: '/devtools/browser/12345678-abcd'
+  it('accepts exactly one unattached about:blank page from browser-level discovery', () => {
+    expect(selectBlankPageTarget({ targetInfos: [blankTargetInfo(false)] })).toEqual({
+      targetId: TEST_TARGET_ID
     });
-    expect(() => parseDevtoolsActivePort('41321\nhttp://example.com\n')).toThrow(/endpoint/i);
-    expect(() => parseDevtoolsActivePort('0\n/devtools/browser/12345678\n')).toThrow(/port/i);
-
-    expect(selectBlankPageTarget([{
-      id: '12345678-abcd',
-      type: 'page',
-      url: 'about:blank',
-      webSocketDebuggerUrl: 'ws://localhost:41321/devtools/page/12345678-abcd'
-    }], 41_321)).toEqual({
-      targetId: '12345678-abcd',
-      webSocketDebuggerUrl: 'ws://127.0.0.1:41321/devtools/page/12345678-abcd'
-    });
-    expect(() => selectBlankPageTarget([{
-      type: 'page',
+    expect(() => selectBlankPageTarget({ targetInfos: [{
+      ...blankTargetInfo(false),
       url: 'https://warpkeep.com/',
-      webSocketDebuggerUrl: 'ws://localhost:41321/devtools/page/12345678'
-    }], 41_321)).toThrow(/target/i);
-    expect(() => selectBlankPageTarget([{
-      type: 'page',
-      url: 'about:blank',
-      webSocketDebuggerUrl: 'ws://example.com:41321/devtools/page/12345678'
-    }], 41_321)).toThrow(/target/i);
+    }] })).toThrow(/target/i);
+    expect(() => selectBlankPageTarget({ targetInfos: [
+      blankTargetInfo(false),
+      { ...blankTargetInfo(false), targetId: '87654321-dcba' }
+    ] })).toThrow(/target/i);
+    expect(() => selectBlankPageTarget({ targetInfos: [{
+      ...blankTargetInfo(false),
+      subtype: 'prerender'
+    }] })).toThrow(/target/i);
+    expect(() => selectBlankPageTarget({ targetInfos: [{
+      ...blankTargetInfo(false),
+      openerId: 'unreviewed-opener'
+    }] })).toThrow(/target/i);
+    expect(() => selectBlankPageTarget({ targetInfos: [{
+      ...blankTargetInfo(false),
+      canAccessOpener: true
+    }] })).toThrow(/target/i);
+  });
+
+  it('uses NUL-framed pipe commands and binds every page message to the flattened session', async () => {
+    const child = fakeChromePipe();
+    const parentWrites = child.stdio[3]!;
+    const chromeWrites = child.stdio[4]!;
+    const commands: Array<Record<string, unknown>> = [];
+    const events: string[] = [];
+    let inbound = Buffer.alloc(0);
+    parentWrites.on('data', (chunk: Buffer) => {
+      inbound = Buffer.concat([inbound, chunk]);
+      for (let delimiter = inbound.indexOf(0); delimiter >= 0; delimiter = inbound.indexOf(0)) {
+        const frame = inbound.subarray(0, delimiter);
+        inbound = inbound.subarray(delimiter + 1);
+        const command = JSON.parse(frame.toString('utf8')) as Record<string, unknown>;
+        commands.push(command);
+        if (command.method === 'Target.getTargets') {
+          const response = cdpPipeFrame({
+            id: command.id,
+            result: { targetInfos: [blankTargetInfo(false)] }
+          });
+          chromeWrites.write(response.subarray(0, 7));
+          chromeWrites.write(response.subarray(7));
+        } else if (command.method === 'Target.attachToTarget') {
+          chromeWrites.write(Buffer.concat([
+            cdpPipeFrame({
+              method: 'Target.attachedToTarget',
+              params: {
+                sessionId: TEST_SESSION_ID,
+                targetInfo: blankTargetInfo(true),
+                waitingForDebugger: false
+              }
+            }),
+            cdpPipeFrame({ id: command.id, result: { sessionId: TEST_SESSION_ID } })
+          ]));
+        } else {
+          chromeWrites.write(Buffer.concat([
+            cdpPipeFrame({
+              id: command.id,
+              result: {},
+              sessionId: TEST_SESSION_ID
+            }),
+            cdpPipeFrame({
+              method: 'Page.loadEventFired',
+              params: { timestamp: 1 },
+              sessionId: TEST_SESSION_ID
+            })
+          ]));
+        }
+      }
+    });
+
+    const pipe = new DevtoolsPipeSession(child as never, (method) => events.push(method));
+    await pipe.open();
+    const targetFilter = [{ type: 'page', exclude: false }, { exclude: true }];
+    const target = selectBlankPageTarget(await pipe.browserCommand('Target.getTargets', {
+      filter: targetFilter
+    }));
+    await expect(pipe.attachToPage(target.targetId)).resolves.toBe(TEST_SESSION_ID);
+    await expect(pipe.command('Page.enable')).resolves.toEqual({});
+    await new Promise((resolveTick) => setImmediate(resolveTick));
+
+    expect(events).toEqual(['Page.loadEventFired']);
+    expect(commands.map(({ method }) => method)).toEqual([
+      'Target.getTargets',
+      'Target.attachToTarget',
+      'Page.enable'
+    ]);
+    expect(commands[0]).not.toHaveProperty('sessionId');
+    expect(commands[0]).toMatchObject({ params: { filter: targetFilter } });
+    expect(commands[1]).not.toHaveProperty('sessionId');
+    expect(commands[2]).toMatchObject({ sessionId: TEST_SESSION_ID });
+    expect(parentWrites.readableEnded).toBe(false);
+    pipe.close();
+  });
+
+  it('fails the whole private pipe on an unknown response, malformed UTF-8, or timeout', async () => {
+    const unknownChild = fakeChromePipe();
+    const unknownPipe = new DevtoolsPipeSession(unknownChild as never);
+    await unknownPipe.open();
+    const unknown = unknownPipe.browserCommand('Target.getTargets');
+    unknownChild.stdio[4]!.write(cdpPipeFrame({ id: 2, result: {} }));
+    await expect(unknown).rejects.toThrow(/unknown response/i);
+    unknownPipe.close();
+
+    const utfChild = fakeChromePipe();
+    const utfPipe = new DevtoolsPipeSession(utfChild as never);
+    await utfPipe.open();
+    const malformed = utfPipe.browserCommand('Target.getTargets');
+    utfChild.stdio[4]!.write(Buffer.from([0xc3, 0x28, 0]));
+    await expect(malformed).rejects.toThrow(/invalid JSON/i);
+    utfPipe.close();
+
+    const timeoutChild = fakeChromePipe();
+    const timeoutPipe = new DevtoolsPipeSession(timeoutChild as never);
+    await timeoutPipe.open();
+    await expect(timeoutPipe.browserCommand('Target.getTargets', {}, 20))
+      .rejects.toThrow(/timed out/i);
+    timeoutPipe.close();
+  });
+
+  it('fails closed on foreign responses, unscoped page events, and oversized frames', async () => {
+    const foreign = await attachedFakeChromePipe();
+    const foreignCommand = foreign.pipe.command('Page.enable');
+    await new Promise((resolveTick) => setImmediate(resolveTick));
+    const foreignId = foreign.commands.at(-1)?.id;
+    foreign.child.stdio[4]!.write(cdpPipeFrame({
+      id: foreignId,
+      result: {},
+      sessionId: 'FOREIGN-SESSION'
+    }));
+    await expect(foreignCommand).rejects.toThrow(/session mismatched/i);
+    foreign.pipe.close();
+
+    const unscoped = await attachedFakeChromePipe();
+    const pending = unscoped.pipe.command('Page.enable');
+    unscoped.child.stdio[4]!.write(cdpPipeFrame({
+      method: 'Page.loadEventFired',
+      params: { timestamp: 1 }
+    }));
+    await expect(pending).rejects.toThrow(/event session mismatched/i);
+    unscoped.pipe.close();
+
+    const oversizedChild = fakeChromePipe();
+    const oversizedPipe = new DevtoolsPipeSession(oversizedChild as never);
+    await oversizedPipe.open();
+    const oversized = oversizedPipe.browserCommand('Target.getTargets');
+    oversizedChild.stdio[4]!.write(Buffer.alloc(16 * 1_024 * 1_024 + 1, 0x61));
+    await expect(oversized).rejects.toThrow(/frame exceeded/i);
+    oversizedPipe.close();
+  });
+
+  it('honors write backpressure and closes idempotently without reopening', async () => {
+    const reader = new PassThrough();
+    const writer = new (class extends EventEmitter {
+      write(chunk: Buffer, callback: (error?: Error) => void) {
+        const command = JSON.parse(
+          chunk.subarray(0, chunk.byteLength - 1).toString('utf8')
+        ) as Record<string, unknown>;
+        setImmediate(() => {
+          callback();
+          this.emit('drain');
+          reader.write(cdpPipeFrame({ id: command.id, result: {} }));
+        });
+        return false;
+      }
+
+      end() {
+        this.emit('close');
+      }
+
+      destroy() {
+        this.emit('close');
+      }
+    })();
+    const child = new EventEmitter() as EventEmitter & {
+      stdio: Array<EventEmitter | PassThrough | null>;
+    };
+    child.stdio = [null, null, null, writer, reader];
+    const pipe = new DevtoolsPipeSession(child as never);
+    await pipe.open();
+    await expect(pipe.browserCommand('Browser.getVersion')).resolves.toEqual({});
+    pipe.close();
+    expect(() => pipe.close()).not.toThrow();
+    await expect(pipe.open()).rejects.toThrow(/cannot be reopened/i);
+    await expect(pipe.browserCommand('Browser.getVersion')).rejects.toThrow(/unavailable/i);
   });
 
   it('blocks every page request outside the exact numeric loopback origin', () => {

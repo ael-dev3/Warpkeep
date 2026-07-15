@@ -308,6 +308,7 @@ const QUICK_TESTS = Object.freeze([
 
 const SYNTHETIC_APP_STATE_TESTS = Object.freeze([
   'tests/qaJourneyLab.test.tsx',
+  'tests/qaJourneyBrowserProbe.test.ts',
   'tests/localQaRuntime.test.ts',
   'tests/alphaParticipationTermsDialog.test.tsx',
   'tests/farcasterQrAuthPanel.test.tsx',

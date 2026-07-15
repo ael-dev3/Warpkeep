@@ -5,22 +5,13 @@ import type {
 } from '../farcaster/farcasterAuthTypes';
 import type { WarpkeepBackendPhase } from '../spacetime/warpkeepBackendTypes';
 import { createRealmObserverFixtureRealm } from './realmObserverSnapshot';
+import {
+  QA_JOURNEY_SCENARIO_MANIFEST,
+  QA_UNSCANNABLE_QR_DATA_URL,
+  type QaJourneyScenarioManifestId
+} from './qaJourneyScenarioManifest.mjs';
 
-export type QaJourneyScenario =
-  | 'journey'
-  | 'menu'
-  | 'terms'
-  | 'auth-creating'
-  | 'auth-awaiting'
-  | 'auth-qr-error'
-  | 'auth-verifying'
-  | 'admission-pending'
-  | 'auth-authenticated'
-  | 'auth-expired'
-  | 'auth-error'
-  | QaAdmissionScenario
-  | 'realm-player'
-  | 'realm-observer';
+export type QaJourneyScenario = QaJourneyScenarioManifestId;
 
 export type QaAdmissionScenario =
   | 'admission-connecting'
@@ -41,33 +32,7 @@ export type QaJourneyOptions = Readonly<{
   intervalMs: number;
 }>;
 
-export const QA_JOURNEY_SCENARIOS: readonly Readonly<{
-  id: QaJourneyScenario;
-  label: string;
-}>[] = Object.freeze([
-  Object.freeze({ id: 'journey', label: 'Interactive full journey' }),
-  Object.freeze({ id: 'menu', label: 'Main menu' }),
-  Object.freeze({ id: 'terms', label: 'Alpha Terms' }),
-  Object.freeze({ id: 'auth-creating', label: 'Auth · creating channel' }),
-  Object.freeze({ id: 'auth-awaiting', label: 'Auth · synthetic QR ready' }),
-  Object.freeze({ id: 'auth-qr-error', label: 'Auth · QR unavailable' }),
-  Object.freeze({ id: 'auth-verifying', label: 'Auth · verifying' }),
-  Object.freeze({ id: 'admission-pending', label: 'Admission pending' }),
-  Object.freeze({ id: 'auth-authenticated', label: 'Authenticated presentation' }),
-  Object.freeze({ id: 'auth-expired', label: 'Auth · expired' }),
-  Object.freeze({ id: 'auth-error', label: 'Auth · error' }),
-  Object.freeze({ id: 'admission-connecting', label: 'Admission · connecting' }),
-  Object.freeze({ id: 'admission-reconnecting', label: 'Admission · reconnecting' }),
-  Object.freeze({ id: 'admission-checking', label: 'Admission · checking' }),
-  Object.freeze({ id: 'admission-awaiting-terms', label: 'Admission · Terms required' }),
-  Object.freeze({ id: 'admission-denied', label: 'Admission · denied' }),
-  Object.freeze({ id: 'admission-bootstrapping', label: 'Admission · bootstrapping' }),
-  Object.freeze({ id: 'admission-accepting-terms', label: 'Admission · recording Terms' }),
-  Object.freeze({ id: 'admission-opening-realm', label: 'Admission · opening Realm' }),
-  Object.freeze({ id: 'admission-error', label: 'Admission · unavailable' }),
-  Object.freeze({ id: 'realm-player', label: 'Realm · synthetic player' }),
-  Object.freeze({ id: 'realm-observer', label: 'Realm · read-only observer' })
-]);
+export const QA_JOURNEY_SCENARIOS = QA_JOURNEY_SCENARIO_MANIFEST;
 
 export const QA_JOURNEY_AUTOCYCLE_SCENARIOS = Object.freeze(
   QA_JOURNEY_SCENARIOS
@@ -130,19 +95,7 @@ const MIN_AUTOCYCLE_INTERVAL_MS = 2_000;
 const MAX_AUTOCYCLE_INTERVAL_MS = 30_000;
 const SYNTHETIC_EXPIRY = Date.UTC(2099, 0, 1);
 
-const UNREADABLE_QA_QR_SVG = [
-  '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">',
-  '<rect width="240" height="240" rx="16" fill="#f7edd5"/>',
-  '<path d="M24 24h64v64H24zM152 24h64v64h-64zM24 152h64v64H24z" fill="#17121d"/>',
-  '<path d="M104 112h32v16h-32zm48 0h40v16h-40zm-48 40h88v16h-88zm0 40h48v16h-48z" fill="#8d55ad"/>',
-  '<text x="120" y="104" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="700" fill="#5a315f">LOCAL QA</text>',
-  '<text x="120" y="138" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#5a315f">NOT SCANNABLE</text>',
-  '</svg>'
-].join('');
-
-/** A presentation image, deliberately not a QR encoding or authorization URL. */
-export const QA_UNSCANNABLE_QR_DATA_URL =
-  `data:image/svg+xml;charset=utf-8,${encodeURIComponent(UNREADABLE_QA_QR_SVG)}`;
+export { QA_UNSCANNABLE_QR_DATA_URL };
 
 const QA_REALM = createRealmObserverFixtureRealm();
 

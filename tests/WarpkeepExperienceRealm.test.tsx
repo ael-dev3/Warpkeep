@@ -354,7 +354,9 @@ async function acceptAlphaParticipationTerms() {
   const checkbox = terms.getByRole('checkbox', {
     name: 'I understand and agree to these Alpha Terms.'
   });
-  const continueButton = terms.getByRole('button', { name: 'CONTINUE TO SIGN-IN' });
+  const continueButton = terms.getByRole('button', {
+    name: /CONTINUE TO (?:SIGN-IN|ACCESS CHECK|REALM)/
+  });
 
   expect((continueButton as HTMLButtonElement).disabled).toBe(true);
   fireEvent.click(checkbox);

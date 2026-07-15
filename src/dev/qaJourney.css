@@ -67,7 +67,7 @@ body,
 .qa-journey__controls :is(button, select),
 .qa-journey__flow-controls button,
 .qa-journey__restore-controls {
-  min-height: 2rem;
+  min-height: 44px;
   border: 1px solid rgb(227 190 105 / 35%);
   border-radius: 0.35rem;
   padding: 0.4rem 0.55rem;

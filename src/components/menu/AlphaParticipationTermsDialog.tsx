@@ -15,11 +15,18 @@ import { useModalFocusBoundary } from './useModalFocusBoundary';
 import './AlphaParticipationTermsDialog.css';
 
 export type AlphaParticipationTermsDialogProps = Readonly<{
+  continueLabel?: AlphaParticipationTermsContinueLabel;
   onCancel: () => void;
   onContinue: () => void;
 }>;
 
+export type AlphaParticipationTermsContinueLabel =
+  | 'CONTINUE TO SIGN-IN'
+  | 'CONTINUE TO ACCESS CHECK'
+  | 'CONTINUE TO REALM';
+
 export function AlphaParticipationTermsDialog({
+  continueLabel = 'CONTINUE TO SIGN-IN',
   onCancel,
   onContinue
 }: AlphaParticipationTermsDialogProps) {
@@ -164,7 +171,7 @@ export function AlphaParticipationTermsDialog({
               disabled={!accepted || continuing}
               type="submit"
             >
-              CONTINUE TO SIGN-IN
+              {continueLabel}
             </button>
           </div>
         </form>

@@ -98,7 +98,7 @@ describe('WarpkeepMainMenu', () => {
 
     const terms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
     const continueButton = within(terms).getByRole('button', {
-      name: 'CONTINUE TO SIGN-IN'
+      name: 'CONTINUE TO REALM'
     });
     expect((continueButton as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(within(terms).getByRole('checkbox', {

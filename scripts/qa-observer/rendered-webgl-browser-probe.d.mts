@@ -75,7 +75,7 @@ export type HeadlessChromeProbeContract = Readonly<{
     detached: true;
     env: Readonly<Record<string, string>>;
     shell: false;
-    stdio: 'ignore';
+    stdio: readonly ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'];
     windowsHide: true;
   }>;
 }>;
@@ -101,15 +101,33 @@ export function terminateHeadlessChromeProcessGroup(
   }>
 ): Promise<void>;
 
-export function parseDevtoolsActivePort(value: string): Readonly<{
-  port: number;
-  browserPath: string;
+export function selectBlankPageTarget(value: unknown): Readonly<{
+  targetId: string;
 }>;
 
-export function selectBlankPageTarget(value: unknown, devtoolsPort: number): Readonly<{
-  targetId: string;
-  webSocketDebuggerUrl: string;
-}>;
+export class DevtoolsPipeSession {
+  constructor(
+    child: ChildProcess,
+    eventHandler?: (
+      method: string,
+      params: Readonly<Record<string, unknown>>,
+      session: DevtoolsPipeSession,
+    ) => void,
+  );
+  open(): Promise<void>;
+  browserCommand(
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
+    timeoutMilliseconds?: number,
+  ): Promise<Readonly<Record<string, unknown>>>;
+  command(
+    method: string,
+    params?: Readonly<Record<string, unknown>>,
+    timeoutMilliseconds?: number,
+  ): Promise<Readonly<Record<string, unknown>>>;
+  attachToPage(targetId: string): Promise<string>;
+  close(): void;
+}
 
 export function isAllowedRenderedWebglPageUrl(value: unknown, loopbackOrigin: string): boolean;
 

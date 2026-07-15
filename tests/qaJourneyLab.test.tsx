@@ -85,7 +85,9 @@ function acceptTerms() {
   fireEvent.click(within(dialog).getByRole('checkbox', {
     name: 'I understand and agree to these Alpha Terms.'
   }));
-  fireEvent.click(within(dialog).getByRole('button', { name: 'CONTINUE TO SIGN-IN' }));
+  fireEvent.click(within(dialog).getByRole('button', {
+    name: /CONTINUE TO (?:SIGN-IN|ACCESS CHECK|REALM)/
+  }));
 }
 
 beforeEach(() => {

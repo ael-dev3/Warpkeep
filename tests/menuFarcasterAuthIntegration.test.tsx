@@ -139,7 +139,9 @@ function acceptAlphaTerms() {
     name: 'I understand and agree to these Alpha Terms.'
   });
   fireEvent.click(checkbox);
-  fireEvent.click(within(dialog).getByRole('button', { name: 'CONTINUE TO SIGN-IN' }));
+  fireEvent.click(within(dialog).getByRole('button', {
+    name: /CONTINUE TO (?:SIGN-IN|ACCESS CHECK|REALM)/
+  }));
 }
 
 function openAndAcceptAlphaTerms() {
@@ -482,7 +484,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     })).not.toBeNull();
     const terms = openAlphaTerms();
     expect((within(terms).getByRole('button', {
-      name: 'CONTINUE TO SIGN-IN'
+      name: 'CONTINUE TO REALM'
     }) as HTMLButtonElement).disabled).toBe(true);
     expect(callbacks.enterRealm).not.toHaveBeenCalled();
     expect(callbacks.begin).not.toHaveBeenCalled();
@@ -526,6 +528,9 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     const terms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
     expect((within(terms).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    expect(within(terms).getByRole('button', {
+      name: 'CONTINUE TO ACCESS CHECK'
+    })).not.toBeNull();
     expect(callbacks.refreshSession).not.toHaveBeenCalled();
     acceptAlphaTerms();
 

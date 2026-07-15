@@ -179,10 +179,13 @@ The default `journey` view walks through the real menu and Terms component, then
 uses controls to advance a non-scannable synthetic auth presentation through
 verification and pending admission. Checking admission changes only local React
 state. The authenticated entry requires the Terms checkbox again before the
-synthetic canonical Realm mounts. Direct scenario selection is available for
-visual isolation, and `?autocycle=1&interval=6000` cycles the presentation-only
-views every six seconds. The interval is bounded to 2–30 seconds. This is a QA
-fixture shortcut, not a credential or route into the deployed game.
+synthetic canonical Realm mounts. The exact scenario list and expected
+accessible landmark for every direct state live in one data-only manifest shared
+by the React lab and the headless journey probe, preventing the two matrices from
+silently drifting. Direct scenario selection is available for visual isolation,
+and `?autocycle=1&interval=6000` cycles the presentation-only views every six
+seconds. The interval is bounded to 2–30 seconds. This is a QA fixture shortcut,
+not a credential or route into the deployed game.
 The modal remains above and blocks every lab control, auto-cycle excludes the
 interactive journey and Terms fixture, direct authenticated views are
 presentation-only, and external-origin link clicks are suppressed inside the
@@ -268,11 +271,27 @@ middleware server to a numeric
 `127.0.0.1` port selected by the kernel, creates a fresh owner-private temporary
 Chrome profile, and begins at `about:blank`. Extensions, saved browser state,
 Keychain access, first-run/default-app behavior, sync, updates, metrics, and
-background networking are disabled. A deny-by-default host resolver plus Chrome
-DevTools request interception blocks every page request and navigation outside
-the selected numeric loopback origin. Same-origin Vite WebSocket and renderer
-Blob URLs are allowed; alternate ports, `localhost`, HTTPS, data URLs, and
-foreign origins fail the run.
+background networking are disabled. DevTools uses only Chrome's private inherited
+file descriptors: commands and events are strict, bounded, NUL-framed JSON over
+fd 3/4, with no TCP debugging listener or discovery endpoint. A deny-by-default
+host resolver plus the CDP Fetch-domain request gate blocks every page request
+and navigation outside the selected numeric loopback origin. Same-origin Vite
+WebSocket and renderer Blob URLs are allowed. The one exact, pinned,
+non-scannable journey-fixture QR data URL is the sole data-URL exception;
+alternate ports, `localhost`, HTTPS, every other data URL, and foreign origins
+fail the run. Branded macOS Chrome initializes a Crashpad handler even when the
+generic crash-reporter switches are disabled; Chromium's
+`disable-crashpad-for-testing` guard explicitly excludes macOS, so this lane
+does not claim that ineffective suppression. Instead, the handler is confined
+to the fresh owner-private `crash-dumps` database under the disposable profile,
+and exits when the disposable browser is torn down. A bounded manual OS
+observation on 2026-07-15 found no TCP socket on either the fresh-profile
+handler or Chrome, but the probe does not enforce that process/socket inspection
+on every run. Crashpad uses its own process group on this macOS build, so the
+Chrome group sweep is not misrepresented as direct ownership of that helper.
+The branded handler can still carry its vendor report URL in process arguments,
+so a browser build with Crashpad compiled out is the stronger long-term
+boundary.
 
 The probe does not load the checkout's `vite.config.ts` or `.env` files. It uses
 an inline configuration with the one reviewed React plugin, an explicit local-QA
@@ -280,6 +299,28 @@ compile gate and package version, strict repository-root file serving, and a
 Vite cache inside the disposable Chrome profile. This prevents an earlier test
 from redirecting the later host-side browser through mutable Vite configuration
 or cache state.
+
+The same attested Chrome, disposable profile, exact-loopback server, private CDP
+pipe, and Fetch-domain request gate also run the real-browser synthetic journey
+lane before the process is torn down. It mounts every entry in the shared 22-state scenario
+manifest, validating only closed-shape counts, enumerated state, viewport, and
+accessible-landmark evidence. It then drives the actual local path from menu to
+unchecked Terms, fixed non-scannable synthetic QR, approval, verification,
+pending admission, admitted presentation, a freshly unchecked authenticated
+Terms gate, and player Realm. The QR assertion is exact equality with the one
+shared fixture data URL; a different SVG or merely matching MIME prefix fails.
+The lane also opens and closes the Alpha build stamp's patch notes, Settings,
+and Credits, checking initial/restored focus, bounded placement, horizontal
+overflow, visible-button sizing, and Credits' manual-reading control. It never
+clicks an external link.
+
+Only the desktop menu, mobile Terms, and short-landscape menu are captured as
+in-memory PNGs. Each is immediately reduced to anonymous colour/luminance counts,
+then its byte buffer is zeroed; no screenshot, DOM text, QR payload, identity,
+or private browser log is written or returned. The title gateway is not mounted
+by the journey lab, so this lane does not claim title-screen interaction
+coverage; title presentation remains covered by its focused component and visual
+contract tests until a separate authority-free browser fixture is justified.
 
 Chrome runs nine fixed cases: every quality at 1440×900, one invalid query that
 must fail closed to `balanced`, balanced and reduced presentation in a 390×844
@@ -334,7 +375,8 @@ controls and disposable profile. The parent QA report records only the aggregate
 check identifier, pass/fail/timeout status, and total duration.
 
 The exact browser probe runs in quick, standard, and deep QA cycles. Unit tests
-exercise its URL, process-spawn, endpoint, network-boundary, DOM-attestation,
+exercise its URL, process-spawn, private-pipe transport, target/session routing,
+network-boundary, DOM-attestation,
 and bounded PNG-decoder contracts without launching Chrome. If an owner chooses
 to retain a separate interactive screenshot, save it manually outside the
 worktree as an owner-only (`0600`) private artifact after review; the automated
@@ -422,12 +464,18 @@ AppleScript, application-launch, and LaunchAgent command surfaces plus direct
 
 The rendered-WebGL check is the one explicit exception because Chrome cannot
 start safely inside a second macOS sandbox without disabling Chrome's own
-sandbox. It retains its fresh profile, deny-by-default host resolver, DevTools
-request interception, exact numeric-loopback origin, and foreign-network
-fail-closed contract. The current Chrome bundle is user-owned and group-writable;
+sandbox. It retains its fresh profile, deny-by-default host resolver, inherited
+NUL-framed CDP pipe with no TCP listener, Fetch-domain request gate, exact
+numeric-loopback origin, and foreign-network fail-closed contract. The current
+Chrome bundle is user-owned and group-writable;
 executable metadata and whole-app signature checks narrow but do not eliminate a
 same-user or same-group bundle race. A pinned root-owned, non-group-writable
 browser under a restricted QA account or container is the long-term boundary.
+The unavoidable branded-macOS Crashpad helper is a second residual: its fresh
+private database defaults to uploads disabled. A bounded manual OS observation
+on 2026-07-15 found no TCP listener, but that is not an automated per-run
+invariant; the helper binary and embedded report destination still exist until
+browser teardown.
 `sandbox-exec` is deprecated, does not isolate process
 execution, and does not make mutable repository code trusted. The browser lane
 also remains outside its filesystem boundary. A dedicated low-privilege macOS
@@ -473,7 +521,8 @@ data to browser JavaScript.
 
 The tiers intentionally trade coverage for hourly cost:
 
-- `quick` runs the nine-case responsive rendered-WebGL browser probe, the real
+- `quick` runs the nine-case responsive rendered-WebGL browser probe plus its
+  shared-envelope real-browser journey lane, the real
   parent-level sandbox boundary preflight, focused observer/security tests, an
   explicit synthetic app state lane, and root typecheck.
   The synthetic lane has one manifest-backed assertion for all 22 supported

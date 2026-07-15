@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { createServer as createHttpServer, request as httpRequest } from 'node:http';
+import { createServer as createHttpServer } from 'node:http';
 import {
   chmod,
   lstat,
@@ -30,10 +30,11 @@ const CODESIGN_EXECUTABLE = '/usr/bin/codesign';
 const execFileAsync = promisify(execFile);
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..', '..');
-const CHROME_STARTUP_TIMEOUT_MILLISECONDS = 15_000;
 const CASE_TIMEOUT_MILLISECONDS = RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS + 5_000;
 const CDP_COMMAND_TIMEOUT_MILLISECONDS = 10_000;
-const HTTP_RESPONSE_MAXIMUM_BYTES = 256 * 1_024;
+const CDP_PIPE_MAXIMUM_OUTBOUND_BYTES = 512 * 1_024;
+const CDP_PIPE_MAXIMUM_INBOUND_BYTES = 16 * 1_024 * 1_024;
+const CDP_PIPE_MAXIMUM_PENDING_COMMANDS = 1_024;
 const PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS = 5_000;
 const SCREENSHOT_MAXIMUM_CHUNKS = 4_096;
 const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
@@ -288,6 +289,8 @@ export function renderedWebglBrowserProbeCases(port) {
  * of the signed-in browser, extensions, saved credentials, Keychain, and user
  * preferences. Flags suppress Chrome-owned background network features; CDP
  * additionally blocks every page request outside the exact loopback origin.
+ * DevTools itself never listens on TCP: Chrome reads NUL-framed protocol JSON
+ * from inherited fd 3 and writes replies/events to inherited fd 4.
  */
 export function headlessChromeProbeContract(profileDirectory) {
   const profile = exactPrivateDirectory(profileDirectory);
@@ -295,8 +298,7 @@ export function headlessChromeProbeContract(profileDirectory) {
     executable: RENDERED_WEBGL_QA_CHROME,
     args: Object.freeze([
       '--headless=new',
-      '--remote-debugging-address=127.0.0.1',
-      '--remote-debugging-port=0',
+      '--remote-debugging-pipe',
       `--user-data-dir=${profile}`,
       '--disable-background-networking',
       '--disable-breakpad',
@@ -334,7 +336,7 @@ export function headlessChromeProbeContract(profileDirectory) {
         TMPDIR: profile,
       }),
       shell: false,
-      stdio: 'ignore',
+      stdio: Object.freeze(['ignore', 'ignore', 'ignore', 'pipe', 'pipe']),
       windowsHide: true,
     }),
   });
@@ -346,22 +348,6 @@ export function spawnHeadlessChromeProbe(profileDirectory, options = {}) {
   return spawnProcess(contract.executable, [...contract.args], { ...contract.options });
 }
 
-export function parseDevtoolsActivePort(value) {
-  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') > 1_024) {
-    throw new TypeError('Invalid Chrome DevTools endpoint.');
-  }
-  const lines = value.trimEnd().split('\n');
-  if (
-    lines.length !== 2
-    || !/^\d{1,5}$/.test(lines[0] ?? '')
-    || !/^\/devtools\/browser\/[A-Za-z0-9-]{1,128}$/.test(lines[1] ?? '')
-  ) throw new TypeError('Invalid Chrome DevTools endpoint.');
-  return Object.freeze({
-    port: exactPort(Number(lines[0])),
-    browserPath: lines[1],
-  });
-}
-
 function exactRecord(value, message) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new TypeError(message);
@@ -371,40 +357,58 @@ function exactRecord(value, message) {
   return value;
 }
 
-export function selectBlankPageTarget(value, devtoolsPort) {
-  const selectedPort = exactPort(devtoolsPort);
-  if (!Array.isArray(value) || value.length > 16) {
+export function selectBlankPageTarget(value) {
+  const result = exactRecord(value, 'Invalid Chrome DevTools target list.');
+  if (
+    Object.keys(result).length !== 1
+    || !Array.isArray(result.targetInfos)
+    || result.targetInfos.length !== 1
+  ) {
     throw new TypeError('Invalid Chrome DevTools target list.');
   }
-  const candidates = value.filter((entry) => {
-    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return false;
-    return entry.type === 'page' && entry.url === 'about:blank';
-  });
-  if (candidates.length !== 1) throw new TypeError('Invalid Chrome DevTools target list.');
-  const candidate = exactRecord(candidates[0], 'Invalid Chrome DevTools page target.');
-  if (
-    typeof candidate.id !== 'string'
-    || !/^[A-Za-z0-9-]{1,256}$/.test(candidate.id)
-    || typeof candidate.webSocketDebuggerUrl !== 'string'
-  ) {
-    throw new TypeError('Invalid Chrome DevTools page target.');
-  }
-  const endpoint = new URL(candidate.webSocketDebuggerUrl);
-  if (
-    endpoint.protocol !== 'ws:'
-    || !['127.0.0.1', 'localhost'].includes(endpoint.hostname)
-    || Number(endpoint.port) !== selectedPort
-    || !/^\/devtools\/page\/[A-Za-z0-9-]{1,256}$/.test(endpoint.pathname)
-    || endpoint.search
-    || endpoint.hash
-    || endpoint.username
-    || endpoint.password
-    || endpoint.pathname !== `/devtools/page/${candidate.id}`
-  ) throw new TypeError('Invalid Chrome DevTools page target.');
-  endpoint.hostname = '127.0.0.1';
+  const candidate = exactBlankPageTargetInfo(
+    result.targetInfos[0],
+    false,
+    'Invalid Chrome DevTools page target.'
+  );
   return Object.freeze({
-    targetId: candidate.id,
-    webSocketDebuggerUrl: endpoint.toString(),
+    targetId: candidate.targetId,
+  });
+}
+
+function exactBlankPageTargetInfo(value, attached, message) {
+  const candidate = exactRecord(value, message);
+  const allowedKeys = new Set([
+    'attached',
+    'browserContextId',
+    'canAccessOpener',
+    'targetId',
+    'title',
+    'type',
+    'url',
+  ]);
+  if (
+    !exactMessageKeys(candidate, allowedKeys)
+    || !Object.hasOwn(candidate, 'targetId')
+    || !Object.hasOwn(candidate, 'type')
+    || !Object.hasOwn(candidate, 'title')
+    || !Object.hasOwn(candidate, 'url')
+    || !Object.hasOwn(candidate, 'attached')
+    || typeof candidate.targetId !== 'string'
+    || !/^[A-Za-z0-9-]{1,256}$/.test(candidate.targetId)
+    || candidate.type !== 'page'
+    || !['', 'about:blank'].includes(candidate.title)
+    || candidate.url !== 'about:blank'
+    || candidate.attached !== attached
+    || ('canAccessOpener' in candidate && candidate.canAccessOpener !== false)
+    || ('browserContextId' in candidate && (
+      typeof candidate.browserContextId !== 'string'
+      || !/^[A-Za-z0-9-]{1,256}$/.test(candidate.browserContextId)
+    ))
+  ) throw new TypeError(message);
+  return Object.freeze({
+    attached,
+    targetId: candidate.targetId,
   });
 }
 
@@ -877,187 +881,485 @@ function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
 
-async function readBoundedHttpJson(port, path, timeoutMilliseconds = 2_000) {
-  exactPort(port);
-  if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) {
-    throw new TypeError('Invalid Chrome DevTools path.');
+function browserConsoleViolationCategory(arguments_) {
+  const aggregate = Array.isArray(arguments_)
+    ? arguments_.map((argument) => (
+        typeof argument?.value === 'string' ? argument.value
+          : typeof argument?.description === 'string' ? argument.description
+            : ''
+      )).join(' ')
+    : '';
+  if (/(?:content security policy|refused to|violates the following)/i.test(aggregate)) {
+    return 'console-policy';
   }
-  return new Promise((resolveJson, rejectJson) => {
-    let settled = false;
-    let response;
-    let timeout;
-    let total = 0;
-    const chunks = [];
-    const finish = (callback) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeout);
-      callback();
-    };
-    const request = httpRequest({
-      host: '127.0.0.1',
-      port,
-      path,
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      agent: false,
-    }, (incoming) => {
-      response = incoming;
-      if (incoming.statusCode !== 200) {
-        incoming.destroy();
-        finish(() => rejectJson(new Error('Chrome DevTools endpoint rejected the request.')));
-        return;
-      }
-      incoming.on('data', (chunk) => {
-        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        total += bytes.byteLength;
-        if (total > HTTP_RESPONSE_MAXIMUM_BYTES) {
-          incoming.destroy();
-          finish(() => rejectJson(new Error('Chrome DevTools response exceeded its bound.')));
+  if (/(?:webassembly|wasm|compileerror)/i.test(aggregate)) return 'console-wasm';
+  if (/(?:meshopt|decoder)/i.test(aggregate)) return 'console-decoder';
+  if (/(?:gltf|\.glb\b)/i.test(aggregate)) return 'console-gltf';
+  if (/(?:hegemony keep|castle model|integrity check)/i.test(aggregate)) return 'console-castle';
+  if (/(?:dynamic import|importing a module|module script)/i.test(aggregate)) return 'console-module';
+  if (/(?:securityerror|notsupportederror|domexception)/i.test(aggregate)) return 'console-dom-security';
+  if (/(?:typeerror|cannot read|undefined is not|null is not)/i.test(aggregate)) {
+    return 'console-type';
+  }
+  if (/webgl/i.test(aggregate)) return 'console-webgl';
+  if (/(?:failed to load|loading failed|networkerror)/i.test(aggregate)) return 'console-load';
+  if (/react/i.test(aggregate)) return 'console-react';
+  return 'console-error';
+}
+
+function exactCdpIdentifier(value, label) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9-]{1,256}$/.test(value)) {
+    throw new TypeError(`Invalid Chrome DevTools ${label}.`);
+  }
+  return value;
+}
+
+function exactCdpMethod(value) {
+  if (
+    typeof value !== 'string'
+    || !/^[A-Z][A-Za-z0-9]*\.[A-Za-z][A-Za-z0-9]*$/.test(value)
+  ) throw new TypeError('Invalid Chrome DevTools method.');
+  return value;
+}
+
+function exactMessageKeys(value, allowed) {
+  const keys = Object.keys(value);
+  return keys.every((key) => allowed.has(key));
+}
+
+/**
+ * Strict private Chrome DevTools transport over inherited fd 3/4. Frames are
+ * UTF-8 JSON terminated by one NUL byte. No debugger TCP listener, discovery
+ * endpoint, WebSocket, browser profile reuse, or user browser state exists.
+ */
+export class DevtoolsPipeSession {
+  #attachedEvent;
+  #attachingTargetId;
+  #child;
+  #closed = true;
+  #eventHandler;
+  #inboundBytes = 0;
+  #inboundChunks = [];
+  #nextId = 1;
+  #opened = false;
+  #pageSessionId;
+  #pending = new Map();
+  #reader;
+  #writer;
+  #writeTail = Promise.resolve();
+
+  constructor(child, eventHandler = () => {}) {
+    if (!child || typeof child !== 'object' || typeof eventHandler !== 'function') {
+      throw new TypeError('Invalid Chrome DevTools pipe transport.');
+    }
+    this.#child = child;
+    this.#eventHandler = eventHandler;
+  }
+
+  async open() {
+    if (this.#opened) throw new Error('Chrome DevTools pipe cannot be reopened.');
+    const writer = this.#child.stdio?.[3];
+    const reader = this.#child.stdio?.[4];
+    if (
+      !writer
+      || typeof writer.write !== 'function'
+      || typeof writer.end !== 'function'
+      || typeof writer.destroy !== 'function'
+      || typeof writer.on !== 'function'
+      || typeof writer.off !== 'function'
+      || typeof writer.once !== 'function'
+      || !reader
+      || typeof reader.on !== 'function'
+      || typeof reader.off !== 'function'
+      || typeof reader.destroy !== 'function'
+      || typeof this.#child.on !== 'function'
+      || typeof this.#child.off !== 'function'
+    ) throw new Error('Chrome DevTools pipe is unavailable.');
+    this.#writer = writer;
+    this.#reader = reader;
+    this.#opened = true;
+    this.#closed = false;
+    reader.on('data', this.#receiveData);
+    reader.on('error', this.#receiveFailure);
+    reader.on('end', this.#receiveEnd);
+    reader.on('close', this.#receiveEnd);
+    writer.on('error', this.#receiveFailure);
+    writer.on('close', this.#receiveEnd);
+    this.#child.on('error', this.#receiveFailure);
+    this.#child.on('close', this.#receiveEnd);
+  }
+
+  #receiveData = (chunk) => {
+    if (this.#closed) return;
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    let offset = 0;
+    while (!this.#closed && offset < bytes.byteLength) {
+      const delimiter = bytes.indexOf(0, offset);
+      const end = delimiter < 0 ? bytes.byteLength : delimiter;
+      const piece = bytes.subarray(offset, end);
+      if (piece.byteLength > 0) {
+        this.#inboundBytes += piece.byteLength;
+        if (this.#inboundBytes > CDP_PIPE_MAXIMUM_INBOUND_BYTES) {
+          this.#fail('Chrome DevTools pipe frame exceeded its bound.');
           return;
         }
-        chunks.push(bytes);
-      });
-      incoming.once('error', () => finish(() => rejectJson(new Error('Chrome DevTools response failed.'))));
-      incoming.once('end', () => finish(() => {
-        try {
-          resolveJson(JSON.parse(Buffer.concat(chunks, total).toString('utf8')));
-        } catch {
-          rejectJson(new Error('Chrome DevTools returned invalid JSON.'));
-        }
-      }));
-    });
-    timeout = setTimeout(() => {
-      request.destroy();
-      response?.destroy();
-      finish(() => rejectJson(new Error('Chrome DevTools request timed out.')));
-    }, timeoutMilliseconds);
-    request.once('error', () => finish(() => rejectJson(new Error('Chrome DevTools is unavailable.'))));
-    request.end();
-  });
-}
-
-async function waitForDevtoolsEndpoint(profileDirectory, child) {
-  const endpointPath = join(profileDirectory, 'DevToolsActivePort');
-  const deadline = Date.now() + CHROME_STARTUP_TIMEOUT_MILLISECONDS;
-  let spawnFailed = false;
-  const recordSpawnFailure = () => {
-    spawnFailed = true;
-  };
-  child.once('error', recordSpawnFailure);
-  try {
-    while (Date.now() < deadline) {
-      if (spawnFailed || child.exitCode !== null || child.signalCode !== null) {
-        throw new Error('Headless Chrome exited before its private endpoint was ready.');
+        this.#inboundChunks.push(Buffer.from(piece));
       }
+      if (delimiter < 0) return;
+      if (this.#inboundBytes === 0) {
+        this.#fail('Chrome DevTools pipe returned an empty frame.');
+        return;
+      }
+      const frame = this.#inboundChunks.length === 1
+        ? this.#inboundChunks[0]
+        : Buffer.concat(this.#inboundChunks, this.#inboundBytes);
+      this.#inboundChunks = [];
+      this.#inboundBytes = 0;
+      let message;
       try {
-        return parseDevtoolsActivePort(await readFile(endpointPath, 'utf8'));
-      } catch (error) {
-        if (error?.code !== 'ENOENT' && !(error instanceof TypeError)) throw error;
+        const decoded = new TextDecoder('utf-8', { fatal: true }).decode(frame);
+        message = JSON.parse(decoded);
+      } catch {
+        this.#fail('Chrome DevTools pipe returned invalid JSON.');
+      } finally {
+        frame.fill(0);
       }
-      await delay(50);
+      if (!this.#closed) {
+        try {
+          this.#receiveMessage(message);
+        } catch {
+          this.#fail('Chrome DevTools pipe returned a malformed message.');
+        }
+      }
+      offset = delimiter + 1;
     }
-  } finally {
-    child.off('error', recordSpawnFailure);
+  };
+
+  #receiveFailure = () => {
+    this.#fail('Chrome DevTools pipe failed.');
+  };
+
+  #receiveEnd = () => {
+    this.#fail('Chrome DevTools pipe closed.');
+  };
+
+  #receiveMessage(messageValue) {
+    const message = exactRecord(messageValue, 'Invalid Chrome DevTools pipe message.');
+    if (Number.isSafeInteger(message.id)) {
+      if (
+        message.id < 1
+        || !exactMessageKeys(message, new Set(['id', 'result', 'error', 'sessionId']))
+        || ('result' in message) === ('error' in message)
+      ) {
+        this.#fail('Chrome DevTools pipe returned a malformed response.');
+        return;
+      }
+      const pending = this.#pending.get(message.id);
+      if (!pending) {
+        this.#fail('Chrome DevTools pipe returned an unknown response.');
+        return;
+      }
+      const responseSessionId = message.sessionId;
+      if (
+        pending.sessionId === undefined
+          ? responseSessionId !== undefined
+          : responseSessionId !== pending.sessionId
+      ) {
+        this.#fail('Chrome DevTools pipe response session mismatched.');
+        return;
+      }
+      this.#pending.delete(message.id);
+      clearTimeout(pending.timeout);
+      if ('error' in message) {
+        pending.reject(new Error('Chrome DevTools command failed.'));
+        this.#fail('Chrome DevTools command failed.');
+        return;
+      }
+      if (message.result === null || typeof message.result !== 'object' || Array.isArray(message.result)) {
+        pending.reject(new Error('Chrome DevTools pipe returned an invalid result.'));
+        this.#fail('Chrome DevTools pipe returned an invalid result.');
+        return;
+      }
+      pending.resolve(message.result);
+      return;
+    }
+    if (
+      !exactMessageKeys(message, new Set(['method', 'params', 'sessionId']))
+      || !('method' in message)
+      || ('params' in message && (
+        message.params === null
+        || typeof message.params !== 'object'
+        || Array.isArray(message.params)
+      ))
+    ) {
+      this.#fail('Chrome DevTools pipe returned a malformed event.');
+      return;
+    }
+    let method;
+    try {
+      method = exactCdpMethod(message.method);
+    } catch {
+      this.#fail('Chrome DevTools pipe returned a malformed event.');
+      return;
+    }
+    const params = message.params ?? {};
+    if (method === 'Target.attachedToTarget') {
+      if (message.sessionId !== undefined) {
+        this.#fail('Chrome DevTools attach event session mismatched.');
+        return;
+      }
+      this.#receiveAttachedEvent(params);
+      return;
+    }
+    const browserEvent = method.startsWith('Target.');
+    if (
+      browserEvent
+        ? message.sessionId !== undefined
+        : message.sessionId !== this.#pageSessionId
+    ) {
+      this.#fail('Chrome DevTools event session mismatched.');
+      return;
+    }
+    try {
+      this.#eventHandler(method, params, this);
+    } catch {
+      this.#fail('Chrome DevTools event handler failed.');
+    }
   }
-  throw new Error('Headless Chrome startup timed out.');
-}
 
-class DevtoolsSession {
-  #nextId = 1;
-  #pending = new Map();
-  #socket;
-  #eventHandler;
-
-  constructor(endpoint, eventHandler) {
-    this.#eventHandler = eventHandler;
-    this.#socket = new WebSocket(endpoint);
+  #receiveAttachedEvent(paramsValue) {
+    const params = exactRecord(paramsValue, 'Invalid Chrome DevTools attach event.');
+    if (
+      Object.keys(params).length !== 3
+      || !Object.hasOwn(params, 'sessionId')
+      || !Object.hasOwn(params, 'targetInfo')
+      || !Object.hasOwn(params, 'waitingForDebugger')
+    ) {
+      this.#fail('Chrome DevTools attach event was invalid.');
+      return;
+    }
+    const targetInfo = exactBlankPageTargetInfo(
+      params.targetInfo,
+      true,
+      'Invalid Chrome DevTools attach target.'
+    );
+    let sessionId;
+    let targetId;
+    try {
+      sessionId = exactCdpIdentifier(params.sessionId, 'session ID');
+      targetId = exactCdpIdentifier(targetInfo.targetId, 'target ID');
+    } catch {
+      this.#fail('Chrome DevTools attach event was invalid.');
+      return;
+    }
+    if (
+      this.#attachedEvent
+      || !this.#attachingTargetId
+      || this.#pageSessionId
+      || params.waitingForDebugger !== false
+      || targetId !== this.#attachingTargetId
+    ) {
+      this.#fail('Chrome DevTools attach event was invalid.');
+      return;
+    }
+    this.#attachedEvent = Object.freeze({ sessionId, targetId });
   }
 
-  async open(timeoutMilliseconds = CDP_COMMAND_TIMEOUT_MILLISECONDS) {
-    if (this.#socket.readyState === WebSocket.OPEN) return;
-    await new Promise((resolveOpen, rejectOpen) => {
+  async #writeFrame(frame) {
+    try {
+      if (this.#closed || !this.#writer) {
+        throw new Error('Chrome DevTools pipe is unavailable.');
+      }
+      await new Promise((resolveWrite, rejectWrite) => {
+        let callbackComplete = false;
+        let drainComplete = false;
+        let settled = false;
+        const cleanup = () => {
+          this.#writer?.off('drain', drained);
+          this.#writer?.off('error', failed);
+          this.#writer?.off('close', failed);
+        };
+        const resolveIfComplete = () => {
+          if (settled || !callbackComplete || !drainComplete) return;
+          settled = true;
+          cleanup();
+          resolveWrite();
+        };
+        const failed = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          rejectWrite(new Error('Chrome DevTools pipe write failed.'));
+        };
+        const drained = () => {
+          drainComplete = true;
+          resolveIfComplete();
+        };
+        const callback = (error) => {
+          if (settled) return;
+          if (error) {
+            failed();
+            return;
+          }
+          callbackComplete = true;
+          resolveIfComplete();
+        };
+        this.#writer.on('error', failed);
+        this.#writer.on('close', failed);
+        let accepted;
+        try {
+          accepted = this.#writer.write(frame, callback);
+        } catch {
+          failed();
+          return;
+        }
+        if (accepted) {
+          drainComplete = true;
+          resolveIfComplete();
+        } else {
+          this.#writer.once('drain', drained);
+        }
+      });
+    } finally {
+      frame.fill(0);
+    }
+  }
+
+  #send(methodValue, paramsValue, sessionId, timeoutMilliseconds) {
+    if (this.#closed || !this.#writer) {
+      return Promise.reject(new Error('Chrome DevTools pipe is unavailable.'));
+    }
+    let method;
+    let params;
+    try {
+      method = exactCdpMethod(methodValue);
+      params = exactRecord(paramsValue, 'Invalid Chrome DevTools command parameters.');
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    if (
+      !Number.isSafeInteger(timeoutMilliseconds)
+      || timeoutMilliseconds < 1
+      || timeoutMilliseconds > CASE_TIMEOUT_MILLISECONDS
+      || this.#pending.size >= CDP_PIPE_MAXIMUM_PENDING_COMMANDS
+      || this.#nextId > Number.MAX_SAFE_INTEGER
+    ) return Promise.reject(new Error('Chrome DevTools command contract is invalid.'));
+    const id = this.#nextId++;
+    const payload = { id, method, params, ...(sessionId ? { sessionId } : {}) };
+    let encoded;
+    try {
+      encoded = Buffer.from(`${JSON.stringify(payload)}\0`, 'utf8');
+    } catch {
+      return Promise.reject(new Error('Chrome DevTools command could not be encoded.'));
+    }
+    if (encoded.byteLength > CDP_PIPE_MAXIMUM_OUTBOUND_BYTES) {
+      encoded.fill(0);
+      return Promise.reject(new Error('Chrome DevTools command exceeded its bound.'));
+    }
+    return new Promise((resolveCommand, rejectCommand) => {
       const timeout = setTimeout(() => {
-        cleanup();
-        rejectOpen(new Error('Chrome DevTools WebSocket timed out.'));
+        if (!this.#pending.has(id)) return;
+        this.#fail('Chrome DevTools command timed out.');
       }, timeoutMilliseconds);
-      const cleanup = () => {
-        clearTimeout(timeout);
-        this.#socket.removeEventListener('open', opened);
-        this.#socket.removeEventListener('error', failed);
-      };
-      const opened = () => {
-        cleanup();
-        this.#socket.addEventListener('message', (event) => this.#receive(event.data));
-        this.#socket.addEventListener('close', () => this.#rejectPending());
-        resolveOpen();
-      };
-      const failed = () => {
-        cleanup();
-        rejectOpen(new Error('Chrome DevTools WebSocket failed.'));
-      };
-      this.#socket.addEventListener('open', opened);
-      this.#socket.addEventListener('error', failed);
+      this.#pending.set(id, {
+        resolve: resolveCommand,
+        reject: rejectCommand,
+        sessionId,
+        timeout,
+      });
+      const write = this.#writeTail.then(() => this.#writeFrame(encoded));
+      this.#writeTail = write.catch(() => {});
+      write.catch(() => this.#fail('Chrome DevTools pipe write failed.'));
     });
   }
 
-  #rejectPending() {
+  browserCommand(method, params = {}, timeoutMilliseconds = CDP_COMMAND_TIMEOUT_MILLISECONDS) {
+    return this.#send(method, params, undefined, timeoutMilliseconds);
+  }
+
+  command(method, params = {}, timeoutMilliseconds = CDP_COMMAND_TIMEOUT_MILLISECONDS) {
+    if (!this.#pageSessionId) {
+      return Promise.reject(new Error('Chrome DevTools page session is unavailable.'));
+    }
+    return this.#send(method, params, this.#pageSessionId, timeoutMilliseconds);
+  }
+
+  async attachToPage(targetIdValue) {
+    const targetId = exactCdpIdentifier(targetIdValue, 'target ID');
+    if (this.#pageSessionId || this.#attachedEvent) {
+      throw new Error('Chrome DevTools page session already exists.');
+    }
+    this.#attachingTargetId = targetId;
+    const result = await this.browserCommand('Target.attachToTarget', {
+      targetId,
+      flatten: true,
+    });
+    if (
+      Object.keys(result).length !== 1
+      || typeof result.sessionId !== 'string'
+      || !this.#attachedEvent
+      || result.sessionId !== this.#attachedEvent.sessionId
+      || targetId !== this.#attachedEvent.targetId
+    ) {
+      this.#fail('Chrome DevTools attach response mismatched.');
+      throw new Error('Chrome DevTools attach response mismatched.');
+    }
+    this.#pageSessionId = exactCdpIdentifier(result.sessionId, 'session ID');
+    this.#attachedEvent = undefined;
+    this.#attachingTargetId = undefined;
+    return this.#pageSessionId;
+  }
+
+  #clearInbound() {
+    for (const chunk of this.#inboundChunks) chunk.fill(0);
+    this.#inboundChunks = [];
+    this.#inboundBytes = 0;
+  }
+
+  #rejectPending(error) {
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timeout);
-      pending.reject(new Error('Chrome DevTools WebSocket closed.'));
+      pending.reject(error);
     }
     this.#pending.clear();
   }
 
-  #receive(data) {
-    let message;
-    try {
-      message = JSON.parse(String(data));
-    } catch {
-      this.#rejectPending();
-      this.close();
-      return;
-    }
-    if (Number.isSafeInteger(message?.id)) {
-      const pending = this.#pending.get(message.id);
-      if (!pending) return;
-      this.#pending.delete(message.id);
-      clearTimeout(pending.timeout);
-      if (message.error) pending.reject(new Error('Chrome DevTools command failed.'));
-      else pending.resolve(message.result ?? {});
-      return;
-    }
-    if (typeof message?.method === 'string') {
-      try {
-        this.#eventHandler(message.method, message.params ?? {}, this);
-      } catch {
-        this.close();
-      }
-    }
+  #removeListeners() {
+    this.#reader?.off('data', this.#receiveData);
+    this.#reader?.off('error', this.#receiveFailure);
+    this.#reader?.off('end', this.#receiveEnd);
+    this.#reader?.off('close', this.#receiveEnd);
+    this.#writer?.off('error', this.#receiveFailure);
+    this.#writer?.off('close', this.#receiveEnd);
+    this.#child.off('error', this.#receiveFailure);
+    this.#child.off('close', this.#receiveEnd);
   }
 
-  command(method, params = {}, timeoutMilliseconds = CDP_COMMAND_TIMEOUT_MILLISECONDS) {
-    if (this.#socket.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error('Chrome DevTools WebSocket is unavailable.'));
-    }
-    const id = this.#nextId++;
-    return new Promise((resolveCommand, rejectCommand) => {
-      const timeout = setTimeout(() => {
-        this.#pending.delete(id);
-        rejectCommand(new Error('Chrome DevTools command timed out.'));
-      }, timeoutMilliseconds);
-      this.#pending.set(id, { resolve: resolveCommand, reject: rejectCommand, timeout });
-      this.#socket.send(JSON.stringify({ id, method, params }));
-    });
+  #fail(message) {
+    if (this.#closed) return;
+    const error = new Error(message);
+    this.#closed = true;
+    this.#removeListeners();
+    this.#clearInbound();
+    this.#rejectPending(error);
+    this.#attachedEvent = undefined;
+    this.#attachingTargetId = undefined;
+    this.#pageSessionId = undefined;
+    try { this.#writer?.destroy(); } catch {}
+    try { this.#reader?.destroy(); } catch {}
   }
 
   close() {
-    try {
-      this.#socket.close();
-    } catch {
-      // A closed disposable endpoint needs no further action.
-    }
-    this.#rejectPending();
+    if (this.#closed) return;
+    this.#closed = true;
+    this.#removeListeners();
+    this.#clearInbound();
+    this.#rejectPending(new Error('Chrome DevTools pipe closed.'));
+    this.#attachedEvent = undefined;
+    this.#attachingTargetId = undefined;
+    this.#pageSessionId = undefined;
+    try { this.#writer?.end(); } catch {}
+    try { this.#reader?.destroy(); } catch {}
   }
 }
 
@@ -1906,6 +2208,12 @@ export async function runRenderedWebglBrowserProbe() {
     await chmod(profileDirectory, 0o700);
     vite = await createLoopbackViteServer(profileDirectory);
     const cases = renderedWebglBrowserProbeCases(vite.port);
+    const journeyProbe = await import('./qa-journey-browser-probe.mjs');
+    const journeyCases = journeyProbe.qaJourneyBrowserProbeCases(vite.port);
+    const isAllowedProbeResourceUrl = (value) => (
+      isAllowedRenderedWebglPageUrl(value, `http://127.0.0.1:${vite.port}`)
+      || journeyProbe.isAllowedQaJourneyResourceUrl(value)
+    );
     if (
       cases.length !== RENDERED_WEBGL_QA_CASE_COUNT
       || new Set(cases.map((probeCase) => probeCase.id)).size !== RENDERED_WEBGL_QA_CASE_COUNT
@@ -1917,18 +2225,18 @@ export async function runRenderedWebglBrowserProbe() {
     if (!exactChromeExecutableIdentity(reviewedChromeIdentity, launchedChromeIdentity)) {
       throw new Error('The reviewed Google Chrome executable changed at launch.');
     }
-    const endpoint = await waitForDevtoolsEndpoint(profileDirectory, chrome);
-    const targets = await readBoundedHttpJson(endpoint.port, '/json/list');
-    const target = selectBlankPageTarget(targets, endpoint.port);
     const state = {
       violation: '',
-      allowedUrls: new Set(cases.map((probeCase) => probeCase.url)),
-      targetId: target.targetId,
+      allowedUrls: new Set([
+        ...cases.map((probeCase) => probeCase.url),
+        ...journeyCases.map((probeCase) => probeCase.url),
+      ]),
+      targetId: '',
     };
-    devtools = new DevtoolsSession(target.webSocketDebuggerUrl, (method, params, session) => {
+    devtools = new DevtoolsPipeSession(chrome, (method, params, session) => {
       if (method === 'Fetch.requestPaused') {
         const requestUrl = params?.request?.url;
-        if (isAllowedRenderedWebglPageUrl(requestUrl, loopbackOrigin)) {
+        if (isAllowedProbeResourceUrl(requestUrl)) {
           void session.command('Fetch.continueRequest', { requestId: params.requestId }).catch(() => {
             state.violation = 'fetch-continue';
           });
@@ -1962,7 +2270,9 @@ export async function runRenderedWebglBrowserProbe() {
         method === 'Runtime.consoleAPICalled'
         && ['assert', 'error'].includes(params?.type)
       ) {
-        state.violation = 'console-error';
+        // Reduce synthetic console arguments immediately to a fixed category;
+        // never retain their text in a report or propagate it through errors.
+        state.violation = browserConsoleViolationCategory(params?.args);
         return;
       }
       if (
@@ -1972,21 +2282,54 @@ export async function runRenderedWebglBrowserProbe() {
         state.violation = params.entry.level === 'warning' ? 'log-warning' : 'log-error';
         return;
       }
+      if (method === 'Target.targetDestroyed') {
+        state.violation = params?.targetId === state.targetId
+          ? 'target-destroyed'
+          : 'target-id';
+        return;
+      }
+      if (method === 'Target.targetCrashed') {
+        state.violation = params?.targetId === state.targetId
+          ? 'target-crashed'
+          : 'target-id';
+        return;
+      }
+      if (method === 'Target.detachedFromTarget') {
+        state.violation = 'target-detached';
+        return;
+      }
+      if (method === 'Inspector.detached') {
+        state.violation = 'inspector-detached';
+        return;
+      }
       if (method === 'Target.targetCreated' || method === 'Target.targetInfoChanged') {
         const targetInfo = params?.targetInfo;
-        if (
-          targetInfo?.targetId !== state.targetId
-          || targetInfo?.type !== 'page'
-          || (
-            targetInfo.url !== 'about:blank'
-            && !state.allowedUrls.has(targetInfo.url)
-          )
-        ) state.violation = 'target';
+        if (targetInfo?.targetId !== state.targetId) state.violation = 'target-id';
+        else if (targetInfo?.type !== 'page') state.violation = 'target-type';
+        else if (
+          targetInfo.url !== ''
+          && targetInfo.url !== 'about:blank'
+          && !state.allowedUrls.has(targetInfo.url)
+        ) {
+          state.violation = isAllowedRenderedWebglPageUrl(targetInfo.url, loopbackOrigin)
+            ? 'target-url-unlisted-local'
+            : typeof targetInfo.url === 'string' && targetInfo.url.startsWith('chrome-error://')
+              ? 'target-url-chrome-error'
+              : typeof targetInfo.url === 'string' && targetInfo.url.startsWith('chrome://')
+                ? 'target-url-chrome-internal'
+                : typeof targetInfo.url === 'string' && /^https?:\/\//u.test(targetInfo.url)
+                  ? 'target-url-external-web'
+                  : typeof targetInfo.url === 'string' && targetInfo.url.startsWith('blob:')
+                      ? 'target-url-blob'
+                      : typeof targetInfo.url === 'string' && targetInfo.url.startsWith('data:')
+                        ? 'target-url-data'
+                        : 'target-url-external';
+        }
         return;
       }
       if (method === 'Network.requestWillBeSent') {
         const url = params?.request?.url;
-        if (!isAllowedRenderedWebglPageUrl(url, loopbackOrigin)) {
+        if (!isAllowedProbeResourceUrl(url)) {
           state.violation = 'network';
         }
         return;
@@ -1998,13 +2341,20 @@ export async function runRenderedWebglBrowserProbe() {
       }
     });
     await devtools.open();
+    const target = selectBlankPageTarget(
+      await devtools.browserCommand('Target.getTargets', {
+        filter: [{ type: 'page', exclude: false }, { exclude: true }],
+      })
+    );
+    state.targetId = target.targetId;
+    await devtools.attachToPage(target.targetId);
     await Promise.all([
       devtools.command('Page.enable'),
       devtools.command('Runtime.enable'),
       devtools.command('Log.enable'),
       devtools.command('Network.enable'),
       devtools.command('Page.setDownloadBehavior', { behavior: 'deny' }),
-      devtools.command('Target.setDiscoverTargets', {
+      devtools.browserCommand('Target.setDiscoverTargets', {
         discover: true,
         filter: [{ type: 'page', exclude: false }, { exclude: true }],
       }),
@@ -2018,6 +2368,11 @@ export async function runRenderedWebglBrowserProbe() {
       } catch (error) {
         throw new Error(`Rendered WebGL case ${probeCase.id} failed.`, { cause: error });
       }
+    }
+    try {
+      await journeyProbe.runQaJourneyBrowserCases(devtools, journeyCases, state);
+    } catch (error) {
+      throw new Error('Synthetic journey browser lane failed.', { cause: error });
     }
     if (state.violation) {
       throw new Error(`Headless browser left the local QA boundary: ${state.violation}.`);
@@ -2040,7 +2395,7 @@ async function main() {
   try {
     const passedCaseCount = await runRenderedWebglBrowserProbe();
     process.stdout.write(
-      `Warpkeep rendered WebGL QA passed: ${passedCaseCount} synthetic responsive cases.\n`
+      `Warpkeep local browser QA passed: ${passedCaseCount} rendered cases and 25 journey checks.\n`
     );
   } catch {
     process.stderr.write('Warpkeep rendered WebGL QA failed closed.\n');
