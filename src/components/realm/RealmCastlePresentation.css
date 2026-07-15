@@ -86,12 +86,27 @@
 
 .realm-castle-label[data-compact="true"] {
   justify-content: center;
-  width: auto;
+  /* Keep near-limit usernames from consuming several neighboring roof berths.
+     The identity remains complete in the accessible name and inspector while
+     the compact spatial label truncates predictably. */
+  width: 7.75rem;
   min-width: 7.75rem;
-  max-width: 10.5rem;
+  max-width: 7.75rem;
   min-height: 1.875rem;
   padding: 0.16rem 0.48rem;
   font-size: 0.8125rem;
+}
+
+@media (max-width: 680px) {
+  .realm-castle-label[data-compact="true"] {
+    /* Twelve-character public handles remain legible at this width while a
+       phone can keep several neighboring identities attached to their roofs. */
+    width: 7.5rem;
+    min-width: 7.5rem;
+    max-width: 7.5rem;
+    padding-inline: 0.4rem;
+    font-size: 0.75rem;
+  }
 }
 
 .realm-castle-label-measurements {

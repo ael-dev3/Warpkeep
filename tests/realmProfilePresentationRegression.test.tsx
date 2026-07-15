@@ -286,6 +286,48 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
   });
 
+  it('keeps a policy-limit username complete in semantics while compact presentation truncates in CSS', () => {
+    const canonicalUsername = `q${'a'.repeat(62)}z`;
+    const castle = {
+      castleId: 7,
+      ownerFid: 7_001,
+      q: 1,
+      r: -1,
+      level: 1,
+      name: 'Fixture Keep'
+    } as const;
+    render(
+      <RealmCastleLabels
+        labels={[{
+          castleId: 7,
+          q: 1,
+          r: -1,
+          x: 180,
+          y: 140,
+          distance: 2,
+          visible: true,
+          compact: true,
+          projectedAnchor: { x: 180, y: 140 }
+        }]}
+        records={new Map([[7, {
+          castle,
+          profile: profile({ canonicalUsername })
+        }]])}
+        inspectorId="castle-inspector"
+        inspectorOpen={false}
+        onActivate={vi.fn()}
+      />
+    );
+
+    const label = screen.getByRole('button', {
+      name: `Inspect @${canonicalUsername} castle, Fixture Keep, cell 1,-1`
+    });
+    expect(canonicalUsername).toHaveLength(64);
+    expect(label.dataset.compact).toBe('true');
+    expect(label.querySelector('.realm-castle-label__identity')?.textContent)
+      .toBe(`@${canonicalUsername}`);
+  });
+
   it('exposes a synthetic-safe displacement marker and only shows a decorative roof leader when needed', () => {
     const castle = {
       castleId: 7,

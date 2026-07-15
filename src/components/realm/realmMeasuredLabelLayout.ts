@@ -47,6 +47,17 @@ export type RealmProjectedLabelAnchor = Readonly<{
   }>;
 }>;
 
+/**
+ * A projected castle silhouette that direct identity labels must not cover.
+ * The castle ID keeps the shape closed and lets the solver exclude the
+ * candidate's own silhouette from the foreign-castle pass; its calibrated
+ * `occlusionBounds` remains the authority for its own roof attachment.
+ */
+export type RealmProtectedCastleSilhouette = Readonly<{
+  castleId: number;
+  bounds: RealmScreenRect;
+}>;
+
 export type RealmLabelHysteresis = Readonly<{
   /** Bias retained members by this much in the candidate distance ordering. */
   membershipDistance: number;
@@ -75,6 +86,7 @@ export type RealmLabelCullReason =
   | 'unmeasured'
   | 'reserved-ui'
   | 'associated-castle'
+  | 'foreign-castle'
   | 'collision'
   | 'no-safe-placement'
   | 'capacity'
@@ -87,6 +99,8 @@ export type RealmCulledLabel = Readonly<{
 
 export type RealmMeasuredLabelLayoutInput = Readonly<{
   anchors: readonly RealmProjectedLabelAnchor[];
+  /** Closed projected silhouettes for every visible/presented castle. */
+  protectedCastleSilhouettes: readonly RealmProtectedCastleSilhouette[];
   viewportBounds: RealmScreenRect;
   safeAreaBounds: RealmScreenRect;
   reservedUiRects: readonly RealmScreenRect[];
@@ -107,6 +121,16 @@ export type RealmMeasuredLabelLayout = Readonly<{
   placements: readonly RealmLabelPlacement[];
   culled: readonly RealmCulledLabel[];
 }>;
+
+/**
+ * Optional deterministic work accounting for solver performance regressions.
+ * Runtime callers should omit this; tests can supply a fresh mutable counter
+ * without relying on machine-specific wall-clock timing.
+ */
+export type RealmMeasuredLabelLayoutWorkCounter = {
+  proposalEvaluations: number;
+  rectangleIntersectionEvaluations: number;
+};
 
 type PlacementProposal = Readonly<{
   x: number;
@@ -194,6 +218,133 @@ function intersects(first: RealmScreenRect, second: RealmScreenRect) {
     && first.right > second.left
     && first.top < second.bottom
     && first.bottom > second.top;
+}
+
+const RECTANGLE_INDEX_CELL_SIZE_PIXELS = 32;
+const MAX_RECTANGLE_INDEX_CELLS_PER_ENTRY = 64;
+const MAX_RECTANGLE_INDEX_CELLS_PER_QUERY = 256;
+
+type IndexedScreenRect<T> = Readonly<{
+  id: number;
+  bounds: RealmScreenRect;
+  value: T;
+}>;
+
+/**
+ * Exact broad-phase index: grid membership only narrows candidates and every
+ * reported hit still passes the original strict rectangle intersection test.
+ * Extremely large or imprecise coordinates fall back to a bounded linear
+ * scan, avoiding untrusted geometry turning cell enumeration into a hang.
+ */
+class ScreenRectIndex<T> {
+  readonly #entries: IndexedScreenRect<T>[] = [];
+  readonly #wideEntries: IndexedScreenRect<T>[] = [];
+  readonly #cellRows = new Map<number, Map<number, IndexedScreenRect<T>[]>>();
+  readonly #visitedAtGeneration: number[] = [];
+  #queryGeneration = 0;
+
+  constructor(private readonly workCounter?: RealmMeasuredLabelLayoutWorkCounter) {}
+
+  insert(bounds: RealmScreenRect, value: T) {
+    const entry = { id: this.#entries.length, bounds, value };
+    this.#entries.push(entry);
+    const span = this.#cellSpan(bounds);
+    if (!span || span.cellCount > MAX_RECTANGLE_INDEX_CELLS_PER_ENTRY) {
+      this.#wideEntries.push(entry);
+      return;
+    }
+    for (let cellY = span.minimumY; cellY <= span.maximumY; cellY += 1) {
+      let row = this.#cellRows.get(cellY);
+      if (!row) {
+        row = new Map();
+        this.#cellRows.set(cellY, row);
+      }
+      for (let cellX = span.minimumX; cellX <= span.maximumX; cellX += 1) {
+        const entries = row.get(cellX);
+        if (entries) entries.push(entry);
+        else row.set(cellX, [entry]);
+      }
+    }
+  }
+
+  someIntersecting(
+    bounds: RealmScreenRect,
+    predicate?: (value: T) => boolean
+  ) {
+    if (this.#entries.length === 0) return false;
+    const span = this.#cellSpan(bounds);
+    if (!span || span.cellCount > MAX_RECTANGLE_INDEX_CELLS_PER_QUERY) {
+      return this.#someEntryIntersects(this.#entries, bounds, predicate);
+    }
+
+    this.#queryGeneration += 1;
+    if (this.#queryGeneration >= Number.MAX_SAFE_INTEGER) {
+      this.#visitedAtGeneration.length = 0;
+      this.#queryGeneration = 1;
+    }
+    if (this.#someEntryIntersects(
+      this.#wideEntries,
+      bounds,
+      predicate,
+      this.#queryGeneration
+    )) {
+      return true;
+    }
+    for (let cellY = span.minimumY; cellY <= span.maximumY; cellY += 1) {
+      const row = this.#cellRows.get(cellY);
+      if (!row) continue;
+      for (let cellX = span.minimumX; cellX <= span.maximumX; cellX += 1) {
+        const entries = row.get(cellX);
+        if (entries && this.#someEntryIntersects(
+          entries,
+          bounds,
+          predicate,
+          this.#queryGeneration
+        )) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  #someEntryIntersects(
+    entries: readonly IndexedScreenRect<T>[],
+    bounds: RealmScreenRect,
+    predicate: ((value: T) => boolean) | undefined,
+    queryGeneration?: number
+  ) {
+    for (const entry of entries) {
+      if (queryGeneration !== undefined) {
+        if (this.#visitedAtGeneration[entry.id] === queryGeneration) continue;
+        this.#visitedAtGeneration[entry.id] = queryGeneration;
+      }
+      if (predicate && !predicate(entry.value)) continue;
+      if (this.workCounter) this.workCounter.rectangleIntersectionEvaluations += 1;
+      if (intersects(bounds, entry.bounds)) return true;
+    }
+    return false;
+  }
+
+  #cellSpan(bounds: RealmScreenRect) {
+    const minimumX = Math.floor(bounds.left / RECTANGLE_INDEX_CELL_SIZE_PIXELS);
+    // Rectangles are strict/half-open in `intersects`; keep a right or bottom
+    // edge on a cell boundary out of the following cell as well.
+    const maximumX = Math.ceil(bounds.right / RECTANGLE_INDEX_CELL_SIZE_PIXELS) - 1;
+    const minimumY = Math.floor(bounds.top / RECTANGLE_INDEX_CELL_SIZE_PIXELS);
+    const maximumY = Math.ceil(bounds.bottom / RECTANGLE_INDEX_CELL_SIZE_PIXELS) - 1;
+    if (
+      !Number.isSafeInteger(minimumX)
+      || !Number.isSafeInteger(maximumX)
+      || !Number.isSafeInteger(minimumY)
+      || !Number.isSafeInteger(maximumY)
+    ) return null;
+    const width = maximumX - minimumX + 1;
+    const height = maximumY - minimumY + 1;
+    const cellCount = width * height;
+    if (!Number.isSafeInteger(cellCount) || cellCount < 1) return null;
+    return { minimumX, maximumX, minimumY, maximumY, cellCount };
+  }
 }
 
 function expandRect(rect: RealmScreenRect, pixels: number): RealmScreenRect {
@@ -290,15 +441,17 @@ function placementProposals(
 }
 
 /**
- * Direct intent gets a wider, but still roof-bounded, search than ordinary
- * labels. Retain the original roof as `layoutAnchor` so a connector explains
- * every meaningful displacement. If no collision-free point exists within
- * the fixed attachment radius, clustering/Explore remains the honest fallback.
+ * A wider, but still roof-bounded, search used for direct intent and the
+ * monotonic dense-layout rescue pass. Retain the original roof as
+ * `layoutAnchor` so a connector explains every meaningful displacement. If no
+ * collision-free point exists within the fixed attachment radius,
+ * clustering/Explore remains the honest fallback.
  */
-function mandatorySafeAreaProposals(
+function boundedRoofAttachmentProposals(
   anchor: RealmScreenPoint,
   measurement: RealmMeasuredLabelRectangle,
-  safeArea: RealmScreenRect
+  safeArea: RealmScreenRect,
+  density: 'normal' | 'dense' = 'normal'
 ) {
   const minimumX = safeArea.left - measurement.offsetX;
   const maximumX = safeArea.right - measurement.offsetX - measurement.width;
@@ -306,9 +459,20 @@ function mandatorySafeAreaProposals(
   const maximumY = safeArea.bottom - measurement.offsetY - measurement.height;
   if (maximumX < minimumX || maximumY < minimumY) return [];
 
-  const stepX = Math.max(16, Math.min(48, measurement.width * 0.45));
-  const stepY = Math.max(14, Math.min(36, measurement.height * 0.8));
+  const stepX = density === 'dense'
+    ? 12
+    : Math.max(16, Math.min(48, measurement.width * 0.45));
+  const stepY = density === 'dense'
+    ? 10
+    : Math.max(14, Math.min(36, measurement.height * 0.8));
   const points: PlacementProposal[] = [];
+  const pointKeys = new Set<string>();
+  const pushUniquePoint = (point: PlacementProposal) => {
+    const key = `${point.x}:${point.y}`;
+    if (pointKeys.has(key)) return;
+    pointKeys.add(key);
+    points.push(point);
+  };
   const searchMinimumX = Math.max(
     minimumX,
     anchor.x - REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS
@@ -332,7 +496,7 @@ function mandatorySafeAreaProposals(
         y: Math.min(maximumY, y),
         layoutAnchor: anchor
       };
-      if (withinMaximumAnchorDisplacement(point, anchor)) points.push(point);
+      if (withinMaximumAnchorDisplacement(point, anchor)) pushUniquePoint(point);
     }
   }
   const clampedAnchor = {
@@ -340,14 +504,12 @@ function mandatorySafeAreaProposals(
     y: clamp(anchor.y, minimumY, maximumY),
     layoutAnchor: anchor
   };
-  if (withinMaximumAnchorDisplacement(clampedAnchor, anchor)) points.push(clampedAnchor);
+  if (withinMaximumAnchorDisplacement(clampedAnchor, anchor)) pushUniquePoint(clampedAnchor);
   return points.sort((left, right) => (
-    Math.hypot(left.x - anchor.x, left.y - anchor.y)
-      - Math.hypot(right.x - anchor.x, right.y - anchor.y)
+    ((left.x - anchor.x) ** 2 + (left.y - anchor.y) ** 2)
+      - ((right.x - anchor.x) ** 2 + (right.y - anchor.y) ** 2)
     || left.y - right.y
     || left.x - right.x
-  )).filter((point, index, ordered) => (
-    ordered.findIndex((candidate) => candidate.x === point.x && candidate.y === point.y) === index
   ));
 }
 
@@ -357,7 +519,8 @@ function mandatorySafeAreaProposals(
  * hysteresis while positions continue following every projected camera frame.
  */
 export function resolveMeasuredRealmLabelLayout(
-  input: RealmMeasuredLabelLayoutInput
+  input: RealmMeasuredLabelLayoutInput,
+  workCounter?: RealmMeasuredLabelLayoutWorkCounter
 ): RealmMeasuredLabelLayout {
   const culled: RealmCulledLabel[] = [];
   const placements: RealmLabelPlacement[] = [];
@@ -382,6 +545,28 @@ export function resolveMeasuredRealmLabelLayout(
     ? intersectRects(input.viewportBounds, input.safeAreaBounds)
     : null;
   const reservedUiRects = input.reservedUiRects.filter(validRect);
+  const protectedCastleSilhouettes = input.protectedCastleSilhouettes.filter((silhouette) => (
+    Number.isSafeInteger(silhouette.castleId)
+    && silhouette.castleId > 0
+    && validRect(silhouette.bounds)
+  ));
+  const reservedUiIndex = new ScreenRectIndex<true>(workCounter);
+  reservedUiRects.forEach((bounds) => reservedUiIndex.insert(bounds, true));
+  const castleSilhouetteIndex = new ScreenRectIndex<ReadonlySet<number>>(workCounter);
+  const castleSilhouetteGroups = new Map<string, {
+    bounds: RealmScreenRect;
+    castleIds: Set<number>;
+  }>();
+  protectedCastleSilhouettes.forEach(({ castleId, bounds }) => {
+    const key = `${bounds.left}:${bounds.top}:${bounds.right}:${bounds.bottom}`;
+    const group = castleSilhouetteGroups.get(key);
+    if (group) group.castleIds.add(castleId);
+    else castleSilhouetteGroups.set(key, { bounds, castleIds: new Set([castleId]) });
+  });
+  castleSilhouetteGroups.forEach(({ bounds, castleIds }) => {
+    castleSilhouetteIndex.insert(bounds, castleIds);
+  });
+  const placementIndex = new ScreenRectIndex<number>(workCounter);
 
   const candidates = [...input.anchors].sort((left, right) => {
     const priorityDifference = PRIORITY_RANK[left.priority] - PRIORITY_RANK[right.priority];
@@ -433,13 +618,13 @@ export function resolveMeasuredRealmLabelLayout(
     let sawSafeWithoutReservedUi = false;
     let sawReservedUi = false;
     let sawAssociatedCastle = false;
+    let sawForeignCastle = false;
     let sawLabelCollision = false;
     let sawMeasurement = false;
     const associatedCastleBounds = candidate.occlusionBounds
       && validRect(candidate.occlusionBounds)
       ? candidate.occlusionBounds
       : undefined;
-
     const fullPresentation = {
       presentation: 'full' as const,
       measurement: candidate.measurements.full,
@@ -485,10 +670,11 @@ export function resolveMeasuredRealmLabelLayout(
         // Generate the wider grid lazily: the normal roof attachment succeeds
         // in the common case, so camera motion does not pay for a viewport-wide
         // search on every frame merely because the own castle is mandatory.
-        proposalGroups.push(() => mandatorySafeAreaProposals(
+        proposalGroups.push(() => boundedRoofAttachmentProposals(
           anchor,
           option.measurement!,
-          safeArea
+          safeArea,
+          'dense'
         ).filter((proposal) => (
           !attachedProposals.some((attached) => (
             attached.x === proposal.x && attached.y === proposal.y
@@ -497,21 +683,32 @@ export function resolveMeasuredRealmLabelLayout(
       }
       for (const proposals of proposalGroups) {
         for (const proposal of proposals()) {
+          if (workCounter) workCounter.proposalEvaluations += 1;
           // Keep this final guard at the acceptance boundary so future proposal
           // sources cannot accidentally bypass the public attachment contract.
           if (!withinMaximumAnchorDisplacement(proposal, anchor)) continue;
           const bounds = boundsAt(proposal, option.measurement);
           const paddedBounds = expandRect(bounds, collisionPadding);
-          if (reservedUiRects.some((reserved) => intersects(paddedBounds, reserved))) {
+          if (reservedUiIndex.someIntersecting(paddedBounds)) {
             sawReservedUi = true;
             continue;
           }
-          if (associatedCastleBounds && intersects(bounds, associatedCastleBounds)) {
-            sawAssociatedCastle = true;
+          if (associatedCastleBounds) {
+            if (workCounter) workCounter.rectangleIntersectionEvaluations += 1;
+            if (intersects(bounds, associatedCastleBounds)) {
+              sawAssociatedCastle = true;
+              continue;
+            }
+          }
+          if (castleSilhouetteIndex.someIntersecting(
+            bounds,
+            (castleIds) => castleIds.size > 1 || !castleIds.has(candidate.castleId)
+          )) {
+            sawForeignCastle = true;
             continue;
           }
           sawSafeWithoutReservedUi = true;
-          if (placements.some((placement) => intersects(paddedBounds, placement.bounds))) {
+          if (placementIndex.someIntersecting(paddedBounds)) {
             sawLabelCollision = true;
             continue;
           }
@@ -534,16 +731,102 @@ export function resolveMeasuredRealmLabelLayout(
 
     if (accepted) {
       placements.push(accepted);
+      placementIndex.insert(accepted.bounds, accepted.castleId);
     } else if (!sawMeasurement) {
       culled.push({ castleId: candidate.castleId, reason: 'unmeasured' });
     } else if (sawLabelCollision && sawSafeWithoutReservedUi) {
       culled.push({ castleId: candidate.castleId, reason: 'collision' });
     } else if (sawAssociatedCastle) {
       culled.push({ castleId: candidate.castleId, reason: 'associated-castle' });
+    } else if (sawForeignCastle) {
+      culled.push({ castleId: candidate.castleId, reason: 'foreign-castle' });
     } else if (sawReservedUi) {
       culled.push({ castleId: candidate.castleId, reason: 'reserved-ui' });
     } else {
       culled.push({ castleId: candidate.castleId, reason: 'no-safe-placement' });
+    }
+  }
+
+  /**
+   * Preserve the complete first-pass result, then use otherwise-empty safe
+   * roof berths for identities that were rejected only by local geometry. A
+   * denser proposal list in the first pass could move an already-accepted
+   * identity and reduce total capacity; appending rescued placements makes
+   * this pass monotonic by construction.
+   */
+  if (safeArea && placements.length < maximumLabels) {
+    const retryableReasons = new Set<RealmLabelCullReason>([
+      'reserved-ui',
+      'associated-castle',
+      'foreign-castle',
+      'collision',
+      'no-safe-placement'
+    ]);
+    const retriedCastleIds = new Set<number>();
+    for (const candidate of candidates) {
+      if (placements.length >= maximumLabels) break;
+      if (
+        retriedCastleIds.has(candidate.castleId)
+        || mandatoryCastleIds.has(candidate.castleId)
+      ) continue;
+      retriedCastleIds.add(candidate.castleId);
+      const cullIndex = culled.findIndex((entry) => (
+        entry.castleId === candidate.castleId
+        && retryableReasons.has(entry.reason)
+      ));
+      if (cullIndex < 0) continue;
+
+      const anchor = { x: candidate.x, y: candidate.y };
+      const associatedCastleBounds = candidate.occlusionBounds
+        && validRect(candidate.occlusionBounds)
+        ? candidate.occlusionBounds
+        : undefined;
+      const measurements = [
+        candidate.measurements.compact,
+        candidate.measurements.full
+      ].filter(validMeasurement);
+      let rescued: RealmLabelPlacement | undefined;
+      for (const measurement of measurements) {
+        for (const proposal of boundedRoofAttachmentProposals(
+          anchor,
+          measurement,
+          safeArea,
+          'dense'
+        )) {
+          if (workCounter) workCounter.proposalEvaluations += 1;
+          if (!withinMaximumAnchorDisplacement(proposal, anchor)) continue;
+          const bounds = boundsAt(proposal, measurement);
+          const paddedBounds = expandRect(bounds, collisionPadding);
+          if (reservedUiIndex.someIntersecting(paddedBounds)) continue;
+          if (associatedCastleBounds) {
+            if (workCounter) workCounter.rectangleIntersectionEvaluations += 1;
+            if (intersects(bounds, associatedCastleBounds)) continue;
+          }
+          if (castleSilhouetteIndex.someIntersecting(
+            bounds,
+            (castleIds) => castleIds.size > 1 || !castleIds.has(candidate.castleId)
+          )) {
+            continue;
+          }
+          if (placementIndex.someIntersecting(paddedBounds)) continue;
+          rescued = {
+            castleId: candidate.castleId,
+            x: proposal.x,
+            y: proposal.y,
+            projectedAnchor: anchor,
+            layoutAnchor: proposal.layoutAnchor,
+            priority: candidate.priority,
+            presentation: measurement === candidate.measurements.compact ? 'compact' : 'full',
+            bounds
+          };
+          break;
+        }
+        if (rescued) break;
+      }
+      if (!rescued) continue;
+      placements.push(rescued);
+      placementIndex.insert(rescued.bounds, rescued.castleId);
+      culled.splice(cullIndex, 1);
     }
   }
 

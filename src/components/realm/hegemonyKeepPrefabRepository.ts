@@ -8,6 +8,10 @@ import {
 import { REALM_QUALITY_SPECS } from './realmQuality';
 import type { CastleLod } from './castleInstancePlanning';
 import {
+  deriveCastleProjectionEnvelope,
+  type RealmCastleProjectionEnvelope
+} from './realmCastleProjectionGeometry';
+import {
   closeImageBitmapOnce,
   uniqueImageBitmapSources
 } from './realmTextureResources';
@@ -26,6 +30,8 @@ export type HegemonyKeepPrefab = Readonly<{
   assetUrl: string;
   footprintDiameter: number;
   visualHeight: number;
+  /** Immutable, bounded geometry used for honest screen-space occlusion. */
+  projectionEnvelope: RealmCastleProjectionEnvelope;
   /**
    * Immutable prefab description. Geometry, materials, and their textures are
    * shared repository resources and must only be used to create render nodes.
@@ -149,6 +155,10 @@ function createInternalPrefab(
   if (primitives.length === 0) {
     throw new Error(`Hegemony keep ${lod} prefab contains no renderable meshes.`);
   }
+  const projectionEnvelope = deriveCastleProjectionEnvelope(primitives);
+  if (!projectionEnvelope) {
+    throw new Error(`Hegemony keep ${lod} prefab has no valid projection bounds.`);
+  }
   if (
     !Number.isFinite(loaded.visualHeight)
     || loaded.visualHeight <= 0
@@ -164,6 +174,7 @@ function createInternalPrefab(
       assetUrl: loaded.assetUrl,
       footprintDiameter: loaded.footprintDiameter,
       visualHeight: loaded.visualHeight,
+      projectionEnvelope,
       primitives: Object.freeze(primitives)
     }),
     resources: Object.freeze({

@@ -132,6 +132,15 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).toContain("method === 'Inspector.detached'");
   });
 
+  it('activates the accepted baseline cluster without an intermediary camera transition', () => {
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain('const target = accessibleClusters[0]');
+    expect(source).not.toContain("button.getAttribute('aria-label') === 'Show Full Realm'");
+  });
+
   it('tolerates only two-decimal coordinate serialization at attachment boundaries', () => {
     expect(renderedWebglLabelAnchorDistanceTelemetry(112.014)).toEqual({
       reportedDistance: 112,
@@ -147,7 +156,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(renderedWebglLabelDisplacementClassificationValid(12.015, false)).toBe(false);
   });
 
-  it('fixes nine responsive, interaction, and presentation cases to one numeric loopback origin', () => {
+  it('fixes eleven responsive, interaction, and presentation cases to one numeric loopback origin', () => {
     const cases = renderedWebglBrowserProbeCases(41_733);
     expect(cases).toHaveLength(RENDERED_WEBGL_QA_CASE_COUNT);
     expect(new Set(cases.map((probeCase) => probeCase.id)).size).toBe(
@@ -173,13 +182,31 @@ describe('rendered WebGL headless browser probe contract', () => {
         viewport: { width: 1440, height: 900 }
       },
       {
-        id: 'desktop-balanced-cluster',
+        id: 'full-hd-balanced',
+        expectedPresentationMode: 'observer',
+        expectedQuality: 'balanced',
+        interaction: 'default',
+        minimumLabelCount: 16,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
+        viewport: { width: 1920, height: 1080 }
+      },
+      {
+        id: 'tablet-balanced-inspector',
+        expectedPresentationMode: 'observer',
+        expectedQuality: 'balanced',
+        interaction: 'inspector',
+        minimumLabelCount: 12,
+        url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
+        viewport: { width: 1024, height: 768 }
+      },
+      {
+        id: 'mobile-balanced-cluster',
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'cluster',
-        minimumLabelCount: 14,
+        minimumLabelCount: 10,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
-        viewport: { width: 1440, height: 900 }
+        viewport: { width: 390, height: 844 }
       },
       {
         id: 'desktop-reduced',
@@ -571,7 +598,8 @@ describe('rendered WebGL headless browser probe contract', () => {
   });
 
   it('attests exact ready DOM state and fails closed on fallback, mismatch, or excess data', () => {
-    const expected = renderedWebglBrowserProbeCases(41_733)[4]!;
+    const expected = renderedWebglBrowserProbeCases(41_733)
+      .find((probeCase) => probeCase.id === 'desktop-invalid-fallback')!;
     const ready = {
       href: expected.url,
       status: 'ready',
@@ -599,6 +627,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       presentedModelCount: 18,
       raycastTargetCount: 18,
       labelCount: 18,
+      labelCullReasons: '',
       labelEligibleCount: 18,
       labelClusteredCount: 0,
       labelClusterOverflowCount: 0,
@@ -616,6 +645,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       focusedReadableLabelCount: 0,
       labelsWithinViewportCount: 18,
       labelCollisionCount: 0,
+      labelCastleOverlapCount: 0,
       labelLeaderMismatchCount: 0,
       labelReservedOverlapCount: 0,
       clusterButtonCount: 0,
@@ -752,6 +782,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       ['labelPlacementBindingViolationCount', /label-placement-binding/i],
       ['labelIdentityPresentationViolationCount', /label-identity-presentation/i],
       ['labelHitTestViolationCount', /label-hit-test/i],
+      ['labelCastleOverlapCount', /label-castle-overlap/i],
       ['clusterAttachmentViolationCount', /cluster-attachment/i],
       ['clusterRepresentativeAnchorViolationCount', /cluster-representative-anchor/i],
       ['clusterCastleOverlapCount', /cluster-castle-overlap/i],
@@ -784,14 +815,23 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => parseRenderedWebglBrowserDom({ ...ready, fid: 7 }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
+      labelCullReasons: 'foreign-castle:1,private-id:7'
+    }, expected)).toThrow(/label-cull-reasons-shape/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelCullReasons: 'reserved-ui:1,reserved-ui:2'
+    }, expected)).toThrow(/label-cull-reasons-shape/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
       readyAfterMilliseconds: 120_001
     }, expected)).toThrow(/observation/i);
 
-    for (const [caseIndex, quality, semanticFeatureCount, totalDetailInstanceCount] of [
-      [0, 'high', 1_100, 7_000],
-      [3, 'reduced', 400, 3_000]
+    for (const [caseId, quality, semanticFeatureCount, totalDetailInstanceCount] of [
+      ['desktop-high', 'high', 1_100, 7_000],
+      ['desktop-reduced', 'reduced', 400, 3_000]
     ] as const) {
-      const qualityCase = renderedWebglBrowserProbeCases(41_733)[caseIndex]!;
+      const qualityCase = renderedWebglBrowserProbeCases(41_733)
+        .find((probeCase) => probeCase.id === caseId)!;
       const qualityReady = {
         ...ready,
         href: qualityCase.url,
@@ -815,7 +855,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       }, qualityCase)).toThrow(/total-terrain-detail-budget/i);
     }
 
-    const playerCase = renderedWebglBrowserProbeCases(41_733)[8]!;
+    const playerCase = renderedWebglBrowserProbeCases(41_733)
+      .find((probeCase) => probeCase.id === 'desktop-balanced-player')!;
     const playerReady = {
       ...ready,
       href: playerCase.url,
@@ -847,7 +888,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       closeQaObserverControlState: 'visible'
     }, playerCase)).toThrow(/player-observer-close/i);
 
-    const inspectorCase = renderedWebglBrowserProbeCases(41_733)[6]!;
+    const inspectorCase = renderedWebglBrowserProbeCases(41_733)
+      .find((probeCase) => probeCase.id === 'mobile-reduced-inspector')!;
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       href: inspectorCase.url,
@@ -867,10 +909,14 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelsWithinViewportCount: 0
     }, { ...inspectorCase, minimumLabelCount: 1 })).toThrow(/label-count|focused-readable-label/i);
 
-    const clusterCase = renderedWebglBrowserProbeCases(41_733)[2]!;
+    const clusterCase = renderedWebglBrowserProbeCases(41_733)
+      .find((probeCase) => probeCase.id === 'mobile-balanced-cluster')!;
     const clustered = {
       ...ready,
       href: clusterCase.url,
+      viewportWidth: clusterCase.viewport.width,
+      viewportHeight: clusterCase.viewport.height,
+      documentWidth: clusterCase.viewport.width,
       interactionState: 'cluster',
       focusedReadableLabelDomFocusCount: 1,
       focusedReadableLabelCount: 1,
@@ -915,7 +961,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       clusterMemberCountBefore: 2
     })).toMatchObject({ renderer: 'webgl' });
 
-    const exploreCase = renderedWebglBrowserProbeCases(41_733)[7]!;
+    const exploreCase = renderedWebglBrowserProbeCases(41_733)
+      .find((probeCase) => probeCase.id === 'short-landscape-explore')!;
     expect(parseRenderedWebglBrowserDom({
       ...ready,
       href: exploreCase.url,

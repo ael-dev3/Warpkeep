@@ -50,6 +50,11 @@ describe('compact Realm CSS contract', () => {
       '.realm-castle-label__leader[hidden],\n.realm-castle-label__leader[data-active="false"] {'
     );
     const compactLabel = block(PRESENTATION, '.realm-castle-label[data-compact="true"] {');
+    const narrowPresentation = block(PRESENTATION, '@media (max-width: 680px) {');
+    const narrowCompactLabel = block(
+      narrowPresentation,
+      '.realm-castle-label[data-compact="true"] {'
+    );
     const identityCluster = block(PRESENTATION, '.realm-castle-cluster {');
     const avatarCanvas = block(PRESENTATION, '.realm-castle-avatar canvas {');
 
@@ -62,11 +67,15 @@ describe('compact Realm CSS contract', () => {
     expect(label).toContain('z-index: 1;');
     expect(PRESENTATION).not.toMatch(/top:\s*var\(--realm-castle-label-y\)/);
     expect(PRESENTATION).not.toMatch(/left:\s*var\(--realm-castle-label-x\)/);
-    expect(compactLabel).toContain('width: auto;');
+    expect(compactLabel).toContain('width: 7.75rem;');
     expect(compactLabel).toContain('min-width: 7.75rem;');
-    expect(compactLabel).toContain('max-width: 10.5rem;');
+    expect(compactLabel).toContain('max-width: 7.75rem;');
     expect(compactLabel).toContain('min-height: 1.875rem;');
     expect(compactLabel).toContain('font-size: 0.8125rem;');
+    expect(narrowCompactLabel).toContain('width: 7.5rem;');
+    expect(narrowCompactLabel).toContain('min-width: 7.5rem;');
+    expect(narrowCompactLabel).toContain('max-width: 7.5rem;');
+    expect(narrowCompactLabel).toContain('font-size: 0.75rem;');
     expect(PRESENTATION).toContain('.realm-castle-label__identity');
     expect(PRESENTATION).toContain('font-size: 0.8125rem;');
     expect(PRESENTATION).toContain('font: 800 0.8125rem/1 Inter');

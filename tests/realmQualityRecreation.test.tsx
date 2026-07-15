@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { Profiler } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocked = vi.hoisted(() => {
@@ -80,6 +81,7 @@ vi.mock('../src/components/realm/createRealmScene', () => ({
 
 import { CANONICAL_CASTLE_SLOTS } from '../spacetimedb/src/world';
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
+import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import type {
   CanonicalWarpkeepRealmSnapshot,
@@ -381,6 +383,70 @@ describe('live realm quality recreation', () => {
     expect(mocked.handles[1]!.frameFoundingDistrict).not.toHaveBeenCalled();
   });
 
+  it('restores a cluster representative as one readable castle across renderer recreation', async () => {
+    const motion = installMotionPreference();
+    installWebGlProbe();
+    const fixture = createRenderedWebglQaFixtureRealm();
+    const renderRealm = (qualityOverride: 'high' | 'balanced') => (
+      <RealmMapScreen
+        identity={fixture.identity}
+        snapshot={fixture.snapshot}
+        onRequestReturn={vi.fn()}
+        presentationMode="observer"
+        qualityOverride={qualityOverride}
+      />
+    );
+    const { rerender } = render(renderRealm('high'));
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+
+    act(() => {
+      initialOptions.onCastlesReady?.(fixture.snapshot.castles.length);
+      initialOptions.onCastleProjection?.({
+        // The 104px safe-area width (120px viewport minus the fixed 8px
+        // insets) cannot fit a 124px direct identity, but deliberately leaves
+        // one honest 96px berth for a multi-keeper aggregate.
+        width: 120,
+        height: 600,
+        castles: fixture.snapshot.castles.map((castle, index) => ({
+          castleId: castle.castleId,
+          q: castle.q,
+          r: castle.r,
+          x: 60,
+          y: 300,
+          distance: 4 + index / 100,
+          visible: true,
+          presented: true
+        }))
+      });
+    });
+
+    const clusterButton = await waitFor(() => {
+      const button = document.querySelector<HTMLButtonElement>(
+        'button[data-realm-castle-cluster][data-representative-castle-id]'
+      );
+      expect(button).not.toBeNull();
+      return button!;
+    });
+    const representativeCastleId = Number(clusterButton.dataset.representativeCastleId);
+    expect(Number.isSafeInteger(representativeCastleId)).toBe(true);
+    expect(Number(clusterButton.dataset.clusterCount)).toBeGreaterThan(1);
+    expect(clusterButton.style.getPropertyValue('--realm-castle-cluster-width')).toBe('96px');
+
+    fireEvent.click(clusterButton);
+    expect(mocked.handles[0]!.focusCastle).toHaveBeenLastCalledWith(representativeCastleId);
+    expect(mocked.handles[0]!.focusCastleGroup).not.toHaveBeenCalled();
+
+    rerender(renderRealm('balanced'));
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    expect(mocked.handles[1]!.focusCastle).toHaveBeenCalledWith(representativeCastleId);
+    expect(mocked.handles[1]!.focusCastleGroup).not.toHaveBeenCalled();
+
+    act(() => motion.set(true));
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(3);
+    expect(mocked.handles[2]!.focusCastle).toHaveBeenCalledWith(representativeCastleId);
+    expect(mocked.handles[2]!.focusCastleGroup).not.toHaveBeenCalled();
+  });
+
   it('keeps hover imperative and requires explicit castle activation for HUD/inspector state', () => {
     installWebGlProbe();
     const snapshot = createCanonicalGenesisSnapshot({
@@ -564,33 +630,87 @@ describe('live realm quality recreation', () => {
     expect(onRequestReturn).toHaveBeenCalledOnce();
   });
 
-  it('keeps 500 pointer-move updates imperative without opening UI or changing selection', () => {
+  it('coalesces 500 terrain, castle, and label pointer moves without UI churn', async () => {
     installWebGlProbe();
+    const renderCommits = vi.fn();
     render(
-      <RealmMapScreen
-        identity={IDENTITY}
-        snapshot={createCanonicalGenesisSnapshot(CANONICAL_TEST_FID)}
-        onRequestReturn={vi.fn()}
-        qualityOverride="balanced"
-      />
+      <Profiler id="realm-pointer-stress" onRender={renderCommits}>
+        <RealmMapScreen
+          identity={IDENTITY}
+          snapshot={createCanonicalGenesisSnapshot({
+            ownFid: CANONICAL_TEST_FID,
+            peerFid: 77
+          })}
+          onRequestReturn={vi.fn()}
+          qualityOverride="balanced"
+        />
+      </Profiler>
     );
     const scene = mocked.handles[0]!;
     const options = mocked.createRealmScene.mock.calls[0]![0];
-    act(() => options.onCastlesReady?.(1));
+    act(() => {
+      options.onCastlesReady?.(2);
+      options.onCastleProjection?.({
+        width: 1_440,
+        height: 900,
+        castles: [
+          {
+            castleId: 1,
+            q: 0,
+            r: 0,
+            x: 480,
+            y: 420,
+            distance: 4,
+            visible: true,
+            presented: true
+          },
+          {
+            castleId: 2,
+            q: 2,
+            r: -1,
+            x: 960,
+            y: 430,
+            distance: 5,
+            visible: true,
+            presented: true
+          }
+        ]
+      });
+    });
+    const label = await screen.findByRole('button', {
+      name: /Inspect Hegemony Keep castle, Peer Watch, cell 2,-1/i
+    });
+    const commitsBeforeStress = renderCommits.mock.calls.length;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     act(() => {
       for (let index = 0; index < 500; index += 1) {
-        options.onTargetHover?.({
-          kind: 'terrain',
-          coord: index % 2 === 0 ? { q: 1, r: 0 } : { q: 0, r: 1 }
-        });
+        if (index % 3 === 0) {
+          options.onTargetHover?.({ kind: 'terrain', coord: { q: 1, r: 0 } });
+        } else if (index % 3 === 1) {
+          options.onTargetHover?.({
+            kind: 'castle',
+            castleId: 2,
+            coord: { q: 2, r: -1 }
+          });
+        } else {
+          label.dispatchEvent(new Event('pointermove', { bubbles: true }));
+        }
       }
     });
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 30));
+    });
 
-    expect(scene.setHovered).toHaveBeenCalledTimes(501);
+    expect(scene.setHovered).toHaveBeenCalledTimes(335);
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    expect(renderCommits.mock.calls.length - commitsBeforeStress).toBeLessThanOrEqual(2);
     expect(screen.getByLabelText('Current selection').textContent)
       .toContain('Warpkeeper Bastion · q 0, r 0');
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(consoleWarn).not.toHaveBeenCalled();
   });
 
   it('focuses a validated navigator coordinate and returns keyboard focus to the map', () => {

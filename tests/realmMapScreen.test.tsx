@@ -183,7 +183,7 @@ describe('RealmMapScreen', () => {
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).toBe(document.activeElement);
   });
 
-  it('renders one static fallback marker for every castle in the 100-castle fixture', () => {
+  it('renders every 100-castle fallback marker with zero direct-label silhouette overlap', async () => {
     const realm = createRenderedWebglQaFixtureRealm();
     const { container } = renderFallbackRealm(realm);
     const markers = container.querySelectorAll<SVGGElement>(
@@ -196,6 +196,10 @@ describe('RealmMapScreen', () => {
     expect(realm.snapshot.castles).toHaveLength(100);
     expect(markers).toHaveLength(realm.snapshot.castles.length);
     expect(markerCastleIds.size).toBe(realm.snapshot.castles.length);
+    await waitFor(() => {
+      expect(screen.getByRole('main', { name: 'Hegemony realm' })
+        .getAttribute('data-label-castle-overlap-count')).toBe('0');
+    });
   });
 
   it('changes camera presets without opening a castle record', () => {

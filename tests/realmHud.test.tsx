@@ -63,13 +63,13 @@ describe('RealmHud', () => {
       />
     );
 
-    expect(screen.getByText('GENESIS 001')).not.toBeNull();
+    expect(screen.getByText('GENESIS 001 · 1,261 CELLS')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Hegemony Keep' })).not.toBeNull();
     expect(screen.getByText('Hegemony Keeper')).not.toBeNull();
     expect(screen.getByText('LEVEL 1')).not.toBeNull();
     expect(screen.queryByText(/FID 98765/i)).toBeNull();
     expect(screen.queryByLabelText('Shared realm state')).toBeNull();
-    expect(document.body.textContent).not.toMatch(/1,261 CELLS|movement cost|generation|Drag to survey/i);
+    expect(document.body.textContent).not.toMatch(/movement cost|generation|Drag to survey/i);
   });
 
   it('shows only a concise explicit selection record', () => {

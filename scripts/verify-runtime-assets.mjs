@@ -35,11 +35,22 @@ const retiredRuntimeAssets = Object.freeze([
   'public/models/hegemony/hegemony-frontier-keep-compact.glb'
 ]);
 
+const castleQuantizedMeshScale = Object.freeze([
+  0.000122077763,
+  0.000122077763,
+  0.000122077763
+]);
+const castleRootTranslation = Object.freeze([0, 7.03100014, -0.00500011444]);
+const castleRootScale = Object.freeze([7.03100014, 7.03100014, 7.03100014]);
+
 const castleStructure = new Map([
   ['public/models/hegemony/hegemony-main-castle-high.glb', {
     triangles: 67_680,
     vertices: 153_439,
     indexComponentType: 5_125,
+    positionComponentType: 5_123,
+    positionBounds: { min: [0, 0, 0], max: [14_937, 16_383, 11_495] },
+    meshTranslation: [-0.911740482, -1, -0.701620519],
     textureSize: 2_048,
     images: [
       [79_450, '3ff2fa16d17b08d91551f5b52ee8419a821c4e726c2296c0c539daee3f23149a'],
@@ -50,6 +61,9 @@ const castleStructure = new Map([
     triangles: 40_353,
     vertices: 78_928,
     indexComponentType: 5_125,
+    positionComponentType: 5_123,
+    positionBounds: { min: [0, 0, 0], max: [14_937, 16_383, 11_495] },
+    meshTranslation: [-0.911740482, -1, -0.701620519],
     textureSize: 1_024,
     images: [
       [192_188, '1074250bd5d8bcb6889f14f5ad1a7f12e748853140bf8c7a6e6d69ce254d23e7'],
@@ -60,6 +74,9 @@ const castleStructure = new Map([
     triangles: 19_086,
     vertices: 34_098,
     indexComponentType: 5_123,
+    positionComponentType: 5_123,
+    positionBounds: { min: [0, 0, 0], max: [14_889, 16_383, 11_437] },
+    meshTranslation: [-0.908810675, -1, -0.694540262],
     textureSize: 512,
     images: [
       [82_498, '712b27a1f21435c8f232dddc0e7122cedd93553eb17b4e5b6370417d3e437ba3'],
@@ -73,6 +90,12 @@ const requiredCastleExtensions = Object.freeze([
   'EXT_texture_webp',
   'KHR_mesh_quantization'
 ]);
+
+function exactVector(value, expected) {
+  return Array.isArray(value)
+    && value.length === expected.length
+    && value.every((entry, index) => entry === expected[index]);
+}
 
 for (const relativePath of retiredRuntimeAssets) {
   if (lstatSync(resolve(root, relativePath), { throwIfNoEntry: false })) {
@@ -107,6 +130,7 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
     const extensions = json.extensionsRequired ?? [];
     if (
       json.scenes?.length !== 1
+      || !exactVector(json.scenes[0]?.nodes, [1])
       || json.meshes?.length !== 1
       || json.meshes[0].primitives?.length !== 1
       || json.materials?.length !== 1
@@ -117,6 +141,21 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
       || indices?.count / 3 !== expectedStructure.triangles
       || indices?.componentType !== expectedStructure.indexComponentType
       || positions?.count !== expectedStructure.vertices
+      || positions?.componentType !== expectedStructure.positionComponentType
+      || positions?.type !== 'VEC3'
+      || !Array.isArray(positions?.min)
+      || positions.min.length !== 3
+      || positions.min.some((value, index) => value !== expectedStructure.positionBounds.min[index])
+      || !Array.isArray(positions?.max)
+      || positions.max.length !== 3
+      || positions.max.some((value, index) => value !== expectedStructure.positionBounds.max[index])
+      || json.nodes?.length !== 2
+      || json.nodes[0]?.mesh !== 0
+      || !exactVector(json.nodes[0]?.translation, expectedStructure.meshTranslation)
+      || !exactVector(json.nodes[0]?.scale, castleQuantizedMeshScale)
+      || !exactVector(json.nodes[1]?.translation, castleRootTranslation)
+      || !exactVector(json.nodes[1]?.scale, castleRootScale)
+      || !exactVector(json.nodes[1]?.children, [0])
     ) throw new Error(`${relativePath} structure no longer matches its reviewed runtime profile.`);
 
     const embedded = await inspectEmbeddedWebpGlb(bytes, { label: relativePath });

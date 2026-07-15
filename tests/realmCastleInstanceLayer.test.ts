@@ -11,6 +11,7 @@ import type {
   CastleLodPolicy
 } from '../src/components/realm/castleInstancePlanning';
 import type { HegemonyKeepPrefab } from '../src/components/realm/hegemonyKeepPrefabRepository';
+import { deriveCastleProjectionEnvelope } from '../src/components/realm/realmCastleProjectionGeometry';
 
 const COMPACT_ONLY_POLICY: CastleLodPolicy = {
   highEnterPixels: 96,
@@ -28,17 +29,19 @@ function prefab(
   geometry: THREE.BufferGeometry,
   material: THREE.Material
 ): HegemonyKeepPrefab {
+  const primitives = [{
+    geometry,
+    materials: [material],
+    localMatrixElements: new THREE.Matrix4().makeTranslation(0, 0.5, 0).elements,
+    sourceMeshName: `castle-${lod}`
+  }];
   return {
     lod,
     assetUrl: `/castle-${lod}.glb`,
     footprintDiameter: 1,
     visualHeight: 1,
-    primitives: [{
-      geometry,
-      materials: [material],
-      localMatrixElements: new THREE.Matrix4().makeTranslation(0, 0.5, 0).elements,
-      sourceMeshName: `castle-${lod}`
-    }]
+    projectionEnvelope: deriveCastleProjectionEnvelope(primitives)!,
+    primitives
   };
 }
 

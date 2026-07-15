@@ -43,9 +43,11 @@ const CODESIGN_TIMEOUT_MILLISECONDS = 15_000;
 const CODESIGN_MAXIMUM_BYTES = 64 * 1_024;
 
 const DESKTOP_VIEWPORT = Object.freeze({ width: 1_440, height: 900 });
+const FULL_HD_VIEWPORT = Object.freeze({ width: 1_920, height: 1_080 });
+const TABLET_VIEWPORT = Object.freeze({ width: 1_024, height: 768 });
 const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
-export const RENDERED_WEBGL_QA_CASE_COUNT = 9;
+export const RENDERED_WEBGL_QA_CASE_COUNT = 11;
 export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS = 112;
 export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS = 0.015;
 const RENDERED_WEBGL_QA_LABEL_ANGLE_TOLERANCE_RADIANS = 0.002;
@@ -54,6 +56,35 @@ const TERRAIN_PRESENTATION_BUDGETS = Object.freeze({
   balanced: Object.freeze({ semanticFeatureCount: 800, totalDetailInstanceCount: 5_500 }),
   reduced: Object.freeze({ semanticFeatureCount: 400, totalDetailInstanceCount: 3_000 }),
 });
+const LABEL_CULL_REASONS = new Set([
+  'associated-castle',
+  'behind-camera',
+  'capacity',
+  'collision',
+  'duplicate',
+  'foreign-castle',
+  'invalid-projection',
+  'no-safe-placement',
+  'offscreen',
+  'reserved-ui',
+  'unmeasured',
+]);
+
+function validLabelCullReasonAggregate(value) {
+  if (typeof value !== 'string' || value.length > 256) return false;
+  if (value === '') return true;
+  const seenReasons = new Set();
+  const entries = value.split(',');
+  return entries.length <= LABEL_CULL_REASONS.size && entries.every((entry) => {
+    const [reason, count, excess] = entry.split(':');
+    const valid = excess === undefined
+      && LABEL_CULL_REASONS.has(reason)
+      && /^[1-9]\d{0,2}$/.test(count ?? '')
+      && !seenReasons.has(reason);
+    if (valid) seenReasons.add(reason);
+    return valid;
+  });
+}
 
 export function renderedWebglLabelAnchorDistanceTelemetry(distance) {
   if (!Number.isFinite(distance) || distance < 0 || distance > 10_000) {
@@ -215,13 +246,31 @@ export function renderedWebglBrowserProbeCases(port) {
       viewport: DESKTOP_VIEWPORT,
     }),
     Object.freeze({
-      id: 'desktop-balanced-cluster',
+      id: 'full-hd-balanced',
+      expectedPresentationMode: 'observer',
+      expectedQuality: 'balanced',
+      interaction: 'default',
+      minimumLabelCount: 16,
+      url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
+      viewport: FULL_HD_VIEWPORT,
+    }),
+    Object.freeze({
+      id: 'tablet-balanced-inspector',
+      expectedPresentationMode: 'observer',
+      expectedQuality: 'balanced',
+      interaction: 'inspector',
+      minimumLabelCount: 12,
+      url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
+      viewport: TABLET_VIEWPORT,
+    }),
+    Object.freeze({
+      id: 'mobile-balanced-cluster',
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'cluster',
-      minimumLabelCount: 14,
+      minimumLabelCount: 10,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
-      viewport: DESKTOP_VIEWPORT,
+      viewport: MOBILE_VIEWPORT,
     }),
     Object.freeze({
       id: 'desktop-reduced',
@@ -465,9 +514,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'labelAccountingValid',
     'labelCollisionCount',
     'labelCount',
+    'labelCullReasons',
     'labelEligibleCount',
     'labelClusteredCount',
     'labelClusterOverflowCount',
+    'labelCastleOverlapCount',
     'labelAttachmentViolationCount',
     'labelHitTestViolationCount',
     'labelIdentityPresentationViolationCount',
@@ -517,6 +568,9 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     ))
     || candidate.undersizedPrimaryControlKinds.length !== candidate.undersizedPrimaryControlCount
   ) throw new TypeError('Invalid rendered WebGL browser DOM: touch-target-shape.');
+  if (
+    !validLabelCullReasonAggregate(candidate.labelCullReasons)
+  ) throw new TypeError('Invalid rendered WebGL browser DOM: label-cull-reasons-shape.');
   const expectedFocusedReadableLabelCount = (
     expected.interaction === 'inspector' || expected.interaction === 'cluster' ? 1 : 0
   );
@@ -616,6 +670,9 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     !Number.isSafeInteger(candidate.labelAttachmentViolationCount)
       || candidate.labelAttachmentViolationCount !== 0
       ? 'label-attachment' : '',
+    !Number.isSafeInteger(candidate.labelCastleOverlapCount)
+      || candidate.labelCastleOverlapCount !== 0
+      ? 'label-castle-overlap' : '',
     !Number.isSafeInteger(candidate.labelPlacementBindingViolationCount)
       || candidate.labelPlacementBindingViolationCount !== 0
       ? 'label-placement-binding' : '',
@@ -1884,6 +1941,7 @@ const READ_DOM_EXPRESSION = `(() => {
     presentedModelCount: integer(map?.getAttribute('data-presented-model-count')),
     raycastTargetCount: integer(map?.getAttribute('data-raycast-target-count')),
     labelCount: labels.length,
+    labelCullReasons: map?.getAttribute('data-label-cull-reasons') ?? '',
     labelEligibleCount: integer(map?.getAttribute('data-label-eligible-count')),
     labelClusteredCount: integer(map?.getAttribute('data-label-clustered-count')),
     labelClusterOverflowCount: integer(map?.getAttribute('data-label-cluster-overflow-count')),
@@ -1903,6 +1961,9 @@ const READ_DOM_EXPRESSION = `(() => {
       && bounds.bottom <= innerHeight + 1
     )).length,
     labelCollisionCount,
+    labelCastleOverlapCount: integer(
+      map?.getAttribute('data-label-castle-overlap-count')
+    ),
     labelAttachmentViolationCount,
     labelPlacementBindingViolationCount,
     labelIdentityPresentationViolationCount,
@@ -1991,9 +2052,13 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
       }
       if (value.status === 'ready') {
         readySeenAt ??= Date.now();
+        const cullAggregate = validLabelCullReasonAggregate(value.labelCullReasons)
+          ? value.labelCullReasons
+          : 'invalid';
         lastPresentationAggregate = [
           `interaction=${String(value.interactionState)}`,
           `labels=${String(value.labelCount)}`,
+          `culls=${cullAggregate}`,
           `clusters=${String(value.clusterButtonCount)}`,
           `overflow=${String(value.labelClusterOverflowCount)}`,
           `models=${String(value.presentedModelCount)}`
@@ -2041,36 +2106,20 @@ async function captureRenderedCasePixels(session, viewport) {
 async function applyRenderedCaseInteraction(session, interaction) {
   if (interaction === 'default') return Object.freeze({});
   if (interaction === 'cluster') {
-    const showRealm = await session.command('Runtime.evaluate', {
-      expression: `(() => {
-        const visible = (element) => {
-          if (!element) return false;
-          const style = getComputedStyle(element);
-          const bounds = element.getBoundingClientRect();
-          return style.display !== 'none'
-            && style.visibility !== 'hidden'
-            && Number(style.opacity || '1') > 0
-            && bounds.width > 0
-            && bounds.height > 0;
-        };
-        const target = [...document.querySelectorAll('button')].find((button) => (
-          button instanceof HTMLButtonElement
-          && button.getAttribute('aria-label') === 'Show Full Realm'
-          && !button.disabled
-          && button.tabIndex >= 0
-          && visible(button)
-        ));
-        if (!(target instanceof HTMLButtonElement)) return false;
-        target.click();
-        return true;
-      })()`,
-      returnByValue: true,
-    });
-    if (showRealm?.exceptionDetails || showRealm?.result?.value !== true) {
-      throw new Error('Rendered WebGL QA full-realm interaction failed.');
-    }
-
+    // The accepted baseline frame already proves the mobile fixture is fully
+    // rendered and collision-free. Activate its real aggregate directly: an
+    // extra Show Full Realm camera animation can replace that verified layout
+    // before the click, and headless animation cadence legitimately differs
+    // when the QA runner owns a detached process group.
     const deadline = Date.now() + PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS;
+    let lastClusterAggregate = Object.freeze({
+      accessible: 0,
+      clustered: 0,
+      dom: 0,
+      overflow: 0,
+      placed: 0,
+      visible: 0,
+    });
     while (Date.now() < deadline) {
       const evaluation = await session.command('Runtime.evaluate', {
         expression: `(() => {
@@ -2085,27 +2134,56 @@ async function applyRenderedCaseInteraction(session, interaction) {
               && bounds.width > 0
               && bounds.height > 0;
           };
-          const clusters = [...document.querySelectorAll('[data-realm-castle-cluster]')]
-            .filter(visible);
-          const target = clusters.find((cluster) => (
+          const integerAttribute = (element, name) => {
+            const value = integer(element?.getAttribute(name));
+            return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+          };
+          const allClusters = [...document.querySelectorAll('[data-realm-castle-cluster]')];
+          const clusters = allClusters.filter(visible);
+          const accessibleClusters = clusters.filter((cluster) => (
             cluster instanceof HTMLButtonElement
             && !cluster.disabled
             && cluster.tabIndex >= 0
             && (cluster.getAttribute('aria-label') ?? '').trim().length > 0
             && (integer(cluster.getAttribute('data-cluster-count')) ?? 0) > 0
           ));
-          if (!(target instanceof HTMLButtonElement)) return { clicked: false };
+          const target = accessibleClusters[0];
+          const map = document.querySelector('.realm-map-screen');
+          const aggregate = {
+            accessible: accessibleClusters.length,
+            clustered: integerAttribute(map, 'data-label-clustered-count'),
+            dom: allClusters.length,
+            overflow: integerAttribute(map, 'data-label-cluster-overflow-count'),
+            placed: integerAttribute(map, 'data-label-placed-count'),
+            visible: clusters.length,
+          };
+          if (!(target instanceof HTMLButtonElement)) return { clicked: false, aggregate };
           const clusterMemberCountBefore = clusters.reduce((count, cluster) => (
             count + (integer(cluster.getAttribute('data-cluster-count')) ?? 0)
           ), 0);
           const clusterButtonCountBefore = clusters.length;
           target.focus({ preventScroll: true });
           target.click();
-          return { clicked: true, clusterButtonCountBefore, clusterMemberCountBefore };
+          return {
+            clicked: true,
+            aggregate,
+            clusterButtonCountBefore,
+            clusterMemberCountBefore
+          };
         })()`,
         returnByValue: true,
       });
       const evidence = evaluation?.result?.value;
+      if (
+        evidence?.aggregate
+        && ['accessible', 'clustered', 'dom', 'overflow', 'placed', 'visible'].every((key) => (
+          Number.isSafeInteger(evidence.aggregate[key])
+          && evidence.aggregate[key] >= 0
+          && evidence.aggregate[key] <= 1_000
+        ))
+      ) {
+        lastClusterAggregate = Object.freeze({ ...evidence.aggregate });
+      }
       if (
         !evaluation?.exceptionDetails
         && evidence?.clicked === true
@@ -2121,7 +2199,12 @@ async function applyRenderedCaseInteraction(session, interaction) {
       }
       await delay(100);
     }
-    throw new Error('Rendered WebGL QA cluster interaction failed.');
+    throw new Error(
+      'Rendered WebGL QA cluster interaction failed '
+      + `(dom=${lastClusterAggregate.dom},visible=${lastClusterAggregate.visible},`
+      + `accessible=${lastClusterAggregate.accessible},clustered=${lastClusterAggregate.clustered},`
+      + `overflow=${lastClusterAggregate.overflow},placed=${lastClusterAggregate.placed}).`
+    );
   }
   const selector = interaction === 'inspector'
     ? 'button.realm-castle-label'

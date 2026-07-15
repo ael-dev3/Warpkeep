@@ -17,6 +17,10 @@ import {
 } from './renderedWebglQa';
 
 export const RENDERED_WEBGL_QA_OWNER_SEED = 917;
+export const RENDERED_WEBGL_QA_LONG_DISPLAY_NAME =
+  'QA Keeper With An Intentionally Long Display Name For Responsive Realm QA';
+export const RENDERED_WEBGL_QA_LONG_PUBLIC_BIO =
+  'A deliberately long synthetic public biography used only to verify that the responsive castle inspector truncates, wraps, and remains usable without leaking real profile data.';
 
 function sequence(value: number) {
   return value.toString().padStart(3, '0');
@@ -52,7 +56,8 @@ function createRenderedWebglQaFixtureSnapshot(): RealmObserverSnapshot {
         level: 1 + (index % 4),
         name: `Synthetic Keep ${ordinal}`,
         canonicalUsername: `qa-keep-${ordinal}`,
-        displayName: `QA Keep ${ordinal}`,
+        displayName: RENDERED_WEBGL_QA_LONG_DISPLAY_NAME,
+        publicBio: RENDERED_WEBGL_QA_LONG_PUBLIC_BIO,
         portraitAvailable: false,
         publicStatus: index % 2 === 0 ? 'founded' : 'active'
       };

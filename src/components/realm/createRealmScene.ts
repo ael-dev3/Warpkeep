@@ -55,9 +55,10 @@ import {
   REALM_SKY_FALLBACK_COLOR
 } from './createRealmEnvironment';
 import {
-  deriveCastleRoofProjectionSamples,
-  projectCastleRoofScreenTop,
-  type RealmCastleRoofProjectionSample
+  castleSilhouetteIntersectsViewport,
+  createCastleBoundsProjectionEnvelope,
+  projectCastleSilhouetteScreenBounds,
+  type RealmCastleProjectionEnvelope
 } from './realmCastleProjectionGeometry';
 import { createRealmAmbientScheduler } from './realmAmbientScheduler';
 import {
@@ -83,6 +84,14 @@ const CAMERA_FILL_UPWARD_IRRADIANCE = 0.1094;
 const CAMERA_FILL_INTENSITY = CAMERA_FILL_UPWARD_IRRADIANCE
   * Math.hypot(CAMERA_FILL_HORIZONTAL_DISTANCE, CAMERA_FILL_HEIGHT)
   / CAMERA_FILL_HEIGHT;
+const DEFAULT_CASTLE_PROJECTION_ENVELOPE = createCastleBoundsProjectionEnvelope({
+  minX: -0.74,
+  minY: 0,
+  minZ: -0.74,
+  maxX: 0.74,
+  maxY: 1.08,
+  maxZ: 0.74
+})!;
 
 type RealmCastleLabelScreenPoint = Readonly<{ x: number; y: number }>;
 
@@ -651,11 +660,11 @@ function initializeRealmScene(
   }));
 
   let castleLayer: RealmCastleInstanceLayer | null = null;
-  let castleRoofSamplesByLod: ReadonlyMap<
+  let castleProjectionEnvelopeByLod: ReadonlyMap<
     CastleLod,
-    readonly RealmCastleRoofProjectionSample[]
+    RealmCastleProjectionEnvelope
   > = new Map();
-  let fallbackCastleRoofSamples: readonly RealmCastleRoofProjectionSample[] = [];
+  let fallbackCastleProjectionEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let selectedCastleId: number | undefined;
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
     height: 1.08,
@@ -681,35 +690,6 @@ function initializeRealmScene(
   let pendingCastlesReadyCount: number | null = null;
   const projectionPoint = new THREE.Vector3();
   const projectionBoundsPoint = new THREE.Vector3();
-  const projectionRoofPoint = new THREE.Vector3();
-  const projectCastleBounds = (
-    anchor: (typeof castleLabelAnchors)[number],
-    width: number,
-    height: number
-  ) => {
-    const halfFootprint = castleFocusSize.footprintDiameter * 0.5;
-    let left = Number.POSITIVE_INFINITY;
-    let top = Number.POSITIVE_INFINITY;
-    let right = Number.NEGATIVE_INFINITY;
-    let bottom = Number.NEGATIVE_INFINITY;
-    for (const xOffset of [-halfFootprint, halfFootprint]) {
-      for (const yOffset of [0, castleFocusSize.height]) {
-        for (const zOffset of [-halfFootprint, halfFootprint]) {
-          projectionBoundsPoint
-            .set(anchor.x + xOffset, anchor.renderY + yOffset, anchor.z + zOffset)
-            .project(cameraController.camera);
-          const x = (projectionBoundsPoint.x * 0.5 + 0.5) * width;
-          const y = (-projectionBoundsPoint.y * 0.5 + 0.5) * height;
-          if (!Number.isFinite(x) || !Number.isFinite(y)) return undefined;
-          left = Math.min(left, x);
-          top = Math.min(top, y);
-          right = Math.max(right, x);
-          bottom = Math.max(bottom, y);
-        }
-      }
-    }
-    return right > left && bottom > top ? { left, top, right, bottom } : undefined;
-  };
   const projectCastleLabels = () => {
     const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
     const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
@@ -721,38 +701,39 @@ function initializeRealmScene(
       );
       const distance = projectionPoint.distanceTo(cameraController.camera.position);
       projectionPoint.project(cameraController.camera);
-      const visible = projectionPoint.z >= -1
-        && projectionPoint.z <= 1
-        && projectionPoint.x >= -1.05
-        && projectionPoint.x <= 1.05
-        && projectionPoint.y >= -1.08
-        && projectionPoint.y <= 1.08;
+      const withinCameraDepth = projectionPoint.z >= -1
+        && projectionPoint.z <= 1;
       const projectedTopCenter = {
         x: (projectionPoint.x * 0.5 + 0.5) * width,
         y: (-projectionPoint.y * 0.5 + 0.5) * height
       };
-      const conservativeCastleBounds = visible
-        ? projectCastleBounds(anchor, width, height)
-        : undefined;
       const activeLod = castleLayer
         ?.getPacking()
         .lodByCastleId[String(anchor.castleId)];
-      const roofSamples = activeLod
-        ? castleRoofSamplesByLod.get(activeLod)
-        : fallbackCastleRoofSamples;
-      const projectedRoofTop = visible && roofSamples
-        ? projectCastleRoofScreenTop(
-            roofSamples,
+      const projectionEnvelope = activeLod
+        ? castleProjectionEnvelopeByLod.get(activeLod)
+          ?? fallbackCastleProjectionEnvelope
+        : fallbackCastleProjectionEnvelope;
+      // Project every depth-valid keep before deciding screen visibility. A
+      // partially visible edge keep can have its roof center outside the
+      // canvas; dropping its envelope would let a foreign username cover the
+      // rendered model while the overlap telemetry incorrectly reported zero.
+      const castleBounds = withinCameraDepth
+        ? projectCastleSilhouetteScreenBounds(
+            projectionEnvelope,
             anchor,
             cameraController.camera,
+            width,
             height,
-            projectionRoofPoint
+            projectionBoundsPoint
           )
         : undefined;
-      const castleBounds = resolveCastleLabelOcclusionBounds(
-        conservativeCastleBounds,
-        projectedRoofTop
+      const visible = castleSilhouetteIntersectsViewport(
+        castleBounds,
+        width,
+        height
       );
+      const conservativeCastleBounds = castleBounds;
       const labelAnchor = resolveCastleLabelScreenAnchor(castleBounds, {
         x: projectedTopCenter.x,
         y: projectedTopCenter.y
@@ -1135,13 +1116,9 @@ function initializeRealmScene(
     }
 
     const prefabs = new Map(leases.map((lease) => [lease.prefab.lod, lease.prefab]));
-    const nextRoofSamplesByLod = new Map([...prefabs].map(([lod, prefab]) => [
+    const nextProjectionEnvelopeByLod = new Map([...prefabs].map(([lod, prefab]) => [
       lod,
-      deriveCastleRoofProjectionSamples(prefab.primitives, {
-        azimuthDegrees: DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees,
-        minimumPitchDegrees: DEFAULT_REALM_CAMERA_SPEC.closePitchDegrees - 3,
-        maximumPitchDegrees: DEFAULT_REALM_CAMERA_SPEC.overviewPitchDegrees + 3
-      })
+      prefab.projectionEnvelope
     ] as const));
     let nextLayer: RealmCastleInstanceLayer;
     try {
@@ -1168,10 +1145,11 @@ function initializeRealmScene(
       nextLayer.setPresentedCastleIds([...presentedCastleIds]);
     }
     castleLayer = nextLayer;
-    castleRoofSamplesByLod = nextRoofSamplesByLod;
-    fallbackCastleRoofSamples = nextRoofSamplesByLod.get(castleLodPolicy.maximumLod)
-      ?? nextRoofSamplesByLod.get('compact')
-      ?? [];
+    castleProjectionEnvelopeByLod = nextProjectionEnvelopeByLod;
+    fallbackCastleProjectionEnvelope = nextProjectionEnvelopeByLod
+      .get(castleLodPolicy.maximumLod)
+      ?? nextProjectionEnvelopeByLod.get('compact')
+      ?? DEFAULT_CASTLE_PROJECTION_ENVELOPE;
     scene.add(nextLayer.group);
     let released = false;
     cleanup.add(() => {

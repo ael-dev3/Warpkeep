@@ -136,6 +136,13 @@ quality-90 WebP for resized base color. The verifier decodes and checks both
 dimensions and per-image hashes, so a profile cannot silently retain a larger
 atlas.
 
+The asset verifier also pins each LOD's VEC3 quantized position component type,
+exact three-axis accessor bounds, scene graph, and uniform mesh/root transforms.
+High and Balanced retain identical extents; Compact retains 99.68% of their
+quantized width, 100% of their height, and 99.50% of their depth. This makes a
+silent proportion or transform collapse an asset-policy failure instead of
+relying only on byte hashes or triangle counts.
+
 Each required LOD is fetched and parsed once per mounted realm. A scene-lifetime
 repository owns its geometry, materials, and textures; deterministic
 `InstancedMesh` buckets reuse those resources across castles. Screen-space LOD

@@ -67,6 +67,20 @@ describe('Hegemony keep prefab repository', () => {
     expect(Object.isFrozen(first.prefab)).toBe(true);
     expect(Object.isFrozen(first.prefab.primitives)).toBe(true);
     expect(Object.isFrozen(first.prefab.primitives[0].localMatrixElements)).toBe(true);
+    expect(first.prefab.projectionEnvelope).toMatchObject({
+      mode: 'convex-hull',
+      localBounds: {
+        minX: -0.5,
+        minY: -0.5,
+        minZ: -0.5,
+        maxX: 2.5,
+        maxY: 0.5,
+        maxZ: 0.5
+      }
+    });
+    expect(first.prefab.projectionEnvelope.samples.length).toBeLessThanOrEqual(512);
+    expect(Object.isFrozen(first.prefab.projectionEnvelope)).toBe(true);
+    expect(Object.isFrozen(first.prefab.projectionEnvelope.samples)).toBe(true);
 
     first.release();
     first.release();

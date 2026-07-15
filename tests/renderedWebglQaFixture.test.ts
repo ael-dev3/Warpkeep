@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { CANONICAL_CASTLE_SLOTS } from '../spacetimedb/src/world';
 import {
   createRenderedWebglQaFixtureRealm,
+  RENDERED_WEBGL_QA_LONG_DISPLAY_NAME,
+  RENDERED_WEBGL_QA_LONG_PUBLIC_BIO,
   renderedWebglQaFixtureSnapshot
 } from '../src/dev/renderedWebglQaFixture';
 import {
@@ -24,7 +26,13 @@ describe('rendered WebGL local QA fixture', () => {
     expect(snapshot.castles.map((castle) => castle.tileKey))
       .toEqual(CANONICAL_CASTLE_SLOTS.map((slot) => slot.tileKey));
     expect(snapshot.castles.map((castle) => castle.canonicalUsername))
-      .toEqual(Array.from({ length: 100 }, (_, index) => `qa-keep-${String(index + 1).padStart(3, '0')}`));
+      .toEqual(Array.from({ length: 100 }, (_, index) => (
+        `qa-keep-${String(index + 1).padStart(3, '0')}`
+      )));
+    expect(snapshot.castles.every((castle) => (
+      castle.displayName === RENDERED_WEBGL_QA_LONG_DISPLAY_NAME
+      && castle.publicBio === RENDERED_WEBGL_QA_LONG_PUBLIC_BIO
+    ))).toBe(true);
     expect(snapshot.castles.every((castle) => castle.portraitAvailable === false)).toBe(true);
 
     const serialized = JSON.stringify(snapshot);

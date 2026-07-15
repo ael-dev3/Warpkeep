@@ -132,7 +132,7 @@ export function RealmHud({
     <>
       <section className="realm-hud" aria-labelledby="realm-heading">
         <header className="realm-hud__header">
-          <p>GENESIS 001</p>
+          <p>GENESIS 001 · 1,261 CELLS</p>
           <h1 id="realm-heading">{ownCastle?.name ?? 'Hegemony Keep'}</h1>
           <span className="realm-hud__keeper">{keeperLabel(identity, ownProfile)}</span>
           <div className="realm-hud__badges" aria-label="Keep status">
