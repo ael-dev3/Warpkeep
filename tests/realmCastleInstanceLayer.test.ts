@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  CASTLE_GROUND_LIFT,
   castleFrustumRadius,
   createRealmCastleInstanceLayer,
   type RealmCastleInstanceRecord
@@ -10,8 +14,18 @@ import type {
   CastleLod,
   CastleLodPolicy
 } from '../src/components/realm/castleInstancePlanning';
-import type { HegemonyKeepPrefab } from '../src/components/realm/hegemonyKeepPrefabRepository';
+import {
+  createHegemonyKeepPrefabRepository,
+  type HegemonyKeepPrefab
+} from '../src/components/realm/hegemonyKeepPrefabRepository';
+import {
+  clearHegemonyKeepBinaryCacheForTests,
+  loadHegemonyKeep
+} from '../src/components/realm/loadHegemonyKeep';
 import { deriveCastleProjectionEnvelope } from '../src/components/realm/realmCastleProjectionGeometry';
+import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
+
+const ROOT = resolve(import.meta.dirname, '..');
 
 const COMPACT_ONLY_POLICY: CastleLodPolicy = {
   highEnterPixels: 96,
@@ -62,6 +76,40 @@ function camera() {
   result.updateProjectionMatrix();
   result.updateMatrixWorld();
   return result;
+}
+
+function exactArrayBuffer(path: string): ArrayBuffer {
+  const bytes = readFileSync(path);
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+/**
+ * JSDOM has no object-URL implementation, while the production GLTFLoader
+ * creates object URLs for the castle's embedded WebP images. The test keeps
+ * the model bytes local and substitutes only the browser image decoder; the
+ * GLB geometry itself still goes through the real Meshopt GLTF parser.
+ */
+function installLocalObjectUrlShim() {
+  const url = self.URL as typeof URL & {
+    createObjectURL?: (blob: Blob) => string;
+    revokeObjectURL?: (objectUrl: string) => void;
+  };
+  const originalCreate = Object.getOwnPropertyDescriptor(url, 'createObjectURL');
+  const originalRevoke = Object.getOwnPropertyDescriptor(url, 'revokeObjectURL');
+  Object.defineProperty(url, 'createObjectURL', {
+    configurable: true,
+    value: () => 'data:application/octet-stream;base64,AA=='
+  });
+  Object.defineProperty(url, 'revokeObjectURL', {
+    configurable: true,
+    value: () => undefined
+  });
+  return () => {
+    if (originalCreate) Object.defineProperty(url, 'createObjectURL', originalCreate);
+    else Reflect.deleteProperty(url, 'createObjectURL');
+    if (originalRevoke) Object.defineProperty(url, 'revokeObjectURL', originalRevoke);
+    else Reflect.deleteProperty(url, 'revokeObjectURL');
+  };
 }
 
 describe('realm castle instance layer', () => {
@@ -172,6 +220,118 @@ describe('realm castle instance layer', () => {
       coord: { q: 2, r: -2 }
     });
     layer.dispose();
+  });
+
+  it('picks an instantiated castle decoded from the exact compact Meshopt GLB', async () => {
+    const bytes = exactArrayBuffer(resolve(
+      ROOT,
+      'public/models/hegemony/hegemony-main-castle-compact.glb'
+    ));
+    const restoreObjectUrls = installLocalObjectUrlShim();
+    const decodedBitmaps = vi.fn(async () => ({
+      width: 1,
+      height: 1,
+      close: vi.fn()
+    }));
+    vi.stubGlobal('createImageBitmap', decodedBitmaps);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof Request
+          ? input.url
+          : input.toString();
+      if (url === '/models/hegemony/hegemony-main-castle-compact.glb') {
+        return new Response(bytes.slice(0), {
+          status: 200,
+          headers: { 'content-length': String(bytes.byteLength) }
+        });
+      }
+      // The texture pixels cannot be decoded in JSDOM. Their source still
+      // traverses GLTFLoader, which calls the local createImageBitmap shim.
+      return new Response(new Uint8Array([0]), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    let layer: ReturnType<typeof createRealmCastleInstanceLayer> | undefined;
+    let release: (() => void) | undefined;
+    try {
+      const loaded = await loadHegemonyKeep({
+        quality: REALM_QUALITY_SPECS.reduced,
+        baseUrl: '/',
+        maxAnisotropy: 1
+      });
+      const repository = createHegemonyKeepPrefabRepository({
+        loader: vi.fn(async () => loaded)
+      });
+      const lease = await repository.acquire('compact');
+      release = lease.release;
+
+      const primitive = lease.prefab.primitives[0]!;
+      expect(primitive.geometry.getAttribute('position').count).toBe(34_098);
+      expect(primitive.geometry.index?.count).toBe(19_086 * 3);
+      expect(decodedBitmaps).toHaveBeenCalledTimes(2);
+
+      // Find a real top-facing triangle from the decoded source mesh, then
+      // project that exact world point through a pointer-style camera ray.
+      // This makes the assertion independent of any guessed model silhouette.
+      loaded.root.updateWorldMatrix(true, true);
+      const bounds = new THREE.Box3().setFromObject(loaded.root);
+      const sourceRaycaster = new THREE.Raycaster();
+      let sourceHit: THREE.Intersection<THREE.Object3D> | undefined;
+      for (const xFraction of [0.15, 0.35, 0.5, 0.65, 0.85]) {
+        for (const zFraction of [0.15, 0.35, 0.5, 0.65, 0.85]) {
+          sourceRaycaster.set(
+            new THREE.Vector3(
+              THREE.MathUtils.lerp(bounds.min.x, bounds.max.x, xFraction),
+              bounds.max.y + 5,
+              THREE.MathUtils.lerp(bounds.min.z, bounds.max.z, zFraction)
+            ),
+            new THREE.Vector3(0, -1, 0)
+          );
+          const hit = sourceRaycaster.intersectObject(loaded.root, true)
+            .find((candidate) => candidate.object instanceof THREE.Mesh);
+          if (hit) {
+            sourceHit = hit;
+            break;
+          }
+        }
+        if (sourceHit) break;
+      }
+      expect(sourceHit).toBeDefined();
+      if (!sourceHit) throw new Error('Decoded compact castle has no raycastable surface.');
+
+      layer = createRealmCastleInstanceLayer({
+        castles: [castle(439, 0, 0)],
+        prefabs: new Map([['compact', lease.prefab]]),
+        policy: COMPACT_ONLY_POLICY,
+        dynamicShadows: false
+      });
+      const instancePoint = sourceHit.point.clone();
+      instancePoint.y += CASTLE_GROUND_LIFT;
+      const pickCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      pickCamera.position.copy(instancePoint).add(new THREE.Vector3(0, 5, 0));
+      pickCamera.lookAt(instancePoint);
+      pickCamera.updateProjectionMatrix();
+      pickCamera.updateMatrixWorld();
+      layer.update(pickCamera, 900);
+
+      const pointerRaycaster = new THREE.Raycaster();
+      pointerRaycaster.setFromCamera(new THREE.Vector2(0, 0), pickCamera);
+      expect(layer.raycast(pointerRaycaster)).toEqual({
+        castleId: 439,
+        coord: { q: 439, r: -439 }
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/models/hegemony/hegemony-main-castle-compact.glb',
+        expect.objectContaining({ credentials: 'same-origin', redirect: 'error' })
+      );
+    } finally {
+      layer?.dispose();
+      release?.();
+      clearHegemonyKeepBinaryCacheForTests();
+      vi.unstubAllGlobals();
+      restoreObjectUrls();
+    }
   });
 
   it('renders and raycasts only castle IDs in the viewport presentation set', () => {

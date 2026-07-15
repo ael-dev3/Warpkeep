@@ -716,7 +716,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       'CREDITS'
     ]);
     expect(screen.getByRole('button', {
-      name: 'Open patch notes for Warpkeep ALPHA 0.3.3'
+      name: 'Open patch notes for Warpkeep ALPHA 0.3.4'
     })).not.toBeNull();
 
     expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();

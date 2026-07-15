@@ -40,7 +40,15 @@ const forbiddenContent = Object.freeze([
   'createRenderedWebglQaFixtureRealm',
   'LOCAL RENDERED WEBGL QA',
   'SYNTHETIC · 100 CASTLES · NO AUTHORITY',
-  'synthetic-canonical-100'
+  'synthetic-canonical-100',
+  // The browser release is deliberately independent of the disabled,
+  // machine-bound QA observer service. A Pages-only candidate must never ship
+  // its endpoint, procedure, or configuration names to player JavaScript.
+  'QA_OBSERVER_ENABLED',
+  'qa_observer_get_realm_attestation_v2',
+  'qa_observer_get_realm_snapshot_v1',
+  '/v1/qa/challenge',
+  '/v1/qa/realm-snapshot'
 ]);
 
 function filesUnder(directory) {
@@ -62,4 +70,4 @@ for (const path of filesUnder(dist)) {
   if (leaked) throw new Error(`Local QA marker ${JSON.stringify(leaked)} leaked into ${relativePath}.`);
 }
 
-console.log('Verified local QA entries and broker coordinates are absent from production output.');
+console.log('Verified local QA entries, observer routes, and broker coordinates are absent from production output.');

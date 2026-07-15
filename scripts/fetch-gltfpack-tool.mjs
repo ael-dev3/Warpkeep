@@ -11,6 +11,7 @@ import {
 import { fetchPinnedGithubReleaseAsset } from './fetch-pinned-github-asset.mjs';
 import { readExactResponseBody } from './read-exact-response-body.mjs';
 import { resolveAttestedSystemUnzip } from './system-unzip.mjs';
+import { readWarpkeepPackageVersion } from './warpkeep-package-version.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repository = 'zeux/meshoptimizer';
@@ -27,6 +28,7 @@ const archiveTemporary = `${archive}.${process.pid}.tmp`;
 const binaryTemporary = `${binary}.${process.pid}.tmp`;
 const url = `https://github.com/${repository}/releases/download/${tag}/${spec.attachment}`;
 const unzipBinary = resolveAttestedSystemUnzip();
+const productVersion = readWarpkeepPackageVersion();
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
@@ -57,7 +59,7 @@ mkdirSync(dirname(archive), { recursive: true, mode: 0o700 });
 mkdirSync(dirname(binary), { recursive: true, mode: 0o700 });
 try {
   const response = await fetchPinnedGithubReleaseAsset(url, {
-    headers: { 'user-agent': 'Warpkeep-tool-fetch/0.3.3' },
+    headers: { 'user-agent': `Warpkeep-tool-fetch/${productVersion}` },
     signal: AbortSignal.timeout(60_000)
   });
   if (!response.ok) throw new Error(`Tool download failed with HTTP ${response.status}.`);

@@ -20,7 +20,10 @@ scope and verification. The site is a real product surface and technical
 foundation, not a claim that resources, upgrades, units, combat, alliances,
 chat, or seasons are playable yet.
 
-Alpha 0.3.3 admits only one exact, complete Genesis 001 snapshot; renders every
+The checked-in `0.3.4` source is a Pages-only candidate, not a deployment or
+tag claim; the verified public release remains Alpha 0.3.3 until its exact
+commit completes the protected release gates. The candidate admits only one
+exact, complete Genesis 001 snapshot; renders every
 visible founded castle with a shared real Hegemony GLB LOD; separates hover,
 selection, inspection, camera, and keyboard-focus state; and introduces a
 compact safe-area-aware HUD, inspector, navigator, and camera composition. Its

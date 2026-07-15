@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 
 import { fetchPinnedGithubReleaseAsset } from './fetch-pinned-github-asset.mjs';
 import { readExactResponseBody } from './read-exact-response-body.mjs';
+import { readWarpkeepPackageVersion } from './warpkeep-package-version.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const release = Object.freeze({
@@ -18,6 +19,7 @@ const destination = process.env.WARPKEEP_CASTLE_ARCHIVE_CACHE
   : resolve(root, '.cache/warpkeep-assets', release.tag, release.attachment);
 const temporary = `${destination}.${process.pid}.tmp`;
 const url = `https://github.com/${release.repository}/releases/download/${release.tag}/${release.attachment}`;
+const productVersion = readWarpkeepPackageVersion();
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
@@ -26,7 +28,7 @@ function sha256(bytes) {
 mkdirSync(dirname(destination), { recursive: true, mode: 0o700 });
 try {
   const response = await fetchPinnedGithubReleaseAsset(url, {
-    headers: { 'user-agent': 'Warpkeep-asset-fetch/0.3.3' },
+    headers: { 'user-agent': `Warpkeep-asset-fetch/${productVersion}` },
     signal: AbortSignal.timeout(60_000)
   });
   if (!response.ok) throw new Error(`Asset download failed with HTTP ${response.status}.`);

@@ -322,14 +322,16 @@ by the journey lab, so this lane does not claim title-screen interaction
 coverage; title presentation remains covered by its focused component and visual
 contract tests until a separate authority-free browser fixture is justified.
 
-Chrome runs eleven fixed cases: every quality at 1440×900, a 1920×1080 balanced
+Chrome runs twelve fixed cases: every quality at 1440×900, a 1920×1080 balanced
 presentation, a 1024×768 tablet inspector, one invalid query that must fail
 closed to `balanced`, balanced and reduced presentation in a 390×844 narrow
 responsive viewport, an accessible narrow-layout keeper-cluster focus action, an
 opened narrow-layout castle inspector, and an opened 667×375 short-landscape
-Explore surface. One additional 1440×900 balanced case uses the same synthetic
-fixture in player presentation and requires Recenter Keep and Return to Menu
-while rejecting the observer badge and Close QA Observer control. These browser
+Explore surface. Two additional balanced cases use the same synthetic fixture
+in player presentation at 1440×900 and 390×844; each requires Recenter Keep and
+Return to Menu while rejecting the observer badge and Close QA Observer control.
+The narrow player case exercises the real compact Menu/Home rail, Explore
+affordance, and touch-target contract. These browser
 cases prove responsive layout, not mobile-device
 or touch emulation; scene-level pointer tests separately exercise anchored pinch
 and pan behavior. Every baseline
@@ -350,8 +352,10 @@ clustered/overflow accounting. The map's privacy-safe exact set-membership
 accounting flag must also be true; no identity keys are exported. Keeper clusters must remain accessible,
 collision-free, inside the viewport, outside reserved UI, and free of missing
 synthetic identity. Cluster overflow must be zero outside Explore; the Explore
-case may report accounted label overflow because its accessibility surface
-separately exposes all 100 castles. Displaced individual labels and displaced
+case may report accounted label overflow, or no remaining map labels after its
+sheet reserves every label berth, because its accessibility surface separately
+exposes all 100 castles. The pre-click baseline still requires in-bounds
+text-bearing labels. Displaced individual labels and displaced
 clusters must have matching anchor connectors.
 
 Failed label-capacity checks include only a bounded, closed-shape aggregate of
@@ -533,7 +537,7 @@ data to browser JavaScript.
 
 The tiers intentionally trade coverage for hourly cost:
 
-- `quick` runs the eleven-case responsive rendered-WebGL browser probe plus its
+- `quick` runs the twelve-case responsive rendered-WebGL browser probe plus its
   shared-envelope real-browser journey lane, the real
   parent-level sandbox boundary preflight, focused observer/security tests, an
   explicit synthetic app state lane, and root typecheck.

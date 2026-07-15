@@ -4,7 +4,19 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-No player-facing changes are recorded after Alpha 0.3.3.
+### 0.3.4 candidate — not deployed
+
+- Labels preserve their roof-attached placement and readable identity through
+  dense castle clusters, viewport changes, and the reserved HUD/inspector
+  regions.
+- A local regression decodes the exact compact Hegemony GLB, instances it, and
+  selects it with a pointer-style ray before terrain fallback can apply.
+- The rendered-WebGL matrix includes a 390×844 player presentation lane, while
+  the narrow Explore sheet recognizes its complete accessible castle list when
+  the intentional full-sheet layout reserves all map-label space.
+- This candidate is Pages-only: local QA, the disabled QA observer, Worker
+  changes, SpacetimeDB module publication, profile refresh, admission, world,
+  castle, wallet, and Marks operations are outside its release scope.
 
 ## [0.3.3] — 2026-07-14
 

@@ -2,9 +2,12 @@
 
 ## Current state
 
-The checked-in package is the live Alpha 0.3.3 patch line. The public menu build
-stamp identifies the exact deployed source; an annotated release tag is created
-only after that deployed commit passes exact-build verification.
+The checked-in package is the Alpha 0.3.4 Pages-only candidate. The verified
+public release remains Alpha 0.3.3. The public menu build stamp identifies the
+exact deployed source; an annotated release tag is created only after that
+deployed commit passes exact-build verification. Do not turn the disabled local
+QA observer into a Worker or SpacetimeDB release without a separately reviewed
+production scope.
 
 Warpkeep Alpha 0.3.3 has a live title/menu, an explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a

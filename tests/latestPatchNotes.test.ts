@@ -17,16 +17,17 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '14 JUL 2026',
-      title: 'GENESIS REALM QUALITY'
+      releasedOn: 'LOCAL CANDIDATE',
+      title: 'REALM QUALITY FOLLOW-THROUGH'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /crowded names consolidate without hiding the keeps/i
+      /visible keep silhouette through dense clusters/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /first-view Realm Council link/i
+      /complete mobile player HUD at 390×844/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 14 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('not deployed or tagged');
+    expect(getLatestPatchNotes('0.3.3')?.title).toBe('GENESIS REALM QUALITY');
     expect(getLatestPatchNotes('0.3.2')?.title).toBe('GENESIS 001 FOUNDING');
     expect(getLatestPatchNotes('0.0.0')).toBeUndefined();
     expect(getLatestPatchNotes('__proto__')).toBeUndefined();

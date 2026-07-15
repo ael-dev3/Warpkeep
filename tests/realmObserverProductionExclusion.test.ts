@@ -162,6 +162,11 @@ describe('local QA production exclusion', () => {
     expect(verifier).toContain('RenderedWebglQaHarness');
     expect(verifier).toContain('createRenderedWebglQaFixtureRealm');
     expect(verifier).toContain('LOCAL RENDERED WEBGL QA');
+    expect(verifier).toContain('QA_OBSERVER_ENABLED');
+    expect(verifier).toContain('qa_observer_get_realm_attestation_v2');
+    expect(verifier).toContain('qa_observer_get_realm_snapshot_v1');
+    expect(verifier).toContain('/v1/qa/challenge');
+    expect(verifier).toContain('/v1/qa/realm-snapshot');
     expect(verifier).toMatch(/mustScanRegardlessOfSize/);
   });
 });

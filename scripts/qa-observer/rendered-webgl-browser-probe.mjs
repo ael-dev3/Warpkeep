@@ -47,7 +47,7 @@ const FULL_HD_VIEWPORT = Object.freeze({ width: 1_920, height: 1_080 });
 const TABLET_VIEWPORT = Object.freeze({ width: 1_024, height: 768 });
 const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
-export const RENDERED_WEBGL_QA_CASE_COUNT = 11;
+export const RENDERED_WEBGL_QA_CASE_COUNT = 12;
 export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS = 112;
 export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS = 0.015;
 const RENDERED_WEBGL_QA_LABEL_ANGLE_TOLERANCE_RADIANS = 0.002;
@@ -329,6 +329,23 @@ export function renderedWebglBrowserProbeCases(port) {
         quality: 'balanced'
       }),
       viewport: DESKTOP_VIEWPORT,
+    }),
+    // The player presentation owns the mobile HUD, including the compact
+    // Menu/Home rail and Explore affordance. Keep this separate from observer
+    // cases so a change to player-only chrome cannot be masked by the
+    // intentionally read-only observer matrix.
+    Object.freeze({
+      id: 'mobile-balanced-player',
+      expectedPresentationMode: 'player',
+      expectedQuality: 'balanced',
+      interaction: 'default',
+      minimumLabelCount: 10,
+      url: renderedWebglQaUrl({
+        mode: 'player',
+        port: selectedPort,
+        quality: 'balanced'
+      }),
+      viewport: MOBILE_VIEWPORT,
     }),
   ]);
 }
@@ -2265,7 +2282,12 @@ async function runRenderedCase(session, probeCase, state) {
     const interacted = Object.freeze({
       ...probeCase,
       ...interactionEvidence,
-      minimumLabelCount: 1,
+      // The baseline already proves one or more map labels before opening a
+      // surface. A narrow Explore sheet may correctly reserve the full map
+      // label berth; its complete accessible castle list is then the active
+      // identity surface, so do not turn that intentional post-click state
+      // into a timing-dependent label-count failure.
+      minimumLabelCount: probeCase.interaction === 'explore' ? 0 : 1,
     });
     await waitForAcceptedRenderedDom(session, interacted, state);
     await captureRenderedCasePixels(session, probeCase.viewport);

@@ -4,7 +4,7 @@ export const RENDERED_WEBGL_QA_CHROME:
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 export const RENDERED_WEBGL_QA_CHROME_APP: '/Applications/Google Chrome.app';
 export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: 'EQHXZ8M8AV';
-export const RENDERED_WEBGL_QA_CASE_COUNT: 11;
+export const RENDERED_WEBGL_QA_CASE_COUNT: 12;
 export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS: 112;
 export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS: 0.015;
 
@@ -54,6 +54,7 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'desktop-reduced'
     | 'desktop-invalid-fallback'
     | 'desktop-balanced-player'
+    | 'mobile-balanced-player'
     | 'mobile-balanced'
     | 'mobile-reduced-inspector'
     | 'short-landscape-explore';
@@ -163,4 +164,4 @@ export function analyzeRenderedWebglPngScreenshot(
   sampleCount: number;
 }>;
 
-export function runRenderedWebglBrowserProbe(): Promise<11>;
+export function runRenderedWebglBrowserProbe(): Promise<12>;
