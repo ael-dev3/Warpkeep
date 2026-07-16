@@ -16,6 +16,19 @@ visible founder, a safe-area-aware HUD and camera, accessible fallbacks, bounded
 public castle presentation with foundation-bound usernames and a responsive
 Farcaster castle record, Marks balance UI, music, and credits.
 
+This branch and PR #44 carry Alpha 0.3.6 as a **candidate**, not a public
+release. The candidate gives castle and landscape-base materials bounded,
+role-specific readability gains, turns the existing neutral fill toward
+camera-facing masonry without raising global exposure, supports the full
+authored island footprint with wider local terrain foundations, keeps one
+permanent direct identity rail at every projection-visible castle foundation,
+and gives ordinary wheel/pinch input a safer zoom floor while explicit Realm
+overview fits the truthful convex rendered-terrain perimeter. It changes no
+asset bytes or transforms and no authentication, admission, authoritative
+world, castle, wallet, Marks, Worker, SpacetimeDB, DNS, or deployment boundary.
+Alpha 0.3.5 remains the verified public release until protected-main deployment
+and exact public-build verification succeed.
+
 Production remains deliberately admission-gated. Deliberately admitted
 founders now occupy the shared frontier, but public admission is not open and
 every further admission or production-state mutation requires explicit owner
@@ -62,9 +75,11 @@ deployment coordinate.
 
 Alpha 0.3.3 replaced peer markers with real instanced keeps, and Alpha 0.3.4
 followed with the first optimized Hegemony Main Castle family and tighter
-Realm QA. See the [Alpha 0.3.5 release notes](docs/releases/alpha-0.3.5.md) for
-the current asset tradeoffs, identity presentation, validation scope, authority
-boundary, and honest residual limits.
+Realm QA. See the [Alpha 0.3.6 candidate notes](docs/releases/alpha-0.3.6.md)
+for the pending readability and stability scope, and the
+[Alpha 0.3.5 release notes](docs/releases/alpha-0.3.5.md) for the current
+verified public asset tradeoffs, identity presentation, validation scope,
+authority boundary, and honest residual limits.
 
 The canonical player domain is [warpkeep.com](https://warpkeep.com/), and the
 main community home is the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep).
@@ -141,7 +156,7 @@ redistribution/derivative authority.
 
 ## Documentation
 
-- [Alpha 0.3.5 release notes](docs/releases/alpha-0.3.5.md), [Alpha 0.3.4 history](docs/releases/alpha-0.3.4.md), [Alpha 0.3.3 history](docs/releases/alpha-0.3.3.md), [Alpha 0.3.2 history](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 history](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
+- [Alpha 0.3.6 candidate notes](docs/releases/alpha-0.3.6.md), [Alpha 0.3.5 verified release](docs/releases/alpha-0.3.5.md), [Alpha 0.3.4 history](docs/releases/alpha-0.3.4.md), [Alpha 0.3.3 history](docs/releases/alpha-0.3.3.md), [Alpha 0.3.2 history](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 history](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
 - [Marks policy v1](docs/gameplay/marks-policy-v1.md)
 - [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md)
 - [Technical architecture](docs/technical-architecture.md)

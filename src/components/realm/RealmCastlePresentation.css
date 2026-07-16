@@ -6,30 +6,6 @@
   pointer-events: none;
 }
 
-.realm-castle-label__leader {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  left: 0;
-  width: var(--realm-castle-leader-length);
-  height: 1px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, rgb(229 193 108 / 34%), rgb(244 213 134 / 78%));
-  box-shadow: 0 0 0.35rem rgb(229 193 108 / 22%);
-  transform: translate3d(
-    var(--realm-castle-anchor-x),
-    var(--realm-castle-anchor-y),
-    0
-  ) rotate(var(--realm-castle-leader-angle));
-  transform-origin: 0 50%;
-  pointer-events: none;
-}
-
-.realm-castle-label__leader[hidden],
-.realm-castle-label__leader[data-active="false"] {
-  display: none;
-}
-
 .realm-castle-label {
   position: absolute;
   z-index: 1;
@@ -37,9 +13,9 @@
   left: 0;
   display: inline-grid;
   place-items: start center;
-  min-width: 2.75rem;
+  min-width: 45px;
   max-width: 10.5rem;
-  min-height: 2.75rem;
+  min-height: 45px;
   box-sizing: border-box;
   padding: 0;
   border: 0;
@@ -62,7 +38,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.75rem;
+  min-width: 45px;
   max-width: 10.5rem;
   min-height: 1.5rem;
   box-sizing: border-box;
@@ -99,15 +75,25 @@
   color: #fff3c9;
 }
 
+.realm-castle-label[data-own="true"] {
+  z-index: 2;
+}
+
+.realm-castle-label[data-focused="true"] {
+  z-index: 3;
+}
+
 .realm-castle-label:hover,
+.realm-castle-label[data-hovered="true"],
 .realm-castle-label:focus-visible,
 .realm-castle-label[aria-expanded="true"],
 .realm-castle-label[aria-pressed="true"] {
-  z-index: 2;
+  z-index: 4;
   outline: none;
 }
 
 .realm-castle-label:hover .realm-castle-label__plate,
+.realm-castle-label[data-hovered="true"] .realm-castle-label__plate,
 .realm-castle-label:focus-visible .realm-castle-label__plate,
 .realm-castle-label[aria-expanded="true"] .realm-castle-label__plate,
 .realm-castle-label[aria-pressed="true"] .realm-castle-label__plate {
@@ -140,9 +126,9 @@
   /* Compact mode only shortens the visible rail; it keeps the exact same
      foundation anchor and complete accessible username. */
   width: auto;
-  min-width: 2.75rem;
+  min-width: 45px;
   max-width: 7.25rem;
-  min-height: 2.75rem;
+  min-height: 45px;
   padding: 0;
   font-size: 0.8125rem;
 }
@@ -156,91 +142,10 @@
 @media (max-width: 680px) {
   .realm-castle-label[data-compact="true"] {
     width: auto;
-    min-width: 2.75rem;
+    min-width: 45px;
     max-width: 6.75rem;
     font-size: 0.75rem;
   }
-}
-
-.realm-castle-label-measurements {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 0;
-  height: 0;
-  overflow: visible;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.realm-castle-label.realm-castle-label--measurement {
-  top: -10000px;
-  left: -10000px;
-  visibility: hidden;
-  transform: none;
-  will-change: auto;
-}
-
-.realm-castle-cluster {
-  position: absolute;
-  z-index: 1;
-  top: 0;
-  left: 0;
-  display: inline-flex;
-  gap: 0.3rem;
-  align-items: center;
-  justify-content: center;
-  width: var(--realm-castle-cluster-width);
-  min-width: var(--realm-castle-cluster-width);
-  max-width: var(--realm-castle-cluster-width);
-  height: 2.75rem;
-  min-height: 2.75rem;
-  box-sizing: border-box;
-  padding: 0 0.48rem;
-  border: 1px solid rgb(201 167 234 / 58%);
-  border-radius: 999px;
-  background: rgb(31 18 39 / 94%);
-  box-shadow: 0 0.4rem 1rem rgb(0 0 0 / 32%);
-  color: #fff7e5;
-  transform: translate3d(
-    var(--realm-castle-cluster-x),
-    var(--realm-castle-cluster-y),
-    0
-  ) translate(-50%, -100%);
-  pointer-events: auto;
-  cursor: zoom-in;
-}
-
-.realm-castle-cluster__identity {
-  min-width: 0;
-  overflow: hidden;
-  color: #fff7e5;
-  font: 800 0.8125rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.realm-castle-cluster__more {
-  flex: 0 0 auto;
-  padding: 0.18rem 0.25rem;
-  border: 1px solid rgb(240 213 140 / 26%);
-  border-radius: 999px;
-  background: rgb(7 6 11 / 32%);
-  color: #f0d58c;
-  font: 850 0.625rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
-}
-
-.realm-castle-cluster__leader {
-  background: linear-gradient(90deg, rgb(201 167 234 / 32%), rgb(240 213 140 / 76%));
-  box-shadow: 0 0 0.35rem rgb(201 167 234 / 22%);
-}
-
-.realm-castle-cluster:hover,
-.realm-castle-cluster:focus-visible {
-  z-index: 2;
-  border-color: #f0d58c;
-  outline: 2px solid #f0d58c;
-  outline-offset: 2px;
 }
 
 .realm-castle-avatar {

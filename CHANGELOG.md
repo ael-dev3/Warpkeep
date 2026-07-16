@@ -4,6 +4,43 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
+## [0.3.6] — 2026-07-17 candidate
+
+- Founded castles receive one bounded, role-specific diffuse-colour calibration
+  across High, Balanced, and Compact. Authored landscape bases receive a
+  smaller bounded gain. The calibration changes material uniforms only; it
+  does not rewrite the integrity-pinned GLBs, embedded textures, authored
+  roughness/metallic/normal response, exact castle/base transform, draw count,
+  or asset provenance.
+- The existing neutral directional fill is moved toward the camera-facing
+  masonry plane and the competing amethyst fill is reduced. The revision does
+  not increase global tone-mapping exposure, terrain material energy, light
+  count, shadow maps, render passes, or animation demand.
+- Local terrain foundation and blend influence now cover the wider authored
+  island footprint at every canonical castle slot. Interaction feedback no
+  longer draws a depth-tested cell outline through an occupied castle base;
+  authoritative cells and castle coordinates remain unchanged.
+- Every projection-visible founded castle now owns one permanent direct
+  identity rail at its exact foundation anchor. Camera distance, LOD, hover,
+  selection, and label collisions cannot replace it with a keeper cluster or
+  overflow identity. Live pre-mask 3D frustum membership prevents a rail from
+  outliving its rendered castle at a viewport edge, and touch targets retain a
+  device-rounding safety margin above 44 pixels. Dense rails may overlap as the
+  final truthful fallback, while Explore retains the complete keyboard- and
+  touch-accessible list.
+- Ordinary wheel and pinch input keep a readable zoom floor. The explicit
+  Realm overview remains available and fits the actual convex rendered-terrain
+  perimeter with a conservative raised-scene margin instead of nonexistent
+  axis-aligned corners.
+- This candidate is Pages-client presentation only. It changes no Terms,
+  authentication or admission authority, backend protocol, authoritative
+  world generation or state, castle ownership, wallet, Marks, Worker,
+  SpacetimeDB module, production data, DNS, or deployment.
+- Alpha 0.3.6 is checked into PR #44 as a candidate. Alpha 0.3.5 remains the
+  verified public release until protected-main deployment and exact-build
+  verification succeed; no `v0.3.6` tag or release claim is valid before those
+  gates pass.
+
 ## [0.3.5] — 2026-07-16
 
 - The Realm's high, balanced, and compact Hegemony Main Castle GLBs now use
@@ -393,6 +430,7 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
 [Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...HEAD
+[0.3.6]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...agent/alpha-0.3.6-improvements
 [0.3.5]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.2...v0.3.3

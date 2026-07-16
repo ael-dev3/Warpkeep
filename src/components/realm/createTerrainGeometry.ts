@@ -33,6 +33,8 @@ export type TerrainGeometryData = Readonly<{
   colors: Float32Array;
   indices: Uint16Array | Uint32Array;
   bounds: TerrainBounds;
+  /** Exact convex x/z perimeter of the rendered union of terrain hexes. */
+  overviewHull: readonly HexWorldPosition[];
   vertexCount: number;
   triangleCount: number;
   degenerateTriangleCount: number;
@@ -65,6 +67,60 @@ export function pointyHexCorners(coord: HexCoord, hexSize: number): HexWorldPosi
 function pointKey(point: HexWorldPosition) {
   const precision = 1_000_000;
   return `${Math.round(point.x * precision)},${Math.round(point.z * precision)}`;
+}
+
+function hullCross(
+  origin: HexWorldPosition,
+  first: HexWorldPosition,
+  second: HexWorldPosition
+) {
+  return (first.x - origin.x) * (second.z - origin.z)
+    - (first.z - origin.z) * (second.x - origin.x);
+}
+
+/**
+ * Return the actual convex perimeter of the rendered hex union. A Realm disc
+ * has small corner chamfers, so this is intentionally derived from cell
+ * corners rather than approximated by either the terrain AABB or a regular
+ * six-point center hull.
+ */
+export function createTerrainOverviewHull(
+  map: RealmTerrainMap,
+  hexSize: number
+): readonly HexWorldPosition[] {
+  const byKey = new Map<string, HexWorldPosition>();
+  map.cells.forEach((cell) => {
+    pointyHexCorners(cell.coord, hexSize).forEach((point) => {
+      const key = pointKey(point);
+      if (!byKey.has(key)) byKey.set(key, point);
+    });
+  });
+  const points = [...byKey.values()].sort((left, right) => (
+    left.x - right.x || left.z - right.z
+  ));
+  if (points.length <= 2) return Object.freeze(points.map((point) => Object.freeze({ ...point })));
+
+  const lower: HexWorldPosition[] = [];
+  points.forEach((point) => {
+    while (
+      lower.length >= 2
+      && hullCross(lower[lower.length - 2]!, lower[lower.length - 1]!, point) <= 1e-9
+    ) lower.pop();
+    lower.push(point);
+  });
+  const upper: HexWorldPosition[] = [];
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const point = points[index]!;
+    while (
+      upper.length >= 2
+      && hullCross(upper[upper.length - 2]!, upper[upper.length - 1]!, point) <= 1e-9
+    ) upper.pop();
+    upper.push(point);
+  }
+  return Object.freeze(
+    [...lower.slice(0, -1), ...upper.slice(0, -1)]
+      .map((point) => Object.freeze({ x: point.x, z: point.z }))
+  );
 }
 
 function calculateTriangleArea(
@@ -233,6 +289,7 @@ export function createTerrainGeometryData(
     colors: new Float32Array(colors),
     indices: typedIndices,
     bounds,
+    overviewHull: createTerrainOverviewHull(map, hexSize),
     vertexCount,
     triangleCount: indices.length / 3,
     degenerateTriangleCount,

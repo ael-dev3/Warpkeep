@@ -183,7 +183,7 @@ describe('RealmMapScreen', () => {
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).toBe(document.activeElement);
   });
 
-  it('renders every 100-castle fallback marker with zero direct-label silhouette overlap', async () => {
+  it('renders every 100-castle fallback marker with complete direct-label coverage', async () => {
     const realm = createRenderedWebglQaFixtureRealm();
     const { container } = renderFallbackRealm(realm);
     const markers = container.querySelectorAll<SVGGElement>(
@@ -197,8 +197,10 @@ describe('RealmMapScreen', () => {
     expect(markers).toHaveLength(realm.snapshot.castles.length);
     expect(markerCastleIds.size).toBe(realm.snapshot.castles.length);
     await waitFor(() => {
-      expect(screen.getByRole('main', { name: 'Hegemony realm' })
-        .getAttribute('data-label-castle-overlap-count')).toBe('0');
+      const map = screen.getByRole('main', { name: 'Hegemony realm' });
+      expect(map.getAttribute('data-label-placed-count')).toBe('100');
+      expect(map.getAttribute('data-label-unplaced-count')).toBe('0');
+      expect(map.getAttribute('data-label-clustered-count')).toBe('0');
     });
   });
 

@@ -204,24 +204,20 @@ or accepted.
 Castle-model availability is deliberately independent of two-dimensional label
 placement. Every canonical castle candidate remains available to the scene's
 own frustum and LOD presentation, with the same set available for raycasting.
-Every direct username rail either remains at its exact projected foundation
-base or leaves the individual layer for deterministic keeper-cluster/Explore
-accounting; collision handling never nudges an individual identity around the
-screen and never removes the corresponding world model or interaction target.
+Every projection-visible founded castle must expose one direct username control
+at its exact projected foundation base. Camera distance, LOD, collision,
+reserved UI, density, and measured capacity may not change direct membership or
+presentation. The identity-keyed React control survives camera and LOD changes
+while projection coordinates update imperatively. Compact mode depends only on
+the stable viewport-width breakpoint.
 
-Keeper clusters preserve identity rather than falling back to anonymous count
-chips. A true multi-keeper aggregate uses a 96-pixel representative-username
-chip with a `+N` remainder. Individual username rails expose
-`data-displaced="false"` and have no leader element. A group cluster displaced
-from its representative anchor has exactly one group connector associated with
-that representative castle, while an undisplaced cluster has no active
-connector. Activating a cluster opens the representative castle close-up and
-focuses that representative identity label for keyboard and screen-reader
-continuity; it does not claim to frame every member castle. A renderer
-recreation caused by a quality change restores that representative castle
-focus. An identity that cannot fit
-an honest direct rail or a true group cluster remains available through Explore
-rather than becoming a floating singleton.
+Dense direct controls may overlap and partially visible edge controls may clip;
+the probe does not mistake either condition for permission to move, aggregate,
+or hide an identity. Automatic keeper clusters, group connectors, and label
+overflow are forbidden and must all report zero. Every direct control remains
+an enabled, labelled, keyboard-focusable button with a minimum 44-by-44-pixel
+hit target. Explore remains a complete supplementary list, but opening it never
+removes eligible world labels.
 
 Bind Vite to loopback explicitly, then have the small contract helper print the
 exact local URL for one reviewed quality and presentation mode:
@@ -330,7 +326,7 @@ contract tests until a separate authority-free browser fixture is justified.
 Chrome runs fourteen fixed cases: every quality at 1440×900, a 1920×1080 balanced
 presentation, a 1024×768 tablet inspector, one invalid query that must fail
 closed to `balanced`, balanced and reduced presentation in a 390×844 narrow
-responsive viewport, an accessible narrow-layout keeper-cluster focus action,
+responsive viewport, a second narrow-layout persistent-label baseline,
 an opened narrow-layout castle inspector, and an opened 667×375 short-landscape
 Explore surface. Four additional balanced cases use the same synthetic fixture
 in player presentation: default states at 1440×900 and 390×844, an explicit
@@ -350,7 +346,7 @@ fixture gives every synthetic profile a long display name and long public
 biography, so any inspector case exercises bounded profile presentation
 without introducing a real identity. Near-limit username truncation remains a
 focused component/CSS contract because using it in the shared density fixture
-would change the canonical label-capacity workload.
+would change the canonical label-density workload.
 Focused record regressions additionally require the responsive drawer to use
 only sanitized public Farcaster and existing public castle/visibility-gated
 Marks fields, keep a failed or rejected PFP on the initial/W fallback, and load
@@ -360,22 +356,18 @@ state, or an external request. The component contract rejects invented
 durability, alliance, combat-status, and destructive-action presentation.
 The responsive
 contract additionally checks exact viewport dimensions, horizontal overflow,
-map coverage, text-bearing in-bounds castle labels, label collisions, visible
-UI exclusion regions, aggregate projection-eligible/placed/unplaced label
-coverage, one-to-one placed-label/individual-label accounting, and complete
-clustered/overflow accounting. The map's privacy-safe exact set-membership
-accounting flag must also be true; no identity keys are exported. Keeper clusters must remain accessible,
-collision-free, inside the viewport, outside reserved UI, and free of missing
-synthetic identity. Cluster/Explore overflow may be nonzero whenever an exact
-foundation rail or true multi-keeper group cannot fit; the exact accounting
-must remain valid and the always-present Explore trigger keeps every overflow
-identity reachable. An opened Explore surface may leave no remaining map labels
-after its sheet reserves every label berth because it separately exposes all
-100 castles. Every pre-click baseline still requires in-bounds text-bearing
-labels. Every rendered individual rail must retain its exact
-foundation anchor, report no displacement, and have no individual connector;
-only a displaced true multi-keeper cluster may have its matching group
-connector.
+map coverage, text-bearing castle labels, visible UI regions, aggregate
+projection-eligible/placed/unplaced label coverage, and one-to-one
+placed-label/direct-control accounting. The map's privacy-safe exact
+set-membership accounting flag must also be true; no identity keys are
+exported. Eligible and placed counts must match, unplaced, clustered, overflow,
+cluster-member, cluster-control, and connector counts must all be zero, and
+each direct control must have valid accessible text and a 44-by-44-pixel minimum
+hit target. The probe records density, reserved-UI overlap, partial edge
+clipping, and interior hit-test contention as diagnostics rather than treating
+them as reasons to remove a label. Opening Explore or the inspector leaves the
+eligible direct world-label set intact. Every rendered rail retains its exact
+foundation anchor, reports no displacement, and has no connector.
 
 The desktop balanced case also derives one bounded point above a foundation-attached
 label, proves that point and a five-move path are genuinely on the WebGL canvas,
@@ -393,21 +385,16 @@ never included in a build. The lane emits only bounded aggregate coverage,
 colour, and silhouette metrics; it retains or reports no source bytes,
 screenshots, raw pixels, archive paths, hashes, identities, or browser logs.
 
-Failed label-capacity checks include only a bounded, closed-shape aggregate of
-cull-reason categories and counts. They never include castle IDs, usernames,
-profile text, coordinates, or browser logs; the aggregate exists solely to
-distinguish reserved-UI, silhouette, and label-packing regressions.
+Failed label-coverage checks include only bounded closed-shape counts. Cull
+reasons must remain empty because projection-visible founded identities are not
+capacity-, collision-, or reserved-UI-cullable. The probe never includes castle
+IDs, usernames, profile text, coordinates, or browser logs.
 
 World-model telemetry is checked independently from label density: presented
 model count must be at least the projection-eligible label count and no greater
 than the canonical castle count, while raycast-target count must equal presented
-model count. This permits a castle to remain visible and interactive when its
-individual label is clustered, but never permits an eligible identity label to
-outnumber available castle models. Cluster activation must start from a real
-accessible cluster and finish with the representative label focused and
-readable; the cluster count is allowed to remain unchanged because the
-representative close-up preserves the deterministic identity layout. The remaining
-contract checks 44px primary controls,
+model count. Every projection-eligible identity has a direct label and can never
+outnumber available castle models. The remaining contract checks 44px primary controls,
 inspector/Explore state, and page warnings/errors.
 
 For each accepted state Chrome captures one transient PNG in memory. A strict,

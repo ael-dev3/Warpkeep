@@ -43,17 +43,17 @@ describe('lowlands terrain color', () => {
     } as const;
     const padded = sampleLowlandsColor(map.worldSeed, center, context);
     const natural = sampleLowlandsColor(map.worldSeed, center, { ...context, placements: [] });
-    const cellEdge = { x: center.x + Math.sqrt(3) / 2, z: center.z };
-    const paddedEdge = sampleLowlandsColor(map.worldSeed, cellEdge, context);
-    const naturalEdge = sampleLowlandsColor(map.worldSeed, cellEdge, {
+    const outsideFoundationBlend = { x: center.x + 1.24, z: center.z };
+    const paddedOutside = sampleLowlandsColor(map.worldSeed, outsideFoundationBlend, context);
+    const naturalOutside = sampleLowlandsColor(map.worldSeed, outsideFoundationBlend, {
       ...context,
       placements: []
     });
 
     expect(padded).not.toEqual(natural);
-    expect(paddedEdge.r).toBeCloseTo(naturalEdge.r, 10);
-    expect(paddedEdge.g).toBeCloseTo(naturalEdge.g, 10);
-    expect(paddedEdge.b).toBeCloseTo(naturalEdge.b, 10);
+    expect(paddedOutside.r).toBeCloseTo(naturalOutside.r, 10);
+    expect(paddedOutside.g).toBeCloseTo(naturalOutside.g, 10);
+    expect(paddedOutside.b).toBeCloseTo(naturalOutside.b, 10);
   });
 
   it('distinguishes semantic cell interiors while preserving shared-edge continuity', () => {

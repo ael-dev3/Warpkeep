@@ -196,7 +196,11 @@ export function prepareHegemonyLandscapeBaseScene(
     object.castShadow = options.dynamicShadows;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.forEach((material) => tuneHegemonyModelMaterial(material, maxAnisotropy));
+    materials.forEach((material) => tuneHegemonyModelMaterial(
+      material,
+      maxAnisotropy,
+      'landscape-base'
+    ));
   });
   if (meshCount === 0) {
     throw new Error('Hegemony landscape-base model contains no renderable meshes.');

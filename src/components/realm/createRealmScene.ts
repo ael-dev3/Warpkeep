@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {
   axialToWorld,
   hexDistance,
+  hexKey,
   worldToNearestAxial,
   type HexCoord
 } from '../../game/map/hexCoordinates';
@@ -76,14 +77,30 @@ import type {
 const HEX_SIZE = 1;
 const OVERLAY_LIFT = 0.026;
 const CAMERA_FILL_HORIZONTAL_DISTANCE = 10;
-const CAMERA_FILL_HEIGHT = 3;
-// Preserve the former neutral fill's upward irradiance while moving its
-// horizontal direction onto the fixed Realm camera azimuth. This reveals
-// camera-facing castle materials without globally brightening the terrain.
-const CAMERA_FILL_UPWARD_IRRADIANCE = 0.1094;
-const CAMERA_FILL_INTENSITY = CAMERA_FILL_UPWARD_IRRADIANCE
+const CAMERA_FILL_HEIGHT = 1.2;
+const CAMERA_FILL_FACE_IRRADIANCE = 0.7;
+const CAMERA_FILL_INTENSITY = CAMERA_FILL_FACE_IRRADIANCE
   * Math.hypot(CAMERA_FILL_HORIZONTAL_DISTANCE, CAMERA_FILL_HEIGHT)
-  / CAMERA_FILL_HEIGHT;
+  / CAMERA_FILL_HORIZONTAL_DISTANCE;
+
+/**
+ * Stable, object-readable coordinates for the bounded Alpha 0.3.6 lighting
+ * revision. The existing neutral directional fill is kept nearly horizontal:
+ * it reveals camera-facing masonry while adding less energy to the terrain than
+ * the previous fill. No extra light, render pass, or animation loop is added.
+ */
+export const REALM_CASTLE_READABILITY_LIGHTING = Object.freeze({
+  revision: 'castle-readable-v2',
+  cameraFillHorizontalDistance: CAMERA_FILL_HORIZONTAL_DISTANCE,
+  cameraFillHeight: CAMERA_FILL_HEIGHT,
+  cameraFillIntensity: CAMERA_FILL_INTENSITY,
+  cameraFacingIrradiance: CAMERA_FILL_FACE_IRRADIANCE,
+  cameraFillUpwardIrradiance: CAMERA_FILL_FACE_IRRADIANCE
+    * CAMERA_FILL_HEIGHT
+    / CAMERA_FILL_HORIZONTAL_DISTANCE,
+  maximumCameraFillUpwardIrradiance: 0.09,
+  amethystSideFillIntensity: 0.32
+});
 const DEFAULT_CASTLE_PROJECTION_ENVELOPE = createCastleBoundsProjectionEnvelope({
   minX: -0.74,
   minY: 0,
@@ -127,6 +144,19 @@ export function resolveCastleLabelScreenAnchor(
 }
 
 /**
+ * Selects one label envelope for the complete quality session. Active mesh LOD
+ * is intentionally not an input: crossing an LOD threshold may change model
+ * detail, but never the projected identity anchor or visibility silhouette.
+ */
+export function resolveStableCastleLabelEnvelope(
+  envelopes: ReadonlyMap<CastleLod, RealmCastleProjectionEnvelope>,
+  policy: Pick<CastleLodPolicy, 'maximumLod'>,
+  fallback: RealmCastleProjectionEnvelope
+) {
+  return envelopes.get(policy.maximumLod) ?? fallback;
+}
+
+/**
  * Combines a conservative horizontal/base box with the actual projected roof
  * edge used by labels. The original conservative prism remains available to
  * callers as a separate projection field.
@@ -167,8 +197,6 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
   focusCastle: (castleId: number) => void;
-  /** Frames a named collision cluster at approach distance, preserving context. */
-  focusCastleGroup: (castleIds: readonly number[]) => void;
   focusCell: (coord: HexCoord) => void;
   frameFoundingDistrict: () => void;
   focusKeep: () => void;
@@ -462,6 +490,9 @@ function initializeRealmScene(
     dynamicShadows: renderPlan.dynamicShadows,
     shadowMapSize: renderPlan.shadowMapSize
   };
+  // Pure quality policy is needed by the first resize/projection callback;
+  // initialize it before any observer or render loop can run.
+  const castleLodPolicy = castleLodPolicyForQuality(runtimeQuality);
   const terrainSemantics = indexRealmTerrainSemantics(
     options.surface,
     options.terrainMetadata
@@ -495,6 +526,7 @@ function initializeRealmScene(
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const lighting = REALM_LIGHTING_SPECS[options.quality.id];
   renderer.toneMappingExposure = lighting.toneMappingExposure;
+  options.canvas.dataset.realmLighting = REALM_CASTLE_READABILITY_LIGHTING.revision;
   renderer.shadowMap.enabled = renderPlan.dynamicShadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.setClearColor(REALM_SKY_FALLBACK_COLOR, 1);
@@ -604,7 +636,11 @@ function initializeRealmScene(
     sun.shadow.bias = -0.00035;
     sun.shadow.normalBias = 0.018;
   }
-  const skyFill = new THREE.DirectionalLight('#a991d0', 0.56);
+  const skyFill = new THREE.DirectionalLight(
+    '#a991d0',
+    REALM_CASTLE_READABILITY_LIGHTING.amethystSideFillIntensity
+  );
+  skyFill.name = 'realm-amethyst-side-fill';
   skyFill.position.set(8, 6.5, -9);
   const cameraAzimuth = THREE.MathUtils.degToRad(DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees);
   const neutralFill = new THREE.DirectionalLight('#d5d9e2', CAMERA_FILL_INTENSITY);
@@ -654,6 +690,12 @@ function initializeRealmScene(
       });
     })
   ];
+  const occupiedCastleCoordinateKeys = new Set(
+    authoritativeCastles.map((castle) => hexKey(castle.coord))
+  );
+  const terrainOverlayCoord = (coord: HexCoord | null) => (
+    coord && !occupiedCastleCoordinateKeys.has(hexKey(coord)) ? coord : null
+  );
 
   const castleLabelAnchors = authoritativeCastles.map((castle) => ({
     castleId: castle.castleId,
@@ -703,6 +745,23 @@ function initializeRealmScene(
   const projectCastleLabels = () => {
     const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
     const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
+    const projectionEnvelope = resolveStableCastleLabelEnvelope(
+      castleProjectionEnvelopeByLod,
+      castleLodPolicy,
+      fallbackCastleProjectionEnvelope
+    );
+    const renderEnvelope = resolveStableCastleLabelEnvelope(
+      castleRenderEnvelopeByLod,
+      castleLodPolicy,
+      fallbackCastleRenderEnvelope
+    );
+    // The instance layer owns the authoritative render-frustum calculation.
+    // Read its pre-mask identities so labels cannot outlive their models at an
+    // edge, while a label mask from the prior frame cannot hide a castle that
+    // has just entered the camera frustum.
+    const frustumVisibleCastleIds = new Set(
+      castleLayer?.getFrustumVisibleCastleIds() ?? []
+    );
     const castles = castleLabelAnchors.map((anchor) => {
       projectionPoint.set(
         anchor.x,
@@ -717,17 +776,6 @@ function initializeRealmScene(
         x: (projectionPoint.x * 0.5 + 0.5) * width,
         y: (-projectionPoint.y * 0.5 + 0.5) * height
       };
-      const activeLod = castleLayer
-        ?.getPacking()
-        .lodByCastleId[String(anchor.castleId)];
-      const projectionEnvelope = activeLod
-        ? castleProjectionEnvelopeByLod.get(activeLod)
-          ?? fallbackCastleProjectionEnvelope
-        : fallbackCastleProjectionEnvelope;
-      const renderEnvelope = activeLod
-        ? castleRenderEnvelopeByLod.get(activeLod)
-          ?? fallbackCastleRenderEnvelope
-        : fallbackCastleRenderEnvelope;
       // Project every depth-valid keep before deciding screen visibility. A
       // partially visible edge keep can have its roof center outside the
       // canvas; dropping its envelope would let a foreign username cover the
@@ -752,11 +800,12 @@ function initializeRealmScene(
             projectionBoundsPoint
           )
         : undefined;
-      const visible = castleSilhouetteIntersectsViewport(
-        conservativeCastleBounds,
-        width,
-        height
-      );
+      const visible = frustumVisibleCastleIds.has(anchor.castleId)
+        && castleSilhouetteIntersectsViewport(
+          conservativeCastleBounds,
+          width,
+          height
+        );
       const labelAnchor = resolveCastleLabelScreenAnchor(castleBounds, {
         x: projectedFallbackCenter.x,
         y: projectedFallbackCenter.y
@@ -836,6 +885,7 @@ function initializeRealmScene(
   };
   const cameraController = createRealmCameraController({
     bounds: terrainData.bounds,
+    overviewHull: terrainData.overviewHull,
     keepFocus: {
       x: keepWorld.x,
       y: keepGroundY,
@@ -1054,6 +1104,12 @@ function initializeRealmScene(
   };
   const handleWheel = (event: WheelEvent) => {
     event.preventDefault();
+    // Camera motion invalidates the last canvas hit. Clear it immediately so
+    // a stationary pointer cannot leave a label highlighted after its castle
+    // has moved elsewhere on screen; the next pointer move performs a fresh
+    // identity-aware raycast.
+    cancelPendingHover();
+    dispatchHover(null);
     cameraController.zoomByWheel(event.deltaY, event.deltaMode);
   };
   const handleContextLost = (event: Event) => {
@@ -1098,7 +1154,6 @@ function initializeRealmScene(
   cleanup.add(() => window.removeEventListener('resize', resize));
   resize();
 
-  const castleLodPolicy = castleLodPolicyForQuality(runtimeQuality);
   const usedCastleLods = castleLodsForQuality(runtimeQuality);
   const prefabRepository = createHegemonyKeepPrefabRepository({
     baseUrl: options.baseUrl,
@@ -1266,28 +1321,6 @@ function initializeRealmScene(
         footprintDiameter: castleFocusSize.footprintDiameter
       });
     },
-    focusCastleGroup: (castleIds) => {
-      if (cleanup.isDisposed()) return;
-      const requestedIds = new Set(castleIds.filter((castleId) => Number.isSafeInteger(castleId)));
-      const castles = authoritativeCastles.filter((castle) => requestedIds.has(castle.castleId));
-      if (castles.length === 0) return;
-      const minimumX = Math.min(...castles.map((castle) => castle.x));
-      const maximumX = Math.max(...castles.map((castle) => castle.x));
-      const minimumZ = Math.min(...castles.map((castle) => castle.z));
-      const maximumZ = Math.max(...castles.map((castle) => castle.z));
-      const groupFootprint = Math.max(
-        castleFocusSize.footprintDiameter,
-        maximumX - minimumX + castleFocusSize.footprintDiameter,
-        maximumZ - minimumZ + castleFocusSize.footprintDiameter
-      );
-      cameraController.frameAt({
-        x: (minimumX + maximumX) / 2,
-        y: castles.reduce((sum, castle) => sum + castle.groundY, 0) / castles.length,
-        z: (minimumZ + maximumZ) / 2,
-        height: castleFocusSize.height,
-        footprintDiameter: groupFootprint
-      }, 0.68);
-    },
     focusCell: (coord) => {
       if (cleanup.isDisposed() || !isPlayableRealmCoord(options.surface, coord)) return;
       try {
@@ -1323,7 +1356,16 @@ function initializeRealmScene(
     recenterKeep: cameraController.recenterKeep,
     setHovered: (coord) => {
       if (cleanup.isDisposed()) return;
-      setOverlay(hoverOverlay, options.surface, coord, terrainPlacements);
+      // A terrain hex runs through the wider authored landscape-base mesh.
+      // Castle identity and raycasting already provide the occupied-cell cue,
+      // so reserve this outline for empty terrain instead of drawing through
+      // the model and presenting the intersection as base clipping.
+      setOverlay(
+        hoverOverlay,
+        options.surface,
+        terrainOverlayCoord(coord),
+        terrainPlacements
+      );
       render();
     },
     setPresentedCastleIds: (castleIds) => {
@@ -1344,12 +1386,18 @@ function initializeRealmScene(
           castle.coord.q === coord.q && castle.coord.r === coord.r
         ))?.castleId
         : undefined;
-      setOverlay(selectedOverlay, options.surface, coord, terrainPlacements);
+      setOverlay(
+        selectedOverlay,
+        options.surface,
+        terrainOverlayCoord(coord),
+        terrainPlacements
+      );
       render();
     },
     setSelectedCastleId: (castleId) => {
       if (cleanup.isDisposed()) return;
       selectedCastleId = castleId === null ? undefined : castleId;
+      if (castleId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
       render();
     },
     setComposition: (composition) => cameraController.setComposition(composition),

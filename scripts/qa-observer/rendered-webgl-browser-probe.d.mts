@@ -5,7 +5,7 @@ export const RENDERED_WEBGL_QA_CHROME:
 export const RENDERED_WEBGL_QA_CHROME_APP: '/Applications/Google Chrome.app';
 export const RENDERED_WEBGL_QA_CHROME_TEAM_ID: 'EQHXZ8M8AV';
 export const RENDERED_WEBGL_QA_CASE_COUNT: 14;
-export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS: 112;
+export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS: 0;
 export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS: 0.015;
 /** Vite 8 default deny patterns plus the local asset-cache boundary. */
 export const RENDERED_WEBGL_QA_VITE_FS_DENY: readonly [
@@ -49,8 +49,7 @@ export type RenderedWebglBrowserProbePresentationMode = 'observer' | 'player';
 export type RenderedWebglBrowserProbeInteraction =
   | 'default'
   | 'inspector'
-  | 'explore'
-  | 'cluster';
+  | 'explore';
 export type RenderedWebglBrowserProbeControlState = 'visible' | 'hidden' | 'absent';
 
 export type RenderedWebglBrowserProbeCase = Readonly<{
@@ -60,7 +59,7 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'full-hd-balanced'
     | 'tablet-balanced-inspector'
     | 'tablet-balanced-player-inspector'
-    | 'mobile-balanced-cluster'
+    | 'mobile-balanced-persistent-labels'
     | 'desktop-reduced'
     | 'desktop-invalid-fallback'
     | 'desktop-balanced-player'
@@ -74,13 +73,9 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
   /** Strict player HUD state required after a constrained interactive surface opens. */
   expectedPlayerActionControlState?: RenderedWebglBrowserProbeControlState;
   interaction: RenderedWebglBrowserProbeInteraction;
-  /** Maximum identities allowed to fall through clusters into Explore. */
+  /** Must remain zero: every projection-visible castle has a direct label. */
   maximumLabelOverflowCount: number;
   minimumLabelCount: number;
-  /** Confirms a real cluster control existed immediately before activation. */
-  clusterButtonCountBefore?: number;
-  /** Confirms that control represented at least one castle before activation. */
-  clusterMemberCountBefore?: number;
   url: string;
   viewport: Readonly<{ width: number; height: number }>;
 }>;
@@ -222,8 +217,6 @@ export function applyRenderedWebglCastleCanvasInteraction(
 ): Promise<Readonly<{ pointerMoveCount: 5 }>>;
 
 export type RenderedWebglBrowserProbeInteractionEvidence = Readonly<{
-  clusterButtonCountBefore?: number;
-  clusterMemberCountBefore?: number;
   inspectorLabelActivated?: true;
 }>;
 

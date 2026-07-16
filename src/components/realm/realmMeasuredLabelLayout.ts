@@ -1,6 +1,12 @@
 export type RealmLabelPriority = 'selected' | 'hovered' | 'own' | 'near' | 'far';
 
 /**
+ * Rectangle primitives remain shared with composition measurement. The label
+ * packing/culling functions below are legacy regression utilities only and
+ * must not be reconnected to Alpha 0.3.6 world-label membership.
+ */
+
+/**
  * `compact` still carries a short public identity string. It is deliberately
  * not an avatar-only mode: a castle marker without readable identity is not a
  * useful map affordance in a dense founding district.

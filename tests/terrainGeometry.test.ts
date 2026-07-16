@@ -65,6 +65,21 @@ describe('combined lowlands terrain geometry', () => {
     expect(geometry.bounds.maxY - geometry.bounds.minY).toBeLessThan(0.45);
   });
 
+  it('records the exact chamfered terrain perimeter for truthful overview framing', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 5);
+    const geometry = createTerrainGeometryData(map, 1);
+    const hullX = geometry.overviewHull.map((point) => point.x);
+    const hullZ = geometry.overviewHull.map((point) => point.z);
+
+    expect(geometry.overviewHull).toHaveLength(12);
+    expect(Math.min(...hullX)).toBeCloseTo(geometry.bounds.minX, 5);
+    expect(Math.max(...hullX)).toBeCloseTo(geometry.bounds.maxX, 5);
+    expect(Math.min(...hullZ)).toBeCloseTo(geometry.bounds.minZ, 5);
+    expect(Math.max(...hullZ)).toBeCloseTo(geometry.bounds.maxZ, 5);
+    expect(Object.isFrozen(geometry.overviewHull)).toBe(true);
+    expect(geometry.overviewHull.every(Object.isFrozen)).toBe(true);
+  });
+
   it('tessellates an authoritative off-center keep footprint as a flat foundation', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 4);
     const coord = { q: 2, r: -1 } as const;

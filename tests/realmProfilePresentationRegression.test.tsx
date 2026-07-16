@@ -561,67 +561,76 @@ describe('realm profile and PFP presentation regressions', () => {
     const button = screen.getByRole('button', { name: /Inspect @warpkeeper castle/i });
     expect(within(button).getByText('@warpkeeper')).not.toBeNull();
     expect(button.textContent).not.toMatch(/FID\s*9007199254740991/i);
-    expect(document.querySelectorAll('[data-measure-castle-id]')).toHaveLength(1);
-    expect(document.querySelectorAll('[data-measure-compact-castle-id]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-measure-castle-id]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-measure-compact-castle-id]')).toHaveLength(0);
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
     expect(onMapPointerDown).not.toHaveBeenCalled();
     fireEvent.click(button);
     expect(onActivate).toHaveBeenCalledOnce();
   });
 
-  it('exposes clustered castles as a small keyboard and pointer zoom affordance', () => {
+  it('keeps overlapping founded identities as permanent direct controls', () => {
     const onMapPointerDown = vi.fn();
-    const onActivateCluster = vi.fn();
-    const cluster = {
-      key: 'cluster-7-3',
-      castleIds: [7, 8, 9],
-      representativeCastleId: 7,
-      anchor: { x: 180, y: 140 },
-      x: 220,
-      y: 180,
-      width: 96,
-      bounds: { left: 172, top: 136, right: 268, bottom: 180 }
-    } as const;
-    render(
+    const onActivate = vi.fn();
+    const castles = [7, 8, 9].map((castleId) => ({
+      castleId,
+      ownerFid: 7_000 + castleId,
+      q: castleId - 7,
+      r: 7 - castleId,
+      level: 1,
+      name: `Fixture Keep ${castleId}`
+    }));
+    const records = new Map(castles.map((castle) => [castle.castleId, {
+      castle,
+      profile: profile({ canonicalUsername: `keeper${castle.castleId}` })
+    }]));
+    const labels = castles.map((castle) => ({
+      castleId: castle.castleId,
+      q: castle.q,
+      r: castle.r,
+      x: 180,
+      y: 140,
+      distance: castle.castleId,
+      visible: true,
+      compact: true,
+      projectedAnchor: { x: 180, y: 140 }
+    }));
+    const view = (distanceOffset: number) => (
       <div onPointerDown={onMapPointerDown}>
         <RealmCastleLabels
-          labels={[]}
-          clusters={[cluster]}
-          records={new Map([[7, {
-            castle: {
-              castleId: 7,
-              ownerFid: 7_001,
-              q: 1,
-              r: -1,
-              level: 1,
-              name: 'Fixture Keep'
-            },
-            profile: profile({ canonicalUsername: 'fixturekeeper' })
-          }]])}
+          labels={labels.map((label) => ({
+            ...label,
+            distance: label.distance + distanceOffset
+          }))}
+          records={records}
           inspectorId="castle-inspector"
           inspectorOpen={false}
-          onActivate={vi.fn()}
-          onActivateCluster={onActivateCluster}
+          onActivate={onActivate}
         />
       </div>
     );
+    const { rerender } = render(view(0));
 
+    const buttons = screen.getAllByRole('button', { name: /Inspect @keeper\d castle/i });
+    expect(buttons).toHaveLength(3);
+    expect(document.querySelectorAll('[data-realm-castle-cluster]')).toHaveLength(0);
+    expect(buttons.every((button) => (
+      button.dataset.anchor === 'foundation-base'
+      && button.dataset.displaced === 'false'
+      && button.style.getPropertyValue('--realm-castle-label-x') === '180px'
+      && button.style.getPropertyValue('--realm-castle-label-y') === '140px'
+    ))).toBe(true);
+    const firstButton = buttons[0]!;
+    rerender(view(10_000));
+    expect(screen.getByRole('button', {
+      name: 'Inspect @keeper7 castle, Fixture Keep 7, cell 0,0'
+    })).toBe(firstButton);
     const button = screen.getByRole('button', {
-      name: 'Focus @fixturekeeper castle, Fixture Keep, cell 1,-1, and 2 nearby keepers'
+      name: 'Inspect @keeper8 castle, Fixture Keep 8, cell 1,-1'
     });
-    expect(button.textContent).toBe('@fixturekeeper+2');
-    expect(button.getAttribute('data-cluster-count')).toBe('3');
-    expect(button.getAttribute('data-representative-castle-id')).toBe('7');
-    expect(button.getAttribute('data-displaced')).toBe('true');
-    expect(button.getAttribute('style')).toContain('--realm-castle-cluster-x: 220px');
-    const leader = document.querySelector<HTMLElement>('[data-realm-cluster-leader]');
-    expect(leader?.dataset.active).toBe('true');
-    expect(leader?.getAttribute('data-representative-castle-id')).toBe('7');
-    expect(leader?.style.getPropertyValue('--realm-castle-anchor-x')).toBe('180px');
-    expect(leader?.style.getPropertyValue('--realm-castle-anchor-y')).toBe('140px');
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
     expect(onMapPointerDown).not.toHaveBeenCalled();
     fireEvent.click(button);
-    expect(onActivateCluster).toHaveBeenCalledWith(cluster);
+    expect(onActivate).toHaveBeenCalledWith(castles[1]);
   });
 });

@@ -9,11 +9,13 @@ import {
   calculateKeepNormalization,
   clearHegemonyKeepBinaryCacheForTests,
   disposeRealmObject,
+  HEGEMONY_MODEL_MATERIAL_CALIBRATION,
   keepAssetPathForQuality,
   loadHegemonyKeep,
   prepareHegemonyKeepScene,
   resolveIntegrityPinnedRealmAssetUrl,
-  resolveRealmAssetUrl
+  resolveRealmAssetUrl,
+  tuneHegemonyModelMaterial
 } from '../src/components/realm/loadHegemonyKeep';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 
@@ -168,8 +170,63 @@ describe('Hegemony keep runtime assets', () => {
     expect((scene.children[0] as THREE.Mesh).receiveShadow).toBe(true);
     expect(material.metalness).toBe(0.92);
     expect(material.roughness).toBe(0.2);
+    expect(material.color.r).toBeCloseTo(
+      HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain,
+      8
+    );
+    expect(material.color.g).toBeCloseTo(
+      HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain,
+      8
+    );
+    expect(material.color.b).toBeCloseTo(
+      HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain,
+      8
+    );
 
     disposeRealmObject(prepared.root);
+  });
+
+  it('applies a bounded role-aware diffuse calibration without compounding it', () => {
+    expect(HEGEMONY_MODEL_MATERIAL_CALIBRATION).toEqual({
+      revision: 'readable-v2',
+      maximumColorChannel: 1.25,
+      castleDiffuseGain: 1.18,
+      landscapeBaseDiffuseGain: 1.06
+    });
+    const material = new THREE.MeshStandardMaterial();
+    material.color.setRGB(0.8, 0.6, 1.2);
+
+    tuneHegemonyModelMaterial(material, 1, 'castle');
+    const castleColor = material.color.clone();
+    tuneHegemonyModelMaterial(material, 8, 'castle');
+
+    expect(material.color.equals(castleColor)).toBe(true);
+    expect(material.color.r).toBeCloseTo(
+      0.8 * HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain,
+      8
+    );
+    expect(material.color.g).toBeCloseTo(
+      0.6 * HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain,
+      8
+    );
+    expect(material.color.b).toBe(HEGEMONY_MODEL_MATERIAL_CALIBRATION.maximumColorChannel);
+    expect(material.emissiveMap).toBeNull();
+    expect(material.emissive.getHex()).toBe(0);
+
+    tuneHegemonyModelMaterial(material, 1, 'landscape-base');
+
+    expect(material.color.r).toBeCloseTo(
+      0.8 * HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain,
+      8
+    );
+    expect(material.color.g).toBeCloseTo(
+      0.6 * HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain,
+      8
+    );
+    expect(material.color.b).toBe(HEGEMONY_MODEL_MATERIAL_CALIBRATION.maximumColorChannel);
+    expect(material.color.r).not.toBeCloseTo(castleColor.r, 8);
+
+    material.dispose();
   });
 
   it('integrity-checks and coalesces keep bytes while parsing disposable scene instances', async () => {

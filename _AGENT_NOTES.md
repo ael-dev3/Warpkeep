@@ -2,15 +2,28 @@
 
 ## Current state
 
-The checked-in package is the verified Alpha 0.3.5 Pages-only public release.
-The public menu build stamp identifies the exact deployed source; an annotated
-release tag is created only after that deployed commit passes exact-build
-verification. Do not turn the disabled local QA observer into a Worker or
-SpacetimeDB release without a separately reviewed production scope.
+The checked-in package is the Alpha 0.3.6 candidate in PR #44. It is not merged,
+deployed, tagged, or verified as a public release. Alpha 0.3.5 remains the
+verified Pages-only public release, and its public menu build stamp identifies
+the exact deployed source. An annotated release tag is created only after the
+matching protected-main deployment passes exact-build verification. Do not
+turn the disabled local QA observer into a Worker or SpacetimeDB release without
+a separately reviewed production scope.
 
-The release also fixes every direct Realm username rail to the projected
-foundation base and presents the selected keep in a responsive Farcaster castle
-record. Its decorative castle art is a same-origin, integrity-pinned,
+The candidate raises castle readability through one bounded role-aware material
+calibration and a camera-facing revision of existing directional fill, without
+changing global exposure, GLB bytes, textures, transforms, light count, or
+authority. It widens only local terrain support around the authored landscape
+footprint, removes occupied-cell outlines that visually cross the base, keeps
+one permanent direct identity rail per projection-visible founded castle, and
+adds a readable floor to ordinary zoom while preserving an explicit truthful
+Realm overview. It changes no authentication, admission, backend, production
+data, DNS, or deployment state.
+
+The verified Alpha 0.3.5 release also presented the selected keep in a
+responsive Farcaster castle record, while this candidate makes every direct
+Realm username rail permanent at its projected foundation base. Its decorative
+castle art is a same-origin, integrity-pinned,
 provenance-required runtime asset. These are browser presentation changes only;
 they add no gameplay field, action, identity authority, or backend mutation.
 The merged authentication presentation shows a verified username/static PFP
@@ -29,7 +42,7 @@ only after pending acquisitions and active leases both reach zero, then its one
 cache retain is released exactly once. Empty authoritative castle sets are
 ready with zero models rather than treated as a missing pair.
 
-Warpkeep Alpha 0.3.5 preserves the live title/menu, explicit Alpha Terms gate,
+Warpkeep Alpha 0.3.6 preserves the live title/menu, explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
 least-privilege Cloudflare Worker OIDC bridge, and a non-destructively published
 protocol-3 SpacetimeDB module. Genesis 001 contains 1,261 authoritative cells
@@ -69,11 +82,18 @@ Start with:
   castle cannot beat a nearer base. No public open licence, general
   derivative/redistribution authority, trademark right, or same-named-file
   substitution is granted.
-- A direct castle username has exactly one honest location: its projected
-  foundation-base anchor. Do not reintroduce random or collision-driven
-  individual displacement, roof stacking, or individual leader lines. When
-  that exact rail cannot fit, preserve identity through the deterministic
-  keeper-cluster/Explore accounting rather than moving it away from the keep.
+- Every projection-visible founded castle has exactly one persistent direct
+  username control at its projected foundation-base anchor. Keep that React
+  node keyed by castle identity across camera distance and castle LOD changes;
+  update only its projected coordinates. Do not reintroduce random or
+  collision-driven displacement, roof stacking, individual leader lines,
+  automatic keeper clusters, overflow/capacity culling, or distance-driven
+  membership/presentation. Dense labels may overlap and a partially visible
+  castle's control may be clipped by the viewport; a lower overlapping rail may
+  also be pointer-obscured, so Explore must retain the individually selectable
+  touch/pointer path. Compact presentation may depend on stable viewport width
+  only. Explore remains supplementary and must never replace, aggregate, or
+  hide an eligible world label.
 - Castle records may render only the existing sanitized public Farcaster
   projection and public castle/visibility-gated Marks fields. Do not fabricate
   durability, alliance, combat status, coordinates, resources, or actions to

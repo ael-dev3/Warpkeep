@@ -1,12 +1,10 @@
-import { Fragment, type CSSProperties } from 'react';
+import { type CSSProperties } from 'react';
 
 import { StaticProfileImageCanvas } from '../profile/StaticProfileImageCanvas';
 import type { RealmCastleProjection } from './RealmMapScreen';
-import type { RealmCastleIdentityCluster } from './realmCastleIdentityClusters';
 import {
   castleProfileLabel,
   castleProfileMonogram,
-  realmCastleLabelLeaderGeometry,
   type RealmCastlePublicPresentation,
   type VisibleCastleLabel
 } from './realmCastlePresentation';
@@ -55,57 +53,29 @@ export function CastleProfileAvatar({
 
 export function RealmCastleLabels({
   labels,
-  clusters = [],
   records,
   selectedCastleId,
   inspectorCastleId,
   focusedCastleId,
+  hoveredCastleId,
   ownCastleId,
   inspectorId,
   inspectorOpen,
-  onActivate,
-  onActivateCluster = () => undefined
+  onActivate
 }: Readonly<{
   labels: readonly VisibleCastleLabel[];
-  clusters?: readonly RealmCastleIdentityCluster[];
   records: ReadonlyMap<number, CastleLabelRecord>;
   selectedCastleId?: number;
   inspectorCastleId?: number;
   focusedCastleId?: number;
+  hoveredCastleId?: number;
   ownCastleId?: number;
   inspectorId: string;
   inspectorOpen: boolean;
   onActivate: (castle: RealmCastleProjection) => void;
-  onActivateCluster?: (cluster: RealmCastleIdentityCluster) => void;
 }>) {
   return (
     <div className="realm-castle-labels" aria-label="Visible player castles">
-      <div className="realm-castle-label-measurements" aria-hidden="true">
-        {[...records.values()].map((record) => {
-          const profileLabel = castleProfileLabel(record.profile);
-          return (
-            <Fragment key={`measure-${record.castle.castleId}`}>
-              <span
-                className="realm-castle-label realm-castle-label--measurement"
-                data-measure-castle-id={record.castle.castleId}
-              >
-                <span className="realm-castle-label__plate">
-                  <span className="realm-castle-label__identity">{profileLabel}</span>
-                </span>
-              </span>
-              <span
-                className="realm-castle-label realm-castle-label--measurement"
-                data-compact="true"
-                data-measure-compact-castle-id={record.castle.castleId}
-              >
-                <span className="realm-castle-label__plate">
-                  <span className="realm-castle-label__identity">{profileLabel}</span>
-                </span>
-              </span>
-            </Fragment>
-          );
-        })}
-      </div>
       {labels.map((label) => {
         const record = records.get(label.castleId);
         if (!record) return null;
@@ -113,6 +83,7 @@ export function RealmCastleLabels({
         const own = label.castleId === ownCastleId;
         const selected = label.castleId === selectedCastleId;
         const focused = label.castleId === focusedCastleId;
+        const hovered = label.castleId === hoveredCastleId;
         const expanded = label.castleId === inspectorCastleId && inspectorOpen;
         const positionStyle = {
           '--realm-castle-label-x': `${label.x}px`,
@@ -134,6 +105,7 @@ export function RealmCastleLabels({
             data-compact={label.compact ? 'true' : 'false'}
             data-displaced="false"
             data-focused={focused ? 'true' : 'false'}
+            data-hovered={hovered ? 'true' : 'false'}
             data-own={own ? 'true' : 'false'}
             style={positionStyle}
             onPointerDown={(event) => event.stopPropagation()}
@@ -143,70 +115,6 @@ export function RealmCastleLabels({
               <span className="realm-castle-label__identity">{profileLabel}</span>
             </span>
           </button>
-        );
-      })}
-      {clusters.map((cluster) => {
-        const count = cluster.castleIds.length;
-        const representative = records.get(cluster.representativeCastleId);
-        const representativeLabel = representative
-          ? castleProfileLabel(representative.profile)
-          : 'Hegemony Keep';
-        const representativeDescription = representative
-          ? `${representativeLabel} castle, ${representative.castle.name}, cell ${representative.castle.q},${representative.castle.r}`
-          : `${representativeLabel} castle`;
-        const additionalKeeperCount = Math.max(0, count - 1);
-        const leader = realmCastleLabelLeaderGeometry({
-          x: cluster.x,
-          y: cluster.y,
-          projectedAnchor: cluster.anchor
-        });
-        const style = {
-          '--realm-castle-cluster-x': `${cluster.x}px`,
-          '--realm-castle-cluster-y': `${cluster.y}px`,
-          '--realm-castle-cluster-width': `${cluster.width}px`,
-          '--realm-castle-anchor-x': `${cluster.anchor.x}px`,
-          '--realm-castle-anchor-y': `${cluster.anchor.y}px`,
-          '--realm-castle-leader-length': `${leader.length}px`,
-          '--realm-castle-leader-angle': `${leader.angleRadians}rad`
-        } as CSSProperties;
-        return (
-          <Fragment key={cluster.key}>
-            <span
-              aria-hidden="true"
-              className="realm-castle-label__leader realm-castle-cluster__leader"
-              data-active={leader.displaced ? 'true' : 'false'}
-              data-cluster-key={cluster.key}
-              data-realm-cluster-leader=""
-              data-representative-castle-id={cluster.representativeCastleId}
-              hidden={!leader.displaced}
-              style={style}
-            />
-            <button
-              type="button"
-              aria-label={additionalKeeperCount > 0
-                ? `Focus ${representativeDescription}, and ${additionalKeeperCount} nearby ${additionalKeeperCount === 1 ? 'keeper' : 'keepers'}`
-                : `Focus ${representativeDescription}`}
-              className="realm-castle-cluster"
-              data-cluster-key={cluster.key}
-              data-cluster-count={count}
-              data-displaced={leader.displaced ? 'true' : 'false'}
-              data-representative-castle-id={cluster.representativeCastleId}
-              data-realm-castle-cluster=""
-              style={style}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => onActivateCluster(cluster)}
-            >
-              <span className="realm-castle-cluster__identity">{representativeLabel}</span>
-              {additionalKeeperCount > 0 ? (
-                <strong
-                  aria-hidden="true"
-                  className="realm-castle-cluster__more"
-                >
-                  +{additionalKeeperCount}
-                </strong>
-              ) : null}
-            </button>
-          </Fragment>
         );
       })}
     </div>

@@ -52,9 +52,9 @@ const TABLET_VIEWPORT = Object.freeze({ width: 1_024, height: 768 });
 const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
 export const RENDERED_WEBGL_QA_CASE_COUNT = 14;
-// Individual keeper names are locked to the projected castle foundation.
-// Clusters may still move within a bounded radius so dense realms remain
-// navigable without turning every name into a floating badge.
+// Every projection-visible keeper name is locked to its castle foundation.
+// Dense overviews may overlap, but camera motion cannot aggregate, displace,
+// or hide founded identities.
 export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS = 0;
 const RENDERED_WEBGL_QA_CLUSTER_MAX_ANCHOR_DISPLACEMENT_PIXELS = 112;
 export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS = 0.015;
@@ -70,14 +70,12 @@ export const RENDERED_WEBGL_QA_VITE_FS_DENY = Object.freeze([
 ]);
 const RENDERED_WEBGL_QA_LABEL_ANGLE_TOLERANCE_RADIANS = 0.002;
 const RENDERED_WEBGL_QA_CASTLE_POINTER_ACTIVATION_CASE_ID = 'desktop-balanced';
-// Opening a record or cluster changes the camera and therefore the projection-
-// eligible set. Explore intentionally reserves every map-label berth while its
-// accessible 100-castle list is open. Keep those post-action bounds explicit
-// without weakening each case's viewport-specific pre-action overflow cap.
+// Interactions may change the projection-visible set, but every eligible castle
+// must remain a direct label. Explore remains the complete accessible list and
+// never becomes an excuse for automatic world-label overflow.
 const RENDERED_WEBGL_QA_INTERACTION_MAXIMUM_LABEL_OVERFLOW_COUNT = Object.freeze({
-  cluster: 2,
-  explore: 100,
-  inspector: 5,
+  explore: 0,
+  inspector: 0,
 });
 // Castle labels attach immediately below the projected foundation. This depth
 // is deliberately above the interactive label and inside the rendered keep body
@@ -267,18 +265,15 @@ async function attestStableHeadlessChromeExecutable(expectedIdentity) {
 export function renderedWebglBrowserProbeCases(port) {
   const selectedPort = exactPort(port);
   const origin = `http://127.0.0.1:${selectedPort}`;
-  // Floors retain a one- or two-label margin below the deterministic settled
-  // fixture; short landscape keeps its honest one-label floor. Overflow caps
-  // retain a two-castle margin above the same settled fixture. This catches a
-  // username-capacity regression without reviving the former detached-label
-  // layout.
+  // Per-case minimums catch projection/camera regressions, while exact direct
+  // coverage and zero overflow forbid automatic aggregation or disappearance.
   return Object.freeze([
     Object.freeze({
       id: 'desktop-high',
       expectedPresentationMode: 'observer',
       expectedQuality: 'high',
       interaction: 'default',
-      maximumLabelOverflowCount: 13,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 10,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'high' }),
       viewport: DESKTOP_VIEWPORT,
@@ -288,7 +283,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'default',
-      maximumLabelOverflowCount: 13,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 10,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: DESKTOP_VIEWPORT,
@@ -298,7 +293,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'default',
-      maximumLabelOverflowCount: 8,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 16,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: FULL_HD_VIEWPORT,
@@ -308,7 +303,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'inspector',
-      maximumLabelOverflowCount: 9,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 11,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: TABLET_VIEWPORT,
@@ -322,7 +317,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'inspector',
-      maximumLabelOverflowCount: 9,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 11,
       url: renderedWebglQaUrl({
         mode: 'player',
@@ -332,11 +327,11 @@ export function renderedWebglBrowserProbeCases(port) {
       viewport: TABLET_VIEWPORT,
     }),
     Object.freeze({
-      id: 'mobile-balanced-cluster',
+      id: 'mobile-balanced-persistent-labels',
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
-      interaction: 'cluster',
-      maximumLabelOverflowCount: 10,
+      interaction: 'default',
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 5,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: MOBILE_VIEWPORT,
@@ -346,7 +341,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'reduced',
       interaction: 'default',
-      maximumLabelOverflowCount: 13,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 10,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'reduced' }),
       viewport: DESKTOP_VIEWPORT,
@@ -356,7 +351,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'default',
-      maximumLabelOverflowCount: 13,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 10,
       url: `${origin}${RENDERED_WEBGL_QA_ROUTE}?quality=invalid`,
       viewport: DESKTOP_VIEWPORT,
@@ -366,7 +361,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'default',
-      maximumLabelOverflowCount: 10,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 5,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: MOBILE_VIEWPORT,
@@ -376,7 +371,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'reduced',
       interaction: 'inspector',
-      maximumLabelOverflowCount: 8,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 4,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'reduced' }),
       viewport: MOBILE_VIEWPORT,
@@ -386,7 +381,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'explore',
-      maximumLabelOverflowCount: 17,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 1,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: SHORT_LANDSCAPE_VIEWPORT,
@@ -401,7 +396,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'explore',
-      maximumLabelOverflowCount: 17,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 1,
       url: renderedWebglQaUrl({
         mode: 'player',
@@ -415,7 +410,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'default',
-      maximumLabelOverflowCount: 13,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 10,
       url: renderedWebglQaUrl({
         mode: 'player',
@@ -433,7 +428,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'default',
-      maximumLabelOverflowCount: 10,
+      maximumLabelOverflowCount: 0,
       minimumLabelCount: 4,
       url: renderedWebglQaUrl({
         mode: 'player',
@@ -693,7 +688,6 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'labelEligibleCount',
     'labelClusteredCount',
     'labelClusterOverflowCount',
-    'labelCastleOverlapCount',
     'labelAttachmentViolationCount',
     'labelHitTestViolationCount',
     'labelIdentityPresentationViolationCount',
@@ -747,28 +741,16 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   if (
     !validLabelCullReasonAggregate(candidate.labelCullReasons)
   ) throw new TypeError('Invalid rendered WebGL browser DOM: label-cull-reasons-shape.');
-  // A cluster must leave its revealed label focused; that label is the
-  // interaction surface under test. An inspector, however, can legitimately
-  // reserve screen space that causes its source label to be culled by the
-  // collision-safe layout. If it survives, focus can remain on either the
-  // label or the newly opened inspector. Inspector activation is instead
-  // proven directly by the bounded label-action evidence below the browser
-  // boundary.
-  const expectedFocusedReadableLabelCount = expected.interaction === 'cluster'
-    ? 1
-    : expected.interaction === 'inspector' ? undefined : 0;
-  const expectedFocusedReadableLabelDomFocusCount = expected.interaction === 'cluster'
-    ? 1
-    : expected.interaction === 'inspector' ? undefined : 0;
+  // Inspector activation can legitimately transfer focus from its permanent
+  // source label into the record. Other lanes should not retain a focused
+  // world identity.
+  const expectedFocusedReadableLabelCount = expected.interaction === 'inspector'
+    ? undefined : 0;
+  const expectedFocusedReadableLabelDomFocusCount = expected.interaction === 'inspector'
+    ? undefined : 0;
   const expectedExploreCastleCount = expected.interaction === 'explore'
     ? candidate.castleCount
     : 0;
-  const clusterInteractionEvidenceValid = expected.interaction !== 'cluster' || (
-    Number.isSafeInteger(expected.clusterButtonCountBefore)
-    && expected.clusterButtonCountBefore > 0
-    && Number.isSafeInteger(expected.clusterMemberCountBefore)
-    && expected.clusterMemberCountBefore > 0
-  );
   const presentationControlsMayBeOccluded = ['inspector', 'explore'].includes(
     expected.interaction
   );
@@ -823,8 +805,10 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       || candidate.labelPlacedCount < 0 ? 'label-placed-shape' : '',
     !Number.isSafeInteger(candidate.labelUnplacedCount)
       || candidate.labelUnplacedCount < 0 ? 'label-unplaced-shape' : '',
-    candidate.labelEligibleCount !== candidate.labelPlacedCount + candidate.labelUnplacedCount
-      ? 'label-coverage-total' : '',
+    candidate.labelEligibleCount !== candidate.labelPlacedCount
+      ? 'label-direct-coverage' : '',
+    candidate.labelUnplacedCount !== 0 ? 'label-unplaced' : '',
+    candidate.labelCullReasons !== '' ? 'label-cull-reasons' : '',
     candidate.labelPlacedCount !== candidate.labelCount ? 'label-placement-dom' : '',
     candidate.individualCastleCount !== candidate.labelPlacedCount
       ? 'individual-label-mismatch' : '',
@@ -838,28 +822,17 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     candidate.raycastTargetCount !== candidate.presentedModelCount
       ? 'raycast-target-mismatch' : '',
     !Number.isSafeInteger(candidate.labelClusteredCount)
-      || candidate.labelClusteredCount < 0 ? 'label-clustered-shape' : '',
+      || candidate.labelClusteredCount !== 0 ? 'label-clustered' : '',
     !Number.isSafeInteger(candidate.labelClusterOverflowCount)
-      || candidate.labelClusterOverflowCount < 0 ? 'label-cluster-overflow-shape' : '',
+      || candidate.labelClusterOverflowCount !== 0 ? 'label-cluster-overflow' : '',
     !Number.isSafeInteger(expected.maximumLabelOverflowCount)
-      || expected.maximumLabelOverflowCount < 0
-      || expected.maximumLabelOverflowCount > candidate.castleCount
-      ? 'expected-label-cluster-overflow-cap' : '',
-    candidate.labelClusterOverflowCount > expected.maximumLabelOverflowCount
-      ? 'label-cluster-overflow-cap' : '',
-    candidate.labelUnplacedCount
-      !== candidate.labelClusteredCount + candidate.labelClusterOverflowCount
-      ? 'label-cluster-accounting' : '',
-    candidate.clusterMemberCount !== candidate.labelClusteredCount
-      ? 'label-cluster-membership' : '',
-    candidate.labelClusteredCount > 0 && candidate.clusterButtonCount < 1
-      ? 'label-cluster-affordance' : '',
-    candidate.accessibleClusterButtonCount !== candidate.clusterButtonCount
-      ? 'label-cluster-accessibility' : '',
-    // A foundation-locked identity is preferable to a detached badge. When a
-    // constrained viewport cannot place one exactly at that anchor, exact
-    // coverage accounting routes it to clustering or the separately exercised
-    // Explore surface instead of floating the control elsewhere.
+      || expected.maximumLabelOverflowCount !== 0
+      ? 'expected-label-overflow' : '',
+    candidate.clusterMemberCount !== 0 ? 'label-cluster-membership' : '',
+    candidate.clusterButtonCount !== 0 ? 'label-cluster-affordance' : '',
+    candidate.accessibleClusterButtonCount !== 0 ? 'label-cluster-accessibility' : '',
+    // Public fallback text means every founded castle keeps a readable direct
+    // identity even while profile hydration is pending.
     candidate.labelMissingIdentityCount !== 0 ? 'label-missing-identity' : '',
     candidate.labelAccountingValid !== true ? 'label-accounting' : '',
     !Number.isSafeInteger(candidate.labelMaximumAnchorDisplacement)
@@ -870,18 +843,12 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     !Number.isSafeInteger(candidate.labelAttachmentViolationCount)
       || candidate.labelAttachmentViolationCount !== 0
       ? 'label-attachment' : '',
-    !Number.isSafeInteger(candidate.labelCastleOverlapCount)
-      || candidate.labelCastleOverlapCount !== 0
-      ? 'label-castle-overlap' : '',
     !Number.isSafeInteger(candidate.labelPlacementBindingViolationCount)
       || candidate.labelPlacementBindingViolationCount !== 0
       ? 'label-placement-binding' : '',
     !Number.isSafeInteger(candidate.labelIdentityPresentationViolationCount)
       || candidate.labelIdentityPresentationViolationCount !== 0
       ? 'label-identity-presentation' : '',
-    !Number.isSafeInteger(candidate.labelHitTestViolationCount)
-      || candidate.labelHitTestViolationCount !== 0
-      ? 'label-hit-test' : '',
     candidate.clustersWithinViewportCount !== candidate.clusterButtonCount
       ? 'label-cluster-viewport' : '',
     candidate.clusterCollisionCount !== 0 ? 'label-cluster-collision' : '',
@@ -937,10 +904,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     candidate.inspectorProfileImageState !== (
       expected.interaction === 'inspector' ? 'ready' : 'absent'
     ) ? 'inspector-profile-image-state' : '',
-    candidate.labelsWithinViewportCount !== candidate.labelCount ? 'label-viewport' : '',
-    candidate.labelCollisionCount !== 0 ? 'label-collision' : '',
     candidate.labelLeaderMismatchCount !== 0 ? 'label-leader' : '',
-    candidate.labelReservedOverlapCount !== 0 ? 'label-reserved-ui' : '',
     candidate.undersizedPrimaryControlCount !== 0
       ? `touch-target:${Array.isArray(candidate.undersizedPrimaryControlKinds)
           ? candidate.undersizedPrimaryControlKinds.join('|')
@@ -962,7 +926,6 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       ? !expectedPresentationControlStateValid(candidate.closeQaObserverControlState)
       : candidate.closeQaObserverControlState !== 'absent')
       ? `${expected.expectedPresentationMode}-observer-close` : '',
-    !clusterInteractionEvidenceValid ? 'cluster-interaction-evidence' : '',
   ].filter(Boolean);
   if (violations.length > 0) {
     throw new TypeError(`Invalid rendered WebGL browser DOM: ${violations.join(',')}.`);
@@ -1950,9 +1913,16 @@ const READ_DOM_EXPRESSION = `(() => {
     const anchorX = cssUnitNumber(label, '--realm-castle-anchor-x', 'px');
     const anchorY = cssUnitNumber(label, '--realm-castle-anchor-y', 'px');
     const distance = Math.hypot(x - anchorX, y - anchorY);
+    const controlBounds = rect(label);
     return {
       distance,
-      attachmentValid: castleId !== null
+      attachmentValid: label instanceof HTMLButtonElement
+        && !label.disabled
+        && label.tabIndex >= 0
+        && (label.getAttribute('aria-label') ?? '').trim().length > 0
+        && controlBounds.width >= 44
+        && controlBounds.height >= 44
+        && castleId !== null
         && label.getAttribute('data-anchor') === 'foundation-base'
         && label.getAttribute('data-displaced') === 'false'
         && Number.isFinite(distance)
@@ -2081,7 +2051,7 @@ const READ_DOM_EXPRESSION = `(() => {
       ? 'inspector'
       : visible(dialog)
         ? 'explore'
-        : focusedReadableLabels.length > 0 ? 'cluster' : 'default',
+        : 'default',
     inspectorProfileImageState: inspectorProfileImage instanceof HTMLCanvasElement
       ? inspectorProfileImage.getAttribute('data-profile-image-state')
       : 'absent',
@@ -2112,9 +2082,6 @@ const READ_DOM_EXPRESSION = `(() => {
       && bounds.bottom <= innerHeight + 1
     )).length,
     labelCollisionCount,
-    labelCastleOverlapCount: integer(
-      map?.getAttribute('data-label-castle-overlap-count')
-    ),
     labelAttachmentViolationCount,
     labelPlacementBindingViolationCount,
     labelIdentityPresentationViolationCount,
@@ -2221,7 +2188,8 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
           return value;
         } catch (error) {
           lastContractError = error;
-          // Camera, measured labels, and responsive UI settle asynchronously.
+          // Camera projection, direct-label coordinates, and responsive UI
+          // settle asynchronously.
           // Continue until the complete visual contract is simultaneously true.
         }
         if (Date.now() - readySeenAt >= PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS) {
@@ -2382,107 +2350,6 @@ export async function applyRenderedWebglCastleCanvasInteraction(session) {
 
 export async function applyRenderedWebglCaseInteraction(session, interaction) {
   if (interaction === 'default') return Object.freeze({});
-  if (interaction === 'cluster') {
-    // The accepted baseline frame already proves the mobile fixture is fully
-    // rendered and collision-free. Activate its real aggregate directly: an
-    // extra Show Full Realm camera animation can replace that verified layout
-    // before the click, and headless animation cadence legitimately differs
-    // when the QA runner owns a detached process group.
-    const deadline = Date.now() + PRESENTATION_SETTLE_TIMEOUT_MILLISECONDS;
-    let lastClusterAggregate = Object.freeze({
-      accessible: 0,
-      clustered: 0,
-      dom: 0,
-      overflow: 0,
-      placed: 0,
-      visible: 0,
-    });
-    while (Date.now() < deadline) {
-      const evaluation = await session.command('Runtime.evaluate', {
-        expression: `(() => {
-          const integer = (value) => /^\\d+$/.test(value ?? '') ? Number(value) : null;
-          const visible = (element) => {
-            if (!element) return false;
-            const style = getComputedStyle(element);
-            const bounds = element.getBoundingClientRect();
-            return style.display !== 'none'
-              && style.visibility !== 'hidden'
-              && Number(style.opacity || '1') > 0
-              && bounds.width > 0
-              && bounds.height > 0;
-          };
-          const integerAttribute = (element, name) => {
-            const value = integer(element?.getAttribute(name));
-            return Number.isSafeInteger(value) && value >= 0 ? value : 0;
-          };
-          const allClusters = [...document.querySelectorAll('[data-realm-castle-cluster]')];
-          const clusters = allClusters.filter(visible);
-          const accessibleClusters = clusters.filter((cluster) => (
-            cluster instanceof HTMLButtonElement
-            && !cluster.disabled
-            && cluster.tabIndex >= 0
-            && (cluster.getAttribute('aria-label') ?? '').trim().length > 0
-            && (integer(cluster.getAttribute('data-cluster-count')) ?? 0) > 0
-          ));
-          const target = accessibleClusters[0];
-          const map = document.querySelector('.realm-map-screen');
-          const aggregate = {
-            accessible: accessibleClusters.length,
-            clustered: integerAttribute(map, 'data-label-clustered-count'),
-            dom: allClusters.length,
-            overflow: integerAttribute(map, 'data-label-cluster-overflow-count'),
-            placed: integerAttribute(map, 'data-label-placed-count'),
-            visible: clusters.length,
-          };
-          if (!(target instanceof HTMLButtonElement)) return { clicked: false, aggregate };
-          const clusterMemberCountBefore = clusters.reduce((count, cluster) => (
-            count + (integer(cluster.getAttribute('data-cluster-count')) ?? 0)
-          ), 0);
-          const clusterButtonCountBefore = clusters.length;
-          target.focus({ preventScroll: true });
-          target.click();
-          return {
-            clicked: true,
-            aggregate,
-            clusterButtonCountBefore,
-            clusterMemberCountBefore
-          };
-        })()`,
-        returnByValue: true,
-      });
-      const evidence = evaluation?.result?.value;
-      if (
-        evidence?.aggregate
-        && ['accessible', 'clustered', 'dom', 'overflow', 'placed', 'visible'].every((key) => (
-          Number.isSafeInteger(evidence.aggregate[key])
-          && evidence.aggregate[key] >= 0
-          && evidence.aggregate[key] <= 1_000
-        ))
-      ) {
-        lastClusterAggregate = Object.freeze({ ...evidence.aggregate });
-      }
-      if (
-        !evaluation?.exceptionDetails
-        && evidence?.clicked === true
-        && Number.isSafeInteger(evidence.clusterButtonCountBefore)
-        && evidence.clusterButtonCountBefore > 0
-        && Number.isSafeInteger(evidence.clusterMemberCountBefore)
-        && evidence.clusterMemberCountBefore > 0
-      ) {
-        return Object.freeze({
-          clusterButtonCountBefore: evidence.clusterButtonCountBefore,
-          clusterMemberCountBefore: evidence.clusterMemberCountBefore,
-        });
-      }
-      await delay(100);
-    }
-    throw new Error(
-      'Rendered WebGL QA cluster interaction failed '
-      + `(dom=${lastClusterAggregate.dom},visible=${lastClusterAggregate.visible},`
-      + `accessible=${lastClusterAggregate.accessible},clustered=${lastClusterAggregate.clustered},`
-      + `overflow=${lastClusterAggregate.overflow},placed=${lastClusterAggregate.placed}).`
-    );
-  }
   const selector = interaction === 'inspector'
     ? 'button.realm-castle-label'
     : interaction === 'explore'

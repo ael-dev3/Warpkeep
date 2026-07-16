@@ -3,6 +3,12 @@ import type {
   RealmCastleScreenProjection
 } from './realmTypes';
 
+/**
+ * @deprecated Historical/offline solver retained for regression archaeology.
+ * Alpha 0.3.6 production Realm code must not import or invoke this module:
+ * projection-visible identities are permanent direct foundation labels.
+ */
+
 /** Width for a true multi-keeper aggregate in constrained overview layouts. */
 export const REALM_IDENTITY_CLUSTER_WIDTH = 96;
 export const REALM_IDENTITY_CLUSTER_HEIGHT = 44;

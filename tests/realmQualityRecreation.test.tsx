@@ -26,6 +26,12 @@ const mocked = vi.hoisted(() => {
         distance: number;
         visible: boolean;
         presented: boolean;
+        castleBounds?: Readonly<{
+          left: number;
+          top: number;
+          right: number;
+          bottom: number;
+        }>;
       }[];
     }) => void;
     onTargetHover?: (target: {
@@ -42,7 +48,6 @@ const mocked = vi.hoisted(() => {
   const handles: Array<{
     dispose: ReturnType<typeof vi.fn>;
     focusCastle: ReturnType<typeof vi.fn>;
-    focusCastleGroup: ReturnType<typeof vi.fn>;
     focusCell: ReturnType<typeof vi.fn>;
     frameFoundingDistrict: ReturnType<typeof vi.fn>;
     focusKeep: ReturnType<typeof vi.fn>;
@@ -58,7 +63,6 @@ const mocked = vi.hoisted(() => {
     const handle = {
       dispose: vi.fn(),
       focusCastle: vi.fn(),
-      focusCastleGroup: vi.fn(),
       focusCell: vi.fn(),
       frameFoundingDistrict: vi.fn(),
       focusKeep: vi.fn(),
@@ -384,68 +388,94 @@ describe('live realm quality recreation', () => {
     expect(mocked.handles[1]!.frameFoundingDistrict).not.toHaveBeenCalled();
   });
 
-  it('restores a cluster representative as one readable castle across renderer recreation', async () => {
-    const motion = installMotionPreference();
+  it('keeps every direct label node stable across zoom and LOD projection frames', async () => {
     installWebGlProbe();
     const fixture = createRenderedWebglQaFixtureRealm();
-    const renderRealm = (qualityOverride: 'high' | 'balanced') => (
+    const renderRealm = (onRequestReturn: () => void) => (
       <RealmMapScreen
         identity={fixture.identity}
         snapshot={fixture.snapshot}
-        onRequestReturn={vi.fn()}
+        onRequestReturn={onRequestReturn}
         presentationMode="observer"
-        qualityOverride={qualityOverride}
+        qualityOverride="high"
       />
     );
-    const { rerender } = render(renderRealm('high'));
+    const { rerender } = render(renderRealm(vi.fn()));
     const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    const projection = (distanceOffset: number, boundsOffset: number) => ({
+      width: 120,
+      height: 600,
+      castles: fixture.snapshot.castles.map((castle, index) => ({
+        castleId: castle.castleId,
+        q: castle.q,
+        r: castle.r,
+        x: 60 + boundsOffset,
+        y: 300 + boundsOffset,
+        distance: distanceOffset + index,
+        visible: true,
+        presented: true,
+        castleBounds: {
+          left: 40 - boundsOffset,
+          top: 250 - boundsOffset,
+          right: 80 + boundsOffset,
+          bottom: 294
+        }
+      }))
+    });
 
     act(() => {
       initialOptions.onCastlesReady?.(fixture.snapshot.castles.length);
-      initialOptions.onCastleProjection?.({
-        // The 104px safe-area width (120px viewport minus the fixed 8px
-        // insets) cannot fit a 124px direct identity, but deliberately leaves
-        // one honest 96px berth for a multi-keeper aggregate.
-        width: 120,
-        height: 600,
-        castles: fixture.snapshot.castles.map((castle, index) => ({
-          castleId: castle.castleId,
-          q: castle.q,
-          r: castle.r,
-          x: 60,
-          y: 300,
-          distance: 4 + index / 100,
-          visible: true,
-          presented: true
-        }))
+      initialOptions.onCastleProjection?.(projection(4, 0));
+    });
+
+    const initialButtons = await waitFor(() => {
+      const buttons = [...document.querySelectorAll<HTMLButtonElement>(
+        'button.realm-castle-label[data-castle-id]'
+      )];
+      expect(buttons).toHaveLength(fixture.snapshot.castles.length);
+      return new Map(buttons.map((button) => [Number(button.dataset.castleId), button]));
+    });
+    expect(document.querySelectorAll('[data-realm-castle-cluster]')).toHaveLength(0);
+
+    act(() => initialOptions.onCastleProjection?.(projection(10_000, 8)));
+
+    await waitFor(() => {
+      const nextButtons = [...document.querySelectorAll<HTMLButtonElement>(
+        'button.realm-castle-label[data-castle-id]'
+      )];
+      expect(nextButtons).toHaveLength(fixture.snapshot.castles.length);
+      nextButtons.forEach((button) => {
+        expect(button).toBe(initialButtons.get(Number(button.dataset.castleId)));
+        expect(button.dataset.compact).toBe('true');
+        expect(button.dataset.displaced).toBe('false');
       });
+      expect(document.querySelectorAll('[data-realm-castle-cluster]')).toHaveLength(0);
+      const realm = screen.getByRole('main', { name: 'Hegemony realm QA observer' });
+      expect(realm.dataset.labelPlacedCount).toBe(String(fixture.snapshot.castles.length));
+      expect(realm.dataset.labelUnplacedCount).toBe('0');
+      expect(realm.dataset.labelClusteredCount).toBe('0');
+      expect(realm.dataset.labelClusterOverflowCount).toBe('0');
+      expect(realm.dataset.labelPersistence).toBe('foundation');
+      const movedButton = initialButtons.get(fixture.snapshot.castles[0]!.castleId)!;
+      expect(Number.parseFloat(
+        movedButton.style.getPropertyValue('--realm-castle-label-x')
+      )).toBe(68);
+      expect(Number.parseFloat(
+        movedButton.style.getPropertyValue('--realm-castle-label-y')
+      )).toBe(308);
     });
 
-    const clusterButton = await waitFor(() => {
-      const button = document.querySelector<HTMLButtonElement>(
-        'button[data-realm-castle-cluster][data-representative-castle-id]'
-      );
-      expect(button).not.toBeNull();
-      return button!;
-    });
-    const representativeCastleId = Number(clusterButton.dataset.representativeCastleId);
-    expect(Number.isSafeInteger(representativeCastleId)).toBe(true);
-    expect(Number(clusterButton.dataset.clusterCount)).toBeGreaterThan(1);
-    expect(clusterButton.style.getPropertyValue('--realm-castle-cluster-width')).toBe('96px');
-
-    fireEvent.click(clusterButton);
-    expect(mocked.handles[0]!.focusCastle).toHaveBeenLastCalledWith(representativeCastleId);
-    expect(mocked.handles[0]!.focusCastleGroup).not.toHaveBeenCalled();
-
-    rerender(renderRealm('balanced'));
-    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
-    expect(mocked.handles[1]!.focusCastle).toHaveBeenCalledWith(representativeCastleId);
-    expect(mocked.handles[1]!.focusCastleGroup).not.toHaveBeenCalled();
-
-    act(() => motion.set(true));
-    expect(mocked.createRealmScene).toHaveBeenCalledTimes(3);
-    expect(mocked.handles[2]!.focusCastle).toHaveBeenCalledWith(representativeCastleId);
-    expect(mocked.handles[2]!.focusCastleGroup).not.toHaveBeenCalled();
+    const movedButton = initialButtons.get(fixture.snapshot.castles[0]!.castleId)!;
+    // Profile hydration and other unrelated parent updates can rerender the
+    // Realm after camera motion has settled. React must consume the latest
+    // projection instead of restoring the membership state's first position.
+    rerender(renderRealm(vi.fn()));
+    expect(Number.parseFloat(
+      movedButton.style.getPropertyValue('--realm-castle-label-x')
+    )).toBe(68);
+    expect(Number.parseFloat(
+      movedButton.style.getPropertyValue('--realm-castle-label-y')
+    )).toBe(308);
   });
 
   it('keeps hover imperative and requires explicit castle activation for HUD/inspector state', () => {
@@ -683,7 +713,20 @@ describe('live realm quality recreation', () => {
     const label = await screen.findByRole('button', {
       name: /Inspect Hegemony Keep castle, Peer Watch, cell 2,-1/i
     });
+    act(() => {
+      options.onTargetHover?.({ kind: 'castle', castleId: 2, coord: { q: 2, r: -1 } });
+    });
+    expect(label.dataset.hovered).toBe('true');
+    act(() => {
+      options.onTargetHover?.({ kind: 'terrain', coord: { q: 1, r: 0 } });
+    });
+    expect(label.dataset.hovered).toBe('false');
+    act(() => {
+      options.onTargetHover?.({ kind: 'castle', castleId: 2, coord: { q: 2, r: -1 } });
+    });
+    expect(label.dataset.hovered).toBe('true');
     const commitsBeforeStress = renderCommits.mock.calls.length;
+    const hoverCallsBeforeStress = scene.setHovered.mock.calls.length;
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
@@ -706,7 +749,7 @@ describe('live realm quality recreation', () => {
       await new Promise((resolve) => window.setTimeout(resolve, 30));
     });
 
-    expect(scene.setHovered).toHaveBeenCalledTimes(335);
+    expect(scene.setHovered).toHaveBeenCalledTimes(hoverCallsBeforeStress + 334);
     expect(mocked.createRealmScene).toHaveBeenCalledOnce();
     expect(renderCommits.mock.calls.length - commitsBeforeStress).toBeLessThanOrEqual(2);
     expect(screen.getByLabelText('Current selection').textContent)

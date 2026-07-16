@@ -10,6 +10,16 @@ export type RealmCameraPoint = Readonly<{
   z: number;
 }>;
 
+/**
+ * Convex terrain-footprint points used only by full-realm contain fitting.
+ * Integrations should pass the actual rendered perimeter, not its axis-aligned
+ * bounding box; ordering is irrelevant to the projection fit.
+ */
+export type RealmOverviewHullPoint = Readonly<{
+  x: number;
+  z: number;
+}>;
+
 export type RealmCameraViewport = Readonly<{
   width: number;
   height: number;
@@ -129,6 +139,7 @@ export const DEFAULT_REALM_CAMERA_SPEC: RealmCameraSpec = {
 
 const DEFAULT_FOCUS_PADDING = 24;
 const MIN_SAFE_VIEWPORT_SIZE = 1;
+export const REALM_INTERACTIVE_MIN_ZOOM = 0.16;
 const ZERO_INSETS: RealmCameraInsets = Object.freeze({
   top: 0,
   right: 0,
@@ -217,7 +228,11 @@ export function resolveRealmSafeViewport(
   };
 }
 
-const OVERVIEW_FIT_MARGIN = 1.02;
+// Perspective depth makes the nearest hull edge project larger than its
+// target-plane extent. Fourteen percent contains the complete radius-22 perimeter
+// across desktop and mobile safe viewports without restoring the much larger
+// nonexistent AABB corners.
+const OVERVIEW_FIT_MARGIN = 1.14;
 
 export function dampingAlpha(rate: number, deltaSeconds: number) {
   return 1 - Math.exp(-Math.max(0, finite(rate, 0)) * clamp(finite(deltaSeconds, 0), 0, 0.1));
@@ -230,11 +245,43 @@ export function normalizeWheelDelta(deltaY: number, deltaMode: number, viewportH
   return safeDelta;
 }
 
+/**
+ * Ordinary input cannot back out into the tiny-world endpoint. An explicit
+ * Realm preset already below the floor remains there until the player zooms
+ * inward, so another outward wheel/pinch gesture never jumps the camera closer.
+ */
+export function clampRealmInteractiveZoom(
+  currentInput: number,
+  nextInput: number,
+  minimumInput = REALM_INTERACTIVE_MIN_ZOOM
+) {
+  const current = clamp(finite(currentInput, 0), 0, 1);
+  const next = clamp(finite(nextInput, current), 0, 1);
+  const minimum = clamp(finite(minimumInput, REALM_INTERACTIVE_MIN_ZOOM), 0, 1);
+  if (current < minimum && next <= current) return current;
+  return clamp(next, minimum, 1);
+}
+
+function overviewFootprintPoints(
+  bounds: TerrainBounds,
+  hull: readonly RealmOverviewHullPoint[] | undefined
+): readonly RealmOverviewHullPoint[] {
+  const finiteHull = hull?.filter((point) => Number.isFinite(point.x) && Number.isFinite(point.z));
+  if (finiteHull && finiteHull.length >= 3) return finiteHull;
+  return [
+    { x: bounds.minX, z: bounds.minZ },
+    { x: bounds.maxX, z: bounds.minZ },
+    { x: bounds.maxX, z: bounds.maxZ },
+    { x: bounds.minX, z: bounds.maxZ }
+  ];
+}
+
 export function fitRealmOverview(
   bounds: TerrainBounds,
   aspect: number,
   pitchDegrees = DEFAULT_REALM_CAMERA_SPEC.overviewPitchDegrees,
-  azimuthDegrees = DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees
+  azimuthDegrees = DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees,
+  hull?: readonly RealmOverviewHullPoint[]
 ) {
   const safeAspect = Math.max(0.35, finite(aspect, 16 / 9));
   const pitch = radians(pitchDegrees);
@@ -251,19 +298,20 @@ export function fitRealmOverview(
   };
   const center = {
     x: (bounds.minX + bounds.maxX) / 2,
-    y: (bounds.minY + bounds.maxY) / 2,
+    // Full-realm focus is the world support plane, not the terrain AABB's
+    // potentially biased relief midpoint. Fit around the same Y used by the
+    // zoom-zero pose so asymmetric hills cannot invalidate containment.
+    y: 0,
     z: (bounds.minZ + bounds.maxZ) / 2
   };
   let maxRight = 0;
   let maxUp = 0;
 
-  [bounds.minX, bounds.maxX].forEach((x) => {
+  overviewFootprintPoints(bounds, hull).forEach(({ x, z }) => {
     [bounds.minY, bounds.maxY + 1.4].forEach((y) => {
-      [bounds.minZ, bounds.maxZ].forEach((z) => {
-        const offset = { x: x - center.x, y: y - center.y, z: z - center.z };
-        maxRight = Math.max(maxRight, Math.abs(offset.x * right.x + offset.y * right.y + offset.z * right.z));
-        maxUp = Math.max(maxUp, Math.abs(offset.x * up.x + offset.y * up.y + offset.z * up.z));
-      });
+      const offset = { x: x - center.x, y: y - center.y, z: z - center.z };
+      maxRight = Math.max(maxRight, Math.abs(offset.x * right.x + offset.y * right.y + offset.z * right.z));
+      maxUp = Math.max(maxUp, Math.abs(offset.x * up.x + offset.y * up.y + offset.z * up.z));
     });
   });
   return Math.max(
@@ -639,7 +687,8 @@ export function deriveRealmCameraPoseForViewport(
   keep: RealmKeepFocus,
   viewportInput: RealmCameraViewport,
   composition: RealmCameraComposition = {},
-  spec: RealmCameraSpec = DEFAULT_REALM_CAMERA_SPEC
+  spec: RealmCameraSpec = DEFAULT_REALM_CAMERA_SPEC,
+  overviewHull?: readonly RealmOverviewHullPoint[]
 ): RealmCameraPose {
   const viewport = normalizeViewport(viewportInput);
   const safeViewport = resolveRealmSafeViewport(viewport, composition);
@@ -658,7 +707,8 @@ export function deriveRealmCameraPoseForViewport(
     bounds,
     safeViewport.aspect,
     overviewPitchDegrees,
-    spec.azimuthDegrees
+    spec.azimuthDegrees,
+    overviewHull
   ) * (viewport.height / safeViewport.height);
   const closeMinimumHalfHeight = Math.max(
     Math.max(0.05, finite(spec.closeHalfHeight, 1.62))
@@ -742,7 +792,8 @@ export function deriveRealmCameraPose(
   bounds: TerrainBounds,
   keep: RealmKeepFocus,
   aspectInput: number,
-  spec: RealmCameraSpec = DEFAULT_REALM_CAMERA_SPEC
+  spec: RealmCameraSpec = DEFAULT_REALM_CAMERA_SPEC,
+  overviewHull?: readonly RealmOverviewHullPoint[]
 ): RealmCameraPose {
   const aspect = Math.max(0.35, finite(aspectInput, 16 / 9));
   return deriveRealmCameraPoseForViewport(
@@ -752,7 +803,8 @@ export function deriveRealmCameraPose(
     keep,
     { width: aspect * 1_000, height: 1_000 },
     {},
-    spec
+    spec,
+    overviewHull
   );
 }
 
@@ -864,6 +916,7 @@ export type RealmCameraController = Readonly<{
 
 export type CreateRealmCameraControllerOptions = Readonly<{
   bounds: TerrainBounds;
+  overviewHull?: readonly RealmOverviewHullPoint[];
   keepFocus: RealmKeepFocus;
   fog: THREE.Fog;
   reducedMotion: boolean;
@@ -905,7 +958,8 @@ export function createRealmCameraController(
     currentFocus,
     { width, height },
     stateComposition(currentComposition),
-    spec
+    spec,
+    options.overviewHull
   );
 
   const applyPose = () => {
@@ -916,7 +970,8 @@ export function createRealmCameraController(
       currentFocus,
       { width, height },
       stateComposition(currentComposition),
-      spec
+      spec,
+      options.overviewHull
     );
     lastPose = pose;
     camera.position.set(pose.position.x, pose.position.y, pose.position.z);
@@ -1006,7 +1061,8 @@ export function createRealmCameraController(
       targetFocus,
       { width, height },
       stateComposition(targetComposition),
-      spec
+      spec,
+      options.overviewHull
     );
     targetPan = clampRealmPan(
       targetPan,
@@ -1068,7 +1124,8 @@ export function createRealmCameraController(
         targetFocus,
         { width, height },
         stateComposition(targetComposition),
-        spec
+        spec,
+        options.overviewHull
       );
       const worldPerPixel = (pose.visibleHalfHeight * 2) / Math.max(1, height);
       const azimuth = radians(spec.azimuthDegrees);
@@ -1125,7 +1182,8 @@ export function createRealmCameraController(
         targetFocus,
         { width, height },
         stateComposition(targetComposition),
-        spec
+        spec,
+        options.overviewHull
       );
       targetPan = clampRealmPan(
         targetPan,
@@ -1142,7 +1200,8 @@ export function createRealmCameraController(
         currentFocus,
         { width, height },
         stateComposition(currentComposition),
-        spec
+        spec,
+        options.overviewHull
       );
       currentPan = clampRealmPan(
         currentPan,
@@ -1165,9 +1224,15 @@ export function createRealmCameraController(
       targetPan = { x: keepFocus.x, z: keepFocus.z };
       setZoomTarget(0);
     },
-    zoomBy: (amount) => setZoomTarget(targetZoom + finite(amount, 0)),
+    zoomBy: (amount) => setZoomTarget(clampRealmInteractiveZoom(
+      targetZoom,
+      targetZoom + finite(amount, 0)
+    )),
     zoomByAt: (amount, localX, localY) => {
-      const nextZoom = clamp(targetZoom + finite(amount, 0), 0, 1);
+      const nextZoom = clampRealmInteractiveZoom(
+        targetZoom,
+        targetZoom + finite(amount, 0)
+      );
       if (Math.abs(nextZoom - targetZoom) <= 0.000001) return;
       const viewport = { width, height };
       const composition = stateComposition(targetComposition);
@@ -1178,7 +1243,8 @@ export function createRealmCameraController(
         targetFocus,
         viewport,
         composition,
-        spec
+        spec,
+        options.overviewHull
       );
       const beforeAnchor = intersectRealmGroundAtViewportPoint(
         beforePose,
@@ -1193,7 +1259,8 @@ export function createRealmCameraController(
         targetFocus,
         viewport,
         composition,
-        spec
+        spec,
+        options.overviewHull
       );
       const basePan = clampRealmPan(
         targetPan,
@@ -1210,7 +1277,8 @@ export function createRealmCameraController(
         targetFocus,
         viewport,
         composition,
-        spec
+        spec,
+        options.overviewHull
       );
       const afterAnchor = intersectRealmGroundAtViewportPoint(
         afterPose,
@@ -1254,7 +1322,10 @@ export function createRealmCameraController(
     },
     zoomByWheel: (deltaY, deltaMode) => {
       const normalized = normalizeWheelDelta(deltaY, deltaMode, height);
-      setZoomTarget(targetZoom - normalized * 0.00072);
+      setZoomTarget(clampRealmInteractiveZoom(
+        targetZoom,
+        targetZoom - normalized * 0.00072
+      ));
     }
   };
 }

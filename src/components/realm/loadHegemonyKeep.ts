@@ -33,6 +33,24 @@ export const HEGEMONY_KEEP_RUNTIME_ASSETS = Object.freeze({
   })
 });
 
+export type HegemonyModelMaterialRole = 'castle' | 'landscape-base';
+
+/**
+ * One bounded runtime response calibration for the owner-approved GameReady
+ * family. It changes only the existing material colour uniform, so it adds no
+ * texture sample, GPU allocation, draw call, or replacement asset. All castle
+ * LODs use the same gain; the already brighter authored landscape receives only
+ * a modest lift.
+ */
+export const HEGEMONY_MODEL_MATERIAL_CALIBRATION = Object.freeze({
+  revision: 'readable-v2',
+  maximumColorChannel: 1.25,
+  castleDiffuseGain: 1.18,
+  landscapeBaseDiffuseGain: 1.06
+});
+
+const MATERIAL_CALIBRATION_STATE_KEY = 'warpkeepReadableSurface';
+
 type KeepRuntimeAsset = (typeof HEGEMONY_KEEP_RUNTIME_ASSETS)[keyof typeof HEGEMONY_KEEP_RUNTIME_ASSETS];
 type KeepBinaryRequest = SharedRealmModelRequest<ArrayBuffer>;
 
@@ -313,7 +331,43 @@ function tuneTexture(texture: THREE.Texture | null, anisotropy: number, color = 
   texture.needsUpdate = true;
 }
 
-export function tuneHegemonyModelMaterial(material: THREE.Material, anisotropy: number) {
+type MaterialCalibrationState = Readonly<{
+  revision: string;
+  authoredColor: readonly [number, number, number];
+}>;
+
+function finiteNonNegative(value: number) {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function authoredMaterialColor(material: THREE.MeshStandardMaterial) {
+  const state = material.userData[MATERIAL_CALIBRATION_STATE_KEY] as
+    | MaterialCalibrationState
+    | undefined;
+  if (
+    state?.revision === HEGEMONY_MODEL_MATERIAL_CALIBRATION.revision
+    && Array.isArray(state.authoredColor)
+    && state.authoredColor.length === 3
+    && state.authoredColor.every(Number.isFinite)
+  ) return state.authoredColor;
+
+  const authoredColor = Object.freeze([
+    finiteNonNegative(material.color.r),
+    finiteNonNegative(material.color.g),
+    finiteNonNegative(material.color.b)
+  ]) as readonly [number, number, number];
+  material.userData[MATERIAL_CALIBRATION_STATE_KEY] = Object.freeze({
+    revision: HEGEMONY_MODEL_MATERIAL_CALIBRATION.revision,
+    authoredColor
+  });
+  return authoredColor;
+}
+
+export function tuneHegemonyModelMaterial(
+  material: THREE.Material,
+  anisotropy: number,
+  role: HegemonyModelMaterialRole
+) {
   if (!(material instanceof THREE.MeshStandardMaterial)) return;
   // Preserve authored stone/electrum/fabric separation. Only contain values
   // that become unstable under ACES or missing-device environment support;
@@ -324,6 +378,16 @@ export function tuneHegemonyModelMaterial(material: THREE.Material, anisotropy: 
   if (material.emissiveMap) {
     material.emissiveIntensity = THREE.MathUtils.clamp(material.emissiveIntensity, 0, 1.2);
   }
+  const authoredColor = authoredMaterialColor(material);
+  const diffuseGain = role === 'castle'
+    ? HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain
+    : HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain;
+  const maximumChannel = HEGEMONY_MODEL_MATERIAL_CALIBRATION.maximumColorChannel;
+  material.color.setRGB(
+    Math.min(maximumChannel, authoredColor[0] * diffuseGain),
+    Math.min(maximumChannel, authoredColor[1] * diffuseGain),
+    Math.min(maximumChannel, authoredColor[2] * diffuseGain)
+  );
   tuneTexture(material.map, anisotropy, true);
   tuneTexture(material.emissiveMap, anisotropy, true);
   tuneTexture(material.normalMap, anisotropy);
@@ -367,7 +431,11 @@ export function prepareHegemonyKeepScene(
     object.castShadow = options.dynamicShadows;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.forEach((material) => tuneHegemonyModelMaterial(material, maxAnisotropy));
+    materials.forEach((material) => tuneHegemonyModelMaterial(
+      material,
+      maxAnisotropy,
+      'castle'
+    ));
   });
   const root = new THREE.Group();
   root.name = HEGEMONY_MAIN_CASTLE.id;
