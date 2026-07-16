@@ -203,6 +203,26 @@ describe('FarcasterQrAuthPanel', () => {
     expect(screen.getByText(/Confirming FID ownership/)).not.toBeNull();
   });
 
+  it('shows the verified FID and PFP while the bridge access check completes', () => {
+    const { container } = renderPanel({
+      phase: 'verifying',
+      identity: verifiedIdentity
+    });
+
+    expect(screen.getByText('@keeper')).not.toBeNull();
+    expect(screen.getByText('The Keeper')).not.toBeNull();
+    expect(screen.getByText('FID 12345')).not.toBeNull();
+    expect(screen.getByText(/Checking Hegemony realm access/)).not.toBeNull();
+    expect(screen.getByText('Securing realm session…')).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe(
+      'Farcaster identity confirmed, FID 12345, checking realm access'
+    );
+    expect(container.querySelector('section')?.getAttribute('aria-busy')).toBe('false');
+    const profileImage = container.querySelector('.farcaster-identity-badge__portrait img');
+    expect(profileImage?.getAttribute('src')).toBe('https://images.example/keeper.png');
+    expect(profileImage?.getAttribute('referrerpolicy')).toBe('no-referrer');
+  });
+
   it('offers retry and menu actions for expired and sanitized error states', () => {
     const expired = renderPanel({ phase: 'expired' });
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));
@@ -221,7 +241,7 @@ describe('FarcasterQrAuthPanel', () => {
   });
 
   it('renders a neutral authorized browser session and enters the realm', () => {
-    const { callbacks } = renderPanel({
+    const { callbacks, container } = renderPanel({
       phase: 'authenticated',
       identity: verifiedIdentity,
       assurance: 'live-client-verified',
@@ -237,6 +257,9 @@ describe('FarcasterQrAuthPanel', () => {
     )).not.toBeNull();
     expect(screen.getByRole('status').textContent).toBe('Verified through Farcaster: @keeper, FID 12345');
     expect(screen.queryByRole('checkbox')).toBeNull();
+    const profileImage = container.querySelector('.farcaster-identity-badge__portrait img');
+    expect(profileImage?.getAttribute('src')).toBe('https://images.example/keeper.png');
+    expect(profileImage?.getAttribute('referrerpolicy')).toBe('no-referrer');
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(callbacks.onEnterRealm).toHaveBeenCalledWith(verifiedIdentity);

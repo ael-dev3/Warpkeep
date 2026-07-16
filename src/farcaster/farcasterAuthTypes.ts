@@ -113,6 +113,8 @@ export type FarcasterAuthViewState =
   | Readonly<{
       phase: 'verifying';
       expiresAt: number;
+      /** Proof-free display metadata, available only after signature verification. */
+      identity?: PublicFarcasterIdentity;
     }>
   | Readonly<{
       phase: 'pending-admission';

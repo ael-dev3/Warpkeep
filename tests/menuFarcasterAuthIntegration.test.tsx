@@ -38,6 +38,12 @@ const awaitingWithoutQrState: FarcasterAuthViewState = {
   expiresAt: 1_800_000_000_000
 };
 
+const verifyingState: FarcasterAuthViewState = {
+  phase: 'verifying',
+  identity,
+  expiresAt: 1_800_000_000_000
+};
+
 const authenticatedState: FarcasterAuthViewState = {
   phase: 'authenticated',
   identity,
@@ -410,6 +416,28 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.prepareQrCode).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('img', { name: 'Sign in with Farcaster QR code' })).toBeNull();
     expect(screen.getByText('Preparing QR code')).not.toBeNull();
+  });
+
+  it('shows the verified FID and PFP in the auth rail after QR approval', async () => {
+    const callbacks = createMenuCallbacks();
+    const result = render(menu(callbacks));
+    openAndAcceptAlphaTerms();
+
+    result.rerender(menu(callbacks, verifyingState));
+    await settleDeferredPresentation();
+
+    expect(screen.getByRole('heading', {
+      level: 2,
+      name: 'VERIFYING HEGEMONY RECORD'
+    })).not.toBeNull();
+    expect(screen.getByText('@keeper')).not.toBeNull();
+    expect(screen.getByText('FID 12345')).not.toBeNull();
+    expect(screen.getByText('Securing realm session…')).not.toBeNull();
+    const profileImage = result.container.querySelector(
+      '.farcaster-identity-badge__portrait img'
+    );
+    expect(profileImage?.getAttribute('src')).toBe('https://images.example/keeper.png');
+    expect(profileImage?.getAttribute('referrerpolicy')).toBe('no-referrer');
   });
 
   it('shows keyboard-focused identity confirmation after acceptance, then a compact badge', async () => {

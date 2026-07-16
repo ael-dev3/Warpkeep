@@ -40,6 +40,11 @@ export type FarcasterAuthMachineAction =
   | Readonly<{ type: 'qr-failed'; generation: number }>
   | Readonly<{ type: 'verifying'; generation: number }>
   | Readonly<{
+      type: 'identity-verified';
+      generation: number;
+      identity: PublicFarcasterIdentity;
+    }>
+  | Readonly<{
       type: 'authenticated';
       generation: number;
       identity: VerifiedFarcasterIdentity;
@@ -296,6 +301,22 @@ export function farcasterAuthMachineReducer(
         view: {
           phase: 'verifying',
           expiresAt: state.view.expiresAt
+        }
+      };
+
+    case 'identity-verified':
+      if (
+        state.view.phase !== 'verifying'
+        || !isCurrentGeneration(state, action.generation)
+        || !isValidIdentity(action.identity)
+      ) {
+        return state;
+      }
+      return {
+        generation: state.generation,
+        view: {
+          ...state.view,
+          identity: publicIdentity(action.identity)
         }
       };
 

@@ -87,6 +87,7 @@ function createCompletedStatus(
     acceptAuthAddress: true,
     username: 'keeper',
     displayName: 'The Keeper',
+    pfpUrl: 'https://images.example/keeper.png',
     verifications: [],
     authMethod: 'authAddress'
   };
@@ -97,6 +98,7 @@ function createIdentity(verifiedAt = Date.now()): VerifiedFarcasterIdentity {
     fid: 12_345,
     username: 'keeper',
     displayName: 'The Keeper',
+    pfpUrl: 'https://images.example/keeper.png',
     verifications: [],
     authMethod: 'authAddress',
     verifiedAt
@@ -106,6 +108,9 @@ function createIdentity(verifiedAt = Date.now()): VerifiedFarcasterIdentity {
 function publicIdentity(identity: VerifiedFarcasterIdentity) {
   return {
     fid: identity.fid,
+    ...(identity.username === undefined ? {} : { username: identity.username }),
+    ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
+    ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl }),
     verifications: [],
     verifiedAt: identity.verifiedAt
   };
@@ -585,6 +590,11 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       getStatus: vi.fn(async () => completed),
       verifyCompletedRequest: vi.fn(async () => identity)
     });
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockRejectedValueOnce(new FarcasterOidcBridgeClientError('No cookie session.'))
+        .mockImplementationOnce(async () => createAuthorizedResponse(identity.fid, Date.now()))
+    });
 
     function PersistentChildHarness() {
       const [showConsumer, setShowConsumer] = useState(true);
@@ -601,6 +611,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     renderProvider({
       children: <PersistentChildHarness />,
       loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
       encodeQrCode: vi.fn(async () => 'data:image/svg+xml,qr'),
       now: Date.now,
       pollIntervalMs: 10
@@ -632,6 +643,19 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       expiresAt: expect.any(Number)
     });
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh session' }));
+    await settleAsyncWork();
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: {
+        fid: identity.fid,
+        username: identity.username,
+        displayName: identity.displayName,
+        pfpUrl: identity.pfpUrl
+      }
+    });
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
@@ -1167,10 +1191,11 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     vi.useFakeTimers({ now: 65_000 });
     const channel = createChannel('CROSS_TAB_IN_FLIGHT');
     const bridgeExchange = deferred<FarcasterBridgeSessionResponse>();
+    const identity = createIdentity(Date.now() - 1);
     const authority = createAuthority({
       beginSignIn: vi.fn(async () => channel),
       getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'CROSS_TAB_IN_FLIGHT')),
-      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+      verifyCompletedRequest: vi.fn(async () => identity)
     });
     const bridge = createBridge({
       exchangeCompletedSignIn: vi.fn(() => bridgeExchange.promise)
@@ -1185,7 +1210,10 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
     await advanceTime(10);
-    expect(readPublicState().phase).toBe('verifying');
+    expect(readPublicState()).toMatchObject({
+      phase: 'verifying',
+      identity: publicIdentity(identity)
+    });
     const [, exchangeOptions] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
     expect(exchangeOptions?.signal?.aborted).toBe(false);
 
