@@ -40,7 +40,8 @@ describe('FarcasterAdmissionPanel', () => {
       'This Farcaster identity is not yet admitted to the Hegemony frontier.'
     )).not.toBeNull();
     expect(screen.getByText(/Warpkeep is opening as a small, manually admitted alpha/i)).not.toBeNull();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
+    expect(screen.getByText('@keeper')).not.toBeNull();
+    expect(screen.queryByText('FID 12345')).toBeNull();
 
     const requestAccess = screen.getByRole('link', {
       name: 'Open @0xael.eth on Farcaster to request Warpkeep access'

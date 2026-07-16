@@ -61,7 +61,7 @@ const panelHeadings: Record<Exclude<FarcasterAuthPhase, 'anonymous'>, PanelHeadi
     title: 'ENTRY NOT YET GRANTED'
   },
   authenticated: {
-    eyebrow: 'FID BOUND TO THIS SESSION',
+    eyebrow: 'FARCASTER IDENTITY BOUND',
     title: 'HEGEMONY RECORD VERIFIED'
   },
   expired: {
@@ -140,25 +140,27 @@ function getLiveAnnouncement(
   identity: VerifiedFarcasterIdentity | undefined,
   assurance: FarcasterSessionAssurance
 ) {
+  const publicIdentityLabel = identity
+    ? normalizeFarcasterUsername(identity.username) ?? `FID ${identity.fid}`
+    : undefined;
   switch (phase) {
     case 'creating-channel':
       return 'Preparing sign-in';
     case 'awaiting-approval':
       return 'Waiting for Farcaster approval';
     case 'verifying':
-      return identity
-        ? `Farcaster identity confirmed, FID ${identity.fid}, checking realm access`
+      return publicIdentityLabel
+        ? `Farcaster identity confirmed: ${publicIdentityLabel}, checking realm access`
         : 'Verifying signature';
     case 'pending-admission':
-      return identity
-        ? `Farcaster identity verified, admission pending, FID ${identity.fid}`
+      return publicIdentityLabel
+        ? `Farcaster identity verified: ${publicIdentityLabel}, admission pending`
         : 'Farcaster identity verified, admission pending';
     case 'authenticated': {
       if (!identity) {
         return 'Farcaster identity verified';
       }
-      const username = normalizeFarcasterUsername(identity.username);
-      return `Verified through Farcaster${username ? `: ${username}` : ''}, FID ${identity.fid}`;
+      return `Verified through Farcaster: ${publicIdentityLabel}`;
     }
     case 'expired':
       return 'Authentication expired';

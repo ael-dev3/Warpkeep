@@ -203,7 +203,7 @@ describe('FarcasterQrAuthPanel', () => {
     expect(screen.getByText(/Confirming FID ownership/)).not.toBeNull();
   });
 
-  it('shows the verified FID and PFP while the bridge access check completes', () => {
+  it('shows the verified username and PFP while the bridge access check completes', () => {
     const { container } = renderPanel({
       phase: 'verifying',
       identity: verifiedIdentity
@@ -211,11 +211,11 @@ describe('FarcasterQrAuthPanel', () => {
 
     expect(screen.getByText('@keeper')).not.toBeNull();
     expect(screen.getByText('The Keeper')).not.toBeNull();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
+    expect(screen.queryByText('FID 12345')).toBeNull();
     expect(screen.getByText(/Checking Hegemony realm access/)).not.toBeNull();
     expect(screen.getByText('Securing realm session…')).not.toBeNull();
     expect(screen.getByRole('status').textContent).toBe(
-      'Farcaster identity confirmed, FID 12345, checking realm access'
+      'Farcaster identity confirmed: @keeper, checking realm access'
     );
     expect(container.querySelector('section')?.getAttribute('aria-busy')).toBe('false');
     const profileImage = container.querySelector('.farcaster-identity-badge__portrait img');
@@ -251,11 +251,11 @@ describe('FarcasterQrAuthPanel', () => {
     expect(screen.getByRole('heading', { name: 'HEGEMONY RECORD VERIFIED' })).not.toBeNull();
     expect(screen.getByText('@keeper')).not.toBeNull();
     expect(screen.getByText('The Keeper')).not.toBeNull();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
+    expect(screen.queryByText('FID 12345')).toBeNull();
     expect(screen.getByText(
       'Your Farcaster identity is active for this browser session.'
     )).not.toBeNull();
-    expect(screen.getByRole('status').textContent).toBe('Verified through Farcaster: @keeper, FID 12345');
+    expect(screen.getByRole('status').textContent).toBe('Verified through Farcaster: @keeper');
     expect(screen.queryByRole('checkbox')).toBeNull();
     const profileImage = container.querySelector('.farcaster-identity-badge__portrait img');
     expect(profileImage?.getAttribute('src')).toBe('https://images.example/keeper.png');
@@ -341,7 +341,7 @@ describe('FarcasterIdentityBadge', () => {
     );
 
     const identityButton = screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @keeper'
     });
     fireEvent.click(identityButton);
     expect(onActivate).toHaveBeenCalledTimes(1);
@@ -349,5 +349,21 @@ describe('FarcasterIdentityBadge', () => {
     rerender(<FarcasterIdentityBadge compact identity={verifiedIdentity} />);
     expect(screen.queryByRole('button')).toBeNull();
     expect(screen.getByText('@keeper')).not.toBeNull();
+
+    const fidOnlyIdentity: VerifiedFarcasterIdentity = {
+      fid: 88,
+      verifications: [],
+      verifiedAt: verifiedIdentity.verifiedAt
+    };
+    rerender(
+      <FarcasterIdentityBadge
+        compact
+        identity={fidOnlyIdentity}
+        onActivate={onActivate}
+      />
+    );
+    expect(screen.getByRole('button', {
+      name: 'Open Farcaster identity, FID 88'
+    })).not.toBeNull();
   });
 });

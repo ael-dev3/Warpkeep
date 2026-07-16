@@ -418,7 +418,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByText('Preparing QR code')).not.toBeNull();
   });
 
-  it('shows the verified FID and PFP in the auth rail after QR approval', async () => {
+  it('shows the verified username and PFP in the auth rail after QR approval', async () => {
     const callbacks = createMenuCallbacks();
     const result = render(menu(callbacks));
     openAndAcceptAlphaTerms();
@@ -431,7 +431,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       name: 'VERIFYING HEGEMONY RECORD'
     })).not.toBeNull();
     expect(screen.getByText('@keeper')).not.toBeNull();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
+    expect(screen.queryByText('FID 12345')).toBeNull();
     expect(screen.getByText('Securing realm session…')).not.toBeNull();
     const profileImage = result.container.querySelector(
       '.farcaster-identity-badge__portrait img'
@@ -454,7 +454,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       name: 'HEGEMONY RECORD VERIFIED'
     })).not.toBeNull();
     expect(screen.getByText('@keeper')).not.toBeNull();
-    expect(screen.getByText('FID 12345')).not.toBeNull();
+    expect(screen.queryByText('FID 12345')).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'ENTER REALM' }));
 
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -463,7 +463,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
     expect(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @keeper'
     }).getAttribute('data-compact')).toBe('true');
     expect(screen.getByText('FARCASTER VERIFIED')).not.toBeNull();
     expect(callbacks.begin).toHaveBeenCalledTimes(1);
@@ -475,7 +475,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     await settleDeferredPresentation();
     expect(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @keeper'
     })).not.toBeNull();
     expect(screen.getByText('FARCASTER VERIFIED')).not.toBeNull();
     expect(screen.queryByText('REMEMBERED DEVICE')).toBeNull();
@@ -508,7 +508,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     await settleDeferredPresentation();
     expect(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @keeper'
     })).not.toBeNull();
     const terms = openAlphaTerms();
     expect((within(terms).getByRole('button', {
@@ -529,7 +529,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     await settleDeferredPresentation();
 
     fireEvent.click(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @keeper'
     }));
     await settleDeferredPresentation();
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
@@ -549,7 +549,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     await settleDeferredPresentation();
 
     fireEvent.click(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @keeper'
     }));
     await settleDeferredPresentation();
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
@@ -715,7 +715,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     const result = render(menu(callbacks, authenticatedState, 'keyboard'));
     await settleDeferredPresentation();
     fireEvent.click(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @keeper'
     }), { detail: 0 });
     flushAnimationFrames();
 
@@ -728,7 +728,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(callbacks.signOut).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
     expect(screen.queryByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @keeper'
     })).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'ENTER REALM' }));
   });

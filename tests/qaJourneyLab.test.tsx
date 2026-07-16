@@ -237,7 +237,8 @@ describe('Warpkeep local QA journey lab', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
     expect(screen.getByRole('heading', { name: 'HEGEMONY RECORD VERIFIED' })).not.toBeNull();
-    expect(document.body.textContent).toContain(String(QA_SYNTHETIC_IDENTITY.fid));
+    expect(document.body.textContent).toContain(`@${QA_SYNTHETIC_IDENTITY.username}`);
+    expect(document.body.textContent).not.toContain(String(QA_SYNTHETIC_IDENTITY.fid));
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
 
     const secondTerms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
