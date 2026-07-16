@@ -825,8 +825,8 @@ function initializeRealmScene(
         throw new Error('Hegemony castle instances produced no visible rendered packing.');
       }
       if (
-        presentationTelemetry.presentedLandscapeBaseCount
-        !== presentationTelemetry.presentedModelCount
+        castleCount > 0
+        && !castleLayer?.hasExactCastleLandscapeBasePairing()
       ) {
         throw new Error('Hegemony castle landscape-base presentation is incomplete.');
       }
@@ -1104,6 +1104,8 @@ function initializeRealmScene(
     baseUrl: options.baseUrl,
     maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
   });
+  const castleLoadAbortController = new AbortController();
+  cleanup.add(() => castleLoadAbortController.abort());
 
   const releaseLeases = (leases: readonly HegemonyKeepPrefabLease[]) => {
     leases.forEach((lease) => {
@@ -1129,7 +1131,10 @@ function initializeRealmScene(
     try {
       await Promise.all(usedCastleLods.map(async (lod) => {
         try {
-          const lease = await prefabRepository.acquire(lod);
+          const lease = await prefabRepository.acquire(
+            lod,
+            castleLoadAbortController.signal
+          );
           if (acquisitionStopped || cleanup.isDisposed()) {
             releaseLeases([lease]);
             return;

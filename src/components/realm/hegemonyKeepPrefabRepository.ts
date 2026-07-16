@@ -16,6 +16,7 @@ import {
   closeImageBitmapOnce,
   uniqueImageBitmapSources
 } from './realmTextureResources';
+import { createRealmLoadAbortError } from './realmModelRequestLifecycle';
 
 export type HegemonyKeepPrefabPrimitive = Readonly<{
   geometry: THREE.BufferGeometry;
@@ -54,7 +55,8 @@ export type HegemonyKeepPrefabLease = Readonly<{
 }>;
 
 export type HegemonyKeepPrefabLoader = (
-  lod: CastleLod
+  lod: CastleLod,
+  signal?: AbortSignal
 ) => Promise<HegemonyKeepLoadResult>;
 
 export type HegemonyKeepPrefabRepository = Readonly<{
@@ -62,7 +64,7 @@ export type HegemonyKeepPrefabRepository = Readonly<{
    * Coalesces concurrent acquisition. A retired LOD cannot be reacquired in
    * the same realm session because its GPU resources have already been freed.
    */
-  acquire: (lod: CastleLod) => Promise<HegemonyKeepPrefabLease>;
+  acquire: (lod: CastleLod, signal?: AbortSignal) => Promise<HegemonyKeepPrefabLease>;
 }>;
 
 export type CreateHegemonyKeepPrefabRepositoryOptions = Readonly<{
@@ -91,7 +93,11 @@ type InternalPrefab = Readonly<{
 
 type CacheEntry = {
   activeLeases: number;
+  abortController: AbortController;
+  internal?: InternalPrefab;
+  pendingAcquisitions: number;
   promise: Promise<InternalPrefab>;
+  resourcesReleased: boolean;
   retired: boolean;
 };
 
@@ -107,10 +113,11 @@ function createDefaultLoader(
   baseUrl: string,
   maxAnisotropy: number
 ): HegemonyKeepPrefabLoader {
-  return (lod) => loadHegemonyCastleAssembly({
+  return (lod, signal) => loadHegemonyCastleAssembly({
     quality: qualityForLod(lod),
     baseUrl,
-    maxAnisotropy
+    maxAnisotropy,
+    signal
   });
 }
 
@@ -514,14 +521,49 @@ export function createHegemonyKeepPrefabRepository(
     return internal;
   };
 
+  const releaseEntryResources = (entry: CacheEntry) => {
+    if (!entry.internal || entry.resourcesReleased) return;
+    entry.resourcesReleased = true;
+    release(entry.internal.resources);
+  };
+
+  const retireEntryIfUnused = (entry: CacheEntry) => {
+    if (
+      entry.retired
+      || entry.activeLeases !== 0
+      || entry.pendingAcquisitions !== 0
+    ) {
+      return;
+    }
+    entry.retired = true;
+    entry.abortController.abort();
+    releaseEntryResources(entry);
+  };
+
   const entryFor = (lod: CastleLod) => {
     const cached = entries.get(lod);
     if (cached) return cached;
+    const abortController = new AbortController();
     const entry: CacheEntry = {
       activeLeases: 0,
+      abortController,
+      pendingAcquisitions: 0,
       promise: Promise.resolve()
-        .then(() => loader(lod))
-        .then((loaded) => prepareInternalPrefab(lod, loaded)),
+        .then(() => loader(lod, abortController.signal))
+        .then((loaded) => {
+          if (!entry.retired && !abortController.signal.aborted) {
+            const internal = prepareInternalPrefab(lod, loaded);
+            entry.internal = internal;
+            return internal;
+          }
+          try {
+            disposeRealmObject(loaded.root);
+          } catch {
+            // Preserve cancellation after best-effort custom-loader cleanup.
+          }
+          throw createRealmLoadAbortError(`Hegemony keep ${lod} prefab`);
+        }),
+      resourcesReleased: false,
       retired: false
     };
     entries.set(lod, entry);
@@ -529,31 +571,59 @@ export function createHegemonyKeepPrefabRepository(
   };
 
   return Object.freeze({
-    acquire: async (lod) => {
+    acquire: (lod, signal) => {
+      if (signal?.aborted) {
+        return Promise.reject(createRealmLoadAbortError(`Hegemony keep ${lod} prefab`));
+      }
       const entry = entryFor(lod);
       if (entry.retired) {
-        throw new Error(`Hegemony keep ${lod} prefab is retired for this realm session.`);
+        return Promise.reject(new Error(
+          `Hegemony keep ${lod} prefab is retired for this realm session.`
+        ));
       }
-      const internal = await entry.promise;
-      // A previous lease can retire a resolved entry while this acquisition is
-      // queued behind the shared promise. Never revive already-freed resources.
-      if (entry.retired) {
-        throw new Error(`Hegemony keep ${lod} prefab is retired for this realm session.`);
-      }
-      entry.activeLeases += 1;
-      let released = false;
+      entry.pendingAcquisitions += 1;
 
-      return Object.freeze({
-        prefab: internal.prefab,
-        release: () => {
-          if (released) return;
-          released = true;
-          entry.activeLeases -= 1;
-          if (entry.activeLeases === 0) {
-            entry.retired = true;
-            release(internal.resources);
+      return new Promise<HegemonyKeepPrefabLease>((resolve, reject) => {
+        let finished = false;
+        const finishPending = () => {
+          if (finished) return false;
+          finished = true;
+          signal?.removeEventListener('abort', onAbort);
+          entry.pendingAcquisitions -= 1;
+          return true;
+        };
+        const onAbort = () => {
+          if (!finishPending()) return;
+          retireEntryIfUnused(entry);
+          reject(createRealmLoadAbortError(`Hegemony keep ${lod} prefab`));
+        };
+
+        signal?.addEventListener('abort', onAbort, { once: true });
+        entry.promise.then((internal) => {
+          if (!finishPending()) return;
+          // A previous lease or the final pending cancellation can retire a
+          // resolved entry. Never revive already-freed resources.
+          if (entry.retired) {
+            reject(new Error(
+              `Hegemony keep ${lod} prefab is retired for this realm session.`
+            ));
+            return;
           }
-        }
+          entry.activeLeases += 1;
+          let released = false;
+          resolve(Object.freeze({
+            prefab: internal.prefab,
+            release: () => {
+              if (released) return;
+              released = true;
+              entry.activeLeases -= 1;
+              retireEntryIfUnused(entry);
+            }
+          }));
+        }, (error: unknown) => {
+          if (!finishPending()) return;
+          reject(error);
+        });
       });
     }
   });

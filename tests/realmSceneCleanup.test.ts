@@ -9,7 +9,7 @@ const webglState = vi.hoisted(() => ({
 }));
 
 const keepLoadState = vi.hoisted(() => ({
-  load: vi.fn(() => new Promise<unknown>(() => undefined))
+  load: vi.fn((_options?: unknown) => new Promise<unknown>(() => undefined))
 }));
 
 const environmentState = vi.hoisted(() => ({ failNext: false }));
@@ -392,6 +392,26 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(2);
   });
 
+  it('aborts a pending castle-family load when the Realm unmounts', async () => {
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledOnce());
+    const loadOptions = keepLoadState.load.mock.calls[0]?.[0] as {
+      signal?: AbortSignal;
+    } | undefined;
+    expect(loadOptions?.signal).toBeInstanceOf(AbortSignal);
+    expect(loadOptions?.signal?.aborted).toBe(false);
+
+    scene.dispose();
+    expect(loadOptions?.signal?.aborted).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(onRendererUnavailable).not.toHaveBeenCalled();
+  });
+
   it('releases a late prefab lease once without inserting after disposal', async () => {
     let resolveLoad: ((value: unknown) => void) | undefined;
     const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -420,6 +440,24 @@ describe('realm scene setup cleanup', () => {
       expect(geometryDispose).toHaveBeenCalledTimes(1);
       expect(materialDispose).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('signals zero-castle readiness without requiring a prefab pairing', () => {
+    const onCastlesReady = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      ownCastleId: undefined,
+      otherCastles: [],
+      onCastlesReady,
+      onRendererUnavailable
+    }));
+
+    expect(keepLoadState.load).not.toHaveBeenCalled();
+    expect(onCastlesReady).toHaveBeenCalledOnce();
+    expect(onCastlesReady).toHaveBeenCalledWith(0);
+    expect(onRendererUnavailable).not.toHaveBeenCalled();
+
+    scene.dispose();
   });
 
   it('signals readiness only after a real prefab instance exists', async () => {
@@ -708,6 +746,46 @@ describe('realm scene setup cleanup', () => {
     expect(onCastlePresentationTelemetry).toHaveBeenLastCalledWith({
       presentedModelCount: 1,
       presentedLandscapeBaseCount: 0,
+      raycastTargetCount: 1
+    });
+
+    scene.dispose();
+  });
+
+  it('fails readiness when equal castle/base counts hide a mismatched base transform', async () => {
+    const originalSetMatrixAt = THREE.InstancedMesh.prototype.setMatrixAt;
+    vi.spyOn(THREE.InstancedMesh.prototype, 'setMatrixAt').mockImplementation(function (
+      this: THREE.InstancedMesh,
+      index,
+      matrix
+    ) {
+      if (this.name.startsWith('hegemony-castle-landscape-bases-')) {
+        const shifted = matrix.clone();
+        shifted.elements[12] = (shifted.elements[12] ?? 0) + 0.75;
+        return originalSetMatrixAt.call(this, index, shifted);
+      }
+      return originalSetMatrixAt.call(this, index, matrix);
+    });
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    keepLoadState.load.mockResolvedValue(loadedCastleAssembly(root));
+    const onCastlesReady = vi.fn();
+    const onCastlePresentationTelemetry = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      onCastlesReady,
+      onCastlePresentationTelemetry,
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => expect(onRendererUnavailable).toHaveBeenCalledOnce());
+    expect(onCastlesReady).not.toHaveBeenCalled();
+    expect(onCastlePresentationTelemetry).toHaveBeenLastCalledWith({
+      presentedModelCount: 1,
+      presentedLandscapeBaseCount: 1,
       raycastTargetCount: 1
     });
 

@@ -290,6 +290,7 @@ describe('realm castle instance layer', () => {
       presentedLandscapeBaseCount: 1,
       raycastTargetCount: 1
     });
+    expect(layer.hasExactCastleLandscapeBasePairing()).toBe(true);
 
     // This top-down ray misses the one-unit castle but remains inside the
     // authored island envelope, so the simple non-rendered oval must resolve
@@ -309,6 +310,81 @@ describe('realm castle instance layer', () => {
       presentedLandscapeBaseCount: 0,
       raycastTargetCount: 1
     });
+    expect(layer.hasExactCastleLandscapeBasePairing()).toBe(false);
+    layer.dispose();
+  });
+
+  it('rejects count parity that hides a wrong base identity, transform, or LOD', () => {
+    const castleGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const baseGeometry = new THREE.BoxGeometry(2.4, 0.2, 2);
+    const material = new THREE.MeshBasicMaterial();
+    const policy: CastleLodPolicy = {
+      ...COMPACT_ONLY_POLICY,
+      maximumLod: 'balanced',
+      balancedInstanceBudget: 8,
+      balancedEnterPixels: 10_000,
+      balancedExitPixels: 9_000,
+      highEnterPixels: 12_000,
+      highExitPixels: 11_000
+    };
+    const layer = createRealmCastleInstanceLayer({
+      castles: [castle(11, -1.2, 0), castle(22, 1.2, 0)],
+      prefabs: new Map([
+        ['compact', prefabWithLandscapeBase(
+          'compact',
+          castleGeometry,
+          baseGeometry,
+          material
+        )],
+        ['balanced', prefabWithLandscapeBase(
+          'balanced',
+          castleGeometry,
+          baseGeometry,
+          material
+        )]
+      ]),
+      policy,
+      dynamicShadows: false
+    });
+    layer.update(camera(), 900);
+    const compactBase = layer.group.getObjectByName(
+      'hegemony-castle-landscape-bases-compact-1'
+    ) as THREE.InstancedMesh;
+    const balancedBase = layer.group.getObjectByName(
+      'hegemony-castle-landscape-bases-balanced-1'
+    ) as THREE.InstancedMesh;
+    const firstBaseMatrix = new THREE.Matrix4();
+    const secondBaseMatrix = new THREE.Matrix4();
+    compactBase.getMatrixAt(0, firstBaseMatrix);
+    compactBase.getMatrixAt(1, secondBaseMatrix);
+
+    expect(layer.getPresentationTelemetry()).toMatchObject({
+      presentedModelCount: 2,
+      presentedLandscapeBaseCount: 2
+    });
+    expect(layer.hasExactCastleLandscapeBasePairing()).toBe(true);
+
+    compactBase.setMatrixAt(0, secondBaseMatrix);
+    compactBase.setMatrixAt(1, firstBaseMatrix);
+    expect(layer.getPresentationTelemetry()).toMatchObject({
+      presentedModelCount: 2,
+      presentedLandscapeBaseCount: 2
+    });
+    expect(layer.hasExactCastleLandscapeBasePairing()).toBe(false);
+
+    compactBase.setMatrixAt(0, firstBaseMatrix);
+    compactBase.setMatrixAt(1, secondBaseMatrix);
+    expect(layer.hasExactCastleLandscapeBasePairing()).toBe(true);
+    compactBase.count = 0;
+    balancedBase.setMatrixAt(0, firstBaseMatrix);
+    balancedBase.setMatrixAt(1, secondBaseMatrix);
+    balancedBase.count = 2;
+    expect(layer.getPresentationTelemetry()).toMatchObject({
+      presentedModelCount: 2,
+      presentedLandscapeBaseCount: 2
+    });
+    expect(layer.hasExactCastleLandscapeBasePairing()).toBe(false);
+
     layer.dispose();
   });
 
@@ -356,7 +432,7 @@ describe('realm castle instance layer', () => {
   it('picks an instantiated castle decoded from the exact compact Meshopt GLB', async () => {
     const bytes = exactArrayBuffer(resolve(
       ROOT,
-      'public/models/hegemony/hegemony-main-castle-compact.glb'
+      'public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb'
     ));
     const restoreObjectUrls = installLocalObjectUrlShim();
     const decodedBitmaps = vi.fn(async () => ({
@@ -371,7 +447,7 @@ describe('realm castle instance layer', () => {
         : input instanceof Request
           ? input.url
           : input.toString();
-      if (url === '/models/hegemony/hegemony-main-castle-compact.glb') {
+      if (url === '/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb') {
         return new Response(bytes.slice(0), {
           status: 200,
           headers: { 'content-length': String(bytes.byteLength) }
@@ -453,7 +529,7 @@ describe('realm castle instance layer', () => {
         coord: { q: 439, r: -439 }
       });
       expect(fetchMock).toHaveBeenCalledWith(
-        '/models/hegemony/hegemony-main-castle-compact.glb',
+        '/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb',
         expect.objectContaining({ credentials: 'same-origin', redirect: 'error' })
       );
     } finally {

@@ -27,7 +27,7 @@ function keepResult(scale = 0.12) {
     root,
     visualHeight: 1.62,
     footprintDiameter: 1.48,
-    assetUrl: '/models/hegemony/hegemony-main-castle-compact.glb'
+    assetUrl: '/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb'
   };
   return { castleTransform, result };
 }
@@ -40,7 +40,7 @@ function baseResult(): HegemonyLandscapeBaseLoadResult {
   ));
   return {
     root,
-    assetUrl: '/models/hegemony/hegemony-castle-landscape-base-compact.glb'
+    assetUrl: '/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb'
   };
 }
 
@@ -87,16 +87,20 @@ describe('Hegemony castle and authored landscape-base assembly', () => {
         resolveBase = resolve;
       })
     ));
+    const controller = new AbortController();
 
     const loading = loadHegemonyCastleAssembly({
       quality: REALM_QUALITY_SPECS.reduced,
       baseUrl: '/',
       maxAnisotropy: 1,
+      signal: controller.signal,
       keepLoader,
       landscapeBaseLoader
     });
     expect(keepLoader).toHaveBeenCalledOnce();
+    expect(keepLoader).toHaveBeenCalledWith(controller.signal);
     expect(landscapeBaseLoader).toHaveBeenCalledOnce();
+    expect(landscapeBaseLoader).toHaveBeenCalledWith(controller.signal);
 
     resolveBase?.(landscapeBase);
     await Promise.resolve();

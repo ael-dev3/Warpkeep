@@ -12,9 +12,11 @@ export interface AtomicFamilyInput {
 }
 
 export interface AtomicFamilyTransactionEntry extends AtomicFamilyInput {
+  backup?: string;
   destination: string;
   index: number;
   label: string;
+  stage?: string;
 }
 
 export type AtomicFamilyFailureContext =
@@ -38,10 +40,17 @@ export function resolveContainedPath(
   label?: string
 ): string;
 
+export function ensureContainedDirectory(options: {
+  root: string;
+  relativePath: string;
+  label: string;
+}): string;
+
 export function readContainedRegularFile(options: {
   root: string;
   relativePath: string;
   label: string;
+  expectedBytes?: number;
 }): Buffer;
 
 export function installAtomicFileFamily(options: {

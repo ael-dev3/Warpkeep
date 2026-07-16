@@ -5,6 +5,9 @@ exact public build stamp are the deployment record. No Worker, Durable Object,
 SpacetimeDB, admission, profile, world, castle, wallet, Marks, scan, or burn
 operation is part of this release.**
 
+Protected-main deployment: [089430e](https://github.com/ael-dev3/Warpkeep/commit/089430ecec83b72756104b33632673bdc6c2d8f1),
+named by [v0.3.4](https://github.com/ael-dev3/Warpkeep/releases/tag/v0.3.4).
+
 Alpha 0.3.4 follows through on the Genesis realm presentation repair without
 changing player authority. It keeps the canonical protocol-3 Genesis 001 world,
 admission boundary, Terms gate, browser-bound Farcaster sign-in, and Marks
@@ -29,6 +32,8 @@ fixture, and broker markers from player assets.
 
 ## Release improvements
 
+- The title route uses only the integrity-verified 3D title model; retired HTML,
+  SVG, loader, and procedural wordmark paths no longer duplicate it.
 - Castle identity labels use active-LOD projected hulls and measured bounds to
   remain roof-attached, readable, and clear of castle silhouettes, UI regions,
   and one another across dense clusters.

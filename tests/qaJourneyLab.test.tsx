@@ -378,8 +378,9 @@ describe('Warpkeep local QA journey lab', () => {
     fireEvent.click(target);
     await settlePresentation();
 
-    const inspector = screen.getByRole('dialog', { name: '@sentinel-two' });
+    const inspector = screen.getByRole('dialog', { name: 'Cinderwatch Keep' });
     expect(within(inspector).getByText('Cinderwatch Keep')).not.toBeNull();
+    expect(inspector.textContent).toContain('@sentinel-two');
     const focusedLabels = [...document.querySelectorAll<HTMLButtonElement>(
       'button.realm-castle-label[data-castle-id="102"][data-focused="true"]'
     )];

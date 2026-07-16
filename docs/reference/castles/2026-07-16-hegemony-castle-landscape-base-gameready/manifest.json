@@ -55,7 +55,7 @@
     "recordedAt": "2026-07-16",
     "authorizedBy": "Warpkeep project owner",
     "scope": [
-      "project-internal Warpkeep runtime integration of the exact three GameReady landscape-base inputs under Hegemony castles in PR #40",
+      "integration of the exact three GameReady landscape-base inputs under Hegemony castles into the public Warpkeep GitHub repository and official warpkeep.com Pages runtime in PR #40",
       "bounded deterministic atlas-metadata correction for the Balanced and Compact inputs"
     ],
     "licenseExpression": "LicenseRef-Warpkeep-Provenance-Required",
@@ -218,7 +218,7 @@
     "totalBytes": 334484,
     "profiles": {
       "high": {
-        "path": "public/models/hegemony/hegemony-castle-landscape-base-high.glb",
+        "path": "public/models/hegemony/hegemony-castle-landscape-base-high-be79476bee4e1f34.glb",
         "bytes": 214372,
         "sha256": "be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c",
         "triangles": 3954,
@@ -243,7 +243,7 @@
         ]
       },
       "balanced": {
-        "path": "public/models/hegemony/hegemony-castle-landscape-base-balanced.glb",
+        "path": "public/models/hegemony/hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb",
         "bytes": 92784,
         "sha256": "179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f",
         "triangles": 2138,
@@ -268,7 +268,7 @@
         ]
       },
       "compact": {
-        "path": "public/models/hegemony/hegemony-castle-landscape-base-compact.glb",
+        "path": "public/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb",
         "bytes": 27328,
         "sha256": "f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3",
         "triangles": 714,

@@ -206,7 +206,12 @@ function exactRecord(value, expected) {
 }
 
 function readRegularExactFile(root, relativePath, expected, label) {
-  const bytes = readContainedRegularFile({ root, relativePath, label });
+  const bytes = readContainedRegularFile({
+    root,
+    relativePath,
+    label,
+    expectedBytes: expected.bytes
+  });
   assertExact(bytes, expected, label);
   return bytes;
 }
@@ -369,7 +374,7 @@ for (const profile of profiles) {
     : input;
   await verifyOutput(output, profile);
 
-  const filename = `hegemony-castle-landscape-base-${profile.id}.glb`;
+  const filename = `hegemony-castle-landscape-base-${profile.id}-${profile.output.sha256.slice(0, 16)}.glb`;
   prepared.push({ ...profile, filename, preparedBytes: output });
 }
 

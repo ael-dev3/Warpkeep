@@ -9,10 +9,10 @@ Alpha 0.3.5 refreshes the Realm's three Hegemony Main Castle runtime models and
 adds one matching authored landscape base beneath every founded keep without
 changing player authority or the canonical Genesis 001 world. The High,
 Balanced, and Compact profiles use paired GameReady castle/base families
-prepared from exact owner-supplied inputs approved for Warpkeep's internal
-runtime integration. Foundation-bound username rails and a responsive Farcaster
-castle record keep identity readable without pretending that new gameplay state
-exists.
+prepared from exact owner-supplied inputs approved for this public Warpkeep
+repository and its official Pages runtime. Foundation-bound username rails and
+a responsive Farcaster castle record keep identity readable without pretending
+that new gameplay state exists.
 
 ## Release scope
 
@@ -31,7 +31,7 @@ world remain unchanged. It does not authorize or perform:
   mutation; or
 - any public relicensing or general redistribution grant. The only recorded
   derivative authority is the bounded castle/base GLB atlas-size metadata
-  correction and the exact project-internal background cleanup for the
+  correction and the exact official Warpkeep background cleanup for the
   castle-record artwork; neither exception grants broader derivative or
   redistribution rights.
 
@@ -61,6 +61,12 @@ normalises only that metadata field; geometry and embedded image bytes remain
 unchanged. Runtime records and integrity checks use the actual decoded
 dimensions for each tier so the source hint cannot be mistaken for the shipping
 allocation.
+
+All six Alpha 0.3.5 GLBs use immutable public filenames carrying the first 16
+hex characters of their verified SHA-256. The former Alpha 0.3.4 castle files
+remain at their exact old pathnames and bytes for cached-client and rollback
+compatibility. GitHub Pages does not partition these assets by query string, so
+release safety depends on the immutable pathname rather than a `?v=` marker.
 
 ## GameReady landscape-base family
 
@@ -93,12 +99,29 @@ geometry. If either model fails exact loading, parsing, assembly, or readiness,
 the complete family fails closed to the canonical illustrated Realm fallback
 instead of mixing castles and stale bases.
 
+Castle and base transports coalesce only when their integrity-pinned URL and
+normalized timeout policy both match. Each caller may cancel independently;
+the underlying request is aborted only after its final pending consumer leaves.
+One mounted-Realm prefab repository likewise coalesces concurrent LOD
+acquisitions, keeps one resource retain per cache entry, and retires a resolved
+LOD only after both pending acquisitions and active leases reach zero. Retirement
+is final for that Realm lifetime and releases geometries, materials, textures,
+and decoded bitmap sources exactly once. A valid empty authoritative castle set
+reports readiness zero without attempting a nonexistent castle/base pairing.
+
 Across the complete three-tier runtime family, the bases add 334,484 checked-in
 bytes. At 100 visible castles they add at most 131,496, 105,576, or 71,400
 triangles in Cinematic, Balanced, and Performance profiles, producing combined
 ceilings of 2,667,272, 2,196,408, and 1,794,600. They add at most three, two, or
 one instanced draws; their approximately 10.5 MiB of decoded images before
 mipmaps is shared once per resident LOD, not copied for every castle.
+
+Because Cinematic keeps all three paired LOD assemblies resident, automatic
+selection now requires measured 8 GB device memory, at least six logical CPU
+threads, and the existing viewport/drawing-buffer/WebGL limits. Browsers that
+do not report that headroom remain Balanced by default. The explicit Cinematic
+setting stays available, so this conservative default does not remove player
+control.
 
 The supplied Balanced and Compact base binaries contain real 512 and 256 pixel
 WebPs but declare `wk_atlas_size: 1024`. Warpkeep deterministically changes only
@@ -124,6 +147,13 @@ hysteresis does not freeze or offset the anchor.
 
 ## Responsive Farcaster castle record
 
+The authentication presentation merged after Alpha 0.3.4 now keeps the verified
+Farcaster username and static PFP visible during and after QR verification.
+After an authoritative cookie refresh, an exact-FID, tab-scoped cache may
+restore only those already-sanitized display fields. It cannot restore a
+session, choose an FID, admit a player, or alter the Worker/OIDC/SpacetimeDB
+authority chain; any FID mismatch fails closed.
+
 Click, tap, Enter/Space, canvas picking, and navigator activation retain the
 existing selection boundary and open a responsive record rather than a new
 gameplay surface. The record may show only already-sanitized public
@@ -133,12 +163,18 @@ name and biography, and community Marks fields only when their existing public
 visibility flag is true. The Farcaster profile link is derived only from a
 validated canonical username and is absent in the observer fixture.
 
-A safe HTTPS Farcaster PFP is decoded into a bounded static canvas snapshot. A
-missing, rejected, or failed portrait falls back to the sanitized public-name
-initial, then the Warpkeep `W`; the record does not depend on a remote image to
-remain readable. Alpha 0.3.5 does not invent durability, alliance, combat
-status, coordinates outside the existing castle record, or destructive action
-state to imitate the visual reference.
+A reviewed Farcaster PFP URL may produce only one bounded static canvas
+snapshot. The loader accepts the fixed same-origin observer placeholder or
+reviewed HTTPS provider/path pairs; sends no credentials or referrer; refuses
+redirects; and accepts only JPEG, PNG, or non-animated WebP. It caps transfer at
+2 MiB, waits at most eight seconds, rejects either dimension above 4,096 or more
+than 4,194,304 decoded pixels, then decodes through a temporary blob URL and
+disposes it after drawing. No remote image element enters the document. A
+missing, rejected, oversized, animated, timed-out, or failed portrait leaves the
+sanitized public-name initial, then the Warpkeep `W`; the record does not depend
+on a remote image to remain readable. Alpha 0.3.5 does not invent durability,
+alliance, combat status, coordinates outside the existing castle record, or
+destructive action state to imitate the visual reference.
 
 The drawer stays beside the map on wide layouts and becomes a bounded,
 safe-area-aware sheet on compact and short-landscape layouts. Its close and
@@ -158,8 +194,9 @@ are pinned in repository verification. The image is decorative and
 accessibility-hidden. It is not a world model, profile signal, gameplay field,
 or network authority.
 
-The owner's 16 July instruction authorizes this exact project-internal PR #40
-runtime use. The dated provenance record retains both source hashes, the edit
+The owner's 16 July instruction authorizes this exact checked-in use in the
+public Warpkeep GitHub repository and official `warpkeep.com` Pages runtime.
+The dated provenance record retains both source hashes, the edit
 prompt and cleanup parameters without committing the source attachments or
 intermediate. The cleanup creates no separate public open-content licence,
 general derivative/redistribution authority, ownership claim, trademark grant,
@@ -178,18 +215,20 @@ but it likewise does not claim a renderer lighting or palette correction.
 
 ## Integrity and provenance
 
-Each GameReady GLB browser request remains same-origin, exact-length bounded,
-and SHA-256 verified before parsing. Repository checks pin the reviewed GLB
-structure, geometry counts, transforms, actual embedded-image dimensions, and
-image/file digests. A malformed, substituted, truncated, or expanded GLB fails
+Each GameReady GLB browser request uses an immutable same-origin pathname and
+remains exact-length bounded and SHA-256 verified before parsing. Repository
+checks pin the reviewed GLB structure, geometry counts, transforms, actual
+embedded-image dimensions, and image/file digests. A malformed, substituted,
+truncated, or expanded GLB fails
 closed to the canonical illustrated Realm fallback. The decorative WebP has a
 separate build-time exact-length/hash and decoded-alpha contract; if its normal
 `<img>` load or decode fails, the styled record hero remains without treating
 the artwork as Realm state or authority.
 
-On 16 July 2026 the project owner authorised project-internal runtime
-integration of the exact High, Balanced, and Compact GameReady inputs and the
-bounded atlas-size metadata correction needed for Balanced and Compact. That
+On 16 July 2026 the project owner authorised integration of the exact High,
+Balanced, and Compact GameReady inputs into the public Warpkeep GitHub
+repository and official `warpkeep.com` Pages runtime, plus the bounded
+atlas-size metadata correction needed for Balanced and Compact. That
 instruction is not a separate open licence, a broader third-party derivative or
 redistribution grant, general regeneration authority, or a trademark or
 canonical-identity grant. The previous public-source preparation pipeline and
@@ -198,8 +237,10 @@ silently overwriting this active set.
 
 The owner separately supplied the exact `Warpkeep Castle Landscape Base`
 version `1.0.0` package and instructed PR #40 to add its three runtime LODs
-under the castles. This authorizes exact project-internal integration and the
-bounded Balanced/Compact metadata correction only. The bases remain
+under the castles and deploy the patch. This authorizes exact integration into
+this public Warpkeep GitHub repository and official `warpkeep.com` Pages
+runtime plus the bounded Balanced/Compact metadata correction only. The bases
+remain
 `LicenseRef-Warpkeep-Provenance-Required`; supply and integration do not create
 a public open licence, general third-party derivative/redistribution authority,
 trademark or canonical-identity rights, or permission to substitute same-named

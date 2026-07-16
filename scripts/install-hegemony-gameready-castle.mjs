@@ -123,7 +123,12 @@ function exactVector(value, expected) {
 }
 
 function readRegularExactFile(root, relativePath, expected, label) {
-  const bytes = readContainedRegularFile({ root, relativePath, label });
+  const bytes = readContainedRegularFile({
+    root,
+    relativePath,
+    label,
+    expectedBytes: expected.bytes
+  });
   assertExact(bytes, expected, label);
   return bytes;
 }
@@ -212,10 +217,10 @@ if (
 
 const prepared = [];
 for (const profile of profiles) {
-  const filename = `hegemony-main-castle-${profile.id}.glb`;
+  const sourceFilename = `hegemony-main-castle-${profile.id}.glb`;
   const input = readRegularExactFile(
     suppliedRoot,
-    `public/models/hegemony/${filename}`,
+    `public/models/hegemony/${sourceFilename}`,
     profile.input,
     `${profile.id} GameReady input`
   );
@@ -226,6 +231,7 @@ for (const profile of profiles) {
       })).bytes
     : input;
   await verifyOutput(output, profile);
+  const filename = `hegemony-main-castle-${profile.id}-${profile.output.sha256.slice(0, 16)}.glb`;
   prepared.push({ ...profile, filename, preparedBytes: output });
 }
 

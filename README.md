@@ -23,6 +23,10 @@ scope and verification. The site is a real product surface and technical
 foundation, not a claim that resources, upgrades, units, combat, alliances,
 chat, or seasons are playable yet.
 
+Alpha participation earns no rewards or airdrops and promises no financial
+gain. Warpkeep is a one-person experimental project; features, rules, data, and
+availability may change.
+
 Alpha 0.3.5 replaces the Alpha 0.3.4 castle LOD binaries with the exact
 owner-approved GameReady High, Balanced, and Compact family and pairs each tier
 with its exact GameReady landscape base. High accepts a modest close-detail
@@ -39,9 +43,12 @@ public Farcaster and existing Realm fields, a safe portrait fallback, and one
 same-origin background-cleaned decorative asset with exact provenance. The
 patch retains one exact Genesis 001 snapshot, shared instancing, safe-area-aware
 UI and camera composition, and bounded public profile presentation. It
-preserves the authentication, protocol, Terms, admission, world, castle,
-wallet, and Marks authority boundaries. The protected Pages workflow and exact
-build stamp remain the source of truth for the public deployment coordinate.
+also keeps the verified Farcaster username and static PFP visible during and
+after QR verification; exact-FID tab restoration is display-only and cannot
+restore authority. The patch preserves the authentication, protocol, Terms,
+admission, world, castle, wallet, and Marks authority boundaries. The protected
+Pages workflow and exact build stamp remain the source of truth for the public
+deployment coordinate.
 
 ## Alpha 0.3.5 foundation
 
@@ -112,20 +119,25 @@ public-source preparation recipe. Balanced and Compact receive only a bounded,
 deterministic correction to their atlas-size metadata; geometry and embedded
 images remain unchanged. Recover the outputs from an exact trusted Warpkeep
 commit and run `npm run verify:runtime-assets`; do not overwrite them with the
-historical derivative family. The 16 July 2026 owner authorization covers this
-exact project-internal integration and metadata correction. It is not a
+historical derivative family. The active files use immutable SHA-prefixed
+pathnames, while the exact Alpha 0.3.4 castle files remain at their old URLs for
+cached-client and rollback compatibility. The 16 July 2026 owner authorization
+covers exact use in this public Warpkeep GitHub repository and its official
+`warpkeep.com` Pages runtime plus the bounded metadata correction. It is not a
 separate public open licence, broader derivative grant, general redistribution
 grant, or trademark grant. See the [castle provenance index](docs/reference/castles/).
 The same index records the exact background-cleaned decorative WebP used only
-inside the castle record; its project-internal authorization does not establish
-a public open-content licence or broader derivative/redistribution rights.
+inside the castle record; its authorization covers this public repository and
+official Pages runtime but does not establish a public open-content licence or
+broader derivative/redistribution rights.
 It also records the separate three-tier GameReady landscape-base package. Use
 `WARPKEEP_CASTLE_BASE_GAMEREADY_ROOT` with
 `npm run prepare:hegemony-castle-base` only against the exact authorized
 package. The base must inherit the castle's exact parent transform and must not
 be independently centered, normalized, grounded, or scaled. Its narrow PR #40
-integration and metadata-correction authorization likewise grants no public
-open licence or general redistribution/derivative authority.
+public-repository/official-runtime integration and metadata-correction
+authorization likewise grants no public open licence or general
+redistribution/derivative authority.
 
 ## Documentation
 

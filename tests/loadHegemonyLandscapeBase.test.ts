@@ -20,7 +20,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 const ASSETS = [
   {
     quality: 'high' as const,
-    path: 'public/models/hegemony/hegemony-castle-landscape-base-high.glb',
+    path: 'public/models/hegemony/hegemony-castle-landscape-base-high-be79476bee4e1f34.glb',
     bytes: 214_372,
     sha256: 'be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c',
     triangles: 3_954,
@@ -29,7 +29,7 @@ const ASSETS = [
   },
   {
     quality: 'balanced' as const,
-    path: 'public/models/hegemony/hegemony-castle-landscape-base-balanced.glb',
+    path: 'public/models/hegemony/hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb',
     bytes: 92_784,
     sha256: '179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f',
     triangles: 2_138,
@@ -38,7 +38,7 @@ const ASSETS = [
   },
   {
     quality: 'reduced' as const,
-    path: 'public/models/hegemony/hegemony-castle-landscape-base-compact.glb',
+    path: 'public/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb',
     bytes: 27_328,
     sha256: 'f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3',
     triangles: 714,
@@ -100,9 +100,11 @@ describe('Hegemony castle landscape-base runtime assets', () => {
   });
 
   it('selects the landscape LOD paired with each castle quality profile', () => {
-    expect(landscapeBaseAssetPathForQuality('high')).toContain('-high.glb');
-    expect(landscapeBaseAssetPathForQuality('balanced')).toContain('-balanced.glb');
-    expect(landscapeBaseAssetPathForQuality('reduced')).toContain('-compact.glb');
+    expect(landscapeBaseAssetPathForQuality('high')).toMatch(/-high-[a-f0-9]{16}\.glb$/);
+    expect(landscapeBaseAssetPathForQuality('balanced'))
+      .toMatch(/-balanced-[a-f0-9]{16}\.glb$/);
+    expect(landscapeBaseAssetPathForQuality('reduced'))
+      .toMatch(/-compact-[a-f0-9]{16}\.glb$/);
     expect(REALM_QUALITY_SPECS.high.landscapeBaseAssetPath)
       .toBe(landscapeBaseAssetPathForQuality('high'));
     expect(REALM_QUALITY_SPECS.balanced.landscapeBaseAssetPath)
@@ -212,14 +214,103 @@ describe('Hegemony castle landscape-base runtime assets', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      '/models/hegemony/hegemony-castle-landscape-base-compact.glb',
+      '/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb',
       expect.objectContaining({ credentials: 'same-origin', redirect: 'error' })
     );
     expect(parser).toHaveBeenCalledTimes(2);
     expect(first.root).not.toBe(second.root);
     expect(first.assetUrl).toBe(
-      '/models/hegemony/hegemony-castle-landscape-base-compact.glb'
+      '/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb'
     );
+  });
+
+  it('aborts shared transport only after its final pending scene consumer leaves', async () => {
+    let requestSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
+      new Promise<Response>((_resolve, reject) => {
+        requestSignal = init?.signal ?? undefined;
+        requestSignal?.addEventListener('abort', () => {
+          reject(requestSignal?.reason ?? new Error('synthetic transport abort'));
+        }, { once: true });
+      })
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const parser = vi.fn(async () => new THREE.Group());
+    const options = {
+      quality: REALM_QUALITY_SPECS.reduced,
+      baseUrl: '/',
+      maxAnisotropy: 1,
+      parser
+    } as const;
+    const first = loadHegemonyLandscapeBase({
+      ...options,
+      signal: firstController.signal
+    });
+    const second = loadHegemonyLandscapeBase({
+      ...options,
+      signal: secondController.signal
+    });
+    const firstRejection = expect(first).rejects.toMatchObject({ name: 'AbortError' });
+    const secondRejection = expect(second).rejects.toMatchObject({ name: 'AbortError' });
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    firstController.abort();
+    await firstRejection;
+    expect(requestSignal?.aborted).toBe(false);
+    expect(parser).not.toHaveBeenCalled();
+
+    secondController.abort();
+    await secondRejection;
+    expect(requestSignal?.aborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('isolates shared transports with different normalized timeout policies', async () => {
+    vi.useFakeTimers();
+    const requestSignals: AbortSignal[] = [];
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
+      new Promise<Response>((_resolve, reject) => {
+        const requestSignal = init?.signal;
+        if (!(requestSignal instanceof AbortSignal)) {
+          reject(new Error('missing synthetic request signal'));
+          return;
+        }
+        requestSignals.push(requestSignal);
+        requestSignal.addEventListener('abort', () => {
+          reject(requestSignal.reason ?? new Error('synthetic transport abort'));
+        }, { once: true });
+      })
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const longController = new AbortController();
+    const options = {
+      quality: REALM_QUALITY_SPECS.reduced,
+      baseUrl: '/',
+      maxAnisotropy: 1,
+      parser: vi.fn(async () => new THREE.Group())
+    } as const;
+    const long = loadHegemonyLandscapeBase({
+      ...options,
+      signal: longController.signal,
+      requestTimeoutMs: 1_000
+    });
+    const short = loadHegemonyLandscapeBase({ ...options, requestTimeoutMs: 23 });
+    const longRejection = expect(long).rejects.toMatchObject({ name: 'AbortError' });
+    const shortRejection = expect(short).rejects.toThrow(/timed out after 23ms/i);
+
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(23);
+    await shortRejection;
+    expect(requestSignals).toHaveLength(2);
+    expect(requestSignals[0]?.aborted).toBe(false);
+    expect(requestSignals[1]?.aborted).toBe(true);
+
+    longController.abort();
+    await longRejection;
+    expect(requestSignals[0]?.aborted).toBe(true);
   });
 
   it('evicts a failed integrity request so the next scene can retry cleanly', async () => {

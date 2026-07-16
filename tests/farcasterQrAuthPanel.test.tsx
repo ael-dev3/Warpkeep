@@ -1,6 +1,6 @@
 import { createRef } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   FarcasterIdentityBadge,
@@ -15,11 +15,41 @@ import {
 } from '../src/components/auth/FarcasterQrAuthPanel';
 import type { VerifiedFarcasterIdentity } from '../src/farcaster/farcasterAuthTypes';
 
+const PROFILE_IMAGE_URL =
+  'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/bc698287-5adc-4cc5-a503-de16963ed900/original';
+
+function pngHeader() {
+  const bytes = new Uint8Array(33);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(8, 13, false);
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12);
+  view.setUint32(16, 256, false);
+  view.setUint32(20, 256, false);
+  bytes.set([8, 6, 0, 0, 0], 24);
+  return bytes;
+}
+
+class AutoLoadingProfileImage {
+  decoding = 'auto';
+  naturalHeight = 256;
+  naturalWidth = 256;
+  onerror: ((event: Event) => void) | null = null;
+  onload: ((event: Event) => void) | null = null;
+  referrerPolicy = '';
+
+  set src(_value: string) {
+    queueMicrotask(() => this.onload?.(new Event('load')));
+  }
+
+  removeAttribute() {}
+}
+
 const verifiedIdentity: VerifiedFarcasterIdentity = {
   fid: 12_345,
   username: 'keeper',
   displayName: 'The Keeper',
-  pfpUrl: 'https://images.example/keeper.png',
+  pfpUrl: PROFILE_IMAGE_URL,
   custody: '0x1234',
   verifications: [],
   authMethod: 'authAddress',
@@ -67,6 +97,25 @@ function renderPanel(props: RenderPanelProps) {
 
   return { ...result, callbacks };
 }
+
+beforeEach(() => {
+  vi.stubGlobal('Image', AutoLoadingProfileImage as unknown as typeof Image);
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(pngHeader());
+        controller.close();
+      }
+    }),
+    { status: 200, headers: { 'content-type': 'image/png' } }
+  )));
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:warpkeep-auth-profile');
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    clearRect: vi.fn(),
+    drawImage: vi.fn()
+  } as unknown as CanvasRenderingContext2D);
+});
 
 afterEach(() => {
   cleanup();
@@ -203,7 +252,7 @@ describe('FarcasterQrAuthPanel', () => {
     expect(screen.getByText(/Confirming FID ownership/)).not.toBeNull();
   });
 
-  it('shows the verified username and PFP while the bridge access check completes', () => {
+  it('shows the verified username and bounded PFP while the bridge access check completes', async () => {
     const { container } = renderPanel({
       phase: 'verifying',
       identity: verifiedIdentity
@@ -218,9 +267,12 @@ describe('FarcasterQrAuthPanel', () => {
       'Farcaster identity confirmed: @keeper, checking realm access'
     );
     expect(container.querySelector('section')?.getAttribute('aria-busy')).toBe('false');
-    const profileImage = container.querySelector('.farcaster-identity-badge__portrait img');
-    expect(profileImage?.getAttribute('src')).toBe('https://images.example/keeper.png');
-    expect(profileImage?.getAttribute('referrerpolicy')).toBe('no-referrer');
+    const profileImage = container.querySelector<HTMLCanvasElement>(
+      '.farcaster-identity-badge__portrait canvas'
+    );
+    await waitFor(() => expect(profileImage?.dataset.profileImageState).toBe('ready'));
+    expect(profileImage?.style.display).toBe('block');
+    expect(container.querySelector('.farcaster-identity-badge__portrait img')).toBeNull();
   });
 
   it('offers retry and menu actions for expired and sanitized error states', () => {
@@ -240,7 +292,7 @@ describe('FarcasterQrAuthPanel', () => {
     expect(failed.callbacks.onRetry).toHaveBeenCalledTimes(1);
   });
 
-  it('renders a neutral authorized browser session and enters the realm', () => {
+  it('renders a neutral authorized browser session and enters the realm', async () => {
     const { callbacks, container } = renderPanel({
       phase: 'authenticated',
       identity: verifiedIdentity,
@@ -257,9 +309,12 @@ describe('FarcasterQrAuthPanel', () => {
     )).not.toBeNull();
     expect(screen.getByRole('status').textContent).toBe('Verified through Farcaster: @keeper');
     expect(screen.queryByRole('checkbox')).toBeNull();
-    const profileImage = container.querySelector('.farcaster-identity-badge__portrait img');
-    expect(profileImage?.getAttribute('src')).toBe('https://images.example/keeper.png');
-    expect(profileImage?.getAttribute('referrerpolicy')).toBe('no-referrer');
+    const profileImage = container.querySelector<HTMLCanvasElement>(
+      '.farcaster-identity-badge__portrait canvas'
+    );
+    await waitFor(() => expect(profileImage?.dataset.profileImageState).toBe('ready'));
+    expect(profileImage?.style.display).toBe('block');
+    expect(container.querySelector('.farcaster-identity-badge__portrait img')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(callbacks.onEnterRealm).toHaveBeenCalledWith(verifiedIdentity);
@@ -299,9 +354,11 @@ describe('FarcasterQrAuthPanel', () => {
 });
 
 describe('FarcasterIdentityBadge', () => {
-  it('accepts only credential-free HTTPS profile image URLs', () => {
+  it('accepts only reviewed credential-free HTTPS profile image URLs', () => {
+    expect(getSafeFarcasterProfileImageUrl(PROFILE_IMAGE_URL))
+      .toBe(PROFILE_IMAGE_URL);
     expect(getSafeFarcasterProfileImageUrl('https://images.example/pfp.png'))
-      .toBe('https://images.example/pfp.png');
+      .toBeUndefined();
     expect(getSafeFarcasterProfileImageUrl('http://images.example/pfp.png'))
       .toBeUndefined();
     expect(getSafeFarcasterProfileImageUrl('https://user:pass@images.example/pfp.png'))
@@ -310,13 +367,19 @@ describe('FarcasterIdentityBadge', () => {
     expect(getSafeFarcasterProfileImageUrl('data:image/svg+xml,unsafe')).toBeUndefined();
   });
 
-  it('falls back to a monogram for missing, unsafe, or failed profile images', () => {
+  it('falls back to a monogram for missing, unsafe, or failed profile images', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('unavailable', {
+      status: 200,
+      headers: { 'content-type': 'text/html' }
+    }));
     const { container, rerender } = render(
       <FarcasterIdentityBadge identity={verifiedIdentity} />
     );
-    const profileImage = container.querySelector('img');
-    expect(profileImage?.getAttribute('src')).toBe('https://images.example/keeper.png');
-    fireEvent.error(profileImage as HTMLImageElement);
+    const profileImage = container.querySelector<HTMLCanvasElement>(
+      '.farcaster-identity-badge__portrait canvas'
+    );
+    await waitFor(() => expect(profileImage?.dataset.profileImageState).toBe('unavailable'));
+    expect(container.querySelector('.farcaster-identity-badge__portrait img')).toBeNull();
     expect(container.querySelector('.farcaster-identity-badge__monogram')?.textContent).toBe('K');
 
     const fallbackIdentity: VerifiedFarcasterIdentity = {

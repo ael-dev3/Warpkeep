@@ -74,7 +74,13 @@ function visibleBounds(raw: Buffer, width: number, height: number) {
 describe('Hegemony castle record art', () => {
   it('pins the narrow runtime authorisation without inventing a public licence', () => {
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.projectAuthorization.scope).toContain('PR #40 runtime deployment');
+    expect(manifest.projectAuthorization.scope).toContain('PR #40');
+    expect(manifest.projectAuthorization.scope).toContain(
+      'public Warpkeep GitHub repository'
+    );
+    expect(manifest.projectAuthorization.scope).toContain(
+      'official warpkeep.com Pages runtime'
+    );
     expect(manifest.projectAuthorization.notGranted.join(' ')).toMatch(
       /copyright ownership|public open-content licence|redistribution/i
     );

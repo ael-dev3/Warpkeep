@@ -6,6 +6,11 @@ import {
   closeImageBitmapOnce,
   imageBitmapSourceForTexture
 } from './realmTextureResources';
+import {
+  consumeSharedRealmModelRequest,
+  throwIfRealmLoadAborted,
+  type SharedRealmModelRequest
+} from './realmModelRequestLifecycle';
 
 export const DEFAULT_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 20_000;
 const MAX_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 60_000;
@@ -29,7 +34,7 @@ export const HEGEMONY_KEEP_RUNTIME_ASSETS = Object.freeze({
 });
 
 type KeepRuntimeAsset = (typeof HEGEMONY_KEEP_RUNTIME_ASSETS)[keyof typeof HEGEMONY_KEEP_RUNTIME_ASSETS];
-type KeepBinaryRequest = Promise<ArrayBuffer>;
+type KeepBinaryRequest = SharedRealmModelRequest<ArrayBuffer>;
 
 const keepBinaryRequests = new Map<string, KeepBinaryRequest>();
 
@@ -70,6 +75,7 @@ export type LoadHegemonyKeepOptions = Readonly<{
   quality: RealmQualitySpec;
   baseUrl: string;
   maxAnisotropy: number;
+  signal?: AbortSignal;
   /** Bounds both fetch and response-body work; the default is production-safe. */
   requestTimeoutMs?: number;
   parser?: HegemonyKeepParser;
@@ -83,6 +89,25 @@ export type HegemonyKeepParser = (
 export function resolveRealmAssetUrl(baseUrl: string, assetPath: string) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return `${normalizedBase}${assetPath.replace(/^\/+/, '')}`;
+}
+
+/**
+ * Refuses runtime models whose public filename does not carry its digest.
+ * GitHub Pages does not partition these assets by query string, so immutable
+ * pathnames are required to keep both forward deployment and rollback safe.
+ */
+export function resolveIntegrityPinnedRealmAssetUrl(
+  baseUrl: string,
+  assetPath: string,
+  sha256: string
+) {
+  if (!/^[a-f0-9]{64}$/.test(sha256)) {
+    throw new Error('Invalid Realm model integrity coordinate.');
+  }
+  if (!assetPath.endsWith(`-${sha256.slice(0, 16)}.glb`)) {
+    throw new Error('Realm model path is not content-addressed.');
+  }
+  return resolveRealmAssetUrl(baseUrl, assetPath);
 }
 export function keepAssetPathForQuality(quality: RealmQuality) {
   if (quality === 'high') return HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.high;
@@ -176,12 +201,26 @@ export async function readExactRealmModelResponseBody(
 function requestKeepBinary(
   assetUrl: string,
   asset: KeepRuntimeAsset,
-  timeoutMs: number | undefined
+  timeoutMs: number | undefined,
+  signal: AbortSignal | undefined
 ) {
-  const cached = keepBinaryRequests.get(assetUrl);
-  if (cached) return cached;
-
   const boundedTimeoutMs = normalizedRequestTimeout(timeoutMs);
+  const requestKey = `${boundedTimeoutMs}:${assetUrl}`;
+  const cached = keepBinaryRequests.get(requestKey);
+  if (cached) {
+    return consumeSharedRealmModelRequest(
+      cached,
+      signal,
+      () => {
+        if (keepBinaryRequests.get(requestKey) === cached) {
+          keepBinaryRequests.delete(requestKey);
+        }
+        cached.abortController.abort();
+      },
+      'Hegemony keep'
+    );
+  }
+
   const abortController = new AbortController();
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   const fetchRequest = Promise.resolve()
@@ -205,16 +244,30 @@ function requestKeepBinary(
     }, boundedTimeoutMs);
   });
   let request: KeepBinaryRequest;
-  request = Promise.race([fetchRequest, timeout])
+  const promise = Promise.race([fetchRequest, timeout])
     .finally(() => {
+      request.settled = true;
       if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
     })
     .catch((error) => {
-      if (keepBinaryRequests.get(assetUrl) === request) keepBinaryRequests.delete(assetUrl);
+      if (keepBinaryRequests.get(requestKey) === request) {
+        keepBinaryRequests.delete(requestKey);
+      }
       throw error;
     });
-  keepBinaryRequests.set(assetUrl, request);
-  return request;
+  request = { abortController, consumerCount: 0, promise, settled: false };
+  keepBinaryRequests.set(requestKey, request);
+  return consumeSharedRealmModelRequest(
+    request,
+    signal,
+    () => {
+      if (keepBinaryRequests.get(requestKey) === request) {
+        keepBinaryRequests.delete(requestKey);
+      }
+      abortController.abort();
+    },
+    'Hegemony keep'
+  );
 }
 
 export async function parseHegemonyModel(bytes: ArrayBuffer, resourcePath: string) {
@@ -329,13 +382,32 @@ export function prepareHegemonyKeepScene(
 export async function loadHegemonyKeep(
   options: LoadHegemonyKeepOptions
 ): Promise<HegemonyKeepLoadResult> {
-  const assetUrl = resolveRealmAssetUrl(options.baseUrl, options.quality.keepAssetPath);
+  throwIfRealmLoadAborted(options.signal, 'Hegemony keep');
   const asset = keepRuntimeAssetForPath(options.quality.keepAssetPath);
-  const bytes = await requestKeepBinary(assetUrl, asset, options.requestTimeoutMs);
+  const assetUrl = resolveIntegrityPinnedRealmAssetUrl(
+    options.baseUrl,
+    asset.path,
+    asset.sha256
+  );
+  const bytes = await requestKeepBinary(
+    assetUrl,
+    asset,
+    options.requestTimeoutMs,
+    options.signal
+  );
+  throwIfRealmLoadAborted(options.signal, 'Hegemony keep');
   const scene = await (options.parser ?? parseHegemonyModel)(
     bytes.slice(0),
     assetUrl.slice(0, assetUrl.lastIndexOf('/') + 1)
   );
+  if (options.signal?.aborted) {
+    try {
+      disposeRealmObject(scene);
+    } catch {
+      // Cancellation remains primary after best-effort decoded-resource cleanup.
+    }
+    throwIfRealmLoadAborted(options.signal, 'Hegemony keep');
+  }
   const prepared = prepareHegemonyKeepScene(scene, {
     dynamicShadows: options.quality.dynamicShadows,
     maxAnisotropy: options.maxAnisotropy

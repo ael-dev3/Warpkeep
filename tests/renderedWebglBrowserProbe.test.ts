@@ -334,6 +334,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'high',
         interaction: 'default',
+        maximumLabelOverflowCount: 13,
         minimumLabelCount: 10,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=high',
         viewport: { width: 1440, height: 900 }
@@ -343,6 +344,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
+        maximumLabelOverflowCount: 13,
         minimumLabelCount: 10,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 1440, height: 900 }
@@ -352,7 +354,8 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
-        minimumLabelCount: 12,
+        maximumLabelOverflowCount: 8,
+        minimumLabelCount: 16,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 1920, height: 1080 }
       },
@@ -361,7 +364,8 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'inspector',
-        minimumLabelCount: 1,
+        maximumLabelOverflowCount: 9,
+        minimumLabelCount: 11,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 1024, height: 768 }
       },
@@ -371,7 +375,8 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'inspector',
-        minimumLabelCount: 1,
+        maximumLabelOverflowCount: 9,
+        minimumLabelCount: 11,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 1024, height: 768 }
       },
@@ -380,7 +385,8 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'cluster',
-        minimumLabelCount: 1,
+        maximumLabelOverflowCount: 10,
+        minimumLabelCount: 5,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 390, height: 844 }
       },
@@ -389,7 +395,8 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'reduced',
         interaction: 'default',
-        minimumLabelCount: 8,
+        maximumLabelOverflowCount: 13,
+        minimumLabelCount: 10,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=reduced',
         viewport: { width: 1440, height: 900 }
       },
@@ -398,6 +405,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
+        maximumLabelOverflowCount: 13,
         minimumLabelCount: 10,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=invalid',
         viewport: { width: 1440, height: 900 }
@@ -407,6 +415,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
+        maximumLabelOverflowCount: 10,
         minimumLabelCount: 5,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 390, height: 844 }
@@ -416,7 +425,8 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'reduced',
         interaction: 'inspector',
-        minimumLabelCount: 1,
+        maximumLabelOverflowCount: 8,
+        minimumLabelCount: 4,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=reduced',
         viewport: { width: 390, height: 844 }
       },
@@ -425,6 +435,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'explore',
+        maximumLabelOverflowCount: 17,
         minimumLabelCount: 1,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 667, height: 375 }
@@ -435,6 +446,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'explore',
+        maximumLabelOverflowCount: 17,
         minimumLabelCount: 1,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 667, height: 375 }
@@ -444,7 +456,8 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'default',
-        minimumLabelCount: 9,
+        maximumLabelOverflowCount: 13,
+        minimumLabelCount: 10,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 1440, height: 900 }
       },
@@ -453,6 +466,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'default',
+        maximumLabelOverflowCount: 10,
         minimumLabelCount: 4,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 390, height: 844 }
@@ -818,6 +832,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       documentWidth: 1440,
       mapViewportCovered: true,
       interactionState: 'default',
+      inspectorProfileImageState: 'absent',
       individualCastleCount: 18,
       presentedModelCount: 18,
       presentedLandscapeBaseCount: 18,
@@ -961,6 +976,28 @@ describe('rendered WebGL headless browser probe contract', () => {
       presentedLandscapeBaseCount: 19,
       raycastTargetCount: 19
     }, expected)).toMatchObject({ renderer: 'webgl' });
+    expect(parseRenderedWebglBrowserDom({
+      ...ready,
+      labelEligibleCount: 31,
+      labelUnplacedCount: expected.maximumLabelOverflowCount,
+      labelClusterOverflowCount: expected.maximumLabelOverflowCount,
+      presentedModelCount: 31,
+      presentedLandscapeBaseCount: 31,
+      raycastTargetCount: 31
+    }, expected)).toMatchObject({ renderer: 'webgl' });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelEligibleCount: 32,
+      labelUnplacedCount: expected.maximumLabelOverflowCount + 1,
+      labelClusterOverflowCount: expected.maximumLabelOverflowCount + 1,
+      presentedModelCount: 32,
+      presentedLandscapeBaseCount: 32,
+      raycastTargetCount: 32
+    }, expected)).toThrow(/label-cluster-overflow-cap/i);
+    expect(() => parseRenderedWebglBrowserDom(ready, {
+      ...expected,
+      maximumLabelOverflowCount: 101
+    })).toThrow(/expected-label-cluster-overflow-cap/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       labelEligibleCount: 19,
@@ -1103,12 +1140,17 @@ describe('rendered WebGL headless browser probe contract', () => {
       viewportHeight: tabletPlayerInspectorCase.viewport.height,
       documentWidth: tabletPlayerInspectorCase.viewport.width,
       interactionState: 'inspector',
+      inspectorProfileImageState: 'ready',
       focusedReadableLabelCount: 1
     } as const;
     expect(parseRenderedWebglBrowserDom(
       tabletPlayerInspectorReady,
       tabletPlayerInspectorExpected
     )).toMatchObject({ presentationMode: 'player' });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...tabletPlayerInspectorReady,
+      inspectorProfileImageState: 'loading'
+    }, tabletPlayerInspectorExpected)).toThrow(/inspector-profile-image-state/i);
     // An inspector can leave its source label in place and retain DOM focus,
     // or reserve tablet screen space and correctly cull it to avoid a
     // keep/UI overlap. Direct label-action evidence is asserted separately.
@@ -1186,6 +1228,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       viewportHeight: inspectorCase.viewport.height,
       documentWidth: inspectorCase.viewport.width,
       interactionState: 'inspector',
+      inspectorProfileImageState: 'ready',
       labelCount: 0,
       labelEligibleCount: 0,
       labelPlacedCount: 0,

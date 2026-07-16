@@ -4,12 +4,18 @@ import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 import type { RealmQuality, RealmQualitySpec } from './realmQuality';
 import {
   DEFAULT_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS,
+  disposeRealmObject,
   parseHegemonyModel,
   readExactRealmModelResponseBody,
-  resolveRealmAssetUrl,
+  resolveIntegrityPinnedRealmAssetUrl,
   tuneHegemonyModelMaterial,
   type HegemonyKeepParser
 } from './loadHegemonyKeep';
+import {
+  consumeSharedRealmModelRequest,
+  throwIfRealmLoadAborted,
+  type SharedRealmModelRequest
+} from './realmModelRequestLifecycle';
 
 const MAX_HEGEMONY_LANDSCAPE_BASE_REQUEST_TIMEOUT_MS = 60_000;
 
@@ -35,7 +41,7 @@ type LandscapeBaseRuntimeAsset = (
   typeof HEGEMONY_LANDSCAPE_BASE_RUNTIME_ASSETS
 )[keyof typeof HEGEMONY_LANDSCAPE_BASE_RUNTIME_ASSETS];
 
-type LandscapeBaseBinaryRequest = Promise<ArrayBuffer>;
+type LandscapeBaseBinaryRequest = SharedRealmModelRequest<ArrayBuffer>;
 const landscapeBaseBinaryRequests = new Map<string, LandscapeBaseBinaryRequest>();
 
 export type HegemonyLandscapeBaseLoadResult = Readonly<{
@@ -47,6 +53,7 @@ export type LoadHegemonyLandscapeBaseOptions = Readonly<{
   quality: RealmQualitySpec;
   baseUrl: string;
   maxAnisotropy: number;
+  signal?: AbortSignal;
   requestTimeoutMs?: number;
   parser?: HegemonyKeepParser;
 }>;
@@ -84,12 +91,26 @@ function normalizedRequestTimeout(timeoutMs: number | undefined) {
 function requestLandscapeBaseBinary(
   assetUrl: string,
   asset: LandscapeBaseRuntimeAsset,
-  timeoutMs: number | undefined
+  timeoutMs: number | undefined,
+  signal: AbortSignal | undefined
 ) {
-  const cached = landscapeBaseBinaryRequests.get(assetUrl);
-  if (cached) return cached;
-
   const boundedTimeoutMs = normalizedRequestTimeout(timeoutMs);
+  const requestKey = `${boundedTimeoutMs}:${assetUrl}`;
+  const cached = landscapeBaseBinaryRequests.get(requestKey);
+  if (cached) {
+    return consumeSharedRealmModelRequest(
+      cached,
+      signal,
+      () => {
+        if (landscapeBaseBinaryRequests.get(requestKey) === cached) {
+          landscapeBaseBinaryRequests.delete(requestKey);
+        }
+        cached.abortController.abort();
+      },
+      'Hegemony landscape base'
+    );
+  }
+
   const abortController = new AbortController();
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   const fetchRequest = Promise.resolve()
@@ -121,18 +142,30 @@ function requestLandscapeBaseBinary(
     }, boundedTimeoutMs);
   });
   let request: LandscapeBaseBinaryRequest;
-  request = Promise.race([fetchRequest, timeout])
+  const promise = Promise.race([fetchRequest, timeout])
     .finally(() => {
+      request.settled = true;
       if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
     })
     .catch((error) => {
-      if (landscapeBaseBinaryRequests.get(assetUrl) === request) {
-        landscapeBaseBinaryRequests.delete(assetUrl);
+      if (landscapeBaseBinaryRequests.get(requestKey) === request) {
+        landscapeBaseBinaryRequests.delete(requestKey);
       }
       throw error;
     });
-  landscapeBaseBinaryRequests.set(assetUrl, request);
-  return request;
+  request = { abortController, consumerCount: 0, promise, settled: false };
+  landscapeBaseBinaryRequests.set(requestKey, request);
+  return consumeSharedRealmModelRequest(
+    request,
+    signal,
+    () => {
+      if (landscapeBaseBinaryRequests.get(requestKey) === request) {
+        landscapeBaseBinaryRequests.delete(requestKey);
+      }
+      abortController.abort();
+    },
+    'Hegemony landscape base'
+  );
 }
 
 export function prepareHegemonyLandscapeBaseScene(
@@ -174,13 +207,32 @@ export function prepareHegemonyLandscapeBaseScene(
 export async function loadHegemonyLandscapeBase(
   options: LoadHegemonyLandscapeBaseOptions
 ): Promise<HegemonyLandscapeBaseLoadResult> {
-  const assetUrl = resolveRealmAssetUrl(options.baseUrl, options.quality.landscapeBaseAssetPath);
+  throwIfRealmLoadAborted(options.signal, 'Hegemony landscape base');
   const asset = landscapeBaseRuntimeAssetForPath(options.quality.landscapeBaseAssetPath);
-  const bytes = await requestLandscapeBaseBinary(assetUrl, asset, options.requestTimeoutMs);
+  const assetUrl = resolveIntegrityPinnedRealmAssetUrl(
+    options.baseUrl,
+    asset.path,
+    asset.sha256
+  );
+  const bytes = await requestLandscapeBaseBinary(
+    assetUrl,
+    asset,
+    options.requestTimeoutMs,
+    options.signal
+  );
+  throwIfRealmLoadAborted(options.signal, 'Hegemony landscape base');
   const root = await (options.parser ?? parseHegemonyModel)(
     bytes.slice(0),
     assetUrl.slice(0, assetUrl.lastIndexOf('/') + 1)
   );
+  if (options.signal?.aborted) {
+    try {
+      disposeRealmObject(root);
+    } catch {
+      // Cancellation remains primary after best-effort decoded-resource cleanup.
+    }
+    throwIfRealmLoadAborted(options.signal, 'Hegemony landscape base');
+  }
   return { root, assetUrl };
 }
 

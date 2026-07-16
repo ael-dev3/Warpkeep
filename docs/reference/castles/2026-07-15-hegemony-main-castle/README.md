@@ -1,15 +1,17 @@
-# Historical Hegemony Main Castle — Public Source and Former Runtime Derivatives
+# Historical Hegemony Main Castle — Public Source and Retained Alpha 0.3.4 Compatibility Derivatives
 
-> **Superseded on 2026-07-16.** This directory is immutable historical evidence
-> for the former Alpha 0.3.4 castle family. The active runtime family and its
-> distinct authorization boundary are recorded in the
+> **Superseded as the active family on 2026-07-16.** This directory records the
+> former Alpha 0.3.4 castle family. Its exact binaries remain at their legacy
+> unhashed URLs only for cached-client and verified-rollback compatibility. The
+> active runtime family and its distinct authorization boundary are recorded in the
 > [2026-07-16 GameReady record](../2026-07-16-hegemony-main-castle-gameready/).
 
 This record identifies the public source archive for Warpkeep's former
 Hegemony Main Castle family and the exact browser-runtime derivatives that were
 prepared from it. The source archive was not copied into this repository. The
-former derivative hashes below no longer describe the GLBs currently committed
-under `public/models/hegemony/`.
+former derivative hashes below still describe the compatibility GLBs committed
+at the three legacy pathnames under `public/models/hegemony/`; no current
+application asset path selects them.
 
 ## Public source record
 
@@ -46,21 +48,21 @@ public archive remains recorded as
 `public-archive-authorized-no-separate-open-license`. Any broader distribution,
 relicensing, or canonical-identity use must have separate documented authority.
 
-## Former runtime derivatives
+## Retained Alpha 0.3.4 compatibility derivatives
 
-Each former output had one mesh, primitive, and material; two embedded,
+Each retained output has one mesh, primitive, and material; two embedded,
 dimension- and hash-verified WebP images; and required
 `EXT_meshopt_compression`, `EXT_texture_webp`, and
-`KHR_mesh_quantization` extensions. Sharp performs the explicit atlas resize
-before gltfpack simplifies geometry; the High profile preserves the exact
+`KHR_mesh_quantization` extensions. Sharp performed the explicit atlas resize
+before gltfpack simplified geometry; the High profile preserves the exact
 source WebPs, while Balanced and Compact contain genuine 1024×1024 and 512×512
 atlases.
 
 | Profile | Runtime file | Bytes | Triangles | Uploaded vertices | Index type | Simplification / embedded texture size | SHA-256 |
 | --- | --- | ---: | ---: | ---: | --- | --- | --- |
-| High | `public/models/hegemony/hegemony-main-castle-high.glb` (former bytes) | 1,934,920 | 67,680 | 153,439 | unsigned 32-bit | ratio `0.75`, error `0.004`, 2048×2048 | `9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2` |
-| Balanced | `public/models/hegemony/hegemony-main-castle-balanced.glb` (former bytes) | 1,172,132 | 40,353 | 78,928 | unsigned 32-bit | ratio `0.42`, error `0.012`, 1024×1024 | `aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e` |
-| Compact | `public/models/hegemony/hegemony-main-castle-compact.glb` (former bytes) | 508,508 | 19,086 | 34,098 | unsigned 16-bit | ratio `0.25`, error `0.018`, 512×512 | `de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29` |
+| High | `public/models/hegemony/hegemony-main-castle-high.glb` (retained compatibility bytes) | 1,934,920 | 67,680 | 153,439 | unsigned 32-bit | ratio `0.75`, error `0.004`, 2048×2048 | `9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2` |
+| Balanced | `public/models/hegemony/hegemony-main-castle-balanced.glb` (retained compatibility bytes) | 1,172,132 | 40,353 | 78,928 | unsigned 32-bit | ratio `0.42`, error `0.012`, 1024×1024 | `aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e` |
+| Compact | `public/models/hegemony/hegemony-main-castle-compact.glb` (retained compatibility bytes) | 508,508 | 19,086 | 34,098 | unsigned 16-bit | ratio `0.25`, error `0.018`, 512×512 | `de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29` |
 
 The Compact profile preserves the full source height. Its verified source-space
 bounds are `[-6.389847983, 0, -4.888312794]` to
@@ -85,7 +87,8 @@ it is not a current replacement recommendation.
 ## Historical preparation evidence
 
 The old fetch and preparation pipeline remains solely for private historical
-comparison. It does not reproduce or install the active GameReady files:
+comparison. It installs neither the active GameReady files nor the retained
+compatibility URLs:
 
 ```sh
 npm run assets:fetch:castle:source-0.3.4
@@ -93,9 +96,13 @@ npm run tools:fetch:gltfpack
 npm run prepare:hegemony-castle:source-0.3.4
 ```
 
-Do not run `scripts/prepare-hegemony-main-castle.mjs` as the active reproducer,
-and do not replace the current runtime files with its former outputs. The active
-runtime verifier intentionally rejects those historical hashes.
+Do not run `scripts/prepare-hegemony-main-castle.mjs` as the active reproducer or
+copy its outputs into `public/`. The runtime verifier accepts the former hashes
+only at the three recorded legacy compatibility URLs and requires the active
+GameReady hashes at their immutable digest-bearing URLs. The command writes its
+comparison outputs only to the ignored
+`.cache/warpkeep-assets/hegemony-frontier-keep-3d-2026-07-14/historical-alpha-0.3.4-runtime/`
+directory and never to `public/`.
 
 The historical fetch and preparation scripts require the standard `unzip`
 utility. A custom fetched tool destination set through
@@ -118,9 +125,9 @@ byte-identical Meshopt payload transfer into each resized intermediate, and
 every output's bytes, hash, GLB structure, triangle/vertex/index counts, atlas
 dimensions, image bytes/hashes, material atlas metadata, and required
 extensions. The native optimizer receives a private temp cwd and a minimal
-credential-free environment. It writes runtime derivatives only after all
+credential-free environment. It writes comparison derivatives only after all
 checks succeed. Release attachments are never a browser runtime CDN.
 
-The exact machine-readable historical values are retained in
-[`manifest.json`](manifest.json). They must not be interpreted as the current
-runtime contract.
+The exact machine-readable historical and compatibility values are retained in
+[`manifest.json`](manifest.json). They are a legacy URL contract, not the active
+application asset contract.

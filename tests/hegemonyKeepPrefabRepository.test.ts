@@ -100,6 +100,91 @@ describe('Hegemony keep prefab repository', () => {
     await expect(repository.acquire('balanced')).rejects.toThrow(/retired/i);
   });
 
+  it('keeps a coalesced prefab load alive when only one pending consumer cancels', async () => {
+    let resolveLoad: ((value: ReturnType<typeof loadedKeep>) => void) | undefined;
+    let repositorySignal: AbortSignal | undefined;
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material));
+    const loader: HegemonyKeepPrefabLoader = vi.fn((_lod, signal) => {
+      repositorySignal = signal;
+      return new Promise<ReturnType<typeof loadedKeep>>((resolve) => {
+        resolveLoad = resolve;
+      });
+    });
+    const repository = createHegemonyKeepPrefabRepository({ loader });
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const first = repository.acquire('compact', firstController.signal);
+    const second = repository.acquire('compact', secondController.signal);
+    const firstRejection = expect(first).rejects.toMatchObject({ name: 'AbortError' });
+
+    await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
+    firstController.abort();
+    await firstRejection;
+    expect(repositorySignal?.aborted).toBe(false);
+
+    resolveLoad?.(loadedKeep(root, 'compact'));
+    const secondLease = await second;
+    expect(secondLease.prefab.lod).toBe('compact');
+    expect(repositorySignal?.aborted).toBe(false);
+    secondLease.release();
+  });
+
+  it('keeps resolved resources alive while a new lease acquisition is pending', async () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const materialDispose = vi.spyOn(material, 'dispose');
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material));
+    const repository = createHegemonyKeepPrefabRepository({
+      loader: vi.fn(async () => loadedKeep(root, 'compact'))
+    });
+    const first = await repository.acquire('compact');
+
+    const pendingSecond = repository.acquire('compact');
+    first.release();
+
+    expect(geometryDispose).not.toHaveBeenCalled();
+    expect(materialDispose).not.toHaveBeenCalled();
+
+    const second = await pendingSecond;
+    expect(second.prefab).toBe(first.prefab);
+    second.release();
+
+    expect(geometryDispose).toHaveBeenCalledOnce();
+    expect(materialDispose).toHaveBeenCalledOnce();
+  });
+
+  it('releases resolved resources once when the final pending handoff cancels', async () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const geometryDispose = vi.spyOn(geometry, 'dispose');
+    const materialDispose = vi.spyOn(material, 'dispose');
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(geometry, material));
+    const repository = createHegemonyKeepPrefabRepository({
+      loader: vi.fn(async () => loadedKeep(root, 'compact'))
+    });
+    const first = await repository.acquire('compact');
+    const controller = new AbortController();
+
+    const pendingSecond = repository.acquire('compact', controller.signal);
+    const rejection = expect(pendingSecond).rejects.toMatchObject({ name: 'AbortError' });
+    first.release();
+    controller.abort();
+    await rejection;
+
+    expect(geometryDispose).toHaveBeenCalledOnce();
+    expect(materialDispose).toHaveBeenCalledOnce();
+    first.release();
+    controller.abort();
+    expect(geometryDispose).toHaveBeenCalledOnce();
+    expect(materialDispose).toHaveBeenCalledOnce();
+  });
+
   it('separates castle, landscape-base, and conservative render envelopes', async () => {
     const castleGeometry = new THREE.BoxGeometry(1, 2, 1);
     const baseGeometry = new THREE.BoxGeometry(4, 0.4, 3);

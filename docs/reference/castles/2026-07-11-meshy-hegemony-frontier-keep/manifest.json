@@ -5,7 +5,8 @@
     "lazy_loaded_after": "authenticated Realm mount only",
     "derived_from": "Meshy_AI_Hegemony_Frontier_Kee_0711104905_image-to-3d-texture.glb",
     "generator": "gltf-transform v4.4.1",
-    "preparation_script": "scripts/prepare-hegemony-frontier-keep.mjs",
+    "preparation_script": null,
+    "pipeline_status": "retired; executable removed because it fetched an unverified CLI, inherited the developer environment, and wrote unresolved-rights outputs into public paths",
     "pipeline": {
       "commands": [
         "optimize --compress false --texture-compress webp --flatten true --join true --weld true --prune true",

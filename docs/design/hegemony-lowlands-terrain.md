@@ -117,17 +117,17 @@ three integrity-pinned Hegemony Main Castle LODs:
 
 | LOD | Runtime path | Bytes | Triangles | Embedded images / profile texture target | SHA-256 |
 | --- | --- | ---: | ---: | --- | --- |
-| High | `public/models/hegemony/hegemony-main-castle-high.glb` | 2,215,972 | 72,850 | two 2048×2048 WebP images | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
-| Balanced | `public/models/hegemony/hegemony-main-castle-balanced.glb` | 892,788 | 32,550 | two 1024×1024 WebP images | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
-| Compact | `public/models/hegemony/hegemony-main-castle-compact.glb` | 453,628 | 17,232 | two 512×512 WebP images | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
+| High | `public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb` | 2,215,972 | 72,850 | two 2048×2048 WebP images | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
+| Balanced | `public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb` | 892,788 | 32,550 | two 1024×1024 WebP images | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
+| Compact | `public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb` | 453,628 | 17,232 | two 512×512 WebP images | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
 
 Each castle LOD has one matching integrity-pinned GameReady landscape base:
 
 | LOD | Runtime path | Bytes | Triangles | Embedded images | SHA-256 |
 | --- | --- | ---: | ---: | --- | --- |
-| High | `public/models/hegemony/hegemony-castle-landscape-base-high.glb` | 214,372 | 3,954 | two 1024×1024 WebPs | `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` |
-| Balanced | `public/models/hegemony/hegemony-castle-landscape-base-balanced.glb` | 92,784 | 2,138 | two 512×512 WebPs | `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` |
-| Compact | `public/models/hegemony/hegemony-castle-landscape-base-compact.glb` | 27,328 | 714 | two 256×256 WebPs | `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` |
+| High | `public/models/hegemony/hegemony-castle-landscape-base-high-be79476bee4e1f34.glb` | 214,372 | 3,954 | two 1024×1024 WebPs | `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` |
+| Balanced | `public/models/hegemony/hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb` | 92,784 | 2,138 | two 512×512 WebPs | `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` |
+| Compact | `public/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb` | 27,328 | 714 | two 256×256 WebPs | `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` |
 
 The base is not another authoritative structure. Castle and base are assembled
 under the exact same parent position, quaternion, and uniform scale. Runtime

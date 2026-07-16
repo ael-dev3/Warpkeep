@@ -54,9 +54,13 @@ describe('CastleInspectionPanel', () => {
       </div>
     );
 
-    const dialog = screen.getByRole('dialog', { name: '@warpkeeper' });
+    const dialog = screen.getByRole('dialog', { name: 'Genesis Bastion' });
     expect(dialog.id).toBe('castle-record');
     expect(dialog.getAttribute('aria-modal')).toBe('false');
+    expect(dialog.getAttribute('aria-labelledby')).toBe('castle-record-title');
+    expect(dialog.getAttribute('aria-describedby')).toBe('castle-record-keeper-identity');
+    expect(document.getElementById('castle-record-keeper-identity')?.textContent)
+      .toContain('Warp Keeper@warpkeeper');
     expect(container.querySelector('details')).toBeNull();
     expect(screen.getByText('YOUR FOUNDED KEEP')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 2, name: 'Genesis Bastion' })).not.toBeNull();
@@ -98,7 +102,7 @@ describe('CastleInspectionPanel', () => {
 
     const avatar = container.querySelector('.realm-castle-avatar');
     expect(avatar?.querySelector('img')).toBeNull();
-    expect(avatar?.querySelector('canvas')).not.toBeNull();
+    expect(avatar?.querySelector('canvas')).toBeNull();
     expect(avatar?.textContent).toContain('W');
   });
 

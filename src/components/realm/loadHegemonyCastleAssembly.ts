@@ -21,11 +21,12 @@ export type LoadHegemonyCastleAssemblyOptions = Readonly<{
   quality: RealmQualitySpec;
   baseUrl: string;
   maxAnisotropy: number;
+  signal?: AbortSignal;
   requestTimeoutMs?: number;
   keepParser?: HegemonyKeepParser;
   landscapeBaseParser?: HegemonyKeepParser;
-  keepLoader?: () => Promise<HegemonyKeepLoadResult>;
-  landscapeBaseLoader?: () => Promise<HegemonyLandscapeBaseLoadResult>;
+  keepLoader?: (signal?: AbortSignal) => Promise<HegemonyKeepLoadResult>;
+  landscapeBaseLoader?: (signal?: AbortSignal) => Promise<HegemonyLandscapeBaseLoadResult>;
 }>;
 
 function disposeSettledRoot(result: PromiseSettledResult<Readonly<{ root: THREE.Object3D }>>) {
@@ -69,18 +70,20 @@ export function assembleHegemonyCastleLandscapeBase(
 export async function loadHegemonyCastleAssembly(
   options: LoadHegemonyCastleAssemblyOptions
 ): Promise<HegemonyCastleAssemblyLoadResult> {
-  const keepRequest = options.keepLoader?.() ?? loadHegemonyKeep({
+  const keepRequest = options.keepLoader?.(options.signal) ?? loadHegemonyKeep({
     quality: options.quality,
     baseUrl: options.baseUrl,
     maxAnisotropy: options.maxAnisotropy,
+    signal: options.signal,
     requestTimeoutMs: options.requestTimeoutMs,
     parser: options.keepParser
   });
-  const landscapeBaseRequest = options.landscapeBaseLoader?.()
+  const landscapeBaseRequest = options.landscapeBaseLoader?.(options.signal)
     ?? loadHegemonyLandscapeBase({
       quality: options.quality,
       baseUrl: options.baseUrl,
       maxAnisotropy: options.maxAnisotropy,
+      signal: options.signal,
       requestTimeoutMs: options.requestTimeoutMs,
       parser: options.landscapeBaseParser
     });

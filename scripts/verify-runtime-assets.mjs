@@ -1,8 +1,11 @@
 import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { lstatSync, readdirSync } from 'node:fs';
+import { basename, resolve } from 'node:path';
 
-import { assertNoStaleAtomicFamilyTransactions } from './atomic-install-file-family.mjs';
+import {
+  assertNoStaleAtomicFamilyTransactions,
+  readContainedRegularFile
+} from './atomic-install-file-family.mjs';
 import { inspectEmbeddedWebpGlb } from './rewrite-embedded-webp-glb.mjs';
 
 const root = resolve(import.meta.dirname, '..');
@@ -13,12 +16,16 @@ assertNoStaleAtomicFamilyTransactions(
 const assets = Object.freeze([
   ['public/models/title/warpkeep-title-high.glb', 3_844_364, '2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5', true],
   ['public/models/title/warpkeep-title-compact.glb', 1_714_060, 'd29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8', true],
-  ['public/models/hegemony/hegemony-main-castle-high.glb', 2_215_972, '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8', true],
-  ['public/models/hegemony/hegemony-main-castle-balanced.glb', 892_788, 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157', true],
-  ['public/models/hegemony/hegemony-main-castle-compact.glb', 453_628, 'b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b', true],
-  ['public/models/hegemony/hegemony-castle-landscape-base-high.glb', 214_372, 'be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c', true],
-  ['public/models/hegemony/hegemony-castle-landscape-base-balanced.glb', 92_784, '179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f', true],
-  ['public/models/hegemony/hegemony-castle-landscape-base-compact.glb', 27_328, 'f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3', true],
+  ['public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb', 2_215_972, '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8', true],
+  ['public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb', 892_788, 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157', true],
+  ['public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb', 453_628, 'b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b', true],
+  ['public/models/hegemony/hegemony-castle-landscape-base-high-be79476bee4e1f34.glb', 214_372, 'be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c', true],
+  ['public/models/hegemony/hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb', 92_784, '179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f', true],
+  ['public/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb', 27_328, 'f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3', true],
+  // Retain the exact Alpha 0.3.4 coordinates for old clients and rollback.
+  ['public/models/hegemony/hegemony-main-castle-high.glb', 1_934_920, '9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2', true],
+  ['public/models/hegemony/hegemony-main-castle-balanced.glb', 1_172_132, 'aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e', true],
+  ['public/models/hegemony/hegemony-main-castle-compact.glb', 508_508, 'de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29', true],
   ['public/audio/warpkeep-title-theme-a.mp3', 5_352_113, '7844b85fb5914a00f97a7e0b1edecfb544435319266b150ad649f649797a6471', false],
   ['public/audio/warpkeep-title-theme-b.mp3', 6_380_853, 'ecade8860f8c8ff5fb8d08604b0973da329c583d78ef20c81fe5f989f624f73e', false],
   ['public/audio/warpkeep-menu-theme.mp3', 9_631_066, 'ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917', false],
@@ -45,7 +52,7 @@ const retiredRuntimeAssets = Object.freeze([
 ]);
 
 const hegemonyModelStructure = new Map([
-  ['public/models/hegemony/hegemony-main-castle-high.glb', {
+  ['public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb', {
     triangles: 72_850,
     vertices: 171_554,
     indexComponentType: 5_125,
@@ -60,7 +67,7 @@ const hegemonyModelStructure = new Map([
       [69_426, '27c90266612844c619d6a79d5db5701454ce6209e91cab47247eeb8fd065517a']
     ]
   }],
-  ['public/models/hegemony/hegemony-main-castle-balanced.glb', {
+  ['public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb', {
     triangles: 32_550,
     vertices: 67_687,
     indexComponentType: 5_125,
@@ -75,7 +82,7 @@ const hegemonyModelStructure = new Map([
       [26_618, '65b23eeba73539f2cc6b0bdf8e83d7a651d61fbe85c4305b488ce83dbc28a3eb']
     ]
   }],
-  ['public/models/hegemony/hegemony-main-castle-compact.glb', {
+  ['public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb', {
     triangles: 17_232,
     vertices: 34_800,
     indexComponentType: 5_123,
@@ -90,7 +97,7 @@ const hegemonyModelStructure = new Map([
       [10_684, '1e3b4e022566d4b07f96f17a579f756b11cbd6abf803d42491711f983f64af3f']
     ]
   }],
-  ['public/models/hegemony/hegemony-castle-landscape-base-high.glb', {
+  ['public/models/hegemony/hegemony-castle-landscape-base-high-be79476bee4e1f34.glb', {
     triangles: 3_954,
     vertices: 10_681,
     indexComponentType: 5_123,
@@ -117,7 +124,7 @@ const hegemonyModelStructure = new Map([
       [29_586, '92918cb1e221b75ee11af809b1e99b3fb5f60b4342f0dbea68b65135e241dc65']
     ]
   }],
-  ['public/models/hegemony/hegemony-castle-landscape-base-balanced.glb', {
+  ['public/models/hegemony/hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb', {
     triangles: 2_138,
     vertices: 5_611,
     indexComponentType: 5_123,
@@ -144,7 +151,7 @@ const hegemonyModelStructure = new Map([
       [10_130, '3714349aed5b0f7225807674f4719a79f5fd09e25a5cb108f5cc46a4767dc86f']
     ]
   }],
-  ['public/models/hegemony/hegemony-castle-landscape-base-compact.glb', {
+  ['public/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb', {
     triangles: 714,
     vertices: 1_780,
     indexComponentType: 5_123,
@@ -173,6 +180,41 @@ const hegemonyModelStructure = new Map([
   }]
 ]);
 
+const expectedHegemonyGlbNames = new Set(
+  assets
+    .map(([path]) => path)
+    .filter((path) => path.startsWith('public/models/hegemony/') && path.endsWith('.glb'))
+    .map((path) => basename(path))
+);
+const observedHegemonyGlbEntries = readdirSync(resolve(root, 'public/models/hegemony'), {
+  withFileTypes: true
+})
+  .filter((entry) => entry.name.toLowerCase().endsWith('.glb'));
+const observedHegemonyGlbNames = observedHegemonyGlbEntries
+  .map((entry) => entry.name)
+  .sort();
+const invalidHegemonyGlbEntries = observedHegemonyGlbEntries
+  .filter((entry) => !entry.isFile())
+  .map((entry) => entry.name)
+  .sort();
+const unknownHegemonyGlbs = observedHegemonyGlbNames.filter(
+  (name) => !expectedHegemonyGlbNames.has(name)
+);
+const missingHegemonyGlbs = [...expectedHegemonyGlbNames]
+  .filter((name) => !observedHegemonyGlbNames.includes(name))
+  .sort();
+if (
+  unknownHegemonyGlbs.length > 0
+  || missingHegemonyGlbs.length > 0
+  || invalidHegemonyGlbEntries.length > 0
+) {
+  throw new Error(
+    'Hegemony runtime GLB set does not match the exact active and compatibility coordinates: '
+    + `unknown=[${unknownHegemonyGlbs.join(',')}], missing=[${missingHegemonyGlbs.join(',')}], `
+    + `nonFiles=[${invalidHegemonyGlbEntries.join(',')}].`
+  );
+}
+
 const requiredCastleExtensions = Object.freeze([
   'EXT_meshopt_compression',
   'EXT_texture_webp',
@@ -200,13 +242,24 @@ for (const relativePath of retiredRuntimeAssets) {
 }
 
 for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
+  if (
+    hegemonyModelStructure.has(relativePath)
+    && !relativePath.endsWith(`-${expectedHash.slice(0, 16)}.glb`)
+  ) {
+    throw new Error(`${relativePath} must carry its SHA-256 prefix as an immutable cache coordinate.`);
+  }
   const path = resolve(root, relativePath);
   const stat = lstatSync(path, { throwIfNoEntry: false });
   if (!stat?.isFile() || stat.isSymbolicLink()) {
     throw new Error(`${relativePath} must be a regular non-symbolic runtime asset.`);
   }
-  const bytes = readFileSync(path);
   if (stat.size !== expectedBytes) throw new Error(`${relativePath} byte length changed.`);
+  const bytes = readContainedRegularFile({
+    root,
+    relativePath,
+    label: `${relativePath} runtime asset`,
+    expectedBytes
+  });
   const hash = createHash('sha256').update(bytes).digest('hex');
   if (hash !== expectedHash) throw new Error(`${relativePath} hash changed: ${hash}.`);
   if (glb && (
@@ -288,8 +341,13 @@ for (const [relativePath, expectedSize, format, expectedBytes, expectedHash] of 
   if (!stat?.isFile() || stat.isSymbolicLink()) {
     throw new Error(`${relativePath} must be a regular non-symbolic runtime asset.`);
   }
-  const bytes = readFileSync(path);
   if (stat.size !== expectedBytes) throw new Error(`${relativePath} byte length changed.`);
+  const bytes = readContainedRegularFile({
+    root,
+    relativePath,
+    label: `${relativePath} runtime image`,
+    expectedBytes
+  });
   const hash = createHash('sha256').update(bytes).digest('hex');
   if (hash !== expectedHash) throw new Error(`${relativePath} hash changed: ${hash}.`);
 

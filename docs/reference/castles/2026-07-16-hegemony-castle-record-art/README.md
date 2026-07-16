@@ -7,9 +7,10 @@ dimensions, and the complete bounded transformation are retained here.
 
 On 16 July 2026 the Warpkeep project owner instructed the PR #40 work to clean
 the supplied UI art, remove its background, and deploy the result in Warpkeep.
-That is sufficient for this exact project-internal runtime use. It is not proof
-of underlying ownership, a public open-content licence, or a general derivative
-or redistribution grant.
+That is sufficient for this exact checked-in use in the public Warpkeep GitHub
+repository and its official `warpkeep.com` Pages runtime. It is not proof of
+underlying ownership, a public open-content licence, or a general derivative or
+redistribution grant.
 
 ## Runtime output
 

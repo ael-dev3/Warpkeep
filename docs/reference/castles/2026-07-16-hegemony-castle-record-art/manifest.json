@@ -6,7 +6,7 @@
   "projectAuthorization": {
     "authorizedBy": "Warpkeep project owner",
     "instructionDate": "2026-07-16",
-    "scope": "Project-internal Warpkeep PR #40 runtime deployment of a background-cleaned derivative of the supplied castle UI art.",
+    "scope": "Warpkeep PR #40 deployment of the background-cleaned derivative in the public Warpkeep GitHub repository and official warpkeep.com Pages runtime.",
     "notGranted": [
       "proof of underlying copyright ownership",
       "a public open-content licence",

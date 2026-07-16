@@ -18,7 +18,6 @@
     "prepare:hegemony-castle": "node scripts/install-hegemony-gameready-castle.mjs",
     "prepare:hegemony-castle-base": "node scripts/install-hegemony-gameready-castle-base.mjs",
     "prepare:hegemony-castle:source-0.3.4": "node scripts/prepare-hegemony-main-castle.mjs",
-    "prepare:hegemony-frontier-keep:historical": "node scripts/prepare-hegemony-frontier-keep.mjs",
     "prepare:hegemony-mark": "node scripts/prepare-hegemony-mark.mjs",
     "marks:plan": "tsx scripts/marks/marks-operator.ts plan",
     "marks:scan": "tsx scripts/marks/marks-operator.ts scan",

@@ -35,9 +35,12 @@ describe('realm quality profiles', () => {
       expect(spec.keepAssetPath.endsWith('.glb')).toBe(true);
       expect(spec.landscapeBaseAssetPath.endsWith('.glb')).toBe(true);
     });
-    expect(REALM_QUALITY_SPECS.high.landscapeBaseAssetPath).toContain('-high.glb');
-    expect(REALM_QUALITY_SPECS.balanced.landscapeBaseAssetPath).toContain('-balanced.glb');
-    expect(REALM_QUALITY_SPECS.reduced.landscapeBaseAssetPath).toContain('-compact.glb');
+    expect(REALM_QUALITY_SPECS.high.landscapeBaseAssetPath)
+      .toMatch(/-high-[a-f0-9]{16}\.glb$/);
+    expect(REALM_QUALITY_SPECS.balanced.landscapeBaseAssetPath)
+      .toMatch(/-balanced-[a-f0-9]{16}\.glb$/);
+    expect(REALM_QUALITY_SPECS.reduced.landscapeBaseAssetPath)
+      .toMatch(/-compact-[a-f0-9]{16}\.glb$/);
   });
 
   it('selects capability-based profiles without user-agent sniffing', () => {

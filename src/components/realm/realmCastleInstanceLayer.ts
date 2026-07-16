@@ -58,6 +58,8 @@ export type RealmCastleInstanceLayer = Readonly<{
   dispose: () => void;
   getPacking: () => CastleInstancePacking<RealmCastleInstanceRecord>;
   getPresentationTelemetry: () => RealmCastleInstancePresentationTelemetry;
+  /** Validates exact castle/base identity, LOD, and placement correspondence. */
+  hasExactCastleLandscapeBasePairing: () => boolean;
 }>;
 
 export type CreateRealmCastleInstanceLayerOptions = Readonly<{
@@ -105,6 +107,19 @@ function packingKey(packing: CastleInstancePacking<RealmCastleInstanceRecord>) {
 
 function materialArgument(materials: readonly THREE.Material[]) {
   return materials.length === 1 ? materials[0] : [...materials];
+}
+
+function approximatelyEqualMatrix(
+  left: THREE.Matrix4,
+  right: THREE.Matrix4,
+  epsilon = 2e-5
+) {
+  return left.elements.every((value, index) => {
+    const other = right.elements[index] ?? Number.NaN;
+    return Number.isFinite(value)
+      && Number.isFinite(other)
+      && Math.abs(value - other) <= epsilon * Math.max(1, Math.abs(value), Math.abs(other));
+  });
 }
 
 function requirePrefab(
@@ -534,6 +549,54 @@ export function createRealmCastleInstanceLayer(
     });
   };
 
+  const hasExactCastleLandscapeBasePairing = () => {
+    if (cleared) return false;
+    const observedMatrix = new THREE.Matrix4();
+    const expectedMatrix = new THREE.Matrix4();
+    const expectedPlacement = new THREE.Matrix4();
+
+    for (const lod of CASTLE_LODS) {
+      const lodMeshes = meshesByLod.get(lod);
+      if (!lodMeshes) continue;
+      const castlePrimitiveIndexes = lodMeshes.roles.flatMap((role, index) => (
+        role === 'castle' ? [index] : []
+      ));
+      const landscapeBasePrimitiveIndexes = lodMeshes.roles.flatMap((role, index) => (
+        role === 'landscape-base' ? [index] : []
+      ));
+      if (
+        castlePrimitiveIndexes.length === 0
+        || landscapeBasePrimitiveIndexes.length === 0
+      ) return false;
+
+      const bucket = packing.buckets[lod];
+      if (lodMeshes.meshes.some((mesh) => mesh.count !== bucket.length)) return false;
+      for (let instanceId = 0; instanceId < bucket.length; instanceId += 1) {
+        const entry = bucket[instanceId];
+        if (
+          !entry
+          || entry.instanceId !== instanceId
+          || entry.data.castleId !== entry.castleId
+          || packing.resolveCastleId(lod, instanceId) !== entry.castleId
+        ) return false;
+        expectedPlacement.makeTranslation(
+          entry.data.x,
+          entry.data.groundY + CASTLE_GROUND_LIFT,
+          entry.data.z
+        );
+        for (let primitiveIndex = 0; primitiveIndex < lodMeshes.meshes.length; primitiveIndex += 1) {
+          const mesh = lodMeshes.meshes[primitiveIndex];
+          const localMatrix = lodMeshes.localMatrices[primitiveIndex];
+          if (!mesh || !localMatrix) return false;
+          mesh.getMatrixAt(instanceId, observedMatrix);
+          expectedMatrix.multiplyMatrices(expectedPlacement, localMatrix);
+          if (!approximatelyEqualMatrix(observedMatrix, expectedMatrix)) return false;
+        }
+      }
+    }
+    return true;
+  };
+
   return Object.freeze({
     group,
     update,
@@ -593,6 +656,7 @@ export function createRealmCastleInstanceLayer(
       if (firstError) throw firstError;
     },
     getPacking: () => packing,
-    getPresentationTelemetry
+    getPresentationTelemetry,
+    hasExactCastleLandscapeBasePairing
   });
 }

@@ -42,7 +42,13 @@ describe('latest in-menu patch notes', () => {
       /Background-cleaned castle record art/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /changes client-side decoration clearance.*no authentication.*authoritative world generation/i
+      /Farcaster username and static PFP.*exact-FID tab restoration.*non-authoritative presentation/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /cache-safe at immutable asset paths/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /changes client-side decoration clearance and authentication presentation.*no Terms.*authentication authority.*authoritative world generation/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /brighter|brightness improvement|durability|destroy|alliance/i

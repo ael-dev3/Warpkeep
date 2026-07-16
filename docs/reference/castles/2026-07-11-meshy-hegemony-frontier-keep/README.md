@@ -38,19 +38,22 @@ All three models contain one mesh, one primitive, one material, and base-color, 
 The active Realm loader no longer references these paths. The technical notes
 below describe the historical implementation only.
 
-## Reproducible preparation
+## Retired preparation record
 
-Run the checked-in development script from the repository root:
+The former checked-in generator has been removed. Although it verified final
+output hashes, it fetched an unverified CLI, inherited the developer process
+environment, and wrote unresolved-rights derivatives directly into `public/`.
+Those are unsafe properties for a command described as private historical
+provenance, so the active repository intentionally exposes no runnable
+reproduction path.
 
-```sh
-npm run prepare:hegemony-frontier-keep:historical
-```
+High used a `0.06` simplification ratio, `0.008` error, and 2048-pixel textures. Balanced used `0.04`, `0.012`, and 2048 pixels. Compact used `0.018`, `0.018`, and 1024 pixels. All used WebP textures plus flatten, join, weld, and prune transforms. The exact historical arguments and expected hashes remain in [`manifest.json`](manifest.json).
 
-The script pins `@gltf-transform/cli` 4.4.1, verifies the untouched source hash and byte length, builds all three outputs in a temporary directory, generates MikkTSpace tangents, applies high-level Meshopt compression and 14/10/12-bit position/normal/UV quantization, validates the outputs, and checks their exact bytes, hashes, triangle counts, uploaded vertex counts, image counts, and required extensions before copying them into `public/models/hegemony/`. The active verifier then rejects those retired paths; this command is for private provenance comparison, not restoration.
-
-High uses a `0.06` simplification ratio, `0.008` error, and 2048-pixel textures. Balanced uses `0.04`, `0.012`, and 2048 pixels. Compact uses `0.018`, `0.018`, and 1024 pixels. All use WebP textures plus flatten, join, weld, and prune transforms. The exact arguments and expected hashes are recorded in [`scripts/prepare-hegemony-frontier-keep.mjs`](../../../../scripts/prepare-hegemony-frontier-keep.mjs) and [`manifest.json`](manifest.json).
-
-Because redistribution authority for the 63 MB source is unresolved, it is not present in the v0.3.0 repository HEAD and is not automatically downloaded. An authorized maintainer may provide the exact source through `WARPKEEP_KEEP_SOURCE`; the script fails closed for any other bytes.
+Because redistribution authority for the 63 MB source is unresolved, it is not
+present in current repository heads and is not automatically downloaded. Any
+future reproduction must use an authorized exact source, preverified offline
+tooling, a minimal credential-free environment, and a private non-public
+destination under a separately reviewed procedure.
 
 The source normal map does not include authored tangents. Generating MikkTSpace tangents removes the glTF validator's generated-tangent-space warning and gives the close camera a stable normal-map basis.
 

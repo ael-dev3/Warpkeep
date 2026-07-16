@@ -62,8 +62,9 @@ const ALPHA_0_3_5_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'The Compact castle keeps its intentionally shorter authored proportions; each base inherits the castle transform exactly instead of being independently centred, scaled, or grounded.',
     'Slim usernames stay fixed at each castle foundation; individual labels never drift or grow leader lines, while dense identities consolidate through deterministic keeper clusters and Explore.',
     'The responsive castle record uses only sanitized public Farcaster and existing Realm data, with a safe portrait-to-initial fallback instead of invented gameplay fields or actions.',
-    'Background-cleaned castle record art and every GameReady model remain same-origin, integrity-pinned, and provenance-recorded.',
-    'This Pages-only patch changes client-side decoration clearance around the new islands, but no authentication, admission, authoritative world generation, castle ownership, wallet, Marks, Worker, or SpacetimeDB authority.'
+    'Verified sign-in now keeps the Farcaster username and static PFP visible during and after QR verification, with exact-FID tab restoration limited to non-authoritative presentation.',
+    'Background-cleaned castle record art and every GameReady model remain same-origin, integrity-pinned, provenance-recorded, and cache-safe at immutable asset paths.',
+    'This Pages-only patch changes client-side decoration clearance and authentication presentation, but no Terms, authentication authority, admission, authoritative world generation, castle ownership, wallet, Marks, Worker, or SpacetimeDB authority.'
   ]),
   alphaNotice: 'Prepared 16 July 2026. Candidate release pending protected deployment and exact-build verification.'
 });

@@ -64,12 +64,12 @@ npx --yes @gltf-transform/cli@4.4.1 validate <model.glb>
 | --- | ---: | --- |
 | `warpkeep-title-high.glb` | 3,844,364 | `2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5` |
 | `warpkeep-title-compact.glb` | 1,714,060 | `d29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8` |
-| `hegemony-main-castle-high.glb` | 2,215,972 | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
-| `hegemony-main-castle-balanced.glb` | 892,788 | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
-| `hegemony-main-castle-compact.glb` | 453,628 | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
-| `hegemony-castle-landscape-base-high.glb` | 214,372 | `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` |
-| `hegemony-castle-landscape-base-balanced.glb` | 92,784 | `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` |
-| `hegemony-castle-landscape-base-compact.glb` | 27,328 | `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` |
+| `hegemony-main-castle-high-9fe06a26446387e0.glb` | 2,215,972 | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
+| `hegemony-main-castle-balanced-a9df1a9acd36e720.glb` | 892,788 | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
+| `hegemony-main-castle-compact-b665d75e10e3e289.glb` | 453,628 | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
+| `hegemony-castle-landscape-base-high-be79476bee4e1f34.glb` | 214,372 | `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` |
+| `hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb` | 92,784 | `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` |
+| `hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb` | 27,328 | `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` |
 
 `npm run verify:runtime-assets` also verifies required runtime audio/video. `npm run verify:file-sizes` rejects new tracked non-runtime files over 5 MiB.
 
@@ -80,7 +80,10 @@ as **Warpkeep Hegemony Castle — Archer/Mage Platforms**. Its
 `asset-manifest.json` is 1,456 bytes with SHA-256
 `6a4a67baa4912f93337b7100d27ffe65e9c185492e8c2047c4d2ccdefe591c23`.
 The package root must contain that file and the three exact inputs at their
-declared `public/models/hegemony/` paths.
+declared `public/models/hegemony/` paths. Those unhashed names are
+package-relative input-contract coordinates inside the trusted offline package,
+not browser runtime URLs; installed outputs use the immutable digest-bearing
+paths listed above.
 
 Install and verify from a trusted, authorized exact package root:
 
@@ -107,8 +110,9 @@ hash-verified before installation.
 | Compact | 453,632 / `5b0f6919585b10f51b42f004c32d1c96bf2addc2549af3b84b0eea7fcedffe5e` | 453,628 / `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` | atlas metadata 2048 → 512; payloads preserved |
 
 On 2026-07-16, the project owner authorized these exact three inputs for
-project-internal Warpkeep runtime integration and this bounded deterministic
-metadata correction only. That is not a separate public open-license, general
+integration into this public Warpkeep GitHub repository and its official
+`warpkeep.com` Pages runtime plus this bounded deterministic metadata
+correction only. That is not a separate public open-license, general
 redistribution or third-party derivative permission, trademark grant, or
 canonical-identity grant. The complete record is the dated
 [GameReady Hegemony Main Castle record](../../reference/castles/2026-07-16-hegemony-main-castle-gameready/).
@@ -148,7 +152,8 @@ normalize, ground, or scale the base: the below-ground skirt and `+Z` road are
 authored placement.
 
 The owner explicitly instructed PR #40 to integrate these exact bases under
-Warpkeep castles. That narrow scope and bounded metadata correction remain
+Warpkeep castles and deploy the patch. That official repository/runtime scope
+and bounded metadata correction remain
 `LicenseRef-Warpkeep-Provenance-Required`; they do not establish a public open
 licence, general third-party derivative/redistribution authority, trademark or
 canonical-identity rights, or same-named-file substitution. The exact record is
@@ -163,8 +168,15 @@ command is retained as `npm run assets:fetch:castle:source-0.3.4`, and its
 preparation command is retained as
 `npm run prepare:hegemony-castle:source-0.3.4`, solely for historical evidence
 and private comparison. Neither command reproduces or installs the active
-GameReady family, and an output from the historical preparation script is
-rejected by the active runtime verifier.
+GameReady family or writes a public compatibility URL.
+
+The preparation command writes only beneath the ignored
+`.cache/warpkeep-assets/hegemony-frontier-keep-3d-2026-07-14/historical-alpha-0.3.4-runtime/`
+directory. It cannot overwrite a public runtime pathname, and cache output is
+never a browser asset. The runtime verifier accepts the former Alpha 0.3.4
+hashes only at the three exact legacy compatibility URLs; it requires the
+GameReady hashes at the active digest-bearing URLs and rejects either family at
+the wrong coordinate.
 
 Do not use `scripts/prepare-hegemony-main-castle.mjs` as the active reproducer.
 The public release coordinates, former output hashes, pinned `gltfpack`/Sharp
@@ -187,13 +199,10 @@ runtime verifier.
 
 The 63,263,296-byte keep source has SHA-256 `fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d`. Its redistribution authority is unresolved, so it is absent from v0.3.0 HEAD and public releases. Full keep regeneration requires an authorized exact offline copy:
 
-```sh
-WARPKEEP_KEEP_SOURCE=/trusted/offline/source.glb \
-  npm run prepare:hegemony-frontier-keep:historical
-```
-
-The historical pipeline fails closed for missing or different bytes. Its
-outputs are for private provenance comparison only and must be removed again;
-`npm run verify:runtime-assets` intentionally rejects their presence. Do not
-publish or restore them until authority, immutable tag, attachment bytes/hash,
-download verification, and original terms are recorded.
+The former executable pipeline was removed because it fetched an unverified
+CLI, inherited the developer environment, and wrote unresolved-rights outputs
+into `public/`. Exact historical arguments and hashes remain in the dated
+record, but there is no active regeneration command. Any future reproduction
+requires confirmed authority, integrity-pinned offline tooling, a minimal
+credential-free process, and a private destination; it must not publish or
+restore these files without a separately reviewed decision.

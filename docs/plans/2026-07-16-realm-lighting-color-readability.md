@@ -1,752 +1,203 @@
-# Realm Lighting, Color, and Castle Readability Proposal
+# Realm Lighting, Color, and Castle Readability Decision Record
 
-**Status:** implementation proposal with an accepted GameReady castle-and-landscape baseline
+**Status:** accepted direction; lighting, material, fog, palette, and visual-QA
+implementation remains future work
 
 **Audit baseline:** `089430e` (`main`, 2026-07-16)
 
-**Runtime changes accompanying this document:** exact GameReady High, Balanced,
-and Compact castle and matching landscape-base LOD integration; no lighting,
-material, fog, or palette code
+**Alpha 0.3.5 candidate scope:** the exact GameReady castle and matching
+landscape-base LOD families only. The candidate does not implement the future
+lighting work described here.
 
-This document turns the current Realm readability problem into a bounded engine
-work plan. The accompanying asset refresh changes only the integrity-pinned
-castle-plus-landscape LOD family and its reconstruction/provenance contract. The proposed
-lighting, material, fog, palette, and visual-QA work remains unimplemented. No
-authentication, world state, deployment, or DNS change is authorized here.
+This record preserves the decisions and measured boundaries from the original
+implementation proposal without retaining a second copy of active asset
+manifests or a line-by-line speculative implementation design. It authorizes no
+authentication, world-state, backend, deployment, or DNS change.
 
-## Decision summary
+## Decision
 
-The current presentation should not be repaired by raising global exposure or
-copying the saturated palette of another strategy game. The supplied live
-comparison succeeds because it has a clearer value hierarchy: bright ground,
-readable lit planes, decisive directional shadows, and stronger separation
-between the building and its surroundings.
-
-Warpkeep should keep its own restrained Lowlands identity while making six
-targeted changes:
+Do not repair Realm readability by raising global exposure or copying another
+game's saturated palette. Keep Warpkeep's restrained Lowlands identity and make
+six bounded changes in a separately reviewed release:
 
 1. define one explicit color-space contract for every terrain color;
-2. replace the flat green contact discs with directional, soft grounding;
-3. use a clear key/fill hierarchy and reserve amethyst for accents;
-4. keep fog on the distant realm, not on the castle the player is reading; and
-5. lift the castle model's stone midtones through one bounded, LOD-consistent
-   surface calibration; and
+2. use directional, soft grounding rather than a flat synthetic contact disc;
+3. establish a clear key/fill hierarchy and reserve amethyst for accents;
+4. keep fog on the distant realm rather than the castle being read;
+5. lift castle-stone midtones through one bounded, LOD-consistent surface
+   calibration only if lighting is insufficient; and
 6. add production-scene, object-aware visual metrics before tuning values.
 
-A focused shadow map may improve the approach and close views, but a world-sized
-shadow pass over all 100 castles is not the recommended solution. Overview
-grounding should remain cheap, while High and possibly Balanced quality may use
-one tightly bounded shadow pass around the active focus after measurement.
+A focused shadow map may improve approach and selected-keep views. Do not render
+a world-sized shadow pass over all 100 castles. Overview grounding must remain
+cheap; High, and possibly Balanced after measurement, may use one tightly
+bounded shadow pass around the active focus. Reduced remains authored-base-only.
 
-## Evidence boundary
+## Evidence and confirmed gaps
 
-The two supplied screenshots were reviewed as perceptual evidence only. They are
-not checked into this repository:
+The comparison screenshots that prompted the audit were perceptual evidence
+only. They are not runtime assets, palette sources, or numeric golden targets.
+They omitted the exact browser, display profile, graphics quality, camera pose,
+and capture processing, so thresholds must come from deterministic Warpkeep
+fixtures.
 
-- the Warpkeep frame contains public account labels that are unnecessary for an
-  engine proposal; and
-- the comparison frame is third-party visual material and is not a source asset,
-  palette, or fidelity target for Warpkeep.
+The `089430e` audit established these implementation facts:
 
-The screenshots do not identify the exact graphics profile, display color
-profile, browser, camera pose, or pre-capture processing. They support the
-readability diagnosis below, but they are not suitable for inventing numeric
-golden thresholds.
+- `REALM_QUALITY_SPECS` declared High and Balanced shadow-map sizes, but the
+  canonical render planner disabled dynamic shadows in every production tier.
+- The old fallback grounding cue was one uniform green-brown circle. Alpha 0.3.5
+  replaces that cue with the authored landscape base when the complete family
+  is ready, but it does not add directional cast shadows.
+- The renderer already uses sRGB output and ACES tone mapping. Color textures
+  are sRGB and normal/data textures are non-color, so no obvious castle-texture
+  double-gamma error was found; global exposure is not the first lever.
+- Terrain palette floats are written directly as Linear-sRGB WebGL vertex
+  colors but multiplied into display-sRGB CSS values by the SVG fallback. The
+  same values therefore have two confirmed interpretations. For example,
+  `grassBase` `(0.424, 0.49, 0.271)` is approximately `rgb(108 125 69)` in CSS
+  but displays much lighter when treated directly as linear input.
+- Warm sun, purple fill, camera fill, environment light, fog, and a dark
+  low-channel castle material interact without a simple value hierarchy.
+- Each castle LOD has one material with base-color and normal atlases and no
+  authored AO, emissive, or metallic-roughness texture. Lighting can improve
+  form but cannot invent missing material classes.
+- Existing LOD evidence proves source fidelity, while whole-frame browser
+  evidence proves credible output. Neither isolates castle readability from UI
+  labels and surrounding terrain.
+- Realm rendering is demand-driven. Any future shadow or lighting work must not
+  introduce an unconditional animation loop.
 
-### Observed in the Warpkeep frame
+## Accepted asset baseline
 
-- The terrain occupies a narrow olive/khaki value and hue range. Biome variation
-  is present, but it reads as broad haze rather than distinct natural surfaces.
-- Castle silhouettes are clear, but roofs, walls, towers, recesses, and gates
-  collapse into a similar dark-brown mass.
-- Castles have weak contact with the ground. There is no readable sun-cast shadow
-  to explain their volume or the light direction.
-- The identity labels carry much more contrast than the world beneath them, so
-  the interface wins attention before the keeps do.
-- Small faction-color and material accents disappear at the default camera.
+The exact active model facts, hashes, authorization, and placement constraints
+live in the canonical records rather than being duplicated here:
 
-### Useful lesson from the comparison frame
+- [Alpha 0.3.5 candidate release notes](../releases/alpha-0.3.5.md)
+- [GameReady castle record](../reference/castles/2026-07-16-hegemony-main-castle-gameready/)
+- [GameReady landscape-base record](../reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/)
+- [Lowlands renderer contract](../design/hegemony-lowlands-terrain.md)
 
-The relevant lesson is not “make the grass neon green.” It is the separation of
-roles: the ground is a bright field, the castle has readable light-facing and
-shadow-facing planes, the cast shadow is directional, and local clearings and
-ground transitions help the building sit in the world. Warpkeep should reproduce
-that hierarchy in its own moss, stone, electrum, and amethyst language.
-
-## What the engine currently does
-
-The following are confirmed implementation facts, not screenshot guesses.
-
-| Area | Current behavior | Consequence |
-| --- | --- | --- |
-| Shadow policy | `REALM_QUALITY_SPECS` declares 2048/1024 shadow maps for High/Balanced, but `resolveRealmRenderPlan()` always returns `dynamicShadows: false`, `shadowMapSize: 0`, and `shadowMode: 'contact-only'`. Tests lock this behavior for both small and canonical realms. | Renderer shadow maps, sun casting, terrain receiving, and castle casting are disabled in every production quality profile. |
-| Castle grounding | Every visible castle receives the same tone-mapping-independent `#283020` circle at opacity `0.16` when dynamic shadows are disabled. It has no radial alpha, softness profile, or sun-aligned offset. | The circle can mark a footprint, but it cannot communicate light direction or architectural volume and may add a green-brown halo. |
-| Output pipeline | The production renderer uses sRGB output and ACES filmic tone mapping with exposure `0.98`–`1.02`. The castle base-color map and generated environment are explicitly sRGB, while its normal map is `NoColorSpace`; the loader applies those same color/non-color roles to optional emissive or material-data maps when present. | No obvious castle-texture double-gamma error was found. Global exposure should not be the first lever. |
-| Terrain color | Lowlands and semantic palette values are raw floating-point RGB triples. WebGL writes them directly to a vertex-color buffer, while the SVG fallback multiplies the same values by 255 into CSS `rgb(...)`. | Three.js requires vertex colors in Linear-sRGB, while CSS interprets the fallback as display-sRGB. The same palette therefore has two confirmed color-space interpretations. |
-| Light rig | The scene combines a lavender-white/dark-purple hemisphere light, warm sun, amethyst directional fill, neutral camera-facing fill, and low-intensity procedural environment. | The dark brown castle receives several colored fills without a simple key/fill value hierarchy. This can preserve hue while still producing muddy form. |
-| Fog | Linear fog uses the cool-gray sky fallback and its near/far range changes with camera zoom. The overview intentionally begins fog within the realm depth range. | Fog helps scale, but can further compress distant terrain and castle contrast at overview. |
-| Castle material | Each checked-in Hegemony Main Castle LOD contains one primitive and one material, with a base-color atlas and normal atlas, uniform metallic factor near `0.08`, and roughness near `0.68`. There is no occlusion, emissive, or metallic-roughness texture. | The engine cannot recover separate stone, roof, fabric, metal, and recess responses from material channels that do not exist. Lighting can improve form, but cannot invent authored AO or roughness classes. |
-| Runtime QA | The LOD fidelity lane renders under `NoToneMapping`, no shadows, and a separate two-light rig. The production WebGL lane accepts broad color-bucket and luminance-range evidence from the whole frame. | Existing checks prove model fidelity and non-blank output, not castle readability under the production light/fog/tone-map pipeline. UI labels can contribute to the broad whole-frame range. |
-| Render lifecycle | Realm rendering is demand-driven. Camera motion renders while settling, and vegetation uses a bounded low-rate scheduler. | Lighting work must not introduce an unconditional 60 fps loop. |
-
-Primary code locations:
-
-- `src/components/realm/realmQuality.ts`
-- `src/components/realm/createRealmScene.ts`
-- `src/components/realm/createRealmEnvironment.ts`
-- `src/components/realm/realmCastleInstanceLayer.ts`
-- `src/components/realm/loadHegemonyKeep.ts`
-- `src/components/realm/realmCameraController.ts`
-- `src/game/map/hegemonyLowlandsSpec.ts`
-- `src/game/map/terrainColor.ts`
-- `src/components/realm/createTerrainGeometry.ts`
-- `src/dev/castleLodVisualEvidenceMain.ts`
-- `scripts/qa-observer/png-visual-aggregate.mjs`
-
-## Root-cause assessment
-
-### Confirmed primary gap: directional shadowing is absent
-
-The code has dormant shadow-map setup, but the canonical render planner disables
-it before the scene is created. The current flat circle is therefore the only
-castle-to-ground shadow cue in every quality tier. This directly explains the
-absence of directional cast shadows and contributes to the floating appearance.
-
-This was a reasonable scale optimization for 100 instanced castles. It is now
-visual debt, not evidence that the whole optimization should be removed.
-
-### Likely contributor: the castle starts from a dark, low-channel material
-
-The current castle is intentionally dark and has only base-color and normal
-atlases behind one uniform PBR material. Warm, purple, and cool fills can change
-its hue, but cannot create material-class separation or baked recess definition.
-This is consistent with the screenshot, although an object-masked production
-capture is required before assigning exact weight to the asset versus lighting.
-
-### Confirmed correctness gap: WebGL and fallback interpret terrain differently
-
-Three.js performs lighting in Linear-sRGB and expects vertex-color attributes in
-that working space. The terrain pipeline writes numeric channels directly to the
-attribute. The fallback pipeline sends the same values to CSS without converting
-them, which treats those channels as display-sRGB.
-
-For example, the current `grassBase` tuple `(0.424, 0.49, 0.271)` is roughly
-`rgb(108 125 69)` in the fallback, but direct Linear-sRGB vertex input displays
-near `rgb(174 186 142)` before scene lighting/tone interactions. Its linear
-luminance is about 2.5 times the fallback interpretation. This is a strong
-explanation for pale WebGL ground beside much darker sRGB castle and decoration
-textures.
-
-Explicit conversion alone is not proof that the final look will be better: a
-blind conversion would make the existing ground considerably darker. The
-conversion and a re-authored, more chromatic Lowlands palette must be one
-reviewed visual migration. That stable contract is the prerequisite for later
-lighting work.
-
-### Likely contributor: value compression from fill, fog, and palette together
-
-No single line proves the olive wash. The low-chroma terrain values, tinted light
-stack, gray fog, ACES shoulder, and dark atlas interact. These controls should be
-isolated in a deterministic production-scene harness rather than tuned together
-by eye.
-
-### Confirmed QA gap: current gates do not measure the reported problem
-
-The existing LOD comparison answers “did optimization preserve the source
-model?” The whole-frame PNG check answers “did Chrome render credible pixels?”
-Neither answers “can a player read this castle against this terrain?” A future
-implementation can pass every current test and still reproduce the supplied
-screenshot.
-
-## Integrated GameReady GLB family — 2026-07-16
-
-The project owner explicitly accepted the GameReady family's modest size and
-height differences and authorized exact project-internal runtime integration of
-the supplied High, Balanced, and Compact set into PR #40. That direction defines
-the accepted integration boundary; it does not by itself grant a broader right
-to repurpose the geometry outside Warpkeep.
-
-All three outputs are structurally consistent glTF 2.0 runtime files: one scene,
-node, mesh, primitive, and material; no animation or skin; embedded WebP
-base-color and normal atlases; and required Meshopt, WebP, and quantization
-extensions. They are a complete `glTF-Transform v4.4.1` LOD family rather than a
-mix with the historical `gltfpack 1.2` derivatives.
-
-| Runtime LOD | Exact integrated output | Accepted boundary |
-| --- | --- | --- |
-| High | `2,215,972` bytes, `72,850` triangles, SHA-256 `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` | Copied byte-for-byte from the supplied bundle. The larger transfer and geometry footprint is accepted and remains below the revised `2,250,000`-byte gate. |
-| Balanced | `892,788` bytes, `32,550` triangles, SHA-256 `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` | The supplied 1024px atlas was incorrectly labeled `wk_atlas_size: 2048`; the integrated output declares `1024`. Its lossy VP8 normal atlas requires cross-LOD production-lighting QA. |
-| Compact | `453,628` bytes, `17,232` triangles, SHA-256 `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` | The supplied 512px atlas was incorrectly labeled `wk_atlas_size: 2048`; the integrated output declares `512`. Its roughly 4.2% shorter world height and lossy VP8 normal atlas are accepted, subject to grounding and switch-distance QA. |
-
-Balanced and Compact passed through a bounded normalization whose only semantic
-change is the atlas-size metadata. The rewrite preserves every geometry and
-embedded-image payload byte while repacking GLB JSON, offsets, and padding, so
-their corrected output sizes and hashes intentionally differ from the supplied
-containers. High required no normalization.
-
-This integration is a geometry/encoding refresh, not the requested brightness
-fix. The set retains one material with metallic near `0.08`, roughness near
-`0.68`, no occlusion/roughness/metallic atlas, and no emissive channel. High's
-base-color image remains SHA-256
-`27c90266612844c619d6a79d5db5701454ce6209e91cab47247eeb8fd065517a`
-and its normal image remains SHA-256
-`3ff2fa16d17b08d91551f5b52ee8419a821c4e726c2296c0c539daee3f23149a`;
-Balanced and Compact base-atlas luminance differs only by compression noise.
-The castles are therefore **not intrinsically brighter** after this refresh.
-The lighting, palette, fog, grounding, material-grade, and object-masked visual
-work below remains proposed future implementation.
-
-The integrated family must keep its exact installer inputs, corrected output
-hashes, atlas metadata, loader integrity constants, verifier expectations,
-dated provenance record, license inventory, reconstruction instructions,
-release truth, and menu patch notes synchronized. Visual QA must specifically
-cover the accepted silhouette/aspect difference, the Compact height difference,
-ground contact through LOD switches, and the lossy VP8 Balanced/Compact normals
-under the production light/fog/tone-map pipeline.
-
-The first attested headless-Chrome comparison against the superseded public
-source measured High/Balanced/Compact coverage deltas of `184`/`131`/`71`
-basis points, mean RGB deltas of `5`/`5`/`4`, and silhouette IoU of
-`8,970`/`8,938`/`8,923` basis points. The approved GameReady outline therefore
-keeps the existing tight coverage and color caps while recalibrating only the
-historical-source silhouette floors to `8,800`/`8,750`/`8,700`. This is a
-bounded acceptance of the new platforms and outline, not permission for future
-unmeasured silhouette drift.
-
-## Integrated GameReady landscape-base family — 2026-07-16
-
-The owner separately supplied `Warpkeep Castle Landscape Base` version `1.0.0`
-and instructed PR #40 to place its three exact LODs under the castles. The High,
-Balanced, and Compact runtime outputs are 214,372, 92,784, and 27,328 bytes with
-3,954, 2,138, and 714 triangles. Balanced and Compact receive only the same
-bounded kind of atlas metadata correction: their real 512px and 256px WebPs
-replace an incorrect generic `wk_atlas_size: 1024` declaration while geometry
-and image payload bytes remain unchanged.
-
-This family changes the grounding baseline for the future lighting work:
-
-- Castle and base use the exact same parent position, quaternion, and uniform
-  scale. The base is never independently centered, normalized, grounded, or
-  scaled from its wider bounds.
-- The authored below-ground skirt, road, grass, vegetation, and island thickness
-  replace the old synthetic contact-shadow instance when the complete base
-  family is ready. A future focused cast-shadow mode may shade the assembly, but
-  must not reintroduce a second opaque footprint under the island.
-- Castle-only dimensions continue to own LOD thresholds, focus framing, and the
-  exact username foundation anchor. Composite bounds are conservative culling
-  data, not a new camera or identity-placement metric.
-- Picking compares the nearest valid castle-geometry and simple non-rendered
-  landscape-collider hits. Decorative base triangles are not collision
-  geometry, and a farther castle cannot beat a nearer base hit.
-- Missing, stale, mixed-LOD, or integrity-failed halves fail the entire
-  castle-plus-base family closed to the illustrated Realm fallback.
-
-At 100 visible castles, the base raises the High/Balanced/Reduced profile
-triangle ceilings to 2,667,272, 2,196,408, and 1,794,600 while adding at most
-three, two, or one instanced draws. Its approximately 10.5 MiB of decoded image
-data before mipmaps is shared by resident LOD, not multiplied by castle count.
-The exact inputs, output/image hashes, placement contract, and narrow
-`LicenseRef-Warpkeep-Provenance-Required` authorization are recorded in the
-[dated landscape-base record](../reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/).
+The model refresh is an accepted geometry, encoding, and authored-grounding
+baseline. It is not evidence that the castle material became brighter. The base
+inherits the castle's exact parent transform and must not be independently
+centered, normalized, grounded, or scaled.
 
 ## Desired visual contract
 
-The Realm should read as sunlit Hegemony Lowlands, not as a uniformly bright
-scene.
-
-- Keep the masonry weighty and weathered; lift readable midtones rather than
-  bleaching the base-color texture.
-- Make the 3D castle itself measurably brighter than the audited baseline. Do not
-  obtain the entire improvement by darkening terrain or raising global exposure.
-- Keep light-facing stone in a natural midtone relationship with the surrounding
-  clearing so the keep belongs to the same sunlit world, while roofs, gates,
-  windows, banners, and electrum accents remain materially distinct.
-- Match perceived brightness and hue across High, Balanced, and Compact castle
-  LOD transitions so zooming never produces a visible surface-value pop.
-- Make the sun direction evident from lit roofs, tower sides, and a grounded
-  shadow.
-- Preserve dark windows, gates, and recesses without allowing the majority of a
-  visible castle to collapse into near-black.
-- Keep meadow and lowland brighter than forest, heath, ridge, and ancient stone,
-  while maintaining a common natural world.
-- Keep distant terrain quieter through atmosphere, but exempt the active
-  foreground castle and its immediate clearing from visible fog wash.
-- Reserve amethyst for faction identity, portal energy, sigils, and restrained
-  reflected fill. It should not tint every neutral stone plane.
-- Preserve all current interaction, identity, authoritative-world, LOD,
-  accessibility, and fallback behavior.
-
-## Recommended implementation sequence
-
-### Phase 0 — Add a production-readability baseline
-
-Do this before changing a light value.
-
-Extend the synthetic, loopback-only rendered WebGL fixture with fixed captures
-for:
-
-- overview, Founding District/approach, and selected-keep close camera poses;
-- High, Balanced, and Reduced quality;
-- procedural-environment success and direct-light fallback;
-- 1440×900 desktop, the existing 1920×1080 Balanced presentation, 1024×768
-  tablet, 390×844 narrow portrait, and 667×375 short landscape; and
-- one single/focused castle fixture in addition to the 100-castle density fixture.
-
-Extend rather than replace the existing fourteen rendered browser cases. Reuse
-their fresh/private Chrome boundary, fixed device-pixel ratio, real
-`RealmMapScreen`, and synthetic canonical snapshot. Set reduced motion before
-navigation so the camera settles immediately and vegetation does not add a
-timing variable. Reach the direct-light fallback through a local QA-only injected
-environment-factory failure seam, never simulated resource exhaustion or a
-public production/query switch; test that production builds cannot activate the
-seam.
-
-Commit a closed-shape visual-threshold manifest with the fixture and browser
-revision, mask definitions, metric units, and repeatability tolerances. Accept a
-static measurement only after two consecutive aggregate samples fall within
-those committed tolerances. Do not apply that repeatability rule to performance
-timing.
-
-Render an object-ID or silhouette mask for the castle and a separate adjacent
-ground ring. Use that mask only for segmentation: calculate luminance, color,
-and contrast from an otherwise unmodified production render captured with the
-identical camera, depth, fog, ACES, environment, and quality. Pixels from a
-mask-material override must never enter the measured statistics. Erode the
-castle mask or exclude its anti-aliased boundary, and start the ground ring
-outside a small deterministic dilation so silhouette blending and the contact or
-cast shadow do not contaminate either median. Calculate aggregate evidence from
-those regions rather than sampling the complete UI frame:
-
-- castle display-luminance percentiles;
-- crushed-shadow and clipped-highlight fractions;
-- castle local dynamic range;
-- castle-to-adjacent-ground median luminance separation;
-- edge contrast around the castle silhouette;
-- contact/cast-shadow coverage and base contact;
-- fog contribution at the focused castle; and
-- render calls, triangles, drawing-buffer pixels, texture allocations, and
-  shadow-map dimensions.
-
-Raw pixels should remain transient and local under the existing QA privacy
-boundary. Store only closed-shape aggregate metrics. Establish pass ranges from
-the current baseline and an owner-approved Warpkeep target render; do not derive
-thresholds from the third-party screenshot.
-
-Run performance as a separate, owner-local, same-device before/after lane with
-reduced motion disabled and a fixed scripted pan, zoom, focus, and vegetation
-sequence. Its manifest must define warm-up, sample count, median and p95 CPU
-duration, an owner-approved relative regression limit, and the tested
-browser/device class. GPU timing is optional: when
-`EXT_disjoint_timer_query_webgl2` is unavailable or `GPU_DISJOINT_EXT` is true,
-discard that sample and use the CPU result rather than fabricating a GPU value.
-Timing is comparative evidence, not an absolute cross-host CI gate.
-
-Keep raw per-case timings, device identifiers, renderer strings, and GPU/browser
-logs out of the automated QA artifact. Under the current observatory privacy
-contract, the durable report may emit only a fixed-shape pass/fail result per
-tier and the existing total check duration. Retaining richer owner-local timing
-evidence requires a separate privacy-contract review.
-
-### Phase 1 — Make color input unambiguous
-
-Choose and document one terrain authoring convention. The recommended option is:
-
-1. author palette swatches as display-sRGB values;
-2. decode each swatch exactly once before procedural interpolation so terrain
-   mixing and output use Linear-sRGB;
-3. expose an explicit `LinearTerrainColor`-style result from the pure map helper;
-4. write that result directly into the WebGL vertex-color attribute;
-5. encode that result once back to display-sRGB for the CSS/SVG fallback; and
-6. keep the game/map layer free of Three.js imports.
-
-All procedural interpolation, including `mixColor()`-style biome blending, must
-operate on the decoded Linear-sRGB values. `RealmMapScreen.tsx` must explicitly
-encode those results to display-sRGB before constructing CSS colors; it must not
-multiply linear components by 255 directly.
-
-Add tests for known black, mid-gray, white, and Lowlands swatches; a seam test
-must continue to prove identical edge colors from adjacent cells. Add a
-known-vector WebGL/fallback parity test so both renderers share one art source.
-Record the conversion as a deliberate visual migration because applying it to
-existing ambiguous values without retuning would materially change the Realm.
-
-Keep the current correct texture roles:
-
-- base-color and emissive textures: sRGB;
-- normal, roughness, metallic, and occlusion data: no color space; and
-- renderer output: sRGB.
-
-Retain ACES initially. Calibrate color input and light roles before deciding
-whether exposure needs a small per-quality adjustment.
-
-### Phase 2 — Establish a simple key/fill hierarchy
-
-Create a local QA-only light debugger that can isolate sun, sky/ground fill,
-camera fill, environment, fog, authored landscape-base grounding, and any
-future focused cast shadow. It must not ship as a public query-controlled
-feature.
-
-Recommended production direction:
-
-- one warm-neutral directional sun as the dominant form light;
-- one neutral-to-cool sky/ground fill that keeps shadowed stone readable;
-- a weaker camera-side lift only when measurements show the front elevation
-  still collapses;
-- procedural environment for restrained PBR response, not as a replacement key;
-  and
-- amethyst light limited to local faction/portal accents.
-
-Tune the key-to-fill ratio with the actual production castle, terrain, ACES, and
-camera. Do not stack additional lights to compensate for an unmeasured input or
-material problem. Lower quality may reduce resolution, geometry, environment
-detail, and shadow technique, but it should retain the same minimum castle
-midtone/readability range rather than becoming a darker game mode.
-
-### Phase 3 — Preserve authored grounding and add a bounded focus-shadow policy
-
-Introduce an explicit shadow policy by quality and camera mode. Do not leave
-`dynamicShadows: true` in a preset that the canonical plan silently overrides.
-
-#### Overview and Reduced quality
-
-Use the authored landscape base itself for visible grounding. Keep the legacy
-analytic contact decal disabled whenever the complete castle/base family is
-ready; do not stack a second radial footprint under the island. Validate the
-intentional below-ground skirt, road direction, terrain intersection, and
-adjacent-slot overlap at every LOD and camera mode. The illustrated fallback
-remains responsible when the paired family is incomplete.
-
-#### Approach and selected-keep close view
-
-After Phase 0 proves the budget, High quality should use one tightly fitted,
-focus-local directional shadow. Balanced may opt in only if its measured budget
-passes. Reduced retains authored-base grounding without allocating a focused
-shadow map.
-
-The focused shadow pass should:
-
-- include only the selected castle or bounded focus group, not every permanent
-  slot;
-- use an isolated bounded caster mesh/bucket or compact proxy for that focus set,
-  while reusing repository-owned geometry/material resources without duplicating
-  textures;
-- never enable `castShadow` on the shared, non-frustum-culled all-castle
-  `InstancedMesh` buckets, because a tight shadow camera alone does not prevent
-  submission of every instance and triangle;
-- fit and retarget its orthographic shadow camera whenever focus, camera mode,
-  LOD, or viewport changes;
-- let the nearby terrain receive the shadow;
-- set bias and normal bias from deterministic tests for acne and
-  peter-panning; and
-- set `renderer.shadowMap.autoUpdate = false` (or use an equivalent explicit
-  per-shadow control), request `needsUpdate` only when the sun, selected/focus
-  set, LOD packing, camera fit, viewport, or relevant terrain state changes, and
-  restore that state correctly during recreation, context restoration, and
-  teardown; and
-- smoothly suppress or attenuate the focus set's analytic decal while its true
-  shadow is valid, then restore the decal atomically if allocation fails, the
-  tier/mode changes, or focus is removed.
-
-The current dormant fixed-origin shadow-camera setup is not sufficient for a
-panned radius-20 world. A world-sized 2K shadow camera would waste resolution
-and still produce soft or blocky results.
-
-### Phase 4 — Retune fog and Lowlands palette
-
-Fog should establish distance, not tint the subject.
-
-- Keep the focused castle and its clearing in front of the fog onset in every
-  close/approach fixture.
-- At overview, fade the visual apron and distant terrain before the founding
-  district loses readability.
-- Validate fog-off and fog-on captures to measure the contribution instead of
-  changing fog color and lighting simultaneously.
-
-Retune the palette after the color-space contract is fixed:
-
-- lowland: mossy mid-green with soil variation;
-- meadow: the highest-value, warm-green family;
-- forest: cooler and darker, but not black-green;
-- heath: localized muted amethyst rather than a broad gray-purple wash;
-- ridge and ancient stone: more neutral than surrounding grass; and
-- lake: cool and clearly distinct without becoming a bright UI-like patch.
-
-Keep semantic tint seam-safe and deterministic. Do not introduce categorical
-hex borders, camera-dependent albedo, copied reference colors, or runtime use of
-the supplied comparison image.
-
-The castle clearing should be a readable packed-earth/stone value island with a
-soft natural boundary. Decorative path work is outside this proposal until a
-road/gameplay contract exists.
-
-### Phase 5 — Calibrate castle surface brightness and material response
-
-Brighter castle models are a required visual outcome, not an optional polish.
-First measure Phases 1–4 with the existing integrity-pinned model so the material
-change is not compensating for an unknown terrain or lighting error. Do not close
-the implementation while the object-masked castle midtones remain below the
-owner-approved brighter target.
-
-If the corrected light rig alone does not meet that target, extend the authorized
-deterministic asset pipeline instead of adding per-castle lights, neutral
-emissive glow, undocumented shader gamma, or a screen-space brightening effect.
-Preferred material work, in order:
-
-1. derive one named, integrity-pinned offline grade of
-   `WK_HeroCastle_BaseColorAtlas` from the authorized project texture: decode
-   sRGB to Linear-sRGB, apply an explicitly implemented and tested monotonic
-   luminance/toe–midtone–shoulder curve, protect intentional near-black recesses
-   and electrum highlight headroom, preserve hue and alpha, then encode once back
-   to sRGB; never grade `WK_HeroCastle_NormalAtlas`;
-2. grade the canonical 2048px atlas first, then derive High, Balanced, and
-   Compact from that same graded master. Make grading independent of the current
-   resize-only branch so the 2048px High output is re-encoded and verified rather
-   than silently retaining the dark source atlas;
-3. require object-masked before/after and cross-LOD parity evidence; and
-4. if still justified, add an authorized bounded material-class or
-   occlusion/roughness/metallic texture so stone, roof, fabric, recesses, and
-   electrum respond distinctly without flattening the entire keep.
-
-Do not express the grade as an undocumented image-tool `gamma()`/`modulate()`
-chain. Pin the transfer math, toolchain, and output bytes so a future rebuild
-cannot change the castle appearance silently.
-
-The grade must not modify geometry, UVs, normals, alpha coverage, collision,
-footprint, selection bounds, or LOD thresholds. Evaluate it only inside the
-production Realm pipeline against the local clearing and fog—not in an isolated
-model viewer whose background can make the same atlas appear artificially
-brighter.
-
-Split the existing LOD visual contract around this intentional migration:
-
-- keep source-versus-runtime silhouette, coverage, geometry, and alignment checks
-  against the immutable authorized source;
-- record the deliberate raw-source-to-graded color/luminance delta as separate
-  owner-approved evidence; and
-- compare graded High, Balanced, and Compact masked color/luminance at the real
-  switch distances rather than requiring every brighter derivative to preserve
-  the old source-color delta.
-
-Any asset change must update exact bytes, hashes, texture dimensions, source
-authority records, runtime manifests, LOD comparisons, and license inventory.
-Do not reinterpret a normal/data map as sRGB, apply an undocumented runtime
-gamma multiplier, or claim material separation that the asset does not encode.
-Preserve the accepted encoded GLB ceilings—High at or below `2,250,000` bytes,
-Balanced at or below `1,200,000`, and Compact (the Reduced tier) at or below
-`520,000`—unless a separate measured review changes them. The grade must not
-increase atlas dimensions or channel count.
-
-### Rollout and rollback
-
-Use the existing graphics mapping: Cinematic → High, Balanced → Balanced, and
-Performance → Reduced. Ship palette/color correctness to all tiers together;
-stage focused true shadows on High first and retain authored-base grounding on
-every tier without restoring the analytic decal.
-
-During implementation, a typed, build-time-only presentation revision such as
-`legacy` / `readable-v2` may provide one-release rollback. It must not become a
-public URL parameter, local-storage override, backend flag, or authority-bearing
-state. Remove the legacy branch after the new presentation passes its release
-and exact-deployment gates.
-
-## Acceptance gate for the implementation PR
-
-The implementing system should not declare completion until all of the following
-are true in deterministic production-scene fixtures.
-
-### Visual
-
-- Roof, front, and side planes remain distinguishable at overview, approach, and
-  close camera modes.
-- The focused castle has readable midtones while intentional windows and recesses
-  remain dark.
-- At identical camera, quality, and light settings, the castle mask is visibly
-  and measurably brighter than the `089430e` baseline without bleached stone,
-  glowing neutral surfaces, or clipped electrum highlights.
-- High, Balanced, and Compact LOD changes introduce no perceptible brightness,
-  hue, or material-response flash during zoom.
-- A directional shadow touches the castle base and agrees with the visible sun.
-- The overview decal has no visible circular edge or green halo.
-- The focused foreground castle is not visibly washed by fog.
-- Castle and adjacent ground remain separable without a selection outline or DOM
-  label.
-- High, Balanced, and Reduced preserve the same palette relationships; quality
-  changes affect fidelity and shadow technique, not faction identity.
-- The direct-light environment fallback remains readable.
-- No third-party artwork, palette sample, or screenshot enters runtime assets.
-
-### Measured
-
-- Object-masked luminance, clipping, local-range, edge-contrast, and
-  castle/ground-separation metrics stay inside owner-approved ranges.
-- Baseline-to-candidate evidence shows an owner-approved increase in castle
-  p25 and median luminance while preserving bounded near-black-recess,
-  crushed-shadow, clipped-highlight, local-dynamic-range, and
-  roof/front/side-separation evidence.
-- The metric gate excludes DOM labels and other UI pixels.
-- Shadow coverage proves base contact and sun-direction consistency.
-- Derive shadow pixels from otherwise identical production and shadow-disabled
-  passes. Compare the shadow centroid with the projected negative sun vector and
-  require owner-approved angular and base-overlap tolerances from the committed
-  manifest; dark terrain alone must not satisfy the gate.
-- Aggregate evidence has fixed shape and contains no screenshot, raw pixel,
-  identity, coordinate, path, or browser-log payload.
-
-Exact ranges must be established in Phase 0. Arbitrary luminance numbers chosen
-from compressed screenshots are not an acceptable gate.
-
-### Performance and lifecycle
-
-Preserve the current geometry/draw ceilings and target drawing-buffer budgets
-unless a separate measured budget change is reviewed:
-
-| Profile | Terrain triangles | Detail instances | Target drawing-buffer pixels | Accepted castle-plus-base geometry ceiling |
+- Keep masonry weighty and weathered; lift readable midtones rather than
+  bleaching the texture.
+- Make the 3D castle measurably brighter than the audited baseline without
+  obtaining the entire improvement by darkening terrain or raising exposure.
+- Preserve distinct roofs, gates, windows, banners, electrum accents, and
+  recesses.
+- Keep perceived brightness and hue stable across High, Balanced, and Compact
+  LOD switches.
+- Make the sun direction evident from lit planes and a grounded shadow.
+- Preserve intentionally dark windows and recesses without crushing most of the
+  visible castle into near-black.
+- Keep meadow and lowland brighter than forest, heath, ridge, and ancient stone
+  while maintaining one natural world.
+- Keep distant atmosphere, but prevent visible fog wash over the focused
+  foreground castle.
+- Reserve amethyst for faction identity, sigils, portals, and restrained fill.
+- Preserve interaction, identity, authoritative world state, accessibility,
+  fallback behavior, and castle placement.
+
+## Implementation sequence
+
+1. **Measurement and color contract.** Extend the existing loopback-only
+   production fixture with fixed overview, approach, and selected-keep captures
+   across all three quality tiers and representative responsive viewports. Use
+   castle and adjacent-ground masks for luminance, clipping, local range, edge
+   contrast, ground separation, and shadow coverage. Raw pixels remain transient
+   and local; durable evidence remains fixed-shape and identity-free. Author
+   palette swatches as display-sRGB, decode once for linear WebGL work, and
+   encode once for the CSS/SVG fallback.
+2. **Lighting, fog, and grounding.** Establish one measured key/fill hierarchy,
+   neutralize competing fills before adding energy, keep distant fog, and
+   preserve the authored base without restoring the synthetic contact disc.
+3. **Surface calibration if required.** If lighting alone cannot meet the
+   object-masked target, prepare one authorized, deterministic, hue-preserving
+   midtone calibration across all LODs. Pin every resulting byte and hash and
+   preserve the existing provenance boundary.
+4. **Focused shadow experiment.** Enable at most one active-focus shadow map on
+   High first. Measure Balanced before enabling it; allocate none on Reduced.
+   Preserve demand rendering and invalidate the shadow only when focus, light,
+   camera fit, LOD packing, viewport, or relevant terrain changes.
+5. **Release integration.** Run the complete regression and same-device
+   performance matrix, record the next release truth, and verify the exact
+   protected-main deployment.
+
+## Acceptance and budgets
+
+The implementation is incomplete until deterministic production-scene fixtures
+show all of the following:
+
+- roof, front, and side planes remain distinguishable at overview, approach, and
+  close views;
+- castle midtones improve without bleached stone, clipped electrum, crushed
+  recesses, or a visible LOD brightness/hue flash;
+- directional shadow evidence touches the base and agrees with the visible sun;
+- the focused castle remains separable from adjacent ground without relying on
+  a DOM label or selection outline;
+- the old circular contact edge/halo does not return;
+- the direct-light environment fallback remains readable; and
+- object-masked metrics exclude UI pixels and stay within owner-approved ranges
+  established from a deterministic Warpkeep baseline and target.
+
+Preserve these current geometry and drawing-buffer budgets unless a separate
+measured change is approved:
+
+| Profile | Terrain triangles | Detail instances | Target drawing-buffer pixels | Castle-plus-base ceiling |
 | --- | ---: | ---: | ---: | ---: |
 | High | 150,000 | 7,000 | 8,400,000 | 2,667,272 triangles |
 | Balanced | 90,000 | 5,500 | 5,200,000 | 2,196,408 triangles |
 | Reduced | 40,000 | 3,000 | 2,400,000 | 1,794,600 triangles |
 
-The drawing-buffer values are targets, not unconditional ceilings: the current
-resolver intentionally preserves a minimum pixel ratio of `0.5`, which can
-exceed a target on a pathological canvas. The fixed QA viewport matrix must meet
-its target; any minimum-DPR exception outside that matrix must be explicit and
-reported rather than mislabeled as a passing budget.
+The first true-shadow experiment may submit no more than one focused
+castle-plus-base assembly: 76,804 triangles on High, 34,688 on Balanced, and
+zero on Reduced. High may allocate at most one `2048×2048` shadow map; Balanced
+at most one `1024×1024`; Reduced allocates none. Cascades, cube maps, a second
+shadow-casting light, or a larger caster set require separate measurement and
+review.
 
-For the first focused-shadow experiment, the incremental caster ceiling should
-be no more than one active castle-plus-base assembly: `76,804` triangles on
-High, `34,688` on Balanced, and zero on Reduced. A compact proxy may lower that
-cost. For explicit budget planning, four promoted full-detail assemblies would
-submit `307,216` High, `138,752` Balanced, or `71,784` Compact triangles. Those
-four-caster figures are accounting evidence, not approval to exceed the initial
-one-assembly ceiling; any larger caster group needs a newly measured and
-explicitly reviewed ceiling.
+Also preserve demand rendering, hidden-document pause behavior, bounded draw
+calls, and exact-once cleanup through context loss, partial setup, quality
+recreation, and teardown. Performance evidence is a same-device before/after
+comparison; compressed GLB bytes are not GPU-memory evidence.
 
-Also preserve the current maximum of five semantic-feature draw calls and eight
-total terrain-detail draw calls. Castle rendering remains at no more than three
-instance draws, while the base adds no more than three, two, or one instance
-draws on High, Balanced, or Reduced and suppresses the legacy contact-shadow
-call. A focused shadow pass must report its additional calls separately.
+## Rollout, authority, and release boundary
 
-Allow at most one focused 2D shadow map: High must not exceed `2048×2048`,
-Balanced must not exceed `1024×1024`, and Reduced allocates none. Cascades, cube
-maps, or a second shadow-casting light require a separate measured and reviewed
-budget. Report the added pass, calls, and submitted caster triangles separately.
+Ship palette and color correctness to every tier together. Stage focused true
+shadows on High first and retain authored-base grounding everywhere. A typed,
+build-time-only `legacy` / `readable-v2` presentation revision may provide one
+release of rollback. It must not become a URL parameter, local-storage override,
+backend flag, or authority-bearing state, and it must be removed after the new
+presentation passes its release gates.
 
-- The separate same-device performance lane stays within its pre-recorded,
-  owner-approved relative CPU/GPU regression limits; unsupported or disjoint GPU
-  samples fall back to CPU evidence.
-- No world-sized all-castle shadow pass is introduced.
-- No unconditional animation loop is introduced.
-- Settled shadows stop updating even when vegetation schedules its bounded
-  periodic scene render; hidden-document behavior remains paused.
-- Render calls, triangles, texture allocations, and shadow-map dimensions remain
-  bounded and reported by quality/mode.
-- Context loss, environment allocation failure, partial setup failure, quality
-  recreation, and teardown still release resources exactly once.
+Terrain coordinates, castle ownership, identity, admission, world state,
+gameplay, Marks, authentication, and backend protocol remain unchanged. WebGL
+fallback, keyboard, touch, pointer, labels, inspector, navigator, and safe-area
+behavior remain complete.
 
-No absolute frame-rate or GPU-memory claim exists today. Record same-device
-before/after evidence before enabling a true shadow pass on a tier, and do not
-infer decoded GPU memory from compressed GLB bytes.
-
-### Product and authority
-
-- Terrain coordinates, castle ownership, identity, admission, world state,
-  gameplay, Marks, and backend protocol remain unchanged.
-- WebGL fallback remains complete and usable.
-- Keyboard, touch, pointer, label, inspector, navigator, and safe-area behavior
-  remain unchanged except for intentional camera framing tests.
-- The accepted GameReady refresh receives its Alpha `0.3.5` release note,
-  changelog entry, and menu patch-note update. A future player-visible lighting,
-  material, fog, palette, or shadow implementation receives its own next
-  appropriate version and release truth.
-
-## Suggested future file ownership
-
-This is a handoff map, not a list of files changed by this proposal.
-
-| Work package | Likely implementation locations |
-| --- | --- |
-| Color-space contract and palette | `src/game/map/hegemonyLowlandsSpec.ts`, `src/game/map/terrainColor.ts`, `src/components/realm/createTerrainGeometry.ts`, fallback encoding in `src/components/realm/RealmMapScreen.tsx`, focused terrain tests |
-| Lighting/fog policy | `src/components/realm/realmQuality.ts`, `src/components/realm/createRealmScene.ts`, `src/components/realm/createRealmEnvironment.ts`, camera/scene tests |
-| Focused cast shadows and authored-base grounding | `src/components/realm/realmCastleInstanceLayer.ts`, `src/components/realm/createRealmScene.ts`, quality/instance/cleanup tests; preserve base-family suppression of the old synthetic contact shadow |
-| Castle brightness and material calibration | `scripts/install-hegemony-gameready-castle.mjs`, the historical preparation pipeline, `scripts/rewrite-embedded-webp-glb.mjs` and its declaration/tests, `src/components/realm/loadHegemonyKeep.ts`, runtime-asset verifier, dated castle manifest/record, object-masked production evidence, asset/LOD parity tests |
-| Readability QA | rendered WebGL fixture, browser probe, bounded PNG/target analyzer, QA contract tests, `docs/operations/qa-observatory.md` |
-| Release truth | `CHANGELOG.md`, next `docs/releases/` note, menu patch-note source, build version, `_AGENT_NOTES.md` |
-
-## Recommended PR train for implementation
-
-1. **Instrumentation and color contract:** object-aware metrics, baseline evidence,
-   explicit terrain color space, no art-direction tuning hidden in the same diff.
-2. **Lighting, fog, and authored-base grounding:** calibrated key/fill hierarchy,
-   no duplicate contact decal, production-scene visual gates.
-3. **Castle surface calibration:** meet the brighter object-masked target with
-   cross-LOD parity; prepare a deterministic authorized texture/material
-   derivative when lighting alone is insufficient.
-4. **Focused shadow mode:** High first; Balanced only after evidence; preserve
-   decal fallback and demand rendering.
-5. **Release integration:** complete regression matrix, real-device evidence,
-   patch notes, versioning, and exact deployed-build verification.
-
-Each PR should be independently reviewable and must not merge merely because the
-previous visual screenshot appears brighter.
-
-## Risks and mitigations
-
-| Risk | Mitigation |
-| --- | --- |
-| Brightening destroys the heavy Hegemony mood | Target readable midtones and directional form, not a global exposure increase. Review masked castle values and full-scene composition separately. |
-| A brighter atlas looks bleached or detached from the ground | Use one monotonic hue-preserving midtone lift, protect recesses/highlights, and approve it only in production Realm captures beside the local clearing. |
-| LOD changes flash between different castle values | Derive every LOD from the same authorized surface source and grade, then gate masked luminance/hue parity at the actual switch distances. |
-| Accepted GameReady silhouette/aspect or Compact height differences cause a grounding or zoom pop | Keep the runtime footprint normalization, then gate base contact, screen coverage, and switch-distance alignment under production cameras before further geometry changes. |
-| Lossy VP8 Balanced/Compact normal maps soften or shimmer under the revised light rig | Add masked cross-LOD normal-response captures at the real switch distances; preserve the exact integrated payloads unless a separately authorized, reproducible re-encode proves better. |
-| Re-encoded brighter textures exceed the accepted GLB byte caps | Grade the canonical atlas before LOD derivation, verify every output byte/hash, and preserve the revised per-tier encoded-size ceilings unless a separate measured budget is approved. |
-| Explicit color conversion causes a large palette jump | Treat existing floats as ambiguous legacy inputs, capture a baseline, then migrate and retune in one reviewed color-contract PR. |
-| Focused shadows show acne, peter-panning, clipping, or stale direction | Add deterministic focus/pan/LOD fixtures, fit the shadow camera tightly, test bias bounds, and invalidate only on relevant state changes. |
-| Shadow pass harms mobile or 100-castle performance | Keep Reduced authored-base-only, start High focus-local, measure Balanced before enabling, and never shadow all 100 castles at realm scale. |
-| A legacy contact decal survives beneath the authored island and double-darkens or z-fights | Suppress the old contact-shadow instance whenever the complete base family is ready; test adjacent founding slots, uneven terrain, LOD switches, and fallback transitions. |
-| More fill flattens the model further | Remove or neutralize competing fills before adding energy. Calibrate lights independently. |
-| Fog fix removes world scale or reveals the radius-22 apron edge | Preserve fog for distant terrain and the apron; move the focused subject ahead of onset rather than deleting atmosphere, and gate every overview edge. |
-| Asset derivative exceeds current authority or provenance | Use only the recorded project-internal source/derivative scope, update immutable provenance, and stop if a required material source is not authorized. |
-| Visual QA leaks identity or durable screenshots | Use the synthetic fixture, transient pixels, closed aggregate output, and the existing loopback/no-foreign-network boundary. |
-
-## Primary technical references
-
-- [Three.js color management](https://threejs.org/manual/en/color-management.html)
-  defines Linear-sRGB as the working space, sRGB for display/color textures, and
-  Linear-sRGB for vertex colors.
-- [Three.js shadow guidance](https://threejs.org/manual/en/shadows.html) explains
-  the extra scene render per shadow-casting light, fake-shadow alternatives, and
-  the resolution cost of oversized directional-light shadow cameras.
-- [Three.js renderer documentation](https://threejs.org/docs/pages/WebGLRenderer.html)
-  defines output/tone-map controls and the available draw-call, triangle, and
-  allocation counters for bounded diagnostics.
-- [Three.js standard-material documentation](https://threejs.org/docs/pages/MeshStandardMaterial.html)
-  and [PMREM documentation](https://threejs.org/docs/pages/PMREMGenerator.html)
-  describe the PBR/environment roles used by the Realm.
-- [Three.js directional-light](https://threejs.org/docs/pages/DirectionalLight.html)
-  and [fog](https://threejs.org/docs/pages/Fog.html) documentation cover the
-  focus-local light camera and linear atmosphere controls proposed here.
-- [Khronos glTF 2.0 material specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials)
-  defines sRGB base/emissive inputs, linear normal/metallic/roughness/occlusion
-  data, and the metallic-roughness material contract.
-- [W3C relative-luminance definition](https://www.w3.org/TR/WCAG22/#dfn-relative-luminance)
-  provides the sRGB decoding and luminance math suitable for the aggregate QA
-  calculation. Using that math is not a claim that textured world art has a WCAG
-  contrast requirement or conformance result.
-- [W3C High Resolution Time](https://www.w3.org/TR/hr-time-3/) defines the
-  monotonic browser clock suitable for owner-local CPU duration comparisons.
-- [Khronos `EXT_disjoint_timer_query_webgl2`](https://registry.khronos.org/webgl/extensions/EXT_disjoint_timer_query_webgl2/)
-  defines optional WebGL GPU timing and the disjoint state that invalidates a
-  sample.
+The GameReady castle/base refresh belongs to the Alpha 0.3.5 candidate. Any
+player-visible lighting, material, fog, palette, or true-shadow implementation
+receives its own later version, changelog entry, release note, menu patch note,
+and exact-deployment verification.
 
 ## Non-goals
 
-- copying the comparison game's terrain color, castle design, UI, roads, or
+- copying a comparison game's terrain, castle, palette, UI, roads, or
   composition;
-- redesigning geometry beyond the accepted 2026-07-16 GameReady castle and landscape-base LOD families;
+- redesigning the accepted GameReady castle or landscape-base geometry;
 - adding post-processing, screen-space AO, bloom, or per-castle dynamic lights
   before the simpler pipeline is measured;
-- changing authoritative terrain, castle placement, gameplay, identity, auth,
-  backend state, or deployment; or
-- treating this proposal as authorization to merge or ship the future lighting,
-  material, fog, palette, or shadow implementation without its acceptance gates.
+- changing authoritative terrain, castle placement, gameplay, identity,
+  authentication, backend state, or deployment; or
+- treating this record as authorization to merge or ship the future visual work
+  without its acceptance gates.
+
+Implementation should use the official Three.js color-management, shadow,
+renderer, standard-material, directional-light, and fog documentation; the glTF
+2.0 material specification; and the existing
+[QA Observatory boundary](../operations/qa-observatory.md).

@@ -4,7 +4,7 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-## [0.3.5] — 2026-07-16
+### Alpha 0.3.5 candidate — prepared 2026-07-16
 
 - The Realm's high, balanced, and compact Hegemony Main Castle GLBs now use
   the exact owner-approved GameReady LOD family across Cinematic, Balanced,
@@ -28,11 +28,18 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   105,576, or 71,400 triangles across 100 castles in Cinematic, Balanced, and
   Performance profiles. They remain shared instanced resources rather than
   per-castle asset copies.
+- Automatic Cinematic selection now requires measured 8 GB memory and six CPU
+  threads because it retains all three castle/base LOD assemblies. Players may
+  still choose Cinematic explicitly; normal and unreported devices default to
+  the lighter Balanced profile.
 - Runtime records now identify each profile's real atlas dimensions and exact
   file integrity instead of inheriting inconsistent source metadata. Existing
   castle footprint normalization and ground alignment remain responsible for
   placing the keep; its matching base copies that exact transform without
   independent normalization or non-uniform deformation.
+- The six new castle/base files use immutable SHA-prefixed public filenames.
+  The three Alpha 0.3.4 castle coordinates retain their exact former bytes so
+  cached clients and a verified rollback cannot receive a mismatched model.
 - Public usernames now sit on slim, translucent rails at each keep's projected
   foundation base. An individual rail has one deterministic anchor and no
   leader line or random collision displacement; crowded identities consolidate
@@ -46,15 +53,22 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 - The castle record's same-origin decorative art is a background-cleaned alpha
   WebP with exact runtime integrity and a dated narrow-use provenance record.
   It adds no authority and is not a substitute for the instanced world model.
+- The sign-in presentation now shows a verified Farcaster username and static
+  PFP during and after QR verification. A tab-scoped, exact-FID cache can
+  restore only that non-authoritative presentation after an authoritative
+  cookie refresh. FID remains the sole identity coordinate; browser binding,
+  the bridge-managed session, OIDC handoff, authorization epoch, and admission
+  remain separate authorization gates.
 - The release truth, in-menu patch chronicle, reconstruction boundary, and
   provenance records distinguish the exact owner-supplied inputs and bounded
   atlas-metadata normalization from the superseded Alpha 0.3.4 deterministic
   derivative family. No brightness improvement is attributed to the model swap
   itself.
-- This release is Pages-only. It widens only client-side procedural-decoration
-  clearance around the authored islands; it changes no authentication, Terms,
-  admission, backend protocol, authoritative world generation or state, castle
-  ownership, wallet, Marks, Worker, SpacetimeDB module, or production data.
+- This candidate is Pages-only. It widens only client-side procedural-decoration
+  clearance around the authored islands and improves authentication
+  presentation, while changing no Terms, authentication authority, admission,
+  backend protocol, authoritative world generation or state, castle ownership,
+  wallet, Marks, Worker, SpacetimeDB module, or production data.
 
 ## [0.3.4] — 2026-07-15
 
@@ -64,6 +78,8 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 - The optimized high, balanced, and compact Hegemony Main Castle GLBs replace
   the prior Frontier Keep derivatives while keeping shared instancing and LOD
   budgets intact.
+- The title route is model-only: retired HTML, SVG, loader, and procedural
+  wordmark paths no longer duplicate the authorized 3D title.
 - A local regression decodes the exact compact Hegemony GLB, instances it, and
   requires a real canvas pointer path to open the intended castle inspector
   before terrain fallback can apply.
@@ -376,7 +392,8 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.0...v0.3.1

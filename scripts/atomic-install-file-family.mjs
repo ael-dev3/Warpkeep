@@ -6,6 +6,7 @@ import {
   fsyncSync,
   linkSync,
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   openSync,
   readFileSync,
@@ -30,12 +31,20 @@ function pathExists(path) {
   return lstatSync(path, { throwIfNoEntry: false });
 }
 
-function readPinnedRegularFile(path, label) {
+function readPinnedRegularFile(path, label, expectedBytes) {
   let descriptor;
   try {
     descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
     const before = fstatSync(descriptor);
     if (!before.isFile()) throw new Error(`${label} must be a regular non-symbolic file.`);
+    if (expectedBytes !== undefined) {
+      if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 0) {
+        throw new Error(`${label} has an invalid expected byte length.`);
+      }
+      if (before.size !== expectedBytes) {
+        throw new Error(`${label} does not match its expected byte length.`);
+      }
+    }
     const bytes = readFileSync(descriptor);
     const after = fstatSync(descriptor);
     const pathStat = pathExists(path);
@@ -111,15 +120,48 @@ export function resolveContainedPath(root, relativePath, label = 'contained path
 }
 
 /**
+ * Creates a relative directory one component at a time without following a
+ * symbolic-link root, ancestor, or leaf. Callers still need exclusive control
+ * of the tree because portable Node.js does not expose openat-style directory
+ * handles for race-free path mutation.
+ */
+export function ensureContainedDirectory({ root, relativePath, label }) {
+  assertPathChain(root, `${label} root`, { leaf: 'directory' });
+  const absoluteRoot = resolve(root);
+  const destination = resolveContainedPath(absoluteRoot, relativePath, label);
+  const components = relative(absoluteRoot, destination).split(sep).filter(Boolean);
+  let current = absoluteRoot;
+
+  for (const component of components) {
+    current = join(current, component);
+    let stat = pathExists(current);
+    if (!stat) {
+      try {
+        mkdirSync(current, { mode: 0o755 });
+      } catch (error) {
+        stat = pathExists(current);
+        if (!stat) throw error;
+      }
+      stat = pathExists(current);
+    }
+    if (!stat?.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error(`${label} must not contain a non-directory or symbolic-link component: ${current}`);
+    }
+  }
+
+  return destination;
+}
+
+/**
  * Reads a package file without following a symbolic-link leaf. Callers still
  * pin the accepted bytes and semantic structure; this helper pins the path.
  */
-export function readContainedRegularFile({ root, relativePath, label }) {
+export function readContainedRegularFile({ root, relativePath, label, expectedBytes }) {
   assertPathChain(root, `${label} root`, { leaf: 'directory' });
   const path = resolveContainedPath(root, relativePath, label);
   assertPathChain(path, label, { leaf: 'file' });
 
-  return readPinnedRegularFile(path, label).bytes;
+  return readPinnedRegularFile(path, label, expectedBytes).bytes;
 }
 
 export function assertNoStaleAtomicFamilyTransactions(
@@ -147,32 +189,80 @@ function invokeFailureHook(injectFailure, phase, context = {}) {
   injectFailure?.({ phase, ...context });
 }
 
+function assertInstalledEntryUnchanged(entry) {
+  if (!entry.installedIdentity) {
+    throw new Error(`${entry.label} installed identity is unavailable for rollback.`);
+  }
+  const installed = readPinnedRegularFile(
+    entry.destination,
+    `${entry.label} installed rollback candidate`
+  );
+  if (
+    installed.identity.dev !== entry.installedIdentity.dev
+    || installed.identity.ino !== entry.installedIdentity.ino
+    || installed.identity.size !== entry.installedIdentity.size
+    || !installed.bytes.equals(entry.bytes)
+  ) {
+    throw new Error(`${entry.label} installed path changed before rollback.`);
+  }
+}
+
+function assertBackupEntryUnchanged(entry) {
+  if (!entry.backupIdentity || !entry.existingBytes) {
+    throw new Error(`${entry.label} backup identity is unavailable for rollback.`);
+  }
+  const backup = readPinnedRegularFile(
+    entry.backup,
+    `${entry.label} rollback backup`
+  );
+  if (
+    backup.identity.dev !== entry.backupIdentity.dev
+    || backup.identity.ino !== entry.backupIdentity.ino
+    || backup.identity.size !== entry.backupIdentity.size
+    || !backup.bytes.equals(entry.existingBytes)
+  ) {
+    throw new Error(`${entry.label} backup changed before rollback.`);
+  }
+}
+
+function assertOriginalDestinationUnchanged(entry) {
+  if (!entry.existingIdentity || !entry.existingBytes) {
+    throw new Error(`${entry.label} original destination identity is unavailable for rollback.`);
+  }
+  const destination = readPinnedRegularFile(
+    entry.destination,
+    `${entry.label} original rollback destination`
+  );
+  if (
+    destination.identity.dev !== entry.existingIdentity.dev
+    || destination.identity.ino !== entry.existingIdentity.ino
+    || destination.identity.size !== entry.existingIdentity.size
+    || !destination.bytes.equals(entry.existingBytes)
+  ) {
+    throw new Error(`${entry.label} original destination changed after backup.`);
+  }
+}
+
 function rollback(entries) {
   const failures = [];
   for (const entry of [...entries].reverse()) {
     try {
       if (entry.backedUp && entry.installed) {
-        const backup = pathExists(entry.backup);
-        if (!backup?.isFile() || backup.isSymbolicLink()) {
-          throw new Error(`${entry.label} backup is unavailable for rollback.`);
-        }
-        const installed = pathExists(entry.destination);
-        if (!installed?.isFile() || installed.isSymbolicLink()) {
-          throw new Error(`${entry.label} installed path changed before rollback.`);
-        }
+        assertBackupEntryUnchanged(entry);
+        assertInstalledEntryUnchanged(entry);
         renameSync(entry.backup, entry.destination);
         entry.backedUp = false;
         entry.installed = false;
       } else if (entry.installed) {
-        const installed = pathExists(entry.destination);
-        if (!installed?.isFile() || installed.isSymbolicLink()) {
-          throw new Error(`${entry.label} installed path changed before rollback.`);
-        }
+        assertInstalledEntryUnchanged(entry);
         rmSync(entry.destination);
         entry.installed = false;
       } else if (entry.backedUp) {
         // Replacement did not start, so the original destination still owns
-        // its directory entry; discard only the transaction hard link.
+        // its directory entry. Revalidate that assumption before discarding
+        // the only transaction-local evidence of the pinned original.
+        assertBackupEntryUnchanged(entry);
+        assertOriginalDestinationUnchanged(entry);
         rmSync(entry.backup);
         entry.backedUp = false;
       }
@@ -302,6 +392,17 @@ export function installAtomicFileFamily({
           // path is therefore replaced atomically and is never truncated.
           linkSync(entry.destination, entry.backup);
           entry.backedUp = true;
+          const pinnedBackup = readPinnedRegularFile(
+            entry.backup,
+            `${entry.label} transaction backup`
+          );
+          if (
+            pinnedBackup.identity.dev !== entry.existingIdentity.dev
+            || pinnedBackup.identity.ino !== entry.existingIdentity.ino
+            || pinnedBackup.identity.size !== entry.existingIdentity.size
+            || !pinnedBackup.bytes.equals(entry.existingBytes)
+          ) throw new Error(`${entry.label} transaction backup does not match the pinned destination.`);
+          entry.backupIdentity = pinnedBackup.identity;
         }
         invokeFailureHook(injectFailure, 'afterBackup', {
           destination: entry.destination,
@@ -312,6 +413,14 @@ export function installAtomicFileFamily({
 
         renameSync(entry.stage, entry.destination);
         entry.installed = true;
+        const installed = readPinnedRegularFile(
+          entry.destination,
+          `${entry.label} installed output`
+        );
+        if (!installed.bytes.equals(entry.bytes)) {
+          throw new Error(`${entry.label} installed output does not match the staged exact bytes.`);
+        }
+        entry.installedIdentity = installed.identity;
         invokeFailureHook(injectFailure, 'afterReplace', {
           destination: entry.destination,
           entry,

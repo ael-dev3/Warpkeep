@@ -24,7 +24,7 @@
     "recordedAt": "2026-07-16",
     "authorizedBy": "Warpkeep project owner",
     "scope": [
-      "project-internal Warpkeep runtime integration of the exact three GameReady inputs",
+      "integration of the exact three GameReady inputs into the public Warpkeep GitHub repository and official warpkeep.com Pages runtime",
       "bounded deterministic atlas-metadata correction for the Balanced and Compact inputs"
     ],
     "notGranted": [
@@ -160,7 +160,7 @@
     "verificationScript": "scripts/verify-runtime-assets.mjs",
     "profiles": {
       "high": {
-        "path": "public/models/hegemony/hegemony-main-castle-high.glb",
+        "path": "public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb",
         "bytes": 2215972,
         "sha256": "9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8",
         "triangles": 72850,
@@ -185,7 +185,7 @@
         ]
       },
       "balanced": {
-        "path": "public/models/hegemony/hegemony-main-castle-balanced.glb",
+        "path": "public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb",
         "bytes": 892788,
         "sha256": "a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157",
         "triangles": 32550,
@@ -210,7 +210,7 @@
         ]
       },
       "compact": {
-        "path": "public/models/hegemony/hegemony-main-castle-compact.glb",
+        "path": "public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb",
         "bytes": 453628,
         "sha256": "b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b",
         "triangles": 17232,

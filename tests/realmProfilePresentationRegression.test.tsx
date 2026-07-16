@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -11,6 +11,23 @@ import {
   safeRealmProfileImageUrl,
   type RealmCastlePublicPresentation
 } from '../src/components/realm/realmCastlePresentation';
+
+const PROFILE_DELIVERY_ACCOUNT = 'BXluQx4ige9GuW0Ia56BHw';
+const PNG_HEADER = (() => {
+  const bytes = new Uint8Array(33);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(8, 13, false);
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12);
+  view.setUint32(16, 400, false);
+  view.setUint32(20, 200, false);
+  bytes.set([8, 6, 0, 0, 0], 24);
+  return bytes;
+})();
+
+function profileDeliveryUrl(imageId: string) {
+  return `https://imagedelivery.net/${PROFILE_DELIVERY_ACCOUNT}/${imageId}/original`;
+}
 
 class MockProfileImage {
   decoding = 'auto';
@@ -61,7 +78,22 @@ beforeEach(() => {
   mockProfileImages = [];
   clearCanvas = vi.fn();
   drawCanvasImage = vi.fn();
+  let objectUrlSequence = 0;
   vi.stubGlobal('Image', MockProfileImage as unknown as typeof Image);
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(PNG_HEADER);
+        controller.close();
+      }
+    }),
+    { status: 200, headers: { 'content-type': 'image/png' } }
+  )));
+  vi.spyOn(URL, 'createObjectURL').mockImplementation(() => {
+    objectUrlSequence += 1;
+    return `blob:warpkeep-profile-${objectUrlSequence}`;
+  });
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
     clearRect: clearCanvas,
     drawImage: drawCanvasImage
@@ -113,23 +145,41 @@ describe('realm profile and PFP presentation regressions', () => {
     expect((crest as HTMLElement | null)?.style.getPropertyValue('--realm-avatar-hue')).toBe('87');
   });
 
-  it('requests a safe HTTPS PFP without a referrer and draws exactly one static cover snapshot', () => {
-    const pfpUrl = 'https://cdn.warpkeep.com/profiles/warpkeeper.png';
+  it('retains the monogram without requesting an unreviewed public PFP host', () => {
+    const { container } = render(
+      <CastleProfileAvatar profile={profile({
+        canonicalUsername: 'warpkeeper',
+        pfpUrl: 'https://tracking.example/warpkeeper.png'
+      })} />
+    );
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(container.querySelector('.realm-castle-avatar')?.textContent).toBe('W');
+  });
+
+  it('requests a reviewed HTTPS PFP without credentials or a referrer and draws one snapshot', async () => {
+    const pfpUrl = profileDeliveryUrl('bc698287-5adc-4cc5-a503-de16963ed900');
     const { container } = render(
       <CastleProfileAvatar
         profile={profile({ canonicalUsername: 'warpkeeper', pfpUrl })}
       />
     );
 
-    expect(mockProfileImages).toHaveLength(1);
+    await waitFor(() => expect(mockProfileImages).toHaveLength(1));
     const image = mockProfileImages[0];
-    expect(image.requestedUrl).toBe(pfpUrl);
+    expect(fetch).toHaveBeenCalledWith(pfpUrl, expect.objectContaining({
+      credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer'
+    }));
+    expect(image.requestedUrl).toBe('blob:warpkeep-profile-1');
     expect(image.referrerPolicyAtRequest).toBe('no-referrer');
     expect(image.decoding).toBe('async');
     expect(container.querySelector('img')).toBeNull();
     expect(screen.getByText('W')).not.toBeNull();
 
-    act(() => image.finishLoad());
+    await act(async () => image.finishLoad());
 
     const canvas = container.querySelector('canvas');
     if (!(canvas instanceof HTMLCanvasElement)) throw new Error('missing static profile canvas');
@@ -151,37 +201,39 @@ describe('realm profile and PFP presentation regressions', () => {
     );
     expect(image.removedSourceCount).toBe(1);
     expect(image.sourcePresent).toBe(false);
+    expect(URL.revokeObjectURL).toHaveBeenCalledOnce();
     expect(container.querySelector('img')).toBeNull();
     expect(screen.queryByText('W')).toBeNull();
 
-    act(() => image.finishLoad());
+    await act(async () => image.finishLoad());
     expect(drawCanvasImage).toHaveBeenCalledOnce();
   });
 
-  it('keeps a stable public monogram after an image load error and URL change', () => {
+  it('keeps a stable public monogram after an image load error and URL change', async () => {
     const presentation = profile({
       canonicalUsername: 'alice',
-      pfpUrl: 'https://cdn.warpkeep.com/profiles/alice.png'
+      pfpUrl: profileDeliveryUrl('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
     });
     const { container, rerender } = render(<CastleProfileAvatar profile={presentation} />);
+    await waitFor(() => expect(mockProfileImages).toHaveLength(1));
     const firstImage = mockProfileImages[0];
 
-    act(() => firstImage.finishLoad());
+    await act(async () => firstImage.finishLoad());
     expect(container.querySelector('canvas')?.style.display).toBe('block');
     expect(screen.queryByText('A')).toBeNull();
 
     rerender(<CastleProfileAvatar profile={{
       ...presentation,
-      pfpUrl: 'https://cdn.warpkeep.com/profiles/alice-new.png'
+      pfpUrl: profileDeliveryUrl('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
     }} />);
 
-    expect(mockProfileImages).toHaveLength(2);
+    await waitFor(() => expect(mockProfileImages).toHaveLength(2));
     expect(container.querySelector('canvas')?.style.display).toBe('none');
     expect(screen.getByText('A')).not.toBeNull();
     expect(container.querySelector('img')).toBeNull();
 
     const changedImage = mockProfileImages[1];
-    act(() => changedImage.failLoad());
+    await act(async () => changedImage.failLoad());
 
     expect(drawCanvasImage).toHaveBeenCalledOnce();
     expect(changedImage.removedSourceCount).toBe(1);
@@ -190,7 +242,7 @@ describe('realm profile and PFP presentation regressions', () => {
 
     rerender(<CastleProfileAvatar profile={{
       ...presentation,
-      pfpUrl: 'https://cdn.warpkeep.com/profiles/alice-new.png',
+      pfpUrl: profileDeliveryUrl('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'),
       displayName: 'Alice Keeper'
     }} />);
     expect(mockProfileImages).toHaveLength(2);
@@ -198,7 +250,7 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(screen.getByText('A')).not.toBeNull();
   });
 
-  it('retains the monogram and detaches the image when canvas drawing fails', () => {
+  it('retains the monogram and detaches the image when canvas drawing fails', async () => {
     drawCanvasImage.mockImplementationOnce(() => {
       throw new Error('fixture draw failure');
     });
@@ -206,13 +258,14 @@ describe('realm profile and PFP presentation regressions', () => {
       <CastleProfileAvatar
         profile={profile({
           canonicalUsername: 'alice',
-          pfpUrl: 'https://cdn.warpkeep.com/profiles/alice.png'
+          pfpUrl: profileDeliveryUrl('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
         })}
       />
     );
 
+    await waitFor(() => expect(mockProfileImages).toHaveLength(1));
     const image = mockProfileImages[0];
-    act(() => image.finishLoad());
+    await act(async () => image.finishLoad());
 
     expect(drawCanvasImage).toHaveBeenCalledOnce();
     expect(image.removedSourceCount).toBe(1);

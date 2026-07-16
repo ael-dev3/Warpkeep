@@ -70,6 +70,15 @@ export const RENDERED_WEBGL_QA_VITE_FS_DENY = Object.freeze([
 ]);
 const RENDERED_WEBGL_QA_LABEL_ANGLE_TOLERANCE_RADIANS = 0.002;
 const RENDERED_WEBGL_QA_CASTLE_POINTER_ACTIVATION_CASE_ID = 'desktop-balanced';
+// Opening a record or cluster changes the camera and therefore the projection-
+// eligible set. Explore intentionally reserves every map-label berth while its
+// accessible 100-castle list is open. Keep those post-action bounds explicit
+// without weakening each case's viewport-specific pre-action overflow cap.
+const RENDERED_WEBGL_QA_INTERACTION_MAXIMUM_LABEL_OVERFLOW_COUNT = Object.freeze({
+  cluster: 2,
+  explore: 100,
+  inspector: 5,
+});
 // Castle labels attach immediately below the projected foundation. This depth
 // is deliberately above the interactive label and inside the rendered keep body
 // at the reviewed desktop framing, so the browser must deliver a real canvas
@@ -258,12 +267,18 @@ async function attestStableHeadlessChromeExecutable(expectedIdentity) {
 export function renderedWebglBrowserProbeCases(port) {
   const selectedPort = exactPort(port);
   const origin = `http://127.0.0.1:${selectedPort}`;
+  // Floors retain a one- or two-label margin below the deterministic settled
+  // fixture; short landscape keeps its honest one-label floor. Overflow caps
+  // retain a two-castle margin above the same settled fixture. This catches a
+  // username-capacity regression without reviving the former detached-label
+  // layout.
   return Object.freeze([
     Object.freeze({
       id: 'desktop-high',
       expectedPresentationMode: 'observer',
       expectedQuality: 'high',
       interaction: 'default',
+      maximumLabelOverflowCount: 13,
       minimumLabelCount: 10,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'high' }),
       viewport: DESKTOP_VIEWPORT,
@@ -273,6 +288,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'default',
+      maximumLabelOverflowCount: 13,
       minimumLabelCount: 10,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: DESKTOP_VIEWPORT,
@@ -282,7 +298,8 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'default',
-      minimumLabelCount: 12,
+      maximumLabelOverflowCount: 8,
+      minimumLabelCount: 16,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: FULL_HD_VIEWPORT,
     }),
@@ -291,7 +308,8 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'inspector',
-      minimumLabelCount: 1,
+      maximumLabelOverflowCount: 9,
+      minimumLabelCount: 11,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: TABLET_VIEWPORT,
     }),
@@ -304,7 +322,8 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'inspector',
-      minimumLabelCount: 1,
+      maximumLabelOverflowCount: 9,
+      minimumLabelCount: 11,
       url: renderedWebglQaUrl({
         mode: 'player',
         port: selectedPort,
@@ -317,7 +336,8 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'cluster',
-      minimumLabelCount: 1,
+      maximumLabelOverflowCount: 10,
+      minimumLabelCount: 5,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: MOBILE_VIEWPORT,
     }),
@@ -326,7 +346,8 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'reduced',
       interaction: 'default',
-      minimumLabelCount: 8,
+      maximumLabelOverflowCount: 13,
+      minimumLabelCount: 10,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'reduced' }),
       viewport: DESKTOP_VIEWPORT,
     }),
@@ -335,6 +356,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'default',
+      maximumLabelOverflowCount: 13,
       minimumLabelCount: 10,
       url: `${origin}${RENDERED_WEBGL_QA_ROUTE}?quality=invalid`,
       viewport: DESKTOP_VIEWPORT,
@@ -344,6 +366,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'default',
+      maximumLabelOverflowCount: 10,
       minimumLabelCount: 5,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: MOBILE_VIEWPORT,
@@ -353,7 +376,8 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'reduced',
       interaction: 'inspector',
-      minimumLabelCount: 1,
+      maximumLabelOverflowCount: 8,
+      minimumLabelCount: 4,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'reduced' }),
       viewport: MOBILE_VIEWPORT,
     }),
@@ -362,6 +386,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'observer',
       expectedQuality: 'balanced',
       interaction: 'explore',
+      maximumLabelOverflowCount: 17,
       minimumLabelCount: 1,
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: SHORT_LANDSCAPE_VIEWPORT,
@@ -376,6 +401,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'explore',
+      maximumLabelOverflowCount: 17,
       minimumLabelCount: 1,
       url: renderedWebglQaUrl({
         mode: 'player',
@@ -389,7 +415,8 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'default',
-      minimumLabelCount: 9,
+      maximumLabelOverflowCount: 13,
+      minimumLabelCount: 10,
       url: renderedWebglQaUrl({
         mode: 'player',
         port: selectedPort,
@@ -406,6 +433,7 @@ export function renderedWebglBrowserProbeCases(port) {
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'default',
+      maximumLabelOverflowCount: 10,
       minimumLabelCount: 4,
       url: renderedWebglQaUrl({
         mode: 'player',
@@ -657,6 +685,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'href',
     'interactionState',
     'individualCastleCount',
+    'inspectorProfileImageState',
     'labelAccountingValid',
     'labelCollisionCount',
     'labelCount',
@@ -812,6 +841,12 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       || candidate.labelClusteredCount < 0 ? 'label-clustered-shape' : '',
     !Number.isSafeInteger(candidate.labelClusterOverflowCount)
       || candidate.labelClusterOverflowCount < 0 ? 'label-cluster-overflow-shape' : '',
+    !Number.isSafeInteger(expected.maximumLabelOverflowCount)
+      || expected.maximumLabelOverflowCount < 0
+      || expected.maximumLabelOverflowCount > candidate.castleCount
+      ? 'expected-label-cluster-overflow-cap' : '',
+    candidate.labelClusterOverflowCount > expected.maximumLabelOverflowCount
+      ? 'label-cluster-overflow-cap' : '',
     candidate.labelUnplacedCount
       !== candidate.labelClusteredCount + candidate.labelClusterOverflowCount
       ? 'label-cluster-accounting' : '',
@@ -899,6 +934,9 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       ? 'explore-castle-coverage' : '',
     candidate.exploreAccessibleCastleCount !== candidate.exploreCastleCount
       ? 'explore-castle-accessibility' : '',
+    candidate.inspectorProfileImageState !== (
+      expected.interaction === 'inspector' ? 'ready' : 'absent'
+    ) ? 'inspector-profile-image-state' : '',
     candidate.labelsWithinViewportCount !== candidate.labelCount ? 'label-viewport' : '',
     candidate.labelCollisionCount !== 0 ? 'label-collision' : '',
     candidate.labelLeaderMismatchCount !== 0 ? 'label-leader' : '',
@@ -1984,6 +2022,9 @@ const READ_DOM_EXPRESSION = `(() => {
   )].filter(visible);
   const dialog = document.querySelector('.realm-cell-navigator__dialog');
   const inspector = document.querySelector('.castle-inspection');
+  const inspectorProfileImage = inspector?.querySelector(
+    'canvas[data-profile-image-state]'
+  );
   const exploreCastleButtons = [...document.querySelectorAll(
     '.realm-cell-navigator__castles button'
   )].filter(visible);
@@ -2041,6 +2082,9 @@ const READ_DOM_EXPRESSION = `(() => {
       : visible(dialog)
         ? 'explore'
         : focusedReadableLabels.length > 0 ? 'cluster' : 'default',
+    inspectorProfileImageState: inspectorProfileImage instanceof HTMLCanvasElement
+      ? inspectorProfileImage.getAttribute('data-profile-image-state')
+      : 'absent',
     individualCastleCount: integer(map?.getAttribute('data-individual-castle-count')),
     presentedModelCount: integer(map?.getAttribute('data-presented-model-count')),
     presentedLandscapeBaseCount: integer(
@@ -2168,6 +2212,7 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
           `culls=${cullAggregate}`,
           `clusters=${String(value.clusterButtonCount)}`,
           `overflow=${String(value.labelClusterOverflowCount)}`,
+          `portrait=${String(value.inspectorProfileImageState)}`,
           `models=${String(value.presentedModelCount)}`,
           `bases=${String(value.presentedLandscapeBaseCount)}`
         ].join(',');
@@ -2510,6 +2555,8 @@ async function runRenderedCase(session, probeCase, state) {
     const canvasActivated = Object.freeze({
       ...probeCase,
       interaction: 'inspector',
+      maximumLabelOverflowCount:
+        RENDERED_WEBGL_QA_INTERACTION_MAXIMUM_LABEL_OVERFLOW_COUNT.inspector,
       minimumLabelCount: 1,
     });
     await waitForAcceptedRenderedDom(session, canvasActivated, state);
@@ -2532,6 +2579,8 @@ async function runRenderedCase(session, probeCase, state) {
       // label berth; its complete accessible castle list is then the active
       // identity surface, so do not turn that intentional post-click state
       // into a timing-dependent label-count failure.
+      maximumLabelOverflowCount:
+        RENDERED_WEBGL_QA_INTERACTION_MAXIMUM_LABEL_OVERFLOW_COUNT[probeCase.interaction],
       minimumLabelCount: probeCase.interaction === 'explore' ? 0 : 1,
     });
     await waitForAcceptedRenderedDom(session, interacted, state);

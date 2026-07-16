@@ -70,6 +70,7 @@ export function CastleInspectionPanel({
 }: CastleInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = `${id}-title`;
+  const keeperIdentityId = `${id}-keeper-identity`;
   const username = castleProfileLabel(profile);
   const profileUrl = observer ? undefined : farcasterProfileUrl(profile.canonicalUsername);
   const totalSnapBurned = !observer && profile.communityStatsVisible
@@ -97,7 +98,8 @@ export function CastleInspectionPanel({
       className="castle-inspection"
       role="dialog"
       aria-modal="false"
-      aria-label={username}
+      aria-labelledby={titleId}
+      aria-describedby={keeperIdentityId}
       data-open="true"
     >
       <div className="castle-inspection__drawer">
@@ -130,7 +132,7 @@ export function CastleInspectionPanel({
         <div className="castle-inspection__body">
           <section className="castle-inspection__identity" aria-label="Farcaster keeper identity">
             <CastleProfileAvatar profile={profile} size="large" />
-            <div className="castle-inspection__identity-copy">
+            <div id={keeperIdentityId} className="castle-inspection__identity-copy">
               <p>KEEPER</p>
               <strong>{keeperName}</strong>
               {showUsernameUnderName ? <span>{username}</span> : null}

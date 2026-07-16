@@ -12,7 +12,7 @@ import {
 const ROOT = resolve(import.meta.dirname, '..');
 const HIGH_CASTLE = resolve(
   ROOT,
-  'public/models/hegemony/hegemony-main-castle-high.glb'
+  'public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb'
 );
 
 describe('embedded WebP GLB rewrite', () => {

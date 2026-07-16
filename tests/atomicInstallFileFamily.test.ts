@@ -132,6 +132,31 @@ describe('atomic file-family installer', () => {
     expectNoTransactionDebris();
   });
 
+  it('preserves the backup when the destination is substituted after backup creation', () => {
+    seedCompleteFamily();
+    const highPath = join(destinationRoot, 'high.glb');
+
+    expect(() => installAtomicFileFamily({
+      destinationRoot,
+      entries: family,
+      injectFailure: (context) => {
+        if (context.phase === 'afterBackup' && context.index === 0) {
+          rmSync(context.destination);
+          writeFileSync(context.destination, 'bad-high');
+          throw new Error('injected destination substitution');
+        }
+      }
+    })).toThrow(/installation and rollback both failed/);
+
+    expect(readFileSync(highPath, 'utf8')).toBe('bad-high');
+    const transactions = readdirSync(destinationRoot)
+      .filter((name) => name.startsWith(ATOMIC_FAMILY_TRANSACTION_PREFIX));
+    expect(transactions).toHaveLength(1);
+    const backupPath = join(destinationRoot, transactions[0], 'backup-0');
+    expect(readFileSync(backupPath, 'utf8')).toBe('old-high');
+    expect(lstatSync(backupPath).ino).not.toBe(lstatSync(highPath).ino);
+  });
+
   it('restores present files and removes newly created files during rollback', () => {
     writeFileSync(join(destinationRoot, 'high.glb'), 'old-high');
 
@@ -151,7 +176,7 @@ describe('atomic file-family installer', () => {
     expectNoTransactionDebris();
   });
 
-  it('rolls the family back when exact post-replacement verification fails', () => {
+  it('preserves transaction evidence instead of overwriting a changed installed file', () => {
     seedCompleteFamily();
 
     expect(() => installAtomicFileFamily({
@@ -162,12 +187,41 @@ describe('atomic file-family installer', () => {
           writeFileSync(context.entries[2].destination, 'tampered-after-replace');
         }
       }
-    })).toThrow(/does not match the staged exact bytes/);
+    })).toThrow(/installation and rollback both failed/);
 
-    expect(readFileSync(join(destinationRoot, 'high.glb'), 'utf8')).toBe('old-high');
-    expect(readFileSync(join(destinationRoot, 'balanced.glb'), 'utf8')).toBe('old-balanced');
-    expect(readFileSync(join(destinationRoot, 'compact.glb'), 'utf8')).toBe('old-compact');
-    expectNoTransactionDebris();
+    expect(readFileSync(join(destinationRoot, 'compact.glb'), 'utf8'))
+      .toBe('tampered-after-replace');
+    const transactions = readdirSync(destinationRoot)
+      .filter((name) => name.startsWith(ATOMIC_FAMILY_TRANSACTION_PREFIX));
+    expect(transactions).toHaveLength(1);
+    expect(readdirSync(join(destinationRoot, transactions[0])))
+      .toContain('backup-2');
+  });
+
+  it('never restores a changed transaction backup over the installed output', () => {
+    seedCompleteFamily();
+
+    expect(() => installAtomicFileFamily({
+      destinationRoot,
+      entries: family,
+      injectFailure: (context) => {
+        if (context.phase === 'afterReplace' && context.index === 2) {
+          writeFileSync(context.entry.backup!, 'bad-backup!');
+          throw new Error('synthetic post-replacement failure');
+        }
+      }
+    })).toThrow(/installation and rollback both failed/);
+
+    expect(readFileSync(join(destinationRoot, 'compact.glb'), 'utf8'))
+      .toBe('new-compact');
+    const transactions = readdirSync(destinationRoot)
+      .filter((name) => name.startsWith(ATOMIC_FAMILY_TRANSACTION_PREFIX));
+    expect(transactions).toHaveLength(1);
+    expect(readFileSync(join(
+      destinationRoot,
+      transactions[0],
+      'backup-2'
+    ), 'utf8')).toBe('bad-backup!');
   });
 
   it('keeps rollback active through the post-verification transaction boundary', () => {
@@ -272,6 +326,25 @@ describe('atomic file-family installer', () => {
       relativePath: 'actual/asset.glb',
       label: 'regular source'
     }).toString('utf8')).toBe('authorized');
+  });
+
+  it('rejects a wrong source byte length before accepting its contents', () => {
+    const sourceRoot = join(fixtureRoot, 'bounded-source');
+    mkdirSync(sourceRoot);
+    writeFileSync(join(sourceRoot, 'input.glb'), Buffer.alloc(32, 7));
+
+    expect(() => readContainedRegularFile({
+      root: sourceRoot,
+      relativePath: 'input.glb',
+      label: 'bounded source input',
+      expectedBytes: 8
+    })).toThrow(/expected byte length/);
+    expect(readContainedRegularFile({
+      root: sourceRoot,
+      relativePath: 'input.glb',
+      label: 'bounded source input',
+      expectedBytes: 32
+    })).toEqual(Buffer.alloc(32, 7));
   });
 
   it('rejects an output root reached through a symbolic-link ancestor', () => {

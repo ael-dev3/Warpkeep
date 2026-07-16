@@ -12,6 +12,7 @@ import {
   keepAssetPathForQuality,
   loadHegemonyKeep,
   prepareHegemonyKeepScene,
+  resolveIntegrityPinnedRealmAssetUrl,
   resolveRealmAssetUrl
 } from '../src/components/realm/loadHegemonyKeep';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
@@ -21,7 +22,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 const ASSETS = [
   {
     quality: 'high' as const,
-    path: 'public/models/hegemony/hegemony-main-castle-high.glb',
+    path: 'public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb',
     bytes: 2_215_972,
     sha256: '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8',
     triangles: 72_850,
@@ -31,7 +32,7 @@ const ASSETS = [
   },
   {
     quality: 'balanced' as const,
-    path: 'public/models/hegemony/hegemony-main-castle-balanced.glb',
+    path: 'public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb',
     bytes: 892_788,
     sha256: 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157',
     triangles: 32_550,
@@ -41,7 +42,7 @@ const ASSETS = [
   },
   {
     quality: 'reduced' as const,
-    path: 'public/models/hegemony/hegemony-main-castle-compact.glb',
+    path: 'public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb',
     bytes: 453_628,
     sha256: 'b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b',
     triangles: 17_232,
@@ -98,11 +99,28 @@ describe('Hegemony keep runtime assets', () => {
   });
 
   it('selects only one LOD and resolves it under the active Vite base path', () => {
-    expect(keepAssetPathForQuality('high')).toContain('-high.glb');
-    expect(keepAssetPathForQuality('balanced')).toContain('-balanced.glb');
-    expect(keepAssetPathForQuality('reduced')).toContain('-compact.glb');
+    expect(keepAssetPathForQuality('high')).toMatch(/-high-[a-f0-9]{16}\.glb$/);
+    expect(keepAssetPathForQuality('balanced')).toMatch(/-balanced-[a-f0-9]{16}\.glb$/);
+    expect(keepAssetPathForQuality('reduced')).toMatch(/-compact-[a-f0-9]{16}\.glb$/);
     expect(resolveRealmAssetUrl('/Warpkeep/', keepAssetPathForQuality('high')))
-      .toBe('/Warpkeep/models/hegemony/hegemony-main-castle-high.glb');
+      .toBe('/Warpkeep/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb');
+    expect(resolveIntegrityPinnedRealmAssetUrl(
+      '/Warpkeep/',
+      keepAssetPathForQuality('high'),
+      ASSETS[0].sha256
+    )).toBe(
+      '/Warpkeep/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb'
+    );
+    expect(() => resolveIntegrityPinnedRealmAssetUrl(
+      '/',
+      keepAssetPathForQuality('high'),
+      'not-a-digest'
+    )).toThrow(/integrity coordinate/i);
+    expect(() => resolveIntegrityPinnedRealmAssetUrl(
+      '/',
+      keepAssetPathForQuality('high'),
+      `0${ASSETS[0].sha256.slice(1)}`
+    )).toThrow(/not content-addressed/i);
   });
 
   it('normalizes the source footprint to 74 percent of one hex diameter', () => {
@@ -212,9 +230,94 @@ describe('Hegemony keep runtime assets', () => {
       expect(material.emissiveIntensity).toBe(0.8);
     });
     expect(first.root).not.toBe(second.root);
-    expect(first.assetUrl).toBe('/models/hegemony/hegemony-main-castle-compact.glb');
+    expect(first.assetUrl).toBe(
+      '/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb'
+    );
     disposeRealmObject(first.root);
     disposeRealmObject(second.root);
+  });
+
+  it('aborts shared transport only after its final pending scene consumer leaves', async () => {
+    let requestSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
+      new Promise<Response>((_resolve, reject) => {
+        requestSignal = init?.signal ?? undefined;
+        requestSignal?.addEventListener('abort', () => {
+          reject(requestSignal?.reason ?? new Error('synthetic transport abort'));
+        }, { once: true });
+      })
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+    const parser = vi.fn(async () => new THREE.Group());
+    const options = {
+      quality: REALM_QUALITY_SPECS.reduced,
+      baseUrl: '/',
+      maxAnisotropy: 1,
+      parser
+    } as const;
+    const first = loadHegemonyKeep({ ...options, signal: firstController.signal });
+    const second = loadHegemonyKeep({ ...options, signal: secondController.signal });
+    const firstRejection = expect(first).rejects.toMatchObject({ name: 'AbortError' });
+    const secondRejection = expect(second).rejects.toMatchObject({ name: 'AbortError' });
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    firstController.abort();
+    await firstRejection;
+    expect(requestSignal?.aborted).toBe(false);
+    expect(parser).not.toHaveBeenCalled();
+
+    secondController.abort();
+    await secondRejection;
+    expect(requestSignal?.aborted).toBe(true);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('isolates shared transports with different normalized timeout policies', async () => {
+    vi.useFakeTimers();
+    const requestSignals: AbortSignal[] = [];
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
+      new Promise<Response>((_resolve, reject) => {
+        const requestSignal = init?.signal;
+        if (!(requestSignal instanceof AbortSignal)) {
+          reject(new Error('missing synthetic request signal'));
+          return;
+        }
+        requestSignals.push(requestSignal);
+        requestSignal.addEventListener('abort', () => {
+          reject(requestSignal.reason ?? new Error('synthetic transport abort'));
+        }, { once: true });
+      })
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const longController = new AbortController();
+    const options = {
+      quality: REALM_QUALITY_SPECS.reduced,
+      baseUrl: '/',
+      maxAnisotropy: 1,
+      parser: vi.fn(async () => new THREE.Group())
+    } as const;
+    const long = loadHegemonyKeep({
+      ...options,
+      signal: longController.signal,
+      requestTimeoutMs: 1_000
+    });
+    const short = loadHegemonyKeep({ ...options, requestTimeoutMs: 25 });
+    const longRejection = expect(long).rejects.toMatchObject({ name: 'AbortError' });
+    const shortRejection = expect(short).rejects.toThrow(/timed out after 25ms/i);
+
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(25);
+    await shortRejection;
+    expect(requestSignals).toHaveLength(2);
+    expect(requestSignals[0]?.aborted).toBe(false);
+    expect(requestSignals[1]?.aborted).toBe(true);
+
+    longController.abort();
+    await longRejection;
+    expect(requestSignals[0]?.aborted).toBe(true);
   });
 
   it('evicts a failed keep request so a later scene can retry cleanly', async () => {
