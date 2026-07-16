@@ -53,7 +53,7 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /brighter|brightness improvement|durability|destroy|alliance/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Prepared 16 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 16 July 2026');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('exact-build verification');
     expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');
     expect(getLatestPatchNotes('0.3.3')?.title).toBe('GENESIS REALM QUALITY');

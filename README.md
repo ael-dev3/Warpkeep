@@ -4,11 +4,11 @@
 
 **Every FID has a castle.** Warpkeep is an open-source, Farcaster-native strategy world where identity anchors a keep and SpacetimeDB owns the shared state.
 
-Alpha 0.3.5 is the checked-in Pages-only candidate. It becomes the verified
-public release only after protected-main deployment and exact-build
-verification. Genesis 001 spans 1,261 deterministic Lowlands cells and 100
+Alpha 0.3.5 is the verified Pages-only public release. Its public menu build
+stamp identifies the exact protected-main commit deployed to players. Genesis
+001 spans 1,261 deterministic Lowlands cells and 100
 permanent castle slots ordered outward from a close-knit founding district. The
-candidate includes the real 3D stone title, an intentional
+release includes the real 3D stone title, an intentional
 Alpha Terms gate, browser-bound Sign In with Farcaster, rotating HttpOnly
 sessions, protocol-3 shared-realm state, responsive WebGL presentation,
 one exact canonical readiness boundary, real instanced Hegemony keeps for every

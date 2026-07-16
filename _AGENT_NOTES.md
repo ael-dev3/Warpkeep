@@ -2,14 +2,13 @@
 
 ## Current state
 
-The checked-in package is the Alpha 0.3.5 Pages-only candidate. The verified
-public release remains Alpha 0.3.4. The public menu build stamp identifies the
-exact deployed source; an annotated release tag is created only after that
-deployed commit passes exact-build verification. Do not turn the disabled local
-QA observer into a Worker or SpacetimeDB release without a separately reviewed
-production scope.
+The checked-in package is the verified Alpha 0.3.5 Pages-only public release.
+The public menu build stamp identifies the exact deployed source; an annotated
+release tag is created only after that deployed commit passes exact-build
+verification. Do not turn the disabled local QA observer into a Worker or
+SpacetimeDB release without a separately reviewed production scope.
 
-The candidate also fixes every direct Realm username rail to the projected
+The release also fixes every direct Realm username rail to the projected
 foundation base and presents the selected keep in a responsive Farcaster castle
 record. Its decorative castle art is a same-origin, integrity-pinned,
 provenance-required runtime asset. These are browser presentation changes only;
@@ -30,7 +29,7 @@ only after pending acquisitions and active leases both reach zero, then its one
 cache retain is released exactly once. Empty authoritative castle sets are
 ready with zero models rather than treated as a missing pair.
 
-Warpkeep Alpha 0.3.4 preserves the live title/menu, explicit Alpha Terms gate,
+Warpkeep Alpha 0.3.5 preserves the live title/menu, explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
 least-privilege Cloudflare Worker OIDC bridge, and a non-destructively published
 protocol-3 SpacetimeDB module. Genesis 001 contains 1,261 authoritative cells

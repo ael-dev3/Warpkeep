@@ -1,7 +1,7 @@
 # Warpkeep Alpha 0.3.5 — GameReady Castle & Landscape LOD Refresh
 
-**Status: Pages-only Alpha 0.3.5 candidate. It becomes a verified public
-release only after protected-main deployment and exact-build verification.
+**Status: verified Pages-only Alpha 0.3.5 public release after protected-main
+deployment and exact-build verification.
 No Worker, Durable Object, SpacetimeDB, admission, profile, authoritative world,
 castle, wallet, Marks, scan, or burn operation is part of this release.**
 
@@ -246,22 +246,26 @@ a public open licence, general third-party derivative/redistribution authority,
 trademark or canonical-identity rights, or permission to substitute same-named
 files.
 
-## Required release evidence
+## Release evidence
 
-Before protected-main release, the exact candidate must pass:
+The protected-main release passed:
 
 - runtime-asset integrity, file-size policy, and licence/provenance checks;
 - castle-record alpha/integrity checks and foundation-label, PFP fallback,
   sanitized-record, keyboard, and responsive CSS/component regressions;
-- the complete root test suite, typecheck, ordinary production build, and
-  canonical `DEPLOY_BASE=/` Pages build;
+- the complete 1,351-test root suite, typecheck, ordinary production build,
+  and canonical `DEPLOY_BASE=/` Pages build;
 - real Meshopt decode, instancing, canvas picking, cleanup, and three-tier LOD
   coverage for both castle and matching base, including exact transform parity,
   base/castle readiness-count parity, conservative culling, and legacy
   contact-shadow suppression; and
-- the bounded rendered-WebGL and source-reference comparison lanes, with any
-  accepted native silhouette difference described rather than hidden.
+- 14 bounded rendered-browser cases and 25 journey checks, including the
+  source-reference comparison lanes, with accepted native silhouette
+  differences described rather than hidden; and
+- read-only post-deploy verification of the exact public build stamp,
+  redirects, authentication-v2 discovery boundary, security headers, and all
+  nine current and rollback castle/base asset lengths and SHA-256 digests.
 
-The public menu build stamp remains the exact deployment coordinate. An
-annotated `v0.3.5` tag and GitHub Release are created only after the matching
-protected-main commit is deployed and its public build stamp is verified.
+The public menu build stamp remains the exact deployment coordinate. The
+annotated `v0.3.5` tag and GitHub Release identify the matching protected-main
+commit after deployment and public build-stamp verification.

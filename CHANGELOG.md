@@ -4,7 +4,7 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-### Alpha 0.3.5 candidate — prepared 2026-07-16
+## [0.3.5] — 2026-07-16
 
 - The Realm's high, balanced, and compact Hegemony Main Castle GLBs now use
   the exact owner-approved GameReady LOD family across Cinematic, Balanced,
@@ -64,7 +64,7 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   atlas-metadata normalization from the superseded Alpha 0.3.4 deterministic
   derivative family. No brightness improvement is attributed to the model swap
   itself.
-- This candidate is Pages-only. It widens only client-side procedural-decoration
+- This release is Pages-only. It widens only client-side procedural-decoration
   clearance around the authored islands and improves authentication
   presentation, while changing no Terms, authentication authority, admission,
   backend protocol, authoritative world generation or state, castle ownership,
@@ -392,7 +392,8 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.1...v0.3.2

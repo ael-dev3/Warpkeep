@@ -66,7 +66,7 @@ const ALPHA_0_3_5_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Background-cleaned castle record art and every GameReady model remain same-origin, integrity-pinned, provenance-recorded, and cache-safe at immutable asset paths.',
     'This Pages-only patch changes client-side decoration clearance and authentication presentation, but no Terms, authentication authority, admission, authoritative world generation, castle ownership, wallet, Marks, Worker, or SpacetimeDB authority.'
   ]),
-  alphaNotice: 'Prepared 16 July 2026. Candidate release pending protected deployment and exact-build verification.'
+  alphaNotice: 'Released 16 July 2026 after protected deployment and exact-build verification.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
