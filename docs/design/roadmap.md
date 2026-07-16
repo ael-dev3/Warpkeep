@@ -1,6 +1,6 @@
 # Warpkeep roadmap
 
-## Current candidate — Alpha 0.3.5
+## Current release — Alpha 0.3.5
 
 Warpkeep is a Pages-only, admission-gated Genesis 001 preview. Players can view
 and navigate the shared Lowlands, inspect founded castles, and use the compact

@@ -5,8 +5,8 @@ implementation remains future work
 
 **Audit baseline:** `089430e` (`main`, 2026-07-16)
 
-**Alpha 0.3.5 candidate scope:** the exact GameReady castle and matching
-landscape-base LOD families only. The candidate does not implement the future
+**Alpha 0.3.5 release scope:** the exact GameReady castle and matching
+landscape-base LOD families only. The release does not implement the future
 lighting work described here.
 
 This record preserves the decisions and measured boundaries from the original
@@ -72,7 +72,7 @@ The `089430e` audit established these implementation facts:
 The exact active model facts, hashes, authorization, and placement constraints
 live in the canonical records rather than being duplicated here:
 
-- [Alpha 0.3.5 candidate release notes](../releases/alpha-0.3.5.md)
+- [Alpha 0.3.5 release notes](../releases/alpha-0.3.5.md)
 - [GameReady castle record](../reference/castles/2026-07-16-hegemony-main-castle-gameready/)
 - [GameReady landscape-base record](../reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/)
 - [Lowlands renderer contract](../design/hegemony-lowlands-terrain.md)
@@ -180,7 +180,7 @@ gameplay, Marks, authentication, and backend protocol remain unchanged. WebGL
 fallback, keyboard, touch, pointer, labels, inspector, navigator, and safe-area
 behavior remain complete.
 
-The GameReady castle/base refresh belongs to the Alpha 0.3.5 candidate. Any
+The GameReady castle/base refresh belongs to the Alpha 0.3.5 release. Any
 player-visible lighting, material, fog, palette, or true-shadow implementation
 receives its own later version, changelog entry, release note, menu patch note,
 and exact-deployment verification.
