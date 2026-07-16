@@ -104,6 +104,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Relay channel token, channel URL, nonce, and request ID | Confidentiality, bounded lifetime, and no persistence beyond the active flow. |
 | Player OIDC access JWT | JavaScript-memory-only confidentiality; exact auth version/claims; 600-second maximum; positive epoch enforcement. |
 | Session-family cookie and Durable Object state | `__Host-`, Secure, HttpOnly, SameSite=Strict; integrity-protected rotating reference; server-side expiry/revocation. |
+| Tab-scoped Farcaster presentation cache | Sanitized public FID, username, display name, and HTTPS avatar only; written after fresh-signature and same-FID bridge validation; exact-FID display merge only after successful refresh; bounded expiry and purge; never authority. |
 | Browser logout-intent tombstone | Non-secret, base-path scoped marker/timestamp only; no FID, proof, token, cookie, family ID, or profile data; 30-day maximum and explicit Terms-gated activation clearing. |
 | Alpha Terms gate state | Unchecked by default, component-memory only, one entry attempt, no identity or cross-tab/persistent representation. |
 | Versioned Alpha Terms acceptance evidence | Private immutable FID/version/time row only after authenticated player acceptance; never a public projection and never contains proof, QR, token, cookie, signature, or wallet data. |
@@ -294,6 +295,16 @@ creation, and world state. Anonymous visitors do not open a database connection.
 - The bridge returns only the verified FID. Proof, profile, custody,
   verification, and authentication-method details do not enter session-family
   storage or access-token claims.
+- After a fresh signature and matching bridge exchange, `sessionStorage` may
+  retain only sanitized public FID/username/display-name/HTTPS-avatar
+  presentation. It is read only after a successful bridge refresh and merged
+  only for the exact refreshed FID; it cannot authorize or restore a session.
+  Its expiry is no later than the server family or 30 days, and tab close
+  normally clears it. The next validated refresh purges corruption, expiry, or
+  mismatch; sign-out and cross-tab logout clear it immediately. Storage denial
+  degrades to FID-only presentation. It never
+  contains proofs, tokens, JWTs, cookies, custody/verification addresses, or
+  verification data.
 - XSS can still copy the in-memory access token, but not the HttpOnly family
   reference; a copied access token remains bounded by 600 seconds and module
   epoch/admission checks.
@@ -339,6 +350,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Threat | Primary control | Residual treatment |
 | --- | --- | --- |
 | Client chooses or substitutes another FID | Independent SIWF verification and exact FID agreement | Treat verifier/RPC compromise as an external dependency incident. |
+| Tampered or stale browser presentation cache | Cache is non-authoritative, read only after successful refresh, exact-FID matched, sanitized, expiry-bounded, and purged on mismatch/logout | Same-FID public presentation can be stale until the next fresh sign-in; storage denial intentionally shows only the FID. |
 | Terms gate bypass or replay | Dormant anonymous refresh; direct-route normalization; local unchecked state; disabled continuation; one-shot callback; focus trap; no persistence or identity tracking | The linked project-authored Alpha Terms and Privacy Notice still require formal legal/privacy review; revisit the gate and documents before changing auth entry points. |
 | Proof replay or parallel exchange | Expiring Durable Object challenge, atomic pre-work claim, and distributed per-client rolling-window limits | Add aggregate edge monitoring/alerts for broad distributed abuse; tune policy only through separate review. |
 | Stolen in-memory access bearer | Exact v2 claims, 600-second maximum, positive epoch/admission checks, disconnect/logout handling | XSS/extension memory capture remains possible for the token's short remaining lifetime; the HttpOnly family is not exposed. |

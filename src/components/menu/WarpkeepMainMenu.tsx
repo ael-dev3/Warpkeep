@@ -308,7 +308,10 @@ export function WarpkeepMainMenu({
   const pendingIdentity = authState.phase === 'pending-admission'
     ? authState.identity
     : undefined;
-  const sessionIdentity = authenticatedIdentity ?? pendingIdentity;
+  const verifyingIdentity = authState.phase === 'verifying'
+    ? authState.identity
+    : undefined;
+  const sessionIdentity = authenticatedIdentity ?? pendingIdentity ?? verifyingIdentity;
   const authenticatedAssurance = authState.phase === 'authenticated'
     ? authState.assurance
     : undefined;

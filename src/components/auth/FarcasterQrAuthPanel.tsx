@@ -61,7 +61,7 @@ const panelHeadings: Record<Exclude<FarcasterAuthPhase, 'anonymous'>, PanelHeadi
     title: 'ENTRY NOT YET GRANTED'
   },
   authenticated: {
-    eyebrow: 'FID BOUND TO THIS SESSION',
+    eyebrow: 'FARCASTER IDENTITY BOUND',
     title: 'HEGEMONY RECORD VERIFIED'
   },
   expired: {
@@ -140,23 +140,27 @@ function getLiveAnnouncement(
   identity: VerifiedFarcasterIdentity | undefined,
   assurance: FarcasterSessionAssurance
 ) {
+  const publicIdentityLabel = identity
+    ? normalizeFarcasterUsername(identity.username) ?? `FID ${identity.fid}`
+    : undefined;
   switch (phase) {
     case 'creating-channel':
       return 'Preparing sign-in';
     case 'awaiting-approval':
       return 'Waiting for Farcaster approval';
     case 'verifying':
-      return 'Verifying signature';
+      return publicIdentityLabel
+        ? `Farcaster identity confirmed: ${publicIdentityLabel}, checking realm access`
+        : 'Verifying signature';
     case 'pending-admission':
-      return identity
-        ? `Farcaster identity verified, admission pending, FID ${identity.fid}`
+      return publicIdentityLabel
+        ? `Farcaster identity verified: ${publicIdentityLabel}, admission pending`
         : 'Farcaster identity verified, admission pending';
     case 'authenticated': {
       if (!identity) {
         return 'Farcaster identity verified';
       }
-      const username = normalizeFarcasterUsername(identity.username);
-      return `Verified through Farcaster${username ? `: ${username}` : ''}, FID ${identity.fid}`;
+      return `Verified through Farcaster: ${publicIdentityLabel}`;
     }
     case 'expired':
       return 'Authentication expired';
@@ -217,7 +221,10 @@ export function FarcasterQrAuthPanel({
   );
   const autoRequestedChannelRef = useRef<string | undefined>(undefined);
   const heading = panelHeadings[phase];
-  const isBusy = phase === 'creating-channel' || phase === 'verifying';
+  // Let the post-verification live-region update announce immediately instead
+  // of being held until the bridge check finishes.
+  const isBusy = phase === 'creating-channel'
+    || (phase === 'verifying' && !identity);
   const rootClassName = [
     'farcaster-auth-panel',
     `farcaster-auth-panel--${phase}`,
@@ -412,11 +419,27 @@ export function FarcasterQrAuthPanel({
 
       {phase === 'verifying' ? (
         <div className="farcaster-auth-panel__body farcaster-auth-panel__body--centered">
-          <span aria-hidden="true" className="farcaster-auth-panel__seal-spinner" />
-          <p className="farcaster-auth-panel__lead">
-            The Farcaster signature has been received.<br />
-            <span>Confirming FID ownership…</span>
-          </p>
+          {identity ? (
+            <>
+              <FarcasterIdentityBadge identity={identity} />
+              <p className="farcaster-auth-panel__lead">
+                Farcaster identity confirmed.<br />
+                <span>Checking Hegemony realm access…</span>
+              </p>
+              <p className="farcaster-auth-panel__waiting">
+                <span aria-hidden="true" />
+                Securing realm session…
+              </p>
+            </>
+          ) : (
+            <>
+              <span aria-hidden="true" className="farcaster-auth-panel__seal-spinner" />
+              <p className="farcaster-auth-panel__lead">
+                The Farcaster signature has been received.<br />
+                <span>Confirming FID ownership…</span>
+              </p>
+            </>
+          )}
           <div className="farcaster-auth-panel__actions farcaster-auth-panel__actions--quiet">
             <button
               className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"

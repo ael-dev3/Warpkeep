@@ -17,6 +17,10 @@ import {
   type FarcasterDeviceSessionEnvironment,
   type FarcasterDeviceSessionStorage
 } from '../src/farcaster/farcasterDeviceSession';
+import {
+  getFarcasterPresentationSessionStorageKey,
+  persistFarcasterPresentationSession
+} from '../src/farcaster/farcasterPresentationSession';
 import type {
   FarcasterChannelStatus,
   FarcasterCompletedChannelStatus,
@@ -87,6 +91,7 @@ function createCompletedStatus(
     acceptAuthAddress: true,
     username: 'keeper',
     displayName: 'The Keeper',
+    pfpUrl: 'https://images.example/keeper.png',
     verifications: [],
     authMethod: 'authAddress'
   };
@@ -97,6 +102,7 @@ function createIdentity(verifiedAt = Date.now()): VerifiedFarcasterIdentity {
     fid: 12_345,
     username: 'keeper',
     displayName: 'The Keeper',
+    pfpUrl: 'https://images.example/keeper.png',
     verifications: [],
     authMethod: 'authAddress',
     verifiedAt
@@ -106,6 +112,9 @@ function createIdentity(verifiedAt = Date.now()): VerifiedFarcasterIdentity {
 function publicIdentity(identity: VerifiedFarcasterIdentity) {
   return {
     fid: identity.fid,
+    ...(identity.username === undefined ? {} : { username: identity.username }),
+    ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
+    ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl }),
     verifications: [],
     verifiedAt: identity.verifiedAt
   };
@@ -209,9 +218,11 @@ function createAuthority(overrides: Partial<FarcasterSessionAuthority> = {}) {
 
 class MemoryDeviceSessionStorage implements FarcasterDeviceSessionStorage {
   readonly values = new Map<string, string>();
+  readonly reads: string[] = [];
   readonly writes: Array<readonly [string, string]> = [];
 
   getItem(key: string) {
+    this.reads.push(key);
     return this.values.get(key) ?? null;
   }
 
@@ -233,6 +244,18 @@ function deviceSessionEnvironment(
 ): FarcasterDeviceSessionEnvironment {
   return {
     storage,
+    origin: DEVICE_SESSION_ORIGIN,
+    basePath: DEVICE_SESSION_BASE_PATH
+  };
+}
+
+function tabScopedDeviceSessionEnvironment(
+  localStorage: FarcasterDeviceSessionStorage,
+  sessionStorage: FarcasterDeviceSessionStorage
+): FarcasterDeviceSessionEnvironment {
+  return {
+    localStorage,
+    sessionStorage,
     origin: DEVICE_SESSION_ORIGIN,
     basePath: DEVICE_SESSION_BASE_PATH
   };
@@ -329,6 +352,7 @@ async function advanceTime(milliseconds: number) {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -585,6 +609,11 @@ describe('FarcasterAuthProvider session lifecycle', () => {
       getStatus: vi.fn(async () => completed),
       verifyCompletedRequest: vi.fn(async () => identity)
     });
+    const bridge = createBridge({
+      refreshSession: vi.fn()
+        .mockRejectedValueOnce(new FarcasterOidcBridgeClientError('No cookie session.'))
+        .mockImplementationOnce(async () => createAuthorizedResponse(identity.fid, Date.now()))
+    });
 
     function PersistentChildHarness() {
       const [showConsumer, setShowConsumer] = useState(true);
@@ -601,6 +630,7 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     renderProvider({
       children: <PersistentChildHarness />,
       loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
       encodeQrCode: vi.fn(async () => 'data:image/svg+xml,qr'),
       now: Date.now,
       pollIntervalMs: 10
@@ -633,8 +663,325 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     });
     expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
 
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh session' }));
+    await settleAsyncWork();
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: {
+        fid: identity.fid,
+        username: identity.username,
+        displayName: identity.displayName,
+        pfpUrl: identity.pfpUrl
+      }
+    });
+    expect(bridge.refreshSession).toHaveBeenCalledTimes(2);
+
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
+  });
+
+  it('restores tab-scoped presentation only after a same-FID cookie refresh across provider remount', async () => {
+    vi.useFakeTimers({ now: 51_000 });
+    const localStorage = new MemoryDeviceSessionStorage();
+    const sessionStorage = new MemoryDeviceSessionStorage();
+    const sessionEnvironment = tabScopedDeviceSessionEnvironment(localStorage, sessionStorage);
+    const channel = createChannel('COLD_PRESENTATION');
+    const completed = createCompletedStatus(channel.nonce, 'COLD_PRESENTATION');
+    const identity = createIdentity(Date.now() - 1);
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => completed),
+      verifyCompletedRequest: vi.fn(async () => identity)
+    });
+    const freshBridge = createBridge({
+      refreshSession: vi.fn(async () => {
+        throw new FarcasterOidcBridgeClientError('No cookie session.');
+      })
+    });
+    const firstRender = renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => freshBridge),
+      now: Date.now,
+      pollIntervalMs: 10,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+
+    expect(freshBridge.refreshSession).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: {
+        fid: identity.fid,
+        username: identity.username,
+        displayName: identity.displayName,
+        pfpUrl: identity.pfpUrl
+      }
+    });
+    const presentationKey = getFarcasterPresentationSessionStorageKey(
+      DEVICE_SESSION_BASE_PATH
+    )!;
+    const serializedPresentation = sessionStorage.values.get(presentationKey);
+    expect(serializedPresentation).toBeDefined();
+    expect(JSON.parse(serializedPresentation!)).toEqual({
+      version: 1,
+      fid: identity.fid,
+      username: identity.username,
+      displayName: identity.displayName,
+      pfpUrl: identity.pfpUrl,
+      expiresAt: expect.any(Number)
+    });
+    expect(serializedPresentation).not.toMatch(
+      /PRIVATE_|jwt|token|signature|custody|verification|authMethod/i
+    );
+
+    const readsAfterFreshExchange = sessionStorage.reads.filter(
+      (key) => key === presentationKey
+    ).length;
+    expect(readsAfterFreshExchange).toBe(0);
+    firstRender.unmount();
+
+    const restoredBridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse(identity.fid, Date.now()))
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => restoredBridge),
+      now: Date.now,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+    await settleAsyncWork();
+
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(restoredBridge.refreshSession).not.toHaveBeenCalled();
+    expect(sessionStorage.reads.filter((key) => key === presentationKey)).toHaveLength(
+      readsAfterFreshExchange
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+
+    expect(restoredBridge.refreshSession).toHaveBeenCalledTimes(1);
+    expect(authority.beginSignIn).toHaveBeenCalledTimes(1);
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: {
+        fid: identity.fid,
+        username: identity.username,
+        displayName: identity.displayName,
+        pfpUrl: identity.pfpUrl
+      }
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await settleAsyncWork();
+    expect(sessionStorage.values.has(presentationKey)).toBe(false);
+  });
+
+  it('replaces stale same-FID presentation on fresh SIWF without reading it', async () => {
+    vi.useFakeTimers({ now: 51_250 });
+    const localStorage = new MemoryDeviceSessionStorage();
+    const sessionStorage = new MemoryDeviceSessionStorage();
+    const sessionEnvironment = tabScopedDeviceSessionEnvironment(localStorage, sessionStorage);
+    const presentationKey = getFarcasterPresentationSessionStorageKey(
+      DEVICE_SESSION_BASE_PATH
+    )!;
+    expect(persistFarcasterPresentationSession({
+      fid: 12_345,
+      username: 'stale-keeper',
+      displayName: 'Removed Display',
+      pfpUrl: 'https://images.example/removed.png',
+      expiresAt: Date.now() + 60_000
+    }, {
+      ...sessionEnvironment,
+      now: Date.now
+    })).toBe(true);
+    const channel = createChannel('FRESH_REPLACES_CACHE');
+    const freshIdentity: VerifiedFarcasterIdentity = {
+      fid: 12_345,
+      username: 'fresh-keeper',
+      verifications: [],
+      verifiedAt: Date.now() - 1
+    };
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => createCompletedStatus(
+        channel.nonce,
+        'FRESH_REPLACES_CACHE'
+      )),
+      verifyCompletedRequest: vi.fn(async () => freshIdentity)
+    });
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => {
+        throw new FarcasterOidcBridgeClientError('No cookie session.');
+      })
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      pollIntervalMs: 10,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+
+    const publicState = readPublicState();
+    expect(publicState).toMatchObject({
+      phase: 'authenticated',
+      identity: {
+        fid: freshIdentity.fid,
+        username: freshIdentity.username
+      }
+    });
+    const publicIdentityAfterFresh = publicState.identity as Record<string, unknown>;
+    expect(publicIdentityAfterFresh).not.toHaveProperty('displayName');
+    expect(publicIdentityAfterFresh).not.toHaveProperty('pfpUrl');
+    expect(sessionStorage.reads.filter((key) => key === presentationKey)).toHaveLength(0);
+    expect(JSON.parse(sessionStorage.values.get(presentationKey)!)).toEqual({
+      version: 1,
+      fid: freshIdentity.fid,
+      username: freshIdentity.username,
+      expiresAt: expect.any(Number)
+    });
+  });
+
+  it('discards a different-FID presentation without blocking legitimate cookie restoration', async () => {
+    vi.useFakeTimers({ now: 51_500 });
+    const localStorage = new MemoryDeviceSessionStorage();
+    const sessionStorage = new MemoryDeviceSessionStorage();
+    const sessionEnvironment = tabScopedDeviceSessionEnvironment(localStorage, sessionStorage);
+    const presentationKey = getFarcasterPresentationSessionStorageKey(
+      DEVICE_SESSION_BASE_PATH
+    )!;
+    expect(persistFarcasterPresentationSession({
+      fid: 12_345,
+      username: 'stale-keeper',
+      displayName: 'Stale Keeper',
+      pfpUrl: 'https://images.example/stale.png',
+      expiresAt: Date.now() + 60_000
+    }, {
+      ...sessionEnvironment,
+      now: Date.now
+    })).toBe(true);
+    const restoredFid = 54_321;
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse(restoredFid, Date.now()))
+    });
+    const authority = createAuthority();
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+    await settleAsyncWork();
+
+    expect(readPublicState()).toEqual({ phase: 'anonymous' });
+    expect(bridge.refreshSession).not.toHaveBeenCalled();
+    expect(sessionStorage.reads.filter((key) => key === presentationKey)).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+
+    expect(authority.beginSignIn).not.toHaveBeenCalled();
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: { fid: restoredFid }
+    });
+    const restoredIdentity = readPublicState().identity as Record<string, unknown>;
+    expect(restoredIdentity).not.toHaveProperty('username');
+    expect(restoredIdentity).not.toHaveProperty('displayName');
+    expect(restoredIdentity).not.toHaveProperty('pfpUrl');
+    expect(sessionStorage.values.has(presentationKey)).toBe(false);
+  });
+
+  it('discards same-FID presentation that outlives the refreshed session family', async () => {
+    vi.useFakeTimers({ now: 51_600 });
+    const localStorage = new MemoryDeviceSessionStorage();
+    const sessionStorage = new MemoryDeviceSessionStorage();
+    const sessionEnvironment = tabScopedDeviceSessionEnvironment(localStorage, sessionStorage);
+    const presentationKey = getFarcasterPresentationSessionStorageKey(
+      DEVICE_SESSION_BASE_PATH
+    )!;
+    expect(persistFarcasterPresentationSession({
+      fid: 12_345,
+      username: 'overlong-session',
+      pfpUrl: 'https://images.example/overlong.png',
+      expiresAt: Date.now() + 120_000
+    }, {
+      ...sessionEnvironment,
+      now: Date.now
+    })).toBe(true);
+    const shortenedFamily = {
+      ...createAuthorizedResponse(12_345, Date.now(), Date.now() + 40_000),
+      sessionExpiresAt: Math.floor((Date.now() + 60_000) / 1_000) * 1_000
+    } satisfies FarcasterBridgeSessionResponse;
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => shortenedFamily)
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: { fid: 12_345 },
+      sessionExpiresAt: shortenedFamily.sessionExpiresAt
+    });
+    const restoredIdentity = readPublicState().identity as Record<string, unknown>;
+    expect(restoredIdentity).not.toHaveProperty('username');
+    expect(restoredIdentity).not.toHaveProperty('pfpUrl');
+    expect(sessionStorage.values.has(presentationKey)).toBe(false);
+  });
+
+  it('purges malformed presentation only after a valid refresh and keeps it out of public state', async () => {
+    vi.useFakeTimers({ now: 51_750 });
+    const localStorage = new MemoryDeviceSessionStorage();
+    const sessionStorage = new MemoryDeviceSessionStorage();
+    const sessionEnvironment = tabScopedDeviceSessionEnvironment(localStorage, sessionStorage);
+    const presentationKey = getFarcasterPresentationSessionStorageKey(
+      DEVICE_SESSION_BASE_PATH
+    )!;
+    const privateSentinel = 'PRIVATE_PRESENTATION_TOKEN';
+    sessionStorage.values.set(presentationKey, JSON.stringify({
+      version: 1,
+      fid: 12_345,
+      username: 'tampered-keeper',
+      expiresAt: Date.now() + 60_000,
+      accessToken: privateSentinel
+    }));
+    const bridge = createBridge({
+      refreshSession: vi.fn(async () => createAuthorizedResponse(12_345, Date.now()))
+    });
+    renderProvider({
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      deviceSessionEnvironment: sessionEnvironment
+    });
+    await settleAsyncWork();
+
+    expect(sessionStorage.values.has(presentationKey)).toBe(true);
+    expect(sessionStorage.reads.filter((key) => key === presentationKey)).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: { fid: 12_345 }
+    });
+    expect(JSON.stringify(readPublicState())).not.toContain(privateSentinel);
+    expect(document.body.textContent).not.toContain(privateSentinel);
+    expect(sessionStorage.values.has(presentationKey)).toBe(false);
   });
 
   it('exchanges only the verified SIWF envelope with an injected bridge and keeps its JWT out of view state', async () => {
@@ -1152,6 +1499,8 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(JSON.stringify(readPublicState())).not.toContain(privateIdentity.custody);
     expect(JSON.stringify(readPublicState())).not.toContain(privateIdentity.authMethod);
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+    const presentationKey = getFarcasterPresentationSessionStorageKey('/')!;
+    expect(window.sessionStorage.getItem(presentationKey)).not.toBeNull();
 
     fireEvent(window, new StorageEvent('storage', {
       key: getFarcasterDeviceSessionControlKey('/'),
@@ -1161,16 +1510,18 @@ describe('FarcasterAuthProvider session lifecycle', () => {
 
     expect(readPublicState()).toEqual({ phase: 'anonymous' });
     expect(screen.getByTestId('has-oidc-session').textContent).toBe('false');
+    expect(window.sessionStorage.getItem(presentationKey)).toBeNull();
   });
 
   it('cancels an in-flight bridge exchange when another tab emits logout', async () => {
     vi.useFakeTimers({ now: 65_000 });
     const channel = createChannel('CROSS_TAB_IN_FLIGHT');
     const bridgeExchange = deferred<FarcasterBridgeSessionResponse>();
+    const identity = createIdentity(Date.now() - 1);
     const authority = createAuthority({
       beginSignIn: vi.fn(async () => channel),
       getStatus: vi.fn(async () => createCompletedStatus(channel.nonce, 'CROSS_TAB_IN_FLIGHT')),
-      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+      verifyCompletedRequest: vi.fn(async () => identity)
     });
     const bridge = createBridge({
       exchangeCompletedSignIn: vi.fn(() => bridgeExchange.promise)
@@ -1185,7 +1536,10 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
     await settleAsyncWork();
     await advanceTime(10);
-    expect(readPublicState().phase).toBe('verifying');
+    expect(readPublicState()).toMatchObject({
+      phase: 'verifying',
+      identity: publicIdentity(identity)
+    });
     const [, exchangeOptions] = vi.mocked(bridge.exchangeCompletedSignIn).mock.calls[0]!;
     expect(exchangeOptions?.signal?.aborted).toBe(false);
 
