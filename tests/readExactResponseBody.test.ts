@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { readExactResponseBody } from '../scripts/read-exact-response-body.mjs';
 
@@ -25,11 +25,14 @@ describe('bounded release response reader', () => {
   });
 
   it('rejects changed declarations, truncation, and oversized bodies', async () => {
+    const mismatchedDeclaration = streamedResponse([Uint8Array.of(1, 2)], '9');
+    const cancel = vi.spyOn(mismatchedDeclaration.body!, 'cancel');
     await expect(readExactResponseBody(
-      streamedResponse([Uint8Array.of(1, 2)], '9'),
+      mismatchedDeclaration,
       2,
       'fixture'
     )).rejects.toThrow(/declared byte length changed/i);
+    expect(cancel).toHaveBeenCalledOnce();
     await expect(readExactResponseBody(
       streamedResponse([Uint8Array.of(1)]),
       2,

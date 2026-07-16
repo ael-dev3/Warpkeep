@@ -6,6 +6,7 @@ import {
 } from './farcasterAuthContext';
 import { FarcasterOidcBridgeClientError } from './farcasterOidcBridgeClient';
 import { safePublicHttpsImageUrl } from '../security/publicImageUrl';
+import { normalizePublicProfileText } from '../security/publicProfileText';
 import {
   isBoundedFarcasterSignature,
   type FarcasterAuthContext,
@@ -345,8 +346,7 @@ function optionalProfileString(
   if (typeof value !== 'string' || value.length > MAX_PROFILE_FIELD_LENGTH) {
     return invalidResponse();
   }
-  const normalized = value.trim();
-  return normalized === '' ? undefined : normalized;
+  return normalizePublicProfileText(value, MAX_PROFILE_FIELD_LENGTH);
 }
 
 function optionalProfileUrl(data: Record<string, unknown>) {

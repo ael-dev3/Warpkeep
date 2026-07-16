@@ -5,6 +5,14 @@ const GITHUB_RELEASE_PAYLOAD_HOSTS = new Set([
 ]);
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
+async function discardResponseBody(response) {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // Redirect bodies are untrusted and never needed. Cleanup is best-effort.
+  }
+}
+
 function assertHttpsUrl(value, label) {
   let url;
   try {
@@ -31,16 +39,12 @@ export async function fetchPinnedGithubReleaseAsset(url, init = {}, fetchImpleme
   if (redirectResponse.ok) return redirectResponse;
   if (!REDIRECT_STATUSES.has(redirectResponse.status)) return redirectResponse;
 
+  await discardResponseBody(redirectResponse);
   const location = redirectResponse.headers.get('location');
   if (!location) throw new Error('GitHub release redirect omitted its Location header.');
   const destination = assertHttpsUrl(new URL(location, source), 'GitHub release payload URL');
   if (!GITHUB_RELEASE_PAYLOAD_HOSTS.has(destination.hostname)) {
     throw new Error(`GitHub release redirected to an unapproved payload host: ${destination.hostname}.`);
-  }
-  try {
-    await redirectResponse.body?.cancel();
-  } catch {
-    // A redirect body is not trusted or needed; cancellation is best-effort.
   }
 
   const response = await fetchImplementation(destination, {
@@ -48,6 +52,7 @@ export async function fetchPinnedGithubReleaseAsset(url, init = {}, fetchImpleme
     redirect: 'error'
   });
   if (REDIRECT_STATUSES.has(response.status)) {
+    await discardResponseBody(response);
     throw new Error('GitHub release payload attempted an additional redirect.');
   }
   return response;

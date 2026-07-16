@@ -250,6 +250,9 @@ function requestKeepBinary(
       if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
     })
     .catch((error) => {
+      // Status, length, streaming, and integrity failures all retire the
+      // transport. In particular, do not leave an unread error body alive.
+      abortController.abort();
       if (keepBinaryRequests.get(requestKey) === request) {
         keepBinaryRequests.delete(requestKey);
       }

@@ -148,6 +148,8 @@ function requestLandscapeBaseBinary(
       if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
     })
     .catch((error) => {
+      // Stop unread failure bodies as well as timed-out/cancelled requests.
+      abortController.abort();
       if (landscapeBaseBinaryRequests.get(requestKey) === request) {
         landscapeBaseBinaryRequests.delete(requestKey);
       }

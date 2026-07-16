@@ -40,7 +40,6 @@
     "stdb:verify-bindings": "node scripts/verify-spacetime-bindings.mjs",
     "stdb:verify-additive-migration": "node scripts/verify-spacetime-additive-migration.mjs",
     "stdb:publish:dev": "node scripts/publish-spacetime-dev.mjs",
-    "stdb:logs:dev": "spacetime logs --server maincloud warpkeep-89e4u",
     "stdb:seed-world": "tsx scripts/hermes-admin.ts seed-world",
     "stdb:allow-fid": "tsx scripts/hermes-admin.ts allow-fid",
     "stdb:disable-fid": "tsx scripts/hermes-admin.ts disable-fid",

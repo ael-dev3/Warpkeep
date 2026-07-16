@@ -9,6 +9,7 @@ import {
   CHALLENGE_TTL_MILLISECONDS,
   ConfigurationError,
   INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
+  MAX_ADMIN_TOKEN_SECRET_BYTES,
   MAX_REQUEST_BYTES,
   PLAYER_TOKEN_TTL_SECONDS,
   QA_OBSERVER_CHALLENGE_TTL_MILLISECONDS,
@@ -598,12 +599,17 @@ function verifyLocalChallenge(
   challenge: ChallengeRecord,
   origin: string,
   now: number,
+  config: BridgeConfig,
 ): void {
   if (challenge.expiresAt <= now) {
     throw new HttpError(401, 'challenge_expired', 'This sign-in challenge has expired.')
   }
   if (
-    challenge.origin !== origin
+    challenge.createdAt > now
+    || challenge.expiresAt - challenge.createdAt !== CHALLENGE_TTL_MILLISECONDS
+    || challenge.origin !== origin
+    || challenge.domain !== config.domain
+    || challenge.siweUri !== config.siweUri
     || input.nonce !== challenge.nonce
     || input.requestId !== challenge.requestId
     || input.domain !== challenge.domain
@@ -724,7 +730,13 @@ function adminCredential(request: Request): string | null {
   const authorization = request.headers.get('authorization')
   if (!authorization?.startsWith('Bearer ')) return null
   const token = authorization.slice('Bearer '.length)
-  return token.length > 0 ? token : null
+  if (token.length === 0 || token.length > MAX_ADMIN_TOKEN_SECRET_BYTES) return null
+  const bytes = new TextEncoder().encode(token)
+  try {
+    return bytes.byteLength <= MAX_ADMIN_TOKEN_SECRET_BYTES ? token : null
+  } finally {
+    bytes.fill(0)
+  }
 }
 
 async function rejectServerOnlyBody(
@@ -1225,7 +1237,12 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             bindingMethod: browserBinding.bindingMethod,
           }
           const store = dependencies.challengeStore ?? defaultChallengeStore(env)
-          await store.put(challenge)
+          try {
+            await store.put(challenge)
+          } catch {
+            logger.event('internal_error')
+            throw new HttpError(503, 'challenge_unavailable', 'Authentication is temporarily unavailable.')
+          }
           logger.event('challenge_binding_created')
           logger.event('challenge_issued')
           return json({
@@ -1245,10 +1262,16 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           const body = await parseObjectBody(request)
           const input = parseExchangeRequest(body, logger)
           const store = dependencies.challengeStore ?? defaultChallengeStore(env)
-          const challenge = await store.get(input.requestId)
+          let challenge: ChallengeRecord | null
+          try {
+            challenge = await store.get(input.requestId)
+          } catch {
+            logger.event('internal_error')
+            throw new HttpError(503, 'challenge_unavailable', 'Authentication is temporarily unavailable.')
+          }
           if (!challenge) throw new HttpError(401, 'challenge_not_found', 'This sign-in challenge is invalid or already used.')
           const currentTime = now()
-          verifyLocalChallenge(input, challenge, origin, currentTime)
+          verifyLocalChallenge(input, challenge, origin, currentTime, config)
           let bindingVerifier = input.bindingVerifier
           let bindingMatches: boolean
           try {
@@ -1274,7 +1297,13 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           // Claim the challenge before any paid/upstream work. Only one
           // contender can verify, resolve an epoch, or sign. Retryable service
           // failures restore the still-live challenge below.
-          const claimed = await store.consume(input.requestId)
+          let claimed: ChallengeRecord | null
+          try {
+            claimed = await store.consume(input.requestId)
+          } catch {
+            logger.event('internal_error')
+            throw new HttpError(503, 'challenge_unavailable', 'Authentication is temporarily unavailable.')
+          }
           if (!claimed || !sameChallengeRecord(claimed, challenge)) {
             logger.event('exchange_rejected')
             throw new HttpError(401, 'challenge_replayed', 'This sign-in challenge is invalid or already used.')

@@ -202,9 +202,18 @@ function internalUrl(path: 'record' | 'consume'): string {
 }
 
 async function responseRecord(response: Response): Promise<QaObserverChallengeRecord | null> {
-  if (!response.ok) return null
-  const value: unknown = await response.json()
-  return isQaObserverChallengeRecord(value) ? value : null
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error('QA challenge store unavailable.')
+  let value: unknown
+  try {
+    value = await response.json()
+  } catch {
+    throw new Error('QA challenge store returned invalid state.')
+  }
+  if (!isQaObserverChallengeRecord(value)) {
+    throw new Error('QA challenge store returned invalid state.')
+  }
+  return value
 }
 
 export class DurableObjectQaObserverChallengeStore implements QaObserverChallengeStore {

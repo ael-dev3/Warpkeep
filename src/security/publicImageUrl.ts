@@ -35,6 +35,7 @@ export function safePublicHttpsImageUrl(value: string | undefined) {
       parsed.protocol !== 'https:'
       || parsed.username
       || parsed.password
+      || parsed.port
       || !parsed.hostname
       || unsafePublicImageHostname(parsed.hostname)
     ) return undefined;

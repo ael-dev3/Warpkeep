@@ -1,4 +1,5 @@
 import type { FarcasterAuthContext } from './farcasterAuthTypes';
+import { normalizeFarcasterDeviceSessionBasePath } from './farcasterDeviceSession';
 
 export const FARCASTER_AUTH_REQUEST_TTL_MS = 5 * 60 * 1_000;
 export const FARCASTER_AUTH_NONCE_BYTES = 24;
@@ -102,34 +103,22 @@ export function createFarcasterRequestMaterial(
 }
 
 function normalizeBaseUrl(baseUrl: string) {
-  if (
-    typeof baseUrl !== 'string'
-    || !baseUrl.startsWith('/')
-    || baseUrl.startsWith('//')
-    || baseUrl.includes('\\')
-    || baseUrl.includes('?')
-    || baseUrl.includes('#')
-  ) {
+  const normalizedBaseUrl = normalizeFarcasterDeviceSessionBasePath(baseUrl);
+  if (!normalizedBaseUrl) {
     throw new FarcasterAuthContextError(
       'Warpkeep has an invalid authentication base path.'
     );
   }
+  return normalizedBaseUrl;
+}
 
-  let pathSegments: string[];
-  try {
-    pathSegments = baseUrl.split('/').map((segment) => decodeURIComponent(segment));
-  } catch {
-    throw new FarcasterAuthContextError(
-      'Warpkeep has an invalid authentication base path.'
+function isLoopbackHttpOrigin(origin: URL) {
+  return origin.protocol === 'http:'
+    && (
+      origin.hostname === 'localhost'
+      || origin.hostname === '127.0.0.1'
+      || origin.hostname === '[::1]'
     );
-  }
-  if (pathSegments.some((segment) => segment === '.' || segment === '..')) {
-    throw new FarcasterAuthContextError(
-      'Warpkeep has an invalid authentication base path.'
-    );
-  }
-
-  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 }
 
 /** Pure helper used by tests and by the browser wrapper below. */
@@ -148,7 +137,7 @@ export function resolveFarcasterAuthContext({
   }
 
   if (
-    (parsedOrigin.protocol !== 'https:' && parsedOrigin.protocol !== 'http:')
+    (parsedOrigin.protocol !== 'https:' && !isLoopbackHttpOrigin(parsedOrigin))
     || parsedOrigin.username !== ''
     || parsedOrigin.password !== ''
     || parsedOrigin.pathname !== '/'

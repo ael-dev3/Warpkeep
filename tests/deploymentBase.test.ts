@@ -14,6 +14,20 @@ describe('Warpkeep deployment base and canonical metadata', () => {
     expect(() => resolveDeploymentBase({ DEPLOY_BASE: 'https://attacker.example/' })).toThrow(/DEPLOY_BASE/i);
   });
 
+  it.each([
+    '/Warpkeep//nested/',
+    '/Warpkeep/%5Cescape/',
+    '/Warpkeep/%2Fescape/',
+    '/Warpkeep/%3Fquery/',
+    '/Warpkeep/%23fragment/',
+    '/Warpkeep/%00control/',
+    '/Warpkeep/%41lias/',
+    '/Warpkeep/white space/',
+    '/Warpkeep/control/',
+  ])('rejects non-canonical or ambiguously decoded base %s', (base) => {
+    expect(() => resolveDeploymentBase({ DEPLOY_BASE: base })).toThrow(/DEPLOY_BASE/i);
+  });
+
   it('declares warpkeep.com as the canonical and Open Graph URL', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
     expect(html).toContain('<link rel="canonical" href="https://warpkeep.com/" />');

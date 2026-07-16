@@ -57,13 +57,37 @@ describe('GitHub workflow security policy', () => {
   it('uses the reviewed Pages uploader with a SHA-pinned nested dependency', () => {
     const source = workflow('deploy-pages.yml');
     expect(source).toContain(
-      'actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b',
+      'actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9',
     );
     expect(source).not.toContain(
       'actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa',
     );
     expect(source).not.toContain('actions/upload-artifact@');
     expect(source).toContain('path: ./dist');
+  });
+
+  it('pins the reviewed Node 24 action generations instead of deprecated Node 20 releases', () => {
+    const source = allWorkflows().join('\n');
+    for (const reference of [
+      'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0',
+      'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
+      'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271',
+      'actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d',
+      'actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9',
+      'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128',
+    ]) {
+      expect(source).toContain(reference);
+    }
+    for (const deprecatedReference of [
+      'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5',
+      'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
+      'pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1',
+      'actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b',
+      'actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b',
+      'actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e',
+    ]) {
+      expect(source).not.toContain(deprecatedReference);
+    }
   });
 
   it('bounds every workflow job duration', () => {
