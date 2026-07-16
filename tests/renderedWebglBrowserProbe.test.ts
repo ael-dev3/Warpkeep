@@ -307,19 +307,19 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(source).not.toContain("button.getAttribute('aria-label') === 'Show Full Realm'");
   });
 
-  it('tolerates only two-decimal coordinate serialization at attachment boundaries', () => {
-    expect(renderedWebglLabelAnchorDistanceTelemetry(112.014)).toEqual({
-      reportedDistance: 112,
+  it('tolerates only two-decimal serialization around the exact foundation anchor', () => {
+    expect(renderedWebglLabelAnchorDistanceTelemetry(0.014)).toEqual({
+      reportedDistance: 0,
       violation: false
     });
-    expect(renderedWebglLabelAnchorDistanceTelemetry(112.016)).toEqual({
-      reportedDistance: 113,
+    expect(renderedWebglLabelAnchorDistanceTelemetry(0.016)).toEqual({
+      reportedDistance: 1,
       violation: true
     });
-    expect(renderedWebglLabelDisplacementClassificationValid(11.986, true)).toBe(true);
-    expect(renderedWebglLabelDisplacementClassificationValid(11.984, true)).toBe(false);
-    expect(renderedWebglLabelDisplacementClassificationValid(12.014, false)).toBe(true);
-    expect(renderedWebglLabelDisplacementClassificationValid(12.015, false)).toBe(false);
+    expect(renderedWebglLabelDisplacementClassificationValid(0, false)).toBe(true);
+    expect(renderedWebglLabelDisplacementClassificationValid(0.014, false)).toBe(true);
+    expect(renderedWebglLabelDisplacementClassificationValid(0.016, false)).toBe(false);
+    expect(renderedWebglLabelDisplacementClassificationValid(0, true)).toBe(false);
   });
 
   it('fixes fourteen responsive, interaction, and presentation cases to one numeric loopback origin', () => {
@@ -334,7 +334,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'high',
         interaction: 'default',
-        minimumLabelCount: 14,
+        minimumLabelCount: 10,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=high',
         viewport: { width: 1440, height: 900 }
       },
@@ -343,7 +343,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
-        minimumLabelCount: 14,
+        minimumLabelCount: 10,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 1440, height: 900 }
       },
@@ -352,7 +352,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
-        minimumLabelCount: 16,
+        minimumLabelCount: 12,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 1920, height: 1080 }
       },
@@ -361,7 +361,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'inspector',
-        minimumLabelCount: 12,
+        minimumLabelCount: 1,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 1024, height: 768 }
       },
@@ -371,7 +371,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'inspector',
-        minimumLabelCount: 12,
+        minimumLabelCount: 1,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 1024, height: 768 }
       },
@@ -380,7 +380,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'cluster',
-        minimumLabelCount: 10,
+        minimumLabelCount: 1,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 390, height: 844 }
       },
@@ -389,7 +389,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'reduced',
         interaction: 'default',
-        minimumLabelCount: 10,
+        minimumLabelCount: 8,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=reduced',
         viewport: { width: 1440, height: 900 }
       },
@@ -398,7 +398,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
-        minimumLabelCount: 14,
+        minimumLabelCount: 10,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=invalid',
         viewport: { width: 1440, height: 900 }
       },
@@ -407,7 +407,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'default',
-        minimumLabelCount: 10,
+        minimumLabelCount: 5,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 390, height: 844 }
       },
@@ -416,7 +416,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'reduced',
         interaction: 'inspector',
-        minimumLabelCount: 8,
+        minimumLabelCount: 1,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=reduced',
         viewport: { width: 390, height: 844 }
       },
@@ -425,7 +425,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'observer',
         expectedQuality: 'balanced',
         interaction: 'explore',
-        minimumLabelCount: 6,
+        minimumLabelCount: 1,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced',
         viewport: { width: 667, height: 375 }
       },
@@ -435,7 +435,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'explore',
-        minimumLabelCount: 6,
+        minimumLabelCount: 1,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 667, height: 375 }
       },
@@ -444,7 +444,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'default',
-        minimumLabelCount: 14,
+        minimumLabelCount: 9,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 1440, height: 900 }
       },
@@ -453,7 +453,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'default',
-        minimumLabelCount: 10,
+        minimumLabelCount: 4,
         url: 'http://127.0.0.1:41733/dev/realm-rendered-webgl-qa.html?quality=balanced&mode=player',
         viewport: { width: 390, height: 844 }
       }
@@ -832,7 +832,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelIdentityPresentationViolationCount: 0,
       labelHitTestViolationCount: 0,
       labelMissingIdentityCount: 0,
-      labelMaximumAnchorDisplacement: 96,
+      labelMaximumAnchorDisplacement: 0,
       labelPlacedCount: 18,
       labelUnplacedCount: 0,
       labelsTextBearingCount: 18,
@@ -967,7 +967,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, expected)).toThrow(/label-leader/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
-      labelMaximumAnchorDisplacement: 113
+      labelMaximumAnchorDisplacement: 1
     }, expected)).toThrow(/label-anchor-displacement/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,

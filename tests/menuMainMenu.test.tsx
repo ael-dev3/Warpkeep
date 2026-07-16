@@ -249,7 +249,9 @@ describe('WarpkeepMainMenu', () => {
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
     expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.5');
     expect(notes.textContent).toContain('intentionally shorter authored proportions');
-    expect(notes.textContent).toContain('Released 16 July 2026. Alpha systems remain experimental and may change.');
+    expect(notes.textContent).toContain(
+      'Prepared 16 July 2026. Candidate release pending protected deployment and exact-build verification.'
+    );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
     act(() => notes.focus());

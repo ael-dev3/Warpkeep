@@ -35,6 +35,11 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   }
 }
 
+function publicAssetUrl(path: string) {
+  const base = import.meta.env.BASE_URL || '/';
+  return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\/+/, '')}`;
+}
+
 export type CastleInspectionRecord = Readonly<{
   castleId: number;
   q: number;
@@ -74,6 +79,8 @@ export function CastleInspectionPanel({
     ? formatPublicMarkMicros(profile.marksBalanceMicros)
     : undefined;
   const foundedDate = formatPublicRealmDate(castle.foundedAt);
+  const keeperName = profile.displayName ?? username;
+  const showUsernameUnderName = keeperName !== username;
 
   const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
     closeButtonRef.current = element;
@@ -90,49 +97,63 @@ export function CastleInspectionPanel({
       className="castle-inspection"
       role="dialog"
       aria-modal="false"
-      aria-labelledby={titleId}
+      aria-label={username}
       data-open="true"
     >
       <div className="castle-inspection__drawer">
-        <header className="castle-inspection__record-heading">
-          <span>CASTLE RECORD</span>
-          <strong>{castle.name}</strong>
+        <header className="castle-inspection__hero">
+          <div aria-hidden="true" className="castle-inspection__hero-orbit" />
+          <img
+            alt=""
+            aria-hidden="true"
+            className="castle-inspection__hero-art"
+            decoding="async"
+            height="1254"
+            src={publicAssetUrl('images/realm/hegemony-castle-record.webp')}
+            width="1254"
+          />
           <button
             ref={setCloseButtonRef}
             className="castle-inspection__dismiss"
+            aria-label="CLOSE RECORD"
             onClick={onRequestClose}
             type="button"
           >
-            CLOSE RECORD
+            <span aria-hidden="true">×</span>
           </button>
+          <div className="castle-inspection__title-lockup">
+            <p>{observer ? 'PUBLIC REALM RECORD' : own ? 'YOUR FOUNDED KEEP' : 'FOUNDED KEEP'}</p>
+            <h2 id={titleId}>{castle.name}</h2>
+          </div>
         </header>
 
         <div className="castle-inspection__body">
-          <header className="castle-inspection__identity">
+          <section className="castle-inspection__identity" aria-label="Farcaster keeper identity">
             <CastleProfileAvatar profile={profile} size="large" />
-            <div>
-              <p>{observer ? 'PUBLIC CASTLE' : own ? 'YOUR CASTLE' : 'PLAYER CASTLE'}</p>
-              <h2 id={titleId}>{username}</h2>
-              {profile.displayName ? <span>{profile.displayName}</span> : null}
+            <div className="castle-inspection__identity-copy">
+              <p>KEEPER</p>
+              <strong>{keeperName}</strong>
+              {showUsernameUnderName ? <span>{username}</span> : null}
             </div>
-          </header>
+            {profileUrl ? (
+              <a
+                aria-label="View Farcaster profile"
+                className="castle-inspection__profile-link"
+                href={profileUrl}
+                rel="noreferrer noopener"
+                target="_blank"
+              >
+                <span aria-hidden="true">↗</span>
+              </a>
+            ) : null}
+          </section>
 
           {profile.publicBio ? (
             <p className="castle-inspection__bio">{profile.publicBio}</p>
           ) : null}
 
-          {profileUrl ? (
-            <a
-              className="castle-inspection__profile-link"
-              href={profileUrl}
-              rel="noreferrer noopener"
-              target="_blank"
-            >
-              View Farcaster profile
-            </a>
-          ) : null}
-
-          <dl className="castle-inspection__fields">
+          <dl className="castle-inspection__fields" aria-label="Public castle data">
+            <PublicField label="Keeper">{username}</PublicField>
             <PublicField label="Castle level">{castle.level}</PublicField>
             <PublicField label="Coordinates">q {castle.q} · r {castle.r}</PublicField>
             {foundedDate ? (
@@ -144,7 +165,7 @@ export function CastleInspectionPanel({
 
           {totalSnapBurned !== undefined || marksBalance !== undefined ? (
             <section className="castle-inspection__marks" aria-label="Public Marks record">
-              <h3>COMMUNITY MARKS</h3>
+              <h3>PUBLIC COMMUNITY MARKS</h3>
               <dl className="castle-inspection__fields">
                 {totalSnapBurned !== undefined ? (
                   <PublicField label="Total SNAP burned">{totalSnapBurned}</PublicField>

@@ -107,7 +107,12 @@ function validScreenBounds(
     && bounds.bottom > bounds.top;
 }
 
-/** Keep the label attached immediately above a trusted projected castle top. */
+/**
+ * Keep the identity strip attached immediately beneath the projected castle
+ * foundation. The foundation edge is stable across camera motion and LOD swaps;
+ * using it avoids the detached, roof-floating identity treatment that preceded
+ * Alpha 0.3.5.
+ */
 export function resolveCastleLabelScreenAnchor(
   castleBounds: RealmCastleScreenBounds | undefined,
   fallback: RealmCastleLabelScreenPoint,
@@ -117,7 +122,7 @@ export function resolveCastleLabelScreenAnchor(
   const gap = Number.isFinite(gapPixels) ? Math.max(0, gapPixels) : 0;
   return {
     x: (castleBounds.left + castleBounds.right) * 0.5,
-    y: castleBounds.top - gap
+    y: castleBounds.bottom + gap
   };
 }
 
@@ -703,7 +708,7 @@ function initializeRealmScene(
       projectionPoint.project(cameraController.camera);
       const withinCameraDepth = projectionPoint.z >= -1
         && projectionPoint.z <= 1;
-      const projectedTopCenter = {
+      const projectedFallbackCenter = {
         x: (projectionPoint.x * 0.5 + 0.5) * width,
         y: (-projectionPoint.y * 0.5 + 0.5) * height
       };
@@ -735,8 +740,8 @@ function initializeRealmScene(
       );
       const conservativeCastleBounds = castleBounds;
       const labelAnchor = resolveCastleLabelScreenAnchor(castleBounds, {
-        x: projectedTopCenter.x,
-        y: projectedTopCenter.y
+        x: projectedFallbackCenter.x,
+        y: projectedFallbackCenter.y
       });
       return {
         castleId: anchor.castleId,

@@ -13,7 +13,8 @@ Alpha Terms gate, browser-bound Sign In with Farcaster, rotating HttpOnly
 sessions, protocol-3 shared-realm state, responsive WebGL presentation,
 one exact canonical readiness boundary, real instanced Hegemony keeps for every
 visible founder, a safe-area-aware HUD and camera, accessible fallbacks, bounded
-public castle presentation, Marks balance UI, music, and credits.
+public castle presentation with foundation-bound usernames and a responsive
+Farcaster castle record, Marks balance UI, music, and credits.
 
 Production remains deliberately admission-gated. Deliberately admitted
 founders now occupy the shared frontier, but public admission is not open and
@@ -27,18 +28,24 @@ owner-approved GameReady High, Balanced, and Compact family. High accepts a
 modest close-detail cost; Balanced and Compact reduce transfer and geometry,
 and Compact retains its intentionally shorter authored proportions. This is a
 geometry and encoding refresh, not a claim that the models themselves are
-brighter. The patch retains one exact Genesis 001 snapshot, shared instancing,
-uniform footprint normalization, safe-area-aware UI and camera composition,
-and bounded public profile presentation. It preserves the authentication,
-protocol, Terms, admission, world, castle, wallet, and Marks authority
-boundaries. The protected Pages workflow and exact build stamp remain the
-source of truth for the public deployment coordinate.
+brighter. Direct usernames now remain on slim, deterministic rails at the
+castle foundation instead of receiving individual displacement or leader
+lines. Selection opens a responsive castle record built only from sanitized
+public Farcaster and existing Realm fields, a safe portrait fallback, and one
+same-origin background-cleaned decorative asset with exact provenance. The
+patch retains one exact Genesis 001 snapshot, shared instancing, uniform
+footprint normalization, safe-area-aware UI and camera composition, and bounded
+public profile presentation. It preserves the authentication, protocol, Terms,
+admission, world, castle, wallet, and Marks authority boundaries. The protected
+Pages workflow and exact build stamp remain the source of truth for the public
+deployment coordinate.
 
 ## Alpha 0.3.5 foundation
 
 - Standard website SIWF with an independently verifying Cloudflare Worker and short-lived OIDC handoff.
 - Server-authoritative SpacetimeDB module with private admission/auth-epoch controls and public world/player/castle boundaries.
 - 1,261 authoritative Lowlands cells, 100 close-outward permanent castle slots, and shared real-castle LOD rendering for founded keeps.
+- Foundation-bound public username rails and a responsive selected-castle record using only sanitized Farcaster presentation and existing public Realm fields.
 - Cinematic, balanced, and performance profiles shared by the title and realm; normal modern phones default to balanced.
 - Exact build identity, fail-closed configuration, reduced-motion behavior, keyboard/touch controls, and non-WebGL/model fallbacks.
 - Apache-2.0 software and CC-BY-4.0 project-owned creative work from v0.3.0 onward, with historical and external terms preserved.
@@ -46,8 +53,8 @@ source of truth for the public deployment coordinate.
 Alpha 0.3.3 replaced peer markers with real instanced keeps, and Alpha 0.3.4
 followed with the first optimized Hegemony Main Castle family and tighter
 Realm QA. See the [Alpha 0.3.5 release notes](docs/releases/alpha-0.3.5.md) for
-the current asset tradeoffs, validation scope, authority boundary, and honest
-residual limits.
+the current asset tradeoffs, identity presentation, validation scope, authority
+boundary, and honest residual limits.
 
 The canonical player domain is [warpkeep.com](https://warpkeep.com/), and the
 main community home is the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep).
@@ -106,6 +113,9 @@ historical derivative family. The 16 July 2026 owner authorization covers this
 exact project-internal integration and metadata correction. It is not a
 separate public open licence, broader derivative grant, general redistribution
 grant, or trademark grant. See the [castle provenance index](docs/reference/castles/).
+The same index records the exact background-cleaned decorative WebP used only
+inside the castle record; its project-internal authorization does not establish
+a public open-content licence or broader derivative/redistribution rights.
 
 ## Documentation
 

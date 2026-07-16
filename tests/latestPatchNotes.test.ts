@@ -26,10 +26,26 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
       /intentionally shorter authored proportions/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /brighter|brightness improvement/i
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /fixed at each castle foundation/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 16 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /sanitized public Farcaster and existing Realm data/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /portrait-to-initial fallback/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /Background-cleaned castle record art/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /Pages-only patch changes no authentication/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
+      /brighter|brightness improvement|durability|destroy|alliance/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Prepared 16 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('exact-build verification');
     expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');
     expect(getLatestPatchNotes('0.3.3')?.title).toBe('GENESIS REALM QUALITY');
     expect(getLatestPatchNotes('0.3.2')?.title).toBe('GENESIS 001 FOUNDING');

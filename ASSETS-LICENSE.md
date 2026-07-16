@@ -122,6 +122,27 @@ The GameReady geometry has accepted profile-relative size and height
 differences. This asset change does not itself claim brighter materials; castle
 lighting and palette remain renderer concerns.
 
+## Hegemony castle record artwork
+
+The Alpha 0.3.5 castle inspection card uses one transparent decorative WebP
+prepared from 2D castle art supplied by the Warpkeep project owner on 16 July
+2026. The owner explicitly instructed PR #40 to remove the supplied background
+and deploy the cleaned result in Warpkeep. That instruction authorizes this
+exact project-internal runtime use; it does not establish underlying ownership,
+grant a separate public open-content licence, authorize general third-party
+derivatives or redistribution, or grant trademark or canonical-identity rights.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Castle record decoration | `public/images/realm/hegemony-castle-record.webp` | 1254×1254 alpha WebP, 145,416 bytes, SHA-256 `30e0c3cd1bbc4732bb5025a78a5dc0cc66bc01c1b752a3f21b48fb429cc11123`; background-cleaned through the exact recorded image-edit and chroma-matte workflow. |
+
+The two source attachments and the generated chroma-key intermediate are not
+committed. Their exact hashes, the complete edit prompt, cleanup parameters,
+decoded RGBA hash, alpha profile, and visible bounds are recorded in the
+[dated castle record](docs/reference/castles/2026-07-16-hegemony-castle-record-art/).
+The runtime file remains under `LicenseRef-Warpkeep-Provenance-Required`; neither
+its location in `public/` nor the cleanup operation silently relicenses it.
+
 ## Trademark and endorsement note
 
 These licenses do not grant trademark rights or imply endorsement by the project. Forks, mods, and community realms should avoid presenting themselves as the canonical Warpkeep deployment unless explicitly authorized; see [`TRADEMARKS.md`](TRADEMARKS.md).

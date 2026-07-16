@@ -55,15 +55,16 @@ const ALPHA_0_3_5_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '16 JUL 2026',
   title: 'GAME-READY CASTLE REFRESH',
   summary:
-    'Alpha 0.3.5 refreshes every Realm castle with the owner-approved GameReady Hegemony LOD family without changing player authority.',
+    'Alpha 0.3.5 refreshes Realm castles and gives each founder a cleaner, honest identity presentation without changing player authority.',
   highlights: Object.freeze([
     'Cinematic, Balanced, and Performance graphics now use the new High, Balanced, and Compact GameReady castle models.',
-    'High preserves the richest close-view geometry, while Balanced and Compact reduce transfer size and submitted geometry for wider views.',
     'The Compact model keeps its intentionally shorter authored proportions; every tier is still uniformly scaled, centred, and grounded in the Lowlands.',
-    'Each model remains same-origin, exact-length bounded, and SHA-256 verified before it can enter the Realm.',
+    'Slim usernames stay fixed at each castle foundation; individual labels never drift or grow leader lines, while dense identities consolidate through deterministic keeper clusters and Explore.',
+    'The responsive castle record uses only sanitized public Farcaster and existing Realm data, with a safe portrait-to-initial fallback instead of invented gameplay fields or actions.',
+    'Background-cleaned castle record art and every GameReady model remain same-origin, integrity-pinned, and provenance-recorded.',
     'This Pages-only patch changes no authentication, admission, world generation, castle ownership, wallet, Marks, Worker, or SpacetimeDB authority.'
   ]),
-  alphaNotice: 'Released 16 July 2026. Alpha systems remain experimental and may change.'
+  alphaNotice: 'Prepared 16 July 2026. Candidate release pending protected deployment and exact-build verification.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =

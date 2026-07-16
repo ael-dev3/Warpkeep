@@ -192,9 +192,11 @@ requires the aggregate `procedural` environment status.
 
 Public castle presentation comes only from sanitized trusted profile records.
 World labels prefer `@canonicalUsername`, then trusted display name, then
-`Hegemony Keep`. Avatars prefer a safe HTTPS Farcaster PFP, then a public-name
-initial, then the Warpkeep sigil. FID digits are never the main label or avatar;
-FID may appear once as secondary record metadata.
+`Hegemony Keep`. The direct world rail contains text rather than a portrait so
+its identity remains narrow and stationary. The selected castle record prefers
+a safe HTTPS Farcaster PFP, then a public-name initial, then the Warpkeep `W`.
+FID digits are never the main label or avatar; FID may appear once as secondary
+record metadata only where an existing public projection provides it.
 
 Hover is an imperative, animation-frame-coalesced visual effect. It does not
 change terrain selection, castle selection, inspection, camera focus, the main
@@ -204,9 +206,36 @@ terrain, and deterministic instance IDs resolve back to castle IDs. Drag and
 pinch gestures suppress hover and click activation until they end.
 
 React owns label identity and public profile content. Camera movement updates
-CSS transforms at most once per animation frame. Collision uses measured label
-and avatar dimensions, bounded membership, hysteresis, and reserved HUD,
-inspector, toolbar, navigator, and safe-area rectangles.
+CSS transforms at most once per animation frame. Every individual username rail
+uses the current projected foundation base as both layout and visual anchor.
+Full and compact rails share that point: measured collision handling has zero
+individual nudge radius, no roof stack, and no individual connector leader.
+Hysteresis may preserve membership ordering but never freezes or offsets a rail
+while the camera moves.
+
+Measured rail dimensions, protected castle silhouettes, reserved HUD,
+inspector, toolbar, navigator, and safe-area rectangles still determine whether
+the exact anchor is available. A direct rail that cannot fit is accounted for
+through a deterministic keeper cluster or Explore instead of moving away from
+its castle. True multi-keeper clusters may use their existing deterministic
+group placement and one group connector when displaced; that connector never
+pretends that an individual username sits at the group position.
+
+The responsive selected-castle record renders only already-sanitized public
+Farcaster presentation and existing public Realm fields: castle name, level,
+coordinates, a valid founded date, canonical username, trusted display name and
+biography, and public Marks values only when the profile's visibility flag is
+true. A validated canonical username may produce the Farcaster profile link.
+The record invents no durability, alliance, combat status, resource state, or
+destructive action.
+
+Its decorative hero is the same-origin
+`public/images/realm/hegemony-castle-record.webp`, an accessibility-hidden
+1254×1254 alpha WebP with exact byte, decoded-pixel, alpha, hash, and provenance
+checks. The art is a background-cleaned presentation layer rather than a world
+model, profile signal, or authority source. Its dated narrow PR #40
+project-internal authorization does not imply an open licence or broader
+derivative/redistribution right.
 
 ## Camera and responsive UI
 
@@ -223,9 +252,11 @@ tests cover 1920×1080, 1440×900, 1024×768, 390×844, and 667×375 with the
 inspector open and closed. Reduced-motion mode settles composition immediately.
 
 The in-realm interface uses compact amethyst/electrum layers: an own-keep HUD,
-inline Marks presentation, bottom action toolbar, explicit selected-castle
-record, and a searchable Realm Navigator. The navigator lists meaningful
-founded castles and offers an optional validated q/r jump; it does not expose a
+inline Marks presentation, bottom action toolbar, a responsive selected-castle
+record with bounded decorative art, and a searchable Realm Navigator. The
+record remains a stable side drawer on wide layouts and a safe-area-aware sheet
+on compact or short-landscape layouts. The navigator lists meaningful founded
+castles and offers an optional validated q/r jump; it does not expose a
 permanent grid of more than one thousand coordinate buttons.
 
 Escape closes the topmost inspector or navigator before returning to the menu.
@@ -244,4 +275,4 @@ The 100-castle path is architecture- and regression-tested, but real device GPU
 and thermal behavior still varies. Label count, pixel ratio, terrain detail, and
 LOD ceilings remain deliberately bounded. Rich gameplay overlays, persistent
 camera preferences, and alternate castle models are future work rather than
-claims of Alpha 0.3.3.
+claims of Alpha 0.3.5.

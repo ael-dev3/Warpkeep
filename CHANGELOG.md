@@ -17,6 +17,19 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   file integrity instead of inheriting inconsistent source metadata. Existing
   uniform footprint normalization and ground alignment remain responsible for
   placing each model in the Lowlands without non-uniform deformation.
+- Public usernames now sit on slim, translucent rails at each keep's projected
+  foundation base. An individual rail has one deterministic anchor and no
+  leader line or random collision displacement; crowded identities consolidate
+  through the existing deterministic keeper-cluster and Explore paths instead
+  of drifting away from their castles.
+- Castle activation now opens a responsive Farcaster castle record with the
+  keeper's sanitized public name, username, biography, safe portrait, and only
+  the existing public castle and opt-in Marks fields. Missing or rejected PFPs
+  retain the bounded initial/Warpkeep fallback; no durability, alliance,
+  combat status, or destructive gameplay action is invented by the new card.
+- The castle record's same-origin decorative art is a background-cleaned alpha
+  WebP with exact runtime integrity and a dated narrow-use provenance record.
+  It adds no authority and is not a substitute for the instanced world model.
 - The release truth, in-menu patch chronicle, reconstruction boundary, and
   provenance records distinguish the exact owner-supplied inputs and bounded
   atlas-metadata normalization from the superseded Alpha 0.3.4 deterministic

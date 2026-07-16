@@ -3,13 +3,19 @@
 ## Current state
 
 The checked-in package is the Alpha 0.3.5 Pages-only candidate. The verified
-public release remains Alpha 0.3.3. The public menu build stamp identifies the
+public release remains Alpha 0.3.4. The public menu build stamp identifies the
 exact deployed source; an annotated release tag is created only after that
 deployed commit passes exact-build verification. Do not turn the disabled local
 QA observer into a Worker or SpacetimeDB release without a separately reviewed
 production scope.
 
-Warpkeep Alpha 0.3.3 has a live title/menu, an explicit Alpha Terms gate,
+The candidate also fixes every direct Realm username rail to the projected
+foundation base and presents the selected keep in a responsive Farcaster castle
+record. Its decorative castle art is a same-origin, integrity-pinned,
+provenance-required runtime asset. These are browser presentation changes only;
+they add no gameplay field, action, identity authority, or backend mutation.
+
+Warpkeep Alpha 0.3.4 preserves the live title/menu, explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
 least-privilege Cloudflare Worker OIDC bridge, and a non-destructively published
 protocol-3 SpacetimeDB module. Genesis 001 contains 1,261 authoritative cells
@@ -36,6 +42,20 @@ Start with:
 - Preserve the immutable v0.3.0 licensing cutover commits and normal merge ancestry.
 - Runtime assets stay in Warpkeep; authorized source bundles belong in immutable Warpkeep-Assets releases. Unresolved-rights material is not published by assumption.
 - The 2026-07-16 GameReady castle authorization covers project-internal runtime integration of only the three exact recorded High, Balanced, and Compact inputs plus the bounded atlas-size metadata correction recorded for Balanced and Compact. It grants no separate open licence, broader derivative authority, general redistribution right, trademark right, or permission to substitute same-named files. Do not use the superseded Alpha 0.3.4 preparation pipeline to overwrite them, and do not describe this geometry swap as a brightness improvement.
+- A direct castle username has exactly one honest location: its projected
+  foundation-base anchor. Do not reintroduce random or collision-driven
+  individual displacement, roof stacking, or individual leader lines. When
+  that exact rail cannot fit, preserve identity through the deterministic
+  keeper-cluster/Explore accounting rather than moving it away from the keep.
+- Castle records may render only the existing sanitized public Farcaster
+  projection and public castle/visibility-gated Marks fields. Do not fabricate
+  durability, alliance, combat status, coordinates, resources, or actions to
+  match a visual reference. Keep remote PFPs behind the safe HTTPS policy and
+  preserve the public-name-initial/W fallback on rejection or load failure.
+- The Alpha 0.3.5 record artwork authorization is limited to the exact
+  background-cleaned runtime WebP and recorded PR #40 project-internal use. Its
+  decorative role grants no identity or gameplay authority, public open licence,
+  general derivative/redistribution right, ownership claim, or trademark right.
 
 ## Player-visible release truth
 

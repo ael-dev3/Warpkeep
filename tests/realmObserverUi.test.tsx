@@ -78,7 +78,7 @@ describe('Realm read-only observer presentation', () => {
     fireEvent.click(firstCastle);
 
     const record = screen.getByRole('dialog', { name: '@sentinel-one' });
-    expect(within(record).getByText('PUBLIC CASTLE')).not.toBeNull();
+    expect(within(record).getByText('PUBLIC REALM RECORD')).not.toBeNull();
     expect(within(record).queryByRole('link')).toBeNull();
     expect(document.body.textContent).not.toMatch(
       /(?:\bFID\b|Farcaster|My Keep|Your Castle|Community Marks|airdrop|QR code|admission|bootstrap)/i

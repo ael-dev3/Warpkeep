@@ -6,7 +6,6 @@ import {
   REALM_IDENTITY_CLUSTER_MAX_MEMBER_DISTANCE_PIXELS,
   REALM_IDENTITY_CLUSTER_MAXIMUM_GRID_POINTS,
   REALM_IDENTITY_CLUSTER_WIDTH,
-  REALM_IDENTITY_SINGLE_WIDTH,
   realmCastleClusterMembershipSignature,
   resolveRealmCastleIdentityClusters,
   type RealmCastleIdentityCluster,
@@ -36,7 +35,7 @@ function overlaps(first: RealmScreenRect, second: RealmScreenRect) {
     && first.bottom > second.top;
 }
 
-function expectRoofAttached(
+function expectRepresentativeAttached(
   cluster: RealmCastleIdentityCluster,
   projections: readonly RealmCastleScreenProjection[]
 ) {
@@ -81,7 +80,7 @@ describe('realm castle identity clusters', () => {
       .toEqual([1, 2, 3, 4, 5, 6]);
     expect(first.overflowCastleIds).toEqual([]);
     first.clusters.forEach((cluster, index) => {
-      expectRoofAttached(cluster, projections);
+      expectRepresentativeAttached(cluster, projections);
       expect(cluster.bounds.right - cluster.bounds.left).toBe(REALM_IDENTITY_CLUSTER_WIDTH);
       expect(cluster.bounds.bottom - cluster.bounds.top).toBe(REALM_IDENTITY_CLUSTER_HEIGHT);
       expect(cluster.bounds.left).toBeGreaterThanOrEqual(safeArea.left);
@@ -95,7 +94,7 @@ describe('realm castle identity clusters', () => {
     });
   });
 
-  it('preserves visible edge projections by clamping their cluster affordance into the safe area', () => {
+  it('routes disconnected edge singletons to Explore instead of floating their usernames', () => {
     const layout = resolveRealmCastleIdentityClusters({
       projections: [projection(10, -20, 30), projection(11, 620, 420)],
       clusterCastleIds: [10, 11],
@@ -104,17 +103,8 @@ describe('realm castle identity clusters', () => {
       maximumClusters: 2
     });
 
-    expect(layout.clusters.flatMap((cluster) => cluster.castleIds).sort((a, b) => a - b))
-      .toEqual([10, 11]);
-    expect(layout.overflowCastleIds).toEqual([]);
-    layout.clusters.forEach((cluster) => {
-      expectRoofAttached(cluster, [projection(10, -20, 30), projection(11, 620, 420)]);
-      expect(cluster.width).toBe(REALM_IDENTITY_SINGLE_WIDTH);
-      expect(cluster.bounds.left).toBeGreaterThanOrEqual(safeArea.left);
-      expect(cluster.bounds.top).toBeGreaterThanOrEqual(safeArea.top);
-      expect(cluster.bounds.right).toBeLessThanOrEqual(safeArea.right);
-      expect(cluster.bounds.bottom).toBeLessThanOrEqual(safeArea.bottom);
-    });
+    expect(layout.clusters).toEqual([]);
+    expect(layout.overflowCastleIds).toEqual([10, 11]);
   });
 
   it('focuses the nearest cluster member while preferring a readable identity when available', () => {
@@ -189,12 +179,12 @@ describe('realm castle identity clusters', () => {
     expect(new Set(accounted).size).toBe(100);
     expect(layout.clusters.length).toBeLessThanOrEqual(3);
     layout.clusters.forEach((cluster) => {
-      expectRoofAttached(cluster, projections);
+      expectRepresentativeAttached(cluster, projections);
       occupied.forEach((rect) => expect(overlaps(cluster.bounds, rect)).toBe(false));
     });
   });
 
-  it('routes an aggregate to Explore instead of detaching it from its roof', () => {
+  it('routes an aggregate to Explore instead of detaching it from its representative', () => {
     const projections = [projection(1, 125, 122.5), projection(2, 138, 128)];
     const layout = resolveRealmCastleIdentityClusters({
       projections,
@@ -227,6 +217,19 @@ describe('realm castle identity clusters', () => {
     expect(layout.clusters).toHaveLength(1);
     expect(layout.clusters[0]!.castleIds).toEqual([1, 2]);
     expect(layout.overflowCastleIds).toEqual([3, 4]);
+  });
+
+  it('never turns a singleton into a displaced individual label', () => {
+    const layout = resolveRealmCastleIdentityClusters({
+      projections: [projection(1, 300, 240)],
+      clusterCastleIds: [1],
+      safeAreaBounds: { left: 0, top: 0, right: 640, bottom: 420 },
+      occupiedRects: [],
+      maximumClusters: 1
+    });
+
+    expect(layout.clusters).toEqual([]);
+    expect(layout.overflowCastleIds).toEqual([1]);
   });
 
   it('splits a transitive long chain instead of calling distant endpoints nearby', () => {
@@ -291,7 +294,7 @@ describe('realm castle identity clusters', () => {
     }])).not.toBe(signature);
     expect(realmCastleClusterMembershipSignature([{
       ...cluster,
-      width: REALM_IDENTITY_SINGLE_WIDTH
+      width: REALM_IDENTITY_CLUSTER_WIDTH + 1
     }])).not.toBe(signature);
   });
 

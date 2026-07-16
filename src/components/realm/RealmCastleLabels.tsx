@@ -173,7 +173,6 @@ export function RealmCastleLabels({
     <div className="realm-castle-labels" aria-label="Visible player castles">
       <div className="realm-castle-label-measurements" aria-hidden="true">
         {[...records.values()].map((record) => {
-          const monogram = castleProfileMonogram(record.profile);
           const profileLabel = castleProfileLabel(record.profile);
           return (
             <Fragment key={`measure-${record.castle.castleId}`}>
@@ -181,20 +180,18 @@ export function RealmCastleLabels({
                 className="realm-castle-label realm-castle-label--measurement"
                 data-measure-castle-id={record.castle.castleId}
               >
-                <span
-                  className="realm-castle-avatar"
-                  style={{ '--realm-avatar-hue': String((monogram.codePointAt(0) ?? 87) % 360) } as CSSProperties}
-                >
-                  <span>{monogram}</span>
+                <span className="realm-castle-label__plate">
+                  <span className="realm-castle-label__identity">{profileLabel}</span>
                 </span>
-                <span className="realm-castle-label__identity">{profileLabel}</span>
               </span>
               <span
                 className="realm-castle-label realm-castle-label--measurement"
                 data-compact="true"
                 data-measure-compact-castle-id={record.castle.castleId}
               >
-                <span className="realm-castle-label__identity">{profileLabel}</span>
+                <span className="realm-castle-label__plate">
+                  <span className="realm-castle-label__identity">{profileLabel}</span>
+                </span>
               </span>
             </Fragment>
           );
@@ -208,48 +205,35 @@ export function RealmCastleLabels({
         const selected = label.castleId === selectedCastleId;
         const focused = label.castleId === focusedCastleId;
         const expanded = label.castleId === inspectorCastleId && inspectorOpen;
-        const leader = realmCastleLabelLeaderGeometry(label);
         const positionStyle = {
           '--realm-castle-label-x': `${label.x}px`,
           '--realm-castle-label-y': `${label.y}px`,
           '--realm-castle-anchor-x': `${label.projectedAnchor.x}px`,
-          '--realm-castle-anchor-y': `${label.projectedAnchor.y}px`,
-          '--realm-castle-leader-length': `${leader.length}px`,
-          '--realm-castle-leader-angle': `${leader.angleRadians}rad`
+          '--realm-castle-anchor-y': `${label.projectedAnchor.y}px`
         } as CSSProperties;
         return (
-          <Fragment key={label.castleId}>
-            <span
-              aria-hidden="true"
-              className="realm-castle-label__leader"
-              data-active={leader.displaced ? 'true' : 'false'}
-              data-castle-id={label.castleId}
-              data-realm-label-leader=""
-              hidden={!leader.displaced}
-              style={positionStyle}
-            />
-            <button
-              type="button"
-              aria-label={`Inspect ${profileLabel} castle, ${record.castle.name}, cell ${record.castle.q},${record.castle.r}${own ? ', your castle' : ''}`}
-              aria-controls={inspectorId}
-              aria-expanded={expanded}
-              aria-pressed={selected}
-              className="realm-castle-label"
-              data-castle-id={label.castleId}
-              data-compact={label.compact ? 'true' : 'false'}
-              data-displaced={leader.displaced ? 'true' : 'false'}
-              data-focused={focused ? 'true' : 'false'}
-              data-own={own ? 'true' : 'false'}
-              style={positionStyle}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => onActivate(record.castle)}
-            >
-              {!label.compact ? (
-                <CastleProfileAvatar profile={record.profile} size="normal" />
-              ) : null}
+          <button
+            key={label.castleId}
+            type="button"
+            aria-label={`Inspect ${profileLabel} castle, ${record.castle.name}, cell ${record.castle.q},${record.castle.r}${own ? ', your castle' : ''}`}
+            aria-controls={inspectorId}
+            aria-expanded={expanded}
+            aria-pressed={selected}
+            className="realm-castle-label"
+            data-anchor="foundation-base"
+            data-castle-id={label.castleId}
+            data-compact={label.compact ? 'true' : 'false'}
+            data-displaced="false"
+            data-focused={focused ? 'true' : 'false'}
+            data-own={own ? 'true' : 'false'}
+            style={positionStyle}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => onActivate(record.castle)}
+          >
+            <span className="realm-castle-label__plate">
               <span className="realm-castle-label__identity">{profileLabel}</span>
-            </button>
-          </Fragment>
+            </span>
+          </button>
         );
       })}
       {clusters.map((cluster) => {

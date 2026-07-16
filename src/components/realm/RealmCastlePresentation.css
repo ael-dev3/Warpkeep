@@ -35,36 +35,68 @@
   z-index: 1;
   top: 0;
   left: 0;
-  display: inline-flex;
-  gap: 0.38rem;
-  align-items: center;
+  display: inline-grid;
+  place-items: start center;
   min-width: 2.75rem;
-  max-width: 11.5rem;
+  max-width: 10.5rem;
   min-height: 2.75rem;
   box-sizing: border-box;
-  padding: 0.2rem 0.58rem 0.2rem 0.2rem;
-  overflow: hidden;
-  border: 1px solid rgb(229 193 108 / 56%);
-  border-radius: 999px;
-  background: var(--warpkeep-surface-bg-strong, rgb(9 9 14 / 95%));
-  box-shadow: 0 0.42rem 1.2rem rgb(0 0 0 / 38%), inset 0 1px rgb(255 255 255 / 4%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   color: #fff7e5;
   font: 750 0.8125rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   transform: translate3d(
     var(--realm-castle-label-x),
     var(--realm-castle-label-y),
     0
-  ) translate(-50%, -100%);
+  ) translate(-50%, 0);
   pointer-events: auto;
   cursor: pointer;
   will-change: transform;
 }
 
-.realm-castle-label[data-own="true"] {
-  border-color: rgb(239 203 113 / 88%);
-  background: rgb(64 35 78 / 95%);
+.realm-castle-label__plate {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  max-width: 10.5rem;
+  min-height: 1.5rem;
+  box-sizing: border-box;
+  padding: 0.14rem 0.48rem 0.18rem;
+  overflow: hidden;
+  border: 0;
+  border-left: 1px solid rgb(227 193 112 / 62%);
+  border-bottom: 1px solid rgb(227 193 112 / 14%);
+  border-radius: 0.12rem 0.38rem 0.38rem 0.12rem;
+  background: linear-gradient(
+    90deg,
+    rgb(8 8 13 / 36%) 0%,
+    rgb(13 10 20 / 18%) 58%,
+    rgb(13 10 20 / 0%) 100%
+  );
+  box-shadow: 0 0.2rem 0.5rem rgb(0 0 0 / 15%);
+  backdrop-filter: blur(2px);
+  transition: border-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
+}
+
+.realm-castle-label__plate::after {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0;
+  left: 0.45rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(225 190 105 / 44%), transparent);
+  content: "";
+  pointer-events: none;
+}
+
+.realm-castle-label[data-own="true"] .realm-castle-label__plate {
+  border-left-color: rgb(244 213 134 / 88%);
+  color: #fff3c9;
 }
 
 .realm-castle-label:hover,
@@ -72,7 +104,21 @@
 .realm-castle-label[aria-expanded="true"],
 .realm-castle-label[aria-pressed="true"] {
   z-index: 2;
-  border-color: #f4d586;
+  outline: none;
+}
+
+.realm-castle-label:hover .realm-castle-label__plate,
+.realm-castle-label:focus-visible .realm-castle-label__plate,
+.realm-castle-label[aria-expanded="true"] .realm-castle-label__plate,
+.realm-castle-label[aria-pressed="true"] .realm-castle-label__plate {
+  border-left-color: #f4d586;
+  box-shadow:
+    0 0.34rem 0.9rem rgb(0 0 0 / 30%),
+    0 0 0 1px rgb(244 213 134 / 28%);
+  color: #fff5d3;
+}
+
+.realm-castle-label:focus-visible .realm-castle-label__plate {
   outline: 2px solid #f4d586;
   outline-offset: 2px;
 }
@@ -80,31 +126,38 @@
 .realm-castle-label__identity {
   min-width: 0;
   overflow: hidden;
+  color: inherit;
   font-size: 0.8125rem;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 92%), 0 0 0.45rem rgb(0 0 0 / 72%);
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .realm-castle-label[data-compact="true"] {
   justify-content: center;
-  /* Keep near-limit usernames from consuming several neighboring roof berths.
-     The identity remains complete in the accessible name and inspector while
-     the compact spatial label truncates predictably. */
-  width: 7.75rem;
-  min-width: 7.75rem;
-  max-width: 7.75rem;
-  min-height: 1.875rem;
-  padding: 0.16rem 0.48rem;
+  /* Compact mode only shortens the visible rail; it keeps the exact same
+     foundation anchor and complete accessible username. */
+  width: auto;
+  min-width: 2.75rem;
+  max-width: 7.25rem;
+  min-height: 2.75rem;
+  padding: 0;
   font-size: 0.8125rem;
+}
+
+.realm-castle-label[data-compact="true"] .realm-castle-label__plate {
+  width: auto;
+  max-width: 100%;
+  padding-inline: 0.52rem;
 }
 
 @media (max-width: 680px) {
   .realm-castle-label[data-compact="true"] {
-    /* Twelve-character public handles remain legible at this width while a
-       phone can keep several neighboring identities attached to their roofs. */
-    width: 7.5rem;
-    min-width: 7.5rem;
-    max-width: 7.5rem;
-    padding-inline: 0.4rem;
+    width: auto;
+    min-width: 2.75rem;
+    max-width: 6.75rem;
     font-size: 0.75rem;
   }
 }
@@ -272,7 +325,7 @@
   z-index: 9;
   top: max(0.8rem, env(safe-area-inset-top));
   right: max(0.8rem, env(safe-area-inset-right));
-  width: min(19rem, calc(100vw - 1.6rem));
+  width: min(21.5rem, calc(100vw - 1.6rem));
   max-height: calc(100svh - 1.6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   color: #fff7e5;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
@@ -280,50 +333,126 @@
 
 .castle-inspection__drawer {
   overflow: hidden;
-  border: 1px solid rgb(225 190 105 / 42%);
-  border-radius: var(--warpkeep-surface-radius, 0.65rem);
-  background: var(--warpkeep-surface-bg-strong, rgb(8 9 14 / 96%));
-  box-shadow: var(--warpkeep-surface-shadow, 0 1.1rem 3.6rem rgb(0 0 0 / 44%));
+  border: 1px solid rgb(231 199 121 / 46%);
+  border-radius: 0.88rem;
+  background: var(--warpkeep-surface-bg-strong, rgb(9 9 15 / 98%));
+  box-shadow: var(--warpkeep-surface-shadow, 0 1.25rem 4rem rgb(0 0 0 / 54%));
   backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
-  animation: realm-inspector-enter 170ms ease-out both;
+  animation: realm-inspector-enter 190ms ease-out both;
 }
 
-.castle-inspection__record-heading {
+.castle-inspection__hero {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.08rem 0.55rem;
-  align-items: center;
-  min-height: 3.15rem;
-  padding: 0.55rem 0.62rem;
-  border-bottom: 1px solid rgb(229 193 108 / 18%);
-}
-
-.castle-inspection__record-heading > span {
-  color: #c9a7ea;
-  font-size: 0.6875rem;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-}
-
-.castle-inspection__record-heading > strong {
-  grid-column: 1;
+  min-height: 12.15rem;
+  place-items: end center;
   overflow: hidden;
-  color: #f0d58c;
-  font: 500 0.95rem/1.2 Georgia, "Times New Roman", serif;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 48% 50%, rgb(174 113 210 / 28%), transparent 44%),
+    radial-gradient(circle at 50% 115%, rgb(225 190 105 / 22%), transparent 43%),
+    linear-gradient(165deg, #32223f 0%, #17131f 58%, #0b0b11 100%);
+}
+
+.castle-inspection__hero::after {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 55%;
+  background: linear-gradient(180deg, transparent, rgb(8 8 13 / 88%) 78%, rgb(8 8 13 / 98%));
+  content: "";
+  pointer-events: none;
+}
+
+.castle-inspection__hero-orbit {
+  position: absolute;
+  z-index: -1;
+  top: 1rem;
+  left: 50%;
+  width: 12rem;
+  height: 12rem;
+  border: 1px solid rgb(219 179 239 / 20%);
+  border-radius: 50%;
+  box-shadow: 0 0 2.5rem rgb(147 77 183 / 18%);
+  transform: translateX(-50%);
+}
+
+.castle-inspection__hero-art {
+  position: absolute;
+  z-index: 0;
+  top: -1.05rem;
+  left: 50%;
+  display: block;
+  width: 92%;
+  height: 12.75rem;
+  object-fit: contain;
+  object-position: 50% 38%;
+  filter: drop-shadow(0 0.72rem 0.82rem rgb(0 0 0 / 58%));
+  transform: translateX(-50%);
+  pointer-events: none;
+  user-select: none;
+}
+
+.castle-inspection__title-lockup {
+  position: relative;
+  z-index: 2;
+  width: calc(100% - 2rem);
+  min-width: 0;
+  padding: 0 0 0.68rem;
+  text-align: center;
+}
+
+.castle-inspection__title-lockup::before {
+  display: block;
+  width: min(12rem, 70%);
+  height: 1px;
+  margin: 0 auto 0.38rem;
+  background: linear-gradient(90deg, transparent, rgb(231 199 121 / 68%), transparent);
+  content: "";
+}
+
+.castle-inspection__title-lockup p,
+.castle-inspection__title-lockup h2 {
+  margin: 0;
+}
+
+.castle-inspection__title-lockup p {
+  color: #c9a7ea;
+  font-size: 0.6rem;
+  font-weight: 820;
+  letter-spacing: 0.16em;
+}
+
+.castle-inspection__title-lockup h2 {
+  overflow: hidden;
+  color: #f5dfaa;
+  font: 500 1.42rem/1.14 Georgia, "Times New Roman", serif;
+  letter-spacing: 0.025em;
   text-overflow: ellipsis;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 74%);
   white-space: nowrap;
 }
 
 .castle-inspection__dismiss {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  min-width: 6.75rem;
+  position: absolute;
+  z-index: 4;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: grid;
+  width: 2.75rem;
+  min-width: 2.75rem;
   min-height: 2.75rem;
-  border: 1px solid rgb(225 190 105 / 42%);
-  border-radius: 0.38rem;
-  background: rgb(73 39 89 / 86%);
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgb(238 210 145 / 38%);
+  border-radius: 50%;
+  background: rgb(10 9 15 / 62%);
+  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 26%);
   color: #fff7e5;
-  font: 700 0.75rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  font: 400 1.5rem/1 Georgia, "Times New Roman", serif;
+  backdrop-filter: blur(6px);
   cursor: pointer;
 }
 
@@ -335,49 +464,53 @@
 }
 
 .castle-inspection__body {
-  max-height: calc(100svh - 6.4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-  padding: 0.3rem 0.72rem 0.72rem;
+  max-height: calc(100svh - 14.8rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding: 0 0.82rem 0.82rem;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
 .castle-inspection__identity {
-  display: flex;
-  gap: 0.62rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.66rem;
   align-items: center;
   min-width: 0;
-  padding: 0.55rem 0;
+  padding: 0.7rem 0 0.64rem;
   border-bottom: 1px solid rgb(229 193 108 / 14%);
 }
 
-.castle-inspection__identity > div {
+.castle-inspection__identity-copy {
   min-width: 0;
 }
 
-.castle-inspection__identity p,
-.castle-inspection__identity h2,
-.castle-inspection__identity span {
+.castle-inspection__identity-copy p,
+.castle-inspection__identity-copy strong,
+.castle-inspection__identity-copy span {
   display: block;
   margin: 0;
 }
 
-.castle-inspection__identity p {
+.castle-inspection__identity-copy p {
   color: #c9a7ea;
-  font-size: 0.6875rem;
+  font-size: 0.6rem;
   font-weight: 800;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.14em;
 }
 
-.castle-inspection__identity h2 {
+.castle-inspection__identity-copy strong {
+  display: block;
   overflow: hidden;
   color: #fff7e5;
-  font: 500 1.2rem/1.2 Georgia, "Times New Roman", serif;
+  font-size: 0.95rem;
+  font-weight: 760;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.castle-inspection__identity span,
+.castle-inspection__identity-copy span,
 .castle-inspection__bio {
   color: #c9bfd0;
   font-size: 0.8125rem;
@@ -386,19 +519,30 @@
 }
 
 .castle-inspection__bio {
-  margin: 0.58rem 0 0;
+  margin: 0.62rem 0 0;
+  padding: 0.52rem 0.6rem;
+  border-left: 1px solid rgb(201 167 234 / 42%);
+  background: linear-gradient(90deg, rgb(91 50 112 / 18%), transparent);
 }
 
 .castle-inspection__profile-link {
-  display: inline-flex;
+  display: grid;
+  width: 2.75rem;
+  min-width: 2.75rem;
   min-height: 2.75rem;
-  align-items: center;
+  place-items: center;
+  border: 1px solid rgb(201 167 234 / 38%);
+  border-radius: 50%;
+  background: rgb(104 54 129 / 22%);
   color: #f0d58c;
-  font-size: 0.8125rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 800;
+  text-decoration: none;
 }
 
+.castle-inspection__profile-link:hover,
 .castle-inspection__profile-link:focus-visible {
+  border-color: #f0d58c;
   outline: 2px solid #f0d58c;
   outline-offset: 2px;
 }
@@ -406,14 +550,18 @@
 .castle-inspection__fields {
   display: grid;
   gap: 0;
-  margin: 0.25rem 0 0;
+  margin: 0.55rem 0 0;
+  padding: 0 0.62rem;
+  border: 1px solid rgb(229 193 108 / 14%);
+  border-radius: 0.48rem;
+  background: rgb(255 248 228 / 3.5%);
 }
 
 .castle-inspection__field {
   display: grid;
-  grid-template-columns: minmax(6rem, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(6.25rem, 0.82fr) minmax(0, 1.18fr);
   gap: 0.55rem;
-  padding: 0.34rem 0;
+  padding: 0.43rem 0;
   border-bottom: 1px solid rgb(235 215 164 / 10%);
   font-size: 0.8125rem;
   line-height: 1.35;
@@ -432,17 +580,21 @@
 }
 
 .castle-inspection__marks {
-  margin-top: 0.58rem;
-  padding-top: 0.48rem;
-  border-top: 1px solid rgb(236 205 124 / 18%);
+  margin-top: 0.62rem;
+  padding-top: 0.58rem;
+  border-top: 1px solid rgb(236 205 124 / 20%);
 }
 
 .castle-inspection__marks h3 {
   margin: 0;
   color: #c9a7ea;
-  font-size: 0.6875rem;
+  font-size: 0.625rem;
   font-weight: 800;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.12em;
+}
+
+.castle-inspection__marks .castle-inspection__fields {
+  margin-top: 0.4rem;
 }
 
 @keyframes realm-inspector-enter {
@@ -463,22 +615,25 @@
     bottom: max(0.55rem, env(safe-area-inset-bottom));
     left: max(0.55rem, env(safe-area-inset-left));
     width: auto;
-    max-height: min(68svh, 31rem);
+    max-height: min(78svh, 36rem);
   }
 
   .castle-inspection__drawer {
+    max-height: inherit;
     animation-name: realm-inspector-sheet-enter;
   }
 
-  .castle-inspection__body {
-    max-height: min(56svh, 25rem);
+  .castle-inspection__hero {
+    min-height: 10.25rem;
   }
 
-  .castle-inspection__record-heading {
-    position: sticky;
-    z-index: 2;
-    top: 0;
-    background: var(--warpkeep-surface-bg-strong, rgb(8 9 14 / 98%));
+  .castle-inspection__hero-art {
+    top: -0.8rem;
+    height: 10.9rem;
+  }
+
+  .castle-inspection__body {
+    max-height: min(calc(78svh - 10.25rem), 25.75rem);
   }
 }
 
@@ -488,7 +643,7 @@
     right: max(0.55rem, env(safe-area-inset-right));
     bottom: max(0.45rem, env(safe-area-inset-bottom));
     left: auto;
-    width: min(18rem, 43vw);
+    width: min(19.5rem, 43vw);
     max-height: none;
   }
 
@@ -498,7 +653,24 @@
   }
 
   .castle-inspection__body {
-    max-height: calc(100svh - 4.8rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100svh - 8.7rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+
+  .castle-inspection__hero {
+    min-height: 7.8rem;
+  }
+
+  .castle-inspection__hero-art {
+    top: -0.9rem;
+    height: 8.55rem;
+  }
+
+  .castle-inspection__title-lockup {
+    padding-bottom: 0.45rem;
+  }
+
+  .castle-inspection__title-lockup h2 {
+    font-size: 1.15rem;
   }
 }
 

@@ -222,7 +222,7 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(screen.getByText('A')).not.toBeNull();
   });
 
-  it('upgrades a blank founder label to a trusted profile and keeps a dignified image fallback', () => {
+  it('upgrades a foundation nameplate without putting a portrait or leader into the world layer', () => {
     const label = {
       castleId: 7,
       q: 1,
@@ -259,8 +259,14 @@ describe('realm profile and PFP presentation regressions', () => {
     let button = screen.getByRole('button', {
       name: 'Inspect Hegemony Keep castle, Fixture Keep, cell 1,-1, your castle'
     });
+    expect(button.dataset.anchor).toBe('foundation-base');
+    expect(button.dataset.displaced).toBe('false');
     expect(button.querySelector('img')).toBeNull();
-    expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('W');
+    expect(button.querySelector('canvas')).toBeNull();
+    expect(button.querySelector('.realm-castle-avatar')).toBeNull();
+    expect(button.querySelector('.realm-castle-label__plate')?.textContent)
+      .toBe('Hegemony Keep');
+    expect(document.querySelector('[data-realm-label-leader]')).toBeNull();
     expect(button.dataset.focused).toBe('true');
 
     const trusted = profile({
@@ -274,15 +280,10 @@ describe('realm profile and PFP presentation regressions', () => {
     });
     expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
     expect(button.querySelector('img')).toBeNull();
-    expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('F');
-    expect(mockProfileImages).toHaveLength(1);
-    expect(mockProfileImages[0].requestedUrl).toBe('https://profiles.example/fixturekeeper.png');
-    expect(mockProfileImages[0].referrerPolicyAtRequest).toBe('no-referrer');
-
-    act(() => mockProfileImages[0].finishLoad());
-    expect(button.querySelector('canvas')?.style.display).toBe('block');
-    expect(button.querySelector('.realm-castle-avatar')?.textContent).toBe('');
-    expect(button.querySelector('.realm-castle-avatar')?.textContent).not.toMatch(/[0-9]/);
+    expect(button.querySelector('canvas')).toBeNull();
+    expect(button.querySelector('.realm-castle-avatar')).toBeNull();
+    expect(document.querySelector('[data-realm-label-leader]')).toBeNull();
+    expect(mockProfileImages).toHaveLength(0);
     expect(within(button).getByText('@fixturekeeper')).not.toBeNull();
   });
 
@@ -323,12 +324,14 @@ describe('realm profile and PFP presentation regressions', () => {
       name: `Inspect @${canonicalUsername} castle, Fixture Keep, cell 1,-1`
     });
     expect(canonicalUsername).toHaveLength(64);
+    expect(label.dataset.anchor).toBe('foundation-base');
     expect(label.dataset.compact).toBe('true');
+    expect(label.querySelector('.realm-castle-label__plate')).not.toBeNull();
     expect(label.querySelector('.realm-castle-label__identity')?.textContent)
       .toBe(`@${canonicalUsername}`);
   });
 
-  it('exposes a synthetic-safe displacement marker and only shows a decorative roof leader when needed', () => {
+  it('keeps x/y locked to the projected foundation base without a displacement leader', () => {
     const castle = {
       castleId: 7,
       ownerFid: 7_001,
@@ -337,18 +340,18 @@ describe('realm profile and PFP presentation regressions', () => {
       level: 1,
       name: 'Fixture Keep'
     } as const;
-    const renderLabel = (y: number, projectedY: number) => (
+    const renderLabel = (x: number, y: number) => (
       <RealmCastleLabels
         labels={[{
           castleId: 7,
           q: 1,
           r: -1,
-          x: 180,
+          x,
           y,
           distance: 2,
           visible: true,
           compact: true,
-          projectedAnchor: { x: 180, y: projectedY }
+          projectedAnchor: { x, y }
         }]}
         records={new Map([[7, {
           castle,
@@ -359,25 +362,28 @@ describe('realm profile and PFP presentation regressions', () => {
         onActivate={vi.fn()}
       />
     );
-    const { container, rerender } = render(renderLabel(90, 140));
+    const { container, rerender } = render(renderLabel(180, 140));
     let button = screen.getByRole('button', { name: /Inspect @fixturekeeper castle/i });
-    let leader = container.querySelector<HTMLElement>('[data-realm-label-leader]');
 
-    expect(button.dataset.displaced).toBe('true');
+    expect(button.dataset.anchor).toBe('foundation-base');
+    expect(button.dataset.displaced).toBe('false');
+    expect(button.style.getPropertyValue('--realm-castle-label-x')).toBe('180px');
+    expect(button.style.getPropertyValue('--realm-castle-label-y')).toBe('140px');
     expect(button.style.getPropertyValue('--realm-castle-anchor-x')).toBe('180px');
     expect(button.style.getPropertyValue('--realm-castle-anchor-y')).toBe('140px');
-    expect(leader?.dataset.active).toBe('true');
-    expect(leader?.hidden).toBe(false);
-    expect(leader?.getAttribute('aria-hidden')).toBe('true');
-    expect(leader?.textContent).toBe('');
-    expect(leader?.style.getPropertyValue('--realm-castle-leader-length')).toBe('50px');
+    expect(container.querySelector('[data-realm-label-leader]')).toBeNull();
+    expect(button.querySelector('.realm-castle-avatar')).toBeNull();
 
-    rerender(renderLabel(140, 140));
+    rerender(renderLabel(192, 155));
     button = screen.getByRole('button', { name: /Inspect @fixturekeeper castle/i });
-    leader = container.querySelector<HTMLElement>('[data-realm-label-leader]');
+    expect(button.style.getPropertyValue('--realm-castle-label-x')).toBe('192px');
+    expect(button.style.getPropertyValue('--realm-castle-label-y')).toBe('155px');
+    expect(button.style.getPropertyValue('--realm-castle-label-x'))
+      .toBe(button.style.getPropertyValue('--realm-castle-anchor-x'));
+    expect(button.style.getPropertyValue('--realm-castle-label-y'))
+      .toBe(button.style.getPropertyValue('--realm-castle-anchor-y'));
     expect(button.dataset.displaced).toBe('false');
-    expect(leader?.dataset.active).toBe('false');
-    expect(leader?.hidden).toBe(true);
+    expect(container.querySelector('[data-realm-label-leader]')).toBeNull();
   });
 
   it.each([
