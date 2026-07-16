@@ -99,7 +99,14 @@
                 <strong>Browser and session security:</strong> Warpkeep uses an origin, challenge
                 timestamps, a one-attempt browser-binding digest, an opaque session-family
                 reference, remember-device choice, rotation state, and admission epoch to prevent
-                replay and maintain the session you request.
+                replay and maintain the session you request. After a fresh signature and a
+                same-FID bridge exchange, the browser may keep a tab-scoped presentation cache in
+                <code>sessionStorage</code>. It contains only the sanitized public FID, username,
+                display name, and HTTPS avatar URL. It cannot grant or restore access and is read
+                only after a successful bridge refresh, then displayed only for the exact same
+                FID. It never contains a proof, token, JWT, cookie, custody or verification
+                address, or verification data. If storage is unavailable, Warpkeep shows the
+                verified FID without cached presentation.
               </li>
               <li>
                 <strong>Server-to-server admission resolution:</strong> during proof exchange and
@@ -216,6 +223,10 @@
                   <tr>
                     <td>Server session family and HttpOnly cookie</td>
                     <td>Authority expires after at most thirty days. The cookie is a browser-session cookie unless you opt into “Keep me signed in”; server authority still expires after thirty days either way. Expiry makes the family unusable and schedules durable cleanup, subject to provider cleanup and backup retention.</td>
+                  </tr>
+                  <tr>
+                    <td>Tab-scoped Farcaster presentation cache</td>
+                    <td>Expires no later than the related server family and never after thirty days; <code>sessionStorage</code> normally clears when the tab closes. Warpkeep purges corrupt, expired, or FID-mismatched data when it is next examined after a validated refresh, and clears it immediately on sign-out or cross-tab logout. Storage denial leaves FID-only presentation.</td>
                   </tr>
                   <tr>
                     <td>Local logout-intent marker</td>
