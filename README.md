@@ -24,27 +24,30 @@ foundation, not a claim that resources, upgrades, units, combat, alliances,
 chat, or seasons are playable yet.
 
 Alpha 0.3.5 replaces the Alpha 0.3.4 castle LOD binaries with the exact
-owner-approved GameReady High, Balanced, and Compact family. High accepts a
-modest close-detail cost; Balanced and Compact reduce transfer and geometry,
-and Compact retains its intentionally shorter authored proportions. This is a
+owner-approved GameReady High, Balanced, and Compact family and pairs each tier
+with its exact GameReady landscape base. High accepts a modest close-detail
+cost; Balanced and Compact reduce transfer and geometry, and Compact retains
+its intentionally shorter authored proportions. The castle and its island,
+road, vegetation, and below-ground skirt move as one assembly; the base is never
+independently normalized or grounded. The authored landscape replaces the old
+synthetic contact-shadow layer when the complete family is ready. This is a
 geometry and encoding refresh, not a claim that the models themselves are
 brighter. Direct usernames now remain on slim, deterministic rails at the
 castle foundation instead of receiving individual displacement or leader
 lines. Selection opens a responsive castle record built only from sanitized
 public Farcaster and existing Realm fields, a safe portrait fallback, and one
 same-origin background-cleaned decorative asset with exact provenance. The
-patch retains one exact Genesis 001 snapshot, shared instancing, uniform
-footprint normalization, safe-area-aware UI and camera composition, and bounded
-public profile presentation. It preserves the authentication, protocol, Terms,
-admission, world, castle, wallet, and Marks authority boundaries. The protected
-Pages workflow and exact build stamp remain the source of truth for the public
-deployment coordinate.
+patch retains one exact Genesis 001 snapshot, shared instancing, safe-area-aware
+UI and camera composition, and bounded public profile presentation. It
+preserves the authentication, protocol, Terms, admission, world, castle,
+wallet, and Marks authority boundaries. The protected Pages workflow and exact
+build stamp remain the source of truth for the public deployment coordinate.
 
 ## Alpha 0.3.5 foundation
 
 - Standard website SIWF with an independently verifying Cloudflare Worker and short-lived OIDC handoff.
 - Server-authoritative SpacetimeDB module with private admission/auth-epoch controls and public world/player/castle boundaries.
-- 1,261 authoritative Lowlands cells, 100 close-outward permanent castle slots, and shared real-castle LOD rendering for founded keeps.
+- 1,261 authoritative Lowlands cells, 100 close-outward permanent castle slots, and shared real-castle-plus-landscape LOD rendering for founded keeps.
 - Foundation-bound public username rails and a responsive selected-castle record using only sanitized Farcaster presentation and existing public Realm fields.
 - Cinematic, balanced, and performance profiles shared by the title and realm; normal modern phones default to balanced.
 - Exact build identity, fail-closed configuration, reduced-motion behavior, keyboard/touch controls, and non-WebGL/model fallbacks.
@@ -116,6 +119,13 @@ grant, or trademark grant. See the [castle provenance index](docs/reference/cast
 The same index records the exact background-cleaned decorative WebP used only
 inside the castle record; its project-internal authorization does not establish
 a public open-content licence or broader derivative/redistribution rights.
+It also records the separate three-tier GameReady landscape-base package. Use
+`WARPKEEP_CASTLE_BASE_GAMEREADY_ROOT` with
+`npm run prepare:hegemony-castle-base` only against the exact authorized
+package. The base must inherit the castle's exact parent transform and must not
+be independently centered, normalized, grounded, or scaled. Its narrow PR #40
+integration and metadata-correction authorization likewise grants no public
+open licence or general redistribution/derivative authority.
 
 ## Documentation
 

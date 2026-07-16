@@ -1,0 +1,325 @@
+{
+  "archive": "warpkeep-hegemony-castle-landscape-base-gameready-2026-07-16",
+  "recordedAt": "2026-07-16",
+  "purpose": "Exact owner-supplied GameReady landscape-base input, bounded metadata correction, and active Warpkeep runtime record",
+  "package": {
+    "schema": "warpkeep.asset-package.v1",
+    "assetId": "warpkeep.castle-landscape-base",
+    "name": "Warpkeep Castle Landscape Base",
+    "version": "1.0.0",
+    "created": "2026-07-16",
+    "locationPolicy": "machine-local source paths are not provenance; exact package-relative paths, bytes, and hashes are authoritative",
+    "records": [
+      {
+        "path": "asset-manifest.json",
+        "bytes": 2177,
+        "sha256": "106d64f5eaf91332acc83c18d5abbd9ad230b17eb4c9ffee1231ecf7d595d3f5"
+      },
+      {
+        "path": "README.md",
+        "bytes": 2720,
+        "sha256": "b4d5b39bdb0f33eda0c183e0b071c6483befc850cea5c0131abec7384556c8c9"
+      },
+      {
+        "path": "QA/Warpkeep_Castle_LandscapeBase_BuildManifest.json",
+        "bytes": 3003,
+        "sha256": "3a935a9a65eb3a65610946eb5d5ae5c24b564f235990876bbe780ad21fb1be70"
+      },
+      {
+        "path": "QA/Warpkeep_Castle_LandscapeBase_RuntimeGeometry.json",
+        "bytes": 2387,
+        "sha256": "6e6f77378f9f8c6dd2403c8e00abcbee32c99b5c7444e755329fbf1a2f44af03"
+      },
+      {
+        "path": "QA/Warpkeep_Castle_LandscapeBase_CleanImport.json",
+        "bytes": 548,
+        "sha256": "c436bbac9b6d59fc2c4976a9c59510074e64fb78c156b0c9b582d73276974436"
+      }
+    ],
+    "excludedFromRepository": [
+      "Source/Warpkeep_Castle_LandscapeBase_Source.blend",
+      "Source/Textures/**",
+      "Source/Tools/**",
+      "Previews/**",
+      "QA/**",
+      ".DS_Store"
+    ],
+    "sourceAuthoringRecord": {
+      "path": "Source/Warpkeep_Castle_LandscapeBase_Source.blend",
+      "bytes": 6324803,
+      "sha256": "1bddfb311e0992039455ab19694059fdaa94247294d6bd7970d555ca2523725c",
+      "status": "package evidence only; not committed or served"
+    }
+  },
+  "projectAuthorization": {
+    "recordedAt": "2026-07-16",
+    "authorizedBy": "Warpkeep project owner",
+    "scope": [
+      "project-internal Warpkeep runtime integration of the exact three GameReady landscape-base inputs under Hegemony castles in PR #40",
+      "bounded deterministic atlas-metadata correction for the Balanced and Compact inputs"
+    ],
+    "licenseExpression": "LicenseRef-Warpkeep-Provenance-Required",
+    "notGranted": [
+      "separate public open license",
+      "CC-BY-4.0 or Apache-2.0 relicensing of the inputs or outputs",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "permission to substitute same-named files"
+    ]
+  },
+  "attachmentContract": {
+    "up": "+Y",
+    "castleGroundPlane": 0,
+    "roadFacing": "+Z",
+    "transform": "copy the exact castle parent position, quaternion, and uniform scale",
+    "independentCentering": false,
+    "independentNormalization": false,
+    "independentGrounding": false,
+    "independentScaling": false,
+    "belowGroundSkirtIntentional": true,
+    "castleOwnsLodAndCameraMetrics": true,
+    "compositeBoundsUse": "conservative rendering and culling only",
+    "normalizedApproximateBounds": {
+      "sizeX": 2.056,
+      "sizeY": 0.259,
+      "sizeZ": 1.705,
+      "minY": -0.049
+    },
+    "terrainFoundationBlendRadiiUnchanged": [0.62, 0.78],
+    "decorationClearanceRadius": 1.08
+  },
+  "inputContract": {
+    "regularFilesOnly": true,
+    "symlinksRejected": true,
+    "ancestorSymlinksRejected": true,
+    "trustedExclusiveLocalPathsRequired": true,
+    "concurrentAncestorSwapSupported": false,
+    "commonGltf": {
+      "container": "GLB",
+      "version": 2,
+      "generator": "glTF-Transform v4.4.1",
+      "scenes": 1,
+      "nodes": 1,
+      "meshes": 1,
+      "primitives": 1,
+      "materials": 1,
+      "images": 2,
+      "animations": 0,
+      "imageFormat": "WebP",
+      "positionComponentType": 5122,
+      "positionNormalized": true,
+      "indexComponentType": 5123,
+      "extensionsRequired": [
+        "EXT_meshopt_compression",
+        "EXT_texture_webp",
+        "KHR_mesh_quantization"
+      ],
+      "extensionsOptional": [
+        "KHR_materials_specular"
+      ]
+    },
+    "profiles": {
+      "high": {
+        "path": "Runtime/Warpkeep_Castle_LandscapeBase_LOD0_High_Runtime.glb",
+        "bytes": 214372,
+        "sha256": "be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c",
+        "triangles": 3954,
+        "positionEntries": 10681,
+        "actualAtlasSize": 1024,
+        "materialAtlasMetadata": 1024,
+        "nodeName": "WK_Castle_LandscapeBase_LOD0_High",
+        "nodeTranslation": [0.1762232780456543, 0.7211456596851349, 0.4222433567047119],
+        "nodeScale": [9.26375150680542, 9.26375150680542, 9.26375150680542],
+        "positionBounds": {
+          "min": [-32767, -4124, -27179],
+          "max": [32767, 4124, 27179]
+        },
+        "resolvedBounds": {
+          "min": [-9.087528229, -0.444774663, -7.261691767],
+          "max": [9.439974785, 1.887065982, 8.106178481]
+        }
+      },
+      "balanced": {
+        "path": "Runtime/Warpkeep_Castle_LandscapeBase_LOD1_Balanced_Runtime.glb",
+        "bytes": 92792,
+        "sha256": "5f4e3c52336c78414b5370b63a5e4b924a773297092430eb6f4773bc094eb5cf",
+        "triangles": 2138,
+        "positionEntries": 5611,
+        "actualAtlasSize": 512,
+        "materialAtlasMetadata": 1024,
+        "nodeName": "WK_Castle_LandscapeBase_LOD1_Balanced",
+        "nodeTranslation": [0.1762232780456543, 0.7211456596851349, 0.4222433567047119],
+        "nodeScale": [9.26375150680542, 9.26375150680542, 9.26375150680542],
+        "positionBounds": {
+          "min": [-32767, -4124, -27179],
+          "max": [32767, 4124, 27179]
+        },
+        "resolvedBounds": {
+          "min": [-9.087528229, -0.444774663, -7.261691767],
+          "max": [9.439974785, 1.887065982, 8.106178481]
+        }
+      },
+      "compact": {
+        "path": "Runtime/Warpkeep_Castle_LandscapeBase_LOD2_Compact_Runtime.glb",
+        "bytes": 27336,
+        "sha256": "ebaf6c6cef216b92de86aa49ea2d612d63227210858b7427fa0c7e97a81323dc",
+        "triangles": 714,
+        "positionEntries": 1780,
+        "actualAtlasSize": 256,
+        "materialAtlasMetadata": 1024,
+        "nodeName": "WK_Castle_LandscapeBase_LOD2_Compact",
+        "nodeTranslation": [0.1762232780456543, 0.7025456726551056, 0.4222433567047119],
+        "nodeScale": [9.26375150680542, 9.26375150680542, 9.26375150680542],
+        "positionBounds": {
+          "min": [-32767, -4060, -27179],
+          "max": [32767, 4060, 27179]
+        },
+        "resolvedBounds": {
+          "min": [-9.087528229, -0.445280833, -7.261691767],
+          "max": [9.439974785, 1.850372179, 8.106178481]
+        }
+      }
+    }
+  },
+  "metadataCorrection": {
+    "helper": "scripts/rewrite-embedded-webp-glb.mjs#rewriteEmbeddedWebpGlb",
+    "scope": "material extras atlas-size metadata plus necessary GLB JSON/BIN padding and offset repacking",
+    "geometryPayloadBytesPreserved": true,
+    "embeddedImagePayloadBytesPreserved": true,
+    "imageResizeOrTranscode": false,
+    "brightnessOrColorChange": false,
+    "profiles": {
+      "high": {
+        "action": "copy-byte-for-byte",
+        "atlasMetadataBefore": 1024,
+        "atlasMetadataAfter": 1024
+      },
+      "balanced": {
+        "action": "normalize-metadata",
+        "atlasMetadataBefore": 1024,
+        "atlasMetadataAfter": 512
+      },
+      "compact": {
+        "action": "normalize-metadata",
+        "atlasMetadataBefore": 1024,
+        "atlasMetadataAfter": 256
+      }
+    }
+  },
+  "runtimeOutputs": {
+    "browserRuntime": "checked-in outputs only; the supplied package is never a runtime CDN",
+    "installer": "scripts/install-hegemony-gameready-castle-base.mjs",
+    "installTransaction": "preflight complete family and existing destination bytes; stage and verify on destination filesystem; atomically replace each output; verify exact installed bytes; roll back complete family on caught in-process failure",
+    "automaticCrashRecovery": false,
+    "staleTransactionPolicy": "installer, runtime verifier, and production build fail closed; explicit operator recovery is required after process termination, kernel failure, or power loss",
+    "mixedFamilyPolicy": "exact runtime verification and the production build fail closed",
+    "sourceRootEnvironmentVariable": "WARPKEEP_CASTLE_BASE_GAMEREADY_ROOT",
+    "verificationScript": "scripts/verify-runtime-assets.mjs",
+    "totalBytes": 334484,
+    "profiles": {
+      "high": {
+        "path": "public/models/hegemony/hegemony-castle-landscape-base-high.glb",
+        "bytes": 214372,
+        "sha256": "be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c",
+        "triangles": 3954,
+        "positionEntries": 10681,
+        "indexComponentType": 5123,
+        "materialAtlasSize": 1024,
+        "embeddedImages": [
+          {
+            "role": "normal",
+            "bytes": 95098,
+            "sha256": "ee821457dcc3efba733e9176dac35f4bd07916c1f613a89175788f9b2817181d",
+            "width": 1024,
+            "height": 1024
+          },
+          {
+            "role": "baseColor",
+            "bytes": 29586,
+            "sha256": "92918cb1e221b75ee11af809b1e99b3fb5f60b4342f0dbea68b65135e241dc65",
+            "width": 1024,
+            "height": 1024
+          }
+        ]
+      },
+      "balanced": {
+        "path": "public/models/hegemony/hegemony-castle-landscape-base-balanced.glb",
+        "bytes": 92784,
+        "sha256": "179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f",
+        "triangles": 2138,
+        "positionEntries": 5611,
+        "indexComponentType": 5123,
+        "materialAtlasSize": 512,
+        "embeddedImages": [
+          {
+            "role": "normal",
+            "bytes": 29544,
+            "sha256": "439351b1cc2f84f988bfeb5b492a9c6652c74741bed29ce17fd7e45c222f99f0",
+            "width": 512,
+            "height": 512
+          },
+          {
+            "role": "baseColor",
+            "bytes": 10130,
+            "sha256": "3714349aed5b0f7225807674f4719a79f5fd09e25a5cb108f5cc46a4767dc86f",
+            "width": 512,
+            "height": 512
+          }
+        ]
+      },
+      "compact": {
+        "path": "public/models/hegemony/hegemony-castle-landscape-base-compact.glb",
+        "bytes": 27328,
+        "sha256": "f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3",
+        "triangles": 714,
+        "positionEntries": 1780,
+        "indexComponentType": 5123,
+        "materialAtlasSize": 256,
+        "embeddedImages": [
+          {
+            "role": "normal",
+            "bytes": 2900,
+            "sha256": "39bb781d03fe4f134532846750e7f387891c053703e90ce28e150d5a568ef29f",
+            "width": 256,
+            "height": 256
+          },
+          {
+            "role": "baseColor",
+            "bytes": 2460,
+            "sha256": "80d914be77fd5dde0fc330091ae35d366a6497d1982f1b75dc7b43920526924d",
+            "width": 256,
+            "height": 256
+          }
+        ]
+      }
+    }
+  },
+  "rendererContract": {
+    "oldSyntheticContactShadowSuppressedWhenCompleteFamilyReady": true,
+    "basePicking": "compare nearest valid castle-geometry and simple non-rendered base-collider hits; never raycast decorative base triangles",
+    "modelReadiness": "presented castle and presented base counts must match",
+    "failureMode": "fail the complete castle-plus-base assembly closed to the canonical illustrated Realm fallback"
+  },
+  "budgets": {
+    "combinedCastleAndBaseRuntimeBytes": 3896872,
+    "decodedBaseImageBytesBeforeMipmapsApprox": 11010048,
+    "sharedPerLodNotPerCastle": true,
+    "profilesAt100Castles": {
+      "high": {
+        "addedBaseTriangles": 131496,
+        "combinedTriangleCeiling": 2667272,
+        "addedInstancedModelDraws": 3
+      },
+      "balanced": {
+        "addedBaseTriangles": 105576,
+        "combinedTriangleCeiling": 2196408,
+        "addedInstancedModelDraws": 2
+      },
+      "reduced": {
+        "addedBaseTriangles": 71400,
+        "combinedTriangleCeiling": 1794600,
+        "addedInstancedModelDraws": 1
+      }
+    }
+  }
+}

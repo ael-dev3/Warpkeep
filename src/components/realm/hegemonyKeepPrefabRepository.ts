@@ -2,12 +2,13 @@ import * as THREE from 'three';
 
 import {
   disposeRealmObject,
-  loadHegemonyKeep,
   type HegemonyKeepLoadResult
 } from './loadHegemonyKeep';
+import { loadHegemonyCastleAssembly } from './loadHegemonyCastleAssembly';
 import { REALM_QUALITY_SPECS } from './realmQuality';
 import type { CastleLod } from './castleInstancePlanning';
 import {
+  createCastleBoundsProjectionEnvelope,
   deriveCastleProjectionEnvelope,
   type RealmCastleProjectionEnvelope
 } from './realmCastleProjectionGeometry';
@@ -23,6 +24,8 @@ export type HegemonyKeepPrefabPrimitive = Readonly<{
   /** Column-major Matrix4 elements relative to the normalized prefab root. */
   localMatrixElements: readonly number[];
   sourceMeshName: string;
+  /** Omitted custom/test primitives are treated as castle geometry. */
+  role?: 'castle' | 'landscape-base';
 }>;
 
 export type HegemonyKeepPrefab = Readonly<{
@@ -32,6 +35,11 @@ export type HegemonyKeepPrefab = Readonly<{
   visualHeight: number;
   /** Immutable, bounded geometry used for honest screen-space occlusion. */
   projectionEnvelope: RealmCastleProjectionEnvelope;
+  /** Castle plus authored landscape geometry used for conservative occupancy. */
+  renderProjectionEnvelope: RealmCastleProjectionEnvelope;
+  /** Exact authored base geometry used to derive the simple oval pick volume. */
+  landscapeBaseProjectionEnvelope?: RealmCastleProjectionEnvelope;
+  landscapeBasePrimitiveCount: number;
   /**
    * Immutable prefab description. Geometry, materials, and their textures are
    * shared repository resources and must only be used to create render nodes.
@@ -99,7 +107,7 @@ function createDefaultLoader(
   baseUrl: string,
   maxAnisotropy: number
 ): HegemonyKeepPrefabLoader {
-  return (lod) => loadHegemonyKeep({
+  return (lod) => loadHegemonyCastleAssembly({
     quality: qualityForLod(lod),
     baseUrl,
     maxAnisotropy
@@ -119,6 +127,20 @@ function collectMaterialTextures(
       });
     }
   }
+}
+
+function unionProjectionEnvelopes(
+  castle: RealmCastleProjectionEnvelope,
+  landscapeBase: RealmCastleProjectionEnvelope
+) {
+  return createCastleBoundsProjectionEnvelope({
+    minX: Math.min(castle.localBounds.minX, landscapeBase.localBounds.minX),
+    minY: Math.min(castle.localBounds.minY, landscapeBase.localBounds.minY),
+    minZ: Math.min(castle.localBounds.minZ, landscapeBase.localBounds.minZ),
+    maxX: Math.max(castle.localBounds.maxX, landscapeBase.localBounds.maxX),
+    maxY: Math.max(castle.localBounds.maxY, landscapeBase.localBounds.maxY),
+    maxZ: Math.max(castle.localBounds.maxZ, landscapeBase.localBounds.maxZ)
+  });
 }
 
 function createInternalPrefab(
@@ -148,16 +170,32 @@ function createInternalPrefab(
       geometry: object.geometry,
       materials,
       localMatrixElements: Object.freeze([...localMatrix.elements]),
-      sourceMeshName: object.name
+      sourceMeshName: object.name,
+      role: object.userData.warpkeepPrefabRole === 'landscape-base'
+        ? 'landscape-base'
+        : 'castle'
     }));
   });
 
   if (primitives.length === 0) {
     throw new Error(`Hegemony keep ${lod} prefab contains no renderable meshes.`);
   }
-  const projectionEnvelope = deriveCastleProjectionEnvelope(primitives);
+  const castlePrimitives = primitives.filter((primitive) => primitive.role !== 'landscape-base');
+  const landscapeBasePrimitives = primitives.filter((primitive) => (
+    primitive.role === 'landscape-base'
+  ));
+  const projectionEnvelope = deriveCastleProjectionEnvelope(castlePrimitives);
   if (!projectionEnvelope) {
     throw new Error(`Hegemony keep ${lod} prefab has no valid projection bounds.`);
+  }
+  const landscapeBaseProjectionEnvelope = deriveCastleProjectionEnvelope(
+    landscapeBasePrimitives
+  ) ?? undefined;
+  const renderProjectionEnvelope = landscapeBaseProjectionEnvelope
+    ? unionProjectionEnvelopes(projectionEnvelope, landscapeBaseProjectionEnvelope)
+    : projectionEnvelope;
+  if (!renderProjectionEnvelope) {
+    throw new Error(`Hegemony keep ${lod} prefab has no valid render bounds.`);
   }
   if (
     !Number.isFinite(loaded.visualHeight)
@@ -175,6 +213,9 @@ function createInternalPrefab(
       footprintDiameter: loaded.footprintDiameter,
       visualHeight: loaded.visualHeight,
       projectionEnvelope,
+      renderProjectionEnvelope,
+      landscapeBaseProjectionEnvelope,
+      landscapeBasePrimitiveCount: primitives.length - castlePrimitives.length,
       primitives: Object.freeze(primitives)
     }),
     resources: Object.freeze({

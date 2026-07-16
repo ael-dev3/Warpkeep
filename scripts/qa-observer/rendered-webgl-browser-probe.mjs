@@ -688,6 +688,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'readyOverlayVisible',
     'recenterKeepControlState',
     'renderer',
+    'presentedLandscapeBaseCount',
     'presentedModelCount',
     'returnToMenuControlState',
     'semanticTerrainCellCount',
@@ -802,6 +803,9 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       || candidate.presentedModelCount < candidate.labelEligibleCount
       || candidate.presentedModelCount > candidate.castleCount
       ? 'presented-model-mismatch' : '',
+    !Number.isSafeInteger(candidate.presentedLandscapeBaseCount)
+      || candidate.presentedLandscapeBaseCount !== candidate.presentedModelCount
+      ? 'presented-landscape-base-mismatch' : '',
     candidate.raycastTargetCount !== candidate.presentedModelCount
       ? 'raycast-target-mismatch' : '',
     !Number.isSafeInteger(candidate.labelClusteredCount)
@@ -2039,6 +2043,9 @@ const READ_DOM_EXPRESSION = `(() => {
         : focusedReadableLabels.length > 0 ? 'cluster' : 'default',
     individualCastleCount: integer(map?.getAttribute('data-individual-castle-count')),
     presentedModelCount: integer(map?.getAttribute('data-presented-model-count')),
+    presentedLandscapeBaseCount: integer(
+      map?.getAttribute('data-presented-landscape-base-count')
+    ),
     raycastTargetCount: integer(map?.getAttribute('data-raycast-target-count')),
     labelCount: labels.length,
     labelCullReasons: map?.getAttribute('data-label-cull-reasons') ?? '',
@@ -2161,7 +2168,8 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
           `culls=${cullAggregate}`,
           `clusters=${String(value.clusterButtonCount)}`,
           `overflow=${String(value.labelClusterOverflowCount)}`,
-          `models=${String(value.presentedModelCount)}`
+          `models=${String(value.presentedModelCount)}`,
+          `bases=${String(value.presentedLandscapeBaseCount)}`
         ].join(',');
         try {
           parseRenderedWebglBrowserDom(value, expected);

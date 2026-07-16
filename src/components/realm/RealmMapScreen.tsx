@@ -1165,6 +1165,9 @@ function CanonicalRealmMapScreen({
     const root = rootRef.current;
     if (!root) return;
     root.dataset.presentedModelCount = String(telemetry.presentedModelCount);
+    root.dataset.presentedLandscapeBaseCount = String(
+      telemetry.presentedLandscapeBaseCount
+    );
     root.dataset.raycastTargetCount = String(telemetry.raycastTargetCount);
   }, []);
 
@@ -1294,6 +1297,7 @@ function CanonicalRealmMapScreen({
       presentedCastleIdsRef.current = [];
       if (rootRef.current) {
         rootRef.current.dataset.presentedModelCount = '0';
+        rootRef.current.dataset.presentedLandscapeBaseCount = '0';
         rootRef.current.dataset.raycastTargetCount = '0';
         rootRef.current.dataset.semanticTerrainCellCount = '0';
         rootRef.current.dataset.semanticTerrainKindCount = '0';

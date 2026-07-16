@@ -1,15 +1,16 @@
 # Realm Lighting, Color, and Castle Readability Proposal
 
-**Status:** implementation proposal with an accepted GameReady castle baseline
+**Status:** implementation proposal with an accepted GameReady castle-and-landscape baseline
 
 **Audit baseline:** `089430e` (`main`, 2026-07-16)
 
 **Runtime changes accompanying this document:** exact GameReady High, Balanced,
-and Compact castle LOD integration; no lighting, material, fog, or palette code
+and Compact castle and matching landscape-base LOD integration; no lighting,
+material, fog, or palette code
 
 This document turns the current Realm readability problem into a bounded engine
 work plan. The accompanying asset refresh changes only the integrity-pinned
-castle LOD family and its reconstruction/provenance contract. The proposed
+castle-plus-landscape LOD family and its reconstruction/provenance contract. The proposed
 lighting, material, fog, palette, and visual-QA work remains unimplemented. No
 authentication, world state, deployment, or DNS change is authorized here.
 
@@ -212,6 +213,42 @@ historical-source silhouette floors to `8,800`/`8,750`/`8,700`. This is a
 bounded acceptance of the new platforms and outline, not permission for future
 unmeasured silhouette drift.
 
+## Integrated GameReady landscape-base family — 2026-07-16
+
+The owner separately supplied `Warpkeep Castle Landscape Base` version `1.0.0`
+and instructed PR #40 to place its three exact LODs under the castles. The High,
+Balanced, and Compact runtime outputs are 214,372, 92,784, and 27,328 bytes with
+3,954, 2,138, and 714 triangles. Balanced and Compact receive only the same
+bounded kind of atlas metadata correction: their real 512px and 256px WebPs
+replace an incorrect generic `wk_atlas_size: 1024` declaration while geometry
+and image payload bytes remain unchanged.
+
+This family changes the grounding baseline for the future lighting work:
+
+- Castle and base use the exact same parent position, quaternion, and uniform
+  scale. The base is never independently centered, normalized, grounded, or
+  scaled from its wider bounds.
+- The authored below-ground skirt, road, grass, vegetation, and island thickness
+  replace the old synthetic contact-shadow instance when the complete base
+  family is ready. A future focused cast-shadow mode may shade the assembly, but
+  must not reintroduce a second opaque footprint under the island.
+- Castle-only dimensions continue to own LOD thresholds, focus framing, and the
+  exact username foundation anchor. Composite bounds are conservative culling
+  data, not a new camera or identity-placement metric.
+- Picking compares the nearest valid castle-geometry and simple non-rendered
+  landscape-collider hits. Decorative base triangles are not collision
+  geometry, and a farther castle cannot beat a nearer base hit.
+- Missing, stale, mixed-LOD, or integrity-failed halves fail the entire
+  castle-plus-base family closed to the illustrated Realm fallback.
+
+At 100 visible castles, the base raises the High/Balanced/Reduced profile
+triangle ceilings to 2,667,272, 2,196,408, and 1,794,600 while adding at most
+three, two, or one instanced draws. Its approximately 10.5 MiB of decoded image
+data before mipmaps is shared by resident LOD, not multiplied by castle count.
+The exact inputs, output/image hashes, placement contract, and narrow
+`LicenseRef-Warpkeep-Provenance-Required` authorization are recorded in the
+[dated landscape-base record](../reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/).
+
 ## Desired visual contract
 
 The Realm should read as sunlit Hegemony Lowlands, not as a uniformly bright
@@ -345,8 +382,9 @@ whether exposure needs a small per-quality adjustment.
 ### Phase 2 — Establish a simple key/fill hierarchy
 
 Create a local QA-only light debugger that can isolate sun, sky/ground fill,
-camera fill, environment, fog, and contact shadow. It must not ship as a public
-query-controlled feature.
+camera fill, environment, fog, authored landscape-base grounding, and any
+future focused cast shadow. It must not ship as a public query-controlled
+feature.
 
 Recommended production direction:
 
@@ -364,28 +402,26 @@ material problem. Lower quality may reduce resolution, geometry, environment
 detail, and shadow technique, but it should retain the same minimum castle
 midtone/readability range rather than becoming a darker game mode.
 
-### Phase 3 — Replace the contact-disc shadow with a hybrid policy
+### Phase 3 — Preserve authored grounding and add a bounded focus-shadow policy
 
 Introduce an explicit shadow policy by quality and camera mode. Do not leave
 `dynamicShadows: true` in a preset that the canonical plan silently overrides.
 
 #### Overview and Reduced quality
 
-Use a cheap analytic or texture-backed contact decal:
-
-- neutral rather than green;
-- radial softness with no visible circle edge;
-- slightly elongated and offset opposite the shared sun direction;
-- sized from the real prefab footprint;
-- conforming closely enough to uneven terrain to avoid floating or clipping;
-  and
-- instanced in one draw call with demand-driven updates.
+Use the authored landscape base itself for visible grounding. Keep the legacy
+analytic contact decal disabled whenever the complete castle/base family is
+ready; do not stack a second radial footprint under the island. Validate the
+intentional below-ground skirt, road direction, terrain intersection, and
+adjacent-slot overlap at every LOD and camera mode. The illustrated fallback
+remains responsible when the paired family is incomplete.
 
 #### Approach and selected-keep close view
 
 After Phase 0 proves the budget, High quality should use one tightly fitted,
 focus-local directional shadow. Balanced may opt in only if its measured budget
-passes. Reduced remains decal-only.
+passes. Reduced retains authored-base grounding without allocating a focused
+shadow map.
 
 The focused shadow pass should:
 
@@ -504,7 +540,8 @@ increase atlas dimensions or channel count.
 
 Use the existing graphics mapping: Cinematic → High, Balanced → Balanced, and
 Performance → Reduced. Ship palette/color correctness to all tiers together;
-stage focused true shadows on High first and retain the analytic decal everywhere.
+stage focused true shadows on High first and retain authored-base grounding on
+every tier without restoring the analytic decal.
 
 During implementation, a typed, build-time-only presentation revision such as
 `legacy` / `readable-v2` may provide one-release rollback. It must not become a
@@ -563,11 +600,11 @@ from compressed screenshots are not an acceptable gate.
 Preserve the current geometry/draw ceilings and target drawing-buffer budgets
 unless a separate measured budget change is reviewed:
 
-| Profile | Terrain triangles | Detail instances | Target drawing-buffer pixels | Existing all-castle geometry ceiling |
+| Profile | Terrain triangles | Detail instances | Target drawing-buffer pixels | Accepted castle-plus-base geometry ceiling |
 | --- | ---: | ---: | ---: | ---: |
-| High | 150,000 | 7,000 | 8,400,000 | 2,535,776 triangles |
-| Balanced | 90,000 | 5,500 | 5,200,000 | 2,090,832 triangles |
-| Reduced | 40,000 | 3,000 | 2,400,000 | 1,723,200 triangles |
+| High | 150,000 | 7,000 | 8,400,000 | 2,667,272 triangles |
+| Balanced | 90,000 | 5,500 | 5,200,000 | 2,196,408 triangles |
+| Reduced | 40,000 | 3,000 | 2,400,000 | 1,794,600 triangles |
 
 The drawing-buffer values are targets, not unconditional ceilings: the current
 resolver intentionally preserves a minimum pixel ratio of `0.5`, which can
@@ -576,17 +613,19 @@ its target; any minimum-DPR exception outside that matrix must be explicit and
 reported rather than mislabeled as a passing budget.
 
 For the first focused-shadow experiment, the incremental caster ceiling should
-be no more than one active LOD keep: `72,850` triangles on High, `32,550` on
-Balanced, and zero on Reduced. A compact proxy may lower that cost. For explicit
-budget planning, four promoted full-detail casters would submit `291,400` High,
-`130,200` Balanced, or `68,928` Compact triangles. Those four-caster figures are
-accounting evidence, not approval to exceed the initial one-LOD ceiling; any
-larger caster group needs a newly measured and explicitly reviewed ceiling.
+be no more than one active castle-plus-base assembly: `76,804` triangles on
+High, `34,688` on Balanced, and zero on Reduced. A compact proxy may lower that
+cost. For explicit budget planning, four promoted full-detail assemblies would
+submit `307,216` High, `138,752` Balanced, or `71,784` Compact triangles. Those
+four-caster figures are accounting evidence, not approval to exceed the initial
+one-assembly ceiling; any larger caster group needs a newly measured and
+explicitly reviewed ceiling.
 
-Also preserve the current maximum of five semantic-feature draw calls, eight
-total terrain-detail draw calls, and three castle instance draw calls plus the
-single contact-shadow call. A focused shadow pass must report its additional
-calls separately.
+Also preserve the current maximum of five semantic-feature draw calls and eight
+total terrain-detail draw calls. Castle rendering remains at no more than three
+instance draws, while the base adds no more than three, two, or one instance
+draws on High, Balanced, or Reduced and suppresses the legacy contact-shadow
+call. A focused shadow pass must report its additional calls separately.
 
 Allow at most one focused 2D shadow map: High must not exceed `2048×2048`,
 Balanced must not exceed `1024×1024`, and Reduced allocates none. Cascades, cube
@@ -629,7 +668,7 @@ This is a handoff map, not a list of files changed by this proposal.
 | --- | --- |
 | Color-space contract and palette | `src/game/map/hegemonyLowlandsSpec.ts`, `src/game/map/terrainColor.ts`, `src/components/realm/createTerrainGeometry.ts`, fallback encoding in `src/components/realm/RealmMapScreen.tsx`, focused terrain tests |
 | Lighting/fog policy | `src/components/realm/realmQuality.ts`, `src/components/realm/createRealmScene.ts`, `src/components/realm/createRealmEnvironment.ts`, camera/scene tests |
-| Contact and focused shadows | `src/components/realm/realmCastleInstanceLayer.ts`, `src/components/realm/createRealmScene.ts`, quality/instance/cleanup tests |
+| Focused cast shadows and authored-base grounding | `src/components/realm/realmCastleInstanceLayer.ts`, `src/components/realm/createRealmScene.ts`, quality/instance/cleanup tests; preserve base-family suppression of the old synthetic contact shadow |
 | Castle brightness and material calibration | `scripts/install-hegemony-gameready-castle.mjs`, the historical preparation pipeline, `scripts/rewrite-embedded-webp-glb.mjs` and its declaration/tests, `src/components/realm/loadHegemonyKeep.ts`, runtime-asset verifier, dated castle manifest/record, object-masked production evidence, asset/LOD parity tests |
 | Readability QA | rendered WebGL fixture, browser probe, bounded PNG/target analyzer, QA contract tests, `docs/operations/qa-observatory.md` |
 | Release truth | `CHANGELOG.md`, next `docs/releases/` note, menu patch-note source, build version, `_AGENT_NOTES.md` |
@@ -638,8 +677,8 @@ This is a handoff map, not a list of files changed by this proposal.
 
 1. **Instrumentation and color contract:** object-aware metrics, baseline evidence,
    explicit terrain color space, no art-direction tuning hidden in the same diff.
-2. **Lighting, fog, and contact grounding:** calibrated key/fill hierarchy,
-   directional contact decal, production-scene visual gates.
+2. **Lighting, fog, and authored-base grounding:** calibrated key/fill hierarchy,
+   no duplicate contact decal, production-scene visual gates.
 3. **Castle surface calibration:** meet the brighter object-masked target with
    cross-LOD parity; prepare a deterministic authorized texture/material
    derivative when lighting alone is insufficient.
@@ -663,8 +702,8 @@ previous visual screenshot appears brighter.
 | Re-encoded brighter textures exceed the accepted GLB byte caps | Grade the canonical atlas before LOD derivation, verify every output byte/hash, and preserve the revised per-tier encoded-size ceilings unless a separate measured budget is approved. |
 | Explicit color conversion causes a large palette jump | Treat existing floats as ambiguous legacy inputs, capture a baseline, then migrate and retune in one reviewed color-contract PR. |
 | Focused shadows show acne, peter-panning, clipping, or stale direction | Add deterministic focus/pan/LOD fixtures, fit the shadow camera tightly, test bias bounds, and invalidate only on relevant state changes. |
-| Shadow pass harms mobile or 100-castle performance | Keep Reduced decal-only, start High focus-local, measure Balanced before enabling, and never shadow all 100 castles at realm scale. |
-| Transparent contact decals z-fight or sort badly where foundations overlap | Test adjacent founding slots and uneven terrain; preserve one bounded instance layer, explicit render order, depth behavior, and soft non-overdrawn edges. |
+| Shadow pass harms mobile or 100-castle performance | Keep Reduced authored-base-only, start High focus-local, measure Balanced before enabling, and never shadow all 100 castles at realm scale. |
+| A legacy contact decal survives beneath the authored island and double-darkens or z-fights | Suppress the old contact-shadow instance whenever the complete base family is ready; test adjacent founding slots, uneven terrain, LOD switches, and fallback transitions. |
 | More fill flattens the model further | Remove or neutralize competing fills before adding energy. Calibrate lights independently. |
 | Fog fix removes world scale or reveals the radius-22 apron edge | Preserve fog for distant terrain and the apron; move the focused subject ahead of onset rather than deleting atmosphere, and gate every overview edge. |
 | Asset derivative exceeds current authority or provenance | Use only the recorded project-internal source/derivative scope, update immutable provenance, and stop if a required material source is not authorized. |
@@ -704,7 +743,7 @@ previous visual screenshot appears brighter.
 
 - copying the comparison game's terrain color, castle design, UI, roads, or
   composition;
-- redesigning geometry beyond the accepted 2026-07-16 GameReady LOD family;
+- redesigning geometry beyond the accepted 2026-07-16 GameReady castle and landscape-base LOD families;
 - adding post-processing, screen-space AO, bloom, or per-castle dynamic lights
   before the simpler pipeline is measured;
 - changing authoritative terrain, castle placement, gameplay, identity, auth,

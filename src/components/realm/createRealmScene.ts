@@ -669,7 +669,12 @@ function initializeRealmScene(
     CastleLod,
     RealmCastleProjectionEnvelope
   > = new Map();
+  let castleRenderEnvelopeByLod: ReadonlyMap<
+    CastleLod,
+    RealmCastleProjectionEnvelope
+  > = new Map();
   let fallbackCastleProjectionEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
+  let fallbackCastleRenderEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let selectedCastleId: number | undefined;
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
     height: 1.08,
@@ -719,6 +724,10 @@ function initializeRealmScene(
         ? castleProjectionEnvelopeByLod.get(activeLod)
           ?? fallbackCastleProjectionEnvelope
         : fallbackCastleProjectionEnvelope;
+      const renderEnvelope = activeLod
+        ? castleRenderEnvelopeByLod.get(activeLod)
+          ?? fallbackCastleRenderEnvelope
+        : fallbackCastleRenderEnvelope;
       // Project every depth-valid keep before deciding screen visibility. A
       // partially visible edge keep can have its roof center outside the
       // canvas; dropping its envelope would let a foreign username cover the
@@ -733,12 +742,21 @@ function initializeRealmScene(
             projectionBoundsPoint
           )
         : undefined;
+      const conservativeCastleBounds = withinCameraDepth
+        ? projectCastleSilhouetteScreenBounds(
+            renderEnvelope,
+            anchor,
+            cameraController.camera,
+            width,
+            height,
+            projectionBoundsPoint
+          )
+        : undefined;
       const visible = castleSilhouetteIntersectsViewport(
-        castleBounds,
+        conservativeCastleBounds,
         width,
         height
       );
-      const conservativeCastleBounds = castleBounds;
       const labelAnchor = resolveCastleLabelScreenAnchor(castleBounds, {
         x: projectedFallbackCenter.x,
         y: projectedFallbackCenter.y
@@ -780,9 +798,15 @@ function initializeRealmScene(
       selectedCastleId
     );
     const presentationTelemetry = castleLayer?.getPresentationTelemetry()
-      ?? Object.freeze({ presentedModelCount: 0, raycastTargetCount: 0 });
+      ?? Object.freeze({
+        presentedModelCount: 0,
+        presentedLandscapeBaseCount: 0,
+        raycastTargetCount: 0
+      });
     const presentationTelemetryKey = (
-      `${presentationTelemetry.presentedModelCount}:${presentationTelemetry.raycastTargetCount}`
+      `${presentationTelemetry.presentedModelCount}:`
+      + `${presentationTelemetry.presentedLandscapeBaseCount}:`
+      + `${presentationTelemetry.raycastTargetCount}`
     );
     if (presentationTelemetryKey !== lastCastlePresentationTelemetryKey) {
       lastCastlePresentationTelemetryKey = presentationTelemetryKey;
@@ -799,6 +823,12 @@ function initializeRealmScene(
         && (castleLayer?.getPacking().totalVisible ?? 0) === 0
       ) {
         throw new Error('Hegemony castle instances produced no visible rendered packing.');
+      }
+      if (
+        presentationTelemetry.presentedLandscapeBaseCount
+        !== presentationTelemetry.presentedModelCount
+      ) {
+        throw new Error('Hegemony castle landscape-base presentation is incomplete.');
       }
       pendingCastlesReadyCount = null;
       options.onCastlesReady?.(castleCount);
@@ -1125,6 +1155,10 @@ function initializeRealmScene(
       lod,
       prefab.projectionEnvelope
     ] as const));
+    const nextRenderEnvelopeByLod = new Map([...prefabs].map(([lod, prefab]) => [
+      lod,
+      prefab.renderProjectionEnvelope
+    ] as const));
     let nextLayer: RealmCastleInstanceLayer;
     try {
       nextLayer = createRealmCastleInstanceLayer({
@@ -1151,9 +1185,14 @@ function initializeRealmScene(
     }
     castleLayer = nextLayer;
     castleProjectionEnvelopeByLod = nextProjectionEnvelopeByLod;
+    castleRenderEnvelopeByLod = nextRenderEnvelopeByLod;
     fallbackCastleProjectionEnvelope = nextProjectionEnvelopeByLod
       .get(castleLodPolicy.maximumLod)
       ?? nextProjectionEnvelopeByLod.get('compact')
+      ?? DEFAULT_CASTLE_PROJECTION_ENVELOPE;
+    fallbackCastleRenderEnvelope = nextRenderEnvelopeByLod
+      .get(castleLodPolicy.maximumLod)
+      ?? nextRenderEnvelopeByLod.get('compact')
       ?? DEFAULT_CASTLE_PROJECTION_ENVELOPE;
     scene.add(nextLayer.group);
     let released = false;

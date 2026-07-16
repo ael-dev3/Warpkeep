@@ -1,16 +1,24 @@
 import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync, statSync } from 'node:fs';
+import { lstatSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { assertNoStaleAtomicFamilyTransactions } from './atomic-install-file-family.mjs';
 import { inspectEmbeddedWebpGlb } from './rewrite-embedded-webp-glb.mjs';
 
 const root = resolve(import.meta.dirname, '..');
+assertNoStaleAtomicFamilyTransactions(
+  resolve(root, 'public/models/hegemony'),
+  'Hegemony runtime model directory'
+);
 const assets = Object.freeze([
   ['public/models/title/warpkeep-title-high.glb', 3_844_364, '2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5', true],
   ['public/models/title/warpkeep-title-compact.glb', 1_714_060, 'd29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8', true],
   ['public/models/hegemony/hegemony-main-castle-high.glb', 2_215_972, '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8', true],
   ['public/models/hegemony/hegemony-main-castle-balanced.glb', 892_788, 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157', true],
   ['public/models/hegemony/hegemony-main-castle-compact.glb', 453_628, 'b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b', true],
+  ['public/models/hegemony/hegemony-castle-landscape-base-high.glb', 214_372, 'be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c', true],
+  ['public/models/hegemony/hegemony-castle-landscape-base-balanced.glb', 92_784, '179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f', true],
+  ['public/models/hegemony/hegemony-castle-landscape-base-compact.glb', 27_328, 'f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3', true],
   ['public/audio/warpkeep-title-theme-a.mp3', 5_352_113, '7844b85fb5914a00f97a7e0b1edecfb544435319266b150ad649f649797a6471', false],
   ['public/audio/warpkeep-title-theme-b.mp3', 6_380_853, 'ecade8860f8c8ff5fb8d08604b0973da329c583d78ef20c81fe5f989f624f73e', false],
   ['public/audio/warpkeep-menu-theme.mp3', 9_631_066, 'ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917', false],
@@ -36,7 +44,7 @@ const retiredRuntimeAssets = Object.freeze([
   'public/models/hegemony/hegemony-frontier-keep-compact.glb'
 ]);
 
-const castleStructure = new Map([
+const hegemonyModelStructure = new Map([
   ['public/models/hegemony/hegemony-main-castle-high.glb', {
     triangles: 72_850,
     vertices: 171_554,
@@ -81,6 +89,87 @@ const castleStructure = new Map([
       [10_960, '655717cd92ffc0eae1b08721b22c5be95121b228f765f7ffee6457b3b888f381'],
       [10_684, '1e3b4e022566d4b07f96f17a579f756b11cbd6abf803d42491711f983f64af3f']
     ]
+  }],
+  ['public/models/hegemony/hegemony-castle-landscape-base-high.glb', {
+    triangles: 3_954,
+    vertices: 10_681,
+    indexComponentType: 5_123,
+    positionComponentType: 5_122,
+    positionBounds: { min: [-32_767, -4_124, -27_179], max: [32_767, 4_124, 27_179] },
+    nodeName: 'WK_Castle_LandscapeBase_LOD0_High',
+    meshName: 'WK_Castle_LandscapeBase_LOD0_High_Mesh',
+    nodeTranslation: [0.1762232780456543, 0.7211456596851349, 0.4222433567047119],
+    nodeScale: [9.26375150680542, 9.26375150680542, 9.26375150680542],
+    nodeExtras: {
+      wk_lod_detail: 0,
+      wk_atlas_region: 'mixed',
+      wk_asset: 'castle-landscape-base',
+      wk_lod: 2,
+      wk_origin_contract: 'castle-ground-plane-z0',
+      wk_gate_road_facing_blender: '-Y',
+      wk_gate_road_facing_gltf: '+Z',
+      wk_castle_ground_plane_z: 0,
+      wk_runtime_attach: 'same transform as castle; do not independently normalize or ground'
+    },
+    textureSize: 1_024,
+    images: [
+      [95_098, 'ee821457dcc3efba733e9176dac35f4bd07916c1f613a89175788f9b2817181d'],
+      [29_586, '92918cb1e221b75ee11af809b1e99b3fb5f60b4342f0dbea68b65135e241dc65']
+    ]
+  }],
+  ['public/models/hegemony/hegemony-castle-landscape-base-balanced.glb', {
+    triangles: 2_138,
+    vertices: 5_611,
+    indexComponentType: 5_123,
+    positionComponentType: 5_122,
+    positionBounds: { min: [-32_767, -4_124, -27_179], max: [32_767, 4_124, 27_179] },
+    nodeName: 'WK_Castle_LandscapeBase_LOD1_Balanced',
+    meshName: 'WK_Castle_LandscapeBase_LOD1_Balanced_Mesh',
+    nodeTranslation: [0.1762232780456543, 0.7211456596851349, 0.4222433567047119],
+    nodeScale: [9.26375150680542, 9.26375150680542, 9.26375150680542],
+    nodeExtras: {
+      wk_lod_detail: 0,
+      wk_atlas_region: 'mixed',
+      wk_asset: 'castle-landscape-base',
+      wk_lod: 1,
+      wk_origin_contract: 'castle-ground-plane-z0',
+      wk_gate_road_facing_blender: '-Y',
+      wk_gate_road_facing_gltf: '+Z',
+      wk_castle_ground_plane_z: 0,
+      wk_runtime_attach: 'same transform as castle; do not independently normalize or ground'
+    },
+    textureSize: 512,
+    images: [
+      [29_544, '439351b1cc2f84f988bfeb5b492a9c6652c74741bed29ce17fd7e45c222f99f0'],
+      [10_130, '3714349aed5b0f7225807674f4719a79f5fd09e25a5cb108f5cc46a4767dc86f']
+    ]
+  }],
+  ['public/models/hegemony/hegemony-castle-landscape-base-compact.glb', {
+    triangles: 714,
+    vertices: 1_780,
+    indexComponentType: 5_123,
+    positionComponentType: 5_122,
+    positionBounds: { min: [-32_767, -4_060, -27_179], max: [32_767, 4_060, 27_179] },
+    nodeName: 'WK_Castle_LandscapeBase_LOD2_Compact',
+    meshName: 'WK_Castle_LandscapeBase_LOD2_Compact_Mesh',
+    nodeTranslation: [0.1762232780456543, 0.7025456726551056, 0.4222433567047119],
+    nodeScale: [9.26375150680542, 9.26375150680542, 9.26375150680542],
+    nodeExtras: {
+      wk_lod_detail: 0,
+      wk_atlas_region: 'mixed',
+      wk_asset: 'castle-landscape-base',
+      wk_lod: 0,
+      wk_origin_contract: 'castle-ground-plane-z0',
+      wk_gate_road_facing_blender: '-Y',
+      wk_gate_road_facing_gltf: '+Z',
+      wk_castle_ground_plane_z: 0,
+      wk_runtime_attach: 'same transform as castle; do not independently normalize or ground'
+    },
+    textureSize: 256,
+    images: [
+      [2_900, '39bb781d03fe4f134532846750e7f387891c053703e90ce28e150d5a568ef29f'],
+      [2_460, '80d914be77fd5dde0fc330091ae35d366a6497d1982f1b75dc7b43920526924d']
+    ]
   }]
 ]);
 
@@ -96,6 +185,14 @@ function exactVector(value, expected) {
     && value.every((entry, index) => entry === expected[index]);
 }
 
+function exactRecord(value, expected) {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.keys(value).length === Object.keys(expected).length
+    && Object.entries(expected).every(([key, entry]) => value[key] === entry);
+}
+
 for (const relativePath of retiredRuntimeAssets) {
   if (lstatSync(resolve(root, relativePath), { throwIfNoEntry: false })) {
     throw new Error(`${relativePath} is a retired unresolved-rights runtime asset and must remain absent.`);
@@ -104,8 +201,12 @@ for (const relativePath of retiredRuntimeAssets) {
 
 for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
   const path = resolve(root, relativePath);
+  const stat = lstatSync(path, { throwIfNoEntry: false });
+  if (!stat?.isFile() || stat.isSymbolicLink()) {
+    throw new Error(`${relativePath} must be a regular non-symbolic runtime asset.`);
+  }
   const bytes = readFileSync(path);
-  if (statSync(path).size !== expectedBytes) throw new Error(`${relativePath} byte length changed.`);
+  if (stat.size !== expectedBytes) throw new Error(`${relativePath} byte length changed.`);
   const hash = createHash('sha256').update(bytes).digest('hex');
   if (hash !== expectedHash) throw new Error(`${relativePath} hash changed: ${hash}.`);
   if (glb && (
@@ -114,7 +215,7 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
     || bytes.readUInt32LE(8) !== bytes.byteLength
   )) throw new Error(`${relativePath} is not an intact glTF 2.0 binary.`);
 
-  const expectedStructure = castleStructure.get(relativePath);
+  const expectedStructure = hegemonyModelStructure.get(relativePath);
   if (expectedStructure) {
     const jsonLength = bytes.readUInt32LE(12);
     const jsonEnd = 20 + jsonLength;
@@ -130,9 +231,19 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
     if (
       json.asset?.generator !== 'glTF-Transform v4.4.1'
       || json.scenes?.length !== 1
+      || (expectedStructure.meshName && json.scenes[0]?.name !== 'Scene')
       || !exactVector(json.scenes[0]?.nodes, [0])
       || json.meshes?.length !== 1
+      || (expectedStructure.meshName && json.meshes[0]?.name !== expectedStructure.meshName)
       || json.meshes[0].primitives?.length !== 1
+      || (expectedStructure.meshName && primitive?.mode !== 4)
+      || (expectedStructure.meshName && primitive?.material !== 0)
+      || (expectedStructure.meshName && !exactRecord(primitive?.attributes, {
+        NORMAL: 1,
+        TANGENT: 2,
+        POSITION: 3,
+        TEXCOORD_0: 4
+      }))
       || json.materials?.length !== 1
       || json.images?.length !== 2
       || json.materials[0]?.extras?.wk_atlas_size !== expectedStructure.textureSize
@@ -155,6 +266,7 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
       || json.nodes[0]?.mesh !== 0
       || !exactVector(json.nodes[0]?.translation, expectedStructure.nodeTranslation)
       || !exactVector(json.nodes[0]?.scale, expectedStructure.nodeScale)
+      || (expectedStructure.nodeExtras && !exactRecord(json.nodes[0]?.extras, expectedStructure.nodeExtras))
     ) throw new Error(`${relativePath} structure no longer matches its reviewed runtime profile.`);
 
     const embedded = await inspectEmbeddedWebpGlb(bytes, { label: relativePath });
@@ -172,8 +284,12 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
 
 for (const [relativePath, expectedSize, format, expectedBytes, expectedHash] of imageAssets) {
   const path = resolve(root, relativePath);
+  const stat = lstatSync(path, { throwIfNoEntry: false });
+  if (!stat?.isFile() || stat.isSymbolicLink()) {
+    throw new Error(`${relativePath} must be a regular non-symbolic runtime asset.`);
+  }
   const bytes = readFileSync(path);
-  if (statSync(path).size !== expectedBytes) throw new Error(`${relativePath} byte length changed.`);
+  if (stat.size !== expectedBytes) throw new Error(`${relativePath} byte length changed.`);
   const hash = createHash('sha256').update(bytes).digest('hex');
   if (hash !== expectedHash) throw new Error(`${relativePath} hash changed: ${hash}.`);
 

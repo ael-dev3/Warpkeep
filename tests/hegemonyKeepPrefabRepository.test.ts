@@ -81,6 +81,11 @@ describe('Hegemony keep prefab repository', () => {
     expect(first.prefab.projectionEnvelope.samples.length).toBeLessThanOrEqual(512);
     expect(Object.isFrozen(first.prefab.projectionEnvelope)).toBe(true);
     expect(Object.isFrozen(first.prefab.projectionEnvelope.samples)).toBe(true);
+    expect(first.prefab.renderProjectionEnvelope).toBe(
+      first.prefab.projectionEnvelope
+    );
+    expect(first.prefab.landscapeBaseProjectionEnvelope).toBeUndefined();
+    expect(first.prefab.landscapeBasePrimitiveCount).toBe(0);
 
     first.release();
     first.release();
@@ -93,6 +98,94 @@ describe('Hegemony keep prefab repository', () => {
     expect(materialDispose).toHaveBeenCalledTimes(1);
     expect(textureDispose).toHaveBeenCalledTimes(1);
     await expect(repository.acquire('balanced')).rejects.toThrow(/retired/i);
+  });
+
+  it('separates castle, landscape-base, and conservative render envelopes', async () => {
+    const castleGeometry = new THREE.BoxGeometry(1, 2, 1);
+    const baseGeometry = new THREE.BoxGeometry(4, 0.4, 3);
+    const castlePosition = castleGeometry.getAttribute('position');
+    const basePosition = baseGeometry.getAttribute('position');
+    const castlePositionReads = [
+      vi.spyOn(castlePosition, 'getX'),
+      vi.spyOn(castlePosition, 'getY'),
+      vi.spyOn(castlePosition, 'getZ')
+    ];
+    const basePositionReads = [
+      vi.spyOn(basePosition, 'getX'),
+      vi.spyOn(basePosition, 'getY'),
+      vi.spyOn(basePosition, 'getZ')
+    ];
+    const castleMesh = new THREE.Mesh(
+      castleGeometry,
+      new THREE.MeshStandardMaterial()
+    );
+    castleMesh.name = 'main-castle';
+    castleMesh.position.y = 1;
+    const baseMesh = new THREE.Mesh(
+      baseGeometry,
+      new THREE.MeshStandardMaterial()
+    );
+    baseMesh.name = 'authored-landscape-base';
+    baseMesh.userData.warpkeepPrefabRole = 'landscape-base';
+    const root = new THREE.Group();
+    root.add(castleMesh, baseMesh);
+    const repository = createHegemonyKeepPrefabRepository({
+      loader: vi.fn(async () => loadedKeep(root, 'compact'))
+    });
+
+    const lease = await repository.acquire('compact');
+
+    expect(lease.prefab.primitives.map(({ sourceMeshName, role }) => ({
+      sourceMeshName,
+      role
+    }))).toEqual([
+      { sourceMeshName: 'main-castle', role: 'castle' },
+      { sourceMeshName: 'authored-landscape-base', role: 'landscape-base' }
+    ]);
+    expect(lease.prefab.landscapeBasePrimitiveCount).toBe(1);
+    expect(lease.prefab.projectionEnvelope.localBounds).toMatchObject({
+      minX: -0.5,
+      minY: 0,
+      minZ: -0.5,
+      maxX: 0.5,
+      maxY: 2,
+      maxZ: 0.5
+    });
+    const baseBounds = lease.prefab.landscapeBaseProjectionEnvelope!.localBounds;
+    expect(baseBounds.minX).toBeCloseTo(-2, 8);
+    expect(baseBounds.minY).toBeCloseTo(-0.2, 8);
+    expect(baseBounds.minZ).toBeCloseTo(-1.5, 8);
+    expect(baseBounds.maxX).toBeCloseTo(2, 8);
+    expect(baseBounds.maxY).toBeCloseTo(0.2, 8);
+    expect(baseBounds.maxZ).toBeCloseTo(1.5, 8);
+    const renderBounds = lease.prefab.renderProjectionEnvelope.localBounds;
+    expect(lease.prefab.renderProjectionEnvelope.mode).toBe('axis-aligned-bounds');
+    expect(lease.prefab.renderProjectionEnvelope.samples).toHaveLength(8);
+    expect(renderBounds.minX).toBeCloseTo(-2, 8);
+    expect(renderBounds.minY).toBeCloseTo(-0.2, 8);
+    expect(renderBounds.minZ).toBeCloseTo(-1.5, 8);
+    expect(renderBounds.maxX).toBeCloseTo(2, 8);
+    expect(renderBounds.maxY).toBeCloseTo(2, 8);
+    expect(renderBounds.maxZ).toBeCloseTo(1.5, 8);
+    for (const enclosedBounds of [
+      lease.prefab.projectionEnvelope.localBounds,
+      baseBounds
+    ]) {
+      expect(renderBounds.minX).toBeLessThanOrEqual(enclosedBounds.minX);
+      expect(renderBounds.minY).toBeLessThanOrEqual(enclosedBounds.minY);
+      expect(renderBounds.minZ).toBeLessThanOrEqual(enclosedBounds.minZ);
+      expect(renderBounds.maxX).toBeGreaterThanOrEqual(enclosedBounds.maxX);
+      expect(renderBounds.maxY).toBeGreaterThanOrEqual(enclosedBounds.maxY);
+      expect(renderBounds.maxZ).toBeGreaterThanOrEqual(enclosedBounds.maxZ);
+    }
+    castlePositionReads.forEach((read) => {
+      expect(read).toHaveBeenCalledTimes(castlePosition.count);
+    });
+    basePositionReads.forEach((read) => {
+      expect(read).toHaveBeenCalledTimes(basePosition.count);
+    });
+
+    lease.release();
   });
 
   it('reference-counts resources shared by separate LOD prefabs', async () => {

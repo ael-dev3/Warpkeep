@@ -121,6 +121,28 @@ three integrity-pinned Hegemony Main Castle LODs:
 | Balanced | `public/models/hegemony/hegemony-main-castle-balanced.glb` | 892,788 | 32,550 | two 1024×1024 WebP images | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
 | Compact | `public/models/hegemony/hegemony-main-castle-compact.glb` | 453,628 | 17,232 | two 512×512 WebP images | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
 
+Each castle LOD has one matching integrity-pinned GameReady landscape base:
+
+| LOD | Runtime path | Bytes | Triangles | Embedded images | SHA-256 |
+| --- | --- | ---: | ---: | --- | --- |
+| High | `public/models/hegemony/hegemony-castle-landscape-base-high.glb` | 214,372 | 3,954 | two 1024×1024 WebPs | `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` |
+| Balanced | `public/models/hegemony/hegemony-castle-landscape-base-balanced.glb` | 92,784 | 2,138 | two 512×512 WebPs | `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` |
+| Compact | `public/models/hegemony/hegemony-castle-landscape-base-compact.glb` | 27,328 | 714 | two 256×256 WebPs | `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` |
+
+The base is not another authoritative structure. Castle and base are assembled
+under the exact same parent position, quaternion, and uniform scale. Runtime
+must not independently center, normalize, ground, or scale the base; its
+below-ground skirt and `+Z` gate road are authored placement. Castle-only
+height and footprint continue to drive screen-space LOD, camera focus, and the
+username-foundation anchor. Composite castle-plus-base bounds exist only for
+conservative culling. Picking compares the nearest valid castle-geometry and
+simple non-rendered oval base-collider hits; decorative island triangles are
+never collision geometry.
+The 0.62/0.78 castle foundation blend radii continue to bound terrain-height and
+color influence. A separate 1.08 decoration-clearance radius prevents trees,
+rocks, and other procedural details from intersecting the approximately
+2.056×1.705-world-unit base without widening ordinary terrain sampling.
+
 The exact GameReady package and its three inputs were supplied and authorized
 by the project owner on 2026-07-16 for project-internal Warpkeep runtime
 integration plus bounded deterministic metadata correction only. That limited
@@ -128,6 +150,10 @@ authorization is not a separate public open license, general redistribution or
 third-party derivative permission, trademark grant, or canonical-identity
 grant; the full provenance boundary is in the dated
 [GameReady castle record](../reference/castles/2026-07-16-hegemony-main-castle-gameready/).
+The separately supplied landscape package has the same narrow PR #40
+project-internal integration boundary and remains
+`LicenseRef-Warpkeep-Provenance-Required`; see its
+[GameReady landscape-base record](../reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/).
 
 The GameReady inputs already contain their final geometry and embedded WebP
 payloads. High is installed byte-for-byte. Balanced and Compact arrive with
@@ -156,12 +182,14 @@ final lease disposes each shared GPU resource exactly once.
 
 Higher-detail residency is explicitly bounded. High permits at most eight High
 and 24 Balanced castles; Balanced permits at most 24 Balanced castles; Reduced
-uses Compact throughout. With all 100 slots visible and promoted, those ceilings
-bound castle geometry to 2,535,776, 2,090,832, and 1,723,200 triangles
-respectively. Because each GLB has one primitive, the 100-castle High case still
-uses at most three castle instance draw calls plus one shared contact-shadow draw
-call. Four fully promoted castles contain 291,400 High, 130,200 Balanced, or
-68,928 Compact triangles.
+uses Compact throughout. With all 100 slots visible and promoted, the complete
+castle-plus-base ceilings are 2,667,272, 2,196,408, and 1,794,600 triangles for
+High, Balanced, and Reduced. The base adds 131,496, 105,576, or 71,400 of those
+triangles and at most three, two, or one corresponding instanced draws. The
+three base files add 334,484 compressed bytes; their approximately 10.5 MiB of
+decoded images before mipmaps is shared once per resident LOD, not per castle.
+Four fully promoted castles contain 307,216 High, 138,752 Balanced, or 71,784
+Compact castle-plus-base triangles.
 
 Derivative transfer sizes and geometry counts are integrity-pinned, but decoded
 GPU memory is device- and browser-dependent. The prefab repository owns one
@@ -170,11 +198,14 @@ decoded-image compatibility are proven; no memory estimate is inferred solely
 from compressed transfer bytes.
 
 Normalization uses one uniform scale, centers X/Z, and aligns the lowest source
-point to the local foundation. Authored material differences are preserved;
-only unsafe numeric extremes are bounded. Warm frontier sunlight, neutral stone
-light, cool amethyst fill, restrained ACES exposure, and one footprint-sized
-contact shadow per visible castle provide depth without stretching a realm-wide
-shadow map over 1,519 cells.
+point to the local foundation on the castle child, then copies that exact
+transform to the authored base without independently normalizing it. Authored
+material differences are preserved; only unsafe numeric extremes are bounded.
+Warm frontier sunlight, neutral stone light, cool amethyst fill, restrained
+ACES exposure, and the base's physical island thickness provide depth without
+stretching a realm-wide shadow map over 1,519 cells. When the complete base LOD
+family is ready, the old footprint contact-shadow instance is suppressed to
+avoid double-dark grounding.
 
 The GameReady model refresh changes geometry and profile proportions, not the
 authored brightness contract. No brighter-material result is claimed by these

@@ -1,16 +1,10 @@
 import { createHash } from 'node:crypto';
-import {
-  copyFileSync,
-  lstatSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync
-} from 'node:fs';
-import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
+import {
+  installAtomicFileFamily,
+  readContainedRegularFile
+} from './atomic-install-file-family.mjs';
 import {
   inspectEmbeddedWebpGlb,
   rewriteEmbeddedWebpGlb
@@ -128,12 +122,8 @@ function exactVector(value, expected) {
     && value.every((entry, index) => entry === expected[index]);
 }
 
-function readRegularExactFile(path, expected, label) {
-  const stat = lstatSync(path, { throwIfNoEntry: false });
-  if (!stat?.isFile() || stat.isSymbolicLink()) {
-    throw new Error(`${label} must be a regular non-symbolic file.`);
-  }
-  const bytes = readFileSync(path);
+function readRegularExactFile(root, relativePath, expected, label) {
+  const bytes = readContainedRegularFile({ root, relativePath, label });
   assertExact(bytes, expected, label);
   return bytes;
 }
@@ -208,57 +198,48 @@ if (!suppliedRoot) {
   );
 }
 
-const workspace = mkdtempSync(resolve(tmpdir(), 'warpkeep-gameready-castle-'));
+const manifestBytes = readRegularExactFile(
+  suppliedRoot,
+  packageManifest.path,
+  packageManifest,
+  'GameReady package manifest'
+);
+const manifest = JSON.parse(manifestBytes.toString('utf8'));
+if (
+  manifest.asset !== 'Warpkeep Hegemony Castle — Archer/Mage Platforms'
+  || manifest.generated !== '2026-07-16'
+) throw new Error('GameReady package manifest identity changed.');
 
-try {
-  const manifestBytes = readRegularExactFile(
-    resolve(suppliedRoot, packageManifest.path),
-    packageManifest,
-    'GameReady package manifest'
+const prepared = [];
+for (const profile of profiles) {
+  const filename = `hegemony-main-castle-${profile.id}.glb`;
+  const input = readRegularExactFile(
+    suppliedRoot,
+    `public/models/hegemony/${filename}`,
+    profile.input,
+    `${profile.id} GameReady input`
   );
-  const manifest = JSON.parse(manifestBytes.toString('utf8'));
-  if (
-    manifest.asset !== 'Warpkeep Hegemony Castle — Archer/Mage Platforms'
-    || manifest.generated !== '2026-07-16'
-  ) throw new Error('GameReady package manifest identity changed.');
-
-  const prepared = [];
-  for (const profile of profiles) {
-    const filename = `hegemony-main-castle-${profile.id}.glb`;
-    const input = readRegularExactFile(
-      resolve(suppliedRoot, 'public/models/hegemony', filename),
-      profile.input,
-      `${profile.id} GameReady input`
-    );
-    const output = profile.normalizeMetadata
-      ? (await rewriteEmbeddedWebpGlb(input, {
-          targetSize: profile.textureSize,
-          label: `${profile.id} GameReady metadata normalization`
-        })).bytes
-      : input;
-    await verifyOutput(output, profile);
-    const temporary = resolve(workspace, filename);
-    writeFileSync(temporary, output, { mode: 0o600 });
-    prepared.push({ ...profile, filename, temporary });
-  }
-
-  mkdirSync(outputDirectory, { recursive: true });
-  const outputDirectoryStat = lstatSync(outputDirectory, { throwIfNoEntry: false });
-  if (!outputDirectoryStat?.isDirectory() || outputDirectoryStat.isSymbolicLink()) {
-    throw new Error('GameReady output directory must be a regular non-symbolic directory.');
-  }
-  for (const profile of prepared) {
-    const destination = resolve(outputDirectory, profile.filename);
-    const destinationStat = lstatSync(destination, { throwIfNoEntry: false });
-    if (
-      destinationStat
-      && (!destinationStat.isFile() || destinationStat.isSymbolicLink())
-    ) throw new Error(`${profile.id} GameReady destination must be a regular non-symbolic file.`);
-    copyFileSync(profile.temporary, destination);
-    console.log(
-      `${profile.id}: ${profile.output.bytes} bytes, ${profile.triangles} triangles, sha256 ${profile.output.sha256}`
-    );
-  }
-} finally {
-  rmSync(workspace, { recursive: true, force: true });
+  const output = profile.normalizeMetadata
+    ? (await rewriteEmbeddedWebpGlb(input, {
+        targetSize: profile.textureSize,
+        label: `${profile.id} GameReady metadata normalization`
+      })).bytes
+    : input;
+  await verifyOutput(output, profile);
+  prepared.push({ ...profile, filename, preparedBytes: output });
 }
+
+installAtomicFileFamily({
+  destinationRoot: outputDirectory,
+  entries: prepared.map((profile) => ({
+    bytes: profile.preparedBytes,
+    label: `${profile.id} GameReady castle runtime`,
+    relativePath: profile.filename
+  }))
+});
+
+prepared.forEach((profile) => {
+  console.log(
+    `${profile.id}: ${profile.output.bytes} bytes, ${profile.triangles} triangles, sha256 ${profile.output.sha256}`
+  );
+});

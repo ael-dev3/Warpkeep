@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/verify-production-dist-exclusions.mjs",
+    "build": "tsc -b && node scripts/verify-runtime-assets.mjs && vite build && node scripts/verify-production-dist-exclusions.mjs",
     "preview": "vite preview",
     "validate:pages-config": "node scripts/validate-pages-deploy-config.mjs",
     "verify:licenses": "node scripts/verify-license-policy.mjs",
@@ -16,6 +16,7 @@
     "tools:fetch:gltfpack": "node scripts/fetch-gltfpack-tool.mjs",
     "prepare:title-models": "node scripts/prepare-title-models.mjs",
     "prepare:hegemony-castle": "node scripts/install-hegemony-gameready-castle.mjs",
+    "prepare:hegemony-castle-base": "node scripts/install-hegemony-gameready-castle-base.mjs",
     "prepare:hegemony-castle:source-0.3.4": "node scripts/prepare-hegemony-main-castle.mjs",
     "prepare:hegemony-frontier-keep:historical": "node scripts/prepare-hegemony-frontier-keep.mjs",
     "prepare:hegemony-mark": "node scripts/prepare-hegemony-mark.mjs",

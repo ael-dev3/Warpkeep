@@ -1,34 +1,39 @@
-# Warpkeep Alpha 0.3.5 — GameReady Castle LOD Refresh
+# Warpkeep Alpha 0.3.5 — GameReady Castle & Landscape LOD Refresh
 
 **Status: Pages-only Alpha 0.3.5 candidate. It becomes a verified public
 release only after protected-main deployment and exact-build verification.
-No Worker, Durable Object, SpacetimeDB, admission, profile, world, castle,
-wallet, Marks, scan, or burn operation is part of this release.**
+No Worker, Durable Object, SpacetimeDB, admission, profile, authoritative world,
+castle, wallet, Marks, scan, or burn operation is part of this release.**
 
 Alpha 0.3.5 refreshes the Realm's three Hegemony Main Castle runtime models and
-the player-facing identity presentation around them without changing player
-authority or the canonical Genesis 001 world. The High, Balanced, and Compact
-profiles use the GameReady family prepared from three exact owner-supplied
-inputs approved for Warpkeep's internal runtime integration. Foundation-bound
-username rails and a responsive Farcaster castle record keep identity readable
-without pretending that new gameplay state exists.
+adds one matching authored landscape base beneath every founded keep without
+changing player authority or the canonical Genesis 001 world. The High,
+Balanced, and Compact profiles use paired GameReady castle/base families
+prepared from exact owner-supplied inputs approved for Warpkeep's internal
+runtime integration. Foundation-bound username rails and a responsive Farcaster
+castle record keep identity readable without pretending that new gameplay state
+exists.
 
 ## Release scope
 
-This release changes the checked-in browser GLBs, their exact integrity and
-profile metadata, one same-origin decorative castle-record image, the Realm
-label and record presentation, player-visible release truth, and the
-documentation needed to recover and review those runtime boundaries. It does
-not authorize or perform:
+This release changes the checked-in browser castle and landscape-base GLBs,
+their exact integrity and profile metadata, one same-origin decorative
+castle-record image, the Realm label and record presentation, player-visible
+release truth, and the documentation needed to recover and review those runtime
+boundaries. Client terrain presentation also uses a 1.08-unit decoration-only
+clearance around each authored island so procedural trees and rocks do not
+intersect it; foundation height/color influence and the canonical Genesis 001
+world remain unchanged. It does not authorize or perform:
 
 - a Cloudflare Worker deployment or Durable Object migration;
 - a SpacetimeDB module or schema publication;
 - profile refresh, admission, founding, world, castle, wallet, or Marks
   mutation; or
 - any public relicensing or general redistribution grant. The only recorded
-  derivative authority is the bounded GLB atlas-size metadata correction and
-  the exact project-internal background cleanup for the castle-record artwork;
-  neither exception grants broader derivative or redistribution rights.
+  derivative authority is the bounded castle/base GLB atlas-size metadata
+  correction and the exact project-internal background cleanup for the
+  castle-record artwork; neither exception grants broader derivative or
+  redistribution rights.
 
 ## GameReady LOD family
 
@@ -56,6 +61,50 @@ normalises only that metadata field; geometry and embedded image bytes remain
 unchanged. Runtime records and integrity checks use the actual decoded
 dimensions for each tier so the source hint cannot be mistaken for the shipping
 allocation.
+
+## GameReady landscape-base family
+
+Every castle tier now loads with its matching standalone island base. The base
+adds a gate road, grass, trees, rocks, bushes, flowers, and an authored
+below-ground skirt while remaining decorative presentation rather than new
+world state.
+
+| Profile | Runtime bytes | Triangles | Position entries | Actual atlas size |
+| --- | ---: | ---: | ---: | ---: |
+| High | 214,372 | 3,954 | 10,681 | 1024×1024 |
+| Balanced | 92,784 | 2,138 | 5,611 | 512×512 |
+| Compact | 27,328 | 714 | 1,780 | 256×256 |
+
+The castle and base share the exact parent position, quaternion, and uniform
+scale. Runtime does not independently center, normalize, ground, or scale the
+base from its wider bounds; its road faces `+Z` and the lower island edge is
+intentionally below the castle ground plane. Castle-only dimensions continue
+to drive LOD thresholds, camera focus, and the exact username-foundation anchor.
+Composite bounds only make culling conservative around the wider island.
+The existing terrain foundation blend remains local; a separate 1.08-unit
+decoration-clearance radius keeps procedural details out of the wider base
+without widening ordinary terrain height/color influence.
+
+The authored island replaces the old synthetic contact-shadow instance when
+the complete base family is ready. Picking compares the nearest valid
+castle-geometry and simple non-rendered landscape-collider hits, so a farther
+castle cannot beat a nearer base; decorative base triangles are never collision
+geometry. If either model fails exact loading, parsing, assembly, or readiness,
+the complete family fails closed to the canonical illustrated Realm fallback
+instead of mixing castles and stale bases.
+
+Across the complete three-tier runtime family, the bases add 334,484 checked-in
+bytes. At 100 visible castles they add at most 131,496, 105,576, or 71,400
+triangles in Cinematic, Balanced, and Performance profiles, producing combined
+ceilings of 2,667,272, 2,196,408, and 1,794,600. They add at most three, two, or
+one instanced draws; their approximately 10.5 MiB of decoded images before
+mipmaps is shared once per resident LOD, not copied for every castle.
+
+The supplied Balanced and Compact base binaries contain real 512 and 256 pixel
+WebPs but declare `wk_atlas_size: 1024`. Warpkeep deterministically changes only
+that metadata to 512 or 256 and repacks the GLB container. Geometry, transforms,
+embedded-image payloads, brightness, and color remain unchanged; High is
+installed byte-for-byte.
 
 ## Foundation identity rails
 
@@ -124,6 +173,8 @@ High retains the prior High base-colour and normal atlas bytes, while the other
 tiers retain the same overall dark-stone material direction. Realm lighting,
 terrain colour, grounding, fog, and any future authorised surface calibration
 remain separate measured work under the Realm readability plan.
+The landscape base improves authored grounding and local environmental detail,
+but it likewise does not claim a renderer lighting or palette correction.
 
 ## Integrity and provenance
 
@@ -145,6 +196,15 @@ canonical-identity grant. The previous public-source preparation pipeline and
 its Alpha 0.3.4 outputs remain historical evidence rather than a recipe for
 silently overwriting this active set.
 
+The owner separately supplied the exact `Warpkeep Castle Landscape Base`
+version `1.0.0` package and instructed PR #40 to add its three runtime LODs
+under the castles. This authorizes exact project-internal integration and the
+bounded Balanced/Compact metadata correction only. The bases remain
+`LicenseRef-Warpkeep-Provenance-Required`; supply and integration do not create
+a public open licence, general third-party derivative/redistribution authority,
+trademark or canonical-identity rights, or permission to substitute same-named
+files.
+
 ## Required release evidence
 
 Before protected-main release, the exact candidate must pass:
@@ -155,7 +215,9 @@ Before protected-main release, the exact candidate must pass:
 - the complete root test suite, typecheck, ordinary production build, and
   canonical `DEPLOY_BASE=/` Pages build;
 - real Meshopt decode, instancing, canvas picking, cleanup, and three-tier LOD
-  coverage; and
+  coverage for both castle and matching base, including exact transform parity,
+  base/castle readiness-count parity, conservative culling, and legacy
+  contact-shadow suppression; and
 - the bounded rendered-WebGL and source-reference comparison lanes, with any
   accepted native silhouette difference described rather than hidden.
 

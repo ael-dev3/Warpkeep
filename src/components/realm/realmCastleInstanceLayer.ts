@@ -32,6 +32,7 @@ export type RealmCastleInstanceHit = Readonly<{
  */
 export type RealmCastleInstancePresentationTelemetry = Readonly<{
   presentedModelCount: number;
+  presentedLandscapeBaseCount: number;
   raycastTargetCount: number;
 }>;
 
@@ -70,6 +71,7 @@ type LodMeshes = Readonly<{
   lod: CastleLod;
   meshes: readonly THREE.InstancedMesh[];
   localMatrices: readonly THREE.Matrix4[];
+  roles: readonly ('castle' | 'landscape-base')[];
 }>;
 
 function projectedDiameterPixels(
@@ -145,7 +147,10 @@ export function createRealmCastleInstanceLayer(
   const group = new THREE.Group();
   group.name = 'hegemony-castle-instance-layer';
   const capacity = orderedCastles.length;
-  const meshOwners = new Map<THREE.InstancedMesh, CastleLod>();
+  const meshOwners = new Map<THREE.InstancedMesh, Readonly<{
+    lod: CastleLod;
+    role: 'castle' | 'landscape-base';
+  }>>();
   const meshesByLod = new Map<CastleLod, LodMeshes>();
 
   CASTLE_LODS.forEach((lod) => {
@@ -153,13 +158,17 @@ export function createRealmCastleInstanceLayer(
     if (!prefab) return;
     const meshes: THREE.InstancedMesh[] = [];
     const localMatrices: THREE.Matrix4[] = [];
+    const roles: Array<'castle' | 'landscape-base'> = [];
     prefab.primitives.forEach((primitive, primitiveIndex) => {
+      const role = primitive.role === 'landscape-base' ? 'landscape-base' : 'castle';
       const mesh = new THREE.InstancedMesh(
         primitive.geometry,
         materialArgument(primitive.materials),
         capacity
       );
-      mesh.name = `hegemony-castles-${lod}-${primitiveIndex}`;
+      mesh.name = role === 'landscape-base'
+        ? `hegemony-castle-landscape-bases-${lod}-${primitiveIndex}`
+        : `hegemony-castles-${lod}-${primitiveIndex}`;
       mesh.count = 0;
       mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       mesh.castShadow = options.dynamicShadows;
@@ -167,17 +176,23 @@ export function createRealmCastleInstanceLayer(
       // Visibility is packed per castle below. Aggregate InstancedMesh bounds
       // must not make the renderer cull a bucket whose instances moved.
       mesh.frustumCulled = false;
-      meshOwners.set(mesh, lod);
+      meshOwners.set(mesh, Object.freeze({ lod, role }));
       meshes.push(mesh);
       localMatrices.push(new THREE.Matrix4().fromArray(primitive.localMatrixElements));
+      roles.push(role);
       group.add(mesh);
     });
     meshesByLod.set(lod, Object.freeze({
       lod,
       meshes: Object.freeze(meshes),
-      localMatrices: Object.freeze(localMatrices)
+      localMatrices: Object.freeze(localMatrices),
+      roles: Object.freeze(roles)
     }));
   });
+
+  const hasCompleteLandscapeBaseFamily = [...options.prefabs.values()].every((prefab) => (
+    prefab.landscapeBasePrimitiveCount > 0
+  ));
 
   const contactShadowGeometry = new THREE.CircleGeometry(1, 28);
   const contactShadowMaterial = new THREE.MeshBasicMaterial({
@@ -200,12 +215,57 @@ export function createRealmCastleInstanceLayer(
   contactShadows.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   contactShadows.frustumCulled = false;
   contactShadows.renderOrder = 1;
-  group.add(contactShadows);
+  if (!hasCompleteLandscapeBaseFamily) group.add(contactShadows);
+
+  // The decorative island mesh is deliberately not a physics collider. A
+  // simple, non-rendered oval keeps the whole authored base clickable without
+  // letting trees, flowers, or overlapping triangle detail steal identity.
+  const baseColliderGeometry = new THREE.CylinderGeometry(1, 1, 1, 24);
+  const baseColliderMaterial = new THREE.MeshBasicMaterial({ visible: false });
+  const baseColliders = new THREE.InstancedMesh(
+    baseColliderGeometry,
+    baseColliderMaterial,
+    capacity
+  );
+  baseColliders.name = 'hegemony-castle-landscape-base-pick-volumes';
+  baseColliders.count = 0;
+  baseColliders.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  baseColliders.frustumCulled = false;
+  baseColliders.updateMatrixWorld(true);
+  const baseColliderCastleIds: number[] = [];
 
   const loadedPrefabs = [...options.prefabs.values()];
   const maximumFootprint = Math.max(...loadedPrefabs.map((prefab) => prefab.footprintDiameter));
   const maximumHeight = Math.max(...loadedPrefabs.map((prefab) => prefab.visualHeight));
   const castleRadius = castleFrustumRadius(maximumFootprint, maximumHeight);
+  const renderBounds = loadedPrefabs.reduce((bounds, prefab) => {
+    const local = prefab.renderProjectionEnvelope.localBounds;
+    return {
+      minX: Math.min(bounds.minX, local.minX),
+      minY: Math.min(bounds.minY, local.minY),
+      minZ: Math.min(bounds.minZ, local.minZ),
+      maxX: Math.max(bounds.maxX, local.maxX),
+      maxY: Math.max(bounds.maxY, local.maxY),
+      maxZ: Math.max(bounds.maxZ, local.maxZ)
+    };
+  }, {
+    minX: Number.POSITIVE_INFINITY,
+    minY: Number.POSITIVE_INFINITY,
+    minZ: Number.POSITIVE_INFINITY,
+    maxX: Number.NEGATIVE_INFINITY,
+    maxY: Number.NEGATIVE_INFINITY,
+    maxZ: Number.NEGATIVE_INFINITY
+  });
+  const renderCenterOffset = new THREE.Vector3(
+    (renderBounds.minX + renderBounds.maxX) * 0.5,
+    (renderBounds.minY + renderBounds.maxY) * 0.5,
+    (renderBounds.minZ + renderBounds.maxZ) * 0.5
+  );
+  const renderRadius = Math.hypot(
+    (renderBounds.maxX - renderBounds.minX) * 0.5,
+    (renderBounds.maxY - renderBounds.minY) * 0.5,
+    (renderBounds.maxZ - renderBounds.minZ) * 0.5
+  );
   const center = new THREE.Vector3();
   const sphere = new THREE.Sphere(center, castleRadius);
   const frustum = new THREE.Frustum();
@@ -217,6 +277,7 @@ export function createRealmCastleInstanceLayer(
     new THREE.Vector3(1, 0, 0),
     -Math.PI / 2
   );
+  const colliderRotation = new THREE.Quaternion();
   const shadowScale = new THREE.Vector3();
   let previousLods: CastleLodState = Object.freeze({});
   let lastPackingKey = '';
@@ -240,8 +301,13 @@ export function createRealmCastleInstanceLayer(
 
     packing = packCastleInstances(orderedCastles.map((castle) => {
       center.set(castle.x, castle.groundY + maximumHeight * 0.5, castle.z);
-      sphere.center.copy(center);
       const cameraDistance = center.distanceTo(camera.position);
+      sphere.center.set(
+        castle.x + renderCenterOffset.x,
+        castle.groundY + CASTLE_GROUND_LIFT + renderCenterOffset.y,
+        castle.z + renderCenterOffset.z
+      );
+      sphere.radius = renderRadius;
       return {
         castleId: castle.castleId,
         projectedDiameterPixels: projectedDiameterPixels(
@@ -292,40 +358,95 @@ export function createRealmCastleInstanceLayer(
     });
 
     let shadowInstanceId = 0;
-    CASTLE_LODS.forEach((lod) => {
-      const prefab = options.prefabs.get(lod);
-      if (!prefab) return;
-      const radius = prefab.footprintDiameter * 0.466;
-      packing.buckets[lod].forEach((entry) => {
-        shadowPosition.set(
-          entry.data.x,
-          entry.data.groundY + CASTLE_GROUND_LIFT * 0.85,
-          entry.data.z
-        );
-        shadowScale.set(radius, radius, 1);
-        instanceMatrix.compose(shadowPosition, shadowRotation, shadowScale);
-        contactShadows.setMatrixAt(shadowInstanceId, instanceMatrix);
-        shadowInstanceId += 1;
+    if (!hasCompleteLandscapeBaseFamily) {
+      CASTLE_LODS.forEach((lod) => {
+        const prefab = options.prefabs.get(lod);
+        if (!prefab) return;
+        const radius = prefab.footprintDiameter * 0.466;
+        packing.buckets[lod].forEach((entry) => {
+          shadowPosition.set(
+            entry.data.x,
+            entry.data.groundY + CASTLE_GROUND_LIFT * 0.85,
+            entry.data.z
+          );
+          shadowScale.set(radius, radius, 1);
+          instanceMatrix.compose(shadowPosition, shadowRotation, shadowScale);
+          contactShadows.setMatrixAt(shadowInstanceId, instanceMatrix);
+          shadowInstanceId += 1;
+        });
       });
-    });
+    }
     contactShadows.count = shadowInstanceId;
     contactShadows.instanceMatrix.needsUpdate = true;
     contactShadows.computeBoundingSphere();
+
+    let colliderInstanceId = 0;
+    baseColliderCastleIds.length = 0;
+    CASTLE_LODS.forEach((lod) => {
+      const envelope = options.prefabs.get(lod)?.landscapeBaseProjectionEnvelope;
+      if (!envelope) return;
+      const bounds = envelope.localBounds;
+      const halfX = Math.max(0.05, (bounds.maxX - bounds.minX) * 0.5);
+      const halfZ = Math.max(0.05, (bounds.maxZ - bounds.minZ) * 0.5);
+      const height = Math.max(0.08, bounds.maxY - bounds.minY);
+      const centerX = (bounds.minX + bounds.maxX) * 0.5;
+      const centerY = (bounds.minY + bounds.maxY) * 0.5;
+      const centerZ = (bounds.minZ + bounds.maxZ) * 0.5;
+      packing.buckets[lod].forEach((entry) => {
+        shadowPosition.set(
+          entry.data.x + centerX,
+          entry.data.groundY + CASTLE_GROUND_LIFT + centerY,
+          entry.data.z + centerZ
+        );
+        shadowScale.set(halfX, height, halfZ);
+        instanceMatrix.compose(shadowPosition, colliderRotation, shadowScale);
+        baseColliders.setMatrixAt(colliderInstanceId, instanceMatrix);
+        baseColliderCastleIds.push(entry.castleId);
+        colliderInstanceId += 1;
+      });
+    });
+    baseColliders.count = colliderInstanceId;
+    baseColliders.instanceMatrix.needsUpdate = true;
+    baseColliders.computeBoundingSphere();
   };
 
   const raycast = (raycaster: THREE.Raycaster): RealmCastleInstanceHit | null => {
     if (cleared || packing.totalVisible === 0) return null;
-    const intersections = raycaster.intersectObjects([...meshOwners.keys()], false);
+    const castleMeshes = [...meshOwners.entries()].flatMap(([mesh, owner]) => (
+      owner.role === 'castle' ? [mesh] : []
+    ));
+    const intersections = raycaster.intersectObjects(castleMeshes, false);
+    let castleCandidate: Readonly<{
+      hit: RealmCastleInstanceHit;
+      distance: number;
+    }> | undefined;
     for (const intersection of intersections) {
       if (intersection.instanceId === undefined) continue;
-      const lod = meshOwners.get(intersection.object as THREE.InstancedMesh);
-      if (!lod) continue;
-      const castleId = packing.resolveCastleId(lod, intersection.instanceId);
+      const owner = meshOwners.get(intersection.object as THREE.InstancedMesh);
+      if (!owner) continue;
+      const castleId = packing.resolveCastleId(owner.lod, intersection.instanceId);
       if (castleId === undefined) continue;
       const castle = castleById.get(castleId);
-      if (castle) return { castleId, coord: castle.coord };
+      if (castle) {
+        castleCandidate = {
+          hit: { castleId, coord: castle.coord },
+          distance: intersection.distance
+        };
+        break;
+      }
     }
-    return null;
+    const baseIntersections = raycaster.intersectObject(baseColliders, false);
+    for (const intersection of baseIntersections) {
+      if (intersection.instanceId === undefined) continue;
+      const castleId = baseColliderCastleIds[intersection.instanceId];
+      const castle = castleId === undefined ? undefined : castleById.get(castleId);
+      if (!castle) continue;
+      if (!castleCandidate || intersection.distance < castleCandidate.distance) {
+        return { castleId, coord: castle.coord };
+      }
+      break;
+    }
+    return castleCandidate?.hit ?? null;
   };
 
   const clear = () => {
@@ -335,6 +456,8 @@ export function createRealmCastleInstanceLayer(
       lodMeshes.meshes.forEach((mesh) => { mesh.count = 0; });
     });
     contactShadows.count = 0;
+    baseColliders.count = 0;
+    baseColliderCastleIds.length = 0;
     group.clear();
     meshOwners.clear();
   };
@@ -357,15 +480,25 @@ export function createRealmCastleInstanceLayer(
     } catch (error) {
       firstError ??= error;
     }
+    try {
+      baseColliders.dispose();
+    } catch (error) {
+      firstError ??= error;
+    }
     if (firstError) throw firstError;
   };
 
   const getPresentationTelemetry = (): RealmCastleInstancePresentationTelemetry => {
     if (cleared) {
-      return Object.freeze({ presentedModelCount: 0, raycastTargetCount: 0 });
+      return Object.freeze({
+        presentedModelCount: 0,
+        presentedLandscapeBaseCount: 0,
+        raycastTargetCount: 0
+      });
     }
 
     let presentedModelCount = 0;
+    let presentedLandscapeBaseCount = 0;
     CASTLE_LODS.forEach((lod) => {
       const lodMeshes = meshesByLod.get(lod);
       if (!lodMeshes || lodMeshes.meshes.length === 0) return;
@@ -373,20 +506,30 @@ export function createRealmCastleInstanceLayer(
       // the highest live primitive count. Deliberately do not clamp this to the
       // packing plan: even one stale/unmasked primitive must remain observable
       // to the probe instead of being hidden by the requested mask.
-      presentedModelCount += Math.max(...lodMeshes.meshes.map((mesh) => mesh.count));
+      const castleCounts = lodMeshes.meshes.flatMap((mesh, index) => (
+        lodMeshes.roles[index] === 'castle' ? [mesh.count] : []
+      ));
+      const landscapeBaseCounts = lodMeshes.meshes.flatMap((mesh, index) => (
+        lodMeshes.roles[index] === 'landscape-base' ? [mesh.count] : []
+      ));
+      if (castleCounts.length > 0) presentedModelCount += Math.max(...castleCounts);
+      if (landscapeBaseCounts.length > 0) {
+        presentedLandscapeBaseCount += Math.max(...landscapeBaseCounts);
+      }
     });
 
     const raycastTargetIds = new Set<number>();
-    meshOwners.forEach((lod, mesh) => {
-      const liveTargetCount = Math.min(mesh.count, packing.buckets[lod].length);
+    meshOwners.forEach((owner, mesh) => {
+      const liveTargetCount = Math.min(mesh.count, packing.buckets[owner.lod].length);
       for (let instanceId = 0; instanceId < liveTargetCount; instanceId += 1) {
-        const castleId = packing.resolveCastleId(lod, instanceId);
+        const castleId = packing.resolveCastleId(owner.lod, instanceId);
         if (castleId !== undefined) raycastTargetIds.add(castleId);
       }
     });
 
     return Object.freeze({
       presentedModelCount,
+      presentedLandscapeBaseCount,
       raycastTargetCount: raycastTargetIds.size
     });
   };
@@ -431,12 +574,21 @@ export function createRealmCastleInstanceLayer(
         contactShadowGeometry.dispose();
       } catch (error) {
         firstError ??= error;
-      } finally {
-        try {
-          contactShadowMaterial.dispose();
-        } catch (error) {
-          firstError ??= error;
-        }
+      }
+      try {
+        contactShadowMaterial.dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
+      try {
+        baseColliderGeometry.dispose();
+      } catch (error) {
+        firstError ??= error;
+      }
+      try {
+        baseColliderMaterial.dispose();
+      } catch (error) {
+        firstError ??= error;
       }
       if (firstError) throw firstError;
     },

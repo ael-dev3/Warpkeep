@@ -1,5 +1,6 @@
 import {
   axialToWorld,
+  hexDisc,
   hexKey,
   type HexCoord,
   type HexWorldPosition
@@ -10,6 +11,8 @@ export type TerrainStructurePlacement = Readonly<{
   coord: HexCoord;
   footprintRadius: number;
   blendRadius: number;
+  /** Decorative exclusion only; it never widens terrain-height influence. */
+  decorationClearanceRadius?: number;
   targetHeightMode: 'cell-center' | 'average-footprint';
 }>;
 
@@ -24,6 +27,7 @@ const HEGEMONY_KEEP_FOUNDATION = Object.freeze({
   // founders remain visually close without floating or cross-cell seams.
   footprintRadius: 0.62,
   blendRadius: 0.78,
+  decorationClearanceRadius: 1.08,
   targetHeightMode: 'cell-center' as const
 });
 
@@ -79,7 +83,10 @@ export const EMPTY_TERRAIN_PLACEMENTS: readonly TerrainStructurePlacement[] = Ob
 
 type TerrainPlacementIndex = Readonly<{
   byCoord: ReadonlyMap<string, readonly TerrainStructurePlacement[]>;
+  orderByPlacement: ReadonlyMap<TerrainStructurePlacement, number>;
   maxInfluenceRadius: number;
+  maxDecorationClearanceRadius: number;
+  boundedQuerySafe: boolean;
 }>;
 
 const PLACEMENT_INDEX = new WeakMap<
@@ -95,11 +102,17 @@ function indexTerrainPlacements(
 
   const mutableIndex = new Map<string, TerrainStructurePlacement[]>();
   let maxInfluenceRadius = 0;
+  let maxDecorationClearanceRadius = 0;
+  let boundedQuerySafe = true;
   let cacheable = Object.isFrozen(placements);
-  placements.forEach((placement) => {
+  const orderByPlacement = new Map<TerrainStructurePlacement, number>();
+  placements.forEach((placement, placementIndex) => {
     cacheable = cacheable
       && Object.isFrozen(placement)
       && Object.isFrozen(placement.coord);
+    boundedQuerySafe = boundedQuerySafe
+      && Number.isSafeInteger(placement.coord.q)
+      && Number.isSafeInteger(placement.coord.r);
     const placementRadius = Number.isFinite(placement.blendRadius)
       && placement.blendRadius >= 0
       && Number.isFinite(placement.footprintRadius)
@@ -109,16 +122,35 @@ function indexTerrainPlacements(
     maxInfluenceRadius = Number.isFinite(placementRadius)
       ? Math.max(maxInfluenceRadius, placementRadius)
       : Number.POSITIVE_INFINITY;
+    const clearanceCandidate = placement.decorationClearanceRadius;
+    boundedQuerySafe = boundedQuerySafe
+      && (clearanceCandidate === undefined || (
+        Number.isFinite(clearanceCandidate) && clearanceCandidate >= 0
+      ));
+    const decorationClearanceRadius = typeof clearanceCandidate === 'number'
+      && Number.isFinite(clearanceCandidate)
+      && clearanceCandidate >= 0
+      ? clearanceCandidate
+      : placementRadius;
+    maxDecorationClearanceRadius = Number.isFinite(decorationClearanceRadius)
+      ? Math.max(maxDecorationClearanceRadius, decorationClearanceRadius)
+      : Number.POSITIVE_INFINITY;
     const key = hexKey(placement.coord);
     const existing = mutableIndex.get(key);
     if (existing) existing.push(placement);
     else mutableIndex.set(key, [placement]);
+    if (!orderByPlacement.has(placement)) {
+      orderByPlacement.set(placement, placementIndex);
+    }
   });
   const index = Object.freeze({
     byCoord: new Map<string, readonly TerrainStructurePlacement[]>(
       [...mutableIndex].map(([key, values]) => [key, Object.freeze(values)] as const)
     ),
-    maxInfluenceRadius
+    orderByPlacement,
+    maxInfluenceRadius,
+    maxDecorationClearanceRadius,
+    boundedQuerySafe
   });
   // Readonly is a compile-time contract. Only retain indexes whose complete
   // coordinate identity is also immutable at runtime; mutable fixtures are
@@ -139,9 +171,12 @@ export function terrainPlacementsAtCoord(
 
 /**
  * Returns the exact coordinate bucket while every influence radius remains
- * inside one pointy-top hex. Unusually large/custom placements fall back to
- * the complete set, preserving the generic terrain API without putting the
- * normal keep-only render path back on an O(samples × castles) scan.
+ * inside one pointy-top hex. Wider finite radii use a bounded axial disc over
+ * the coordinate index. The disc is conservatively circumscribed around the
+ * target hex, so it cannot omit a placement whose radius can reach any point
+ * in that cell. Invalid, unbounded, or pathologically large inputs fall back
+ * to the complete set; small sets do the same when that is cheaper than the
+ * indexed lookup.
  */
 export function terrainPlacementsForCell(
   placements: readonly TerrainStructurePlacement[],
@@ -151,13 +186,75 @@ export function terrainPlacementsForCell(
 ): readonly TerrainStructurePlacement[] {
   if (placements.length === 0) return EMPTY_TERRAIN_PLACEMENTS;
   const index = indexTerrainPlacements(placements);
-  const safeHexSize = Number.isFinite(hexSize) && hexSize > 0 ? hexSize : 0;
-  const safeClearance = Number.isFinite(clearance) && clearance > 0 ? clearance : 0;
-  const nearestForeignCenterAtBoundary = safeHexSize * Math.sqrt(3) / 2;
-  if (index.maxInfluenceRadius + safeClearance > nearestForeignCenterAtBoundary) {
+  if (
+    !index.boundedQuerySafe
+    || !Number.isFinite(hexSize)
+    || hexSize <= 0
+    || !Number.isFinite(clearance)
+    || !Number.isSafeInteger(coord.q)
+    || !Number.isSafeInteger(coord.r)
+  ) return placements;
+
+  const normalizedCoord = {
+    q: coord.q,
+    r: coord.r
+  };
+
+  const safeClearance = Math.max(0, clearance);
+  const nearestForeignCenterAtBoundary = hexSize * Math.sqrt(3) / 2;
+  const relevantRadius = safeClearance > 0
+    ? Math.max(index.maxInfluenceRadius, index.maxDecorationClearanceRadius)
+    : index.maxInfluenceRadius;
+  const reachFromPlacementCenter = relevantRadius + safeClearance;
+  if (!Number.isFinite(reachFromPlacementCenter)) return placements;
+
+  // A foreign cell center cannot reach the target hex while its radius is
+  // strictly below the shared-edge distance. Keep this hot terrain sampling
+  // path as one direct map lookup (decoration-only radii are ignored at zero
+  // clearance).
+  if (reachFromPlacementCenter < nearestForeignCenterAtBoundary) {
+    return index.byCoord.get(hexKey(normalizedCoord)) ?? EMPTY_TERRAIN_PLACEMENTS;
+  }
+
+  // The target pointy-top hex fits inside a circle of radius `hexSize`. Any
+  // placement capable of intersecting it must therefore have its center no
+  // farther away than this conservative center-to-center reach. A triangular
+  // lattice center at axial distance n is at least 1.5 * hexSize * n away,
+  // which gives the bounded disc radius below.
+  const centerReach = reachFromPlacementCenter + hexSize;
+  const axialRadius = Math.ceil((2 * centerReach) / (3 * hexSize));
+  const MAX_BOUNDED_AXIAL_RADIUS = 256;
+  if (
+    !Number.isSafeInteger(axialRadius)
+    || axialRadius < 0
+    || axialRadius > MAX_BOUNDED_AXIAL_RADIUS
+  ) return placements;
+
+  const discCellCount = 1 + 3 * axialRadius * (axialRadius + 1);
+  if (!Number.isSafeInteger(discCellCount) || discCellCount >= placements.length) {
     return placements;
   }
-  return index.byCoord.get(hexKey(coord)) ?? EMPTY_TERRAIN_PLACEMENTS;
+
+  const targetCenter = axialToWorld(normalizedCoord, hexSize);
+  const nearby: TerrainStructurePlacement[] = [];
+  hexDisc(normalizedCoord, axialRadius).forEach((candidateCoord) => {
+    const candidateCenter = axialToWorld(candidateCoord, hexSize);
+    const centerDistance = Math.hypot(
+      candidateCenter.x - targetCenter.x,
+      candidateCenter.z - targetCenter.z
+    );
+    const tolerance = Number.EPSILON * Math.max(1, centerDistance, centerReach) * 16;
+    if (centerDistance > centerReach + tolerance) return;
+    const bucket = index.byCoord.get(hexKey(candidateCoord));
+    if (bucket) nearby.push(...bucket);
+  });
+
+  if (nearby.length === 0) return EMPTY_TERRAIN_PLACEMENTS;
+  if (nearby.length === placements.length) return placements;
+  nearby.sort((left, right) => (
+    (index.orderByPlacement.get(left) ?? 0) - (index.orderByPlacement.get(right) ?? 0)
+  ));
+  return Object.freeze(nearby);
 }
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -197,6 +294,9 @@ export function isPlacementClear(
   clearance = 0.08
 ) {
   return placements.every((placement) => (
-    distanceToPlacement(placement, world, hexSize) >= placement.blendRadius + clearance
+    distanceToPlacement(placement, world, hexSize) >= Math.max(
+      placement.blendRadius,
+      placement.decorationClearanceRadius ?? placement.blendRadius
+    ) + clearance
   ));
 }

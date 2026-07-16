@@ -116,25 +116,33 @@ export async function readExactKeepResponseBody(
   response: Response,
   expectedBytes: number
 ) {
+  return readExactRealmModelResponseBody(response, expectedBytes, 'Hegemony keep');
+}
+
+export async function readExactRealmModelResponseBody(
+  response: Response,
+  expectedBytes: number,
+  label: string
+) {
   if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0) {
-    throw new Error('Invalid Hegemony keep response limit.');
+    throw new Error(`Invalid ${label} response limit.`);
   }
   const declared = response.headers.get('content-length');
   const contentEncoding = response.headers.get('content-encoding');
   if (declared !== null) {
     if (!/^\d+$/.test(declared)) {
-      throw new Error('Hegemony keep response has an invalid Content-Length.');
+      throw new Error(`${label} response has an invalid Content-Length.`);
     }
     const declaredBytes = Number(declared);
     if (!Number.isSafeInteger(declaredBytes) || declaredBytes > expectedBytes) {
-      throw new Error('Hegemony keep response exceeds its exact byte budget.');
+      throw new Error(`${label} response exceeds its exact byte budget.`);
     }
     if (!contentEncoding && declaredBytes !== expectedBytes) {
-      throw new Error('Hegemony keep response does not match its exact byte budget.');
+      throw new Error(`${label} response does not match its exact byte budget.`);
     }
   }
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('Hegemony keep response body is not streamable.');
+  if (!reader) throw new Error(`${label} response body is not streamable.`);
   const output = new Uint8Array(expectedBytes);
   let offset = 0;
   try {
@@ -147,11 +155,11 @@ export async function readExactKeepResponseBody(
         || offset + value.byteLength > expectedBytes
       ) {
         try {
-          await reader.cancel('Hegemony keep response exceeded its exact byte budget.');
+          await reader.cancel(`${label} response exceeded its exact byte budget.`);
         } catch {
           // Preserve the bounded-read failure even if stream cancellation fails.
         }
-        throw new Error('Hegemony keep response exceeds its exact byte budget.');
+        throw new Error(`${label} response exceeds its exact byte budget.`);
       }
       output.set(value, offset);
       offset += value.byteLength;
@@ -160,7 +168,7 @@ export async function readExactKeepResponseBody(
     reader.releaseLock();
   }
   if (offset !== expectedBytes) {
-    throw new Error('Hegemony keep response does not match its exact byte budget.');
+    throw new Error(`${label} response does not match its exact byte budget.`);
   }
   return output.buffer;
 }
@@ -209,7 +217,7 @@ function requestKeepBinary(
   return request;
 }
 
-async function parseHegemonyKeep(bytes: ArrayBuffer, resourcePath: string) {
+export async function parseHegemonyModel(bytes: ArrayBuffer, resourcePath: string) {
   const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
     import('three/addons/loaders/GLTFLoader.js'),
     import('three/addons/libs/meshopt_decoder.module.js')
@@ -252,7 +260,7 @@ function tuneTexture(texture: THREE.Texture | null, anisotropy: number, color = 
   texture.needsUpdate = true;
 }
 
-function tuneKeepMaterial(material: THREE.Material, anisotropy: number) {
+export function tuneHegemonyModelMaterial(material: THREE.Material, anisotropy: number) {
   if (!(material instanceof THREE.MeshStandardMaterial)) return;
   // Preserve authored stone/electrum/fabric separation. Only contain values
   // that become unstable under ACES or missing-device environment support;
@@ -306,7 +314,7 @@ export function prepareHegemonyKeepScene(
     object.castShadow = options.dynamicShadows;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.forEach((material) => tuneKeepMaterial(material, maxAnisotropy));
+    materials.forEach((material) => tuneHegemonyModelMaterial(material, maxAnisotropy));
   });
   const root = new THREE.Group();
   root.name = HEGEMONY_MAIN_CASTLE.id;
@@ -324,7 +332,7 @@ export async function loadHegemonyKeep(
   const assetUrl = resolveRealmAssetUrl(options.baseUrl, options.quality.keepAssetPath);
   const asset = keepRuntimeAssetForPath(options.quality.keepAssetPath);
   const bytes = await requestKeepBinary(assetUrl, asset, options.requestTimeoutMs);
-  const scene = await (options.parser ?? parseHegemonyKeep)(
+  const scene = await (options.parser ?? parseHegemonyModel)(
     bytes.slice(0),
     assetUrl.slice(0, assetUrl.lastIndexOf('/') + 1)
   );

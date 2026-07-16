@@ -820,6 +820,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       interactionState: 'default',
       individualCastleCount: 18,
       presentedModelCount: 18,
+      presentedLandscapeBaseCount: 18,
       raycastTargetCount: 18,
       labelCount: 18,
       labelCullReasons: '',
@@ -928,8 +929,13 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       presentedModelCount: 101,
+      presentedLandscapeBaseCount: 101,
       raycastTargetCount: 101
     }, expected)).toThrow(/presented-model-mismatch/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      presentedLandscapeBaseCount: 17
+    }, expected)).toThrow(/presented-landscape-base-mismatch/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       raycastTargetCount: 100
@@ -952,6 +958,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelUnplacedCount: 1,
       labelClusterOverflowCount: 1,
       presentedModelCount: 19,
+      presentedLandscapeBaseCount: 19,
       raycastTargetCount: 19
     }, expected)).toMatchObject({ renderer: 'webgl' });
     expect(() => parseRenderedWebglBrowserDom({
@@ -1153,6 +1160,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       clustersWithinViewportCount: 0,
       individualCastleCount: 0,
       presentedModelCount: 0,
+      presentedLandscapeBaseCount: 0,
       raycastTargetCount: 0,
       labelsTextBearingCount: 0,
       labelsWithinViewportCount: 0,
@@ -1184,6 +1192,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelUnplacedCount: 0,
       individualCastleCount: 0,
       presentedModelCount: 0,
+      presentedLandscapeBaseCount: 0,
       raycastTargetCount: 0,
       labelsTextBearingCount: 0,
       labelsWithinViewportCount: 0
@@ -1209,6 +1218,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       clustersWithinViewportCount: 0,
       individualCastleCount: 0,
       presentedModelCount: 0,
+      presentedLandscapeBaseCount: 0,
       raycastTargetCount: 0,
       labelsTextBearingCount: 0,
       labelsWithinViewportCount: 0,
@@ -1239,6 +1249,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelUnplacedCount: 2,
       labelClusteredCount: 2,
       presentedModelCount: 20,
+      presentedLandscapeBaseCount: 20,
       raycastTargetCount: 20,
       clusterButtonCount: 1,
       accessibleClusterButtonCount: 1,
@@ -1299,6 +1310,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelUnplacedCount: 1,
       labelClusterOverflowCount: 1,
       presentedModelCount: 19,
+      presentedLandscapeBaseCount: 19,
       raycastTargetCount: 19,
       exploreCastleCount: 100,
       exploreAccessibleCastleCount: 100

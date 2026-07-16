@@ -14,6 +14,10 @@ foundation base and presents the selected keep in a responsive Farcaster castle
 record. Its decorative castle art is a same-origin, integrity-pinned,
 provenance-required runtime asset. These are browser presentation changes only;
 they add no gameplay field, action, identity authority, or backend mutation.
+Each GameReady castle tier now loads with its exact matching GameReady landscape
+base as one fail-closed assembly. The wider authored island replaces the old
+synthetic contact-shadow instance but does not change authoritative castle
+placement, LOD distance, camera focus, identity anchoring, or backend state.
 
 Warpkeep Alpha 0.3.4 preserves the live title/menu, explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
@@ -42,6 +46,19 @@ Start with:
 - Preserve the immutable v0.3.0 licensing cutover commits and normal merge ancestry.
 - Runtime assets stay in Warpkeep; authorized source bundles belong in immutable Warpkeep-Assets releases. Unresolved-rights material is not published by assumption.
 - The 2026-07-16 GameReady castle authorization covers project-internal runtime integration of only the three exact recorded High, Balanced, and Compact inputs plus the bounded atlas-size metadata correction recorded for Balanced and Compact. It grants no separate open licence, broader derivative authority, general redistribution right, trademark right, or permission to substitute same-named files. Do not use the superseded Alpha 0.3.4 preparation pipeline to overwrite them, and do not describe this geometry swap as a brightness improvement.
+- The separate 2026-07-16 GameReady landscape-base authorization covers only
+  project-internal PR #40 integration of the three exact recorded High,
+  Balanced, and Compact inputs plus the bounded atlas-size metadata correction
+  for Balanced and Compact. Preserve
+  `LicenseRef-Warpkeep-Provenance-Required`. Apply the exact castle parent
+  position, quaternion, and uniform scale; never independently center,
+  normalize, ground, or scale the base. Do not restore the old contact-shadow
+  instance when the complete base family is ready, let base bounds alter castle
+  LOD/camera/username metrics, or raycast decorative triangles. Compare the
+  nearest valid castle-geometry and simple base-collider hits so a farther
+  castle cannot beat a nearer base. No public open licence, general
+  derivative/redistribution authority, trademark right, or same-named-file
+  substitution is granted.
 - A direct castle username has exactly one honest location: its projected
   foundation-base anchor. Do not reintroduce random or collision-driven
   individual displacement, roof stacking, or individual leader lines. When

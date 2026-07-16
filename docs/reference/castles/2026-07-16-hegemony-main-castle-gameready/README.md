@@ -101,10 +101,25 @@ npm run verify:runtime-assets
 ```
 
 The installer requires the exact package manifest and all three exact input
-hashes, rejects symlinks and non-regular files, validates every normalized
-output before writing, and installs all profiles only after the complete family
-passes. Ordinary builds do not read the source package or perform network
-access.
+hashes, rejects symlink leaves or ancestors and non-regular files, and validates
+every normalized output before installation. It then stages and verifies the
+complete family on the destination filesystem, atomically replaces each runtime
+path without truncating an existing inode, verifies every installed byte, and
+rolls the entire family back if any caught in-process replacement or
+post-install check fails. Existing destination bytes are pinned at preflight and
+rechecked immediately before replacement, so even a same-size mutation fails
+closed. A stale `.warpkeep-family-install-*` transaction blocks both another
+installation and the runtime-asset verification performed by the production
+build; exact runtime hashes independently reject a mixed family.
+Ordinary builds do not read the source package or perform network access.
+
+This bounded transaction is not a crash journal. It does not automatically
+recover from process termination, kernel failure, or power loss, and it cannot
+make a concurrent ancestor-directory swap safe without `openat`-style directory
+handles. The source package and runtime destination must therefore remain on
+trusted, exclusively controlled local paths for the entire operation. Any
+surviving transaction evidence is left in place for explicit operator recovery
+rather than guessed at or silently deleted.
 
 The old `scripts/prepare-hegemony-main-castle.mjs` pipeline and the commands
 ending in `:source-0.3.4` reproduce only the superseded 2026-07-15 evidence.

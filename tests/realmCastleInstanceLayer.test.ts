@@ -49,12 +49,49 @@ function prefab(
     localMatrixElements: new THREE.Matrix4().makeTranslation(0, 0.5, 0).elements,
     sourceMeshName: `castle-${lod}`
   }];
+  const projectionEnvelope = deriveCastleProjectionEnvelope(primitives)!;
   return {
     lod,
     assetUrl: `/castle-${lod}.glb`,
     footprintDiameter: 1,
     visualHeight: 1,
-    projectionEnvelope: deriveCastleProjectionEnvelope(primitives)!,
+    projectionEnvelope,
+    renderProjectionEnvelope: projectionEnvelope,
+    landscapeBasePrimitiveCount: 0,
+    primitives
+  };
+}
+
+function prefabWithLandscapeBase(
+  lod: CastleLod,
+  castleGeometry: THREE.BufferGeometry,
+  baseGeometry: THREE.BufferGeometry,
+  material: THREE.Material
+): HegemonyKeepPrefab {
+  const castlePrimitive = {
+    geometry: castleGeometry,
+    materials: [material],
+    localMatrixElements: new THREE.Matrix4().makeTranslation(0, 0.5, 0).elements,
+    sourceMeshName: `castle-${lod}`,
+    role: 'castle' as const
+  };
+  const basePrimitive = {
+    geometry: baseGeometry,
+    materials: [material],
+    localMatrixElements: new THREE.Matrix4().identity().elements,
+    sourceMeshName: `landscape-base-${lod}`,
+    role: 'landscape-base' as const
+  };
+  const primitives = [castlePrimitive, basePrimitive];
+  return {
+    lod,
+    assetUrl: `/castle-${lod}.glb`,
+    footprintDiameter: 1,
+    visualHeight: 1,
+    projectionEnvelope: deriveCastleProjectionEnvelope([castlePrimitive])!,
+    renderProjectionEnvelope: deriveCastleProjectionEnvelope(primitives)!,
+    landscapeBaseProjectionEnvelope: deriveCastleProjectionEnvelope([basePrimitive])!,
+    landscapeBasePrimitiveCount: 1,
     primitives
   };
 }
@@ -164,9 +201,10 @@ describe('realm castle instance layer', () => {
     layer.clear();
     layer.dispose();
     layer.dispose();
-    // One castle bucket and one contact-shadow mesh release only their
-    // layer-owned instance buffers; prefab resources remain repository-owned.
-    expect(instanceDispose).toHaveBeenCalledTimes(2);
+    // One castle bucket, one contact-shadow mesh, and the non-rendered base
+    // collider release only layer-owned buffers; prefab resources remain
+    // repository-owned.
+    expect(instanceDispose).toHaveBeenCalledTimes(3);
     expect(geometryDispose).not.toHaveBeenCalled();
     expect(materialDispose).not.toHaveBeenCalled();
   });
@@ -220,6 +258,99 @@ describe('realm castle instance layer', () => {
       coord: { q: 2, r: -2 }
     });
     layer.dispose();
+  });
+
+  it('renders one matching base per castle, suppresses legacy contact shadows, and picks the island', () => {
+    const castleGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const baseGeometry = new THREE.BoxGeometry(2.4, 0.2, 2);
+    const material = new THREE.MeshBasicMaterial();
+    const layer = createRealmCastleInstanceLayer({
+      castles: [castle(41, 0, 0)],
+      prefabs: new Map([[
+        'compact',
+        prefabWithLandscapeBase('compact', castleGeometry, baseGeometry, material)
+      ]]),
+      policy: COMPACT_ONLY_POLICY,
+      dynamicShadows: false
+    });
+
+    layer.update(camera(), 900);
+
+    expect(layer.group.getObjectByName('hegemony-castle-contact-shadows')).toBeUndefined();
+    const castleMesh = layer.group.getObjectByName(
+      'hegemony-castles-compact-0'
+    ) as THREE.InstancedMesh;
+    const baseMesh = layer.group.getObjectByName(
+      'hegemony-castle-landscape-bases-compact-1'
+    ) as THREE.InstancedMesh;
+    expect(castleMesh.count).toBe(1);
+    expect(baseMesh.count).toBe(1);
+    expect(layer.getPresentationTelemetry()).toEqual({
+      presentedModelCount: 1,
+      presentedLandscapeBaseCount: 1,
+      raycastTargetCount: 1
+    });
+
+    // This top-down ray misses the one-unit castle but remains inside the
+    // authored island envelope, so the simple non-rendered oval must resolve
+    // the same castle identity without raycasting decorative base triangles.
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(0.9, 5, 0),
+      new THREE.Vector3(0, -1, 0)
+    );
+    expect(layer.raycast(raycaster)).toEqual({
+      castleId: 41,
+      coord: { q: 41, r: -41 }
+    });
+
+    baseMesh.count = 0;
+    expect(layer.getPresentationTelemetry()).toEqual({
+      presentedModelCount: 1,
+      presentedLandscapeBaseCount: 0,
+      raycastTargetCount: 1
+    });
+    layer.dispose();
+  });
+
+  it('selects the nearest physical castle-or-base hit instead of privileging either mesh family', () => {
+    const makeLayer = (baseCastleZ: number) => {
+      const castleGeometry = new THREE.BoxGeometry(1, 1, 1);
+      const baseGeometry = new THREE.BoxGeometry(2.4, 0.2, 2);
+      const layer = createRealmCastleInstanceLayer({
+        castles: [castle(1, 0, 0), castle(2, 0.9, baseCastleZ)],
+        prefabs: new Map([[
+          'compact',
+          prefabWithLandscapeBase(
+            'compact',
+            castleGeometry,
+            baseGeometry,
+            new THREE.MeshBasicMaterial()
+          )
+        ]]),
+        policy: COMPACT_ONLY_POLICY,
+        dynamicShadows: false
+      });
+      layer.update(camera(), 900);
+      return layer;
+    };
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(0, 0.05, 5),
+      new THREE.Vector3(0, 0, -1)
+    );
+
+    const nearerForeignBase = makeLayer(1);
+    expect(nearerForeignBase.raycast(raycaster)).toEqual({
+      castleId: 2,
+      coord: { q: 2, r: -2 }
+    });
+    nearerForeignBase.dispose();
+
+    const nearerCastleTriangles = makeLayer(-0.8);
+    expect(nearerCastleTriangles.raycast(raycaster)).toEqual({
+      castleId: 1,
+      coord: { q: 1, r: -1 }
+    });
+    nearerCastleTriangles.dispose();
   });
 
   it('picks an instantiated castle decoded from the exact compact Meshopt GLB', async () => {
@@ -358,6 +489,7 @@ describe('realm castle instance layer', () => {
     expect(layer.getPacking().buckets.compact.map((entry) => entry.castleId)).toEqual([4]);
     expect(layer.getPresentationTelemetry()).toEqual({
       presentedModelCount: 1,
+      presentedLandscapeBaseCount: 0,
       raycastTargetCount: 1
     });
     const liveCastleMesh = layer.group.children[0] as THREE.InstancedMesh;
@@ -366,6 +498,7 @@ describe('realm castle instance layer', () => {
     liveCastleMesh.count = 2;
     expect(layer.getPresentationTelemetry()).toEqual({
       presentedModelCount: 2,
+      presentedLandscapeBaseCount: 0,
       raycastTargetCount: 1
     });
     liveCastleMesh.count = 1;
@@ -396,11 +529,13 @@ describe('realm castle instance layer', () => {
     expect(layer.getPacking().totalVisible).toBe(2);
     expect(layer.getPresentationTelemetry()).toEqual({
       presentedModelCount: 2,
+      presentedLandscapeBaseCount: 0,
       raycastTargetCount: 2
     });
     layer.clear();
     expect(layer.getPresentationTelemetry()).toEqual({
       presentedModelCount: 0,
+      presentedLandscapeBaseCount: 0,
       raycastTargetCount: 0
     });
     layer.dispose();

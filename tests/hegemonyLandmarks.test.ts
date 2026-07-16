@@ -10,6 +10,12 @@ describe('Hegemony landmark presentation metadata', () => {
       balanced: 'models/hegemony/hegemony-main-castle-balanced.glb',
       compact: 'models/hegemony/hegemony-main-castle-compact.glb'
     });
+    expect(HEGEMONY_MAIN_CASTLE.landscapeBaseRuntimeAssetPaths).toEqual({
+      high: 'models/hegemony/hegemony-castle-landscape-base-high.glb',
+      balanced: 'models/hegemony/hegemony-castle-landscape-base-balanced.glb',
+      compact: 'models/hegemony/hegemony-castle-landscape-base-compact.glb'
+    });
     expect(HEGEMONY_MAIN_CASTLE.targetFootprintDiameter).toBe(1.48);
+    expect(HEGEMONY_MAIN_CASTLE.landscapeBaseFootprintDiameter).toBe(2.056);
   });
 });

@@ -10,8 +10,15 @@ export const HEGEMONY_MAIN_CASTLE = {
     balanced: 'models/hegemony/hegemony-main-castle-balanced.glb',
     compact: 'models/hegemony/hegemony-main-castle-compact.glb'
   },
+  landscapeBaseRuntimeAssetPaths: {
+    high: 'models/hegemony/hegemony-castle-landscape-base-high.glb',
+    balanced: 'models/hegemony/hegemony-castle-landscape-base-balanced.glb',
+    compact: 'models/hegemony/hegemony-castle-landscape-base-compact.glb'
+  },
   /** Normalized runtime diameter in Realm world units (74% of one hex). */
   targetFootprintDiameter: 1.48,
+  /** Authored base envelope after castle-derived normalization. */
+  landscapeBaseFootprintDiameter: 2.056,
   yawRadians: 0,
   level: 1
 } as const;

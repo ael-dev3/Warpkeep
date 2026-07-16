@@ -55,14 +55,15 @@ const ALPHA_0_3_5_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '16 JUL 2026',
   title: 'GAME-READY CASTLE REFRESH',
   summary:
-    'Alpha 0.3.5 refreshes Realm castles and gives each founder a cleaner, honest identity presentation without changing player authority.',
+    'Alpha 0.3.5 refreshes Realm castles, settles each keep into an authored Lowlands landscape, and gives every founder a cleaner identity presentation without changing player authority.',
   highlights: Object.freeze([
     'Cinematic, Balanced, and Performance graphics now use the new High, Balanced, and Compact GameReady castle models.',
-    'The Compact model keeps its intentionally shorter authored proportions; every tier is still uniformly scaled, centred, and grounded in the Lowlands.',
+    'Every castle tier now carries its matching road-and-island landscape base with grass, trees, rocks, shrubs, and flowers; the authored base replaces the old synthetic contact shadow.',
+    'The Compact castle keeps its intentionally shorter authored proportions; each base inherits the castle transform exactly instead of being independently centred, scaled, or grounded.',
     'Slim usernames stay fixed at each castle foundation; individual labels never drift or grow leader lines, while dense identities consolidate through deterministic keeper clusters and Explore.',
     'The responsive castle record uses only sanitized public Farcaster and existing Realm data, with a safe portrait-to-initial fallback instead of invented gameplay fields or actions.',
     'Background-cleaned castle record art and every GameReady model remain same-origin, integrity-pinned, and provenance-recorded.',
-    'This Pages-only patch changes no authentication, admission, world generation, castle ownership, wallet, Marks, Worker, or SpacetimeDB authority.'
+    'This Pages-only patch changes client-side decoration clearance around the new islands, but no authentication, admission, authoritative world generation, castle ownership, wallet, Marks, Worker, or SpacetimeDB authority.'
   ]),
   alphaNotice: 'Prepared 16 July 2026. Candidate release pending protected deployment and exact-build verification.'
 });

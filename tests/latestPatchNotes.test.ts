@@ -24,6 +24,9 @@ describe('latest in-menu patch notes', () => {
       /High, Balanced, and Compact GameReady castle models/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /matching road-and-island landscape base.*replaces the old synthetic contact shadow/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
       /intentionally shorter authored proportions/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
@@ -39,7 +42,7 @@ describe('latest in-menu patch notes', () => {
       /Background-cleaned castle record art/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Pages-only patch changes no authentication/i
+      /changes client-side decoration clearance.*no authentication.*authoritative world generation/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /brighter|brightness improvement|durability|destroy|alliance/i

@@ -67,6 +67,9 @@ npx --yes @gltf-transform/cli@4.4.1 validate <model.glb>
 | `hegemony-main-castle-high.glb` | 2,215,972 | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
 | `hegemony-main-castle-balanced.glb` | 892,788 | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
 | `hegemony-main-castle-compact.glb` | 453,628 | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
+| `hegemony-castle-landscape-base-high.glb` | 214,372 | `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` |
+| `hegemony-castle-landscape-base-balanced.glb` | 92,784 | `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` |
+| `hegemony-castle-landscape-base-compact.glb` | 27,328 | `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` |
 
 `npm run verify:runtime-assets` also verifies required runtime audio/video. `npm run verify:file-sizes` rejects new tracked non-runtime files over 5 MiB.
 
@@ -113,6 +116,44 @@ canonical-identity grant. The complete record is the dated
 The geometry family introduces profile-relative size and height differences
 that the project owner explicitly accepted. It does not itself make the castle
 materials brighter; renderer lighting and palette work remain separate.
+
+## Active Hegemony Castle Landscape Base GameReady installation
+
+The matching authored island family is installed separately from the exact
+owner-supplied **Warpkeep Castle Landscape Base** package, asset ID
+`warpkeep.castle-landscape-base`, version `1.0.0`. Its
+`asset-manifest.json` is 2,177 bytes with SHA-256
+`106d64f5eaf91332acc83c18d5abbd9ad230b17eb4c9ffee1231ecf7d595d3f5`.
+
+Install and verify only from a trusted, authorized exact package root:
+
+```sh
+WARPKEEP_CASTLE_BASE_GAMEREADY_ROOT=/trusted/offline/game-ready-base-package \
+  npm run prepare:hegemony-castle-base
+npm run verify:runtime-assets
+```
+
+| Profile | Authorized input bytes / SHA-256 | Installed output bytes / SHA-256 | Correction |
+| --- | --- | --- | --- |
+| High | 214,372 / `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` | 214,372 / `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` | none; byte-for-byte |
+| Balanced | 92,792 / `5f4e3c52336c78414b5370b63a5e4b924a773297092430eb6f4773bc094eb5cf` | 92,784 / `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` | atlas metadata 1024 → 512; payloads preserved |
+| Compact | 27,336 / `ebaf6c6cef216b92de86aa49ea2d612d63227210858b7427fa0c7e97a81323dc` | 27,328 / `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` | atlas metadata 1024 → 256; payloads preserved |
+
+The installer rejects symlinks, non-regular files, package-identity changes,
+and byte/hash mismatches before writing. High is copied byte-for-byte;
+Balanced/Compact change only the incorrect material atlas metadata and
+necessary GLB padding/offsets. Castle and base must receive the exact same
+parent position, quaternion, and uniform scale. Never independently center,
+normalize, ground, or scale the base: the below-ground skirt and `+Z` road are
+authored placement.
+
+The owner explicitly instructed PR #40 to integrate these exact bases under
+Warpkeep castles. That narrow scope and bounded metadata correction remain
+`LicenseRef-Warpkeep-Provenance-Required`; they do not establish a public open
+licence, general third-party derivative/redistribution authority, trademark or
+canonical-identity rights, or same-named-file substitution. The exact record is
+the dated
+[GameReady landscape-base record](../../reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/).
 
 ## Historical 2026-07-15 Hegemony Main Castle preparation
 

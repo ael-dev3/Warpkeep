@@ -41,6 +41,9 @@
   "inputContract": {
     "regularFilesOnly": true,
     "symlinksRejected": true,
+    "ancestorSymlinksRejected": true,
+    "trustedExclusiveLocalPathsRequired": true,
+    "concurrentAncestorSwapSupported": false,
     "coordinateSystem": {
       "up": "+Y",
       "gateFacing": "+Z",
@@ -149,6 +152,10 @@
   "runtimeOutputs": {
     "browserRuntime": "checked-in outputs only; the supplied package is never a runtime CDN",
     "installer": "scripts/install-hegemony-gameready-castle.mjs",
+    "installTransaction": "preflight complete family and existing destination bytes; stage and verify on destination filesystem; atomically replace each output; verify exact installed bytes; roll back complete family on caught in-process failure",
+    "automaticCrashRecovery": false,
+    "staleTransactionPolicy": "installer, runtime verifier, and production build fail closed; explicit operator recovery is required after process termination, kernel failure, or power loss",
+    "mixedFamilyPolicy": "exact runtime verification and the production build fail closed",
     "sourceRootEnvironmentVariable": "WARPKEEP_CASTLE_GAMEREADY_ROOT",
     "verificationScript": "scripts/verify-runtime-assets.mjs",
     "profiles": {

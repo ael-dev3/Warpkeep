@@ -13,10 +13,26 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   geometry. Balanced and Compact reduce both transfer size and geometry, and
   the Compact model's intentionally shorter authored height is accepted as a
   reviewed LOD tradeoff rather than silently stretched in its source data.
+- Every GameReady castle tier now carries its matching integrity-pinned
+  landscape base, adding a road, grass island, trees, rocks, shrubs, and flowers
+  under each founded keep. Castle and base share the exact parent transform;
+  the decorative base is never independently recentered, normalized, grounded,
+  or used to rewrite authoritative placement.
+- The complete castle-plus-base assembly fails closed as one unit. Authored
+  island thickness replaces the old synthetic contact-shadow instance, while
+  castle geometry still owns LOD distance, camera focus, and username anchoring.
+  Picking compares the nearest valid castle-geometry and simple base-collider
+  hits without raycasting decorative island triangles. Conservative composite
+  bounds keep the wider base from disappearing at the frustum edge.
+- The three base GLBs add 334,484 checked-in bytes and at most 131,496,
+  105,576, or 71,400 triangles across 100 castles in Cinematic, Balanced, and
+  Performance profiles. They remain shared instanced resources rather than
+  per-castle asset copies.
 - Runtime records now identify each profile's real atlas dimensions and exact
   file integrity instead of inheriting inconsistent source metadata. Existing
-  uniform footprint normalization and ground alignment remain responsible for
-  placing each model in the Lowlands without non-uniform deformation.
+  castle footprint normalization and ground alignment remain responsible for
+  placing the keep; its matching base copies that exact transform without
+  independent normalization or non-uniform deformation.
 - Public usernames now sit on slim, translucent rails at each keep's projected
   foundation base. An individual rail has one deterministic anchor and no
   leader line or random collision displacement; crowded identities consolidate
@@ -35,9 +51,10 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   atlas-metadata normalization from the superseded Alpha 0.3.4 deterministic
   derivative family. No brightness improvement is attributed to the model swap
   itself.
-- This release is Pages-only. It changes no authentication, Terms, admission,
-  backend protocol, world generation, castle ownership, wallet, Marks, Worker,
-  SpacetimeDB module, or production data.
+- This release is Pages-only. It widens only client-side procedural-decoration
+  clearance around the authored islands; it changes no authentication, Terms,
+  admission, backend protocol, authoritative world generation or state, castle
+  ownership, wallet, Marks, Worker, SpacetimeDB module, or production data.
 
 ## [0.3.4] — 2026-07-15
 

@@ -11,6 +11,7 @@ const mocked = vi.hoisted(() => {
     onCastlesReady?: (castleCount: number) => void;
     onCastlePresentationTelemetry?: (telemetry: {
       presentedModelCount: number;
+      presentedLandscapeBaseCount: number;
       raycastTargetCount: number;
     }) => void;
     onCastleProjection?: (frame: {
@@ -510,11 +511,13 @@ describe('live realm quality recreation', () => {
     const options = mocked.createRealmScene.mock.calls[0]![0];
     act(() => options.onCastlePresentationTelemetry?.({
       presentedModelCount: 1,
+      presentedLandscapeBaseCount: 1,
       raycastTargetCount: 1
     }));
 
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
     expect(realm.dataset.presentedModelCount).toBe('1');
+    expect(realm.dataset.presentedLandscapeBaseCount).toBe('1');
     expect(realm.dataset.raycastTargetCount).toBe('1');
     expect(realm.outerHTML).not.toMatch(/(?:fid|token|proof|qr|identity)=/i);
   });

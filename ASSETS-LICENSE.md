@@ -122,6 +122,44 @@ The GameReady geometry has accepted profile-relative size and height
 differences. This asset change does not itself claim brighter materials; castle
 lighting and palette remain renderer concerns.
 
+## Hegemony Castle Landscape Base GameReady runtime assets
+
+The island, road, tree, rock, bush, flower, and grass landscape under each
+active Hegemony Main Castle comes from the exact owner-supplied package
+identified as **Warpkeep Castle Landscape Base**, asset ID
+`warpkeep.castle-landscape-base`, version `1.0.0`. On 2026-07-16, the Warpkeep
+project owner explicitly instructed PR #40 to add these bases under the game's
+castles. That instruction authorizes project-internal Warpkeep runtime
+integration of the exact three named GLBs and the bounded deterministic
+metadata correction below. It does not grant a separate public open license,
+relicense inputs or outputs as CC-BY-4.0 or Apache-2.0, create a general
+third-party derivative or redistribution grant, or grant trademark,
+canonical-identity, or same-named-file substitution rights.
+
+The supplied `asset-manifest.json` is 2,177 bytes with SHA-256
+`106d64f5eaf91332acc83c18d5abbd9ad230b17eb4c9ffee1231ecf7d595d3f5`.
+The installer accepts only that package identity and the exact authorized input
+hashes. High is committed byte-for-byte. Balanced and Compact contain correct
+embedded 512×512 and 256×256 WebPs but declare `wk_atlas_size: 1024`; the
+deterministic correction changes only that material metadata and necessary GLB
+container padding/offsets while preserving every geometry and image payload
+byte.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| High castle landscape base | `public/models/hegemony/hegemony-castle-landscape-base-high.glb` | 214,372 bytes, SHA-256 `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c`, 3,954 triangles, 10,681 POSITION entries, two embedded 1024×1024 WebPs, Meshopt compression. |
+| Balanced castle landscape base | `public/models/hegemony/hegemony-castle-landscape-base-balanced.glb` | 92,784 bytes, SHA-256 `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f`, 2,138 triangles, 5,611 POSITION entries, two embedded 512×512 WebPs, Meshopt compression. |
+| Compact castle landscape base | `public/models/hegemony/hegemony-castle-landscape-base-compact.glb` | 27,328 bytes, SHA-256 `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3`, 714 triangles, 1,780 POSITION entries, two embedded 256×256 WebPs, Meshopt compression. |
+
+The castle and base must receive the exact same parent transform. The base is
+never independently centered, normalized, grounded, or scaled; its below-ground
+skirt and `+Z` road direction are authored placement. The complete family is
+classified as `LicenseRef-Warpkeep-Provenance-Required`. Neither its location
+under `public/` nor metadata-only correction changes that status. The dated
+[GameReady landscape-base record](docs/reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/)
+preserves exact inputs, outputs, embedded-image hashes, placement contract,
+performance budgets, and authorization boundary.
+
 ## Hegemony castle record artwork
 
 The Alpha 0.3.5 castle inspection card uses one transparent decorative WebP
