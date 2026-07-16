@@ -19,14 +19,16 @@ comparison succeeds because it has a clearer value hierarchy: bright ground,
 readable lit planes, decisive directional shadows, and stronger separation
 between the building and its surroundings.
 
-Warpkeep should keep its own restrained Lowlands identity while making five
+Warpkeep should keep its own restrained Lowlands identity while making six
 targeted changes:
 
 1. define one explicit color-space contract for every terrain color;
 2. replace the flat green contact discs with directional, soft grounding;
 3. use a clear key/fill hierarchy and reserve amethyst for accents;
 4. keep fog on the distant realm, not on the castle the player is reading; and
-5. add production-scene, object-aware visual metrics before tuning values.
+5. lift the castle model's stone midtones through one bounded, LOD-consistent
+   surface calibration; and
+6. add production-scene, object-aware visual metrics before tuning values.
 
 A focused shadow map may improve the approach and close views, but a world-sized
 shadow pass over all 100 castles is not the recommended solution. Overview
@@ -160,6 +162,13 @@ scene.
 
 - Keep the masonry weighty and weathered; lift readable midtones rather than
   bleaching the base-color texture.
+- Make the 3D castle itself measurably brighter than the audited baseline. Do not
+  obtain the entire improvement by darkening terrain or raising global exposure.
+- Keep light-facing stone in a natural midtone relationship with the surrounding
+  clearing so the keep belongs to the same sunlit world, while roofs, gates,
+  windows, banners, and electrum accents remain materially distinct.
+- Match perceived brightness and hue across High, Balanced, and Compact castle
+  LOD transitions so zooming never produces a visible surface-value pop.
 - Make the sun direction evident from lit roofs, tower sides, and a grounded
   shadow.
 - Preserve dark windows, gates, and recesses without allowing the majority of a
@@ -377,24 +386,62 @@ The castle clearing should be a readable packed-earth/stone value island with a
 soft natural boundary. Decorative path work is outside this proposal until a
 road/gameplay contract exists.
 
-### Phase 5 — Improve castle material response only if lighting is insufficient
+### Phase 5 — Calibrate castle surface brightness and material response
 
-First measure Phases 1–4 with the existing integrity-pinned model. If the single
-material remains the limiting factor, extend the authorized deterministic asset
-pipeline rather than adding per-castle lights or a screen-space effect.
+Brighter castle models are a required visual outcome, not an optional polish.
+First measure Phases 1–4 with the existing integrity-pinned model so the material
+change is not compensating for an unknown terrain or lighting error. Do not close
+the implementation while the object-masked castle midtones remain below the
+owner-approved brighter target.
 
-Preferred options, in order:
+If the corrected light rig alone does not meet that target, extend the authorized
+deterministic asset pipeline instead of adding per-castle lights, neutral
+emissive glow, undocumented shader gamma, or a screen-space brightening effect.
+Preferred material work, in order:
 
-1. add a baked occlusion/roughness/metallic texture from an authorized source or
-   reviewed project-authored derivation;
-2. add a bounded material-class mask for stone, roof, fabric, and electrum; or
-3. apply a documented base-color grade during deterministic derivative
-   preparation.
+1. derive one named, integrity-pinned offline grade of
+   `WK_HeroCastle_BaseColorAtlas` from the authorized project texture: decode
+   sRGB to Linear-sRGB, apply an explicitly implemented and tested monotonic
+   luminance/toe–midtone–shoulder curve, protect intentional near-black recesses
+   and electrum highlight headroom, preserve hue and alpha, then encode once back
+   to sRGB; never grade `WK_HeroCastle_NormalAtlas`;
+2. grade the canonical 2048px atlas first, then derive High, Balanced, and
+   Compact from that same graded master. Make grading independent of the current
+   resize-only branch so the 2048px High output is re-encoded and verified rather
+   than silently retaining the dark source atlas;
+3. require object-masked before/after and cross-LOD parity evidence; and
+4. if still justified, add an authorized bounded material-class or
+   occlusion/roughness/metallic texture so stone, roof, fabric, recesses, and
+   electrum respond distinctly without flattening the entire keep.
+
+Do not express the grade as an undocumented image-tool `gamma()`/`modulate()`
+chain. Pin the transfer math, toolchain, and output bytes so a future rebuild
+cannot change the castle appearance silently.
+
+The grade must not modify geometry, UVs, normals, alpha coverage, collision,
+footprint, selection bounds, or LOD thresholds. Evaluate it only inside the
+production Realm pipeline against the local clearing and fog—not in an isolated
+model viewer whose background can make the same atlas appear artificially
+brighter.
+
+Split the existing LOD visual contract around this intentional migration:
+
+- keep source-versus-runtime silhouette, coverage, geometry, and alignment checks
+  against the immutable authorized source;
+- record the deliberate raw-source-to-graded color/luminance delta as separate
+  owner-approved evidence; and
+- compare graded High, Balanced, and Compact masked color/luminance at the real
+  switch distances rather than requiring every brighter derivative to preserve
+  the old source-color delta.
 
 Any asset change must update exact bytes, hashes, texture dimensions, source
 authority records, runtime manifests, LOD comparisons, and license inventory.
 Do not reinterpret a normal/data map as sRGB, apply an undocumented runtime
 gamma multiplier, or claim material separation that the asset does not encode.
+Preserve the current encoded GLB ceilings—High below `2,000,000` bytes, Balanced
+below `1,200,000`, and Compact (the Reduced tier) below `520,000`—unless a
+separate measured review changes them. The grade must not increase atlas
+dimensions or channel count.
 
 ### Rollout and rollback
 
@@ -419,6 +466,11 @@ are true in deterministic production-scene fixtures.
   close camera modes.
 - The focused castle has readable midtones while intentional windows and recesses
   remain dark.
+- At identical camera, quality, and light settings, the castle mask is visibly
+  and measurably brighter than the `089430e` baseline without bleached stone,
+  glowing neutral surfaces, or clipped electrum highlights.
+- High, Balanced, and Compact LOD changes introduce no perceptible brightness,
+  hue, or material-response flash during zoom.
 - A directional shadow touches the castle base and agrees with the visible sun.
 - The overview decal has no visible circular edge or green halo.
 - The focused foreground castle is not visibly washed by fog.
@@ -433,6 +485,10 @@ are true in deterministic production-scene fixtures.
 
 - Object-masked luminance, clipping, local-range, edge-contrast, and
   castle/ground-separation metrics stay inside owner-approved ranges.
+- Baseline-to-candidate evidence shows an owner-approved increase in castle
+  p25 and median luminance while preserving bounded near-black-recess,
+  crushed-shadow, clipped-highlight, local-dynamic-range, and
+  roof/front/side-separation evidence.
 - The metric gate excludes DOM labels and other UI pixels.
 - Shadow coverage proves base contact and sun-direction consistency.
 - Derive shadow pixels from otherwise identical production and shadow-disabled
@@ -513,7 +569,7 @@ This is a handoff map, not a list of files changed by this proposal.
 | Color-space contract and palette | `src/game/map/hegemonyLowlandsSpec.ts`, `src/game/map/terrainColor.ts`, `src/components/realm/createTerrainGeometry.ts`, fallback encoding in `src/components/realm/RealmMapScreen.tsx`, focused terrain tests |
 | Lighting/fog policy | `src/components/realm/realmQuality.ts`, `src/components/realm/createRealmScene.ts`, `src/components/realm/createRealmEnvironment.ts`, camera/scene tests |
 | Contact and focused shadows | `src/components/realm/realmCastleInstanceLayer.ts`, `src/components/realm/createRealmScene.ts`, quality/instance/cleanup tests |
-| Material-channel follow-up | `scripts/prepare-hegemony-main-castle.mjs`, runtime-asset verifier, dated castle manifest/record, asset/LOD tests |
+| Castle brightness and material calibration | `scripts/prepare-hegemony-main-castle.mjs`, `scripts/rewrite-embedded-webp-glb.mjs` and its declaration/tests, `src/components/realm/loadHegemonyKeep.ts`, runtime-asset verifier, dated castle manifest/record, object-masked production evidence, asset/LOD parity tests |
 | Readability QA | rendered WebGL fixture, browser probe, bounded PNG/target analyzer, QA contract tests, `docs/operations/qa-observatory.md` |
 | Release truth | `CHANGELOG.md`, next `docs/releases/` note, menu patch-note source, build version, `_AGENT_NOTES.md` |
 
@@ -523,10 +579,11 @@ This is a handoff map, not a list of files changed by this proposal.
    explicit terrain color space, no art-direction tuning hidden in the same diff.
 2. **Lighting, fog, and contact grounding:** calibrated key/fill hierarchy,
    directional contact decal, production-scene visual gates.
-3. **Focused shadow mode:** High first; Balanced only after evidence; preserve
+3. **Castle surface calibration:** meet the brighter object-masked target with
+   cross-LOD parity; prepare a deterministic authorized texture/material
+   derivative when lighting alone is insufficient.
+4. **Focused shadow mode:** High first; Balanced only after evidence; preserve
    decal fallback and demand rendering.
-4. **Optional material derivative:** only if the measured castle response remains
-   below target after engine corrections.
 5. **Release integration:** complete regression matrix, real-device evidence,
    patch notes, versioning, and exact deployed-build verification.
 
@@ -538,6 +595,9 @@ previous visual screenshot appears brighter.
 | Risk | Mitigation |
 | --- | --- |
 | Brightening destroys the heavy Hegemony mood | Target readable midtones and directional form, not a global exposure increase. Review masked castle values and full-scene composition separately. |
+| A brighter atlas looks bleached or detached from the ground | Use one monotonic hue-preserving midtone lift, protect recesses/highlights, and approve it only in production Realm captures beside the local clearing. |
+| LOD changes flash between different castle values | Derive every LOD from the same authorized surface source and grade, then gate masked luminance/hue parity at the actual switch distances. |
+| Re-encoded brighter textures exceed the current GLB byte caps | Grade the canonical atlas before LOD derivation, verify every output byte/hash, and preserve the existing per-tier encoded-size ceilings unless a separate measured budget is approved. |
 | Explicit color conversion causes a large palette jump | Treat existing floats as ambiguous legacy inputs, capture a baseline, then migrate and retune in one reviewed color-contract PR. |
 | Focused shadows show acne, peter-panning, clipping, or stale direction | Add deterministic focus/pan/LOD fixtures, fit the shadow camera tightly, test bias bounds, and invalidate only on relevant state changes. |
 | Shadow pass harms mobile or 100-castle performance | Keep Reduced decal-only, start High focus-local, measure Balanced before enabling, and never shadow all 100 castles at realm scale. |
