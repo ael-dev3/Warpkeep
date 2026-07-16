@@ -112,36 +112,39 @@ castle. Realm presentation remains branded-loading until all authoritative
 castles have real instances; model failure switches the whole view to the
 canonical illustrated fallback instead of presenting mixed representations.
 
-The project-internally authorized preparation pipeline produces three
-integrity-pinned Hegemony Main Castle LODs:
+The project-internally authorized GameReady installation boundary provides
+three integrity-pinned Hegemony Main Castle LODs:
 
 | LOD | Runtime path | Bytes | Triangles | Embedded images / profile texture target | SHA-256 |
 | --- | --- | ---: | ---: | --- | --- |
-| High | `public/models/hegemony/hegemony-main-castle-high.glb` | 1,934,920 | 67,680 | two 2048×2048 WebP images | `9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2` |
-| Balanced | `public/models/hegemony/hegemony-main-castle-balanced.glb` | 1,172,132 | 40,353 | two 1024×1024 WebP images | `aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e` |
-| Compact | `public/models/hegemony/hegemony-main-castle-compact.glb` | 508,508 | 19,086 | two 512×512 WebP images | `de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29` |
+| High | `public/models/hegemony/hegemony-main-castle-high.glb` | 2,215,972 | 72,850 | two 2048×2048 WebP images | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
+| Balanced | `public/models/hegemony/hegemony-main-castle-balanced.glb` | 892,788 | 32,550 | two 1024×1024 WebP images | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
+| Compact | `public/models/hegemony/hegemony-main-castle-compact.glb` | 453,628 | 17,232 | two 512×512 WebP images | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
 
-The source is the checksum-pinned `HegemonyMainCastle.glb` member from the
-public `hegemony-frontier-keep-3d-2026-07-14` release. On 2026-07-15, the
-project owner authorized project-internal runtime integration and deterministic
-derivative preparation. That limited authorization is not a separate public
-open license, redistribution/third-party derivative permission, trademark
-grant, or canonical-identity grant; the full provenance boundary is in the
-dated castle record.
+The exact GameReady package and its three inputs were supplied and authorized
+by the project owner on 2026-07-16 for project-internal Warpkeep runtime
+integration plus bounded deterministic metadata correction only. That limited
+authorization is not a separate public open license, general redistribution or
+third-party derivative permission, trademark grant, or canonical-identity
+grant; the full provenance boundary is in the dated
+[GameReady castle record](../reference/castles/2026-07-16-hegemony-main-castle-gameready/).
 
-The runtime preparation stage explicitly rewrites the embedded atlases with
-pinned Sharp/libvips before geometry simplification. It preserves the High
-source payloads exactly, uses lossless WebP for resized normal maps, and uses
-quality-90 WebP for resized base color. The verifier decodes and checks both
-dimensions and per-image hashes, so a profile cannot silently retain a larger
+The GameReady inputs already contain their final geometry and embedded WebP
+payloads. High is installed byte-for-byte. Balanced and Compact arrive with
+correct 1024×1024 and 512×512 images but incorrectly declare atlas size 2048;
+the deterministic metadata helper corrects those declarations while preserving
+all geometry and image payload bytes. The verifier decodes and checks both
+dimensions and per-image hashes, so a profile cannot silently misdeclare its
 atlas.
 
 The asset verifier also pins each LOD's VEC3 quantized position component type,
 exact three-axis accessor bounds, scene graph, and uniform mesh/root transforms.
-High and Balanced retain identical extents; Compact retains 99.68% of their
-quantized width, 100% of their height, and 99.50% of their depth. This makes a
-silent proportion or transform collapse an asset-policy failure instead of
-relying only on byte hashes or triangle counts.
+High and Balanced resolve to 14.062 source units of height; Compact resolves to
+13.47 and is about 4.2% shorter before the shared footprint normalization. The
+project owner explicitly accepted the GameReady family's profile-relative size
+and height differences. This makes a silent proportion or transform collapse
+an asset-policy failure without pretending that the accepted LODs are
+dimension-identical.
 
 Each required LOD is fetched and parsed once per mounted realm. A scene-lifetime
 repository owns its geometry, materials, and textures; deterministic
@@ -154,11 +157,11 @@ final lease disposes each shared GPU resource exactly once.
 Higher-detail residency is explicitly bounded. High permits at most eight High
 and 24 Balanced castles; Balanced permits at most 24 Balanced castles; Reduced
 uses Compact throughout. With all 100 slots visible and promoted, those ceilings
-bound castle geometry to 2,807,760, 2,419,008, and 1,908,600 triangles
+bound castle geometry to 2,535,776, 2,090,832, and 1,723,200 triangles
 respectively. Because each GLB has one primitive, the 100-castle High case still
 uses at most three castle instance draw calls plus one shared contact-shadow draw
-call. Four fully promoted castles contain 270,720 High, 161,412 Balanced, or
-76,344 Compact triangles.
+call. Four fully promoted castles contain 291,400 High, 130,200 Balanced, or
+68,928 Compact triangles.
 
 Derivative transfer sizes and geometry counts are integrity-pinned, but decoded
 GPU memory is device- and browser-dependent. The prefab repository owns one
@@ -172,6 +175,11 @@ only unsafe numeric extremes are bounded. Warm frontier sunlight, neutral stone
 light, cool amethyst fill, restrained ACES exposure, and one footprint-sized
 contact shadow per visible castle provide depth without stretching a realm-wide
 shadow map over 1,519 cells.
+
+The GameReady model refresh changes geometry and profile proportions, not the
+authored brightness contract. No brighter-material result is claimed by these
+GLBs; any castle-brightness improvement must come from separately reviewed
+renderer lighting, material-response, and palette changes.
 
 PBR separation comes from an asset-free procedural equirectangular environment,
 not a network HDR download. High, Balanced, and Reduced generate bounded

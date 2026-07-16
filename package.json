@@ -1,7 +1,7 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.4",
+  "version": "0.3.5",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -12,10 +12,11 @@
     "verify:licenses": "node scripts/verify-license-policy.mjs",
     "verify:alpha-production": "node scripts/verify-alpha-production.mjs",
     "assets:fetch": "node scripts/fetch-title-assets.mjs",
-    "assets:fetch:castle": "node scripts/fetch-hegemony-castle-assets.mjs",
+    "assets:fetch:castle:source-0.3.4": "node scripts/fetch-hegemony-castle-assets.mjs",
     "tools:fetch:gltfpack": "node scripts/fetch-gltfpack-tool.mjs",
     "prepare:title-models": "node scripts/prepare-title-models.mjs",
-    "prepare:hegemony-castle": "node scripts/prepare-hegemony-main-castle.mjs",
+    "prepare:hegemony-castle": "node scripts/install-hegemony-gameready-castle.mjs",
+    "prepare:hegemony-castle:source-0.3.4": "node scripts/prepare-hegemony-main-castle.mjs",
     "prepare:hegemony-frontier-keep:historical": "node scripts/prepare-hegemony-frontier-keep.mjs",
     "prepare:hegemony-mark": "node scripts/prepare-hegemony-mark.mjs",
     "marks:plan": "tsx scripts/marks/marks-operator.ts plan",

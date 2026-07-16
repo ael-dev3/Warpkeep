@@ -1,15 +1,17 @@
 # Realm Lighting, Color, and Castle Readability Proposal
 
-**Status:** implementation proposal only
+**Status:** implementation proposal with an accepted GameReady castle baseline
 
 **Audit baseline:** `089430e` (`main`, 2026-07-16)
 
-**Runtime changes in this document:** none
+**Runtime changes accompanying this document:** exact GameReady High, Balanced,
+and Compact castle LOD integration; no lighting, material, fog, or palette code
 
 This document turns the current Realm readability problem into a bounded engine
-work plan. It does not change game code, runtime assets, authentication, world
-state, deployment, or DNS. It does not authorize a release or production
-mutation.
+work plan. The accompanying asset refresh changes only the integrity-pinned
+castle LOD family and its reconstruction/provenance contract. The proposed
+lighting, material, fog, palette, and visual-QA work remains unimplemented. No
+authentication, world state, deployment, or DNS change is authorized here.
 
 ## Decision summary
 
@@ -155,62 +157,60 @@ Neither answers “can a player read this castle against this terrain?” A futu
 implementation can pass every current test and still reproduce the supplied
 screenshot.
 
-## Reviewed GameReady GLB candidate set — 2026-07-16
+## Integrated GameReady GLB family — 2026-07-16
 
-Three owner-provided High, Balanced, and Compact GLBs from a GameReady bundle
-labeled “Warpkeep Hegemony Castle — Archer/Mage Platforms” were evaluated
-read-only as possible runtime replacements. Providing the files for review does
-not by itself establish a new source, redistribution, or deterministic-derivative
-authority. The candidate binaries remain outside the repository.
+The project owner explicitly accepted the GameReady family's modest size and
+height differences and authorized exact project-internal runtime integration of
+the supplied High, Balanced, and Compact set into PR #40. That direction defines
+the accepted integration boundary; it does not by itself grant a broader right
+to repurpose the geometry outside Warpkeep.
 
-All three are structurally plausible glTF 2.0 runtime files: one scene, node,
-mesh, primitive, and material; no animation or skin; embedded WebP base-color
-and normal atlases; and required Meshopt, WebP, and quantization extensions.
-They are different `glTF-Transform v4.4.1` builds, not copies of the current
-pinned `gltfpack 1.2` derivatives.
+All three outputs are structurally consistent glTF 2.0 runtime files: one scene,
+node, mesh, primitive, and material; no animation or skin; embedded WebP
+base-color and normal atlases; and required Meshopt, WebP, and quantization
+extensions. They are a complete `glTF-Transform v4.4.1` LOD family rather than a
+mix with the historical `gltfpack 1.2` derivatives.
 
-| Candidate | Exact evidence | Decision |
+| Runtime LOD | Exact integrated output | Accepted boundary |
 | --- | --- | --- |
-| High — SHA-256 `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` | `2,215,972` bytes and `72,850` triangles versus the current `1,934,920` and `67,680` (+14.5% bytes, +7.6% triangles). Its base-color and normal atlases are byte-identical to the current High atlases, so its intrinsic material brightness is unchanged. It exceeds the reviewed `<2,000,000`-byte High ceiling by `215,972` bytes. | Reject as a refresh. It costs more without addressing the reported darkness. |
-| Balanced — SHA-256 `a480439ac47be4ee419ce623de0d785c4f4ce73cd110dc093c6508faa6cfdbae` | `892,796` bytes and `32,550` triangles versus `1,172,132` and `40,353` (-23.8% bytes, -19.3% triangles). Mean base-atlas luminance is effectively unchanged, and the 1024px atlas is incorrectly declared as `wk_atlas_size: 2048`. Its normal atlas is lossy VP8 rather than the reviewed lossless VP8L runtime normal. | Promising only as an optimization lead. Do not publish this binary until it is reproducibly regenerated, metadata-correct, and visually proven. |
-| Compact — SHA-256 `5b0f6919585b10f51b42f004c32d1c96bf2addc2549af3b84b0eea7fcedffe5e` | `453,632` bytes and `17,232` triangles versus `508,508` and `19,086` (-10.8% bytes, -9.7% triangles). Brightness is effectively unchanged; the 512px atlas also declares `wk_atlas_size: 2048`. Its verified model height is about 4.2% below the candidate High/Balanced height. | Reject in its current form because the height mismatch can create a visible grounding/silhouette pop during zoom. |
+| High | `2,215,972` bytes, `72,850` triangles, SHA-256 `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` | Copied byte-for-byte from the supplied bundle. The larger transfer and geometry footprint is accepted and remains below the revised `2,250,000`-byte gate. |
+| Balanced | `892,788` bytes, `32,550` triangles, SHA-256 `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` | The supplied 1024px atlas was incorrectly labeled `wk_atlas_size: 2048`; the integrated output declares `1024`. Its lossy VP8 normal atlas requires cross-LOD production-lighting QA. |
+| Compact | `453,628` bytes, `17,232` triangles, SHA-256 `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` | The supplied 512px atlas was incorrectly labeled `wk_atlas_size: 2048`; the integrated output declares `512`. Its roughly 4.2% shorter world height and lossy VP8 normal atlas are accepted, subject to grounding and switch-distance QA. |
 
-The candidates retain the same single-material response: metallic near `0.08`,
-roughness near `0.68`, no occlusion/roughness/metallic atlas, and no emissive
-channel. Candidate High uses the exact current base-color image SHA-256
+Balanced and Compact passed through a bounded normalization whose only semantic
+change is the atlas-size metadata. The rewrite preserves every geometry and
+embedded-image payload byte while repacking GLB JSON, offsets, and padding, so
+their corrected output sizes and hashes intentionally differ from the supplied
+containers. High required no normalization.
+
+This integration is a geometry/encoding refresh, not the requested brightness
+fix. The set retains one material with metallic near `0.08`, roughness near
+`0.68`, no occlusion/roughness/metallic atlas, and no emissive channel. High's
+base-color image remains SHA-256
 `27c90266612844c619d6a79d5db5701454ce6209e91cab47247eeb8fd065517a`
-and normal image SHA-256
-`3ff2fa16d17b08d91551f5b52ee8419a821c4e726c2296c0c539daee3f23149a`.
+and its normal image remains SHA-256
+`3ff2fa16d17b08d91551f5b52ee8419a821c4e726c2296c0c539daee3f23149a`;
 Balanced and Compact base-atlas luminance differs only by compression noise.
-These are geometry/encoding alternatives, not brighter castle assets.
+The castles are therefore **not intrinsically brighter** after this refresh.
+The lighting, palette, fog, grounding, material-grade, and object-masked visual
+work below remains proposed future implementation.
 
-The package manifest records output hashes and validation claims but no
-immutable Warpkeep-Assets source coordinate, authoring-source hash, exact
-derivation commands, pinned toolchain, or explicit authority for this named
-geometry refresh. Direct replacement would also invalidate the current scene
-graph, atlas metadata, integrity hashes, deterministic preparation, runtime
-verifier, visual evidence, and dated source record. Mixing only one or two
-candidates with the existing set is not acceptable because their transforms,
-bounds, simplification, and texture encodings form a different LOD family.
+The integrated family must keep its exact installer inputs, corrected output
+hashes, atlas metadata, loader integrity constants, verifier expectations,
+dated provenance record, license inventory, reconstruction instructions,
+release truth, and menu patch notes synchronized. Visual QA must specifically
+cover the accepted silhouette/aspect difference, the Compact height difference,
+ground contact through LOD switches, and the lossy VP8 Balanced/Compact normals
+under the production light/fog/tone-map pipeline.
 
-### Candidate re-entry gates
-
-The Balanced candidate's measured efficiency is worth reproducing, not copying.
-A future implementation may reconsider a complete three-LOD family only when it:
-
-1. identifies an immutable authorized source and records explicit project-runtime
-   integration and deterministic-derivative scope for the exact geometry;
-2. rebuilds every LOD through one pinned, reviewable pipeline with exact commands,
-   input/output hashes, tool versions, and common world bounds;
-3. derives every LOD from the brighter canonical base-color atlas defined in
-   Phase 5 while preserving a verified normal-map fidelity contract;
-4. emits correct per-LOD atlas metadata and no height, footprint, hue, or
-   luminance pop at production switch distances;
-5. keeps High below its transfer ceiling or obtains a separate measured budget
-   approval with a visible benefit; and
-6. updates the runtime verifier, loader integrity constants, source record,
-   license inventory, reconstruction docs, release/version truth, menu patch
-   notes, and object-masked production visual evidence.
+The first attested headless-Chrome comparison against the superseded public
+source measured High/Balanced/Compact coverage deltas of `184`/`131`/`71`
+basis points, mean RGB deltas of `5`/`5`/`4`, and silhouette IoU of
+`8,970`/`8,938`/`8,923` basis points. The approved GameReady outline therefore
+keeps the existing tight coverage and color caps while recalibrating only the
+historical-source silhouette floors to `8,800`/`8,750`/`8,700`. This is a
+bounded acceptance of the new platforms and outline, not permission for future
+unmeasured silhouette drift.
 
 ## Desired visual contract
 
@@ -495,10 +495,10 @@ Any asset change must update exact bytes, hashes, texture dimensions, source
 authority records, runtime manifests, LOD comparisons, and license inventory.
 Do not reinterpret a normal/data map as sRGB, apply an undocumented runtime
 gamma multiplier, or claim material separation that the asset does not encode.
-Preserve the current encoded GLB ceilings—High below `2,000,000` bytes, Balanced
-below `1,200,000`, and Compact (the Reduced tier) below `520,000`—unless a
-separate measured review changes them. The grade must not increase atlas
-dimensions or channel count.
+Preserve the accepted encoded GLB ceilings—High at or below `2,250,000` bytes,
+Balanced at or below `1,200,000`, and Compact (the Reduced tier) at or below
+`520,000`—unless a separate measured review changes them. The grade must not
+increase atlas dimensions or channel count.
 
 ### Rollout and rollback
 
@@ -565,9 +565,9 @@ unless a separate measured budget change is reviewed:
 
 | Profile | Terrain triangles | Detail instances | Target drawing-buffer pixels | Existing all-castle geometry ceiling |
 | --- | ---: | ---: | ---: | ---: |
-| High | 150,000 | 7,000 | 8,400,000 | 2,807,760 triangles |
-| Balanced | 90,000 | 5,500 | 5,200,000 | 2,419,008 triangles |
-| Reduced | 40,000 | 3,000 | 2,400,000 | 1,908,600 triangles |
+| High | 150,000 | 7,000 | 8,400,000 | 2,535,776 triangles |
+| Balanced | 90,000 | 5,500 | 5,200,000 | 2,090,832 triangles |
+| Reduced | 40,000 | 3,000 | 2,400,000 | 1,723,200 triangles |
 
 The drawing-buffer values are targets, not unconditional ceilings: the current
 resolver intentionally preserves a minimum pixel ratio of `0.5`, which can
@@ -576,9 +576,12 @@ its target; any minimum-DPR exception outside that matrix must be explicit and
 reported rather than mislabeled as a passing budget.
 
 For the first focused-shadow experiment, the incremental caster ceiling should
-be no more than one active LOD keep: 67,680 triangles on High, 40,353 on
-Balanced, and zero on Reduced. A compact proxy may lower that cost. Any larger
-caster group needs a newly measured and explicitly reviewed ceiling.
+be no more than one active LOD keep: `72,850` triangles on High, `32,550` on
+Balanced, and zero on Reduced. A compact proxy may lower that cost. For explicit
+budget planning, four promoted full-detail casters would submit `291,400` High,
+`130,200` Balanced, or `68,928` Compact triangles. Those four-caster figures are
+accounting evidence, not approval to exceed the initial one-LOD ceiling; any
+larger caster group needs a newly measured and explicitly reviewed ceiling.
 
 Also preserve the current maximum of five semantic-feature draw calls, eight
 total terrain-detail draw calls, and three castle instance draw calls plus the
@@ -613,9 +616,10 @@ infer decoded GPU memory from compressed GLB bytes.
 - WebGL fallback remains complete and usable.
 - Keyboard, touch, pointer, label, inspector, navigator, and safe-area behavior
   remain unchanged except for intentional camera framing tests.
-- Player-visible implementation receives the next appropriate version, release
-  note, changelog entry, and menu patch-note update. This proposal-only PR does
-  not bump the version.
+- The accepted GameReady refresh receives its Alpha `0.3.5` release note,
+  changelog entry, and menu patch-note update. A future player-visible lighting,
+  material, fog, palette, or shadow implementation receives its own next
+  appropriate version and release truth.
 
 ## Suggested future file ownership
 
@@ -626,7 +630,7 @@ This is a handoff map, not a list of files changed by this proposal.
 | Color-space contract and palette | `src/game/map/hegemonyLowlandsSpec.ts`, `src/game/map/terrainColor.ts`, `src/components/realm/createTerrainGeometry.ts`, fallback encoding in `src/components/realm/RealmMapScreen.tsx`, focused terrain tests |
 | Lighting/fog policy | `src/components/realm/realmQuality.ts`, `src/components/realm/createRealmScene.ts`, `src/components/realm/createRealmEnvironment.ts`, camera/scene tests |
 | Contact and focused shadows | `src/components/realm/realmCastleInstanceLayer.ts`, `src/components/realm/createRealmScene.ts`, quality/instance/cleanup tests |
-| Castle brightness and material calibration | `scripts/prepare-hegemony-main-castle.mjs`, `scripts/rewrite-embedded-webp-glb.mjs` and its declaration/tests, `src/components/realm/loadHegemonyKeep.ts`, runtime-asset verifier, dated castle manifest/record, object-masked production evidence, asset/LOD parity tests |
+| Castle brightness and material calibration | `scripts/install-hegemony-gameready-castle.mjs`, the historical preparation pipeline, `scripts/rewrite-embedded-webp-glb.mjs` and its declaration/tests, `src/components/realm/loadHegemonyKeep.ts`, runtime-asset verifier, dated castle manifest/record, object-masked production evidence, asset/LOD parity tests |
 | Readability QA | rendered WebGL fixture, browser probe, bounded PNG/target analyzer, QA contract tests, `docs/operations/qa-observatory.md` |
 | Release truth | `CHANGELOG.md`, next `docs/releases/` note, menu patch-note source, build version, `_AGENT_NOTES.md` |
 
@@ -654,7 +658,9 @@ previous visual screenshot appears brighter.
 | Brightening destroys the heavy Hegemony mood | Target readable midtones and directional form, not a global exposure increase. Review masked castle values and full-scene composition separately. |
 | A brighter atlas looks bleached or detached from the ground | Use one monotonic hue-preserving midtone lift, protect recesses/highlights, and approve it only in production Realm captures beside the local clearing. |
 | LOD changes flash between different castle values | Derive every LOD from the same authorized surface source and grade, then gate masked luminance/hue parity at the actual switch distances. |
-| Re-encoded brighter textures exceed the current GLB byte caps | Grade the canonical atlas before LOD derivation, verify every output byte/hash, and preserve the existing per-tier encoded-size ceilings unless a separate measured budget is approved. |
+| Accepted GameReady silhouette/aspect or Compact height differences cause a grounding or zoom pop | Keep the runtime footprint normalization, then gate base contact, screen coverage, and switch-distance alignment under production cameras before further geometry changes. |
+| Lossy VP8 Balanced/Compact normal maps soften or shimmer under the revised light rig | Add masked cross-LOD normal-response captures at the real switch distances; preserve the exact integrated payloads unless a separately authorized, reproducible re-encode proves better. |
+| Re-encoded brighter textures exceed the accepted GLB byte caps | Grade the canonical atlas before LOD derivation, verify every output byte/hash, and preserve the revised per-tier encoded-size ceilings unless a separate measured budget is approved. |
 | Explicit color conversion causes a large palette jump | Treat existing floats as ambiguous legacy inputs, capture a baseline, then migrate and retune in one reviewed color-contract PR. |
 | Focused shadows show acne, peter-panning, clipping, or stale direction | Add deterministic focus/pan/LOD fixtures, fit the shadow camera tightly, test bias bounds, and invalidate only on relevant state changes. |
 | Shadow pass harms mobile or 100-castle performance | Keep Reduced decal-only, start High focus-local, measure Balanced before enabling, and never shadow all 100 castles at realm scale. |
@@ -698,10 +704,10 @@ previous visual screenshot appears brighter.
 
 - copying the comparison game's terrain color, castle design, UI, roads, or
   composition;
-- replacing the Hegemony castle model in this proposal;
-- publishing the rejected 2026-07-16 GameReady candidate binaries;
+- redesigning geometry beyond the accepted 2026-07-16 GameReady LOD family;
 - adding post-processing, screen-space AO, bloom, or per-castle dynamic lights
   before the simpler pipeline is measured;
 - changing authoritative terrain, castle placement, gameplay, identity, auth,
   backend state, or deployment; or
-- merging or shipping an implementation from this documentation-only PR.
+- treating this proposal as authorization to merge or ship the future lighting,
+  material, fog, palette, or shadow implementation without its acceptance gates.

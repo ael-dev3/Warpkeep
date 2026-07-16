@@ -1,0 +1,237 @@
+{
+  "archive": "warpkeep-hegemony-main-castle-gameready-2026-07-16",
+  "recordedAt": "2026-07-16",
+  "purpose": "Exact owner-supplied GameReady input, bounded metadata correction, and active Warpkeep runtime record",
+  "package": {
+    "asset": "Warpkeep Hegemony Castle — Archer/Mage Platforms",
+    "generated": "2026-07-16",
+    "deploymentRoot": "public/models/hegemony",
+    "locationPolicy": "machine-local source paths are not provenance; exact package-relative paths, bytes, and hashes are authoritative",
+    "records": [
+      {
+        "path": "asset-manifest.json",
+        "bytes": 1456,
+        "sha256": "6a4a67baa4912f93337b7100d27ffe65e9c185492e8c2047c4d2ccdefe591c23"
+      },
+      {
+        "path": "README.md",
+        "bytes": 1426,
+        "sha256": "f48c1ed10b01034a1e81bf5e53291901c9fb735044cbc27edc30ad674997a3d0"
+      }
+    ]
+  },
+  "projectAuthorization": {
+    "recordedAt": "2026-07-16",
+    "authorizedBy": "Warpkeep project owner",
+    "scope": [
+      "project-internal Warpkeep runtime integration of the exact three GameReady inputs",
+      "bounded deterministic atlas-metadata correction for the Balanced and Compact inputs"
+    ],
+    "notGranted": [
+      "separate public open license",
+      "CC-BY-4.0 or Apache-2.0 relicensing of the inputs or outputs",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights"
+    ],
+    "acceptedTradeoffs": [
+      "profile-relative overall size and height differences",
+      "High-profile transfer size"
+    ]
+  },
+  "inputContract": {
+    "regularFilesOnly": true,
+    "symlinksRejected": true,
+    "coordinateSystem": {
+      "up": "+Y",
+      "gateFacing": "+Z",
+      "grounded": true,
+      "centeredXZ": true
+    },
+    "commonGltf": {
+      "container": "GLB",
+      "version": 2,
+      "generator": "glTF-Transform v4.4.1",
+      "scenes": 1,
+      "nodes": 1,
+      "meshes": 1,
+      "primitives": 1,
+      "materials": 1,
+      "images": 2,
+      "animations": 0,
+      "imageFormat": "WebP",
+      "positionComponentType": 5122,
+      "positionNormalized": true,
+      "extensionsRequired": [
+        "EXT_meshopt_compression",
+        "EXT_texture_webp",
+        "KHR_mesh_quantization"
+      ]
+    },
+    "profiles": {
+      "high": {
+        "path": "public/models/hegemony/hegemony-main-castle-high.glb",
+        "bytes": 2215972,
+        "sha256": "9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8",
+        "triangles": 72850,
+        "positionVertices": 171554,
+        "indexComponentType": 5125,
+        "actualAtlasSize": 2048,
+        "materialAtlasMetadata": 2048,
+        "nodeName": "WK_Hegemony_Hero_Castle_LOD0_High",
+        "nodeTranslation": [0, 7.031000137329102, -0.005000114440917969],
+        "nodeScale": [7.031000137329102, 7.031000137329102, 7.031000137329102],
+        "positionBounds": {
+          "min": [-31083, -32767, -23202],
+          "max": [31083, 32767, 23202]
+        }
+      },
+      "balanced": {
+        "path": "public/models/hegemony/hegemony-main-castle-balanced.glb",
+        "bytes": 892796,
+        "sha256": "a480439ac47be4ee419ce623de0d785c4f4ce73cd110dc093c6508faa6cfdbae",
+        "triangles": 32550,
+        "positionVertices": 67687,
+        "indexComponentType": 5125,
+        "actualAtlasSize": 1024,
+        "materialAtlasMetadata": 2048,
+        "nodeName": "WK_Hegemony_Hero_Castle_LOD1_Balanced",
+        "nodeTranslation": [0, 7.031000137329102, -0.04333782196044922],
+        "nodeScale": [7.031000137329102, 7.031000137329102, 7.031000137329102],
+        "positionBounds": {
+          "min": [-31083, -32767, -23022],
+          "max": [31083, 32767, 23022]
+        }
+      },
+      "compact": {
+        "path": "public/models/hegemony/hegemony-main-castle-compact.glb",
+        "bytes": 453632,
+        "sha256": "5b0f6919585b10f51b42f004c32d1c96bf2addc2549af3b84b0eea7fcedffe5e",
+        "triangles": 17232,
+        "positionVertices": 34800,
+        "indexComponentType": 5123,
+        "actualAtlasSize": 512,
+        "materialAtlasMetadata": 2048,
+        "nodeName": "WK_Hegemony_Hero_Castle_LOD2_Compact",
+        "nodeTranslation": [0, 6.734999656677246, -0.03333783149719238],
+        "nodeScale": [6.734999656677246, 6.734999656677246, 6.734999656677246],
+        "positionBounds": {
+          "min": [-32451, -32767, -23742],
+          "max": [32451, 32767, 23742]
+        }
+      }
+    }
+  },
+  "metadataCorrection": {
+    "helper": "scripts/rewrite-embedded-webp-glb.mjs#rewriteEmbeddedWebpGlb",
+    "scope": "material extras atlas-size metadata plus necessary GLB JSON/BIN padding and offset repacking",
+    "geometryPayloadBytesPreserved": true,
+    "embeddedImagePayloadBytesPreserved": true,
+    "imageResizeOrTranscode": false,
+    "brightnessOrColorChange": false,
+    "profiles": {
+      "high": {
+        "action": "copy-byte-for-byte",
+        "atlasMetadataBefore": 2048,
+        "atlasMetadataAfter": 2048
+      },
+      "balanced": {
+        "action": "normalize-metadata",
+        "atlasMetadataBefore": 2048,
+        "atlasMetadataAfter": 1024
+      },
+      "compact": {
+        "action": "normalize-metadata",
+        "atlasMetadataBefore": 2048,
+        "atlasMetadataAfter": 512
+      }
+    }
+  },
+  "runtimeOutputs": {
+    "browserRuntime": "checked-in outputs only; the supplied package is never a runtime CDN",
+    "installer": "scripts/install-hegemony-gameready-castle.mjs",
+    "sourceRootEnvironmentVariable": "WARPKEEP_CASTLE_GAMEREADY_ROOT",
+    "verificationScript": "scripts/verify-runtime-assets.mjs",
+    "profiles": {
+      "high": {
+        "path": "public/models/hegemony/hegemony-main-castle-high.glb",
+        "bytes": 2215972,
+        "sha256": "9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8",
+        "triangles": 72850,
+        "positionVertices": 171554,
+        "indexComponentType": 5125,
+        "materialAtlasSize": 2048,
+        "embeddedImages": [
+          {
+            "role": "normal",
+            "bytes": 79450,
+            "sha256": "3ff2fa16d17b08d91551f5b52ee8419a821c4e726c2296c0c539daee3f23149a",
+            "width": 2048,
+            "height": 2048
+          },
+          {
+            "role": "baseColor",
+            "bytes": 69426,
+            "sha256": "27c90266612844c619d6a79d5db5701454ce6209e91cab47247eeb8fd065517a",
+            "width": 2048,
+            "height": 2048
+          }
+        ]
+      },
+      "balanced": {
+        "path": "public/models/hegemony/hegemony-main-castle-balanced.glb",
+        "bytes": 892788,
+        "sha256": "a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157",
+        "triangles": 32550,
+        "positionVertices": 67687,
+        "indexComponentType": 5125,
+        "materialAtlasSize": 1024,
+        "embeddedImages": [
+          {
+            "role": "normal",
+            "bytes": 32778,
+            "sha256": "0de8df64eb0a560cc47e993e4f74d7db7eb6bf7309a0533e1733c68cd52d0a65",
+            "width": 1024,
+            "height": 1024
+          },
+          {
+            "role": "baseColor",
+            "bytes": 26618,
+            "sha256": "65b23eeba73539f2cc6b0bdf8e83d7a651d61fbe85c4305b488ce83dbc28a3eb",
+            "width": 1024,
+            "height": 1024
+          }
+        ]
+      },
+      "compact": {
+        "path": "public/models/hegemony/hegemony-main-castle-compact.glb",
+        "bytes": 453628,
+        "sha256": "b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b",
+        "triangles": 17232,
+        "positionVertices": 34800,
+        "indexComponentType": 5123,
+        "materialAtlasSize": 512,
+        "embeddedImages": [
+          {
+            "role": "normal",
+            "bytes": 10960,
+            "sha256": "655717cd92ffc0eae1b08721b22c5be95121b228f765f7ffee6457b3b888f381",
+            "width": 512,
+            "height": 512
+          },
+          {
+            "role": "baseColor",
+            "bytes": 10684,
+            "sha256": "1e3b4e022566d4b07f96f17a579f756b11cbd6abf803d42491711f983f64af3f",
+            "width": 512,
+            "height": 512
+          }
+        ]
+      }
+    }
+  },
+  "supersedes": {
+    "record": "docs/reference/castles/2026-07-15-hegemony-main-castle/",
+    "preparationScript": "scripts/prepare-hegemony-main-castle.mjs",
+    "status": "historical evidence only; not the active reproducer"
+  }
+}

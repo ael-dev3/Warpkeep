@@ -16,12 +16,22 @@ const HIGH_CASTLE = resolve(
 );
 
 describe('embedded WebP GLB rewrite', () => {
-  it('is byte-stable when the atlases already match the requested profile', async () => {
+  it('preserves image and geometry payloads when only matching metadata is normalized', async () => {
     const source = readFileSync(HIGH_CASTLE);
     const rewritten = await rewriteEmbeddedWebpGlb(source, { targetSize: 2_048 });
 
-    expect(rewritten.bytes.equals(source)).toBe(true);
+    expect(rewritten.bytes.equals(source)).toBe(false);
     expect(rewritten.preservedRanges).toHaveLength(5);
+    expect(rewritten.preservedRanges).toEqual([
+      expect.objectContaining({ bytes: 86_022, sha256: '76d363c90be2fc589adb6a66e79f438bbe1256951a807a744269a9b41b513f1d' }),
+      expect.objectContaining({ bytes: 327_766, sha256: '3ad1e70027e549e6b4b4c0f881791457a3073c3f34a3138f5fa104f76eb4f60e' }),
+      expect.objectContaining({ bytes: 340_430, sha256: '831b9a4a0e2d4dbadeedd1a2802754c7bc0b6faa8be9d4ac6d1c4b9e8a50f3be' }),
+      expect.objectContaining({ bytes: 738_579, sha256: 'b3352e19e4da13b5501446dd7f47eaa9a25379d3a3210b8910f201b30a991c7a' }),
+      expect.objectContaining({ bytes: 570_726, sha256: '4c6588480af9f2d44b6d3dafbfffbc357c069b2eaeb8bcb277f76ef8b2eb45ca' })
+    ]);
+    expect(rewritten.images.map(({ bytes, sha256 }) => ({ bytes, sha256 }))).toEqual(
+      rewritten.originalImages.map(({ bytes, sha256 }) => ({ bytes, sha256 }))
+    );
     expect(rewritten.images.map(({ width, height }) => [width, height])).toEqual([
       [2_048, 2_048],
       [2_048, 2_048]
@@ -35,11 +45,11 @@ describe('embedded WebP GLB rewrite', () => {
     const inspected = await inspectEmbeddedWebpGlb(rewritten.bytes);
 
     expect(rewritten.preservedRanges).toEqual([
-      expect.objectContaining({ bytes: 417_914, sha256: '507989a5ee628c855a79055bd283f485118d2faec673b506147b010f3ac7dcfe' }),
-      expect.objectContaining({ bytes: 306_299, sha256: 'ec4f30fbc3b9fd39ba213830ce64932f4cf0bf3b2c7a484e2c1b59ff2020f840' }),
-      expect.objectContaining({ bytes: 582_741, sha256: '1b9a29a27004ddaefa926ddcc33695d89a6519d56b021cb01cd1cacfacd047ee' }),
-      expect.objectContaining({ bytes: 384_698, sha256: '2ba46242c326cd71dbfaa564565187df2a719bc9e4dcf2c53ad3b4bc4ae97c54' }),
-      expect.objectContaining({ bytes: 90_640, sha256: '49f129037b280faf7044bb26025afb1f4a61ae791e4ab28d040caa2e5721324f' })
+      expect.objectContaining({ bytes: 86_022, sha256: '76d363c90be2fc589adb6a66e79f438bbe1256951a807a744269a9b41b513f1d' }),
+      expect.objectContaining({ bytes: 327_766, sha256: '3ad1e70027e549e6b4b4c0f881791457a3073c3f34a3138f5fa104f76eb4f60e' }),
+      expect.objectContaining({ bytes: 340_430, sha256: '831b9a4a0e2d4dbadeedd1a2802754c7bc0b6faa8be9d4ac6d1c4b9e8a50f3be' }),
+      expect.objectContaining({ bytes: 738_579, sha256: 'b3352e19e4da13b5501446dd7f47eaa9a25379d3a3210b8910f201b30a991c7a' }),
+      expect.objectContaining({ bytes: 570_726, sha256: '4c6588480af9f2d44b6d3dafbfffbc357c069b2eaeb8bcb277f76ef8b2eb45ca' })
     ]);
     expect(inspected.images).toEqual([
       expect.objectContaining({

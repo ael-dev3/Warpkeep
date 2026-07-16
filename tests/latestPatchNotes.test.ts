@@ -17,16 +17,20 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '15 JUL 2026',
-      title: 'REALM QUALITY FOLLOW-THROUGH'
+      releasedOn: '16 JUL 2026',
+      title: 'GAME-READY CASTLE REFRESH'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /visible keep silhouette through dense clusters/i
+      /High, Balanced, and Compact GameReady castle models/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /complete player layouts across desktop, tablet, mobile, and short-landscape/i
+      /intentionally shorter authored proportions/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 15 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
+      /brighter|brightness improvement/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 16 July 2026');
+    expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');
     expect(getLatestPatchNotes('0.3.3')?.title).toBe('GENESIS REALM QUALITY');
     expect(getLatestPatchNotes('0.3.2')?.title).toBe('GENESIS 001 FOUNDING');
     expect(getLatestPatchNotes('0.0.0')).toBeUndefined();

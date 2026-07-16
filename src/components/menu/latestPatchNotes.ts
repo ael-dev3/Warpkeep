@@ -51,11 +51,27 @@ const ALPHA_0_3_4_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   alphaNotice: 'Released 15 July 2026. Alpha systems remain experimental and may change.'
 });
 
+const ALPHA_0_3_5_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '16 JUL 2026',
+  title: 'GAME-READY CASTLE REFRESH',
+  summary:
+    'Alpha 0.3.5 refreshes every Realm castle with the owner-approved GameReady Hegemony LOD family without changing player authority.',
+  highlights: Object.freeze([
+    'Cinematic, Balanced, and Performance graphics now use the new High, Balanced, and Compact GameReady castle models.',
+    'High preserves the richest close-view geometry, while Balanced and Compact reduce transfer size and submitted geometry for wider views.',
+    'The Compact model keeps its intentionally shorter authored proportions; every tier is still uniformly scaled, centred, and grounded in the Lowlands.',
+    'Each model remains same-origin, exact-length bounded, and SHA-256 verified before it can enter the Realm.',
+    'This Pages-only patch changes no authentication, admission, world generation, castle ownership, wallet, Marks, Worker, or SpacetimeDB authority.'
+  ]),
+  alphaNotice: 'Released 16 July 2026. Alpha systems remain experimental and may change.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
     '0.3.2': ALPHA_0_3_2_PATCH_NOTES,
     '0.3.3': ALPHA_0_3_3_PATCH_NOTES,
-    '0.3.4': ALPHA_0_3_4_PATCH_NOTES
+    '0.3.4': ALPHA_0_3_4_PATCH_NOTES,
+    '0.3.5': ALPHA_0_3_5_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

@@ -240,7 +240,7 @@ try {
   assertExactOrdinaryFile(
     archive,
     release.bytes,
-    `Verified castle archive (run "npm run assets:fetch:castle" or set WARPKEEP_CASTLE_ARCHIVE to an exact offline copy)`
+    `Verified historical castle archive (run "npm run assets:fetch:castle:source-0.3.4" or set WARPKEEP_CASTLE_ARCHIVE to an exact offline copy)`
   );
   assertExactOrdinaryFile(
     gltfpackBinary,

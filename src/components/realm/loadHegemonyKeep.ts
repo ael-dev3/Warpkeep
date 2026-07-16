@@ -13,18 +13,18 @@ const MAX_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 60_000;
 export const HEGEMONY_KEEP_RUNTIME_ASSETS = Object.freeze({
   high: Object.freeze({
     path: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.high,
-    bytes: 1_934_920,
-    sha256: '9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2'
+    bytes: 2_215_972,
+    sha256: '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8'
   }),
   balanced: Object.freeze({
     path: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.balanced,
-    bytes: 1_172_132,
-    sha256: 'aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e'
+    bytes: 892_788,
+    sha256: 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157'
   }),
   reduced: Object.freeze({
     path: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.compact,
-    bytes: 508_508,
-    sha256: 'de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29'
+    bytes: 453_628,
+    sha256: 'b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b'
   })
 });
 

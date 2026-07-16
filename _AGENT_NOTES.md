@@ -2,7 +2,7 @@
 
 ## Current state
 
-The checked-in package is the Alpha 0.3.4 Pages-only candidate. The verified
+The checked-in package is the Alpha 0.3.5 Pages-only candidate. The verified
 public release remains Alpha 0.3.3. The public menu build stamp identifies the
 exact deployed source; an annotated release tag is created only after that
 deployed commit passes exact-build verification. Do not turn the disabled local
@@ -35,6 +35,20 @@ Start with:
 - Keep secrets, SIWF proofs, bearer material, private endpoints, and personal paths out of source, logs, screenshots, and issues.
 - Preserve the immutable v0.3.0 licensing cutover commits and normal merge ancestry.
 - Runtime assets stay in Warpkeep; authorized source bundles belong in immutable Warpkeep-Assets releases. Unresolved-rights material is not published by assumption.
+- The 2026-07-16 GameReady castle authorization covers project-internal runtime integration of only the three exact recorded High, Balanced, and Compact inputs plus the bounded atlas-size metadata correction recorded for Balanced and Compact. It grants no separate open licence, broader derivative authority, general redistribution right, trademark right, or permission to substitute same-named files. Do not use the superseded Alpha 0.3.4 preparation pipeline to overwrite them, and do not describe this geometry swap as a brightness improvement.
+
+## Player-visible release truth
+
+Every player-visible patch must update the complete release-truth set in the
+same change: the root package and lockfile version, `CHANGELOG.md`, a dated
+`docs/releases/alpha-X.Y.Z.md` note, the exact-version entry in
+`src/components/menu/latestPatchNotes.ts`, its tests, `README.md`, and this
+file. The in-menu patch chronicle must summarize the major player-visible
+changes for the exact package version; it must never fall back to stale notes.
+Use the next SemVer patch for presentation, asset, defect, or bounded polish
+that adds no player-facing system boundary. A checked-in candidate is not a
+verified public release until protected-main deployment and exact-build
+verification succeed; tag only that verified deployment commit.
 
 ## Next product work
 

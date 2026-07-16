@@ -4,9 +4,11 @@
 
 **Every FID has a castle.** Warpkeep is an open-source, Farcaster-native strategy world where identity anchors a keep and SpacetimeDB owns the shared state.
 
-Alpha 0.3.4 is the current Pages-only release. Genesis 001 spans 1,261 deterministic Lowlands cells
-and 100 permanent castle slots ordered outward from a close-knit founding
-district. The public build includes the real 3D stone title, an intentional
+Alpha 0.3.5 is the checked-in Pages-only candidate. It becomes the verified
+public release only after protected-main deployment and exact-build
+verification. Genesis 001 spans 1,261 deterministic Lowlands cells and 100
+permanent castle slots ordered outward from a close-knit founding district. The
+candidate includes the real 3D stone title, an intentional
 Alpha Terms gate, browser-bound Sign In with Farcaster, rotating HttpOnly
 sessions, protocol-3 shared-realm state, responsive WebGL presentation,
 one exact canonical readiness boundary, real instanced Hegemony keeps for every
@@ -20,18 +22,19 @@ scope and verification. The site is a real product surface and technical
 foundation, not a claim that resources, upgrades, units, combat, alliances,
 chat, or seasons are playable yet.
 
-Alpha 0.3.4 replaces the earlier Frontier Keep derivatives with the optimized
-high, balanced, and compact Hegemony Main Castle GLBs. It admits only one exact,
-complete Genesis 001 snapshot; renders every visible founded castle with a
-shared real Hegemony GLB LOD; separates hover, selection, inspection, camera,
-and keyboard-focus state; and introduces a compact safe-area-aware HUD,
-inspector, navigator, and camera composition. Its public profile presentation
-is bounded and sanitized, with neutral nonnumeric fallbacks. The patch preserves
-the Alpha 0.3.2 authentication, protocol, admission, world, castle, wallet,
-and Marks authority boundaries. The protected Pages workflow and exact build
-stamp remain the source of truth for the public deployment coordinate.
+Alpha 0.3.5 replaces the Alpha 0.3.4 castle LOD binaries with the exact
+owner-approved GameReady High, Balanced, and Compact family. High accepts a
+modest close-detail cost; Balanced and Compact reduce transfer and geometry,
+and Compact retains its intentionally shorter authored proportions. This is a
+geometry and encoding refresh, not a claim that the models themselves are
+brighter. The patch retains one exact Genesis 001 snapshot, shared instancing,
+uniform footprint normalization, safe-area-aware UI and camera composition,
+and bounded public profile presentation. It preserves the authentication,
+protocol, Terms, admission, world, castle, wallet, and Marks authority
+boundaries. The protected Pages workflow and exact build stamp remain the
+source of truth for the public deployment coordinate.
 
-## Alpha 0.3.4 foundation
+## Alpha 0.3.5 foundation
 
 - Standard website SIWF with an independently verifying Cloudflare Worker and short-lived OIDC handoff.
 - Server-authoritative SpacetimeDB module with private admission/auth-epoch controls and public world/player/castle boundaries.
@@ -40,11 +43,11 @@ stamp remain the source of truth for the public deployment coordinate.
 - Exact build identity, fail-closed configuration, reduced-motion behavior, keyboard/touch controls, and non-WebGL/model fallbacks.
 - Apache-2.0 software and CC-BY-4.0 project-owned creative work from v0.3.0 onward, with historical and external terms preserved.
 
-Alpha 0.3.3 replaced the peer-marker presentation with real
-instanced keeps, removed the standalone 61-cell browser fallback, and kept the
-illustrated fallback bound to the same canonical 1,261-cell snapshot. See the
-[Alpha 0.3.4 release notes](docs/releases/alpha-0.3.4.md) for its validation
-scope, release boundary, and honest residual limits.
+Alpha 0.3.3 replaced peer markers with real instanced keeps, and Alpha 0.3.4
+followed with the first optimized Hegemony Main Castle family and tighter
+Realm QA. See the [Alpha 0.3.5 release notes](docs/releases/alpha-0.3.5.md) for
+the current asset tradeoffs, validation scope, authority boundary, and honest
+residual limits.
 
 The canonical player domain is [warpkeep.com](https://warpkeep.com/), and the
 main community home is the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep).
@@ -90,22 +93,23 @@ Asset reconstruction is explicit and never part of an ordinary build:
 ```sh
 npm run assets:fetch
 npm run prepare:title-models
-npm run assets:fetch:castle
-npm run tools:fetch:gltfpack
-npm run prepare:hegemony-castle
 WARPKEEP_MARK_SOURCE=/authorized/offline/hegemony-mark.png npm run prepare:hegemony-mark
 ```
 
-The Main Castle preparation pipeline verifies the public-release archive, exact
-source member, checksum-pinned `gltfpack` tool, and derived outputs before it
-writes runtime files. On 2026-07-15 the project owner authorized
-project-internal runtime integration and deterministic derivative preparation;
-this is not a separate public open license, redistribution grant, or trademark
-grant. See the [dated castle provenance record](docs/reference/castles/2026-07-15-hegemony-main-castle/).
+The active GameReady castle LODs are verified integration outputs from three
+exact owner-supplied inputs, not outputs of the superseded Alpha 0.3.4
+public-source preparation recipe. Balanced and Compact receive only a bounded,
+deterministic correction to their atlas-size metadata; geometry and embedded
+images remain unchanged. Recover the outputs from an exact trusted Warpkeep
+commit and run `npm run verify:runtime-assets`; do not overwrite them with the
+historical derivative family. The 16 July 2026 owner authorization covers this
+exact project-internal integration and metadata correction. It is not a
+separate public open licence, broader derivative grant, general redistribution
+grant, or trademark grant. See the [castle provenance index](docs/reference/castles/).
 
 ## Documentation
 
-- [Alpha 0.3.3 release notes](docs/releases/alpha-0.3.3.md), [Alpha 0.3.2 history](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 history](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
+- [Alpha 0.3.5 release notes](docs/releases/alpha-0.3.5.md), [Alpha 0.3.4 history](docs/releases/alpha-0.3.4.md), [Alpha 0.3.3 history](docs/releases/alpha-0.3.3.md), [Alpha 0.3.2 history](docs/releases/alpha-0.3.2.md), [Alpha 0.3.1 history](docs/releases/alpha-0.3.1.md), and [Alpha 0.3.0 history](docs/releases/alpha-0.3.0.md)
 - [Marks policy v1](docs/gameplay/marks-policy-v1.md)
 - [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md)
 - [Technical architecture](docs/technical-architecture.md)

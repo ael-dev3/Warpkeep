@@ -4,6 +4,28 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
+## [0.3.5] — 2026-07-16
+
+- The Realm's high, balanced, and compact Hegemony Main Castle GLBs now use
+  the exact owner-approved GameReady LOD family across Cinematic, Balanced,
+  and Performance graphics.
+- High accepts a modest transfer and triangle increase for its richer close
+  geometry. Balanced and Compact reduce both transfer size and geometry, and
+  the Compact model's intentionally shorter authored height is accepted as a
+  reviewed LOD tradeoff rather than silently stretched in its source data.
+- Runtime records now identify each profile's real atlas dimensions and exact
+  file integrity instead of inheriting inconsistent source metadata. Existing
+  uniform footprint normalization and ground alignment remain responsible for
+  placing each model in the Lowlands without non-uniform deformation.
+- The release truth, in-menu patch chronicle, reconstruction boundary, and
+  provenance records distinguish the exact owner-supplied inputs and bounded
+  atlas-metadata normalization from the superseded Alpha 0.3.4 deterministic
+  derivative family. No brightness improvement is attributed to the model swap
+  itself.
+- This release is Pages-only. It changes no authentication, Terms, admission,
+  backend protocol, world generation, castle ownership, wallet, Marks, Worker,
+  SpacetimeDB module, or production data.
+
 ## [0.3.4] — 2026-07-15
 
 - Labels preserve their roof-attached placement and readable identity through

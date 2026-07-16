@@ -267,8 +267,8 @@ describe('realm castle instance layer', () => {
       release = lease.release;
 
       const primitive = lease.prefab.primitives[0]!;
-      expect(primitive.geometry.getAttribute('position').count).toBe(34_098);
-      expect(primitive.geometry.index?.count).toBe(19_086 * 3);
+      expect(primitive.geometry.getAttribute('position').count).toBe(34_800);
+      expect(primitive.geometry.index?.count).toBe(17_232 * 3);
       expect(decodedBitmaps).toHaveBeenCalledTimes(2);
 
       // Find a real top-facing triangle from the decoded source mesh, then

@@ -22,30 +22,30 @@ const ASSETS = [
   {
     quality: 'high' as const,
     path: 'public/models/hegemony/hegemony-main-castle-high.glb',
-    bytes: 1_934_920,
-    sha256: '9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2',
-    triangles: 67_680,
-    vertices: 153_439,
+    bytes: 2_215_972,
+    sha256: '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8',
+    triangles: 72_850,
+    vertices: 171_554,
     indexComponentType: 5_125,
-    maxBytes: 2_000_000
+    maxBytes: 2_250_000
   },
   {
     quality: 'balanced' as const,
     path: 'public/models/hegemony/hegemony-main-castle-balanced.glb',
-    bytes: 1_172_132,
-    sha256: 'aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e',
-    triangles: 40_353,
-    vertices: 78_928,
+    bytes: 892_788,
+    sha256: 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157',
+    triangles: 32_550,
+    vertices: 67_687,
     indexComponentType: 5_125,
     maxBytes: 1_200_000
   },
   {
     quality: 'reduced' as const,
     path: 'public/models/hegemony/hegemony-main-castle-compact.glb',
-    bytes: 508_508,
-    sha256: 'de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29',
-    triangles: 19_086,
-    vertices: 34_098,
+    bytes: 453_628,
+    sha256: 'b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b',
+    triangles: 17_232,
+    vertices: 34_800,
     indexComponentType: 5_123,
     maxBytes: 520_000
   }
