@@ -175,7 +175,7 @@ describe('RealmMapScreen', () => {
 
     fireEvent.click(peer);
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
-    const record = screen.getByRole('dialog', { name: 'Hegemony Keep' });
+    const record = screen.getByRole('dialog', { name: 'Peer Watch' });
     expect(within(record).getByText('Peer Watch')).not.toBeNull();
     expect(within(record).getByText('q 2 · r -1')).not.toBeNull();
     expect(screen.getByLabelText('Current selection').textContent)
@@ -293,10 +293,10 @@ describe('RealmMapScreen', () => {
     fireEvent.click(within(explore).getByRole('button', {
       name: /Inspect @warpkeeper, Warpkeeper Bastion, q 0, r 0, your castle/i
     }));
-    expect(screen.getByRole('dialog', { name: '@warpkeeper' })).not.toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Warpkeeper Bastion' })).not.toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('dialog', { name: '@warpkeeper' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Warpkeeper Bastion' })).toBeNull();
     expect(onRequestReturn).not.toHaveBeenCalled();
 
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -311,10 +311,10 @@ describe('RealmMapScreen', () => {
     expect(screen.getByLabelText('Current selection').textContent)
       .toContain('Warpkeeper Bastion · q 0, r 0');
     fireEvent.keyDown(realm, { key: 'Enter' });
-    expect(screen.getByRole('dialog', { name: '@warpkeeper' })).not.toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Warpkeeper Bastion' })).not.toBeNull();
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('dialog', { name: '@warpkeeper' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Warpkeeper Bastion' })).toBeNull();
     fireEvent.keyDown(document, { key: 'Escape', repeat: true });
     expect(onRequestReturn).not.toHaveBeenCalled();
 

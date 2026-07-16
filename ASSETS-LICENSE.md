@@ -77,47 +77,122 @@ The Hegemony Frontier Keep and its former runtime derivatives were project-provi
 | Former balanced runtime keep | `public/models/hegemony/hegemony-frontier-keep-balanced.glb` — absent | 2,064,100 bytes, SHA-256 `bb47fabe11982b7eb99a9cb6a3df2a23427502417fad58edd969e51bcff061c4`, 37,634 triangles, four 2048×2048 WebP textures, Meshopt compression. |
 | Former compact runtime keep | `public/models/hegemony/hegemony-frontier-keep-compact.glb` — absent | 760,916 bytes, SHA-256 `9de356095b314c3d43fee072c31115bb265699913991ac6aa3f656a2b8bde33b`, 17,536 triangles, four 1024×1024 WebP textures, Meshopt compression. |
 
-The retired files remain technically reproducible for private provenance checks with `npm run prepare:hegemony-frontier-keep:historical` when an authorized exact source copy is supplied through `WARPKEEP_KEEP_SOURCE`. That command deliberately produces files rejected by the active runtime verifier; it is not an installation or restoration command. The pinned historical pipeline and complete technical metadata are recorded in the dated castle record.
+The retired files are not reproducible through an executable checked into the
+active repository. The former generator fetched an unverified CLI, inherited
+the developer environment, and could write unresolved-rights outputs into
+`public/`; it was removed rather than preserved as a misleading private tool.
+The exact historical arguments, hashes, and technical metadata remain in the
+dated castle record. Any future reproduction requires separately reviewed,
+integrity-pinned offline tooling, a credential-free process, a private
+non-public destination, and confirmed source authority.
 
-## Hegemony Main Castle runtime derivatives
+## Hegemony Main Castle GameReady runtime assets
 
-The active Hegemony Main Castle runtime files are deterministic derivatives of
-`HegemonyMainCastle.glb` from the public
-[`hegemony-frontier-keep-3d-2026-07-14`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-frontier-keep-3d-2026-07-14)
-Warpkeep-Assets release. The release attachment
-[`hegemony-frontier-keep-3d-sources-v1.zip`](https://github.com/ael-dev3/Warpkeep-Assets/releases/download/hegemony-frontier-keep-3d-2026-07-14/hegemony-frontier-keep-3d-sources-v1.zip)
-is 10,672,929 bytes with SHA-256
-`c029a636ee0a791ca54072d5f32fcf68263677951fd59c338dfe242264335d5f`.
-Its exact member
-`hegemony-frontier-keep-3d-sources-v1/HegemonyMainCastle.glb` is 2,233,564
-bytes with SHA-256
-`b33755f14bbed0855cf738ba8fb2dbdde9cf56e976b7f108a2259dd478a9b580`.
+The active Hegemony Main Castle family comes from the exact, owner-supplied
+GameReady package identified as **Warpkeep Hegemony Castle — Archer/Mage
+Platforms**. On 2026-07-16, the Warpkeep project owner explicitly authorized
+the package's three named GLBs for integration into this public Warpkeep GitHub
+repository and its official `warpkeep.com` Pages runtime, together with the
+bounded deterministic metadata correction described below. This authorization
+permits their checked-in and official runtime use by Warpkeep;
+it does not grant a separate public open license, relicense the inputs or
+outputs as CC-BY-4.0 or Apache-2.0, create a general third-party derivative or
+redistribution grant, or grant trademark or canonical-identity rights.
 
-On 2026-07-15, the Warpkeep project owner explicitly authorized
-**project-internal runtime integration and deterministic derivative
-preparation** for this named source. That authorization is deliberately
-limited: it does not assign a separate public open license, relicense the
-source as CC-BY-4.0 or Apache-2.0, create a general third-party derivative or
-redistribution grant, or grant trademark or canonical-identity rights. The
-public archive's own status remains
-`public-archive-authorized-no-separate-open-license`; any broader distribution
-or relicensing decision needs separate documented authority.
+The supplied `asset-manifest.json` is 1,456 bytes with SHA-256
+`6a4a67baa4912f93337b7100d27ffe65e9c185492e8c2047c4d2ccdefe591c23`.
+The installer accepts only that manifest and the exact authorized input hashes.
+High is committed byte-for-byte. Balanced and Compact contained correct
+embedded 1024×1024 and 512×512 WebP payloads but incorrectly declared
+`wk_atlas_size: 2048`; the deterministic helper corrects only that material
+metadata and repacks GLB padding/offsets while preserving every geometry and
+embedded-image payload byte.
 
 | Intended use | Repository file | Technical record |
 | --- | --- | --- |
-| High runtime castle | `public/models/hegemony/hegemony-main-castle-high.glb` | 1,934,920 bytes, SHA-256 `9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2`, 67,680 triangles, 153,439 uploaded vertices, unsigned 32-bit indices, two embedded WebP images, Meshopt compression. |
-| Balanced runtime castle | `public/models/hegemony/hegemony-main-castle-balanced.glb` | 1,172,132 bytes, SHA-256 `aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e`, 40,353 triangles, 78,928 uploaded vertices, unsigned 32-bit indices, two embedded 1024×1024 WebP images, Meshopt compression. |
-| Compact runtime castle | `public/models/hegemony/hegemony-main-castle-compact.glb` | 508,508 bytes, SHA-256 `de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29`, 19,086 triangles, 34,098 uploaded vertices, unsigned 16-bit indices, two embedded 512×512 WebP images, Meshopt compression. |
+| High runtime castle | `public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb` | 2,215,972 bytes, SHA-256 `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8`, 72,850 triangles, 171,554 uploaded vertices, unsigned 32-bit indices, two embedded 2048×2048 WebP images, Meshopt compression. |
+| Balanced runtime castle | `public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb` | 892,788 bytes, SHA-256 `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157`, 32,550 triangles, 67,687 uploaded vertices, unsigned 32-bit indices, two embedded 1024×1024 WebP images, Meshopt compression. |
+| Compact runtime castle | `public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb` | 453,628 bytes, SHA-256 `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b`, 17,232 triangles, 34,800 uploaded vertices, unsigned 16-bit indices, two embedded 512×512 WebP images, Meshopt compression. |
 
-The browser serves only the checked-in, integrity-verified derivatives; GitHub
-Release attachments are never a runtime CDN. Reconstruct them with
-`npm run assets:fetch:castle`, `npm run tools:fetch:gltfpack`, and
-`npm run prepare:hegemony-castle`; the preparation script verifies the release
-coordinates, archive and member hashes, archive safety, attested system unzip,
-pinned Sharp/libvips/libwebp atlas rewriting, pinned `gltfpack` 1.2 binary,
-isolated optimizer environment, output hashes, GLB structure, decoded image
-dimensions and hashes, and required extensions.
-The dated castle record preserves the exact profiles and authorization boundary.
+The browser serves only the checked-in, integrity-verified runtime files; the
+supplied package is never a runtime CDN. Reinstall only from an authorized
+exact package root with `WARPKEEP_CASTLE_GAMEREADY_ROOT` and
+`npm run prepare:hegemony-castle`, then run
+`npm run verify:runtime-assets`. The dated
+[GameReady castle record](docs/reference/castles/2026-07-16-hegemony-main-castle-gameready/)
+preserves the exact inputs, outputs, correction boundary, and authorization.
+
+The 2026-07-15 public-source derivative set is superseded as the application
+asset family, but its exact three binaries remain checked in at their legacy
+unhashed URLs for cached-client and verified-rollback compatibility.
+`scripts/prepare-hegemony-main-castle.mjs` is historical comparison tooling, not
+an installer for either the active or compatibility paths. Their immutable
+technical record remains in the
+[historical castle record](docs/reference/castles/2026-07-15-hegemony-main-castle/).
+The GameReady geometry has accepted profile-relative size and height
+differences. This asset change does not itself claim brighter materials; castle
+lighting and palette remain renderer concerns.
+
+## Hegemony Castle Landscape Base GameReady runtime assets
+
+The island, road, tree, rock, bush, flower, and grass landscape under each
+active Hegemony Main Castle comes from the exact owner-supplied package
+identified as **Warpkeep Castle Landscape Base**, asset ID
+`warpkeep.castle-landscape-base`, version `1.0.0`. On 2026-07-16, the Warpkeep
+project owner explicitly instructed PR #40 to add these bases under the game's
+castles and deploy the patch. That instruction authorizes integration of the
+exact three named GLBs into this public Warpkeep GitHub repository and its
+official `warpkeep.com` Pages runtime, plus the bounded deterministic metadata
+correction below. It does not grant a separate public open license,
+relicense inputs or outputs as CC-BY-4.0 or Apache-2.0, create a general
+third-party derivative or redistribution grant, or grant trademark,
+canonical-identity, or same-named-file substitution rights.
+
+The supplied `asset-manifest.json` is 2,177 bytes with SHA-256
+`106d64f5eaf91332acc83c18d5abbd9ad230b17eb4c9ffee1231ecf7d595d3f5`.
+The installer accepts only that package identity and the exact authorized input
+hashes. High is committed byte-for-byte. Balanced and Compact contain correct
+embedded 512×512 and 256×256 WebPs but declare `wk_atlas_size: 1024`; the
+deterministic correction changes only that material metadata and necessary GLB
+container padding/offsets while preserving every geometry and image payload
+byte.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| High castle landscape base | `public/models/hegemony/hegemony-castle-landscape-base-high-be79476bee4e1f34.glb` | 214,372 bytes, SHA-256 `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c`, 3,954 triangles, 10,681 POSITION entries, two embedded 1024×1024 WebPs, Meshopt compression. |
+| Balanced castle landscape base | `public/models/hegemony/hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb` | 92,784 bytes, SHA-256 `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f`, 2,138 triangles, 5,611 POSITION entries, two embedded 512×512 WebPs, Meshopt compression. |
+| Compact castle landscape base | `public/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb` | 27,328 bytes, SHA-256 `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3`, 714 triangles, 1,780 POSITION entries, two embedded 256×256 WebPs, Meshopt compression. |
+
+The castle and base must receive the exact same parent transform. The base is
+never independently centered, normalized, grounded, or scaled; its below-ground
+skirt and `+Z` road direction are authored placement. The complete family is
+classified as `LicenseRef-Warpkeep-Provenance-Required`. Neither its location
+under `public/` nor metadata-only correction changes that status. The dated
+[GameReady landscape-base record](docs/reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/)
+preserves exact inputs, outputs, embedded-image hashes, placement contract,
+performance budgets, and authorization boundary.
+
+## Hegemony castle record artwork
+
+The Alpha 0.3.5 castle inspection card uses one transparent decorative WebP
+prepared from 2D castle art supplied by the Warpkeep project owner on 16 July
+2026. The owner explicitly instructed PR #40 to remove the supplied background
+and deploy the cleaned result in Warpkeep. That instruction authorizes this
+exact checked-in use in the public Warpkeep GitHub repository and its official
+`warpkeep.com` Pages runtime; it does not establish underlying ownership,
+grant a separate public open-content licence, authorize general third-party
+derivatives or redistribution, or grant trademark or canonical-identity rights.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Castle record decoration | `public/images/realm/hegemony-castle-record.webp` | 1254×1254 alpha WebP, 145,416 bytes, SHA-256 `30e0c3cd1bbc4732bb5025a78a5dc0cc66bc01c1b752a3f21b48fb429cc11123`; background-cleaned through the exact recorded image-edit and chroma-matte workflow. |
+
+The two source attachments and the generated chroma-key intermediate are not
+committed. Their exact hashes, the complete edit prompt, cleanup parameters,
+decoded RGBA hash, alpha profile, and visible bounds are recorded in the
+[dated castle record](docs/reference/castles/2026-07-16-hegemony-castle-record-art/).
+The runtime file remains under `LicenseRef-Warpkeep-Provenance-Required`; neither
+its location in `public/` nor the cleanup operation silently relicenses it.
 
 ## Trademark and endorsement note
 

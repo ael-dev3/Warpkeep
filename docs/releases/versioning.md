@@ -4,8 +4,8 @@ Warpkeep uses semantic product versions and a separate immutable build identity.
 
 | Identity | Meaning | Example |
 | --- | --- | --- |
-| Checked-in product release | Player-facing semantic version in source | `ALPHA 0.3.4` |
-| Verified public release | Exact version currently released to players | `ALPHA 0.3.4` after protected Pages verification |
+| Checked-in product release | Player-facing semantic version in source | `ALPHA 0.3.5` |
+| Verified public release | Exact version currently released to players | `ALPHA 0.3.4`; candidates do not advance it |
 | Build | Exact Git commit deployed to the browser | `BUILD abc1234` |
 | Realm seed | World-generation identity, not software version | `GENESIS 001` |
 | Authentication contract | Browser/Worker compatibility integer | `2` |
@@ -21,9 +21,10 @@ Versions use ordinary SemVer core numbers without padding: `0.3.0`, never `0.3.0
 
 The package version is the sole product-version source of truth. The browser receives it through the build-info module rather than duplicating a string in UI components. A production build must include a full Git SHA; the menu presents its seven-character prefix and links to the exact commit. Local builds deliberately say `LOCAL` instead.
 
-The checked-in package identifies Alpha 0.3.4. A release is verified only when
-its exact commit passes the full release matrix, is published through protected
-main, and passes exact-build post-deploy checks. Product version,
+The checked-in package identifies the Alpha 0.3.5 candidate. It is not a
+verified public release until its exact commit passes the full release matrix,
+is published through protected main, and passes exact-build post-deploy checks.
+Product version,
 authentication contract, backend protocol, realm seed, and build SHA are
 independent coordinates; changing one does not silently change another.
 

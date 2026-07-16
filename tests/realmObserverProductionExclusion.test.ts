@@ -121,6 +121,10 @@ describe('local QA production exclusion', () => {
       resolve(root, 'scripts/verify-production-dist-exclusions.mjs'),
       'utf8'
     );
+    const runtimeAssetVerifier = readFileSync(
+      resolve(root, 'scripts/verify-runtime-assets.mjs'),
+      'utf8'
+    );
 
     expect(main).not.toMatch(/realmObserver|RealmObserver|realm-observer-qa/i);
     expect(app).not.toMatch(/realmObserver|RealmObserver|realm-observer-qa/i);
@@ -158,6 +162,12 @@ describe('local QA production exclusion', () => {
     expect(existsSync(resolve(root, 'dev/realm-qa.html'))).toBe(false);
     expect(existsSync(resolve(root, 'src/dev/RealmQaHarness.tsx'))).toBe(false);
     expect(packageJson.scripts.build).toContain('verify-production-dist-exclusions.mjs');
+    expect(packageJson.scripts.build).toContain('verify-runtime-assets.mjs');
+    expect(
+      packageJson.scripts.build.indexOf('verify-runtime-assets.mjs')
+    ).toBeLessThan(packageJson.scripts.build.indexOf('vite build'));
+    expect(verifier).toContain('.warpkeep-family-install-');
+    expect(runtimeAssetVerifier).toContain('assertNoStaleAtomicFamilyTransactions');
     expect(verifier).toContain('http://127.0.0.1:41731');
     expect(verifier).toContain('qa-journey.html');
     expect(verifier).toContain('WarpkeepQaJourneyLab');

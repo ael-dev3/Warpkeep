@@ -378,14 +378,14 @@ describe('Warpkeep local QA journey lab', () => {
     fireEvent.click(target);
     await settlePresentation();
 
-    const inspector = screen.getByRole('dialog', { name: '@sentinel-two' });
+    const inspector = screen.getByRole('dialog', { name: 'Cinderwatch Keep' });
     expect(within(inspector).getByText('Cinderwatch Keep')).not.toBeNull();
-    const focusedLabels = document.querySelectorAll<HTMLButtonElement>(
+    expect(inspector.textContent).toContain('@sentinel-two');
+    const focusedLabels = [...document.querySelectorAll<HTMLButtonElement>(
       'button.realm-castle-label[data-castle-id="102"][data-focused="true"]'
-    );
-    expect(focusedLabels).toHaveLength(1);
-    expect(focusedLabels[0]?.querySelector('.realm-castle-label__identity')?.textContent)
-      .toBe('@sentinel-two');
+    )];
+    expect(focusedLabels).toHaveLength(0);
+    expect(document.querySelectorAll('[data-realm-label-leader]')).toHaveLength(0);
     expect(document.querySelector('.realm-map-screen')?.getAttribute('data-label-accounting-valid'))
       .toBe('true');
     expectNoExternalSideEffects();

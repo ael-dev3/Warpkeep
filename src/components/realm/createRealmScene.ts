@@ -107,7 +107,12 @@ function validScreenBounds(
     && bounds.bottom > bounds.top;
 }
 
-/** Keep the label attached immediately above a trusted projected castle top. */
+/**
+ * Keep the identity strip attached immediately beneath the projected castle
+ * foundation. The foundation edge is stable across camera motion and LOD swaps;
+ * using it avoids the detached, roof-floating identity treatment that preceded
+ * Alpha 0.3.5.
+ */
 export function resolveCastleLabelScreenAnchor(
   castleBounds: RealmCastleScreenBounds | undefined,
   fallback: RealmCastleLabelScreenPoint,
@@ -117,7 +122,7 @@ export function resolveCastleLabelScreenAnchor(
   const gap = Number.isFinite(gapPixels) ? Math.max(0, gapPixels) : 0;
   return {
     x: (castleBounds.left + castleBounds.right) * 0.5,
-    y: castleBounds.top - gap
+    y: castleBounds.bottom + gap
   };
 }
 
@@ -664,7 +669,12 @@ function initializeRealmScene(
     CastleLod,
     RealmCastleProjectionEnvelope
   > = new Map();
+  let castleRenderEnvelopeByLod: ReadonlyMap<
+    CastleLod,
+    RealmCastleProjectionEnvelope
+  > = new Map();
   let fallbackCastleProjectionEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
+  let fallbackCastleRenderEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let selectedCastleId: number | undefined;
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
     height: 1.08,
@@ -703,7 +713,7 @@ function initializeRealmScene(
       projectionPoint.project(cameraController.camera);
       const withinCameraDepth = projectionPoint.z >= -1
         && projectionPoint.z <= 1;
-      const projectedTopCenter = {
+      const projectedFallbackCenter = {
         x: (projectionPoint.x * 0.5 + 0.5) * width,
         y: (-projectionPoint.y * 0.5 + 0.5) * height
       };
@@ -714,6 +724,10 @@ function initializeRealmScene(
         ? castleProjectionEnvelopeByLod.get(activeLod)
           ?? fallbackCastleProjectionEnvelope
         : fallbackCastleProjectionEnvelope;
+      const renderEnvelope = activeLod
+        ? castleRenderEnvelopeByLod.get(activeLod)
+          ?? fallbackCastleRenderEnvelope
+        : fallbackCastleRenderEnvelope;
       // Project every depth-valid keep before deciding screen visibility. A
       // partially visible edge keep can have its roof center outside the
       // canvas; dropping its envelope would let a foreign username cover the
@@ -728,15 +742,24 @@ function initializeRealmScene(
             projectionBoundsPoint
           )
         : undefined;
+      const conservativeCastleBounds = withinCameraDepth
+        ? projectCastleSilhouetteScreenBounds(
+            renderEnvelope,
+            anchor,
+            cameraController.camera,
+            width,
+            height,
+            projectionBoundsPoint
+          )
+        : undefined;
       const visible = castleSilhouetteIntersectsViewport(
-        castleBounds,
+        conservativeCastleBounds,
         width,
         height
       );
-      const conservativeCastleBounds = castleBounds;
       const labelAnchor = resolveCastleLabelScreenAnchor(castleBounds, {
-        x: projectedTopCenter.x,
-        y: projectedTopCenter.y
+        x: projectedFallbackCenter.x,
+        y: projectedFallbackCenter.y
       });
       return {
         castleId: anchor.castleId,
@@ -775,9 +798,15 @@ function initializeRealmScene(
       selectedCastleId
     );
     const presentationTelemetry = castleLayer?.getPresentationTelemetry()
-      ?? Object.freeze({ presentedModelCount: 0, raycastTargetCount: 0 });
+      ?? Object.freeze({
+        presentedModelCount: 0,
+        presentedLandscapeBaseCount: 0,
+        raycastTargetCount: 0
+      });
     const presentationTelemetryKey = (
-      `${presentationTelemetry.presentedModelCount}:${presentationTelemetry.raycastTargetCount}`
+      `${presentationTelemetry.presentedModelCount}:`
+      + `${presentationTelemetry.presentedLandscapeBaseCount}:`
+      + `${presentationTelemetry.raycastTargetCount}`
     );
     if (presentationTelemetryKey !== lastCastlePresentationTelemetryKey) {
       lastCastlePresentationTelemetryKey = presentationTelemetryKey;
@@ -794,6 +823,12 @@ function initializeRealmScene(
         && (castleLayer?.getPacking().totalVisible ?? 0) === 0
       ) {
         throw new Error('Hegemony castle instances produced no visible rendered packing.');
+      }
+      if (
+        castleCount > 0
+        && !castleLayer?.hasExactCastleLandscapeBasePairing()
+      ) {
+        throw new Error('Hegemony castle landscape-base presentation is incomplete.');
       }
       pendingCastlesReadyCount = null;
       options.onCastlesReady?.(castleCount);
@@ -1069,6 +1104,8 @@ function initializeRealmScene(
     baseUrl: options.baseUrl,
     maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
   });
+  const castleLoadAbortController = new AbortController();
+  cleanup.add(() => castleLoadAbortController.abort());
 
   const releaseLeases = (leases: readonly HegemonyKeepPrefabLease[]) => {
     leases.forEach((lease) => {
@@ -1094,7 +1131,10 @@ function initializeRealmScene(
     try {
       await Promise.all(usedCastleLods.map(async (lod) => {
         try {
-          const lease = await prefabRepository.acquire(lod);
+          const lease = await prefabRepository.acquire(
+            lod,
+            castleLoadAbortController.signal
+          );
           if (acquisitionStopped || cleanup.isDisposed()) {
             releaseLeases([lease]);
             return;
@@ -1119,6 +1159,10 @@ function initializeRealmScene(
     const nextProjectionEnvelopeByLod = new Map([...prefabs].map(([lod, prefab]) => [
       lod,
       prefab.projectionEnvelope
+    ] as const));
+    const nextRenderEnvelopeByLod = new Map([...prefabs].map(([lod, prefab]) => [
+      lod,
+      prefab.renderProjectionEnvelope
     ] as const));
     let nextLayer: RealmCastleInstanceLayer;
     try {
@@ -1146,9 +1190,14 @@ function initializeRealmScene(
     }
     castleLayer = nextLayer;
     castleProjectionEnvelopeByLod = nextProjectionEnvelopeByLod;
+    castleRenderEnvelopeByLod = nextRenderEnvelopeByLod;
     fallbackCastleProjectionEnvelope = nextProjectionEnvelopeByLod
       .get(castleLodPolicy.maximumLod)
       ?? nextProjectionEnvelopeByLod.get('compact')
+      ?? DEFAULT_CASTLE_PROJECTION_ENVELOPE;
+    fallbackCastleRenderEnvelope = nextRenderEnvelopeByLod
+      .get(castleLodPolicy.maximumLod)
+      ?? nextRenderEnvelopeByLod.get('compact')
       ?? DEFAULT_CASTLE_PROJECTION_ENVELOPE;
     scene.add(nextLayer.group);
     let released = false;

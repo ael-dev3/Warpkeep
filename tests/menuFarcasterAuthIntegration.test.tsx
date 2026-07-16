@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -10,11 +10,41 @@ import type {
   PublicFarcasterIdentity
 } from '../src/farcaster/farcasterAuthTypes';
 
+const PROFILE_IMAGE_URL =
+  'https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/bc698287-5adc-4cc5-a503-de16963ed900/original';
+
+function pngHeader() {
+  const bytes = new Uint8Array(33);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(8, 13, false);
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12);
+  view.setUint32(16, 256, false);
+  view.setUint32(20, 256, false);
+  bytes.set([8, 6, 0, 0, 0], 24);
+  return bytes;
+}
+
+class AutoLoadingProfileImage {
+  decoding = 'auto';
+  naturalHeight = 256;
+  naturalWidth = 256;
+  onerror: ((event: Event) => void) | null = null;
+  onload: ((event: Event) => void) | null = null;
+  referrerPolicy = '';
+
+  set src(_value: string) {
+    queueMicrotask(() => this.onload?.(new Event('load')));
+  }
+
+  removeAttribute() {}
+}
+
 const identity: PublicFarcasterIdentity = {
   fid: 12_345,
   username: 'keeper',
   displayName: 'The Keeper',
-  pfpUrl: 'https://images.example/keeper.png',
+  pfpUrl: PROFILE_IMAGE_URL,
   verifications: [],
   verifiedAt: 1_750_000_000_000
 };
@@ -160,6 +190,22 @@ beforeEach(async () => {
   window.sessionStorage.clear();
   animationFrames = new Map();
   nextAnimationFrameId = 0;
+  vi.stubGlobal('Image', AutoLoadingProfileImage as unknown as typeof Image);
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(pngHeader());
+        controller.close();
+      }
+    }),
+    { status: 200, headers: { 'content-type': 'image/png' } }
+  )));
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:warpkeep-menu-profile');
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    clearRect: vi.fn(),
+    drawImage: vi.fn()
+  } as unknown as CanvasRenderingContext2D);
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
     matches: false,
     media: '(prefers-reduced-motion: reduce)',
@@ -433,11 +479,12 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByText('@keeper')).not.toBeNull();
     expect(screen.queryByText('FID 12345')).toBeNull();
     expect(screen.getByText('Securing realm session…')).not.toBeNull();
-    const profileImage = result.container.querySelector(
-      '.farcaster-identity-badge__portrait img'
+    const profileImage = result.container.querySelector<HTMLCanvasElement>(
+      '.farcaster-identity-badge__portrait canvas'
     );
-    expect(profileImage?.getAttribute('src')).toBe('https://images.example/keeper.png');
-    expect(profileImage?.getAttribute('referrerpolicy')).toBe('no-referrer');
+    await waitFor(() => expect(profileImage?.dataset.profileImageState).toBe('ready'));
+    expect(profileImage?.style.display).toBe('block');
+    expect(result.container.querySelector('.farcaster-identity-badge__portrait img')).toBeNull();
   });
 
   it('shows keyboard-focused identity confirmation after acceptance, then a compact badge', async () => {
@@ -744,7 +791,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       'CREDITS'
     ]);
     expect(screen.getByRole('button', {
-      name: 'Open patch notes for Warpkeep ALPHA 0.3.4'
+      name: 'Open patch notes for Warpkeep ALPHA 0.3.5'
     })).not.toBeNull();
 
     expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();

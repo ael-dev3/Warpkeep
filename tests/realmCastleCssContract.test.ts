@@ -25,6 +25,10 @@ const INSPECTOR_COMPONENT = readFileSync(
   resolve(ROOT, 'src/components/realm/CastleInspectionPanel.tsx'),
   'utf8'
 );
+const LABEL_COMPONENT = readFileSync(
+  resolve(ROOT, 'src/components/realm/RealmCastleLabels.tsx'),
+  'utf8'
+);
 
 function block(source: string, marker: string) {
   const markerIndex = source.indexOf(marker);
@@ -42,13 +46,9 @@ function block(source: string, marker: string) {
 }
 
 describe('compact Realm CSS contract', () => {
-  it('projects each castle label once and presents profile images as static canvas snapshots', () => {
+  it('keeps a stationary foundation nameplate inside a transparent 44px interaction target', () => {
     const label = block(PRESENTATION, '.realm-castle-label {');
-    const leader = block(PRESENTATION, '.realm-castle-label__leader {');
-    const inactiveLeader = block(
-      PRESENTATION,
-      '.realm-castle-label__leader[hidden],\n.realm-castle-label__leader[data-active="false"] {'
-    );
+    const plate = block(PRESENTATION, '.realm-castle-label__plate {');
     const compactLabel = block(PRESENTATION, '.realm-castle-label[data-compact="true"] {');
     const narrowPresentation = block(PRESENTATION, '@media (max-width: 680px) {');
     const narrowCompactLabel = block(
@@ -63,18 +63,31 @@ describe('compact Realm CSS contract', () => {
     expect(label).toContain('translate3d(');
     expect(label).toContain('var(--realm-castle-label-x)');
     expect(label).toContain('var(--realm-castle-label-y)');
-    expect(label).toContain('translate(-50%, -100%);');
+    expect(label).toContain('translate(-50%, 0);');
     expect(label).toContain('z-index: 1;');
+    expect(label).toContain('min-width: 2.75rem;');
+    expect(label).toContain('min-height: 2.75rem;');
+    expect(label).toContain('padding: 0;');
+    expect(label).toContain('border: 0;');
+    expect(label).toContain('background: transparent;');
+    expect(label).toContain('box-shadow: none;');
+    expect(label).not.toContain('var(--warpkeep-surface-bg-strong');
+    expect(plate).toContain('min-height: 1.5rem;');
+    expect(plate).toContain('border-left: 1px solid rgb(227 193 112 / 62%);');
+    expect(plate).toContain('background: linear-gradient(');
+    expect(plate).toContain('rgb(8 8 13 / 36%) 0%');
+    expect(plate).toContain('rgb(13 10 20 / 0%) 100%');
+    expect(plate).toContain('backdrop-filter: blur(2px);');
     expect(PRESENTATION).not.toMatch(/top:\s*var\(--realm-castle-label-y\)/);
     expect(PRESENTATION).not.toMatch(/left:\s*var\(--realm-castle-label-x\)/);
-    expect(compactLabel).toContain('width: 7.75rem;');
-    expect(compactLabel).toContain('min-width: 7.75rem;');
-    expect(compactLabel).toContain('max-width: 7.75rem;');
-    expect(compactLabel).toContain('min-height: 1.875rem;');
+    expect(compactLabel).toContain('width: auto;');
+    expect(compactLabel).toContain('min-width: 2.75rem;');
+    expect(compactLabel).toContain('max-width: 7.25rem;');
+    expect(compactLabel).toContain('min-height: 2.75rem;');
     expect(compactLabel).toContain('font-size: 0.8125rem;');
-    expect(narrowCompactLabel).toContain('width: 7.5rem;');
-    expect(narrowCompactLabel).toContain('min-width: 7.5rem;');
-    expect(narrowCompactLabel).toContain('max-width: 7.5rem;');
+    expect(narrowCompactLabel).toContain('width: auto;');
+    expect(narrowCompactLabel).toContain('min-width: 2.75rem;');
+    expect(narrowCompactLabel).toContain('max-width: 6.75rem;');
     expect(narrowCompactLabel).toContain('font-size: 0.75rem;');
     expect(PRESENTATION).toContain('.realm-castle-label__identity');
     expect(PRESENTATION).toContain('font-size: 0.8125rem;');
@@ -84,12 +97,13 @@ describe('compact Realm CSS contract', () => {
     expect(identityCluster).toContain('pointer-events: auto;');
     expect(identityCluster).toContain('cursor: zoom-in;');
     expect(identityCluster).toContain('translate(-50%, -100%);');
-    expect(leader).toContain('var(--realm-castle-anchor-x)');
-    expect(leader).toContain('var(--realm-castle-anchor-y)');
-    expect(leader).toContain('var(--realm-castle-leader-length)');
-    expect(leader).toContain('rotate(var(--realm-castle-leader-angle))');
-    expect(leader).toContain('pointer-events: none;');
-    expect(inactiveLeader).toContain('display: none;');
+    expect(LABEL_COMPONENT).toContain('data-anchor="foundation-base"');
+    expect(LABEL_COMPONENT).toContain('data-displaced="false"');
+    expect(LABEL_COMPONENT).not.toContain('data-realm-label-leader');
+    const renderedLabelLayer = LABEL_COMPONENT.slice(
+      LABEL_COMPONENT.indexOf('export function RealmCastleLabels')
+    );
+    expect(renderedLabelLayer).not.toContain('<CastleProfileAvatar');
 
     expect(avatarCanvas).toContain('display: block;');
     expect(avatarCanvas).toContain('width: 100%;');
@@ -99,6 +113,39 @@ describe('compact Realm CSS contract', () => {
 
     expect(GLOBAL).toContain('.landing-shell button:hover:not(:disabled)');
     expect(GLOBAL).not.toMatch(/^button:hover[^\n{]*\{/m);
+  });
+
+  it('keeps the local castle artwork decorative, bounded, and clear of record controls', () => {
+    const inspector = block(PRESENTATION, '.castle-inspection {');
+    const hero = block(PRESENTATION, '.castle-inspection__hero {');
+    const heroArt = block(PRESENTATION, '.castle-inspection__hero-art {');
+    const titleLockupTypography = PRESENTATION.slice(
+      PRESENTATION.indexOf('.castle-inspection__title-lockup p {')
+    );
+    const title = block(titleLockupTypography, '.castle-inspection__title-lockup h2 {');
+    const body = block(PRESENTATION, '.castle-inspection__body {');
+
+    expect(inspector).toContain('width: min(21.5rem, calc(100vw - 1.6rem));');
+    expect(hero).toContain('min-height: 12.15rem;');
+    expect(hero).toContain('overflow: hidden;');
+    expect(heroArt).toContain('width: 92%;');
+    expect(heroArt).toContain('height: 12.75rem;');
+    expect(heroArt).toContain('object-fit: contain;');
+    expect(heroArt).toContain('pointer-events: none;');
+    expect(heroArt).toContain('user-select: none;');
+    expect(title).toContain('text-overflow: ellipsis;');
+    expect(title).toContain('white-space: nowrap;');
+    expect(body).toContain('overflow-x: hidden;');
+    expect(body).toContain('overflow-y: auto;');
+
+    expect(INSPECTOR_COMPONENT).toContain('alt=""');
+    expect(INSPECTOR_COMPONENT).toContain('aria-hidden="true"');
+    expect(INSPECTOR_COMPONENT).toContain('decoding="async"');
+    expect(INSPECTOR_COMPONENT).toContain('height="1254"');
+    expect(INSPECTOR_COMPONENT).toContain('width="1254"');
+    expect(INSPECTOR_COMPONENT).toContain(
+      "publicAssetUrl('images/realm/hegemony-castle-record.webp')"
+    );
   });
 
   it('keeps a slim identity/selection card beside stable Menu, Home, and Explore actions', () => {
@@ -145,7 +192,7 @@ describe('compact Realm CSS contract', () => {
     const profileLink = block(PRESENTATION, '.castle-inspection__profile-link {');
     const inspectorIdentity = block(
       PRESENTATION,
-      '.castle-inspection__identity span,\n.castle-inspection__bio {'
+      '.castle-inspection__identity-copy span,\n.castle-inspection__bio {'
     );
 
     expect(hudTitle).toContain('overflow: hidden;');
@@ -239,7 +286,13 @@ describe('compact Realm CSS contract', () => {
     );
 
     expect(compactInspector).toContain('bottom: max(0.55rem, env(safe-area-inset-bottom));');
-    expect(compactInspector).toContain('max-height: min(68svh, 31rem);');
+    expect(compactInspector).toContain('max-height: min(78svh, 36rem);');
+    const compactHero = block(compactPresentation, '.castle-inspection__hero {');
+    const compactHeroArt = block(compactPresentation, '.castle-inspection__hero-art {');
+    const compactBody = block(compactPresentation, '.castle-inspection__body {');
+    expect(compactHero).toContain('min-height: 10.25rem;');
+    expect(compactHeroArt).toContain('height: 10.9rem;');
+    expect(compactBody).toContain('max-height: min(calc(78svh - 10.25rem), 25.75rem);');
     expect(`${MAP}\n${PRESENTATION}`).not.toMatch(/7\.1rem|6\.55rem/);
   });
 
@@ -264,6 +317,8 @@ describe('compact Realm CSS contract', () => {
     const shortDialog = block(shortMap, '.realm-cell-navigator__dialog {');
     const shortJump = block(shortMap, '.realm-cell-navigator__jump fieldset {');
     const shortInspector = block(shortPresentation, '.castle-inspection {');
+    const shortHero = block(shortPresentation, '.castle-inspection__hero {');
+    const shortHeroArt = block(shortPresentation, '.castle-inspection__hero-art {');
     const shortVisibleUi = block(
       shortMap,
       '.realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud,'
@@ -293,7 +348,9 @@ describe('compact Realm CSS contract', () => {
 
     expect(shortInspector).toContain('right: max(0.55rem, env(safe-area-inset-right));');
     expect(shortInspector).toContain('bottom: max(0.45rem, env(safe-area-inset-bottom));');
-    expect(shortInspector).toContain('width: min(18rem, 43vw);');
+    expect(shortInspector).toContain('width: min(19.5rem, 43vw);');
+    expect(shortHero).toContain('min-height: 7.8rem;');
+    expect(shortHeroArt).toContain('height: 8.55rem;');
     expect(`${MAP}\n${PRESENTATION}`).not.toContain('30rem');
   });
 
@@ -312,7 +369,7 @@ describe('compact Realm CSS contract', () => {
 
     expect(HUD_COMPONENT).not.toMatch(/sharedTileCount|sharedPlayerCount|sharedCastleCount|movement cost|generation/);
     expect(INSPECTOR_COMPONENT).not.toMatch(
-      /CASTLE_WARP|First Warpkeep authentication|Admitted to Hegemony|marksPolicyVersion|marksEarnedMicros|marksSpentMicros/
+      /CASTLE_WARP|First Warpkeep authentication|Admitted to Hegemony|marksPolicyVersion|marksEarnedMicros|marksSpentMicros|Durability|Destroy|Health|Alliance|publicStatus|\bFID\b/
     );
   });
 });

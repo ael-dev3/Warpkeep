@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   CASTLE_LOD_VISUAL_EVIDENCE_PROFILE_COUNT,
@@ -11,7 +11,8 @@ import {
   assertCastleLodVisualEvidenceLoopbackBoundary,
   castleLodVisualEvidenceSourceVitePlugin,
   castleLodVisualEvidenceUrl,
-  parseCastleLodVisualEvidence
+  parseCastleLodVisualEvidence,
+  runCastleLodVisualEvidenceBrowserCase
 } from '../scripts/qa-observer/castle-lod-visual-browser-probe.mjs';
 
 const URL = 'http://127.0.0.1:41733/dev/castle-lod-visual-evidence.html';
@@ -20,19 +21,19 @@ const PASSING_OBSERVATION = Object.freeze({
   href: URL,
   profiles: Object.freeze({
     high: Object.freeze({
-      coverageDeltaBasisPoints: 120,
-      meanColorDelta: 22,
-      silhouetteIouBasisPoints: 9_900
+      coverageDeltaBasisPoints: 184,
+      meanColorDelta: 5,
+      silhouetteIouBasisPoints: 8_970
     }),
     balanced: Object.freeze({
-      coverageDeltaBasisPoints: 310,
-      meanColorDelta: 51,
-      silhouetteIouBasisPoints: 9_700
+      coverageDeltaBasisPoints: 131,
+      meanColorDelta: 5,
+      silhouetteIouBasisPoints: 8_938
     }),
     compact: Object.freeze({
-      coverageDeltaBasisPoints: 720,
-      meanColorDelta: 79,
-      silhouetteIouBasisPoints: 9_240
+      coverageDeltaBasisPoints: 71,
+      meanColorDelta: 4,
+      silhouetteIouBasisPoints: 8_923
     })
   }),
   renderer: 'webgl',
@@ -109,7 +110,7 @@ describe('local castle LOD visual evidence contract', () => {
         ...PASSING_OBSERVATION.profiles,
         high: {
           ...PASSING_OBSERVATION.profiles.high,
-          silhouetteIouBasisPoints: 9_749
+          silhouetteIouBasisPoints: 8_799
         }
       }
     }, URL)).toThrow(/high fidelity/i);
@@ -123,6 +124,30 @@ describe('local castle LOD visual evidence contract', () => {
         }
       }
     }, URL)).toThrow(/compact fidelity/i);
+  });
+
+  it('fails a complete out-of-floor observation immediately instead of timing out', async () => {
+    const observation = {
+      ...PASSING_OBSERVATION,
+      profiles: {
+        ...PASSING_OBSERVATION.profiles,
+        high: {
+          ...PASSING_OBSERVATION.profiles.high,
+          silhouetteIouBasisPoints: 8_799
+        }
+      }
+    };
+    const command = vi.fn(async (method: string) => (
+      method === 'Runtime.evaluate'
+        ? { result: { type: 'object', value: observation } }
+        : {}
+    ));
+
+    await expect(runCastleLodVisualEvidenceBrowserCase(
+      { command },
+      { port: 41_733, state: { violation: '' } }
+    )).rejects.toThrow(/outside its reviewed floors/i);
+    expect(command).toHaveBeenCalledTimes(3);
   });
 
   it('keeps the source in-memory, no-store, and exact-route-only', () => {

@@ -1,15 +1,16 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Fragment, type CSSProperties } from 'react';
 
+import { StaticProfileImageCanvas } from '../profile/StaticProfileImageCanvas';
 import type { RealmCastleProjection } from './RealmMapScreen';
 import type { RealmCastleIdentityCluster } from './realmCastleIdentityClusters';
 import {
   castleProfileLabel,
   castleProfileMonogram,
   realmCastleLabelLeaderGeometry,
-  safeRealmProfileImageUrl,
   type RealmCastlePublicPresentation,
   type VisibleCastleLabel
 } from './realmCastlePresentation';
+import { reviewedRealmProfileImageUrl } from './loadRealmProfileImage';
 
 export type CastleLabelRecord = Readonly<{
   castle: RealmCastleProjection;
@@ -22,98 +23,6 @@ const PROFILE_SNAPSHOT_PIXELS = Object.freeze({
   large: 192
 } satisfies Record<'compact' | 'normal' | 'large', number>);
 
-function StaticProfileAvatarSnapshot({
-  monogram,
-  safeUrl,
-  snapshotPixels
-}: Readonly<{
-  monogram: string;
-  safeUrl: string;
-  snapshotPixels: number;
-}>) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const image = new Image();
-    const detachImage = () => {
-      image.onload = null;
-      image.onerror = null;
-      image.removeAttribute('src');
-    };
-    const retainFallback = () => {
-      if (active) setReady(false);
-      detachImage();
-    };
-
-    image.decoding = 'async';
-    image.referrerPolicy = 'no-referrer';
-    image.onerror = retainFallback;
-    image.onload = () => {
-      if (!active) {
-        detachImage();
-        return;
-      }
-
-      const canvas = canvasRef.current;
-      const sourceWidth = image.naturalWidth;
-      const sourceHeight = image.naturalHeight;
-      try {
-        if (!canvas || sourceWidth <= 0 || sourceHeight <= 0) {
-          throw new Error('Profile image has no drawable dimensions.');
-        }
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('Canvas 2D rendering is unavailable.');
-
-        const sourceSize = Math.min(sourceWidth, sourceHeight);
-        const sourceX = (sourceWidth - sourceSize) / 2;
-        const sourceY = (sourceHeight - sourceSize) / 2;
-        context.clearRect(0, 0, snapshotPixels, snapshotPixels);
-        context.drawImage(
-          image,
-          sourceX,
-          sourceY,
-          sourceSize,
-          sourceSize,
-          0,
-          0,
-          snapshotPixels,
-          snapshotPixels
-        );
-        setReady(true);
-      } catch {
-        setReady(false);
-      } finally {
-        detachImage();
-      }
-    };
-    image.src = safeUrl;
-
-    return () => {
-      active = false;
-      detachImage();
-    };
-  }, [safeUrl, snapshotPixels]);
-
-  return (
-    <>
-      <canvas
-        aria-hidden="true"
-        height={snapshotPixels}
-        ref={canvasRef}
-        style={{
-          display: ready ? 'block' : 'none',
-          height: '100%',
-          width: '100%'
-        }}
-        width={snapshotPixels}
-      />
-      {!ready ? <span>{monogram}</span> : null}
-    </>
-  );
-}
-
 export function CastleProfileAvatar({
   profile,
   size = 'normal'
@@ -121,7 +30,7 @@ export function CastleProfileAvatar({
   profile: RealmCastlePublicPresentation;
   size?: 'compact' | 'normal' | 'large';
 }>) {
-  const safeUrl = safeRealmProfileImageUrl(profile.pfpUrl);
+  const safeUrl = reviewedRealmProfileImageUrl(profile.pfpUrl);
   const snapshotPixels = PROFILE_SNAPSHOT_PIXELS[size];
   const monogram = castleProfileMonogram(profile);
 
@@ -133,9 +42,9 @@ export function CastleProfileAvatar({
       style={{ '--realm-avatar-hue': String((monogram.codePointAt(0) ?? 87) % 360) } as CSSProperties}
     >
       {safeUrl ? (
-        <StaticProfileAvatarSnapshot
+        <StaticProfileImageCanvas
+          fallback={<span>{monogram}</span>}
           key={`${size}:${safeUrl}`}
-          monogram={monogram}
           safeUrl={safeUrl}
           snapshotPixels={snapshotPixels}
         />
@@ -173,7 +82,6 @@ export function RealmCastleLabels({
     <div className="realm-castle-labels" aria-label="Visible player castles">
       <div className="realm-castle-label-measurements" aria-hidden="true">
         {[...records.values()].map((record) => {
-          const monogram = castleProfileMonogram(record.profile);
           const profileLabel = castleProfileLabel(record.profile);
           return (
             <Fragment key={`measure-${record.castle.castleId}`}>
@@ -181,20 +89,18 @@ export function RealmCastleLabels({
                 className="realm-castle-label realm-castle-label--measurement"
                 data-measure-castle-id={record.castle.castleId}
               >
-                <span
-                  className="realm-castle-avatar"
-                  style={{ '--realm-avatar-hue': String((monogram.codePointAt(0) ?? 87) % 360) } as CSSProperties}
-                >
-                  <span>{monogram}</span>
+                <span className="realm-castle-label__plate">
+                  <span className="realm-castle-label__identity">{profileLabel}</span>
                 </span>
-                <span className="realm-castle-label__identity">{profileLabel}</span>
               </span>
               <span
                 className="realm-castle-label realm-castle-label--measurement"
                 data-compact="true"
                 data-measure-compact-castle-id={record.castle.castleId}
               >
-                <span className="realm-castle-label__identity">{profileLabel}</span>
+                <span className="realm-castle-label__plate">
+                  <span className="realm-castle-label__identity">{profileLabel}</span>
+                </span>
               </span>
             </Fragment>
           );
@@ -208,48 +114,35 @@ export function RealmCastleLabels({
         const selected = label.castleId === selectedCastleId;
         const focused = label.castleId === focusedCastleId;
         const expanded = label.castleId === inspectorCastleId && inspectorOpen;
-        const leader = realmCastleLabelLeaderGeometry(label);
         const positionStyle = {
           '--realm-castle-label-x': `${label.x}px`,
           '--realm-castle-label-y': `${label.y}px`,
           '--realm-castle-anchor-x': `${label.projectedAnchor.x}px`,
-          '--realm-castle-anchor-y': `${label.projectedAnchor.y}px`,
-          '--realm-castle-leader-length': `${leader.length}px`,
-          '--realm-castle-leader-angle': `${leader.angleRadians}rad`
+          '--realm-castle-anchor-y': `${label.projectedAnchor.y}px`
         } as CSSProperties;
         return (
-          <Fragment key={label.castleId}>
-            <span
-              aria-hidden="true"
-              className="realm-castle-label__leader"
-              data-active={leader.displaced ? 'true' : 'false'}
-              data-castle-id={label.castleId}
-              data-realm-label-leader=""
-              hidden={!leader.displaced}
-              style={positionStyle}
-            />
-            <button
-              type="button"
-              aria-label={`Inspect ${profileLabel} castle, ${record.castle.name}, cell ${record.castle.q},${record.castle.r}${own ? ', your castle' : ''}`}
-              aria-controls={inspectorId}
-              aria-expanded={expanded}
-              aria-pressed={selected}
-              className="realm-castle-label"
-              data-castle-id={label.castleId}
-              data-compact={label.compact ? 'true' : 'false'}
-              data-displaced={leader.displaced ? 'true' : 'false'}
-              data-focused={focused ? 'true' : 'false'}
-              data-own={own ? 'true' : 'false'}
-              style={positionStyle}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={() => onActivate(record.castle)}
-            >
-              {!label.compact ? (
-                <CastleProfileAvatar profile={record.profile} size="normal" />
-              ) : null}
+          <button
+            key={label.castleId}
+            type="button"
+            aria-label={`Inspect ${profileLabel} castle, ${record.castle.name}, cell ${record.castle.q},${record.castle.r}${own ? ', your castle' : ''}`}
+            aria-controls={inspectorId}
+            aria-expanded={expanded}
+            aria-pressed={selected}
+            className="realm-castle-label"
+            data-anchor="foundation-base"
+            data-castle-id={label.castleId}
+            data-compact={label.compact ? 'true' : 'false'}
+            data-displaced="false"
+            data-focused={focused ? 'true' : 'false'}
+            data-own={own ? 'true' : 'false'}
+            style={positionStyle}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => onActivate(record.castle)}
+          >
+            <span className="realm-castle-label__plate">
               <span className="realm-castle-label__identity">{profileLabel}</span>
-            </button>
-          </Fragment>
+            </span>
+          </button>
         );
       })}
       {clusters.map((cluster) => {

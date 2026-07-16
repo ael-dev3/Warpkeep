@@ -10,6 +10,7 @@ import {
   EMPTY_TERRAIN_PLACEMENTS,
   HEGEMONY_KEEP_PLACEMENT,
   HEGEMONY_TERRAIN_PLACEMENTS,
+  isPlacementClear,
   placementInfluenceAtWorld,
   terrainPlacementsAtCoord,
   terrainPlacementsForCell,
@@ -42,6 +43,46 @@ describe('Hegemony keep terrain placement', () => {
       terrainHeightForCell(map.worldSeed, cell, edge, 1, []),
       10
     );
+  });
+
+  it('widens decoration clearance for the authored island without widening terrain influence', () => {
+    const center = axialToWorld(HEGEMONY_KEEP_PLACEMENT.coord, 1);
+    const beyondFoundation = { x: center.x + 0.9, z: center.z };
+    const beyondIsland = { x: center.x + 1.17, z: center.z };
+
+    expect(HEGEMONY_KEEP_PLACEMENT).toMatchObject({
+      footprintRadius: 0.62,
+      blendRadius: 0.78,
+      decorationClearanceRadius: 1.08
+    });
+    expect(placementInfluenceAtWorld(HEGEMONY_KEEP_PLACEMENT, beyondFoundation, 1))
+      .toBe(0);
+    expect(isPlacementClear(
+      HEGEMONY_TERRAIN_PLACEMENTS,
+      beyondFoundation,
+      1,
+      0.08
+    )).toBe(false);
+    expect(isPlacementClear(
+      HEGEMONY_TERRAIN_PLACEMENTS,
+      beyondIsland,
+      1,
+      0.08
+    )).toBe(true);
+
+    // Height/color sampling keeps the same local foundation bucket while
+    // decoration queries include the neighboring authored island.
+    expect(terrainPlacementsForCell(
+      HEGEMONY_TERRAIN_PLACEMENTS,
+      { q: 1, r: 0 },
+      1
+    )).toBe(EMPTY_TERRAIN_PLACEMENTS);
+    expect(terrainPlacementsForCell(
+      HEGEMONY_TERRAIN_PLACEMENTS,
+      { q: 1, r: 0 },
+      1,
+      0.08
+    )).toBe(HEGEMONY_TERRAIN_PLACEMENTS);
   });
 
   it('moves the flat foundation to an authoritative off-center castle cell', () => {
@@ -115,6 +156,31 @@ describe('Hegemony keep terrain placement', () => {
     expect(terrainPlacementsAtCoord(mutable, { q: 2, r: 0 })).toEqual([mutablePlacement]);
   });
 
+  it('bounds normal decoration queries to a small neighboring subset', () => {
+    const placements = createHegemonyCastlePlacements(Array.from(
+      { length: 100 },
+      (_, q) => ({ id: `castle-${q}`, coord: { q, r: 0 } })
+    ));
+
+    const terrainOnly = terrainPlacementsForCell(placements, { q: 50, r: 0 }, 1);
+    const decorationNeighbors = terrainPlacementsForCell(
+      placements,
+      { q: 50, r: 0 },
+      1,
+      0.08
+    );
+
+    expect(terrainOnly.map((placement) => placement.id)).toEqual(['castle-50']);
+    expect(terrainOnly).toBe(terrainPlacementsAtCoord(placements, { q: 50, r: 0 }));
+    expect(decorationNeighbors.map((placement) => placement.id)).toEqual([
+      'castle-49',
+      'castle-50',
+      'castle-51'
+    ]);
+    expect(decorationNeighbors.length).toBeLessThan(placements.length / 10);
+    expect(decorationNeighbors).not.toBe(placements);
+  });
+
   it('falls back to the complete placement set when custom influence can cross a hex edge', () => {
     const local = createHegemonyKeepPlacement('local', { q: 0, r: 0 });
     const neighboringWidePlacement = Object.freeze({
@@ -141,7 +207,7 @@ describe('Hegemony keep terrain placement', () => {
       .toBe(wideFootprintPlacements);
   });
 
-  it('keeps a wide custom foundation continuous across a shared cell edge', () => {
+  it('keeps a bounded wide custom foundation continuous across a shared cell edge', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 2);
     const west = terrainCellByCoord(map, { q: 0, r: 0 })!;
     const east = terrainCellByCoord(map, { q: 1, r: 0 })!;
@@ -150,7 +216,17 @@ describe('Hegemony keep terrain placement', () => {
       ...createHegemonyKeepPlacement('wide-neighbor', east.coord),
       blendRadius: 1.2
     });
-    const placements = Object.freeze([widePlacement]);
+    const placements = Object.freeze([
+      widePlacement,
+      ...Array.from(
+        { length: 99 },
+        (_, index) => createHegemonyKeepPlacement(`distant-${index}`, { q: index + 10, r: 0 })
+      )
+    ]);
+
+    const westCandidates = terrainPlacementsForCell(placements, west.coord, 1);
+    expect(westCandidates).toContain(widePlacement);
+    expect(westCandidates.length).toBeLessThan(10);
 
     const fromWest = terrainHeightForCell(
       map.worldSeed,
@@ -167,5 +243,48 @@ describe('Hegemony keep terrain placement', () => {
       placements
     );
     expect(fromWest).toBeCloseTo(fromEast, 12);
+  });
+
+  it('includes finite custom decoration radii that can reach across multiple cells', () => {
+    const remoteIsland = Object.freeze({
+      ...createHegemonyKeepPlacement('remote-island', { q: 2, r: 0 }),
+      decorationClearanceRadius: 2.7
+    });
+    const placements = Object.freeze([
+      remoteIsland,
+      ...Array.from(
+        { length: 99 },
+        (_, index) => createHegemonyKeepPlacement(`far-${index}`, { q: index + 10, r: 0 })
+      )
+    ]);
+
+    const candidates = terrainPlacementsForCell(placements, { q: 0, r: 0 }, 1, 0.08);
+    expect(candidates).toContain(remoteIsland);
+    expect(candidates.length).toBeLessThan(10);
+    expect(isPlacementClear(
+      candidates,
+      { x: Math.sqrt(3) / 2, z: 0 },
+      1,
+      0.08
+    )).toBe(false);
+  });
+
+  it('falls back to the complete set for non-integer axial coordinates', () => {
+    const fractionalPlacement = Object.freeze({
+      ...createHegemonyKeepPlacement('fractional', { q: 0, r: 0 }),
+      coord: Object.freeze({ q: 0.5, r: 0 })
+    });
+    const placements = Object.freeze([
+      fractionalPlacement,
+      ...Array.from(
+        { length: 99 },
+        (_, index) => createHegemonyKeepPlacement(`integer-${index}`, { q: index + 10, r: 0 })
+      )
+    ]);
+
+    expect(terrainPlacementsForCell(placements, { q: 0, r: 0 }, 1, 0.08))
+      .toBe(placements);
+    expect(terrainPlacementsForCell(placements, { q: 0.5, r: 0 }, 1, 0.08))
+      .toBe(placements);
   });
 });

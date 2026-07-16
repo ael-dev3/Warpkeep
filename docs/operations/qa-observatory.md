@@ -204,19 +204,24 @@ or accepted.
 Castle-model availability is deliberately independent of two-dimensional label
 placement. Every canonical castle candidate remains available to the scene's
 own frustum and LOD presentation, with the same set available for raycasting.
-Label collision handling may move an identity into a keeper cluster, but it
-must never remove the corresponding world model or interaction target.
+Every direct username rail either remains at its exact projected foundation
+base or leaves the individual layer for deterministic keeper-cluster/Explore
+accounting; collision handling never nudges an individual identity around the
+screen and never removes the corresponding world model or interaction target.
 
 Keeper clusters preserve identity rather than falling back to anonymous count
-chips. A displaced singleton uses a 124-pixel username chip; a true
-multi-keeper aggregate uses a 96-pixel representative-username chip with a
-`+N` remainder. A cluster displaced from its projected anchor has exactly one
-connector associated with the same representative castle, while an
-undisplaced cluster has no active connector. Activating a cluster stores a
-durable group camera target and frames all of its member castles at approach
-distance. It also focuses the representative identity label for keyboard and
-screen-reader continuity. A renderer recreation caused by a quality change
-restores the group framing instead of collapsing to a close-up of one castle.
+chips. A true multi-keeper aggregate uses a 96-pixel representative-username
+chip with a `+N` remainder. Individual username rails expose
+`data-displaced="false"` and have no leader element. A group cluster displaced
+from its representative anchor has exactly one group connector associated with
+that representative castle, while an undisplaced cluster has no active
+connector. Activating a cluster opens the representative castle close-up and
+focuses that representative identity label for keyboard and screen-reader
+continuity; it does not claim to frame every member castle. A renderer
+recreation caused by a quality change restores that representative castle
+focus. An identity that cannot fit
+an honest direct rail or a true group cluster remains available through Explore
+rather than becoming a floating singleton.
 
 Bind Vite to loopback explicitly, then have the small contract helper print the
 exact local URL for one reviewed quality and presentation mode:
@@ -325,8 +330,8 @@ contract tests until a separate authority-free browser fixture is justified.
 Chrome runs fourteen fixed cases: every quality at 1440×900, a 1920×1080 balanced
 presentation, a 1024×768 tablet inspector, one invalid query that must fail
 closed to `balanced`, balanced and reduced presentation in a 390×844 narrow
-responsive viewport, an accessible narrow-layout keeper-cluster focus action, an
-opened narrow-layout castle inspector, and an opened 667×375 short-landscape
+responsive viewport, an accessible narrow-layout keeper-cluster focus action,
+an opened narrow-layout castle inspector, and an opened 667×375 short-landscape
 Explore surface. Four additional balanced cases use the same synthetic fixture
 in player presentation: default states at 1440×900 and 390×844, an explicit
 castle inspector at 1024×768, and an opened Explore surface at 667×375. Each
@@ -346,6 +351,13 @@ biography, so any inspector case exercises bounded profile presentation
 without introducing a real identity. Near-limit username truncation remains a
 focused component/CSS contract because using it in the shared density fixture
 would change the canonical label-capacity workload.
+Focused record regressions additionally require the responsive drawer to use
+only sanitized public Farcaster and existing public castle/visibility-gated
+Marks fields, keep a failed or rejected PFP on the initial/W fallback, and load
+the same-origin decorative castle art through the exact integrity-pinned Pages
+path. The artwork is accessibility-hidden and cannot supply fixture identity,
+state, or an external request. The component contract rejects invented
+durability, alliance, combat-status, and destructive-action presentation.
 The responsive
 contract additionally checks exact viewport dimensions, horizontal overflow,
 map coverage, text-bearing in-bounds castle labels, label collisions, visible
@@ -354,14 +366,18 @@ coverage, one-to-one placed-label/individual-label accounting, and complete
 clustered/overflow accounting. The map's privacy-safe exact set-membership
 accounting flag must also be true; no identity keys are exported. Keeper clusters must remain accessible,
 collision-free, inside the viewport, outside reserved UI, and free of missing
-synthetic identity. Cluster overflow must be zero outside Explore; the Explore
-case may report accounted label overflow, or no remaining map labels after its
-sheet reserves every label berth, because its accessibility surface separately
-exposes all 100 castles. The pre-click baseline still requires in-bounds
-text-bearing labels. Displaced individual labels and displaced
-clusters must have matching anchor connectors.
+synthetic identity. Cluster/Explore overflow may be nonzero whenever an exact
+foundation rail or true multi-keeper group cannot fit; the exact accounting
+must remain valid and the always-present Explore trigger keeps every overflow
+identity reachable. An opened Explore surface may leave no remaining map labels
+after its sheet reserves every label berth because it separately exposes all
+100 castles. Every pre-click baseline still requires in-bounds text-bearing
+labels. Every rendered individual rail must retain its exact
+foundation anchor, report no displacement, and have no individual connector;
+only a displaced true multi-keeper cluster may have its matching group
+connector.
 
-The desktop balanced case also derives one bounded point below a roof-attached
+The desktop balanced case also derives one bounded point above a foundation-attached
 label, proves that point and a five-move path are genuinely on the WebGL canvas,
 then requires a normal press/release to open that castle's inspector. It rejects
 any drag, label selection, inspector, or Explore churn before the press, so a
@@ -389,8 +405,8 @@ model count. This permits a castle to remain visible and interactive when its
 individual label is clustered, but never permits an eligible identity label to
 outnumber available castle models. Cluster activation must start from a real
 accessible cluster and finish with the representative label focused and
-readable; the cluster count is allowed to remain unchanged because semantic
-group framing can preserve the deterministic overview layout. The remaining
+readable; the cluster count is allowed to remain unchanged because the
+representative close-up preserves the deterministic identity layout. The remaining
 contract checks 44px primary controls,
 inspector/Explore state, and page warnings/errors.
 

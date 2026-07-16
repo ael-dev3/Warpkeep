@@ -74,6 +74,8 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
   /** Strict player HUD state required after a constrained interactive surface opens. */
   expectedPlayerActionControlState?: RenderedWebglBrowserProbeControlState;
   interaction: RenderedWebglBrowserProbeInteraction;
+  /** Maximum identities allowed to fall through clusters into Explore. */
+  maximumLabelOverflowCount: number;
   minimumLabelCount: number;
   /** Confirms a real cluster control existed immediately before activation. */
   clusterButtonCountBefore?: number;

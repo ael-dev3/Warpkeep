@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 describe('CastleInspectionPanel', () => {
-  it('shows a concise bounded public castle record with no premature action', () => {
+  it('shows a bounded visual castle record backed only by public Farcaster and castle data', () => {
     const escaped = vi.fn();
     const onRequestClose = vi.fn();
     const { container } = render(
@@ -54,25 +54,43 @@ describe('CastleInspectionPanel', () => {
       </div>
     );
 
-    const dialog = screen.getByRole('dialog', { name: '@warpkeeper' });
+    const dialog = screen.getByRole('dialog', { name: 'Genesis Bastion' });
     expect(dialog.id).toBe('castle-record');
     expect(dialog.getAttribute('aria-modal')).toBe('false');
+    expect(dialog.getAttribute('aria-labelledby')).toBe('castle-record-title');
+    expect(dialog.getAttribute('aria-describedby')).toBe('castle-record-keeper-identity');
+    expect(document.getElementById('castle-record-keeper-identity')?.textContent)
+      .toContain('Warp Keeper@warpkeeper');
     expect(container.querySelector('details')).toBeNull();
-    expect(screen.getByText('Genesis Bastion')).not.toBeNull();
-    expect(screen.getByRole('heading', { level: 2, name: '@warpkeeper' })).not.toBeNull();
+    expect(screen.getByText('YOUR FOUNDED KEEP')).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Genesis Bastion' })).not.toBeNull();
+    expect(screen.getByLabelText('Farcaster keeper identity')).not.toBeNull();
     expect(screen.getByText('Warp Keeper')).not.toBeNull();
+    expect(screen.getAllByText('@warpkeeper')).toHaveLength(2);
     expect(screen.getByText('Building the first Hegemony frontier.')).not.toBeNull();
     expect(screen.getByText('q 2 · r -1')).not.toBeNull();
     expect(screen.getByText('2026-07-14')).not.toBeNull();
     expect(screen.getAllByText('150')).toHaveLength(2);
+    expect(screen.getByText('Keeper').nextElementSibling?.textContent).toBe('@warpkeeper');
     expect(screen.getByText('Castle level').nextElementSibling?.textContent).toBe('3');
+
+    const heroArt = container.querySelector<HTMLImageElement>(
+      '.castle-inspection__hero-art'
+    );
+    expect(heroArt).not.toBeNull();
+    expect(heroArt?.getAttribute('alt')).toBe('');
+    expect(heroArt?.getAttribute('aria-hidden')).toBe('true');
+    expect(heroArt?.getAttribute('decoding')).toBe('async');
+    expect(heroArt?.getAttribute('width')).toBe('1254');
+    expect(heroArt?.getAttribute('height')).toBe('1254');
+    expect(heroArt?.getAttribute('src')).toBe('/images/realm/hegemony-castle-record.webp');
 
     const profileLink = screen.getByRole('link', { name: 'View Farcaster profile' });
     expect(profileLink.getAttribute('href')).toBe('https://farcaster.xyz/warpkeeper');
     expect(profileLink.getAttribute('rel')).toContain('noreferrer');
 
     expect(document.body.textContent).not.toMatch(
-      /FID 12345|Admitted to Hegemony|First Warpkeep authentication|Marks earned|Marks spent|POLICY|Ring|Sector/i
+      /FID(?:\s+12345)?|Admitted to Hegemony|First Warpkeep authentication|Marks earned|Marks spent|POLICY|Ring|Sector|Durability|Destroy|Health|Alliance|\bStatus\b/i
     );
     expect(screen.queryByRole('button', { name: /CASTLE WARP/i })).toBeNull();
 
@@ -84,7 +102,7 @@ describe('CastleInspectionPanel', () => {
 
     const avatar = container.querySelector('.realm-castle-avatar');
     expect(avatar?.querySelector('img')).toBeNull();
-    expect(avatar?.querySelector('canvas')).not.toBeNull();
+    expect(avatar?.querySelector('canvas')).toBeNull();
     expect(avatar?.textContent).toContain('W');
   });
 
@@ -98,7 +116,11 @@ describe('CastleInspectionPanel', () => {
           communityStatsVisible: false,
           walletAddress: '0xPRIVATE',
           transactionHash: '0xPRIVATE_TX',
-          oidcIdentity: 'PRIVATE_IDENTITY'
+          oidcIdentity: 'PRIVATE_IDENTITY',
+          durability: 'PRIVATE_DURABILITY',
+          health: 'PRIVATE_HEALTH',
+          alliance: 'PRIVATE_ALLIANCE',
+          status: 'PRIVATE_STATUS'
         } as unknown as WarpkeepRealmProfile}
         own={false}
         onRequestClose={vi.fn()}
@@ -110,6 +132,9 @@ describe('CastleInspectionPanel', () => {
     expect(screen.queryByRole('button', { name: /CASTLE WARP/i })).toBeNull();
     expect(document.body.textContent).not.toContain('0xPRIVATE');
     expect(document.body.textContent).not.toContain('PRIVATE_IDENTITY');
+    expect(document.body.textContent).not.toMatch(
+      /PRIVATE_DURABILITY|PRIVATE_HEALTH|PRIVATE_ALLIANCE|PRIVATE_STATUS|Durability|Destroy|Health|Alliance|\bStatus\b/i
+    );
     expect(document.body.textContent).not.toContain(`FID ${PROFILE.fid}`);
   });
 

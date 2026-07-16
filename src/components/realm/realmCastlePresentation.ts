@@ -23,21 +23,14 @@ const CASTLE_LABEL_FULL_HEIGHT = 44;
 /** Conservative initial fallback until the DOM reports exact compact label dimensions. */
 export const CASTLE_LABEL_COMPACT_WIDTH = 124;
 export const CASTLE_LABEL_COMPACT_HEIGHT = 30;
-const CASTLE_LABEL_PRIORITY_NUDGE_PIXELS = 40;
-const CASTLE_LABEL_STANDARD_NUDGE_PIXELS = 32;
 
 type LabelAttachmentOffset = Readonly<{ x: number; y: number }>;
 
-// Fallback rendering mirrors the measured solver: dense labels stay above the
-// same roof in a short vertical stack rather than drifting across the map.
+// A castle username has one honest location: the projected foundation base.
+// Dense collisions collapse into a nearby aggregate or remain available in
+// Explore; they never move an individual identity away from its castle.
 const COMPACT_LABEL_ATTACHMENT_OFFSETS: readonly LabelAttachmentOffset[] = Object.freeze([
-  { x: 0, y: 0 },
-  { x: 0, y: -50 },
-  { x: 58, y: 0 },
-  { x: -58, y: 0 },
-  { x: 58, y: -50 },
-  { x: -58, y: -50 },
-  { x: 0, y: -96 }
+  { x: 0, y: 0 }
 ]);
 
 /**
@@ -58,7 +51,7 @@ export type RealmCastlePublicPresentation = Readonly<{
 
 export type VisibleCastleLabel = RealmCastleScreenProjection & Readonly<{
   compact: boolean;
-  /** Original roof projection retained even when collision layout moves the label. */
+  /** Exact projected foundation base; direct identity labels never move away from it. */
   projectedAnchor: Readonly<{ x: number; y: number }>;
 }>;
 
@@ -290,10 +283,6 @@ function intersects(first: Bounds, second: Bounds) {
     && first.bottom > second.top;
 }
 
-function clamp(value: number, minimum: number, maximum: number) {
-  return Math.min(maximum, Math.max(minimum, value));
-}
-
 function labelBounds(
   castle: RealmCastleScreenProjection,
   compact: boolean,
@@ -304,8 +293,8 @@ function labelBounds(
   return {
     left: castle.x - width / 2,
     right: castle.x + width / 2,
-    top: castle.y + yOffset - height,
-    bottom: castle.y + yOffset
+    top: castle.y + yOffset,
+    bottom: castle.y + yOffset + height
   };
 }
 
@@ -361,19 +350,21 @@ export function resolveVisibleCastleLabels(
       const height = attempt.compact ? CASTLE_LABEL_COMPACT_HEIGHT : CASTLE_LABEL_FULL_HEIGHT;
       const minimumX = CASTLE_LABEL_EDGE_MARGIN + width / 2;
       const maximumX = frame.width - CASTLE_LABEL_EDGE_MARGIN - width / 2;
-      const minimumY = CASTLE_LABEL_EDGE_MARGIN + height;
-      const maximumY = frame.height - CASTLE_LABEL_EDGE_MARGIN;
+      const minimumY = CASTLE_LABEL_EDGE_MARGIN;
+      const maximumY = frame.height - CASTLE_LABEL_EDGE_MARGIN - height;
       if (maximumX < minimumX || maximumY < minimumY) continue;
 
       for (const offset of attempt.offsets) {
         const attachedX = castle.x + offset.x;
         const attachedY = castle.y + offset.y;
-        const x = clamp(attachedX, minimumX, maximumX);
-        const y = clamp(attachedY, minimumY, maximumY);
-        const safeAreaNudge = Math.hypot(x - attachedX, y - attachedY);
-        if (safeAreaNudge > (
-          priority ? CASTLE_LABEL_PRIORITY_NUDGE_PIXELS : CASTLE_LABEL_STANDARD_NUDGE_PIXELS
-        )) continue;
+        if (
+          attachedX < minimumX
+          || attachedX > maximumX
+          || attachedY < minimumY
+          || attachedY > maximumY
+        ) continue;
+        const x = attachedX;
+        const y = attachedY;
         const projectedCastle = { ...castle, x, y };
         const bounds = labelBounds(projectedCastle, attempt.compact, 0);
         if (
@@ -428,7 +419,7 @@ export function fallbackCastleProjection(
   return {
     ...castle,
     x: centerX,
-    y: centerY - markerHalfSize - CASTLE_LABEL_GAP_PIXELS,
+    y: centerY + markerHalfSize + CASTLE_LABEL_GAP_PIXELS,
     distance: hexDistance({ q: 0, r: 0 }, castle),
     visible: true,
     castleBounds,

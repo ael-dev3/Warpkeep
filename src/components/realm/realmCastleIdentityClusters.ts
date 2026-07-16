@@ -1,21 +1,14 @@
-import {
-  REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS,
-  type RealmScreenPoint,
-  type RealmScreenRect
-} from './realmMeasuredLabelLayout';
+import type { RealmScreenPoint, RealmScreenRect } from './realmMeasuredLabelLayout';
 import type {
   RealmCastleScreenProjection
 } from './realmTypes';
 
 /** Width for a true multi-keeper aggregate in constrained overview layouts. */
 export const REALM_IDENTITY_CLUSTER_WIDTH = 96;
-/** A displaced singleton still gets enough room for a readable username. */
-export const REALM_IDENTITY_SINGLE_WIDTH = 124;
 export const REALM_IDENTITY_CLUSTER_HEIGHT = 44;
 export const REALM_IDENTITY_CLUSTER_MAXIMUM_GRID_POINTS = 8_192;
-/** Aggregate identity remains attached to its representative castle roof. */
-export const REALM_IDENTITY_CLUSTER_MAX_ANCHOR_DISPLACEMENT_PIXELS =
-  REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS;
+/** A true group may move within this bounded radius and retain one connector. */
+export const REALM_IDENTITY_CLUSTER_MAX_ANCHOR_DISPLACEMENT_PIXELS = 112;
 /** A "nearby" aggregate may never hide a long spatial chain. */
 export const REALM_IDENTITY_CLUSTER_MAX_MEMBER_DISTANCE_PIXELS = 160;
 
@@ -193,10 +186,6 @@ function expandRect(rect: RealmScreenRect, pixels: number): RealmScreenRect {
     right: rect.right + pixels,
     bottom: rect.bottom + pixels
   };
-}
-
-function clusterWidth(memberCount: number) {
-  return memberCount === 1 ? REALM_IDENTITY_SINGLE_WIDTH : REALM_IDENTITY_CLUSTER_WIDTH;
 }
 
 function boundsAt(x: number, y: number, width: number): RealmScreenRect {
@@ -643,7 +632,14 @@ export function resolveRealmCastleIdentityClusters(
       overflow.push(...component.castleIds);
       return;
     }
-    const width = clusterWidth(component.castleIds.length);
+    // A one-member "cluster" is only a displaced individual username. Keep
+    // the world layer honest: singleton identities remain available through
+    // Explore until their exact foundation label can be shown again.
+    if (component.castleIds.length < 2) {
+      overflow.push(...component.castleIds);
+      return;
+    }
+    const width = REALM_IDENTITY_CLUSTER_WIDTH;
     const representativeCastleId = nearestClusterRepresentative(
       component.castleIds,
       component.anchor,

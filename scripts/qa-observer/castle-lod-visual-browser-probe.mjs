@@ -25,21 +25,26 @@ const LOOPBACK_BOUNDARY_TIMEOUT_MILLISECONDS = 5_000;
 const LOOPBACK_BOUNDARY_MAXIMUM_HEADER_BYTES = 16 * 1_024;
 const VISUAL_TARGET_PIXELS = 384;
 const VISUAL_LODS = Object.freeze(['high', 'balanced', 'compact']);
+// The 2026-07-16 GameReady family deliberately adds and reshapes silhouette
+// detail relative to the superseded public-source mesh. Preserve the much
+// tighter coverage and colour gates while allowing that owner-approved outline
+// change; these floors still reject total silhouette-overlap loss beyond
+// roughly 12-13% against that historical reference.
 const VISUAL_LIMITS = Object.freeze({
   high: Object.freeze({
     maximumCoverageDeltaBasisPoints: 250,
     maximumMeanColorDelta: 48,
-    minimumSilhouetteIouBasisPoints: 9_750,
+    minimumSilhouetteIouBasisPoints: 8_800,
   }),
   balanced: Object.freeze({
     maximumCoverageDeltaBasisPoints: 500,
     maximumMeanColorDelta: 84,
-    minimumSilhouetteIouBasisPoints: 9_450,
+    minimumSilhouetteIouBasisPoints: 8_750,
   }),
   compact: Object.freeze({
     maximumCoverageDeltaBasisPoints: 1_100,
     maximumMeanColorDelta: 112,
-    minimumSilhouetteIouBasisPoints: 9_000,
+    minimumSilhouetteIouBasisPoints: 8_700,
   }),
 });
 
@@ -339,13 +344,13 @@ function parseProfile(value, lod) {
     meanColorDelta: parseMetric(candidate.meanColorDelta, `${lod} colour`),
     silhouetteIouBasisPoints: parseMetric(candidate.silhouetteIouBasisPoints, `${lod} silhouette`),
   });
-  const limits = VISUAL_LIMITS[lod];
-  if (
-    parsed.coverageDeltaBasisPoints > limits.maximumCoverageDeltaBasisPoints
-    || parsed.meanColorDelta > limits.maximumMeanColorDelta
-    || parsed.silhouetteIouBasisPoints < limits.minimumSilhouetteIouBasisPoints
-  ) throw new TypeError(`Castle LOD visual evidence failed the ${lod} fidelity floor.`);
   return parsed;
+}
+
+function profileOutsideLimits(profile, limits) {
+  return profile.coverageDeltaBasisPoints > limits.maximumCoverageDeltaBasisPoints
+    || profile.meanColorDelta > limits.maximumMeanColorDelta
+    || profile.silhouetteIouBasisPoints < limits.minimumSilhouetteIouBasisPoints;
 }
 
 /**
@@ -369,11 +374,25 @@ export function parseCastleLodVisualEvidence(value, expectedUrl) {
     || candidate.renderer !== 'webgl'
     || candidate.targetPixels !== VISUAL_TARGET_PIXELS
   ) throw new TypeError('Invalid castle LOD visual evidence state.');
-  return Object.freeze({
-    profiles: Object.freeze(Object.fromEntries(VISUAL_LODS.map((lod) => [
+  const parsedProfiles = Object.freeze(Object.fromEntries(VISUAL_LODS.map((lod) => [
       lod,
       parseProfile(profiles[lod], lod),
-    ]))),
+    ])));
+  const failedProfiles = VISUAL_LODS.filter((lod) => (
+    profileOutsideLimits(parsedProfiles[lod], VISUAL_LIMITS[lod])
+  ));
+  if (failedProfiles.length > 0) {
+    const labels = failedProfiles.length === 1
+      ? failedProfiles[0]
+      : `${failedProfiles.slice(0, -1).join(', ')} and ${failedProfiles.at(-1)}`;
+    throw new TypeError(
+      `Castle LOD visual evidence failed the ${labels} fidelity `
+      + `${failedProfiles.length === 1 ? 'floor' : 'floors'}: `
+      + `${JSON.stringify(parsedProfiles)} against ${JSON.stringify(VISUAL_LIMITS)}.`
+    );
+  }
+  return Object.freeze({
+    profiles: parsedProfiles,
     renderer: 'webgl',
     targetPixels: VISUAL_TARGET_PIXELS,
   });
@@ -444,6 +463,11 @@ export async function runCastleLodVisualEvidenceBrowserCase(session, options) {
       try {
         return parseCastleLodVisualEvidence(observation, expectedUrl);
       } catch (error) {
+        if (observation.status === 'ready') {
+          throw new Error('Local castle LOD visual evidence was outside its reviewed floors.', {
+            cause: error
+          });
+        }
         lastFailure = error;
       }
     }

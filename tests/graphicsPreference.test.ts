@@ -79,6 +79,20 @@ describe('graphics preference', () => {
       deviceMemory: 2,
       maxTextureSize: 8_192
     })).toBe('performance');
+    expect(resolveGraphicsQuality('auto', {
+      width: 1_440,
+      height: 900,
+      devicePixelRatio: 2,
+      hardwareConcurrency: 8,
+      deviceMemory: 4,
+      maxTextureSize: 16_384
+    })).toBe('balanced');
+    expect(resolveGraphicsQuality('auto', {
+      width: 1_440,
+      height: 900,
+      devicePixelRatio: 2,
+      maxTextureSize: 16_384
+    })).toBe('balanced');
   });
 
   it('gives manual choices priority and maps both renderers consistently', () => {

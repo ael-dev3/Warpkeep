@@ -421,10 +421,11 @@ button.farcaster-identity-badge {
   height: 2.35rem;
 }
 
-.farcaster-identity-badge__portrait img {
+.farcaster-identity-badge__portrait canvas {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  border-radius: inherit;
 }
 
 .farcaster-identity-badge__monogram {

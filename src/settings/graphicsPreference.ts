@@ -93,8 +93,12 @@ export function resolveGraphicsQuality(
     width >= 1180
     && height >= 680
     && drawingBufferPixels <= 12_000_000
-    && cores >= 4
-    && memory >= 4
+    // Cinematic keeps three castle/base LOD assemblies resident. Auto-select
+    // it only on clearly measured headroom; it remains an explicit setting on
+    // browsers that do not expose device memory or on otherwise capable 4 GB
+    // systems.
+    && cores >= 6
+    && memory >= 8
     && maxTextureSize >= 8192
   ) {
     return 'cinematic';

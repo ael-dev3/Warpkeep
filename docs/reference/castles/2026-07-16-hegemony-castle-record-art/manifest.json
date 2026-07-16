@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-castle-record-art-v1",
+  "recordedAt": "2026-07-16",
+  "purpose": "Transparent decorative castle art for the Alpha 0.3.5 public castle inspection card",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-16",
+    "scope": "Warpkeep PR #40 deployment of the background-cleaned derivative in the public Warpkeep GitHub repository and official warpkeep.com Pages runtime.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "transparent composition reference",
+      "repositoryRetained": false,
+      "originalName": "image-3.png",
+      "bytes": 306449,
+      "sha256": "d085150db7a400627edac43e0078881224dbf9960428e8ddbd5a7177da73b63e",
+      "image": {
+        "format": "png",
+        "width": 500,
+        "height": 500,
+        "alpha": true
+      },
+      "runtimeUse": "visual and alpha-edge reference only"
+    },
+    {
+      "role": "high-resolution edit source",
+      "repositoryRetained": false,
+      "originalName": "image-4.png",
+      "bytes": 1593147,
+      "sha256": "0d166621f0174bce5cc0a9ddf1673f12eaaebab50adddd8a3e2ea2181459db83",
+      "image": {
+        "format": "png",
+        "width": 1254,
+        "height": 1254,
+        "alpha": false
+      }
+    }
+  ],
+  "generation": {
+    "service": "OpenAI image generation edit",
+    "prompt": "Edit the supplied castle render into a production UI cutout. Preserve the exact castle design, camera angle, proportions, architecture, banner, materials, lighting, and all fine edges. Remove only the white/gray studio background and ground shadow. Center the complete castle with generous margin on a perfectly flat chroma-key #00FF00 background, with no gradients, no shadows outside the castle, no glow, no text, no border, and no added objects. Keep battlements, spires, tiny roof ornaments, and silhouette edges crisp and intact. Square 1:1 output.",
+    "intermediateRetained": false,
+    "intermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1792440,
+      "sha256": "ede9c13325fbb828d74bef2c8b2ea92fe49419130242ad4d8a3086e2ed1ea5a5"
+    }
+  },
+  "backgroundCleanup": {
+    "tool": "Codex imagegen remove_chroma_key.py",
+    "runtime": "Python 3 with Pillow 12.2.0",
+    "sampleMode": "border median",
+    "sampledKey": "#0ff317",
+    "softMatte": true,
+    "transparentThreshold": 18,
+    "opaqueThreshold": 110,
+    "edgeContractPixels": 1,
+    "edgeFeatherRadius": 0.35,
+    "despill": true,
+    "outputEncoding": "Pillow WebP default quality"
+  },
+  "runtimeAsset": {
+    "path": "public/images/realm/hegemony-castle-record.webp",
+    "format": "webp",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 145416,
+    "sha256": "30e0c3cd1bbc4732bb5025a78a5dc0cc66bc01c1b752a3f21b48fb429cc11123",
+    "decodedRgbaSha256": "b1531a5f370ac7f327fd8f0365028274fd9e72473bb774d1a91ddc2994b2deaa",
+    "alpha": {
+      "transparentPixels": 889605,
+      "partiallyTransparentPixels": 15358,
+      "opaquePixels": 667553
+    },
+    "visibleBoundsAlpha16": {
+      "minX": 129,
+      "minY": 25,
+      "maxX": 1089,
+      "maxY": 1166
+    },
+    "delivery": "same-origin checked-in runtime asset; no external CDN"
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes Warpkeep runtime use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "backgroundRemoved": true,
+    "fineSilhouettePreserved": true,
+    "reviewedOnTransparentViewer": true,
+    "referenceScreenshotsRetained": false
+  }
+}

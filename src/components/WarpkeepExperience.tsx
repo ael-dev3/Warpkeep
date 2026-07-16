@@ -405,7 +405,8 @@ export function WarpkeepExperience() {
     ? {
         fid: verifiedIdentityRef.current.fid,
         username: verifiedIdentityRef.current.username,
-        displayName: verifiedIdentityRef.current.displayName
+        displayName: verifiedIdentityRef.current.displayName,
+        pfpUrl: verifiedIdentityRef.current.pfpUrl
       }
     : null;
   const realmMounted = experience.phase === 'realm' && realmIdentity !== null;

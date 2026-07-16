@@ -2,12 +2,13 @@ import * as THREE from 'three';
 
 import {
   disposeRealmObject,
-  loadHegemonyKeep,
   type HegemonyKeepLoadResult
 } from './loadHegemonyKeep';
+import { loadHegemonyCastleAssembly } from './loadHegemonyCastleAssembly';
 import { REALM_QUALITY_SPECS } from './realmQuality';
 import type { CastleLod } from './castleInstancePlanning';
 import {
+  createCastleBoundsProjectionEnvelope,
   deriveCastleProjectionEnvelope,
   type RealmCastleProjectionEnvelope
 } from './realmCastleProjectionGeometry';
@@ -15,6 +16,7 @@ import {
   closeImageBitmapOnce,
   uniqueImageBitmapSources
 } from './realmTextureResources';
+import { createRealmLoadAbortError } from './realmModelRequestLifecycle';
 
 export type HegemonyKeepPrefabPrimitive = Readonly<{
   geometry: THREE.BufferGeometry;
@@ -23,6 +25,8 @@ export type HegemonyKeepPrefabPrimitive = Readonly<{
   /** Column-major Matrix4 elements relative to the normalized prefab root. */
   localMatrixElements: readonly number[];
   sourceMeshName: string;
+  /** Omitted custom/test primitives are treated as castle geometry. */
+  role?: 'castle' | 'landscape-base';
 }>;
 
 export type HegemonyKeepPrefab = Readonly<{
@@ -32,6 +36,11 @@ export type HegemonyKeepPrefab = Readonly<{
   visualHeight: number;
   /** Immutable, bounded geometry used for honest screen-space occlusion. */
   projectionEnvelope: RealmCastleProjectionEnvelope;
+  /** Castle plus authored landscape geometry used for conservative occupancy. */
+  renderProjectionEnvelope: RealmCastleProjectionEnvelope;
+  /** Exact authored base geometry used to derive the simple oval pick volume. */
+  landscapeBaseProjectionEnvelope?: RealmCastleProjectionEnvelope;
+  landscapeBasePrimitiveCount: number;
   /**
    * Immutable prefab description. Geometry, materials, and their textures are
    * shared repository resources and must only be used to create render nodes.
@@ -46,7 +55,8 @@ export type HegemonyKeepPrefabLease = Readonly<{
 }>;
 
 export type HegemonyKeepPrefabLoader = (
-  lod: CastleLod
+  lod: CastleLod,
+  signal?: AbortSignal
 ) => Promise<HegemonyKeepLoadResult>;
 
 export type HegemonyKeepPrefabRepository = Readonly<{
@@ -54,7 +64,7 @@ export type HegemonyKeepPrefabRepository = Readonly<{
    * Coalesces concurrent acquisition. A retired LOD cannot be reacquired in
    * the same realm session because its GPU resources have already been freed.
    */
-  acquire: (lod: CastleLod) => Promise<HegemonyKeepPrefabLease>;
+  acquire: (lod: CastleLod, signal?: AbortSignal) => Promise<HegemonyKeepPrefabLease>;
 }>;
 
 export type CreateHegemonyKeepPrefabRepositoryOptions = Readonly<{
@@ -83,7 +93,11 @@ type InternalPrefab = Readonly<{
 
 type CacheEntry = {
   activeLeases: number;
+  abortController: AbortController;
+  internal?: InternalPrefab;
+  pendingAcquisitions: number;
   promise: Promise<InternalPrefab>;
+  resourcesReleased: boolean;
   retired: boolean;
 };
 
@@ -99,10 +113,11 @@ function createDefaultLoader(
   baseUrl: string,
   maxAnisotropy: number
 ): HegemonyKeepPrefabLoader {
-  return (lod) => loadHegemonyKeep({
+  return (lod, signal) => loadHegemonyCastleAssembly({
     quality: qualityForLod(lod),
     baseUrl,
-    maxAnisotropy
+    maxAnisotropy,
+    signal
   });
 }
 
@@ -119,6 +134,20 @@ function collectMaterialTextures(
       });
     }
   }
+}
+
+function unionProjectionEnvelopes(
+  castle: RealmCastleProjectionEnvelope,
+  landscapeBase: RealmCastleProjectionEnvelope
+) {
+  return createCastleBoundsProjectionEnvelope({
+    minX: Math.min(castle.localBounds.minX, landscapeBase.localBounds.minX),
+    minY: Math.min(castle.localBounds.minY, landscapeBase.localBounds.minY),
+    minZ: Math.min(castle.localBounds.minZ, landscapeBase.localBounds.minZ),
+    maxX: Math.max(castle.localBounds.maxX, landscapeBase.localBounds.maxX),
+    maxY: Math.max(castle.localBounds.maxY, landscapeBase.localBounds.maxY),
+    maxZ: Math.max(castle.localBounds.maxZ, landscapeBase.localBounds.maxZ)
+  });
 }
 
 function createInternalPrefab(
@@ -148,16 +177,32 @@ function createInternalPrefab(
       geometry: object.geometry,
       materials,
       localMatrixElements: Object.freeze([...localMatrix.elements]),
-      sourceMeshName: object.name
+      sourceMeshName: object.name,
+      role: object.userData.warpkeepPrefabRole === 'landscape-base'
+        ? 'landscape-base'
+        : 'castle'
     }));
   });
 
   if (primitives.length === 0) {
     throw new Error(`Hegemony keep ${lod} prefab contains no renderable meshes.`);
   }
-  const projectionEnvelope = deriveCastleProjectionEnvelope(primitives);
+  const castlePrimitives = primitives.filter((primitive) => primitive.role !== 'landscape-base');
+  const landscapeBasePrimitives = primitives.filter((primitive) => (
+    primitive.role === 'landscape-base'
+  ));
+  const projectionEnvelope = deriveCastleProjectionEnvelope(castlePrimitives);
   if (!projectionEnvelope) {
     throw new Error(`Hegemony keep ${lod} prefab has no valid projection bounds.`);
+  }
+  const landscapeBaseProjectionEnvelope = deriveCastleProjectionEnvelope(
+    landscapeBasePrimitives
+  ) ?? undefined;
+  const renderProjectionEnvelope = landscapeBaseProjectionEnvelope
+    ? unionProjectionEnvelopes(projectionEnvelope, landscapeBaseProjectionEnvelope)
+    : projectionEnvelope;
+  if (!renderProjectionEnvelope) {
+    throw new Error(`Hegemony keep ${lod} prefab has no valid render bounds.`);
   }
   if (
     !Number.isFinite(loaded.visualHeight)
@@ -175,6 +220,9 @@ function createInternalPrefab(
       footprintDiameter: loaded.footprintDiameter,
       visualHeight: loaded.visualHeight,
       projectionEnvelope,
+      renderProjectionEnvelope,
+      landscapeBaseProjectionEnvelope,
+      landscapeBasePrimitiveCount: primitives.length - castlePrimitives.length,
       primitives: Object.freeze(primitives)
     }),
     resources: Object.freeze({
@@ -473,14 +521,49 @@ export function createHegemonyKeepPrefabRepository(
     return internal;
   };
 
+  const releaseEntryResources = (entry: CacheEntry) => {
+    if (!entry.internal || entry.resourcesReleased) return;
+    entry.resourcesReleased = true;
+    release(entry.internal.resources);
+  };
+
+  const retireEntryIfUnused = (entry: CacheEntry) => {
+    if (
+      entry.retired
+      || entry.activeLeases !== 0
+      || entry.pendingAcquisitions !== 0
+    ) {
+      return;
+    }
+    entry.retired = true;
+    entry.abortController.abort();
+    releaseEntryResources(entry);
+  };
+
   const entryFor = (lod: CastleLod) => {
     const cached = entries.get(lod);
     if (cached) return cached;
+    const abortController = new AbortController();
     const entry: CacheEntry = {
       activeLeases: 0,
+      abortController,
+      pendingAcquisitions: 0,
       promise: Promise.resolve()
-        .then(() => loader(lod))
-        .then((loaded) => prepareInternalPrefab(lod, loaded)),
+        .then(() => loader(lod, abortController.signal))
+        .then((loaded) => {
+          if (!entry.retired && !abortController.signal.aborted) {
+            const internal = prepareInternalPrefab(lod, loaded);
+            entry.internal = internal;
+            return internal;
+          }
+          try {
+            disposeRealmObject(loaded.root);
+          } catch {
+            // Preserve cancellation after best-effort custom-loader cleanup.
+          }
+          throw createRealmLoadAbortError(`Hegemony keep ${lod} prefab`);
+        }),
+      resourcesReleased: false,
       retired: false
     };
     entries.set(lod, entry);
@@ -488,31 +571,59 @@ export function createHegemonyKeepPrefabRepository(
   };
 
   return Object.freeze({
-    acquire: async (lod) => {
+    acquire: (lod, signal) => {
+      if (signal?.aborted) {
+        return Promise.reject(createRealmLoadAbortError(`Hegemony keep ${lod} prefab`));
+      }
       const entry = entryFor(lod);
       if (entry.retired) {
-        throw new Error(`Hegemony keep ${lod} prefab is retired for this realm session.`);
+        return Promise.reject(new Error(
+          `Hegemony keep ${lod} prefab is retired for this realm session.`
+        ));
       }
-      const internal = await entry.promise;
-      // A previous lease can retire a resolved entry while this acquisition is
-      // queued behind the shared promise. Never revive already-freed resources.
-      if (entry.retired) {
-        throw new Error(`Hegemony keep ${lod} prefab is retired for this realm session.`);
-      }
-      entry.activeLeases += 1;
-      let released = false;
+      entry.pendingAcquisitions += 1;
 
-      return Object.freeze({
-        prefab: internal.prefab,
-        release: () => {
-          if (released) return;
-          released = true;
-          entry.activeLeases -= 1;
-          if (entry.activeLeases === 0) {
-            entry.retired = true;
-            release(internal.resources);
+      return new Promise<HegemonyKeepPrefabLease>((resolve, reject) => {
+        let finished = false;
+        const finishPending = () => {
+          if (finished) return false;
+          finished = true;
+          signal?.removeEventListener('abort', onAbort);
+          entry.pendingAcquisitions -= 1;
+          return true;
+        };
+        const onAbort = () => {
+          if (!finishPending()) return;
+          retireEntryIfUnused(entry);
+          reject(createRealmLoadAbortError(`Hegemony keep ${lod} prefab`));
+        };
+
+        signal?.addEventListener('abort', onAbort, { once: true });
+        entry.promise.then((internal) => {
+          if (!finishPending()) return;
+          // A previous lease or the final pending cancellation can retire a
+          // resolved entry. Never revive already-freed resources.
+          if (entry.retired) {
+            reject(new Error(
+              `Hegemony keep ${lod} prefab is retired for this realm session.`
+            ));
+            return;
           }
-        }
+          entry.activeLeases += 1;
+          let released = false;
+          resolve(Object.freeze({
+            prefab: internal.prefab,
+            release: () => {
+              if (released) return;
+              released = true;
+              entry.activeLeases -= 1;
+              retireEntryIfUnused(entry);
+            }
+          }));
+        }, (error: unknown) => {
+          if (!finishPending()) return;
+          reject(error);
+        });
       });
     }
   });

@@ -6,6 +6,11 @@ import {
   closeImageBitmapOnce,
   imageBitmapSourceForTexture
 } from './realmTextureResources';
+import {
+  consumeSharedRealmModelRequest,
+  throwIfRealmLoadAborted,
+  type SharedRealmModelRequest
+} from './realmModelRequestLifecycle';
 
 export const DEFAULT_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 20_000;
 const MAX_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 60_000;
@@ -13,23 +18,23 @@ const MAX_HEGEMONY_KEEP_REQUEST_TIMEOUT_MS = 60_000;
 export const HEGEMONY_KEEP_RUNTIME_ASSETS = Object.freeze({
   high: Object.freeze({
     path: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.high,
-    bytes: 1_934_920,
-    sha256: '9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2'
+    bytes: 2_215_972,
+    sha256: '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8'
   }),
   balanced: Object.freeze({
     path: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.balanced,
-    bytes: 1_172_132,
-    sha256: 'aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e'
+    bytes: 892_788,
+    sha256: 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157'
   }),
   reduced: Object.freeze({
     path: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.compact,
-    bytes: 508_508,
-    sha256: 'de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29'
+    bytes: 453_628,
+    sha256: 'b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b'
   })
 });
 
 type KeepRuntimeAsset = (typeof HEGEMONY_KEEP_RUNTIME_ASSETS)[keyof typeof HEGEMONY_KEEP_RUNTIME_ASSETS];
-type KeepBinaryRequest = Promise<ArrayBuffer>;
+type KeepBinaryRequest = SharedRealmModelRequest<ArrayBuffer>;
 
 const keepBinaryRequests = new Map<string, KeepBinaryRequest>();
 
@@ -70,6 +75,7 @@ export type LoadHegemonyKeepOptions = Readonly<{
   quality: RealmQualitySpec;
   baseUrl: string;
   maxAnisotropy: number;
+  signal?: AbortSignal;
   /** Bounds both fetch and response-body work; the default is production-safe. */
   requestTimeoutMs?: number;
   parser?: HegemonyKeepParser;
@@ -83,6 +89,25 @@ export type HegemonyKeepParser = (
 export function resolveRealmAssetUrl(baseUrl: string, assetPath: string) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return `${normalizedBase}${assetPath.replace(/^\/+/, '')}`;
+}
+
+/**
+ * Refuses runtime models whose public filename does not carry its digest.
+ * GitHub Pages does not partition these assets by query string, so immutable
+ * pathnames are required to keep both forward deployment and rollback safe.
+ */
+export function resolveIntegrityPinnedRealmAssetUrl(
+  baseUrl: string,
+  assetPath: string,
+  sha256: string
+) {
+  if (!/^[a-f0-9]{64}$/.test(sha256)) {
+    throw new Error('Invalid Realm model integrity coordinate.');
+  }
+  if (!assetPath.endsWith(`-${sha256.slice(0, 16)}.glb`)) {
+    throw new Error('Realm model path is not content-addressed.');
+  }
+  return resolveRealmAssetUrl(baseUrl, assetPath);
 }
 export function keepAssetPathForQuality(quality: RealmQuality) {
   if (quality === 'high') return HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.high;
@@ -116,25 +141,33 @@ export async function readExactKeepResponseBody(
   response: Response,
   expectedBytes: number
 ) {
+  return readExactRealmModelResponseBody(response, expectedBytes, 'Hegemony keep');
+}
+
+export async function readExactRealmModelResponseBody(
+  response: Response,
+  expectedBytes: number,
+  label: string
+) {
   if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0) {
-    throw new Error('Invalid Hegemony keep response limit.');
+    throw new Error(`Invalid ${label} response limit.`);
   }
   const declared = response.headers.get('content-length');
   const contentEncoding = response.headers.get('content-encoding');
   if (declared !== null) {
     if (!/^\d+$/.test(declared)) {
-      throw new Error('Hegemony keep response has an invalid Content-Length.');
+      throw new Error(`${label} response has an invalid Content-Length.`);
     }
     const declaredBytes = Number(declared);
     if (!Number.isSafeInteger(declaredBytes) || declaredBytes > expectedBytes) {
-      throw new Error('Hegemony keep response exceeds its exact byte budget.');
+      throw new Error(`${label} response exceeds its exact byte budget.`);
     }
     if (!contentEncoding && declaredBytes !== expectedBytes) {
-      throw new Error('Hegemony keep response does not match its exact byte budget.');
+      throw new Error(`${label} response does not match its exact byte budget.`);
     }
   }
   const reader = response.body?.getReader();
-  if (!reader) throw new Error('Hegemony keep response body is not streamable.');
+  if (!reader) throw new Error(`${label} response body is not streamable.`);
   const output = new Uint8Array(expectedBytes);
   let offset = 0;
   try {
@@ -147,11 +180,11 @@ export async function readExactKeepResponseBody(
         || offset + value.byteLength > expectedBytes
       ) {
         try {
-          await reader.cancel('Hegemony keep response exceeded its exact byte budget.');
+          await reader.cancel(`${label} response exceeded its exact byte budget.`);
         } catch {
           // Preserve the bounded-read failure even if stream cancellation fails.
         }
-        throw new Error('Hegemony keep response exceeds its exact byte budget.');
+        throw new Error(`${label} response exceeds its exact byte budget.`);
       }
       output.set(value, offset);
       offset += value.byteLength;
@@ -160,7 +193,7 @@ export async function readExactKeepResponseBody(
     reader.releaseLock();
   }
   if (offset !== expectedBytes) {
-    throw new Error('Hegemony keep response does not match its exact byte budget.');
+    throw new Error(`${label} response does not match its exact byte budget.`);
   }
   return output.buffer;
 }
@@ -168,12 +201,26 @@ export async function readExactKeepResponseBody(
 function requestKeepBinary(
   assetUrl: string,
   asset: KeepRuntimeAsset,
-  timeoutMs: number | undefined
+  timeoutMs: number | undefined,
+  signal: AbortSignal | undefined
 ) {
-  const cached = keepBinaryRequests.get(assetUrl);
-  if (cached) return cached;
-
   const boundedTimeoutMs = normalizedRequestTimeout(timeoutMs);
+  const requestKey = `${boundedTimeoutMs}:${assetUrl}`;
+  const cached = keepBinaryRequests.get(requestKey);
+  if (cached) {
+    return consumeSharedRealmModelRequest(
+      cached,
+      signal,
+      () => {
+        if (keepBinaryRequests.get(requestKey) === cached) {
+          keepBinaryRequests.delete(requestKey);
+        }
+        cached.abortController.abort();
+      },
+      'Hegemony keep'
+    );
+  }
+
   const abortController = new AbortController();
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   const fetchRequest = Promise.resolve()
@@ -197,19 +244,33 @@ function requestKeepBinary(
     }, boundedTimeoutMs);
   });
   let request: KeepBinaryRequest;
-  request = Promise.race([fetchRequest, timeout])
+  const promise = Promise.race([fetchRequest, timeout])
     .finally(() => {
+      request.settled = true;
       if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
     })
     .catch((error) => {
-      if (keepBinaryRequests.get(assetUrl) === request) keepBinaryRequests.delete(assetUrl);
+      if (keepBinaryRequests.get(requestKey) === request) {
+        keepBinaryRequests.delete(requestKey);
+      }
       throw error;
     });
-  keepBinaryRequests.set(assetUrl, request);
-  return request;
+  request = { abortController, consumerCount: 0, promise, settled: false };
+  keepBinaryRequests.set(requestKey, request);
+  return consumeSharedRealmModelRequest(
+    request,
+    signal,
+    () => {
+      if (keepBinaryRequests.get(requestKey) === request) {
+        keepBinaryRequests.delete(requestKey);
+      }
+      abortController.abort();
+    },
+    'Hegemony keep'
+  );
 }
 
-async function parseHegemonyKeep(bytes: ArrayBuffer, resourcePath: string) {
+export async function parseHegemonyModel(bytes: ArrayBuffer, resourcePath: string) {
   const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
     import('three/addons/loaders/GLTFLoader.js'),
     import('three/addons/libs/meshopt_decoder.module.js')
@@ -252,7 +313,7 @@ function tuneTexture(texture: THREE.Texture | null, anisotropy: number, color = 
   texture.needsUpdate = true;
 }
 
-function tuneKeepMaterial(material: THREE.Material, anisotropy: number) {
+export function tuneHegemonyModelMaterial(material: THREE.Material, anisotropy: number) {
   if (!(material instanceof THREE.MeshStandardMaterial)) return;
   // Preserve authored stone/electrum/fabric separation. Only contain values
   // that become unstable under ACES or missing-device environment support;
@@ -306,7 +367,7 @@ export function prepareHegemonyKeepScene(
     object.castShadow = options.dynamicShadows;
     object.receiveShadow = true;
     const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.forEach((material) => tuneKeepMaterial(material, maxAnisotropy));
+    materials.forEach((material) => tuneHegemonyModelMaterial(material, maxAnisotropy));
   });
   const root = new THREE.Group();
   root.name = HEGEMONY_MAIN_CASTLE.id;
@@ -321,13 +382,32 @@ export function prepareHegemonyKeepScene(
 export async function loadHegemonyKeep(
   options: LoadHegemonyKeepOptions
 ): Promise<HegemonyKeepLoadResult> {
-  const assetUrl = resolveRealmAssetUrl(options.baseUrl, options.quality.keepAssetPath);
+  throwIfRealmLoadAborted(options.signal, 'Hegemony keep');
   const asset = keepRuntimeAssetForPath(options.quality.keepAssetPath);
-  const bytes = await requestKeepBinary(assetUrl, asset, options.requestTimeoutMs);
-  const scene = await (options.parser ?? parseHegemonyKeep)(
+  const assetUrl = resolveIntegrityPinnedRealmAssetUrl(
+    options.baseUrl,
+    asset.path,
+    asset.sha256
+  );
+  const bytes = await requestKeepBinary(
+    assetUrl,
+    asset,
+    options.requestTimeoutMs,
+    options.signal
+  );
+  throwIfRealmLoadAborted(options.signal, 'Hegemony keep');
+  const scene = await (options.parser ?? parseHegemonyModel)(
     bytes.slice(0),
     assetUrl.slice(0, assetUrl.lastIndexOf('/') + 1)
   );
+  if (options.signal?.aborted) {
+    try {
+      disposeRealmObject(scene);
+    } catch {
+      // Cancellation remains primary after best-effort decoded-resource cleanup.
+    }
+    throwIfRealmLoadAborted(options.signal, 'Hegemony keep');
+  }
   const prepared = prepareHegemonyKeepScene(scene, {
     dynamicShadows: options.quality.dynamicShadows,
     maxAnisotropy: options.maxAnisotropy

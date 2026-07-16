@@ -1,10 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  copyFileSync,
   lstatSync,
   mkdtempSync,
-  mkdirSync,
   readFileSync,
   rmSync,
   writeFileSync
@@ -24,6 +22,10 @@ import {
   SHARP_TOOLCHAIN
 } from './rewrite-embedded-webp-glb.mjs';
 import { resolveAttestedSystemUnzip } from './system-unzip.mjs';
+import {
+  ensureContainedDirectory,
+  installAtomicFileFamily
+} from './atomic-install-file-family.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const release = Object.freeze({
@@ -43,7 +45,14 @@ const sourceRecord = Object.freeze({
   bytes: 2_233_564,
   sha256: 'b33755f14bbed0855cf738ba8fb2dbdde9cf56e976b7f108a2259dd478a9b580'
 });
-const outputDirectory = resolve(root, 'public/models/hegemony');
+// This reproducer is historical evidence only. Never write its superseded
+// bytes over the active or rollback-safe public runtime coordinates.
+const outputRelativeDirectory = [
+  '.cache',
+  'warpkeep-assets',
+  release.tag,
+  'historical-alpha-0.3.4-runtime'
+].join('/');
 const gltfpackSpec = resolveGltfpackToolSpec();
 const gltfpackBinary = resolveGltfpackBinaryPath(root, gltfpackSpec);
 const unzipBinary = resolveAttestedSystemUnzip();
@@ -240,7 +249,7 @@ try {
   assertExactOrdinaryFile(
     archive,
     release.bytes,
-    `Verified castle archive (run "npm run assets:fetch:castle" or set WARPKEEP_CASTLE_ARCHIVE to an exact offline copy)`
+    `Verified historical castle archive (run "npm run assets:fetch:castle:source-0.3.4" or set WARPKEEP_CASTLE_ARCHIVE to an exact offline copy)`
   );
   assertExactOrdinaryFile(
     gltfpackBinary,
@@ -330,15 +339,31 @@ try {
       label: `${profile.id} prepared output`
     })).images;
     assertImageRecords(outputImages, profile.expectedImages, profile.id, profile.textureSize);
-    prepared.push({ ...profile, output, bytes: bytes.byteLength, hash });
+    prepared.push({
+      ...profile,
+      output,
+      byteLength: bytes.byteLength,
+      preparedBytes: bytes,
+      hash
+    });
   }
 
-  mkdirSync(outputDirectory, { recursive: true });
+  const outputDirectory = ensureContainedDirectory({
+    root,
+    relativePath: outputRelativeDirectory,
+    label: 'Historical Alpha 0.3.4 output directory'
+  });
+  installAtomicFileFamily({
+    destinationRoot: outputDirectory,
+    entries: prepared.map((profile) => ({
+      bytes: profile.preparedBytes,
+      label: `${profile.id} historical Alpha 0.3.4 output`,
+      relativePath: `hegemony-main-castle-${profile.id}.glb`
+    }))
+  });
   prepared.forEach((profile) => {
-    const destination = resolve(outputDirectory, `hegemony-main-castle-${profile.id}.glb`);
-    copyFileSync(profile.output, destination);
     console.log(
-      `${profile.id}: ${profile.bytes} bytes, ${profile.expectedTriangles} triangles, sha256 ${profile.hash}`
+      `${profile.id}: ${profile.byteLength} bytes, ${profile.expectedTriangles} triangles, sha256 ${profile.hash}`
     );
   });
 } finally {

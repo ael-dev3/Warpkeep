@@ -58,7 +58,11 @@ function createRenderedWebglQaFixtureSnapshot(): RealmObserverSnapshot {
         canonicalUsername: `qa-keep-${ordinal}`,
         displayName: RENDERED_WEBGL_QA_LONG_DISPLAY_NAME,
         publicBio: RENDERED_WEBGL_QA_LONG_PUBLIC_BIO,
-        portraitAvailable: false,
+        // This boolean never carries a profile URL. The observer adapter maps it
+        // only to Warpkeep's fixed same-origin Marks placeholder so rendered QA
+        // can exercise the native bounded portrait pipeline without real identity
+        // data or an external request.
+        portraitAvailable: true,
         publicStatus: index % 2 === 0 ? 'founded' : 'active'
       };
     })
@@ -69,8 +73,9 @@ const RENDERED_WEBGL_QA_FIXTURE_SNAPSHOT = createRenderedWebglQaFixtureSnapshot(
 
 /**
  * A deterministic, 100-castle local-only fixture. It deliberately contains no
- * real FID, PFP URL, profile URL, wallet, Terms record, auth material, or
- * production snapshot.
+ * real FID, external PFP URL, profile URL, wallet, Terms record, auth material,
+ * or production snapshot. Portrait availability selects only the fixed local
+ * observer placeholder owned by this repository.
  */
 export function renderedWebglQaFixtureSnapshot() {
   return RENDERED_WEBGL_QA_FIXTURE_SNAPSHOT;

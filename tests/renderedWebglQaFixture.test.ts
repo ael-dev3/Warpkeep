@@ -7,6 +7,7 @@ import {
   RENDERED_WEBGL_QA_LONG_PUBLIC_BIO,
   renderedWebglQaFixtureSnapshot
 } from '../src/dev/renderedWebglQaFixture';
+import { REALM_OBSERVER_PORTRAIT_PLACEHOLDER_PATH } from '../src/dev/realmObserverSnapshot';
 import {
   boundedRenderedWebglQaReadyMilliseconds,
   RENDERED_WEBGL_QA_CASTLE_COUNT,
@@ -33,7 +34,7 @@ describe('rendered WebGL local QA fixture', () => {
       castle.displayName === RENDERED_WEBGL_QA_LONG_DISPLAY_NAME
       && castle.publicBio === RENDERED_WEBGL_QA_LONG_PUBLIC_BIO
     ))).toBe(true);
-    expect(snapshot.castles.every((castle) => castle.portraitAvailable === false)).toBe(true);
+    expect(snapshot.castles.every((castle) => castle.portraitAvailable === true)).toBe(true);
 
     const serialized = JSON.stringify(snapshot);
     expect(serialized).not.toMatch(/(?:https?:|pfp|wallet|token|terms|farcaster|\bfid\b)/i);
@@ -46,7 +47,9 @@ describe('rendered WebGL local QA fixture', () => {
 
     expect(realm.snapshot.castles).toHaveLength(RENDERED_WEBGL_QA_CASTLE_COUNT);
     expect(realm.snapshot.profiles).toHaveLength(RENDERED_WEBGL_QA_CASTLE_COUNT);
-    expect(realm.snapshot.profiles.every((profile) => profile.pfpUrl === undefined)).toBe(true);
+    expect(realm.snapshot.profiles.every((profile) => (
+      profile.pfpUrl === REALM_OBSERVER_PORTRAIT_PLACEHOLDER_PATH
+    ))).toBe(true);
     expect(realm.snapshot.profiles.every((profile) => profile.communityStatsVisible === false)).toBe(true);
     expect(realm.snapshot.ownCastle.castleId).toBe(900_000);
   });

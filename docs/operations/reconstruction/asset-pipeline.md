@@ -64,49 +64,124 @@ npx --yes @gltf-transform/cli@4.4.1 validate <model.glb>
 | --- | ---: | --- |
 | `warpkeep-title-high.glb` | 3,844,364 | `2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5` |
 | `warpkeep-title-compact.glb` | 1,714,060 | `d29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8` |
-| `hegemony-main-castle-high.glb` | 1,934,920 | `9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2` |
-| `hegemony-main-castle-balanced.glb` | 1,172,132 | `aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e` |
-| `hegemony-main-castle-compact.glb` | 508,508 | `de27e5d43818e4aea225f10f8aa0fafa935b61b2c0c21553c36a8bef916a9c29` |
+| `hegemony-main-castle-high-9fe06a26446387e0.glb` | 2,215,972 | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
+| `hegemony-main-castle-balanced-a9df1a9acd36e720.glb` | 892,788 | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
+| `hegemony-main-castle-compact-b665d75e10e3e289.glb` | 453,628 | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
+| `hegemony-castle-landscape-base-high-be79476bee4e1f34.glb` | 214,372 | `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` |
+| `hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb` | 92,784 | `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` |
+| `hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb` | 27,328 | `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` |
 
 `npm run verify:runtime-assets` also verifies required runtime audio/video. `npm run verify:file-sizes` rejects new tracked non-runtime files over 5 MiB.
 
-## Hegemony Main Castle source and deterministic preparation
+## Active Hegemony Main Castle GameReady installation
 
-The active Hegemony Main Castle source is the exact
-`HegemonyMainCastle.glb` member in the public
-[`hegemony-frontier-keep-3d-2026-07-14`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-frontier-keep-3d-2026-07-14)
-release attachment. The attachment is 10,672,929 bytes with SHA-256
-`c029a636ee0a791ca54072d5f32fcf68263677951fd59c338dfe242264335d5f`; the
-source member is 2,233,564 bytes with SHA-256
-`b33755f14bbed0855cf738ba8fb2dbdde9cf56e976b7f108a2259dd478a9b580`.
+The active family is installed from the exact owner-supplied package identified
+as **Warpkeep Hegemony Castle — Archer/Mage Platforms**. Its
+`asset-manifest.json` is 1,456 bytes with SHA-256
+`6a4a67baa4912f93337b7100d27ffe65e9c185492e8c2047c4d2ccdefe591c23`.
+The package root must contain that file and the three exact inputs at their
+declared `public/models/hegemony/` paths. Those unhashed names are
+package-relative input-contract coordinates inside the trusted offline package,
+not browser runtime URLs; installed outputs use the immutable digest-bearing
+paths listed above.
 
-Prepare the runtime files only through the checksum-pinned source fetch and
-toolchain:
+Install and verify from a trusted, authorized exact package root:
 
 ```sh
-npm run assets:fetch:castle
-npm run tools:fetch:gltfpack
-npm run prepare:hegemony-castle
+WARPKEEP_CASTLE_GAMEREADY_ROOT=/trusted/offline/game-ready-package \
+  npm run prepare:hegemony-castle
 npm run verify:runtime-assets
 ```
 
-`WARPKEEP_CASTLE_ARCHIVE` may name an already verified offline copy of the
-same attachment. The preparation script uses an attested absolute system unzip
-instead of PATH lookup and rejects unexpected archive paths, duplicates,
-symlinks, source bytes, tool bytes, output hashes, GLB structure, atlas
-dimensions/hashes, and required extensions before it writes an output. Pinned
-Sharp 0.35.3/libvips 8.18.3/libwebp 1.6.0 performs the explicit 1024- and
-512-pixel atlas resizes before gltfpack. The optimizer runs with a private cwd,
-private HOME/TMPDIR, system-only PATH, C locale, and no inherited developer
-credentials. Fetches validate the single GitHub payload redirect and prohibit
-further redirects; exact byte length and SHA-256 remain authoritative. Ordinary
-builds never fetch the release archive.
+The installer rejects symlinks, non-regular files, a changed package identity,
+or any byte/hash mismatch before writing runtime files. High is copied
+byte-for-byte. Balanced and Compact have correct embedded 1024×1024 and
+512×512 WebP payloads but arrive with incorrect `wk_atlas_size: 2048`
+material metadata. The existing deterministic WebP-aware GLB helper corrects
+that field to 1024 and 512 and repacks only JSON/BIN padding and offsets;
+geometry buffers and embedded image payload bytes remain unchanged. All three
+outputs are structure-, extension-, geometry-, transform-, atlas-, and
+hash-verified before installation.
 
-On 2026-07-15, the project owner authorized project-internal runtime
-integration and deterministic derivative preparation of this named source. That
-is not a separate public open-license, redistribution, third-party derivative,
-trademark, or canonical-identity grant. Preserve the scope and the checksums in
-the dated [Hegemony Main Castle record](../../reference/castles/2026-07-15-hegemony-main-castle/).
+| Profile | Authorized input bytes / SHA-256 | Installed output bytes / SHA-256 | Correction |
+| --- | --- | --- | --- |
+| High | 2,215,972 / `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` | 2,215,972 / `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` | none; byte-for-byte |
+| Balanced | 892,796 / `a480439ac47be4ee419ce623de0d785c4f4ce73cd110dc093c6508faa6cfdbae` | 892,788 / `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` | atlas metadata 2048 → 1024; payloads preserved |
+| Compact | 453,632 / `5b0f6919585b10f51b42f004c32d1c96bf2addc2549af3b84b0eea7fcedffe5e` | 453,628 / `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` | atlas metadata 2048 → 512; payloads preserved |
+
+On 2026-07-16, the project owner authorized these exact three inputs for
+integration into this public Warpkeep GitHub repository and its official
+`warpkeep.com` Pages runtime plus this bounded deterministic metadata
+correction only. That is not a separate public open-license, general
+redistribution or third-party derivative permission, trademark grant, or
+canonical-identity grant. The complete record is the dated
+[GameReady Hegemony Main Castle record](../../reference/castles/2026-07-16-hegemony-main-castle-gameready/).
+
+The geometry family introduces profile-relative size and height differences
+that the project owner explicitly accepted. It does not itself make the castle
+materials brighter; renderer lighting and palette work remain separate.
+
+## Active Hegemony Castle Landscape Base GameReady installation
+
+The matching authored island family is installed separately from the exact
+owner-supplied **Warpkeep Castle Landscape Base** package, asset ID
+`warpkeep.castle-landscape-base`, version `1.0.0`. Its
+`asset-manifest.json` is 2,177 bytes with SHA-256
+`106d64f5eaf91332acc83c18d5abbd9ad230b17eb4c9ffee1231ecf7d595d3f5`.
+
+Install and verify only from a trusted, authorized exact package root:
+
+```sh
+WARPKEEP_CASTLE_BASE_GAMEREADY_ROOT=/trusted/offline/game-ready-base-package \
+  npm run prepare:hegemony-castle-base
+npm run verify:runtime-assets
+```
+
+| Profile | Authorized input bytes / SHA-256 | Installed output bytes / SHA-256 | Correction |
+| --- | --- | --- | --- |
+| High | 214,372 / `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` | 214,372 / `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` | none; byte-for-byte |
+| Balanced | 92,792 / `5f4e3c52336c78414b5370b63a5e4b924a773297092430eb6f4773bc094eb5cf` | 92,784 / `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` | atlas metadata 1024 → 512; payloads preserved |
+| Compact | 27,336 / `ebaf6c6cef216b92de86aa49ea2d612d63227210858b7427fa0c7e97a81323dc` | 27,328 / `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` | atlas metadata 1024 → 256; payloads preserved |
+
+The installer rejects symlinks, non-regular files, package-identity changes,
+and byte/hash mismatches before writing. High is copied byte-for-byte;
+Balanced/Compact change only the incorrect material atlas metadata and
+necessary GLB padding/offsets. Castle and base must receive the exact same
+parent position, quaternion, and uniform scale. Never independently center,
+normalize, ground, or scale the base: the below-ground skirt and `+Z` road are
+authored placement.
+
+The owner explicitly instructed PR #40 to integrate these exact bases under
+Warpkeep castles and deploy the patch. That official repository/runtime scope
+and bounded metadata correction remain
+`LicenseRef-Warpkeep-Provenance-Required`; they do not establish a public open
+licence, general third-party derivative/redistribution authority, trademark or
+canonical-identity rights, or same-named-file substitution. The exact record is
+the dated
+[GameReady landscape-base record](../../reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/).
+
+## Historical 2026-07-15 Hegemony Main Castle preparation
+
+The prior set derived from the exact `HegemonyMainCastle.glb` member in the
+public `hegemony-frontier-keep-3d-2026-07-14` release is superseded. Its fetch
+command is retained as `npm run assets:fetch:castle:source-0.3.4`, and its
+preparation command is retained as
+`npm run prepare:hegemony-castle:source-0.3.4`, solely for historical evidence
+and private comparison. Neither command reproduces or installs the active
+GameReady family or writes a public compatibility URL.
+
+The preparation command writes only beneath the ignored
+`.cache/warpkeep-assets/hegemony-frontier-keep-3d-2026-07-14/historical-alpha-0.3.4-runtime/`
+directory. It cannot overwrite a public runtime pathname, and cache output is
+never a browser asset. The runtime verifier accepts the former Alpha 0.3.4
+hashes only at the three exact legacy compatibility URLs; it requires the
+GameReady hashes at the active digest-bearing URLs and rejects either family at
+the wrong coordinate.
+
+Do not use `scripts/prepare-hegemony-main-castle.mjs` as the active reproducer.
+The public release coordinates, former output hashes, pinned `gltfpack`/Sharp
+pipeline, and original 2026-07-15 authorization boundary remain in the
+[historical record](../../reference/castles/2026-07-15-hegemony-main-castle/).
 
 ## Historical Frontier Keep runtime model record
 
@@ -124,13 +199,10 @@ runtime verifier.
 
 The 63,263,296-byte keep source has SHA-256 `fd31cd99ce2c81a3bb149915954ee72009f1db0ebb8a9e972747e21294d5986d`. Its redistribution authority is unresolved, so it is absent from v0.3.0 HEAD and public releases. Full keep regeneration requires an authorized exact offline copy:
 
-```sh
-WARPKEEP_KEEP_SOURCE=/trusted/offline/source.glb \
-  npm run prepare:hegemony-frontier-keep:historical
-```
-
-The historical pipeline fails closed for missing or different bytes. Its
-outputs are for private provenance comparison only and must be removed again;
-`npm run verify:runtime-assets` intentionally rejects their presence. Do not
-publish or restore them until authority, immutable tag, attachment bytes/hash,
-download verification, and original terms are recorded.
+The former executable pipeline was removed because it fetched an unverified
+CLI, inherited the developer environment, and wrote unresolved-rights outputs
+into `public/`. Exact historical arguments and hashes remain in the dated
+record, but there is no active regeneration command. Any future reproduction
+requires confirmed authority, integrity-pinned offline tooling, a minimal
+credential-free process, and a private destination; it must not publish or
+restore these files without a separately reviewed decision.

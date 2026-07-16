@@ -165,40 +165,26 @@ function realmScreenRectsOverlap(first: RealmScreenRect, second: RealmScreenRect
 
 function applyCastleLabelPlacement(
   button: HTMLButtonElement,
-  leader: HTMLElement | undefined,
   placement: RealmLabelPlacement | undefined
 ) {
   if (!placement) {
     button.style.visibility = 'hidden';
     button.tabIndex = -1;
     button.dataset.displaced = 'false';
-    if (leader) {
-      leader.hidden = true;
-      leader.dataset.active = 'false';
-    }
     return;
   }
 
-  const geometry = realmCastleLabelLeaderGeometry(placement);
   const labelX = `${placement.x.toFixed(2)}px`;
   const labelY = `${placement.y.toFixed(2)}px`;
   const anchorX = `${placement.projectedAnchor.x.toFixed(2)}px`;
   const anchorY = `${placement.projectedAnchor.y.toFixed(2)}px`;
   button.style.visibility = 'visible';
   button.tabIndex = 0;
-  button.dataset.displaced = geometry.displaced ? 'true' : 'false';
+  button.dataset.displaced = 'false';
   button.style.setProperty('--realm-castle-label-x', labelX);
   button.style.setProperty('--realm-castle-label-y', labelY);
   button.style.setProperty('--realm-castle-anchor-x', anchorX);
   button.style.setProperty('--realm-castle-anchor-y', anchorY);
-
-  if (!leader) return;
-  leader.hidden = !geometry.displaced;
-  leader.dataset.active = geometry.displaced ? 'true' : 'false';
-  leader.style.setProperty('--realm-castle-anchor-x', anchorX);
-  leader.style.setProperty('--realm-castle-anchor-y', anchorY);
-  leader.style.setProperty('--realm-castle-leader-length', `${geometry.length.toFixed(2)}px`);
-  leader.style.setProperty('--realm-castle-leader-angle', `${geometry.angleRadians.toFixed(6)}rad`);
 }
 
 function applyCastleClusterPlacement(
@@ -820,12 +806,6 @@ function CanonicalRealmMapScreen({
           const castleId = Number(button.dataset.castleId);
           if (Number.isSafeInteger(castleId)) buttons.set(castleId, button);
         });
-      const leaders = new Map<number, HTMLElement>();
-      root.querySelectorAll<HTMLElement>('[data-realm-label-leader][data-castle-id]')
-        .forEach((leader) => {
-          const castleId = Number(leader.dataset.castleId);
-          if (Number.isSafeInteger(castleId)) leaders.set(castleId, leader);
-        });
       const clusterButtons = new Map<string, HTMLButtonElement>();
       root.querySelectorAll<HTMLButtonElement>(
         'button[data-realm-castle-cluster][data-cluster-key]'
@@ -883,6 +863,13 @@ function CanonicalRealmMapScreen({
         root.dataset.labelEligibleCount = String(eligibleLabelCount);
         root.dataset.labelPlacedCount = String(provisional.length);
         root.dataset.labelUnplacedCount = String(Math.max(0, eligibleLabelCount - provisional.length));
+        root.dataset.labelBaseAnchorViolationCount = String(provisional.filter((label) => (
+          Math.hypot(
+            label.x - label.projectedAnchor.x,
+            label.y - label.projectedAnchor.y
+          ) > 0.015
+        )).length);
+        root.dataset.labelStationaryCount = String(provisional.length);
         root.dataset.individualCastleCount = String(provisional.length);
         root.dataset.labelClusteredCount = '0';
         root.dataset.clusterRepresentativeAnchorViolationCount = '0';
@@ -955,7 +942,7 @@ function CanonicalRealmMapScreen({
           if (rect.width > 0 && rect.height > 0) {
             const measurement = {
               offsetX: -rect.width / 2,
-              offsetY: -rect.height,
+              offsetY: 0,
               width: rect.width,
               height: rect.height
             };
@@ -972,7 +959,7 @@ function CanonicalRealmMapScreen({
         const full = measuredRectangle(measurementLabel, 'full');
         const compact = measuredRectangle(compactMeasurementLabel, 'compact') ?? {
           offsetX: -CASTLE_LABEL_COMPACT_WIDTH / 2,
-          offsetY: -CASTLE_LABEL_COMPACT_HEIGHT,
+          offsetY: 0,
           width: CASTLE_LABEL_COMPACT_WIDTH,
           height: CASTLE_LABEL_COMPACT_HEIGHT
         };
@@ -1070,6 +1057,13 @@ function CanonicalRealmMapScreen({
         0,
         eligibleLabelCount - layout.placements.length
       ));
+      root.dataset.labelBaseAnchorViolationCount = String(layout.placements.filter((placement) => (
+        Math.hypot(
+          placement.x - placement.projectedAnchor.x,
+          placement.y - placement.projectedAnchor.y
+        ) > 0.015
+      )).length);
+      root.dataset.labelStationaryCount = String(layout.placements.length);
       root.dataset.labelCullReasons = [...eligibleCullReasons]
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([reason, count]) => `${reason}:${count}`)
@@ -1151,7 +1145,7 @@ function CanonicalRealmMapScreen({
       sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
       const placementsById = new Map(layout.placements.map((placement) => [placement.castleId, placement]));
       for (const [castleId, button] of buttons) {
-        applyCastleLabelPlacement(button, leaders.get(castleId), placementsById.get(castleId));
+        applyCastleLabelPlacement(button, placementsById.get(castleId));
       }
       const clustersByKey = new Map(clusterLayout.clusters.map((cluster) => [cluster.key, cluster]));
       for (const [clusterKey, button] of clusterButtons) {
@@ -1171,6 +1165,9 @@ function CanonicalRealmMapScreen({
     const root = rootRef.current;
     if (!root) return;
     root.dataset.presentedModelCount = String(telemetry.presentedModelCount);
+    root.dataset.presentedLandscapeBaseCount = String(
+      telemetry.presentedLandscapeBaseCount
+    );
     root.dataset.raycastTargetCount = String(telemetry.raycastTargetCount);
   }, []);
 
@@ -1300,6 +1297,7 @@ function CanonicalRealmMapScreen({
       presentedCastleIdsRef.current = [];
       if (rootRef.current) {
         rootRef.current.dataset.presentedModelCount = '0';
+        rootRef.current.dataset.presentedLandscapeBaseCount = '0';
         rootRef.current.dataset.raycastTargetCount = '0';
         rootRef.current.dataset.semanticTerrainCellCount = '0';
         rootRef.current.dataset.semanticTerrainKindCount = '0';
@@ -1308,6 +1306,8 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.totalTerrainDetailInstanceCount = '0';
         rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
         rootRef.current.dataset.labelCastleOverlapCount = '0';
+        rootRef.current.dataset.labelBaseAnchorViolationCount = '0';
+        rootRef.current.dataset.labelStationaryCount = '0';
       }
       setVisibleCastleLabels([]);
       setVisibleCastleClusters([]);
@@ -1446,7 +1446,7 @@ function CanonicalRealmMapScreen({
     });
     // Resolve the aggregate control into its named, individually readable
     // representative. Framing the whole dense cluster can leave that keep's
-    // roof behind a neighboring silhouette, forcing the fail-closed identity
+    // foundation behind a neighboring silhouette, forcing the fail-closed identity
     // solver to route the very label the player requested back to overflow.
     sceneRef.current?.focusCastle(castle.castleId);
   }, [selectCastle]);

@@ -1,7 +1,8 @@
 {
   "archive": "warpkeep-hegemony-main-castle-2026-07-15",
   "recordedAt": "2026-07-15",
-  "purpose": "Public source-archive provenance and project-internal runtime derivative record for the active Hegemony Main Castle",
+  "status": "retained-alpha-0.3.4-compatibility",
+  "purpose": "Public source-archive provenance and retained Alpha 0.3.4 compatibility derivative record for the Hegemony Main Castle",
   "source": {
     "repository": "ael-dev3/Warpkeep-Assets",
     "repositoryCommit": "0cd2d506c352885850fc15759603baccbad669e7",
@@ -77,9 +78,13 @@
     "note": "The authorization is limited to project-internal use and does not change the public archive's no-separate-open-license boundary."
   },
   "runtimeDerivatives": {
-    "browserRuntime": "checked-in derivatives only; release attachments are never a runtime CDN",
+    "status": "retained-alpha-0.3.4-compatibility",
+    "activeApplicationAssetPaths": false,
+    "legacyCompatibilityPathsRequired": true,
+    "browserRuntime": "exact checked-in Alpha 0.3.4 bytes remain only at the three recorded legacy URLs for cached-client and verified-rollback compatibility; active application builds use the digest-bearing 2026-07-16 GameReady paths; release attachments are never a runtime CDN",
     "sourceFetchScript": "scripts/fetch-hegemony-castle-assets.mjs",
     "preparationScript": "scripts/prepare-hegemony-main-castle.mjs",
+    "preparationOutput": "ignored .cache comparison directory only; never public runtime paths",
     "verificationScript": "scripts/verify-runtime-assets.mjs",
     "tool": {
       "name": "gltfpack",

@@ -141,29 +141,21 @@ type PlacementProposal = Readonly<{
 type RealmLabelOffset = Readonly<{ x: number; y: number }>;
 
 /**
- * A readable castle identity must stay visibly associated with its projected
- * roof. Wider displacement belongs in the deterministic cluster/Explore
- * fallback instead of turning a direct username into a floating map label.
+ * A readable castle identity is fixed to its projected foundation base.
+ * Collisions belong in the deterministic cluster/Explore fallback instead of
+ * turning a direct username into a floating map label.
  */
-export const REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS = 112;
+export const REALM_CASTLE_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS = 0;
 
-const MAX_PRIORITY_NUDGE_PIXELS = 40;
-const MAX_STANDARD_NUDGE_PIXELS = 32;
+const MAX_PRIORITY_NUDGE_PIXELS = 0;
+const MAX_STANDARD_NUDGE_PIXELS = 0;
 
 /**
- * Dense labels remain tied to the roof they describe. Compact labels first
- * stay directly above the roof, then use a small upward stack. These are
- * layout offsets from the projected roof, not free-floating screen
- * coordinates.
+ * Full and compact labels share the exact foundation anchor. A compact
+ * presentation may reduce visible chrome, but it cannot relocate identity.
  */
 const COMPACT_ATTACHMENT_OFFSETS: readonly RealmLabelOffset[] = Object.freeze([
-  { x: 0, y: 0 },
-  { x: 0, y: -50 },
-  { x: 58, y: 0 },
-  { x: -58, y: 0 },
-  { x: 58, y: -50 },
-  { x: -58, y: -50 },
-  { x: 0, y: -96 }
+  { x: 0, y: 0 }
 ]);
 
 const DIRECT_ATTACHMENT_OFFSET: readonly RealmLabelOffset[] = Object.freeze([

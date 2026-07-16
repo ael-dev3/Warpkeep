@@ -14,7 +14,6 @@ import {
   farcasterProfileUrl,
   formatPublicMarkMicros,
   publicProfileForCastle,
-  realmCastleLabelLeaderGeometry,
   realmEligibleCastleProjectionCount,
   realmCastleProjectionFrameKey,
   resolveVisibleCastleLabels,
@@ -178,25 +177,34 @@ describe('realm castle public presentation', () => {
 
     expect(resolved).toHaveLength(CASTLE_LABEL_LAYOUT_MAX_CASTLES);
     expect(resolved.every((castle) => (
-      castle.projectedAnchor.x === castles[castle.castleId - 1]?.x
-      && castle.projectedAnchor.y === castles[castle.castleId - 1]?.y
+      castle.x === castle.projectedAnchor.x
+      && castle.y === castle.projectedAnchor.y
+      && castle.x === castles[castle.castleId - 1]?.x
+      && castle.y === castles[castle.castleId - 1]?.y
     ))).toBe(true);
   });
 
-  it('retains selected/own identity with a compact roof-attached fallback', () => {
-    const castles = Array.from({ length: 100 }, (_, index) => ({
-      castleId: index + 1,
-      q: index,
-      r: 0,
-      x: 100 + (index % 10) * 110,
-      y: 120 + Math.floor(index / 10) * 48,
-      distance: index + 1,
-      visible: true
-    }));
-    // Force own and selected into the same collision cluster. Selected stays
-    // full; own retains readable identity in the compact berth above its roof.
-    castles[98] = { ...castles[98], x: 240, y: 160, distance: 99 };
-    castles[99] = { ...castles[99], x: 240, y: 160, distance: 100 };
+  it('keeps the selected identity at the shared base anchor and culls the collision for clustering', () => {
+    const castles = [
+      {
+        castleId: 99,
+        q: 0,
+        r: 0,
+        x: 240,
+        y: 160,
+        distance: 99,
+        visible: true
+      },
+      {
+        castleId: 100,
+        q: 1,
+        r: 0,
+        x: 240,
+        y: 160,
+        distance: 100,
+        visible: true
+      }
+    ];
 
     const resolved = resolveVisibleCastleLabels(
       { width: 1_440, height: 900, castles },
@@ -204,34 +212,44 @@ describe('realm castle public presentation', () => {
       100
     );
 
-    expect(resolved.some((castle) => castle.castleId === 100)).toBe(true);
-    expect(resolved.find((castle) => castle.castleId === 100)?.compact).toBe(false);
-    expect(resolved.find((castle) => castle.castleId === 99)).toMatchObject({
-      compact: true,
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]).toMatchObject({
+      castleId: 100,
+      compact: false,
       x: 240,
-      y: 110,
+      y: 160,
       projectedAnchor: { x: 240, y: 160 }
     });
   });
 
-  it('marks only meaningful label displacement for a decorative roof connector', () => {
-    expect(realmCastleLabelLeaderGeometry({
-      x: 180,
-      y: 140,
-      projectedAnchor: { x: 180, y: 140 }
-    })).toEqual({ displaced: false, length: 0, angleRadians: 0 });
-    expect(realmCastleLabelLeaderGeometry({
-      x: 180,
-      y: 90,
-      projectedAnchor: { x: 180, y: 140 }
-    })).toMatchObject({
-      displaced: true,
-      length: 50,
-      angleRadians: -Math.PI / 2
+  it('never displaces an accepted direct foundation label', () => {
+    const resolved = resolveVisibleCastleLabels({
+      width: 800,
+      height: 600,
+      castles: [{
+        castleId: 1,
+        q: 0,
+        r: 0,
+        x: 400,
+        y: 280,
+        distance: 1,
+        visible: true
+      }]
+    }, 1, 1);
+
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]).toMatchObject({
+      x: 400,
+      y: 280,
+      projectedAnchor: { x: 400, y: 280 }
     });
+    expect(Math.hypot(
+      resolved[0].x - resolved[0].projectedAnchor.x,
+      resolved[0].y - resolved[0].projectedAnchor.y
+    )).toBe(0);
   });
 
-  it('permits only small roof-associated nudges into the safe area', () => {
+  it('culls edge anchors instead of nudging identity away from its castle base', () => {
     const resolved = resolveVisibleCastleLabels({
       width: 320,
       height: 300,
@@ -241,12 +259,10 @@ describe('realm castle public presentation', () => {
       ]
     }, 1, 2);
 
-    expect(resolved.map((castle) => castle.castleId)).toEqual([2, 1]);
-    expect(resolved.find((castle) => castle.castleId === 1)?.x).toBe(70);
-    expect(resolved.find((castle) => castle.castleId === 2)?.x).toBe(250);
+    expect(resolved).toEqual([]);
   });
 
-  it('keeps accepted distant projections as full identity labels', () => {
+  it('keeps accepted distant projections at their foundation base', () => {
     const resolved = resolveVisibleCastleLabels({
       width: 800,
       height: 600,
@@ -255,7 +271,7 @@ describe('realm castle public presentation', () => {
         q: 0,
         r: 0,
         x: 400,
-        y: 230,
+        y: 262,
         distance: CASTLE_LABEL_FAR_DISTANCE * 10,
         visible: true,
         castleBounds: { left: 390, top: 236, right: 410, bottom: 256 }
@@ -263,10 +279,16 @@ describe('realm castle public presentation', () => {
     }, undefined, undefined, 1);
 
     expect(resolved).toHaveLength(1);
-    expect(resolved[0]).toMatchObject({ castleId: 1, compact: false, x: 400, y: 230 });
+    expect(resolved[0]).toMatchObject({
+      castleId: 1,
+      compact: false,
+      x: 400,
+      y: 262,
+      projectedAnchor: { x: 400, y: 262 }
+    });
   });
 
-  it('maps fallback labels through the rendered SVG viewport and its aspect-fit letterbox', () => {
+  it('maps fallback base labels through the rendered SVG viewport and its aspect-fit letterbox', () => {
     const projection = fallbackCastleProjection(
       { castleId: 1, q: 0, r: 0 },
       { x: -20, y: -10, width: 40, height: 20 },
@@ -276,7 +298,7 @@ describe('realm castle public presentation', () => {
 
     // A 2:1 viewBox meets inside the 400px square with 100px vertical bars.
     expect(projection.x).toBe(400);
-    expect(projection.y).toBe(234);
+    expect(projection.y).toBe(266);
     expect(projection.castleBounds).toEqual({
       left: 390,
       top: 240,
@@ -286,14 +308,14 @@ describe('realm castle public presentation', () => {
     expect(projection.conservativeCastleBounds).toEqual(projection.castleBounds);
   });
 
-  it('anchors labels to a calibrated roof while retaining conservative bounds separately', () => {
+  it('anchors labels below the calibrated foundation while retaining conservative bounds separately', () => {
     const conservative = { left: 360, top: 180, right: 440, bottom: 300 };
     const bounds = resolveCastleLabelOcclusionBounds(conservative, 240);
     expect(bounds).toEqual({ left: 360, top: 240, right: 440, bottom: 300 });
     expect(conservative).toEqual({ left: 360, top: 180, right: 440, bottom: 300 });
     expect(resolveCastleLabelScreenAnchor(bounds, { x: 999, y: 999 })).toEqual({
       x: 400,
-      y: 240 - CASTLE_LABEL_GAP_PIXELS
+      y: 300 + CASTLE_LABEL_GAP_PIXELS
     });
     expect(resolveCastleLabelScreenAnchor(undefined, { x: 12, y: 34 })).toEqual({
       x: 12,
@@ -307,7 +329,7 @@ describe('realm castle public presentation', () => {
       { left: 200, top: 50, width: 400, height: 400 }
     );
     expect(fallback.x).toBe((fallback.castleBounds!.left + fallback.castleBounds!.right) / 2);
-    expect(fallback.y).toBe(fallback.castleBounds!.top - CASTLE_LABEL_GAP_PIXELS);
+    expect(fallback.y).toBe(fallback.castleBounds!.bottom + CASTLE_LABEL_GAP_PIXELS);
     expect(fallback.conservativeCastleBounds).toEqual(fallback.castleBounds);
   });
 

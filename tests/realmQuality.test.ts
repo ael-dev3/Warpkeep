@@ -33,7 +33,14 @@ describe('realm quality profiles', () => {
     Object.values(REALM_QUALITY_SPECS).forEach((spec) => {
       expect(spec.pixelRatioCap).toBeGreaterThanOrEqual(1);
       expect(spec.keepAssetPath.endsWith('.glb')).toBe(true);
+      expect(spec.landscapeBaseAssetPath.endsWith('.glb')).toBe(true);
     });
+    expect(REALM_QUALITY_SPECS.high.landscapeBaseAssetPath)
+      .toMatch(/-high-[a-f0-9]{16}\.glb$/);
+    expect(REALM_QUALITY_SPECS.balanced.landscapeBaseAssetPath)
+      .toMatch(/-balanced-[a-f0-9]{16}\.glb$/);
+    expect(REALM_QUALITY_SPECS.reduced.landscapeBaseAssetPath)
+      .toMatch(/-compact-[a-f0-9]{16}\.glb$/);
   });
 
   it('selects capability-based profiles without user-agent sniffing', () => {

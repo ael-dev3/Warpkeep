@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-
 import type { VerifiedFarcasterIdentity } from '../../farcaster/farcasterAuthTypes';
 import { safePublicHttpsImageUrl } from '../../security/publicImageUrl';
+import { StaticProfileImageCanvas } from '../profile/StaticProfileImageCanvas';
+import { reviewedRealmProfileImageUrl } from '../realm/loadRealmProfileImage';
 import './FarcasterQrAuthPanel.css';
 
 export type FarcasterIdentityBadgeProps = {
@@ -22,7 +22,7 @@ export function normalizeFarcasterUsername(username: string | undefined) {
 }
 
 export function getSafeFarcasterProfileImageUrl(profileImageUrl: string | undefined) {
-  return safePublicHttpsImageUrl(profileImageUrl);
+  return reviewedRealmProfileImageUrl(safePublicHttpsImageUrl(profileImageUrl));
 }
 
 export function getFarcasterIdentityMonogram(identity: VerifiedFarcasterIdentity) {
@@ -42,11 +42,7 @@ export function FarcasterIdentityBadge({
   const displayName = readDisplayText(identity.displayName);
   const publicLabel = username ?? `FID ${identity.fid}`;
   const safeProfileImageUrl = getSafeFarcasterProfileImageUrl(identity.pfpUrl);
-  const [profileImageFailed, setProfileImageFailed] = useState(false);
-
-  useEffect(() => {
-    setProfileImageFailed(false);
-  }, [safeProfileImageUrl]);
+  const monogram = getFarcasterIdentityMonogram(identity);
 
   const rootClassName = [
     'farcaster-identity-badge',
@@ -57,17 +53,20 @@ export function FarcasterIdentityBadge({
   const badgeContents = (
     <>
       <div aria-hidden="true" className="farcaster-identity-badge__portrait">
-        {safeProfileImageUrl && !profileImageFailed ? (
-          <img
-            alt=""
-            decoding="async"
-            onError={() => setProfileImageFailed(true)}
-            referrerPolicy="no-referrer"
-            src={safeProfileImageUrl}
+        {safeProfileImageUrl ? (
+          <StaticProfileImageCanvas
+            fallback={(
+              <span className="farcaster-identity-badge__monogram">
+                {monogram}
+              </span>
+            )}
+            key={`${compact ? 'compact' : 'normal'}:${safeProfileImageUrl}`}
+            safeUrl={safeProfileImageUrl}
+            snapshotPixels={compact ? 96 : 128}
           />
         ) : (
           <span className="farcaster-identity-badge__monogram">
-            {getFarcasterIdentityMonogram(identity)}
+            {monogram}
           </span>
         )}
       </div>

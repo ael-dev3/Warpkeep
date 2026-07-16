@@ -17,16 +17,45 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '15 JUL 2026',
-      title: 'REALM QUALITY FOLLOW-THROUGH'
+      releasedOn: '16 JUL 2026',
+      title: 'GAME-READY CASTLE REFRESH'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /visible keep silhouette through dense clusters/i
+      /High, Balanced, and Compact GameReady castle models/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /complete player layouts across desktop, tablet, mobile, and short-landscape/i
+      /matching road-and-island landscape base.*replaces the old synthetic contact shadow/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 15 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /intentionally shorter authored proportions/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /fixed at each castle foundation/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /sanitized public Farcaster and existing Realm data/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /portrait-to-initial fallback/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /Background-cleaned castle record art/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /Farcaster username and static PFP.*exact-FID tab restoration.*non-authoritative presentation/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /cache-safe at immutable asset paths/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /changes client-side decoration clearance and authentication presentation.*no Terms.*authentication authority.*authoritative world generation/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
+      /brighter|brightness improvement|durability|destroy|alliance/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Prepared 16 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('exact-build verification');
+    expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');
     expect(getLatestPatchNotes('0.3.3')?.title).toBe('GENESIS REALM QUALITY');
     expect(getLatestPatchNotes('0.3.2')?.title).toBe('GENESIS 001 FOUNDING');
     expect(getLatestPatchNotes('0.0.0')).toBeUndefined();

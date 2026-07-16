@@ -9,7 +9,7 @@ const webglState = vi.hoisted(() => ({
 }));
 
 const keepLoadState = vi.hoisted(() => ({
-  load: vi.fn(() => new Promise<unknown>(() => undefined))
+  load: vi.fn((_options?: unknown) => new Promise<unknown>(() => undefined))
 }));
 
 const environmentState = vi.hoisted(() => ({ failNext: false }));
@@ -37,9 +37,11 @@ vi.mock('three', async (importOriginal) => {
   return { ...actual, WebGLRenderer };
 });
 
-vi.mock('../src/components/realm/loadHegemonyKeep', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/components/realm/loadHegemonyKeep')>();
-  return { ...actual, loadHegemonyKeep: keepLoadState.load };
+vi.mock('../src/components/realm/loadHegemonyCastleAssembly', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('../src/components/realm/loadHegemonyCastleAssembly')
+  >();
+  return { ...actual, loadHegemonyCastleAssembly: keepLoadState.load };
 });
 
 vi.mock('../src/components/realm/createRealmEnvironment', async (importOriginal) => {
@@ -123,6 +125,23 @@ function createOptions(
     onRendererUnavailable: vi.fn(),
     onSelect: vi.fn(),
     ...overrides
+  };
+}
+
+function loadedCastleAssembly(root: THREE.Group, suffix = 'compact') {
+  const baseMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(2.1, 0.18, 1.7),
+    new THREE.MeshBasicMaterial()
+  );
+  baseMesh.name = `landscape-base-${suffix}`;
+  baseMesh.userData.warpkeepPrefabRole = 'landscape-base';
+  root.add(baseMesh);
+  return {
+    root,
+    visualHeight: 1,
+    footprintDiameter: 1,
+    assetUrl: `/castle-${suffix}.glb`,
+    landscapeBaseAssetUrl: `/castle-landscape-base-${suffix}.glb`
   };
 }
 
@@ -217,6 +236,7 @@ describe('realm scene setup cleanup', () => {
     expect(canvas.dataset.environmentLighting).toBe('procedural');
     expect(onCastlePresentationTelemetry).toHaveBeenCalledWith({
       presentedModelCount: 0,
+      presentedLandscapeBaseCount: 0,
       raycastTargetCount: 0
     });
     expect(onTerrainPresentationTelemetry).toHaveBeenCalledWith({
@@ -372,6 +392,26 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(2);
   });
 
+  it('aborts a pending castle-family load when the Realm unmounts', async () => {
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledOnce());
+    const loadOptions = keepLoadState.load.mock.calls[0]?.[0] as {
+      signal?: AbortSignal;
+    } | undefined;
+    expect(loadOptions?.signal).toBeInstanceOf(AbortSignal);
+    expect(loadOptions?.signal?.aborted).toBe(false);
+
+    scene.dispose();
+    expect(loadOptions?.signal?.aborted).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(onRendererUnavailable).not.toHaveBeenCalled();
+  });
+
   it('releases a late prefab lease once without inserting after disposal', async () => {
     let resolveLoad: ((value: unknown) => void) | undefined;
     const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -390,12 +430,7 @@ describe('realm scene setup cleanup', () => {
 
     scene.dispose();
     scene.dispose();
-    resolveLoad?.({
-      root,
-      visualHeight: 1,
-      footprintDiameter: 1,
-      assetUrl: '/castle-compact.glb'
-    });
+    resolveLoad?.(loadedCastleAssembly(root));
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
@@ -407,6 +442,24 @@ describe('realm scene setup cleanup', () => {
     });
   });
 
+  it('signals zero-castle readiness without requiring a prefab pairing', () => {
+    const onCastlesReady = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      ownCastleId: undefined,
+      otherCastles: [],
+      onCastlesReady,
+      onRendererUnavailable
+    }));
+
+    expect(keepLoadState.load).not.toHaveBeenCalled();
+    expect(onCastlesReady).toHaveBeenCalledOnce();
+    expect(onCastlesReady).toHaveBeenCalledWith(0);
+    expect(onRendererUnavailable).not.toHaveBeenCalled();
+
+    scene.dispose();
+  });
+
   it('signals readiness only after a real prefab instance exists', async () => {
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const material = new THREE.MeshBasicMaterial();
@@ -414,18 +467,15 @@ describe('realm scene setup cleanup', () => {
     const materialDispose = vi.spyOn(material, 'dispose');
     const root = new THREE.Group();
     root.add(new THREE.Mesh(geometry, material));
-    keepLoadState.load.mockResolvedValue({
-      root,
-      visualHeight: 1,
-      footprintDiameter: 1,
-      assetUrl: '/castle-compact.glb'
-    });
+    keepLoadState.load.mockResolvedValue(loadedCastleAssembly(root));
     const canvas = document.createElement('canvas');
     const onCastlesReady = vi.fn();
     const onKeepStatusChange = vi.fn();
+    const onCastlePresentationTelemetry = vi.fn();
     const scene = createRealmScene(createOptions(canvas, {
       onCastlesReady,
-      onKeepStatusChange
+      onKeepStatusChange,
+      onCastlePresentationTelemetry
     }));
 
     await vi.waitFor(() => {
@@ -436,6 +486,11 @@ describe('realm scene setup cleanup', () => {
       'loading',
       'ready'
     ]);
+    expect(onCastlePresentationTelemetry).toHaveBeenLastCalledWith({
+      presentedModelCount: 1,
+      presentedLandscapeBaseCount: 1,
+      raycastTargetCount: 1
+    });
     expect(geometryDispose).not.toHaveBeenCalled();
     expect(materialDispose).not.toHaveBeenCalled();
 
@@ -452,12 +507,7 @@ describe('realm scene setup cleanup', () => {
     const material = new THREE.MeshBasicMaterial();
     const root = new THREE.Group();
     root.add(new THREE.Mesh(geometry, material));
-    keepLoadState.load.mockResolvedValue({
-      root,
-      visualHeight: 1,
-      footprintDiameter: 1,
-      assetUrl: '/castle-compact.glb'
-    });
+    keepLoadState.load.mockResolvedValue(loadedCastleAssembly(root));
     const canvas = document.createElement('canvas');
     const onCastlesReady = vi.fn();
     const scene = createRealmScene(createOptions(canvas, {
@@ -490,12 +540,7 @@ describe('realm scene setup cleanup', () => {
     const materialDispose = vi.spyOn(material, 'dispose');
     const root = new THREE.Group();
     root.add(new THREE.Mesh(geometry, material));
-    keepLoadState.load.mockResolvedValue({
-      root,
-      visualHeight: 1,
-      footprintDiameter: 1,
-      assetUrl: '/castle-compact.glb'
-    });
+    keepLoadState.load.mockResolvedValue(loadedCastleAssembly(root));
     const canvas = document.createElement('canvas');
     const onCastlesReady = vi.fn();
     const scene = createRealmScene(createOptions(canvas, { onCastlesReady }));
@@ -669,6 +714,80 @@ describe('realm scene setup cleanup', () => {
       camera.position.x - initialPosition.x,
       camera.position.z - initialPosition.z
     )).toBeGreaterThan(0.001);
+
+    scene.dispose();
+  });
+
+  it('fails readiness when a castle instance is present without its matching landscape base', async () => {
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    keepLoadState.load.mockResolvedValue({
+      root,
+      visualHeight: 1,
+      footprintDiameter: 1,
+      assetUrl: '/castle-compact.glb'
+    });
+    const onCastlesReady = vi.fn();
+    const onCastlePresentationTelemetry = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      onCastlesReady,
+      onCastlePresentationTelemetry,
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => {
+      expect(onRendererUnavailable).toHaveBeenCalledOnce();
+    });
+    expect(onCastlesReady).not.toHaveBeenCalled();
+    expect(onCastlePresentationTelemetry).toHaveBeenLastCalledWith({
+      presentedModelCount: 1,
+      presentedLandscapeBaseCount: 0,
+      raycastTargetCount: 1
+    });
+
+    scene.dispose();
+  });
+
+  it('fails readiness when equal castle/base counts hide a mismatched base transform', async () => {
+    const originalSetMatrixAt = THREE.InstancedMesh.prototype.setMatrixAt;
+    vi.spyOn(THREE.InstancedMesh.prototype, 'setMatrixAt').mockImplementation(function (
+      this: THREE.InstancedMesh,
+      index,
+      matrix
+    ) {
+      if (this.name.startsWith('hegemony-castle-landscape-bases-')) {
+        const shifted = matrix.clone();
+        shifted.elements[12] = (shifted.elements[12] ?? 0) + 0.75;
+        return originalSetMatrixAt.call(this, index, shifted);
+      }
+      return originalSetMatrixAt.call(this, index, matrix);
+    });
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    keepLoadState.load.mockResolvedValue(loadedCastleAssembly(root));
+    const onCastlesReady = vi.fn();
+    const onCastlePresentationTelemetry = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(document.createElement('canvas'), {
+      onCastlesReady,
+      onCastlePresentationTelemetry,
+      onRendererUnavailable
+    }));
+
+    await vi.waitFor(() => expect(onRendererUnavailable).toHaveBeenCalledOnce());
+    expect(onCastlesReady).not.toHaveBeenCalled();
+    expect(onCastlePresentationTelemetry).toHaveBeenLastCalledWith({
+      presentedModelCount: 1,
+      presentedLandscapeBaseCount: 1,
+      raycastTargetCount: 1
+    });
 
     scene.dispose();
   });

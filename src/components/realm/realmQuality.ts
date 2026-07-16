@@ -60,6 +60,7 @@ export type RealmQualitySpec = Readonly<{
   dynamicShadows: boolean;
   shadowMapSize: 0 | 1024 | 2048;
   keepAssetPath: string;
+  landscapeBaseAssetPath: string;
   pixelRatioCap: number;
   maxDrawingBufferPixels: number;
   fogNear: number;
@@ -108,6 +109,7 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     dynamicShadows: true,
     shadowMapSize: 2048,
     keepAssetPath: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.high,
+    landscapeBaseAssetPath: HEGEMONY_MAIN_CASTLE.landscapeBaseRuntimeAssetPaths.high,
     pixelRatioCap: 2,
     maxDrawingBufferPixels: 8_400_000,
     fogNear: 28,
@@ -125,6 +127,7 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     dynamicShadows: true,
     shadowMapSize: 1024,
     keepAssetPath: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.balanced,
+    landscapeBaseAssetPath: HEGEMONY_MAIN_CASTLE.landscapeBaseRuntimeAssetPaths.balanced,
     pixelRatioCap: 1.75,
     maxDrawingBufferPixels: 5_200_000,
     fogNear: 34,
@@ -142,6 +145,7 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
     dynamicShadows: false,
     shadowMapSize: 0,
     keepAssetPath: HEGEMONY_MAIN_CASTLE.runtimeAssetPaths.compact,
+    landscapeBaseAssetPath: HEGEMONY_MAIN_CASTLE.landscapeBaseRuntimeAssetPaths.compact,
     pixelRatioCap: 1.25,
     maxDrawingBufferPixels: 2_400_000,
     fogNear: 30,

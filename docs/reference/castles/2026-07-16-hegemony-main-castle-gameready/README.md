@@ -1,0 +1,128 @@
+# Hegemony Main Castle — GameReady Runtime Record
+
+This record identifies the exact owner-supplied GameReady package accepted for
+Warpkeep's active Hegemony Main Castle LOD family, the bounded metadata
+correction applied during installation, and the exact checked-in outputs. The
+source package is not a browser dependency; the browser serves only the
+integrity-verified GLBs under `public/models/hegemony/`.
+
+This record supersedes the active-runtime status of the
+[2026-07-15 public-source derivative record](../2026-07-15-hegemony-main-castle/).
+That older record and its preparation script remain historical evidence only.
+
+## Supplied package
+
+- **Package identity:** `Warpkeep Hegemony Castle — Archer/Mage Platforms`
+- **Package generation date:** 2026-07-16
+- **Package manifest:** `asset-manifest.json` — 1,456 bytes, SHA-256
+  `6a4a67baa4912f93337b7100d27ffe65e9c185492e8c2047c4d2ccdefe591c23`
+- **Package instructions:** `README.md` — 1,426 bytes, SHA-256
+  `f48c1ed10b01034a1e81bf5e53291901c9fb735044cbc27edc30ad674997a3d0`
+- **Declared deployment root:** `public/models/hegemony`
+- **Coordinate contract:** glTF `+Y` up, gate facing `+Z`, grounded and centered
+  on X/Z
+
+The package and personal filesystem location are deliberately not copied into
+this record. Exact bytes and hashes, rather than a machine-local path, define
+the accepted input boundary.
+
+## Authorization boundary
+
+On 2026-07-16, the Warpkeep project owner supplied and explicitly authorized
+the exact three GameReady inputs below for integration into this public
+Warpkeep GitHub repository and its official `warpkeep.com` Pages runtime, plus
+the bounded deterministic metadata correction described in the next section.
+
+That authorization permits the checked-in and official Warpkeep runtime use. It does
+not create a separate public open license, relicense the inputs or outputs as
+CC-BY-4.0 or Apache-2.0, grant general third-party derivative or redistribution
+permission, or grant trademark or canonical-identity rights. Any broader use
+requires separate documented authority.
+
+## Exact authorized inputs
+
+| Profile | Package-relative input | Bytes | Triangles | POSITION vertices | Index type | Actual embedded atlas size | GLB `wk_atlas_size` | SHA-256 |
+| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | --- |
+| High | `public/models/hegemony/hegemony-main-castle-high.glb` | 2,215,972 | 72,850 | 171,554 | unsigned 32-bit | 2048×2048 | 2048 | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
+| Balanced | `public/models/hegemony/hegemony-main-castle-balanced.glb` | 892,796 | 32,550 | 67,687 | unsigned 32-bit | 1024×1024 | 2048 | `a480439ac47be4ee419ce623de0d785c4f4ce73cd110dc093c6508faa6cfdbae` |
+| Compact | `public/models/hegemony/hegemony-main-castle-compact.glb` | 453,632 | 17,232 | 34,800 | unsigned 16-bit | 512×512 | 2048 | `5b0f6919585b10f51b42f004c32d1c96bf2addc2549af3b84b0eea7fcedffe5e` |
+
+The package manifest correctly declares the intended 2048, 1024, and 512
+texture targets. The discrepancy is confined to the material extras embedded
+inside the Balanced and Compact GLBs.
+
+## Bounded deterministic correction
+
+High requires no correction and is installed byte-for-byte. Balanced and
+Compact already contain the correct embedded WebP payloads but incorrectly set
+`materials[0].extras.wk_atlas_size` to 2048. The installer invokes the existing
+`rewriteEmbeddedWebpGlb` helper with each file's existing actual atlas size. It
+changes the material metadata to 1024 or 512 and repacks JSON/BIN padding and
+offsets.
+
+The correction does not resize, transcode, recolor, brighten, or otherwise
+change an embedded image. It preserves every geometry and embedded-image
+payload byte. The resulting byte-count and hash differences therefore record a
+metadata/container normalization, not a geometry, texture, or brightness
+modification.
+
+## Active runtime outputs
+
+| Profile | Runtime file | Bytes | Triangles | POSITION vertices | Index type | Embedded images | SHA-256 |
+| --- | --- | ---: | ---: | ---: | --- | --- | --- |
+| High | [`hegemony-main-castle-high-9fe06a26446387e0.glb`](../../../../public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb) | 2,215,972 | 72,850 | 171,554 | unsigned 32-bit | two 2048×2048 WebPs | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
+| Balanced | [`hegemony-main-castle-balanced-a9df1a9acd36e720.glb`](../../../../public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb) | 892,788 | 32,550 | 67,687 | unsigned 32-bit | two 1024×1024 WebPs | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
+| Compact | [`hegemony-main-castle-compact-b665d75e10e3e289.glb`](../../../../public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb) | 453,628 | 17,232 | 34,800 | unsigned 16-bit | two 512×512 WebPs | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
+
+Every output is a glTF 2.0 binary generated by glTF-Transform 4.4.1 with one
+scene, node, mesh, primitive, material, and two embedded images. There are no
+animations. Each requires `EXT_meshopt_compression`, `EXT_texture_webp`, and
+`KHR_mesh_quantization`. The verifier pins the exact generator, scene graph,
+node transforms, quantized accessor bounds, triangle/vertex/index counts,
+material atlas metadata, image dimensions and payload hashes, extensions,
+container bytes, and SHA-256.
+
+High and Balanced resolve to 14.062 source units in height. Compact resolves to
+13.47 source units and is about 4.2% shorter before Warpkeep's shared footprint
+normalization. The project owner explicitly accepted profile-relative size and
+height differences, including the High transfer size. The models are not
+represented as a brightness update: any lighter castle presentation remains a
+separate renderer lighting, material-response, and palette concern.
+
+## Exact installation
+
+From the repository root, point the active installer at an authorized exact
+copy of the package and verify the result:
+
+```sh
+WARPKEEP_CASTLE_GAMEREADY_ROOT=/trusted/offline/game-ready-package \
+  npm run prepare:hegemony-castle
+npm run verify:runtime-assets
+```
+
+The installer requires the exact package manifest and all three exact input
+hashes, rejects symlink leaves or ancestors and non-regular files, and validates
+every normalized output before installation. It then stages and verifies the
+complete family on the destination filesystem, atomically replaces each runtime
+path without truncating an existing inode, verifies every installed byte, and
+rolls the entire family back if any caught in-process replacement or
+post-install check fails. Existing destination bytes are pinned at preflight and
+rechecked immediately before replacement, so even a same-size mutation fails
+closed. A stale `.warpkeep-family-install-*` transaction blocks both another
+installation and the runtime-asset verification performed by the production
+build; exact runtime hashes independently reject a mixed family.
+Ordinary builds do not read the source package or perform network access.
+
+This bounded transaction is not a crash journal. It does not automatically
+recover from process termination, kernel failure, or power loss, and it cannot
+make a concurrent ancestor-directory swap safe without `openat`-style directory
+handles. The source package and runtime destination must therefore remain on
+trusted, exclusively controlled local paths for the entire operation. Any
+surviving transaction evidence is left in place for explicit operator recovery
+rather than guessed at or silently deleted.
+
+The old `scripts/prepare-hegemony-main-castle.mjs` pipeline and the commands
+ending in `:source-0.3.4` reproduce only the superseded 2026-07-15 evidence.
+They are not active installation or restoration paths.
+
+Machine-readable values are retained in [`manifest.json`](manifest.json).

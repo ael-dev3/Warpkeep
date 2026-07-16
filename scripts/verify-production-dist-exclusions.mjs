@@ -3,6 +3,7 @@ import { relative, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const dist = resolve(root, 'dist');
+const staleTransactionPrefix = '.warpkeep-family-install-';
 const forbiddenPathFragments = Object.freeze([
   'qa-journey.html',
   'realm-observer-qa.html',
@@ -58,6 +59,10 @@ const forbiddenContent = Object.freeze([
 function filesUnder(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = resolve(directory, entry.name);
+    if (entry.name.startsWith(staleTransactionPrefix)) {
+      const relativePath = relative(dist, path).replaceAll('\\', '/');
+      throw new Error(`Unresolved atomic-family transaction state leaked into production output: ${relativePath}`);
+    }
     return entry.isDirectory() ? filesUnder(path) : [path];
   });
 }
