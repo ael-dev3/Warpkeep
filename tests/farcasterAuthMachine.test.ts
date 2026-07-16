@@ -8,6 +8,7 @@ import {
 } from '../src/farcaster/farcasterAuthMachine';
 import type {
   FarcasterAuthError,
+  PublicFarcasterIdentity,
   VerifiedFarcasterIdentity
 } from '../src/farcaster/farcasterAuthTypes';
 
@@ -22,6 +23,15 @@ const identity: VerifiedFarcasterIdentity = {
   verifications: ['0xabcd'],
   authMethod: 'authAddress',
   verifiedAt: 1_700_000_000_000
+};
+
+const publicVerifiedIdentity: PublicFarcasterIdentity = {
+  fid: identity.fid,
+  username: identity.username,
+  displayName: identity.displayName,
+  pfpUrl: identity.pfpUrl,
+  verifications: [],
+  verifiedAt: identity.verifiedAt
 };
 
 const expiredError: FarcasterAuthError = {
@@ -130,7 +140,28 @@ describe('farcasterAuthMachineReducer', () => {
       view: { phase: 'verifying', expiresAt }
     });
 
-    const authenticated = farcasterAuthMachineReducer(checking, {
+    const identityVerified = farcasterAuthMachineReducer(checking, {
+      type: 'identity-verified',
+      generation: 1,
+      identity: publicVerifiedIdentity
+    });
+    expect(identityVerified).toEqual({
+      generation: 1,
+      view: {
+        phase: 'verifying',
+        expiresAt,
+        identity: {
+          fid: identity.fid,
+          username: identity.username,
+          displayName: identity.displayName,
+          pfpUrl: identity.pfpUrl,
+          verifications: [],
+          verifiedAt: identity.verifiedAt
+        }
+      }
+    });
+
+    const authenticated = farcasterAuthMachineReducer(identityVerified, {
       type: 'authenticated',
       generation: 1,
       identity,
@@ -345,6 +376,7 @@ describe('farcasterAuthMachineReducer', () => {
       { type: 'qr-ready', generation: 1, dataUrl: 'data:image/png;base64,stale' },
       { type: 'qr-failed', generation: 1 },
       { type: 'verifying', generation: 1 },
+      { type: 'identity-verified', generation: 1, identity: publicVerifiedIdentity },
       {
         type: 'authenticated',
         generation: 1,
@@ -414,7 +446,9 @@ describe('farcasterAuthMachineReducer', () => {
 
     const cases: ReadonlyArray<readonly [FarcasterAuthMachineState, FarcasterAuthMachineAction]> = [
       [anonymous, { type: 'verifying', generation: 0 }],
+      [anonymous, { type: 'identity-verified', generation: 0, identity: publicVerifiedIdentity }],
       [creating, { type: 'verifying', generation: 1 }],
+      [waiting, { type: 'identity-verified', generation: 1, identity: publicVerifiedIdentity }],
       [waiting, {
         type: 'authenticated',
         generation: 1,
@@ -489,6 +523,11 @@ describe('farcasterAuthMachineReducer', () => {
 
     malformedIdentities.forEach((malformedIdentity) => {
       expect(farcasterAuthMachineReducer(checking, {
+        type: 'identity-verified',
+        generation: 1,
+        identity: malformedIdentity as unknown as PublicFarcasterIdentity
+      })).toBe(checking);
+      expect(farcasterAuthMachineReducer(checking, {
         type: 'authenticated',
         generation: 1,
         identity: malformedIdentity as unknown as VerifiedFarcasterIdentity,
@@ -547,9 +586,29 @@ describe('farcasterAuthMachineReducer', () => {
       message: secret,
       signature: secret
     } as unknown as VerifiedFarcasterIdentity;
-    const authenticated = reduce(
+    const verifiedPresentation = reduce(
       readyQr,
       { type: 'verifying', generation: 1 },
+      {
+        type: 'identity-verified',
+        generation: 1,
+        identity: identityWithPrivateExtras as unknown as PublicFarcasterIdentity
+      }
+    );
+    expect(verifiedPresentation.view).toMatchObject({
+      phase: 'verifying',
+      identity: {
+        fid: identity.fid,
+        username: identity.username,
+        displayName: identity.displayName,
+        pfpUrl: identity.pfpUrl,
+        verifications: []
+      }
+    });
+    expect(JSON.stringify(verifiedPresentation)).not.toContain(secret);
+
+    const authenticated = farcasterAuthMachineReducer(
+      verifiedPresentation,
       {
         type: 'authenticated',
         generation: 1,

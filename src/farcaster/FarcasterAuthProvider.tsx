@@ -53,6 +53,7 @@ import type {
   FarcasterOidcSession,
   FarcasterSessionAuthority,
   FarcasterSignInChannel,
+  PublicFarcasterIdentity,
   VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';
 
@@ -210,6 +211,52 @@ type MaterializedBridgeSession =
       identity: VerifiedFarcasterIdentity;
       sessionExpiresAt: number;
     }>;
+
+type FarcasterRelayDisplayIdentity = Pick<
+  VerifiedFarcasterIdentity,
+  'fid' | 'username' | 'displayName' | 'pfpUrl'
+>;
+
+/**
+ * Project a signature-verified FID plus sanitized, non-authoritative relay
+ * display metadata. Verification addresses and methods stay out of React.
+ */
+function toPublicPostSignatureIdentity(
+  identity: VerifiedFarcasterIdentity
+): PublicFarcasterIdentity {
+  return Object.freeze({
+    fid: identity.fid,
+    ...(identity.username === undefined ? {} : { username: identity.username }),
+    ...(identity.displayName === undefined
+      ? {}
+      : { displayName: identity.displayName }),
+    ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl }),
+    verifications: Object.freeze([]) as readonly [],
+    verifiedAt: identity.verifiedAt
+  });
+}
+
+/**
+ * Retain sanitized, non-authoritative relay presentation metadata only when
+ * the bridge confirms the same FID. The bridge, token, and database stay
+ * FID-only.
+ */
+function withSameFidRelayDisplayMetadata(
+  authoritativeIdentity: VerifiedFarcasterIdentity,
+  displayIdentity: FarcasterRelayDisplayIdentity | undefined
+): VerifiedFarcasterIdentity {
+  if (!displayIdentity || displayIdentity.fid !== authoritativeIdentity.fid) {
+    return authoritativeIdentity;
+  }
+  return Object.freeze({
+    ...authoritativeIdentity,
+    ...(displayIdentity.username === undefined ? {} : { username: displayIdentity.username }),
+    ...(displayIdentity.displayName === undefined
+      ? {}
+      : { displayName: displayIdentity.displayName }),
+    ...(displayIdentity.pfpUrl === undefined ? {} : { pfpUrl: displayIdentity.pfpUrl })
+  });
+}
 
 function materializeBridgeSession(
   response: FarcasterBridgeSessionResponse,
@@ -760,6 +807,15 @@ class FarcasterAuthController {
         return;
       }
 
+      // This is the earliest safe point for profile presentation: the signed
+      // request and FID have both been independently verified. Proof and
+      // address material remain outside React state.
+      this.dispatch({
+        type: 'identity-verified',
+        generation,
+        identity: toPublicPostSignatureIdentity(identity)
+      });
+
       const bridgeClient = await this.getBridgeClient();
       if (!this.isCurrent(generation)) {
         return;
@@ -800,18 +856,22 @@ class FarcasterAuthController {
         this.fail(generation, undefined, invalidStatusError);
         return;
       }
+      const presentedIdentity = withSameFidRelayDisplayMetadata(
+        resolvedSession.identity,
+        identity
+      );
       if (resolvedSession.status === 'pending-admission') {
         this.finish(generation, 'pending-admission', {
           type: 'pending-admission',
           generation,
-          identity: resolvedSession.identity,
+          identity: presentedIdentity,
           sessionExpiresAt: resolvedSession.sessionExpiresAt
         });
       } else {
         this.finish(generation, 'authenticated', {
           type: 'authenticated',
           generation,
-          identity: resolvedSession.identity,
+          identity: presentedIdentity,
           assurance: 'bridge-oidc-alpha',
           expiresAt: resolvedSession.session.expiresAt,
           sessionExpiresAt: resolvedSession.sessionExpiresAt
@@ -967,10 +1027,14 @@ export function FarcasterAuthProvider({
     const generation = lifecycleGenerationRef.current;
     const machineGeneration = machineRef.current.generation;
     const viewAtRefreshStart = machineRef.current.view;
-    const expectedFid = viewAtRefreshStart.phase === 'authenticated'
+    // Deliberately retain relay presentation only inside this provider
+    // lifetime. Cookie-only cold restoration stays FID-only rather than
+    // persisting profile metadata into browser or bridge storage.
+    const existingDisplayIdentity = viewAtRefreshStart.phase === 'authenticated'
       || viewAtRefreshStart.phase === 'pending-admission'
-      ? viewAtRefreshStart.identity.fid
+      ? viewAtRefreshStart.identity
       : undefined;
+    const expectedFid = existingDisplayIdentity?.fid;
     const controller = new AbortController();
     let flight: NonNullable<typeof refreshFlightRef.current>;
     const promise = Promise.resolve()
@@ -1001,6 +1065,10 @@ export function FarcasterAuthProvider({
               expectedFid
             );
         if (!resolved) throw new Error('Invalid refreshed session.');
+        const presentedIdentity = withSameFidRelayDisplayMetadata(
+          resolved.identity,
+          existingDisplayIdentity
+        );
 
         const currentPhase = machineRef.current.view.phase;
         if (
@@ -1016,7 +1084,7 @@ export function FarcasterAuthProvider({
           dispatch({
             type: 'session-pending',
             generation: machineGeneration,
-            identity: resolved.identity,
+            identity: presentedIdentity,
             sessionExpiresAt: resolved.sessionExpiresAt
           });
         } else {
@@ -1025,7 +1093,7 @@ export function FarcasterAuthProvider({
           dispatch({
             type: 'session-authorized',
             generation: machineGeneration,
-            identity: resolved.identity,
+            identity: presentedIdentity,
             expiresAt: resolved.session.expiresAt,
             sessionExpiresAt: resolved.sessionExpiresAt
           });

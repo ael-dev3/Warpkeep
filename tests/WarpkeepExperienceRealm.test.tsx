@@ -943,7 +943,7 @@ describe('Warpkeep shared realm admission', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     await settle();
     fireEvent.click(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @warpkeeper'
     }));
     await settle();
 
@@ -990,7 +990,7 @@ describe('Warpkeep shared realm admission', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     await settle();
     fireEvent.click(screen.getByRole('button', {
-      name: 'Open Farcaster identity, FID 12345'
+      name: 'Open Farcaster identity, @warpkeeper'
     }));
     await settle();
     fireEvent.click(screen.getByRole('button', { name: 'CHECK AGAIN' }));
@@ -1196,7 +1196,7 @@ describe('Warpkeep shared realm admission', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
     await settle();
     fireEvent.click(screen.getByRole('button', {
-      name: `Open Farcaster identity, FID ${VERIFIED_IDENTITY.fid}`
+      name: 'Open Farcaster identity, @warpkeeper'
     }));
 
     expect(() => fireEvent.click(screen.getByRole('button', { name: 'SIGN OUT' }))).not.toThrow();

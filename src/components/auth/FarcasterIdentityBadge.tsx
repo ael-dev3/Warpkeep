@@ -40,6 +40,7 @@ export function FarcasterIdentityBadge({
 }: FarcasterIdentityBadgeProps) {
   const username = normalizeFarcasterUsername(identity.username);
   const displayName = readDisplayText(identity.displayName);
+  const publicLabel = username ?? `FID ${identity.fid}`;
   const safeProfileImageUrl = getSafeFarcasterProfileImageUrl(identity.pfpUrl);
   const [profileImageFailed, setProfileImageFailed] = useState(false);
 
@@ -78,7 +79,9 @@ export function FarcasterIdentityBadge({
         {!compact && displayName && displayName !== username ? (
           <span className="farcaster-identity-badge__display-name">{displayName}</span>
         ) : null}
-        <span className="farcaster-identity-badge__fid">FID {identity.fid}</span>
+        {!username ? (
+          <span className="farcaster-identity-badge__fid">FID {identity.fid}</span>
+        ) : null}
       </div>
     </>
   );
@@ -86,7 +89,7 @@ export function FarcasterIdentityBadge({
   if (onActivate) {
     return (
       <button
-        aria-label={`Open Farcaster identity, FID ${identity.fid}`}
+        aria-label={`Open Farcaster identity, ${publicLabel}`}
         className={`${rootClassName} farcaster-identity-badge--interactive`}
         data-compact={compact ? 'true' : 'false'}
         onClick={onActivate}
