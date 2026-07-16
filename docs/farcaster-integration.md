@@ -87,7 +87,19 @@ URLs, or logs:
 - player/admin/resolver JWTs;
 - signing keys, session-cookie key, RPC credential, or admin secret.
 
-The only current authentication-related persistent browser write is a non-secret,
+After a fresh signature and an exchange whose bridge-verified FID exactly
+matches it, the browser may write a tab-scoped `sessionStorage` presentation
+cache. It contains only the sanitized public FID, username, display name, and
+HTTPS avatar URL. The cache never grants or restores authentication: it is read
+only after a successful bridge refresh and merged only when its FID exactly
+matches the refreshed FID. It expires no later than the server family (and
+never after 30 days), and normally disappears when the tab closes. The next
+validated refresh purges corruption, expiry, or FID mismatch; sign-out and
+cross-tab logout clear it immediately. Storage denial leaves a safe FID-only
+UI. It never contains a proof, token, JWT, cookie,
+custody or verification address, or verification data.
+
+The only current authentication-related `localStorage` write is a non-secret,
 base-path-scoped logout-intent tombstone containing the exact `logout-v1:` marker
 and a timestamp. It contains no FID, proof, token, cookie, family identifier, or
 profile data and expires after 30 days, matching the maximum server-family
@@ -141,7 +153,8 @@ written and could resume a still-valid copied cookie.
 A missing FID creates a pending family and returns FID-only identity plus
 `status: "pending-admission"`; it returns **no access token** and therefore opens
 no SpacetimeDB connection or public-table subscription. The Hegemony menu may
-show the pending identity and a semantic **REQUEST ACCESS** link to
+show exact-FID cached presentation under the rules above, or the returned FID
+alone, plus a semantic **REQUEST ACCESS** link to
 `https://farcaster.xyz/0xael.eth`, **CHECK AGAIN**, and **SIGN OUT**.
 
 **CHECK AGAIN** calls credentialed `/v2/session/refresh`, not a new Farcaster

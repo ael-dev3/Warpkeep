@@ -41,6 +41,11 @@ import {
 } from './farcasterBrowserBinding';
 import { getDefaultFarcasterOidcBridgeClient } from './farcasterOidcBridgeClient';
 import { parseFarcasterOidcJwt } from './farcasterOidcSession';
+import {
+  clearFarcasterPresentationSession,
+  persistFarcasterPresentationSession,
+  readFarcasterPresentationSession
+} from './farcasterPresentationSession';
 import type {
   FarcasterAuthError,
   FarcasterAuthContext,
@@ -103,6 +108,11 @@ type ControllerConfig = {
   now: () => number;
   pollIntervalMs: number;
   rememberDevice: () => boolean;
+  persistPresentationIdentity: (
+    identity: FarcasterRelayDisplayIdentity,
+    sessionExpiresAt: number
+  ) => void;
+  clearPresentationSession: () => void;
   onBeginSignIn: () => void;
   onBridgeAuthorized: (session: FarcasterOidcSession) => void;
   onBridgePending: () => void;
@@ -853,12 +863,20 @@ class FarcasterAuthController {
         identity.fid
       );
       if (!resolvedSession) {
+        this.config.clearPresentationSession();
         this.fail(generation, undefined, invalidStatusError);
         return;
       }
       const presentedIdentity = withSameFidRelayDisplayMetadata(
         resolvedSession.identity,
         identity
+      );
+      // A fresh verified relay result replaces any older tab presentation.
+      // Cache restoration is reserved for a validated cookie refresh.
+      this.config.clearPresentationSession();
+      this.config.persistPresentationIdentity(
+        presentedIdentity,
+        resolvedSession.sessionExpiresAt
       );
       if (resolvedSession.status === 'pending-admission') {
         this.finish(generation, 'pending-admission', {
@@ -961,6 +979,57 @@ export function FarcasterAuthProvider({
     purgeFarcasterBrowserBearerStorage({ ...deviceSessionEnvironment, now });
   }, [deviceSessionEnvironment, now]);
 
+  const clearPresentationSession = useCallback(() => {
+    clearFarcasterPresentationSession({ ...deviceSessionEnvironment, now });
+  }, [deviceSessionEnvironment, now]);
+
+  const resolveCachedPresentationIdentity = useCallback((
+    authoritativeIdentity: VerifiedFarcasterIdentity,
+    sessionExpiresAt: number
+  ) => {
+    const cachedIdentity = readFarcasterPresentationSession({
+      ...deviceSessionEnvironment,
+      now
+    });
+    const sameFidCachedIdentity = cachedIdentity?.fid === authoritativeIdentity.fid
+      && cachedIdentity.expiresAt <= sessionExpiresAt
+      ? cachedIdentity
+      : undefined;
+    if (cachedIdentity && !sameFidCachedIdentity) {
+      clearPresentationSession();
+    }
+    return withSameFidRelayDisplayMetadata(authoritativeIdentity, sameFidCachedIdentity);
+  }, [clearPresentationSession, deviceSessionEnvironment, now]);
+
+  const persistPresentationIdentity = useCallback((
+    identity: FarcasterRelayDisplayIdentity,
+    sessionExpiresAt: number
+  ) => {
+    const currentTime = readProviderNow(now);
+    const hasDisplayMetadata = identity.username !== undefined
+      || identity.displayName !== undefined
+      || identity.pfpUrl !== undefined;
+    if (
+      !hasDisplayMetadata
+      || currentTime === undefined
+      || !Number.isSafeInteger(sessionExpiresAt)
+      || sessionExpiresAt <= currentTime
+      || sessionExpiresAt - currentTime > SERVER_SESSION_MAX_TTL_MS
+    ) {
+      return;
+    }
+    persistFarcasterPresentationSession({
+      fid: identity.fid,
+      ...(identity.username === undefined ? {} : { username: identity.username }),
+      ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
+      ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl }),
+      expiresAt: sessionExpiresAt
+    }, {
+      ...deviceSessionEnvironment,
+      now
+    });
+  }, [deviceSessionEnvironment, now]);
+
   const abortRefresh = useCallback(() => {
     lifecycleGenerationRef.current += 1;
     refreshFlightRef.current?.controller.abort();
@@ -983,10 +1052,18 @@ export function FarcasterAuthProvider({
     abortRefresh();
     clearInMemoryAuthoritativeSession();
     purgeBearerStorage();
+    clearPresentationSession();
     if (signalTabs) {
       signalFarcasterSessionTermination({ ...deviceSessionEnvironment, now });
     }
-  }, [abortRefresh, clearInMemoryAuthoritativeSession, deviceSessionEnvironment, now, purgeBearerStorage]);
+  }, [
+    abortRefresh,
+    clearInMemoryAuthoritativeSession,
+    clearPresentationSession,
+    deviceSessionEnvironment,
+    now,
+    purgeBearerStorage
+  ]);
 
   const beginExplicitAuthActivation = useCallback(() => {
     abortRefresh();
@@ -1027,9 +1104,9 @@ export function FarcasterAuthProvider({
     const generation = lifecycleGenerationRef.current;
     const machineGeneration = machineRef.current.generation;
     const viewAtRefreshStart = machineRef.current.view;
-    // Deliberately retain relay presentation only inside this provider
-    // lifetime. Cookie-only cold restoration stays FID-only rather than
-    // persisting profile metadata into browser or bridge storage.
+    // Prefer display metadata already held inside this provider lifetime. A
+    // cold cookie restoration may consult the tab cache only after the bridge
+    // response has been validated below; cached FID never constrains authority.
     const existingDisplayIdentity = viewAtRefreshStart.phase === 'authenticated'
       || viewAtRefreshStart.phase === 'pending-admission'
       ? viewAtRefreshStart.identity
@@ -1064,11 +1141,16 @@ export function FarcasterAuthProvider({
               client.audience,
               expectedFid
             );
-        if (!resolved) throw new Error('Invalid refreshed session.');
-        const presentedIdentity = withSameFidRelayDisplayMetadata(
-          resolved.identity,
-          existingDisplayIdentity
-        );
+        if (!resolved) {
+          clearPresentationSession();
+          throw new Error('Invalid refreshed session.');
+        }
+        const presentedIdentity = existingDisplayIdentity
+          ? withSameFidRelayDisplayMetadata(resolved.identity, existingDisplayIdentity)
+          : resolveCachedPresentationIdentity(
+              resolved.identity,
+              resolved.sessionExpiresAt
+            );
 
         const currentPhase = machineRef.current.view.phase;
         if (
@@ -1124,7 +1206,14 @@ export function FarcasterAuthProvider({
     flight = { controller, promise, clearOnFailure };
     refreshFlightRef.current = flight;
     return promise;
-  }, [clearInMemoryAuthoritativeSession, clearLocalAuthoritativeSession, loadBridgeClient, now]);
+  }, [
+    clearInMemoryAuthoritativeSession,
+    clearLocalAuthoritativeSession,
+    clearPresentationSession,
+    loadBridgeClient,
+    now,
+    resolveCachedPresentationIdentity
+  ]);
 
   const config: ControllerConfig = {
     loadAuthority,
@@ -1135,6 +1224,8 @@ export function FarcasterAuthProvider({
     now,
     pollIntervalMs: normalizePollInterval(pollIntervalMs),
     rememberDevice: () => rememberDeviceRef.current,
+    persistPresentationIdentity,
+    clearPresentationSession,
     onBeginSignIn: beginExplicitAuthActivation,
     onBridgeAuthorized,
     onBridgePending,
