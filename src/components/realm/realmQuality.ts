@@ -31,19 +31,19 @@ export const REALM_ENVIRONMENT_SPECS: Readonly<
   high: Object.freeze({
     textureWidth: 256,
     textureHeight: 128,
-    environmentIntensity: 0.36,
+    environmentIntensity: 0.44,
     sunDiscSegments: 28
   }),
   balanced: Object.freeze({
     textureWidth: 128,
     textureHeight: 64,
-    environmentIntensity: 0.32,
+    environmentIntensity: 0.39,
     sunDiscSegments: 20
   }),
   reduced: Object.freeze({
     textureWidth: 64,
     textureHeight: 32,
-    environmentIntensity: 0.28,
+    environmentIntensity: 0.34,
     sunDiscSegments: 12
   })
 });
@@ -270,19 +270,11 @@ function finitePositive(value: number, fallback: number) {
 }
 
 export function selectRealmQuality(input: RealmQualityInput): RealmQuality {
-  const width = finitePositive(input.width, 1280);
-  const height = finitePositive(input.height, 720);
-  const dpr = finitePositive(input.devicePixelRatio, 1);
-  const maxTextureSize = finitePositive(input.maxTextureSize ?? 8192, 8192);
-  const shortestSide = Math.min(width, height);
-
-  if (maxTextureSize < 4096 || shortestSide < 280 || width * height * dpr * dpr > 18_000_000) {
-    return 'reduced';
-  }
-  if (width >= 1180 && height >= 680 && dpr <= 2.5 && maxTextureSize >= 8192) {
-    return 'high';
-  }
-  return 'balanced';
+  // Keep the direct Realm path aligned with the product default. Its renderer
+  // still clamps pixel ratio and drawing-buffer allocation; lower profiles are
+  // deliberate player choices rather than an opaque hardware guess.
+  void input;
+  return 'high';
 }
 
 export function resolveRealmPixelRatio(

@@ -11,7 +11,12 @@ import {
 } from './castleInstancePlanning';
 import type { HegemonyKeepPrefab } from './hegemonyKeepPrefabRepository';
 
-export const CASTLE_GROUND_LIFT = 0.006;
+/**
+ * One small shared clearance for the complete authored castle-plus-island
+ * assembly. It leaves every LOD grounded while keeping dense High base skirts
+ * above the terrain depth seam; castle and base never receive separate lifts.
+ */
+export const CASTLE_GROUND_LIFT = 0.01;
 
 export type RealmCastleInstanceRecord = Readonly<{
   castleId: number;

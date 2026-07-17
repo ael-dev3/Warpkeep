@@ -60,7 +60,6 @@ import {
 } from './realmMeasuredComposition';
 import {
   REALM_QUALITY_SPECS,
-  selectRealmQuality,
   type RealmQuality
 } from './realmQuality';
 import type { RealmIdentity } from './realmTypes';
@@ -268,8 +267,15 @@ function viewBoxForSurface(surface: RealmTerrainSurface): RealmViewBox {
   };
 }
 
+function linearChannelToSrgb(value: number) {
+  const channel = clamp(value, 0, 1);
+  return channel <= 0.0031308
+    ? channel * 12.92
+    : 1.055 * channel ** (1 / 2.4) - 0.055;
+}
+
 function colorToCss(color: Readonly<{ r: number; g: number; b: number }>) {
-  const channel = (value: number) => Math.round(clamp(value, 0, 1) * 255);
+  const channel = (value: number) => Math.round(linearChannelToSrgb(value) * 255);
   return `rgb(${channel(color.r)} ${channel(color.g)} ${channel(color.b)})`;
 }
 
@@ -304,22 +310,7 @@ function useReducedMotionPreference() {
 }
 
 function initialQuality(override?: RealmQuality) {
-  if (override) return override;
-  let maxTextureSize: number | undefined;
-  try {
-    const probe = document.createElement('canvas');
-    const context = probe.getContext('webgl2');
-    maxTextureSize = context?.getParameter(context.MAX_TEXTURE_SIZE) as number | undefined;
-    context?.getExtension('WEBGL_lose_context')?.loseContext();
-  } catch {
-    maxTextureSize = undefined;
-  }
-  return selectRealmQuality({
-    width: typeof window === 'undefined' ? 1280 : window.innerWidth,
-    height: typeof window === 'undefined' ? 720 : window.innerHeight,
-    devicePixelRatio: typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
-    maxTextureSize
-  });
+  return override ?? 'high';
 }
 
 function selectedCellFor(

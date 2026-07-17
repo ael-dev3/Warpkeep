@@ -83,19 +83,20 @@ const HEX_SIZE = 1;
 const OVERLAY_LIFT = 0.026;
 const CAMERA_FILL_HORIZONTAL_DISTANCE = 10;
 const CAMERA_FILL_HEIGHT = 1.2;
-const CAMERA_FILL_FACE_IRRADIANCE = 0.7;
+const CAMERA_FILL_FACE_IRRADIANCE = 0.42;
 const CAMERA_FILL_INTENSITY = CAMERA_FILL_FACE_IRRADIANCE
   * Math.hypot(CAMERA_FILL_HORIZONTAL_DISTANCE, CAMERA_FILL_HEIGHT)
   / CAMERA_FILL_HORIZONTAL_DISTANCE;
 
 /**
  * Stable, object-readable coordinates for the bounded Alpha 0.3.6 lighting
- * revision. The existing neutral directional fill is kept nearly horizontal:
- * it reveals camera-facing masonry while adding less energy to the terrain than
- * the previous fill. No extra light, render pass, or animation loop is added.
+ * revision. Daylight now comes primarily from the camera-visible key sun and
+ * physical sky/ground bounce; the restrained horizontal fills preserve just a
+ * trace of Realm identity without flattening sunlit masonry. No extra light,
+ * render pass, or animation loop is added.
  */
 export const REALM_CASTLE_READABILITY_LIGHTING = Object.freeze({
-  revision: 'castle-readable-v2',
+  revision: 'sunlit-lowlands-v3',
   cameraFillHorizontalDistance: CAMERA_FILL_HORIZONTAL_DISTANCE,
   cameraFillHeight: CAMERA_FILL_HEIGHT,
   cameraFillIntensity: CAMERA_FILL_INTENSITY,
@@ -104,7 +105,10 @@ export const REALM_CASTLE_READABILITY_LIGHTING = Object.freeze({
     * CAMERA_FILL_HEIGHT
     / CAMERA_FILL_HORIZONTAL_DISTANCE,
   maximumCameraFillUpwardIrradiance: 0.09,
-  amethystSideFillIntensity: 0.32
+  amethystSideFillIntensity: 0.16,
+  hemisphereSkyColour: '#dce8f5',
+  hemisphereGroundColour: '#6f6049',
+  hemisphereIntensity: 0.76
 });
 const DEFAULT_CASTLE_PROJECTION_ENVELOPE = createCastleBoundsProjectionEnvelope({
   minX: -0.74,
@@ -629,8 +633,12 @@ function initializeRealmScene(
     totalDetailDrawCalls: decorations.drawCalls + semanticFeatures.drawCalls
   }));
 
-  const hemisphere = new THREE.HemisphereLight('#ece9f4', '#332c3c', 0.84);
-  const sun = new THREE.DirectionalLight('#ffddb0', lighting.sunIntensity);
+  const hemisphere = new THREE.HemisphereLight(
+    REALM_CASTLE_READABILITY_LIGHTING.hemisphereSkyColour,
+    REALM_CASTLE_READABILITY_LIGHTING.hemisphereGroundColour,
+    REALM_CASTLE_READABILITY_LIGHTING.hemisphereIntensity
+  );
+  const sun = new THREE.DirectionalLight('#fff2c9', lighting.sunIntensity);
   sun.position.set(
     REALM_SUN_LIGHT_POSITION.x,
     REALM_SUN_LIGHT_POSITION.y,
@@ -655,7 +663,7 @@ function initializeRealmScene(
   skyFill.name = 'realm-amethyst-side-fill';
   skyFill.position.set(8, 6.5, -9);
   const cameraAzimuth = THREE.MathUtils.degToRad(DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees);
-  const neutralFill = new THREE.DirectionalLight('#d5d9e2', CAMERA_FILL_INTENSITY);
+  const neutralFill = new THREE.DirectionalLight('#dce8f5', CAMERA_FILL_INTENSITY);
   neutralFill.name = 'realm-camera-facing-fill';
   neutralFill.position.set(
     Math.sin(cameraAzimuth) * CAMERA_FILL_HORIZONTAL_DISTANCE,

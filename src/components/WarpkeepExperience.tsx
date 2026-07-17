@@ -42,10 +42,8 @@ import {
 } from './transition/experienceTransition';
 import type { GatewayProjection } from './title/BlackHoleGateway';
 import {
-  browserGraphicsCapabilities,
   readGraphicsPreference,
   realmProfileForQuality,
-  resolveGraphicsQuality,
   subscribeGraphicsPreference,
   writeGraphicsPreference,
   type GraphicsPreference
@@ -214,7 +212,6 @@ export function WarpkeepExperience() {
   const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
   const [graphicsPreference, setGraphicsPreference] = useState(readGraphicsPreference);
   const [audioMuted, setAudioMuted] = useState(readAudioMuted);
-  const [graphicsCapabilities, setGraphicsCapabilities] = useState(browserGraphicsCapabilities);
   const [titleReady, setTitleReady] = useState(initialPhase !== 'title');
   const [showTitleHint, setShowTitleHint] = useState(false);
   const [hintUsesTouchCopy, setHintUsesTouchCopy] = useState(false);
@@ -252,10 +249,7 @@ export function WarpkeepExperience() {
   backendRealmContinuityRef.current = backend.state.phase === 'ready'
     || backend.state.phase === 'reconnecting';
 
-  const resolvedGraphicsQuality = useMemo(
-    () => resolveGraphicsQuality(graphicsPreference, graphicsCapabilities),
-    [graphicsCapabilities, graphicsPreference]
-  );
+  const resolvedGraphicsQuality = graphicsPreference;
 
   const updateGraphicsPreference = useCallback((preference: GraphicsPreference) => {
     writeGraphicsPreference(preference);
@@ -268,18 +262,9 @@ export function WarpkeepExperience() {
   }, []);
 
   useEffect(() => {
-    const updateCapabilities = () => setGraphicsCapabilities(browserGraphicsCapabilities());
-    let resizeTimer = 0;
-    const scheduleCapabilityUpdate = () => {
-      window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(updateCapabilities, 100);
-    };
     const unsubscribe = subscribeGraphicsPreference(setGraphicsPreference);
-    window.addEventListener('resize', scheduleCapabilityUpdate, { passive: true });
     return () => {
-      window.clearTimeout(resizeTimer);
       unsubscribe();
-      window.removeEventListener('resize', scheduleCapabilityUpdate);
     };
   }, []);
 

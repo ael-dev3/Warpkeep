@@ -19,11 +19,12 @@ admission, wallet, or Marks record.
 
 ## Release scope
 
-This candidate changes only the Realm's client-side material calibration,
-existing directional-fill orientation and intensity, local terrain support
-around already-founded castles, occupied-cell interaction overlay, identity
-presentation, camera framing, map gesture handling, and projected-label motion.
-It also synchronizes player-visible release truth for package version `0.3.6`.
+This candidate changes only the Realm's client-side daylight/IBL balance,
+bounded castle and authored-base calibration, scene-linear Lowlands palette,
+shared castle/base terrain clearance, local terrain support, occupied-cell
+interaction overlay, identity presentation, camera framing, map gesture
+handling, projected-label motion, and player-directed graphics defaults. It
+also synchronizes player-visible release truth for package version `0.3.6`.
 
 It does not authorize or perform:
 
@@ -32,14 +33,14 @@ It does not authorize or perform:
 - a SpacetimeDB module, schema, protocol, world, or production-data mutation;
 - a Terms, authentication, authorization, admission, profile, castle ownership,
   wallet, or Marks change; or
-- a GLB edit, texture replacement, model repositioning, independent base lift,
-  public relicensing, or broader derivative/redistribution grant.
+- a GLB edit, texture replacement, independent base correction, public
+  relicensing, or broader derivative/redistribution grant.
 
 ## Castle and base readability
 
 The owner-approved GameReady files remain byte-for-byte at their existing
 immutable integrity-pinned URLs. Runtime applies an idempotent diffuse-colour
-uniform gain of `1.18` to castle materials and `1.06` to authored landscape-base
+uniform gain of `1.22` to castle materials and `1.10` to authored landscape-base
 materials, with every channel bounded to `1.25`. High, Balanced, and Compact use
 the same role-specific values, so LOD changes cannot substitute a different
 brightness policy. The authored colour is retained separately, preventing
@@ -50,29 +51,50 @@ light, shadow map, or render pass. It does not add emissive response or change
 roughness, metallic response, normal mapping, texture colour space, model
 geometry, provenance, or the exact castle/base parent transform.
 
-The existing neutral directional fill is also moved closer to the horizontal
-camera azimuth. It targets approximately `0.70` camera-facing irradiance while
-contributing less than `0.09` upward irradiance. The competing amethyst fill is
-reduced to `0.32`. This raises wall readability without increasing the global
-ACES exposure or terrain material energy and without introducing a new light or
-an unbounded animation loop.
+The world now starts with a camera-visible daylight key at `(4.5, 14, 10.5)`, a
+clear-sky/earth hemisphere, and a bright generated sun highlight in its bounded
+procedural IBL. Environment intensity is `0.44` High, `0.39` Balanced, and
+`0.34` Reduced. The existing camera-facing fill is deliberately reduced to
+approximately `0.42` irradiance and the amethyst side fill to `0.16`, leaving
+amethyst as an accent rather than the dominant bounce. This raises wall
+readability without increasing global ACES exposure, adding a light, shadow
+map, render pass, or unbounded animation loop.
+
+Lowlands palette values remain scene-linear vertex colours, but now favor a
+cleaner green base/meadow/forest range. The SVG fallback encodes those values
+once to display sRGB, so fallback terrain no longer interprets the same palette
+as a darker CSS colour.
 
 ## Authored landscape contact
 
-Castle and landscape-base transforms remain exactly shared. Diagnostic sampling
-found that the authored island reaches about `1.06` world units from its centre,
-while the former terrain foundation influence ended inside that footprint.
-Alpha 0.3.6 expands only the local render foundation and its outer blend so the
-island is supported across every canonical castle slot: flat support reaches
-`1.08` world units and the outer blend reaches `1.22`. Decoration clearance
-uses the same conservative `1.22` outside boundary.
+Castle and landscape-base authored transforms remain exactly shared. Diagnostic
+sampling found that the authored island reaches about `1.06` world units from
+its centre, while the former terrain foundation influence ended inside that
+footprint. Alpha 0.3.6 expands only the local render foundation and its outer
+blend so the island is supported across every canonical castle slot: flat
+support reaches `1.08` world units and the outer blend reaches `1.22`.
+Decoration clearance uses the same conservative `1.22` outside boundary.
+
+The dense High base has more intended below-ground skirt triangles than the
+other LODs. A small `0.010` world-unit clearance is therefore applied once to
+the complete castle-plus-base assembly for every LOD. It preserves the shared
+child transform and leaves the skirt buried; it is not a High-only adjustment
+or an independent base lift.
 
 This is a client render input. It does not rewrite an authoritative terrain
-row, canonical cell, castle coordinate, model transform, or world-generation
-seed. It also does not hide the defect with an independent model lift. Hover and
-selection no longer draw the depth-tested six-edge cell line through an occupied
-castle island; identity, raycasting, and the selected castle record remain the
-occupied-cell feedback.
+row, canonical cell, castle coordinate, model asset, or world-generation seed.
+Hover and selection no longer draw the depth-tested six-edge cell line through
+an occupied castle island; identity, raycasting, and the selected castle record
+remain the occupied-cell feedback.
+
+## Graphics default and settings
+
+Cinematic is the default title and Realm profile on every device. The renderer
+continues to enforce its existing pixel-ratio and drawing-buffer ceilings, and
+its normal WebGL/model fallbacks remain available. Balanced and Performance are
+clear explicit opt-downs for a device that needs them; the previous stored
+`auto` choice migrates to Cinematic. The redesigned settings panel makes that
+choice visible and returns players **Back to the Menu**.
 
 ## Permanent foundation identity
 

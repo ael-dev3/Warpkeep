@@ -10,19 +10,24 @@ matching protected-main deployment passes exact-build verification. Do not
 turn the disabled local QA observer into a Worker or SpacetimeDB release without
 a separately reviewed production scope.
 
-The candidate raises castle readability through one bounded role-aware material
-calibration and a camera-facing revision of existing directional fill, without
-changing global exposure, GLB bytes, textures, transforms, light count, or
-authority. It widens only local terrain support around the authored landscape
-footprint, removes occupied-cell outlines that visually cross the base, keeps
-one permanent direct identity rail per projection-visible founded castle, and
-adds a readable floor to ordinary zoom while preserving an explicit truthful
-Realm overview. The canvas and those rails share one map-gesture lane: direct
-ground-plane drag engages on the first deliberate attempt, wheel/pinch retain
-their ground anchor, explicit-overview departure is continuous, gesture
-cancellation is fail-clean, and rails receive same-frame subpixel projection.
-It changes no authentication, admission, backend, production data, DNS, or
-deployment state.
+The candidate makes the Realm read as a brighter Lowlands day without changing
+global exposure, GLB bytes, textures, light count, or authority. A
+camera-visible key sun, clear-sky/earth bounce, restrained amethyst identity
+fill, bounded castle/base calibration, and a greener scene-linear terrain
+palette make masonry sunlit rather than shadowed. A single small shared
+castle-plus-base placement clearance protects the dense High base skirt at the
+terrain seam; no LOD or base receives an independent transform. The candidate
+also widens local terrain support around the authored landscape footprint,
+removes occupied-cell outlines that visually cross the base, keeps one
+permanent direct identity rail per projection-visible founded castle, and adds
+a readable floor to ordinary zoom while preserving an explicit truthful Realm
+overview. Cinematic is now the default profile on every device; Balanced and
+Performance are explicit player opt-downs. The canvas and those rails share one
+map-gesture lane: direct ground-plane drag engages on the first deliberate
+attempt, wheel/pinch retain their ground anchor, explicit-overview departure is
+continuous, gesture cancellation is fail-clean, and rails receive same-frame
+subpixel projection. It changes no authentication, admission, backend,
+production data, DNS, or deployment state.
 
 The verified Alpha 0.3.5 release also presented the selected keep in a
 responsive Farcaster castle record, while this candidate makes every direct
@@ -78,8 +83,10 @@ Start with:
   inputs in this public repository and official Pages runtime plus the bounded
   atlas-size metadata correction for Balanced and Compact. Preserve
   `LicenseRef-Warpkeep-Provenance-Required`. Apply the exact castle parent
-  position, quaternion, and uniform scale; never independently center,
-  normalize, ground, or scale the base. Do not restore the old contact-shadow
+  position, quaternion, and uniform scale to the base; never independently
+  center, normalize, ground, lift, or scale the base. A ground-seam correction,
+  if needed, must be one documented shared assembly placement value applied to
+  castle and base across every LOD. Do not restore the old contact-shadow
   instance when the complete base family is ready, let base bounds alter castle
   LOD/camera/username metrics, or raycast decorative triangles. Compare the
   nearest valid castle-geometry and simple base-collider hits so a farther
@@ -134,8 +141,10 @@ Every player-visible patch must update the complete release-truth set in the
 same change: the root package and lockfile version, `CHANGELOG.md`, a dated
 `docs/releases/alpha-X.Y.Z.md` note, the exact-version entry in
 `src/components/menu/latestPatchNotes.ts`, its tests, `README.md`, and this
-file. The in-menu patch chronicle must summarize the major player-visible
-changes for the exact package version; it must never fall back to stale notes.
+file. The README stays concise and product-directional: retain only current
+status and links to release truth there, never expand it into patch notes. The
+in-menu patch chronicle must summarize the major player-visible changes for the
+exact package version; it must never fall back to stale notes.
 Use the next SemVer patch for presentation, asset, defect, or bounded polish
 that adds no player-facing system boundary. A checked-in candidate is not a
 verified public release until protected-main deployment and exact-build

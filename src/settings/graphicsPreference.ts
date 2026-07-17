@@ -1,14 +1,16 @@
 export const WARPKEEP_GRAPHICS_PREFERENCE_KEY = 'warpkeep.graphics.preference.v1';
 
 export const GRAPHICS_PREFERENCES = [
-  'auto',
   'cinematic',
   'balanced',
   'performance'
 ] as const;
 
 export type GraphicsPreference = (typeof GRAPHICS_PREFERENCES)[number];
-export type GraphicsQualityTier = Exclude<GraphicsPreference, 'auto'>;
+export type GraphicsQualityTier = GraphicsPreference;
+
+/** The deliberate visual default; lower tiers remain explicit player opt-downs. */
+export const DEFAULT_GRAPHICS_PREFERENCE: GraphicsPreference = 'cinematic';
 
 export type GraphicsCapabilityInput = Readonly<{
   width: number;
@@ -27,7 +29,10 @@ export function isGraphicsPreference(value: unknown): value is GraphicsPreferenc
 }
 
 export function parseGraphicsPreference(value: unknown): GraphicsPreference {
-  return isGraphicsPreference(value) ? value : 'auto';
+  // `auto` was the stored v1 default. Treat it as the new deliberate default
+  // instead of retaining capability-driven quality changes for existing players.
+  if (value === 'auto') return DEFAULT_GRAPHICS_PREFERENCE;
+  return isGraphicsPreference(value) ? value : DEFAULT_GRAPHICS_PREFERENCE;
 }
 
 export function readGraphicsPreference(
@@ -37,9 +42,9 @@ export function readGraphicsPreference(
     const resolvedStorage = storage ?? (typeof window === 'undefined' ? undefined : window.localStorage);
     return resolvedStorage
       ? parseGraphicsPreference(resolvedStorage.getItem(WARPKEEP_GRAPHICS_PREFERENCE_KEY))
-      : 'auto';
+      : DEFAULT_GRAPHICS_PREFERENCE;
   } catch {
-    return 'auto';
+    return DEFAULT_GRAPHICS_PREFERENCE;
   }
 }
 
@@ -50,7 +55,7 @@ export function writeGraphicsPreference(
   try {
     const resolvedStorage = storage ?? (typeof window === 'undefined' ? undefined : window.localStorage);
     if (!resolvedStorage) return;
-    if (preference === 'auto') {
+    if (preference === DEFAULT_GRAPHICS_PREFERENCE) {
       resolvedStorage.removeItem(WARPKEEP_GRAPHICS_PREFERENCE_KEY);
     } else {
       resolvedStorage.setItem(WARPKEEP_GRAPHICS_PREFERENCE_KEY, preference);
@@ -60,50 +65,14 @@ export function writeGraphicsPreference(
   }
 }
 
-function finitePositive(value: number | undefined, fallback: number) {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0
-    ? value
-    : fallback;
-}
-
 export function resolveGraphicsQuality(
   preference: GraphicsPreference,
-  input: GraphicsCapabilityInput
+  _input?: GraphicsCapabilityInput
 ): GraphicsQualityTier {
-  if (preference !== 'auto') return preference;
-
-  const width = finitePositive(input.width, 1280);
-  const height = finitePositive(input.height, 720);
-  const cores = finitePositive(input.hardwareConcurrency, 4);
-  const memory = finitePositive(input.deviceMemory, 4);
-  const maxTextureSize = finitePositive(input.maxTextureSize, 8192);
-  const shortestSide = Math.min(width, height);
-  const drawingBufferPixels = width * height * Math.min(
-    finitePositive(input.devicePixelRatio, 1),
-    2.5
-  ) ** 2;
-
-  if (shortestSide < 280 || cores <= 2 || memory <= 2 || maxTextureSize < 4096) {
-    return 'performance';
-  }
-  if (width <= 1024 || height < 680) {
-    return 'balanced';
-  }
-  if (
-    width >= 1180
-    && height >= 680
-    && drawingBufferPixels <= 12_000_000
-    // Cinematic keeps three castle/base LOD assemblies resident. Auto-select
-    // it only on clearly measured headroom; it remains an explicit setting on
-    // browsers that do not expose device memory or on otherwise capable 4 GB
-    // systems.
-    && cores >= 6
-    && memory >= 8
-    && maxTextureSize >= 8192
-  ) {
-    return 'cinematic';
-  }
-  return 'balanced';
+  // Quality is intentionally player-directed. The renderer retains bounded
+  // pixel and buffer budgets, while Balanced and Performance remain available
+  // when a device benefits from an explicit opt-down.
+  return preference;
 }
 
 export function browserGraphicsCapabilities(): GraphicsCapabilityInput {

@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 
 import {
+  DEFAULT_GRAPHICS_PREFERENCE,
   GRAPHICS_PREFERENCES,
   type GraphicsPreference,
   type GraphicsQualityTier
@@ -12,21 +13,17 @@ const GRAPHICS_COPY: Readonly<Record<GraphicsPreference, Readonly<{
   label: string;
   description: string;
 }>>> = {
-  auto: {
-    label: 'AUTO / RECOMMENDED',
-    description: 'Chooses a high-quality profile for this screen and keeps normal phones balanced.'
-  },
   cinematic: {
-    label: 'CINEMATIC',
-    description: 'Maximum title detail, richer realm lighting, denser terrain, and dynamic shadows.'
+    label: 'CINEMATIC · DEFAULT',
+    description: 'Highest-detail title and Realm presentation. It is the standard visual profile on every device.'
   },
   balanced: {
-    label: 'BALANCED',
-    description: 'Premium silhouettes and materials with bounded mobile drawing-buffer cost.'
+    label: 'BALANCED · OPT-DOWN',
+    description: 'Keeps the same world while reducing terrain, model, and drawing-buffer pressure.'
   },
   performance: {
-    label: 'PERFORMANCE',
-    description: 'Reduced detail, effects, and pixel density for genuinely constrained hardware.'
+    label: 'PERFORMANCE · OPT-DOWN',
+    description: 'The lightest Realm profile for devices that need a more responsive presentation.'
   }
 };
 
@@ -70,7 +67,7 @@ export function SettingsPanel({
           <p>REALM CONFIGURATION</p>
           <h2 id="warpkeep-settings-title" ref={headingRef} tabIndex={-1}>SETTINGS</h2>
           <p id="warpkeep-settings-description">
-            Configure graphics and sound across the title gateway, menu, and living realm. Reduced motion remains a system accessibility preference.
+            Cinematic is the standard presentation on every device. Choose a lower profile only when this device needs it; reduced motion remains a system accessibility preference.
           </p>
         </header>
 
@@ -79,7 +76,12 @@ export function SettingsPanel({
           {GRAPHICS_PREFERENCES.map((option) => {
             const copy = GRAPHICS_COPY[option];
             return (
-              <label className="warpkeep-settings__choice" data-selected={preference === option ? 'true' : 'false'} key={option}>
+              <label
+                className="warpkeep-settings__choice"
+                data-default={option === DEFAULT_GRAPHICS_PREFERENCE ? 'true' : 'false'}
+                data-selected={preference === option ? 'true' : 'false'}
+                key={option}
+              >
                 <input
                   checked={preference === option}
                   name="warpkeep-graphics-quality"
@@ -120,10 +122,14 @@ export function SettingsPanel({
         </p>
 
         <div className="warpkeep-settings__actions">
-          <button disabled={preference === 'auto'} onClick={() => onChange('auto')} type="button">
-            RESET GRAPHICS TO AUTO
+          <button
+            disabled={preference === DEFAULT_GRAPHICS_PREFERENCE}
+            onClick={() => onChange(DEFAULT_GRAPHICS_PREFERENCE)}
+            type="button"
+          >
+            RESTORE CINEMATIC DEFAULT
           </button>
-          <button onClick={onClose} type="button">BACK TO COMMANDS</button>
+          <button onClick={onClose} type="button">BACK TO THE MENU</button>
         </div>
       </section>
     </div>

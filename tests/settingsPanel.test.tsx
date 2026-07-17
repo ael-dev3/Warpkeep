@@ -8,7 +8,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderSettings(preference: 'auto' | 'cinematic' | 'balanced' | 'performance' = 'balanced') {
+function renderSettings(preference: 'cinematic' | 'balanced' | 'performance' = 'balanced') {
   const onChange = vi.fn();
   const onAudioMutedChange = vi.fn();
   const onClose = vi.fn();
@@ -30,7 +30,7 @@ describe('SettingsPanel', () => {
 
     const heading = screen.getByRole('heading', { level: 2, name: 'SETTINGS' });
     const selectedPreference = screen.getByDisplayValue('balanced');
-    const back = screen.getByRole('button', { name: 'BACK TO COMMANDS' });
+    const back = screen.getByRole('button', { name: 'BACK TO THE MENU' });
 
     expect(document.activeElement).toBe(heading);
 
@@ -47,7 +47,7 @@ describe('SettingsPanel', () => {
   });
 
   it('dismisses through Escape without changing the graphics preference', () => {
-    const { onChange, onClose } = renderSettings('auto');
+    const { onChange, onClose } = renderSettings('cinematic');
 
     fireEvent.keyDown(document, { key: 'Escape' });
 
@@ -62,5 +62,17 @@ describe('SettingsPanel', () => {
     expect((soundtrack as HTMLInputElement).checked).toBe(true);
     fireEvent.click(soundtrack);
     expect(onAudioMutedChange).toHaveBeenCalledWith(true);
+  });
+
+  it('makes cinematic the visible default and keeps lower profiles as opt-downs', () => {
+    const { onChange } = renderSettings('balanced');
+
+    expect(screen.queryByDisplayValue('auto')).toBeNull();
+    expect(screen.getByDisplayValue('cinematic')).toBeTruthy();
+    expect(screen.getByText('CINEMATIC · DEFAULT')).toBeTruthy();
+    expect(screen.getByText('BALANCED · OPT-DOWN')).toBeTruthy();
+    expect(screen.getByText('PERFORMANCE · OPT-DOWN')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'RESTORE CINEMATIC DEFAULT' }));
+    expect(onChange).toHaveBeenCalledWith('cinematic');
   });
 });

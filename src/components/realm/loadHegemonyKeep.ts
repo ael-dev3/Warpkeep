@@ -43,10 +43,10 @@ export type HegemonyModelMaterialRole = 'castle' | 'landscape-base';
  * a modest lift.
  */
 export const HEGEMONY_MODEL_MATERIAL_CALIBRATION = Object.freeze({
-  revision: 'readable-v2',
+  revision: 'sunlit-lowlands-v3',
   maximumColorChannel: 1.25,
-  castleDiffuseGain: 1.18,
-  landscapeBaseDiffuseGain: 1.06
+  castleDiffuseGain: 1.22,
+  landscapeBaseDiffuseGain: 1.1
 });
 
 const MATERIAL_CALIBRATION_STATE_KEY = 'warpkeepReadableSurface';

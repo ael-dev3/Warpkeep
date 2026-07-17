@@ -254,7 +254,7 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
-  it('uses the existing neutral fill to lift castle faces without adding terrain energy or PBR work', () => {
+  it('uses a sunlit key with restrained identity fills without adding PBR work', () => {
     const canvas = document.createElement('canvas');
     const sceneHandle = createRealmScene(createOptions(canvas, {
       reducedMotion: true
@@ -277,16 +277,16 @@ describe('realm scene setup cleanup', () => {
     expect(hemisphereLights).toHaveLength(1);
     expect(directionalLights.map((light) => `#${light.color.getHexString()}`).sort()).toEqual([
       '#a991d0',
-      '#d5d9e2',
-      '#ffddb0'
+      '#dce8f5',
+      '#fff2c9'
     ].sort());
     expect(cameraFill).toBeInstanceOf(THREE.DirectionalLight);
     expect(amethystSideFill).toBeInstanceOf(THREE.DirectionalLight);
     expect(amethystSideFill?.intensity).toBe(
       REALM_CASTLE_READABILITY_LIGHTING.amethystSideFillIntensity
     );
-    expect(amethystSideFill!.intensity).toBeGreaterThanOrEqual(0.3);
-    expect(amethystSideFill!.intensity).toBeLessThanOrEqual(0.34);
+    expect(amethystSideFill!.intensity).toBeGreaterThanOrEqual(0.15);
+    expect(amethystSideFill!.intensity).toBeLessThanOrEqual(0.18);
     expect(canvas.dataset.realmLighting).toBe(
       REALM_CASTLE_READABILITY_LIGHTING.revision
     );
@@ -319,8 +319,13 @@ describe('realm scene setup cleanup', () => {
       REALM_CASTLE_READABILITY_LIGHTING.cameraFacingIrradiance,
       8
     );
-    expect(cameraFacingIrradiance).toBeGreaterThanOrEqual(0.68);
-    expect(cameraFacingIrradiance).toBeLessThanOrEqual(0.72);
+    expect(cameraFacingIrradiance).toBeGreaterThanOrEqual(0.4);
+    expect(cameraFacingIrradiance).toBeLessThanOrEqual(0.44);
+
+    const hemisphere = hemisphereLights[0]!;
+    expect(`#${hemisphere.color.getHexString()}`).toBe('#dce8f5');
+    expect(`#${hemisphere.groundColor.getHexString()}`).toBe('#6f6049');
+    expect(hemisphere.intensity).toBe(REALM_CASTLE_READABILITY_LIGHTING.hemisphereIntensity);
 
     const terrain = renderedScene.getObjectByName('hegemony-lowlands-surface') as THREE.Mesh<
       THREE.BufferGeometry,

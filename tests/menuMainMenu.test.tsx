@@ -210,7 +210,7 @@ describe('WarpkeepMainMenu', () => {
     render(
       <WarpkeepMainMenu
         active
-        graphicsPreference="auto"
+        graphicsPreference="cinematic"
         onGraphicsPreferenceChange={onGraphicsPreferenceChange}
         onRequestReturn={vi.fn()}
         resolvedGraphicsQuality="cinematic"
@@ -227,7 +227,7 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(settings);
 
     fireEvent.click(settings);
-    fireEvent.click(screen.getByRole('button', { name: 'BACK TO COMMANDS' }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO THE MENU' }));
     expect(screen.queryByRole('dialog', { name: 'SETTINGS' })).toBeNull();
     expect(document.activeElement).toBe(settings);
   });

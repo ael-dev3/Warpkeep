@@ -188,10 +188,10 @@ describe('Hegemony keep runtime assets', () => {
 
   it('applies a bounded role-aware diffuse calibration without compounding it', () => {
     expect(HEGEMONY_MODEL_MATERIAL_CALIBRATION).toEqual({
-      revision: 'readable-v2',
+      revision: 'sunlit-lowlands-v3',
       maximumColorChannel: 1.25,
-      castleDiffuseGain: 1.18,
-      landscapeBaseDiffuseGain: 1.06
+      castleDiffuseGain: 1.22,
+      landscapeBaseDiffuseGain: 1.1
     });
     const material = new THREE.MeshStandardMaterial();
     material.color.setRGB(0.8, 0.6, 1.2);

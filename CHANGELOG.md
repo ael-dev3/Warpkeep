@@ -10,16 +10,25 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   across High, Balanced, and Compact. Authored landscape bases receive a
   smaller bounded gain. The calibration changes material uniforms only; it
   does not rewrite the integrity-pinned GLBs, embedded textures, authored
-  roughness/metallic/normal response, exact castle/base transform, draw count,
-  or asset provenance.
-- The existing neutral directional fill is moved toward the camera-facing
-  masonry plane and the competing amethyst fill is reduced. The revision does
-  not increase global tone-mapping exposure, terrain material energy, light
-  count, shadow maps, render passes, or animation demand.
+  roughness/metallic/normal response, shared castle/base child transform, draw
+  count, or asset provenance.
+- A camera-visible daylight sun, clear-sky/earth bounce, brighter bounded IBL,
+  and restrained amethyst accent give castle masonry a sunlit read without
+  increasing global tone-mapping exposure, adding lights, shadow maps, render
+  passes, or animation demand. Lowlands now use a cleaner scene-linear green
+  palette, and the SVG fallback encodes it correctly to display sRGB.
+- Cinematic is now the default title and Realm profile on all devices. Balanced
+  and Performance remain explicit opt-downs, while renderer buffer caps and
+  WebGL/model fallbacks stay intact. The settings panel makes the default
+  obvious and returns players **Back to the Menu**.
 - Local terrain foundation and blend influence now cover the wider authored
   island footprint at every canonical castle slot. Interaction feedback no
   longer draws a depth-tested cell outline through an occupied castle base;
   authoritative cells and castle coordinates remain unchanged.
+- The complete castle-plus-base assembly now uses one conservative shared
+  clearance above the terrain seam. It applies to every LOD, keeps High's
+  denser intended skirt grounded, and never independently moves or scales the
+  base.
 - Every projection-visible founded castle now owns one permanent direct
   identity rail at its exact foundation anchor. Camera distance, LOD, hover,
   selection, and label collisions cannot replace it with a keeper cluster or

@@ -657,7 +657,7 @@ export const WarpkeepTitleScreen3D = forwardRef<
     onRequestEnterMenu,
     onReady,
     onMeaningfulInteraction,
-    graphicsQuality = 'balanced'
+    graphicsQuality = 'cinematic'
   },
   forwardedRef
 ) {

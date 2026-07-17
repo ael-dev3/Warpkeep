@@ -73,10 +73,11 @@ const ALPHA_0_3_6_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '17 JUL 2026',
   title: 'REALM READABILITY & STABILITY',
   summary:
-    'Alpha 0.3.6 is a candidate Realm-presentation patch that makes founded keeps brighter, better grounded, and the map smoother and more dependable without changing player authority.',
+    'Alpha 0.3.6 is a candidate Realm-presentation patch for a brighter, greener, more dependable Lowlands without changing player authority.',
   highlights: Object.freeze([
-    'A bounded, role-specific material calibration raises castle diffuse colour consistently across High, Balanced, and Compact; authored landscape bases receive a smaller gain and retain their exact source textures and transforms.',
-    'The existing neutral fill now favors camera-facing masonry, while the competing amethyst fill is restrained; global exposure, terrain energy, light count, shadow allocation, and demand-driven rendering remain unchanged.',
+    'A camera-visible daylight sun, clear-sky/earth bounce, brighter bounded IBL, and role-specific material calibration give every castle tier a more sunlit read; global exposure, light count, shadow allocation, and demand-driven rendering remain unchanged.',
+    'Lowlands now favor cleaner green scene-linear terrain colours, and the SVG fallback correctly encodes that same palette for display.',
+    'Cinematic is now the default title and Realm profile on every device. Balanced and Performance are explicit opt-downs, and Settings now returns you back to the menu.',
     'Wider local terrain foundations support each authored island footprint, and castle interaction feedback no longer draws a depth-tested cell line through the landscape base.',
     'Every projection-visible founded castle keeps one permanent direct identity rail at its exact foundation anchor; camera distance cannot replace it with a cluster or overflow identity, and overlap is accepted before spatial truth is lost.',
     'Ordinary wheel and pinch input retain a readable zoom floor, while the explicit Realm overview frames the actual convex rendered-terrain perimeter with a conservative raised-scene margin so canonical slots remain inspectable.',

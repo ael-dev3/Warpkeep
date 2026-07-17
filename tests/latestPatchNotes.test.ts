@@ -21,13 +21,13 @@ describe('latest in-menu patch notes', () => {
       title: 'REALM READABILITY & STABILITY'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /role-specific material calibration.*High, Balanced, and Compact/i
+      /camera-visible daylight sun.*clear-sky\/earth bounce.*role-specific material calibration.*sunlit/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /landscape bases receive a smaller gain.*exact source textures and transforms/i
+      /Lowlands now favor cleaner green scene-linear terrain colours.*SVG fallback.*display/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /camera-facing masonry.*global exposure.*terrain energy.*light count.*shadow allocation/i
+      /Cinematic is now the default.*every device.*Balanced and Performance.*Back to the menu/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
       /Wider local terrain foundations support each authored island footprint/i

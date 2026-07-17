@@ -190,6 +190,10 @@ afterEach(() => {
 });
 
 describe('production Hegemony castle and landscape-base assemblies', () => {
+  it('uses one conservative shared ground clearance for every authored assembly', () => {
+    expect(CASTLE_GROUND_LIFT).toBe(0.01);
+  });
+
   it('parses every exact Meshopt/WebP pair and preserves picking and lifetime contracts', async () => {
     const imageDecoder = installLocalImageDecoder();
     const decodedBitmaps: SyntheticImageBitmap[] = [];

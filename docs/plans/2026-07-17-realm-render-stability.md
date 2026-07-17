@@ -79,13 +79,17 @@ lighting that supplied about four times more energy to upward terrain normals
 than to a camera-facing wall. Global exposure would brighten the already-pale
 terrain and is not used as the repair.
 
-The existing neutral camera fill is made more horizontal and targets about
-0.70 camera-facing irradiance while keeping upward irradiance below 0.09. The
-competing amethyst side fill is reduced. One idempotent, role-aware material
-uniform calibration applies the same bounded diffuse gain to every castle LOD
-and a smaller gain to the authored base. It does not alter GLB bytes, textures,
-normal response, roughness, metallic response, provenance, draw-call count,
-texture sampling, shadow allocation, or demand-driven rendering.
+A camera-visible daylight key, clear-sky/earth hemisphere, and generated sun
+highlight now establish the primary hierarchy. The horizontal camera fill is
+reduced to about `0.42` camera-facing irradiance, the amethyst side fill to
+`0.16`, and bounded IBL is raised without touching global exposure. One
+idempotent, role-aware material uniform calibration applies the same `1.22`
+diffuse gain to every castle LOD and `1.10` to the authored base. A greener
+scene-linear Lowlands palette improves the surrounding visual hierarchy, while
+the SVG fallback encodes those values once to display sRGB. This changes no GLB
+bytes, textures, normal response, roughness, metallic response, provenance,
+draw-call count, texture sampling, shadow allocation, or demand-driven
+rendering.
 
 ### Terrain/base contact
 
@@ -97,10 +101,13 @@ topography-dependent terrain penetration, with the worst case near 0.088 world
 units.
 
 The local terrain foundation now covers the authored island and blends outside
-it. Decoration clearance follows the same conservative outer radius. The
-change remains a client render input and does not rewrite an authoritative
-tile or castle coordinate. Castle hover/selection geometry must route around
-the authored base footprint instead of drawing a cell line through it.
+it. Decoration clearance follows the same conservative outer radius. High's
+denser intended below-ground skirt receives no unique model adjustment: a
+single `0.010` world-unit clearance is applied to the whole castle-plus-base
+assembly for every LOD, preserving the exact shared child transform. The change
+remains a client render input and does not rewrite an authoritative tile or
+castle coordinate. Castle hover/selection geometry must route around the
+authored base footprint instead of drawing a cell line through it.
 
 ### Camera and finite-world edge
 
@@ -166,8 +173,12 @@ work during camera motion.
 - High, Balanced, and Compact use the same castle gain and do not flash in hue
   or brightness at LOD changes. Direct-light fallback remains readable.
 - Every canonical base is supported across its authored footprint. Castle and
-  base retain one exact shared transform and no independent lift, scale,
+  base retain one exact shared transform; the one documented shared assembly
+  clearance applies equally across all LODs, with no independent lift, scale,
   normalization, or recentering.
+- Cinematic is the default profile on every device. Balanced and Performance
+  remain explicit opt-downs, while drawing-buffer caps and normal fallbacks
+  preserve their existing safety boundaries.
 - Selection/hover feedback no longer fragments across the authored island.
 - Manual wheel/pinch cannot reproduce the tiny-world gray-void view; explicit
   Realm overview still contains the canonical terrain perimeter with a

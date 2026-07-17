@@ -196,6 +196,20 @@ afterEach(() => {
 });
 
 describe('live realm quality recreation', () => {
+  it('defaults an unoverridden Realm view to high quality', () => {
+    installWebGlProbe();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={createCanonicalGenesisSnapshot(CANONICAL_TEST_FID)}
+        onRequestReturn={vi.fn()}
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    expect(mocked.createRealmScene.mock.calls[0]![0].quality.id).toBe('high');
+  });
+
   it('does not create a WebGL scene for an unbranded snapshot', () => {
     installWebGlProbe();
     const canonical = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
