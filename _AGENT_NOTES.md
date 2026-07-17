@@ -134,11 +134,12 @@ Start with:
   and official Pages runtime. Its decorative role grants no identity or
   gameplay authority, public open licence, general derivative/redistribution
   right, ownership claim, or trademark right.
-- The Alpha 0.3.6 mechanics workstream's gold and food icons are the exact
-  transparent PNGs at `public/images/resources/hegemony-gold.png` and
-  `public/images/resources/hegemony-food.png`, pinned by
-  `npm run verify:runtime-assets` and their dated provenance records. They are
-  presentation-only; do not treat either image as proof of a live resource,
+- The Alpha 0.3.6 mechanics workstream's gold, food, and stone icons are the
+  exact transparent PNGs at `public/images/resources/hegemony-gold.png`,
+  `public/images/resources/hegemony-food.png`, and
+  `public/images/resources/hegemony-stone.png`, pinned by
+  `npm run verify:runtime-assets` and their dated provenance records. They
+  are presentation-only; do not treat any image as proof of a live resource,
   currency, balance, cost, reward, or player entitlement, and do not replace
   one without an updated authorization, alpha audit, hash pin, and review.
 
