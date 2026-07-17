@@ -1,29 +1,37 @@
 import type { RealmCameraComposition } from './realmCameraController';
-import type { RealmScreenRect } from './realmMeasuredLabelLayout';
+import type { RealmLabelReservedRect } from './realmCastlePresentation';
+
+const RESERVED_REALM_UI_SELECTOR = [
+  '.realm-hud',
+  '.castle-inspection',
+  '.realm-hud__actions',
+  '.realm-cell-navigator > button',
+  '.realm-cell-navigator__dialog'
+].join(', ');
 
 export function isVisibleRealmUiElement(element: HTMLElement) {
   const style = window.getComputedStyle(element);
   return style.display !== 'none' && style.visibility !== 'hidden';
 }
 
-/** Returns visible UI rectangles relative to the Realm root for label avoidance. */
-export function measuredVisibleRealmUiRects(
-  root: HTMLElement,
-  selectors: readonly string[]
-): readonly RealmScreenRect[] {
+/**
+ * Measures visible fixed Realm UI once per composition change. Projection
+ * frames consume these root-local rectangles without forcing layout on every
+ * camera update.
+ */
+export function measuredVisibleRealmUiRects(root: HTMLElement): readonly RealmLabelReservedRect[] {
   const rootRect = root.getBoundingClientRect();
-  return selectors.flatMap((selector) => {
-    const element = root.querySelector<HTMLElement>(selector);
-    if (!element || !isVisibleRealmUiElement(element)) return [];
-    const rect = element.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return [];
-    return [{
-      left: rect.left - rootRect.left,
-      top: rect.top - rootRect.top,
-      right: rect.right - rootRect.left,
-      bottom: rect.bottom - rootRect.top
-    }];
-  });
+  return [...root.querySelectorAll<HTMLElement>(RESERVED_REALM_UI_SELECTOR)]
+    .filter(isVisibleRealmUiElement)
+    .map((element) => element.getBoundingClientRect())
+    .filter((rect) => rect.width > 0 && rect.height > 0)
+    .map((rect) => Object.freeze({
+      left: Math.max(0, rect.left - rootRect.left),
+      top: Math.max(0, rect.top - rootRect.top),
+      right: Math.min(rootRect.width, rect.right - rootRect.left),
+      bottom: Math.min(rootRect.height, rect.bottom - rootRect.top)
+    }))
+    .filter((rect) => rect.left < rect.right && rect.top < rect.bottom);
 }
 
 /** Measures only visible Realm chrome and returns camera-safe viewport insets. */

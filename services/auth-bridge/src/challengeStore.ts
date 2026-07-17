@@ -5,8 +5,10 @@ import type {
   DurableObjectState,
 } from './types'
 import { BROWSER_BINDING_METHOD, isCanonicalBrowserBindingValue } from './browserBinding'
+import { CHALLENGE_TTL_MILLISECONDS } from './config'
 
 const RECORD_KEY = 'challenge'
+const INTERNAL_ORIGIN = 'https://challenge-replay-guard.internal'
 const CHALLENGE_RECORD_KEYS = Object.freeze([
   'version',
   'requestId',
@@ -21,7 +23,7 @@ const CHALLENGE_RECORD_KEYS = Object.freeze([
 ])
 
 function challengeUrl(path: 'record' | 'consume'): string {
-  return `https://challenge-replay-guard.internal/${path}`
+  return `${INTERNAL_ORIGIN}/${path}`
 }
 
 function isChallengeRecord(value: unknown): value is ChallengeRecord {
@@ -42,14 +44,22 @@ function isChallengeRecord(value: unknown): value is ChallengeRecord {
     && typeof record.siweUri === 'string' && record.siweUri.length > 0
     && typeof createdAt === 'number' && Number.isSafeInteger(createdAt) && createdAt >= 0
     && typeof expiresAt === 'number' && Number.isSafeInteger(expiresAt) && expiresAt > createdAt
+    && expiresAt - createdAt === CHALLENGE_TTL_MILLISECONDS
     && isCanonicalBrowserBindingValue(record.bindingChallenge)
     && record.bindingMethod === BROWSER_BINDING_METHOD
 }
 
 async function responseRecord(response: Response): Promise<ChallengeRecord | null> {
-  if (!response.ok) return null
-  const value: unknown = await response.json()
-  return isChallengeRecord(value) ? value : null
+  if (response.status === 404) return null
+  if (!response.ok) throw new Error('Challenge store unavailable.')
+  let value: unknown
+  try {
+    value = await response.json()
+  } catch {
+    throw new Error('Challenge store returned invalid state.')
+  }
+  if (!isChallengeRecord(value)) throw new Error('Challenge store returned invalid state.')
+  return value
 }
 
 /**
@@ -90,11 +100,14 @@ export class ChallengeReplayGuard {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
+    if (url.origin !== INTERNAL_ORIGIN) return new Response(null, { status: 404 })
     if (url.pathname === '/record' && request.method === 'PUT') {
       const candidate: unknown = await request.json()
+      const currentTime = Date.now()
       if (
         !isChallengeRecord(candidate)
-        || candidate.expiresAt <= Date.now()
+        || candidate.createdAt > currentTime
+        || candidate.expiresAt <= currentTime
         || candidate.createdAt >= candidate.expiresAt
       ) {
         return new Response(null, { status: 400 })
@@ -140,7 +153,8 @@ export class ChallengeReplayGuard {
       await this.state.storage.deleteAll()
       return null
     }
-    if (candidate.expiresAt <= Date.now()) {
+    const currentTime = Date.now()
+    if (candidate.createdAt > currentTime || candidate.expiresAt <= currentTime) {
       await this.state.storage.deleteAll()
       return null
     }

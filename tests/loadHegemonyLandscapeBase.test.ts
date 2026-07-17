@@ -12,7 +12,10 @@ import {
   loadHegemonyLandscapeBase,
   prepareHegemonyLandscapeBaseScene
 } from '../src/components/realm/loadHegemonyLandscapeBase';
-import { disposeRealmObject } from '../src/components/realm/loadHegemonyKeep';
+import {
+  disposeRealmObject,
+  HEGEMONY_MODEL_MATERIAL_CALIBRATION
+} from '../src/components/realm/loadHegemonyKeep';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -151,6 +154,18 @@ describe('Hegemony castle landscape-base runtime assets', () => {
     expect(material.roughness).toBe(0.2);
     expect(material.envMapIntensity).toBe(1.25);
     expect(material.emissiveIntensity).toBe(1.2);
+    expect(material.color.r).toBeCloseTo(
+      HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain,
+      8
+    );
+    expect(material.color.g).toBeCloseTo(
+      HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain,
+      8
+    );
+    expect(material.color.b).toBeCloseTo(
+      HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain,
+      8
+    );
     expect(map.anisotropy).toBe(8);
     expect(map.colorSpace).toBe(THREE.SRGBColorSpace);
     expect(normalMap.anisotropy).toBe(8);

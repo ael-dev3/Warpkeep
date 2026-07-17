@@ -30,7 +30,7 @@ describe('SettingsPanel', () => {
 
     const heading = screen.getByRole('heading', { level: 2, name: 'SETTINGS' });
     const selectedPreference = screen.getByDisplayValue('balanced');
-    const back = screen.getByRole('button', { name: 'BACK TO COMMANDS' });
+    const back = screen.getByRole('button', { name: 'BACK TO THE MENU' });
 
     expect(document.activeElement).toBe(heading);
 
@@ -47,7 +47,7 @@ describe('SettingsPanel', () => {
   });
 
   it('dismisses through Escape without changing the graphics preference', () => {
-    const { onChange, onClose } = renderSettings('auto');
+    const { onChange, onClose } = renderSettings('cinematic');
 
     fireEvent.keyDown(document, { key: 'Escape' });
 
@@ -62,5 +62,18 @@ describe('SettingsPanel', () => {
     expect((soundtrack as HTMLInputElement).checked).toBe(true);
     fireEvent.click(soundtrack);
     expect(onAudioMutedChange).toHaveBeenCalledWith(true);
+  });
+
+  it('makes hardware-aware Auto the visible default and retains explicit profiles', () => {
+    const { onChange } = renderSettings('balanced');
+
+    expect(screen.getByDisplayValue('auto')).toBeTruthy();
+    expect(screen.getByDisplayValue('cinematic')).toBeTruthy();
+    expect(screen.getByText('AUTO / RECOMMENDED')).toBeTruthy();
+    expect(screen.getByText('CINEMATIC')).toBeTruthy();
+    expect(screen.getByText('BALANCED')).toBeTruthy();
+    expect(screen.getByText('PERFORMANCE')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'RESTORE RECOMMENDED DEFAULT' }));
+    expect(onChange).toHaveBeenCalledWith('auto');
   });
 });

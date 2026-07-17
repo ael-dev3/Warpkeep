@@ -175,6 +175,18 @@ describe('opaque host-only session cookie', () => {
     })
     await expect(readVerifiedSessionCookie(request, `${COOKIE_KEY}wrong`)).resolves.toBeNull()
 
+    const parts = value.split('.')
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+    const canonicalLastIndex = alphabet.indexOf(parts[3].at(-1) ?? '')
+    expect(canonicalLastIndex & 0b11).toBe(0)
+    const alternateMac = `${parts[3].slice(0, -1)}${alphabet[canonicalLastIndex | 1]}`
+    const alternateEncoding = new Request(request.url, {
+      headers: {
+        cookie: `${SESSION_COOKIE_NAME}=${parts.slice(0, 3).join('.')}.${alternateMac}`,
+      },
+    })
+    await expect(readVerifiedSessionCookie(alternateEncoding, COOKIE_KEY)).resolves.toBeNull()
+
     const tampered = new Request(request.url, {
       headers: { cookie: `${SESSION_COOKIE_NAME}=${value.slice(0, -1)}A` },
     })

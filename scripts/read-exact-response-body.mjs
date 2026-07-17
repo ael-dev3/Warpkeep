@@ -14,6 +14,7 @@ export async function readExactResponseBody(response, expectedBytes, label) {
     && contentLength !== null
     && (!/^\d+$/.test(contentLength) || Number(contentLength) !== expectedBytes)
   ) {
+    await response.body?.cancel().catch(() => undefined);
     throw new Error(`${label} declared byte length changed: ${contentLength}.`);
   }
   if (!response.body) throw new Error(`${label} response body is unavailable.`);

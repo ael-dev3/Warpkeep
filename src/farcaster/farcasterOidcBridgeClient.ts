@@ -295,7 +295,10 @@ function hasJsonContentType(response: Response) {
 
 async function readBoundedResponseText(response: Response, signal?: AbortSignal) {
   const advertisedLength = response.headers.get('content-length');
-  if (advertisedLength && (!/^\d+$/.test(advertisedLength) || Number(advertisedLength) > MAX_RESPONSE_BYTES)) {
+  if (
+    advertisedLength !== null
+    && (!/^\d+$/.test(advertisedLength) || Number(advertisedLength) > MAX_RESPONSE_BYTES)
+  ) {
     throw new FarcasterOidcBridgeClientError();
   }
   if (!response.body) {
@@ -381,6 +384,10 @@ async function postJson(
     }
     return JSON.parse(responseText) as unknown;
   } catch {
+    // Rejecting on status, MIME, length, JSON, or caller cancellation must
+    // also stop any unread response body. Otherwise an invalid bridge can keep
+    // streaming after the UI has already failed closed.
+    controller.abort();
     throw new FarcasterOidcBridgeClientError();
   } finally {
     if (timeout !== undefined) {
@@ -420,6 +427,9 @@ async function postNoContent(
       throw new FarcasterOidcBridgeClientError();
     }
   } catch {
+    // A non-204 logout response may carry an unbounded body. Terminate its
+    // transport before returning the generic local logout failure.
+    controller.abort();
     throw new FarcasterOidcBridgeClientError();
   } finally {
     if (timeout !== undefined) {

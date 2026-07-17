@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-stone-resource-icon-v1",
+  "recordedAt": "2026-07-17",
+  "purpose": "Transparent presentation icon prepared for the draft Alpha 0.3.6 stone-resource mechanics workstream; it is not evidence of a live balance, currency, reward, or entitlement.",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-17",
+    "scope": "Add the background-cleaned stone icon to Warpkeep PR #45 and permit its future official Warpkeep Pages runtime use if the separately reviewed mechanics are implemented.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "currency, reward, value, or entitlement rights"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "project-provided composition and style reference",
+      "repositoryRetained": false,
+      "originalName": "codex-clipboard-eb4ccc86-9c69-4cfd-be49-df95ce18a568.png",
+      "bytes": 1808071,
+      "sha256": "d007d42712c9fd9a05eb04b87ef50897ef42331883b52dc2cc5c4505dfc5ee1c",
+      "image": {
+        "format": "png",
+        "width": 1254,
+        "height": 1254,
+        "alpha": false
+      },
+      "runtimeUse": "visual composition and stone-resource icon style reference only"
+    }
+  ],
+  "generation": {
+    "service": "OpenAI image generation edit",
+    "prompt": "Use case: background-extraction\nAsset type: transparent in-game stone resource icon for Warpkeep\nInput image: edit target — the supplied illustrated stack of gray quarry blocks, slabs, and boulders.\nPrimary request: Preserve the stone subject, composition, proportions, gray rock palette, highlights, cracks, silhouettes, and painterly game-art style exactly. Replace only the checkerboard background with a perfectly flat solid #00ffff cyan chroma-key background for subsequent removal.\nComposition/framing: keep the complete stone stack centered and fully visible with generous even padding. Do not crop or add objects.\nLighting/mood: preserve the existing neutral-to-warm rim lighting on the stones only.\nConstraints: change only the background. Keep the stone subject cleanly separated from it with crisp anti-aliased edges. The background must be exactly uniform #00ffff, with no shadows, gradients, texture, reflections, floor plane, lighting variation, watermark, text, glow, or cast/contact shadow. Do not use #00ffff anywhere in the stone artwork.",
+    "intermediateRetained": false,
+    "intermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1604986,
+      "sha256": "e09243b38c0ed6d18f831bdab1fdae3659ec927780e83beff05c60873d0bdec4"
+    }
+  },
+  "backgroundCleanup": {
+    "tool": "Codex imagegen remove_chroma_key.py",
+    "runtime": "Python 3 with Pillow 12.2.0",
+    "sampleMode": "border median",
+    "sampledKey": "#0bf9fd",
+    "softMatte": true,
+    "transparentThreshold": 18,
+    "opaqueThreshold": 180,
+    "edgeContractPixels": 1,
+    "edgeFeatherRadius": 0,
+    "despill": true,
+    "outputEncoding": "Pillow PNG default encoding"
+  },
+  "referenceAsset": {
+    "path": "docs/reference/resources/2026-07-17-hegemony-stone-icon/hegemony-stone-reference.png",
+    "format": "png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 1107308,
+    "sha256": "dcf32bfe714b82c81a9db0d13bff0f176689ff35ff6c0554c3f7c0c8f24fa6e0",
+    "decodedRgbaSha256": "9ad294ab7d1d95247429041f531e78cec365029fd33f967c73e520ff7cb5f170",
+    "alpha": {
+      "transparentPixels": 1009294,
+      "partiallyTransparentPixels": 3406,
+      "opaquePixels": 559816,
+      "visibleBounds": {
+        "minX": 120,
+        "minY": 173,
+        "maxX": 1133,
+        "maxY": 1091
+      }
+    },
+    "delivery": "checked-in dormant reference master; excluded from the Pages public directory until mechanics receive separate review"
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes the recorded Warpkeep use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "backgroundRemoved": true,
+    "stoneBlocksSlabsAndBouldersPreserved": true,
+    "reviewedOnLightAndDarkBackgrounds": true,
+    "referenceScreenshotsRetained": false
+  }
+}

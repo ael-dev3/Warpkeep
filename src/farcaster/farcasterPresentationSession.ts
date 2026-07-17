@@ -1,4 +1,5 @@
 import { safePublicHttpsImageUrl } from '../security/publicImageUrl';
+import { normalizePublicProfileText } from '../security/publicProfileText';
 import {
   normalizeFarcasterDeviceSessionBasePath,
   type FarcasterDeviceSessionEnvironment,
@@ -11,7 +12,6 @@ const MAX_PRESENTATION_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 const MAX_PROFILE_FIELD_LENGTH = 256;
 const MAX_PROFILE_URL_LENGTH = 2_048;
 const MAX_SERIALIZED_PRESENTATION_LENGTH = 4_096;
-const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/;
 const STORED_KEYS = new Set([
   'version',
   'fid',
@@ -88,16 +88,8 @@ function safelyRemove(
 
 function optionalProfileField(value: unknown) {
   if (value === undefined) return undefined;
-  if (
-    typeof value !== 'string'
-    || value.length === 0
-    || value.length > MAX_PROFILE_FIELD_LENGTH
-    || value.trim() !== value
-    || CONTROL_CHARACTER_PATTERN.test(value)
-  ) {
-    return null;
-  }
-  return value;
+  const normalized = normalizePublicProfileText(value, MAX_PROFILE_FIELD_LENGTH);
+  return normalized && normalized === value ? normalized : null;
 }
 
 function optionalProfileImage(value: unknown) {

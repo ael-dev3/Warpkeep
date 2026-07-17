@@ -98,8 +98,77 @@ function abortError() {
   return new DOMException('Title model load was cancelled.', 'AbortError');
 }
 
+/**
+ * Streams one title asset into its exact preallocated byte budget. A real
+ * fetch response is always streamable; the arrayBuffer fallback exists only
+ * for non-streamable synthetic test ports and empty-body platform responses.
+ */
+export async function readExactWarpkeepTitleResponseBody(
+  response: Response,
+  expectedBytes: number
+) {
+  if (!Number.isSafeInteger(expectedBytes) || expectedBytes <= 0) {
+    throw new Error('Invalid Warpkeep title response limit.');
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength !== expectedBytes) {
+      throw new Error('Warpkeep title integrity check failed: response does not match its exact byte budget.');
+    }
+    return bytes;
+  }
+
+  const declared = response.headers.get('content-length');
+  const contentEncoding = response.headers.get('content-encoding');
+  if (declared !== null) {
+    if (!/^\d+$/.test(declared)) {
+      throw new Error('Warpkeep title response has an invalid Content-Length.');
+    }
+    const declaredBytes = Number(declared);
+    if (!Number.isSafeInteger(declaredBytes) || declaredBytes > expectedBytes) {
+      throw new Error('Warpkeep title integrity check failed: response exceeds its exact byte budget.');
+    }
+    if (!contentEncoding && declaredBytes !== expectedBytes) {
+      throw new Error('Warpkeep title integrity check failed: response does not match its exact byte budget.');
+    }
+  }
+
+  const output = new Uint8Array(expectedBytes);
+  let offset = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (
+        !ArrayBuffer.isView(value)
+        || value.BYTES_PER_ELEMENT !== 1
+        || offset + value.byteLength > expectedBytes
+      ) {
+        try {
+          await reader.cancel('Warpkeep title response exceeded its exact byte budget.');
+        } catch {
+          // Preserve the bounded-read failure even if stream cancellation fails.
+        }
+        throw new Error('Warpkeep title integrity check failed: response exceeds its exact byte budget.');
+      }
+      output.set(value, offset);
+      offset += value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (offset !== expectedBytes) {
+    throw new Error('Warpkeep title integrity check failed: response does not match its exact byte budget.');
+  }
+  return output.buffer;
+}
+
 function createTitleBinaryRequest(asset: ReturnType<typeof resolveWarpkeepTitleModel>) {
   const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   const request: TitleBinaryRequest = {
     controller,
     consumers: 0,
@@ -107,22 +176,39 @@ function createTitleBinaryRequest(asset: ReturnType<typeof resolveWarpkeepTitleM
     settled: false,
     promise: Promise.resolve(new ArrayBuffer(0))
   };
-  request.promise = fetch(asset.url, {
+  const transport = fetch(asset.url, {
     credentials: 'same-origin',
+    redirect: 'error',
+    referrerPolicy: 'no-referrer',
     signal: controller.signal
   }).then(async (response) => {
     if (!response.ok) throw new Error(`Title model request failed with ${response.status}.`);
-    const bytes = await response.arrayBuffer();
-    if (bytes.byteLength !== asset.bytes || await sha256Hex(bytes) !== asset.sha256) {
+    const bytes = await readExactWarpkeepTitleResponseBody(response, asset.bytes);
+    if (await sha256Hex(bytes) !== asset.sha256) {
       throw new Error(`Warpkeep ${asset.profile} title model failed its integrity check.`);
     }
-    request.settled = true;
     return bytes;
-  }).catch((error) => {
-    request.settled = true;
-    if (binaryRequests.get(asset.url) === request) binaryRequests.delete(asset.url);
-    throw error;
   });
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error(
+        `Warpkeep ${asset.profile} title model timed out after ${asset.primaryTimeoutMs}ms.`
+      ));
+    }, asset.primaryTimeoutMs);
+  });
+  request.promise = Promise.race([transport, deadline])
+    .catch((error) => {
+      // Stop status, byte-budget, and integrity failures before discarding the
+      // shared request; unread bodies must not survive fallback activation.
+      controller.abort();
+      if (binaryRequests.get(asset.url) === request) binaryRequests.delete(asset.url);
+      throw error;
+    })
+    .finally(() => {
+      request.settled = true;
+      if (timeout !== undefined) clearTimeout(timeout);
+    });
   binaryRequests.set(asset.url, request);
   return request;
 }

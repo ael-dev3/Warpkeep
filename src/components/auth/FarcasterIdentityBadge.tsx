@@ -1,5 +1,6 @@
 import type { VerifiedFarcasterIdentity } from '../../farcaster/farcasterAuthTypes';
 import { safePublicHttpsImageUrl } from '../../security/publicImageUrl';
+import { normalizePublicProfileText } from '../../security/publicProfileText';
 import { StaticProfileImageCanvas } from '../profile/StaticProfileImageCanvas';
 import { reviewedRealmProfileImageUrl } from '../realm/loadRealmProfileImage';
 import './FarcasterQrAuthPanel.css';
@@ -12,8 +13,7 @@ export type FarcasterIdentityBadgeProps = {
 };
 
 function readDisplayText(value: string | undefined) {
-  const normalizedValue = value?.trim();
-  return normalizedValue ? normalizedValue : undefined;
+  return normalizePublicProfileText(value);
 }
 
 export function normalizeFarcasterUsername(username: string | undefined) {

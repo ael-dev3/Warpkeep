@@ -6,11 +6,13 @@
 export const hegemonyLowlandsSpec = {
   biome: 'temperate-lowland',
   palette: {
-    grassBase: { r: 0.424, g: 0.49, b: 0.271 },
-    grassCool: { r: 0.31, g: 0.404, b: 0.224 },
-    soil: { r: 0.545, g: 0.412, b: 0.227 },
-    dryGrass: { r: 0.667, g: 0.553, b: 0.271 },
-    stone: { r: 0.439, g: 0.439, b: 0.404 }
+    // Scene-linear values: WebGL writes them directly to vertex colours and
+    // the SVG fallback encodes them once for display-sRGB.
+    grassBase: { r: 0.39, g: 0.56, b: 0.25 },
+    grassCool: { r: 0.27, g: 0.45, b: 0.23 },
+    soil: { r: 0.52, g: 0.42, b: 0.22 },
+    dryGrass: { r: 0.62, g: 0.56, b: 0.27 },
+    stone: { r: 0.45, g: 0.45, b: 0.38 }
   },
   surface: {
     hexSize: 1,

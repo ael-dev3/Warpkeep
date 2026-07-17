@@ -63,7 +63,14 @@ export function createCanonicalGenesisCandidate(
       { fid: ownFid, status: 'active' },
       ...(peerFid === undefined ? [] : [{ fid: peerFid, status: 'active' }])
     ],
-    profiles: [],
+    profiles: [
+      { fid: ownFid, publicStatus: 'founded', communityStatsVisible: false },
+      ...(peerFid === undefined ? [] : [{
+        fid: peerFid,
+        publicStatus: 'founded',
+        communityStatsVisible: false
+      }])
+    ],
     castles,
     ownCastle
   };

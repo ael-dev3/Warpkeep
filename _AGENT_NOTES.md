@@ -2,15 +2,40 @@
 
 ## Current state
 
-The checked-in package is the verified Alpha 0.3.5 Pages-only public release.
-The public menu build stamp identifies the exact deployed source; an annotated
-release tag is created only after that deployed commit passes exact-build
-verification. Do not turn the disabled local QA observer into a Worker or
-SpacetimeDB release without a separately reviewed production scope.
+The checked-in package is the reviewed Alpha 0.3.6 integration candidate. It is
+not merged, deployed, tagged, or verified as a public release. Alpha 0.3.5 remains the
+verified Pages-only public release, and its public menu build stamp identifies
+the exact deployed source. An annotated release tag is created only after the
+matching protected-main deployment passes exact-build verification. Do not
+turn the disabled local QA observer into a Worker or SpacetimeDB release without
+a separately reviewed production scope.
 
-The release also fixes every direct Realm username rail to the projected
-foundation base and presents the selected keep in a responsive Farcaster castle
-record. Its decorative castle art is a same-origin, integrity-pinned,
+The candidate makes the Realm read as a brighter Lowlands day without changing
+global exposure, GLB bytes, textures, light count, or authority. A
+camera-visible key sun, clear-sky/earth bounce, restrained amethyst identity
+fill, bounded castle/base calibration, and a greener scene-linear terrain
+palette make masonry sunlit rather than shadowed. A single small shared
+castle-plus-base placement clearance protects the dense High base skirt at the
+terrain seam; no LOD or base receives an independent transform. The candidate
+also widens local terrain support around the authored landscape footprint,
+removes occupied-cell outlines that visually cross the base, keeps one
+permanent direct identity rail per projection-visible founded castle, and adds
+a readable floor to ordinary zoom while preserving an explicit truthful Realm
+overview. Hardware-aware Auto remains the recommended default; Cinematic,
+Balanced, and Performance remain explicit player choices. The canvas and those rails share one
+map-gesture lane: direct ground-plane drag engages on the first deliberate
+attempt, wheel/pinch retain their ground anchor, explicit-overview departure is
+continuous, gesture cancellation is fail-clean, and rails receive same-frame
+subpixel projection. The candidate also includes defensive source hardening for
+authentication configuration, cookies, bounded transports, profile text/image
+ingress, tooling downloads, and CI action runtimes. Those source changes do not
+themselves deploy the Worker, mutate admission or backend state, change DNS, or
+touch production data.
+
+The verified Alpha 0.3.5 release also presented the selected keep in a
+responsive Farcaster castle record, while this candidate makes every direct
+Realm username rail permanent at its projected foundation base. Its decorative
+castle art is a same-origin, integrity-pinned,
 provenance-required runtime asset. These are browser presentation changes only;
 they add no gameplay field, action, identity authority, or backend mutation.
 The merged authentication presentation shows a verified username/static PFP
@@ -29,7 +54,7 @@ only after pending acquisitions and active leases both reach zero, then its one
 cache retain is released exactly once. Empty authoritative castle sets are
 ready with zero models rather than treated as a missing pair.
 
-Warpkeep Alpha 0.3.5 preserves the live title/menu, explicit Alpha Terms gate,
+Warpkeep Alpha 0.3.6 preserves the live title/menu, explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
 least-privilege Cloudflare Worker OIDC bridge, and a non-destructively published
 protocol-3 SpacetimeDB module. Genesis 001 contains 1,261 authoritative cells
@@ -61,19 +86,44 @@ Start with:
   inputs in this public repository and official Pages runtime plus the bounded
   atlas-size metadata correction for Balanced and Compact. Preserve
   `LicenseRef-Warpkeep-Provenance-Required`. Apply the exact castle parent
-  position, quaternion, and uniform scale; never independently center,
-  normalize, ground, or scale the base. Do not restore the old contact-shadow
+  position, quaternion, and uniform scale to the base; never independently
+  center, normalize, ground, lift, or scale the base. A ground-seam correction,
+  if needed, must be one documented shared assembly placement value applied to
+  castle and base across every LOD. Do not restore the old contact-shadow
   instance when the complete base family is ready, let base bounds alter castle
   LOD/camera/username metrics, or raycast decorative triangles. Compare the
   nearest valid castle-geometry and simple base-collider hits so a farther
   castle cannot beat a nearer base. No public open licence, general
   derivative/redistribution authority, trademark right, or same-named-file
   substitution is granted.
-- A direct castle username has exactly one honest location: its projected
-  foundation-base anchor. Do not reintroduce random or collision-driven
-  individual displacement, roof stacking, or individual leader lines. When
-  that exact rail cannot fit, preserve identity through the deterministic
-  keeper-cluster/Explore accounting rather than moving it away from the keep.
+- Every safely in-viewport founded castle has exactly one persistent direct
+  username control at its projected foundation-base anchor. Keep that React
+  node keyed by castle identity across camera distance and castle LOD changes;
+  update only its projected coordinates. Do not reintroduce random or
+  collision-driven displacement, roof stacking, individual leader lines,
+  automatic keeper clusters, or distance-driven membership/presentation.
+  Fully clipped minimum hit boxes are not interactive world controls, and the
+  visible set uses a single roving tab stop instead of exposing up to 100 tab
+  stops. Arrow keys move spatially, Home/End follow deterministic reading
+  order, and focus recovers to the nearest surviving rail when projection
+  removes the active one. Rails conservatively obstructed by visible Realm UI
+  stay in Explore. Rendered QA records bounded label-on-label contention but
+  must reject clipped, non-label-obstructed, or reserved-UI-overlapping controls
+  in its supported viewport matrix. Explore remains the complete individually
+  selectable keyboard/touch/pointer path for every founded castle, including
+  edge and offscreen castles.
+- Canvas and direct castle rails must remain part of the same bounded map
+  gesture coordinator while HUD controls and dialogs remain excluded. Do not
+  stop pointer or wheel propagation on a rail, discard threshold-crossing drag
+  movement, let a rail drag emit its click, or allow an old camera target to
+  pull against direct manipulation. Preserve cursor/foundation/centroid ground
+  anchoring, continuous inward motion from explicit overview, and fail-clean
+  reset on cancellation, capture loss, lost buttons, blur, visibility change,
+  and disposal. Coalesce high-rate direct input to at most one camera render
+  per display frame, without dropping accumulated movement. Project rails in
+  the scene frame with subpixel precision; do not restore a second projection
+  frame, permanent transform promotion, or backdrop blur to the moving rail
+  surface.
 - Castle records may render only the existing sanitized public Farcaster
   projection and public castle/visibility-gated Marks fields. Do not fabricate
   durability, alliance, combat status, coordinates, resources, or actions to
@@ -91,6 +141,15 @@ Start with:
   and official Pages runtime. Its decorative role grants no identity or
   gameplay authority, public open licence, general derivative/redistribution
   right, ownership claim, or trademark right.
+- The Alpha 0.3.6 mechanics workstream's gold, food, stone, and wood icons are
+  exact transparent reference masters beside their dated records under
+  `docs/reference/resources/`, pinned by `npm run verify:runtime-assets`.
+  They are deliberately outside `public/` and must not ship through Pages or
+  enter a runtime bundle until the corresponding authoritative mechanic and
+  asset use receive separate review. Do not treat any image as proof of a live
+  resource, currency, balance, cost, reward, or player entitlement, and do not
+  replace one without an updated authorization, alpha audit, hash pin, and
+  review.
 
 ## Player-visible release truth
 
@@ -98,8 +157,10 @@ Every player-visible patch must update the complete release-truth set in the
 same change: the root package and lockfile version, `CHANGELOG.md`, a dated
 `docs/releases/alpha-X.Y.Z.md` note, the exact-version entry in
 `src/components/menu/latestPatchNotes.ts`, its tests, `README.md`, and this
-file. The in-menu patch chronicle must summarize the major player-visible
-changes for the exact package version; it must never fall back to stale notes.
+file. The README stays concise and product-directional: retain only current
+status and links to release truth there, never expand it into patch notes. The
+in-menu patch chronicle must summarize the major player-visible changes for the
+exact package version; it must never fall back to stale notes.
 Use the next SemVer patch for presentation, asset, defect, or bounded polish
 that adds no player-facing system boundary. A checked-in candidate is not a
 verified public release until protected-main deployment and exact-build

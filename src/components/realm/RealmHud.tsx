@@ -13,6 +13,7 @@ import {
   formatPublicMarkMicros,
   type RealmCastlePublicPresentation
 } from './realmCastlePresentation';
+import { CastleProfileAvatar } from './RealmCastleLabels';
 
 type RealmHudProps = Readonly<{
   identity: RealmIdentity;
@@ -96,6 +97,13 @@ export function RealmHud({
   onRequestReturn
 }: RealmHudProps) {
   const authoritativeKeepCoord = keepCoord ?? { q: 0, r: 0 };
+  const playerProfile: RealmCastlePublicPresentation = ownProfile ?? {
+    canonicalUsername: identity.username,
+    displayName: identity.displayName,
+    pfpUrl: identity.pfpUrl,
+    communityStatsVisible: false
+  };
+  const playerLabel = keeperLabel(identity, ownProfile);
   const selectedIsKeep = isKeepCell(selectedCell, authoritativeKeepCoord);
   const selectedTerrainLabel = realmTerrainLabel(selectedTerrainKind);
   const selectedCastleLabel = selectedCastleProfile
@@ -131,10 +139,16 @@ export function RealmHud({
   return (
     <>
       <section className="realm-hud" aria-labelledby="realm-heading">
-        <header className="realm-hud__header">
-          <p>GENESIS 001 · 1,261 CELLS</p>
-          <h1 id="realm-heading">{ownCastle?.name ?? 'Hegemony Keep'}</h1>
-          <span className="realm-hud__keeper">{keeperLabel(identity, ownProfile)}</span>
+        <header
+          aria-label={`Your Farcaster profile: ${playerLabel}`}
+          className="realm-hud__header"
+        >
+          <CastleProfileAvatar profile={playerProfile} />
+          <div className="realm-hud__identity">
+            <p>GENESIS 001 · 1,261 CELLS</p>
+            <h1 id="realm-heading">{ownCastle?.name ?? 'Hegemony Keep'}</h1>
+            <span className="realm-hud__keeper">{playerLabel}</span>
+          </div>
           <div className="realm-hud__badges" aria-label="Keep status">
             <span>LEVEL {ownCastle?.level ?? HEGEMONY_MAIN_CASTLE.level}</span>
           </div>

@@ -5,6 +5,8 @@ import type {
   PublicFarcasterIdentity,
   VerifiedFarcasterIdentity
 } from './farcasterAuthTypes';
+import { safePublicHttpsImageUrl } from '../security/publicImageUrl';
+import { normalizePublicProfileText } from '../security/publicProfileText';
 
 export type FarcasterRememberedMachineSession = Readonly<{
   /** Compatibility-only input; browser storage restoration is retired. */
@@ -153,11 +155,14 @@ function isValidSessionExpiry(identity: VerifiedFarcasterIdentity, sessionExpire
 function publicIdentity(
   identity: VerifiedFarcasterIdentity
 ): PublicFarcasterIdentity {
+  const username = normalizePublicProfileText(identity.username);
+  const displayName = normalizePublicProfileText(identity.displayName);
+  const pfpUrl = safePublicHttpsImageUrl(identity.pfpUrl);
   return {
     fid: identity.fid,
-    ...(identity.username === undefined ? {} : { username: identity.username }),
-    ...(identity.displayName === undefined ? {} : { displayName: identity.displayName }),
-    ...(identity.pfpUrl === undefined ? {} : { pfpUrl: identity.pfpUrl }),
+    ...(username === undefined ? {} : { username }),
+    ...(displayName === undefined ? {} : { displayName }),
+    ...(pfpUrl === undefined ? {} : { pfpUrl }),
     verifications: Object.freeze([]) as readonly [],
     verifiedAt: identity.verifiedAt
   };

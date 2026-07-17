@@ -5,12 +5,15 @@ import {
   CastleProfileAvatar,
   RealmCastleLabels
 } from '../src/components/realm/RealmCastleLabels';
+import { RealmHud } from '../src/components/realm/RealmHud';
 import {
   castleProfileLabel,
   castleProfileMonogram,
   safeRealmProfileImageUrl,
   type RealmCastlePublicPresentation
 } from '../src/components/realm/realmCastlePresentation';
+import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
+import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 
 const PROFILE_DELIVERY_ACCOUNT = 'BXluQx4ige9GuW0Ia56BHw';
 const PNG_HEADER = (() => {
@@ -207,6 +210,36 @@ describe('realm profile and PFP presentation regressions', () => {
 
     await act(async () => image.finishLoad());
     expect(drawCanvasImage).toHaveBeenCalledOnce();
+  });
+
+  it('wires the reviewed static PFP canvas into the player HUD', async () => {
+    const pfpUrl = profileDeliveryUrl('cc698287-5adc-4cc5-a503-de16963ed900');
+    const selectedCell = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 20).cells[0]!;
+    const { container } = render(
+      <RealmHud
+        identity={{ fid: 7_001, username: 'warpkeeper', pfpUrl }}
+        ownCastle={{ name: 'Fixture Keep', level: 1 }}
+        ownProfile={profile({ canonicalUsername: 'warpkeeper', pfpUrl })}
+        selectedCell={selectedCell}
+        onRecenterKeep={vi.fn()}
+        onRequestReturn={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(mockProfileImages).toHaveLength(1));
+    const hudAvatar = container.querySelector('.realm-hud .realm-castle-avatar');
+    const canvas = hudAvatar?.querySelector<HTMLCanvasElement>(
+      'canvas[data-profile-image-state="loading"]'
+    );
+    expect(canvas).not.toBeNull();
+    expect(hudAvatar?.textContent).toBe('W');
+
+    await act(async () => mockProfileImages[0]!.finishLoad());
+
+    expect(canvas?.dataset.profileImageState).toBe('ready');
+    expect(canvas?.style.display).toBe('block');
+    expect(hudAvatar?.textContent).toBe('');
+    expect(container.querySelector('.realm-hud img')).toBeNull();
   });
 
   it('keeps a stable public monogram after an image load error and URL change', async () => {
@@ -517,7 +550,7 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(onActivate).toHaveBeenCalledOnce();
   });
 
-  it('isolates label pointer-down input from the map surface', () => {
+  it('lets label presses reach the shared map gesture surface', () => {
     const onMapPointerDown = vi.fn();
     const onActivate = vi.fn();
     render(
@@ -561,67 +594,199 @@ describe('realm profile and PFP presentation regressions', () => {
     const button = screen.getByRole('button', { name: /Inspect @warpkeeper castle/i });
     expect(within(button).getByText('@warpkeeper')).not.toBeNull();
     expect(button.textContent).not.toMatch(/FID\s*9007199254740991/i);
-    expect(document.querySelectorAll('[data-measure-castle-id]')).toHaveLength(1);
-    expect(document.querySelectorAll('[data-measure-compact-castle-id]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-measure-castle-id]')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-measure-compact-castle-id]')).toHaveLength(0);
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
-    expect(onMapPointerDown).not.toHaveBeenCalled();
+    expect(onMapPointerDown).toHaveBeenCalledOnce();
     fireEvent.click(button);
     expect(onActivate).toHaveBeenCalledOnce();
   });
 
-  it('exposes clustered castles as a small keyboard and pointer zoom affordance', () => {
+  it('keeps overlapping founded identities as permanent direct controls', () => {
     const onMapPointerDown = vi.fn();
-    const onActivateCluster = vi.fn();
-    const cluster = {
-      key: 'cluster-7-3',
-      castleIds: [7, 8, 9],
-      representativeCastleId: 7,
-      anchor: { x: 180, y: 140 },
-      x: 220,
-      y: 180,
-      width: 96,
-      bounds: { left: 172, top: 136, right: 268, bottom: 180 }
-    } as const;
-    render(
+    const onActivate = vi.fn();
+    const castles = [7, 8, 9].map((castleId) => ({
+      castleId,
+      ownerFid: 7_000 + castleId,
+      q: castleId - 7,
+      r: 7 - castleId,
+      level: 1,
+      name: `Fixture Keep ${castleId}`
+    }));
+    const records = new Map(castles.map((castle) => [castle.castleId, {
+      castle,
+      profile: profile({ canonicalUsername: `keeper${castle.castleId}` })
+    }]));
+    const labels = castles.map((castle) => ({
+      castleId: castle.castleId,
+      q: castle.q,
+      r: castle.r,
+      x: 180,
+      y: 140,
+      distance: castle.castleId,
+      visible: true,
+      compact: true,
+      projectedAnchor: { x: 180, y: 140 }
+    }));
+    const view = (distanceOffset: number) => (
       <div onPointerDown={onMapPointerDown}>
         <RealmCastleLabels
-          labels={[]}
-          clusters={[cluster]}
-          records={new Map([[7, {
-            castle: {
-              castleId: 7,
-              ownerFid: 7_001,
-              q: 1,
-              r: -1,
-              level: 1,
-              name: 'Fixture Keep'
-            },
-            profile: profile({ canonicalUsername: 'fixturekeeper' })
-          }]])}
+          labels={labels.map((label) => ({
+            ...label,
+            distance: label.distance + distanceOffset
+          }))}
+          records={records}
           inspectorId="castle-inspector"
           inspectorOpen={false}
-          onActivate={vi.fn()}
-          onActivateCluster={onActivateCluster}
+          onActivate={onActivate}
         />
       </div>
     );
+    const { rerender } = render(view(0));
 
+    const buttons = screen.getAllByRole('button', { name: /Inspect @keeper\d castle/i });
+    expect(buttons).toHaveLength(3);
+    expect(document.querySelectorAll('[data-realm-castle-cluster]')).toHaveLength(0);
+    expect(buttons.every((button) => (
+      button.dataset.anchor === 'foundation-base'
+      && button.dataset.displaced === 'false'
+      && button.style.getPropertyValue('--realm-castle-label-x') === '180px'
+      && button.style.getPropertyValue('--realm-castle-label-y') === '140px'
+    ))).toBe(true);
+    const firstButton = buttons[0]!;
+    rerender(view(10_000));
+    expect(screen.getByRole('button', {
+      name: 'Inspect @keeper7 castle, Fixture Keep 7, cell 0,0'
+    })).toBe(firstButton);
     const button = screen.getByRole('button', {
-      name: 'Focus @fixturekeeper castle, Fixture Keep, cell 1,-1, and 2 nearby keepers'
+      name: 'Inspect @keeper8 castle, Fixture Keep 8, cell 1,-1'
     });
-    expect(button.textContent).toBe('@fixturekeeper+2');
-    expect(button.getAttribute('data-cluster-count')).toBe('3');
-    expect(button.getAttribute('data-representative-castle-id')).toBe('7');
-    expect(button.getAttribute('data-displaced')).toBe('true');
-    expect(button.getAttribute('style')).toContain('--realm-castle-cluster-x: 220px');
-    const leader = document.querySelector<HTMLElement>('[data-realm-cluster-leader]');
-    expect(leader?.dataset.active).toBe('true');
-    expect(leader?.getAttribute('data-representative-castle-id')).toBe('7');
-    expect(leader?.style.getPropertyValue('--realm-castle-anchor-x')).toBe('180px');
-    expect(leader?.style.getPropertyValue('--realm-castle-anchor-y')).toBe('140px');
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
-    expect(onMapPointerDown).not.toHaveBeenCalled();
+    expect(onMapPointerDown).toHaveBeenCalledOnce();
     fireEvent.click(button);
-    expect(onActivateCluster).toHaveBeenCalledWith(cluster);
+    expect(onActivate).toHaveBeenCalledWith(castles[1]);
+  });
+
+  it('roves one visible world-label tab stop with spatial arrows and Home or End', () => {
+    const castles = [
+      { castleId: 7, q: 0, r: 0, x: 100, y: 100 },
+      { castleId: 8, q: 1, r: 0, x: 200, y: 100 },
+      { castleId: 9, q: 0, r: 1, x: 100, y: 200 },
+      { castleId: 10, q: 1, r: 1, x: 200, y: 200 }
+    ].map((entry) => ({
+      ...entry,
+      ownerFid: 7_000 + entry.castleId,
+      level: 1,
+      name: `Fixture Keep ${entry.castleId}`
+    }));
+    const labels = castles.map((castle) => ({
+      castleId: castle.castleId,
+      q: castle.q,
+      r: castle.r,
+      x: castle.x,
+      y: castle.y,
+      distance: 4,
+      visible: true,
+      compact: false,
+      projectedAnchor: { x: castle.x, y: castle.y }
+    }));
+    render(
+      <RealmCastleLabels
+        labels={labels}
+        records={new Map(castles.map((castle) => [castle.castleId, {
+          castle,
+          profile: profile({ canonicalUsername: `keeper${castle.castleId}` })
+        }]))}
+        ownCastleId={7}
+        inspectorId="castle-inspector"
+        inspectorOpen={false}
+        onActivate={vi.fn()}
+      />
+    );
+
+    const buttons = () => screen.getAllByRole<HTMLButtonElement>('button', {
+      name: /Inspect @keeper\d+ castle/i
+    });
+    const button = (castleId: number) => screen.getByRole<HTMLButtonElement>('button', {
+      name: new RegExp(`Inspect @keeper${castleId} castle`, 'i')
+    });
+    const expectSingleTabStop = (castleId: number) => {
+      expect(buttons().filter((candidate) => candidate.tabIndex === 0)).toEqual([button(castleId)]);
+    };
+
+    expectSingleTabStop(7);
+    button(7).focus();
+    fireEvent.keyDown(button(7), { key: 'ArrowRight' });
+    expect(document.activeElement).toBe(button(8));
+    expectSingleTabStop(8);
+
+    fireEvent.keyDown(button(8), { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(button(10));
+    expectSingleTabStop(10);
+
+    fireEvent.keyDown(button(10), { key: 'Home' });
+    expect(document.activeElement).toBe(button(7));
+    expectSingleTabStop(7);
+
+    fireEvent.keyDown(button(7), { key: 'End' });
+    expect(document.activeElement).toBe(button(10));
+    expectSingleTabStop(10);
+
+    fireEvent.keyDown(button(10), { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(button(9));
+    expectSingleTabStop(9);
+  });
+
+  it('recovers label focus deterministically when projection hides the active label', () => {
+    const castles = [7, 8, 9].map((castleId) => ({
+      castleId,
+      ownerFid: 7_000 + castleId,
+      q: castleId - 7,
+      r: 0,
+      level: 1,
+      name: `Fixture Keep ${castleId}`
+    }));
+    const records = new Map(castles.map((castle) => [castle.castleId, {
+      castle,
+      profile: profile({ canonicalUsername: `keeper${castle.castleId}` })
+    }]));
+    const labelsFor = (castleIds: readonly number[]) => castleIds.map((castleId) => ({
+      castleId,
+      q: castleId - 7,
+      r: 0,
+      x: 100 + (castleId - 7) * 100,
+      y: 100,
+      distance: 4,
+      visible: true,
+      compact: false,
+      projectedAnchor: { x: 100 + (castleId - 7) * 100, y: 100 }
+    }));
+    const view = (castleIds: readonly number[]) => (
+      <main className="realm-map-screen" tabIndex={0}>
+        <RealmCastleLabels
+          labels={labelsFor(castleIds)}
+          records={records}
+          ownCastleId={7}
+          inspectorId="castle-inspector"
+          inspectorOpen={false}
+          onActivate={vi.fn()}
+        />
+      </main>
+    );
+    const { rerender } = render(view([7, 8, 9]));
+    const label = (castleId: number) => screen.queryByRole<HTMLButtonElement>('button', {
+      name: new RegExp(`Inspect @keeper${castleId} castle`, 'i')
+    });
+
+    label(8)!.focus();
+    expect(document.activeElement).toBe(label(8));
+    rerender(view([7, 9]));
+    expect(document.activeElement).toBe(label(7));
+    expect(screen.getAllByRole<HTMLButtonElement>('button').filter((candidate) => (
+      candidate.tabIndex === 0
+    ))).toEqual([label(7)]);
+
+    rerender(view([]));
+    expect(document.activeElement).toBe(screen.getByRole('main'));
   });
 });

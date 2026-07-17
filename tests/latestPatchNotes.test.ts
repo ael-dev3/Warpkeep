@@ -17,44 +17,46 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '16 JUL 2026',
-      title: 'GAME-READY CASTLE REFRESH'
+      releasedOn: '18 JUL 2026',
+      title: 'REALM READABILITY & STABILITY'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /High, Balanced, and Compact GameReady castle models/i
+      /camera-visible daylight sun.*clear-sky\/earth bounce.*role-specific material calibration.*sunlit/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /matching road-and-island landscape base.*replaces the old synthetic contact shadow/i
+      /Lowlands now favor cleaner green scene-linear terrain colours.*SVG fallback.*display/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /intentionally shorter authored proportions/i
+      /Hardware-aware Auto.*recommended default.*Cinematic.*measured headroom.*phones Balanced/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /fixed at each castle foundation/i
+      /Wider local terrain foundations support each authored island footprint/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /sanitized public Farcaster and existing Realm data/i
+      /interaction feedback no longer draws.*cell line through the landscape base/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /portrait-to-initial fallback/i
+      /safely in-viewport founded castle.*direct identity rail.*exact foundation anchor/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Background-cleaned castle record art/i
+      /one visible label is tabbable.*spatial arrow keys.*Home\/End.*label-on-label contention.*non-label hit obstruction.*HUD overlap.*Explore/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Farcaster username and static PFP.*exact-FID tab restoration.*non-authoritative presentation/i
+      /wheel and pinch.*readable zoom floor.*convex rendered-terrain perimeter/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /cache-safe at immutable asset paths/i
+      /Farcaster portrait.*resource-icon masters.*future groundwork.*no balances.*construction/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /changes client-side decoration clearance and authentication presentation.*no Terms.*authentication authority.*authoritative world generation/i
+      /Defensive source hardening.*authentication configuration.*without adding a bypass.*SpacetimeDB.*authoritative world state/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /brighter|brightness improvement|durability|destroy|alliance/i
+      /durability|destroy|alliance|released to players|deployed to players/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 16 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('candidate prepared 18 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('not a verified public release');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('exact-build verification');
+    expect(getLatestPatchNotes('0.3.5')?.title).toBe('GAME-READY CASTLE REFRESH');
     expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');
     expect(getLatestPatchNotes('0.3.3')?.title).toBe('GENESIS REALM QUALITY');
     expect(getLatestPatchNotes('0.3.2')?.title).toBe('GENESIS 001 FOUNDING');

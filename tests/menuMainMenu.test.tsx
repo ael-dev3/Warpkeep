@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.5'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.6'
   });
 }
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'REALM READABILITY & STABILITY' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'REALM READABILITY & STABILITY' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -210,7 +210,7 @@ describe('WarpkeepMainMenu', () => {
     render(
       <WarpkeepMainMenu
         active
-        graphicsPreference="auto"
+        graphicsPreference="cinematic"
         onGraphicsPreferenceChange={onGraphicsPreferenceChange}
         onRequestReturn={vi.fn()}
         resolvedGraphicsQuality="cinematic"
@@ -227,7 +227,7 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(settings);
 
     fireEvent.click(settings);
-    fireEvent.click(screen.getByRole('button', { name: 'BACK TO COMMANDS' }));
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO THE MENU' }));
     expect(screen.queryByRole('dialog', { name: 'SETTINGS' })).toBeNull();
     expect(document.activeElement).toBe(settings);
   });
@@ -239,18 +239,18 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'REALM READABILITY & STABILITY' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'REALM READABILITY & STABILITY' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'GAME-READY CASTLE REFRESH' });
+    const notes = screen.getByRole('region', { name: 'REALM READABILITY & STABILITY' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.5');
-    expect(notes.textContent).toContain('intentionally shorter authored proportions');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.6');
+    expect(notes.textContent).toContain('exactly one visible label is tabbable');
     expect(notes.textContent).toContain(
-      'Released 16 July 2026 after protected deployment and exact-build verification.'
+      'Alpha 0.3.6 candidate prepared 18 July 2026; it is not a verified public release until protected deployment and exact-build verification.'
     );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
@@ -258,7 +258,7 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'REALM READABILITY & STABILITY' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -271,19 +271,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'REALM READABILITY & STABILITY' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'REALM READABILITY & STABILITY' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'REALM READABILITY & STABILITY' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'REALM READABILITY & STABILITY' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -292,21 +292,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'REALM READABILITY & STABILITY' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'GAME-READY CASTLE REFRESH' });
+    const panel = screen.getByRole('region', { name: 'REALM READABILITY & STABILITY' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'REALM READABILITY & STABILITY' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'REALM READABILITY & STABILITY' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'GAME-READY CASTLE REFRESH' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'REALM READABILITY & STABILITY' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

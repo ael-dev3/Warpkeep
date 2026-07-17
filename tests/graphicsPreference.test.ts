@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  DEFAULT_GRAPHICS_PREFERENCE,
   WARPKEEP_GRAPHICS_PREFERENCE_KEY,
   parseGraphicsPreference,
   readGraphicsPreference,
@@ -27,12 +28,13 @@ afterEach(() => {
 describe('graphics preference', () => {
   it('validates and persists only the versioned visual preference', () => {
     const storage = memoryStorage();
-    expect(parseGraphicsPreference('obsolete')).toBe('auto');
-    expect(readGraphicsPreference(storage)).toBe('auto');
+    expect(parseGraphicsPreference('obsolete')).toBe(DEFAULT_GRAPHICS_PREFERENCE);
+    expect(parseGraphicsPreference('auto')).toBe(DEFAULT_GRAPHICS_PREFERENCE);
+    expect(readGraphicsPreference(storage)).toBe(DEFAULT_GRAPHICS_PREFERENCE);
     writeGraphicsPreference('balanced', storage);
     expect(storage.getItem(WARPKEEP_GRAPHICS_PREFERENCE_KEY)).toBe('balanced');
     expect(readGraphicsPreference(storage)).toBe('balanced');
-    writeGraphicsPreference('auto', storage);
+    writeGraphicsPreference(DEFAULT_GRAPHICS_PREFERENCE, storage);
     expect(storage.getItem(WARPKEEP_GRAPHICS_PREFERENCE_KEY)).toBeNull();
   });
 
@@ -42,12 +44,12 @@ describe('graphics preference', () => {
       setItem: () => { throw new Error('blocked'); },
       removeItem: () => { throw new Error('blocked'); }
     };
-    expect(readGraphicsPreference(blocked)).toBe('auto');
+    expect(readGraphicsPreference(blocked)).toBe(DEFAULT_GRAPHICS_PREFERENCE);
     expect(() => writeGraphicsPreference('cinematic', blocked)).not.toThrow();
   });
 
-  it('keeps strong desktops cinematic and normal phones balanced', () => {
-    expect(resolveGraphicsQuality('auto', {
+  it('keeps strong desktops cinematic and normal phones within measured limits', () => {
+    expect(resolveGraphicsQuality(DEFAULT_GRAPHICS_PREFERENCE, {
       width: 1_440,
       height: 900,
       devicePixelRatio: 2,
@@ -62,36 +64,36 @@ describe('graphics preference', () => {
       [412, 915],
       [430, 932]
     ].forEach(([width, height]) => {
-      expect(resolveGraphicsQuality('auto', {
+      expect(resolveGraphicsQuality(DEFAULT_GRAPHICS_PREFERENCE, {
         width,
         height,
         devicePixelRatio: 3,
         hardwareConcurrency: 8,
-        deviceMemory: 8,
+        deviceMemory: 4,
         maxTextureSize: 8_192
       })).toBe('balanced');
     });
-    expect(resolveGraphicsQuality('auto', {
+    expect(resolveGraphicsQuality(DEFAULT_GRAPHICS_PREFERENCE, {
       width: 390,
       height: 844,
       devicePixelRatio: 3,
       hardwareConcurrency: 2,
       deviceMemory: 2,
-      maxTextureSize: 8_192
+      maxTextureSize: 2_048
     })).toBe('performance');
-    expect(resolveGraphicsQuality('auto', {
+
+    const unmeasuredGpu = {
       width: 1_440,
       height: 900,
       devicePixelRatio: 2,
       hardwareConcurrency: 8,
-      deviceMemory: 4,
-      maxTextureSize: 16_384
-    })).toBe('balanced');
-    expect(resolveGraphicsQuality('auto', {
-      width: 1_440,
-      height: 900,
-      devicePixelRatio: 2,
-      maxTextureSize: 16_384
+      deviceMemory: 8
+    };
+    expect(resolveGraphicsQuality(DEFAULT_GRAPHICS_PREFERENCE, unmeasuredGpu))
+      .toBe('balanced');
+    expect(resolveGraphicsQuality(DEFAULT_GRAPHICS_PREFERENCE, {
+      ...unmeasuredGpu,
+      maxTextureSize: Number.NaN
     })).toBe('balanced');
   });
 

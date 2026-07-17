@@ -31,9 +31,9 @@ const TERRAIN_KIND_PALETTE: Readonly<Record<RealmTerrainKind, Readonly<{
   color: TerrainRgb;
   strength: number;
 }>>> = Object.freeze({
-  lowland: Object.freeze({ color: { r: 0.36, g: 0.46, b: 0.26 }, strength: 0.14 }),
-  meadow: Object.freeze({ color: { r: 0.55, g: 0.57, b: 0.29 }, strength: 0.34 }),
-  forest: Object.freeze({ color: { r: 0.2, g: 0.34, b: 0.25 }, strength: 0.5 }),
+  lowland: Object.freeze({ color: { r: 0.34, g: 0.5, b: 0.24 }, strength: 0.14 }),
+  meadow: Object.freeze({ color: { r: 0.48, g: 0.62, b: 0.27 }, strength: 0.34 }),
+  forest: Object.freeze({ color: { r: 0.18, g: 0.39, b: 0.22 }, strength: 0.5 }),
   heath: Object.freeze({ color: { r: 0.39, g: 0.3, b: 0.42 }, strength: 0.44 }),
   ridge: Object.freeze({ color: { r: 0.39, g: 0.38, b: 0.35 }, strength: 0.58 }),
   lake: Object.freeze({ color: { r: 0.22, g: 0.4, b: 0.46 }, strength: 0.72 }),

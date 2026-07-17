@@ -15,6 +15,7 @@ import {
 } from '../src/spacetimeAuthEpochResolver'
 import type {
   AuthEpochResolver,
+  ChallengeRecord,
   ChallengeStore,
   FarcasterVerifier,
   RateLimiter,
@@ -1061,6 +1062,15 @@ describe('Warpkeep auth bridge', () => {
     const missing = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', { method: 'POST' }), env())
     expect(missing.status).toBe(401)
 
+    const digest = vi.spyOn(crypto.subtle, 'digest')
+    const oversized = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
+      method: 'POST', headers: { authorization: `Bearer ${'A'.repeat(513)}` },
+    }), env())
+    expect(oversized.status).toBe(401)
+    await expect(oversized.json()).resolves.toMatchObject({ error: { code: 'invalid_admin_credentials' } })
+    expect(digest).not.toHaveBeenCalled()
+    digest.mockRestore()
+
     const browser = await h.app.fetch(new Request('https://auth.warpkeep.example/v1/admin/token', {
       method: 'POST', headers: { origin: ORIGIN, authorization: `Bearer ${ADMIN_SECRET}` },
     }), env())
@@ -1848,5 +1858,133 @@ describe('Warpkeep auth bridge', () => {
     }, { headers: { origin: ORIGIN } }), env())
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'invalid_proof' } })
+  })
+
+  it('invalidates an outstanding challenge when the current SIWF trust URI changes', async () => {
+    const h = harness()
+    const previousSiweUri = 'https://warpkeep.example/previous-auth-scope/'
+    const challengeResponse = await h.app.fetch(request('/v2/farcaster/challenge', {
+      domain: DOMAIN,
+      siweUri: previousSiweUri,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }, { headers: { origin: ORIGIN } }), env({ FARCASTER_SIWE_URI: previousSiweUri }))
+    expect(challengeResponse.status).toBe(201)
+    const challenge = await json(challengeResponse)
+    const expirationTime = String(challenge.expirationTime)
+    const previousMessage = createSiweMessage({
+      domain: DOMAIN,
+      address: '0x0000000000000000000000000000000000000001',
+      chainId: 10,
+      uri: previousSiweUri,
+      version: '1',
+      nonce: String(challenge.nonce),
+      issuedAt: new Date(Number(challenge.createdAt)),
+      expirationTime: new Date(expirationTime),
+      requestId: String(challenge.requestId),
+    })
+    const response = await h.app.fetch(request('/v2/farcaster/exchange', {
+      ...proofFor(challenge),
+      message: previousMessage,
+      siweUri: previousSiweUri,
+    }, { headers: { origin: ORIGIN } }), env())
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'challenge_mismatch' } })
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+  })
+
+  it('rejects a challenge record whose persisted lifetime exceeds the protocol ceiling', async () => {
+    const createdAt = Date.now()
+    const record: ChallengeRecord = {
+      version: 2,
+      requestId: 'A'.repeat(24),
+      nonce: 'a'.repeat(36),
+      origin: ORIGIN,
+      domain: DOMAIN,
+      siweUri: SIWE_URI,
+      createdAt,
+      expiresAt: createdAt + 10 * 60 * 1_000,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }
+    const consume = vi.fn(async () => record)
+    const h = harness({
+      challengeStore: {
+        put: async () => undefined,
+        get: async () => record,
+        consume,
+      },
+    })
+    h.setNow(createdAt + 1)
+    const response = await h.app.fetch(request('/v2/farcaster/exchange', proofFor({
+      ...record,
+      expirationTime: new Date(record.expiresAt).toISOString(),
+    }), { headers: { origin: ORIGIN } }), env())
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'challenge_mismatch' } })
+    expect(consume).not.toHaveBeenCalled()
+    expect(h.verifier.verify).not.toHaveBeenCalled()
+  })
+
+  it('maps challenge storage faults to a retryable fail-closed response', async () => {
+    const putFailure = harness({
+      challengeStore: {
+        put: async () => { throw new Error('private store detail') },
+        get: async () => null,
+        consume: async () => null,
+      },
+    })
+    const putResponse = await putFailure.app.fetch(request('/v2/farcaster/challenge', {
+      domain: DOMAIN,
+      siweUri: SIWE_URI,
+      bindingChallenge: BINDING_CHALLENGE,
+      bindingMethod: 'S256',
+    }, { headers: { origin: ORIGIN } }), env())
+
+    const timestamp = Date.now()
+    const getFailure = harness({
+      challengeStore: {
+        put: async () => undefined,
+        get: async () => { throw new Error('private store detail') },
+        consume: async () => null,
+      },
+    })
+    const getResponse = await getFailure.app.fetch(request('/v2/farcaster/exchange', proofFor({
+      nonce: 'a'.repeat(36),
+      requestId: 'A'.repeat(24),
+      createdAt: timestamp,
+      expiresAt: timestamp + 5 * 60 * 1_000,
+      expirationTime: new Date(timestamp + 5 * 60 * 1_000).toISOString(),
+    }), { headers: { origin: ORIGIN } }), env())
+
+    let storedChallenge: ChallengeRecord | null = null
+    const consumeFailure = harness({
+      challengeStore: {
+        put: async challenge => { storedChallenge = challenge },
+        get: async () => storedChallenge,
+        consume: async () => { throw new Error('private store detail') },
+      },
+    })
+    const issued = await issueChallenge(consumeFailure)
+    const consumeResponse = await consumeFailure.app.fetch(request(
+      '/v2/farcaster/exchange',
+      proofFor(issued),
+      { headers: { origin: ORIGIN } },
+    ), env())
+
+    for (const [h, response] of [
+      [putFailure, putResponse],
+      [getFailure, getResponse],
+      [consumeFailure, consumeResponse],
+    ] as const) {
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toEqual({
+        error: { code: 'challenge_unavailable', message: 'Authentication is temporarily unavailable.' },
+      })
+      expect(h.events).toContain('internal_error')
+    }
+    expect(consumeFailure.verifier.verify).not.toHaveBeenCalled()
   })
 })

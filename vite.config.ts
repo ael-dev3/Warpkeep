@@ -29,17 +29,26 @@ function normalizeDeploymentBase(value: string) {
     throw new Error('DEPLOY_BASE must be an absolute application path.');
   }
 
-  const segments = value.split('/');
+  const segments = value.split('/').slice(1);
+  if (value.endsWith('/')) segments.pop();
   for (const segment of segments) {
-    if (segment === '') continue;
+    if (segment === '') {
+      throw new Error('DEPLOY_BASE must not contain empty path segments.');
+    }
     let decoded: string;
     try {
       decoded = decodeURIComponent(segment);
     } catch {
       throw new Error('DEPLOY_BASE must not contain invalid encoded segments.');
     }
-    if (!decoded || decoded === '.' || decoded === '..' || decoded.includes('/')) {
-      throw new Error('DEPLOY_BASE must not contain traversal segments.');
+    if (
+      !decoded
+      || decoded === '.'
+      || decoded === '..'
+      || decoded !== segment
+      || !/^[A-Za-z0-9._~-]+$/.test(decoded)
+    ) {
+      throw new Error('DEPLOY_BASE must contain only canonical safe path segments.');
     }
   }
 

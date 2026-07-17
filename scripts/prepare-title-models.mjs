@@ -1,7 +1,13 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { statSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
+
+import {
+  installAtomicFileFamily,
+  readContainedRegularFile
+} from './atomic-install-file-family.mjs';
+import { resolveAttestedSystemUnzip } from './system-unzip.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const release = Object.freeze({
@@ -16,6 +22,7 @@ const archive = process.env.WARPKEEP_TITLE_ARCHIVE
     ? resolve(process.env.WARPKEEP_TITLE_ARCHIVE_CACHE)
     : resolve(root, '.cache/warpkeep-assets', release.tag, release.attachment);
 const outputDirectory = resolve(root, 'public/models/title');
+const unzipBinary = resolveAttestedSystemUnzip();
 const bundleRoot = 'warpkeep-title-assemblies-v1';
 const models = Object.freeze([
   {
@@ -43,7 +50,7 @@ function assertExact(bytes, expected, label) {
 }
 
 function unzip(args, encoding = 'utf8') {
-  const result = spawnSync('unzip', args, {
+  const result = spawnSync(unzipBinary, args, {
     cwd: root,
     encoding,
     maxBuffer: 24 * 1024 * 1024
@@ -82,12 +89,17 @@ if (!statSync(archive, { throwIfNoEntry: false })) {
     `Missing verified title archive at ${archive}. Run "npm run assets:fetch" or set WARPKEEP_TITLE_ARCHIVE to an offline copy.`
   );
 }
-const archiveBytes = readFileSync(archive);
+const archiveBytes = readContainedRegularFile({
+  root: dirname(archive),
+  relativePath: basename(archive),
+  label: `${release.tag}/${release.attachment}`,
+  expectedBytes: release.bytes
+});
 assertExact(archiveBytes, release, `${release.tag}/${release.attachment}`);
 const entries = unzip(['-Z1', archive]).split(/\r?\n/).filter(Boolean);
 assertSafeArchive(entries);
 
-mkdirSync(outputDirectory, { recursive: true });
+const prepared = [];
 for (const model of models) {
   const bytes = unzip(['-p', archive, model.member], null);
   assertExact(bytes, model, model.member);
@@ -97,7 +109,18 @@ for (const model of models) {
   if (bytes.readUInt32LE(8) !== bytes.byteLength) {
     throw new Error(`${model.member} has a mismatched declared GLB length.`);
   }
-  const destination = resolve(outputDirectory, basename(model.destination));
-  writeFileSync(destination, bytes);
-  console.log(`${model.destination}: ${model.bytes} bytes, sha256 ${model.sha256}`);
+  prepared.push({ model, bytes });
 }
+
+installAtomicFileFamily({
+  destinationRoot: outputDirectory,
+  entries: prepared.map(({ model, bytes }) => ({
+    bytes,
+    label: `${model.member} title runtime`,
+    relativePath: basename(model.destination)
+  }))
+});
+
+prepared.forEach(({ model }) => {
+  console.log(`${model.destination}: ${model.bytes} bytes, sha256 ${model.sha256}`);
+});

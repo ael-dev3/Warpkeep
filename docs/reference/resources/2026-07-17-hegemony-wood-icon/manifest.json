@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-wood-resource-icon-v1",
+  "recordedAt": "2026-07-17",
+  "purpose": "Transparent presentation icon prepared for the draft Alpha 0.3.6 wood-resource mechanics workstream; it is not evidence of a live balance, currency, reward, or entitlement.",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-17",
+    "scope": "Add the background-cleaned wood icon to Warpkeep PR #45's noninteractive presentation-only Realm HUD and permit its future official Warpkeep Pages runtime use; this authorization does not implement or prove any mechanics, balance, or entitlement.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "currency, reward, value, or entitlement rights"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "project-provided composition and style reference",
+      "repositoryRetained": false,
+      "originalName": "codex-clipboard-c97f77f3-ba37-4385-93b6-b847e1b6477e.png",
+      "bytes": 1839506,
+      "sha256": "4a66f23edf66ab1734c8af467cca9f85504ffa02171b377e5ce7fa067ae933b6",
+      "image": {
+        "format": "png",
+        "width": 1254,
+        "height": 1254,
+        "alpha": false
+      },
+      "runtimeUse": "visual composition and wood-resource icon style reference only"
+    }
+  ],
+  "generation": {
+    "service": "OpenAI image generation edit",
+    "prompt": "Use case: background-extraction\nAsset type: transparent in-game resource icon for Warpkeep's Realm HUD\nInput image: the supplied wood/log bundle is the edit target.\nPrimary request: preserve the supplied stacked cut logs, rope, plank, warm brown materials, painterly high-quality game-icon style, centered composition, and overall silhouette. Remove the checkerboard completely and replace it with one perfectly flat, uniform #00ff00 chroma-key background for local background removal.\nComposition/framing: square icon, wood bundle centered with generous clear padding on all sides; no cropping.\nConstraints: change only the background. Keep the subject opaque, crisp, cleanly separated from the background. Do not put any #00ff00 on the wood, rope, or plank. No cast shadow, contact shadow, floor, reflection, glow, text, badge, watermark, border, extra objects, gradients, or texture in the background.",
+    "intermediateRetained": false,
+    "intermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1698605,
+      "sha256": "abd682b65eeb95c17b9222f588b14187029f8b9b4f337d257ccb164c184c16e1"
+    }
+  },
+  "backgroundCleanup": {
+    "tool": "Codex imagegen remove_chroma_key.py",
+    "runtime": "Python 3.12.13 with Pillow 12.2.0",
+    "sampleMode": "border median",
+    "sampledKey": "#0af812",
+    "softMatte": true,
+    "transparentThreshold": 12,
+    "opaqueThreshold": 220,
+    "despill": true,
+    "outputEncoding": "Pillow PNG default encoding"
+  },
+  "referenceAsset": {
+    "path": "docs/reference/resources/2026-07-17-hegemony-wood-icon/hegemony-wood-reference.png",
+    "format": "png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 1190014,
+    "sha256": "e8b586724afd1082c38c89f86de6d854b86234696b3978633be96152bc17c93a",
+    "decodedRgbaSha256": "aeba154e90205840dd0de56fd79c454a09517971ed4064a0a3349e686cb5741c",
+    "alpha": {
+      "transparentPixels": 1036567,
+      "partiallyTransparentPixels": 3018,
+      "opaquePixels": 532931,
+      "visibleBounds": {
+        "minX": 160,
+        "minY": 186,
+        "maxX": 1128,
+        "maxY": 1022
+      }
+    },
+    "delivery": "checked-in dormant reference master; excluded from the Pages public directory until mechanics receive separate review"
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes the recorded Warpkeep use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "backgroundRemoved": true,
+    "woodLogsRopeAndPlankPreserved": true,
+    "reviewedOnLightAndDarkBackgrounds": true,
+    "referenceScreenshotsRetained": false
+  }
+}

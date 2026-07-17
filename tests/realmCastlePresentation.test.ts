@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   resolveCastleLabelOcclusionBounds,
-  resolveCastleLabelScreenAnchor
+  resolveCastleLabelScreenAnchor,
+  resolveStableCastleLabelEnvelope
 } from '../src/components/realm/createRealmScene';
+import type { CastleLod } from '../src/components/realm/castleInstancePlanning';
 import {
-  CASTLE_LABEL_FAR_DISTANCE,
+  createCastleBoundsProjectionEnvelope
+} from '../src/components/realm/realmCastleProjectionGeometry';
+import {
+  CASTLE_LABEL_COMPACT_VIEWPORT_MAX_WIDTH,
   CASTLE_LABEL_GAP_PIXELS,
   CASTLE_LABEL_LAYOUT_MAX_CASTLES,
   castleProfileIdentityReady,
@@ -14,34 +19,19 @@ import {
   farcasterProfileUrl,
   formatPublicMarkMicros,
   publicProfileForCastle,
-  realmEligibleCastleProjectionCount,
   realmCastleProjectionFrameKey,
-  resolveVisibleCastleLabels,
+  resolvePersistentCastleLabels,
   safeRealmProfileImageUrl,
   sectorForRealmCoord
 } from '../src/components/realm/realmCastlePresentation';
 import type { WarpkeepRealmProfile } from '../src/spacetime/warpkeepBackendTypes';
 
 describe('realm castle public presentation', () => {
-  it('counts only finite, in-viewport, projection-visible castle identities', () => {
-    expect(realmEligibleCastleProjectionCount({
-      width: 400,
-      height: 300,
-      castles: [
-        { castleId: 1, q: 0, r: 0, x: 0, y: 0, distance: 1, visible: true },
-        { castleId: 2, q: 1, r: 0, x: 400, y: 300, distance: 2, visible: true },
-        { castleId: 3, q: 2, r: 0, x: -1, y: 100, distance: 3, visible: true },
-        { castleId: 4, q: 3, r: 0, x: 100, y: 100, distance: 4, visible: false },
-        { castleId: 5, q: 4, r: 0, x: Number.NaN, y: 100, distance: 5, visible: true }
-      ]
-    })).toBe(2);
-  });
-
   it('uses safe fallbacks and strips directional/control characters from legacy player data', () => {
     const profile = publicProfileForCastle(42, [], [{
       fid: 42,
-      username: '\u202ealice\u200b',
-      displayName: 'Alice\u0000 Keeper',
+      username: '\u202ealice\u200b\u206a',
+      displayName: 'Alice\u0000\u00ad Keeper',
       pfpUrl: 'javascript:alert(1)',
       status: 'active'
     }]);
@@ -162,129 +152,185 @@ describe('realm castle public presentation', () => {
     expect(sectorForRealmCoord({ q: 1, r: -1 })).toBe(6);
   });
 
-  it('attempts every castle in the bounded 100-castle presentation budget', () => {
+  it('keeps all 100 founded identities direct even when every foundation overlaps', () => {
     const castles = Array.from({ length: CASTLE_LABEL_LAYOUT_MAX_CASTLES }, (_, index) => ({
       castleId: index + 1,
       q: index,
       r: 0,
-      x: 100 + (index % 25) * 150,
-      y: 70 + Math.floor(index / 25) * 70,
+      x: 400,
+      y: 280,
       distance: index + 1,
       visible: true
     }));
 
-    const resolved = resolveVisibleCastleLabels({ width: 3_850, height: 360, castles }, 1, 100);
+    const resolved = resolvePersistentCastleLabels({
+      width: 1_440,
+      height: 900,
+      castles
+    });
 
     expect(resolved).toHaveLength(CASTLE_LABEL_LAYOUT_MAX_CASTLES);
-    expect(resolved.every((castle) => (
-      castle.x === castle.projectedAnchor.x
-      && castle.y === castle.projectedAnchor.y
-      && castle.x === castles[castle.castleId - 1]?.x
-      && castle.y === castles[castle.castleId - 1]?.y
+    expect(resolved.map((label) => label.castleId))
+      .toEqual(castles.map((castle) => castle.castleId));
+    expect(resolved.every((label) => (
+      label.x === 400
+      && label.y === 280
+      && label.x === label.projectedAnchor.x
+      && label.y === label.projectedAnchor.y
+      && label.compact === false
     ))).toBe(true);
   });
 
-  it('keeps the selected identity at the shared base anchor and culls the collision for clustering', () => {
-    const castles = [
-      {
-        castleId: 99,
-        q: 0,
-        r: 0,
-        x: 240,
-        y: 160,
-        distance: 99,
-        visible: true
-      },
-      {
-        castleId: 100,
-        q: 1,
-        r: 0,
-        x: 240,
-        y: 160,
-        distance: 100,
-        visible: true
-      }
-    ];
+  it('keeps identity membership and presentation stable across zoom and LOD envelopes', () => {
+    const frame = (
+      distance: number,
+      castleBounds = { left: 360, top: 180, right: 440, bottom: 300 }
+    ) => ({
+      width: 1_440,
+      height: 900,
+      castles: [
+        {
+          castleId: 1,
+          q: 0,
+          r: 0,
+          x: 400,
+          y: 306,
+          distance,
+          visible: true,
+          castleBounds
+        },
+        {
+          castleId: 2,
+          q: 1,
+          r: 0,
+          x: 400,
+          y: 306,
+          distance: distance + 1,
+          visible: true,
+          castleBounds
+        }
+      ]
+    });
+    const close = resolvePersistentCastleLabels(frame(8));
+    const far = resolvePersistentCastleLabels(frame(800));
+    const lodSwap = resolvePersistentCastleLabels(frame(800, {
+      left: 358,
+      top: 182,
+      right: 442,
+      bottom: 300
+    }));
 
-    const resolved = resolveVisibleCastleLabels(
-      { width: 1_440, height: 900, castles },
-      99,
-      100
-    );
+    for (const labels of [close, far, lodSwap]) {
+      expect(labels.map(({ castleId }) => castleId)).toEqual([1, 2]);
+      expect(labels.every(({ compact }) => compact === false)).toBe(true);
+      expect(labels.every((label) => (
+        label.x === label.projectedAnchor.x
+        && label.y === label.projectedAnchor.y
+      ))).toBe(true);
+    }
+    expect(realmCastleProjectionFrameKey(frame(8)))
+      .toBe(realmCastleProjectionFrameKey(frame(800)));
+    expect(realmCastleProjectionFrameKey(frame(800)))
+      .not.toBe(realmCastleProjectionFrameKey(frame(800, {
+        left: 358,
+        top: 182,
+        right: 442,
+        bottom: 300
+      })));
+  });
 
-    expect(resolved).toHaveLength(1);
-    expect(resolved[0]).toMatchObject({
-      castleId: 100,
-      compact: false,
-      x: 240,
+  it('uses only the stable viewport breakpoint for compact presentation', () => {
+    const castle = {
+      castleId: 1,
+      q: 0,
+      r: 0,
+      x: 200,
       y: 160,
-      projectedAnchor: { x: 240, y: 160 }
+      distance: 10_000,
+      visible: true
+    };
+    const wide = resolvePersistentCastleLabels({
+      width: CASTLE_LABEL_COMPACT_VIEWPORT_MAX_WIDTH + 1,
+      height: 700,
+      castles: [castle]
     });
+    const compact = resolvePersistentCastleLabels({
+      width: CASTLE_LABEL_COMPACT_VIEWPORT_MAX_WIDTH,
+      height: 700,
+      castles: [{ ...castle, distance: 1 }]
+    });
+
+    expect(wide[0]?.compact).toBe(false);
+    expect(compact[0]?.compact).toBe(true);
   });
 
-  it('never displaces an accepted direct foundation label', () => {
-    const resolved = resolveVisibleCastleLabels({
-      width: 800,
-      height: 600,
-      castles: [{
-        castleId: 1,
-        q: 0,
-        r: 0,
-        x: 400,
-        y: 280,
-        distance: 1,
-        visible: true
-      }]
-    }, 1, 1);
-
-    expect(resolved).toHaveLength(1);
-    expect(resolved[0]).toMatchObject({
-      x: 400,
-      y: 280,
-      projectedAnchor: { x: 400, y: 280 }
-    });
-    expect(Math.hypot(
-      resolved[0].x - resolved[0].projectedAnchor.x,
-      resolved[0].y - resolved[0].projectedAnchor.y
-    )).toBe(0);
-  });
-
-  it('culls edge anchors instead of nudging identity away from its castle base', () => {
-    const resolved = resolveVisibleCastleLabels({
+  it('removes invalid, duplicate, projection-invisible, or clipped castle controls', () => {
+    const resolved = resolvePersistentCastleLabels({
       width: 320,
       height: 300,
       castles: [
-        { castleId: 1, q: 0, r: 0, x: 62, y: 120, distance: 0, visible: true },
-        { castleId: 2, q: 1, r: 0, x: 258, y: 220, distance: 1, visible: true }
+        { castleId: 1, q: 0, r: 0, x: -20, y: 120, distance: 0, visible: true },
+        { castleId: 1, q: 0, r: 0, x: 200, y: 120, distance: 0, visible: true },
+        { castleId: 2, q: 1, r: 0, x: 200, y: 120, distance: 1, visible: false },
+        { castleId: 3, q: 2, r: 0, x: Number.NaN, y: 120, distance: 2, visible: true },
+        { castleId: 0, q: 3, r: 0, x: 200, y: 120, distance: 3, visible: true }
       ]
-    }, 1, 2);
-
-    expect(resolved).toEqual([]);
-  });
-
-  it('keeps accepted distant projections at their foundation base', () => {
-    const resolved = resolveVisibleCastleLabels({
-      width: 800,
-      height: 600,
-      castles: [{
-        castleId: 1,
-        q: 0,
-        r: 0,
-        x: 400,
-        y: 262,
-        distance: CASTLE_LABEL_FAR_DISTANCE * 10,
-        visible: true,
-        castleBounds: { left: 390, top: 236, right: 410, bottom: 256 }
-      }]
-    }, undefined, undefined, 1);
+    });
 
     expect(resolved).toHaveLength(1);
     expect(resolved[0]).toMatchObject({
       castleId: 1,
-      compact: false,
-      x: 400,
-      y: 262,
-      projectedAnchor: { x: 400, y: 262 }
+      compact: true,
+      x: 200,
+      y: 120,
+      projectedAnchor: { x: 200, y: 120 }
+    });
+  });
+
+  it('keeps the full conservative label rail inside the viewport', () => {
+    const compact = resolvePersistentCastleLabels({
+      width: 320,
+      height: 300,
+      castles: [
+        { castleId: 1, q: 0, r: 0, x: 57, y: 120, distance: 0, visible: true },
+        { castleId: 2, q: 1, r: 0, x: 58, y: 120, distance: 1, visible: true },
+        { castleId: 3, q: 2, r: 0, x: 262, y: 120, distance: 2, visible: true },
+        { castleId: 4, q: 3, r: 0, x: 263, y: 120, distance: 3, visible: true }
+      ]
+    });
+    const wide = resolvePersistentCastleLabels({
+      width: 1_000,
+      height: 600,
+      castles: [
+        { castleId: 5, q: 0, r: 0, x: 83, y: 120, distance: 0, visible: true },
+        { castleId: 6, q: 1, r: 0, x: 84, y: 120, distance: 1, visible: true },
+        { castleId: 7, q: 2, r: 0, x: 916, y: 120, distance: 2, visible: true },
+        { castleId: 8, q: 3, r: 0, x: 917, y: 120, distance: 3, visible: true }
+      ]
+    });
+
+    expect(compact.map((label) => label.castleId)).toEqual([2, 3]);
+    expect(wide.map((label) => label.castleId)).toEqual([6, 7]);
+  });
+
+  it('omits foundation rails conservatively obstructed by visible Realm UI', () => {
+    const castles = [
+      { castleId: 1, q: 0, r: 0, x: 220, y: 120, distance: 1, visible: true },
+      { castleId: 2, q: 1, r: 0, x: 520, y: 320, distance: 2, visible: true }
+    ];
+    const resolved = resolvePersistentCastleLabels({
+      width: 1_000,
+      height: 600,
+      castles
+    }, {
+      reservedRects: [{ left: 0, top: 0, right: 280, bottom: 220 }]
+    });
+
+    expect(resolved.map((label) => label.castleId)).toEqual([2]);
+    expect(resolved[0]).toMatchObject({
+      x: 520,
+      y: 320,
+      projectedAnchor: { x: 520, y: 320 }
     });
   });
 
@@ -333,7 +379,53 @@ describe('realm castle public presentation', () => {
     expect(fallback.conservativeCastleBounds).toEqual(fallback.castleBounds);
   });
 
-  it('invalidates projection coalescing when a stationary castle changes distance band', () => {
+  it('keeps the label envelope fixed while active model LOD changes', () => {
+    const high = createCastleBoundsProjectionEnvelope({
+      minX: -2,
+      minY: 0,
+      minZ: -2,
+      maxX: 2,
+      maxY: 4,
+      maxZ: 2
+    })!;
+    const balanced = createCastleBoundsProjectionEnvelope({
+      minX: -1.5,
+      minY: 0,
+      minZ: -1.5,
+      maxX: 1.5,
+      maxY: 3.5,
+      maxZ: 1.5
+    })!;
+    const compact = createCastleBoundsProjectionEnvelope({
+      minX: -1,
+      minY: 0,
+      minZ: -1,
+      maxX: 1,
+      maxY: 3,
+      maxZ: 1
+    })!;
+    const envelopes = new Map<CastleLod, typeof high>([
+      ['high', high],
+      ['balanced', balanced],
+      ['compact', compact]
+    ]);
+
+    const selectionsAcrossActiveLods = (['high', 'balanced', 'compact'] as const)
+      .map((_activeLod) => resolveStableCastleLabelEnvelope(
+        envelopes,
+        { maximumLod: 'high' },
+        compact
+      ));
+
+    expect(selectionsAcrossActiveLods).toEqual([high, high, high]);
+    expect(resolveStableCastleLabelEnvelope(
+      new Map(),
+      { maximumLod: 'high' },
+      compact
+    )).toBe(compact);
+  });
+
+  it('does not invalidate projection coalescing for a pure camera-distance change', () => {
     const frame = (distance: number) => ({
       width: 1_440,
       height: 900,
@@ -349,10 +441,8 @@ describe('realm castle public presentation', () => {
       }]
     });
 
-    expect(realmCastleProjectionFrameKey(frame(CASTLE_LABEL_FAR_DISTANCE - 0.01)))
-      .not.toBe(realmCastleProjectionFrameKey(frame(CASTLE_LABEL_FAR_DISTANCE + 0.01)));
     expect(realmCastleProjectionFrameKey(frame(10)))
-      .not.toBe(realmCastleProjectionFrameKey(frame(10.3)));
+      .toBe(realmCastleProjectionFrameKey(frame(10_000)));
     expect(realmCastleProjectionFrameKey({
       ...frame(10),
       castles: frame(10).castles.map((castle) => ({ ...castle, presented: true }))
@@ -360,5 +450,27 @@ describe('realm castle public presentation', () => {
       ...frame(10),
       castles: frame(10).castles.map((castle) => ({ ...castle, presented: false }))
     }));
+  });
+
+  it('retains tenth-pixel camera motion while coalescing imperceptible jitter', () => {
+    const frame = (x: number) => ({
+      width: 1_440,
+      height: 900,
+      castles: [{
+        castleId: 1,
+        q: 0,
+        r: 0,
+        x,
+        y: 450,
+        distance: 10,
+        visible: true,
+        presented: true
+      }]
+    });
+
+    expect(realmCastleProjectionFrameKey(frame(720)))
+      .toBe(realmCastleProjectionFrameKey(frame(720.04)));
+    expect(realmCastleProjectionFrameKey(frame(720)))
+      .not.toBe(realmCastleProjectionFrameKey(frame(720.06)));
   });
 });

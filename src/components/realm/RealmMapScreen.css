@@ -210,14 +210,27 @@
 
 .realm-hud__header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.05rem 0.5rem;
   align-items: start;
   min-width: 0;
 }
 
-.realm-hud__header > p {
+.realm-hud .realm-castle-avatar {
+  --realm-avatar-size: 2.65rem;
   grid-column: 1;
+  grid-row: 1;
+  margin-top: 0.08rem;
+}
+
+.realm-hud__identity {
+  display: grid;
+  grid-column: 2;
+  min-width: 0;
+  gap: 0.05rem;
+}
+
+.realm-hud__identity > p {
   margin: 0;
   color: var(--realm-lavender);
   font-size: 0.6875rem;
@@ -226,7 +239,6 @@
 }
 
 .realm-hud__header h1 {
-  grid-column: 1;
   min-width: 0;
   margin: 0.06rem 0 0;
   overflow: hidden;
@@ -237,7 +249,6 @@
 }
 
 .realm-hud__keeper {
-  grid-column: 1;
   min-width: 0;
   overflow: hidden;
   color: var(--realm-electrum);
@@ -248,8 +259,8 @@
 }
 
 .realm-hud__badges {
-  grid-column: 2;
-  grid-row: 1 / span 3;
+  grid-column: 3;
+  grid-row: 1;
 }
 
 .realm-hud__badges span {
@@ -398,6 +409,17 @@
   background: var(--realm-panel);
   box-shadow: var(--warpkeep-surface-shadow, 0 1rem 3.5rem rgb(0 0 0 / 42%));
   backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
+}
+
+/* The positioned navigator shell has no visual surface of its own. Once the
+   dialog opens, keep that transparent high-z-index box from intercepting map
+   controls while preserving the dialog as the sole interactive descendant. */
+.realm-cell-navigator:has(.realm-cell-navigator__dialog) {
+  pointer-events: none;
+}
+
+.realm-cell-navigator:has(.realm-cell-navigator__dialog) .realm-cell-navigator__dialog {
+  pointer-events: auto;
 }
 
 .realm-cell-navigator__heading {

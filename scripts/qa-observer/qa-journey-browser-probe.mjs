@@ -774,7 +774,7 @@ async function runDesktopMenuSurfaces(session, href, state) {
 
   await activateExactControl(session, 'button', 'SETTINGS');
   await waitForMenuSurfaceStage(session, 'settings-open', href, DESKTOP_VIEWPORT, state);
-  await activateExactControl(session, '[role="dialog"] button', 'BACK TO COMMANDS');
+  await activateExactControl(session, '[role="dialog"] button', 'BACK TO THE MENU');
   await waitForMenuSurfaceStage(session, 'settings-closed', href, DESKTOP_VIEWPORT, state);
 
   await activateExactControl(session, 'button', 'CREDITS');

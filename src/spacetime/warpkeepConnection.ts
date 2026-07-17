@@ -23,6 +23,17 @@ import {
   type WarpkeepBackendInfo
 } from './warpkeepProtocol';
 import { validateCanonicalGenesisSnapshot } from './canonicalGenesisSnapshot';
+import {
+  REALM_CASTLE_NAME_MAXIMUM_LENGTH,
+  REALM_DISPLAY_NAME_MAXIMUM_LENGTH,
+  REALM_MARKS_POLICY_MAXIMUM_LENGTH,
+  REALM_PUBLIC_BIO_MAXIMUM_LENGTH,
+  REALM_PUBLIC_STATUS_MAXIMUM_LENGTH,
+  isCanonicalRealmPublicText,
+  sanitizeOptionalRealmProfileImageUrl,
+  sanitizeOptionalRealmPublicText,
+  sanitizeOptionalRealmUsername
+} from './publicRealmProjectionPolicy';
 
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
@@ -71,8 +82,23 @@ function requireSafePositiveNumber(value: bigint | number | undefined) {
   return converted;
 }
 
-function toOptionalString(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value : undefined;
+function readOptionalPublicText(value: unknown, maximumLength: number) {
+  return sanitizeOptionalRealmPublicText(value, maximumLength);
+}
+
+function readRequiredPublicText(value: unknown, maximumLength: number) {
+  if (!isCanonicalRealmPublicText(value, maximumLength)) {
+    throw new Error('Warpkeep records are unavailable.');
+  }
+  return value;
+}
+
+function readOptionalUsername(value: unknown) {
+  return sanitizeOptionalRealmUsername(value);
+}
+
+function readOptionalProfileImageUrl(value: unknown) {
+  return sanitizeOptionalRealmProfileImageUrl(value);
 }
 
 function toSafeTimestampMilliseconds(value: { toMillis: () => bigint } | undefined) {
@@ -229,14 +255,22 @@ function readPlayers(connection: WarpkeepConnection): WarpkeepPlayer[] {
   const rows: WarpkeepPlayer[] = [];
   for (const row of connection.db.playerV2.iter()) {
     const fid = requireSafePositiveNumber(row.fid);
+    const username = readOptionalUsername(row.username);
+    const displayName = readOptionalPublicText(
+      row.displayName,
+      REALM_DISPLAY_NAME_MAXIMUM_LENGTH
+    );
+    const pfpUrl = readOptionalProfileImageUrl(row.pfpUrl);
+    const status = readRequiredPublicText(
+      row.status,
+      REALM_PUBLIC_STATUS_MAXIMUM_LENGTH
+    );
     rows.push({
       fid,
-      ...(toOptionalString(row.username) === undefined ? {} : { username: row.username! }),
-      ...(toOptionalString(row.displayName) === undefined
-        ? {}
-        : { displayName: row.displayName! }),
-      ...(toOptionalString(row.pfpUrl) === undefined ? {} : { pfpUrl: row.pfpUrl! }),
-      status: row.status
+      ...(username === undefined ? {} : { username }),
+      ...(displayName === undefined ? {} : { displayName }),
+      ...(pfpUrl === undefined ? {} : { pfpUrl }),
+      status
     });
   }
   return rows.sort((left, right) => left.fid - right.fid);
@@ -267,15 +301,33 @@ function readRealmProfiles(connection: WarpkeepConnection): WarpkeepRealmProfile
     const fid = requireSafePositiveNumber(row.fid);
     const admittedAt = toSafeTimestampMilliseconds(row.admittedAt);
     const firstAuthenticatedAt = toSafeTimestampMilliseconds(row.firstAuthenticatedAt);
+    const canonicalUsername = readOptionalUsername(row.canonicalUsername);
+    const displayName = readOptionalPublicText(
+      row.displayName,
+      REALM_DISPLAY_NAME_MAXIMUM_LENGTH
+    );
+    const pfpUrl = readOptionalProfileImageUrl(row.pfpUrl);
+    const publicBio = readOptionalPublicText(
+      row.publicBio,
+      REALM_PUBLIC_BIO_MAXIMUM_LENGTH
+    );
+    const publicStatus = readRequiredPublicText(
+      row.publicStatus,
+      REALM_PUBLIC_STATUS_MAXIMUM_LENGTH
+    );
+    const marksPolicyVersion = readOptionalPublicText(
+      row.marksPolicyVersion,
+      REALM_MARKS_POLICY_MAXIMUM_LENGTH
+    );
     rows.push({
       fid,
-      ...(toOptionalString(row.canonicalUsername) ? { canonicalUsername: row.canonicalUsername! } : {}),
-      ...(toOptionalString(row.displayName) ? { displayName: row.displayName! } : {}),
-      ...(toOptionalString(row.pfpUrl) ? { pfpUrl: row.pfpUrl! } : {}),
-      ...(toOptionalString(row.publicBio) ? { publicBio: row.publicBio! } : {}),
+      ...(canonicalUsername === undefined ? {} : { canonicalUsername }),
+      ...(displayName === undefined ? {} : { displayName }),
+      ...(pfpUrl === undefined ? {} : { pfpUrl }),
+      ...(publicBio === undefined ? {} : { publicBio }),
       ...(admittedAt === undefined ? {} : { admittedAt }),
       ...(firstAuthenticatedAt === undefined ? {} : { firstAuthenticatedAt }),
-      publicStatus: row.publicStatus,
+      publicStatus,
       communityStatsVisible: row.communityStatsVisible,
       ...(row.totalSnapBurnedMicros === undefined
         ? {}
@@ -283,9 +335,7 @@ function readRealmProfiles(connection: WarpkeepConnection): WarpkeepRealmProfile
       ...(row.marksEarnedMicros === undefined ? {} : { marksEarnedMicros: row.marksEarnedMicros }),
       ...(row.marksSpentMicros === undefined ? {} : { marksSpentMicros: row.marksSpentMicros }),
       ...(row.marksBalanceMicros === undefined ? {} : { marksBalanceMicros: row.marksBalanceMicros }),
-      ...(toOptionalString(row.marksPolicyVersion)
-        ? { marksPolicyVersion: row.marksPolicyVersion! }
-        : {})
+      ...(marksPolicyVersion === undefined ? {} : { marksPolicyVersion })
     });
   }
   return rows.sort((left, right) => left.fid - right.fid);
@@ -314,6 +364,10 @@ function readCastles(connection: WarpkeepConnection): WarpkeepCastle[] {
     const castleId = requireSafePositiveNumber(row.castleId);
     const ownerFid = requireSafePositiveNumber(row.ownerFid);
     const foundedAt = toSafeTimestampMilliseconds(row.createdAt);
+    const name = readRequiredPublicText(
+      row.name,
+      REALM_CASTLE_NAME_MAXIMUM_LENGTH
+    );
     rows.push({
       castleId,
       ownerFid,
@@ -321,7 +375,7 @@ function readCastles(connection: WarpkeepConnection): WarpkeepCastle[] {
       q: row.q,
       r: row.r,
       level: row.level,
-      name: row.name,
+      name,
       ...(foundedAt === undefined ? {} : { foundedAt })
     });
   }

@@ -69,12 +69,33 @@ const ALPHA_0_3_5_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   alphaNotice: 'Released 16 July 2026 after protected deployment and exact-build verification.'
 });
 
+const ALPHA_0_3_6_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '18 JUL 2026',
+  title: 'REALM READABILITY & STABILITY',
+  summary:
+    'Alpha 0.3.6 is a candidate Realm-presentation patch for a brighter, greener, more dependable Lowlands without changing player authority.',
+  highlights: Object.freeze([
+    'A camera-visible daylight sun, clear-sky/earth bounce, brighter bounded IBL, and role-specific material calibration give every castle tier a more sunlit read; global exposure, light count, shadow allocation, and demand-driven rendering remain unchanged.',
+    'Lowlands now favor cleaner green scene-linear terrain colours, and the SVG fallback correctly encodes that same palette for display.',
+    'Hardware-aware Auto remains the recommended default: it selects Cinematic only with measured headroom, keeps normal phones Balanced, and fails down on constrained devices. Every fixed profile remains selectable, and Settings returns you back to the menu.',
+    'Wider local terrain foundations support each authored island footprint, and castle interaction feedback no longer draws a depth-tested cell line through the landscape base.',
+    'Every safely in-viewport founded castle keeps a direct identity rail at its exact foundation anchor; clipped or visible-UI-obstructed controls stay in Explore, exactly one visible label is tabbable, spatial arrow keys and Home/End provide deterministic navigation, and rendered QA records bounded label-on-label contention while rejecting non-label hit obstruction, viewport clipping, or HUD overlap. Explore remains the complete castle list.',
+    'Ordinary wheel and pinch input retain a readable zoom floor, while the explicit Realm overview frames the actual convex rendered-terrain perimeter with a conservative raised-scene margin so canonical slots remain inspectable.',
+    'Dragging now catches on the first deliberate attempt, even from a castle name; scroll and pinch zoom stay centered on the point of interest, and labels move smoothly with the map.',
+    'The compact player HUD now shows the sanitized static Farcaster portrait with the existing safe monogram fallback; exact resource-icon masters remain outside the Pages public tree and a fail-closed bigint decoder is included only as future groundwork, with no balances, production, construction, or placeholder counters enabled.',
+    'Defensive source hardening tightens authentication configuration, cookies, bounded transports, canonical profile/castle ingress, complete founder-profile projections without requiring first-auth player bootstrap, tooling, and CI without adding a bypass or mutating admission, Worker, SpacetimeDB, production data, authoritative world state, DNS, wallet, or Marks.'
+  ]),
+  alphaNotice:
+    'Alpha 0.3.6 candidate prepared 18 July 2026; it is not a verified public release until protected deployment and exact-build verification.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
     '0.3.2': ALPHA_0_3_2_PATCH_NOTES,
     '0.3.3': ALPHA_0_3_3_PATCH_NOTES,
     '0.3.4': ALPHA_0_3_4_PATCH_NOTES,
-    '0.3.5': ALPHA_0_3_5_PATCH_NOTES
+    '0.3.5': ALPHA_0_3_5_PATCH_NOTES,
+    '0.3.6': ALPHA_0_3_6_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

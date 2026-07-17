@@ -305,14 +305,15 @@ export function createRealmObserverHarnessRealm(
       return { ...tile, ...(occupantCastleId === undefined ? {} : { occupantCastleId }) };
     }),
     tileMetadata: CANONICAL_WORLD_TILE_META.map((metadata) => ({ ...metadata })),
-    players: [],
+    players: syntheticOwnerKeys.map((fid) => Object.freeze({ fid, status: 'active' })),
     profiles,
     castles,
     ownCastle
   };
   const snapshot = validateCanonicalGenesisSnapshot(candidate, {
     ownFid: ownCastle.ownerFid,
-    protocolVersion: observer.protocolVersion
+    protocolVersion: observer.protocolVersion,
+    allowLocalProfilePlaceholder: true
   });
   return Object.freeze({
     identity: Object.freeze({ fid: ownCastle.ownerFid }),

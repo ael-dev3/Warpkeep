@@ -11,7 +11,7 @@
 }
 
 .warpkeep-settings__panel {
-  width: min(44rem, 100%);
+  width: min(46rem, 100%);
   max-height: 100%;
   overflow: auto;
   padding: clamp(1.1rem, 3vw, 2.25rem);
@@ -72,14 +72,33 @@
   align-items: start;
   min-height: 3.25rem;
   padding: 0.8rem;
-  border: 1px solid rgba(207, 174, 107, 0.22);
-  background: rgba(255, 255, 255, 0.02);
+  position: relative;
+  border: 1px solid rgba(207, 174, 107, 0.24);
+  background: linear-gradient(112deg, rgba(255, 255, 255, 0.035), rgba(80, 51, 93, 0.055));
   cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
 }
 
 .warpkeep-settings__choice[data-selected="true"] {
-  border-color: #e4c87f;
-  background: rgba(132, 82, 156, 0.22);
+  border-color: #f0d68f;
+  background: linear-gradient(112deg, rgba(210, 174, 96, 0.16), rgba(122, 74, 150, 0.24));
+  box-shadow: inset 0 0 0 1px rgba(255, 230, 167, 0.11), 0 0.65rem 1.8rem rgba(0, 0, 0, 0.18);
+}
+
+.warpkeep-settings__choice[data-default="true"]::after {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.65rem;
+  color: #e9c97f;
+  content: "STANDARD";
+  font-size: 0.56rem;
+  font-weight: 760;
+  letter-spacing: 0.16em;
+}
+
+.warpkeep-settings__choice:hover {
+  border-color: rgba(236, 207, 136, 0.72);
+  transform: translateY(-1px);
 }
 
 .warpkeep-settings__choice input {
@@ -95,6 +114,7 @@
 }
 
 .warpkeep-settings__choice strong {
+  padding-right: 4.5rem;
   letter-spacing: 0.12em;
 }
 
@@ -134,6 +154,12 @@
 .warpkeep-settings__actions button:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .warpkeep-settings__choice {
+    transition: none;
+  }
 }
 
 @media (max-width: 520px) {

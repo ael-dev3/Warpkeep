@@ -25,6 +25,13 @@ function decodeBase64Url(value: string): Uint8Array<ArrayBuffer> | null {
     const binary = atob(`${normalized}${'='.repeat((4 - normalized.length % 4) % 4)}`)
     const bytes = new Uint8Array(new ArrayBuffer(binary.length))
     for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+    // A 32-byte value has unused low bits in its final base64url character.
+    // Reject alternate spellings of the same MAC so the cookie reference has
+    // exactly one wire representation.
+    if (base64Url(bytes) !== value) {
+      bytes.fill(0)
+      return null
+    }
     return bytes
   } catch {
     return null

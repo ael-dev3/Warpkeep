@@ -27,10 +27,12 @@ describe('pinned GitHub release fetch', () => {
   });
 
   it('rejects a redirect to a non-GitHub payload host before fetching it', async () => {
-    const fetchImplementation = vi.fn().mockResolvedValue(new Response(null, {
+    const redirect = new Response('discard me', {
       status: 302,
       headers: { location: 'https://example.test/payload' }
-    }));
+    });
+    const cancel = vi.spyOn(redirect.body!, 'cancel');
+    const fetchImplementation = vi.fn().mockResolvedValue(redirect);
 
     await expect(fetchPinnedGithubReleaseAsset(
       SOURCE,
@@ -38,21 +40,25 @@ describe('pinned GitHub release fetch', () => {
       fetchImplementation as typeof fetch
     )).rejects.toThrow(/unapproved payload host/i);
     expect(fetchImplementation).toHaveBeenCalledOnce();
+    expect(cancel).toHaveBeenCalledOnce();
   });
 
   it('fails closed if the approved payload endpoint redirects again', async () => {
+    const secondRedirect = new Response('discard me too', { status: 307 });
+    const cancel = vi.spyOn(secondRedirect.body!, 'cancel');
     const fetchImplementation = vi.fn()
       .mockResolvedValueOnce(new Response(null, {
         status: 302,
         headers: { location: 'https://objects.githubusercontent.com/first' }
       }))
-      .mockResolvedValueOnce(new Response(null, { status: 307 }));
+      .mockResolvedValueOnce(secondRedirect);
 
     await expect(fetchPinnedGithubReleaseAsset(
       SOURCE,
       {},
       fetchImplementation as typeof fetch
     )).rejects.toThrow(/additional redirect/i);
+    expect(cancel).toHaveBeenCalledOnce();
   });
 
   it('rejects non-release and credential-bearing source URLs', async () => {

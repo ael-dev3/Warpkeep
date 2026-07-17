@@ -31,19 +31,19 @@ export const REALM_ENVIRONMENT_SPECS: Readonly<
   high: Object.freeze({
     textureWidth: 256,
     textureHeight: 128,
-    environmentIntensity: 0.36,
+    environmentIntensity: 0.44,
     sunDiscSegments: 28
   }),
   balanced: Object.freeze({
     textureWidth: 128,
     textureHeight: 64,
-    environmentIntensity: 0.32,
+    environmentIntensity: 0.39,
     sunDiscSegments: 20
   }),
   reduced: Object.freeze({
     textureWidth: 64,
     textureHeight: 32,
-    environmentIntensity: 0.28,
+    environmentIntensity: 0.34,
     sunDiscSegments: 12
   })
 });
@@ -273,7 +273,7 @@ export function selectRealmQuality(input: RealmQualityInput): RealmQuality {
   const width = finitePositive(input.width, 1280);
   const height = finitePositive(input.height, 720);
   const dpr = finitePositive(input.devicePixelRatio, 1);
-  const maxTextureSize = finitePositive(input.maxTextureSize ?? 8192, 8192);
+  const maxTextureSize = finitePositive(input.maxTextureSize ?? 4096, 4096);
   const shortestSide = Math.min(width, height);
 
   if (maxTextureSize < 4096 || shortestSide < 280 || width * height * dpr * dpr > 18_000_000) {

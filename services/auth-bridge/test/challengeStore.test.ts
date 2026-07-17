@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ChallengeReplayGuard } from '../src/challengeStore'
+import { ChallengeReplayGuard, DurableObjectChallengeStore } from '../src/challengeStore'
 import type {
+  DurableObjectNamespace,
   ChallengeRecord,
   DurableObjectState,
   DurableObjectStorage,
@@ -70,6 +71,38 @@ afterEach(() => {
 })
 
 describe('ChallengeReplayGuard storage lifecycle', () => {
+  it('distinguishes absence from unavailable or corrupted Durable Object responses', async () => {
+    const namespace = (response: () => Response): DurableObjectNamespace => ({
+      idFromName: () => ({}),
+      get: () => ({ fetch: async () => response() }),
+    })
+
+    await expect(new DurableObjectChallengeStore(namespace(
+      () => new Response(null, { status: 404 }),
+    )).get('missing')).resolves.toBeNull()
+    await expect(new DurableObjectChallengeStore(namespace(
+      () => new Response(null, { status: 503 }),
+    )).get('unavailable')).rejects.toThrow('unavailable')
+    await expect(new DurableObjectChallengeStore(namespace(
+      () => Response.json({ malformed: true }),
+    )).consume('corrupted')).rejects.toThrow('invalid state')
+    await expect(new DurableObjectChallengeStore(namespace(
+      () => Response.json(challenge()),
+    )).get(challenge().requestId)).resolves.toEqual(challenge())
+  })
+
+  it('accepts requests only from its exact internal origin', async () => {
+    const storage = new FakeStorage()
+    const guard = new ChallengeReplayGuard({ storage } as DurableObjectState)
+    const response = await guard.fetch(new Request('https://hostile.example/record', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(challenge()),
+    }))
+    expect(response.status).toBe(404)
+    expect(storage.values.size).toBe(0)
+  })
+
   it('schedules expiry and fully deallocates a consumed challenge', async () => {
     vi.useFakeTimers({ now: NOW })
     const storage = new FakeStorage()
@@ -139,10 +172,12 @@ describe('ChallengeReplayGuard storage lifecycle', () => {
       { ...valid, requestId: '' },
       { ...valid, nonce: '' },
       { ...valid, createdAt: -1 },
+      { ...valid, createdAt: NOW + 1, expiresAt: NOW + 5 * 60 * 1_000 + 1 },
       { ...valid, createdAt: NOW + 0.5 },
       { ...valid, createdAt: Number.MAX_SAFE_INTEGER + 1 },
       { ...valid, expiresAt: NOW },
       { ...valid, expiresAt: NOW + 0.5 },
+      { ...valid, expiresAt: NOW + 5 * 60 * 1_000 + 1 },
     ]) {
       const storage = new FakeStorage()
       storage.values.set(RECORD_KEY, candidate)
@@ -167,7 +202,9 @@ describe('ChallengeReplayGuard storage lifecycle', () => {
       { ...valid, bindingChallenge: `${'A'.repeat(42)}B` },
       { ...valid, origin: '' },
       { ...valid, createdAt: -1 },
+      { ...valid, createdAt: NOW + 1, expiresAt: NOW + 5 * 60 * 1_000 + 1 },
       { ...valid, expiresAt: valid.createdAt },
+      { ...valid, expiresAt: NOW + 5 * 60 * 1_000 + 1 },
     ]
 
     for (const candidate of invalidRecords) {

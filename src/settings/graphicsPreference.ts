@@ -10,6 +10,9 @@ export const GRAPHICS_PREFERENCES = [
 export type GraphicsPreference = (typeof GRAPHICS_PREFERENCES)[number];
 export type GraphicsQualityTier = Exclude<GraphicsPreference, 'auto'>;
 
+/** Hardware-aware unless the player explicitly chooses a fixed profile. */
+export const DEFAULT_GRAPHICS_PREFERENCE: GraphicsPreference = 'auto';
+
 export type GraphicsCapabilityInput = Readonly<{
   width: number;
   height: number;
@@ -27,7 +30,7 @@ export function isGraphicsPreference(value: unknown): value is GraphicsPreferenc
 }
 
 export function parseGraphicsPreference(value: unknown): GraphicsPreference {
-  return isGraphicsPreference(value) ? value : 'auto';
+  return isGraphicsPreference(value) ? value : DEFAULT_GRAPHICS_PREFERENCE;
 }
 
 export function readGraphicsPreference(
@@ -37,9 +40,9 @@ export function readGraphicsPreference(
     const resolvedStorage = storage ?? (typeof window === 'undefined' ? undefined : window.localStorage);
     return resolvedStorage
       ? parseGraphicsPreference(resolvedStorage.getItem(WARPKEEP_GRAPHICS_PREFERENCE_KEY))
-      : 'auto';
+      : DEFAULT_GRAPHICS_PREFERENCE;
   } catch {
-    return 'auto';
+    return DEFAULT_GRAPHICS_PREFERENCE;
   }
 }
 
@@ -50,7 +53,7 @@ export function writeGraphicsPreference(
   try {
     const resolvedStorage = storage ?? (typeof window === 'undefined' ? undefined : window.localStorage);
     if (!resolvedStorage) return;
-    if (preference === 'auto') {
+    if (preference === DEFAULT_GRAPHICS_PREFERENCE) {
       resolvedStorage.removeItem(WARPKEEP_GRAPHICS_PREFERENCE_KEY);
     } else {
       resolvedStorage.setItem(WARPKEEP_GRAPHICS_PREFERENCE_KEY, preference);
@@ -76,7 +79,10 @@ export function resolveGraphicsQuality(
   const height = finitePositive(input.height, 720);
   const cores = finitePositive(input.hardwareConcurrency, 4);
   const memory = finitePositive(input.deviceMemory, 4);
-  const maxTextureSize = finitePositive(input.maxTextureSize, 8192);
+  // Unknown GPU capability is not evidence of Cinematic headroom. Keep an
+  // unreported or failed WebGL2 probe on the broadly compatible Balanced path;
+  // explicit player choices still take precedence above.
+  const maxTextureSize = finitePositive(input.maxTextureSize, 4096);
   const shortestSide = Math.min(width, height);
   const drawingBufferPixels = width * height * Math.min(
     finitePositive(input.devicePixelRatio, 1),
@@ -86,23 +92,17 @@ export function resolveGraphicsQuality(
   if (shortestSide < 280 || cores <= 2 || memory <= 2 || maxTextureSize < 4096) {
     return 'performance';
   }
-  if (width <= 1024 || height < 680) {
-    return 'balanced';
-  }
+  if (width <= 1024 || height < 680) return 'balanced';
   if (
     width >= 1180
     && height >= 680
     && drawingBufferPixels <= 12_000_000
-    // Cinematic keeps three castle/base LOD assemblies resident. Auto-select
-    // it only on clearly measured headroom; it remains an explicit setting on
-    // browsers that do not expose device memory or on otherwise capable 4 GB
-    // systems.
     && cores >= 6
     && memory >= 8
+    && input.maxTextureSize !== undefined
+    && Number.isFinite(input.maxTextureSize)
     && maxTextureSize >= 8192
-  ) {
-    return 'cinematic';
-  }
+  ) return 'cinematic';
   return 'balanced';
 }
 

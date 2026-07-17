@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { chmodSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
+import { rmSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
 
 import {
   GLTFPACK_VERSION,
@@ -12,6 +12,7 @@ import { fetchPinnedGithubReleaseAsset } from './fetch-pinned-github-asset.mjs';
 import { readExactResponseBody } from './read-exact-response-body.mjs';
 import { resolveAttestedSystemUnzip } from './system-unzip.mjs';
 import { readWarpkeepPackageVersion } from './warpkeep-package-version.mjs';
+import { writePinnedCacheFile } from './write-pinned-cache-file.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const repository = 'zeux/meshoptimizer';
@@ -24,8 +25,9 @@ const archive = process.env.WARPKEEP_GLTFPACK_ARCHIVE_CACHE
 const binary = process.env.WARPKEEP_GLTFPACK_BIN_CACHE
   ? resolve(process.env.WARPKEEP_GLTFPACK_BIN_CACHE)
   : defaults.binary;
-const archiveTemporary = `${archive}.${process.pid}.tmp`;
-const binaryTemporary = `${binary}.${process.pid}.tmp`;
+if (archive === binary) {
+  throw new Error('The gltfpack archive and executable caches must use distinct paths.');
+}
 const url = `https://github.com/${repository}/releases/download/${tag}/${spec.attachment}`;
 const unzipBinary = resolveAttestedSystemUnzip();
 const productVersion = readWarpkeepPackageVersion();
@@ -55,40 +57,59 @@ function runUnzip(args, encoding = 'utf8') {
   return result.stdout;
 }
 
-mkdirSync(dirname(archive), { recursive: true, mode: 0o700 });
-mkdirSync(dirname(binary), { recursive: true, mode: 0o700 });
-try {
-  const response = await fetchPinnedGithubReleaseAsset(url, {
-    headers: { 'user-agent': `Warpkeep-tool-fetch/${productVersion}` },
-    signal: AbortSignal.timeout(60_000)
-  });
-  if (!response.ok) throw new Error(`Tool download failed with HTTP ${response.status}.`);
-  const archiveBytes = await readExactResponseBody(response, spec.archiveBytes, spec.attachment);
-  assertExact(archiveBytes, spec.archiveBytes, spec.archiveSha256, spec.attachment);
-  writeFileSync(archiveTemporary, archiveBytes, { mode: 0o600 });
+const response = await fetchPinnedGithubReleaseAsset(url, {
+  headers: { 'user-agent': `Warpkeep-tool-fetch/${productVersion}` },
+  signal: AbortSignal.timeout(60_000)
+});
+if (!response.ok) {
+  await response.body?.cancel().catch(() => undefined);
+  throw new Error(`Tool download failed with HTTP ${response.status}.`);
+}
+const archiveBytes = await readExactResponseBody(response, spec.archiveBytes, spec.attachment);
+assertExact(archiveBytes, spec.archiveBytes, spec.archiveSha256, spec.attachment);
 
-  const entries = runUnzip(['-Z1', archiveTemporary]).split(/\r?\n/).filter(Boolean);
+const validationArchive = resolve(
+  dirname(archive),
+  `.${basename(archive)}.${randomBytes(16).toString('hex')}.validation`,
+);
+writePinnedCacheFile({
+  destination: validationArchive,
+  bytes: archiveBytes,
+  mode: 0o600,
+  label: 'gltfpack validation archive'
+});
+try {
+  const entries = runUnzip(['-Z1', validationArchive]).split(/\r?\n/).filter(Boolean);
   if (entries.length !== 1 || entries[0] !== spec.binaryName) {
     throw new Error(`Unexpected gltfpack archive entries: ${JSON.stringify(entries)}.`);
   }
-  const listing = runUnzip(['-Z', '-l', archiveTemporary]);
+  const listing = runUnzip(['-Z', '-l', validationArchive]);
   if (listing.split(/\r?\n/).some((line) => /^l[rwx-]{9}\s/.test(line))) {
     throw new Error('The gltfpack archive contains a symbolic link.');
   }
-  const binaryBytes = runUnzip(['-p', archiveTemporary, spec.binaryName], null);
+  const binaryBytes = runUnzip(['-p', validationArchive, spec.binaryName], null);
   assertExact(binaryBytes, spec.binaryBytes, spec.binarySha256, spec.binaryName);
-  writeFileSync(binaryTemporary, binaryBytes, { mode: 0o700 });
 
-  renameSync(archiveTemporary, archive);
-  renameSync(binaryTemporary, binary);
-  chmodSync(archive, 0o600);
-  chmodSync(binary, 0o700);
-  if (statSync(binary).size !== spec.binaryBytes) throw new Error('Cached gltfpack write was incomplete.');
-  console.log(`${repository}/${tag}/${spec.attachment}`);
-  console.log(`${spec.archiveBytes} bytes, sha256 ${spec.archiveSha256}`);
-  console.log(`${spec.binaryName}: ${spec.binaryBytes} bytes, sha256 ${spec.binarySha256}`);
-  console.log(`cached at ${binary}`);
+  // Publish only after validating both layers. The executable goes first, so
+  // an archive is never advertised without the matching exact binary. If the
+  // later archive write fails, the already-published binary remains the exact
+  // checksum-pinned release bytes and is independently reverified by users.
+  writePinnedCacheFile({
+    destination: binary,
+    bytes: binaryBytes,
+    mode: 0o700,
+    label: 'gltfpack binary cache'
+  });
+  writePinnedCacheFile({
+    destination: archive,
+    bytes: archiveBytes,
+    mode: 0o600,
+    label: 'gltfpack archive cache'
+  });
 } finally {
-  rmSync(archiveTemporary, { force: true });
-  rmSync(binaryTemporary, { force: true });
+  rmSync(validationArchive, { force: true });
 }
+console.log(`${repository}/${tag}/${spec.attachment}`);
+console.log(`${spec.archiveBytes} bytes, sha256 ${spec.archiveSha256}`);
+console.log(`${spec.binaryName}: ${spec.binaryBytes} bytes, sha256 ${spec.binarySha256}`);
+console.log(`cached at ${binary}`);

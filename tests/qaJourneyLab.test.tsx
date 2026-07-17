@@ -384,7 +384,9 @@ describe('Warpkeep local QA journey lab', () => {
     const focusedLabels = [...document.querySelectorAll<HTMLButtonElement>(
       'button.realm-castle-label[data-castle-id="102"][data-focused="true"]'
     )];
-    expect(focusedLabels).toHaveLength(0);
+    expect(focusedLabels).toHaveLength(1);
+    expect(focusedLabels[0]?.getAttribute('data-anchor')).toBe('foundation-base');
+    expect(focusedLabels[0]?.getAttribute('data-displaced')).toBe('false');
     expect(document.querySelectorAll('[data-realm-label-leader]')).toHaveLength(0);
     expect(document.querySelector('.realm-map-screen')?.getAttribute('data-label-accounting-valid'))
       .toBe('true');
