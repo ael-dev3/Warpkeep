@@ -34,11 +34,21 @@ const assets = Object.freeze([
   ['public/images/realm/hegemony-castle-record.webp', 145_416, '30e0c3cd1bbc4732bb5025a78a5dc0cc66bc01c1b752a3f21b48fb429cc11123', false]
 ]);
 
+const referenceImageAssets = Object.freeze([
+  ['docs/reference/resources/2026-07-17-hegemony-food-icon/hegemony-food-reference.png', 1_254, 'png', 1_849_831, 'd1e295299f710be2b04249d6a96e0abd53ccc6d2bd74560428ee0964f5fff474'],
+  ['docs/reference/resources/2026-07-17-hegemony-gold-icon/hegemony-gold-reference.png', 1_254, 'png', 1_142_819, '87dddaa91a23f630e86da35da8b5b7300c0ecce9fb850060c0c18b0f2de72f26'],
+  ['docs/reference/resources/2026-07-17-hegemony-stone-icon/hegemony-stone-reference.png', 1_254, 'png', 1_107_308, 'dcf32bfe714b82c81a9db0d13bff0f176689ff35ff6c0554c3f7c0c8f24fa6e0'],
+  ['docs/reference/resources/2026-07-17-hegemony-wood-icon/hegemony-wood-reference.png', 1_254, 'png', 1_190_014, 'e8b586724afd1082c38c89f86de6d854b86234696b3978633be96152bc17c93a']
+]);
+
+const retiredResourceRuntimePaths = Object.freeze([
+  'public/images/resources/hegemony-food.png',
+  'public/images/resources/hegemony-gold.png',
+  'public/images/resources/hegemony-stone.png',
+  'public/images/resources/hegemony-wood.png'
+]);
+
 const imageAssets = Object.freeze([
-  ['public/images/resources/hegemony-food.png', 1_254, 'png', 1_849_831, 'd1e295299f710be2b04249d6a96e0abd53ccc6d2bd74560428ee0964f5fff474'],
-  ['public/images/resources/hegemony-gold.png', 1_254, 'png', 1_142_819, '87dddaa91a23f630e86da35da8b5b7300c0ecce9fb850060c0c18b0f2de72f26'],
-  ['public/images/resources/hegemony-stone.png', 1_254, 'png', 1_107_308, 'dcf32bfe714b82c81a9db0d13bff0f176689ff35ff6c0554c3f7c0c8f24fa6e0'],
-  ['public/images/resources/hegemony-wood.png', 1_254, 'png', 1_190_014, 'e8b586724afd1082c38c89f86de6d854b86234696b3978633be96152bc17c93a'],
   ['public/images/factions/hegemony/marks/hegemony-mark-32.png', 32, 'png', 2_508, '5a11e27123b287a663d316c2b307e5be6549cee206383dc17c741762df69363e'],
   ['public/images/factions/hegemony/marks/hegemony-mark-32.webp', 32, 'webp', 2_060, '1ad2faaea36b80bfdd2140ea9d401a49d96766a4bf2d7a439a8dbaac814c1449'],
   ['public/images/factions/hegemony/marks/hegemony-mark-64.png', 64, 'png', 8_122, '773cdd9cae90a5030182d50689a3e6322cb628b8732a528d2a3563c9468b2bbb'],
@@ -339,17 +349,27 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
   }
 }
 
-for (const [relativePath, expectedSize, format, expectedBytes, expectedHash] of imageAssets) {
+for (const relativePath of retiredResourceRuntimePaths) {
+  if (lstatSync(resolve(root, relativePath), { throwIfNoEntry: false }) !== undefined) {
+    throw new Error(`${relativePath} must remain outside the Pages public tree.`);
+  }
+}
+
+for (const [relativePath, expectedSize, format, expectedBytes, expectedHash] of [
+  ...imageAssets,
+  ...referenceImageAssets
+]) {
+  const assetKind = relativePath.startsWith('public/') ? 'runtime image' : 'reference master';
   const path = resolve(root, relativePath);
   const stat = lstatSync(path, { throwIfNoEntry: false });
   if (!stat?.isFile() || stat.isSymbolicLink()) {
-    throw new Error(`${relativePath} must be a regular non-symbolic runtime asset.`);
+    throw new Error(`${relativePath} must be a regular non-symbolic ${assetKind}.`);
   }
   if (stat.size !== expectedBytes) throw new Error(`${relativePath} byte length changed.`);
   const bytes = readContainedRegularFile({
     root,
     relativePath,
-    label: `${relativePath} runtime image`,
+    label: `${relativePath} ${assetKind}`,
     expectedBytes
   });
   const hash = createHash('sha256').update(bytes).digest('hex');
@@ -384,4 +404,7 @@ for (const [relativePath, expectedSize, format, expectedBytes, expectedHash] of 
   }
 }
 
-console.log(`Verified ${assets.length + imageAssets.length} exact runtime assets.`);
+console.log(
+  `Verified ${assets.length + imageAssets.length} exact runtime assets and `
+  + `${referenceImageAssets.length} dormant reference masters.`
+);

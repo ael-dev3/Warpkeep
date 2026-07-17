@@ -56,7 +56,8 @@ import type {
   RealmCastleInstancePresentationTelemetry
 } from './realmCastleInstanceLayer';
 import {
-  measuredRealmComposition
+  measuredRealmComposition,
+  measuredVisibleRealmUiRects
 } from './realmMeasuredComposition';
 import {
   REALM_QUALITY_SPECS,
@@ -70,6 +71,7 @@ import {
   fallbackCastleProjection,
   publicProfileForCastle,
   resolvePersistentCastleLabels,
+  type RealmLabelReservedRect,
   type VisibleCastleLabel
 } from './realmCastlePresentation';
 import {
@@ -127,8 +129,7 @@ function sameCoord(first: HexCoord | null, second: HexCoord | null) {
 
 function applyCastleLabelPlacement(
   button: HTMLButtonElement,
-  placement: VisibleCastleLabel | undefined,
-  tabbable = false
+  placement: VisibleCastleLabel | undefined
 ) {
   if (!placement) {
     button.style.visibility = 'hidden';
@@ -142,7 +143,6 @@ function applyCastleLabelPlacement(
   const anchorX = `${placement.projectedAnchor.x.toFixed(2)}px`;
   const anchorY = `${placement.projectedAnchor.y.toFixed(2)}px`;
   button.style.visibility = 'visible';
-  button.tabIndex = tabbable ? 0 : -1;
   button.dataset.displaced = 'false';
   button.style.setProperty('--realm-castle-label-x', labelX);
   button.style.setProperty('--realm-castle-label-y', labelY);
@@ -497,6 +497,7 @@ function CanonicalRealmMapScreen({
   const [visibleCastleLabels, setVisibleCastleLabels] = useState<readonly VisibleCastleLabel[]>([]);
   const latestVisibleCastleLabelsRef = useRef<readonly VisibleCastleLabel[]>([]);
   const latestProjectionRef = useRef<RealmCastleProjectionFrame>({ width: 0, height: 0, castles: [] });
+  const reservedUiRectsRef = useRef<readonly RealmLabelReservedRect[]>([]);
   const compositionRafRef = useRef<number | null>(null);
   const labelMembershipSignatureRef = useRef('');
   const presentedCastleIdsRef = useRef<readonly number[]>([]);
@@ -667,10 +668,13 @@ function CanonicalRealmMapScreen({
     if (!root || frame.width <= 0 || frame.height <= 0) return;
 
     const candidateCastles = frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES);
-    const labels = resolvePersistentCastleLabels({
-      ...frame,
-      castles: candidateCastles
-    });
+    const candidateFrame = { ...frame, castles: candidateCastles };
+    const eligibleLabels = resolvePersistentCastleLabels(candidateFrame);
+    const labels = resolvePersistentCastleLabels(
+      candidateFrame,
+      { reservedRects: reservedUiRectsRef.current }
+    );
+    const reservedUiCullCount = eligibleLabels.length - labels.length;
     // React owns label membership while the projection lane owns moving
     // coordinates. Retain the latest complete snapshot so an unrelated
     // React render cannot reconcile an older state snapshot back over the
@@ -678,6 +682,7 @@ function CanonicalRealmMapScreen({
     latestVisibleCastleLabelsRef.current = labels;
     const renderableCastleIds = candidateCastles.map((castle) => castle.castleId);
     const renderableCastleIdSet = new Set(renderableCastleIds);
+    const eligibleCastleIdSet = new Set(eligibleLabels.map((label) => label.castleId));
     const labelsById = new Map(labels.map((label) => [label.castleId, label]));
     const buttons = new Map<number, HTMLButtonElement>();
     root.querySelectorAll<HTMLButtonElement>('button.realm-castle-label[data-castle-id]')
@@ -685,32 +690,22 @@ function CanonicalRealmMapScreen({
         const castleId = Number(button.dataset.castleId);
         if (Number.isSafeInteger(castleId)) buttons.set(castleId, button);
       });
-    const activeCastleId = document.activeElement instanceof HTMLButtonElement
-      && document.activeElement.classList.contains('realm-castle-label')
-      ? Number(document.activeElement.dataset.castleId)
-      : undefined;
-    const keyboardTarget = interactionRef.current.keyboardIntent.target;
-    const keyboardCastleId = keyboardTarget.kind === 'castle-label'
-      ? keyboardTarget.castleId
-      : undefined;
-    const preferredTabCastleId = [activeCastleId, keyboardCastleId, ownCastle.castleId]
-      .find((castleId) => castleId !== undefined && labelsById.has(castleId))
-      ?? labels[0]?.castleId;
-
     // Exact direct coverage is the presentation contract. Density may create
     // overlap in a realm overview, but collision geometry never replaces,
     // relocates, aggregates, or hides an on-screen founded identity.
     root.dataset.labelPersistence = 'foundation';
-    root.dataset.labelEligibleCount = String(labels.length);
+    root.dataset.labelEligibleCount = String(eligibleLabels.length);
     root.dataset.labelPlacedCount = String(labels.length);
-    root.dataset.labelUnplacedCount = '0';
+    root.dataset.labelUnplacedCount = String(reservedUiCullCount);
     root.dataset.labelBaseAnchorViolationCount = String(labels.filter((label) => (
       Math.hypot(
         label.x - label.projectedAnchor.x,
         label.y - label.projectedAnchor.y
       ) > 0.015
     )).length);
-    root.dataset.labelCullReasons = '';
+    root.dataset.labelCullReasons = reservedUiCullCount > 0
+      ? `reserved-ui:${reservedUiCullCount}`
+      : '';
     root.dataset.individualCastleCount = String(labels.length);
     root.dataset.labelClusteredCount = '0';
     root.dataset.labelClusterOverflowCount = '0';
@@ -719,6 +714,8 @@ function CanonicalRealmMapScreen({
     root.dataset.clusterMemberDistanceViolationCount = '0';
     root.dataset.labelAccountingValid = String(
       labelsById.size === labels.length
+      && labels.length + reservedUiCullCount === eligibleLabels.length
+      && labels.every((label) => eligibleCastleIdSet.has(label.castleId))
       && labels.every((label) => renderableCastleIdSet.has(label.castleId))
     );
     root.dataset.labelMissingIdentityCount = '0';
@@ -732,14 +729,13 @@ function CanonicalRealmMapScreen({
       button.dataset.hovered = castleId === hoveredCastleIdRef.current ? 'true' : 'false';
       applyCastleLabelPlacement(
         button,
-        labelsById.get(castleId),
-        castleId === preferredTabCastleId
+        labelsById.get(castleId)
       );
     }
 
     presentedCastleIdsRef.current = renderableCastleIds;
     sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
-  }, [ownCastle.castleId]);
+  }, []);
 
   const updateCastlePresentationTelemetry = useCallback((
     telemetry: RealmCastleInstancePresentationTelemetry
@@ -773,6 +769,7 @@ function CanonicalRealmMapScreen({
       const root = rootRef.current;
       if (root) {
         const composition = measuredRealmComposition(root);
+        reservedUiRectsRef.current = measuredVisibleRealmUiRects(root);
         sceneRef.current?.setComposition(composition);
         updateCastleProjection(latestProjectionRef.current);
       }

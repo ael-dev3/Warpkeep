@@ -392,6 +392,64 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(snapshot).not.toHaveProperty('wallet');
   });
 
+  it('sanitizes optional presentation metadata without revoking the Realm snapshot', () => {
+    const base = createCanonicalGenesisCandidate();
+    const snapshot = readWarpkeepRealmSnapshot(connectionForCandidate({
+      ...base,
+      players: [{
+        ...base.players[0]!,
+        username: 'keeper\u00ad',
+        displayName: 'Keeper\u206aImpostor',
+        pfpUrl: 'https://profiles.example:443/keeper.png'
+      }],
+      profiles: [{
+        ...base.profiles[0]!,
+        canonicalUsername: 'keeper\u00ad',
+        publicBio: 'x'.repeat(321),
+        pfpUrl: 'https://profiles.example:8443/keeper.png'
+      }]
+    }), CANONICAL_TEST_FID);
+
+    expect(snapshot.players[0]).toMatchObject({
+      displayName: 'KeeperImpostor',
+      pfpUrl: 'https://profiles.example/keeper.png'
+    });
+    expect(snapshot.players[0]).not.toHaveProperty('username');
+    expect(snapshot.profiles[0]).not.toHaveProperty('canonicalUsername');
+    expect(snapshot.profiles[0]).not.toHaveProperty('publicBio');
+    expect(snapshot.profiles[0]).not.toHaveProperty('pfpUrl');
+  });
+
+  it('accepts producer-bounded astral presentation text by Unicode code point', () => {
+    const base = createCanonicalGenesisCandidate();
+    const displayName = '𐐀'.repeat(80);
+    const snapshot = readWarpkeepRealmSnapshot(connectionForCandidate({
+      ...base,
+      players: [{ ...base.players[0]!, displayName }]
+    }), CANONICAL_TEST_FID);
+
+    expect(snapshot.players[0]?.displayName).toBe(displayName);
+  });
+
+  it('fails closed on malformed required authority fields at connection ingress', () => {
+    const base = createCanonicalGenesisCandidate();
+    const malformed: readonly WarpkeepRealmSnapshotCandidate[] = [
+      { ...base, players: [{ ...base.players[0]!, status: 'active\u206a' }] },
+      {
+        ...base,
+        profiles: [{ ...base.profiles[0]!, publicStatus: 'founded\u206a' }]
+      },
+      { ...base, castles: [{ ...base.castles[0]!, name: 'x'.repeat(81) }] }
+    ];
+
+    for (const candidate of malformed) {
+      expect(() => readWarpkeepRealmSnapshot(
+        connectionForCandidate(candidate),
+        CANONICAL_TEST_FID
+      )).toThrow('Warpkeep records are unavailable.');
+    }
+  });
+
   it('rejects active-realm ambiguity instead of selecting the first row', () => {
     const candidate = createCanonicalGenesisCandidate();
     const ambiguous: WarpkeepRealmSnapshotCandidate = {

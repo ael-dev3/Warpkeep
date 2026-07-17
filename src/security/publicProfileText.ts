@@ -15,7 +15,11 @@ export function normalizePublicProfileText(
     typeof value !== 'string'
     || !Number.isSafeInteger(maximumLength)
     || maximumLength <= 0
-    || value.length > maximumLength
+    // Producer policies bound Unicode code points, while JavaScript length
+    // counts UTF-16 code units. Retain a strict raw-work ceiling without
+    // rejecting a valid all-astral profile solely because each code point uses
+    // a surrogate pair.
+    || value.length > maximumLength * 2
   ) {
     return undefined;
   }
@@ -25,7 +29,7 @@ export function normalizePublicProfileText(
     .replace(INVISIBLE_DIRECTIONAL_CONTROL_PATTERN, '')
     .replace(/\s+/gu, ' ')
     .trim();
-  return normalized && normalized.length <= maximumLength
+  return normalized && [...normalized].length <= maximumLength
     ? normalized
     : undefined;
 }

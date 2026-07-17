@@ -1,6 +1,7 @@
 import { axialToWorld, hexDistance, type HexCoord } from '../../game/map/hexCoordinates';
 import { formatMarkMicros } from '../../marks/marksPolicy';
 import { safeWarpkeepProfileImageUrl } from '../../security/publicImageUrl';
+import { normalizePublicProfileText } from '../../security/publicProfileText';
 import type {
   WarpkeepPlayer,
   WarpkeepRealmProfile
@@ -15,6 +16,15 @@ export const CASTLE_LABEL_LAYOUT_MAX_CASTLES = 100;
 export const CASTLE_LABEL_GAP_PIXELS = 6;
 export const CASTLE_LABEL_COMPACT_VIEWPORT_MAX_WIDTH = 680;
 export const CASTLE_LABEL_MINIMUM_CONTROL_SIZE = 45;
+export const CASTLE_LABEL_MAXIMUM_CONTROL_WIDTH = 168;
+export const CASTLE_LABEL_COMPACT_MAXIMUM_CONTROL_WIDTH = 116;
+
+export type RealmLabelReservedRect = Readonly<{
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}>;
 
 /**
  * The deliberately small profile projection available to Realm presentation
@@ -93,10 +103,15 @@ export function realmCastleProjectionFrameKey(frame: RealmCastleProjectionFrame)
  * list and selection surface, while the world layer preserves spatial truth.
  */
 export function resolvePersistentCastleLabels(
-  frame: RealmCastleProjectionFrame
+  frame: RealmCastleProjectionFrame,
+  input: Readonly<{ reservedRects?: readonly RealmLabelReservedRect[] }> = {}
 ): readonly VisibleCastleLabel[] {
   if (frame.width <= 0 || frame.height <= 0) return [];
   const compact = frame.width <= CASTLE_LABEL_COMPACT_VIEWPORT_MAX_WIDTH;
+  const maximumWidth = compact
+    ? CASTLE_LABEL_COMPACT_MAXIMUM_CONTROL_WIDTH
+    : CASTLE_LABEL_MAXIMUM_CONTROL_WIDTH;
+  const reservedRects = input.reservedRects ?? [];
   const seenCastleIds = new Set<number>();
   return frame.castles
     .slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES)
@@ -107,13 +122,23 @@ export function resolvePersistentCastleLabels(
         || castle.castleId <= 0
         || !Number.isFinite(castle.x)
         || !Number.isFinite(castle.y)
-        // The label layer clips overflow. Keep every interactive control's
-        // minimum hit box fully inside the viewport; Explore remains the
-        // complete surface for edge and offscreen castles.
-        || castle.x < CASTLE_LABEL_MINIMUM_CONTROL_SIZE * 0.5
-        || castle.x > frame.width - CASTLE_LABEL_MINIMUM_CONTROL_SIZE * 0.5
+        // The label layer clips overflow. Keep the conservative horizontal
+        // rail width and minimum vertical hit box fully inside the viewport;
+        // Explore remains the complete surface for edge/offscreen castles.
+        || castle.x < maximumWidth * 0.5
+        || castle.x > frame.width - maximumWidth * 0.5
         || castle.y < 0
         || castle.y > frame.height - CASTLE_LABEL_MINIMUM_CONTROL_SIZE
+        // A foundation rail never moves away from its castle. If even its
+        // conservative maximum control box would be obstructed by visible UI,
+        // omit it from the world layer and leave the complete identity in
+        // Explore instead of creating a hidden or unclickable control.
+        || reservedRects.some((reserved) => (
+          castle.x - maximumWidth * 0.5 < reserved.right
+          && castle.x + maximumWidth * 0.5 > reserved.left
+          && castle.y < reserved.bottom
+          && castle.y + CASTLE_LABEL_MINIMUM_CONTROL_SIZE > reserved.top
+        ))
         || seenCastleIds.has(castle.castleId)
       ) return false;
       seenCastleIds.add(castle.castleId);
@@ -127,12 +152,7 @@ export function resolvePersistentCastleLabels(
 }
 
 function boundedDisplayText(value: string | undefined, maximumLength: number) {
-  const normalized = value
-    ?.replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .replace(/[\u061c\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return normalized ? normalized.slice(0, maximumLength) : undefined;
+  return normalizePublicProfileText(value, maximumLength);
 }
 
 export function normalizeRealmUsername(value: string | undefined) {

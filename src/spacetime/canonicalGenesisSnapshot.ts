@@ -14,6 +14,17 @@ import type {
   WarpkeepRealmSnapshotCandidate,
   WarpkeepWorldTile
 } from './warpkeepBackendTypes';
+import {
+  REALM_CASTLE_NAME_MAXIMUM_LENGTH,
+  REALM_DISPLAY_NAME_MAXIMUM_LENGTH,
+  REALM_MARKS_POLICY_MAXIMUM_LENGTH,
+  REALM_PUBLIC_BIO_MAXIMUM_LENGTH,
+  REALM_PUBLIC_STATUS_MAXIMUM_LENGTH,
+  isCanonicalOptionalRealmProfileImageUrl,
+  isCanonicalOptionalRealmPublicText,
+  isCanonicalOptionalRealmUsername,
+  isCanonicalRealmPublicText
+} from './publicRealmProjectionPolicy';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from './warpkeepProtocol';
 
 export const CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT = [
@@ -102,29 +113,75 @@ function validateStaticWorld(candidate: WarpkeepRealmSnapshotCandidate) {
   return { tilesByKey, metadataByKey };
 }
 
-function validatePublicRows(candidate: WarpkeepRealmSnapshotCandidate) {
+function validatePublicRows(
+  candidate: WarpkeepRealmSnapshotCandidate,
+  allowLocalProfilePlaceholder: boolean
+) {
   if (
     candidate.players.length > CANONICAL_REALM.playerCapacity
     || candidate.profiles.length > CANONICAL_REALM.playerCapacity
   ) fail();
   const playerFids = new Set<number>();
   for (const player of candidate.players) {
-    if (!safePositiveInteger(player.fid) || playerFids.has(player.fid)) fail();
+    if (
+      !safePositiveInteger(player.fid)
+      || playerFids.has(player.fid)
+      || !isCanonicalOptionalRealmUsername(player.username)
+      || !isCanonicalOptionalRealmPublicText(
+        player.displayName,
+        REALM_DISPLAY_NAME_MAXIMUM_LENGTH
+      )
+      || !isCanonicalOptionalRealmProfileImageUrl(
+        player.pfpUrl,
+        allowLocalProfilePlaceholder
+      )
+      || !isCanonicalRealmPublicText(
+        player.status,
+        REALM_PUBLIC_STATUS_MAXIMUM_LENGTH
+      )
+    ) fail();
     playerFids.add(player.fid);
   }
 
   const profileFids = new Set<number>();
   for (const profile of candidate.profiles) {
-    if (!safePositiveInteger(profile.fid) || profileFids.has(profile.fid)) fail();
+    if (
+      !safePositiveInteger(profile.fid)
+      || profileFids.has(profile.fid)
+      || !isCanonicalOptionalRealmUsername(profile.canonicalUsername)
+      || !isCanonicalOptionalRealmPublicText(
+        profile.displayName,
+        REALM_DISPLAY_NAME_MAXIMUM_LENGTH
+      )
+      || !isCanonicalOptionalRealmProfileImageUrl(
+        profile.pfpUrl,
+        allowLocalProfilePlaceholder
+      )
+      || !isCanonicalOptionalRealmPublicText(
+        profile.publicBio,
+        REALM_PUBLIC_BIO_MAXIMUM_LENGTH
+      )
+      || !isCanonicalRealmPublicText(
+        profile.publicStatus,
+        REALM_PUBLIC_STATUS_MAXIMUM_LENGTH
+      )
+      || typeof profile.communityStatsVisible !== 'boolean'
+      || !isCanonicalOptionalRealmPublicText(
+        profile.marksPolicyVersion,
+        REALM_MARKS_POLICY_MAXIMUM_LENGTH
+      )
+    ) fail();
     profileFids.add(profile.fid);
   }
+  return { profileFids };
 }
 
 function validateCastleGraph(
   candidate: WarpkeepRealmSnapshotCandidate,
   ownFid: number,
   tilesByKey: ReadonlyMap<string, WarpkeepWorldTile>,
-  metadataByKey: ReadonlyMap<string, (typeof candidate.tileMetadata)[number]>
+  metadataByKey: ReadonlyMap<string, (typeof candidate.tileMetadata)[number]>,
+  profileFids: ReadonlySet<number>
 ) {
   if (candidate.castles.length > CANONICAL_REALM.playerCapacity) fail();
 
@@ -139,8 +196,11 @@ function validateCastleGraph(
       || !Number.isSafeInteger(castle.r)
       || !Number.isSafeInteger(castle.level)
       || castle.level <= 0
-      || typeof castle.name !== 'string'
-      || castle.name.trim().length === 0
+      || !isCanonicalRealmPublicText(
+        castle.name,
+        REALM_CASTLE_NAME_MAXIMUM_LENGTH
+      )
+      || !profileFids.has(castle.ownerFid)
       || castlesById.has(castle.castleId)
       || ownerFids.has(castle.ownerFid)
       || castleTileKeys.has(castle.tileKey)
@@ -203,7 +263,12 @@ export function isCanonicalGenesisSnapshot(
  */
 export function validateCanonicalGenesisSnapshot(
   candidate: WarpkeepRealmSnapshotCandidate | CanonicalWarpkeepRealmSnapshot,
-  input: Readonly<{ ownFid: number; protocolVersion: number }>
+  input: Readonly<{
+    ownFid: number;
+    protocolVersion: number;
+    /** Dev-only exact local portrait used by the synthetic observer fixture. */
+    allowLocalProfilePlaceholder?: boolean;
+  }>
 ): CanonicalWarpkeepRealmSnapshot {
   if (
     input.protocolVersion !== WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION
@@ -221,12 +286,16 @@ export function validateCanonicalGenesisSnapshot(
   ) fail();
 
   const { tilesByKey, metadataByKey } = validateStaticWorld(candidate);
-  validatePublicRows(candidate);
+  const { profileFids } = validatePublicRows(
+    candidate,
+    input.allowLocalProfilePlaceholder === true
+  );
   const ownCastle = validateCastleGraph(
     candidate,
     input.ownFid,
     tilesByKey,
-    metadataByKey
+    metadataByKey,
+    profileFids
   );
 
   const activeRealms = freezeRows(candidate.activeRealms);

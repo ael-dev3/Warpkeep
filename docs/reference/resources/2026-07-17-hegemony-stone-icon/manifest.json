@@ -56,8 +56,8 @@
     "despill": true,
     "outputEncoding": "Pillow PNG default encoding"
   },
-  "runtimeAsset": {
-    "path": "public/images/resources/hegemony-stone.png",
+  "referenceAsset": {
+    "path": "docs/reference/resources/2026-07-17-hegemony-stone-icon/hegemony-stone-reference.png",
     "format": "png",
     "width": 1254,
     "height": 1254,
@@ -75,7 +75,7 @@
         "maxY": 1091
       }
     },
-    "delivery": "same-origin checked-in runtime asset; no external CDN"
+    "delivery": "checked-in dormant reference master; excluded from the Pages public directory until mechanics receive separate review"
   },
   "licence": {
     "spdx": "LicenseRef-Warpkeep-Provenance-Required",

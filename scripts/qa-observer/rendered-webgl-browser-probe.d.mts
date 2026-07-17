@@ -183,6 +183,10 @@ export function parseRenderedWebglBrowserDom(
   semanticTerrainFeatureDrawCalls: number;
   totalTerrainDetailInstanceCount: number;
   totalTerrainDetailDrawCalls: number;
+  /** Privacy-safe aggregate coverage; no castle or identity values. */
+  labelEligibleCount: number;
+  labelPlacedCount: number;
+  labelUnplacedCount: number;
 }>;
 
 /** Bounded page coordinates only; no castle, profile, or identity data. */
@@ -214,6 +218,14 @@ export function parseRenderedWebglInspectorLabelActivationEvidence(value: unknow
   inspectorLabelActivated: true;
 }>;
 
+/** Structural keyboard evidence only; it never includes a castle or identity value. */
+export function parseRenderedWebglLabelKeyboardEvidence(value: unknown): Readonly<{
+  arrowMoved: true;
+  endReached: true;
+  homeReached: true;
+  singleTabStop: true;
+}>;
+
 export type RenderedWebglCastleCanvasPointerSession = Readonly<{
   command: (
     method: string,
@@ -233,6 +245,15 @@ export function applyRenderedWebglMapGestureInteraction(
   settled: true;
   uiStable: true;
   wheelMoved: true;
+}>>;
+
+export function applyRenderedWebglLabelKeyboardInteraction(
+  session: RenderedWebglCastleCanvasPointerSession
+): Promise<Readonly<{
+  arrowMoved: true;
+  endReached: true;
+  homeReached: true;
+  singleTabStop: true;
 }>>;
 
 export type RenderedWebglBrowserProbeInteractionEvidence = Readonly<{

@@ -204,18 +204,24 @@ or accepted.
 Castle-model availability is deliberately independent of two-dimensional label
 placement. Every canonical castle candidate remains available to the scene's
 own frustum and LOD presentation, with the same set available for raycasting.
-Every founded castle whose minimum direct-control box fits inside the viewport
+Every founded castle whose conservative direct-control box fits inside the viewport
 must expose one username rail at its exact projected foundation base. Camera
 distance and LOD may not move or aggregate it. Fully clipped edge controls stay
 out of the interactive world layer, while Explore retains complete castle
-coverage. The identity-keyed React control survives camera and LOD changes and
-uses one roving tab stop across the visible set.
+coverage. The identity-keyed React control survives camera and LOD changes.
+Exactly one visible rail is tabbable; arrow keys move spatially, Home/End follow
+deterministic reading order, and focus recovers to the nearest surviving rail
+when projection removes the active one.
 
 Automatic keeper clusters, group connectors, and overflow identities remain
-forbidden. The probe rejects any visible rail that leaves the viewport,
-collides with another rail, overlaps reserved UI, fails its interior hit test,
-lacks accessible text, or falls below the 44-by-44-pixel hit target. Opening
-Explore or the inspector must preserve valid world-label accounting.
+forbidden. A rail conservatively obstructed by visible Realm UI stays available
+in Explore instead of entering the world layer. The probe rejects any visible
+rail that leaves the viewport, overlaps reserved UI, is obstructed by non-label
+content, lacks accessible text, or falls below the 44-by-44-pixel hit target.
+It records bounded label-on-label contention as collision telemetry because
+exact foundation attachment takes precedence over displacement or identity
+loss. Opening Explore or the inspector must preserve valid world-label
+accounting.
 
 Bind Vite to loopback explicitly, then have the small contract helper print the
 exact local URL for one reviewed quality and presentation mode:
@@ -362,13 +368,16 @@ map coverage, text-bearing castle labels, visible UI regions, aggregate
 projection-eligible/placed/unplaced label coverage, and one-to-one
 placed-label/direct-control accounting. The map's privacy-safe exact
 set-membership accounting flag must also be true; no identity keys are
-exported. Eligible and placed counts must match, unplaced, clustered, overflow,
-cluster-member, cluster-control, and connector counts must all be zero, and
-each direct control must have valid accessible text and a 44-by-44-pixel minimum
-hit target. Reserved-UI overlap, edge clipping, label collision, and interior
-hit-test contention are release failures. Opening Explore or the inspector
-must preserve valid direct-label accounting. Every rendered rail retains its exact
-foundation anchor, reports no displacement, and has no connector.
+exported. Eligible count must equal placed plus unplaced, every unplaced label
+must be accounted for by one bounded `reserved-ui` cull aggregate, and placed
+count must equal the direct-control count. Clustered, overflow, cluster-member,
+cluster-control, and connector counts must all be zero, and each direct control
+must have valid accessible text and a 44-by-44-pixel minimum hit target.
+Reserved-UI overlap, edge clipping, and non-label hit obstruction are release
+failures. Label-pair collisions remain bounded aggregate telemetry, not a
+universal rejection condition, because every rendered rail retains its exact
+foundation anchor, reports no displacement, and has no connector. Opening
+Explore or the inspector must preserve valid direct-label accounting.
 
 The desktop balanced case also derives one bounded point above a foundation-attached
 label, proves that point and a five-move path are genuinely on the WebGL canvas,
@@ -387,15 +396,17 @@ colour, and silhouette metrics; it retains or reports no source bytes,
 screenshots, raw pixels, archive paths, hashes, identities, or browser logs.
 
 Failed label-coverage checks include only bounded closed-shape counts. Cull
-reasons must remain empty because projection-visible founded identities are not
-capacity-, collision-, or reserved-UI-cullable. The probe never includes castle
-IDs, usernames, profile text, coordinates, or browser logs.
+reasons must be empty or contain one exact `reserved-ui:N` aggregate matching
+the unplaced count; capacity, collision, identity, or arbitrary reasons fail
+closed. The probe never includes castle IDs, usernames, profile text,
+coordinates, or browser logs.
 
 World-model telemetry is checked independently from label density: presented
 model count must be at least the projection-eligible label count and no greater
 than the canonical castle count, while raycast-target count must equal presented
-model count. Every projection-eligible identity has a direct label and can never
-outnumber available castle models. The remaining contract checks 44px primary controls,
+model count. Every projection-eligible identity has a direct label or one
+explicit reserved-UI cull and can never outnumber available castle models. The
+remaining contract checks 44px primary controls,
 inspector/Explore state, and page warnings/errors.
 
 For each accepted state Chrome captures one transient PNG in memory. A strict,

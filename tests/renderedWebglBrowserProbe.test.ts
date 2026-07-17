@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import {
   analyzeRenderedWebglPngScreenshot,
   applyRenderedWebglCaseInteraction,
+  applyRenderedWebglLabelKeyboardInteraction,
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
   cleanupRenderedWebglProbeResources,
@@ -17,6 +18,7 @@ import {
   parseHeadlessChromeCodeSignature,
   parseRenderedWebglBrowserDom,
   parseRenderedWebglInspectorLabelActivationEvidence,
+  parseRenderedWebglLabelKeyboardEvidence,
   RENDERED_WEBGL_QA_CHROME,
   RENDERED_WEBGL_QA_CHROME_APP,
   RENDERED_WEBGL_QA_CASE_COUNT,
@@ -295,6 +297,58 @@ describe('rendered WebGL headless browser probe contract', () => {
     }));
     expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
       expression: expect.stringContaining('target.click()')
+    }));
+  });
+
+  it('records only structural world-label keyboard evidence', async () => {
+    const evidence = {
+      arrowMoved: true,
+      endReached: true,
+      homeReached: true,
+      singleTabStop: true
+    } as const;
+    expect(parseRenderedWebglLabelKeyboardEvidence(evidence)).toEqual(evidence);
+    expect(() => parseRenderedWebglLabelKeyboardEvidence({
+      ...evidence,
+      arrowMoved: false
+    })).toThrow(/label keyboard evidence/i);
+    expect(() => parseRenderedWebglLabelKeyboardEvidence({
+      ...evidence,
+      castleId: 1
+    })).toThrow(/label keyboard evidence/i);
+
+    const command = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>
+    ) => {
+      if (method === 'Runtime.evaluate') {
+        return {
+          result: {
+            type: 'object',
+            value: evidence
+          }
+        };
+      }
+      return {};
+    });
+
+    await expect(applyRenderedWebglLabelKeyboardInteraction({ command })).resolves.toEqual(
+      evidence
+    );
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining('dispatch(start.button, arrow.key)'),
+      returnByValue: true
+    }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining(
+        "const start = points.find(({ button }) => button.tabIndex === 0)"
+      )
+    }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining("dispatch(arrowTarget, 'Home')")
+    }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining("dispatch(document.activeElement, 'End')")
     }));
   });
 
@@ -859,6 +913,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       labelsTextBearingCount: 18,
       focusedReadableLabelDomFocusCount: 0,
       focusedReadableLabelCount: 0,
+      hiddenFocusedLabelCount: 0,
+      tabbableLabelCount: 1,
       labelsWithinViewportCount: 18,
       labelCollisionCount: 0,
       labelLeaderMismatchCount: 0,
@@ -901,6 +957,19 @@ describe('rendered WebGL headless browser probe contract', () => {
       semanticTerrainFeatureDrawCalls: 5,
       totalTerrainDetailInstanceCount: 5_000,
       totalTerrainDetailDrawCalls: 8
+    });
+    expect(parseRenderedWebglBrowserDom({
+      ...ready,
+      labelCullReasons: 'reserved-ui:1',
+      labelEligibleCount: 19,
+      labelUnplacedCount: 1,
+      presentedModelCount: 19,
+      presentedLandscapeBaseCount: 19,
+      raycastTargetCount: 19
+    }, expected)).toMatchObject({
+      labelEligibleCount: 19,
+      labelPlacedCount: 18,
+      labelUnplacedCount: 1
     });
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
@@ -970,7 +1039,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       labelUnplacedCount: 1
-    }, expected)).toThrow(/label-unplaced|label-direct-coverage/i);
+    }, expected)).toThrow(/label-coverage-accounting|label-cull-accounting/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       labelEligibleCount: 19,
@@ -979,7 +1048,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       presentedModelCount: 19,
       presentedLandscapeBaseCount: 19,
       raycastTargetCount: 19
-    }, expected)).toThrow(/label-direct-coverage|label-cluster-overflow|label-unplaced/i);
+    }, expected)).toThrow(/label-cluster-overflow|label-cull-accounting/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       labelClusteredCount: 1,
@@ -1022,7 +1091,6 @@ describe('rendered WebGL headless browser probe contract', () => {
     }
     for (const [field, value, failure] of [
       ['labelsWithinViewportCount', 0, /label-viewport/i],
-      ['labelCollisionCount', 20, /label-collision/i],
       ['labelHitTestViolationCount', 17, /label-hit-test/i],
       ['labelReservedOverlapCount', 5, /label-reserved-ui/i]
     ] as const) {
@@ -1031,6 +1099,26 @@ describe('rendered WebGL headless browser probe contract', () => {
         [field]: value
       }, expected)).toThrow(failure);
     }
+    expect(parseRenderedWebglBrowserDom({
+      ...ready,
+      labelCollisionCount: 20
+    }, expected)).toMatchObject({ renderer: 'webgl' });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelCollisionCount: 154
+    }, expected)).toThrow(/label-collision-shape/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      tabbableLabelCount: 0
+    }, expected)).toThrow(/label-roving-tab-stop/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      tabbableLabelCount: 2
+    }, expected)).toThrow(/label-roving-tab-stop/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      hiddenFocusedLabelCount: 1
+    }, expected)).toThrow(/label-hidden-focus/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       clusterMaximumAnchorDisplacement: 113
@@ -1051,7 +1139,16 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       labelCullReasons: 'reserved-ui:1'
-    }, expected)).toThrow(/label-cull-reasons/i);
+    }, expected)).toThrow(/label-cull-accounting/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      labelCullReasons: 'foreign-castle:1',
+      labelEligibleCount: 19,
+      labelUnplacedCount: 1,
+      presentedModelCount: 19,
+      presentedLandscapeBaseCount: 19,
+      raycastTargetCount: 19
+    }, expected)).toThrow(/label-cull-policy|label-cull-accounting/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       labelCullReasons: 'foreign-castle:1,private-id:7'
@@ -1192,6 +1289,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       documentWidth: shortLandscapePlayerExploreCase.viewport.width,
       interactionState: 'explore',
       labelCount: 0,
+      tabbableLabelCount: 0,
       labelEligibleCount: 0,
       labelPlacedCount: 0,
       labelUnplacedCount: 0,
@@ -1230,6 +1328,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       interactionState: 'inspector',
       inspectorProfileImageState: 'ready',
       labelCount: 0,
+      tabbableLabelCount: 0,
       labelEligibleCount: 0,
       labelPlacedCount: 0,
       labelUnplacedCount: 0,
@@ -1251,6 +1350,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       documentWidth: exploreOnlyCase.viewport.width,
       interactionState: 'explore',
       labelCount: 0,
+      tabbableLabelCount: 0,
       labelEligibleCount: 0,
       labelPlacedCount: 0,
       labelUnplacedCount: 0,

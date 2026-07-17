@@ -30,8 +30,8 @@ describe('realm castle public presentation', () => {
   it('uses safe fallbacks and strips directional/control characters from legacy player data', () => {
     const profile = publicProfileForCastle(42, [], [{
       fid: 42,
-      username: '\u202ealice\u200b',
-      displayName: 'Alice\u0000 Keeper',
+      username: '\u202ealice\u200b\u206a',
+      displayName: 'Alice\u0000\u00ad Keeper',
       pfpUrl: 'javascript:alert(1)',
       status: 'active'
     }]);
@@ -284,6 +284,53 @@ describe('realm castle public presentation', () => {
       x: 200,
       y: 120,
       projectedAnchor: { x: 200, y: 120 }
+    });
+  });
+
+  it('keeps the full conservative label rail inside the viewport', () => {
+    const compact = resolvePersistentCastleLabels({
+      width: 320,
+      height: 300,
+      castles: [
+        { castleId: 1, q: 0, r: 0, x: 57, y: 120, distance: 0, visible: true },
+        { castleId: 2, q: 1, r: 0, x: 58, y: 120, distance: 1, visible: true },
+        { castleId: 3, q: 2, r: 0, x: 262, y: 120, distance: 2, visible: true },
+        { castleId: 4, q: 3, r: 0, x: 263, y: 120, distance: 3, visible: true }
+      ]
+    });
+    const wide = resolvePersistentCastleLabels({
+      width: 1_000,
+      height: 600,
+      castles: [
+        { castleId: 5, q: 0, r: 0, x: 83, y: 120, distance: 0, visible: true },
+        { castleId: 6, q: 1, r: 0, x: 84, y: 120, distance: 1, visible: true },
+        { castleId: 7, q: 2, r: 0, x: 916, y: 120, distance: 2, visible: true },
+        { castleId: 8, q: 3, r: 0, x: 917, y: 120, distance: 3, visible: true }
+      ]
+    });
+
+    expect(compact.map((label) => label.castleId)).toEqual([2, 3]);
+    expect(wide.map((label) => label.castleId)).toEqual([6, 7]);
+  });
+
+  it('omits foundation rails conservatively obstructed by visible Realm UI', () => {
+    const castles = [
+      { castleId: 1, q: 0, r: 0, x: 220, y: 120, distance: 1, visible: true },
+      { castleId: 2, q: 1, r: 0, x: 520, y: 320, distance: 2, visible: true }
+    ];
+    const resolved = resolvePersistentCastleLabels({
+      width: 1_000,
+      height: 600,
+      castles
+    }, {
+      reservedRects: [{ left: 0, top: 0, right: 280, bottom: 220 }]
+    });
+
+    expect(resolved.map((label) => label.castleId)).toEqual([2]);
+    expect(resolved[0]).toMatchObject({
+      x: 520,
+      y: 320,
+      projectedAnchor: { x: 520, y: 320 }
     });
   });
 

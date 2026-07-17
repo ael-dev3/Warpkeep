@@ -39,7 +39,7 @@ describe('latest in-menu patch notes', () => {
       /safely in-viewport founded castle.*direct identity rail.*exact foundation anchor/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /roving tab stop.*rejects collision.*failed hit testing.*HUD overlap.*Explore/i
+      /one visible label is tabbable.*spatial arrow keys.*Home\/End.*label-on-label contention.*non-label hit obstruction.*HUD overlap.*Explore/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
       /wheel and pinch.*readable zoom floor.*convex rendered-terrain perimeter/i

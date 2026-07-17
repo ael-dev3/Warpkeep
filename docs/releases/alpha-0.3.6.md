@@ -39,11 +39,15 @@ no SpacetimeDB schema or reducer change.
   blur.
 - Each safely in-viewport founded castle receives a direct text rail at its
   projected foundation. Camera distance and LOD cannot turn it into a floating
-  cluster. Controls whose minimum 45px hit box would be clipped are omitted
-  from the world layer, while Explore remains the complete castle list.
-- The visible world-label set uses one roving tab stop. Rendered QA now rejects
-  label clipping, collisions, failed interior hit tests, and reserved-UI
-  overlap in the supported desktop, tablet, mobile, and short-landscape matrix.
+  cluster. Controls whose conservative rail width or minimum 45px vertical hit
+  box would be clipped, or whose conservative box would be obstructed by
+  visible Realm UI, are omitted from the world layer while Explore remains the
+  complete castle list.
+- Exactly one visible world label is tabbable. Arrow keys move spatially,
+  Home/End follow deterministic reading order, and focus recovers when
+  projection removes the active label. Rendered QA retains bounded label-on-
+  label collision telemetry while rejecting label clipping, non-label hit
+  obstruction, and reserved-UI overlap in the supported viewport matrix.
 
 ## Graphics and player identity
 
@@ -62,9 +66,11 @@ main player label.
 ## Resource groundwork, not mechanics
 
 Four exact provenance-pinned transparent icon masters—Food, Wood, Stone, and
-Gold—are checked in for a future mechanics slice. A pure decoder accepts only
-an exact, non-negative, unsigned-64-bit bigint projection with those four keys.
-These files create no authority and are not mounted as placeholder counters.
+Gold—are retained beside their provenance records, outside the Pages `public/`
+tree, for a future mechanics slice. A pure decoder accepts only an exact,
+non-negative, unsigned-64-bit bigint projection with those four keys. These
+files create no authority and are neither copied into the Pages artifact nor
+mounted as placeholder counters.
 
 Alpha 0.3.6 does **not** implement resource balances, accrual, costs,
 construction, queueing, cancellation, or a player action. Community Marks
@@ -78,7 +84,9 @@ The candidate includes the separately reviewed repository hardening commit:
 
 - stricter auth challenge configuration, bounded TTLs, fail-closed store
   errors, canonical cookie handling, and bounded administrative bearer parsing;
-- sanitized profile text/image ingress and loopback-only browser auth transport;
+- canonical bounded profile/castle text and image ingress, complete founder-
+  profile projections without requiring first-auth player bootstrap, and
+  loopback-only browser auth transport;
 - bounded, abortable title/model/fetch lifecycles;
 - finite fail-closed dormant game-loop arithmetic;
 - exact bounded tooling downloads, attested archive extraction, private atomic

@@ -52,6 +52,8 @@ describe('realm quality profiles', () => {
       .toBe('reduced');
     expect(selectRealmQuality({ width: 320, height: 568, devicePixelRatio: 3, maxTextureSize: 8_192 }))
       .toBe('balanced');
+    expect(selectRealmQuality({ width: 1920, height: 1080, devicePixelRatio: 2 }))
+      .toBe('balanced');
   });
 
   it('defines restrained quality-aware exposure and warm sunlight', () => {

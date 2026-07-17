@@ -273,7 +273,7 @@ export function selectRealmQuality(input: RealmQualityInput): RealmQuality {
   const width = finitePositive(input.width, 1280);
   const height = finitePositive(input.height, 720);
   const dpr = finitePositive(input.devicePixelRatio, 1);
-  const maxTextureSize = finitePositive(input.maxTextureSize ?? 8192, 8192);
+  const maxTextureSize = finitePositive(input.maxTextureSize ?? 4096, 4096);
   const shortestSide = Math.min(width, height);
 
   if (maxTextureSize < 4096 || shortestSide < 280 || width * height * dpr * dpr > 18_000_000) {

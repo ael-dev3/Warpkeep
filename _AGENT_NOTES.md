@@ -104,10 +104,14 @@ Start with:
   automatic keeper clusters, or distance-driven membership/presentation.
   Fully clipped minimum hit boxes are not interactive world controls, and the
   visible set uses a single roving tab stop instead of exposing up to 100 tab
-  stops. Rendered QA must reject clipped, colliding, pointer-obscured, or
-  reserved-UI-overlapping controls in its supported viewport matrix. Explore
-  remains the complete individually selectable keyboard/touch/pointer path for
-  every founded castle, including edge and offscreen castles.
+  stops. Arrow keys move spatially, Home/End follow deterministic reading
+  order, and focus recovers to the nearest surviving rail when projection
+  removes the active one. Rails conservatively obstructed by visible Realm UI
+  stay in Explore. Rendered QA records bounded label-on-label contention but
+  must reject clipped, non-label-obstructed, or reserved-UI-overlapping controls
+  in its supported viewport matrix. Explore remains the complete individually
+  selectable keyboard/touch/pointer path for every founded castle, including
+  edge and offscreen castles.
 - Canvas and direct castle rails must remain part of the same bounded map
   gesture coordinator while HUD controls and dialogs remain excluded. Do not
   stop pointer or wheel propagation on a rail, discard threshold-crossing drag
@@ -137,15 +141,15 @@ Start with:
   and official Pages runtime. Its decorative role grants no identity or
   gameplay authority, public open licence, general derivative/redistribution
   right, ownership claim, or trademark right.
-- The Alpha 0.3.6 mechanics workstream's gold, food, stone, and wood icons
-  are the exact transparent PNGs at `public/images/resources/hegemony-gold.png`,
-  `public/images/resources/hegemony-food.png`,
-  `public/images/resources/hegemony-stone.png`, and
-  `public/images/resources/hegemony-wood.png`, pinned by
-  `npm run verify:runtime-assets` and their dated provenance records. They
-  are presentation-only; do not treat any image as proof of a live resource,
-  currency, balance, cost, reward, or player entitlement, and do not replace
-  one without an updated authorization, alpha audit, hash pin, and review.
+- The Alpha 0.3.6 mechanics workstream's gold, food, stone, and wood icons are
+  exact transparent reference masters beside their dated records under
+  `docs/reference/resources/`, pinned by `npm run verify:runtime-assets`.
+  They are deliberately outside `public/` and must not ship through Pages or
+  enter a runtime bundle until the corresponding authoritative mechanic and
+  asset use receive separate review. Do not treat any image as proof of a live
+  resource, currency, balance, cost, reward, or player entitlement, and do not
+  replace one without an updated authorization, alpha audit, hash pin, and
+  review.
 
 ## Player-visible release truth
 

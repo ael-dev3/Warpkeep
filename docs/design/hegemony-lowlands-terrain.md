@@ -249,14 +249,17 @@ select compact presentation; distance and projected density never change label
 membership or presentation. Projection and edge visibility use one fixed
 quality-session envelope rather than the active mesh LOD envelope.
 
-Every founded castle whose minimum direct-control box fits inside the current
-viewport receives one rail. Camera distance, LOD, density, and collision never
+Every founded castle whose conservative direct-control box fits inside the
+current viewport receives one rail. Camera distance, LOD, density, and collision never
 move that rail away from its projected foundation or turn it into a cluster.
-Fully clipped edge controls are omitted from the world layer, and rendered QA
-rejects collisions, failed hit testing, or reserved-UI overlap in the supported
-viewport matrix. One roving tab stop bounds keyboard traversal. Explore remains
-the complete navigator for every founded castle, including edge and offscreen
-identities.
+Fully clipped edge controls and rails whose conservative control box would be
+obstructed by visible Realm UI are omitted from the world layer. Rendered QA
+rejects non-label hit obstruction or reserved-UI overlap in the supported
+viewport matrix while retaining bounded label-on-label collision telemetry.
+Exactly one visible label is tabbable; arrow keys move spatially, Home/End
+follow deterministic reading order, and focus recovers when projection removes
+the active rail. Explore remains the complete navigator for every founded
+castle, including edge, UI-obstructed, and offscreen identities.
 
 The responsive selected-castle record renders only already-sanitized public
 Farcaster presentation and existing public Realm fields: castle name, level,

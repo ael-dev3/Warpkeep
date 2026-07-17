@@ -81,6 +81,20 @@ describe('graphics preference', () => {
       deviceMemory: 2,
       maxTextureSize: 2_048
     })).toBe('performance');
+
+    const unmeasuredGpu = {
+      width: 1_440,
+      height: 900,
+      devicePixelRatio: 2,
+      hardwareConcurrency: 8,
+      deviceMemory: 8
+    };
+    expect(resolveGraphicsQuality(DEFAULT_GRAPHICS_PREFERENCE, unmeasuredGpu))
+      .toBe('balanced');
+    expect(resolveGraphicsQuality(DEFAULT_GRAPHICS_PREFERENCE, {
+      ...unmeasuredGpu,
+      maxTextureSize: Number.NaN
+    })).toBe('balanced');
   });
 
   it('gives manual choices priority and maps both renderers consistently', () => {

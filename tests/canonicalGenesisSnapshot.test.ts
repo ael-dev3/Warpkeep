@@ -157,6 +157,81 @@ describe('canonical Genesis 001 browser snapshot boundary', () => {
     })).toThrow(CanonicalGenesisSnapshotError);
   });
 
+  it('requires one public profile per founder while allowing player bootstrap to lag', () => {
+    const candidate = createCanonicalGenesisCandidate({
+      ownFid: CANONICAL_TEST_FID,
+      peerFid: 77
+    });
+    expect(validate({
+      ...candidate,
+      players: candidate.players.filter((player) => player.fid !== 77)
+    }).castles).toHaveLength(2);
+    expect(() => validate({
+      ...candidate,
+      profiles: candidate.profiles.filter((profile) => profile.fid !== 77)
+    })).toThrow(CanonicalGenesisSnapshotError);
+
+    const extraPlayerFid = 88;
+    const extraProfileFid = 99;
+    expect(validate({
+      ...candidate,
+      players: [...candidate.players, { fid: extraPlayerFid, status: 'active' }],
+      profiles: [...candidate.profiles, {
+        fid: extraProfileFid,
+        publicStatus: 'founded',
+        communityStatsVisible: false
+      }]
+    }).castles).toHaveLength(2);
+  });
+
+  it('rejects noncanonical castle and public-profile presentation fields', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const invalidCandidates: readonly WarpkeepRealmSnapshotCandidate[] = [
+      {
+        ...candidate,
+        castles: [{ ...candidate.castles[0]!, name: `Keep\u206a${'x'.repeat(80)}` }]
+      },
+      {
+        ...candidate,
+        players: [{
+          ...candidate.players[0]!,
+          displayName: 'Deceptive\u206aKeeper'
+        }]
+      },
+      {
+        ...candidate,
+        players: [{
+          ...candidate.players[0]!,
+          pfpUrl: 'http://profiles.example/keeper.png'
+        }]
+      },
+      {
+        ...candidate,
+        profiles: [{
+          ...candidate.profiles[0]!,
+          canonicalUsername: 'keeper\u00ad'
+        }]
+      },
+      {
+        ...candidate,
+        profiles: [{
+          ...candidate.profiles[0]!,
+          publicBio: 'x'.repeat(321)
+        }]
+      },
+      {
+        ...candidate,
+        profiles: [{
+          ...candidate.profiles[0]!,
+          pfpUrl: 'https://profiles.example:8443/keeper.png'
+        }]
+      }
+    ];
+    for (const invalid of invalidCandidates) {
+      expect(() => validate(invalid)).toThrow(CanonicalGenesisSnapshotError);
+    }
+  });
+
   it('rejects broken castle-to-tile occupancy in either direction', () => {
     const missingOccupant = createCanonicalGenesisCandidate();
     const castleTileIndex = missingOccupant.tiles.findIndex(

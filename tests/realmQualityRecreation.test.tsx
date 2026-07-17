@@ -126,13 +126,14 @@ function presentationRefreshSnapshot(): CanonicalWarpkeepRealmSnapshot {
         ? { ...castle, name: 'Peer Bastion', level: 3 }
         : { ...castle }
     )),
-    profiles: [{
-      fid: 77,
-      canonicalUsername: 'peerkeeper',
-      displayName: 'Peer Keeper',
-      publicStatus: 'founding-player',
-      communityStatsVisible: false
-    }]
+    profiles: candidate.profiles.map((profile) => (
+      profile.fid === 77 ? {
+        ...profile,
+        canonicalUsername: 'peerkeeper',
+        displayName: 'Peer Keeper',
+        publicStatus: 'founding-player'
+      } : profile
+    ))
   });
 }
 
@@ -417,21 +418,21 @@ describe('live realm quality recreation', () => {
     const { rerender } = render(renderRealm(vi.fn()));
     const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
     const projection = (distanceOffset: number, boundsOffset: number) => ({
-      width: 120,
+      width: 240,
       height: 600,
       castles: fixture.snapshot.castles.map((castle, index) => ({
         castleId: castle.castleId,
         q: castle.q,
         r: castle.r,
-        x: 60 + boundsOffset,
+        x: 120 + boundsOffset,
         y: 300 + boundsOffset,
         distance: distanceOffset + index,
         visible: true,
         presented: true,
         castleBounds: {
-          left: 40 - boundsOffset,
+          left: 100 - boundsOffset,
           top: 250 - boundsOffset,
-          right: 80 + boundsOffset,
+          right: 140 + boundsOffset,
           bottom: 294
         }
       }))
@@ -473,7 +474,7 @@ describe('live realm quality recreation', () => {
       const movedButton = initialButtons.get(fixture.snapshot.castles[0]!.castleId)!;
       expect(Number.parseFloat(
         movedButton.style.getPropertyValue('--realm-castle-label-x')
-      )).toBe(68);
+      )).toBe(128);
       expect(Number.parseFloat(
         movedButton.style.getPropertyValue('--realm-castle-label-y')
       )).toBe(308);
@@ -486,7 +487,7 @@ describe('live realm quality recreation', () => {
     rerender(renderRealm(vi.fn()));
     expect(Number.parseFloat(
       movedButton.style.getPropertyValue('--realm-castle-label-x')
-    )).toBe(68);
+    )).toBe(128);
     expect(Number.parseFloat(
       movedButton.style.getPropertyValue('--realm-castle-label-y')
     )).toBe(308);

@@ -71,6 +71,7 @@ export const RENDERED_WEBGL_QA_VITE_FS_DENY = Object.freeze([
 const RENDERED_WEBGL_QA_LABEL_ANGLE_TOLERANCE_RADIANS = 0.002;
 const RENDERED_WEBGL_QA_CASTLE_POINTER_ACTIVATION_CASE_ID = 'desktop-balanced';
 const RENDERED_WEBGL_QA_MAP_GESTURE_CASE_ID = 'desktop-balanced-player';
+const RENDERED_WEBGL_QA_LABEL_KEYBOARD_CASE_ID = 'desktop-high';
 // Interactions may change the projection-visible set, but every eligible castle
 // must remain a direct label. Explore remains the complete accessible list and
 // never becomes an excuse for automatic world-label overflow.
@@ -612,6 +613,32 @@ export function parseRenderedWebglInspectorLabelActivationEvidence(value) {
   return Object.freeze({ inspectorLabelActivated: true });
 }
 
+/**
+ * Structural evidence for the world-label roving keyboard group. No castle ID,
+ * identity, label text, or projected coordinate leaves the local page.
+ */
+export function parseRenderedWebglLabelKeyboardEvidence(value) {
+  const candidate = exactRecord(value, 'Invalid rendered WebGL label keyboard evidence.');
+  if (
+    !exactMessageKeys(candidate, new Set([
+      'arrowMoved',
+      'endReached',
+      'homeReached',
+      'singleTabStop',
+    ]))
+    || candidate.arrowMoved !== true
+    || candidate.endReached !== true
+    || candidate.homeReached !== true
+    || candidate.singleTabStop !== true
+  ) throw new TypeError('Invalid rendered WebGL label keyboard evidence.');
+  return Object.freeze({
+    arrowMoved: true,
+    endReached: true,
+    homeReached: true,
+    singleTabStop: true,
+  });
+}
+
 export function selectBlankPageTarget(value) {
   const result = exactRecord(value, 'Invalid Chrome DevTools target list.');
   if (
@@ -715,6 +742,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'focusedReadableLabelDomFocusCount',
     'focusedReadableLabelCount',
     'href',
+    'hiddenFocusedLabelCount',
     'interactionState',
     'individualCastleCount',
     'inspectorProfileImageState',
@@ -756,6 +784,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'semanticTerrainFeatureDrawCalls',
     'semanticTerrainKindCount',
     'status',
+    'tabbableLabelCount',
     'totalTerrainDetailDrawCalls',
     'totalTerrainDetailInstanceCount',
     'undersizedPrimaryControlCount',
@@ -778,6 +807,18 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   if (
     !validLabelCullReasonAggregate(candidate.labelCullReasons)
   ) throw new TypeError('Invalid rendered WebGL browser DOM: label-cull-reasons-shape.');
+  const labelCullEntries = candidate.labelCullReasons === ''
+    ? []
+    : candidate.labelCullReasons.split(',').map((entry) => {
+        const [reason, count] = entry.split(':');
+        return { reason, count: Number(count) };
+      });
+  const reservedUiCullCount = labelCullEntries.find((entry) => (
+    entry.reason === 'reserved-ui'
+  ))?.count ?? 0;
+  const labelCullPolicyValid = labelCullEntries.every((entry) => (
+    entry.reason === 'reserved-ui'
+  ));
   // Inspector activation can legitimately transfer focus from its permanent
   // source label into the record. Other lanes should not retain a focused
   // world identity.
@@ -842,10 +883,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       || candidate.labelPlacedCount < 0 ? 'label-placed-shape' : '',
     !Number.isSafeInteger(candidate.labelUnplacedCount)
       || candidate.labelUnplacedCount < 0 ? 'label-unplaced-shape' : '',
-    candidate.labelEligibleCount !== candidate.labelPlacedCount
-      ? 'label-direct-coverage' : '',
-    candidate.labelUnplacedCount !== 0 ? 'label-unplaced' : '',
-    candidate.labelCullReasons !== '' ? 'label-cull-reasons' : '',
+    candidate.labelEligibleCount !== candidate.labelPlacedCount + candidate.labelUnplacedCount
+      ? 'label-coverage-accounting' : '',
+    candidate.labelUnplacedCount !== reservedUiCullCount
+      ? 'label-cull-accounting' : '',
+    !labelCullPolicyValid ? 'label-cull-policy' : '',
     candidate.labelPlacedCount !== candidate.labelCount ? 'label-placement-dom' : '',
     candidate.individualCastleCount !== candidate.labelPlacedCount
       ? 'individual-label-mismatch' : '',
@@ -919,13 +961,18 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     candidate.clusterReservedOverlapCount !== 0 ? 'label-cluster-reserved-ui' : '',
     !Number.isSafeInteger(candidate.labelCount)
       || candidate.labelCount < expected.minimumLabelCount ? 'label-count' : '',
+    !Number.isSafeInteger(candidate.tabbableLabelCount)
+      || candidate.tabbableLabelCount !== (candidate.labelCount > 0 ? 1 : 0)
+      ? 'label-roving-tab-stop' : '',
+    candidate.hiddenFocusedLabelCount !== 0 ? 'label-hidden-focus' : '',
     candidate.labelsTextBearingCount !== candidate.labelCount ? 'label-text' : '',
     !Number.isSafeInteger(candidate.labelsWithinViewportCount)
       || candidate.labelsWithinViewportCount !== candidate.labelCount
       ? 'label-viewport' : '',
     !Number.isSafeInteger(candidate.labelCollisionCount)
-      || candidate.labelCollisionCount !== 0
-      ? 'label-collision' : '',
+      || candidate.labelCollisionCount < 0
+      || candidate.labelCollisionCount > candidate.labelCount * (candidate.labelCount - 1) / 2
+      ? 'label-collision-shape' : '',
     !Number.isSafeInteger(candidate.labelHitTestViolationCount)
       || candidate.labelHitTestViolationCount !== 0
       ? 'label-hit-test' : '',
@@ -997,6 +1044,11 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     semanticTerrainFeatureDrawCalls: candidate.semanticTerrainFeatureDrawCalls,
     totalTerrainDetailInstanceCount: candidate.totalTerrainDetailInstanceCount,
     totalTerrainDetailDrawCalls: candidate.totalTerrainDetailDrawCalls,
+    // Privacy-safe aggregate coverage only; castle and identity values never
+    // cross the local rendered-probe boundary.
+    labelEligibleCount: candidate.labelEligibleCount,
+    labelPlacedCount: candidate.labelPlacedCount,
+    labelUnplacedCount: candidate.labelUnplacedCount,
   });
 }
 
@@ -1834,20 +1886,33 @@ const READ_DOM_EXPRESSION = `(() => {
       && Math.abs(renderedX - x) <= placementBindingTolerancePixels
       && Math.abs(renderedY - y) <= placementBindingTolerancePixels;
   };
-  const interiorHitTestValid = (control) => {
+  const interiorHitTestValid = (control, allowWorldLabelContention = false) => {
     const bounds = rect(control);
     const hit = document.elementFromPoint(
       (bounds.left + bounds.right) / 2,
       (bounds.top + bounds.bottom) / 2
     );
-    return hit !== null && (hit === control || control.contains(hit));
+    return hit !== null && (
+      hit === control
+      || control.contains(hit)
+      // Direct foundation labels intentionally remain undisplaced. A second
+      // label may therefore win the centre point in a dense overview; record
+      // that through collision telemetry while still rejecting obstruction by
+      // HUD, dialogs, overlays, or unrelated page content.
+      || (
+        allowWorldLabelContention
+        && hit instanceof Element
+        && hit.closest('button.realm-castle-label') !== null
+      )
+    );
   };
   const elementState = (element) => !element ? 'absent' : visible(element) ? 'visible' : 'hidden';
   const overlaps = (left, right) => left.left < right.right
     && left.right > right.left
     && left.top < right.bottom
     && left.bottom > right.top;
-  const labels = [...document.querySelectorAll('button.realm-castle-label')].filter(visible);
+  const allLabels = [...document.querySelectorAll('button.realm-castle-label')];
+  const labels = allLabels.filter(visible);
   const labelRects = labels.map(rect);
   const focusedReadableLabels = labels.filter((label) => (
     label.getAttribute('data-focused') === 'true'
@@ -1987,7 +2052,7 @@ const READ_DOM_EXPRESSION = `(() => {
         label,
         '.realm-castle-label__identity'
       ),
-      hitTestValid: interiorHitTestValid(label)
+      hitTestValid: interiorHitTestValid(label, true)
     };
   });
   const rawLabelMaximumAnchorDisplacement = labelAttachmentTelemetry.reduce(
@@ -2124,6 +2189,10 @@ const READ_DOM_EXPRESSION = `(() => {
     focusedReadableLabelDomFocusCount: focusedReadableLabels.filter((label) => (
       document.activeElement === label
     )).length,
+    hiddenFocusedLabelCount: document.activeElement instanceof HTMLButtonElement
+      && document.activeElement.classList.contains('realm-castle-label')
+      && !visible(document.activeElement) ? 1 : 0,
+    tabbableLabelCount: labels.filter((label) => label.tabIndex === 0).length,
     labelsWithinViewportCount: labelRects.filter((bounds) => (
       bounds.left >= -1
       && bounds.top >= -1
@@ -2644,6 +2713,94 @@ export async function applyRenderedWebglMapGestureInteraction(session) {
   return parseRenderedWebglMapGestureEvidence(evidenceEvaluation.result.value);
 }
 
+/**
+ * Exercises one available spatial arrow, Home, and End on the real rendered
+ * world-label group.
+ * All target choice and comparison remains page-local so no identity-bearing
+ * value crosses the DevTools boundary.
+ */
+export async function applyRenderedWebglLabelKeyboardInteraction(session) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const visible = (element) => {
+        if (!(element instanceof HTMLButtonElement) || element.disabled) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0;
+      };
+      const point = (button) => {
+        const style = getComputedStyle(button);
+        return {
+          button,
+          x: Number.parseFloat(style.getPropertyValue('--realm-castle-label-x')),
+          y: Number.parseFloat(style.getPropertyValue('--realm-castle-label-y')),
+        };
+      };
+      const points = [...document.querySelectorAll('button.realm-castle-label')]
+        .filter(visible)
+        .map(point)
+        .filter((candidate) => Number.isFinite(candidate.x) && Number.isFinite(candidate.y));
+      const readingOrder = [...points].sort((left, right) => (
+        left.y - right.y || left.x - right.x
+      ));
+      const singleTabStop = () => points.filter(({ button }) => button.tabIndex === 0).length === 1;
+      const start = points.find(({ button }) => button.tabIndex === 0);
+      const arrow = start ? [
+        { key: 'ArrowRight', available: points.some((other) => other !== start && other.x > start.x + 0.5) },
+        { key: 'ArrowLeft', available: points.some((other) => other !== start && other.x < start.x - 0.5) },
+        { key: 'ArrowDown', available: points.some((other) => other !== start && other.y > start.y + 0.5) },
+        { key: 'ArrowUp', available: points.some((other) => other !== start && other.y < start.y - 0.5) },
+      ].find((candidate) => candidate.available) : undefined;
+      const dispatch = (button, key) => button.dispatchEvent(new KeyboardEvent('keydown', {
+        bubbles: true,
+        cancelable: true,
+        code: key,
+        key,
+      }));
+      if (!start || !arrow || readingOrder.length < 2) return {
+        arrowMoved: false,
+        endReached: false,
+        homeReached: false,
+        singleTabStop: false,
+      };
+      // Start from the application's natural sole tab stop. Focusing it must
+      // not manufacture or repair roving state inside the probe.
+      const initialSingleTabStop = singleTabStop();
+      start.button.focus({ preventScroll: true });
+      const naturalStartFocused = document.activeElement === start.button
+        && start.button.tabIndex === 0;
+      dispatch(start.button, arrow.key);
+      const arrowTarget = document.activeElement;
+      const arrowMoved = arrowTarget instanceof HTMLButtonElement
+        && arrowTarget !== start.button
+        && points.some(({ button }) => button === arrowTarget);
+      const arrowSingleTabStop = singleTabStop();
+      if (arrowTarget instanceof HTMLButtonElement) dispatch(arrowTarget, 'Home');
+      const homeReached = document.activeElement === readingOrder[0].button;
+      const homeSingleTabStop = singleTabStop();
+      if (document.activeElement instanceof HTMLButtonElement) {
+        dispatch(document.activeElement, 'End');
+      }
+      return {
+        arrowMoved,
+        endReached: document.activeElement === readingOrder.at(-1).button,
+        homeReached,
+        singleTabStop: initialSingleTabStop && naturalStartFocused && arrowSingleTabStop
+          && homeSingleTabStop && singleTabStop(),
+      };
+    })()`,
+    returnByValue: true,
+  });
+  if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL label keyboard evaluation failed.');
+  }
+  return parseRenderedWebglLabelKeyboardEvidence(evaluation.result.value);
+}
+
 export async function applyRenderedWebglCaseInteraction(session, interaction) {
   if (interaction === 'default') return Object.freeze({});
   const selector = interaction === 'inspector'
@@ -2704,6 +2861,10 @@ async function runRenderedCase(session, probeCase, state) {
   const baseline = Object.freeze({ ...probeCase, interaction: 'default' });
   await waitForAcceptedRenderedDom(session, baseline, state);
   await captureRenderedCasePixels(session, probeCase.viewport);
+  if (probeCase.id === RENDERED_WEBGL_QA_LABEL_KEYBOARD_CASE_ID) {
+    await applyRenderedWebglLabelKeyboardInteraction(session);
+    await waitForAcceptedRenderedDom(session, baseline, state);
+  }
   if (probeCase.id === RENDERED_WEBGL_QA_MAP_GESTURE_CASE_ID) {
     await applyRenderedWebglMapGestureInteraction(session);
     await waitForAcceptedRenderedDom(session, baseline, state);

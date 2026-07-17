@@ -35,10 +35,13 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   overflow identity. Live pre-mask 3D frustum membership prevents a rail from
   outliving its rendered castle at a viewport edge, and touch targets retain a
   device-rounding safety margin above 44 pixels. Fully clipped controls are
-  excluded, one roving world-label tab stop bounds keyboard traversal, and
-  rendered QA now rejects label collision, failed hit testing, viewport
-  clipping, and HUD overlap. Explore retains the complete keyboard- and
-  touch-accessible castle list.
+  excluded, exactly one visible world label remains tabbable, spatial arrow
+  keys move between nearby labels, and Home/End reach deterministic reading
+  endpoints. Rails conservatively obstructed by visible Realm UI stay in
+  Explore rather than becoming hidden controls. Rendered QA records bounded
+  label-on-label contention while rejecting non-label hit obstruction,
+  viewport clipping, and HUD overlap. Explore retains the complete keyboard-
+  and touch-accessible castle list.
 - Ordinary wheel and pinch input keep a readable zoom floor. The explicit
   Realm overview remains available and fits the actual convex rendered-terrain
   perimeter with a conservative raised-scene margin instead of nonexistent
@@ -58,12 +61,14 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   backdrop blur reduces avoidable compositing work during map motion.
 - The compact player HUD now reuses the bounded static Farcaster portrait
   renderer, with the existing sanitized monogram fallback and no FID-as-label.
-- Exact provenance-pinned Food, Wood, Stone, and Gold icon masters plus a
-  fail-closed bigint projection decoder prepare a future mechanics slice. No
-  resource balance, production, construction action, or placeholder counter is
-  mounted in this release; Community Marks remains separate.
+- Exact provenance-pinned Food, Wood, Stone, and Gold reference masters remain
+  outside the Pages `public/` tree, while a fail-closed bigint projection
+  decoder prepares a future mechanics slice. No resource image, balance,
+  production, construction action, or placeholder counter is mounted in this
+  release; Community Marks remains separate.
 - Defensive source hardening tightens authentication configuration and cookie
-  validation, profile/image ingress, bounded browser/model transports, local
+  validation, profile/image ingress, complete founder-profile projection,
+  bounded browser/model transports, local
   tooling downloads, private caches, and exact CI action runtimes. It adds no
   authentication bypass and performs no admission, Worker, SpacetimeDB,
   production-data, DNS, wallet, or authoritative-world mutation.

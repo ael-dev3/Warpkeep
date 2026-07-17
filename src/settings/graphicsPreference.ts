@@ -79,7 +79,10 @@ export function resolveGraphicsQuality(
   const height = finitePositive(input.height, 720);
   const cores = finitePositive(input.hardwareConcurrency, 4);
   const memory = finitePositive(input.deviceMemory, 4);
-  const maxTextureSize = finitePositive(input.maxTextureSize, 8192);
+  // Unknown GPU capability is not evidence of Cinematic headroom. Keep an
+  // unreported or failed WebGL2 probe on the broadly compatible Balanced path;
+  // explicit player choices still take precedence above.
+  const maxTextureSize = finitePositive(input.maxTextureSize, 4096);
   const shortestSide = Math.min(width, height);
   const drawingBufferPixels = width * height * Math.min(
     finitePositive(input.devicePixelRatio, 1),
@@ -96,6 +99,8 @@ export function resolveGraphicsQuality(
     && drawingBufferPixels <= 12_000_000
     && cores >= 6
     && memory >= 8
+    && input.maxTextureSize !== undefined
+    && Number.isFinite(input.maxTextureSize)
     && maxTextureSize >= 8192
   ) return 'cinematic';
   return 'balanced';

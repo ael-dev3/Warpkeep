@@ -220,6 +220,14 @@ describe('compact Realm CSS contract', () => {
 
   it('keeps Explore scrollable, readable, and responsive without reviving the old cell grid', () => {
     const dialog = block(MAP, '.realm-cell-navigator__dialog {');
+    const openNavigator = block(
+      MAP,
+      '.realm-cell-navigator:has(.realm-cell-navigator__dialog) {'
+    );
+    const interactiveDialog = block(
+      MAP,
+      '.realm-cell-navigator:has(.realm-cell-navigator__dialog) .realm-cell-navigator__dialog {'
+    );
     const presets = block(MAP, '.realm-cell-navigator__presets > div {');
     const jump = block(MAP, '.realm-cell-navigator__jump fieldset {');
     const narrowest = block(MAP, '@media (max-width: 360px) {');
@@ -235,6 +243,8 @@ describe('compact Realm CSS contract', () => {
     expect(dialog).toContain('overflow-x: hidden;');
     expect(dialog).toContain('overflow-y: auto;');
     expect(dialog).toContain('max-height: min(58svh, 35rem);');
+    expect(openNavigator).toContain('pointer-events: none;');
+    expect(interactiveDialog).toContain('pointer-events: auto;');
     expect(presets).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
     expect(jump).toContain('min-width: 0;');
     expect(jump).toContain('box-sizing: border-box;');

@@ -411,6 +411,17 @@
   backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
 }
 
+/* The positioned navigator shell has no visual surface of its own. Once the
+   dialog opens, keep that transparent high-z-index box from intercepting map
+   controls while preserving the dialog as the sole interactive descendant. */
+.realm-cell-navigator:has(.realm-cell-navigator__dialog) {
+  pointer-events: none;
+}
+
+.realm-cell-navigator:has(.realm-cell-navigator__dialog) .realm-cell-navigator__dialog {
+  pointer-events: auto;
+}
+
 .realm-cell-navigator__heading {
   display: flex;
   align-items: center;
