@@ -66,6 +66,27 @@ The Hegemony Mark currency artwork has an explicit CC-BY-4.0 grant in the immuta
 
 Attribution: **Warpkeep Hegemony Mark currency artwork by the Warpkeep project**, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). The grant covers the named source PNG and faithful runtime derivatives to the extent copyright and related rights are controlled by the Warpkeep project. It does not license OpenAI services, names, trademarks, third-party rights, or Warpkeep trademarks and canonical identity. The complete release coordinates, deterministic Sharp/libvips settings, decoded-pixel hashes, alpha audit, and visual QA are in the [runtime manifest](docs/reference/factions/hegemony/2026-07-13-hegemony-mark/runtime-manifest.json).
 
+## Hegemony gold resource icon provenance
+
+The gold-stack icon was supplied by the Warpkeep project owner on 2026-07-17
+with an instruction to add a transparent gold icon to the draft Alpha 0.3.6
+mechanics PR. That instruction authorizes the exact background-cleaned runtime
+PNG in this public Warpkeep repository and its future official Pages runtime;
+it does not establish underlying ownership, grant a separate public
+open-content licence, authorize general third-party derivative or redistribution
+use, or grant trademark, canonical-identity, currency, reward, or entitlement
+rights.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Planned gold-resource presentation | `public/images/resources/hegemony-gold.png` | 1254×1254 RGBA PNG, 1,142,819 bytes, SHA-256 `87dddaa91a23f630e86da35da8b5b7300c0ecce9fb850060c0c18b0f2de72f26`; background-cleaned through the recorded image-edit and chroma-matte workflow. |
+
+The source attachment and chroma-key intermediate are not committed. Their
+hashes, edit prompt, cleanup parameters, decoded RGBA hash, alpha profile, and
+visible bounds are recorded in the [dated gold icon record](docs/reference/resources/2026-07-17-hegemony-gold-icon/manifest.json). The runtime file remains under
+`LicenseRef-Warpkeep-Provenance-Required`; neither its location under `public/`
+nor a future gameplay implementation silently relicenses it.
+
 ## Historical Hegemony Frontier Keep provenance
 
 The Hegemony Frontier Keep and its former runtime derivatives were project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the current tree or a public release while redistribution authority is unresolved. The three former runtime derivatives are also retired and absent; their future license follows the source-rights determination, not the fact of conversion.

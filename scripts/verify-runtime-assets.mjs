@@ -35,6 +35,7 @@ const assets = Object.freeze([
 ]);
 
 const imageAssets = Object.freeze([
+  ['public/images/resources/hegemony-gold.png', 1_254, 'png', 1_142_819, '87dddaa91a23f630e86da35da8b5b7300c0ecce9fb850060c0c18b0f2de72f26'],
   ['public/images/factions/hegemony/marks/hegemony-mark-32.png', 32, 'png', 2_508, '5a11e27123b287a663d316c2b307e5be6549cee206383dc17c741762df69363e'],
   ['public/images/factions/hegemony/marks/hegemony-mark-32.webp', 32, 'webp', 2_060, '1ad2faaea36b80bfdd2140ea9d401a49d96766a4bf2d7a439a8dbaac814c1449'],
   ['public/images/factions/hegemony/marks/hegemony-mark-64.png', 64, 'png', 8_122, '773cdd9cae90a5030182d50689a3e6322cb628b8732a528d2a3563c9468b2bbb'],
