@@ -12,26 +12,9 @@ import type {
 } from './realmTypes';
 
 export const CASTLE_LABEL_LAYOUT_MAX_CASTLES = 100;
-export const CASTLE_LABEL_LEADER_MIN_DISPLACEMENT_PIXELS = 12;
-export const CASTLE_LABEL_FAR_DISTANCE = 24;
 export const CASTLE_LABEL_GAP_PIXELS = 6;
-
-const CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT = 4;
-const CASTLE_LABEL_EDGE_MARGIN = 4;
-const CASTLE_LABEL_FULL_WIDTH = 132;
-const CASTLE_LABEL_FULL_HEIGHT = 44;
-/** Conservative initial fallback until the DOM reports exact compact label dimensions. */
-export const CASTLE_LABEL_COMPACT_WIDTH = 124;
-export const CASTLE_LABEL_COMPACT_HEIGHT = 30;
-
-type LabelAttachmentOffset = Readonly<{ x: number; y: number }>;
-
-// A castle username has one honest location: the projected foundation base.
-// Dense collisions collapse into a nearby aggregate or remain available in
-// Explore; they never move an individual identity away from its castle.
-const COMPACT_LABEL_ATTACHMENT_OFFSETS: readonly LabelAttachmentOffset[] = Object.freeze([
-  { x: 0, y: 0 }
-]);
+export const CASTLE_LABEL_COMPACT_VIEWPORT_MAX_WIDTH = 680;
+export const CASTLE_LABEL_MINIMUM_CONTROL_SIZE = 45;
 
 /**
  * The deliberately small profile projection available to Realm presentation
@@ -55,62 +38,15 @@ export type VisibleCastleLabel = RealmCastleScreenProjection & Readonly<{
   projectedAnchor: Readonly<{ x: number; y: number }>;
 }>;
 
-export type RealmCastleLabelLeaderGeometry = Readonly<{
-  displaced: boolean;
-  length: number;
-  angleRadians: number;
-}>;
-
-export function realmCastleLabelLeaderGeometry(
-  label: Readonly<{
-    x: number;
-    y: number;
-    projectedAnchor: Readonly<{ x: number; y: number }>;
-  }>
-): RealmCastleLabelLeaderGeometry {
-  const deltaX = label.x - label.projectedAnchor.x;
-  const deltaY = label.y - label.projectedAnchor.y;
-  if (
-    !Number.isFinite(deltaX)
-    || !Number.isFinite(deltaY)
-    || !Number.isFinite(label.projectedAnchor.x)
-    || !Number.isFinite(label.projectedAnchor.y)
-  ) {
-    return Object.freeze({ displaced: false, length: 0, angleRadians: 0 });
-  }
-  const length = Math.hypot(deltaX, deltaY);
-  return Object.freeze({
-    displaced: length >= CASTLE_LABEL_LEADER_MIN_DISPLACEMENT_PIXELS,
-    length,
-    angleRadians: Math.atan2(deltaY, deltaX)
-  });
-}
-
-/**
- * Privacy-safe aggregate used by rendered QA. It counts only castle roof
- * anchors that are projection-eligible inside the current viewport; no castle
- * identity or coordinate leaves the presentation layer.
- */
-export function realmEligibleCastleProjectionCount(frame: RealmCastleProjectionFrame) {
-  if (frame.width <= 0 || frame.height <= 0) return 0;
-  return frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES).filter((castle) => (
-    castle.visible
-    && Number.isFinite(castle.x)
-    && Number.isFinite(castle.y)
-    && castle.x >= 0
-    && castle.x <= frame.width
-    && castle.y >= 0
-    && castle.y <= frame.height
-  )).length;
-}
-
-function projectionNumberKey(value: number, scale = 1) {
+function projectionNumberKey(value: number, scale = 10) {
   return Number.isFinite(value) ? Math.round(value * scale) : 'invalid';
 }
 
 /**
- * Coalesces sub-pixel camera motion while retaining every presentation input:
- * screen position, visibility, model silhouette, and distance/near-far band.
+ * Coalesces only imperceptible sub-tenth-pixel motion while retaining every
+ * presentation input that can move, reveal, or hide a persistent foundation label. Camera
+ * distance is deliberately absent: zoom may move the projected foundation,
+ * but it must never change label membership or presentation by itself.
  */
 export function realmCastleProjectionFrameKey(frame: RealmCastleProjectionFrame) {
   return `${projectionNumberKey(frame.width)}:${projectionNumberKey(frame.height)}:${frame.castles.map((castle) => {
@@ -134,19 +70,60 @@ export function realmCastleProjectionFrameKey(frame: RealmCastleProjectionFrame)
           .map((value) => projectionNumberKey(value))
           .join(',')
       : '-';
-    const distanceBand = castle.distance > CASTLE_LABEL_FAR_DISTANCE ? 'far' : 'near';
     return [
       castle.castleId,
       projectionNumberKey(castle.x),
       projectionNumberKey(castle.y),
-      projectionNumberKey(castle.distance, CASTLE_PROJECTION_DISTANCE_STEPS_PER_UNIT),
-      distanceBand,
       castle.visible ? 1 : 0,
       castle.presented ? 1 : 0,
       boundsKey,
       conservativeBoundsKey
     ].join(':');
   }).join('|')}`;
+}
+
+/**
+ * Resolves the canonical Realm identity layer. Every projection-visible
+ * founded castle owns one direct, text-bearing button at its foundation base.
+ * Collisions, LOD selection, camera distance, and other identities never
+ * change membership. Compact presentation is a viewport property only, so a
+ * zoom or orbit cannot make a nameplate swap shape, aggregate, or disappear.
+ *
+ * A dense overview can overlap labels by design. Explore remains the complete
+ * list and selection surface, while the world layer preserves spatial truth.
+ */
+export function resolvePersistentCastleLabels(
+  frame: RealmCastleProjectionFrame
+): readonly VisibleCastleLabel[] {
+  if (frame.width <= 0 || frame.height <= 0) return [];
+  const compact = frame.width <= CASTLE_LABEL_COMPACT_VIEWPORT_MAX_WIDTH;
+  const seenCastleIds = new Set<number>();
+  return frame.castles
+    .slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES)
+    .filter((castle) => {
+      if (
+        !castle.visible
+        || !Number.isSafeInteger(castle.castleId)
+        || castle.castleId <= 0
+        || !Number.isFinite(castle.x)
+        || !Number.isFinite(castle.y)
+        // The label layer clips overflow. Keep every interactive control's
+        // minimum hit box fully inside the viewport; Explore remains the
+        // complete surface for edge and offscreen castles.
+        || castle.x < CASTLE_LABEL_MINIMUM_CONTROL_SIZE * 0.5
+        || castle.x > frame.width - CASTLE_LABEL_MINIMUM_CONTROL_SIZE * 0.5
+        || castle.y < 0
+        || castle.y > frame.height - CASTLE_LABEL_MINIMUM_CONTROL_SIZE
+        || seenCastleIds.has(castle.castleId)
+      ) return false;
+      seenCastleIds.add(castle.castleId);
+      return true;
+    })
+    .map((castle) => ({
+      ...castle,
+      compact,
+      projectedAnchor: { x: castle.x, y: castle.y }
+    }));
 }
 
 function boundedDisplayText(value: string | undefined, maximumLength: number) {
@@ -272,121 +249,6 @@ export function sectorForRealmCoord(coord: HexCoord) {
   if (coord.q < 0 && coord.r <= 0) return 4;
   if (coord.r < 0 && coord.q >= 0 && s > 0) return 5;
   return 6;
-}
-
-type Bounds = Readonly<{ left: number; right: number; top: number; bottom: number }>;
-
-function intersects(first: Bounds, second: Bounds) {
-  return first.left < second.right
-    && first.right > second.left
-    && first.top < second.bottom
-    && first.bottom > second.top;
-}
-
-function labelBounds(
-  castle: RealmCastleScreenProjection,
-  compact: boolean,
-  yOffset: number
-): Bounds {
-  const width = compact ? CASTLE_LABEL_COMPACT_WIDTH : CASTLE_LABEL_FULL_WIDTH;
-  const height = compact ? CASTLE_LABEL_COMPACT_HEIGHT : CASTLE_LABEL_FULL_HEIGHT;
-  return {
-    left: castle.x - width / 2,
-    right: castle.x + width / 2,
-    top: castle.y + yOffset,
-    bottom: castle.y + yOffset + height
-  };
-}
-
-/**
- * Bounded label placement for up to 100 castles. Every accepted marker keeps
- * its public identity text and remains attached to its projected castle.
- */
-export function resolveVisibleCastleLabels(
-  frame: RealmCastleProjectionFrame,
-  ownCastleId: number | undefined,
-  selectedCastleId: number | undefined,
-  maximumLabels = CASTLE_LABEL_LAYOUT_MAX_CASTLES,
-  hoveredCastleId?: number
-): readonly VisibleCastleLabel[] {
-  const boundedMaximumLabels = Number.isFinite(maximumLabels)
-    ? Math.min(CASTLE_LABEL_LAYOUT_MAX_CASTLES, Math.max(0, Math.floor(maximumLabels)))
-    : 0;
-  if (frame.width <= 0 || frame.height <= 0 || boundedMaximumLabels <= 0) return [];
-  const candidates = frame.castles
-    .slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES)
-    .filter((castle) => castle.visible)
-    .sort((left, right) => {
-      const priority = (castle: RealmCastleScreenProjection) => (
-        castle.castleId === selectedCastleId ? 0
-          : castle.castleId === hoveredCastleId ? 1
-            : castle.castleId === ownCastleId ? 2
-              : 3
-      );
-      return priority(left) - priority(right)
-        || left.distance - right.distance
-        || left.castleId - right.castleId;
-    });
-
-  const accepted: Array<VisibleCastleLabel & { bounds: Bounds }> = [];
-  for (const castle of candidates) {
-    if (accepted.length >= boundedMaximumLabels) break;
-    const priority = castle.castleId === selectedCastleId
-      || castle.castleId === hoveredCastleId
-      || castle.castleId === ownCastleId;
-    const fullAttempt = { compact: false, offsets: [{ x: 0, y: 0 }] } as const;
-    const compactAttempt = { compact: true, offsets: COMPACT_LABEL_ATTACHMENT_OFFSETS } as const;
-    const preferCompact = frame.width <= 680 && !priority;
-    const presentationAttempts: readonly Readonly<{
-      compact: boolean;
-      offsets: readonly LabelAttachmentOffset[];
-    }>[] = preferCompact
-      ? [compactAttempt, fullAttempt]
-      : [fullAttempt, compactAttempt];
-
-    let nextLabel: (VisibleCastleLabel & { bounds: Bounds }) | undefined;
-    for (const attempt of presentationAttempts) {
-      const width = attempt.compact ? CASTLE_LABEL_COMPACT_WIDTH : CASTLE_LABEL_FULL_WIDTH;
-      const height = attempt.compact ? CASTLE_LABEL_COMPACT_HEIGHT : CASTLE_LABEL_FULL_HEIGHT;
-      const minimumX = CASTLE_LABEL_EDGE_MARGIN + width / 2;
-      const maximumX = frame.width - CASTLE_LABEL_EDGE_MARGIN - width / 2;
-      const minimumY = CASTLE_LABEL_EDGE_MARGIN;
-      const maximumY = frame.height - CASTLE_LABEL_EDGE_MARGIN - height;
-      if (maximumX < minimumX || maximumY < minimumY) continue;
-
-      for (const offset of attempt.offsets) {
-        const attachedX = castle.x + offset.x;
-        const attachedY = castle.y + offset.y;
-        if (
-          attachedX < minimumX
-          || attachedX > maximumX
-          || attachedY < minimumY
-          || attachedY > maximumY
-        ) continue;
-        const x = attachedX;
-        const y = attachedY;
-        const projectedCastle = { ...castle, x, y };
-        const bounds = labelBounds(projectedCastle, attempt.compact, 0);
-        if (
-          (castle.castleBounds && intersects(bounds, castle.castleBounds))
-          || accepted.some((entry) => intersects(bounds, entry.bounds))
-        ) continue;
-        nextLabel = {
-          ...projectedCastle,
-          compact: attempt.compact,
-          projectedAnchor: { x: castle.x, y: castle.y },
-          bounds
-        };
-        break;
-      }
-      if (nextLabel) break;
-    }
-    if (nextLabel) {
-      accepted.push(nextLabel);
-    }
-  }
-
-  return accepted.map(({ bounds: _bounds, ...label }) => label);
 }
 
 export function fallbackCastleProjection(

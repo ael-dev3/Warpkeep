@@ -55,7 +55,6 @@ describe('compact Realm CSS contract', () => {
       narrowPresentation,
       '.realm-castle-label[data-compact="true"] {'
     );
-    const identityCluster = block(PRESENTATION, '.realm-castle-cluster {');
     const avatarCanvas = block(PRESENTATION, '.realm-castle-avatar canvas {');
 
     expect(label).toContain('top: 0;');
@@ -65,8 +64,8 @@ describe('compact Realm CSS contract', () => {
     expect(label).toContain('var(--realm-castle-label-y)');
     expect(label).toContain('translate(-50%, 0);');
     expect(label).toContain('z-index: 1;');
-    expect(label).toContain('min-width: 2.75rem;');
-    expect(label).toContain('min-height: 2.75rem;');
+    expect(label).toContain('min-width: 45px;');
+    expect(label).toContain('min-height: 45px;');
     expect(label).toContain('padding: 0;');
     expect(label).toContain('border: 0;');
     expect(label).toContain('background: transparent;');
@@ -77,29 +76,35 @@ describe('compact Realm CSS contract', () => {
     expect(plate).toContain('background: linear-gradient(');
     expect(plate).toContain('rgb(8 8 13 / 36%) 0%');
     expect(plate).toContain('rgb(13 10 20 / 0%) 100%');
-    expect(plate).toContain('backdrop-filter: blur(2px);');
+    expect(plate).not.toContain('backdrop-filter:');
+    expect(label).toContain('touch-action: none;');
+    expect(label).not.toContain('will-change: transform;');
     expect(PRESENTATION).not.toMatch(/top:\s*var\(--realm-castle-label-y\)/);
     expect(PRESENTATION).not.toMatch(/left:\s*var\(--realm-castle-label-x\)/);
     expect(compactLabel).toContain('width: auto;');
-    expect(compactLabel).toContain('min-width: 2.75rem;');
+    expect(compactLabel).toContain('min-width: 45px;');
     expect(compactLabel).toContain('max-width: 7.25rem;');
-    expect(compactLabel).toContain('min-height: 2.75rem;');
+    expect(compactLabel).toContain('min-height: 45px;');
     expect(compactLabel).toContain('font-size: 0.8125rem;');
     expect(narrowCompactLabel).toContain('width: auto;');
-    expect(narrowCompactLabel).toContain('min-width: 2.75rem;');
+    expect(narrowCompactLabel).toContain('min-width: 45px;');
     expect(narrowCompactLabel).toContain('max-width: 6.75rem;');
     expect(narrowCompactLabel).toContain('font-size: 0.75rem;');
     expect(PRESENTATION).toContain('.realm-castle-label__identity');
     expect(PRESENTATION).toContain('font-size: 0.8125rem;');
-    expect(PRESENTATION).toContain('font: 800 0.8125rem/1 Inter');
-    expect(identityCluster).toContain('width: var(--realm-castle-cluster-width);');
-    expect(identityCluster).toContain('height: 2.75rem;');
-    expect(identityCluster).toContain('pointer-events: auto;');
-    expect(identityCluster).toContain('cursor: zoom-in;');
-    expect(identityCluster).toContain('translate(-50%, -100%);');
+    expect(PRESENTATION).not.toContain('.realm-castle-cluster');
+    expect(PRESENTATION).toContain('.realm-castle-label[data-own="true"] {');
+    expect(PRESENTATION).toContain('.realm-castle-label[data-focused="true"] {');
+    expect(PRESENTATION).toContain('.realm-castle-label[data-hovered="true"]');
+    expect(block(PRESENTATION, '.realm-castle-label[data-own="true"] {'))
+      .toContain('z-index: 2;');
+    expect(block(PRESENTATION, '.realm-castle-label[data-focused="true"] {'))
+      .toContain('z-index: 3;');
     expect(LABEL_COMPONENT).toContain('data-anchor="foundation-base"');
     expect(LABEL_COMPONENT).toContain('data-displaced="false"');
     expect(LABEL_COMPONENT).not.toContain('data-realm-label-leader');
+    expect(LABEL_COMPONENT).not.toContain('data-realm-castle-cluster');
+    expect(label).not.toMatch(/(?:animation|transition)[^;]*(?:opacity|transform)/);
     const renderedLabelLayer = LABEL_COMPONENT.slice(
       LABEL_COMPONENT.indexOf('export function RealmCastleLabels')
     );
@@ -205,8 +210,8 @@ describe('compact Realm CSS contract', () => {
     expect(communityLink).toContain('min-height: 2.75rem;');
     expect(communityLink).toContain('font: 760 0.6875rem/1.2 Inter');
     expect(jumpInput).toContain('min-width: 2.75rem;');
-    expect(castleLabel).toContain('min-width: 2.75rem;');
-    expect(castleLabel).toContain('min-height: 2.75rem;');
+    expect(castleLabel).toContain('min-width: 45px;');
+    expect(castleLabel).toContain('min-height: 45px;');
     expect(dismiss).toContain('min-height: 2.75rem;');
     expect(profileLink).toContain('min-height: 2.75rem;');
     expect(inspectorIdentity).toContain('overflow-wrap: anywhere;');

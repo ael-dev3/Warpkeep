@@ -11,7 +11,12 @@ import {
 } from './castleInstancePlanning';
 import type { HegemonyKeepPrefab } from './hegemonyKeepPrefabRepository';
 
-export const CASTLE_GROUND_LIFT = 0.006;
+/**
+ * One small shared clearance for the complete authored castle-plus-island
+ * assembly. It leaves every LOD grounded while keeping dense High base skirts
+ * above the terrain depth seam; castle and base never receive separate lifts.
+ */
+export const CASTLE_GROUND_LIFT = 0.01;
 
 export type RealmCastleInstanceRecord = Readonly<{
   castleId: number;
@@ -45,9 +50,17 @@ export type RealmCastleInstanceLayer = Readonly<{
     selectedCastleId?: number
   ) => void;
   /**
+   * Exact castle identities intersecting the live instance-layer frustum on
+   * the latest update, before the presentation mask is applied. The immutable
+   * snapshot lets the DOM projection lane follow the same visibility test
+   * without making a prior label mask prevent a newly entering castle.
+   */
+  getFrustumVisibleCastleIds: () => readonly number[];
+  /**
    * Limits rendering and raycasting to the current viewport presentation set.
-   * Identity labels may be placed or clustered independently. `null` is the
-   * initialization state before the first projection frame.
+   * Direct identity labels derive membership from the separate pre-mask
+   * frustum snapshot. `null` is the initialization state before the first
+   * projection frame.
    */
   setPresentedCastleIds: (castleIds: readonly number[] | null) => void;
   /** Raycasts only castle instances. Terrain fallback belongs to the scene. */
@@ -301,6 +314,7 @@ export function createRealmCastleInstanceLayer(
   let packing = packCastleInstances<RealmCastleInstanceRecord>([], {
     policy: options.policy
   });
+  let frustumVisibleCastleIds: readonly number[] = Object.freeze([]);
   let presentedCastleIds: ReadonlySet<number> | null = null;
   let presentedCastleKey = '*';
 
@@ -314,6 +328,7 @@ export function createRealmCastleInstanceLayer(
     viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(viewProjection);
 
+    const nextFrustumVisibleCastleIds: number[] = [];
     packing = packCastleInstances(orderedCastles.map((castle) => {
       center.set(castle.x, castle.groundY + maximumHeight * 0.5, castle.z);
       const cameraDistance = center.distanceTo(camera.position);
@@ -323,6 +338,8 @@ export function createRealmCastleInstanceLayer(
         castle.z + renderCenterOffset.z
       );
       sphere.radius = renderRadius;
+      const visibleInFrustum = frustum.intersectsSphere(sphere);
+      if (visibleInFrustum) nextFrustumVisibleCastleIds.push(castle.castleId);
       return {
         castleId: castle.castleId,
         projectedDiameterPixels: projectedDiameterPixels(
@@ -332,7 +349,7 @@ export function createRealmCastleInstanceLayer(
           viewportHeight
         ),
         cameraDistance,
-        visible: frustum.intersectsSphere(sphere)
+        visible: visibleInFrustum
           && (presentedCastleIds === null || presentedCastleIds.has(castle.castleId)),
         data: castle
       };
@@ -341,6 +358,9 @@ export function createRealmCastleInstanceLayer(
       previousLods,
       selectedCastleId
     });
+    // Replace rather than mutate the published snapshot. Consumers can retain
+    // one frame safely while this layer evaluates the next camera position.
+    frustumVisibleCastleIds = Object.freeze(nextFrustumVisibleCastleIds);
     previousLods = packing.lodByCastleId;
 
     const nextPackingKey = packingKey(packing);
@@ -473,6 +493,7 @@ export function createRealmCastleInstanceLayer(
     contactShadows.count = 0;
     baseColliders.count = 0;
     baseColliderCastleIds.length = 0;
+    frustumVisibleCastleIds = Object.freeze([]);
     group.clear();
     meshOwners.clear();
   };
@@ -600,6 +621,7 @@ export function createRealmCastleInstanceLayer(
   return Object.freeze({
     group,
     update,
+    getFrustumVisibleCastleIds: () => frustumVisibleCastleIds,
     setPresentedCastleIds: (castleIds) => {
       if (cleared) return;
       if (castleIds === null) {

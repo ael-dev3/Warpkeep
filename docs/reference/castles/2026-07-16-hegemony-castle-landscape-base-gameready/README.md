@@ -104,10 +104,11 @@ exist only for conservative rendering and culling.
 
 After castle-derived normalization, the base occupies approximately 2.056
 world units across X, 1.705 across Z, and 0.259 vertically, with its lower edge
-near `Y=-0.049`. The existing 0.62/0.78 terrain foundation radii remain local
-height/color influence; a separate 1.08 decoration-clearance radius keeps
-procedural detail out of the wider island without turning every terrain sample
-into a wider placement query.
+near `Y=-0.049`, and its outer geometry reaches about 1.06 units from the shared
+origin. A 1.08 level terrain footprint supports the complete island before a
+short blend reaches natural relief at radius 1.22. Decoration clearance uses
+the same 1.22 outer radius. Bounded neighboring-cell lookup preserves local
+sampling even though the foundation crosses its owning hex boundary.
 
 Because the authored island supplies physical contact and grounding, the old
 synthetic contact-shadow instance is suppressed whenever the complete base LOD

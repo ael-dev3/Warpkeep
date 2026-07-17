@@ -60,6 +60,7 @@ vi.mock('../src/components/realm/createRealmEnvironment', async (importOriginal)
 
 import {
   createRealmScene,
+  REALM_CASTLE_READABILITY_LIGHTING,
   resolveRealmPinchGesture,
   type CreateRealmSceneOptions
 } from '../src/components/realm/createRealmScene';
@@ -75,7 +76,7 @@ function listenerCalls(spy: ListenerSpy, eventName: string) {
 }
 
 function dispatchPointer(
-  canvas: HTMLCanvasElement,
+  target: EventTarget,
   type: string,
   input: Readonly<{
     pointerId: number;
@@ -83,6 +84,7 @@ function dispatchPointer(
     clientY: number;
     pointerType?: string;
     button?: number;
+    buttons?: number;
   }>
 ) {
   const event = new Event(type, { bubbles: true, cancelable: true });
@@ -91,9 +93,10 @@ function dispatchPointer(
     clientX: { value: input.clientX },
     clientY: { value: input.clientY },
     pointerType: { value: input.pointerType ?? 'mouse' },
-    button: { value: input.button ?? 0 }
+    button: { value: input.button ?? 0 },
+    buttons: { value: input.buttons ?? (type === 'pointerup' ? 0 : 1) }
   });
-  canvas.dispatchEvent(event);
+  target.dispatchEvent(event);
 }
 
 function createOptions(
@@ -251,8 +254,9 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
-  it('aims the existing neutral fill at the camera without changing terrain irradiance or PBR budgets', () => {
-    const sceneHandle = createRealmScene(createOptions(document.createElement('canvas'), {
+  it('uses a sunlit key with restrained identity fills without adding PBR work', () => {
+    const canvas = document.createElement('canvas');
+    const sceneHandle = createRealmScene(createOptions(canvas, {
       reducedMotion: true
     }));
     const renderedScene = webglState.instances[0].render.mock.calls.at(-1)?.[0] as THREE.Scene;
@@ -265,15 +269,27 @@ describe('realm scene setup cleanup', () => {
     const cameraFill = renderedScene.getObjectByName(
       'realm-camera-facing-fill'
     ) as THREE.DirectionalLight | undefined;
+    const amethystSideFill = renderedScene.getObjectByName(
+      'realm-amethyst-side-fill'
+    ) as THREE.DirectionalLight | undefined;
 
     expect(directionalLights).toHaveLength(3);
     expect(hemisphereLights).toHaveLength(1);
     expect(directionalLights.map((light) => `#${light.color.getHexString()}`).sort()).toEqual([
       '#a991d0',
-      '#d5d9e2',
-      '#ffddb0'
+      '#dce8f5',
+      '#fff2c9'
     ].sort());
     expect(cameraFill).toBeInstanceOf(THREE.DirectionalLight);
+    expect(amethystSideFill).toBeInstanceOf(THREE.DirectionalLight);
+    expect(amethystSideFill?.intensity).toBe(
+      REALM_CASTLE_READABILITY_LIGHTING.amethystSideFillIntensity
+    );
+    expect(amethystSideFill!.intensity).toBeGreaterThanOrEqual(0.15);
+    expect(amethystSideFill!.intensity).toBeLessThanOrEqual(0.18);
+    expect(canvas.dataset.realmLighting).toBe(
+      REALM_CASTLE_READABILITY_LIGHTING.revision
+    );
 
     const normalizedPosition = cameraFill!.position.clone().normalize();
     const normalizedHorizontalPosition = new THREE.Vector2(
@@ -292,10 +308,24 @@ describe('realm scene setup cleanup', () => {
       * horizontalAlignment;
 
     expect(horizontalAlignment).toBeGreaterThan(0.995);
-    expect(upwardIrradiance).toBeGreaterThanOrEqual(0.105);
-    expect(upwardIrradiance).toBeLessThanOrEqual(0.115);
-    expect(cameraFacingIrradiance).toBeGreaterThanOrEqual(0.34);
-    expect(cameraFacingIrradiance).toBeLessThanOrEqual(0.39);
+    expect(upwardIrradiance).toBeCloseTo(
+      REALM_CASTLE_READABILITY_LIGHTING.cameraFillUpwardIrradiance,
+      8
+    );
+    expect(upwardIrradiance).toBeLessThanOrEqual(
+      REALM_CASTLE_READABILITY_LIGHTING.maximumCameraFillUpwardIrradiance
+    );
+    expect(cameraFacingIrradiance).toBeCloseTo(
+      REALM_CASTLE_READABILITY_LIGHTING.cameraFacingIrradiance,
+      8
+    );
+    expect(cameraFacingIrradiance).toBeGreaterThanOrEqual(0.4);
+    expect(cameraFacingIrradiance).toBeLessThanOrEqual(0.44);
+
+    const hemisphere = hemisphereLights[0]!;
+    expect(`#${hemisphere.color.getHexString()}`).toBe('#dce8f5');
+    expect(`#${hemisphere.groundColor.getHexString()}`).toBe('#6f6049');
+    expect(hemisphere.intensity).toBe(REALM_CASTLE_READABILITY_LIGHTING.hemisphereIntensity);
 
     const terrain = renderedScene.getObjectByName('hegemony-lowlands-surface') as THREE.Mesh<
       THREE.BufferGeometry,
@@ -365,8 +395,8 @@ describe('realm scene setup cleanup', () => {
     });
     expect(listenerCalls(windowAdd, 'resize')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
-    expect(listenerCalls(documentAdd, 'visibilitychange')).toBe(2);
-    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(2);
+    expect(listenerCalls(documentAdd, 'visibilitychange')).toBe(3);
+    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(3);
   });
 
   it('keeps normal scene disposal idempotent', async () => {
@@ -389,7 +419,33 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(canvasRemove, 'wheel')).toBe(1);
     expect(listenerCalls(canvasRemove, 'webglcontextlost')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
-    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(2);
+    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(3);
+  });
+
+  it('clears stale castle hover before wheel-driven camera motion', () => {
+    const canvas = document.createElement('canvas');
+    const onHover = vi.fn();
+    const onTargetHover = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      onHover,
+      onTargetHover
+    }));
+    onHover.mockClear();
+    onTargetHover.mockClear();
+
+    canvas.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120,
+      deltaMode: 0
+    }));
+
+    expect(onTargetHover).toHaveBeenCalledOnce();
+    expect(onTargetHover).toHaveBeenCalledWith(null);
+    expect(onHover).toHaveBeenCalledOnce();
+    expect(onHover).toHaveBeenCalledWith(null);
+    scene.dispose();
   });
 
   it('aborts a pending castle-family load when the Realm unmounts', async () => {
@@ -500,6 +556,51 @@ describe('realm scene setup cleanup', () => {
     expect(materialDispose).toHaveBeenCalledTimes(1);
   });
 
+  it('marks a direct label visible only after the live instance frustum admits its model', async () => {
+    let resolveLoad: ((value: unknown) => void) | undefined;
+    keepLoadState.load.mockImplementation(() => new Promise((resolve) => {
+      resolveLoad = resolve;
+    }));
+    const canvas = document.createElement('canvas');
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 1_024 },
+      clientHeight: { configurable: true, value: 768 }
+    });
+    const onCastleProjection = vi.fn();
+    const onCastlesReady = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      onCastleProjection,
+      onCastlesReady
+    }));
+
+    // Force a demand frame while the prefab is pending. The 2D envelope is
+    // already projectable, but it cannot advertise a castle that has no live
+    // instance-layer frustum membership yet.
+    scene.setSelected(null);
+    const pendingProjection = onCastleProjection.mock.calls.at(-1)?.[0];
+    expect(pendingProjection?.castles[0]?.conservativeCastleBounds).toBeDefined();
+    expect(pendingProjection?.castles[0]?.visible).toBe(false);
+
+    await vi.waitFor(() => expect(keepLoadState.load).toHaveBeenCalledOnce());
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial()
+    ));
+    resolveLoad?.(loadedCastleAssembly(root));
+
+    await vi.waitFor(() => expect(onCastlesReady).toHaveBeenCalledWith(1));
+    const liveProjection = onCastleProjection.mock.calls.at(-1)?.[0];
+    expect(liveProjection?.castles[0]).toMatchObject({
+      castleId: 1,
+      visible: true,
+      presented: true
+    });
+
+    scene.dispose();
+  });
+
   it('coalesces hidden-tab demand renders into one visibility recovery frame', async () => {
     let hidden = true;
     vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
@@ -529,6 +630,36 @@ describe('realm scene setup cleanup', () => {
     expect(onCastlesReady).toHaveBeenCalledWith(1);
     document.dispatchEvent(new Event('visibilitychange'));
     expect(webglState.instances[0].render).toHaveBeenCalledTimes(1);
+
+    scene.dispose();
+  });
+
+  it('keeps terrain overlays outside authored castle landscape bases', () => {
+    const canvas = document.createElement('canvas');
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-overlay-castle-clearance', 1, 1),
+      reducedMotion: true
+    }));
+    const renderedScene = webglState.instances[0].render.mock.calls.at(-1)?.[0] as THREE.Scene;
+    const overlays = renderedScene.children.filter(
+      (child): child is THREE.LineLoop => child instanceof THREE.LineLoop
+    );
+    const [hoverOverlay, selectedOverlay] = overlays;
+
+    expect(overlays).toHaveLength(2);
+    scene.setHovered({ q: 1, r: 0 });
+    expect(hoverOverlay?.visible).toBe(true);
+    scene.setHovered({ q: 0, r: 0 });
+    expect(hoverOverlay?.visible).toBe(false);
+
+    scene.setSelected({ q: 1, r: 0 });
+    expect(selectedOverlay?.visible).toBe(true);
+    scene.setSelected({ q: 0, r: 0 });
+    expect(selectedOverlay?.visible).toBe(false);
+
+    scene.setSelected({ q: 1, r: 0 });
+    scene.setSelectedCastleId(1);
+    expect(selectedOverlay?.visible).toBe(false);
 
     scene.dispose();
   });
@@ -656,7 +787,15 @@ describe('realm scene setup cleanup', () => {
   });
 
   it('pans by the moving pinch centroid without changing the final pinch scale', () => {
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
     const canvas = document.createElement('canvas');
+    canvas.className = 'realm-map-screen__canvas';
+    const label = document.createElement('button');
+    label.className = 'realm-castle-label';
+    label.type = 'button';
+    root.append(canvas, label);
+    document.body.append(root);
     vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
       x: 0,
       y: 0,
@@ -684,7 +823,7 @@ describe('realm scene setup cleanup', () => {
     const camera = renderer.render.mock.calls.at(-1)?.[1] as THREE.PerspectiveCamera;
     const initialPosition = camera.position.clone();
 
-    dispatchPointer(canvas, 'pointerdown', {
+    dispatchPointer(label, 'pointerdown', {
       pointerId: 1,
       clientX: 300,
       clientY: 300,
@@ -696,15 +835,27 @@ describe('realm scene setup cleanup', () => {
       clientY: 300,
       pointerType: 'touch'
     });
-    dispatchPointer(canvas, 'pointermove', {
+    dispatchPointer(window, 'pointermove', {
       pointerId: 1,
       clientX: 320,
       clientY: 300,
       pointerType: 'touch'
     });
-    dispatchPointer(canvas, 'pointermove', {
+    dispatchPointer(window, 'pointermove', {
       pointerId: 2,
       clientX: 520,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 2,
+      clientX: 520,
+      clientY: 300,
+      pointerType: 'touch'
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 1,
+      clientX: 320,
       clientY: 300,
       pointerType: 'touch'
     });
@@ -716,6 +867,219 @@ describe('realm scene setup cleanup', () => {
     )).toBeGreaterThan(0.001);
 
     scene.dispose();
+    root.remove();
+  });
+
+  it('shares first-attempt drag and wheel control with permanent castle labels', () => {
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'realm-map-screen__canvas';
+    const label = document.createElement('button');
+    label.type = 'button';
+    label.className = 'realm-castle-label';
+    label.dataset.castleId = '1';
+    label.textContent = '@fixture-keeper';
+    root.append(canvas, label);
+    document.body.append(root);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const onLabelClick = vi.fn();
+    label.addEventListener('click', onLabelClick);
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-label-gesture', 4, 5),
+      reducedMotion: true
+    }));
+    scene.frameFoundingDistrict();
+    const renderer = webglState.instances[0];
+    const camera = renderer.render.mock.calls.at(-1)?.[1] as THREE.PerspectiveCamera;
+    const beforeDrag = camera.position.clone();
+
+    dispatchPointer(label, 'pointerdown', {
+      pointerId: 21,
+      clientX: 380,
+      clientY: 310
+    });
+    dispatchPointer(window, 'pointermove', {
+      pointerId: 21,
+      clientX: 383,
+      clientY: 310
+    });
+    dispatchPointer(window, 'pointermove', {
+      pointerId: 21,
+      clientX: 410,
+      clientY: 322
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 21,
+      clientX: 410,
+      clientY: 322
+    });
+    label.dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      detail: 1
+    }));
+
+    expect(camera.position.distanceTo(beforeDrag)).toBeGreaterThan(0.001);
+    expect(onLabelClick).not.toHaveBeenCalled();
+    expect(canvas.dataset.dragging).toBeUndefined();
+    expect(root.dataset.cameraInteracting).toBeUndefined();
+
+    // A pointer-drag guard is scoped to the compatibility click only; keyboard
+    // and assistive activation (`detail === 0`) remains available immediately.
+    label.dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      detail: 0
+    }));
+    expect(onLabelClick).toHaveBeenCalledOnce();
+
+    dispatchPointer(label, 'pointerdown', {
+      pointerId: 22,
+      clientX: 400,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 22,
+      clientX: 400,
+      clientY: 320
+    });
+    label.dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      detail: 1
+    }));
+    expect(onLabelClick).toHaveBeenCalledTimes(2);
+
+    dispatchPointer(label, 'pointerdown', {
+      pointerId: 23,
+      clientX: 400,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointercancel', {
+      pointerId: 23,
+      clientX: 400,
+      clientY: 320,
+      buttons: 0
+    });
+    label.dispatchEvent(new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      detail: 0
+    }));
+    expect(onLabelClick).toHaveBeenCalledTimes(3);
+
+    const beforeWheel = camera.position.clone();
+    label.dispatchEvent(new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: 420,
+      clientY: 300,
+      deltaY: -240,
+      deltaMode: 0
+    }));
+    expect(camera.position.distanceTo(beforeWheel)).toBeGreaterThan(0.001);
+
+    scene.dispose();
+    root.remove();
+  });
+
+  it('coalesces high-rate label dragging to one WebGL render per animation frame', () => {
+    let nextFrameId = 1;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrameId;
+      nextFrameId += 1;
+      scheduled.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      scheduled.delete(id);
+    });
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'realm-map-screen__canvas';
+    const label = document.createElement('button');
+    label.className = 'realm-castle-label';
+    label.type = 'button';
+    root.append(canvas, label);
+    document.body.append(root);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const scene = createRealmScene(createOptions(canvas, {
+      surface: createRealmTerrainSurface('realm-coalesced-drag', 4, 5),
+      reducedMotion: true
+    }));
+    scene.frameFoundingDistrict();
+    const renderer = webglState.instances[0];
+    renderer.render.mockClear();
+    scheduled.clear();
+
+    dispatchPointer(label, 'pointerdown', {
+      pointerId: 31,
+      clientX: 360,
+      clientY: 300
+    });
+    [363, 370, 390, 430].forEach((clientX) => {
+      dispatchPointer(window, 'pointermove', {
+        pointerId: 31,
+        clientX,
+        clientY: 312
+      });
+    });
+
+    expect(scheduled.size).toBe(1);
+    expect(renderer.render).not.toHaveBeenCalled();
+    const frame = scheduled.entries().next().value as
+      | [number, FrameRequestCallback]
+      | undefined;
+    expect(frame).toBeDefined();
+    if (frame) {
+      scheduled.delete(frame[0]);
+      frame[1](16);
+    }
+    expect(renderer.render).toHaveBeenCalledTimes(1);
+
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 31,
+      clientX: 430,
+      clientY: 312,
+      buttons: 0
+    });
+    expect(renderer.render).toHaveBeenCalledTimes(1);
+    expect(canvas.dataset.dragging).toBeUndefined();
+    expect(root.dataset.cameraInteracting).toBeUndefined();
+
+    scene.dispose();
+    root.remove();
   });
 
   it('fails readiness when a castle instance is present without its matching landscape base', async () => {

@@ -616,4 +616,41 @@ describe('realm castle instance layer', () => {
     });
     layer.dispose();
   });
+
+  it('publishes live frustum identities before masking so newly entering castles can appear', () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial();
+    const layer = createRealmCastleInstanceLayer({
+      castles: [castle(1, 0, 0), castle(2, 100, 0)],
+      prefabs: new Map([['compact', prefab('compact', geometry, material)]]),
+      policy: COMPACT_ONLY_POLICY,
+      dynamicShadows: false
+    });
+    const sceneCamera = camera();
+    layer.setPresentedCastleIds([1]);
+    layer.update(sceneCamera, 900);
+
+    expect(layer.getFrustumVisibleCastleIds()).toEqual([1]);
+    expect(layer.getPacking().buckets.compact.map((entry) => entry.castleId)).toEqual([1]);
+
+    // Move the camera to castle 2 without first changing the presentation
+    // mask. Its instance remains masked this frame, but pre-mask frustum state
+    // must expose it so the projection lane can admit its direct label and
+    // advance the mask on the following frame.
+    sceneCamera.position.set(100, 10, 10);
+    sceneCamera.lookAt(100, 0, 0);
+    sceneCamera.updateMatrixWorld();
+    layer.update(sceneCamera, 900);
+    expect(layer.getFrustumVisibleCastleIds()).toEqual([2]);
+    expect(layer.getPacking().totalVisible).toBe(0);
+
+    layer.setPresentedCastleIds([2]);
+    layer.update(sceneCamera, 900);
+    expect(layer.getFrustumVisibleCastleIds()).toEqual([2]);
+    expect(layer.getPacking().buckets.compact.map((entry) => entry.castleId)).toEqual([2]);
+
+    layer.clear();
+    expect(layer.getFrustumVisibleCastleIds()).toEqual([]);
+    layer.dispose();
+  });
 });

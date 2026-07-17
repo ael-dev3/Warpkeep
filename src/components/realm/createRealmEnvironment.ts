@@ -5,10 +5,10 @@ import {
   type RealmQuality
 } from './realmQuality';
 
-const BELOW_HORIZON = new THREE.Color('#3a3942');
-const HORIZON = new THREE.Color('#9498a6');
-const UPPER_SKY = new THREE.Color('#626a80');
-const ZENITH = new THREE.Color('#30394f');
+const BELOW_HORIZON = new THREE.Color('#625d4d');
+const HORIZON = new THREE.Color('#b9cad8');
+const UPPER_SKY = new THREE.Color('#7694bb');
+const ZENITH = new THREE.Color('#425f88');
 
 const HORIZON_DIRECTION_Y = -0.04;
 const UPPER_SKY_DIRECTION_Y = 0.34;
@@ -16,12 +16,13 @@ const SKY_DOME_RADIUS = 48;
 const SUN_DISC_RADIUS = 46.8;
 const SUN_DISC_ANGULAR_RADIUS = THREE.MathUtils.degToRad(0.82);
 const SUN_GLOW_ANGULAR_RADIUS = THREE.MathUtils.degToRad(7.5);
-const SUN_GLOW_COLOUR = new THREE.Color('#fff0c2');
+const SUN_GLOW_COLOUR = new THREE.Color('#fff2c9');
+const SUN_GLOW_INTENSITY = 0.86;
 
 export const REALM_SUN_LIGHT_POSITION = Object.freeze({
-  x: -7.5,
-  y: 13.5,
-  z: 8.5
+  x: 4.5,
+  y: 14,
+  z: 10.5
 });
 
 const NORMALIZED_SUN_DIRECTION = new THREE.Vector3(
@@ -37,7 +38,7 @@ export const REALM_SUN_DIRECTION = Object.freeze({
   z: NORMALIZED_SUN_DIRECTION.z
 });
 
-export const REALM_SKY_FALLBACK_COLOR = '#9498a6';
+export const REALM_SKY_FALLBACK_COLOR = '#b9cad8';
 
 export type RealmSkyColour = Readonly<{
   r: number;
@@ -91,7 +92,7 @@ function sampleRealmEnvironmentColour(direction: THREE.Vector3) {
   const colour = new THREE.Color(sampledSky.r, sampledSky.g, sampledSky.b);
   const angleFromSun = Math.acos(clamp(direction.dot(NORMALIZED_SUN_DIRECTION), -1, 1));
   const normalizedDistance = angleFromSun / SUN_GLOW_ANGULAR_RADIUS;
-  const glow = Math.exp(-(normalizedDistance * normalizedDistance)) * 0.54;
+  const glow = Math.exp(-(normalizedDistance * normalizedDistance)) * SUN_GLOW_INTENSITY;
   return colour.lerp(SUN_GLOW_COLOUR, glow);
 }
 

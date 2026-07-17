@@ -1,29 +1,8 @@
 import type { RealmCameraComposition } from './realmCameraController';
-import type { RealmScreenRect } from './realmMeasuredLabelLayout';
 
 export function isVisibleRealmUiElement(element: HTMLElement) {
   const style = window.getComputedStyle(element);
   return style.display !== 'none' && style.visibility !== 'hidden';
-}
-
-/** Returns visible UI rectangles relative to the Realm root for label avoidance. */
-export function measuredVisibleRealmUiRects(
-  root: HTMLElement,
-  selectors: readonly string[]
-): readonly RealmScreenRect[] {
-  const rootRect = root.getBoundingClientRect();
-  return selectors.flatMap((selector) => {
-    const element = root.querySelector<HTMLElement>(selector);
-    if (!element || !isVisibleRealmUiElement(element)) return [];
-    const rect = element.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return [];
-    return [{
-      left: rect.left - rootRect.left,
-      top: rect.top - rootRect.top,
-      right: rect.right - rootRect.left,
-      bottom: rect.bottom - rootRect.top
-    }];
-  });
 }
 
 /** Measures only visible Realm chrome and returns camera-safe viewport insets. */

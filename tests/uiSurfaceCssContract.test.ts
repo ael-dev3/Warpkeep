@@ -91,7 +91,7 @@ describe('shared Warpkeep surface system', () => {
     expect(performance).toContain('--warpkeep-surface-bg: rgba(7, 9, 15, 0.97);');
     expect(performance).toContain('--warpkeep-surface-bg-strong: #07090f;');
     expect(source).toMatch(
-      /data-graphics-quality="performance"\] :is\([\s\S]*?\.farcaster-auth-panel,[\s\S]*?\.realm-hud,[\s\S]*?\.castle-inspection__drawer[\s\S]*?\)\s*\{[\s\S]*?backdrop-filter:\s*none;/
+      /data-graphics-quality="performance"\] :is\([\s\S]*?\.farcaster-auth-panel,[\s\S]*?\.realm-hud,[\s\S]*?\.castle-inspection__drawer,[\s\S]*?\.realm-castle-label__plate[\s\S]*?\)\s*\{[\s\S]*?backdrop-filter:\s*none;/
     );
     expect(source).toContain(
       '@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px)))'

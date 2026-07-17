@@ -156,7 +156,7 @@ describe('realm interaction state', () => {
     expect(secondFocus.keyboardIntent).toEqual({ sequence: 2, target: { kind: 'map' } });
   });
 
-  it('retains a pending castle-label focus intent for asynchronous cluster reveal', () => {
+  it('retains a pending castle-label focus intent for asynchronous label reveal', () => {
     const initial = createRealmInteractionState({ q: 0, r: 0 });
     const focused = realmInteractionReducer(initial, {
       type: 'request-castle-label-focus',
@@ -190,23 +190,4 @@ describe('realm interaction state', () => {
     expect(realm.cameraTarget).toEqual({ kind: 'realm' });
   });
 
-  it('copies a semantic castle cluster target for approach-view restoration', () => {
-    const initial = createRealmInteractionState({ q: 0, r: 0 });
-    const castleIds = [7, 8, 9];
-    const cluster = realmInteractionReducer(initial, {
-      type: 'set-camera-target',
-      target: {
-        kind: 'castle-cluster',
-        castleIds,
-        representativeCastleId: 7
-      }
-    });
-
-    castleIds.push(10);
-    expect(cluster.cameraTarget).toEqual({
-      kind: 'castle-cluster',
-      castleIds: [7, 8, 9],
-      representativeCastleId: 7
-    });
-  });
 });

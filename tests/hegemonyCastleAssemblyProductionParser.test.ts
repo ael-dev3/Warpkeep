@@ -14,6 +14,7 @@ import { loadHegemonyCastleAssembly } from '../src/components/realm/loadHegemony
 import {
   clearHegemonyKeepBinaryCacheForTests,
   disposeRealmObject,
+  HEGEMONY_MODEL_MATERIAL_CALIBRATION,
   type HegemonyKeepLoadResult
 } from '../src/components/realm/loadHegemonyKeep';
 import { clearHegemonyLandscapeBaseBinaryCacheForTests } from '../src/components/realm/loadHegemonyLandscapeBase';
@@ -189,6 +190,10 @@ afterEach(() => {
 });
 
 describe('production Hegemony castle and landscape-base assemblies', () => {
+  it('uses one conservative shared ground clearance for every authored assembly', () => {
+    expect(CASTLE_GROUND_LIFT).toBe(0.01);
+  });
+
   it('parses every exact Meshopt/WebP pair and preserves picking and lifetime contracts', async () => {
     const imageDecoder = installLocalImageDecoder();
     const decodedBitmaps: SyntheticImageBitmap[] = [];
@@ -292,8 +297,32 @@ describe('production Hegemony castle and landscape-base assemblies', () => {
         }
         expect(castleMaterial.metalness).toBeCloseTo(0.08, 6);
         expect(castleMaterial.roughness).toBeCloseTo(0.68, 6);
+        expect(castleMaterial.color.r).toBeCloseTo(
+          HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain,
+          8
+        );
+        expect(castleMaterial.color.g).toBeCloseTo(
+          HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain,
+          8
+        );
+        expect(castleMaterial.color.b).toBeCloseTo(
+          HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain,
+          8
+        );
         expect(baseMaterial.metalness).toBe(0);
         expect(baseMaterial.roughness).toBeCloseTo(0.86, 6);
+        expect(baseMaterial.color.r).toBeCloseTo(
+          HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain,
+          8
+        );
+        expect(baseMaterial.color.g).toBeCloseTo(
+          HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain,
+          8
+        );
+        expect(baseMaterial.color.b).toBeCloseTo(
+          HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain,
+          8
+        );
 
         loaded.root.updateWorldMatrix(true, true);
         const castleBounds = new THREE.Box3().setFromObject(castleTransform);

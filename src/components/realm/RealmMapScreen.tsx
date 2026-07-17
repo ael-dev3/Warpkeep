@@ -38,13 +38,6 @@ import {
   RealmCastleLabels,
   type CastleLabelRecord
 } from './RealmCastleLabels';
-import {
-  REALM_IDENTITY_CLUSTER_MAX_MEMBER_DISTANCE_PIXELS,
-  realmCastleClusterMembershipSignature,
-  realmCastleIdentityCoverageValid,
-  resolveRealmCastleIdentityClusters,
-  type RealmCastleIdentityCluster
-} from './realmCastleIdentityClusters';
 import { RealmHud } from './RealmHud';
 import { RealmObserverHud } from './RealmObserverHud';
 import {
@@ -63,36 +56,22 @@ import type {
   RealmCastleInstancePresentationTelemetry
 } from './realmCastleInstanceLayer';
 import {
-  measuredRealmComposition,
-  measuredVisibleRealmUiRects
+  measuredRealmComposition
 } from './realmMeasuredComposition';
 import {
   REALM_QUALITY_SPECS,
-  selectRealmQuality,
   type RealmQuality
 } from './realmQuality';
 import type { RealmIdentity } from './realmTypes';
 import type { RealmCastleProjectionFrame } from './realmTypes';
 import {
-  CASTLE_LABEL_FAR_DISTANCE,
-  CASTLE_LABEL_COMPACT_HEIGHT,
-  CASTLE_LABEL_COMPACT_WIDTH,
   CASTLE_LABEL_LAYOUT_MAX_CASTLES,
-  castleProfileIdentityReady,
   castleProfileLabel,
   fallbackCastleProjection,
   publicProfileForCastle,
-  realmCastleLabelLeaderGeometry,
-  realmEligibleCastleProjectionCount,
-  resolveVisibleCastleLabels,
+  resolvePersistentCastleLabels,
   type VisibleCastleLabel
 } from './realmCastlePresentation';
-import {
-  resolveMeasuredRealmLabelLayout,
-  type RealmLabelPlacement,
-  type RealmMeasuredLabelRectangle,
-  type RealmScreenRect
-} from './realmMeasuredLabelLayout';
 import {
   createRealmInteractionState,
   realmInteractionReducer,
@@ -146,26 +125,10 @@ function sameCoord(first: HexCoord | null, second: HexCoord | null) {
   return first.q === second.q && first.r === second.r;
 }
 
-function validRealmScreenRect(rect: RealmScreenRect | undefined): rect is RealmScreenRect {
-  return rect !== undefined
-    && Number.isFinite(rect.left)
-    && Number.isFinite(rect.top)
-    && Number.isFinite(rect.right)
-    && Number.isFinite(rect.bottom)
-    && rect.right > rect.left
-    && rect.bottom > rect.top;
-}
-
-function realmScreenRectsOverlap(first: RealmScreenRect, second: RealmScreenRect) {
-  return first.left < second.right
-    && first.right > second.left
-    && first.top < second.bottom
-    && first.bottom > second.top;
-}
-
 function applyCastleLabelPlacement(
   button: HTMLButtonElement,
-  placement: RealmLabelPlacement | undefined
+  placement: VisibleCastleLabel | undefined,
+  tabbable = false
 ) {
   if (!placement) {
     button.style.visibility = 'hidden';
@@ -179,55 +142,12 @@ function applyCastleLabelPlacement(
   const anchorX = `${placement.projectedAnchor.x.toFixed(2)}px`;
   const anchorY = `${placement.projectedAnchor.y.toFixed(2)}px`;
   button.style.visibility = 'visible';
-  button.tabIndex = 0;
+  button.tabIndex = tabbable ? 0 : -1;
   button.dataset.displaced = 'false';
   button.style.setProperty('--realm-castle-label-x', labelX);
   button.style.setProperty('--realm-castle-label-y', labelY);
   button.style.setProperty('--realm-castle-anchor-x', anchorX);
   button.style.setProperty('--realm-castle-anchor-y', anchorY);
-}
-
-function applyCastleClusterPlacement(
-  button: HTMLButtonElement,
-  leader: HTMLElement | undefined,
-  cluster: RealmCastleIdentityCluster | undefined
-) {
-  if (!cluster) {
-    button.style.visibility = 'hidden';
-    button.tabIndex = -1;
-    button.dataset.displaced = 'false';
-    if (leader) {
-      leader.hidden = true;
-      leader.dataset.active = 'false';
-    }
-    return;
-  }
-
-  const geometry = realmCastleLabelLeaderGeometry({
-    x: cluster.x,
-    y: cluster.y,
-    projectedAnchor: cluster.anchor
-  });
-  const clusterX = `${cluster.x.toFixed(2)}px`;
-  const clusterY = `${cluster.y.toFixed(2)}px`;
-  const anchorX = `${cluster.anchor.x.toFixed(2)}px`;
-  const anchorY = `${cluster.anchor.y.toFixed(2)}px`;
-  button.style.visibility = 'visible';
-  button.tabIndex = 0;
-  button.dataset.displaced = geometry.displaced ? 'true' : 'false';
-  button.style.setProperty('--realm-castle-cluster-x', clusterX);
-  button.style.setProperty('--realm-castle-cluster-y', clusterY);
-  button.style.setProperty('--realm-castle-cluster-width', `${cluster.width.toFixed(2)}px`);
-  button.style.setProperty('--realm-castle-anchor-x', anchorX);
-  button.style.setProperty('--realm-castle-anchor-y', anchorY);
-
-  if (!leader) return;
-  leader.hidden = !geometry.displaced;
-  leader.dataset.active = geometry.displaced ? 'true' : 'false';
-  leader.style.setProperty('--realm-castle-anchor-x', anchorX);
-  leader.style.setProperty('--realm-castle-anchor-y', anchorY);
-  leader.style.setProperty('--realm-castle-leader-length', `${geometry.length.toFixed(2)}px`);
-  leader.style.setProperty('--realm-castle-leader-angle', `${geometry.angleRadians.toFixed(6)}rad`);
 }
 
 function samePeerCastleMarkers(
@@ -348,8 +268,15 @@ function viewBoxForSurface(surface: RealmTerrainSurface): RealmViewBox {
   };
 }
 
+function linearChannelToSrgb(value: number) {
+  const channel = clamp(value, 0, 1);
+  return channel <= 0.0031308
+    ? channel * 12.92
+    : 1.055 * channel ** (1 / 2.4) - 0.055;
+}
+
 function colorToCss(color: Readonly<{ r: number; g: number; b: number }>) {
-  const channel = (value: number) => Math.round(clamp(value, 0, 1) * 255);
+  const channel = (value: number) => Math.round(linearChannelToSrgb(value) * 255);
   return `rgb(${channel(color.r)} ${channel(color.g)} ${channel(color.b)})`;
 }
 
@@ -384,22 +311,7 @@ function useReducedMotionPreference() {
 }
 
 function initialQuality(override?: RealmQuality) {
-  if (override) return override;
-  let maxTextureSize: number | undefined;
-  try {
-    const probe = document.createElement('canvas');
-    const context = probe.getContext('webgl2');
-    maxTextureSize = context?.getParameter(context.MAX_TEXTURE_SIZE) as number | undefined;
-    context?.getExtension('WEBGL_lose_context')?.loseContext();
-  } catch {
-    maxTextureSize = undefined;
-  }
-  return selectRealmQuality({
-    width: typeof window === 'undefined' ? 1280 : window.innerWidth,
-    height: typeof window === 'undefined' ? 720 : window.innerHeight,
-    devicePixelRatio: typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
-    maxTextureSize
-  });
+  return override ?? 'high';
 }
 
 function selectedCellFor(
@@ -523,13 +435,6 @@ function CanonicalRealmMapScreen({
       }
     ]));
   }, [allCastles, identity, observerMode, sharedPlayers, sharedProfiles]);
-  const identityReadyCastleIds = useMemo(() => new Set(
-    [...profileRecords].flatMap(([castleId, record]) => (
-      castleProfileIdentityReady(record.profile) ? [castleId] : []
-    ))
-  ), [profileRecords]);
-  const identityReadyCastleIdsRef = useRef(identityReadyCastleIds);
-  identityReadyCastleIdsRef.current = identityReadyCastleIds;
   const navigatorCastles = useMemo(() => allCastles.map((castle) => ({
     castleId: castle.castleId,
     label: castleProfileLabel(profileRecords.get(castle.castleId)!.profile),
@@ -590,23 +495,12 @@ function CanonicalRealmMapScreen({
   const hoveredCoordRef = useRef<HexCoord | null>(null);
   const hoveredCastleIdRef = useRef<number | undefined>(undefined);
   const [visibleCastleLabels, setVisibleCastleLabels] = useState<readonly VisibleCastleLabel[]>([]);
-  const [visibleCastleClusters, setVisibleCastleClusters] = useState<readonly RealmCastleIdentityCluster[]>([]);
+  const latestVisibleCastleLabelsRef = useRef<readonly VisibleCastleLabel[]>([]);
   const latestProjectionRef = useRef<RealmCastleProjectionFrame>({ width: 0, height: 0, castles: [] });
-  const previousLabelLayoutRef = useRef<readonly RealmLabelPlacement[]>([]);
-  const labelProjectionRafRef = useRef<number | null>(null);
-  const requestLabelLayoutRef = useRef<() => void>(() => undefined);
   const compositionRafRef = useRef<number | null>(null);
-  const safeAreaInsetsRef = useRef({ top: 0, right: 0, bottom: 0, left: 0 });
   const labelMembershipSignatureRef = useRef('');
-  const clusterLayoutSignatureRef = useRef('');
   const presentedCastleIdsRef = useRef<readonly number[]>([]);
   const handledKeyboardIntentSequenceRef = useRef(-1);
-  const labelMeasurementCacheRef = useRef(new Map<string, Readonly<{
-    element: HTMLElement;
-    measurement: RealmMeasuredLabelRectangle;
-    text: string;
-    viewportWidth: number;
-  }>>());
   const reducedMotion = useReducedMotionPreference();
   const viewBox = useMemo(() => viewBoxForSurface(surface), [surface]);
   const selectedCell = selectedCellFor(surface, selectedCoord, keepCoord);
@@ -627,32 +521,25 @@ function CanonicalRealmMapScreen({
       : 'unavailable';
   const focusedCastleId = interaction.cameraTarget.kind === 'castle'
     ? interaction.cameraTarget.castleId
-    : interaction.cameraTarget.kind === 'castle-cluster'
-      ? interaction.cameraTarget.representativeCastleId
-      : undefined;
-  const labelLayoutContextRef = useRef({
-    ownCastleId: observerMode ? undefined : ownCastle.castleId,
-    selectedCastleId: selectedCastle?.castleId,
-    hoveredCastleId: hoveredCastleIdRef.current,
-    focusedCastleId
-  });
-  labelLayoutContextRef.current = {
-    ownCastleId: observerMode ? undefined : ownCastle.castleId,
-    selectedCastleId: selectedCastle?.castleId,
-    hoveredCastleId: hoveredCastleIdRef.current,
-    focusedCastleId
-  };
+    : undefined;
 
   const updateHoveredCastleId = useCallback((next: number | undefined) => {
     if (hoveredCastleIdRef.current === next) return;
+    const root = rootRef.current;
+    const previous = hoveredCastleIdRef.current;
+    if (previous !== undefined) {
+      const previousButton = root?.querySelector<HTMLButtonElement>(
+        `button.realm-castle-label[data-castle-id="${previous}"]`
+      );
+      if (previousButton) previousButton.dataset.hovered = 'false';
+    }
     hoveredCastleIdRef.current = next;
-    labelLayoutContextRef.current = {
-      ...labelLayoutContextRef.current,
-      hoveredCastleId: next
-    };
-    // Hover priority belongs to the bounded projection lane. Keeping it out of
-    // React state prevents pointer crossings from rerendering the whole realm.
-    requestLabelLayoutRef.current();
+    if (next !== undefined) {
+      const nextButton = root?.querySelector<HTMLButtonElement>(
+        `button.realm-castle-label[data-castle-id="${next}"]`
+      );
+      if (nextButton) nextButton.dataset.hovered = 'true';
+    }
   }, []);
 
   useEffect(() => {
@@ -668,13 +555,11 @@ function CanonicalRealmMapScreen({
         const label = rootRef.current
           ?.querySelector<HTMLButtonElement>(`.realm-castle-label[data-castle-id="${target.castleId}"]`);
         const activeElement = document.activeElement;
-        // Camera animation can briefly remove and recreate the newly revealed
-        // label after focus was transferred. Recover only when focus fell back
-        // to the document/map; never steal it from another control the player
-        // deliberately reached.
+        // Recover focus after a legitimate offscreen-to-onscreen transition,
+        // but never steal it from another control the player deliberately
+        // reached. Zoom and LOD changes preserve the same label node.
         if (
           label
-          && label.tabIndex >= 0
           && label.style.visibility !== 'hidden'
           && (
             activeElement === null
@@ -682,7 +567,12 @@ function CanonicalRealmMapScreen({
             || activeElement === document.documentElement
             || activeElement === rootRef.current
           )
-        ) label.focus({ preventScroll: true });
+        ) {
+          rootRef.current
+            ?.querySelectorAll<HTMLButtonElement>('.realm-castle-label')
+            .forEach((candidate) => { candidate.tabIndex = candidate === label ? 0 : -1; });
+          label.focus({ preventScroll: true });
+        }
       }
       return;
     }
@@ -693,13 +583,15 @@ function CanonicalRealmMapScreen({
     } else if (target.kind === 'castle-label') {
       const label = rootRef.current
         ?.querySelector<HTMLButtonElement>(`.realm-castle-label[data-castle-id="${target.castleId}"]`)
-      if (label && label.tabIndex >= 0 && label.style.visibility !== 'hidden') {
+      if (label && label.style.visibility !== 'hidden') {
+        rootRef.current
+          ?.querySelectorAll<HTMLButtonElement>('.realm-castle-label')
+          .forEach((candidate) => { candidate.tabIndex = candidate === label ? 0 : -1; });
         label.focus({ preventScroll: true });
       }
-      // A cluster activation makes its representative mandatory, but measured
-      // placement lands on the following projection frame. Keep the intent
-      // pending until the revealed label exists instead of dropping focus to
-      // the document when the cluster button unmounts.
+      // Keep keyboard intent pending until an offscreen castle enters the
+      // projection. Persistent labels do not otherwise unmount during camera
+      // motion.
       if (document.activeElement !== label) return;
     } else if (target.kind === 'navigator-trigger') {
       navigatorTriggerRef.current?.focus({ preventScroll: true });
@@ -752,9 +644,9 @@ function CanonicalRealmMapScreen({
 
   const handleSceneTargetHover = useCallback((target: RealmInteractionTarget | null) => {
     if (rendererModeRef.current !== 'webgl') return;
-    // Both terrain and castle hits receive the same restrained ground outline.
-    // This keeps hover feedback clear without mutating durable selection state
-    // or applying a bright post-process effect to the castle model.
+    // The scene reserves its restrained ground outline for unoccupied terrain;
+    // castle identity and raycasting provide the occupied-cell cue without a
+    // depth-tested line cutting through the wider authored landscape base.
     updateHoveredCoord(target?.coord ?? null);
     updateHoveredCastleId(target?.kind === 'castle' ? target.castleId : undefined);
   }, [updateHoveredCastleId, updateHoveredCoord]);
@@ -771,393 +663,83 @@ function CanonicalRealmMapScreen({
 
   const updateCastleProjection = useCallback((frame: RealmCastleProjectionFrame) => {
     latestProjectionRef.current = frame;
-    if (labelProjectionRafRef.current !== null) return;
-    labelProjectionRafRef.current = window.requestAnimationFrame(() => {
-      labelProjectionRafRef.current = null;
-      const frame = latestProjectionRef.current;
-      const root = rootRef.current;
-      if (!root || frame.width <= 0 || frame.height <= 0) return;
-      const context = labelLayoutContextRef.current;
-      const candidateCastles = frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES);
-      // Castle existence is a world concern, not a label-layout concern. Keep
-      // every canonical candidate available to the scene's own frustum/LOD
-      // culling so a crowded nameplate can never erase its castle or raycast
-      // target and leave a detached identity affordance behind.
-      const renderableCastleIds = candidateCastles.map((castle) => castle.castleId);
-      // Every visible keep receives a trustworthy public label. Missing
-      // profile data falls back to a neutral keep name instead of silently
-      // removing the castle from the spatial identity layer.
-      const labelCastles = candidateCastles;
-      const maximumLabels = labelCastles.length;
-      const eligibleLabelCount = realmEligibleCastleProjectionCount({
-        ...frame,
-        castles: candidateCastles
-      });
-      const provisional = resolveVisibleCastleLabels(
-        { ...frame, castles: labelCastles },
-        context.ownCastleId,
-        context.selectedCastleId,
-        maximumLabels,
-        context.hoveredCastleId ?? context.focusedCastleId
-      );
-      const buttons = new Map<number, HTMLButtonElement>();
-      root.querySelectorAll<HTMLButtonElement>('button.realm-castle-label[data-castle-id]')
-        .forEach((button) => {
-          const castleId = Number(button.dataset.castleId);
-          if (Number.isSafeInteger(castleId)) buttons.set(castleId, button);
-        });
-      const clusterButtons = new Map<string, HTMLButtonElement>();
-      root.querySelectorAll<HTMLButtonElement>(
-        'button[data-realm-castle-cluster][data-cluster-key]'
-      ).forEach((button) => {
-        const clusterKey = button.dataset.clusterKey;
-        if (clusterKey) clusterButtons.set(clusterKey, button);
-      });
-      const clusterLeaders = new Map<string, HTMLElement>();
-      root.querySelectorAll<HTMLElement>(
-        '[data-realm-cluster-leader][data-cluster-key]'
-      ).forEach((leader) => {
-        const clusterKey = leader.dataset.clusterKey;
-        if (clusterKey) clusterLeaders.set(clusterKey, leader);
-      });
-      const measurementLabels = new Map<number, HTMLElement>();
-      root.querySelectorAll<HTMLElement>('.realm-castle-label--measurement[data-measure-castle-id]')
-        .forEach((label) => {
-          const castleId = Number(label.dataset.measureCastleId);
-          if (Number.isSafeInteger(castleId)) measurementLabels.set(castleId, label);
-        });
-      const compactMeasurementLabels = new Map<number, HTMLElement>();
-      root.querySelectorAll<HTMLElement>(
-        '.realm-castle-label--measurement[data-measure-compact-castle-id]'
-      ).forEach((label) => {
-        const castleId = Number(label.dataset.measureCompactCastleId);
-        if (Number.isSafeInteger(castleId)) compactMeasurementLabels.set(castleId, label);
-      });
-      for (const cacheKey of labelMeasurementCacheRef.current.keys()) {
-        const [castleIdCopy, presentation] = cacheKey.split(':');
-        const castleId = Number(castleIdCopy);
-        const current = presentation === 'compact'
-          ? compactMeasurementLabels
-          : measurementLabels;
-        if (!Number.isSafeInteger(castleId) || !current.has(castleId)) {
-          labelMeasurementCacheRef.current.delete(cacheKey);
-        }
-      }
-      if (measurementLabels.size === 0) {
-        const eligibleCastleIds = candidateCastles.filter((castle) => (
-          castle.visible
-          && Number.isFinite(castle.x)
-          && Number.isFinite(castle.y)
-          && castle.x >= 0
-          && castle.x <= frame.width
-          && castle.y >= 0
-          && castle.y <= frame.height
-        )).map((castle) => castle.castleId);
-        const placedCastleIds = provisional.map((label) => label.castleId);
-        const placedCastleIdSet = new Set(placedCastleIds);
-        const overflowCastleIds = eligibleCastleIds.filter((castleId) => (
-          !placedCastleIdSet.has(castleId)
-        ));
-        presentedCastleIdsRef.current = renderableCastleIds;
-        sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
-        root.dataset.labelEligibleCount = String(eligibleLabelCount);
-        root.dataset.labelPlacedCount = String(provisional.length);
-        root.dataset.labelUnplacedCount = String(Math.max(0, eligibleLabelCount - provisional.length));
-        root.dataset.labelBaseAnchorViolationCount = String(provisional.filter((label) => (
-          Math.hypot(
-            label.x - label.projectedAnchor.x,
-            label.y - label.projectedAnchor.y
-          ) > 0.015
-        )).length);
-        root.dataset.labelStationaryCount = String(provisional.length);
-        root.dataset.individualCastleCount = String(provisional.length);
-        root.dataset.labelClusteredCount = '0';
-        root.dataset.clusterRepresentativeAnchorViolationCount = '0';
-        root.dataset.clusterCastleOverlapCount = '0';
-        root.dataset.clusterMemberDistanceViolationCount = '0';
-        root.dataset.labelClusterOverflowCount = String(Math.max(
-          0,
-          eligibleLabelCount - provisional.length
-        ));
-        // This branch exists only before hidden measurement controls mount (or
-        // for an empty record set). Do not attest unmeasured geometry: the
-        // browser contract must wait for the measured pass below unless there
-        // are no provisional labels to overlap anything.
-        if (provisional.length === 0) root.dataset.labelCastleOverlapCount = '0';
-        else delete root.dataset.labelCastleOverlapCount;
-        root.dataset.labelAccountingValid = String(realmCastleIdentityCoverageValid({
-          eligibleCastleIds,
-          individualCastleIds: placedCastleIds,
-          clusters: [],
-          overflowCastleIds,
-          exploreCastleIds: allCastlesRef.current.map((castle) => castle.castleId)
-        }));
-        root.dataset.labelMissingIdentityCount = String(candidateCastles.filter((castle) => (
-          castle.visible
-          && castle.x >= 0
-          && castle.x <= frame.width
-          && castle.y >= 0
-          && castle.y <= frame.height
-          && !identityReadyCastleIdsRef.current.has(castle.castleId)
-        )).length);
-        const signature = provisional.map((label) => `${label.castleId}:${label.compact}`).join('|');
-        if (signature !== labelMembershipSignatureRef.current) {
-          labelMembershipSignatureRef.current = signature;
-          setVisibleCastleLabels(provisional);
-        }
-        if (clusterLayoutSignatureRef.current !== '') {
-          clusterLayoutSignatureRef.current = '';
-          setVisibleCastleClusters([]);
-        }
-        return;
-      }
+    const root = rootRef.current;
+    if (!root || frame.width <= 0 || frame.height <= 0) return;
 
-      const reservedUiRects = measuredVisibleRealmUiRects(root, [
-        '.realm-hud',
-        '.castle-inspection',
-        '.realm-hud__actions',
-        '.realm-cell-navigator > button',
-        '.realm-cell-navigator__dialog'
-      ]);
-      const anchors = labelCastles.map((castle) => {
-        const measurementLabel = measurementLabels.get(castle.castleId);
-        const compactMeasurementLabel = compactMeasurementLabels.get(castle.castleId);
-        const measuredRectangle = (
-          element: HTMLElement | undefined,
-          presentation: 'full' | 'compact'
-        ) => {
-          if (!element) return undefined;
-          const cacheKey = `${castle.castleId}:${presentation}`;
-          const text = element.textContent ?? '';
-          const cached = labelMeasurementCacheRef.current.get(cacheKey);
-          if (
-            cached
-            && cached.element === element
-            && cached.text === text
-            && cached.viewportWidth === frame.width
-          ) {
-            return cached.measurement;
-          }
-          const rect = element.getBoundingClientRect();
-          if (rect.width > 0 && rect.height > 0) {
-            const measurement = {
-              offsetX: -rect.width / 2,
-              offsetY: 0,
-              width: rect.width,
-              height: rect.height
-            };
-            labelMeasurementCacheRef.current.set(cacheKey, {
-              element,
-              measurement,
-              text,
-              viewportWidth: frame.width
-            });
-            return measurement;
-          }
-          return undefined;
-        };
-        const full = measuredRectangle(measurementLabel, 'full');
-        const compact = measuredRectangle(compactMeasurementLabel, 'compact') ?? {
-          offsetX: -CASTLE_LABEL_COMPACT_WIDTH / 2,
-          offsetY: 0,
-          width: CASTLE_LABEL_COMPACT_WIDTH,
-          height: CASTLE_LABEL_COMPACT_HEIGHT
-        };
-        return {
-          castleId: castle.castleId,
-          x: castle.x,
-          y: castle.y,
-          inFrontOfCamera: castle.visible,
-          priority: castle.castleId === context.selectedCastleId
-            ? 'selected' as const
-            : castle.castleId === context.hoveredCastleId
-                || castle.castleId === context.focusedCastleId
-              ? 'hovered' as const
-              : castle.castleId === context.ownCastleId
-                ? 'own' as const
-                : castle.distance > CASTLE_LABEL_FAR_DISTANCE ? 'far' as const : 'near' as const,
-          distance: castle.distance,
-          occlusionBounds: castle.castleBounds,
-          measurements: {
-            full,
-            compact
-          }
-        };
-      });
-      const safeAreaBounds = {
-        left: safeAreaInsetsRef.current.left + 8,
-        top: safeAreaInsetsRef.current.top + 8,
-        right: frame.width - safeAreaInsetsRef.current.right - 8,
-        bottom: frame.height - safeAreaInsetsRef.current.bottom - 8
-      };
-      const protectedCastleSilhouettes = candidateCastles.flatMap((castle) => (
-        castle.visible && validRealmScreenRect(castle.castleBounds)
-          ? [{ castleId: castle.castleId, bounds: castle.castleBounds }]
-          : []
-      ));
-      const mandatoryCastleIds = [
-        context.selectedCastleId,
-        context.hoveredCastleId,
-        context.focusedCastleId,
-        context.ownCastleId
-      ].filter((castleId): castleId is number => (
-        castleId !== undefined
-        && candidateCastles.some((castle) => castle.castleId === castleId)
-      ));
-      const layout = resolveMeasuredRealmLabelLayout({
-        anchors,
-        protectedCastleSilhouettes,
-        viewportBounds: { left: 0, top: 0, right: frame.width, bottom: frame.height },
-        safeAreaBounds,
-        reservedUiRects,
-        maximumLabels,
-        mandatoryCastleIds,
-        previousPlacements: previousLabelLayoutRef.current,
-        hysteresis: { membershipDistance: 5, anchorJitterPixels: 2 },
-        collisionPaddingPixels: 4
-      });
-      const eligibleCastleIds = new Set(candidateCastles.filter((castle) => (
-        castle.visible
-        && Number.isFinite(castle.x)
-        && Number.isFinite(castle.y)
-        && castle.x >= 0
-        && castle.x <= frame.width
-        && castle.y >= 0
-        && castle.y <= frame.height
-      )).map((castle) => castle.castleId));
-      const placedCastleIds = new Set(layout.placements.map((placement) => placement.castleId));
-      const clusterCastleIds = [...eligibleCastleIds]
-        .filter((castleId) => !placedCastleIds.has(castleId))
-        .sort((left, right) => left - right);
-      const castleCollisionBounds = protectedCastleSilhouettes.map(({ bounds }) => bounds);
-      const clusterLayout = resolveRealmCastleIdentityClusters({
-        projections: candidateCastles,
-        clusterCastleIds,
-        preferredRepresentativeCastleIds: identityReadyCastleIdsRef.current,
-        safeAreaBounds,
-        occupiedRects: [
-          ...reservedUiRects,
-          ...layout.placements.map((placement) => placement.bounds)
-        ],
-        protectedCastleRects: castleCollisionBounds,
-        maximumClusters: frame.width <= 680 ? 3 : 6,
-        collisionPaddingPixels: 4
-      });
-      const eligibleCullReasons = new Map<string, number>();
-      layout.culled.forEach((entry) => {
-        if (!eligibleCastleIds.has(entry.castleId)) return;
-        eligibleCullReasons.set(
-          entry.reason,
-          (eligibleCullReasons.get(entry.reason) ?? 0) + 1
-        );
-      });
-      root.dataset.labelEligibleCount = String(eligibleLabelCount);
-      root.dataset.labelPlacedCount = String(layout.placements.length);
-      root.dataset.labelUnplacedCount = String(Math.max(
-        0,
-        eligibleLabelCount - layout.placements.length
-      ));
-      root.dataset.labelBaseAnchorViolationCount = String(layout.placements.filter((placement) => (
-        Math.hypot(
-          placement.x - placement.projectedAnchor.x,
-          placement.y - placement.projectedAnchor.y
-        ) > 0.015
-      )).length);
-      root.dataset.labelStationaryCount = String(layout.placements.length);
-      root.dataset.labelCullReasons = [...eligibleCullReasons]
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([reason, count]) => `${reason}:${count}`)
-        .join(',');
-      root.dataset.individualCastleCount = String(layout.placements.length);
-      root.dataset.labelClusteredCount = String(clusterLayout.clusters.reduce((count, cluster) => (
-        count + cluster.castleIds.length
-      ), 0));
-      root.dataset.labelClusterOverflowCount = String(clusterLayout.overflowCastleIds.length);
-      root.dataset.labelCastleOverlapCount = String(layout.placements.filter((placement) => (
-        protectedCastleSilhouettes.some((silhouette) => (
-          silhouette.castleId !== placement.castleId
-          && realmScreenRectsOverlap(placement.bounds, silhouette.bounds)
-        ))
-      )).length);
-      const clusterProjectionById = new Map(candidateCastles.map((castle) => [
-        castle.castleId,
-        castle
-      ]));
-      root.dataset.clusterRepresentativeAnchorViolationCount = String(
-        clusterLayout.clusters.filter((cluster) => {
-          const representative = clusterProjectionById.get(cluster.representativeCastleId);
-          return representative === undefined || Math.hypot(
-            representative.x - cluster.anchor.x,
-            representative.y - cluster.anchor.y
-          ) > 0.015;
-        }).length
-      );
-      root.dataset.clusterCastleOverlapCount = String(
-        clusterLayout.clusters.filter((cluster) => castleCollisionBounds.some((bounds) => (
-          realmScreenRectsOverlap(cluster.bounds, bounds)
-        ))).length
-      );
-      root.dataset.clusterMemberDistanceViolationCount = String(
-        clusterLayout.clusters.filter((cluster) => {
-          const representative = clusterProjectionById.get(cluster.representativeCastleId);
-          return representative === undefined || cluster.castleIds.some((castleId) => {
-            const member = clusterProjectionById.get(castleId);
-            return member === undefined || Math.hypot(
-              member.x - representative.x,
-              member.y - representative.y
-            ) > REALM_IDENTITY_CLUSTER_MAX_MEMBER_DISTANCE_PIXELS;
-          });
-        }).length
-      );
-      root.dataset.labelAccountingValid = String(realmCastleIdentityCoverageValid({
-        eligibleCastleIds: [...eligibleCastleIds],
-        individualCastleIds: layout.placements.map((placement) => placement.castleId),
-        clusters: clusterLayout.clusters,
-        overflowCastleIds: clusterLayout.overflowCastleIds,
-        exploreCastleIds: allCastlesRef.current.map((castle) => castle.castleId)
-      }));
-      root.dataset.labelMissingIdentityCount = String([...eligibleCastleIds].filter((castleId) => (
-        !identityReadyCastleIdsRef.current.has(castleId)
-      )).length);
-      previousLabelLayoutRef.current = layout.placements;
-      const projectionById = new Map(labelCastles.map((castle) => [castle.castleId, castle]));
-      const nextLabels = layout.placements.flatMap((placement): VisibleCastleLabel[] => {
-        const projection = projectionById.get(placement.castleId);
-        return projection ? [{
-          ...projection,
-          x: placement.x,
-          y: placement.y,
-          compact: placement.presentation === 'compact',
-          projectedAnchor: placement.projectedAnchor
-        }] : [];
-      });
-      const signature = nextLabels.map((label) => `${label.castleId}:${label.compact}`).join('|');
-      if (signature !== labelMembershipSignatureRef.current) {
-        labelMembershipSignatureRef.current = signature;
-        setVisibleCastleLabels(nextLabels);
-      }
-      const clusterSignature = realmCastleClusterMembershipSignature(clusterLayout.clusters);
-      if (clusterSignature !== clusterLayoutSignatureRef.current) {
-        clusterLayoutSignatureRef.current = clusterSignature;
-        setVisibleCastleClusters(clusterLayout.clusters);
-      }
-      presentedCastleIdsRef.current = renderableCastleIds;
-      sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
-      const placementsById = new Map(layout.placements.map((placement) => [placement.castleId, placement]));
-      for (const [castleId, button] of buttons) {
-        applyCastleLabelPlacement(button, placementsById.get(castleId));
-      }
-      const clustersByKey = new Map(clusterLayout.clusters.map((cluster) => [cluster.key, cluster]));
-      for (const [clusterKey, button] of clusterButtons) {
-        applyCastleClusterPlacement(
-          button,
-          clusterLeaders.get(clusterKey),
-          clustersByKey.get(clusterKey)
-        );
-      }
+    const candidateCastles = frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES);
+    const labels = resolvePersistentCastleLabels({
+      ...frame,
+      castles: candidateCastles
     });
-  }, []);
-  requestLabelLayoutRef.current = () => updateCastleProjection(latestProjectionRef.current);
+    // React owns label membership while the projection lane owns moving
+    // coordinates. Retain the latest complete snapshot so an unrelated
+    // React render cannot reconcile an older state snapshot back over the
+    // imperatively updated custom properties.
+    latestVisibleCastleLabelsRef.current = labels;
+    const renderableCastleIds = candidateCastles.map((castle) => castle.castleId);
+    const renderableCastleIdSet = new Set(renderableCastleIds);
+    const labelsById = new Map(labels.map((label) => [label.castleId, label]));
+    const buttons = new Map<number, HTMLButtonElement>();
+    root.querySelectorAll<HTMLButtonElement>('button.realm-castle-label[data-castle-id]')
+      .forEach((button) => {
+        const castleId = Number(button.dataset.castleId);
+        if (Number.isSafeInteger(castleId)) buttons.set(castleId, button);
+      });
+    const activeCastleId = document.activeElement instanceof HTMLButtonElement
+      && document.activeElement.classList.contains('realm-castle-label')
+      ? Number(document.activeElement.dataset.castleId)
+      : undefined;
+    const keyboardTarget = interactionRef.current.keyboardIntent.target;
+    const keyboardCastleId = keyboardTarget.kind === 'castle-label'
+      ? keyboardTarget.castleId
+      : undefined;
+    const preferredTabCastleId = [activeCastleId, keyboardCastleId, ownCastle.castleId]
+      .find((castleId) => castleId !== undefined && labelsById.has(castleId))
+      ?? labels[0]?.castleId;
+
+    // Exact direct coverage is the presentation contract. Density may create
+    // overlap in a realm overview, but collision geometry never replaces,
+    // relocates, aggregates, or hides an on-screen founded identity.
+    root.dataset.labelPersistence = 'foundation';
+    root.dataset.labelEligibleCount = String(labels.length);
+    root.dataset.labelPlacedCount = String(labels.length);
+    root.dataset.labelUnplacedCount = '0';
+    root.dataset.labelBaseAnchorViolationCount = String(labels.filter((label) => (
+      Math.hypot(
+        label.x - label.projectedAnchor.x,
+        label.y - label.projectedAnchor.y
+      ) > 0.015
+    )).length);
+    root.dataset.labelCullReasons = '';
+    root.dataset.individualCastleCount = String(labels.length);
+    root.dataset.labelClusteredCount = '0';
+    root.dataset.labelClusterOverflowCount = '0';
+    root.dataset.clusterRepresentativeAnchorViolationCount = '0';
+    root.dataset.clusterCastleOverlapCount = '0';
+    root.dataset.clusterMemberDistanceViolationCount = '0';
+    root.dataset.labelAccountingValid = String(
+      labelsById.size === labels.length
+      && labels.every((label) => renderableCastleIdSet.has(label.castleId))
+    );
+    root.dataset.labelMissingIdentityCount = '0';
+
+    const signature = labels.map((label) => `${label.castleId}:${label.compact}`).join('|');
+    if (signature !== labelMembershipSignatureRef.current) {
+      labelMembershipSignatureRef.current = signature;
+      setVisibleCastleLabels(labels);
+    }
+    for (const [castleId, button] of buttons) {
+      button.dataset.hovered = castleId === hoveredCastleIdRef.current ? 'true' : 'false';
+      applyCastleLabelPlacement(
+        button,
+        labelsById.get(castleId),
+        castleId === preferredTabCastleId
+      );
+    }
+
+    presentedCastleIdsRef.current = renderableCastleIds;
+    sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
+  }, [ownCastle.castleId]);
 
   const updateCastlePresentationTelemetry = useCallback((
     telemetry: RealmCastleInstancePresentationTelemetry
@@ -1191,12 +773,6 @@ function CanonicalRealmMapScreen({
       const root = rootRef.current;
       if (root) {
         const composition = measuredRealmComposition(root);
-        safeAreaInsetsRef.current = {
-          top: composition.safeAreaInsets?.top ?? 0,
-          right: composition.safeAreaInsets?.right ?? 0,
-          bottom: composition.safeAreaInsets?.bottom ?? 0,
-          left: composition.safeAreaInsets?.left ?? 0
-        };
         sceneRef.current?.setComposition(composition);
         updateCastleProjection(latestProjectionRef.current);
       }
@@ -1204,10 +780,6 @@ function CanonicalRealmMapScreen({
   }, [updateCastleProjection]);
 
   useEffect(() => () => {
-    if (labelProjectionRafRef.current !== null) {
-      window.cancelAnimationFrame(labelProjectionRafRef.current);
-      labelProjectionRafRef.current = null;
-    }
     if (compositionRafRef.current !== null) {
       window.cancelAnimationFrame(compositionRafRef.current);
       compositionRafRef.current = null;
@@ -1235,7 +807,7 @@ function CanonicalRealmMapScreen({
 
   useEffect(() => {
     updateCastleProjection(latestProjectionRef.current);
-  }, [focusedCastleId, interaction.inspectorOpen, interaction.navigatorOpen, profileRecords, selectedCastle?.castleId, updateCastleProjection, visibleCastleLabels]);
+  }, [updateCastleProjection]);
 
   useEffect(() => {
     if (rendererMode !== 'fallback') return undefined;
@@ -1291,9 +863,8 @@ function CanonicalRealmMapScreen({
       rendererModeRef.current = 'loading';
       setRendererMode('loading');
       latestProjectionRef.current = { width: 0, height: 0, castles: [] };
-      previousLabelLayoutRef.current = [];
       labelMembershipSignatureRef.current = '';
-      clusterLayoutSignatureRef.current = '';
+      latestVisibleCastleLabelsRef.current = [];
       presentedCastleIdsRef.current = [];
       if (rootRef.current) {
         rootRef.current.dataset.presentedModelCount = '0';
@@ -1305,12 +876,9 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.semanticTerrainFeatureDrawCalls = '0';
         rootRef.current.dataset.totalTerrainDetailInstanceCount = '0';
         rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
-        rootRef.current.dataset.labelCastleOverlapCount = '0';
         rootRef.current.dataset.labelBaseAnchorViolationCount = '0';
-        rootRef.current.dataset.labelStationaryCount = '0';
       }
       setVisibleCastleLabels([]);
-      setVisibleCastleClusters([]);
       setCameraMode('realm');
       scene = createRealmScene({
         canvas,
@@ -1350,9 +918,6 @@ function CanonicalRealmMapScreen({
       scene.setHovered(hoveredCoordRef.current);
       const cameraTarget: RealmCameraTarget = interactionRef.current.cameraTarget;
       if (cameraTarget.kind === 'castle') scene.focusCastle(cameraTarget.castleId);
-      else if (cameraTarget.kind === 'castle-cluster') {
-        scene.focusCastleGroup(cameraTarget.castleIds);
-      }
       else if (cameraTarget.kind === 'cell') scene.focusCell(cameraTarget.coord);
       else if (cameraTarget.kind === 'keep') scene.recenterKeep();
       else if (cameraTarget.kind === 'founding-district') scene.frameFoundingDistrict();
@@ -1422,34 +987,6 @@ function CanonicalRealmMapScreen({
     });
     sceneRef.current?.frameFoundingDistrict();
   }, [updateHoveredCastleId]);
-
-  const focusCastleCluster = useCallback((cluster: RealmCastleIdentityCluster) => {
-    const castle = allCastlesRef.current.find((candidate) => (
-      candidate.castleId === cluster.representativeCastleId
-    ));
-    if (!castle) return;
-    if (rendererModeRef.current !== 'webgl') {
-      selectCastle(castle);
-      return;
-    }
-    dispatchInteraction({
-      type: 'set-camera-target',
-      target: {
-        kind: 'castle',
-        castleId: castle.castleId,
-        coord: { q: castle.q, r: castle.r }
-      }
-    });
-    dispatchInteraction({
-      type: 'request-castle-label-focus',
-      castleId: castle.castleId
-    });
-    // Resolve the aggregate control into its named, individually readable
-    // representative. Framing the whole dense cluster can leave that keep's
-    // foundation behind a neighboring silhouette, forcing the fail-closed identity
-    // solver to route the very label the player requested back to overflow.
-    sceneRef.current?.focusCastle(castle.castleId);
-  }, [selectCastle]);
 
   const selectFromNavigator = useCallback((coord: HexCoord) => {
     selectCoord(coord);
@@ -1640,17 +1177,16 @@ function CanonicalRealmMapScreen({
       {rendererMode !== 'loading' ? (
         <>
           <RealmCastleLabels
-            labels={visibleCastleLabels}
-            clusters={visibleCastleClusters}
+            labels={latestVisibleCastleLabelsRef.current}
             records={profileRecords}
             selectedCastleId={selectedCastle?.castleId}
             inspectorCastleId={inspectorCastle?.castleId}
             focusedCastleId={focusedCastleId}
+            hoveredCastleId={hoveredCastleIdRef.current}
             ownCastleId={observerMode ? undefined : ownCastle.castleId}
             inspectorId={inspectorId}
             inspectorOpen={interaction.inspectorOpen}
             onActivate={selectCastle}
-            onActivateCluster={focusCastleCluster}
           />
 
           {observerMode ? (

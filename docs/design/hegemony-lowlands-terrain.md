@@ -68,10 +68,12 @@ branch:
 | Reduced | 2 | 36,456 | 40,000 | 3,000 |
 
 Every authoritative castle receives a deterministic local placement. The
-normalized model spans 1.48 world units; its terrain uses a 0.62 level footprint
-and 0.78 smooth blend radius. The blend completes before the pointy-hex
-inradius, preserving close adjacent founders without cross-cell seams. The same
-placement clears local vegetation and supplies a packed-earth/stone tint.
+normalized castle spans 1.48 world units and its authored island reaches about
+1.06 units from the shared origin. Terrain therefore uses a 1.08 level footprint
+and 1.22 smooth blend radius. The blend crosses the owning hex boundary but
+remains disjoint at the canonical minimum three-world-unit castle spacing. The
+same 1.22 outer radius clears local vegetation, while the placement continues to
+supply a packed-earth/stone tint.
 
 Three deterministic instanced detail layers add green tufts, dry tufts, and
 stones. Canonical density is bounded per profile and reduced further in the
@@ -138,10 +140,11 @@ username-foundation anchor. Composite castle-plus-base bounds exist only for
 conservative culling. Picking compares the nearest valid castle-geometry and
 simple non-rendered oval base-collider hits; decorative island triangles are
 never collision geometry.
-The 0.62/0.78 castle foundation blend radii continue to bound terrain-height and
-color influence. A separate 1.08 decoration-clearance radius prevents trees,
-rocks, and other procedural details from intersecting the approximately
-2.056×1.705-world-unit base without widening ordinary terrain sampling.
+The 1.08 level footprint covers the complete authored island before terrain
+blends to natural relief at radius 1.22. Decoration clearance uses that same
+1.22 outer radius, preventing trees, rocks, and terrain relief from intersecting
+the approximately 2.056×1.705-world-unit base. Bounded neighboring-cell queries
+keep the wider influence local without scanning all 100 castle placements.
 
 The exact GameReady package and its three inputs were supplied and authorized
 by the project owner on 2026-07-16 for project-internal Warpkeep runtime
@@ -239,18 +242,21 @@ pinch gestures suppress hover and click activation until they end.
 React owns label identity and public profile content. Camera movement updates
 CSS transforms at most once per animation frame. Every individual username rail
 uses the current projected foundation base as both layout and visual anchor.
-Full and compact rails share that point: measured collision handling has zero
-individual nudge radius, no roof stack, and no individual connector leader.
-Hysteresis may preserve membership ordering but never freezes or offsets a rail
-while the camera moves.
+Full and compact rails share that point, have no nudge radius, roof stack, or
+connector leader, and retain one identity-keyed React control while camera
+distance and castle LOD change. Only a stable viewport-width breakpoint may
+select compact presentation; distance and projected density never change label
+membership or presentation. Projection and edge visibility use one fixed
+quality-session envelope rather than the active mesh LOD envelope.
 
-Measured rail dimensions, protected castle silhouettes, reserved HUD,
-inspector, toolbar, navigator, and safe-area rectangles still determine whether
-the exact anchor is available. A direct rail that cannot fit is accounted for
-through a deterministic keeper cluster or Explore instead of moving away from
-its castle. True multi-keeper clusters may use their existing deterministic
-group placement and one group connector when displaced; that connector never
-pretends that an individual username sits at the group position.
+Every projection-visible founded castle receives one direct rail. Protected
+castle silhouettes, reserved HUD, inspector, toolbar, navigator, measured rail
+dimensions, collisions, and capacity never remove or aggregate that rail.
+Dense controls may overlap and a partially visible castle's control may be
+clipped at the viewport edge: both are preferable to a false floating identity
+or camera-driven disappearance. Automatic keeper clusters and label-overflow
+culling are forbidden. Explore remains the complete supplementary navigator,
+but opening it does not replace or suppress eligible world labels.
 
 The responsive selected-castle record renders only already-sanitized public
 Farcaster presentation and existing public Realm fields: castle name, level,

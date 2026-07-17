@@ -10,11 +10,6 @@ export type RealmCameraTarget =
   | Readonly<{ kind: 'founding-district' }>
   | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
-  | Readonly<{
-      kind: 'castle-cluster';
-      castleIds: readonly number[];
-      representativeCastleId: number;
-    }>
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>;
 
 export type RealmKeyboardTarget =
@@ -73,13 +68,6 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'founding-district') return { kind: 'founding-district' };
   if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
-  if (target.kind === 'castle-cluster') {
-    return {
-      kind: 'castle-cluster',
-      castleIds: [...target.castleIds],
-      representativeCastleId: target.representativeCastleId
-    };
-  }
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
 }
 

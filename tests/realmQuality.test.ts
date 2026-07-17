@@ -67,26 +67,26 @@ describe('realm quality profiles', () => {
       high: {
         textureWidth: 256,
         textureHeight: 128,
-        environmentIntensity: 0.36,
+        environmentIntensity: 0.44,
         sunDiscSegments: 28
       },
       balanced: {
         textureWidth: 128,
         textureHeight: 64,
-        environmentIntensity: 0.32,
+        environmentIntensity: 0.39,
         sunDiscSegments: 20
       },
       reduced: {
         textureWidth: 64,
         textureHeight: 32,
-        environmentIntensity: 0.28,
+        environmentIntensity: 0.34,
         sunDiscSegments: 12
       }
     });
     Object.values(REALM_ENVIRONMENT_SPECS).forEach((spec) => {
       expect(spec.textureWidth).toBe(spec.textureHeight * 2);
       expect(spec.environmentIntensity).toBeGreaterThanOrEqual(0.25);
-      expect(spec.environmentIntensity).toBeLessThanOrEqual(0.4);
+      expect(spec.environmentIntensity).toBeLessThanOrEqual(0.45);
     });
   });
 

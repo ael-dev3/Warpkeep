@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createTerrainOverviewHull } from '../src/components/realm/createTerrainGeometry';
 import {
+  clampRealmInteractiveZoom,
   clampRealmPan,
   createRealmCameraController,
   dampingAlpha,
@@ -13,8 +15,11 @@ import {
   isRealmScreenBoundsInsideSafeViewport,
   normalizeWheelDelta,
   projectRealmFocusBounds,
-  projectRealmPointToViewport
+  projectRealmPointToViewport,
+  REALM_INTERACTIVE_MIN_ZOOM
 } from '../src/components/realm/realmCameraController';
+import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
+import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 
 const BOUNDS = {
   minX: -9.53,
@@ -33,9 +38,39 @@ const SELECTED_CASTLE = {
   height: 1.4,
   footprintDiameter: 1.8
 };
+const REALM_HULL = createTerrainOverviewHull(
+  generateRealmTerrainMap(HEGEMONY_GENESIS_001, 22),
+  1
+);
+const REALM_HULL_BOUNDS = {
+  minX: Math.min(...REALM_HULL.map((point) => point.x)),
+  maxX: Math.max(...REALM_HULL.map((point) => point.x)),
+  minY: BOUNDS.minY,
+  maxY: BOUNDS.maxY,
+  minZ: Math.min(...REALM_HULL.map((point) => point.z)),
+  maxZ: Math.max(...REALM_HULL.map((point) => point.z))
+};
 
 function round(value: number) {
   return Math.round(value * 1_000) / 1_000;
+}
+
+function groundPointAt(
+  camera: THREE.PerspectiveCamera,
+  width: number,
+  height: number,
+  localX: number,
+  localY: number
+) {
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2(
+    (localX / width) * 2 - 1,
+    1 - (localY / height) * 2
+  ), camera);
+  return raycaster.ray.intersectPlane(
+    new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+    new THREE.Vector3()
+  );
 }
 
 afterEach(() => {
@@ -47,6 +82,64 @@ describe('realm perspective camera math', () => {
     expect(fitRealmOverview(BOUNDS, 16 / 9)).toBeGreaterThan(5);
     expect(fitRealmOverview(BOUNDS, 9 / 16)).toBeGreaterThan(fitRealmOverview(BOUNDS, 16 / 9));
     expect(Number.isFinite(fitRealmOverview(BOUNDS, 0))).toBe(true);
+  });
+
+  it('contains the actual realm perimeter without fitting nonexistent AABB corners', () => {
+    expect(REALM_HULL).toHaveLength(12);
+    const boxFit = fitRealmOverview(REALM_HULL_BOUNDS, 16 / 9);
+    const hullFit = fitRealmOverview(
+      REALM_HULL_BOUNDS,
+      16 / 9,
+      DEFAULT_REALM_CAMERA_SPEC.overviewPitchDegrees,
+      DEFAULT_REALM_CAMERA_SPEC.azimuthDegrees,
+      REALM_HULL
+    );
+    expect(hullFit).toBeLessThan(boxFit);
+
+    [
+      {
+        viewport: { width: 1_920, height: 1_080 },
+        composition: {
+          insets: { top: 24, right: 24, bottom: 84, left: 236 },
+          safeAreaInsets: { top: 8, right: 8, bottom: 8, left: 8 }
+        }
+      },
+      {
+        viewport: { width: 390, height: 844 },
+        composition: {
+          insets: { top: 58, right: 8, bottom: 86, left: 8 },
+          safeAreaInsets: { top: 47, right: 0, bottom: 34, left: 0 }
+        }
+      },
+      {
+        viewport: { width: 667, height: 375 },
+        composition: {
+          insets: { top: 12, right: 12, bottom: 58, left: 126 },
+          safeAreaInsets: { top: 0, right: 24, bottom: 21, left: 24 }
+        }
+      }
+    ].forEach(({ viewport, composition }) => {
+      const pose = deriveRealmCameraPoseForViewport(
+        0,
+        { x: 0, z: 0 },
+        REALM_HULL_BOUNDS,
+        KEEP,
+        viewport,
+        composition,
+        DEFAULT_REALM_CAMERA_SPEC,
+        REALM_HULL
+      );
+      REALM_HULL.forEach((point) => {
+        [REALM_HULL_BOUNDS.minY, REALM_HULL_BOUNDS.maxY + 1.4].forEach((y) => {
+          const projected = projectRealmPointToViewport(pose, { ...point, y });
+          expect(projected.visible).toBe(true);
+          expect(projected.x).toBeGreaterThanOrEqual(pose.safeViewport.left - 0.000001);
+          expect(projected.x).toBeLessThanOrEqual(pose.safeViewport.right + 0.000001);
+          expect(projected.y).toBeGreaterThanOrEqual(pose.safeViewport.top - 0.000001);
+          expect(projected.y).toBeLessThanOrEqual(pose.safeViewport.bottom + 0.000001);
+        });
+      });
+    });
   });
 
   it('smoothly changes from a strategy-like view into a close keep perspective', () => {
@@ -236,6 +329,44 @@ describe('realm perspective camera math', () => {
     expect(afterThirtyFps).toBeCloseTo(afterSixtyFps, 6);
   });
 
+  it('keeps the ordinary floor while entering continuously from an explicit overview', () => {
+    expect(clampRealmInteractiveZoom(0.8, -1)).toBe(REALM_INTERACTIVE_MIN_ZOOM);
+    expect(clampRealmInteractiveZoom(REALM_INTERACTIVE_MIN_ZOOM, 0))
+      .toBe(REALM_INTERACTIVE_MIN_ZOOM);
+    expect(clampRealmInteractiveZoom(0, -1)).toBe(0);
+    expect(clampRealmInteractiveZoom(0, 0.05)).toBe(0.05);
+  });
+
+  it('applies the input floor to wheel and pinch while showRealm retains zoom zero', () => {
+    const controller = createRealmCameraController({
+      bounds: REALM_HULL_BOUNDS,
+      overviewHull: REALM_HULL,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn()
+    });
+    controller.setViewport(1_280, 720);
+    controller.frameAt(KEEP, 0.6);
+
+    controller.zoomByAt(-1, 640, 360);
+    expect(controller.getZoom()).toBe(REALM_INTERACTIVE_MIN_ZOOM);
+    controller.zoomBy(-1);
+    expect(controller.getZoom()).toBe(REALM_INTERACTIVE_MIN_ZOOM);
+    controller.zoomByWheel(10_000, 0);
+    expect(controller.getZoom()).toBe(REALM_INTERACTIVE_MIN_ZOOM);
+
+    controller.showRealm();
+    expect(controller.getZoom()).toBe(0);
+    controller.zoomByWheel(10_000, 0);
+    expect(controller.getZoom()).toBe(0);
+    controller.zoomByAt(-1, 640, 360);
+    expect(controller.getZoom()).toBe(0);
+    controller.zoomByAt(0.01, 640, 360);
+    expect(controller.getZoom()).toBe(0.01);
+    controller.dispose();
+  });
+
   it('settles reduced-motion focus changes immediately and keeps fog valid', () => {
     const fog = new THREE.Fog('#a6bcaf', 1, 2);
     const render = vi.fn();
@@ -317,6 +448,188 @@ describe('realm perspective camera math', () => {
 
     expect(controller.getZoom()).toBeCloseTo(0.62, 6);
     expect(after.distanceTo(before)).toBeLessThan(0.000001);
+    controller.dispose();
+  });
+
+  it('keeps an elevated castle foundation fixed during label-origin wheel zoom', () => {
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn()
+    });
+    const foundation = { x: 1.8, y: 0.175, z: -1.35 };
+    controller.setViewport(1_280, 720);
+    controller.frameAt(KEEP, 0.46);
+    const before = controller.projectPoint(foundation);
+    expect(before.visible).toBe(true);
+
+    controller.zoomByWheelAtWorld(-208.333333, 0, foundation, before.x, before.y);
+    const after = controller.projectPoint(foundation);
+
+    expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeLessThan(0.000001);
+    controller.dispose();
+  });
+
+  it('keeps cursor-anchored wheel zoom stable throughout non-reduced easing', () => {
+    let nextFrameId = 1;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrameId;
+      nextFrameId += 1;
+      scheduled.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      scheduled.delete(id);
+    });
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: false,
+      render: vi.fn()
+    });
+    const width = 1_280;
+    const height = 720;
+    const localX = 930;
+    const localY = 270;
+    let time = 0;
+    const runNextFrame = () => {
+      const entry = scheduled.entries().next().value as [number, FrameRequestCallback] | undefined;
+      expect(entry).toBeDefined();
+      if (!entry) return;
+      scheduled.delete(entry[0]);
+      time += 1000 / 60;
+      entry[1](time);
+    };
+
+    controller.setViewport(width, height);
+    controller.frameAt(KEEP, 0.46);
+    for (let index = 0; index < 120 && scheduled.size > 0; index += 1) runNextFrame();
+    const anchor = groundPointAt(controller.camera, width, height, localX, localY);
+    expect(anchor).not.toBeNull();
+
+    controller.zoomByWheel(-180, 0, localX, localY);
+    let sampledFrames = 0;
+    while (scheduled.size > 0 && sampledFrames < 120) {
+      runNextFrame();
+      const current = groundPointAt(controller.camera, width, height, localX, localY);
+      expect(current).not.toBeNull();
+      expect(current?.distanceTo(anchor as THREE.Vector3)).toBeLessThan(0.002);
+      sampledFrames += 1;
+    }
+    expect(sampledFrames).toBeGreaterThan(1);
+    expect(scheduled.size).toBe(0);
+    controller.dispose();
+  });
+
+  it('settles anchored zoom after composition and viewport geometry changes', () => {
+    let nextFrameId = 1;
+    let time = 0;
+    const scheduled = new Map<number, FrameRequestCallback>();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = nextFrameId;
+      nextFrameId += 1;
+      scheduled.set(id, callback);
+      return id;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      scheduled.delete(id);
+    });
+    const runNextFrame = () => {
+      const entry = scheduled.entries().next().value as
+        | [number, FrameRequestCallback]
+        | undefined;
+      expect(entry).toBeDefined();
+      if (!entry) return;
+      scheduled.delete(entry[0]);
+      time += 1000 / 60;
+      entry[1](time);
+    };
+    const runFramesToSettle = (maximum = 240) => {
+      let frameCount = 0;
+      while (scheduled.size > 0 && frameCount < maximum) {
+        runNextFrame();
+        frameCount += 1;
+      }
+      expect(scheduled.size).toBe(0);
+    };
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: false,
+      render: vi.fn()
+    });
+
+    controller.setViewport(1_280, 720);
+    controller.frameAt(KEEP, 0.46);
+    runFramesToSettle();
+
+    controller.zoomByWheel(-180, 0, 930, 270);
+    runNextFrame();
+    controller.setComposition({
+      insets: { top: 24, right: 320, bottom: 80, left: 220 },
+      focusPadding: 24
+    });
+    runFramesToSettle();
+
+    controller.zoomByWheel(180, 0, 780, 340);
+    runNextFrame();
+    controller.setViewport(1_024, 768);
+    runFramesToSettle();
+    controller.dispose();
+  });
+
+  it('turns a drag into immediate ground-plane direct manipulation', () => {
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: KEEP,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn()
+    });
+    const width = 1_280;
+    const height = 720;
+    controller.setViewport(width, height);
+    controller.frameAt(KEEP, 0.62);
+    const grabbed = groundPointAt(controller.camera, width, height, 560, 390);
+    expect(grabbed).not.toBeNull();
+    const before = controller.getPose();
+
+    controller.beginDirectManipulation();
+    controller.panBetweenViewportPoints(560, 390, 640, 420);
+    const after = controller.getPose();
+    const movedGrab = groundPointAt(controller.camera, width, height, 640, 420);
+
+    expect(Math.hypot(after.focus.x - before.focus.x, after.focus.z - before.focus.z))
+      .toBeGreaterThan(0.01);
+    expect(movedGrab?.distanceTo(grabbed as THREE.Vector3)).toBeLessThan(0.000001);
+    controller.endDirectManipulation();
+    controller.dispose();
+  });
+
+  it('does not resurrect an off-centre keep target during manual overview zoom', () => {
+    const offCentreKeep = { ...KEEP, x: 5.5, z: -4.25 };
+    const controller = createRealmCameraController({
+      bounds: BOUNDS,
+      keepFocus: offCentreKeep,
+      fog: new THREE.Fog('#a6bcaf', 1, 2),
+      reducedMotion: true,
+      render: vi.fn()
+    });
+    controller.setViewport(1_280, 720);
+    controller.showRealm();
+    for (let index = 0; index < 4; index += 1) {
+      controller.zoomByWheel(-120, 0, 640, 360);
+    }
+
+    expect(controller.getZoom()).toBeCloseTo(0.3456, 6);
+    expect(Math.hypot(controller.getPose().focus.x, controller.getPose().focus.z))
+      .toBeLessThan(0.1);
+    expect(controller.getPose().focus.x).not.toBeCloseTo(offCentreKeep.x, 2);
     controller.dispose();
   });
 

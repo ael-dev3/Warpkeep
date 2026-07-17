@@ -22,12 +22,14 @@ export type TerrainCastleLocation = Readonly<{
 }>;
 
 const HEGEMONY_KEEP_FOUNDATION = Object.freeze({
-  // The normalized castle spans 1.48 world units. Keep most of that base on a
-  // calm, level plinth, then blend before the pointy-hex inradius so adjacent
-  // founders remain visually close without floating or cross-cell seams.
-  footprintRadius: 0.62,
-  blendRadius: 0.78,
-  decorationClearanceRadius: 1.08,
+  // The authored landscape base reaches about 1.06 world units from its
+  // normalized castle origin. Keep the complete island on one level support
+  // plane, then blend outside it. The canonical slot policy keeps castle
+  // centers at least three world units apart, so these 1.22-radius blends do
+  // not overlap even though their influence crosses the owning hex boundary.
+  footprintRadius: 1.08,
+  blendRadius: 1.22,
+  decorationClearanceRadius: 1.22,
   targetHeightMode: 'cell-center' as const
 });
 

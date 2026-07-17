@@ -31,19 +31,19 @@ export const REALM_ENVIRONMENT_SPECS: Readonly<
   high: Object.freeze({
     textureWidth: 256,
     textureHeight: 128,
-    environmentIntensity: 0.36,
+    environmentIntensity: 0.44,
     sunDiscSegments: 28
   }),
   balanced: Object.freeze({
     textureWidth: 128,
     textureHeight: 64,
-    environmentIntensity: 0.32,
+    environmentIntensity: 0.39,
     sunDiscSegments: 20
   }),
   reduced: Object.freeze({
     textureWidth: 64,
     textureHeight: 32,
-    environmentIntensity: 0.28,
+    environmentIntensity: 0.34,
     sunDiscSegments: 12
   })
 });

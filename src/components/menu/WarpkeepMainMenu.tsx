@@ -34,9 +34,10 @@ import {
   WARPKEEP_BUILD_INFO,
   type WarpkeepBuildInfo
 } from '../../build/buildInfo';
-import type {
-  GraphicsPreference,
-  GraphicsQualityTier
+import {
+  DEFAULT_GRAPHICS_PREFERENCE,
+  type GraphicsPreference,
+  type GraphicsQualityTier
 } from '../../settings/graphicsPreference';
 import './WarpkeepMainMenu.css';
 
@@ -264,7 +265,7 @@ export function WarpkeepMainMenu({
   onVideoReady,
   onVideoError,
   noticeDurationMs = 5600,
-  graphicsPreference = 'auto',
+  graphicsPreference = DEFAULT_GRAPHICS_PREFERENCE,
   resolvedGraphicsQuality = 'balanced',
   onGraphicsPreferenceChange,
   audioMuted = false,
