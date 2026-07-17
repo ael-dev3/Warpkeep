@@ -21,7 +21,7 @@ Versions use ordinary SemVer core numbers without padding: `0.3.0`, never `0.3.0
 
 The package version is the sole product-version source of truth. The browser receives it through the build-info module rather than duplicating a string in UI components. A production build must include a full Git SHA; the menu presents its seven-character prefix and links to the exact commit. Local builds deliberately say `LOCAL` instead.
 
-The checked-in package identifies the Alpha 0.3.6 candidate in PR #44. A source
+The checked-in package identifies the Alpha 0.3.6 integration candidate. A source
 version advance records the player-facing candidate being reviewed; it does not
 prove that version is merged, deployed, tagged, or public. Alpha 0.3.5 remains
 the verified public release, and its exact deployed commit is identified by the

@@ -204,20 +204,18 @@ or accepted.
 Castle-model availability is deliberately independent of two-dimensional label
 placement. Every canonical castle candidate remains available to the scene's
 own frustum and LOD presentation, with the same set available for raycasting.
-Every projection-visible founded castle must expose one direct username control
-at its exact projected foundation base. Camera distance, LOD, collision,
-reserved UI, density, and measured capacity may not change direct membership or
-presentation. The identity-keyed React control survives camera and LOD changes
-while projection coordinates update imperatively. Compact mode depends only on
-the stable viewport-width breakpoint.
+Every founded castle whose minimum direct-control box fits inside the viewport
+must expose one username rail at its exact projected foundation base. Camera
+distance and LOD may not move or aggregate it. Fully clipped edge controls stay
+out of the interactive world layer, while Explore retains complete castle
+coverage. The identity-keyed React control survives camera and LOD changes and
+uses one roving tab stop across the visible set.
 
-Dense direct controls may overlap and partially visible edge controls may clip;
-the probe does not mistake either condition for permission to move, aggregate,
-or hide an identity. Automatic keeper clusters, group connectors, and label
-overflow are forbidden and must all report zero. Every direct control remains
-an enabled, labelled, keyboard-focusable button with a minimum 44-by-44-pixel
-hit target. Explore remains a complete supplementary list, but opening it never
-removes eligible world labels.
+Automatic keeper clusters, group connectors, and overflow identities remain
+forbidden. The probe rejects any visible rail that leaves the viewport,
+collides with another rail, overlaps reserved UI, fails its interior hit test,
+lacks accessible text, or falls below the 44-by-44-pixel hit target. Opening
+Explore or the inspector must preserve valid world-label accounting.
 
 Bind Vite to loopback explicitly, then have the small contract helper print the
 exact local URL for one reviewed quality and presentation mode:
@@ -367,10 +365,9 @@ set-membership accounting flag must also be true; no identity keys are
 exported. Eligible and placed counts must match, unplaced, clustered, overflow,
 cluster-member, cluster-control, and connector counts must all be zero, and
 each direct control must have valid accessible text and a 44-by-44-pixel minimum
-hit target. The probe records density, reserved-UI overlap, partial edge
-clipping, and interior hit-test contention as diagnostics rather than treating
-them as reasons to remove a label. Opening Explore or the inspector leaves the
-eligible direct world-label set intact. Every rendered rail retains its exact
+hit target. Reserved-UI overlap, edge clipping, label collision, and interior
+hit-test contention are release failures. Opening Explore or the inspector
+must preserve valid direct-label accounting. Every rendered rail retains its exact
 foundation anchor, reports no displacement, and has no connector.
 
 The desktop balanced case also derives one bounded point above a foundation-attached

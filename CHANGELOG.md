@@ -4,7 +4,7 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-## [0.3.6] — 2026-07-17 candidate
+## [0.3.6] — 2026-07-18 candidate
 
 - Founded castles receive one bounded, role-specific diffuse-colour calibration
   across High, Balanced, and Compact. Authored landscape bases receive a
@@ -17,10 +17,10 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   increasing global tone-mapping exposure, adding lights, shadow maps, render
   passes, or animation demand. Lowlands now use a cleaner scene-linear green
   palette, and the SVG fallback encodes it correctly to display sRGB.
-- Cinematic is now the default title and Realm profile on all devices. Balanced
-  and Performance remain explicit opt-downs, while renderer buffer caps and
-  WebGL/model fallbacks stay intact. The settings panel makes the default
-  obvious and returns players **Back to the Menu**.
+- Hardware-aware Auto remains the recommended title and Realm profile. It
+  chooses Cinematic only with measured desktop headroom, keeps normal phones
+  Balanced, and fails down on constrained devices; every fixed profile remains
+  an explicit player choice. Settings now returns players **Back to the Menu**.
 - Local terrain foundation and blend influence now cover the wider authored
   island footprint at every canonical castle slot. Interaction feedback no
   longer draws a depth-tested cell outline through an occupied castle base;
@@ -29,14 +29,16 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   clearance above the terrain seam. It applies to every LOD, keeps High's
   denser intended skirt grounded, and never independently moves or scales the
   base.
-- Every projection-visible founded castle now owns one permanent direct
+- Every safely in-viewport founded castle now owns one persistent direct
   identity rail at its exact foundation anchor. Camera distance, LOD, hover,
   selection, and label collisions cannot replace it with a keeper cluster or
   overflow identity. Live pre-mask 3D frustum membership prevents a rail from
   outliving its rendered castle at a viewport edge, and touch targets retain a
-  device-rounding safety margin above 44 pixels. Dense rails may overlap as the
-  final truthful fallback, while Explore retains the complete keyboard- and
-  touch-accessible list.
+  device-rounding safety margin above 44 pixels. Fully clipped controls are
+  excluded, one roving world-label tab stop bounds keyboard traversal, and
+  rendered QA now rejects label collision, failed hit testing, viewport
+  clipping, and HUD overlap. Explore retains the complete keyboard- and
+  touch-accessible castle list.
 - Ordinary wheel and pinch input keep a readable zoom floor. The explicit
   Realm overview remains available and fits the actual convex rendered-terrain
   perimeter with a conservative raised-scene margin instead of nonexistent
@@ -54,11 +56,18 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 - Foundation rails now consume camera projection in the same frame with
   tenth-pixel precision. Removing permanent transform promotion and moving
   backdrop blur reduces avoidable compositing work during map motion.
-- This candidate is Pages-client presentation only. It changes no Terms,
-  authentication or admission authority, backend protocol, authoritative
-  world generation or state, castle ownership, wallet, Marks, Worker,
-  SpacetimeDB module, production data, DNS, or deployment.
-- Alpha 0.3.6 is checked into PR #44 as a candidate. Alpha 0.3.5 remains the
+- The compact player HUD now reuses the bounded static Farcaster portrait
+  renderer, with the existing sanitized monogram fallback and no FID-as-label.
+- Exact provenance-pinned Food, Wood, Stone, and Gold icon masters plus a
+  fail-closed bigint projection decoder prepare a future mechanics slice. No
+  resource balance, production, construction action, or placeholder counter is
+  mounted in this release; Community Marks remains separate.
+- Defensive source hardening tightens authentication configuration and cookie
+  validation, profile/image ingress, bounded browser/model transports, local
+  tooling downloads, private caches, and exact CI action runtimes. It adds no
+  authentication bypass and performs no admission, Worker, SpacetimeDB,
+  production-data, DNS, wallet, or authoritative-world mutation.
+- Alpha 0.3.6 is checked into the integration branch as a candidate. Alpha 0.3.5 remains the
   verified public release until protected-main deployment and exact-build
   verification succeed; no `v0.3.6` tag or release claim is valid before those
   gates pass.
@@ -452,7 +461,7 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
 [Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...HEAD
-[0.3.6]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...agent/alpha-0.3.6-improvements
+[0.3.6]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...codex/alpha-0.3.6-integration
 [0.3.5]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.2...v0.3.3

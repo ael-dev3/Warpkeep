@@ -110,6 +110,12 @@ short blend reaches natural relief at radius 1.22. Decoration clearance uses
 the same 1.22 outer radius. Bounded neighboring-cell lookup preserves local
 sampling even though the foundation crosses its owning hex boundary.
 
+The immutable manifest in this directory records the Alpha 0.3.5 import-time
+foundation values (`0.62`/`0.78`) and original decoration clearance (`1.08`).
+Alpha 0.3.6 applies the later renderer-only `1.08`/`1.22` support and `1.22`
+clearance described above; that revision does not rewrite the historical
+asset-ingest record or any authoritative terrain row.
+
 Because the authored island supplies physical contact and grounding, the old
 synthetic contact-shadow instance is suppressed whenever the complete base LOD
 family is ready. Picking compares the nearest valid castle-geometry and simple

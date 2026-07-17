@@ -14,7 +14,7 @@ wallet actions, and Marks crediting or spending are not live.
 
 ## Current candidate — Alpha 0.3.6
 
-PR #44 carries a Pages-client presentation candidate that raises castle and
+The integration candidate raises castle and
 landscape-base readability through bounded role-aware material calibration and
 a camera-facing revision of the existing neutral fill. It supports the full
 authored island footprint with wider local terrain foundations, removes the
@@ -22,6 +22,11 @@ occupied-cell outline that visually crosses a castle base, keeps one permanent
 direct identity rail for every projection-visible founded castle, and gives
 ordinary wheel/pinch input a readable zoom floor while the explicit Realm
 overview fits the actual convex rendered-terrain perimeter.
+
+It also keeps graphics selection hardware-aware, bounds world-label keyboard
+and viewport behavior, adds the sanitized player portrait to the compact HUD,
+includes reviewed resource-icon/decoder groundwork without mounting fake
+balances, and carries defensive repository/authentication source hardening.
 
 Alpha 0.3.6 changes no new gameplay or authority boundary. It is not public
 until protected-main deployment and exact-build verification pass; Alpha 0.3.5

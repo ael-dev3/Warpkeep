@@ -72,8 +72,10 @@ The gold-stack, food, stone, and wood icons were supplied by the Warpkeep
 project owner on 2026-07-17 with instructions to add transparent resource
 icons to the draft Alpha 0.3.6 mechanics PR. Those instructions authorize the
 exact background-cleaned runtime PNGs in this public Warpkeep repository, the
-draft PR #45 presentation-only Realm HUD, and future official Pages runtime
-use; they do not establish underlying ownership, grant a separate public
+presentation-only HUD proposed by draft PR #45, and future official Pages
+runtime use. The reviewed Alpha 0.3.6 integration retains the exact masters and
+their records but does not mount placeholder resource counters; the instruction
+does not establish underlying ownership, grant a separate public
 open-content licence, authorize general third-party derivative or
 redistribution use, or grant trademark, canonical-identity, currency, reward,
 or entitlement rights.

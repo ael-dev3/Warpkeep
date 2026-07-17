@@ -17,7 +17,7 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '17 JUL 2026',
+      releasedOn: '18 JUL 2026',
       title: 'REALM READABILITY & STABILITY'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
@@ -27,7 +27,7 @@ describe('latest in-menu patch notes', () => {
       /Lowlands now favor cleaner green scene-linear terrain colours.*SVG fallback.*display/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Cinematic is now the default.*every device.*Balanced and Performance.*Back to the menu/i
+      /Hardware-aware Auto.*recommended default.*Cinematic.*measured headroom.*phones Balanced/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
       /Wider local terrain foundations support each authored island footprint/i
@@ -36,24 +36,24 @@ describe('latest in-menu patch notes', () => {
       /interaction feedback no longer draws.*cell line through the landscape base/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /permanent direct identity rail.*exact foundation anchor/i
+      /safely in-viewport founded castle.*direct identity rail.*exact foundation anchor/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /cannot replace it with a cluster or overflow identity.*overlap is accepted/i
+      /roving tab stop.*rejects collision.*failed hit testing.*HUD overlap.*Explore/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
       /wheel and pinch.*readable zoom floor.*convex rendered-terrain perimeter/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /browser presentation only.*no authentication or admission authority.*SpacetimeDB.*DNS.*deployment/i
+      /Farcaster portrait.*resource-icon masters.*future groundwork.*no balances.*construction/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /no authentication or admission authority.*authoritative world or castle state.*backend protocol/i
+      /Defensive source hardening.*authentication configuration.*without adding a bypass.*SpacetimeDB.*authoritative world state/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /durability|destroy|alliance|released to players|deployed to players/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('candidate prepared 17 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('candidate prepared 18 July 2026');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('not a verified public release');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('exact-build verification');
     expect(getLatestPatchNotes('0.3.5')?.title).toBe('GAME-READY CASTLE REFRESH');

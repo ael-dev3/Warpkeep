@@ -55,7 +55,7 @@ describe('RealmHud', () => {
   });
 
   it('presents a compact identity without FID, shared telemetry, or permanent help copy', () => {
-    render(
+    const { container } = render(
       <RealmHud
         {...commonProps()}
         identity={{ fid: 98_765 }}
@@ -66,6 +66,8 @@ describe('RealmHud', () => {
     expect(screen.getByText('GENESIS 001 · 1,261 CELLS')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 1, name: 'Hegemony Keep' })).not.toBeNull();
     expect(screen.getByText('Hegemony Keeper')).not.toBeNull();
+    expect(screen.getByLabelText('Your Farcaster profile: Hegemony Keeper')).not.toBeNull();
+    expect(container.querySelector('.realm-castle-avatar')?.textContent).toBe('W');
     expect(screen.getByText('LEVEL 1')).not.toBeNull();
     expect(screen.queryByText(/FID 98765/i)).toBeNull();
     expect(screen.queryByLabelText('Shared realm state')).toBeNull();

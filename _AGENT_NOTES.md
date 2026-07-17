@@ -2,8 +2,8 @@
 
 ## Current state
 
-The checked-in package is the Alpha 0.3.6 candidate in PR #44. It is not merged,
-deployed, tagged, or verified as a public release. Alpha 0.3.5 remains the
+The checked-in package is the reviewed Alpha 0.3.6 integration candidate. It is
+not merged, deployed, tagged, or verified as a public release. Alpha 0.3.5 remains the
 verified Pages-only public release, and its public menu build stamp identifies
 the exact deployed source. An annotated release tag is created only after the
 matching protected-main deployment passes exact-build verification. Do not
@@ -21,13 +21,16 @@ also widens local terrain support around the authored landscape footprint,
 removes occupied-cell outlines that visually cross the base, keeps one
 permanent direct identity rail per projection-visible founded castle, and adds
 a readable floor to ordinary zoom while preserving an explicit truthful Realm
-overview. Cinematic is now the default profile on every device; Balanced and
-Performance are explicit player opt-downs. The canvas and those rails share one
+overview. Hardware-aware Auto remains the recommended default; Cinematic,
+Balanced, and Performance remain explicit player choices. The canvas and those rails share one
 map-gesture lane: direct ground-plane drag engages on the first deliberate
 attempt, wheel/pinch retain their ground anchor, explicit-overview departure is
 continuous, gesture cancellation is fail-clean, and rails receive same-frame
-subpixel projection. It changes no authentication, admission, backend,
-production data, DNS, or deployment state.
+subpixel projection. The candidate also includes defensive source hardening for
+authentication configuration, cookies, bounded transports, profile text/image
+ingress, tooling downloads, and CI action runtimes. Those source changes do not
+themselves deploy the Worker, mutate admission or backend state, change DNS, or
+touch production data.
 
 The verified Alpha 0.3.5 release also presented the selected keep in a
 responsive Farcaster castle record, while this candidate makes every direct
@@ -93,18 +96,18 @@ Start with:
   castle cannot beat a nearer base. No public open licence, general
   derivative/redistribution authority, trademark right, or same-named-file
   substitution is granted.
-- Every projection-visible founded castle has exactly one persistent direct
+- Every safely in-viewport founded castle has exactly one persistent direct
   username control at its projected foundation-base anchor. Keep that React
   node keyed by castle identity across camera distance and castle LOD changes;
   update only its projected coordinates. Do not reintroduce random or
   collision-driven displacement, roof stacking, individual leader lines,
-  automatic keeper clusters, overflow/capacity culling, or distance-driven
-  membership/presentation. Dense labels may overlap and a partially visible
-  castle's control may be clipped by the viewport; a lower overlapping rail may
-  also be pointer-obscured, so Explore must retain the individually selectable
-  touch/pointer path. Compact presentation may depend on stable viewport width
-  only. Explore remains supplementary and must never replace, aggregate, or
-  hide an eligible world label.
+  automatic keeper clusters, or distance-driven membership/presentation.
+  Fully clipped minimum hit boxes are not interactive world controls, and the
+  visible set uses a single roving tab stop instead of exposing up to 100 tab
+  stops. Rendered QA must reject clipped, colliding, pointer-obscured, or
+  reserved-UI-overlapping controls in its supported viewport matrix. Explore
+  remains the complete individually selectable keyboard/touch/pointer path for
+  every founded castle, including edge and offscreen castles.
 - Canvas and direct castle rails must remain part of the same bounded map
   gesture coordinator while HUD controls and dialogs remain excluded. Do not
   stop pointer or wheel propagation on a rail, discard threshold-crossing drag

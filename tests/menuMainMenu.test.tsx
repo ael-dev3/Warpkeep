@@ -248,9 +248,9 @@ describe('WarpkeepMainMenu', () => {
     const notes = screen.getByRole('region', { name: 'REALM READABILITY & STABILITY' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
     expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.6');
-    expect(notes.textContent).toContain('one permanent direct identity rail');
+    expect(notes.textContent).toContain('one roving tab stop');
     expect(notes.textContent).toContain(
-      'Alpha 0.3.6 candidate prepared 17 July 2026; it is not a verified public release until protected deployment and exact-build verification.'
+      'Alpha 0.3.6 candidate prepared 18 July 2026; it is not a verified public release until protected deployment and exact-build verification.'
     );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();

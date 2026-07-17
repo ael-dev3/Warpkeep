@@ -164,7 +164,9 @@ describe('compact Realm CSS contract', () => {
     expect(hud).toContain('width: min(15.5rem, calc(100vw - 1.6rem));');
     expect(hud).toContain('gap: 0.42rem;');
     expect(hud).toContain('padding: 0.68rem 0.74rem;');
-    expect(header).toContain('grid-template-columns: minmax(0, 1fr) auto;');
+    expect(header).toContain('grid-template-columns: auto minmax(0, 1fr) auto;');
+    expect(MAP).toContain('.realm-hud .realm-castle-avatar {');
+    expect(MAP).toContain('.realm-hud__identity {');
     expect(selection).toContain('padding-top: 0.42rem;');
     expect(actions).toContain('position: fixed;');
     expect(actions).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');

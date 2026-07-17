@@ -217,7 +217,7 @@ renderer lighting, material-response, and palette changes.
 
 PBR separation comes from an asset-free procedural equirectangular environment,
 not a network HDR download. High, Balanced, and Reduced generate bounded
-256×128, 128×64, and 64×32 maps with intensities 0.36, 0.32, and 0.28. The map,
+256×128, 128×64, and 64×32 maps with intensities 0.44, 0.39, and 0.34. The map,
 visible sun disc, and directional light share one direction. Allocation failure
 keeps the solid sky and direct lights playable; local controlled WebGL QA
 requires the aggregate `procedural` environment status.
@@ -249,14 +249,14 @@ select compact presentation; distance and projected density never change label
 membership or presentation. Projection and edge visibility use one fixed
 quality-session envelope rather than the active mesh LOD envelope.
 
-Every projection-visible founded castle receives one direct rail. Protected
-castle silhouettes, reserved HUD, inspector, toolbar, navigator, measured rail
-dimensions, collisions, and capacity never remove or aggregate that rail.
-Dense controls may overlap and a partially visible castle's control may be
-clipped at the viewport edge: both are preferable to a false floating identity
-or camera-driven disappearance. Automatic keeper clusters and label-overflow
-culling are forbidden. Explore remains the complete supplementary navigator,
-but opening it does not replace or suppress eligible world labels.
+Every founded castle whose minimum direct-control box fits inside the current
+viewport receives one rail. Camera distance, LOD, density, and collision never
+move that rail away from its projected foundation or turn it into a cluster.
+Fully clipped edge controls are omitted from the world layer, and rendered QA
+rejects collisions, failed hit testing, or reserved-UI overlap in the supported
+viewport matrix. One roving tab stop bounds keyboard traversal. Explore remains
+the complete navigator for every founded castle, including edge and offscreen
+identities.
 
 The responsive selected-castle record renders only already-sanitized public
 Farcaster presentation and existing public Realm fields: castle name, level,
