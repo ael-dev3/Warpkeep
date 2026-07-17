@@ -14,6 +14,10 @@ import {
   type RealmCastlePublicPresentation
 } from './realmCastlePresentation';
 import { CastleProfileAvatar } from './RealmCastleLabels';
+import {
+  REALM_ECONOMIC_RESOURCE_ORDER,
+  type RealmEconomicResourceKey
+} from './realmResourcePresentation';
 
 type RealmHudProps = Readonly<{
   identity: RealmIdentity;
@@ -43,17 +47,25 @@ function publicAssetUrl(path: string) {
   return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\/+/, '')}`;
 }
 
-type RealmResourceKey = 'gold' | 'food' | 'stone' | 'wood' | 'marks';
+type RealmTopStatusKey = RealmEconomicResourceKey | 'marks';
 
-type RealmResourceStripItem = Readonly<{
-  key: RealmResourceKey;
+type RealmTopStatusItem = Readonly<{
+  key: RealmTopStatusKey;
+  kind: 'economic-resource' | 'marks';
   label: string;
   value: string;
   accessibleLabel: string;
   state: 'untracked' | 'available' | 'unavailable';
 }>;
 
-function ResourceIcon({ resource }: Readonly<{ resource: RealmResourceKey }>) {
+const RESOURCE_LABELS: Readonly<Record<RealmEconomicResourceKey, string>> = Object.freeze({
+  food: 'Food',
+  wood: 'Wood',
+  stone: 'Stone',
+  gold: 'Gold'
+});
+
+function ResourceIcon({ resource }: Readonly<{ resource: RealmTopStatusKey }>) {
   if (resource === 'marks') {
     return (
       <picture aria-hidden="true">
@@ -93,55 +105,40 @@ function RealmResourceStrip({
   const formatted = status === 'ready'
     ? formatPublicMarkMicros(profile?.marksBalanceMicros)
     : undefined;
-  const resources: readonly RealmResourceStripItem[] = [
-    {
-      key: 'gold',
-      label: 'Gold',
+  const resources: readonly RealmTopStatusItem[] = [
+    ...REALM_ECONOMIC_RESOURCE_ORDER.map((key) => ({
+      key,
+      kind: 'economic-resource' as const,
+      label: RESOURCE_LABELS[key],
       value: '—',
-      accessibleLabel: 'Gold: presentation only, not tracked in this build',
-      state: 'untracked'
-    },
-    {
-      key: 'food',
-      label: 'Food',
-      value: '—',
-      accessibleLabel: 'Food: presentation only, not tracked in this build',
-      state: 'untracked'
-    },
-    {
-      key: 'stone',
-      label: 'Stone',
-      value: '—',
-      accessibleLabel: 'Stone: presentation only, not tracked in this build',
-      state: 'untracked'
-    },
-    {
-      key: 'wood',
-      label: 'Wood',
-      value: '—',
-      accessibleLabel: 'Wood: presentation only, not tracked in this build',
-      state: 'untracked'
-    },
+      accessibleLabel: `${RESOURCE_LABELS[key]}: presentation only, not tracked in this build`,
+      state: 'untracked' as const
+    })),
+    // Marks remains adjacent to, but outside, the economic-resource family.
+    // It is derived only from the existing visibility-gated public projection.
     {
       key: 'marks',
+      kind: 'marks',
       label: 'Marks',
       value: formatted ?? '—',
       accessibleLabel: formatted
-        ? `Marks balance: ${formatted} Marks`
-        : 'Marks balance unavailable',
+        ? `Community Marks balance: ${formatted} Marks`
+        : 'Community Marks balance unavailable',
       state: formatted ? 'available' : 'unavailable'
     }
   ];
 
   return (
-    <section className="realm-resource-strip" aria-label="Resources">
+    <section className="realm-resource-strip" aria-label="Resources and Marks">
       {resources.map((resource) => (
         <div
           key={resource.key}
           aria-label={resource.accessibleLabel}
           className="realm-resource-strip__item"
           data-resource={resource.key}
+          data-status-kind={resource.kind}
           data-state={resource.state}
+          role={resource.kind === 'marks' ? 'group' : undefined}
         >
           <ResourceIcon resource={resource.key} />
           <span aria-hidden="true">

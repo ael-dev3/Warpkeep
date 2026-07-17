@@ -348,6 +348,10 @@
   backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
 }
 
+.realm-resource-strip__item[data-status-kind="marks"] {
+  border-color: rgb(202 164 241 / 52%);
+}
+
 .realm-resource-strip__item :is(picture, img) {
   display: block;
   width: 2.15rem;
@@ -813,13 +817,13 @@
   .realm-resource-strip__item {
     grid-template-columns: 1fr;
     min-height: 2.5rem;
-    padding: 0.22rem;
+    padding: 0.12rem;
     place-items: center;
   }
 
   .realm-resource-strip__item :is(picture, img) {
-    width: 1.35rem;
-    height: 1.35rem;
+    width: 1.15rem;
+    height: 1.15rem;
   }
 
   .realm-resource-strip__item > span {

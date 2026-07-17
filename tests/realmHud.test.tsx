@@ -30,13 +30,19 @@ describe('RealmHud', () => {
     const { container, rerender } = render(
       <RealmHud {...common} marksStatus="loading" />
     );
-    const resourceStrip = screen.getByLabelText('Resources');
+    const resourceStrip = screen.getByLabelText('Resources and Marks');
     expect(resourceStrip.getAttribute('class')).toBe('realm-resource-strip');
+    expect([...resourceStrip.querySelectorAll('[data-resource]')].map((item) => item.getAttribute('data-resource')))
+      .toEqual(['food', 'wood', 'stone', 'gold', 'marks']);
+    expect([...resourceStrip.querySelectorAll('[data-status-kind="economic-resource"]')])
+      .toHaveLength(4);
+    expect(resourceStrip.querySelector('[data-resource="marks"]')?.getAttribute('data-status-kind'))
+      .toBe('marks');
     expect(screen.getByLabelText('Gold: presentation only, not tracked in this build')).not.toBeNull();
     expect(screen.getByLabelText('Food: presentation only, not tracked in this build')).not.toBeNull();
     expect(screen.getByLabelText('Stone: presentation only, not tracked in this build')).not.toBeNull();
     expect(screen.getByLabelText('Wood: presentation only, not tracked in this build')).not.toBeNull();
-    expect(screen.getByLabelText('Marks balance unavailable')).not.toBeNull();
+    expect(screen.getByLabelText('Community Marks balance unavailable')).not.toBeNull();
     expect(resourceStrip.textContent).not.toMatch(/Loading Marks|0 Marks|not tracked in this build/i);
     expect(container.querySelector('[data-resource="gold"] img')?.getAttribute('src'))
       .toContain('images/resources/hegemony-gold.png');
@@ -48,7 +54,7 @@ describe('RealmHud', () => {
       .toContain('images/resources/hegemony-wood.png');
 
     rerender(<RealmHud {...common} marksStatus="unavailable" />);
-    expect(screen.getByLabelText('Marks balance unavailable')).not.toBeNull();
+    expect(screen.getByLabelText('Community Marks balance unavailable')).not.toBeNull();
 
     rerender(
       <RealmHud
@@ -60,7 +66,8 @@ describe('RealmHud', () => {
         }}
       />
     );
-    expect(screen.getByLabelText('Marks balance: 123.45 Marks')).not.toBeNull();
+    expect(screen.getByLabelText('Community Marks balance: 123.45 Marks')).not.toBeNull();
+    expect(screen.getByRole('group', { name: 'Community Marks balance: 123.45 Marks' })).not.toBeNull();
     expect(container.querySelector('[data-resource="marks"] source')?.getAttribute('srcset'))
       .toContain('hegemony-mark-64.webp');
     expect(container.querySelector('[data-resource="marks"] img')?.getAttribute('src'))
