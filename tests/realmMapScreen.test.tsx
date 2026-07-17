@@ -46,14 +46,16 @@ describe('RealmMapScreen', () => {
   it('does not reserve label space for hidden Realm chrome', () => {
     const root = document.createElement('main');
     const visible = document.createElement('section');
+    const resourceStrip = document.createElement('section');
     const visibilityHidden = document.createElement('section');
     const displayNone = document.createElement('section');
     visible.className = 'realm-hud';
+    resourceStrip.className = 'realm-resource-strip';
     visibilityHidden.className = 'realm-hud__actions';
     visibilityHidden.style.visibility = 'hidden';
     displayNone.className = 'castle-inspection';
     displayNone.style.display = 'none';
-    root.append(visible, visibilityHidden, displayNone);
+    root.append(visible, resourceStrip, visibilityHidden, displayNone);
 
     const rect = (left: number, top: number, right: number, bottom: number) => ({
       left,
@@ -68,19 +70,60 @@ describe('RealmMapScreen', () => {
     }) as DOMRect;
     vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(rect(100, 50, 900, 650));
     vi.spyOn(visible, 'getBoundingClientRect').mockReturnValue(rect(120, 70, 320, 190));
+    vi.spyOn(resourceStrip, 'getBoundingClientRect').mockReturnValue(rect(620, 70, 880, 130));
     vi.spyOn(visibilityHidden, 'getBoundingClientRect').mockReturnValue(rect(120, 580, 320, 630));
     vi.spyOn(displayNone, 'getBoundingClientRect').mockReturnValue(rect(650, 70, 880, 630));
 
     expect(measuredVisibleRealmUiRects(root, [
       '.realm-hud',
+      '.realm-resource-strip',
       '.realm-hud__actions',
       '.castle-inspection'
-    ])).toEqual([{
-      left: 20,
-      top: 20,
-      right: 220,
-      bottom: 140
-    }]);
+    ])).toEqual([
+      {
+        left: 20,
+        top: 20,
+        right: 220,
+        bottom: 140
+      },
+      {
+        left: 520,
+        top: 20,
+        right: 780,
+        bottom: 80
+      }
+    ]);
+  });
+
+  it('reserves the top-right resource strip from desktop camera framing', () => {
+    const root = document.createElement('main');
+    const hud = document.createElement('section');
+    const resources = document.createElement('section');
+    const probe = document.createElement('div');
+    hud.className = 'realm-hud';
+    resources.className = 'realm-resource-strip';
+    probe.className = 'realm-safe-area-probe';
+    root.append(hud, resources, probe);
+
+    const rect = (left: number, top: number, right: number, bottom: number) => ({
+      left,
+      top,
+      right,
+      bottom,
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+      toJSON: () => ({})
+    }) as DOMRect;
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 1_280, 720));
+    vi.spyOn(hud, 'getBoundingClientRect').mockReturnValue(rect(16, 16, 264, 154));
+    vi.spyOn(resources, 'getBoundingClientRect').mockReturnValue(rect(856, 16, 1_264, 76));
+
+    expect(measuredRealmComposition(root)).toMatchObject({
+      insets: { top: 0, right: 440, bottom: 0, left: 280 },
+      focusPadding: 24
+    });
   });
 
   it('reserves a short-landscape Explore panel from the right camera edge', () => {

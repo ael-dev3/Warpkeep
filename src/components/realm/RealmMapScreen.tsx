@@ -914,6 +914,7 @@ function CanonicalRealmMapScreen({
 
       const reservedUiRects = measuredVisibleRealmUiRects(root, [
         '.realm-hud',
+        '.realm-resource-strip',
         '.castle-inspection',
         '.realm-hud__actions',
         '.realm-cell-navigator > button',
@@ -1223,7 +1224,7 @@ function CanonicalRealmMapScreen({
     if (root) {
       observer?.observe(root);
       root.querySelectorAll<HTMLElement>(
-        '.realm-hud, .realm-hud__actions, .castle-inspection, .realm-cell-navigator'
+        '.realm-hud, .realm-resource-strip, .realm-hud__actions, .castle-inspection, .realm-cell-navigator'
       ).forEach((element) => observer?.observe(element));
     }
     window.addEventListener('resize', updateSceneComposition, { passive: true });

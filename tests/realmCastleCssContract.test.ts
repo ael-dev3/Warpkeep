@@ -152,6 +152,8 @@ describe('compact Realm CSS contract', () => {
     const hud = block(MAP, '.realm-hud {');
     const header = block(MAP, '.realm-hud__header {');
     const selection = block(MAP, '.realm-hud__selection {');
+    const resources = block(MAP, '.realm-resource-strip {');
+    const resourceItem = block(MAP, '.realm-resource-strip__item {');
     const actions = block(MAP, '.realm-hud__actions {');
     const explore = block(MAP, '.realm-cell-navigator {');
     const exploreTrigger = block(MAP, '.realm-cell-navigator > button {');
@@ -159,8 +161,13 @@ describe('compact Realm CSS contract', () => {
     expect(hud).toContain('width: min(15.5rem, calc(100vw - 1.6rem));');
     expect(hud).toContain('gap: 0.42rem;');
     expect(hud).toContain('padding: 0.68rem 0.74rem;');
-    expect(header).toContain('grid-template-columns: minmax(0, 1fr) auto;');
+    expect(header).toContain('grid-template-columns: auto minmax(0, 1fr) auto;');
     expect(selection).toContain('padding-top: 0.42rem;');
+    expect(resources).toContain('position: absolute;');
+    expect(resources).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
+    expect(resources).toContain('right: max(0.8rem, env(safe-area-inset-right));');
+    expect(resources).toContain('pointer-events: none;');
+    expect(resourceItem).toContain('grid-template-columns: 2.15rem minmax(0, 1fr);');
 
     expect(actions).toContain('position: fixed;');
     expect(actions).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
@@ -174,6 +181,10 @@ describe('compact Realm CSS contract', () => {
     expect(HUD_COMPONENT).toContain('<span aria-hidden="true">Menu</span>');
     expect(HUD_COMPONENT).toContain('aria-label="Recenter Keep"');
     expect(HUD_COMPONENT).toContain('<span aria-hidden="true">Home</span>');
+    expect(HUD_COMPONENT).toContain('<CastleProfileAvatar profile={playerProfile} />');
+    expect(HUD_COMPONENT).toContain('className="realm-resource-strip"');
+    expect(HUD_COMPONENT).toContain("images/resources/hegemony-${resource}.png");
+    expect(HUD_COMPONENT).toContain('Marks balance unavailable');
     expect(HUD_COMPONENT).not.toMatch(/Founding District|Inspect Keep|Realm View/);
     expect(EXPLORE_COMPONENT).toContain('Explore <span>{castles.length}');
     expect(EXPLORE_COMPONENT).toContain('aria-label={`Explore realm, ${castles.length} founded');

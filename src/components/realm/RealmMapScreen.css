@@ -126,6 +126,7 @@
 
 .realm-map-screen[data-renderer="loading"] :is(
   .realm-hud,
+  .realm-resource-strip,
   .realm-castle-labels,
   .castle-inspection,
   .realm-cell-navigator
@@ -210,14 +211,27 @@
 
 .realm-hud__header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.05rem 0.5rem;
   align-items: start;
   min-width: 0;
 }
 
-.realm-hud__header > p {
+.realm-hud .realm-castle-avatar {
+  --realm-avatar-size: 2.65rem;
   grid-column: 1;
+  grid-row: 1;
+  margin-top: 0.08rem;
+}
+
+.realm-hud__identity {
+  display: grid;
+  grid-column: 2;
+  min-width: 0;
+  gap: 0.05rem;
+}
+
+.realm-hud__identity > p {
   margin: 0;
   color: var(--realm-lavender);
   font-size: 0.6875rem;
@@ -226,7 +240,6 @@
 }
 
 .realm-hud__header h1 {
-  grid-column: 1;
   min-width: 0;
   margin: 0.06rem 0 0;
   overflow: hidden;
@@ -237,7 +250,6 @@
 }
 
 .realm-hud__keeper {
-  grid-column: 1;
   min-width: 0;
   overflow: hidden;
   color: var(--realm-electrum);
@@ -248,8 +260,8 @@
 }
 
 .realm-hud__badges {
-  grid-column: 2;
-  grid-row: 1 / span 3;
+  grid-column: 3;
+  grid-row: 1;
 }
 
 .realm-hud__badges span {
@@ -303,6 +315,88 @@
   clip-path: inset(50%);
   border: 0;
   white-space: nowrap;
+}
+
+.realm-resource-strip {
+  position: absolute;
+  z-index: 6;
+  top: max(0.8rem, env(safe-area-inset-top));
+  right: max(0.8rem, env(safe-area-inset-right));
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.38rem;
+  width: min(
+    25.5rem,
+    calc(100vw - 18rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+  );
+  min-width: 0;
+  pointer-events: none;
+}
+
+.realm-resource-strip__item {
+  display: grid;
+  grid-template-columns: 2.15rem minmax(0, 1fr);
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 3.2rem;
+  padding: 0.32rem 0.42rem;
+  align-items: center;
+  border: 1px solid rgb(225 190 105 / 30%);
+  border-radius: var(--warpkeep-surface-radius, 0.65rem);
+  background: var(--realm-panel);
+  box-shadow: var(--warpkeep-surface-shadow, 0 0.72rem 2.2rem rgb(0 0 0 / 30%));
+  backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
+}
+
+.realm-resource-strip__item :is(picture, img) {
+  display: block;
+  width: 2.15rem;
+  height: 2.15rem;
+}
+
+.realm-resource-strip__item > img,
+.realm-resource-strip__item picture img {
+  object-fit: contain;
+}
+
+.realm-resource-strip__item > span {
+  display: grid;
+  min-width: 0;
+  gap: 0.08rem;
+}
+
+.realm-resource-strip__item small {
+  overflow: hidden;
+  color: var(--realm-muted);
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.realm-resource-strip__item strong {
+  overflow: hidden;
+  color: var(--realm-electrum);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 780;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.realm-resource-strip__item[data-state="untracked"] strong,
+.realm-resource-strip__item[data-state="unavailable"] strong {
+  color: rgb(201 191 208 / 76%);
+}
+
+.realm-resource-strip__item[data-resource="marks"] {
+  border-color: rgb(225 190 105 / 42%);
+  background:
+    linear-gradient(135deg, rgb(91 45 121 / 44%), rgb(13 9 19 / 88%)),
+    var(--realm-panel);
 }
 
 .realm-hud__actions {
@@ -610,6 +704,28 @@
     font-size: 0.75rem;
   }
 
+  .realm-resource-strip {
+    top: max(0.55rem, env(safe-area-inset-top));
+    right: max(0.55rem, env(safe-area-inset-right));
+    width: min(
+      21rem,
+      calc(100vw - 16rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+    );
+    gap: 0.3rem;
+  }
+
+  .realm-resource-strip__item {
+    grid-template-columns: 1.85rem minmax(0, 1fr);
+    gap: 0.26rem;
+    min-height: 2.85rem;
+    padding: 0.26rem 0.32rem;
+  }
+
+  .realm-resource-strip__item :is(picture, img) {
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
   .realm-hud__actions {
     bottom: max(0.55rem, env(safe-area-inset-bottom));
     left: max(0.55rem, env(safe-area-inset-left));
@@ -643,9 +759,11 @@
   }
 
   .realm-map-screen:has(.castle-inspection) .realm-hud,
+  .realm-map-screen:has(.castle-inspection) .realm-resource-strip,
   .realm-map-screen:has(.castle-inspection) .realm-hud__actions,
   .realm-map-screen:has(.castle-inspection) .realm-cell-navigator,
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud,
+  .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-resource-strip,
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud__actions {
     visibility: hidden;
     pointer-events: none;
@@ -666,6 +784,30 @@
     display: none;
   }
 
+  .realm-resource-strip {
+    width: min(
+      10.75rem,
+      calc(100vw - 15rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+    );
+    gap: 0.18rem;
+  }
+
+  .realm-resource-strip__item {
+    grid-template-columns: 1fr;
+    min-height: 2.5rem;
+    padding: 0.22rem;
+    place-items: center;
+  }
+
+  .realm-resource-strip__item :is(picture, img) {
+    width: 1.65rem;
+    height: 1.65rem;
+  }
+
+  .realm-resource-strip__item > span {
+    display: none;
+  }
+
   .realm-cell-navigator > button {
     padding-inline: 0.55rem;
   }
@@ -682,6 +824,14 @@
 }
 
 @media (max-width: 360px) {
+  .realm-resource-strip {
+    top: calc(max(0.55rem, env(safe-area-inset-top)) + 9.35rem);
+    width: min(
+      13.75rem,
+      calc(100vw - 1.1rem - env(safe-area-inset-left) - env(safe-area-inset-right))
+    );
+  }
+
   .realm-cell-navigator__community-actions {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -705,6 +855,25 @@
 
   .realm-hud__selection {
     padding-top: 0.3rem;
+  }
+
+  .realm-resource-strip {
+    top: max(0.45rem, env(safe-area-inset-top));
+    right: max(0.55rem, env(safe-area-inset-right));
+    width: min(22rem, 45vw);
+    gap: 0.28rem;
+  }
+
+  .realm-resource-strip__item {
+    grid-template-columns: 1.7rem minmax(0, 1fr);
+    gap: 0.24rem;
+    min-height: 2.55rem;
+    padding: 0.22rem 0.3rem;
+  }
+
+  .realm-resource-strip__item :is(picture, img) {
+    width: 1.7rem;
+    height: 1.7rem;
   }
 
   .realm-hud__actions {

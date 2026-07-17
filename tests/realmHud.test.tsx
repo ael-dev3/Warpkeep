@@ -25,17 +25,27 @@ function commonProps() {
 }
 
 describe('RealmHud', () => {
-  it('omits non-ready Marks states and renders an exact ready balance with its fallback asset', () => {
+  it('keeps resource chrome presentation-only until a public Marks balance is ready', () => {
     const common = commonProps();
     const { container, rerender } = render(
       <RealmHud {...common} marksStatus="loading" />
     );
-    expect(container.querySelector('.realm-hud__marks')).toBeNull();
-    expect(screen.queryByText(/Loading Marks/i)).toBeNull();
+    const resourceStrip = screen.getByLabelText('Resources');
+    expect(resourceStrip.getAttribute('class')).toBe('realm-resource-strip');
+    expect(screen.getByLabelText('Gold: presentation only, not tracked in this build')).not.toBeNull();
+    expect(screen.getByLabelText('Food: presentation only, not tracked in this build')).not.toBeNull();
+    expect(screen.getByLabelText('Stone: presentation only, not tracked in this build')).not.toBeNull();
+    expect(screen.getByLabelText('Marks balance unavailable')).not.toBeNull();
+    expect(resourceStrip.textContent).not.toMatch(/Loading Marks|0 Marks|not tracked in this build/i);
+    expect(container.querySelector('[data-resource="gold"] img')?.getAttribute('src'))
+      .toContain('images/resources/hegemony-gold.png');
+    expect(container.querySelector('[data-resource="food"] img')?.getAttribute('src'))
+      .toContain('images/resources/hegemony-food.png');
+    expect(container.querySelector('[data-resource="stone"] img')?.getAttribute('src'))
+      .toContain('images/resources/hegemony-stone.png');
 
     rerender(<RealmHud {...common} marksStatus="unavailable" />);
-    expect(container.querySelector('.realm-hud__marks')).toBeNull();
-    expect(screen.queryByText(/Marks not available/i)).toBeNull();
+    expect(screen.getByLabelText('Marks balance unavailable')).not.toBeNull();
 
     rerender(
       <RealmHud
@@ -48,14 +58,14 @@ describe('RealmHud', () => {
       />
     );
     expect(screen.getByLabelText('Marks balance: 123.45 Marks')).not.toBeNull();
-    expect(container.querySelector('source')?.getAttribute('srcset'))
+    expect(container.querySelector('[data-resource="marks"] source')?.getAttribute('srcset'))
       .toContain('hegemony-mark-64.webp');
-    expect(container.querySelector('.realm-hud__marks img')?.getAttribute('src'))
+    expect(container.querySelector('[data-resource="marks"] img')?.getAttribute('src'))
       .toContain('hegemony-mark-64.png');
   });
 
-  it('presents a compact identity without FID, shared telemetry, or permanent help copy', () => {
-    render(
+  it('presents a compact player profile without FID, shared telemetry, or permanent help copy', () => {
+    const { container } = render(
       <RealmHud
         {...commonProps()}
         identity={{ fid: 98_765 }}
@@ -67,6 +77,8 @@ describe('RealmHud', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Hegemony Keep' })).not.toBeNull();
     expect(screen.getByText('Hegemony Keeper')).not.toBeNull();
     expect(screen.getByText('LEVEL 1')).not.toBeNull();
+    expect(screen.getByLabelText('Your Farcaster profile: Hegemony Keeper')).not.toBeNull();
+    expect(container.querySelector('.realm-hud .realm-castle-avatar')).not.toBeNull();
     expect(screen.queryByText(/FID 98765/i)).toBeNull();
     expect(screen.queryByLabelText('Shared realm state')).toBeNull();
     expect(document.body.textContent).not.toMatch(/movement cost|generation|Drag to survey/i);

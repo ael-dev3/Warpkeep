@@ -278,48 +278,6 @@
   border-radius: inherit;
 }
 
-.realm-hud__marks {
-  display: inline-flex;
-  gap: 0.38rem;
-  align-items: center;
-  min-width: 0;
-  width: fit-content;
-  max-width: 100%;
-  padding: 0.22rem 0.38rem;
-  border: 1px solid rgb(225 190 105 / 25%);
-  border-radius: 999px;
-  background: rgb(85 42 106 / 24%);
-}
-
-.realm-hud__marks picture,
-.realm-hud__marks img {
-  display: block;
-  flex: 0 0 1.55rem;
-  width: 1.55rem;
-  height: 1.55rem;
-}
-
-.realm-hud__marks span {
-  display: grid;
-  min-width: 0;
-}
-
-.realm-hud__marks small {
-  color: #c9bfd0;
-  font-size: 0.625rem;
-  font-weight: 760;
-  letter-spacing: 0.08em;
-}
-
-.realm-hud__marks strong {
-  overflow: hidden;
-  color: #f0d58c;
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .castle-inspection {
   position: absolute;
   z-index: 9;

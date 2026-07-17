@@ -65,6 +65,7 @@ describe('Realm read-only observer presentation', () => {
     expect(screen.queryByTestId('realm-keep-marker')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Recenter Keep' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Return to Menu' })).toBeNull();
+    expect(screen.queryByLabelText('Resources')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {
       name: 'Explore realm, 4 founded castles'

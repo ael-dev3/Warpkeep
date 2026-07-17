@@ -80,6 +80,7 @@ export function measuredRealmComposition(root: HTMLElement): RealmCameraComposit
   };
 
   const hud = rectFor('.realm-hud');
+  const resourceStrip = rectFor('.realm-resource-strip');
   const inspector = rectFor('.castle-inspection');
   const actions = rectFor('.realm-hud__actions');
   const navigatorDialog = rectFor('.realm-cell-navigator__dialog');
@@ -88,6 +89,10 @@ export function measuredRealmComposition(root: HTMLElement): RealmCameraComposit
   if (hud && !(compact && inspector && !shortLandscape)) {
     if (compact && !shortLandscape) reserveTop(hud);
     else reserveLeft(hud);
+  }
+  if (resourceStrip && !(compact && inspector && !shortLandscape)) {
+    if (compact && !shortLandscape) reserveTop(resourceStrip);
+    else reserveRight(resourceStrip);
   }
   if (inspector) {
     if (compact && !shortLandscape) reserveBottom(inspector);
