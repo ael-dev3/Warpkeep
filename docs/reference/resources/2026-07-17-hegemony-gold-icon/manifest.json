@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-gold-resource-icon-v1",
+  "recordedAt": "2026-07-17",
+  "purpose": "Transparent presentation icon prepared for the draft Alpha 0.3.6 gold-resource mechanics workstream; it is not evidence of a live balance, currency, reward, or entitlement.",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-17",
+    "scope": "Add the background-cleaned gold icon to Warpkeep PR #45 and permit its future official Warpkeep Pages runtime use if the separately reviewed mechanics are implemented.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "currency, reward, value, or entitlement rights"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "project-provided composition and style reference",
+      "repositoryRetained": false,
+      "originalName": "codex-clipboard-77f0d7d4-0252-45ff-9f1b-39880ea80989.png",
+      "bytes": 1671839,
+      "sha256": "d7c40175078c5b1106de0c7a780a7f48fb927c9a7537320bf93eb86c92dee205",
+      "image": {
+        "format": "png",
+        "width": 1254,
+        "height": 1254,
+        "alpha": false
+      },
+      "runtimeUse": "visual composition and gold-icon style reference only"
+    }
+  ],
+  "generation": {
+    "service": "OpenAI image generation edit",
+    "prompt": "Use case: background-extraction\nAsset type: in-game gold resource icon for Warpkeep\nInput image: edit target — the supplied stack of gold coins and gold nuggets with the purple-and-gold Warpkeep crest.\nPrimary request: Preserve the illustrated coin-and-nugget subject, composition, proportions, colors, crest, metal detail, and visual style exactly. Replace only the checkerboard background with a perfectly flat solid #00ffff cyan chroma-key background for subsequent removal.\nComposition/framing: keep the full icon centered, fully visible, with generous even padding around it.\nLighting/mood: preserve the source's bright stylized gold rendering on the subject only.\nConstraints: change only the background; keep the subject cleanly separated from it with crisp antialiased edges. Background must be exactly uniform #00ffff, with no shadows, gradients, texture, reflections, floor plane, lighting variation, watermark, or text. Do not use #00ffff anywhere in the coin or nugget artwork.",
+    "intermediateRetained": false,
+    "intermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1544820,
+      "sha256": "68a4588a9c3ae93a093472c8bb423dbc438c6505b639f8f4e3bc0d84c7229a0d"
+    }
+  },
+  "backgroundCleanup": {
+    "tool": "Codex imagegen remove_chroma_key.py",
+    "runtime": "Python 3 with Pillow 12.2.0",
+    "sampleMode": "border median",
+    "sampledKey": "#09f9fd",
+    "softMatte": true,
+    "transparentThreshold": 18,
+    "opaqueThreshold": 110,
+    "edgeContractPixels": 1,
+    "edgeFeatherRadius": 0.25,
+    "despill": true,
+    "outputEncoding": "Pillow PNG default encoding"
+  },
+  "runtimeAsset": {
+    "path": "public/images/resources/hegemony-gold.png",
+    "format": "png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 1142819,
+    "sha256": "87dddaa91a23f630e86da35da8b5b7300c0ecce9fb850060c0c18b0f2de72f26",
+    "decodedRgbaSha256": "3842b0b9aaf9882ebbcda84bf3a68d49dff889efcdcf7e8dd200e187de369d52",
+    "alpha": {
+      "transparentPixels": 963696,
+      "partiallyTransparentPixels": 10171,
+      "opaquePixels": 598649,
+      "visibleBounds": {
+        "minX": 142,
+        "minY": 144,
+        "maxX": 1144,
+        "maxY": 1043
+      }
+    },
+    "delivery": "same-origin checked-in runtime asset; no external CDN"
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes the recorded Warpkeep use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "backgroundRemoved": true,
+    "goldStackAndCrestPreserved": true,
+    "reviewedOnTransparentAndLightBackgrounds": true,
+    "referenceScreenshotsRetained": false
+  }
+}
