@@ -43,7 +43,7 @@ function publicAssetUrl(path: string) {
   return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\/+/, '')}`;
 }
 
-type RealmResourceKey = 'gold' | 'food' | 'stone' | 'marks';
+type RealmResourceKey = 'gold' | 'food' | 'stone' | 'wood' | 'marks';
 
 type RealmResourceStripItem = Readonly<{
   key: RealmResourceKey;
@@ -113,6 +113,13 @@ function RealmResourceStrip({
       label: 'Stone',
       value: '—',
       accessibleLabel: 'Stone: presentation only, not tracked in this build',
+      state: 'untracked'
+    },
+    {
+      key: 'wood',
+      label: 'Wood',
+      value: '—',
+      accessibleLabel: 'Wood: presentation only, not tracked in this build',
       state: 'untracked'
     },
     {

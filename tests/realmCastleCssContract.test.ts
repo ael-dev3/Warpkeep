@@ -164,7 +164,7 @@ describe('compact Realm CSS contract', () => {
     expect(header).toContain('grid-template-columns: auto minmax(0, 1fr) auto;');
     expect(selection).toContain('padding-top: 0.42rem;');
     expect(resources).toContain('position: absolute;');
-    expect(resources).toContain('grid-template-columns: repeat(4, minmax(0, 1fr));');
+    expect(resources).toContain('grid-template-columns: repeat(5, minmax(0, 1fr));');
     expect(resources).toContain('right: max(0.8rem, env(safe-area-inset-right));');
     expect(resources).toContain('pointer-events: none;');
     expect(resourceItem).toContain('grid-template-columns: 2.15rem minmax(0, 1fr);');

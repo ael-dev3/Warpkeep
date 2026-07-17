@@ -35,6 +35,7 @@ describe('RealmHud', () => {
     expect(screen.getByLabelText('Gold: presentation only, not tracked in this build')).not.toBeNull();
     expect(screen.getByLabelText('Food: presentation only, not tracked in this build')).not.toBeNull();
     expect(screen.getByLabelText('Stone: presentation only, not tracked in this build')).not.toBeNull();
+    expect(screen.getByLabelText('Wood: presentation only, not tracked in this build')).not.toBeNull();
     expect(screen.getByLabelText('Marks balance unavailable')).not.toBeNull();
     expect(resourceStrip.textContent).not.toMatch(/Loading Marks|0 Marks|not tracked in this build/i);
     expect(container.querySelector('[data-resource="gold"] img')?.getAttribute('src'))
@@ -43,6 +44,8 @@ describe('RealmHud', () => {
       .toContain('images/resources/hegemony-food.png');
     expect(container.querySelector('[data-resource="stone"] img')?.getAttribute('src'))
       .toContain('images/resources/hegemony-stone.png');
+    expect(container.querySelector('[data-resource="wood"] img')?.getAttribute('src'))
+      .toContain('images/resources/hegemony-wood.png');
 
     rerender(<RealmHud {...common} marksStatus="unavailable" />);
     expect(screen.getByLabelText('Marks balance unavailable')).not.toBeNull();
