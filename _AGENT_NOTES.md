@@ -17,8 +17,12 @@ authority. It widens only local terrain support around the authored landscape
 footprint, removes occupied-cell outlines that visually cross the base, keeps
 one permanent direct identity rail per projection-visible founded castle, and
 adds a readable floor to ordinary zoom while preserving an explicit truthful
-Realm overview. It changes no authentication, admission, backend, production
-data, DNS, or deployment state.
+Realm overview. The canvas and those rails share one map-gesture lane: direct
+ground-plane drag engages on the first deliberate attempt, wheel/pinch retain
+their ground anchor, explicit-overview departure is continuous, gesture
+cancellation is fail-clean, and rails receive same-frame subpixel projection.
+It changes no authentication, admission, backend, production data, DNS, or
+deployment state.
 
 The verified Alpha 0.3.5 release also presented the selected keep in a
 responsive Farcaster castle record, while this candidate makes every direct
@@ -94,6 +98,18 @@ Start with:
   touch/pointer path. Compact presentation may depend on stable viewport width
   only. Explore remains supplementary and must never replace, aggregate, or
   hide an eligible world label.
+- Canvas and direct castle rails must remain part of the same bounded map
+  gesture coordinator while HUD controls and dialogs remain excluded. Do not
+  stop pointer or wheel propagation on a rail, discard threshold-crossing drag
+  movement, let a rail drag emit its click, or allow an old camera target to
+  pull against direct manipulation. Preserve cursor/foundation/centroid ground
+  anchoring, continuous inward motion from explicit overview, and fail-clean
+  reset on cancellation, capture loss, lost buttons, blur, visibility change,
+  and disposal. Coalesce high-rate direct input to at most one camera render
+  per display frame, without dropping accumulated movement. Project rails in
+  the scene frame with subpixel precision; do not restore a second projection
+  frame, permanent transform promotion, or backdrop blur to the moving rail
+  surface.
 - Castle records may render only the existing sanitized public Farcaster
   projection and public castle/visibility-gated Marks fields. Do not fabricate
   durability, alliance, combat status, coordinates, resources, or actions to

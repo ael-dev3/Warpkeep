@@ -517,7 +517,7 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(onActivate).toHaveBeenCalledOnce();
   });
 
-  it('isolates label pointer-down input from the map surface', () => {
+  it('lets label presses reach the shared map gesture surface', () => {
     const onMapPointerDown = vi.fn();
     const onActivate = vi.fn();
     render(
@@ -564,7 +564,7 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(document.querySelectorAll('[data-measure-castle-id]')).toHaveLength(0);
     expect(document.querySelectorAll('[data-measure-compact-castle-id]')).toHaveLength(0);
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
-    expect(onMapPointerDown).not.toHaveBeenCalled();
+    expect(onMapPointerDown).toHaveBeenCalledOnce();
     fireEvent.click(button);
     expect(onActivate).toHaveBeenCalledOnce();
   });
@@ -629,7 +629,7 @@ describe('realm profile and PFP presentation regressions', () => {
       name: 'Inspect @keeper8 castle, Fixture Keep 8, cell 1,-1'
     });
     fireEvent.pointerDown(button, { pointerId: 1, pointerType: 'mouse' });
-    expect(onMapPointerDown).not.toHaveBeenCalled();
+    expect(onMapPointerDown).toHaveBeenCalledOnce();
     fireEvent.click(button);
     expect(onActivate).toHaveBeenCalledWith(castles[1]);
   });

@@ -404,4 +404,26 @@ describe('realm castle public presentation', () => {
       castles: frame(10).castles.map((castle) => ({ ...castle, presented: false }))
     }));
   });
+
+  it('retains tenth-pixel camera motion while coalescing imperceptible jitter', () => {
+    const frame = (x: number) => ({
+      width: 1_440,
+      height: 900,
+      castles: [{
+        castleId: 1,
+        q: 0,
+        r: 0,
+        x,
+        y: 450,
+        distance: 10,
+        visible: true,
+        presented: true
+      }]
+    });
+
+    expect(realmCastleProjectionFrameKey(frame(720)))
+      .toBe(realmCastleProjectionFrameKey(frame(720.04)));
+    expect(realmCastleProjectionFrameKey(frame(720)))
+      .not.toBe(realmCastleProjectionFrameKey(frame(720.06)));
+  });
 });

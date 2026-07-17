@@ -37,13 +37,13 @@ export type VisibleCastleLabel = RealmCastleScreenProjection & Readonly<{
   projectedAnchor: Readonly<{ x: number; y: number }>;
 }>;
 
-function projectionNumberKey(value: number, scale = 1) {
+function projectionNumberKey(value: number, scale = 10) {
   return Number.isFinite(value) ? Math.round(value * scale) : 'invalid';
 }
 
 /**
- * Coalesces sub-pixel camera motion while retaining every presentation input
- * that can move, reveal, or hide a persistent foundation label. Camera
+ * Coalesces only imperceptible sub-tenth-pixel motion while retaining every
+ * presentation input that can move, reveal, or hide a persistent foundation label. Camera
  * distance is deliberately absent: zoom may move the projected foundation,
  * but it must never change label membership or presentation by itself.
  */

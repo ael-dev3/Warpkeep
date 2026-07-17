@@ -30,7 +30,12 @@
   ) translate(-50%, 0);
   pointer-events: auto;
   cursor: pointer;
-  will-change: transform;
+  touch-action: none;
+  user-select: none;
+}
+
+.realm-map-screen[data-camera-interacting] .realm-castle-label {
+  cursor: grabbing;
 }
 
 .realm-castle-label__plate {
@@ -55,7 +60,6 @@
     rgb(13 10 20 / 0%) 100%
   );
   box-shadow: 0 0.2rem 0.5rem rgb(0 0 0 / 15%);
-  backdrop-filter: blur(2px);
   transition: border-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
 }
 

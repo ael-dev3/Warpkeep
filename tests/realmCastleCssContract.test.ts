@@ -76,7 +76,9 @@ describe('compact Realm CSS contract', () => {
     expect(plate).toContain('background: linear-gradient(');
     expect(plate).toContain('rgb(8 8 13 / 36%) 0%');
     expect(plate).toContain('rgb(13 10 20 / 0%) 100%');
-    expect(plate).toContain('backdrop-filter: blur(2px);');
+    expect(plate).not.toContain('backdrop-filter:');
+    expect(label).toContain('touch-action: none;');
+    expect(label).not.toContain('will-change: transform;');
     expect(PRESENTATION).not.toMatch(/top:\s*var\(--realm-castle-label-y\)/);
     expect(PRESENTATION).not.toMatch(/left:\s*var\(--realm-castle-label-x\)/);
     expect(compactLabel).toContain('width: auto;');

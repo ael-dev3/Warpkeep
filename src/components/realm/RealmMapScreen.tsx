@@ -505,7 +505,6 @@ function CanonicalRealmMapScreen({
   const [visibleCastleLabels, setVisibleCastleLabels] = useState<readonly VisibleCastleLabel[]>([]);
   const latestVisibleCastleLabelsRef = useRef<readonly VisibleCastleLabel[]>([]);
   const latestProjectionRef = useRef<RealmCastleProjectionFrame>({ width: 0, height: 0, castles: [] });
-  const labelProjectionRafRef = useRef<number | null>(null);
   const compositionRafRef = useRef<number | null>(null);
   const labelMembershipSignatureRef = useRef('');
   const presentedCastleIdsRef = useRef<readonly number[]>([]);
@@ -665,72 +664,67 @@ function CanonicalRealmMapScreen({
 
   const updateCastleProjection = useCallback((frame: RealmCastleProjectionFrame) => {
     latestProjectionRef.current = frame;
-    if (labelProjectionRafRef.current !== null) return;
-    labelProjectionRafRef.current = window.requestAnimationFrame(() => {
-      labelProjectionRafRef.current = null;
-      const frame = latestProjectionRef.current;
-      const root = rootRef.current;
-      if (!root || frame.width <= 0 || frame.height <= 0) return;
+    const root = rootRef.current;
+    if (!root || frame.width <= 0 || frame.height <= 0) return;
 
-      const candidateCastles = frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES);
-      const labels = resolvePersistentCastleLabels({
-        ...frame,
-        castles: candidateCastles
-      });
-      // React owns label membership while the projection lane owns moving
-      // coordinates. Retain the latest complete snapshot so an unrelated
-      // React render cannot reconcile an older state snapshot back over the
-      // imperatively updated custom properties.
-      latestVisibleCastleLabelsRef.current = labels;
-      const renderableCastleIds = candidateCastles.map((castle) => castle.castleId);
-      const renderableCastleIdSet = new Set(renderableCastleIds);
-      const labelsById = new Map(labels.map((label) => [label.castleId, label]));
-      const buttons = new Map<number, HTMLButtonElement>();
-      root.querySelectorAll<HTMLButtonElement>('button.realm-castle-label[data-castle-id]')
-        .forEach((button) => {
-          const castleId = Number(button.dataset.castleId);
-          if (Number.isSafeInteger(castleId)) buttons.set(castleId, button);
-        });
-
-      // Exact direct coverage is the presentation contract. Density may create
-      // overlap in a realm overview, but collision geometry never replaces,
-      // relocates, aggregates, or hides an on-screen founded identity.
-      root.dataset.labelPersistence = 'foundation';
-      root.dataset.labelEligibleCount = String(labels.length);
-      root.dataset.labelPlacedCount = String(labels.length);
-      root.dataset.labelUnplacedCount = '0';
-      root.dataset.labelBaseAnchorViolationCount = String(labels.filter((label) => (
-        Math.hypot(
-          label.x - label.projectedAnchor.x,
-          label.y - label.projectedAnchor.y
-        ) > 0.015
-      )).length);
-      root.dataset.labelCullReasons = '';
-      root.dataset.individualCastleCount = String(labels.length);
-      root.dataset.labelClusteredCount = '0';
-      root.dataset.labelClusterOverflowCount = '0';
-      root.dataset.clusterRepresentativeAnchorViolationCount = '0';
-      root.dataset.clusterCastleOverlapCount = '0';
-      root.dataset.clusterMemberDistanceViolationCount = '0';
-      root.dataset.labelAccountingValid = String(
-        labelsById.size === labels.length
-        && labels.every((label) => renderableCastleIdSet.has(label.castleId))
-      );
-      root.dataset.labelMissingIdentityCount = '0';
-
-      const signature = labels.map((label) => `${label.castleId}:${label.compact}`).join('|');
-      if (signature !== labelMembershipSignatureRef.current) {
-        labelMembershipSignatureRef.current = signature;
-        setVisibleCastleLabels(labels);
-      }
-      for (const [castleId, button] of buttons) {
-        button.dataset.hovered = castleId === hoveredCastleIdRef.current ? 'true' : 'false';
-        applyCastleLabelPlacement(button, labelsById.get(castleId));
-      }
-
-      presentedCastleIdsRef.current = renderableCastleIds;
-      sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
+    const candidateCastles = frame.castles.slice(0, CASTLE_LABEL_LAYOUT_MAX_CASTLES);
+    const labels = resolvePersistentCastleLabels({
+      ...frame,
+      castles: candidateCastles
     });
+    // React owns label membership while the projection lane owns moving
+    // coordinates. Retain the latest complete snapshot so an unrelated
+    // React render cannot reconcile an older state snapshot back over the
+    // imperatively updated custom properties.
+    latestVisibleCastleLabelsRef.current = labels;
+    const renderableCastleIds = candidateCastles.map((castle) => castle.castleId);
+    const renderableCastleIdSet = new Set(renderableCastleIds);
+    const labelsById = new Map(labels.map((label) => [label.castleId, label]));
+    const buttons = new Map<number, HTMLButtonElement>();
+    root.querySelectorAll<HTMLButtonElement>('button.realm-castle-label[data-castle-id]')
+      .forEach((button) => {
+        const castleId = Number(button.dataset.castleId);
+        if (Number.isSafeInteger(castleId)) buttons.set(castleId, button);
+      });
+
+    // Exact direct coverage is the presentation contract. Density may create
+    // overlap in a realm overview, but collision geometry never replaces,
+    // relocates, aggregates, or hides an on-screen founded identity.
+    root.dataset.labelPersistence = 'foundation';
+    root.dataset.labelEligibleCount = String(labels.length);
+    root.dataset.labelPlacedCount = String(labels.length);
+    root.dataset.labelUnplacedCount = '0';
+    root.dataset.labelBaseAnchorViolationCount = String(labels.filter((label) => (
+      Math.hypot(
+        label.x - label.projectedAnchor.x,
+        label.y - label.projectedAnchor.y
+      ) > 0.015
+    )).length);
+    root.dataset.labelCullReasons = '';
+    root.dataset.individualCastleCount = String(labels.length);
+    root.dataset.labelClusteredCount = '0';
+    root.dataset.labelClusterOverflowCount = '0';
+    root.dataset.clusterRepresentativeAnchorViolationCount = '0';
+    root.dataset.clusterCastleOverlapCount = '0';
+    root.dataset.clusterMemberDistanceViolationCount = '0';
+    root.dataset.labelAccountingValid = String(
+      labelsById.size === labels.length
+      && labels.every((label) => renderableCastleIdSet.has(label.castleId))
+    );
+    root.dataset.labelMissingIdentityCount = '0';
+
+    const signature = labels.map((label) => `${label.castleId}:${label.compact}`).join('|');
+    if (signature !== labelMembershipSignatureRef.current) {
+      labelMembershipSignatureRef.current = signature;
+      setVisibleCastleLabels(labels);
+    }
+    for (const [castleId, button] of buttons) {
+      button.dataset.hovered = castleId === hoveredCastleIdRef.current ? 'true' : 'false';
+      applyCastleLabelPlacement(button, labelsById.get(castleId));
+    }
+
+    presentedCastleIdsRef.current = renderableCastleIds;
+    sceneRef.current?.setPresentedCastleIds(renderableCastleIds);
   }, []);
 
   const updateCastlePresentationTelemetry = useCallback((
@@ -772,10 +766,6 @@ function CanonicalRealmMapScreen({
   }, [updateCastleProjection]);
 
   useEffect(() => () => {
-    if (labelProjectionRafRef.current !== null) {
-      window.cancelAnimationFrame(labelProjectionRafRef.current);
-      labelProjectionRafRef.current = null;
-    }
     if (compositionRafRef.current !== null) {
       window.cancelAnimationFrame(compositionRafRef.current);
       compositionRafRef.current = null;

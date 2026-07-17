@@ -70,6 +70,7 @@ export const RENDERED_WEBGL_QA_VITE_FS_DENY = Object.freeze([
 ]);
 const RENDERED_WEBGL_QA_LABEL_ANGLE_TOLERANCE_RADIANS = 0.002;
 const RENDERED_WEBGL_QA_CASTLE_POINTER_ACTIVATION_CASE_ID = 'desktop-balanced';
+const RENDERED_WEBGL_QA_MAP_GESTURE_CASE_ID = 'desktop-balanced-player';
 // Interactions may change the projection-visible set, but every eligible castle
 // must remain a direct label. Explore remains the complete accessible list and
 // never becomes an excuse for automatic world-label overflow.
@@ -89,6 +90,11 @@ const RENDERED_WEBGL_QA_CASTLE_POINTER_MOVE_OFFSETS = Object.freeze([
   Object.freeze({ x: 2, y: 2 }),
   Object.freeze({ x: 4, y: 0 }),
   Object.freeze({ x: 0, y: 0 }),
+]);
+const RENDERED_WEBGL_QA_MAP_DRAG_OFFSETS = Object.freeze([
+  Object.freeze({ x: 3, y: 1 }),
+  Object.freeze({ x: 8, y: 2 }),
+  Object.freeze({ x: 52, y: 14 }),
 ]);
 const RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS = 10_000;
 const TERRAIN_PRESENTATION_BUDGETS = Object.freeze({
@@ -558,6 +564,37 @@ export function parseRenderedWebglCastlePointerMoveState(value) {
     navigatorOpen: false,
     renderer: 'webgl',
     selectedCastleLabelCount: 0,
+  });
+}
+
+/**
+ * Structural evidence for the player map's shared gesture lane. No castle ID,
+ * identity, profile value, label text, or camera coordinate leaves the page.
+ */
+export function parseRenderedWebglMapGestureEvidence(value) {
+  const candidate = exactRecord(value, 'Invalid rendered WebGL map gesture evidence.');
+  if (
+    !exactMessageKeys(candidate, new Set([
+      'dragMoved',
+      'inputClean',
+      'settled',
+      'uiStable',
+      'wheelMoved',
+    ]))
+    || candidate.dragMoved !== true
+    || candidate.inputClean !== true
+    || candidate.settled !== true
+    || candidate.uiStable !== true
+    || candidate.wheelMoved !== true
+  ) throw new TypeError(
+    `Invalid rendered WebGL map gesture evidence (${JSON.stringify(candidate)}).`
+  );
+  return Object.freeze({
+    dragMoved: true,
+    inputClean: true,
+    settled: true,
+    uiStable: true,
+    wheelMoved: true,
   });
 }
 
@@ -2348,6 +2385,253 @@ export async function applyRenderedWebglCastleCanvasInteraction(session) {
   });
 }
 
+/**
+ * Exercises the exact player-facing failure lane: acquire a drag directly on a
+ * castle label, cross the threshold in small increments, release without
+ * activating the label, then wheel over the same label. A second label is used
+ * as a non-identifying witness that the anchored wheel changed the camera.
+ */
+export async function applyRenderedWebglMapGestureInteraction(session) {
+  const initialTargetEvaluation = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const root = document.querySelector('.realm-map-screen');
+      const canvas = document.querySelector('.realm-map-screen__canvas');
+      if (!(root instanceof HTMLElement) || !(canvas instanceof HTMLCanvasElement)) return null;
+      const mapBounds = root.getBoundingClientRect();
+      const position = (label) => {
+        const style = getComputedStyle(label);
+        return {
+          x: Number.parseFloat(style.getPropertyValue('--realm-castle-label-x')),
+          y: Number.parseFloat(style.getPropertyValue('--realm-castle-label-y')),
+        };
+      };
+      const labels = [...document.querySelectorAll('button.realm-castle-label')].filter((label) => {
+        if (!(label instanceof HTMLButtonElement) || label.disabled) return false;
+        const bounds = label.getBoundingClientRect();
+        const x = bounds.left + bounds.width * 0.5;
+        const y = bounds.top + bounds.height * 0.5;
+        const hit = document.elementFromPoint(x, y);
+        const projected = position(label);
+        return label.contains(hit)
+          && Number.isFinite(projected.x)
+          && Number.isFinite(projected.y)
+          && x + ${RENDERED_WEBGL_QA_MAP_DRAG_OFFSETS.at(-1).x} < mapBounds.right - 2
+          && y + ${RENDERED_WEBGL_QA_MAP_DRAG_OFFSETS.at(-1).y} < mapBounds.bottom - 2;
+      });
+      const centreX = (mapBounds.left + mapBounds.right) * 0.5;
+      const centreY = (mapBounds.top + mapBounds.bottom) * 0.5;
+      labels.sort((left, right) => {
+        const leftBounds = left.getBoundingClientRect();
+        const rightBounds = right.getBoundingClientRect();
+        return Math.hypot(
+          leftBounds.left + leftBounds.width * 0.5 - centreX,
+          leftBounds.top + leftBounds.height * 0.5 - centreY
+        ) - Math.hypot(
+          rightBounds.left + rightBounds.width * 0.5 - centreX,
+          rightBounds.top + rightBounds.height * 0.5 - centreY
+        );
+      });
+      const label = labels[0];
+      if (!(label instanceof HTMLButtonElement) || labels.length < 2) return null;
+      const labelBounds = label.getBoundingClientRect();
+      const labelCentre = {
+        x: labelBounds.left + labelBounds.width * 0.5,
+        y: labelBounds.top + labelBounds.height * 0.5,
+      };
+      const witness = labels.slice(1).sort((left, right) => {
+        const leftBounds = left.getBoundingClientRect();
+        const rightBounds = right.getBoundingClientRect();
+        return Math.hypot(
+          rightBounds.left + rightBounds.width * 0.5 - labelCentre.x,
+          rightBounds.top + rightBounds.height * 0.5 - labelCentre.y
+        ) - Math.hypot(
+          leftBounds.left + leftBounds.width * 0.5 - labelCentre.x,
+          leftBounds.top + leftBounds.height * 0.5 - labelCentre.y
+        );
+      })[0];
+      if (!(witness instanceof HTMLButtonElement)) return null;
+      globalThis.__warpkeepRenderedMapGesture = {
+        canvas,
+        dragMoved: false,
+        inputClean: false,
+        settled: false,
+        label,
+        labelStart: position(label),
+        root,
+        uiStable: false,
+        witness,
+        witnessBeforeWheel: null,
+      };
+      return {
+        x: Math.round(labelCentre.x * 100) / 100,
+        y: Math.round(labelCentre.y * 100) / 100,
+      };
+    })()`,
+    returnByValue: true,
+  });
+  if (
+    initialTargetEvaluation?.exceptionDetails
+    || initialTargetEvaluation?.result?.type !== 'object'
+  ) throw new Error('Rendered WebGL map gesture target evaluation failed.');
+  const initialTarget = parseRenderedWebglCastleCanvasPointerTarget(
+    initialTargetEvaluation.result.value
+  );
+
+  await session.command('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: initialTarget.x,
+    y: initialTarget.y,
+    button: 'none',
+    buttons: 0,
+    pointerType: 'mouse',
+  });
+  await session.command('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    x: initialTarget.x,
+    y: initialTarget.y,
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    pointerType: 'mouse',
+  });
+  for (const offset of RENDERED_WEBGL_QA_MAP_DRAG_OFFSETS) {
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: initialTarget.x + offset.x,
+      y: initialTarget.y + offset.y,
+      button: 'left',
+      buttons: 1,
+      pointerType: 'mouse',
+    });
+  }
+  const dragEnd = RENDERED_WEBGL_QA_MAP_DRAG_OFFSETS.at(-1);
+  await session.command('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    x: initialTarget.x + dragEnd.x,
+    y: initialTarget.y + dragEnd.y,
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    pointerType: 'mouse',
+  });
+
+  const wheelTargetEvaluation = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const state = globalThis.__warpkeepRenderedMapGesture;
+      if (!state || !state.label?.isConnected || !state.witness?.isConnected) return null;
+      const position = (label) => {
+        const style = getComputedStyle(label);
+        return {
+          x: Number.parseFloat(style.getPropertyValue('--realm-castle-label-x')),
+          y: Number.parseFloat(style.getPropertyValue('--realm-castle-label-y')),
+        };
+      };
+      const labelAfterDrag = position(state.label);
+      state.dragMoved = Math.hypot(
+        labelAfterDrag.x - state.labelStart.x,
+        labelAfterDrag.y - state.labelStart.y
+      ) >= 4;
+      state.inputClean = state.canvas.getAttribute('data-dragging') !== 'true'
+        && !state.root.hasAttribute('data-camera-interacting');
+      state.uiStable = document.querySelector('.castle-inspection') === null
+        && document.querySelector('.realm-cell-navigator__dialog') === null
+        && state.root.getAttribute('data-renderer') === 'webgl';
+      state.witnessBeforeWheel = position(state.witness);
+      const bounds = state.label.getBoundingClientRect();
+      return {
+        x: Math.round((bounds.left + bounds.width * 0.5) * 100) / 100,
+        y: Math.round((bounds.top + bounds.height * 0.5) * 100) / 100,
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (
+    wheelTargetEvaluation?.exceptionDetails
+    || wheelTargetEvaluation?.result?.type !== 'object'
+  ) throw new Error('Rendered WebGL map wheel target evaluation failed.');
+  const wheelTarget = parseRenderedWebglCastleCanvasPointerTarget(
+    wheelTargetEvaluation.result.value
+  );
+  await session.command('Input.dispatchMouseEvent', {
+    type: 'mouseWheel',
+    x: wheelTarget.x,
+    y: wheelTarget.y,
+    deltaX: 0,
+    deltaY: 180,
+    button: 'none',
+    buttons: 0,
+    pointerType: 'mouse',
+  });
+
+  const evidenceEvaluation = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      const state = globalThis.__warpkeepRenderedMapGesture;
+      const failed = {
+        dragMoved: false,
+        inputClean: false,
+        uiStable: false,
+        wheelMoved: false,
+      };
+      if (!state) return failed;
+      const position = (label) => {
+        const style = getComputedStyle(label);
+        return {
+          x: Number.parseFloat(style.getPropertyValue('--realm-castle-label-x')),
+          y: Number.parseFloat(style.getPropertyValue('--realm-castle-label-y')),
+        };
+      };
+      let witnessAfterWheel = state.witness?.isConnected
+        ? position(state.witness)
+        : { x: Number.NaN, y: Number.NaN };
+      let stableFrameCount = 0;
+      for (let frameIndex = 0; frameIndex < 180 && stableFrameCount < 4; frameIndex += 1) {
+        await new Promise((resolve) => window.requestAnimationFrame(resolve));
+        const nextWitness = state.witness?.isConnected
+          ? position(state.witness)
+          : { x: Number.NaN, y: Number.NaN };
+        const movement = Math.hypot(
+          nextWitness.x - witnessAfterWheel.x,
+          nextWitness.y - witnessAfterWheel.y
+        );
+        stableFrameCount = Number.isFinite(movement) && movement <= 0.05
+          ? stableFrameCount + 1
+          : 0;
+        witnessAfterWheel = nextWitness;
+      }
+      const evidence = {
+        dragMoved: state.dragMoved === true,
+        inputClean: state.inputClean === true
+          && state.canvas.getAttribute('data-dragging') !== 'true'
+          && !state.root.hasAttribute('data-camera-interacting'),
+        settled: stableFrameCount >= 4,
+        uiStable: state.uiStable === true
+          && document.querySelector('.castle-inspection') === null
+          && document.querySelector('.realm-cell-navigator__dialog') === null
+          && state.root.getAttribute('data-renderer') === 'webgl',
+        wheelMoved: Number.isFinite(state.witnessBeforeWheel?.x)
+          && Number.isFinite(state.witnessBeforeWheel?.y)
+          && Number.isFinite(witnessAfterWheel.x)
+          && Number.isFinite(witnessAfterWheel.y)
+          && Math.hypot(
+            witnessAfterWheel.x - state.witnessBeforeWheel.x,
+            witnessAfterWheel.y - state.witnessBeforeWheel.y
+          ) >= 2,
+      };
+      delete globalThis.__warpkeepRenderedMapGesture;
+      return evidence;
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (evidenceEvaluation?.exceptionDetails || evidenceEvaluation?.result?.type !== 'object') {
+    throw new Error('Rendered WebGL map gesture evidence evaluation failed.');
+  }
+  return parseRenderedWebglMapGestureEvidence(evidenceEvaluation.result.value);
+}
+
 export async function applyRenderedWebglCaseInteraction(session, interaction) {
   if (interaction === 'default') return Object.freeze({});
   const selector = interaction === 'inspector'
@@ -2408,6 +2692,11 @@ async function runRenderedCase(session, probeCase, state) {
   const baseline = Object.freeze({ ...probeCase, interaction: 'default' });
   await waitForAcceptedRenderedDom(session, baseline, state);
   await captureRenderedCasePixels(session, probeCase.viewport);
+  if (probeCase.id === RENDERED_WEBGL_QA_MAP_GESTURE_CASE_ID) {
+    await applyRenderedWebglMapGestureInteraction(session);
+    await waitForAcceptedRenderedDom(session, baseline, state);
+    await captureRenderedCasePixels(session, probeCase.viewport);
+  }
   if (probeCase.id === RENDERED_WEBGL_QA_CASTLE_POINTER_ACTIVATION_CASE_ID) {
     const canvasInteraction = await applyRenderedWebglCastleCanvasInteraction(session);
     if (

@@ -200,6 +200,15 @@ export function parseRenderedWebglCastlePointerMoveState(value: unknown): Readon
   selectedCastleLabelCount: 0;
 }>;
 
+/** Structural gesture evidence only; no castle or identity value crosses the QA boundary. */
+export function parseRenderedWebglMapGestureEvidence(value: unknown): Readonly<{
+  dragMoved: true;
+  inputClean: true;
+  settled: true;
+  uiStable: true;
+  wheelMoved: true;
+}>;
+
 /** Structural local-QA evidence only; it never includes a castle or identity value. */
 export function parseRenderedWebglInspectorLabelActivationEvidence(value: unknown): Readonly<{
   inspectorLabelActivated: true;
@@ -215,6 +224,16 @@ export type RenderedWebglCastleCanvasPointerSession = Readonly<{
 export function applyRenderedWebglCastleCanvasInteraction(
   session: RenderedWebglCastleCanvasPointerSession
 ): Promise<Readonly<{ pointerMoveCount: 5 }>>;
+
+export function applyRenderedWebglMapGestureInteraction(
+  session: RenderedWebglCastleCanvasPointerSession
+): Promise<Readonly<{
+  dragMoved: true;
+  inputClean: true;
+  settled: true;
+  uiStable: true;
+  wheelMoved: true;
+}>>;
 
 export type RenderedWebglBrowserProbeInteractionEvidence = Readonly<{
   inspectorLabelActivated?: true;

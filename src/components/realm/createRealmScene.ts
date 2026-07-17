@@ -63,6 +63,11 @@ import {
 } from './realmCastleProjectionGeometry';
 import { createRealmAmbientScheduler } from './realmAmbientScheduler';
 import {
+  createRealmPointerGestureCoordinator,
+  type RealmPointerGestureResult,
+  type RealmPointerStartLane
+} from './realmPointerGestureCoordinator';
+import {
   REALM_LIGHTING_SPECS,
   resolveRealmPixelRatio,
   resolveRealmRenderPlan,
@@ -282,21 +287,28 @@ export type CreateRealmSceneOptions = Readonly<{
   onTargetSelect?: (target: RealmInteractionTarget) => void;
 }>;
 
-type PointerSample = {
-  x: number;
-  y: number;
-  previousX: number;
-  previousY: number;
-  originX: number;
-  originY: number;
-  dragged: boolean;
-};
-
 type RealmSceneCleanup = Readonly<{
   add: (dispose: () => void) => void;
   dispose: () => void;
   isDisposed: () => boolean;
 }>;
+
+type PendingRealmDirectGesture =
+  | {
+      kind: 'pan';
+      startX: number;
+      startY: number;
+      endX: number;
+      endY: number;
+    }
+  | {
+      kind: 'pinch';
+      startX: number;
+      startY: number;
+      endX: number;
+      endY: number;
+      zoomAmount: number;
+    };
 
 function createRealmSceneCleanup(): RealmSceneCleanup {
   const disposers: Array<() => void> = [];
@@ -690,6 +702,9 @@ function initializeRealmScene(
       });
     })
   ];
+  const authoritativeCastleById = new Map(
+    authoritativeCastles.map((castle) => [castle.castleId, castle])
+  );
   const occupiedCastleCoordinateKeys = new Set(
     authoritativeCastles.map((castle) => hexKey(castle.coord))
   );
@@ -921,8 +936,29 @@ function initializeRealmScene(
 
   const raycaster = new THREE.Raycaster();
   const normalizedPointer = new THREE.Vector2();
-  const pointers = new Map<number, PointerSample>();
-  let lastPinchGesture: RealmPinchGesture | null = null;
+  const interactionRoot = options.canvas.closest<HTMLElement>('.realm-map-screen')
+    ?? options.canvas.parentElement
+    ?? options.canvas;
+  const pointerGestures = createRealmPointerGestureCoordinator({
+    capturePointer: (pointerId) => {
+      if (typeof interactionRoot.setPointerCapture !== 'function') return false;
+      interactionRoot.setPointerCapture(pointerId);
+      return typeof interactionRoot.hasPointerCapture !== 'function'
+        || interactionRoot.hasPointerCapture(pointerId);
+    },
+    releasePointer: (pointerId) => {
+      if (
+        typeof interactionRoot.hasPointerCapture === 'function'
+        && !interactionRoot.hasPointerCapture(pointerId)
+      ) return;
+      interactionRoot.releasePointerCapture?.(pointerId);
+    }
+  });
+  const labelPointerTargets = new Map<number, HTMLElement>();
+  let suppressedLabelClickTarget: HTMLElement | null = null;
+  let labelClickSuppressionTimer = 0;
+  let pendingDirectGesture: PendingRealmDirectGesture | null = null;
+  let directGestureFrame = 0;
   let pendingHoverPoint: Readonly<{ x: number; y: number }> | null = null;
   let hoverAnimationFrame = 0;
   let resizeObserver: ResizeObserver | null = null;
@@ -930,9 +966,17 @@ function initializeRealmScene(
     if (hoverAnimationFrame !== 0) window.cancelAnimationFrame(hoverAnimationFrame);
     hoverAnimationFrame = 0;
     pendingHoverPoint = null;
-    pointers.clear();
-    lastPinchGesture = null;
+    if (directGestureFrame !== 0) window.cancelAnimationFrame(directGestureFrame);
+    directGestureFrame = 0;
+    pendingDirectGesture = null;
+    if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
+    labelClickSuppressionTimer = 0;
+    suppressedLabelClickTarget = null;
+    labelPointerTargets.clear();
+    pointerGestures.dispose();
+    cameraController.endDirectManipulation();
     delete options.canvas.dataset.dragging;
+    delete interactionRoot.dataset.cameraInteracting;
   });
 
   const dispatchHover = (target: RealmInteractionTarget | null) => {
@@ -990,119 +1034,270 @@ function initializeRealmScene(
       hoverAnimationFrame = 0;
       const point = pendingHoverPoint;
       pendingHoverPoint = null;
-      if (cleanup.isDisposed() || pointers.size > 0 || !point) return;
+      if (cleanup.isDisposed() || pointerGestures.snapshot().pointerCount > 0 || !point) return;
       dispatchHover(pick(point.x, point.y));
     });
   };
 
-  const handlePointerDown = (event: PointerEvent) => {
-    if (event.pointerType !== 'touch' && event.button !== 0) return;
-    event.preventDefault();
-    options.canvas.setPointerCapture?.(event.pointerId);
-    pointers.set(event.pointerId, {
-      x: event.clientX,
-      y: event.clientY,
-      previousX: event.clientX,
-      previousY: event.clientY,
-      originX: event.clientX,
-      originY: event.clientY,
-      dragged: false
-    });
-    if (pointers.size > 1) {
-      pointers.forEach((sample) => { sample.dragged = true; });
-      lastPinchGesture = resolveRealmPinchGesture(pointers);
-    }
-    cancelPendingHover();
-    options.canvas.dataset.dragging = 'true';
-    dispatchHover(null);
+  const laneForTarget = (target: EventTarget | null): RealmPointerStartLane | null => {
+    if (target === options.canvas) return 'canvas';
+    if (!(target instanceof Element)) return null;
+    const label = target.closest('.realm-castle-label');
+    return label && interactionRoot.contains(label) ? 'label' : null;
   };
 
-  const handlePointerMove = (event: PointerEvent) => {
-    const sample = pointers.get(event.pointerId);
-    if (!sample) {
-      scheduleHover(event.clientX, event.clientY);
+  const localPoint = (clientX: number, clientY: number) => {
+    const bounds = options.canvas.getBoundingClientRect();
+    return {
+      x: clientX - bounds.left,
+      y: clientY - bounds.top
+    };
+  };
+
+  const syncGesturePhase = (result: RealmPointerGestureResult) => {
+    const manipulating = result.phase === 'dragging' || result.phase === 'pinching';
+    if (manipulating) {
+      options.canvas.dataset.dragging = 'true';
+      interactionRoot.dataset.cameraInteracting = result.phase;
       return;
     }
-    cancelPendingHover();
-    event.preventDefault();
-    sample.previousX = sample.x;
-    sample.previousY = sample.y;
-    sample.x = event.clientX;
-    sample.y = event.clientY;
-    if (Math.hypot(sample.x - sample.originX, sample.y - sample.originY) > 5) {
-      sample.dragged = true;
-    }
-    if (pointers.size >= 2) {
-      const nextPinchGesture = resolveRealmPinchGesture(pointers);
-      if (lastPinchGesture && nextPinchGesture) {
-        const centroidDeltaX = nextPinchGesture.centroid.x - lastPinchGesture.centroid.x;
-        const centroidDeltaY = nextPinchGesture.centroid.y - lastPinchGesture.centroid.y;
-        if (Math.abs(centroidDeltaX) >= 0.01 || Math.abs(centroidDeltaY) >= 0.01) {
-          cameraController.panByPixels(centroidDeltaX, centroidDeltaY);
-        }
-        if (lastPinchGesture.distance > 0 && nextPinchGesture.distance > 0) {
-          const canvasBounds = options.canvas.getBoundingClientRect();
-          cameraController.zoomByAt(
-            Math.log(nextPinchGesture.distance / lastPinchGesture.distance) * 0.78,
-            nextPinchGesture.centroid.x - canvasBounds.left,
-            nextPinchGesture.centroid.y - canvasBounds.top
-          );
-        }
-      }
-      lastPinchGesture = nextPinchGesture;
-      return;
-    }
-    if (!sample.dragged) return;
-    cameraController.panByPixels(
-      sample.x - sample.previousX,
-      sample.y - sample.previousY
+    if (result.pointerCount > 0) return;
+    cameraController.endDirectManipulation();
+    delete options.canvas.dataset.dragging;
+    delete interactionRoot.dataset.cameraInteracting;
+  };
+
+  const flushDirectGesture = () => {
+    if (directGestureFrame !== 0) window.cancelAnimationFrame(directGestureFrame);
+    directGestureFrame = 0;
+    const gesture = pendingDirectGesture;
+    pendingDirectGesture = null;
+    if (!gesture || cleanup.isDisposed()) return;
+    cameraController.manipulateViewport(
+      gesture.startX,
+      gesture.startY,
+      gesture.endX,
+      gesture.endY,
+      gesture.kind === 'pinch' ? gesture.zoomAmount : 0
     );
   };
 
-  const finishPointer = (event: PointerEvent, cancelled: boolean) => {
-    const sample = pointers.get(event.pointerId);
-    const wasOnlyPointer = pointers.size === 1;
-    pointers.delete(event.pointerId);
-    if (options.canvas.hasPointerCapture?.(event.pointerId)) {
-      options.canvas.releasePointerCapture?.(event.pointerId);
-    }
-    if (!cancelled && sample && wasOnlyPointer && !sample.dragged) {
-      const picked = pick(event.clientX, event.clientY);
-      if (picked) {
-        selectedCastleId = picked.kind === 'castle' ? picked.castleId : undefined;
-        dispatchSelect(picked);
-        render();
-        if (
-          picked.kind === 'castle'
-          && picked.castleId === options.ownCastleId
-        ) {
-          cameraController.focusKeep();
-        }
+  const scheduleDirectGesture = () => {
+    if (directGestureFrame !== 0) return;
+    directGestureFrame = window.requestAnimationFrame(() => {
+      directGestureFrame = 0;
+      flushDirectGesture();
+    });
+  };
+
+  const queueGesture = (
+    result: RealmPointerGestureResult,
+    clientX: number,
+    clientY: number
+  ) => {
+    if (result.panDelta) {
+      cameraController.beginDirectManipulation();
+      const current = localPoint(clientX, clientY);
+      if (pendingDirectGesture?.kind === 'pinch') flushDirectGesture();
+      if (pendingDirectGesture?.kind === 'pan') {
+        pendingDirectGesture.endX = current.x;
+        pendingDirectGesture.endY = current.y;
+      } else {
+        pendingDirectGesture = {
+          kind: 'pan',
+          startX: current.x - result.panDelta.x,
+          startY: current.y - result.panDelta.y,
+          endX: current.x,
+          endY: current.y
+        };
       }
+      scheduleDirectGesture();
     }
-    lastPinchGesture = resolveRealmPinchGesture(pointers);
-    if (pointers.size === 1) {
-      pointers.forEach((remaining) => {
-        remaining.previousX = remaining.x;
-        remaining.previousY = remaining.y;
-      });
+    if (!result.pinch) return;
+    cameraController.beginDirectManipulation();
+    if (result.pinch.reset) {
+      flushDirectGesture();
+      return;
     }
-    if (pointers.size === 0) {
-      delete options.canvas.dataset.dragging;
-      if (cancelled) dispatchHover(null);
-      else scheduleHover(event.clientX, event.clientY);
+    const current = localPoint(result.pinch.centroid.x, result.pinch.centroid.y);
+    const zoomAmount = result.pinch.scaleRatio > 0
+      ? Math.log(result.pinch.scaleRatio) * 0.78
+      : 0;
+    const hasTranslation = Math.abs(result.pinch.centroidDelta.x) >= 0.01
+      || Math.abs(result.pinch.centroidDelta.y) >= 0.01;
+    if (!hasTranslation && Math.abs(zoomAmount) < 0.000001) return;
+    if (pendingDirectGesture?.kind === 'pan') flushDirectGesture();
+    if (pendingDirectGesture?.kind === 'pinch') {
+      pendingDirectGesture.endX = current.x;
+      pendingDirectGesture.endY = current.y;
+      pendingDirectGesture.zoomAmount += zoomAmount;
+    } else {
+      pendingDirectGesture = {
+        kind: 'pinch',
+        startX: current.x - result.pinch.centroidDelta.x,
+        startY: current.y - result.pinch.centroidDelta.y,
+        endX: current.x,
+        endY: current.y,
+        zoomAmount
+      };
+    }
+    scheduleDirectGesture();
+  };
+
+  const clearLabelClickSuppression = () => {
+    if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
+    labelClickSuppressionTimer = 0;
+    suppressedLabelClickTarget = null;
+    pointerGestures.consumeLabelClickSuppression();
+  };
+
+  const armLabelClickSuppression = (target: HTMLElement) => {
+    if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
+    suppressedLabelClickTarget = target;
+    // Compatibility clicks follow pointerup in the same user-interaction task.
+    // Expire after that task so stale guards cannot affect later input.
+    labelClickSuppressionTimer = window.setTimeout(clearLabelClickSuppression, 0);
+  };
+
+  const handlePointerDown = (event: PointerEvent) => {
+    const lane = laneForTarget(event.target);
+    if (!lane || (event.pointerType !== 'touch' && event.button !== 0)) return;
+    if (pointerGestures.snapshot().pointerCount === 0) clearLabelClickSuppression();
+    const result = pointerGestures.start({
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      lane,
+      x: event.clientX,
+      y: event.clientY
+    });
+    if (!result.accepted) return;
+    if (lane === 'label' && event.target instanceof Element) {
+      const label = event.target.closest<HTMLElement>('.realm-castle-label');
+      if (label) labelPointerTargets.set(event.pointerId, label);
+    }
+    if (lane === 'canvas' || result.phase === 'pinching') event.preventDefault();
+    cancelPendingHover();
+    dispatchHover(null);
+    queueGesture(result, event.clientX, event.clientY);
+    syncGesturePhase(result);
+  };
+
+  const handlePointerMove = (event: PointerEvent) => {
+    if (pointerGestures.snapshot().pointerCount === 0) {
+      if (event.target === options.canvas) scheduleHover(event.clientX, event.clientY);
+      return;
+    }
+    const coalesced = event.getCoalescedEvents?.() ?? [];
+    const sample = coalesced.at(-1) ?? event;
+    const result = pointerGestures.move({
+      pointerId: sample.pointerId,
+      pointerType: sample.pointerType,
+      buttons: sample.buttons,
+      x: sample.clientX,
+      y: sample.clientY
+    });
+    if (!result.accepted) return;
+    cancelPendingHover();
+    if (result.phase !== 'pending' || result.cancelled) event.preventDefault();
+    queueGesture(result, sample.clientX, sample.clientY);
+    if (result.cancelled) {
+      labelPointerTargets.delete(sample.pointerId);
+      flushDirectGesture();
+      clearLabelClickSuppression();
+    }
+    syncGesturePhase(result);
+  };
+
+  const activateCanvasTap = (clientX: number, clientY: number) => {
+    const picked = pick(clientX, clientY);
+    if (!picked) return;
+    selectedCastleId = picked.kind === 'castle' ? picked.castleId : undefined;
+    dispatchSelect(picked);
+    render();
+    if (picked.kind === 'castle' && picked.castleId === options.ownCastleId) {
+      cameraController.focusKeep();
     }
   };
 
-  const handlePointerUp = (event: PointerEvent) => finishPointer(event, false);
-  const handlePointerCancel = (event: PointerEvent) => finishPointer(event, true);
+  const handlePointerUp = (event: PointerEvent) => {
+    const labelTarget = labelPointerTargets.get(event.pointerId);
+    labelPointerTargets.delete(event.pointerId);
+    const result = pointerGestures.end({
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY
+    });
+    if (!result.accepted) return;
+    queueGesture(result, event.clientX, event.clientY);
+    flushDirectGesture();
+    if (labelTarget && !result.tap) armLabelClickSuppression(labelTarget);
+    if (result.tap?.lane === 'canvas') activateCanvasTap(result.tap.x, result.tap.y);
+    syncGesturePhase(result);
+    if (result.pointerCount === 0) {
+      const hitTarget = document.elementFromPoint?.(event.clientX, event.clientY) ?? event.target;
+      if (laneForTarget(hitTarget)) scheduleHover(event.clientX, event.clientY);
+      else dispatchHover(null);
+    }
+  };
+
+  const handlePointerCancel = (event: PointerEvent) => {
+    labelPointerTargets.delete(event.pointerId);
+    const result = pointerGestures.cancel(event.pointerId);
+    if (!result.accepted) return;
+    flushDirectGesture();
+    clearLabelClickSuppression();
+    dispatchHover(null);
+    syncGesturePhase(result);
+  };
+
+  const handleLostPointerCapture = (event: PointerEvent) => {
+    labelPointerTargets.delete(event.pointerId);
+    const result = pointerGestures.lostCapture(event.pointerId);
+    if (!result.accepted) return;
+    flushDirectGesture();
+    clearLabelClickSuppression();
+    dispatchHover(null);
+    syncGesturePhase(result);
+  };
+
+  const cancelAllPointers = (result: RealmPointerGestureResult) => {
+    if (!result.accepted) return;
+    labelPointerTargets.clear();
+    flushDirectGesture();
+    clearLabelClickSuppression();
+    cancelPendingHover();
+    dispatchHover(null);
+    syncGesturePhase(result);
+  };
+
+  const handleWindowBlur = () => cancelAllPointers(pointerGestures.blur());
+  const handlePointerVisibility = () => {
+    cancelAllPointers(pointerGestures.visibilityChanged(document.hidden));
+  };
+
+  const handleLabelClickCapture = (event: MouseEvent) => {
+    // Keyboard and assistive-technology activation carries no mouse click
+    // count and must never be consumed by a prior pointer gesture.
+    if (event.detail === 0 || !(event.target instanceof Element)) return;
+    const label = event.target.closest<HTMLElement>('.realm-castle-label');
+    if (!label || label !== suppressedLabelClickTarget) return;
+    if (!pointerGestures.consumeLabelClickSuppression()) return;
+    if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
+    labelClickSuppressionTimer = 0;
+    suppressedLabelClickTarget = null;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+
   const handlePointerLeave = () => {
-    if (pointers.size === 0) {
+    if (pointerGestures.snapshot().pointerCount === 0) {
       cancelPendingHover();
       dispatchHover(null);
     }
   };
   const handleWheel = (event: WheelEvent) => {
+    const lane = laneForTarget(event.target);
+    if (!lane) return;
     event.preventDefault();
     // Camera motion invalidates the last canvas hit. Clear it immediately so
     // a stationary pointer cannot leave a label highlighted after its castle
@@ -1110,7 +1305,33 @@ function initializeRealmScene(
     // identity-aware raycast.
     cancelPendingHover();
     dispatchHover(null);
-    cameraController.zoomByWheel(event.deltaY, event.deltaMode);
+    const label = lane === 'label' && event.target instanceof Element
+      ? event.target.closest<HTMLElement>('.realm-castle-label')
+      : null;
+    const castleId = Number(label?.dataset.castleId);
+    const castle = Number.isSafeInteger(castleId)
+      ? authoritativeCastleById.get(castleId)
+      : undefined;
+    if (castle) {
+      const foundation = {
+        x: castle.x,
+        y: castle.groundY + CASTLE_GROUND_LIFT,
+        z: castle.z
+      };
+      const projected = cameraController.projectPoint(foundation);
+      if (projected.visible) {
+        cameraController.zoomByWheelAtWorld(
+          event.deltaY,
+          event.deltaMode,
+          foundation,
+          projected.x,
+          projected.y
+        );
+        return;
+      }
+    }
+    const point = localPoint(event.clientX, event.clientY);
+    cameraController.zoomByWheel(event.deltaY, event.deltaMode, point.x, point.y);
   };
   const handleContextLost = (event: Event) => {
     event.preventDefault();
@@ -1119,18 +1340,41 @@ function initializeRealmScene(
     options.onRendererUnavailable();
   };
 
-  options.canvas.addEventListener('pointerdown', handlePointerDown);
-  cleanup.add(() => options.canvas.removeEventListener('pointerdown', handlePointerDown));
-  options.canvas.addEventListener('pointermove', handlePointerMove);
-  cleanup.add(() => options.canvas.removeEventListener('pointermove', handlePointerMove));
-  options.canvas.addEventListener('pointerup', handlePointerUp);
-  cleanup.add(() => options.canvas.removeEventListener('pointerup', handlePointerUp));
-  options.canvas.addEventListener('pointercancel', handlePointerCancel);
-  cleanup.add(() => options.canvas.removeEventListener('pointercancel', handlePointerCancel));
+  interactionRoot.addEventListener('pointerdown', handlePointerDown, {
+    capture: true,
+    passive: false
+  });
+  cleanup.add(() => interactionRoot.removeEventListener('pointerdown', handlePointerDown, true));
+  if (interactionRoot === options.canvas) {
+    interactionRoot.addEventListener('pointermove', handlePointerMove, { passive: false });
+    cleanup.add(() => interactionRoot.removeEventListener('pointermove', handlePointerMove));
+    interactionRoot.addEventListener('pointerup', handlePointerUp);
+    cleanup.add(() => interactionRoot.removeEventListener('pointerup', handlePointerUp));
+    interactionRoot.addEventListener('pointercancel', handlePointerCancel);
+    cleanup.add(() => interactionRoot.removeEventListener('pointercancel', handlePointerCancel));
+  } else {
+    window.addEventListener('pointermove', handlePointerMove, { capture: true, passive: false });
+    cleanup.add(() => window.removeEventListener('pointermove', handlePointerMove, true));
+    window.addEventListener('pointerup', handlePointerUp, true);
+    cleanup.add(() => window.removeEventListener('pointerup', handlePointerUp, true));
+    window.addEventListener('pointercancel', handlePointerCancel, true);
+    cleanup.add(() => window.removeEventListener('pointercancel', handlePointerCancel, true));
+  }
+  interactionRoot.addEventListener('lostpointercapture', handleLostPointerCapture);
+  cleanup.add(() => interactionRoot.removeEventListener(
+    'lostpointercapture',
+    handleLostPointerCapture
+  ));
+  window.addEventListener('blur', handleWindowBlur);
+  cleanup.add(() => window.removeEventListener('blur', handleWindowBlur));
+  document.addEventListener('visibilitychange', handlePointerVisibility);
+  cleanup.add(() => document.removeEventListener('visibilitychange', handlePointerVisibility));
+  interactionRoot.addEventListener('click', handleLabelClickCapture, true);
+  cleanup.add(() => interactionRoot.removeEventListener('click', handleLabelClickCapture, true));
   options.canvas.addEventListener('pointerleave', handlePointerLeave);
   cleanup.add(() => options.canvas.removeEventListener('pointerleave', handlePointerLeave));
-  options.canvas.addEventListener('wheel', handleWheel, { passive: false });
-  cleanup.add(() => options.canvas.removeEventListener('wheel', handleWheel));
+  interactionRoot.addEventListener('wheel', handleWheel, { capture: true, passive: false });
+  cleanup.add(() => interactionRoot.removeEventListener('wheel', handleWheel, true));
   options.canvas.addEventListener('webglcontextlost', handleContextLost);
   cleanup.add(() => options.canvas.removeEventListener('webglcontextlost', handleContextLost));
 

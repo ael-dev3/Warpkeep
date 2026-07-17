@@ -32,6 +32,19 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   Realm overview remains available and fits the actual convex rendered-terrain
   perimeter with a conservative raised-scene margin instead of nonexistent
   axis-aligned corners.
+- Canvas and castle rails now share one bounded map-gesture path, so a drag
+  engages on the first deliberate attempt even when it starts on a username.
+  Rail taps still open the castle, while drag, pinch, cancellation, capture
+  loss, lost buttons, blur, and hidden-page transitions cleanly separate or
+  terminate their input state.
+- Direct drag follows exact ground-plane movement without stale camera
+  catch-up. Wheel zoom stays anchored below the pointer—or the castle
+  foundation when begun on its rail—and pinch stays anchored below its moving
+  centroid. High-rate direct input is coalesced to the display cadence, and
+  leaving explicit overview for a closer view is continuous.
+- Foundation rails now consume camera projection in the same frame with
+  tenth-pixel precision. Removing permanent transform promotion and moving
+  backdrop blur reduces avoidable compositing work during map motion.
 - This candidate is Pages-client presentation only. It changes no Terms,
   authentication or admission authority, backend protocol, authoritative
   world generation or state, castle ownership, wallet, Marks, Worker,

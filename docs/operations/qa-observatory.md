@@ -337,8 +337,12 @@ Menu/Home rail, tablet inspector, short-landscape Explorer, and touch-target
 contract; the two interactive player cases additionally require that Menu/Home
 remain visible after their surface opens. These browser
 cases prove responsive layout, not mobile-device
-or touch emulation; scene-level pointer tests separately exercise anchored pinch
-and pan behavior. Every baseline
+or touch emulation; scene-level pointer tests separately exercise the shared
+canvas/rail gesture lane, first-attempt threshold crossing, exact ground-plane
+pan, anchored wheel and pinch, rail tap-versus-drag behavior, and cancellation
+cleanup. The desktop player browser lane additionally performs a real
+incremental rail drag and rail-origin wheel gesture, requires clean released
+input state, and waits for the camera motion to settle. Every baseline
 must expose `renderer=webgl`, `status=ready`,
 fixture `synthetic-canonical-100`, castle count `100`, the expected effective
 quality, and a ready duration within the 120-second fixture bound. The responsive

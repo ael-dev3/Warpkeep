@@ -247,8 +247,9 @@ export function normalizeWheelDelta(deltaY: number, deltaMode: number, viewportH
 
 /**
  * Ordinary input cannot back out into the tiny-world endpoint. An explicit
- * Realm preset already below the floor remains there until the player zooms
- * inward, so another outward wheel/pinch gesture never jumps the camera closer.
+ * Realm preset below the floor moves inward continuously, rather than turning
+ * the first trackpad tick into a hard jump to the floor. Outward input cannot
+ * move that explicit pose farther away.
  */
 export function clampRealmInteractiveZoom(
   currentInput: number,
@@ -258,7 +259,7 @@ export function clampRealmInteractiveZoom(
   const current = clamp(finite(currentInput, 0), 0, 1);
   const next = clamp(finite(nextInput, current), 0, 1);
   const minimum = clamp(finite(minimumInput, REALM_INTERACTIVE_MIN_ZOOM), 0, 1);
-  if (current < minimum && next <= current) return current;
+  if (current < minimum) return next <= current ? current : next;
   return clamp(next, minimum, 1);
 }
 
@@ -489,7 +490,8 @@ function intersectRealmGroundAtViewportPoint(
   pose: RealmCameraPose,
   xInput: number,
   yInput: number,
-  viewportInput: RealmCameraViewport = pose.viewport
+  viewportInput: RealmCameraViewport = pose.viewport,
+  planeYInput = 0
 ): RealmCameraPoint | null {
   const viewport = normalizeViewport(viewportInput);
   const x = finite(xInput, viewport.width * 0.5);
@@ -532,11 +534,12 @@ function intersectRealmGroundAtViewportPoint(
     z: forward.z + right.z * ndcX * horizontalScale + up.z * ndcY * verticalScale
   };
   if (!Number.isFinite(ray.y) || Math.abs(ray.y) < 0.000001) return null;
-  const distance = -pose.position.y / ray.y;
+  const planeY = finite(planeYInput, 0);
+  const distance = (planeY - pose.position.y) / ray.y;
   if (!Number.isFinite(distance) || distance <= 0) return null;
   const point = {
     x: pose.position.x + ray.x * distance,
-    y: 0,
+    y: planeY,
     z: pose.position.z + ray.z * distance
   };
   return Object.values(point).every(Number.isFinite) ? point : null;
@@ -893,8 +896,10 @@ function compositionDistance(first: RealmCompositionState, second: RealmComposit
 }
 
 export type RealmCameraController = Readonly<{
+  beginDirectManipulation: () => void;
   camera: THREE.PerspectiveCamera;
   dispose: () => void;
+  endDirectManipulation: () => void;
   frameAt: (focus: RealmKeepFocus, zoom: number) => void;
   focusAt: (focus: RealmKeepFocus) => void;
   focusKeep: () => void;
@@ -902,6 +907,19 @@ export type RealmCameraController = Readonly<{
   getPose: () => RealmCameraPose;
   getSafeViewport: () => RealmSafeViewport;
   getZoom: () => number;
+  manipulateViewport: (
+    previousLocalX: number,
+    previousLocalY: number,
+    localX: number,
+    localY: number,
+    zoomAmount?: number
+  ) => void;
+  panBetweenViewportPoints: (
+    previousLocalX: number,
+    previousLocalY: number,
+    localX: number,
+    localY: number
+  ) => void;
   panByPixels: (deltaX: number, deltaY: number) => void;
   projectPoint: (point: RealmCameraPoint) => RealmScreenProjection;
   recenterKeep: () => void;
@@ -911,7 +929,19 @@ export type RealmCameraController = Readonly<{
   showRealm: () => void;
   zoomBy: (amount: number) => void;
   zoomByAt: (amount: number, localX: number, localY: number) => void;
-  zoomByWheel: (deltaY: number, deltaMode: number) => void;
+  zoomByWheel: (
+    deltaY: number,
+    deltaMode: number,
+    localX?: number,
+    localY?: number
+  ) => void;
+  zoomByWheelAtWorld: (
+    deltaY: number,
+    deltaMode: number,
+    worldAnchor: RealmCameraPoint,
+    localX: number,
+    localY: number
+  ) => void;
 }>;
 
 export type CreateRealmCameraControllerOptions = Readonly<{
@@ -945,6 +975,13 @@ export function createRealmCameraController(
   let currentFocus = { ...keepFocus };
   let targetFocus = { ...keepFocus };
   let targetFocusIsKeep = true;
+  let manualPlanarControl = false;
+  let directManipulation = false;
+  let zoomAnchor: Readonly<{
+    localX: number;
+    localY: number;
+    world: RealmCameraPoint;
+  }> | null = null;
   let currentComposition = compositionState(options.composition);
   let targetComposition = { ...currentComposition };
   let previousTime = 0;
@@ -991,11 +1028,125 @@ export function createRealmCameraController(
     }
   };
 
+  const deriveStatePose = (
+    zoom: number,
+    pan: RealmCameraPan,
+    focus: RealmKeepFocus,
+    composition: RealmCompositionState
+  ) => deriveRealmCameraPoseForViewport(
+    zoom,
+    pan,
+    options.bounds,
+    focus,
+    { width, height },
+    stateComposition(composition),
+    spec,
+    options.overviewHull
+  );
+
+  const clampPlanarState = (
+    zoom: number,
+    pan: RealmCameraPan,
+    focus: RealmKeepFocus,
+    composition: RealmCompositionState
+  ) => {
+    const pose = deriveStatePose(zoom, pan, focus, composition);
+    const clampedPan = clampRealmPan(
+      pan,
+      options.bounds,
+      zoom,
+      pose.visibleHalfHeight * (pose.safeViewport.height / height),
+      pose.safeViewport.aspect,
+      spec.panMargin
+    );
+    const delta = {
+      x: clampedPan.x - pan.x,
+      z: clampedPan.z - pan.z
+    };
+    return {
+      pan: clampedPan,
+      focus: {
+        ...focus,
+        x: focus.x + delta.x,
+        z: focus.z + delta.z
+      }
+    };
+  };
+
+  const anchorPlanarState = (
+    zoom: number,
+    pan: RealmCameraPan,
+    focus: RealmKeepFocus,
+    composition: RealmCompositionState,
+    anchor: RealmCameraPoint,
+    localX: number,
+    localY: number
+  ) => {
+    const pose = deriveStatePose(zoom, pan, focus, composition);
+    const projectedAnchor = intersectRealmGroundAtViewportPoint(
+      pose,
+      localX,
+      localY,
+      { width, height },
+      anchor.y
+    );
+    if (!projectedAnchor) return { pan, focus };
+    const requestedPan = {
+      x: pan.x + anchor.x - projectedAnchor.x,
+      z: pan.z + anchor.z - projectedAnchor.z
+    };
+    const clampedPan = clampRealmPan(
+      requestedPan,
+      options.bounds,
+      zoom,
+      pose.visibleHalfHeight * (pose.safeViewport.height / height),
+      pose.safeViewport.aspect,
+      spec.panMargin
+    );
+    const actualShift = {
+      x: clampedPan.x - pan.x,
+      z: clampedPan.z - pan.z
+    };
+    return {
+      pan: clampedPan,
+      focus: {
+        ...focus,
+        x: focus.x + actualShift.x,
+        z: focus.z + actualShift.z
+      }
+    };
+  };
+
+  const detachSemanticFocus = () => {
+    if (manualPlanarControl) return;
+    const targetPose = deriveStatePose(
+      targetZoom,
+      targetPan,
+      targetFocus,
+      targetComposition
+    );
+    currentPan = { x: lastPose.focus.x, z: lastPose.focus.z };
+    currentFocus = {
+      ...currentFocus,
+      x: lastPose.focus.x,
+      z: lastPose.focus.z
+    };
+    targetPan = { x: targetPose.focus.x, z: targetPose.focus.z };
+    targetFocus = {
+      ...targetFocus,
+      x: targetPose.focus.x,
+      z: targetPose.focus.z
+    };
+    targetFocusIsKeep = false;
+    manualPlanarControl = true;
+  };
+
   const settleImmediately = () => {
     currentZoom = targetZoom;
     currentPan = { ...targetPan };
     currentFocus = { ...targetFocus };
     currentComposition = { ...targetComposition };
+    zoomAnchor = null;
     applyPose();
     options.render();
   };
@@ -1028,12 +1179,26 @@ export function createRealmCameraController(
       targetComposition,
       compositionAlpha
     );
+    if (zoomAnchor) {
+      const anchored = anchorPlanarState(
+        currentZoom,
+        currentPan,
+        currentFocus,
+        currentComposition,
+        zoomAnchor.world,
+        zoomAnchor.localX,
+        zoomAnchor.localY
+      );
+      currentPan = anchored.pan;
+      currentFocus = anchored.focus;
+    }
     const unsettled = isUnsettled();
     if (!unsettled) {
       currentZoom = targetZoom;
       currentPan = { ...targetPan };
       currentFocus = { ...targetFocus };
       currentComposition = { ...targetComposition };
+      zoomAnchor = null;
     }
     applyPose();
     options.render();
@@ -1053,25 +1218,16 @@ export function createRealmCameraController(
   };
 
   const setZoomTarget = (next: number) => {
+    zoomAnchor = null;
     targetZoom = clamp(next, 0, 1);
-    const targetPose = deriveRealmCameraPoseForViewport(
+    const clamped = clampPlanarState(
       targetZoom,
       targetPan,
-      options.bounds,
       targetFocus,
-      { width, height },
-      stateComposition(targetComposition),
-      spec,
-      options.overviewHull
+      targetComposition
     );
-    targetPan = clampRealmPan(
-      targetPan,
-      options.bounds,
-      targetZoom,
-      targetPose.visibleHalfHeight * (targetPose.safeViewport.height / height),
-      targetPose.safeViewport.aspect,
-      spec.panMargin
-    );
+    targetPan = clamped.pan;
+    targetFocus = clamped.focus;
     invalidate();
   };
 
@@ -1087,26 +1243,222 @@ export function createRealmCameraController(
   document.addEventListener('visibilitychange', handleVisibility);
   applyPose();
 
+  const beginDirectManipulation = () => {
+    if (disposed || directManipulation) return;
+    detachSemanticFocus();
+    if (frame) window.cancelAnimationFrame(frame);
+    frame = 0;
+    previousTime = 0;
+    targetZoom = currentZoom;
+    targetPan = { ...currentPan };
+    targetFocus = { ...currentFocus };
+    zoomAnchor = null;
+    directManipulation = true;
+  };
+
+  const endDirectManipulation = () => {
+    if (!directManipulation) return;
+    directManipulation = false;
+    if (isUnsettled()) invalidate();
+  };
+
+  const applyPanBetweenViewportPoints = (
+    previousLocalX: number,
+    previousLocalY: number,
+    localX: number,
+    localY: number
+  ) => {
+    const pose = deriveStatePose(
+      currentZoom,
+      currentPan,
+      currentFocus,
+      currentComposition
+    );
+    const previousGround = intersectRealmGroundAtViewportPoint(
+      pose,
+      previousLocalX,
+      previousLocalY,
+      { width, height }
+    );
+    const nextGround = intersectRealmGroundAtViewportPoint(
+      pose,
+      localX,
+      localY,
+      { width, height }
+    );
+    let shift: RealmCameraPan;
+    if (previousGround && nextGround) {
+      shift = {
+        x: previousGround.x - nextGround.x,
+        z: previousGround.z - nextGround.z
+      };
+    } else {
+      const worldPerPixel = (pose.visibleHalfHeight * 2) / Math.max(1, height);
+      const deltaX = finite(localX, 0) - finite(previousLocalX, 0);
+      const deltaY = finite(localY, 0) - finite(previousLocalY, 0);
+      const azimuth = radians(spec.azimuthDegrees);
+      shift = {
+        x: -Math.cos(azimuth) * deltaX * worldPerPixel
+          - Math.sin(azimuth) * deltaY * worldPerPixel,
+        z: Math.sin(azimuth) * deltaX * worldPerPixel
+          - Math.cos(azimuth) * deltaY * worldPerPixel
+      };
+    }
+    if (Math.abs(shift.x) <= 0.000001 && Math.abs(shift.z) <= 0.000001) return false;
+    const clamped = clampPlanarState(
+      currentZoom,
+      { x: currentPan.x + shift.x, z: currentPan.z + shift.z },
+      {
+        ...currentFocus,
+        x: currentFocus.x + shift.x,
+        z: currentFocus.z + shift.z
+      },
+      currentComposition
+    );
+    currentPan = clamped.pan;
+    currentFocus = clamped.focus;
+    targetPan = { ...currentPan };
+    targetFocus = { ...currentFocus };
+    zoomAnchor = null;
+    return true;
+  };
+
+  const panBetweenViewportPoints = (
+    previousLocalX: number,
+    previousLocalY: number,
+    localX: number,
+    localY: number
+  ) => {
+    if (disposed) return;
+    if (!directManipulation) beginDirectManipulation();
+    if (!applyPanBetweenViewportPoints(previousLocalX, previousLocalY, localX, localY)) return;
+    applyPose();
+    options.render();
+  };
+
+  const zoomAt = (
+    amount: number,
+    localXInput: number,
+    localYInput: number,
+    worldAnchor?: RealmCameraPoint,
+    renderDirect = true
+  ) => {
+    if (disposed) return false;
+    detachSemanticFocus();
+    const nextZoom = clampRealmInteractiveZoom(
+      targetZoom,
+      targetZoom + finite(amount, 0)
+    );
+    if (Math.abs(nextZoom - targetZoom) <= 0.000001) return false;
+    const localX = clamp(finite(localXInput, width * 0.5), 0, width);
+    const localY = clamp(finite(localYInput, height * 0.5), 0, height);
+    const visibleAnchor = worldAnchor
+      && Number.isFinite(worldAnchor.x)
+      && Number.isFinite(worldAnchor.y)
+      && Number.isFinite(worldAnchor.z)
+      ? { x: worldAnchor.x, y: worldAnchor.y, z: worldAnchor.z }
+      : intersectRealmGroundAtViewportPoint(
+          directManipulation
+            ? deriveStatePose(currentZoom, currentPan, currentFocus, currentComposition)
+            : lastPose,
+          localX,
+          localY,
+          { width, height }
+        );
+    targetZoom = nextZoom;
+    const clamped = clampPlanarState(
+      targetZoom,
+      targetPan,
+      targetFocus,
+      targetComposition
+    );
+    targetPan = clamped.pan;
+    targetFocus = clamped.focus;
+    if (visibleAnchor) {
+      const anchored = anchorPlanarState(
+        targetZoom,
+        targetPan,
+        targetFocus,
+        targetComposition,
+        visibleAnchor,
+        localX,
+        localY
+      );
+      targetPan = anchored.pan;
+      targetFocus = anchored.focus;
+      zoomAnchor = Object.freeze({
+        localX,
+        localY,
+        world: Object.freeze({ ...visibleAnchor })
+      });
+    } else {
+      zoomAnchor = null;
+    }
+    if (directManipulation) {
+      currentZoom = targetZoom;
+      currentPan = { ...targetPan };
+      currentFocus = { ...targetFocus };
+      zoomAnchor = null;
+      if (renderDirect) {
+        applyPose();
+        options.render();
+      }
+      return true;
+    }
+    invalidate();
+    return true;
+  };
+
+  const manipulateViewport = (
+    previousLocalX: number,
+    previousLocalY: number,
+    localX: number,
+    localY: number,
+    zoomAmount = 0
+  ) => {
+    if (disposed) return;
+    if (!directManipulation) beginDirectManipulation();
+    const panned = applyPanBetweenViewportPoints(
+      previousLocalX,
+      previousLocalY,
+      localX,
+      localY
+    );
+    const zoomed = Math.abs(finite(zoomAmount, 0)) > 0.000001
+      && zoomAt(zoomAmount, localX, localY, undefined, false);
+    if (!panned && !zoomed) return;
+    applyPose();
+    options.render();
+  };
+
   return {
+    beginDirectManipulation,
     camera,
     dispose: () => {
       disposed = true;
       if (frame) window.cancelAnimationFrame(frame);
       document.removeEventListener('visibilitychange', handleVisibility);
     },
+    endDirectManipulation,
     frameAt: (next, zoom) => {
+      directManipulation = false;
+      manualPlanarControl = false;
       targetFocusIsKeep = false;
       targetFocus = normalizeKeepFocus(next, targetFocus);
       targetPan = { x: targetFocus.x, z: targetFocus.z };
       setZoomTarget(zoom);
     },
     focusAt: (next) => {
+      directManipulation = false;
+      manualPlanarControl = false;
       targetFocusIsKeep = false;
       targetFocus = normalizeKeepFocus(next, targetFocus);
       targetPan = { x: targetFocus.x, z: targetFocus.z };
       setZoomTarget(1);
     },
     focusKeep: () => {
+      directManipulation = false;
+      manualPlanarControl = false;
       targetFocusIsKeep = true;
       targetFocus = { ...keepFocus };
       targetPan = { x: keepFocus.x, z: keepFocus.z };
@@ -1116,54 +1468,56 @@ export function createRealmCameraController(
     getPose: () => lastPose,
     getSafeViewport: () => lastPose.safeViewport,
     getZoom: () => targetZoom,
+    manipulateViewport,
+    panBetweenViewportPoints,
     panByPixels: (deltaX, deltaY) => {
-      const pose = deriveRealmCameraPoseForViewport(
+      detachSemanticFocus();
+      const pose = deriveStatePose(
         targetZoom,
         targetPan,
-        options.bounds,
         targetFocus,
-        { width, height },
-        stateComposition(targetComposition),
-        spec,
-        options.overviewHull
+        targetComposition
       );
       const worldPerPixel = (pose.visibleHalfHeight * 2) / Math.max(1, height);
       const azimuth = radians(spec.azimuthDegrees);
-      const previousPan = targetPan;
-      const nextPan = clampRealmPan({
-        x: targetPan.x - Math.cos(azimuth) * deltaX * worldPerPixel
+      const requestedShift = {
+        x: -Math.cos(azimuth) * deltaX * worldPerPixel
           - Math.sin(azimuth) * deltaY * worldPerPixel,
-        z: targetPan.z + Math.sin(azimuth) * deltaX * worldPerPixel
+        z: Math.sin(azimuth) * deltaX * worldPerPixel
           - Math.cos(azimuth) * deltaY * worldPerPixel
-      },
-      options.bounds,
-      targetZoom,
-      pose.visibleHalfHeight * (pose.safeViewport.height / height),
-      pose.safeViewport.aspect,
-      spec.panMargin);
-      const actualDelta = {
-        x: nextPan.x - previousPan.x,
-        z: nextPan.z - previousPan.z
       };
-      targetPan = nextPan;
-      if (Math.abs(actualDelta.x) > 0.000001 || Math.abs(actualDelta.z) > 0.000001) {
-        targetFocusIsKeep = false;
-        targetFocus = {
+      const clamped = clampPlanarState(
+        targetZoom,
+        {
+          x: targetPan.x + requestedShift.x,
+          z: targetPan.z + requestedShift.z
+        },
+        {
           ...targetFocus,
-          x: targetFocus.x + actualDelta.x,
-          z: targetFocus.z + actualDelta.z
-        };
-      }
+          x: targetFocus.x + requestedShift.x,
+          z: targetFocus.z + requestedShift.z
+        },
+        targetComposition
+      );
+      targetPan = clamped.pan;
+      targetFocus = clamped.focus;
       invalidate();
     },
     projectPoint: (point) => projectRealmPointToViewport(lastPose, point, { width, height }),
     recenterKeep: () => {
+      directManipulation = false;
+      manualPlanarControl = false;
       targetFocusIsKeep = true;
       targetFocus = { ...keepFocus };
       targetPan = { x: keepFocus.x, z: keepFocus.z };
+      zoomAnchor = null;
       invalidate();
     },
     setComposition: (next) => {
+      // Insets change the projection beneath a screen-space zoom anchor. Drop
+      // the old anchor so the camera can converge on the newly composed target
+      // instead of continuously correcting toward incompatible geometry.
+      zoomAnchor = null;
       targetComposition = compositionState(next);
       invalidate();
     },
@@ -1173,44 +1527,28 @@ export function createRealmCameraController(
       invalidate();
     },
     setViewport: (nextWidth, nextHeight) => {
+      // Pointer coordinates belong to the viewport that produced them. A
+      // resize invalidates that coordinate space; retaining the old anchor can
+      // otherwise keep demand rendering alive indefinitely.
+      zoomAnchor = null;
       width = Math.max(1, finite(nextWidth, 1));
       height = Math.max(1, finite(nextHeight, 1));
-      const targetPose = deriveRealmCameraPoseForViewport(
+      const nextTarget = clampPlanarState(
         targetZoom,
         targetPan,
-        options.bounds,
         targetFocus,
-        { width, height },
-        stateComposition(targetComposition),
-        spec,
-        options.overviewHull
+        targetComposition
       );
-      targetPan = clampRealmPan(
-        targetPan,
-        options.bounds,
-        targetZoom,
-        targetPose.visibleHalfHeight * (targetPose.safeViewport.height / height),
-        targetPose.safeViewport.aspect,
-        spec.panMargin
-      );
-      const currentPose = deriveRealmCameraPoseForViewport(
+      targetPan = nextTarget.pan;
+      targetFocus = nextTarget.focus;
+      const nextCurrent = clampPlanarState(
         currentZoom,
         currentPan,
-        options.bounds,
         currentFocus,
-        { width, height },
-        stateComposition(currentComposition),
-        spec,
-        options.overviewHull
+        currentComposition
       );
-      currentPan = clampRealmPan(
-        currentPan,
-        options.bounds,
-        currentZoom,
-        currentPose.visibleHalfHeight * (currentPose.safeViewport.height / height),
-        currentPose.safeViewport.aspect,
-        spec.panMargin
-      );
+      currentPan = nextCurrent.pan;
+      currentFocus = nextCurrent.focus;
       if (options.reducedMotion) settleImmediately();
       else {
         applyPose();
@@ -1219,113 +1557,26 @@ export function createRealmCameraController(
       }
     },
     showRealm: () => {
-      targetFocusIsKeep = true;
-      targetFocus = { ...keepFocus };
-      targetPan = { x: keepFocus.x, z: keepFocus.z };
+      directManipulation = false;
+      manualPlanarControl = false;
+      targetFocusIsKeep = false;
+      const center = {
+        x: (options.bounds.minX + options.bounds.maxX) * 0.5,
+        z: (options.bounds.minZ + options.bounds.maxZ) * 0.5
+      };
+      targetFocus = { ...keepFocus, x: center.x, z: center.z };
+      targetPan = center;
       setZoomTarget(0);
     },
-    zoomBy: (amount) => setZoomTarget(clampRealmInteractiveZoom(
-      targetZoom,
-      targetZoom + finite(amount, 0)
-    )),
-    zoomByAt: (amount, localX, localY) => {
-      const nextZoom = clampRealmInteractiveZoom(
-        targetZoom,
-        targetZoom + finite(amount, 0)
-      );
-      if (Math.abs(nextZoom - targetZoom) <= 0.000001) return;
-      const viewport = { width, height };
-      const composition = stateComposition(targetComposition);
-      const beforePose = deriveRealmCameraPoseForViewport(
-        targetZoom,
-        targetPan,
-        options.bounds,
-        targetFocus,
-        viewport,
-        composition,
-        spec,
-        options.overviewHull
-      );
-      const beforeAnchor = intersectRealmGroundAtViewportPoint(
-        beforePose,
-        localX,
-        localY,
-        viewport
-      );
-      const preliminaryPose = deriveRealmCameraPoseForViewport(
-        nextZoom,
-        targetPan,
-        options.bounds,
-        targetFocus,
-        viewport,
-        composition,
-        spec,
-        options.overviewHull
-      );
-      const basePan = clampRealmPan(
-        targetPan,
-        options.bounds,
-        nextZoom,
-        preliminaryPose.visibleHalfHeight * (preliminaryPose.safeViewport.height / height),
-        preliminaryPose.safeViewport.aspect,
-        spec.panMargin
-      );
-      const afterPose = deriveRealmCameraPoseForViewport(
-        nextZoom,
-        basePan,
-        options.bounds,
-        targetFocus,
-        viewport,
-        composition,
-        spec,
-        options.overviewHull
-      );
-      const afterAnchor = intersectRealmGroundAtViewportPoint(
-        afterPose,
-        localX,
-        localY,
-        viewport
-      );
-      targetZoom = nextZoom;
-      targetPan = basePan;
-      if (beforeAnchor && afterAnchor) {
-        const desiredShift = {
-          x: beforeAnchor.x - afterAnchor.x,
-          z: beforeAnchor.z - afterAnchor.z
-        };
-        const shiftedPan = clampRealmPan(
-          {
-            x: basePan.x + desiredShift.x,
-            z: basePan.z + desiredShift.z
-          },
-          options.bounds,
-          nextZoom,
-          afterPose.visibleHalfHeight * (afterPose.safeViewport.height / height),
-          afterPose.safeViewport.aspect,
-          spec.panMargin
-        );
-        const actualShift = {
-          x: shiftedPan.x - basePan.x,
-          z: shiftedPan.z - basePan.z
-        };
-        targetPan = shiftedPan;
-        if (Math.abs(actualShift.x) > 0.000001 || Math.abs(actualShift.z) > 0.000001) {
-          targetFocusIsKeep = false;
-          targetFocus = {
-            ...targetFocus,
-            x: targetFocus.x + actualShift.x,
-            z: targetFocus.z + actualShift.z
-          };
-        }
-      }
-      invalidate();
-    },
-    zoomByWheel: (deltaY, deltaMode) => {
+    zoomBy: (amount) => zoomAt(amount, width * 0.5, height * 0.5),
+    zoomByAt: zoomAt,
+    zoomByWheel: (deltaY, deltaMode, localX = width * 0.5, localY = height * 0.5) => {
       const normalized = normalizeWheelDelta(deltaY, deltaMode, height);
-      setZoomTarget(clampRealmInteractiveZoom(
-        targetZoom,
-        targetZoom - normalized * 0.00072
-      ));
+      zoomAt(-normalized * 0.00072, localX, localY);
+    },
+    zoomByWheelAtWorld: (deltaY, deltaMode, worldAnchor, localX, localY) => {
+      const normalized = normalizeWheelDelta(deltaY, deltaMode, height);
+      zoomAt(-normalized * 0.00072, localX, localY, worldAnchor);
     }
   };
 }

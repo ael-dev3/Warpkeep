@@ -22,8 +22,8 @@ admission, wallet, or Marks record.
 This candidate changes only the Realm's client-side material calibration,
 existing directional-fill orientation and intensity, local terrain support
 around already-founded castles, occupied-cell interaction overlay, identity
-presentation, and camera framing. It also synchronizes player-visible release
-truth for package version `0.3.6`.
+presentation, camera framing, map gesture handling, and projected-label motion.
+It also synchronizes player-visible release truth for package version `0.3.6`.
 
 It does not authorize or perform:
 
@@ -111,6 +111,37 @@ than the nonexistent corners of an axis-aligned bounding box. This changes
 presentation framing only: it creates no new world cell, collision target,
 navigation coordinate, or gameplay authority.
 
+## Map interaction and label motion
+
+The Realm map now owns one deliberate pointer-gesture lane across both its
+WebGL canvas and permanent castle identity rails. A primary drag can therefore
+start on either terrain or a rail and engage on its first deliberate attempt;
+HUD controls and dialogs remain outside the lane. The coordinator keeps a rail
+tap as normal castle activation, but once movement becomes a drag it captures
+the pointer, applies the complete movement that crossed the threshold, and
+suppresses only the resulting rail click.
+
+Direct drag uses ground-plane intersections at the previous and current
+viewport points, then applies the bounded world-space movement immediately.
+Starting direct input cancels stale camera catch-up. Wheel zoom remains anchored
+under the pointer for every eased frame; when the wheel begins on a rail, its
+castle-foundation point is the anchor. Pinch combines centroid pan with
+centroid-anchored zoom through the same camera path. Moving inward from the
+explicit zoom-zero overview is continuous rather than jumping to the ordinary
+interactive floor. High-rate pointer samples accumulate into one camera update
+and WebGL render per display frame without dropping movement.
+
+Pointer cancellation, capture loss, loss of the pressed button, window blur,
+document hiding, and scene disposal all clear gesture and direct-camera state.
+Failed capture is retried while a drag remains active, and drag suppression
+cannot consume keyboard or assistive activation. Resizing or changing HUD
+composition invalidates an old screen anchor so eased zoom always settles.
+Castle rails now receive their projection in the scene frame at tenth-pixel
+precision instead of waiting for a second animation frame and stepping at
+whole pixels. Their moving plates no longer request permanent transform
+promotion or backdrop blur, reducing avoidable compositing work without
+changing their accessible button behavior.
+
 ## Integrity and authority
 
 The `0.3.6` package version identifies checked-in candidate source, not a public
@@ -130,8 +161,9 @@ decision, or backend writer is introduced.
 PR #44 must not be promoted from candidate on the strength of checked-in notes.
 Before review it requires:
 
-- focused material, lighting, terrain-placement, camera, interaction, cleanup,
-  persistent-label, responsive React, and patch-note regressions;
+- focused material, lighting, terrain-placement, camera, shared canvas/rail
+  gesture, cancellation, persistent-label, responsive React, and patch-note
+  regressions;
 - the complete root test suite, TypeScript check, ordinary production build,
   canonical `DEPLOY_BASE=/` Pages build, runtime-asset integrity, file-size,
   licence/provenance, and production-output exclusion checks;

@@ -9,8 +9,10 @@ the repository.
 ## Outcome
 
 Alpha 0.3.6 makes founded keeps readable and visually stable while the player
-zooms and pans. Castle identities remain attached to their own foundations,
-castle masonry separates from the Lowlands without bleaching the terrain,
+zooms and pans. Map input catches on the first deliberate gesture whether it
+starts on terrain or a castle rail, zoom remains anchored to the point of
+interest, and castle identities remain attached to their own foundations.
+Castle masonry separates from the Lowlands without bleaching the terrain,
 authored landscape bases no longer intersect local relief, and ordinary camera
 input cannot pull so far back that the finite rendered terrain becomes a tiny
 island in a gray void.
@@ -113,6 +115,41 @@ rendered cell corners, including its real chamfers. Any visual horizon apron
 remains a cheap, noninteractive presentation mesh: it creates no world cell,
 semantic record, raycast target, or gameplay authority.
 
+### Input continuity and projection cadence
+
+The former pointer path belonged only to the canvas. A permanent castle rail
+could therefore intercept the first press, making an otherwise valid map drag
+or wheel gesture appear unresponsive. The drag threshold also discarded the
+movement used to cross it, while a previous camera animation could continue to
+pull against direct input. Pointer capture loss, window blur, a hidden document,
+or a missing pressed button could leave stale gesture state behind.
+
+The map root now coordinates one bounded gesture lane for the WebGL canvas and
+direct castle rails while excluding HUD controls and dialogs. A rail tap still
+opens its castle; a deliberate drag instead captures the pointer, suppresses
+only its same-task compatibility click, and applies the complete
+press-to-current movement on the first accepted frame. Keyboard and assistive
+activation remain unaffected. Failed capture is retried while the drag remains
+active. Pinch uses the same lane. Capture loss, pointer cancellation, lost
+buttons, blur, visibility change, and scene disposal all terminate direct
+manipulation and clear active gesture state.
+
+Direct pan resolves both viewport points against the Realm ground plane and
+applies that world-space delta immediately, without stale camera catch-up.
+Wheel zoom follows the pointer; wheel input over a castle rail follows its
+foundation anchor; and pinch follows its centroid. The ground anchor is held
+through every eased wheel frame. Leaving explicit zoom-zero overview for a
+closer view is continuous rather than jumping to the normal interactive floor.
+High-rate pointer samples accumulate into one direct camera update and WebGL
+render per display frame. Viewport or composition changes invalidate an old
+screen-space zoom anchor so demand rendering always converges.
+
+Foundation rails now consume the scene's projection in the same frame and
+retain tenth-pixel motion instead of waiting through a second animation frame
+and snapping to whole pixels. Permanent transform promotion and moving
+backdrop blur were removed from the rails to avoid unnecessary compositing
+work during camera motion.
+
 ## Acceptance criteria
 
 - A projection-visible castle has exactly one direct identity button and zero
@@ -135,13 +172,30 @@ semantic record, raycast target, or gameplay authority.
 - Manual wheel/pinch cannot reproduce the tiny-world gray-void view; explicit
   Realm overview still contains the canonical terrain perimeter with a
   conservative raised-scene margin and keeps canonical slots inspectable.
+- A primary drag that begins on either terrain or a direct castle rail engages
+  on its first deliberate attempt, includes threshold-crossing movement, and
+  cannot accidentally activate the rail after dragging. A rail tap remains a
+  normal castle activation.
+- Direct pan keeps the grabbed ground point under the pointer. Wheel and pinch
+  keep their pointer, foundation, or centroid ground anchor throughout motion,
+  including the eased wheel transition and continuous departure from explicit
+  overview.
+- Pointer cancellation, capture loss, lost buttons, window blur, hidden-page
+  transition, and disposal leave no captured pointer, dragging marker, or
+  camera-manipulation state or click guard behind. Keyboard and assistive rail
+  activation cannot be consumed by pointer-drag suppression.
+- High-frequency drag and pinch samples produce no more than one direct camera
+  render per display frame, retain their complete accumulated movement, and
+  settle after viewport or composition changes.
+- Foundation rails update in the projection frame with stable subpixel motion;
+  their moving surface uses no permanent transform promotion or backdrop blur.
 - The horizon presentation, if present, is excluded from terrain picking,
   semantics, authority, and unbounded animation.
 
 ## Validation required before review
 
-- Focused label, material, terrain-placement, camera, interaction, cleanup, and
-  responsive React regressions.
+- Focused label, material, terrain-placement, camera, shared canvas/rail
+  gesture, cancellation, cleanup, and responsive React regressions.
 - Complete TypeScript, Vitest, production build, runtime-asset, file-size,
   production-exclusion, and license-policy checks.
 - Rendered WebGL verification at High, Balanced, and Reduced across desktop,

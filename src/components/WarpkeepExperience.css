@@ -128,7 +128,8 @@
   .realm-hud__actions,
   .realm-cell-navigator__dialog,
   .castle-inspection__drawer,
-  .realm-castle-label
+  .realm-castle-label,
+  .realm-castle-label__plate
 ) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;

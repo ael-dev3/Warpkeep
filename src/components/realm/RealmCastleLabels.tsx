@@ -108,7 +108,6 @@ export function RealmCastleLabels({
             data-hovered={hovered ? 'true' : 'false'}
             data-own={own ? 'true' : 'false'}
             style={positionStyle}
-            onPointerDown={(event) => event.stopPropagation()}
             onClick={() => onActivate(record.castle)}
           >
             <span className="realm-castle-label__plate">
