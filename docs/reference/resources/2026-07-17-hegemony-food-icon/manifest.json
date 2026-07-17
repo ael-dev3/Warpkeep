@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-food-resource-icon-v1",
+  "recordedAt": "2026-07-17",
+  "purpose": "Transparent presentation icon prepared for the draft Alpha 0.3.6 food-resource mechanics workstream; it is not evidence of a live balance, currency, reward, or entitlement.",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-17",
+    "scope": "Add the background-cleaned food icon to Warpkeep PR #45 and permit its future official Warpkeep Pages runtime use if the separately reviewed mechanics are implemented.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "currency, reward, value, or entitlement rights"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "project-provided composition and style reference",
+      "repositoryRetained": false,
+      "originalName": "codex-clipboard-1fa5356c-5832-4f2e-af68-f4b5d557a979.png",
+      "bytes": 2365472,
+      "sha256": "7e0b8f42117746a92a91f49e81249ea06f1b55cc5211ef691135b278c8120fc3",
+      "image": {
+        "format": "png",
+        "width": 1254,
+        "height": 1254,
+        "alpha": false
+      },
+      "runtimeUse": "visual composition and food-icon style reference only"
+    }
+  ],
+  "generation": {
+    "service": "OpenAI image generation edit",
+    "prompt": "Use case: background-extraction\nAsset type: in-game food resource icon for Warpkeep\nInput image: edit target — the supplied rustic bread loaf, bundled wheat, and loose grain kernels.\nPrimary request: Preserve the illustrated food subject, composition, proportions, colors, flour texture, wheat detail, and visual style exactly. Replace only the checkerboard background with a perfectly flat solid #00ffff cyan chroma-key background for subsequent removal.\nComposition/framing: keep the whole bread, wheat bundle, and grain kernels centered, fully visible, with generous even padding around them.\nLighting/mood: preserve the source's warm stylized golden food rendering on the subject only.\nConstraints: change only the background; keep the food subject cleanly separated from it with crisp antialiased edges. Background must be exactly uniform #00ffff, with no shadows, gradients, texture, reflections, floor plane, lighting variation, watermark, or text. Do not use #00ffff anywhere in the food artwork.",
+    "intermediateRetained": false,
+    "intermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 2190813,
+      "sha256": "a802dc79283d80570bd03f1e93b8dcd548927cdc1d3a6ad3db0dc57599f00f1c"
+    }
+  },
+  "backgroundCleanup": {
+    "tool": "Codex imagegen remove_chroma_key.py",
+    "runtime": "Python 3 with Pillow 12.2.0",
+    "sampleMode": "border median",
+    "sampledKey": "#0df5fc",
+    "softMatte": true,
+    "transparentThreshold": 18,
+    "opaqueThreshold": 180,
+    "edgeContractPixels": 1,
+    "edgeFeatherRadius": 0,
+    "despill": true,
+    "postDespill": {
+      "tool": "Pillow HLS hue normalization",
+      "selector": "Visible pixels with saturation at or above 0.08 and hue from 70 through 190 degrees",
+      "treatment": "Preserve lightness and saturation while setting hue to the warm food palette's 38 degrees",
+      "adjustedPixels": 641
+    },
+    "outputEncoding": "Pillow PNG default encoding"
+  },
+  "runtimeAsset": {
+    "path": "public/images/resources/hegemony-food.png",
+    "format": "png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 1849831,
+    "sha256": "d1e295299f710be2b04249d6a96e0abd53ccc6d2bd74560428ee0964f5fff474",
+    "decodedRgbaSha256": "029d36e311df75a2c54509991aff6184e9febcb7da27137cd5b5b4751d888735",
+    "alpha": {
+      "transparentPixels": 892401,
+      "partiallyTransparentPixels": 6426,
+      "opaquePixels": 673689,
+      "visibleBounds": {
+        "minX": 115,
+        "minY": 154,
+        "maxX": 1171,
+        "maxY": 1089
+      }
+    },
+    "delivery": "same-origin checked-in runtime asset; no external CDN"
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes the recorded Warpkeep use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "backgroundRemoved": true,
+    "breadWheatAndGrainPreserved": true,
+    "reviewedOnLightAndDarkBackgrounds": true,
+    "referenceScreenshotsRetained": false
+  }
+}
