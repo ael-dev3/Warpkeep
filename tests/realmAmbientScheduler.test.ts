@@ -1,71 +1,114 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  createRealmAmbientScheduler,
-  REALM_AMBIENT_STEP_MILLISECONDS
-} from '../src/components/realm/realmAmbientScheduler';
+import { createRealmAmbientScheduler } from '../src/components/realm/realmAmbientScheduler';
+
+type FrameCallback = FrameRequestCallback;
+
+function installAnimationFrames() {
+  const callbacks = new Map<number, FrameCallback>();
+  let nextId = 1;
+  const request = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    const id = nextId++;
+    callbacks.set(id, callback);
+    return id;
+  });
+  const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+    callbacks.delete(id);
+  });
+  const frame = (timestamp: number) => {
+    const entry = callbacks.entries().next().value as [number, FrameCallback] | undefined;
+    if (!entry) throw new Error('Expected a pending animation frame');
+    callbacks.delete(entry[0]);
+    entry[1](timestamp);
+  };
+  return { callbacks, request, cancel, frame };
+}
 
 describe('Realm ambient scheduler', () => {
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  it('advances at a bounded fixed cadence without requesting display-rate frames', () => {
-    vi.useFakeTimers();
+  it('aligns to animation frames and caps High presentation at its requested cadence', () => {
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
-    const requestFrame = vi.spyOn(window, 'requestAnimationFrame');
+    const frames = installAnimationFrames();
     const onStep = vi.fn();
-    const scheduler = createRealmAmbientScheduler({ enabled: true, onStep });
+    const scheduler = createRealmAmbientScheduler({ frameCap: 24, active: true, onStep });
 
-    vi.advanceTimersByTime(REALM_AMBIENT_STEP_MILLISECONDS - 1);
+    frames.frame(0);
+    frames.frame(20);
     expect(onStep).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(onStep).toHaveBeenLastCalledWith(REALM_AMBIENT_STEP_MILLISECONDS / 1000);
-    vi.advanceTimersByTime(REALM_AMBIENT_STEP_MILLISECONDS * 2);
-    expect(onStep.mock.calls.map(([elapsed]) => elapsed)).toEqual([0.18, 0.36, 0.54]);
-    expect(requestFrame).not.toHaveBeenCalled();
+    frames.frame(45);
+    expect(onStep).toHaveBeenCalledOnce();
+    expect(onStep.mock.calls[0]![0]).toBeCloseTo(0.045, 4);
+    expect(frames.request).toHaveBeenCalled();
 
     scheduler.dispose();
-    vi.advanceTimersByTime(REALM_AMBIENT_STEP_MILLISECONDS * 4);
-    expect(onStep).toHaveBeenCalledTimes(3);
+    expect(frames.cancel).toHaveBeenCalled();
   });
 
-  it('cancels while hidden and resumes without catching up hidden time', () => {
-    vi.useFakeTimers();
+  it('dynamically stops in overview/hidden states and resumes without a giant time jump', () => {
     let hidden = false;
     vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    const frames = installAnimationFrames();
     const onStep = vi.fn();
-    const scheduler = createRealmAmbientScheduler({ enabled: true, onStep });
+    const scheduler = createRealmAmbientScheduler({ frameCap: 16, active: false, onStep });
 
-    vi.advanceTimersByTime(60);
+    expect(frames.callbacks.size).toBe(0);
+    scheduler.setActive(true);
+    frames.frame(0);
     hidden = true;
     document.dispatchEvent(new Event('visibilitychange'));
-    vi.advanceTimersByTime(REALM_AMBIENT_STEP_MILLISECONDS * 8);
-    expect(onStep).not.toHaveBeenCalled();
-
+    expect(frames.callbacks.size).toBe(0);
     hidden = false;
     document.dispatchEvent(new Event('visibilitychange'));
-    vi.advanceTimersByTime(REALM_AMBIENT_STEP_MILLISECONDS);
+    frames.frame(10_000);
+    frames.frame(10_070);
     expect(onStep).toHaveBeenCalledOnce();
-    expect(onStep).toHaveBeenCalledWith(0.18);
+    expect(onStep.mock.calls[0]![0]).toBeLessThanOrEqual(0.1);
 
+    scheduler.setActive(false);
+    expect(frames.callbacks.size).toBe(0);
     scheduler.dispose();
   });
 
-  it('stays inert when disabled and fails closed after an ambient callback error', () => {
-    vi.useFakeTimers();
+  it('stays inert at zero cadence and fails closed after a callback error', () => {
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
-    const disabledStep = vi.fn();
-    const disabled = createRealmAmbientScheduler({ enabled: false, onStep: disabledStep });
-    vi.advanceTimersByTime(REALM_AMBIENT_STEP_MILLISECONDS * 2);
-    expect(disabledStep).not.toHaveBeenCalled();
-    disabled.dispose();
+    const frames = installAnimationFrames();
+    const inert = createRealmAmbientScheduler({ frameCap: 0, active: true, onStep: vi.fn() });
+    expect(frames.callbacks.size).toBe(0);
+    inert.setVisible(true);
+    expect(inert.isActive()).toBe(false);
+    inert.dispose();
 
-    const failingStep = vi.fn(() => { throw new Error('synthetic ambience failure'); });
-    const enabled = createRealmAmbientScheduler({ enabled: true, onStep: failingStep });
-    vi.advanceTimersByTime(REALM_AMBIENT_STEP_MILLISECONDS * 4);
-    expect(failingStep).toHaveBeenCalledOnce();
-    enabled.dispose();
+    const failing = createRealmAmbientScheduler({
+      frameCap: 24,
+      active: true,
+      onStep: () => { throw new Error('synthetic ambient failure'); }
+    });
+    frames.frame(0);
+    frames.frame(50);
+    expect(failing.isActive()).toBe(false);
+    expect(frames.callbacks.size).toBe(0);
+  });
+
+  it('keeps visibility and grass activity as separate dynamic gates', () => {
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    const frames = installAnimationFrames();
+    const scheduler = createRealmAmbientScheduler({ frameCap: 24, active: true, onStep: vi.fn() });
+
+    expect(frames.callbacks.size).toBe(1);
+    scheduler.setVisible(false);
+    expect(scheduler.isActive()).toBe(false);
+    expect(frames.callbacks.size).toBe(0);
+    scheduler.setVisible(true);
+    expect(scheduler.isActive()).toBe(true);
+    expect(frames.callbacks.size).toBe(1);
+    scheduler.setActive(false);
+    scheduler.setVisible(false);
+    scheduler.setVisible(true);
+    expect(scheduler.isActive()).toBe(false);
+    expect(frames.callbacks.size).toBe(0);
+    scheduler.dispose();
   });
 });

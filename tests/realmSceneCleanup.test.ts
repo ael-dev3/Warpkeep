@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const webglState = vi.hoisted(() => ({
+  failGrassShaderContractOnce: false,
   instances: [] as Array<{
     dispose: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
@@ -21,7 +22,11 @@ vi.mock('three', async (importOriginal) => {
     capabilities = { getMaxAnisotropy: () => 1 };
     dispose = vi.fn();
     outputColorSpace = '';
-    render = vi.fn();
+    render = vi.fn(() => {
+      if (!webglState.failGrassShaderContractOnce) return;
+      webglState.failGrassShaderContractOnce = false;
+      throw new Error('REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED');
+    });
     setClearColor = vi.fn();
     setPixelRatio = vi.fn();
     setSize = vi.fn();
@@ -166,6 +171,7 @@ describe('realm scene setup cleanup', () => {
   }> = [];
 
   beforeEach(() => {
+    webglState.failGrassShaderContractOnce = false;
     webglState.instances.length = 0;
     keepLoadState.load.mockReset();
     keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
@@ -198,9 +204,8 @@ describe('realm scene setup cleanup', () => {
     expect(resolveRealmPinchGesture(new Map([[1, { x: 40, y: 80 }]]))).toBeNull();
   });
 
-  it('enables bounded ambience only for visible-motion high and balanced scenes', () => {
+  it('does not retain the removed CPU-decoration timer in any grass quality mode', () => {
     const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
-    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
     const surface = createRealmTerrainSurface('realm-ambient-gating', 4, 5);
 
     const reduced = createRealmScene(createOptions(document.createElement('canvas'), {
@@ -223,9 +228,8 @@ describe('realm scene setup cleanup', () => {
       quality: REALM_QUALITY_SPECS.balanced,
       reducedMotion: false
     }));
-    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 180);
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
     animated.dispose();
-    expect(clearTimeoutSpy).toHaveBeenCalled();
   });
 
   it('renders the procedural environment centred on the active camera', () => {
@@ -267,7 +271,29 @@ describe('realm scene setup cleanup', () => {
       totalDetailInstanceCount: expect.any(Number),
       totalDetailDrawCalls: expect.any(Number),
       forestPlacementSource: 'legacy-fallback',
-      forestSharedTreeCount: 0
+      forestSharedTreeCount: 0,
+      grassCandidateCellCount: 0,
+      grassActiveCellCount: 0,
+      grassInstanceCount: 0,
+      grassTriangleCount: 0,
+      grassDrawCalls: 0,
+      grassCacheEntries: 0,
+      grassAnimated: false,
+      grassTargetAnimationCadence: 0,
+      grassCountsByTerrain: {
+        meadow: 0,
+        lowland: 0,
+        forest: 0,
+        heath: 0,
+        ridge: 0,
+        lake: 0,
+        'ancient-stone': 0,
+        apron: 0
+      },
+      grassCompletelyBareActiveCells: 0,
+      grassRejectedByStructureClearance: 0,
+      grassRejectedBySlope: 0,
+      grassOverviewHidden: true
     });
 
     sceneHandle.dispose();
@@ -456,6 +482,17 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('fails closed to terrain-only presentation when the grass shader contract changes during render', () => {
+    const canvas = document.createElement('canvas');
+    webglState.failGrassShaderContractOnce = true;
+
+    const sceneHandle = createRealmScene(createOptions(canvas, { reducedMotion: true }));
+
+    expect(canvas.dataset.grassPresentation).toBe('unavailable');
+    expect(webglState.instances[0].render).toHaveBeenCalledTimes(2);
+    sceneHandle.dispose();
+  });
+
   it('releases partial GPU and browser resources when late setup throws', () => {
     const canvas = document.createElement('canvas');
     const canvasAdd = vi.spyOn(canvas, 'addEventListener');
@@ -497,8 +534,8 @@ describe('realm scene setup cleanup', () => {
     });
     expect(listenerCalls(windowAdd, 'resize')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
-    expect(listenerCalls(documentAdd, 'visibilitychange')).toBe(3);
-    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(3);
+    expect(listenerCalls(documentAdd, 'visibilitychange')).toBe(4);
+    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(4);
   });
 
   it('keeps normal scene disposal idempotent', async () => {
@@ -521,7 +558,7 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(canvasRemove, 'wheel')).toBe(1);
     expect(listenerCalls(canvasRemove, 'webglcontextlost')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
-    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(3);
+    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(4);
   });
 
   it('clears stale castle hover before wheel-driven camera motion', () => {
