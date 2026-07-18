@@ -33,7 +33,8 @@ const assets = Object.freeze([
   ['public/audio/warpkeep-menu-theme.mp3', 9_631_066, 'ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917', false],
   ['public/audio/warpkeep-lowlands-theme.mp3', 5_704_657, 'd75a8865eda00c808c472d438240a5f645173dead353d44925f34cee500fa13c', false],
   ['public/video/warpkeep-menu-loop-v2.mp4', 5_713_248, '6034f049e8ee25a412fdc1f8c7ccce1ab403a58eac9158e1d0b55a6bfa99260c', false],
-  ['public/images/realm/hegemony-castle-record.webp', 145_416, '30e0c3cd1bbc4732bb5025a78a5dc0cc66bc01c1b752a3f21b48fb429cc11123', false]
+  ['public/images/realm/hegemony-castle-record.webp', 145_416, '30e0c3cd1bbc4732bb5025a78a5dc0cc66bc01c1b752a3f21b48fb429cc11123', false],
+  ['public/images/realm/hegemony-gold-mine-record.webp', 218_736, 'a2c52a5e1536860ce3ad778c1719e354637fe473495c45ee927c99f468c60fa3', false]
 ]);
 
 const referenceImageAssets = Object.freeze([

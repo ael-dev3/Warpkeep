@@ -107,6 +107,55 @@ and visible bounds are recorded in the [dated gold icon record](docs/reference/r
 `LicenseRef-Warpkeep-Provenance-Required`; neither the provenance masters nor
 their faithful runtime encodings are silently relicensed by their location.
 
+## Hegemony Gold Mine inspection artwork
+
+On 2026-07-18, the Warpkeep project owner supplied a high-resolution Gold Mine
+visual and instructed PR #49 to polish it into a transparent inspection-card
+derivative. That authorization covers this exact checked-in output in the
+public Warpkeep GitHub repository and official `warpkeep.com` Pages runtime,
+but does not establish underlying ownership, a public/open-content licence,
+general derivative or redistribution rights, trademark rights, or authority to
+place a Gold Mine, expose a balance, or activate gathering.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Decorative Gold Mine inspection card artwork | `public/images/realm/hegemony-gold-mine-record.webp` | 1254×1254 transparent WebP, 218,736 bytes, SHA-256 `a2c52a5e1536860ce3ad778c1719e354637fe473495c45ee927c99f468c60fa3`; generated from the supplied 1254×1254 reference through the recorded image-edit and chroma-matte workflow. |
+
+The exact source attachment and image-generation/chroma-matte intermediates are
+not committed. Their hashes, prompt, cleanup parameters, decoded RGBA hash,
+alpha profile, and visible bounds are recorded in the dated [Gold Mine
+inspection-art record](docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/manifest.json).
+The card is currently standalone and unmounted; its decorative image grants no
+resource, currency, reward, entitlement, map-placement, or Gold/Marks authority.
+
+## Hegemony Gold Mine review candidates
+
+On 2026-07-18, the Warpkeep project owner supplied three exact Gold Mine runtime
+candidate GLBs and requested a standalone draft-review preparation. That narrow
+request authorizes preserving the exact candidate bytes and project-authored
+technical record in this review work only. It does not establish underlying
+ownership, a separate public/open-content licence, general derivative or
+redistribution rights, trademark rights, official Pages delivery, or permission
+to activate the models in game presentation.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Unintegrated High Gold Mine candidate | `docs/reference/resources/2026-07-18-hegemony-gold-mine/runtime-candidates/hegemony-gold-mine-high-6c3731e0f3381014.glb` | 263,528 bytes, SHA-256 `6c3731e0f3381014d661d539c25f67e4f79f894b721d1feac9e275b07b8a6ab3`, 4,233 triangles, three 1024×1024 embedded WebPs. |
+| Unintegrated Balanced Gold Mine candidate | `docs/reference/resources/2026-07-18-hegemony-gold-mine/runtime-candidates/hegemony-gold-mine-balanced-42776e6a0a1196c.glb` | 154,388 bytes, SHA-256 `42776e6a0a1196c43e872d9d6d08a8acbf398b5dbd26ba7ab20e0c0cfdd52008`, 3,553 triangles, three 512×512 embedded WebPs. |
+| Unintegrated Compact Gold Mine candidate | `docs/reference/resources/2026-07-18-hegemony-gold-mine/runtime-candidates/hegemony-gold-mine-compact-b39ad147954ba420.glb` | 95,024 bytes, SHA-256 `b39ad147954ba4200efe680975038416784f759918ca295282d95812710ca853`, 2,681 triangles, three 256×256 embedded WebPs. |
+
+The supplied `runtime-manifest.json` is 2,191 bytes with SHA-256
+`9bb0bcf28b3b2f073d8f4a9cdbe5c2ad1d41d921668f25172a2105f52fd82dd4`.
+Its High profile is internally consistent. The exact supplied Balanced and
+Compact files have 512×512 and 256×256 WebP atlases but retain
+`materials[0].extras.wk_atlas_size: 1024`; this staging record preserves their
+bytes without correction. A later approved integration needs a separately
+reviewed decision and new immutable output records before moving any candidate
+under `public/`. The dated [Gold Mine record](docs/reference/resources/2026-07-18-hegemony-gold-mine/)
+contains the complete candidate boundary. All three remain
+`LicenseRef-Warpkeep-Provenance-Required` and do not create a live Gold balance,
+currency, reward, entitlement, or link to Community Marks.
+
 ## Historical Hegemony Frontier Keep provenance
 
 The Hegemony Frontier Keep and its former runtime derivatives were project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the current tree or a public release while redistribution authority is unresolved. The three former runtime derivatives are also retired and absent; their future license follows the source-rights determination, not the fact of conversion.

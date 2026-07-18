@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-gold-mine-record-art-v1",
+  "recordedAt": "2026-07-18",
+  "purpose": "Transparent decorative Gold Mine art for the future approved Gold Mine inspection card",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-18",
+    "scope": "Warpkeep PR #49 preparation of the background-cleaned derivative in the public Warpkeep GitHub repository and official warpkeep.com Pages runtime, with a standalone visual inspection card that is not mounted by the current Realm.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "Gold Mine placement, renderer, server, balance, gathering, reward, or entitlement authority"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "high-resolution user-supplied edit source",
+      "repositoryRetained": false,
+      "originalName": "codex-clipboard-fd3d813e-7e85-4a24-af86-492bf5161540.png",
+      "bytes": 1857204,
+      "sha256": "e1a4f1bbcc7befb98f2d17888c433ba01bc3712e4cf6361a8bc3b3854188f493",
+      "image": {
+        "format": "png",
+        "width": 1254,
+        "height": 1254,
+        "alpha": false
+      }
+    }
+  ],
+  "generation": {
+    "service": "OpenAI image generation edit",
+    "prompt": "Use case: background-extraction\nAsset type: high-resolution in-game Gold Mine inspection artwork\nPrimary request: Create a polished high-resolution cutout based on the supplied Gold Mine reference. Preserve the same subject: a stylized fantasy gold mine built into a tall gray rock outcrop, bright faceted gold ore veins, a dark wooden mine entrance, a small wooden ore cart with gold crystals, rails, and a small timber chest. Improve material clarity and crisp silhouette while retaining the readable 3/4 front view and high-quality strategy-game visual language.\nInput images: Image 1 is the edit target and visual reference; preserve its core composition and mine identity.\nScene/backdrop: perfectly flat solid #00ff00 chroma-key background for later background removal.\nStyle/medium: premium stylized 3D game illustration, clean sculpted forms, rich but controlled colors, inspection-card quality.\nComposition/framing: centered subject, generous transparent-safe padding on every side, full mine visible, no cropping.\nLighting/mood: warm sunlit rim highlights on gold and wood, soft material shading only within the subject.\nConstraints: use #00ff00 only for the perfectly uniform background. Background must have no shadows, gradients, floor plane, texture, reflection, vignette, or lighting variation. No cast or contact shadow. Do not include any text, labels, UI, logos, watermark, people, or extra buildings. Keep crisp separated edges suitable for alpha extraction.",
+    "intermediateRetained": false,
+    "intermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1850014,
+      "sha256": "15fd84c4b5a920c6f48c97d0a83f876c4a133d1919bc615c9d53d3ed318f0dd2",
+      "alpha": false
+    }
+  },
+  "backgroundCleanup": {
+    "tool": "Codex imagegen remove_chroma_key.py",
+    "runtime": "Python 3 with Pillow 12.2.0",
+    "sampleMode": "border median",
+    "sampledKey": "#09ee12",
+    "softMatte": true,
+    "transparentThreshold": 12,
+    "opaqueThreshold": 220,
+    "edgeContractPixels": 0,
+    "edgeFeatherRadius": 0,
+    "despill": true,
+    "matteIntermediateRetained": false,
+    "matteIntermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1411062,
+      "sha256": "45bdfd9657d638b7a19a14bb0775dc5e5de0149717926ce29f0057e95d8fd130",
+      "alpha": true
+    },
+    "outputEncoding": "sharp 0.35.3 WebP quality 92, alphaQuality 100, effort 6"
+  },
+  "runtimeAsset": {
+    "path": "public/images/realm/hegemony-gold-mine-record.webp",
+    "format": "webp",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 218736,
+    "sha256": "a2c52a5e1536860ce3ad778c1719e354637fe473495c45ee927c99f468c60fa3",
+    "decodedRgbaSha256": "651161ff853627514684ea3821e4ca9806255e516ef5b00f21afae81f0a7e131",
+    "alpha": {
+      "transparentPixels": 929410,
+      "partiallyTransparentPixels": 4354,
+      "opaquePixels": 638752
+    },
+    "visibleBoundsAlpha16": {
+      "minX": 36,
+      "minY": 22,
+      "maxX": 1181,
+      "maxY": 1180
+    },
+    "delivery": "same-origin checked-in runtime asset; no external CDN"
+  },
+  "presentationBoundary": {
+    "component": "src/components/realm/GoldMineInspectionPanel.tsx",
+    "currentRealmMount": "none",
+    "currentNodePlacement": "none",
+    "forbiddenClaims": [
+      "player inventory",
+      "reserve amount",
+      "owner",
+      "gathering action",
+      "reward",
+      "Marks linkage"
+    ]
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes this Warpkeep runtime use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "backgroundRemoved": true,
+    "fineSilhouettePreserved": true,
+    "reviewedOnTransparentViewer": true,
+    "referenceScreenshotsRetained": false
+  }
+}
