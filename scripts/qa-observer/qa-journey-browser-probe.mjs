@@ -14,7 +14,7 @@ const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 
 export const QA_JOURNEY_BROWSER_DIRECT_CASE_COUNT = 22;
 export const QA_JOURNEY_BROWSER_RESPONSIVE_CASE_COUNT = 2;
-export const QA_JOURNEY_BROWSER_FLOW_STAGE_COUNT = 9;
+export const QA_JOURNEY_BROWSER_FLOW_STAGE_COUNT = 15;
 
 export function isAllowedQaJourneyResourceUrl(value) {
   return value === QA_UNSCANNABLE_QR_DATA_URL;
@@ -134,7 +134,9 @@ const READ_DIRECT_SCENARIO_EXPRESSION = `((expected) => {
               || element.getAttribute('aria-label') === expected.name;
           });
   const root = document.querySelector('.qa-journey');
-  const terms = document.querySelector('[role="dialog"][aria-modal="true"]');
+  const terms = document.querySelector(
+    '.warpkeep-alpha-terms__panel[role="dialog"][aria-modal="true"]'
+  );
   const externalAnchors = [...document.querySelectorAll('a[href]')].filter((anchor) => {
     try {
       return new URL(anchor.href, location.href).origin !== location.origin;
@@ -244,7 +246,9 @@ const READ_FLOW_STATE_EXPRESSION = `(() => {
   )).length;
   const exactHeadingCount = (text) => [...document.querySelectorAll('h1,h2,h3,h4,h5,h6')]
     .filter((heading) => (heading.textContent ?? '').trim() === text).length;
-  const terms = document.querySelector('[role="dialog"][aria-modal="true"]');
+  const terms = document.querySelector(
+    '.warpkeep-alpha-terms__panel[role="dialog"][aria-modal="true"]'
+  );
   const acceptance = terms?.querySelector('input[type="checkbox"]');
   const continuation = terms
     ? [...terms.querySelectorAll('button')].find((button) => (
@@ -272,21 +276,59 @@ const READ_FLOW_STATE_EXPRESSION = `(() => {
     continuationDisabled: continuation instanceof HTMLButtonElement
       ? continuation.disabled : false,
     continuationKind,
+    directExploreControlCount: document.querySelectorAll(
+      '.realm-cell-navigator > button'
+    ).length,
     enterRealmButtonCount: exactButtonCount('ENTER REALM'),
+    exploreDialogCount: document.querySelectorAll(
+      '.realm-cell-navigator__dialog[role="dialog"]'
+    ).length,
     href: location.href,
     navigationCount: document.querySelectorAll(
       'nav[aria-label="Hegemony main menu"],[role="navigation"][aria-label="Hegemony main menu"]'
     ).length,
     pendingHeadingCount: exactHeadingCount('ENTRY NOT YET GRANTED'),
+    legacyPlayerActionCount: document.querySelectorAll(
+      'button[aria-label="Recenter Keep"], button[aria-label="Return to Menu"]'
+    ).length,
+    profileMenuCount: document.querySelectorAll(
+      '.realm-profile-menu__panel[role="dialog"]'
+    ).length,
+    profileTriggerAvatarCount: document.querySelectorAll(
+      '.realm-profile-trigger .realm-castle-avatar'
+    ).length,
+    profileTriggerCount: document.querySelectorAll('.realm-profile-trigger').length,
+    profileTriggerTextBearingCount: [...document.querySelectorAll('.realm-profile-trigger')]
+      .reduce((count, trigger) => count + [...trigger.childNodes].filter((node) => (
+        node.nodeType === Node.TEXT_NODE
+          ? (node.textContent ?? '').trim().length > 0
+          : node instanceof Element && !node.classList.contains('realm-castle-avatar')
+      )).length, 0),
     qrSafe: qr ? qrSource === ${JSON.stringify(QA_UNSCANNABLE_QR_DATA_URL)} : false,
     realmMainCount: document.querySelectorAll('main[aria-label="Hegemony realm"]').length,
-    returnToMenuButtonCount: document.querySelectorAll(
-      'button[aria-label="Return to Menu"]'
+    realmMenuExploreCommandCount: [...document.querySelectorAll(
+      '.realm-profile-menu__panel nav button strong'
+    )].filter((label) => (label.textContent ?? '').trim() === 'EXPLORE').length,
+    realmMenuMainMenuCommandCount: [...document.querySelectorAll(
+      '.realm-profile-menu__panel nav button strong'
+    )].filter((label) => (label.textContent ?? '').trim() === 'MAIN MENU').length,
+    realmMenuSettingsCommandCount: [...document.querySelectorAll(
+      '.realm-profile-menu__panel nav button strong'
+    )].filter((label) => (label.textContent ?? '').trim() === 'SETTINGS').length,
+    realmSettingsCount: document.querySelectorAll(
+      '.warpkeep-settings__panel[role="dialog"]'
     ).length,
+    resourceIconCount: document.querySelectorAll('.realm-resource-rail li img').length,
+    resourceItemCount: document.querySelectorAll('.realm-resource-rail li').length,
+    resourceRailCount: document.querySelectorAll('.realm-resource-rail').length,
+    resourceZeroValueCount: [...document.querySelectorAll('.realm-resource-rail li strong')]
+      .filter((value) => (value.textContent ?? '').trim() === '0').length,
     rootScenario: root?.getAttribute('data-qa-scenario') ?? '',
     termsAcceptanceUnchecked: acceptance instanceof HTMLInputElement
       ? acceptance.checked === false : false,
-    termsCount: document.querySelectorAll('[role="dialog"][aria-modal="true"]').length,
+    termsCount: document.querySelectorAll(
+      '.warpkeep-alpha-terms__panel[role="dialog"][aria-modal="true"]'
+    ).length,
   };
 })()`;
 
@@ -318,8 +360,71 @@ const FLOW_STAGE_CONTRACT = Object.freeze({
     rootScenario: 'journey', termsAcceptanceUnchecked: true, termsCount: 1,
   }),
   realm: Object.freeze({
+    directExploreControlCount: 0, exploreDialogCount: 0,
     authPhase: 'absent', realmMainCount: 1, rootScenario: 'realm-player',
-    returnToMenuButtonCount: 1, termsCount: 0,
+    legacyPlayerActionCount: 0, profileMenuCount: 0, profileTriggerAvatarCount: 1,
+    profileTriggerCount: 1, profileTriggerTextBearingCount: 0,
+    realmMenuExploreCommandCount: 0, realmMenuMainMenuCommandCount: 0,
+    realmMenuSettingsCommandCount: 0, realmSettingsCount: 0,
+    resourceIconCount: 5, resourceItemCount: 5, resourceRailCount: 1,
+    resourceZeroValueCount: 5, termsCount: 0,
+  }),
+  'realm-menu': Object.freeze({
+    authPhase: 'absent', directExploreControlCount: 0, exploreDialogCount: 0,
+    legacyPlayerActionCount: 0, profileMenuCount: 1, profileTriggerAvatarCount: 1,
+    profileTriggerCount: 1, profileTriggerTextBearingCount: 0, realmMainCount: 1,
+    realmMenuExploreCommandCount: 1, realmMenuMainMenuCommandCount: 1,
+    realmMenuSettingsCommandCount: 1, realmSettingsCount: 0,
+    resourceIconCount: 5, resourceItemCount: 5, resourceRailCount: 1,
+    resourceZeroValueCount: 5, rootScenario: 'realm-player', termsCount: 0,
+  }),
+  'realm-settings': Object.freeze({
+    authPhase: 'absent', directExploreControlCount: 0, exploreDialogCount: 0,
+    legacyPlayerActionCount: 0, profileMenuCount: 0, profileTriggerAvatarCount: 1,
+    profileTriggerCount: 1, profileTriggerTextBearingCount: 0, realmMainCount: 1,
+    realmMenuExploreCommandCount: 0, realmMenuMainMenuCommandCount: 0,
+    realmMenuSettingsCommandCount: 0, realmSettingsCount: 1,
+    resourceIconCount: 5, resourceItemCount: 5,
+    resourceRailCount: 1, resourceZeroValueCount: 5,
+    rootScenario: 'realm-player', termsCount: 0,
+  }),
+  'realm-menu-after-settings': Object.freeze({
+    authPhase: 'absent', directExploreControlCount: 0, exploreDialogCount: 0,
+    legacyPlayerActionCount: 0, profileMenuCount: 1, profileTriggerAvatarCount: 1,
+    profileTriggerCount: 1, profileTriggerTextBearingCount: 0, realmMainCount: 1,
+    realmMenuExploreCommandCount: 1, realmMenuMainMenuCommandCount: 1,
+    realmMenuSettingsCommandCount: 1, realmSettingsCount: 0,
+    resourceIconCount: 5, resourceItemCount: 5,
+    resourceRailCount: 1, resourceZeroValueCount: 5,
+    rootScenario: 'realm-player', termsCount: 0,
+  }),
+  'realm-explore': Object.freeze({
+    authPhase: 'absent', directExploreControlCount: 0, exploreDialogCount: 1,
+    legacyPlayerActionCount: 0, profileMenuCount: 0, profileTriggerAvatarCount: 1,
+    profileTriggerCount: 1, profileTriggerTextBearingCount: 0, realmMainCount: 1,
+    realmMenuExploreCommandCount: 0, realmMenuMainMenuCommandCount: 0,
+    realmMenuSettingsCommandCount: 0, realmSettingsCount: 0,
+    resourceIconCount: 5, resourceItemCount: 5, resourceRailCount: 1,
+    resourceZeroValueCount: 5, rootScenario: 'realm-player', termsCount: 0,
+  }),
+  'realm-menu-return': Object.freeze({
+    authPhase: 'absent', directExploreControlCount: 0, exploreDialogCount: 0,
+    legacyPlayerActionCount: 0, profileMenuCount: 1, profileTriggerAvatarCount: 1,
+    profileTriggerCount: 1, profileTriggerTextBearingCount: 0, realmMainCount: 1,
+    realmMenuExploreCommandCount: 1, realmMenuMainMenuCommandCount: 1,
+    realmMenuSettingsCommandCount: 1, realmSettingsCount: 0,
+    resourceIconCount: 5, resourceItemCount: 5, resourceRailCount: 1,
+    resourceZeroValueCount: 5, rootScenario: 'realm-player', termsCount: 0,
+  }),
+  'returned-menu': Object.freeze({
+    authPhase: 'absent', directExploreControlCount: 0, enterRealmButtonCount: 1,
+    exploreDialogCount: 0, legacyPlayerActionCount: 0, navigationCount: 1,
+    profileMenuCount: 0, profileTriggerAvatarCount: 0, profileTriggerCount: 0,
+    profileTriggerTextBearingCount: 0, realmMainCount: 0,
+    realmMenuExploreCommandCount: 0, realmMenuMainMenuCommandCount: 0,
+    realmMenuSettingsCommandCount: 0, realmSettingsCount: 0,
+    resourceIconCount: 0, resourceItemCount: 0, resourceRailCount: 0,
+    resourceZeroValueCount: 0, rootScenario: 'menu', termsCount: 0,
   }),
 });
 
@@ -331,13 +436,27 @@ export function parseQaJourneyFlowObservation(value, stage, expectedHref) {
     'authPhase',
     'continuationDisabled',
     'continuationKind',
+    'directExploreControlCount',
     'enterRealmButtonCount',
+    'exploreDialogCount',
     'href',
     'navigationCount',
     'pendingHeadingCount',
+    'legacyPlayerActionCount',
+    'profileMenuCount',
+    'profileTriggerAvatarCount',
+    'profileTriggerCount',
+    'profileTriggerTextBearingCount',
     'qrSafe',
     'realmMainCount',
-    'returnToMenuButtonCount',
+    'realmMenuExploreCommandCount',
+    'realmMenuMainMenuCommandCount',
+    'realmMenuSettingsCommandCount',
+    'realmSettingsCount',
+    'resourceIconCount',
+    'resourceItemCount',
+    'resourceRailCount',
+    'resourceZeroValueCount',
     'rootScenario',
     'termsAcceptanceUnchecked',
     'termsCount',
@@ -723,6 +842,49 @@ async function activateUniqueControl(session, selector) {
   }
 }
 
+async function activateRealmMenuCommand(session, label) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `((label) => {
+      const targets = [...document.querySelectorAll(
+        '.realm-profile-menu__panel nav button'
+      )].filter((button) => (
+        button instanceof HTMLButtonElement
+        && !button.disabled
+        && (button.querySelector('strong')?.textContent ?? '').trim() === label
+      ));
+      if (targets.length !== 1) return false;
+      const target = targets[0];
+      const style = getComputedStyle(target);
+      const bounds = target.getBoundingClientRect();
+      const centerX = bounds.left + bounds.width / 2;
+      const centerY = bounds.top + bounds.height / 2;
+      const hit = document.elementFromPoint(centerX, centerY);
+      if (
+        target.closest('[inert]')
+        || style.display === 'none'
+        || style.visibility === 'hidden'
+        || Number(style.opacity || '1') <= 0
+        || bounds.width < 44
+        || bounds.height < 44
+        || bounds.left < 0
+        || bounds.top < 0
+        || bounds.right > window.innerWidth
+        || bounds.bottom > window.innerHeight
+        || !hit
+        || (hit !== target && !target.contains(hit))
+      ) return false;
+      target.focus({ preventScroll: true });
+      if (document.activeElement !== target) return false;
+      target.click();
+      return true;
+    })(${JSON.stringify(label)})`,
+    returnByValue: true,
+  });
+  if (evaluation?.exceptionDetails || evaluation?.result?.value !== true) {
+    throw new Error('Journey browser Realm-menu interaction failed.');
+  }
+}
+
 async function activateTermsAcceptance(session) {
   const evaluation = await session.command('Runtime.evaluate', {
     expression: `(() => {
@@ -812,6 +974,39 @@ async function runFullJourney(session, href, realmHref, state) {
   await activateTermsAcceptance(session);
   await activateExactControl(session, '[role="dialog"] button', 'CONTINUE TO REALM');
   await waitForFlowStage(session, 'realm', realmHref, state);
+
+  // The local journey selector intentionally occupies the same top-left berth
+  // as the product portrait. Dismiss that harness-only chrome before proving
+  // the real player interaction; the top-right restore affordance remains.
+  await activateExactControl(session, '.qa-journey__controls button', 'HIDE CONTROLS');
+  await activateUniqueControl(session, '.realm-profile-trigger');
+  await waitForFlowStage(session, 'realm-menu', realmHref, state);
+  await activateRealmMenuCommand(session, 'SETTINGS');
+  await waitForFlowStage(session, 'realm-settings', realmHref, state);
+  await activateExactControl(
+    session,
+    '.warpkeep-settings__panel button',
+    'BACK TO REALM MENU'
+  );
+  await waitForFlowStage(session, 'realm-menu-after-settings', realmHref, state);
+  await activateRealmMenuCommand(session, 'EXPLORE');
+  await waitForFlowStage(session, 'realm-explore', realmHref, state);
+  await activateExactControl(
+    session,
+    '.realm-cell-navigator__dialog button',
+    'CLOSE EXPLORE'
+  );
+  await waitForFlowStage(session, 'realm', realmHref, state);
+
+  await activateUniqueControl(session, '.realm-profile-trigger');
+  await waitForFlowStage(session, 'realm-menu-return', realmHref, state);
+  await activateRealmMenuCommand(session, 'MAIN MENU');
+  await waitForFlowStage(
+    session,
+    'returned-menu',
+    realmHref.replace('scenario=realm-player', 'scenario=menu'),
+    state
+  );
 }
 
 /**

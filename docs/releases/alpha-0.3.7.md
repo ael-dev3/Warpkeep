@@ -11,8 +11,8 @@ deployment, tag, or GitHub Release.
 ## Private resource authority
 
 - SpacetimeDB owns one private `resource_account_v1` row per founded castle.
-  It starts at Food 200, Wood 150, Stone 100, and Gold 25 and caps each balance
-  at 1,000,000 whole units.
+  It starts at zero Food, Wood, Stone, and Gold and caps each balance at
+  1,000,000 whole units.
 - The authenticated caller may read only their own stored and pending balances.
   The established six-table public Realm subscription is unchanged; other
   founders' inventories, account rows, and FIDs are not added to public
@@ -41,12 +41,26 @@ The resource procedure can present the caller's established Marks balance, but
 does not copy it into a resource row or create conversion, credit, transfer,
 spending, or reward behavior.
 
-## Presentation assets
+## Realm presentation
 
 Food, Wood, Stone, and Gold use compact immutable runtime icon paths with exact
 length and hash verification. They are bounded derivatives of the recorded
 reference masters; the source masters stay outside `public/` and therefore
 outside the Pages artifact. Icons and browser counters do not create authority.
+
+- The player's portrait is the only persistent control in the upper-left
+  corner. It opens the Realm menu for My Keep, Explore, Settings, Main Menu,
+  and Collect only when the server reports pending production.
+- A transparent upper-right rail presents Food, Wood, Stone, Gold, and Marks in
+  a fixed order. Every visible value comes from the authenticated private
+  projection; the browser does not fabricate a friendly zero while authority
+  is unavailable.
+- Selection details remain available to assistive technology without restoring
+  the former full-size identity, keep, coordinate, level, or Marks block.
+- Castle records use transparent, overhanging castle art with player and
+  observer layouts scoped independently. Player-map labels reserve only the
+  actual portrait and resource footprints, preserving useful camera space on
+  phones and short landscape screens.
 
 ## Additive migration and rollout gate
 
@@ -85,12 +99,10 @@ financial value.
 
 ## Release evidence
 
-The complete local matrix passed for implementation commit
-`5b873ecd9b97fdfc42f29b7dfba68850dad295be`. The evidence-recording follow-up
-changes documentation only; hosted checks remain required on the final review
-head.
+The complete local matrix passed for the final local review tree. Hosted checks
+remain required on the committed review head.
 
-- Root unit tests: **1,437/1,437 across 141 files**; TypeScript passed.
+- Root unit tests: **1,444/1,444 across 141 files**; TypeScript passed.
 - Production builds: **ordinary, Pages, and canonical-root variants passed**;
   each rejected local QA/observer material from the output.
 - Runtime/provenance assets: **33 runtime assets and 4 reference masters**;
@@ -105,10 +117,15 @@ head.
   private-table exclusion passed. The disposable protocol-v3-to-v4 migration
   proof preserved every existing row/ref, exercised one real production
   quantum through the exact module artifact, and passed with SHA-256
-  `87759a75cb8c29d135e2a0016dbba9bb2c3f38389f9ad1e0c9f83815c5109a96`.
-- Hosted Verify and CodeQL: **PENDING — reviewed head SHA**
-- Production module publication, founder backfill, v4 aggregate, Pages deploy,
-  and exact-build verification: **NOT RUN — OWNER APPROVAL REQUIRED**
+  `0567aafa5b809b53615fdad29d0190de5903893a8464c224a1a9d8a92fc5bbfb`.
+- Hosted Verify and CodeQL: **PENDING — both must pass on the committed PR head
+  before merge**
+- Production module publication, founder backfill, v4 aggregate, and Pages
+  deploy: **NOT RUN — OWNER APPROVAL REQUIRED**
+- Bounded read-only pre-deploy verification: the public canonical/root redirect
+  checks passed, then the candidate stopped at the undeployed bridge CORS
+  contract. Exact-build verification therefore remains a post-rollout gate; no
+  production state changed.
 
 Only a protected, verified, deployed commit may receive the annotated `v0.3.7`
 tag and GitHub Release.

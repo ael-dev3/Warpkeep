@@ -216,28 +216,6 @@
   min-width: 0;
 }
 
-.realm-hud .realm-castle-avatar {
-  --realm-avatar-size: 2.65rem;
-  grid-column: 1;
-  grid-row: 1;
-  margin-top: 0.08rem;
-}
-
-.realm-hud__identity {
-  display: grid;
-  grid-column: 2;
-  min-width: 0;
-  gap: 0.05rem;
-}
-
-.realm-hud__identity > p {
-  margin: 0;
-  color: var(--realm-lavender);
-  font-size: 0.6875rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-}
-
 .realm-hud__header h1 {
   min-width: 0;
   margin: 0.06rem 0 0;
@@ -256,24 +234,6 @@
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.realm-hud__badges {
-  grid-column: 3;
-  grid-row: 1;
-}
-
-.realm-hud__badges span {
-  display: inline-flex;
-  min-height: 1.65rem;
-  padding: 0 0.42rem;
-  align-items: center;
-  border: 1px solid rgb(225 190 105 / 27%);
-  border-radius: 999px;
-  color: var(--realm-muted);
-  font-size: 0.6875rem;
-  font-weight: 760;
-  letter-spacing: 0.04em;
 }
 
 .realm-hud__selection {
@@ -300,19 +260,6 @@
   font-weight: 650;
   line-height: 1.35;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.realm-hud__selection-announcement {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  border: 0;
   white-space: nowrap;
 }
 
@@ -684,10 +631,6 @@
     width: min(13.75rem, calc(100vw - 1.1rem - env(safe-area-inset-left) - env(safe-area-inset-right)));
   }
 
-  .realm-hud__badges {
-    display: none;
-  }
-
   .realm-cell-navigator > button {
     padding-inline: 0.55rem;
   }
@@ -719,10 +662,6 @@
     left: max(0.55rem, env(safe-area-inset-left));
     width: min(13.5rem, 31vw);
     padding: 0.5rem 0.58rem;
-  }
-
-  .realm-hud__badges {
-    display: none;
   }
 
   .realm-hud__selection {

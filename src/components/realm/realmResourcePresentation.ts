@@ -213,6 +213,14 @@ const COMPACT_RESOURCE_SCALES = Object.freeze([
   { threshold: 1_000_000n, divisor: 1_000_000n, suffix: 'M' },
   { threshold: 1_000n, divisor: 1_000n, suffix: 'K' }
 ]);
+const MICROS_PER_VISIBLE_MARK = 1_000_000n;
+const COMPACT_MARK_SCALES = Object.freeze([
+  { threshold: 1_000_000_000_000_000n, divisor: 1_000_000_000_000_000n, suffix: 'Q' },
+  { threshold: 1_000_000_000_000n, divisor: 1_000_000_000_000n, suffix: 'T' },
+  { threshold: 1_000_000_000n, divisor: 1_000_000_000n, suffix: 'B' },
+  { threshold: 1_000_000n, divisor: 1_000_000n, suffix: 'M' },
+  { threshold: 1_000n, divisor: 1_000n, suffix: 'K' }
+]);
 
 export function isRealmEconomicResourceKey(value: string): value is RealmEconomicResourceKey {
   return REALM_ECONOMIC_RESOURCE_ORDER.some((key) => key === value);
@@ -237,4 +245,34 @@ export function formatCompactRealmResourceQuantity(value: unknown): string | und
 
 export function formatExactRealmResourceQuantity(value: unknown): string | undefined {
   return boundedU64(value) ? value.toString() : undefined;
+}
+
+/** Keeps the visible Marks rail bounded while exact micros remain in its aria label. */
+export function formatCompactRealmMarkMicros(value: unknown): string | undefined {
+  if (!boundedU128(value)) return undefined;
+  const wholeMarks = value / MICROS_PER_VISIBLE_MARK;
+  if (wholeMarks < 1_000n) {
+    const hundredths = (value * 100n) / MICROS_PER_VISIBLE_MARK;
+    if (value > 0n && hundredths === 0n) return '<0.01';
+    const whole = hundredths / 100n;
+    const fraction = hundredths % 100n;
+    if (fraction === 0n) return whole.toString();
+    return `${whole}.${fraction.toString().padStart(2, '0').replace(/0+$/, '')}`;
+  }
+
+  if (wholeMarks >= 1_000_000_000_000_000_000n) {
+    const digits = wholeMarks.toString();
+    return `${digits[0]}.${digits[1]}e${digits.length - 1}`;
+  }
+
+  const scale = COMPACT_MARK_SCALES.find(({ threshold }) => wholeMarks >= threshold);
+  if (scale) {
+    const tenths = (value * 10n) / (MICROS_PER_VISIBLE_MARK * scale.divisor);
+    const whole = tenths / 10n;
+    const fraction = tenths % 10n;
+    return fraction === 0n || whole >= 100n
+      ? `${whole}${scale.suffix}`
+      : `${whole}.${fraction}${scale.suffix}`;
+  }
+  return wholeMarks.toString();
 }

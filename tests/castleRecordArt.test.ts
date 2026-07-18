@@ -136,9 +136,11 @@ describe('Hegemony castle record art', () => {
       'utf8'
     );
     expect(component).toContain("publicAssetUrl('images/realm/hegemony-castle-record.webp')");
+    expect(component).toContain('className="castle-inspection__hero-art-stage"');
     expect(component).toContain('className="castle-inspection__hero-art"');
     expect(component).toContain('alt=""');
     expect(component).toContain('decoding="async"');
+    expect(component).toContain('draggable="false"');
     expect(component).toContain('height="1254"');
     expect(component).toContain('width="1254"');
   });

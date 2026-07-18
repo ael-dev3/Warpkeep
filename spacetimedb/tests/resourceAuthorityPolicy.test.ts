@@ -47,10 +47,10 @@ function settle(
 test('initial resources use whole-unit u64 balances and a server-supplied cursor', () => {
   const initial = createInitialRealmResourceState(CURSOR);
   assert.deepEqual(initial, {
-    food: 200n,
-    wood: 150n,
-    stone: 100n,
-    gold: 25n,
+    food: 0n,
+    wood: 0n,
+    stone: 0n,
+    gold: 0n,
     settledThroughMicros: CURSOR,
     revision: 0n,
     policyVersion: REALM_RESOURCE_POLICY_VERSION,
@@ -261,11 +261,11 @@ test('negative, oversized, missing, and non-bigint balances are rejected as corr
     account({ food: -1n }),
     account({ wood: REALM_RESOURCE_BALANCE_CAP + 1n }),
     account({ stone: RESOURCE_U64_MAX + 1n }),
-    account({ gold: 25 as unknown as bigint }),
+    account({ gold: 0 as unknown as bigint }),
     {
-      food: 200n,
-      wood: 150n,
-      stone: 100n,
+      food: 0n,
+      wood: 0n,
+      stone: 0n,
       settledThroughMicros: CURSOR,
       revision: 0n,
       policyVersion: REALM_RESOURCE_POLICY_VERSION,

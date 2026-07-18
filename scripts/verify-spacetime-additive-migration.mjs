@@ -49,10 +49,10 @@ const marksPolicyVersion = 'snap-current-linked-wallet-1to1-v1';
 const resourceQuantumMicros = 600_000_000n;
 const maximumU64 = (1n << 64n) - 1n;
 const startingResourceBalances = Object.freeze({
-  food: 200n,
-  wood: 150n,
-  stone: 100n,
-  gold: 25n,
+  food: 0n,
+  wood: 0n,
+  stone: 0n,
+  gold: 0n,
 });
 const terrainResourceRates = Object.freeze({
   lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 1n }),

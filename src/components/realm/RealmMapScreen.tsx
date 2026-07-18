@@ -28,6 +28,10 @@ import {
 import { createHegemonyCastlePlacements } from '../../game/map/terrainPlacements';
 import type { TerrainCell } from '../../game/map/terrainTypes';
 import type {
+  GraphicsPreference,
+  GraphicsQualityTier
+} from '../../settings/graphicsPreference';
+import type {
   CanonicalWarpkeepRealmSnapshot,
   WarpkeepWorldTileMetadata
 } from '../../spacetime/warpkeepBackendTypes';
@@ -107,6 +111,11 @@ type RealmMapScreenProps = Readonly<{
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   onCollectResources?: () => Promise<void>;
+  graphicsPreference?: GraphicsPreference;
+  resolvedGraphicsQuality?: GraphicsQualityTier;
+  audioMuted?: boolean;
+  onGraphicsPreferenceChange?: (preference: GraphicsPreference) => void;
+  onAudioMutedChange?: (muted: boolean) => void;
   onRequestReturn: () => void;
   qualityOverride?: RealmQuality;
   /** Explicit local QA presentation; it grants no backend or player authority. */
@@ -362,6 +371,11 @@ function CanonicalRealmMapScreen({
   snapshot,
   resources,
   onCollectResources,
+  graphicsPreference,
+  resolvedGraphicsQuality,
+  audioMuted,
+  onGraphicsPreferenceChange,
+  onAudioMutedChange,
   onRequestReturn,
   qualityOverride,
   presentationMode = 'player'
@@ -526,9 +540,6 @@ function CanonicalRealmMapScreen({
     ? allCastles.find((castle) => castle.castleId === interaction.inspectorTarget?.castleId)
     : undefined;
   const ownProfile = profileRecords.get(ownCastle.castleId)?.profile;
-  const marksStatus = ownProfile?.communityStatsVisible && ownProfile.marksBalanceMicros !== undefined
-      ? 'ready'
-      : 'unavailable';
   const focusedCastleId = interaction.cameraTarget.kind === 'castle'
     ? interaction.cameraTarget.castleId
     : undefined;
@@ -801,7 +812,8 @@ function CanonicalRealmMapScreen({
     if (root) {
       observer?.observe(root);
       root.querySelectorAll<HTMLElement>(
-        '.realm-hud, .realm-hud__actions, .castle-inspection, .realm-cell-navigator'
+        '.realm-hud, .realm-hud__actions, .realm-profile-trigger, .realm-resource-rail, '
+        + '.castle-inspection, .realm-cell-navigator'
       ).forEach((element) => observer?.observe(element));
     }
     window.addEventListener('resize', updateSceneComposition, { passive: true });
@@ -968,10 +980,11 @@ function CanonicalRealmMapScreen({
   }, [onRequestReturn]);
 
   const recenterKeep = useCallback(() => {
-    selectCoord(keepCoord);
-    dispatchInteraction({ type: 'set-camera-target', target: { kind: 'keep' } });
+    updateHoveredCastleId(undefined);
+    selectedCoordRef.current = keepCoord;
+    dispatchInteraction({ type: 'recenter-keep', coord: keepCoord });
     sceneRef.current?.recenterKeep();
-  }, [keepCoord, selectCoord]);
+  }, [keepCoord, updateHoveredCastleId]);
 
   const viewKeep = useCallback(() => {
     selectCoord(keepCoord);
@@ -1211,9 +1224,16 @@ function CanonicalRealmMapScreen({
               identity={identity}
               ownCastle={ownCastle}
               ownProfile={ownProfile}
-              marksStatus={resources ? 'ready' : marksStatus}
               resources={resources}
               onCollectResources={onCollectResources}
+              profileTriggerRef={navigatorTriggerRef}
+              foundedCastleCount={navigatorCastles.length}
+              graphicsPreference={graphicsPreference}
+              resolvedGraphicsQuality={resolvedGraphicsQuality}
+              audioMuted={audioMuted}
+              onGraphicsPreferenceChange={onGraphicsPreferenceChange}
+              onAudioMutedChange={onAudioMutedChange}
+              onRequestExplore={() => dispatchInteraction({ type: 'open-navigator' })}
               keepCoord={keepCoord}
               selectedCell={selectedCell}
               selectedTerrainKind={selectedTerrainKind}
@@ -1245,6 +1265,7 @@ function CanonicalRealmMapScreen({
             ownCastleId={observerMode ? undefined : ownCastle.castleId}
             selectedCastleId={selectedCastle?.castleId}
             triggerRef={navigatorTriggerRef}
+            triggerVisible={observerMode}
             cameraPresets={[
               {
                 id: 'realm',

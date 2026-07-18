@@ -1098,6 +1098,11 @@ export function WarpkeepExperience() {
                 snapshot={backend.state.realm}
                 resources={backend.state.resources}
                 onCollectResources={backend.collectResources}
+                graphicsPreference={graphicsPreference}
+                resolvedGraphicsQuality={resolvedGraphicsQuality}
+                audioMuted={audioMuted}
+                onGraphicsPreferenceChange={updateGraphicsPreference}
+                onAudioMutedChange={updateAudioMuted}
                 onRequestReturn={returnRealmToMenu}
                 qualityOverride={realmProfileForQuality(resolvedGraphicsQuality)}
               />

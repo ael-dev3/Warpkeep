@@ -357,10 +357,10 @@ export const fixtureRewindResourceOneQuantum = db.reducer(
       row === null
       || row.policyVersion !== FIXTURE_RESOURCE_POLICY_VERSION
       || row.revision !== 0n
-      || row.food !== 200n
-      || row.wood !== 150n
-      || row.stone !== 100n
-      || row.gold !== 25n
+      || row.food !== 0n
+      || row.wood !== 0n
+      || row.stone !== 0n
+      || row.gold !== 0n
       || row.settledThroughMicros < FIXTURE_RESOURCE_QUANTUM_MICROS
     ) throw new Error('FIXTURE_RESOURCE_STATE_INVALID');
     const rewoundMicros = row.settledThroughMicros - FIXTURE_RESOURCE_QUANTUM_MICROS;

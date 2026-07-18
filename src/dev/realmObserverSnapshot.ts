@@ -375,7 +375,7 @@ function createRealmObserverFixtureSnapshot() {
         q: slot.q,
         r: slot.r,
         level: index === 0 ? 3 : 1,
-        portraitAvailable: false
+        portraitAvailable: index === 0
       };
     })
   });

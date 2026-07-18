@@ -7,7 +7,7 @@ export function createReadyResourceState(
   return Object.freeze({
     status: 'ready',
     fid: BigInt(fid),
-    balances: Object.freeze({ food: 200n, wood: 150n, stone: 100n, gold: 25n }),
+    balances: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
     pendingBalances: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
     marksBalanceMicros: 0n,
     observedAtMicros: 1_800_000_000_000_000n + revision,

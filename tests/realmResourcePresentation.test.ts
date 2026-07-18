@@ -7,12 +7,13 @@ import {
   REALM_RESOURCE_BALANCE_CAP,
   REALM_RESOURCE_POLICY_VERSION,
   decodeRealmResourceProjection,
+  formatCompactRealmMarkMicros,
   formatCompactRealmResourceQuantity,
   formatExactRealmResourceQuantity,
   isRealmEconomicResourceKey
 } from '../src/components/realm/realmResourcePresentation';
 
-const OWN_FID = 539_854n;
+const OWN_FID = 424_242_424_242n;
 
 function validResourceProjection() {
   return {
@@ -37,6 +38,15 @@ function validResourceProjection() {
 }
 
 describe('Realm resource presentation', () => {
+  it('bounds visible Marks without weakening exact u128 authority', () => {
+    expect(formatCompactRealmMarkMicros(0n)).toBe('0');
+    expect(formatCompactRealmMarkMicros(1n)).toBe('<0.01');
+    expect(formatCompactRealmMarkMicros(999_999_999n)).toBe('999.99');
+    expect(formatCompactRealmMarkMicros(1_234_560_000n)).toBe('1.2K');
+    expect(formatCompactRealmMarkMicros(MAX_REALM_MARKS_BALANCE_MICROS)).toMatch(/^\d\.\de\d+$/);
+    expect(formatCompactRealmMarkMicros(MAX_REALM_MARKS_BALANCE_MICROS + 1n)).toBeUndefined();
+  });
+
   it('keeps the approved resource order separate from Marks', () => {
     expect(REALM_ECONOMIC_RESOURCE_ORDER).toEqual(['food', 'wood', 'stone', 'gold']);
     expect(isRealmEconomicResourceKey('food')).toBe(true);
@@ -87,7 +97,7 @@ describe('Realm resource presentation', () => {
   });
 
   it('rejects non-bigint, negative, oversized, zero, and mismatched FIDs', () => {
-    for (const fid of [539_854, -1n, 0n, MAX_REALM_RESOURCE_QUANTITY + 1n, OWN_FID + 1n]) {
+    for (const fid of [Number(OWN_FID), -1n, 0n, MAX_REALM_RESOURCE_QUANTITY + 1n, OWN_FID + 1n]) {
       expect(decodeRealmResourceProjection({ ...validResourceProjection(), fid }, OWN_FID))
         .toBeUndefined();
     }

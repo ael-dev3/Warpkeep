@@ -3,6 +3,8 @@ import type { RealmLabelReservedRect } from './realmCastlePresentation';
 
 const RESERVED_REALM_UI_SELECTOR = [
   '.realm-hud',
+  '.realm-profile-trigger',
+  '.realm-resource-rail',
   '.castle-inspection',
   '.realm-hud__actions',
   '.realm-cell-navigator > button',
@@ -97,6 +99,9 @@ export function measuredRealmComposition(root: HTMLElement): RealmCameraComposit
     if (compact && !shortLandscape) reserveTop(hud);
     else reserveLeft(hud);
   }
+  // Corner chrome is collision-reserved by its exact rectangle above. Turning
+  // either small control into a full-width camera inset would needlessly crop
+  // the playable realm, especially in short landscape viewports.
   if (inspector) {
     if (compact && !shortLandscape) reserveBottom(inspector);
     else reserveRight(inspector);

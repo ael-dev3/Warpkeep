@@ -23,10 +23,10 @@ export type ResourceBalances = RealmResourceBalances;
 export type GenesisResourceTerrainKind = GenesisTerrainKind;
 
 export const GENESIS_STARTING_RESOURCE_BALANCES: ResourceBalances = Object.freeze({
-  food: 200n,
-  wood: 150n,
-  stone: 100n,
-  gold: 25n,
+  food: 0n,
+  wood: 0n,
+  stone: 0n,
+  gold: 0n,
 });
 
 export const REALM_RESOURCE_STARTING_BALANCES = GENESIS_STARTING_RESOURCE_BALANCES;

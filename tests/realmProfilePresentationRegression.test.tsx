@@ -227,7 +227,9 @@ describe('realm profile and PFP presentation regressions', () => {
     );
 
     await waitFor(() => expect(mockProfileImages).toHaveLength(1));
-    const hudAvatar = container.querySelector('.realm-hud .realm-castle-avatar');
+    const hudAvatar = container.querySelector(
+      '.realm-profile-trigger .realm-castle-avatar'
+    );
     const canvas = hudAvatar?.querySelector<HTMLCanvasElement>(
       'canvas[data-profile-image-state="loading"]'
     );
@@ -239,7 +241,7 @@ describe('realm profile and PFP presentation regressions', () => {
     expect(canvas?.dataset.profileImageState).toBe('ready');
     expect(canvas?.style.display).toBe('block');
     expect(hudAvatar?.textContent).toBe('');
-    expect(container.querySelector('.realm-hud img')).toBeNull();
+    expect(container.querySelector('.realm-profile-trigger img')).toBeNull();
   });
 
   it('keeps a stable public monogram after an image load error and URL change', async () => {

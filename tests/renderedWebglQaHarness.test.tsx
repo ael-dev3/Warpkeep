@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RenderedWebglQaHarness } from '../src/dev/RenderedWebglQaHarness';
@@ -49,8 +49,20 @@ describe('rendered WebGL local QA harness', () => {
     expect(status.dataset.presentationMode).toBe('player');
     expect(screen.getByRole('main', { name: 'Hegemony realm' })
       .getAttribute('data-presentation-mode')).toBe('player');
-    expect(screen.getByRole('button', { name: 'Recenter Keep' })).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Return to Menu' })).not.toBeNull();
+    const profileTrigger = screen.getByRole('button', {
+      name: 'Open Realm menu for @qa-keep-001'
+    });
+    expect(profileTrigger.className).toContain('realm-profile-trigger');
+    expect(screen.queryByRole('button', { name: 'Recenter Keep' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Return to Menu' })).toBeNull();
+    expect(document.querySelector('.realm-hud')).toBeNull();
+    expect(document.querySelector('.realm-hud__actions')).toBeNull();
+
+    fireEvent.click(profileTrigger);
+    const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    expect(within(menu).getByRole('button', { name: /MY KEEP/i })).not.toBeNull();
+    expect(within(menu).getByRole('button', { name: /EXPLORE/i })).not.toBeNull();
+    expect(within(menu).getByRole('button', { name: /MAIN MENU/i })).not.toBeNull();
     expect(screen.queryByText('QA OBSERVER · READ ONLY')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Close QA Observer' })).toBeNull();
   });

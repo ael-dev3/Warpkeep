@@ -228,19 +228,19 @@ describe('Warpkeep private resource lifecycle', () => {
     await enterRealm();
 
     expect(screen.getByTestId('resource-revision').textContent).toBe('0');
-    expect(screen.getByTestId('resource-food').textContent).toBe('200');
+    expect(screen.getByTestId('resource-food').textContent).toBe('0');
     fireEvent.click(screen.getByRole('button', { name: 'COLLECT' }));
     await waitFor(() => expect(runtime.collectResources).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('resource-revision').textContent).toBe('0');
-    expect(screen.getByTestId('resource-food').textContent).toBe('200');
+    expect(screen.getByTestId('resource-food').textContent).toBe('0');
 
     await act(async () => {
-      pendingCollect.resolve(resourceState(12_345, 1n, 208n));
+      pendingCollect.resolve(resourceState(12_345, 1n, 8n));
       await pendingCollect.promise;
     });
     await waitFor(() => expect(screen.getByTestId('resource-revision').textContent).toBe('1'));
-    expect(screen.getByTestId('resource-food').textContent).toBe('208');
+    expect(screen.getByTestId('resource-food').textContent).toBe('8');
   });
 
   it('leaves a late authoritative result inert after an explicit disconnect', async () => {
@@ -293,7 +293,7 @@ describe('Warpkeep private resource lifecycle', () => {
     expect(screen.getByTestId('phase').textContent).toBe('ready');
     expect(screen.getByTestId('resource-fid').textContent).toBe('54321');
     expect(screen.getByTestId('resource-revision').textContent).toBe('0');
-    expect(screen.getByTestId('resource-food').textContent).toBe('200');
+    expect(screen.getByTestId('resource-food').textContent).toBe('0');
   });
 
   it('cannot publish a queued old collect after a same-FID token generation reconnects', async () => {
