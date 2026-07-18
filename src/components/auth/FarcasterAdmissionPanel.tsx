@@ -42,8 +42,8 @@ const presentationByPhase: Record<Exclude<WarpkeepBackendPhase, 'idle' | 'ready'
   },
   'awaiting-terms': {
     eyebrow: 'HEGEMONY FRONTIER ACCESS',
-    title: 'ALPHA TERMS REQUIRED',
-    liveMessage: 'Alpha Terms acceptance is required before realm records open'
+    title: 'ENTRY AGREEMENT REQUIRED',
+    liveMessage: 'Current entry-agreement acceptance is required before realm records open'
   },
   denied: {
     eyebrow: 'HEGEMONY FRONTIER ACCESS',
@@ -57,8 +57,8 @@ const presentationByPhase: Record<Exclude<WarpkeepBackendPhase, 'idle' | 'ready'
   },
   'accepting-terms': {
     eyebrow: 'HEGEMONY FRONTIER ACCESS',
-    title: 'RECORDING ALPHA TERMS',
-    liveMessage: 'Recording your Alpha Terms acceptance'
+    title: 'RECORDING ENTRY AGREEMENT',
+    liveMessage: 'Recording your current entry-agreement acceptance'
   },
   'opening-realm': {
     eyebrow: 'HEGEMONY FRONTIER ACCESS',
@@ -160,7 +160,8 @@ export function FarcasterAdmissionPanel({
 
         {awaitingTerms ? (
           <p className="farcaster-admission-panel__lead" role="status">
-            Return to Enter Realm and accept the current Alpha Terms before Hegemony records open.
+            Return to Enter Realm and accept the current Alpha Terms and Hegemony Social Contract
+            before Hegemony records open.
           </p>
         ) : null}
 
