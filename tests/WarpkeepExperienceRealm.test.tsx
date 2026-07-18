@@ -817,10 +817,17 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('alert').textContent).toBe('Opening Genesis 001…');
-    expectPlayerRealmChromeAbsent();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('main', { name: 'Hegemony realm' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: /Open Realm menu/i })).not.toBeNull();
     expect(screen.queryByRole('region', { name: 'Your resources' })).toBeNull();
     expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    const reconnectingMenu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    expect(within(reconnectingMenu).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
+    expect(backend.runtime.collectResources).not.toHaveBeenCalled();
+    fireEvent.click(within(reconnectingMenu).getByRole('button', { name: 'Close Realm menu' }));
 
     await act(async () => reconnect.resolve(reconnectConnection));
     await settle();

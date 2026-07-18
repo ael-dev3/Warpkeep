@@ -33,7 +33,7 @@ export function CastleDashboard({
         <div>
           <p className="eyebrow">Castle dashboard</p>
           <h1>{state.castle.name}</h1>
-          <p className="tagline">Every FID has a castle.</p>
+          <p className="tagline">Every admitted founder has a castle.</p>
         </div>
         <dl className="identity-grid">
           <div>

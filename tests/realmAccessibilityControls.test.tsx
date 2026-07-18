@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { createRef, useState, type Ref } from 'react';
+import { createRef, useState, type RefObject } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -32,7 +32,7 @@ function ControlledNavigator({
   onRequestClose: (reason: RealmNavigatorCloseReason) => void;
   coordinateJump?: RealmNavigatorCoordinateJump;
   cameraPresets?: readonly RealmNavigatorCameraPreset[];
-  triggerRef?: Ref<HTMLButtonElement>;
+  triggerRef?: RefObject<HTMLButtonElement | null>;
   onOuterEscape?: () => void;
 }>) {
   const [open, setOpen] = useState(false);
@@ -63,7 +63,7 @@ function TriggerlessNavigator({
   triggerRef
 }: Readonly<{
   onRequestClose: (reason: RealmNavigatorCloseReason) => void;
-  triggerRef: Ref<HTMLButtonElement>;
+  triggerRef: RefObject<HTMLButtonElement | null>;
 }>) {
   const [open, setOpen] = useState(false);
   return (
@@ -126,6 +126,7 @@ describe('RealmAccessibilityControls', () => {
     expect(onRequestClose).toHaveBeenCalledWith('close-button');
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
     expect(triggerRef.current).toBe(playerTrigger);
+    await waitFor(() => expect(document.activeElement).toBe(playerTrigger));
   });
 
   it('opens a compact controlled Explore surface without selecting on focus', async () => {

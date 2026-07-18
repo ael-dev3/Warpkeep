@@ -6,7 +6,7 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
-  type Ref
+  type RefObject
 } from 'react';
 
 import type { HexCoord } from '../../game/map/hexCoordinates';
@@ -52,17 +52,12 @@ export type RealmAccessibilityControlsProps = Readonly<{
   cameraPresets?: readonly RealmNavigatorCameraPreset[];
   /** Player chrome may provide its own PFP launcher while reusing this dialog. */
   triggerVisible?: boolean;
-  /** Receives the trigger element; focus is restored here after controlled close. */
-  triggerRef?: Ref<HTMLButtonElement>;
+  /**
+   * Receives the internal trigger, or points at player chrome's external PFP
+   * launcher; focus is restored here after controlled close.
+   */
+  triggerRef?: RefObject<HTMLButtonElement | null>;
 }>;
-
-function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
-  if (typeof ref === 'function') {
-    ref(value);
-  } else if (ref) {
-    (ref as { current: T | null }).current = value;
-  }
-}
 
 function strictInteger(value: string) {
   const normalized = value.trim();
@@ -95,6 +90,7 @@ export function RealmAccessibilityControls({
   const [rValue, setRValue] = useState('');
   const [jumpError, setJumpError] = useState<string>();
   const internalTriggerRef = useRef<HTMLButtonElement>(null);
+  const providedTriggerRef = useRef(triggerRef);
   const searchRef = useRef<HTMLInputElement>(null);
   const wasOpenRef = useRef(false);
   const headingId = `${id}-title`;
@@ -103,9 +99,11 @@ export function RealmAccessibilityControls({
   const rId = `${id}-r`;
   const jumpErrorId = `${id}-jump-error`;
 
+  providedTriggerRef.current = triggerRef;
+
   const setTriggerRef = useCallback((element: HTMLButtonElement | null) => {
     internalTriggerRef.current = element;
-    assignRef(triggerRef, element);
+    if (triggerRef) triggerRef.current = element;
   }, [triggerRef]);
 
   useEffect(() => {
@@ -116,7 +114,8 @@ export function RealmAccessibilityControls({
       setJumpError(undefined);
       searchRef.current?.focus({ preventScroll: true });
     } else if (wasOpenRef.current) {
-      internalTriggerRef.current?.focus({ preventScroll: true });
+      const externalTrigger = providedTriggerRef.current?.current ?? null;
+      (internalTriggerRef.current ?? externalTrigger)?.focus({ preventScroll: true });
     }
     wasOpenRef.current = open;
   }, [open]);
