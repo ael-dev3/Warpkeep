@@ -159,6 +159,16 @@ Start with:
   The supplied Balanced and Compact candidates have 512²/256² embedded WebPs
   but stale `wk_atlas_size: 1024` metadata; preserve their bytes and require an
   explicit reviewed normalization or integration decision before promotion.
+- `public/images/realm/hegemony-gold-mine-record.webp` is a separate,
+  exact-hash-pinned transparent 2D inspection illustration with its provenance
+  under `docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/`.
+  It may appear only through the standalone `GoldMineInspectionPanel` visual
+  component until a reviewed node projection exists. It does not authorize a
+  3D candidate promotion, renderer import, world coordinate, target, click
+  path, owner, reserve, inventory, Gather action, balance, reward, entitlement,
+  or Gold/Marks coupling. Keep the art decorative (`alt=""`, pointer-inert) and
+  preserve its exact hash, alpha audit, authorization boundary, and no-external-
+  CDN delivery contract when a future approved node interaction mounts it.
 
 ## Player-visible release truth
 

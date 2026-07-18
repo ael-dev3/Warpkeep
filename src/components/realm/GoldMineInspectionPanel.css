@@ -1,0 +1,298 @@
+.gold-mine-inspection {
+  position: absolute;
+  z-index: 9;
+  top: max(0.8rem, env(safe-area-inset-top));
+  right: max(0.8rem, env(safe-area-inset-right));
+  width: min(21.5rem, calc(100vw - 1.6rem));
+  max-height: calc(100svh - 1.6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding-top: clamp(4.45rem, 13vw, 5.6rem);
+  color: #fff7e5;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.gold-mine-inspection__art-stage {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 50%;
+  width: min(23rem, calc(100% + 1.5rem));
+  height: clamp(10.2rem, 32vw, 13.1rem);
+  transform: translateX(-50%);
+  pointer-events: none;
+  user-select: none;
+}
+
+.gold-mine-inspection__hero-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 50% 50%;
+  filter:
+    drop-shadow(0 0.25rem 0.22rem rgb(255 214 86 / 22%))
+    drop-shadow(0 0.85rem 0.92rem rgb(0 0 0 / 58%));
+  pointer-events: none;
+  user-select: none;
+}
+
+.gold-mine-inspection__drawer {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(235 200 111 / 52%);
+  border-radius: 0.88rem;
+  background: var(--warpkeep-surface-bg-strong, rgb(9 9 15 / 98%));
+  box-shadow: var(--warpkeep-surface-shadow, 0 1.25rem 4rem rgb(0 0 0 / 54%));
+  backdrop-filter: blur(var(--warpkeep-surface-blur, 12px));
+  animation: gold-mine-inspector-enter 190ms ease-out both;
+}
+
+.gold-mine-inspection__hero {
+  position: relative;
+  display: grid;
+  min-height: 9.15rem;
+  place-items: end center;
+  box-sizing: border-box;
+  padding: 5.55rem 1rem 0.72rem;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 7%, rgb(251 191 36 / 34%), transparent 38%),
+    radial-gradient(circle at 50% 100%, rgb(143 82 22 / 28%), transparent 48%),
+    linear-gradient(165deg, #41301f 0%, #20170f 57%, #0b0b11 100%);
+}
+
+.gold-mine-inspection__hero::after {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 62%;
+  background: linear-gradient(180deg, transparent, rgb(8 8 13 / 88%) 78%, rgb(8 8 13 / 98%));
+  content: "";
+  pointer-events: none;
+}
+
+.gold-mine-inspection__title-lockup {
+  position: relative;
+  z-index: 4;
+  width: calc(100% - 1.3rem);
+  min-width: 0;
+  text-align: center;
+}
+
+.gold-mine-inspection__title-lockup::before {
+  display: block;
+  width: min(12rem, 70%);
+  height: 1px;
+  margin: 0 auto 0.38rem;
+  background: linear-gradient(90deg, transparent, rgb(239 192 87 / 78%), transparent);
+  content: "";
+}
+
+.gold-mine-inspection__title-lockup p,
+.gold-mine-inspection__title-lockup h2 {
+  margin: 0;
+}
+
+.gold-mine-inspection__title-lockup p {
+  color: #ffd67a;
+  font-size: 0.6rem;
+  font-weight: 820;
+  letter-spacing: 0.16em;
+}
+
+.gold-mine-inspection__title-lockup h2 {
+  overflow: hidden;
+  color: #fff0bd;
+  font: 500 1.42rem/1.14 Georgia, "Times New Roman", serif;
+  letter-spacing: 0.025em;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 74%);
+  white-space: nowrap;
+}
+
+.gold-mine-inspection__dismiss {
+  position: absolute;
+  z-index: 5;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: grid;
+  width: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgb(255 218 132 / 54%);
+  border-radius: 50%;
+  background: rgb(14 11 8 / 70%);
+  box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 34%);
+  color: #fff7e5;
+  font: 400 1.5rem/1 Georgia, "Times New Roman", serif;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+}
+
+.gold-mine-inspection__dismiss:hover,
+.gold-mine-inspection__dismiss:focus-visible {
+  border-color: #ffe3a0;
+  outline: 2px solid #ffe3a0;
+  outline-offset: 2px;
+}
+
+.gold-mine-inspection__body {
+  max-height: calc(100svh - 15.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding: 0.78rem 0.82rem 0.82rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.gold-mine-inspection__description,
+.gold-mine-inspection__notice {
+  margin: 0;
+  color: #d7c9b0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.gold-mine-inspection__description {
+  padding: 0.52rem 0.6rem;
+  border-left: 1px solid rgb(255 199 75 / 55%);
+  background: linear-gradient(90deg, rgb(158 96 22 / 22%), transparent);
+}
+
+.gold-mine-inspection__fields {
+  display: grid;
+  gap: 0;
+  margin: 0.62rem 0 0;
+  padding: 0 0.62rem;
+  border: 1px solid rgb(235 196 103 / 20%);
+  border-radius: 0.48rem;
+  background: rgb(255 238 190 / 4%);
+}
+
+.gold-mine-inspection__field {
+  display: grid;
+  grid-template-columns: minmax(6.25rem, 0.82fr) minmax(0, 1.18fr);
+  gap: 0.55rem;
+  padding: 0.43rem 0;
+  border-bottom: 1px solid rgb(255 234 180 / 10%);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.gold-mine-inspection__field:last-child {
+  border-bottom: 0;
+}
+
+.gold-mine-inspection__field dt {
+  color: #cfc1aa;
+}
+
+.gold-mine-inspection__field dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #ffdb7a;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.gold-mine-inspection__notice {
+  margin-top: 0.62rem;
+  color: #b9ad99;
+  font-size: 0.75rem;
+}
+
+@keyframes gold-mine-inspector-enter {
+  from {
+    opacity: 0;
+    transform: translateX(0.55rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 760px) {
+  .gold-mine-inspection {
+    top: auto;
+    right: max(0.55rem, env(safe-area-inset-right));
+    bottom: max(0.55rem, env(safe-area-inset-bottom));
+    left: max(0.55rem, env(safe-area-inset-left));
+    width: auto;
+    max-height: min(78svh, 36rem);
+    padding-top: 4.2rem;
+  }
+
+  .gold-mine-inspection__art-stage {
+    width: min(22rem, calc(100% + 1rem));
+    height: 10.7rem;
+  }
+
+  .gold-mine-inspection__drawer {
+    max-height: inherit;
+    animation-name: gold-mine-inspector-sheet-enter;
+  }
+
+  .gold-mine-inspection__hero {
+    min-height: 8.6rem;
+    padding-top: 5rem;
+  }
+
+  .gold-mine-inspection__body {
+    max-height: min(calc(78svh - 12.8rem), 21.7rem);
+  }
+}
+
+@media (max-height: 600px) and (min-width: 581px) {
+  .gold-mine-inspection {
+    top: max(0.45rem, env(safe-area-inset-top));
+    right: max(0.55rem, env(safe-area-inset-right));
+    bottom: max(0.45rem, env(safe-area-inset-bottom));
+    left: auto;
+    width: min(19.5rem, 43vw);
+    max-height: none;
+    padding-top: 3.45rem;
+  }
+
+  .gold-mine-inspection__art-stage {
+    height: 8.25rem;
+  }
+
+  .gold-mine-inspection__drawer {
+    max-height: 100%;
+    animation-name: gold-mine-inspector-enter;
+  }
+
+  .gold-mine-inspection__hero {
+    min-height: 7.6rem;
+    padding-top: 4.45rem;
+  }
+
+  .gold-mine-inspection__body {
+    max-height: calc(100svh - 11rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+
+  .gold-mine-inspection__title-lockup h2 {
+    font-size: 1.15rem;
+  }
+}
+
+@keyframes gold-mine-inspector-sheet-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.55rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gold-mine-inspection__drawer {
+    animation: none;
+  }
+}

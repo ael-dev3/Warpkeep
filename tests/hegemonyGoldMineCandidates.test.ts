@@ -111,11 +111,15 @@ describe('Hegemony Gold Mine review candidates', () => {
     expect(record.lods[2].metadataStatus).toBe('review-gate-required');
   });
 
-  it('does not wire a candidate model into current browser presentation', () => {
+  it('does not wire any 3D candidate model into current browser presentation', () => {
     const clientSource = sourceFiles(resolve(ROOT, 'src'))
       .map(path => readFileSync(path, 'utf8'))
       .join('\n');
-    expect(clientSource).not.toContain('hegemony-gold-mine');
-    expect(clientSource).not.toContain('gold-mine-node');
+    expect(clientSource).not.toContain(CANDIDATE_DIRECTORY);
+    expect(clientSource).not.toContain('runtime-candidates/hegemony-gold-mine-');
+    CANDIDATES.forEach((candidate) => {
+      expect(clientSource).not.toContain(candidate.filename);
+    });
+    expect(clientSource).not.toContain('public/models/hegemony/gathering-nodes/gold-mine');
   });
 });

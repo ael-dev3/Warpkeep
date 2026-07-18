@@ -7,4 +7,7 @@ requires its own reviewed authority, renderer, server-state, and release work.
 
 The current Gold Mine package is intentionally a review candidate outside
 `public/`; see
-[the 18 July Gold Mine record](2026-07-18-hegemony-gold-mine/README.md).
+[the 18 July Gold Mine record](2026-07-18-hegemony-gold-mine/README.md). Its
+separate [transparent inspection-art record](2026-07-18-hegemony-gold-mine/record-art/README.md)
+is a bounded 2D UI derivative only: it does not make a node, balance, or
+gathering action live.

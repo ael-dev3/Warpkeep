@@ -94,6 +94,27 @@ and visible bounds are recorded in the [dated gold icon record](docs/reference/r
 `LicenseRef-Warpkeep-Provenance-Required`; neither their inclusion as dormant
 reference masters nor a future gameplay implementation silently relicenses them.
 
+## Hegemony Gold Mine inspection artwork
+
+On 2026-07-18, the Warpkeep project owner supplied a high-resolution Gold Mine
+visual and instructed PR #49 to polish it into a transparent inspection-card
+derivative. That authorization covers this exact checked-in output in the
+public Warpkeep GitHub repository and official `warpkeep.com` Pages runtime,
+but does not establish underlying ownership, a public/open-content licence,
+general derivative or redistribution rights, trademark rights, or authority to
+place a Gold Mine, expose a balance, or activate gathering.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Decorative Gold Mine inspection card artwork | `public/images/realm/hegemony-gold-mine-record.webp` | 1254×1254 transparent WebP, 218,736 bytes, SHA-256 `a2c52a5e1536860ce3ad778c1719e354637fe473495c45ee927c99f468c60fa3`; generated from the supplied 1254×1254 reference through the recorded image-edit and chroma-matte workflow. |
+
+The exact source attachment and image-generation/chroma-matte intermediates are
+not committed. Their hashes, prompt, cleanup parameters, decoded RGBA hash,
+alpha profile, and visible bounds are recorded in the dated [Gold Mine
+inspection-art record](docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/manifest.json).
+The card is currently standalone and unmounted; its decorative image grants no
+resource, currency, reward, entitlement, map-placement, or Gold/Marks authority.
+
 ## Hegemony Gold Mine review candidates
 
 On 2026-07-18, the Warpkeep project owner supplied three exact Gold Mine runtime

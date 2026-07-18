@@ -4,9 +4,10 @@
 
 This is an asset-and-contract preparation record, not a Gold gathering
 implementation. It deliberately stages three immutable Gold Mine review
-candidates and their verifier outside the Pages `public/` tree. No resource
-node appears in the Realm, and no browser, SpacetimeDB, seed, deployment, or
-production state changes in this work.
+candidates and their verifier outside the Pages `public/` tree. The separately
+authorized 2D inspection illustration and card are presentation-only and remain
+unmounted. No resource node appears in the Realm, and no live map target,
+SpacetimeDB, seed, deployment, or production state changes in this work.
 
 ## Verified dependency state
 
@@ -36,6 +37,10 @@ none of those things.
 - A build-time candidate verifier covering regular files, symlink resistance,
   GLB headers, hashes, geometry, embedded WebPs, required extensions, and the
   no-`public/` boundary.
+- A distinct, provenance-pinned transparent Gold Mine inspection WebP and a
+  standalone focus-safe card component. The component is not imported by the
+  Realm map and contains no owner, reserve, inventory, Gather action, reward,
+  balance, or Marks data.
 - Narrow provenance and agent instructions that prevent future models from
   treating an asset as gameplay authority or a release approval.
 
@@ -75,7 +80,9 @@ not authorize a wallet, token, purchase, balance, reward, or resource mechanic.
 ## Explicit non-actions
 
 - No map placements, coordinates, terrain changes, or 10,000-cell substitute.
-- No renderer imports, Three.js instances, UI, HUD, click targets, or labels.
+- No renderer imports, Three.js instances, HUD, live click targets, or labels.
+  The standalone 2D inspection card is not mounted by the current map and does
+  not create a node interaction path.
 - No schema, bindings, reducer, schedule, account, seed, migration, or operator
   command.
 - No merge, Pages deployment, Worker deployment, SpacetimeDB publication,

@@ -18,6 +18,7 @@
     "prepare:hegemony-castle": "node scripts/install-hegemony-gameready-castle.mjs",
     "prepare:hegemony-castle-base": "node scripts/install-hegemony-gameready-castle-base.mjs",
     "prepare:hegemony-gold-mine-candidates": "node scripts/install-hegemony-gold-mine-review-candidates.mjs",
+    "prepare:hegemony-gold-mine-record-art": "node scripts/install-hegemony-gold-mine-record-art.mjs",
     "prepare:hegemony-castle:source-0.3.4": "node scripts/prepare-hegemony-main-castle.mjs",
     "prepare:hegemony-mark": "node scripts/prepare-hegemony-mark.mjs",
     "marks:plan": "tsx scripts/marks/marks-operator.ts plan",
