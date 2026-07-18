@@ -5,23 +5,24 @@ It is independent of the static Pages client: title/menu visitors do not create
 a SpacetimeDB identity, and gameplay authority comes only from a strictly
 validated bridge-issued OIDC access token.
 
-> **Alpha 0.3.2 is live on backend protocol 3.** The module described below is
+> **Alpha 0.3.8 is live on backend protocol 3.** The module described below is
 > deployed only at its privately recorded Maincloud schema, artifact,
 > aggregate, and resolver coordinates. Publication used the pinned CLI with
 > deletion prohibited and preserved the existing database identity. The
-> 1,261-cell Genesis world and its 100 close-outward castle slots are seeded,
-> deliberately admitted founders hold their permanent castles, and public shared
-> auth and realm entry are enabled. Exact founder counts and identities remain in the
-> private operational record rather than this public document.
+> 10,000-cell Genesis world and its 100 close-outward castle slots are live,
+> deliberately admitted founders hold their permanent castles and private
+> resource accounts, and public shared auth and realm entry are enabled. Exact
+> founder counts and identities remain in the private operational record rather
+> than this public document.
 
-The production database and issuer run the recorded exact Alpha 0.3.2 release,
+The production database and issuer run the recorded exact Alpha 0.3.8 release,
 while the player authentication contract remains v2. That deployment does not
 attest an arbitrary checkout. Every future republish requires a fresh proof,
 bounded aggregate, recorded authority, and exact-source verification.
 
-> **This checkout contains an undeployed protocol-3 / generation-v3
-> candidate.** It preserves the complete 1,261-cell generation-v2 predecessor
-> and all 100 permanent castle slots, then adds 8,739 cells for an exact 10,000
+> **This checkout matches the protocol-3 / generation-v3 release boundary.** It
+> preserves the complete 1,261-cell generation-v2 predecessor and all 100
+> permanent castle slots, then adds 8,739 cells for an exact 10,000
 > persistent-cell world. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md)
 > for the exact shape, budgets, compatibility boundary, and rollout invariants.
 
@@ -33,7 +34,7 @@ bounded aggregate, recorded authority, and exact-source verification.
 - Deployed backend wire protocol: `3`
 - Checked-out backend wire protocol: `3`
 - Player authentication contract: `2` (unchanged)
-- Local world generation: `3` (undeployed; live predecessor is `2`)
+- Deployed and local world generation: `3` (10,000 cells)
 
 Run locally after installing directory dependencies:
 
@@ -81,9 +82,9 @@ Inherited auth-v2 public tables in live protocol 3:
 
 - `world_tile`: the inherited declaration whose historical protocol-2
   checkpoint contained 61 canonical radius-four cells. Protocol 3 preserves
-  that declaration. Live production currently contains 1,261 canonical
-  radius-20 rows; the generation-v3 candidate expands the same table
-  additively to exactly 10,000 rows. Visual apron cells remain client-only.
+  that declaration. Live production contains 10,000 generation-v3 rows,
+  including the preserved 1,261 canonical radius-20 predecessor rows. Visual
+  apron cells remain client-only.
 - `player`: the frozen protocol-v1 compatibility table, preserved with its
   original public visibility, exact field order, and Identity column. Protocol
   v2 never reads, writes, or subscribes to it. Historical inspection recorded
@@ -103,8 +104,8 @@ lifecycle, and versioned Terms acceptance are never public. Optional public
 community aggregates remain absent unless the authenticated player accepts the
 exact current Terms version.
 
-The checked-in candidate appends private `resource_account_v1` at exact schema
-ref 19. It is caller-scoped through versioned procedures and never becomes a
+Alpha 0.3.8 appends private `resource_account_v1` at exact schema ref 19. It is
+caller-scoped through versioned procedures and never becomes a
 public table or peer inventory projection.
 
 The protocol-3 `world_tile` table retains the same frozen declaration.
@@ -364,7 +365,7 @@ never returns a FID, Identity, profile, allowlist row, note, or audit record.
 `admin_get_alpha_status_v3` remains counts-only while covering all 12 appended
 tables, occupied tiles, and canonical static-world drift in addition to orphan,
 ambiguity, projection, duplicate-reference, and ledger-reconciliation counters.
-Candidate `admin_get_alpha_status_v4` is a separate closed contract containing
+Live `admin_get_alpha_status_v4` is a separate closed contract containing
 founder/castle/Mark counts, resource-account coverage and invariants, protocol,
 and policy version; it returns no FID or balance.
 The trusted update and
@@ -384,7 +385,7 @@ local operator's apply transport remains deliberately disabled.
 
 Production and this checkout use
 `WARPKEEP_BACKEND_PROTOCOL_VERSION = 3` as an internal wire contract, separate
-from the player-facing release, auth contract 2, world generation 2, and the
+from the player-facing release, auth contract 2, world generation 3, and the
 `HEGEMONY_GENESIS_001` realm label.
 `get_alpha_backend_info` is available to lifecycle-admitted players, Hermes
 administrators, and the admission resolver; the QA resolver is explicitly

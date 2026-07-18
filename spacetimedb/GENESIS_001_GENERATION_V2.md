@@ -1,14 +1,15 @@
 # Genesis 001 generation v2
 
-Status: live Alpha 0.3.2 generation contract on backend protocol 3. The guarded
-schema publication and deterministic seed completed at the privately recorded
-production coordinates. This document records that contract; it does not
+Status: historical Alpha 0.3.2 generation contract and exact predecessor to the
+live Alpha 0.3.8 generation-three world. The guarded schema publication and
+deterministic seed completed at the privately recorded production coordinates.
+This document records that contract; it does not
 authorize another publish, seed, admission, profile lookup, token scan, credit,
 or any other production mutation.
 
 ## Independent version coordinates
 
-| Coordinate | Live value |
+| Coordinate | Historical generation-v2 value |
 | --- | --- |
 | Product | Alpha 0.3.2 |
 | Auth contract | 2 (unchanged) |
@@ -30,8 +31,8 @@ independently versioned and byte-exact.
 The pointy-top axial disc contains exactly `1 + 3r(r + 1) = 1,261` cells at
 radius 20. Generation retains the established radial `(ring, q, r)` order and
 the original seed/hash functions. The first 61 radius-four rows are therefore
-field-for-field and order-for-order identical to the inherited prefix; the live
-generation appended exactly 1,200 rows for rings 5 through 20.
+field-for-field and order-for-order identical to the inherited prefix;
+generation v2 appended exactly 1,200 rows for rings 5 through 20.
 
 Pinned SHA-256 digests:
 

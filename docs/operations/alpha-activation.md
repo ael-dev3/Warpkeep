@@ -3,12 +3,13 @@
 This runbook preserves the Alpha 0.2 and Alpha 0.3.1 recovery records and carries
 their approval boundaries forward to the current protocol-3 realm.
 
-> **Alpha 0.3.2 is live on backend protocol 3.** The additive schema was
+> **Alpha 0.3.8 is live on backend protocol 3.** The additive schema was
 > published to the existing Maincloud database with deletion prohibited, the
-> deterministic 1,261-cell Genesis world and 100 close-outward castle slots were
-> seeded, deliberately admitted founders received their permanent castles, and
-> public shared auth and realm entry are enabled. Exact founder counts and identities remain in the
-> private operational record. These observations are bound to the privately
+> deterministic 10,000-cell Genesis world and 100 close-outward castle slots are
+> live, deliberately admitted founders received their permanent castles and
+> private resource accounts, and public shared auth and realm entry are enabled.
+> Exact founder counts and identities remain in the private operational record.
+> These observations are bound to the privately
 > recorded deployment and verification coordinates; they do not authorize any
 > later change.
 
@@ -276,22 +277,23 @@ For the historical v2 checkpoint, the exact module contract was:
   `warpkeep-auth-epoch-resolver`, bound by exact `resolver_fid` to the one
   procedure argument; the module rejects windows over 60 seconds.
 
-While production remains at the pre-expansion stage, a current republish must
-retain backend protocol `3`, the complete 1,261-cell generation-two world,
-every inherited table reference and appended visibility contract, and the exact
-founded-state aggregate. After a separately approved expansion, every later
-republish must instead retain the exact 10,000-cell generation-three aggregate.
+The current production state is expanded. Every later republish must retain
+backend protocol `3`, the exact 10,000-cell generation-three aggregate, every
+inherited table reference and appended visibility contract, and the exact
+founded/resource-ready state. The 1,261-cell generation-two contract remains
+only a predecessor and recovery boundary.
 The publisher requires that world stage explicitly and repeats the matching
 aggregate after a successful publish. If this post-publish read fails, the
 outcome is indeterminate: stop and establish state through a fresh read-only
 inspection before making any further publication decision.
 
-### Prepared resource-module checkpoint (not approved)
+### Completed Alpha 0.3.8 resource-module rollout record
 
-Publishing the additive resource table and procedure is a new production
-mutation and requires fresh, explicit owner approval. The resource backfill is
-a second mutation and requires its own later approval; module-publication
-approval must never be treated as backfill approval.
+Alpha 0.3.8 published the additive resource table and procedure, then backfilled
+founders under a second approval. Those completed approvals are not reusable:
+any future publication or resource mutation requires fresh, explicit owner
+approval. The procedure below is retained as rollout and recovery evidence, not
+as authority to replay a production mutation.
 
 Before an approved resource-module publish, keep using the exact founded
 protocol-v3 checkpoint above. `admin_get_alpha_status_v4` does not exist before
@@ -335,9 +337,9 @@ the world transition is independently verified. A dry run performs only
 the bounded issuer check plus local CLI/artifact/migration/expectation proof;
 it does not publish, invoke the post-publish v4 procedure, or backfill rows.
 
-The separately approved durable backfill must also name the immutable database
-identity explicitly. The human-readable database name and an omitted database
-value are rejected before Hermes requests a token:
+The separately approved durable backfill named the immutable database identity
+explicitly. The human-readable database name and an omitted database value are
+rejected before Hermes requests a token:
 
 ```sh
 WARPKEEP_SPACETIMEDB_DATABASE=c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e \
@@ -349,11 +351,11 @@ the Hermes credential; the command line carries no secret. Publication approval
 does not authorize this backfill, and backfill approval does not authorize a
 later republish.
 
-### Prepared generation-three world transition (not approved)
+### Completed Alpha 0.3.8 generation-three rollout record
 
-Publishing the reducer does not authorize the persistent world mutation. After
-the additive module exists and a fresh read-only checkpoint proves the exact
-1,261-cell generation-two founded state, the separately approved operator is:
+Publishing the reducer did not authorize the persistent world mutation. After
+the additive module existed and a fresh read-only checkpoint proved the exact
+1,261-cell generation-two founded state, the separately approved operator was:
 
 ```sh
 WARPKEEP_SPACETIMEDB_DATABASE=<immutable-production-database-identity> \
@@ -378,12 +380,12 @@ precondition already reports generation three. Module publication, resource
 backfill, world expansion, and Pages deployment are four separate approval
 boundaries.
 
-### Prepared post-backfill resource readiness checkpoint (not approval)
+### Completed Alpha 0.3.8 post-backfill readiness record
 
-After a separately approved resource backfill returns, do not rely on the
-mutation command's result as the only evidence. The private Keychain wrapper
-must supply the Hermes credential in memory and run this independent, read-only
-checkpoint with the separately reviewed current counts:
+After the separately approved resource backfill returned, the rollout did not
+rely on the mutation command's result as its only evidence. The private Keychain
+wrapper supplied the Hermes credential in memory and ran this independent,
+read-only checkpoint with the separately reviewed current counts:
 
 The final Alpha 0.3.8 combined-release checkpoint is:
 
@@ -397,13 +399,12 @@ npm run verify:alpha-production -- \
   --expected-terms-acceptance-count=T
 ```
 
-If resource backfill is approved and performed before the separate world
-transition, use `--require-genesis-v3-founded-aggregate` for that immediate
-post-backfill read. After expansion, rerun the final checkpoint above with
-`--require-genesis-generation-v3-founded-aggregate`. Never claim final candidate
-readiness from a predecessor-world resource check.
+The immediate post-backfill predecessor-world read used
+`--require-genesis-v3-founded-aggregate`. After expansion, the final checkpoint
+used `--require-genesis-generation-v3-founded-aggregate`. Never claim final
+release readiness from a predecessor-world resource check.
 
-The new v4 flag is invalid without the founded protocol-v3 gate and all three
+The v4 flag is invalid without the founded protocol-v3 gate and all three
 explicit expectations. The verifier constructs and validates one exact
 four-variable child environment, then reuses the same bounded child options for
 both `inspect-alpha-v3 --json` and `inspect-alpha-v4 --json`. Both inspections

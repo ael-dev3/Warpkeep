@@ -25,7 +25,7 @@ body:
     attributes:
       label: Version or public build
       description: Use the visible Alpha version, public release identifier, or commit SHA. Do not paste a credentialed URL.
-      placeholder: Alpha 0.3.3
+      placeholder: Alpha 0.3.8 · BUILD abc1234
     validations:
       required: true
   - type: textarea

@@ -1,21 +1,22 @@
 # Warpkeep roadmap
 
-## Current public release — Alpha 0.3.6
+## Current public release — Alpha 0.3.8
 
-Warpkeep is a Pages-only, admission-gated Genesis 001 preview. Players can view
-and navigate the shared Lowlands, inspect founded castles, and use the compact
-realm presentation. Alpha 0.3.6 improves castle and landscape-base readability,
-terrain support, direct foundation identity rails, map input and overview,
-hardware-aware graphics selection, and the compact player portrait. It leaves
-shared-world authority unchanged.
+Warpkeep is an admission-gated Genesis 001 Alpha. Players can enter through
+Farcaster, navigate a persistent 10,000-cell Lowlands realm, inspect nearby
+founders, and return to the same authoritative world across sessions. The 100
+permanent castle slots remain close-outward from the founding district.
 
-Public admission, resources, upgrades, units, combat, alliances, chat, seasons,
-wallet actions, and Marks crediting or spending are not live.
+Each founded castle has a caller-private Food, Wood, Stone, and Gold account.
+Complete server-time quanta and authoritative terrain determine bounded
+collection; the browser never invents balances or reveals another founder's
+inventory. Community Marks remains separate, private, and has no live spending,
+transfer, or reward path.
 
-## Undeployed candidate — Alpha 0.3.8 resources and world capacity
+## What Alpha 0.3.8 established
 
-The checked-in 0.3.8 candidate carries the bounded resource authority prepared
-in 0.3.7 and adds persistent map capacity for future naturally placed nodes:
+Alpha 0.3.8 carries the bounded resource authority prepared in 0.3.7 and adds
+persistent map capacity for future naturally placed nodes:
 
 1. One private, caller-scoped Food, Wood, Stone, and Gold account belongs to
    each founded castle.
@@ -34,27 +35,32 @@ in 0.3.7 and adds persistent map capacity for future naturally placed nodes:
    sites. No resource node, public marker, collection entitlement, or new yield
    source is activated by that metadata.
 
-This candidate is not live. Module publication, the production founder
-backfill, world expansion, aggregate verification, and exact Pages deployment
-remain separate gates requiring review and explicit owner approval.
+The additive module, founder backfill, exact world expansion, aggregate
+verification, and matching Pages release are live. Their completed approvals do
+not authorize another database mutation, admission change, or deployment.
 
-## Next release gate — verify and publish the bounded candidate
+## Current stability gate
 
-1. Complete the release matrix against one exact reviewed candidate SHA.
-2. Publish the additive module with deletion disabled only after approval.
-3. Run the exact-count founder backfill only after separate owner approval.
-4. Expand the exact generation-two world with the guarded one-time operator
-   only after a fresh read-only checkpoint and separate owner approval.
-5. Require the exact 10,000-cell generation-three aggregate plus zero missing,
-   orphaned, or invalid resource accounts in the
-   counts-only v4 inspection before deploying the matching Pages SHA.
-6. After the candidate boundary is stable, split the v4 migration lifecycle
-   proof and resource rollout security tests out of their large shared harnesses
-   without changing their fail-closed public contracts.
+1. Keep entry, wake-from-background, reconnect, and Realm readiness reliable on
+   the exact 10,000-cell production state.
+2. Preserve the current authentication, resource, world, and privacy contracts
+   while fixing defects; every deployment still requires an exact reviewed SHA.
+3. Keep production checks bounded and read-only unless the owner separately
+   approves a specific mutation.
+4. Improve test and documentation maintainability without weakening the
+   fail-closed release gates.
 
-## Next gameplay slice — construction queues
+## Future map population — resource nodes
 
-After the resource loop is independently verified and live, the next
+The 2,000 resource-capable cells are placement capacity, not live nodes. A
+future slice may place Wood, Food, Stone, and Gold sites only after their public
+projection, deterministic placement, interaction authority, and recovery proof
+are reviewed and separately deployed. No node balance, gather action, reward,
+or entitlement exists today.
+
+## Later gameplay slice — construction queues
+
+With the resource loop independently verified and live, the next
 intentional vertical slice may add construction:
 
 1. Define reviewed costs and accept bounded construction intents.

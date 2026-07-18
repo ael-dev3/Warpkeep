@@ -1,7 +1,7 @@
 # Service inventory
 
-> **Alpha 0.3.2 is live on backend protocol 3; recovery remains fail-closed.**
-> The 1,261-cell Genesis world and 100 close-outward castle slots are seeded,
+> **Alpha 0.3.8 is live on backend protocol 3; recovery remains fail-closed.**
+> The 10,000-cell Genesis world and 100 close-outward castle slots are live,
 > deliberately admitted founders hold their permanent castles, and Worker public
 > auth plus shared-alpha realm entry are enabled at their separately recorded production
 > coordinates. Exact founder counts and identities remain private. Recovery
@@ -9,10 +9,10 @@
 > every future republish, binding change, secret change, deploy, or enable
 > requires its own authority and verification.
 
-The checked-in Alpha 0.3.8 candidate is not part of that deployed inventory. It
-adds one private resource table at schema ref 19 and defines a separately
-approval-gated generation-three target with exactly 10,000 world and metadata
-rows. Neither source presence nor local proof attests that production state.
+Alpha 0.3.8 adds the private resource table at schema ref 19 and the
+generation-three world with exactly 10,000 world and metadata rows to the
+deployed inventory. Only the separately recorded deployment and fresh bounded
+inspection attest that production state; source presence and local proof do not.
 
 ## Repositories and workflows
 
@@ -75,7 +75,7 @@ development-only.
 - Compatibility flag: `nodejs_compat`
 - `workers_dev = false`
 - Checked-in/recovery default: `PUBLIC_AUTH_ENABLED=false`
-- Current Alpha 0.3.2 production state: `PUBLIC_AUTH_ENABLED=true`
+- Current Alpha 0.3.8 production state: `PUBLIC_AUTH_ENABLED=true`
 
 Durable Objects:
 
@@ -98,7 +98,7 @@ separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 
 The server-only config attestation profile is `warpkeep-auth-v2`. Its
 fail-closed recovery target has `publicAuthEnabled: false`; the current Alpha
-0.3.2 active target has `publicAuthEnabled: true`. It covers
+0.3.8 active target has `publicAuthEnabled: true`. It covers
 issuer/origins/SIWF coordinates, gameplay key/Maincloud coordinates, the
 observer URI/database/audience tuple and gate, S256, the 600-second access TTL,
 15-second resolver TTL, five-second resolver timeout, five-minute challenge TTL,
@@ -162,11 +162,12 @@ protocol-3 seed and founding rollout:
 backend protocol 2 / world seed 3445214658 / HEGEMONY_GENESIS_001
 ```
 
-Current Alpha 0.3.2 production instead has the complete 1,261-cell world,
-1,261 metadata rows, one realm, 100 immutable slots, and deliberately admitted
-founders with matching founding graphs. A recovery verifier must obtain the
-fresh privacy-safe aggregate and compare it with the private current-state
-record; it must not reuse the historical zero-admission values above.
+Current Alpha 0.3.8 production has the complete 10,000-cell generation-three
+world, 10,000 metadata rows, one realm, 100 immutable slots, and deliberately
+admitted founders with matching founding and resource graphs. A recovery
+verifier must obtain the fresh privacy-safe aggregate and compare it with the
+private current-state record; it must not reuse the historical zero-admission
+values above.
 
 The local module preserves the original five-table prefix exactly, in this
 order: private `allowed_fid`, public `world_tile`, public legacy `player`, public
@@ -178,8 +179,8 @@ browser never subscribes to it, and its required production count is zero.
 The deployed v2 schema appended two tables: public `player_v2`, which excludes
 opaque identity, and private `player_ownership_v2`, which contains the
 authorization binding. Protocol 3 later appended the 12 frozen tables at refs
-7–18. The checked-in candidate appends private `resource_account_v1` at exact
-ref 19 without changing those deployed declarations.
+7–18. Alpha 0.3.8 appends private `resource_account_v1` at exact ref 19 without
+changing those deployed declarations.
 The private ownership table must have no generated browser table accessor.
 Bootstrap ignores optional profile-shaped JWT fields and explicitly inserts
 undefined `username`, `displayName`, and `pfpUrl`; profile changes require a
@@ -194,7 +195,7 @@ request it; the retired writer plus mandatory zero-row invariant is the
 compatibility safety boundary.
 
 The live `admin_get_alpha_status_v3` procedure covers the complete founded
-protocol-3 graph without exposing row identities. Candidate
+protocol-3 graph without exposing row identities. Live
 `admin_get_alpha_status_v4` is a separate closed counts-only resource contract:
 founder/castle/Mark coverage, resource coverage and invariant counts, protocol,
 and policy version. The generation-two and generation-three world gates remain

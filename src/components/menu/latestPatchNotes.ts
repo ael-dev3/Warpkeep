@@ -108,20 +108,20 @@ const ALPHA_0_3_7_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 });
 
 const ALPHA_0_3_8_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: 'CANDIDATE · 18 JUL 2026',
-  title: 'GENESIS WORLD EXPANSION',
+  releasedOn: '18 JUL 2026',
+  title: 'THE REALM GROWS',
   summary:
-    'Alpha 0.3.8 is an undeployed candidate that prepares Genesis 001 for future naturally placed resource nodes by expanding its persistent world definition to exactly 10,000 cells.',
+    'Genesis 001 stretches to a wider horizon while its first keeps remain close enough to feel like a founding neighbourhood.',
   highlights: Object.freeze([
-    'Every existing generation-two cell and all 100 close-outward permanent castle slots remain exact; the expansion adds 8,739 outer cells without moving a founder.',
-    'A complete radius-57 disc plus 81 balanced ring-58 boundary cells forms the authoritative world, with a neutral radius-60 visual apron.',
-    'Exactly 2,000 cells are reserved as future resource-capable sites, but no node, marker, collection entitlement, or new reward mechanic is activated by this patch.',
-    'SpacetimeDB performs the reviewed 1,261-to-10,000 transition atomically behind an admin-only exact-state check; partial or mixed worlds fail closed and an exact target retry writes nothing.',
-    'The Realm accepts only complete generation-two or generation-three snapshots during rollout and scales terrain detail with deterministic bounded work.',
-    'Alpha 0.3.7’s private Food, Wood, Stone, and Gold authority remains part of this candidate. Construction, combat, trading, public inventories, and financial rewards remain unavailable.'
+    'Genesis 001 now holds 10,000 persistent cells. Every original cell and all 100 close-outward founder sites remain in place, so no castle was moved by the expansion.',
+    'Admitted founders can return to their keep, explore the Lowlands, and inspect the public identity of nearby castle owners in one shared authoritative world.',
+    "Each keep has private Food, Wood, Stone, and Gold stores that begin at zero and grow from its terrain over time; the Realm, not the browser, keeps the tally. Community Marks remain separate and cannot be spent or earned as rewards.",
+    'The outer frontier includes dormant space for future resource sites, but no map node, building, unit, combat, alliance, trade, or season system is active.',
+    'A sleeping Realm now has more time to wake. If the same founder briefly reconnects, Genesis stays in view while private controls wait safely for authority to return.',
+    'Alpha participation offers no airdrop, guaranteed reward, financial return, or promise of future value.'
   ]),
   alphaNotice:
-    'Undeployed candidate. Production module publication, world expansion, resource backfill, Pages deployment, and future resource-node placement remain separately approval-gated.'
+    'Released 18 July 2026. Alpha systems remain experimental and may change.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =

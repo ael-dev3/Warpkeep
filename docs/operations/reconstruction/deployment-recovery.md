@@ -1,9 +1,10 @@
 # Deployment and recovery
 
-> **Alpha 0.3.2 is live on backend protocol 3; recovery remains fail-closed.**
+> **Alpha 0.3.8 is live on backend protocol 3; recovery remains fail-closed.**
 > The existing Maincloud database contains the append-only protocol-3 schema,
-> deterministic 1,261-cell Genesis realm, 100 close-outward castle slots, and
-> deliberately admitted founders. Public auth and shared-alpha entry are
+> deterministic 10,000-cell Genesis realm, 100 close-outward castle slots,
+> complete founder resource-account coverage, and deliberately admitted
+> founders. Public auth and shared-alpha entry are
 > enabled at the privately recorded exact-source coordinates. The recovery
 > commands below deliberately restore a disabled posture and never imply
 > approval for a republish, secret change, deploy, admission, data mutation, or

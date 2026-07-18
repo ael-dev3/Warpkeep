@@ -8,14 +8,15 @@ owns the realm, world tiles, public metadata, players, profiles, and castles. Th
 browser renders that complete projection; it does not invent a smaller recovery
 map, ownership, castle coordinates, or player identity.
 
-This presentation does not yet implement resources, roads, farms, units,
-movement, combat, fog of war, or alternate biomes.
+The Realm presents caller-private terrain yield and collection, but no map
+resource nodes, roads, farms, units, movement, combat, fog of war, or alternate
+biomes.
 
 ## Canonical readiness boundary
 
 The authenticated realm mounts only after a single validator accepts the whole
-snapshot. During the bounded generation-v3 rollout, the contract accepts one
-of two complete protocol-3 Genesis 001 profiles: the exact 1,261-cell
+snapshot. For rollout and recovery compatibility, the contract accepts one of
+two complete protocol-3 Genesis 001 profiles: the exact 1,261-cell
 generation-v2 predecessor or the exact 10,000-cell generation-v3 target. Each
 profile pins its realm fields, tile keys, metadata, counts, and fingerprint;
 mixed or inferred geography is never accepted. Both profiles also require
