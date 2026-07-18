@@ -1,7 +1,7 @@
 # Warpkeep Alpha 0.3.9 — Gold Mine wagon expeditions and shared forests
 
-**Status (18 July 2026): undeployed candidate. Alpha 0.3.6 remains the
-verified public release.**
+**Status: historical undeployed candidate note. Alpha 0.3.8 is the verified
+public protected-`main` release.**
 
 Alpha 0.3.9 combines the reviewed Alpha 0.3.8 Genesis 001 world-capacity
 candidate with one bounded, server-authoritative Gold Mine wagon loop and one

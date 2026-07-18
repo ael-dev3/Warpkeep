@@ -4,14 +4,13 @@ Warpkeep contains a TypeScript SpacetimeDB authority module under
 [`spacetimedb/`](../spacetimedb/). It is authoritative shared-world code, not a
 browser mock.
 
-> **Alpha 0.3.2 is live on backend protocol 3; authority remains invite-only.**
-> The guarded additive module was published to the existing Maincloud database
-> with deletion prohibited, the deterministic 1,261-cell Genesis world and 100
-> close-outward slots were seeded, deliberately admitted founders received
-> permanent castles, and public shared auth plus realm entry are enabled. Exact founder counts and
-> identities remain in the private operational record. Only the privately
-> recorded source, deployment, aggregate, probe, and QA coordinates attest that
-> state; an arbitrary local checkout does not.
+> **Alpha 0.3.8 is the verified public release; the protocol-3 authority
+> foundation remains invite-only.** The guarded Alpha 0.3.2 module publication,
+> 1,261-cell Genesis seed, and enabled shared-auth configuration are historical
+> backend evidence at privately recorded coordinates. Exact founder counts and
+> identities remain in the private operational record. Only those recorded
+> source, deployment, aggregate, probe, and QA coordinates attest that state;
+> an arbitrary local checkout does not.
 
 The checked-in Alpha 0.3.9 candidate is deliberately ahead of that live
 checkpoint. It retains backend protocol 3 and the previously reviewed,
@@ -19,7 +18,17 @@ separately approval-gated 10,000-cell / 2,000-resource-capable-anchor Genesis
 definition, appends one private resource table, and adds a bounded Gold Mine
 wagon loop with 24 deterministic Tier-I sites. It does not attest a production
 publish, world transition, resource backfill, Gold-site setup, or deployment.
-Alpha 0.3.6 remains the verified public release.
+Alpha 0.3.8 remains the verified protected-`main` public release line.
+
+The dependent Alpha 0.3.10 draft adds a versioned Hegemony entry agreement
+without changing the protocol-3 schema or wire contract. It uses the existing
+private `alpha_terms_acceptance_v1` record for immutable FID/exact-bundle/time
+evidence and retains the `accept_alpha_terms_v1` name plus
+`{ termsVersion, accepted }` payload. Exact current-bundle acceptance gates
+entry and gameplay. Deliberately enumerated historical evidence can retain an
+already-public Community Marks projection only; it is never a current-entry
+authorization. This is not a production publish or a future-faction
+implementation.
 
 ## Version contract
 
@@ -114,7 +123,7 @@ lookup.
 | `wallet_attribution_snapshot_v1` | private | Singleton identifying the complete current wallet snapshot. |
 | `snap_scan_cursor_v1` | private | Finalized-block and pinned contract/implementation checkpoint. |
 | `snap_scan_batch_v1` | private | Pending/finalized atomic scan-application transaction. |
-| `alpha_terms_acceptance_v1` | private | Immutable FID/version/time evidence for the current Alpha Terms gate. |
+| `alpha_terms_acceptance_v1` | private | Immutable FID/exact-entry-agreement-version/time evidence. The current bundle gates entry and gameplay; explicitly enumerated historical evidence can preserve an already-public Marks projection only. |
 | `resource_account_v1` | private | Candidate caller-scoped Food, Wood, Stone, and Gold account with authoritative settlement time and policy version. |
 | `gold_site_v1` | public | Candidate immutable catalog of exactly 24 canonical Tier-I Gold Mine coordinates, tier, and active state. |
 | `gold_node_occupation_v1` | public | Candidate identity-minimized Mine occupancy: site, public origin castle, phase, and server-derived lifecycle timestamps. |
@@ -226,8 +235,10 @@ Admission and bootstrap never read or write legacy `player`, even when its row
 count is non-zero. They require the exact canonical static world and a
 bidirectionally consistent castle/occupancy/slot graph; any mismatch fails
 `STATE_INTEGRITY`. After bootstrap, `accept_alpha_terms_v1` requires the exact
-current version and explicit boolean, inserts immutable private FID/version/time
-evidence idempotently, and only then makes aggregate Mark fields public. A
+current entry-agreement version and explicit boolean, inserts immutable private
+FID/version/time evidence idempotently, and only then makes aggregate Mark
+fields public. Historical evidence is not current entry/gameplay authority; it
+can retain only an already-public Marks projection under the explicit policy. A
 cancelled browser intent cannot activate the subscription after a late reducer
 acknowledgement. The browser pins protocol 3 plus both generation name and
 numeric seed before admission or subscription.
@@ -358,8 +369,9 @@ confirmation and forbade `--break-clients`. A future republish or recovery must
 instead derive an explicitly reviewed expected aggregate from a fresh,
 privacy-safe inspection of the current founded state; it must not reuse the
 historical zero-admission checkpoint. The current publisher requires explicit
-canonical founder, authenticated player, and Terms-acceptance expectations,
-including zeroes, plus an explicit `prebackfill`/`ready` resource stage and
+canonical founder, authenticated player, and entry-agreement-acceptance
+expectations, including zeroes and permitted immutable historical rows, plus an
+explicit `prebackfill`/`ready` resource stage and
 `pre-expansion`/`expanded` world stage. It keeps private expectations out of
 child arguments/environments and validates the matching founded and resource
 aggregates against the immutable database identity before and after its single

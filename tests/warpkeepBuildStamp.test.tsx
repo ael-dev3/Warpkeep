@@ -104,7 +104,7 @@ describe('Warpkeep menu build stamp', () => {
     const continueButton = screen.getByRole('button', { name: 'CONTINUE TO SIGN-IN' });
     expect((continueButton as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I have read and agree to the Alpha Terms and Hegemony Social Contract.'
     }));
     fireEvent.click(continueButton);
 

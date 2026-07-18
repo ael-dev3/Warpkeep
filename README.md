@@ -41,28 +41,27 @@ offers no financial return, airdrop, or promise of future value.
 
 ## Current status
 
-Alpha 0.3.6 is the verified public Pages release. Its in-menu build stamp
+Alpha 0.3.8 is the verified public `main` release. Its in-menu build stamp
 identifies the exact protected-main commit deployed to players. Detailed
 release truth lives in the [changelog](CHANGELOG.md),
 [release notes](docs/releases/), and exact-version in-game patch chronicle—not
 in this overview.
 
-The checked-in package is Alpha 0.3.9, an **undeployed candidate**. It retains
-the pending private Food, Wood, Stone, and Gold authority and expands the
-deterministic Genesis world definition to exactly 10,000 persistent cells. The
-existing 1,261 cells and all 100 close-outward founder slots remain exact, while
-8,739 outer cells add placement space. It also stages a 24-site Genesis Gold
-Mine pilot where a server-authorized wagon gathers one Gold per completed minute
-for 30 days. Gold-site occupancy is public, while ownership, routes, requests,
-accrual, and balances remain private and server-controlled. Community Marks
-remains separate with no conversion or spending path. A public, server-seeded
-layout gives every player the same 210 decorative trees, groves, and clearings
-in the preserved Genesis founding Lowlands; graphics quality changes only the
-selected model LOD. Forests do not change terrain, movement, resources, or
-ownership. Production publication,
-owner-approved world, resource, Gold-site, and forest-layout setup, aggregate
-verification, and exact Pages deployment remain explicitly approval-gated. See the
-[candidate release notes](docs/releases/alpha-0.3.9.md).
+The checked-in source is being prepared as an **undeployed Alpha 0.3.10 draft
+candidate**. It retains the pending private Food, Wood, Stone, and Gold
+authority, 10,000-cell world candidate, Gold Mine pilot, and decorative forest
+layout from the dependent source stack. It also proposes one versioned entry
+agreement: Alpha Terms plus a separately public Hegemony Social Contract,
+accepted by one unchecked checkbox after the player intentionally begins entry.
+The Privacy Notice remains linked for notice, not bundled consent. Current entry
+and gameplay require the exact current agreement; immutable historical evidence
+can preserve an already-public Community Marks projection only and never grants
+current entry. `Ousters` and `Core` are provisional future-setting concepts, not
+playable systems or promises. Production publication, legal/privacy/naming
+review, stack reconciliation, owner-approved world/resource/Gold/forest setup,
+aggregate verification, and exact Pages deployment remain explicitly
+approval-gated. See the [candidate release notes](docs/releases/alpha-0.3.10.md)
+and [entry-agreement plan](docs/plans/2026-07-18-hegemony-social-contract.md).
 
 ## Architecture
 
@@ -85,6 +84,12 @@ subscription; public Gold-site occupancy exposes only the site, phase, timeline,
 and originating castle. The browser cannot supply the FID, castle, terrain,
 route, rate, balance, or clock used for settlement. Invalid or unavailable
 resource authority withholds the Realm instead of falling back to browser state.
+
+The proposed 0.3.10 entry-agreement layer does not add gameplay state or a
+browser authority path. It keeps the established protocol-3 reducer and payload
+shape, records only private immutable FID/version/time evidence after an
+authenticated acknowledgement, and fails closed when a client and module do not
+agree on the exact current agreement bundle.
 
 ## Run locally
 

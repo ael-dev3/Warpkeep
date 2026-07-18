@@ -18,50 +18,37 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: 'CANDIDATE · 18 JUL 2026',
-      title: 'GENESIS GOLD EXPEDITIONS'
+      title: 'HEGEMONY ENTRY AGREEMENT'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /10,000 persistent cells.*2,000 resource-capable anchors.*original founder slot preserved/i
+      /unchecked entry dialog.*Alpha Terms.*Hegemony Social Contract/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Food, Wood, and Stone.*server-time terrain collection.*Gold.*one issuance path.*wagon-gathering minute/i
+      /Privacy Notice.*not.*(?:accepted|consent|agreement)/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Twenty-four deterministic Tier-I Gold Mines.*passable resource-capable Genesis anchors.*placement digest/i
+      /FID.*exact bundle.version.*acceptance.time/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /dispatch.*site id.*idempotency key.*server derives.*one-wagon limit.*1 Gold\/minute.*30-day gathering window.*browser never moves a wagon or credits Gold/i
+      /Ousters.*Core.*provisional/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /public Mine occupancy timeline.*origin castle.*FIDs.*request keys.*routes.*accrued output.*balances stay private.*whole minutes exactly once/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Gold Mines.*Hegemony supply wagons.*provenance-pinned High, Balanced, and Compact assets.*nearby-only animation.*safe marker fallback/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /preserved Genesis founding Lowlands.*shared, server-seeded forest layout.*210 trees.*22 provenance-pinned families.*High, Balanced, and Compact.*terrain.*passability.*Gold sites.*ownership.*economy remain unchanged/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Community Marks remains a separate private authority.*no conversion.*transfer.*credit.*spending.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
+      /no schema.*protocol.*reducer.wire.*faction.*chat.*AI.*premium.*payment.*reward.*Marks.economy/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /released to players|deployed to players|public balances|guaranteed rewards/i
+      /released to players|deployed to players|guaranteed rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('undeployed candidate');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'additive module publication'
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'owner-approved resource, Gold-site, and forest-layout setup'
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'aggregate verification'
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'exact Pages deployment'
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toMatch(
+      /legal.*review/i
     );
     expect(getLatestPatchNotes('0.3.7')?.title).toBe('GENESIS RESOURCE AUTHORITY');
-    expect(getLatestPatchNotes('0.3.8')?.title).toBe('GENESIS WORLD EXPANSION');
+    expect(getLatestPatchNotes('0.3.8')).toMatchObject({
+      releasedOn: '18 JUL 2026',
+      title: 'THE REALM GROWS'
+    });
+    expect(getLatestPatchNotes('0.3.8')?.alphaNotice).toMatch(/^Released 18 July 2026/i);
+    expect(getLatestPatchNotes('0.3.9')?.title).toBe('GENESIS GOLD EXPEDITIONS');
     expect(getLatestPatchNotes('0.3.6')?.title).toBe('REALM READABILITY & STABILITY');
     expect(getLatestPatchNotes('0.3.5')?.title).toBe('GAME-READY CASTLE REFRESH');
     expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');

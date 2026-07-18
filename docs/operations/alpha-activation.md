@@ -3,9 +3,9 @@
 This runbook preserves the Alpha 0.2 and Alpha 0.3.1 recovery records and carries
 their approval boundaries forward to the current protocol-3 realm.
 
-For player-facing release claims, Alpha 0.3.6 remains the verified public
+For player-facing release claims, Alpha 0.3.8 remains the verified public
 release. The Alpha 0.3.2 backend coordinates recorded below are historical
-protocol-3 deployment evidence, not a claim that the checked-in Alpha 0.3.9
+protocol-3 deployment evidence, not a claim that the checked-in Alpha 0.3.10
 candidate has been published, seeded, or deployed.
 
 > **Alpha 0.3.2 is live on backend protocol 3.** The additive schema was

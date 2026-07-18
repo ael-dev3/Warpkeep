@@ -1,7 +1,7 @@
 # Warpkeep Alpha 0.3.7 — Genesis Resource Authority
 
-**Status (18 July 2026): undeployed candidate. Alpha 0.3.6 remains the
-verified public release.**
+**Status: historical undeployed candidate note. Alpha 0.3.8 is the verified
+public protected-`main` release.**
 
 Alpha 0.3.7 prepares one deliberately small persistent loop: an admitted
 founder can see and collect their own Food, Wood, Stone, and Gold. It does not

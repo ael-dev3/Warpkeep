@@ -1,12 +1,14 @@
-# Alpha 0.3.8 — Genesis 001 world capacity candidate
+# Alpha 0.3.8 — Genesis 001 world capacity release record
 
-**Status:** undeployed candidate, 18 July 2026
+**Status:** verified protected-`main` public release, 18 July 2026. Any
+separate backend/world operation remains approval-gated.
 
-**Live release remains:** Alpha 0.3.6
+**Live release:** Alpha 0.3.8
 
 **Backend protocol:** 3 (unchanged)
 
-**World generation:** 3 candidate; live predecessor is generation 2
+**World generation:** generation-three rollout remains a separate gated operation;
+the public release record does not itself authorize it.
 
 Alpha 0.3.8 prepares Genesis 001 for future naturally distributed Food, Wood,
 Stone, and Gold nodes by expanding the persistent authoritative world to

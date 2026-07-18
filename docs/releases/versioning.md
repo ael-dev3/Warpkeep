@@ -4,8 +4,8 @@ Warpkeep uses semantic product versions and a separate immutable build identity.
 
 | Identity | Meaning | Example |
 | --- | --- | --- |
-| Checked-in product version | Player-facing semantic version in source; may still be a candidate | `ALPHA 0.3.9` (candidate) |
-| Verified public release | Exact version currently released to players | `ALPHA 0.3.6` |
+| Checked-in product version | Player-facing semantic version in source; may still be a candidate | `ALPHA 0.3.10` (dependent draft candidate) |
+| Verified public release | Exact version currently released to players | `ALPHA 0.3.8` |
 | Build | Exact Git commit deployed to the browser | `BUILD abc1234` |
 | Realm seed | World-generation identity, not software version | `GENESIS 001` |
 | Authentication contract | Browser/Worker compatibility integer | `2` |
@@ -30,13 +30,25 @@ candidate until its separate migration and deployment gates pass.
 
 The package version is the sole product-version source of truth. The browser receives it through the build-info module rather than duplicating a string in UI components. A production build must include a full Git SHA; the menu presents its seven-character prefix and links to the exact commit. Local builds deliberately say `LOCAL` instead.
 
-The checked-in package identifies the undeployed Alpha 0.3.9 candidate. It
-combines the pending resource authority, additive Genesis 001 generation-three
-world definition, and bounded Gold Mine wagon loop. Alpha 0.3.6 remains the
-verified public release until the complete 0.3.9 release matrix,
-protected-main publication, separately approved additive module, founder-resource
-backfill, Gold-site setup, exact Pages deployment, and post-deploy build checks
-pass.
+The checked-in source is being prepared as the undeployed Alpha 0.3.10
+dependent draft candidate. It retains the pending resource authority, additive
+Genesis 001 generation-three world definition, and bounded Gold Mine wagon loop
+from the preceding source stack, then adds the Hegemony Social Contract as part
+of one exact entry-agreement bundle with the Alpha Terms. Alpha 0.3.8 remains
+the verified public release until the predecessor stack is reconciled, the
+complete 0.3.10 release matrix passes, legal/privacy/naming review is complete,
+the separately approved additive module/world/resource/Gold/forest operations
+are performed where applicable, exact Pages deployment occurs, and post-deploy
+build checks pass.
+
+The Social Contract addition does not change backend protocol `3` or the
+existing `accept_alpha_terms_v1` reducer/payload compatibility surface. A
+candidate must prove the exact current entry-agreement bundle, document hashes,
+and fail-closed client/module skew behavior. It must also prove that immutable
+historical evidence can preserve only an already-public Community Marks
+projection, never current entry or gameplay eligibility. `Ousters` and `Core`
+remain provisional names pending separate naming/originality review; no
+clearance is implied by a version number or draft release note.
 The exact public commit is identified by the menu build stamp. Product version,
 authentication contract, backend protocol, realm seed, and build SHA are
 independent coordinates; changing one does not silently change another.

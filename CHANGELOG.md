@@ -4,6 +4,30 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
+## 0.3.10 — candidate (18 July 2026)
+
+- Adds a separately public Hegemony Social Contract and binds it with the Alpha
+  Terms as the exact current entry-agreement bundle.
+- Keeps one short, unchecked entry checkbox. It accepts the Alpha Terms and
+  Hegemony Social Contract; the Privacy Notice is linked for review and is not
+  asserted as blanket consent.
+- Records only private immutable FID, exact bundle-version, and acceptance-time
+  evidence after authenticated acknowledgement. The established protocol-3
+  reducer name and `{ termsVersion, accepted }` payload remain unchanged.
+- Requires the exact current bundle for current entry and gameplay. Explicitly
+  retained historical evidence can preserve an already-public Community Marks
+  projection but cannot authorize the current bundle.
+- Does not add a schema migration, generated binding, faction mechanic, chat,
+  AI, moderation tooling, premium access, payment, reward, or Marks-economy
+  path. The current Alpha remains Hegemony-only and allowlist/admission gated;
+  Ousters and Core are provisional future-setting names only.
+- Alpha 0.3.10 is **not deployed**. Alpha 0.3.8 is the verified public
+  protected-`main` release. Legal/privacy and naming review, #51/#52 stack
+  reconciliation, a matching client/module rollout, and exact deployment remain
+  separate approval gates.
+
+See [Alpha 0.3.10 candidate notes](docs/releases/alpha-0.3.10.md).
+
 ## 0.3.9 — candidate (18 July 2026)
 
 - Adds a bounded Genesis 001 Gold Mine expedition pilot on the reviewed
@@ -32,16 +56,16 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   cannot cull or move trees. It does not change the canonical terrain digest,
   `terrainKind`, passability, collision, movement costs, resource rates,
   castle slots, Gold-site catalog, ownership, or economy.
-- Alpha 0.3.9 is **not deployed**. Alpha 0.3.6 remains the verified public
+- Alpha 0.3.9 is **not deployed**. Alpha 0.3.8 is the verified public
   release. Production requires separately approved additive publication,
   resource, Gold-site, and forest-layout setup, aggregate verification, and
   exact Pages deployment.
 
 See [Alpha 0.3.9 candidate notes](docs/releases/alpha-0.3.9.md).
 
-## 0.3.8 — candidate (18 July 2026)
+## [0.3.8] — 18 July 2026
 
-- Expands the undeployed Genesis 001 world definition from 1,261 to exactly
+- Expands the Genesis 001 world definition from 1,261 to exactly
   10,000 persistent cells while preserving every generation-v2 tile, metadata
   row, and permanent castle slot.
 - Uses a complete radius-57 disc plus 81 cells arranged as six balanced,
@@ -55,16 +79,15 @@ See [Alpha 0.3.9 candidate notes](docs/releases/alpha-0.3.9.md).
 - Adds separate pre-expansion and expanded production gates, an explicit
   publisher world-stage requirement, a confirmation-only Hermes operator, and
   a populated loopback migration proof. No production mutation is performed by
-  this candidate.
+  this release.
 - Scales terrain and decoration work with deterministic hard budgets and keeps
   the established founding district visually preferred as the outer world is
   added.
 - Retains Alpha 0.3.7's pending private resource authority. Construction,
   combat, trading, rewards, and financial promises remain unavailable.
-- Alpha 0.3.8 is **not deployed**. Alpha 0.3.6 remains the verified public
-  release.
+- Alpha 0.3.8 is the verified public protected-`main` release.
 
-See [Alpha 0.3.8 candidate notes](docs/releases/alpha-0.3.8.md).
+See [Alpha 0.3.8 release record](docs/releases/alpha-0.3.8.md).
 
 ## 0.3.7 — candidate (18 July 2026)
 
@@ -92,7 +115,7 @@ See [Alpha 0.3.8 candidate notes](docs/releases/alpha-0.3.8.md).
   rollout and privacy checks.
 - Does not add construction, upgrades, units, combat, trading, public
   inventories, transferable assets, rewards, or guaranteed financial value.
-- Alpha 0.3.7 is **not deployed**. Alpha 0.3.6 remains the verified public
+- Alpha 0.3.7 is **not deployed**. Alpha 0.3.8 is the verified public
   release. Production requires an additive module publication, explicit owner
   approval for the guarded founder backfill, counts-only v4 verification, an
   exact reviewed Pages deployment, and final owner approval.
@@ -558,7 +581,8 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.6...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.8...HEAD
+[0.3.8]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.6...v0.3.8
 [0.3.6]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...v0.3.4

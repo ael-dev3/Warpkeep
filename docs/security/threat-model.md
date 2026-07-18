@@ -1,7 +1,8 @@
-# Warpkeep threat model — historical baseline and active Alpha 0.3.2 boundary
+# Warpkeep threat model — historical baseline, public Alpha 0.3.8, and candidate boundaries
 
 Status: the Alpha 0.2 and Alpha 0.3.1 evidence remains historical. Alpha 0.3.2
-is live on backend protocol 3 at its separately recorded production
+is the recorded protocol-3 production foundation; Alpha 0.3.8 is the current
+protected-`main` public release line. The production foundation remains at its separately recorded
 coordinates: the deterministic 1,261-cell Genesis world and 100 close-outward
 slots are seeded, deliberately admitted founders hold permanent castles, and
 Worker auth plus shared-alpha realm entry are enabled. Exact founder counts and
@@ -85,7 +86,38 @@ state. The guarded operator requires an immutable database identity, explicit
 confirmation, a fresh counts-only precondition, unchanged private dynamic
 counts, and a postcondition with exactly one new audit row. A timeout or failed
 postcondition is indeterminate and permits only bounded read-only inspection,
-not a blind retry. Alpha 0.3.6 remains the verified public release.
+not a blind retry. Alpha 0.3.8 remains the verified public release line.
+
+## Draft Alpha 0.3.10 Hegemony entry-agreement boundary
+
+The dependent Alpha 0.3.10 draft adds no new game, identity, moderation, or
+economy authority. It binds the Alpha Terms and a separately public Hegemony
+Social Contract into one exact entry-agreement bundle. A concise dialog keeps
+one unchecked, memory-only checkbox and links to the Terms, Social Contract,
+and Privacy Notice in that order. The linked Privacy Notice is notice, not an
+assertion of blanket privacy consent.
+
+The existing `accept_alpha_terms_v1` reducer and `{ termsVersion, accepted }`
+payload remain the protocol-3 compatibility surface. After an authenticated,
+truthful acknowledgement, it writes only private immutable FID, exact bundle
+version, and timestamp evidence. The static legal pages are script-free,
+strict-CSP documents whose normalized visible text is hash-bound to the policy
+version. No checkbox state, proof, token, cookie, wallet, IP address, chat,
+social graph, or moderation record is introduced.
+
+Current entry and gameplay require the exact current bundle. An explicitly
+enumerated historical row may preserve only an already-public Community Marks
+projection; it cannot become an authorization bypass or an implicit renewal of
+consent. Client/module policy skew must deny entry through
+`ALPHA_TERMS_REQUIRED`, not accept a stale row. The current alpha remains
+Hegemony-only and admission gated. `Ousters` and `Core` are provisional
+future-setting names pending separate naming/originality review, not playable
+or active feature work.
+
+This draft makes no claim of legal, privacy, or naming clearance. It does not
+add faction mechanics, chat, direct messages, AI/NPC interaction, moderation
+tooling, payments, premium access, rewards, Marks conversion/spending, or any
+production publication/deployment authorization.
 
 ## System and data flow
 
@@ -132,8 +164,8 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Session-family cookie and Durable Object state | `__Host-`, Secure, HttpOnly, SameSite=Strict; integrity-protected rotating reference; server-side expiry/revocation. |
 | Tab-scoped Farcaster presentation cache | Sanitized public FID, username, display name, and HTTPS avatar only; written after fresh-signature and same-FID bridge validation; exact-FID display merge only after successful refresh; bounded expiry and purge; never authority. |
 | Browser logout-intent tombstone | Non-secret, base-path scoped marker/timestamp only; no FID, proof, token, cookie, family ID, or profile data; 30-day maximum and explicit Terms-gated activation clearing. |
-| Alpha Terms gate state | Unchecked by default, component-memory only, one entry attempt, no identity or cross-tab/persistent representation. |
-| Versioned Alpha Terms acceptance evidence | Private immutable FID/version/time row only after authenticated player acceptance; never a public projection and never contains proof, QR, token, cookie, signature, or wallet data. |
+| Entry-agreement gate state | Unchecked by default, component-memory only, one entry attempt, no identity or cross-tab/persistent representation. One checkbox agrees to the Alpha Terms plus Hegemony Social Contract; the linked Privacy Notice is not blanket checkbox consent. |
+| Versioned entry-agreement acceptance evidence | Private immutable FID/exact-bundle-version/time row only after authenticated player acceptance; never a public projection and never contains proof, QR, token, cookie, signature, wallet, chat, or social-graph data. |
 | Worker-to-SpacetimeDB resolver JWT | Server-only, Worker-minted 15 seconds, module rejection ceiling 60 seconds, exact resolver subject/sole role and one-FID binding, fixed Worker destination, never logged. |
 | ES256 private signing key | Worker-managed secret only; absent from source, browser, artifacts, and logs. |
 | Hermes admin secret | Operator/Worker secret only; never placed in browser code, process output, or repository. |
@@ -304,19 +336,22 @@ creation, and world state. Anonymous visitors do not open a database connection.
 
 ### Browser session lifecycle
 
-- **ENTER REALM** opens an accessible Alpha Terms gate before any anonymous
+- **ENTER REALM** opens an accessible entry-agreement gate before any anonymous
   cookie refresh, SIWF challenge, QR/deep link, or database connection. Its
   checkbox is local to the mounted dialog and is destroyed on cancel, close,
   Escape, browser Back, unmount, failure, expiry, retry replacement, or
   completion. Direct `#realm` navigation normalizes to the menu and conveys no
   acceptance or authorization intent. The concise notice links to standalone
-  Alpha Terms and a Privacy Notice; neither the gate nor those project-authored
-  documents substitutes for formal legal/privacy review.
+  Alpha Terms, Hegemony Social Contract, and Privacy Notice in that order; one
+  checkbox agrees to the first two, and neither the gate nor those
+  project-authored documents substitutes for formal legal/privacy review.
 - After an admitted player authenticates and submits the exact current version,
-  SpacetimeDB records private immutable FID/version/time evidence before opening
-  the realm subscription. Cancelling an in-flight acknowledgement prevents its
-  completion from activating a subscription; it does not attempt to erase an
-  already-committed audit row.
+  SpacetimeDB records private immutable FID/exact-bundle-version/time evidence
+  before opening the realm subscription. Cancelling an in-flight acknowledgement
+  prevents its completion from activating a subscription; it does not attempt
+  to erase an already-committed audit row. Historical evidence may preserve an
+  already-public Marks projection only; it never meets the exact-current entry
+  check.
 - An access bearer exists only in JavaScript memory and expires within 600
   seconds. It is never persisted to localStorage, IndexedDB, a URL, or a
   browser-readable cookie.
@@ -401,7 +436,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | --- | --- | --- |
 | Client chooses or substitutes another FID | Independent SIWF verification and exact FID agreement | Treat verifier/RPC compromise as an external dependency incident. |
 | Tampered or stale browser presentation cache | Cache is non-authoritative, read only after successful refresh, exact-FID matched, sanitized, expiry-bounded, and purged on mismatch/logout | Same-FID public presentation can be stale until the next fresh sign-in; storage denial intentionally shows only the FID. |
-| Terms gate bypass or replay | Dormant anonymous refresh; direct-route normalization; local unchecked state; disabled continuation; one-shot callback; focus trap; no persistence or identity tracking | The linked project-authored Alpha Terms and Privacy Notice still require formal legal/privacy review; revisit the gate and documents before changing auth entry points. |
+| Entry-agreement gate bypass, stale-version replay, or policy skew | Dormant anonymous refresh; direct-route normalization; local unchecked state; disabled continuation; one-shot callback; focus trap; no persistence or identity tracking; exact current bundle comparison; historical-evidence exception limited to an already-public Marks projection | The linked project-authored Alpha Terms, Hegemony Social Contract, and Privacy Notice still require formal legal/privacy and naming/originality review; revisit the gate and documents before changing auth entry points. |
 | Proof replay or parallel exchange | Expiring Durable Object challenge, atomic pre-work claim, and distributed per-client rolling-window limits | Add aggregate edge monitoring/alerts for broad distributed abuse; tune policy only through separate review. |
 | Stolen in-memory access bearer | Exact v2 claims, 600-second maximum, positive epoch/admission checks, disconnect/logout handling | XSS/extension memory capture remains possible for the token's short remaining lifetime; the HttpOnly family is not exposed. |
 | Stolen resolver bearer presented before expiry | Server-only minting, exact sole-role and one-FID claims, 15-second Worker initiation window, fixed Worker destination, independent resolver guard | It reveals its bound FID and can resolve only that FID's admission projection while fresh; it can establish public subscriptions that persist until disconnect, but cannot query another FID, read private tables, mutate as a player, or pass Hermes/admin guards. |

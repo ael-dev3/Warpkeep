@@ -17,6 +17,28 @@ npm audit signatures
 git diff --check
 ```
 
+## Hegemony entry agreement
+
+- Check the published Alpha Terms, Hegemony Social Contract, and Privacy Notice
+  against the reviewed source: each canonical page has strict CSP, the local
+  legal stylesheet, its correct navigation/current-page marker, and no script,
+  remote asset, form, or tracking. The visible-main SHA-256 values for the
+  Terms and Social Contract must match the policy constants.
+- Confirm the current entry-agreement identifier is exact in browser and
+  server policy. A new intentional acceptance must create only the private
+  verified-FID, bundle-version, and timestamp evidence row; no proof, token,
+  cookie, checkbox state, or extra personal data may be recorded.
+- Confirm the single unchecked gate checkbox names the Alpha Terms and
+  Hegemony Social Contract, never treats the Privacy Notice as contractual
+  consent, and leaves Continue disabled until checked. A prior bundle version
+  is historical evidence only and must not unlock current entry or gameplay.
+- Render the legal pages and gate at the supported compact, landscape,
+  tablet, and desktop viewports. Opening a document must not close the gate or
+  create acceptance evidence.
+- Do not publish the module, deploy Pages, mutate production data, or tag a
+  release as part of this verification. Any matching client/module rollout is
+  separately approved work.
+
 ## Auth bridge
 
 ```sh

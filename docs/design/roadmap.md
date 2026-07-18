@@ -1,16 +1,41 @@
 # Warpkeep roadmap
 
-## Current public release — Alpha 0.3.6
+## Current public release — Alpha 0.3.8
 
 Warpkeep is a Pages-only, admission-gated Genesis 001 preview. Players can view
 and navigate the shared Lowlands, inspect founded castles, and use the compact
-realm presentation. Alpha 0.3.6 improves castle and landscape-base readability,
-terrain support, direct foundation identity rails, map input and overview,
-hardware-aware graphics selection, and the compact player portrait. It leaves
-shared-world authority unchanged.
+realm presentation. Alpha 0.3.8 is the recorded protected-`main` public line;
+it leaves the shared-world authority boundary unchanged.
 
 Public admission, resources, upgrades, units, combat, alliances, chat, seasons,
 wallet actions, and Marks crediting or spending are not live.
+
+## Stacked draft candidate — Alpha 0.3.10 Hegemony entry agreement
+
+The next proposed documentation-and-entry slice is a dependent draft on the
+0.3.9 source stack. It makes the Alpha Terms and a separately public Hegemony
+Social Contract one exact, versioned entry agreement. The dialog retains one
+unchecked checkbox and links to the Terms, Social Contract, and Privacy Notice
+in that order. Privacy remains notice, not a blanket checkbox consent.
+
+The server keeps the established protocol-3 `accept_alpha_terms_v1` wire and
+records only immutable private FID/version/time evidence. The exact current
+bundle is required for entry and gameplay. Explicitly enumerated historical
+evidence may preserve an already-public Community Marks projection, but it can
+never satisfy the new entry requirement or create a gameplay entitlement.
+
+This is not a faction feature. The current alpha remains Hegemony-only and
+allowlist/admission gated. `Ousters` and `Core` are provisional future-setting
+names only, pending separate naming/originality review; they are not playable,
+in active implementation, or promised. Chat, direct messages, AI/NPC systems,
+moderation tooling, premium access, rewards, Marks conversion/spending, and
+other gameplay work remain out of scope.
+
+Advancement requires the #51/#52 source stack to be reconciled with current
+`main`, formal legal/privacy and naming review, exact document-hash and
+accessibility checks, current-versus-historical acceptance tests, and a
+separately approved matching client/module rollout. No draft merge or local
+test run authorizes publication, deployment, or a production mutation.
 
 ## Undeployed candidate — Alpha 0.3.9 resources, world capacity, Gold expeditions, and forests
 

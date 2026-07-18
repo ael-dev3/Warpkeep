@@ -1,8 +1,8 @@
 # Technical architecture
 
-Warpkeep is an admission-gated persistent-world alpha. The current player
-experience is the verified Alpha 0.3.6 realm exploration and castle
-presentation release. The checked-in Alpha 0.3.9 candidate carries a bounded
+Warpkeep is an admission-gated persistent-world alpha. The current public
+player experience is the verified Alpha 0.3.8 realm exploration and castle
+presentation release. The checked-in source stack carries a bounded
 private resource loop, the 10,000-cell Genesis world candidate, and a 24-site
 Gold Mine wagon pilot plus a shared decorative forest layout, but it is not
 deployed. Construction, spending, combat, and social systems are deliberately
@@ -20,6 +20,39 @@ not live.
   browser authority.
 - Public projections exist for display and navigation. They do not grant a
   player power to alter authoritative state.
+
+## Alpha 0.3.10 candidate: versioned Hegemony entry agreement
+
+The proposed Alpha 0.3.10 layer makes the Alpha Terms and Hegemony Social
+Contract one explicit entry-agreement bundle. The public pages are static,
+script-free documents with local styling, strict CSP, and normalized visible
+text hashes. The entry dialog remains a short, in-memory activation step: one
+unchecked checkbox links to the Terms, Social Contract, then Privacy Notice.
+The Privacy Notice is notice, not an asserted blanket consent.
+
+The exact current bundle is
+`2026-07-18-hegemony-entry-agreement-v1`; the incorporated Social Contract is
+`2026-07-18-hegemony-social-contract-v1`. The established
+`accept_alpha_terms_v1` reducer name and `{ termsVersion, accepted }` payload
+remain unchanged. On authenticated acknowledgement the module writes only an
+immutable private FID/exact-version/accepted-at record. There is no new table,
+schema migration, generated binding, protocol increment, or browser-persisted
+acceptance state.
+
+Connection and gameplay authority compare the submitted row with the exact
+current bundle and fail closed on a mismatch. A deliberately enumerated older
+row may be considered only when retaining an already-public Community Marks
+projection; it does not renew consent or satisfy current entry/gameplay. This
+allows immutable historical evidence without accidentally making a stale policy
+an authorization path. Client/module version skew therefore denies entry with
+the existing `ALPHA_TERMS_REQUIRED` path until matching reviewed versions are
+released together.
+
+The candidate is not a faction implementation. The alpha remains
+Hegemony-only and allowlist/admission gated; `Ousters` and `Core` are
+provisional future-setting names pending separate naming/originality review.
+No chat, direct-message, AI/NPC, moderation-tooling, premium, reward, wallet,
+or Marks-economy capability is introduced by this boundary.
 
 ## Alpha 0.3.9 candidate resource, world, and Gold boundary
 
@@ -202,5 +235,5 @@ completion or a client merge authorizes none of those production operations.
 - `docs` — current decisions, release records, recovery, and provenance
 
 Start with the [README](../README.md), [product direction](design/warpkeep-direction.md),
-[roadmap](design/roadmap.md), [verified Alpha 0.3.6 release notes](releases/alpha-0.3.6.md),
-and [Alpha 0.3.9 candidate notes](releases/alpha-0.3.9.md).
+[roadmap](design/roadmap.md), [verified Alpha 0.3.8 release record](releases/alpha-0.3.8.md),
+and [Alpha 0.3.10 candidate notes](releases/alpha-0.3.10.md).

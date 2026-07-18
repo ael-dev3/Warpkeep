@@ -3,20 +3,18 @@
 Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
 App, Quick Auth, wallet connection, or a client-only permanent identity system.
 
-> **Protocol-3 Alpha 0.3.2 is active; admission remains gated.** The additive
-> module, expanded Genesis 001, reviewed Worker, and exact-main frontend are live
-> at their separately recorded production coordinates. The Worker includes the
-> additive `SessionFamily` migration and independent managed session-cookie
-> secret. `PUBLIC_AUTH_ENABLED=true` and the exact frontend shared-alpha gate
-> were enabled after paused verification. Deliberately admitted founders occupy
-> the shared frontier; their identities are not part of this public integration
-> record. No further admission or production mutation is authorized by this
-> document.
+> **Alpha 0.3.8 is the verified public release; the Hegemony-only realm remains
+> admission gated.** The protocol-3 Alpha 0.3.2 module and Worker facts below
+> are historical deployment evidence at separately recorded coordinates. They
+> document the `SessionFamily` migration and a recorded enabled configuration;
+> they do not attest the checked-in 0.3.9/0.3.10 source candidates, a matching
+> legal-document deployment, or any new production mutation. No further
+> admission or production mutation is authorized by this document.
 
 ## Authority boundary
 
 ```text
-player intentionally selects ENTER REALM and accepts the in-memory Alpha Terms
+player intentionally selects ENTER REALM and accepts the in-memory entry agreement
   -> browser may restore one cookie session or creates a fresh private S256 verifier and bound SIWF challenge
   -> player approves a normal Farcaster SIWF request
   -> browser sends the completed proof envelope plus verifier to the bridge
@@ -52,12 +50,16 @@ and never falls back to a local or anonymous database identity.
 ## Browser flow and privacy
 
 Selecting **ENTER REALM** opens the concise **ALPHA PARTICIPATION TERMS** gate;
-it does not begin authentication. The unchecked checkbox state and its continuation
-exist only in component memory. Only checking the explicit agreement and
-selecting **CONTINUE TO SIGN-IN** starts one auth activation. That activation
-may first restore a valid HttpOnly cookie session; otherwise it creates a fresh
-SIWF request. Cancel, close, Escape, browser Back, unmount, retry, and completion
-discard acceptance. A retry or later entry attempt starts unchecked again.
+it does not begin authentication. The unchecked checkbox state and its
+continuation exist only in component memory. Its one statement is “I have read
+and agree to the Alpha Terms and Hegemony Social Contract.” The documents are
+linked in the order Alpha Terms, Hegemony Social Contract, then Privacy Notice;
+the Privacy Notice is notice, not a blanket checkbox consent. Only checking the
+explicit agreement and selecting **CONTINUE TO SIGN-IN** starts one auth
+activation. That activation may first restore a valid HttpOnly cookie session;
+otherwise it creates a fresh SIWF request. Cancel, close, Escape, browser Back,
+unmount, retry, and completion discard acceptance. A retry or later entry
+attempt starts unchecked again.
 
 Title load, anonymous menu load, focus/visibility/pageshow events, ordinary
 route rendering, and direct `#realm` navigation perform no cookie refresh,
@@ -67,12 +69,15 @@ layouts are deep-link-first with optional QR fallback after acceptance.
 
 The local gate stores no identity and is not represented in `localStorage`,
 `sessionStorage`, IndexedDB, URLs, cookies, or analytics. In protocol 3, an
-admitted player who authenticates and submits the exact current version receives
-a separate private immutable SpacetimeDB FID/version/time acceptance record
-before the public realm subscription opens. That record contains no checkbox
-state, proof, QR payload, signature, token, cookie, or wallet data. The gate is a
-narrow authentication-start control, not a replacement for the linked standalone
-Alpha Terms and Privacy Notice. Those project-authored
+admitted player who authenticates and submits the exact current entry-agreement
+bundle receives a separate private immutable SpacetimeDB FID/version/time
+acceptance record before the public realm subscription opens. That record
+contains no checkbox state, proof, QR payload, signature, token, cookie, wallet,
+chat, or social-graph data. A deliberately enumerated historical row may
+preserve an already-public Community Marks projection only; it cannot satisfy
+the exact current entry/gameplay check. The gate is a narrow
+authentication-start control, not a replacement for the linked standalone Alpha
+Terms, Hegemony Social Contract, and Privacy Notice. Those project-authored
 documents are not substitutes for formal legal and privacy review.
 
 Each attempt receives a new 32-byte verifier. Only its `S256` digest enters the
@@ -243,8 +248,8 @@ VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 
 The Worker configuration is documented in
 [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its
-checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.2
-production override is true. Before any future enable, the server-only v2
+checked-in `PUBLIC_AUTH_ENABLED` remains false, while the historical Alpha 0.3.2
+production override was true. Before any future enable, the server-only v2
 configuration attestation must match the reviewed issuer, origins, SIWF
 coordinates, key ID, Maincloud coordinates, S256 binding, 600-second access
 TTL, 15-second resolver TTL, five-second resolver timeout, five-minute
@@ -312,7 +317,7 @@ and revocation, exact production coordinate pins, exact resolver claims/response
 profile-claim discard, private-ownership isolation, protocol compatibility,
 local additive-migration proof, retired legacy module wires, v2-only browser
 player data, privacy-safe protocol-3 admin aggregation, private Terms evidence,
-complete founding invariants, single-use in-memory Alpha Terms acceptance,
+complete founding invariants, single-use in-memory entry-agreement acceptance,
 dormant anonymous cookie refresh, direct-route normalization, and no
 anonymous/unadmitted connection.
 

@@ -5,22 +5,22 @@ OIDC access JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the
 static browser app: browser code never receives a signing key, admin secret,
 Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
 
-> **Alpha 0.3.2 is live on backend protocol 3; the checked-in default fails
-> closed.** The v2 access/session and resolver contract described below remains
-> active at its privately recorded production source, deployment,
-> configuration, and canary coordinates. The 1,261-cell Genesis world is
-> seeded, deliberately admitted founders hold their permanent castles, and
-> public shared auth and realm entry are enabled. `wrangler.toml` deliberately keeps
-> `PUBLIC_AUTH_ENABLED = "false"`; the recorded production override is true.
+> **Alpha 0.3.8 is the verified public release; the checked-in default fails
+> closed.** The v2 access/session and resolver contract described below records
+> the historical Alpha 0.3.2 protocol-3 production foundation at privately
+> recorded source, deployment, configuration, and canary coordinates.
+> `wrangler.toml` deliberately keeps `PUBLIC_AUTH_ENABLED = "false"`; a recorded
+> historical production override was true. Those facts do not attest an
+> arbitrary checkout or a newer candidate deployment.
 
-The checked-in Alpha 0.3.9 candidate is separately approval-gated and remains
-undeployed. It inherits the 10,000-cell generation-three / 2,000
-resource-capable-anchor world target, then adds a bounded Gold Mine wagon
-candidate with 24 deterministic Tier-I sites. It does not attest a module
-publication, world transition, resource backfill, Gold-site setup, or Pages
-deployment; Alpha 0.3.6 remains the verified public release. The QA aggregate
-parser supports only the two exact **world** rollout tuples and never infers a
-world stage, Gold-site state, or Gold economy state from partial counts.
+The checked-in Alpha 0.3.10 candidate is separately approval-gated and remains
+undeployed. It layers a versioned Hegemony entry agreement over the 0.3.9
+resource, 10,000-cell generation-three, Gold Mine, and forest source work. It
+does not attest a module publication, world transition, resource backfill,
+Gold-site setup, matching legal-document deployment, or Pages deployment;
+Alpha 0.3.8 remains the verified public release. The QA aggregate parser
+supports only the two exact **world** rollout tuples and never infers a world
+stage, Gold-site state, or Gold economy state from partial counts.
 
 `https://auth.warpkeep.com` is the canonical bridge coordinate, but its
 existence is not evidence that an arbitrary local v2 source is deployed. Every

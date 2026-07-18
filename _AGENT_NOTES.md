@@ -2,17 +2,18 @@
 
 ## Current state
 
-The verified public release is Alpha 0.3.6. The checked-in package is the
-undeployed Alpha 0.3.9 candidate, which includes private resource authority,
-the generation-three world expansion, the pending Gold Mine wagon loop, and a
-server-seeded shared forest layout for the preserved founding Lowlands. The
-public menu build stamp
+The verified public release is Alpha 0.3.8. The checked-in package is the
+undeployed Alpha 0.3.10 candidate, stacked above the private-resource,
+generation-three world, Gold Mine wagon, and shared-forest source candidates.
+It adds a versioned Hegemony entry agreement only; it does not publish a module,
+change production data, or activate factions, chat, AI, moderation, or a Marks
+economy. The public menu build stamp
 identifies the exact deployed source. An annotated
 release tag is created only after the matching protected-main deployment passes
 exact-build verification. Do not turn the disabled local QA observer into a
 Worker or SpacetimeDB release without a separately reviewed production scope.
 
-The release makes the Realm read as a brighter Lowlands day without changing
+The historical Alpha 0.3.6 Pages-only release makes the Realm read as a brighter Lowlands day without changing
 global exposure, GLB bytes, textures, light count, or authority. A
 camera-visible key sun, clear-sky/earth bounce, restrained amethyst identity
 fill, bounded castle/base calibration, and a greener scene-linear terrain
@@ -34,8 +35,8 @@ ingress, tooling downloads, and CI action runtimes. Those source changes do not
 themselves deploy the Worker, mutate admission or backend state, change DNS, or
 touch production data.
 
-Alpha 0.3.5 introduced the responsive Farcaster castle record, while this
-release makes every direct
+Alpha 0.3.5 introduced the responsive Farcaster castle record, while that
+historical release makes every direct
 Realm username rail permanent at its projected foundation base. Its decorative
 castle art is a same-origin, integrity-pinned,
 provenance-required runtime asset. These are browser presentation changes only;
@@ -56,7 +57,7 @@ only after pending acquisitions and active leases both reach zero, then its one
 cache retain is released exactly once. Empty authoritative castle sets are
 ready with zero models rather than treated as a missing pair.
 
-Warpkeep Alpha 0.3.6 preserves the live title/menu, explicit Alpha Terms gate,
+The verified Alpha 0.3.8 release retains the live title/menu, explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
 least-privilege Cloudflare Worker OIDC bridge, and a non-destructively published
 protocol-3 SpacetimeDB module. Live Genesis 001 contains 1,261 authoritative

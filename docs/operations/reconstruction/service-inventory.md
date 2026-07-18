@@ -9,16 +9,14 @@
 > every future republish, binding change, secret change, deploy, or enable
 > requires its own authority and verification.
 
-The checked-in Alpha 0.3.9 candidate is not part of that deployed inventory.
-It retains the separately approval-gated 10,000-cell generation-three target
-and its 2,000 resource-capable anchors, appends private
-`resource_account_v1` at schema ref 19, and appends five Gold-expedition tables
-at refs 20–24. Those tables define a public 24-site catalog and identity-free
-occupation projection, private expedition/idempotency authority, and a
-public-safe scheduler projection. Neither source presence nor local proof
-attests a production module publication, world transition, resource backfill,
-Gold-site setup, or deployment. Alpha 0.3.6 remains the verified public
-release.
+The checked-in Alpha 0.3.10 candidate is not part of that deployed inventory.
+It layers a versioned Hegemony entry agreement over the separately
+approval-gated 10,000-cell generation-three target, private `resource_account_v1`
+at schema ref 19, and the five Gold-expedition tables at refs 20–24. Neither
+source presence nor local proof attests a production module publication, world
+transition, resource backfill, Gold-site setup, matching legal-document
+deployment, or entry-agreement activation. Alpha 0.3.8 remains the verified
+public release.
 
 ## Repositories and workflows
 

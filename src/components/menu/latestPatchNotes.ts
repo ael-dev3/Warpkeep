@@ -93,7 +93,7 @@ const ALPHA_0_3_7_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: 'CANDIDATE · 18 JUL 2026',
   title: 'GENESIS RESOURCE AUTHORITY',
   summary:
-    'Alpha 0.3.7 is an undeployed candidate for one small persistent resource loop; Alpha 0.3.6 remains the verified public release.',
+    'Alpha 0.3.7 is an undeployed candidate for one small persistent resource loop; Alpha 0.3.8 is now the verified public main release.',
   highlights: Object.freeze([
     'Each founder receives one private, caller-scoped Food, Wood, Stone, and Gold inventory owned by SpacetimeDB; peer balances never enter the public Realm subscription.',
     'Server time and authoritative castle terrain determine completed ten-minute yields. Collect accepts no browser-supplied FID, balance, terrain, rate, timestamp, or castle input.',
@@ -108,27 +108,27 @@ const ALPHA_0_3_7_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 });
 
 const ALPHA_0_3_8_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: 'CANDIDATE · 18 JUL 2026',
-  title: 'GENESIS WORLD EXPANSION',
+  releasedOn: '18 JUL 2026',
+  title: 'THE REALM GROWS',
   summary:
-    'Alpha 0.3.8 is an undeployed candidate that prepares Genesis 001 for future naturally placed resource nodes by expanding its persistent world definition to exactly 10,000 cells.',
+    'Genesis 001 stretches to a wider horizon while its first keeps remain close enough to feel like a founding neighbourhood.',
   highlights: Object.freeze([
-    'Every existing generation-two cell and all 100 close-outward permanent castle slots remain exact; the expansion adds 8,739 outer cells without moving a founder.',
-    'A complete radius-57 disc plus 81 balanced ring-58 boundary cells forms the authoritative world, with a neutral radius-60 visual apron.',
-    'Exactly 2,000 cells are reserved as future resource-capable sites, but no node, marker, collection entitlement, or new reward mechanic is activated by this patch.',
-    'SpacetimeDB performs the reviewed 1,261-to-10,000 transition atomically behind an admin-only exact-state check; partial or mixed worlds fail closed and an exact target retry writes nothing.',
-    'The Realm accepts only complete generation-two or generation-three snapshots during rollout and scales terrain detail with deterministic bounded work.',
-    'Alpha 0.3.7’s private Food, Wood, Stone, and Gold authority remains part of this candidate. Construction, combat, trading, public inventories, and financial rewards remain unavailable.'
+    'Genesis 001 now holds 10,000 persistent cells. Every original cell and all 100 close-outward founder sites remain in place, so no castle was moved by the expansion.',
+    'Admitted founders can return to their keep, explore the Lowlands, and inspect the public identity of nearby castle owners in one shared authoritative world.',
+    'Each keep has private Food, Wood, Stone, and Gold stores that begin at zero and grow from its terrain over time; the Realm, not the browser, keeps the tally. Community Marks remain separate and cannot be spent or earned as rewards.',
+    'The outer frontier includes dormant space for future resource sites, but no map node, building, unit, combat, alliance, trade, or season system is active.',
+    'A sleeping Realm now has more time to wake. If the same founder briefly reconnects, Genesis stays in view while private controls wait safely for authority to return.',
+    'Alpha participation offers no airdrop, guaranteed reward, financial return, or promise of future value.'
   ]),
   alphaNotice:
-    'Undeployed candidate. Production module publication, world expansion, resource backfill, Pages deployment, and future resource-node placement remain separately approval-gated.'
+    'Released 18 July 2026. Alpha systems remain experimental and may change.'
 });
 
 const ALPHA_0_3_9_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: 'CANDIDATE · 18 JUL 2026',
   title: 'GENESIS GOLD EXPEDITIONS',
   summary:
-    'Alpha 0.3.9 is an undeployed candidate for a bounded Gold Mine wagon loop on the expanded Genesis 001 world; Alpha 0.3.6 remains the verified public release.',
+    'Alpha 0.3.9 is an undeployed candidate for a bounded Gold Mine wagon loop on the expanded Genesis 001 world; Alpha 0.3.8 is now the verified public main release.',
   highlights: Object.freeze([
     'The Alpha 0.3.8 world definition remains exact: 10,000 persistent cells and 2,000 resource-capable anchors, with every original founder slot preserved.',
     'Food, Wood, and Stone retain server-time terrain collection. Gold has one issuance path: a completed wagon-gathering minute, never passive terrain yield.',
@@ -143,6 +143,23 @@ const ALPHA_0_3_9_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, and forest-layout setup, aggregate verification, exact Pages deployment, and final owner approval.'
 });
 
+const ALPHA_0_3_10_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: 'CANDIDATE · 18 JUL 2026',
+  title: 'HEGEMONY ENTRY AGREEMENT',
+  summary:
+    'Alpha 0.3.10 is an undeployed candidate that joins the Alpha Terms and Hegemony Social Contract as one versioned entry agreement; Alpha 0.3.8 remains the verified public main release.',
+  highlights: Object.freeze([
+    'One concise, unchecked entry dialog links to the Alpha Terms, Hegemony Social Contract, and Privacy Notice in that order. The checkbox accepts the Terms and Social Contract only; the Privacy Notice remains a notice, not blanket consent.',
+    'The current client and module require the same exact entry-agreement bundle before entry and gameplay. An older acceptance cannot quietly authorize the newer agreement.',
+    'A successful acknowledgement adds only private immutable FID, exact bundle-version, and acceptance-time evidence. Browser checkbox state, proof material, tokens, cookies, wallets, chat, and social-graph data are not added to that record.',
+    'A specifically retained historical record can preserve an already-public Community Marks projection, but never grants current entry or gameplay eligibility.',
+    'The current Alpha remains Hegemony-only and allowlist/admission gated. Ousters and Core are provisional future-setting names, not playable factions, active feature work, or promises.',
+    'This candidate adds no schema, protocol, reducer-wire, faction, chat, AI, moderation-tooling, premium, payment, reward, or Marks-economy feature.'
+  ]),
+  alphaNotice:
+    'Undeployed draft candidate. Stack reconciliation, formal legal/privacy and naming review, matching client/module release, protected deployment, and exact-build verification remain separately approval-gated.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
     '0.3.2': ALPHA_0_3_2_PATCH_NOTES,
@@ -152,7 +169,8 @@ export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatc
     '0.3.6': ALPHA_0_3_6_PATCH_NOTES,
     '0.3.7': ALPHA_0_3_7_PATCH_NOTES,
     '0.3.8': ALPHA_0_3_8_PATCH_NOTES,
-    '0.3.9': ALPHA_0_3_9_PATCH_NOTES
+    '0.3.9': ALPHA_0_3_9_PATCH_NOTES,
+    '0.3.10': ALPHA_0_3_10_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {
