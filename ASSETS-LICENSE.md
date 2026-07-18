@@ -131,6 +131,30 @@ The reviewed draft integration mounts the card as decorative inspection art
 only; it grants no resource, currency, reward, entitlement, map-placement, or
 Gold/Marks authority. No Pages deployment is authorized by this record.
 
+## Hegemony Stone Quarry inspection artwork
+
+On 2026-07-18, the Warpkeep project owner supplied a Stone Quarry visual and
+instructed isolated draft PR #59 to prepare a high-resolution UI element in the
+same careful inspection-art pattern. That authorization covers this exact
+checked-in output in the public Warpkeep GitHub repository and an eventual
+official `warpkeep.com` Pages runtime after separately approved deployment. It
+is use authorization only, not deployment approval, and does not establish
+underlying ownership, a public/open-content licence, general derivative or
+redistribution rights, trademark rights, or authority to place a Stone Quarry,
+expose a balance, or activate gathering.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Decorative Stone Quarry inspection-card artwork | `public/images/realm/hegemony-stone-quarry-record.webp` | 1254×1254 transparent WebP, 134,508 bytes, SHA-256 `58725387db6218ccd5f47aea46a22db80161b232e6bb4de6f60c21068efe40fd`; generated from the supplied reference through the recorded image-edit and chroma-matte workflow. |
+
+The exact source attachment and image-generation/chroma-matte intermediates are
+not committed. Their hashes, prompt, cleanup parameters, decoded RGBA hash,
+alpha profile, and visible bounds are recorded in the dated [Stone Quarry
+inspection-art record](docs/reference/resources/2026-07-18-hegemony-stone-quarry/record-art/manifest.json).
+The prepared panel is deliberately unmounted until a separately reviewed
+authoritative Stone-site integration; it grants no resource, currency, reward,
+entitlement, map-placement, Stone/Marks authority, or Pages deployment.
+
 ## Hegemony Gold Mine review candidates
 
 On 2026-07-18, the Warpkeep project owner supplied three exact Gold Mine runtime

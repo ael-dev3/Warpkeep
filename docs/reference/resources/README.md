@@ -21,3 +21,6 @@ The owner-supplied Stone Quarry delivery has its own immutable
 [18 July runtime record](2026-07-18-hegemony-stone-quarry/runtime/README.md).
 It preserves the exact public LOD family and renderer contract only; it does
 not create a Stone-site catalog, local placement, worker, balance, or reward.
+Its separate [transparent inspection-art record](2026-07-18-hegemony-stone-quarry/record-art/README.md)
+is a bounded, unmounted visual UI element only; it does not create a site,
+placement, gathering action, balance, or reward.
