@@ -1,140 +1,69 @@
 # Warpkeep
 
-[warpkeep.com](https://warpkeep.com/) is a Farcaster-connected, persistent
-strategy world. Each admitted founder is represented by one durable keep in a
-shared frontier; identity gives a place in the world, while the server remains
-the authority for the world itself.
+**[Warpkeep](https://warpkeep.com/) turns a Farcaster identity into a permanent castle in a shared strategy world that remembers you.**
 
-## Direction
+## What is this?
 
-Warpkeep is being built as a legible, social strategy game rather than a
-collection of disconnected screens. The near-term path is deliberate:
+Genesis 001 is a persistent, invite-only 10,000-cell Lowlands realm with 100 permanent castle sites kept close to its founding district. Each founder signs in with a verified Farcaster identity, receives one durable keep, and can privately collect four resources from its terrain: Food / Wood / Stone / Gold. Alpha 0.3.8 is live but early; exploration and the private resource loop work today, while the intended core strategy loop is not playable yet. Warpkeep is a one-person experiment—not a finished MMO or financial product; there are no token rewards, no financial promises, and joining does not earn an airdrop or financial return or guarantee a reward or future value.
 
-1. establish a trustworthy shared world, clear castle presence, and strong map
-   interaction;
-2. add private server-derived resources, deterministic collection, and a
-   bounded visible expedition loop;
-3. add authoritative construction queues; then
-4. expand into scouting, travel, conflict, and alliances only when their rules
-   can be authoritative, recoverable, and understandable in the game.
+![Development preview of Genesis 001 showing several founded keeps, procedural grass, and an open castle record.](docs/reference/screenshots/2026-07-18-procedural-grass-wind-preview/warpkeep-procedural-grass-preview-eb156adea5befbd7.png)
 
-The verified public alpha focuses on admission-gated founding, exploration,
-castle inspection, and the visual language of the Hegemony Lowlands. The
-undeployed 0.3.11 source candidate adds private Food, Wood, Stone, and Gold
-accounts, deterministic terrain collection, a 10,000-cell world with 2,000
-resource-capable anchors, bounded Gold Mine, Wheat Farm, and Logging Camp wagon
-expeditions, and same-origin inspection records. Construction,
-upgrades, units, combat, alliances, chat, seasons, resource transfers, Marks
-spending, and rewards are not playable systems today. Alpha participation
-offers no financial return, airdrop, or promise of future value.
+*Development preview from the procedural grass and wind draft; this visual layer is not part of live Alpha 0.3.8 yet.*
 
-## Product principles
+## Quick start
 
-- **Identity has a home.** A Farcaster FID is the identity coordinate; handles,
-  portraits, and other profile data are display metadata.
-- **The browser presents; the server decides.** Admission, castle ownership,
-  shared-world state, and future game actions never become browser authority.
-- **Presentation serves play.** The Realm aims for readable, sunlit keeps,
-  grounded terrain, dependable map controls, accessible fallbacks, and clear
-  player identity without inventing unavailable mechanics.
-- **Expansion stays deliberate.** Every new system needs explicit rules,
-  deterministic tests, operational recovery, and an honest release boundary.
-
-## Current status
-
-Alpha 0.3.6 is the verified public Pages release. Its in-menu build stamp
-identifies the exact protected-main commit deployed to players. Detailed
-release truth lives in the [changelog](CHANGELOG.md),
-[release notes](docs/releases/), and exact-version in-game patch chronicle—not
-in this overview.
-
-The checked-in package is Alpha 0.3.11, an **undeployed candidate**. It retains
-the pending private Food, Wood, Stone, and Gold authority and expands the
-deterministic Genesis world definition to exactly 10,000 persistent cells. The
-existing 1,261 cells and all 100 close-outward founder slots remain exact, while
-8,739 outer cells add placement space. It stages 24 Genesis Gold Mines,
-96 Tier-I Wheat Farms, and 96 Tier-I Logging Camps. A founder may operate one
-server-authorized Gold, Food, and Wood wagon concurrently; each gathers its own
-resource per completed minute for 30 days. Public occupancy exposes only the
-site, timeline, and origin castle, while identity, routes, requests, accrual,
-and balances remain private and server-controlled. Food and Wood capacity
-reserves stay independent during passive settlement. Community Marks remains
-separate with no conversion or spending path. A public, server-seeded layout
-gives every player the same 210 decorative trees, groves, and clearings in the
-preserved Genesis founding Lowlands; graphics quality changes only the selected
-model LOD. Forests do not change terrain, movement, resources, or ownership.
-Production publication, owner-approved world, resource, Gold-site,
-forest-layout, Food-site, and Wood-site setup, aggregate verification, and
-exact Pages deployment remain explicitly approval-gated. See the [candidate
-release notes](docs/releases/alpha-0.3.11.md).
-
-## Architecture
-
-The client is built with React, TypeScript, Vite, and Three.js. Farcaster sign-in
-uses a browser-bound SIWF flow through a least-privilege Cloudflare identity
-bridge; SpacetimeDB owns the shared Realm records. WebGL is an enhancement, not
-an authority boundary: the product retains keyboard, touch, reduced-motion, and
-non-WebGL paths.
-
-Live Genesis 001 currently retains 1,261 authoritative cells. The 0.3.11
-candidate defines exactly 10,000 persistent cells: a complete radius-57 hex
-disc plus 81 cells arranged as six balanced, contiguous side-centred arcs on
-ring 58. It preserves the 100 permanent founder slots and their close founding
-district. Production admission remains deliberately closed except for
-explicitly approved founders.
-
-In the 0.3.11 candidate, each resource account and expedition remain private to
-the authenticated caller. Peer balances never enter the public Realm
-subscription; public Gold-, Food-, and Wood-site occupancy exposes only the
-site, phase, timeline, and originating castle. The browser cannot supply the
-FID, castle, terrain, route, rate, balance, or clock used for settlement.
-Invalid or unavailable resource authority withholds the Realm instead of
-falling back to browser state.
-
-## Run locally
-
-Node.js 22 is required.
+Prerequisites: Git, Node.js 22, and npm.
 
 ```sh
+git clone https://github.com/ael-dev3/Warpkeep.git
+cd Warpkeep
 npm ci
 npm run dev
 ```
 
-Useful checks:
-
-```sh
-npm test
-npm run typecheck
-npm run verify:licenses
-npm run verify:runtime-assets
-npm run build
-DEPLOY_BASE=/ npm run build
-```
-
-Asset reconstruction is explicit and is not part of a normal build. See
-[reconstruction and recovery](docs/operations/reconstruction/README.md) and
+Open the local URL Vite prints; shared Alpha access stays off by default. Run
+the contributor checks in [CONTRIBUTING.md](CONTRIBUTING.md), and use the
+[documentation guide](docs/README.md) for system-specific setup. Asset
+reconstruction is not part of a normal build; read
 [asset provenance](ASSETS-LICENSE.md) before working with protected source
 packages.
 
-## Documentation
+## Current status
 
-- [Game direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md)
-- [Technical architecture](docs/technical-architecture.md) and [Farcaster/OIDC boundary](docs/farcaster-integration.md)
-- [Lowlands renderer](docs/design/hegemony-lowlands-terrain.md)
-- [Release notes](docs/releases/) and [versioning policy](docs/releases/versioning.md)
-- [Contributing](CONTRIBUTING.md), [security policy](SECURITY.md), and [asset provenance](ASSETS-LICENSE.md)
+| State | Today |
+| --- | --- |
+| ✅ Live | Alpha 0.3.8 is live and invite-only. |
+| ✅ World | Genesis 001 persists 10,000 cells and keeps 100 permanent castle sites near the founding district. Founders return to one durable keep, explore the Lowlands, and inspect nearby founders through their public username / portrait / castle. The same authoritative world waits across sessions. |
+| ✅ Authority | FID is the durable identity; handles and portraits are bounded presentation metadata. Farcaster sign-in uses a browser-bound, least-privilege bridge. The browser presents. The server decides admission and ownership. It also owns resources, timers, and saved state. |
+| ✅ Resources | Each keep privately collects Food / Wood / Stone / Gold from authoritative terrain. The browser never invents balances. |
+| ✅ Marks | Community Marks are separate private accounting and start at zero. They cannot be spent, converted, or transferred. They have no cash value, promised utility, or reward loop. The world, rules, and direction will evolve. |
+| 🚧 In progress | Resource nodes, expeditions, environmental detail, and stronger founder tooling are being explored in draft branches. Draft work is not live. |
+| 📋 Planned | Resource nodes; construction and upgrades; units / scouting / travel / combat; alliances / trading / chat; seasons / governance / rewards. Design notes are experiments, not promises that these features will ship unchanged. |
 
-## Community and reporting
+## Tech stack
 
-Join the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep)
-for discussion. Use the [Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose)
-for durable bug reports and game feedback. Report security-sensitive issues
-through [SECURITY.md](SECURITY.md), not public issues.
+- **React** — Keeps interactive interface components manageable.
+- **TypeScript** — Makes shared data contracts explicit.
+- **Vite** — Builds the browser client quickly.
+- **Three.js / WebGL** — Renders the Lowlands in browsers.
+- **Responsive CSS** — Supports phones, keyboards, and fallbacks.
+- **Farcaster Auth** — Connects castles to verified identities.
+- **Cloudflare Workers** — Verifies sign-in with least privilege.
+- **SpacetimeDB** — Owns Realm and player state.
+- **Vitest** — Catches regressions across critical boundaries.
 
-## Source and provenance
+## Links
 
-Warpkeep software is Apache-2.0. Project-owned creative work follows the
-repository's recorded CC-BY terms where authorized. Some GameReady runtime
-assets have narrower recorded provenance and use permissions; they are not
-granted a general open-content or derivative license. See [ASSETS-LICENSE.md](ASSETS-LICENSE.md),
-[LICENSING.md](LICENSING.md), and the relevant provenance records before reuse.
+- **Architecture:** The [technical architecture](docs/technical-architecture.md) explains what the browser shows and what the server decides.
+- **Documentation:** The [documentation guide](docs/README.md) points to the current product, development, security, and operations material.
+- **Roadmap:** The [roadmap](docs/design/roadmap.md) and [game direction](docs/design/warpkeep-direction.md) separate today's game from later plans.
+- **Authentication:** The [Farcaster integration](docs/farcaster-integration.md) guide covers sign-in, privacy, and public configuration.
+- **Release history:** The [changelog](CHANGELOG.md) summarizes player-facing releases; [GitHub Releases](https://github.com/ael-dev3/Warpkeep/releases) retain fuller notes.
+- **Licensing:** [LICENSING.md](LICENSING.md) explains release rules; [asset provenance](ASSETS-LICENSE.md) records where media came from and what permissions apply.
+- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) covers checks and provenance; the [Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose) accept privacy-safe bugs and ideas.
+- **Security:** Report sensitive issues privately through [SECURITY.md](SECURITY.md), never through a public issue.
+- **Community:** Play at [warpkeep.com](https://warpkeep.com/), join the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep), and explore the [provenance-tracked visual archive](https://github.com/ael-dev3/Warpkeep-Assets).
+
+## License
+
+Warpkeep software uses Apache-2.0; authorized project-owned creative work follows the recorded CC-BY terms, while some GameReady runtime assets have narrower permissions and no general open-content or derivative license—read [LICENSING.md](LICENSING.md) and [ASSETS-LICENSE.md](ASSETS-LICENSE.md) before reuse.

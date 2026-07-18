@@ -46,7 +46,8 @@ describe('shared Warpkeep surface system', () => {
     expect(source).toContain('--warpkeep-surface-blur: 12px;');
     expect(genericButton).not.toMatch(/(?:border|background|padding|transform)\s*:/);
     expect(source).not.toMatch(/^button:hover[^\n{]*\{/m);
-    expect(source).toContain('.landing-shell button:hover:not(:disabled)');
+    expect(source).not.toContain('.landing-shell');
+    expect(source).not.toContain('.dashboard-shell');
   });
 
   it.each([

@@ -43,14 +43,13 @@ From the repository root:
 
 ```sh
 npm ci
-npm run verify:licenses
-npm run verify:runtime-assets
-npm test
-npm run typecheck
-npm run build
+npm run check
 ```
 
-When changing the auth bridge or SpacetimeDB module, also run the project-specific checks documented in their READMEs and in the CI workflow.
+`npm run check` verifies licensing, runtime assets, repository size, tests,
+types, and the production build. When changing the auth bridge or SpacetimeDB
+module, also run the project-specific checks documented in their READMEs and in
+the CI workflow.
 
 ## Pull requests
 

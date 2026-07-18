@@ -2,12 +2,27 @@
   "name": "warpkeep",
   "private": true,
   "version": "0.3.11",
+  "description": "A Farcaster-connected persistent strategy world in active Alpha development.",
   "license": "Apache-2.0",
+  "homepage": "https://warpkeep.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ael-dev3/Warpkeep.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ael-dev3/Warpkeep/issues"
+  },
+  "engines": {
+    "node": ">=22 <23",
+    "npm": ">=10.9.8 <11"
+  },
+  "packageManager": "npm@10.9.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && node scripts/verify-runtime-assets.mjs && node scripts/verify-hegemony-gold-mine-candidates.mjs && node scripts/verify-hegemony-gold-mine-runtime.mjs && node scripts/verify-hegemony-wheat-farm-runtime-assets.mjs && node scripts/verify-hegemony-logging-camp-runtime-assets.mjs && node scripts/verify-hegemony-stone-quarry-runtime-assets.mjs && node scripts/verify-hegemony-supply-wagon-assets.mjs && node scripts/verify-hegemony-tree-runtime-assets.mjs && vite build && node scripts/verify-production-dist-exclusions.mjs",
     "preview": "vite preview",
+    "check": "npm run verify:licenses && npm run verify:runtime-assets && npm run verify:file-sizes && npm test && npm run typecheck && npm run build",
     "validate:pages-config": "node scripts/validate-pages-deploy-config.mjs",
     "verify:licenses": "node scripts/verify-license-policy.mjs",
     "verify:alpha-production": "node scripts/verify-alpha-production.mjs",

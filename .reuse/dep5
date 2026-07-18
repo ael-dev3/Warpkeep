@@ -2,11 +2,11 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Warpkeep
 Source: https://github.com/ael-dev3/Warpkeep
 
-Files: src/** scripts/** tests/** services/auth-bridge/** spacetimedb/** .github/** *.ts *.json *.html .env.example
+Files: src/** scripts/** tests/** services/auth-bridge/** spacetimedb/** .github/** *.ts *.json *.html .env.example .editorconfig .gitleaksignore
 Copyright: 2026 Warpkeep contributors
 License: Apache-2.0
 
-Files: README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md TRADEMARKS.md LICENSING.md ASSETS-LICENSE.md _AGENT_NOTES.md docs/*.md docs/design/** docs/devlog/** docs/gameplay/** docs/legal/** docs/operations/** docs/plans/** docs/releases/** docs/security/**
+Files: README.md CHANGELOG.md CONTRIBUTING.md SECURITY.md TRADEMARKS.md LICENSING.md ASSETS-LICENSE.md docs/*.md docs/design/** docs/devlog/** docs/gameplay/** docs/legal/** docs/operations/** docs/releases/** docs/security/**
 Copyright: 2026 Warpkeep contributors
 License: CC-BY-4.0
 

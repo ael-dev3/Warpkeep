@@ -120,7 +120,10 @@ describe('compact Realm CSS contract', () => {
     expect(avatarCanvas).toContain('border-radius: inherit;');
     expect(PRESENTATION).not.toContain('.realm-castle-avatar img');
 
-    expect(GLOBAL).toContain('.landing-shell button:hover:not(:disabled)');
+    expect(block(GLOBAL, 'dt {')).toContain('font-size: 0.82rem;');
+    expect(block(GLOBAL, 'dd {')).toContain('font-weight: 800;');
+    expect(GLOBAL).not.toContain('.landing-shell');
+    expect(GLOBAL).not.toContain('.dashboard-shell');
     expect(GLOBAL).not.toMatch(/^button:hover[^\n{]*\{/m);
   });
 
