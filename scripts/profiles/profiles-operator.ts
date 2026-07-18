@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DbConnection, tables } from '../../src/spacetime/module_bindings';
+import { admissionProfileIsComplete } from '../../spacetimedb/src/profileAuthorityPolicy';
 import {
   readAdminSecret,
   requestAdminToken,
@@ -23,6 +24,7 @@ import {
   FARCASTER_PROFILE_POLICY_VERSION,
   FarcasterPublicProfileError,
   buildTrustedPublicFarcasterProfile,
+  hasAuthoritativeRequiredProfileClear,
   mergeWithLastKnownGood,
   privacySafePublicProfileSummary,
   profilesEqual,
@@ -67,8 +69,14 @@ const MAXIMUM_PRIVATE_INPUT_BYTES = 256 * 1_024;
 const DATABASE = 'warpkeep-89e4u';
 const DATABASE_URI = 'https://maincloud.spacetimedb.com';
 const BRIDGE_URL = 'https://auth.warpkeep.com';
-const SUBSCRIPTION_TIMEOUT_MS = 15_000;
-const CONNECTION_TIMEOUT_MS = 12_000;
+/**
+ * The expanded Realm may still be materializing its public subscription graph
+ * when this profile-only subscription is opened. Keep the operator bounded,
+ * but give Maincloud the same practical wake/readiness envelope as the live
+ * generation-three client instead of treating an ordinary cold start as drift.
+ */
+export const PROFILE_SUBSCRIPTION_TIMEOUT_MS = 60_000;
+export const PROFILE_CONNECTION_TIMEOUT_MS = 30_000;
 export const PROFILE_REDUCER_DEADLINE_MS = 12_000;
 const COMMANDS = new Set(['plan', 'refresh', 'apply', 'inspect']);
 const PRODUCT_VERSION = readWarpkeepPackageVersion();
@@ -249,6 +257,14 @@ function completeness(profiles: readonly TrustedPublicFarcasterProfile[]) {
   });
 }
 
+function profileHasRequiredCastleIdentity(profile: ExistingPublicProfile): boolean {
+  return admissionProfileIsComplete(profile);
+}
+
+function profileSetHasRequiredCastleIdentity(profiles: CurrentProfileMap): boolean {
+  return [...profiles.values()].every(profileHasRequiredCastleIdentity);
+}
+
 function report(
   arguments_: ParsedArguments,
   command: PrivateOperatorReportCommand,
@@ -297,7 +313,7 @@ function connectTracked(uri: string, database: string, token: string): Promise<T
       failed = true;
       try { pending?.disconnect(); } catch { /* Preserve the connection timeout. */ }
       reject(new ProfilesOperatorError('PROFILES_CONNECTION_TIMEOUT'));
-    }, CONNECTION_TIMEOUT_MS);
+    }, PROFILE_CONNECTION_TIMEOUT_MS);
     const fail = () => {
       if (settled) return;
       settled = true;
@@ -389,7 +405,10 @@ async function readCurrentProfiles(connection: DbConnection): Promise<CurrentPro
   return new Promise((resolve, reject) => {
     let settled = false;
     let handle: ReturnType<ReturnType<DbConnection['subscriptionBuilder']>['subscribe']> | undefined;
-    const timer = setTimeout(() => finish(() => reject(new ProfilesOperatorError('PROFILES_SUBSCRIPTION_TIMEOUT'))), SUBSCRIPTION_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => finish(() => reject(new ProfilesOperatorError('PROFILES_SUBSCRIPTION_TIMEOUT'))),
+      PROFILE_SUBSCRIPTION_TIMEOUT_MS,
+    );
     const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
@@ -446,7 +465,26 @@ export function planProfileUpdates(
   for (const resolved of profiles) {
     const existing = current.get(resolved.fid);
     if (!existing) throw new ProfilesOperatorError('PROFILES_FOUNDER_STATE_MISMATCH');
-    const merged = mergeWithLastKnownGood(resolved, existing);
+    if (hasAuthoritativeRequiredProfileClear(resolved)) {
+      throw new ProfilesOperatorError('PROFILES_REQUIRED_CASTLE_IDENTITY_MISSING');
+    }
+    const lastKnownGoodMerged = mergeWithLastKnownGood(resolved, existing);
+    // Username and portrait are the minimum public identity attached to every
+    // founded castle. Unavailable data may retain reviewed identity anchors;
+    // authoritative removal already failed above. A newly founded blank
+    // projection has no fallback and fails below before plan creation.
+    const canonicalUsername = lastKnownGoodMerged.canonicalUsername ?? existing.canonicalUsername;
+    const merged: TrustedPublicFarcasterProfile = Object.freeze({
+      ...lastKnownGoodMerged,
+      canonicalUsername,
+      pfpUrl: lastKnownGoodMerged.pfpUrl ?? existing.pfpUrl,
+      farcasterProfileUrl: canonicalUsername === undefined
+        ? undefined
+        : `https://farcaster.xyz/${encodeURIComponent(canonicalUsername)}`,
+    });
+    if (!profileHasRequiredCastleIdentity(merged)) {
+      throw new ProfilesOperatorError('PROFILES_REQUIRED_CASTLE_IDENTITY_MISSING');
+    }
     preservedFields += [
       resolved.canonicalUsername === undefined
         && existing.canonicalUsername !== undefined
@@ -483,6 +521,21 @@ export function foundedProfileSetDigest(fids: Iterable<bigint>): string {
   if (new Set(canonical).size !== canonical.length) {
     throw new ProfilesOperatorError('PROFILES_FOUNDER_STATE_MISMATCH');
   }
+  return createHash('sha256').update(JSON.stringify(canonical), 'utf8').digest('hex');
+}
+
+/** Bind a reviewed plan to every public profile value, including unchanged rows. */
+export function foundedProfileStateDigest(
+  current: ReadonlyMap<bigint, ExistingPublicProfile>,
+): string {
+  const canonical = [...current.entries()]
+    .map(([fid, profile]) => {
+      if (fid <= 0n || fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+        throw new ProfilesOperatorError('PROFILES_FOUNDER_STATE_MISMATCH');
+      }
+      return Object.freeze({ fid: fid.toString(), profile: profileFields(profile) });
+    })
+    .sort((left, right) => left.fid.localeCompare(right.fid));
   return createHash('sha256').update(JSON.stringify(canonical), 'utf8').digest('hex');
 }
 
@@ -533,11 +586,17 @@ async function runRefresh(arguments_: ParsedArguments, request: ProfileRequest) 
       intended: profileFields(profile),
     });
   });
+  const intendedProfiles = new Map(current);
+  for (const update of updates) {
+    intendedProfiles.set(BigInt(update.fid), update.intended);
+  }
   const plan = createReviewedProfilePlan({
     sourceConfigurationDigest: SOURCE_CONFIGURATION_DIGEST,
     targetConfigurationDigest: TARGET_CONFIGURATION_DIGEST,
     policyVersion: FARCASTER_PROFILE_POLICY_VERSION,
     foundedProfileSetDigest: foundedProfileSetDigest(current.keys()),
+    expectedProfileStateDigest: foundedProfileStateDigest(current),
+    intendedProfileStateDigest: foundedProfileStateDigest(intendedProfiles),
     fetchedProfiles: profiles.length,
     unchangedProfiles: planned.unchangedProfiles,
     lastKnownGoodFieldsPreserved: planned.lastKnownGoodFieldsPreserved,
@@ -584,10 +643,12 @@ function founderSetMatches(plan: ReviewedProfilePlan, current: CurrentProfileMap
 }
 
 export function planPreconditionsMatch(plan: ReviewedProfilePlan, current: CurrentProfileMap): boolean {
-  return founderSetMatches(plan, current) && plan.updates.every((update) => {
-    const currentProfile = current.get(BigInt(update.fid));
-    return currentProfile !== undefined && profilesEqual(currentProfile, update.expectedCurrent);
-  });
+  return founderSetMatches(plan, current)
+    && foundedProfileStateDigest(current) === plan.expectedProfileStateDigest
+    && plan.updates.every((update) => {
+      const currentProfile = current.get(BigInt(update.fid));
+      return currentProfile !== undefined && profilesEqual(currentProfile, update.expectedCurrent);
+    });
 }
 
 function requireProfileSourceReady(): void {
@@ -641,6 +702,8 @@ async function runApply(
   let matchedUpdates = 0;
   let verificationAvailable = false;
   let founderSetVerified = false;
+  let profileCompletenessVerified = false;
+  let profileStateVerified = false;
   try {
     const current = await readCurrentProfilesTracked(mutationConnection);
     if (!planPreconditionsMatch(plan, current)) {
@@ -705,11 +768,18 @@ async function runApply(
       const verified = await readCurrentProfilesTracked(mutationConnection);
       verificationAvailable = true;
       founderSetVerified = founderSetMatches(plan, verified);
+      profileCompletenessVerified = profileSetHasRequiredCastleIdentity(verified);
+      profileStateVerified = foundedProfileStateDigest(verified) === plan.intendedProfileStateDigest;
       matchedUpdates = plan.updates.filter((update) => {
         const observed = verified.get(BigInt(update.fid));
         return observed !== undefined && profilesEqual(observed, update.intended);
       }).length;
-      if (founderSetVerified && matchedUpdates === plan.updates.length) {
+      if (
+        founderSetVerified
+        && profileCompletenessVerified
+        && profileStateVerified
+        && matchedUpdates === plan.updates.length
+      ) {
         audit('verification-complete', 'verified', { matchedUpdates });
       } else {
         audit('verification-complete', 'mismatch', {
@@ -736,6 +806,8 @@ async function runApply(
   if (
     !verificationAvailable
     || !founderSetVerified
+    || !profileCompletenessVerified
+    || !profileStateVerified
     || matchedUpdates !== plan.updates.length
   ) finalOutcome = 'ambiguous';
   else if (mutationOutcome === 'failed') finalOutcome = 'failed';
@@ -753,6 +825,8 @@ async function runApply(
     postApplyMatchedUpdates: matchedUpdates,
     postApplyVerificationAvailable: verificationAvailable,
     postApplyFounderSetVerified: founderSetVerified,
+    postApplyProfileCompletenessVerified: profileCompletenessVerified,
+    postApplyProfileStateVerified: profileStateVerified,
     unchangedProfiles: plan.unchangedProfiles,
     lastKnownGoodFieldsPreserved: plan.lastKnownGoodFieldsPreserved,
     walletOperations: 0,

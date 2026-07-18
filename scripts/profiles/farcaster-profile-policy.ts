@@ -4,7 +4,7 @@ const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
 const MAINNET_NETWORK = 'FARCASTER_NETWORK_MAINNET';
 const USER_DATA_MESSAGE = 'MESSAGE_TYPE_USER_DATA_ADD';
 
-export const FARCASTER_PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v2';
+export const FARCASTER_PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v3';
 
 export const FARCASTER_PUBLIC_USER_DATA_TYPES = Object.freeze([
   'USER_DATA_TYPE_USERNAME',
@@ -221,6 +221,24 @@ export function mergeWithLastKnownGood(
       ? `https://farcaster.xyz/${encodeURIComponent(canonicalUsername)}`
       : undefined,
   });
+}
+
+/**
+ * An authoritative removal is materially different from an unavailable or
+ * incomplete response. Required castle identity must stop for review instead
+ * of silently attesting stale attribution as current.
+ */
+export function hasAuthoritativeRequiredProfileClear(
+  profile: TrustedPublicFarcasterProfile,
+): boolean {
+  const authoritativeFields = AUTHORITATIVE_PROFILE_FIELDS.get(profile);
+  return (
+    authoritativeFields?.has('canonicalUsername') === true
+    && profile.canonicalUsername === undefined
+  ) || (
+    authoritativeFields?.has('pfpUrl') === true
+    && profile.pfpUrl === undefined
+  );
 }
 
 export function profilesEqual(

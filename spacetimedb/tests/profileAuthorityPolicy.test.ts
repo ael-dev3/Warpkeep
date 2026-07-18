@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import {
   FARCASTER_WALLET_POLICY_VERSION,
+  admissionProfileIsComplete,
+  normalizeAdmissionReadyTrustedProfile,
   normalizeTrustedPublicProfile,
   normalizeTrustedWalletAttribution,
   trustedProfilesEqual,
@@ -41,9 +43,13 @@ test('profile image validation is deterministic in the server runtime and reject
   );
   assert.equal(
     normalizeTrustedPublicProfile({
-      pfpUrl: 'https://cdn.example.com:8443/profile.png?size=320',
+      pfpUrl: 'https://CDN.EXAMPLE.COM/profile.png?size=320&fit=cover',
     }).pfpUrl,
-    'https://cdn.example.com:8443/profile.png?size=320',
+    'https://cdn.example.com/profile.png?size=320&fit=cover',
+  );
+  assert.equal(
+    normalizeTrustedPublicProfile({ pfpUrl: 'https://cdn.example.com' }).pfpUrl,
+    'https://cdn.example.com/',
   );
   for (const pfpUrl of [
     'http://images.example.com/profile.png',
@@ -51,16 +57,108 @@ test('profile image validation is deterministic in the server runtime and reject
     'https://localhost/profile.png',
     'https://assets.internal/profile.png',
     'https://127.0.0.1/profile.png',
+    'https://127.1/profile.png',
+    'https://0177.0.0.1/profile.png',
+    'https://0x7f000001/profile.png',
+    'https://2130706433/profile.png',
     'https://[::1]/profile.png',
+    'https://images.example.com:443/profile.png',
+    'https://images.example.com:8443/profile.png',
     'https://images.example.com:70000/profile.png',
     'https://images.example.com\\profile.png',
     'https://images.example.com/profile image.png',
+    'https://images.example.com/a/../profile.png',
+    'https://images.example.com/%2e%2e/profile.png',
+    "https://images.example.com/profile.png?label=keeper's",
+    'https://images.example.com/%zz/profile.png',
   ]) {
     assert.throws(
       () => normalizeTrustedPublicProfile({ pfpUrl }),
       /PROFILE_PFP_URL_INVALID/,
     );
   }
+});
+
+test('admission-ready profiles require a normalized username and public HTTPS portrait', () => {
+  const normalized = normalizeAdmissionReadyTrustedProfile({
+    canonicalUsername: '  Keeper.ETH  ',
+    displayName: ' Keeper Prime ',
+    pfpUrl: 'https://images.example.test/avatar.png#tracking',
+  });
+
+  assert.deepEqual(normalized, {
+    canonicalUsername: 'keeper.eth',
+    displayName: 'Keeper Prime',
+    pfpUrl: 'https://images.example.test/avatar.png',
+    publicBio: undefined,
+  });
+  assert.equal(admissionProfileIsComplete(normalized), true);
+});
+
+test('admission-ready profile policy fails closed on missing required presentation', () => {
+  assert.throws(
+    () => normalizeAdmissionReadyTrustedProfile({
+      pfpUrl: 'https://images.example.test/avatar.png',
+    }),
+    /PROFILE_ADMISSION_USERNAME_REQUIRED/,
+  );
+  assert.throws(
+    () => normalizeAdmissionReadyTrustedProfile({
+      canonicalUsername: '\u200b',
+      pfpUrl: 'https://images.example.test/avatar.png',
+    }),
+    /PROFILE_ADMISSION_USERNAME_REQUIRED/,
+  );
+  assert.throws(
+    () => normalizeAdmissionReadyTrustedProfile({ canonicalUsername: 'keeper.eth' }),
+    /PROFILE_ADMISSION_PFP_REQUIRED/,
+  );
+  assert.throws(
+    () => normalizeAdmissionReadyTrustedProfile({
+      canonicalUsername: 'keeper.eth',
+      pfpUrl: 'http://images.example.test/avatar.png',
+    }),
+    /PROFILE_PFP_URL_INVALID/,
+  );
+});
+
+test('admission profile completeness rejects merely present noncanonical fields', () => {
+  assert.equal(admissionProfileIsComplete({
+    canonicalUsername: 'keeper.eth',
+    pfpUrl: 'https://images.example.test/avatar.png',
+  }), true);
+  assert.equal(admissionProfileIsComplete({
+    canonicalUsername: 'Keeper.ETH',
+    pfpUrl: 'https://images.example.test/avatar.png',
+  }), false);
+  assert.equal(admissionProfileIsComplete({
+    canonicalUsername: 'keeper.eth',
+    pfpUrl: 'https://images.example.test/avatar.png#tracking',
+  }), false);
+  assert.equal(admissionProfileIsComplete({
+    canonicalUsername: 'keeper.eth',
+    pfpUrl: 'https://IMAGES.EXAMPLE.TEST/avatar.png',
+  }), false);
+  assert.equal(admissionProfileIsComplete({
+    canonicalUsername: 'keeper.eth',
+    pfpUrl: 'https://images.example.test:8443/avatar.png',
+  }), false);
+  assert.equal(admissionProfileIsComplete({
+    canonicalUsername: 'keeper.eth',
+    pfpUrl: 'https://images.example.test/a/../avatar.png',
+  }), false);
+  assert.equal(admissionProfileIsComplete({
+    canonicalUsername: 'keeper.eth',
+    pfpUrl: 'https://images.example.test',
+  }), false);
+  assert.equal(admissionProfileIsComplete({
+    canonicalUsername: 'keeper.eth',
+    pfpUrl: 'http://images.example.test/avatar.png',
+  }), false);
+  assert.equal(admissionProfileIsComplete({ canonicalUsername: 'keeper.eth' }), false);
+  assert.equal(admissionProfileIsComplete({
+    pfpUrl: 'https://images.example.test/avatar.png',
+  }), false);
 });
 
 test('public labels strip bidi, isolate, and zero-width spoofing controls but retain Unicode', () => {

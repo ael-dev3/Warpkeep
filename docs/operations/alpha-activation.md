@@ -132,6 +132,106 @@ were admitted or that their claims use the first `N` nearest slots; retain those
 checks in the private founding plan and reducer evidence. Any mismatch stops
 rollout before another founding action.
 
+### Durable profiled admission boundary
+
+The checked-out module adds `admin_admit_founder_v1` as the only first-time
+founding path. It combines admission, permanent close-outward castle founding,
+the complete founder/resource graph, and the reviewed trusted Farcaster public
+profile in one database transaction. The module normalizes the profile before
+any write and requires both a canonical username and a valid HTTPS PFP URL;
+display name and public bio remain optional. Any failed profile or graph
+postcondition aborts the whole transition.
+
+`admin_allow_fid` is now legacy compatibility for idempotence or re-enabling an
+already complete founder/resource/profile graph. It must reject a missing FID
+and must not be used as a fallback when required profile data is unavailable.
+
+Founding does not create player authority. No administrator may insert or
+pre-bind `player_ownership_v2`: ownership is created only when the admitted
+player genuinely authenticates and `bootstrap_player_v2` binds the verified FID
+to that exact SpacetimeDB sender. Admission verification therefore proves the
+castle and public profile exist, while control verification additionally
+requires the caller-bound player/ownership pair. Future gameplay reducers must
+resolve the acting castle from that authenticated pair and must not accept an
+authority-selecting FID, castle, or owner argument.
+
+The only incomplete-profile recovery path is the exact-admin
+`admin_upsert_realm_profile_v1` reducer. It may repair a structurally valid
+existing founder only when the reviewed intended username-and-PFP projection is
+complete and normalizes successfully; it cannot create, move, or reassign
+founder state. The profile operator may plan that repair only when current
+authoritative data supplies every missing or invalid required field. A required
+field already valid in the persisted row may retain its sanitized reviewed
+last-known-good value if that one response is unavailable or incomplete; an
+authoritative clear still stops. A fully blank row needs both current fields.
+Player status/bootstrap, gameplay, and legacy `admin_allow_fid` remain blocked
+until the profile is complete.
+
+The new admission wire and all tightened profile-completeness/recovery behavior
+in this checkout are not an attested change to the live Alpha 0.3.8 module.
+Making them available on Maincloud requires a fresh, explicit approval for the
+reviewed module publication, with data deletion prohibited and the exact
+current founded/resource aggregate checked before and after. Approval to admit
+a founder does not approve publication, and publication does not approve any
+admission or profile mutation. Until that publication has a successful private
+receipt, operators must not assume the wire or tightened behavior exists in
+production.
+
+The matching local operator uses a two-step private reviewed plan. Its target
+database must be configured as the compiled immutable production identity, not
+the mutable database name. The dry run accepts only this exact stdin envelope:
+
+```json
+{"founderAdmission":{"fid":"<decimal-fid>","note":"<private-audit-note>","profileSourceUseApproval":"approved-for-this-founder-admission-v1"}}
+```
+
+The exact approval phrase authorizes only the bounded public-profile lookup for
+the FID in that private plan. It does not authorize module publication,
+admission, or any other mutation, and the older transport-provenance scope is
+not reused as per-founder authority. Keep the envelope in an owner-only `0600`
+file outside the repository. The dry run must name the immutable production
+database identity explicitly:
+
+```sh
+WARPKEEP_SPACETIMEDB_DATABASE=<immutable-production-database-identity> \
+npm run stdb:admit-founder -- --input-stdin --dry-run < /owner-only/path/request.json
+```
+
+The operator resolves the pinned public profile exactly once, requires username
+and PFP, and writes a 30-minute `0600` plan under the owner-only local Warpkeep
+support directory. Standard output contains only readiness counts, expiry, and
+the safe filename/content-digest reference—not the FID, note, or profile values.
+
+After private review, confirmation accepts only:
+
+```json
+{"reviewedAdmissionPlan":{"filename":"<safe-plan-filename>","sha256":"<content-digest>"}}
+```
+
+Pass that envelope through the private Keychain wrapper with the immutable
+database identity, canonical Maincloud URI and auth bridge, and the Hermes
+secret already present in parent-process memory:
+
+```sh
+WARPKEEP_SPACETIMEDB_DATABASE=<immutable-production-database-identity> \
+npm run stdb:admit-founder -- --input-stdin --confirm < /owner-only/path/plan-reference.json
+```
+
+Because stdin is reserved for the plan reference, the wrapper must leave
+`WARPKEEP_ADMIN_TOKEN_SECRET_STDIN` unset and supply the secret through the
+existing Keychain-backed environment path, never a second stdin payload. The
+confirmed step never refetches the profile, validates target/source/policy and
+expiry before credential access, verifies exact counts-only v3/v4 capacity and
+resource preconditions, and only then creates a one-use local claim immediately
+before submission. It verifies the exact aggregate transition afterward. Any
+failure after the one-use claim—including a timeout, transport disconnect, or
+unavailable/failed postcondition—consumes the plan and may be ambiguous; inspect
+fresh bounded v3/v4 aggregates before creating or submitting another plan. A
+final transport disconnect is best-effort after verified postconditions and
+cannot turn a known successful transition into a failed result. Neither step
+publishes the module, and the legacy noninteractive switch cannot approve this
+mutation.
+
 ## 1. Domain and public coordinates
 
 The historical public coordinates are:
@@ -790,8 +890,10 @@ clean profile to confirm:
    exports, or logs.
 
 Admission of any additional real FID requires another explicit approval after
-tokenless pending QA. First admission begins at epoch `1`; do not preserve the
-historical epoch-zero policy.
+tokenless pending QA. Do not attempt first-time production founding until
+`admin_admit_founder_v1` has been separately published and attested, and do not
+fall back to `admin_allow_fid`. First admission begins at epoch `1`; do not
+preserve the historical epoch-zero policy.
 
 ## Recovery
 

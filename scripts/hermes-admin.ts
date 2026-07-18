@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -6,12 +7,42 @@ import { DbConnection } from '../src/spacetime/module_bindings';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
 } from '../spacetimedb/src/entryAgreementPolicy';
+import {
+  ProfileAuthorityPolicyError,
+  FARCASTER_PROFILE_POLICY_VERSION,
+  normalizeAdmissionReadyTrustedProfile,
+  type AdmissionReadyTrustedProfile,
+} from '../spacetimedb/src/profileAuthorityPolicy';
 import { GENESIS_RESOURCE_POLICY_VERSION } from '../spacetimedb/src/resourceAuthorityPolicy';
 import { configureHermesMachineOutput } from './hermes-machine-output';
+import {
+  buildTrustedPublicFarcasterProfile,
+  FarcasterPublicProfileError,
+} from './profiles/farcaster-profile-policy';
+import {
+  FounderAdmissionPlanError,
+  REVIEWED_FOUNDER_ADMISSION_PLAN_LIFETIME_MS,
+  claimReviewedFounderAdmissionPlan,
+  createReviewedFounderAdmissionPlan,
+  parsePrivateFounderAdmissionRequest,
+  parseReviewedFounderAdmissionPlanReference,
+  readPrivateFounderAdmissionInput,
+  readReviewedFounderAdmissionPlan,
+  writeReviewedFounderAdmissionPlan,
+  type ReviewedFounderAdmissionPlan,
+  type ReviewedFounderAdmissionPlanReference,
+} from './profiles/founder-admission-plan';
+import {
+  fetchPublicProfileResponses,
+  ProfileTransportError,
+  TRUSTED_PRODUCTION_PROFILE_SOURCE_ID,
+  trustedProfileTransportAttestation,
+} from './profiles/profile-transport';
 
 type Command =
   | 'seed-world'
   | 'expand-world-v3'
+  | 'admit-founder'
   | 'allow-fid'
   | 'disable-fid'
   | 'bump-auth-epoch'
@@ -27,7 +58,7 @@ const DEFAULT_DATABASE = 'warpkeep-89e4u';
 const DEFAULT_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const DEFAULT_URI = 'https://maincloud.spacetimedb.com';
 const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
-const CONNECT_TIMEOUT_MS = 10_000;
+const CONNECT_TIMEOUT_MS = 30_000;
 const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const MAX_RESOURCE_BACKFILL_FOUNDERS = 100n;
@@ -43,8 +74,76 @@ const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = BigInt(
 const HEGEMONY_WORLD_SEED = 3_445_214_658;
 const HEGEMONY_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 
+export const FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST = createHash('sha256')
+  .update(JSON.stringify({
+    profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
+    transport: trustedProfileTransportAttestation(),
+  }), 'utf8')
+  .digest('hex');
+export const FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
+  .update(JSON.stringify({
+    databaseUri: DEFAULT_URI,
+    databaseName: DEFAULT_DATABASE,
+    databaseIdentity: DEFAULT_DATABASE_IDENTITY,
+    bridgeUrl: DEFAULT_BRIDGE,
+    reducer: 'admin_admit_founder_v1',
+  }), 'utf8')
+  .digest('hex');
+
+class HermesCliError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HermesCliError';
+  }
+}
+
+class HermesOperationTimeoutError extends Error {
+  constructor() {
+    super(
+      'Warpkeep database operation timed out. A submitted mutation may still commit; '
+      + 'inspect current state before retrying.',
+    );
+    this.name = 'HermesOperationTimeoutError';
+  }
+}
+
+class HermesClaimedAdmissionOutcomeError extends Error {
+  constructor() {
+    super(
+      'Founder admission may have committed after the reviewed plan was claimed. '
+      + 'Inspect fresh v3/v4 aggregate state before creating or submitting another plan.',
+    );
+    this.name = 'HermesClaimedAdmissionOutcomeError';
+  }
+}
+
 function fail(message: string): never {
-  throw new Error(message);
+  throw new HermesCliError(message);
+}
+
+export function privacySafeHermesErrorMessage(error: unknown): string {
+  if (
+    error instanceof HermesCliError
+    || error instanceof HermesOperationTimeoutError
+    || error instanceof HermesClaimedAdmissionOutcomeError
+  ) {
+    return error.message;
+  }
+  if (
+    error instanceof FounderAdmissionPlanError
+    || error instanceof FarcasterPublicProfileError
+    || error instanceof ProfileTransportError
+    || error instanceof ProfileAuthorityPolicyError
+  ) return error.code;
+  return 'Hermes command failed.';
+}
+
+export function throwHermesOperationFailure(
+  error: unknown,
+  founderAdmissionClaimed: boolean,
+): never {
+  if (founderAdmissionClaimed) throw new HermesClaimedAdmissionOutcomeError();
+  throw error;
 }
 
 function readHttpsUrl(value: string | undefined, label: string) {
@@ -120,6 +219,7 @@ function commandFrom(value: string | undefined): Command {
   if (
     value === 'seed-world'
     || value === 'expand-world-v3'
+    || value === 'admit-founder'
     || value === 'allow-fid'
     || value === 'disable-fid'
     || value === 'bump-auth-epoch'
@@ -131,11 +231,17 @@ function commandFrom(value: string | undefined): Command {
   ) {
     return value;
   }
-  fail('Usage: hermes-admin.ts <seed-world|expand-world-v3|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4> [...args] [--dry-run] [--confirm]');
+  fail(
+    'Usage: hermes-admin.ts '
+    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4> '
+    + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
+    + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
+    + 'allow-fid only re-enables an existing complete founder.',
+  );
 }
 
 export function parseHermesArguments(arguments_: readonly string[] = process.argv.slice(2)) {
-  const allowedFlags = new Set(['--dry-run', '--confirm', '--json']);
+  const allowedFlags = new Set(['--dry-run', '--confirm', '--json', '--input-stdin']);
   const flags = new Set<string>();
   const positional: string[] = [];
   for (const argument of arguments_) {
@@ -167,6 +273,16 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
   if ((inspection && flags.has('--confirm')) || (!inspection && flags.has('--json'))) {
     fail('Hermes command received a flag that is invalid for this operation.');
   }
+  if (command === 'admit-founder') {
+    if (!flags.has('--input-stdin')) {
+      fail('Profiled admission requires private input through --input-stdin.');
+    }
+    if (flags.has('--dry-run') === flags.has('--confirm')) {
+      fail('Profiled admission requires exactly one of --dry-run or --confirm.');
+    }
+  } else if (flags.has('--input-stdin')) {
+    fail('Hermes command received a flag that is invalid for this operation.');
+  }
 
   return Object.freeze({
     command,
@@ -175,6 +291,47 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     confirmedByFlag: flags.has('--confirm'),
     inspection,
     machineReadableInspection: inspection && flags.has('--json'),
+    existingFounderReenableOnly: command === 'allow-fid',
+    privateInputStdin: flags.has('--input-stdin'),
+  });
+}
+
+/**
+ * Resolve exactly one founder's public presentation from the pinned,
+ * owner-reviewed Snapchain transport. No operator-selected origin,
+ * credential, wallet field, or browser claim can enter this path.
+ */
+export async function resolveAdmissionReadyFounderProfile(
+  fid: bigint,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdmissionReadyTrustedProfile> {
+  try {
+    const responses = await fetchPublicProfileResponses({
+      source: { sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID },
+      fid,
+      fetchImpl,
+    });
+    const resolved = buildTrustedPublicFarcasterProfile({ fid, responses });
+    return normalizeAdmissionReadyTrustedProfile(resolved);
+  } catch {
+    fail('A complete trusted Farcaster username and HTTPS profile image are required for admission.');
+  }
+}
+
+/** Privacy-safe dry-run projection: values are booleans or counts only. */
+export function admissionReadinessSummary(profile: AdmissionReadyTrustedProfile) {
+  const optionalFieldsPresent = Number(profile.displayName !== undefined)
+    + Number(profile.publicBio !== undefined);
+  return Object.freeze({
+    ready: true,
+    trustedSourcePinned: true,
+    requiredFieldsPresent: 2,
+    requiredFieldsExpected: 2,
+    optionalFieldsPresent,
+    publicFieldsPresent: 2 + optionalFieldsPresent,
+    credentialsAccessed: false,
+    mutationSubmitted: false,
+    dryRun: true,
   });
 }
 
@@ -315,6 +472,139 @@ function verifyFoundedGenesisState(status: GenesisExpansionStatusV3): void {
   ) {
     fail('Genesis world v3 expansion checkpoint did not contain an exact founded player graph.');
   }
+}
+
+const FOUNDER_ADMISSION_INCREMENTED_V3_FIELDS = Object.freeze([
+  'occupiedWorldTiles',
+  'castleSlotClaims',
+  'castles',
+  'realmProfiles',
+  'markAccounts',
+  'allowedFids',
+  'enabledAllowedFids',
+] as const satisfies readonly (keyof GenesisExpansionStatusV3)[]);
+
+const FOUNDER_ADMISSION_PRESERVED_V3_FIELDS = Object.freeze([
+  'worldTiles',
+  'worldTileMeta',
+  'realms',
+  'castleSlots',
+  'legacyPlayers',
+  'playersV2',
+  'playerOwnershipsV2',
+  'snapBurnCredits',
+  'walletAttributions',
+  'walletAttributionSnapshots',
+  'scanCursors',
+  'scanBatches',
+  'alphaTermsAcceptances',
+] as const satisfies readonly (keyof GenesisExpansionStatusV3)[]);
+
+function verifyFounderAdmissionCheckpointV3(
+  status: GenesisExpansionStatusV3,
+  requireCapacity: boolean,
+): void {
+  verifyGenesisExpansionIdentity(status);
+  const founders = status.allowedFids;
+  if (
+    founders < 0n
+    || founders > GENESIS_MAX_FOUNDERS
+    || (requireCapacity && founders >= GENESIS_MAX_FOUNDERS)
+    || status.worldTiles !== GENESIS_GENERATION_V3_WORLD_CELLS
+    || status.worldTileMeta !== GENESIS_GENERATION_V3_WORLD_CELLS
+    || status.realms !== GENESIS_REALM_COUNT
+    || status.castleSlots !== GENESIS_CASTLE_SLOT_COUNT
+    || status.legacyPlayers !== 0n
+    || status.enabledAllowedFids > founders
+    || status.occupiedWorldTiles !== founders
+    || status.castleSlotClaims !== founders
+    || status.castles !== founders
+    || status.realmProfiles !== founders
+    || status.markAccounts !== founders
+    || status.playersV2 !== status.playerOwnershipsV2
+    || status.playersV2 > founders
+    || status.alphaTermsAcceptances > status.playersV2
+  ) {
+    fail('Founder admission v3 checkpoint was not an exact capacity-safe founded graph.');
+  }
+}
+
+export function verifyFounderAdmissionPreconditionV3(
+  status: GenesisExpansionStatusV3,
+): GenesisExpansionStatusV3 {
+  verifyFounderAdmissionCheckpointV3(status, true);
+  return Object.freeze({ ...status });
+}
+
+export function verifyFounderAdmissionPostconditionV3(
+  status: GenesisExpansionStatusV3,
+  before: GenesisExpansionStatusV3,
+): GenesisExpansionStatusV3 {
+  verifyFounderAdmissionCheckpointV3(status, false);
+  for (const field of FOUNDER_ADMISSION_INCREMENTED_V3_FIELDS) {
+    if (status[field] !== (before[field] as bigint) + 1n) {
+      fail(
+        'Founder admission v3 postcondition failed. The mutation outcome may be indeterminate; '
+        + 'perform a fresh bounded read-only inspection before any retry.',
+      );
+    }
+  }
+  for (const field of FOUNDER_ADMISSION_PRESERVED_V3_FIELDS) {
+    if (status[field] !== before[field]) {
+      fail(
+        'Founder admission changed unrelated persistent aggregate state. '
+        + 'Do not retry before a bounded read-only investigation.',
+      );
+    }
+  }
+  if (status.auditEntries !== before.auditEntries + 1n) {
+    fail(
+      'Founder admission did not produce the exact audit transition. '
+      + 'Do not retry before a bounded read-only investigation.',
+    );
+  }
+  return Object.freeze({ ...status });
+}
+
+export function verifyFounderAdmissionResourcePreconditionV4(
+  status: ResourceAggregateV4,
+  expectedFounderCount: bigint,
+): ResourceAggregateV4 {
+  if (
+    expectedFounderCount < 0n
+    || expectedFounderCount >= GENESIS_MAX_FOUNDERS
+    || status.allowedFids !== expectedFounderCount
+    || status.castles !== expectedFounderCount
+    || status.markAccounts !== expectedFounderCount
+    || status.resourceAccounts !== expectedFounderCount
+    || status.missingResourceAccounts !== 0n
+    || status.orphanedResourceAccounts !== 0n
+    || status.resourceInvariantViolations !== 0n
+    || status.protocolVersion !== 3
+    || status.resourcePolicyVersion !== GENESIS_RESOURCE_POLICY_VERSION
+  ) {
+    fail('Founder admission v4 resource checkpoint was not exact.');
+  }
+  return Object.freeze({ ...status });
+}
+
+export function verifyFounderAdmissionResourcePostconditionV4(
+  status: ResourceAggregateV4,
+  before: ResourceAggregateV4,
+): ResourceAggregateV4 {
+  const expectedFounderCount = before.allowedFids + 1n;
+  const verified = verifyExpectedResourceAggregateV4(status, expectedFounderCount);
+  if (
+    status.castles !== before.castles + 1n
+    || status.markAccounts !== before.markAccounts + 1n
+    || status.resourceAccounts !== before.resourceAccounts + 1n
+  ) {
+    fail(
+      'Founder admission v4 postcondition failed. The mutation outcome may be indeterminate; '
+      + 'perform a fresh bounded read-only inspection before any retry.',
+    );
+  }
+  return verified;
 }
 
 export function verifyGenesisExpansionPreconditionV3(
@@ -534,6 +824,13 @@ export function requireCredentialedProductionTarget(
   }
 }
 
+/** New founder admission may target only the attested immutable database identity. */
+export function requireFounderAdmissionProductionTarget(database: string): void {
+  if (database !== DEFAULT_DATABASE_IDENTITY) {
+    fail('Profiled founder admission requires the immutable Warpkeep production database identity.');
+  }
+}
+
 /** Durable resource migration may target only the attested immutable identity. */
 export function requireResourceBackfillProductionTarget(database: string): void {
   if (database !== DEFAULT_DATABASE_IDENTITY) {
@@ -548,12 +845,10 @@ export function requireGenesisExpansionProductionTarget(database: string): void 
   }
 }
 
-function withOperationTimeout<T>(operation: Promise<T>): Promise<T> {
+export function withOperationTimeout<T>(operation: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => reject(new Error(
-      'Warpkeep database operation timed out. A submitted mutation may still commit; inspect current state before retrying.',
-    )), OPERATION_TIMEOUT_MS);
+    timer = setTimeout(() => reject(new HermesOperationTimeoutError()), OPERATION_TIMEOUT_MS);
   });
   return Promise.race([operation, deadline]).finally(() => {
     if (timer !== undefined) clearTimeout(timer);
@@ -732,36 +1027,104 @@ async function main() {
     machineReadableInspection,
   } = parseHermesArguments();
   configureHermesMachineOutput(machineReadableInspection);
-  // Durable data migrations always require a visible command-line confirmation.
+  // Durable data migrations and new founder admission always require a visible
+  // command-line confirmation.
   // The legacy noninteractive switch remains available to older bounded
-  // operators, but cannot silently authorize either one-time migration.
+  // operators, but cannot silently authorize those durable transitions.
   const confirmed = confirmedByFlag || (
     command !== 'backfill-resources'
     && command !== 'expand-world-v3'
+    && command !== 'admit-founder'
     && process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes'
   );
   const mutation = !inspection;
   const database = readDatabase(process.env.WARPKEEP_SPACETIMEDB_DATABASE);
   const uri = readHttpsUrl(process.env.WARPKEEP_SPACETIMEDB_URI || DEFAULT_URI, 'WARPKEEP_SPACETIMEDB_URI');
 
-  const fid = command === 'allow-fid' || command === 'disable-fid' || command === 'bump-auth-epoch'
+  let fid = command === 'allow-fid'
+    || command === 'disable-fid'
+    || command === 'bump-auth-epoch'
     ? readFid(positional[1])
     : undefined;
   const expectedFounderCount = command === 'backfill-resources'
     ? readFounderCount(positional[1])
     : undefined;
-  const note = command === 'allow-fid' || command === 'disable-fid'
+  let note = command === 'allow-fid' || command === 'disable-fid'
     ? sanitizeNote(positional[2])
     : command === 'bump-auth-epoch'
       ? sanitizeNote(positional[2], 'auth epoch rotation')
       : undefined;
+  let admissionProfile: AdmissionReadyTrustedProfile | undefined;
+  let admissionPlan: ReviewedFounderAdmissionPlan | undefined;
+  let admissionPlanReference: ReviewedFounderAdmissionPlanReference | undefined;
+
+  if (command === 'admit-founder') {
+    // The target is fixed before reading sensitive stdin. A plan can never be
+    // created for a configurable lookalike and later consumed in production.
+    requireCredentialedProductionTarget(uri, database, DEFAULT_BRIDGE);
+    requireFounderAdmissionProductionTarget(database);
+    const privateInput = await readPrivateFounderAdmissionInput();
+    if (dryRun) {
+      const request = parsePrivateFounderAdmissionRequest(privateInput);
+      const profile = await resolveAdmissionReadyFounderProfile(request.fid);
+      const plan = createReviewedFounderAdmissionPlan({
+        sourceConfigurationDigest: FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
+        targetConfigurationDigest: FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST,
+        profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
+        profileSourceUseApproval: request.profileSourceUseApproval,
+        fid: request.fid,
+        note: request.note,
+        profile,
+      });
+      const reference = writeReviewedFounderAdmissionPlan({ plan });
+      console.log(JSON.stringify(Object.freeze({
+        ...admissionReadinessSummary(profile),
+        reviewedAdmissionPlan: Object.freeze({
+          filename: reference.filename,
+          sha256: reference.sha256,
+        }),
+        reviewedPlanExpiresAt: reference.expiresAt,
+        reviewedPlanLifetimeMinutes:
+          REVIEWED_FOUNDER_ADMISSION_PLAN_LIFETIME_MS / 60_000,
+      })));
+      return;
+    }
+    admissionPlanReference = parseReviewedFounderAdmissionPlanReference(privateInput);
+    admissionPlan = readReviewedFounderAdmissionPlan({
+      reference: admissionPlanReference,
+      expectedSourceConfigurationDigest: FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
+      expectedTargetConfigurationDigest: FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST,
+      expectedProfilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
+    });
+    fid = BigInt(admissionPlan.fid);
+    note = admissionPlan.note;
+    admissionProfile = admissionPlan.profile;
+  }
 
   if (command === 'expand-world-v3') {
     requireGenesisExpansionProductionTarget(database);
   }
 
-  if (!machineReadableInspection) {
+  if (!machineReadableInspection && !(command === 'admit-founder' && dryRun)) {
     console.log(`Warpkeep Hermes target: ${database} at ${uri}`);
+  }
+  if (command === 'allow-fid') {
+    console.log('Warpkeep Hermes scope: existing complete founder re-enable only.');
+  }
+
+  // Profiled admission cannot inherit the legacy noninteractive switch. The
+  // confirmed path consumes only an already reviewed plan and never refetches.
+  if (command === 'admit-founder' && !dryRun && !confirmed) {
+    fail('Refusing profiled admission without --confirm.');
+  }
+
+  let prevalidatedBridgeUrl: string | undefined;
+  if (command === 'admit-founder' && !dryRun) {
+    prevalidatedBridgeUrl = readHttpsUrl(
+      process.env.WARPKEEP_AUTH_BRIDGE_URL,
+      'WARPKEEP_AUTH_BRIDGE_URL',
+    );
+    requireCredentialedProductionTarget(uri, database, prevalidatedBridgeUrl);
   }
   if (dryRun) {
     console.log(JSON.stringify(printable({
@@ -784,6 +1147,7 @@ async function main() {
       resourcePolicyVersion: command === 'backfill-resources'
         ? GENESIS_RESOURCE_POLICY_VERSION
         : undefined,
+      existingFounderReenableOnly: command === 'allow-fid' || undefined,
       mutation,
       dryRun: true,
     })));
@@ -800,7 +1164,8 @@ async function main() {
     requireResourceBackfillProductionTarget(database);
   }
 
-  const bridgeUrl = readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
+  const bridgeUrl = prevalidatedBridgeUrl
+    ?? readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
   requireCredentialedProductionTarget(uri, database, bridgeUrl);
   const secret = readAdminSecret(
     process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
@@ -808,8 +1173,9 @@ async function main() {
   );
   const token = await requestAdminToken(bridgeUrl, secret);
   const connection = await connect(uri, database, token);
+  let founderAdmissionClaimed = false;
   try {
-    let expansionStatusHandled = false;
+    let mutationStatusHandled = false;
     if (command === 'expand-world-v3') {
       const before = verifyGenesisExpansionPreconditionV3(
         await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
@@ -830,9 +1196,48 @@ async function main() {
         await readStatus(connection, 'v4') as GenesisExpansionResourceStatusV4,
         beforeResources,
       );
-      expansionStatusHandled = true;
+      mutationStatusHandled = true;
     } else if (command === 'seed-world') {
       await withOperationTimeout(connection.reducers.adminSeedWorld({}));
+    } else if (
+      command === 'admit-founder'
+      && fid !== undefined
+      && note !== undefined
+      && admissionProfile !== undefined
+      && admissionPlan !== undefined
+      && admissionPlanReference !== undefined
+    ) {
+      const before = verifyFounderAdmissionPreconditionV3(
+        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
+      );
+      const beforeResources = verifyFounderAdmissionResourcePreconditionV4(
+        await readStatus(connection, 'v4') as ResourceAggregateV4,
+        before.allowedFids,
+      );
+      claimReviewedFounderAdmissionPlan({
+        plan: admissionPlan,
+        sha256: admissionPlanReference.sha256,
+      });
+      founderAdmissionClaimed = true;
+      await withOperationTimeout(connection.reducers.adminAdmitFounderV1({
+        fid,
+        note,
+        canonicalUsername: admissionProfile.canonicalUsername,
+        displayName: admissionProfile.displayName,
+        pfpUrl: admissionProfile.pfpUrl,
+        publicBio: admissionProfile.publicBio,
+        profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
+      }));
+      verifyFounderAdmissionPostconditionV3(
+        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
+        before,
+      );
+      verifyFounderAdmissionResourcePostconditionV4(
+        await readStatus(connection, 'v4') as ResourceAggregateV4,
+        beforeResources,
+      );
+      founderAdmissionClaimed = false;
+      mutationStatusHandled = true;
     } else if (command === 'allow-fid' && fid !== undefined && note !== undefined) {
       await withOperationTimeout(connection.reducers.adminAllowFid({ fid, note }));
     } else if (command === 'disable-fid' && fid !== undefined && note !== undefined) {
@@ -847,12 +1252,12 @@ async function main() {
     }
     const statusVersion: AlphaStatusVersion = command === 'inspect-alpha-v2'
       ? 'v2'
-      : command === 'inspect-alpha-v3'
+      : command === 'inspect-alpha-v3' || command === 'admit-founder'
         ? 'v3'
         : command === 'inspect-alpha-v4' || command === 'backfill-resources'
           ? 'v4'
           : 'v1';
-    if (!expansionStatusHandled) {
+    if (!mutationStatusHandled) {
       await readStatus(
         connection,
         statusVersion,
@@ -860,16 +1265,18 @@ async function main() {
         command === 'backfill-resources' ? expectedFounderCount : undefined,
       );
     }
+  } catch (error) {
+    throwHermesOperationFailure(error, founderAdmissionClaimed);
   } finally {
-    connection.disconnect();
+    disconnectSilently(connection);
   }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().catch((error) => {
-    // Error messages are intentionally generic and never include a bridge token,
-    // secret, request body, or server response body.
-    console.error(error instanceof Error ? error.message : 'Hermes command failed.');
+    // Only locally authored CLI messages and fixed domain error codes cross
+    // this boundary. Arbitrary SDK/transport/server errors remain opaque.
+    console.error(privacySafeHermesErrorMessage(error));
     process.exitCode = 1;
   });
 }

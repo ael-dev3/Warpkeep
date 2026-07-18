@@ -15,6 +15,11 @@ import {
   GENESIS_STARTING_RESOURCE_BALANCES,
 } from './resourceAuthorityPolicy';
 import {
+  admissionProfileIsComplete,
+  trustedProfilesEqual,
+  type AdmissionReadyTrustedProfile,
+} from './profileAuthorityPolicy';
+import {
   HEGEMONY_REALM_ID,
   matchesCanonicalRealm,
   matchesCanonicalTerrain,
@@ -99,6 +104,7 @@ export function assertGenesisFoundingGraph(
     if (
       profile === null
       || ctx.db.allowedFid.fid.find(account.fid) === null
+      || !admissionProfileIsComplete(profile)
       || !markAccountIsConsistent(account)
       || !profileProjectionIsConsistent(profile, account)
     ) fail();
@@ -121,10 +127,10 @@ export function assertGenesisFoundingGraph(
   }
 }
 
-export function assertGenesisFounderForFid(
+function requireGenesisFounderStructureForFid(
   ctx: WarpkeepReducerContext,
   fid: bigint,
-): void {
+): NonNullable<ReturnType<WarpkeepReducerContext['db']['realmProfileV1']['fid']['find']>> {
   const castle = ctx.db.castle.ownerFid.find(fid);
   const claim = ctx.db.castleSlotClaimV1.ownerFid.find(fid);
   const profile = ctx.db.realmProfileV1.fid.find(fid);
@@ -166,6 +172,24 @@ export function assertGenesisFounderForFid(
       tileOccupantCastleId: tile.occupantCastleId,
     })
   ) fail();
+  return profile;
+}
+
+/** Exact-admin recovery gate: structure must be sound, but profile may need repair. */
+export function assertGenesisFounderForProfileRepair(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+): void {
+  requireGenesisFounderStructureForFid(ctx, fid);
+}
+
+/** Player and gameplay gate: structural validity plus complete public identity. */
+export function assertGenesisFounderForFid(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+): void {
+  const profile = requireGenesisFounderStructureForFid(ctx, fid);
+  if (!admissionProfileIsComplete(profile)) fail('FOUNDER_PROFILE_INCOMPLETE');
 }
 
 /**
@@ -176,6 +200,7 @@ export function assertGenesisFounderForFid(
 export function ensureGenesisFounder(
   ctx: WarpkeepReducerContext,
   fid: bigint,
+  admissionProfile: AdmissionReadyTrustedProfile,
 ): 'created' | 'preserved' {
   const existingCastle = ctx.db.castle.ownerFid.find(fid);
   const existingClaim = ctx.db.castleSlotClaimV1.ownerFid.find(fid);
@@ -184,11 +209,22 @@ export function ensureGenesisFounder(
   const existingResourceAccount = ctx.db.resourceAccountV1.fid.find(fid);
 
   if (existingCastle !== null) {
-    if (existingClaim === null || existingProfile === null || existingAccount === null) fail();
+    if (
+      existingClaim === null
+      || existingProfile === null
+      || existingAccount === null
+      || !admissionProfileIsComplete(existingProfile)
+      || !trustedProfilesEqual(existingProfile, admissionProfile)
+    ) fail();
     assertGenesisFoundingGraph(ctx);
     return 'preserved';
   }
-  if (existingClaim !== null || existingAccount !== null || existingResourceAccount !== null) fail();
+  if (
+    existingClaim !== null
+    || existingProfile !== null
+    || existingAccount !== null
+    || existingResourceAccount !== null
+  ) fail();
   assertGenesisFoundingGraph(ctx, fid);
 
   const claimedSlotIds = new Set<number>();
@@ -208,12 +244,12 @@ export function ensureGenesisFounder(
     || tile.occupantCastleId !== undefined
   ) fail();
 
-  const profile = existingProfile ?? ctx.db.realmProfileV1.insert({
+  const profile = ctx.db.realmProfileV1.insert({
     fid,
-    canonicalUsername: undefined,
-    displayName: undefined,
-    pfpUrl: undefined,
-    publicBio: undefined,
+    canonicalUsername: admissionProfile.canonicalUsername,
+    displayName: admissionProfile.displayName,
+    pfpUrl: admissionProfile.pfpUrl,
+    publicBio: admissionProfile.publicBio,
     admittedAt: ctx.timestamp,
     firstAuthenticatedAt: undefined,
     profileUpdatedAt: ctx.timestamp,
@@ -226,7 +262,9 @@ export function ensureGenesisFounder(
     marksPolicyVersion: undefined,
   });
   if (
-    profile.firstAuthenticatedAt !== undefined
+    !admissionProfileIsComplete(profile)
+    || !trustedProfilesEqual(profile, admissionProfile)
+    || profile.firstAuthenticatedAt !== undefined
     || profile.communityStatsVisible
     || profile.totalSnapBurnedMicros !== undefined
     || profile.marksEarnedMicros !== undefined

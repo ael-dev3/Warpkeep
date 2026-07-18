@@ -5,29 +5,30 @@ It is independent of the static Pages client: title/menu visitors do not create
 a SpacetimeDB identity, and gameplay authority comes only from a strictly
 validated bridge-issued OIDC access token.
 
-> **Alpha 0.3.2 is live on backend protocol 3.** The module described below is
+> **Alpha 0.3.8 is live on backend protocol 3.** Its exact release artifact is
 > deployed only at its privately recorded Maincloud schema, artifact,
 > aggregate, and resolver coordinates. Publication used the pinned CLI with
 > deletion prohibited and preserved the existing database identity. The
-> 1,261-cell Genesis world and its 100 close-outward castle slots are seeded,
+> 10,000-cell Genesis world and its 100 close-outward castle slots are seeded,
 > deliberately admitted founders hold their permanent castles, and public shared
 > auth and realm entry are enabled. Exact founder counts and identities remain in the
 > private operational record rather than this public document.
 
-The production database and issuer run the recorded exact Alpha 0.3.2 release,
+The production database and issuer run the recorded exact Alpha 0.3.8 release,
 while the player authentication contract remains v2. That deployment does not
 attest an arbitrary checkout. Every future republish requires a fresh proof,
 bounded aggregate, recorded authority, and exact-source verification.
 
 > **This checkout contains the undeployed Alpha 0.3.11 protocol-3 /
-> generation-v3 candidate.** It preserves the complete 1,261-cell generation-v2
-> predecessor and all 100 permanent castle slots, then adds 8,739 cells for an
-> exact 10,000 persistent-cell world, a separately approval-gated Gold Mine
-> pilot, shared forest presentation, a Tier-I Wheat Farm Food pilot, and a
-> Tier-I Logging Camp Wood pilot. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md)
-> for the exact world shape, budgets, compatibility boundary, and rollout
-> invariants. The entry-agreement update described below adds no
-> schema or protocol change and does not authorize a publication.
+> generation-v3 candidate.** It preserves the exact 10,000-cell world and all
+> 100 permanent castle slots, then adds a Gold Mine pilot, shared forest
+> presentation, a Tier-I Wheat Farm Food pilot, and a
+> Tier-I Logging Camp Wood pilot, versioned entry agreement, and atomic founder
+> admission. It preserves the released protocol number, schema prefix,
+> generation-v3 world, and live data. These additions are unavailable on
+> Maincloud until the approved deletion-prohibited publication succeeds. See
+> [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md) for the world
+> shape and compatibility boundary.
 
 ## Version compatibility
 
@@ -37,7 +38,7 @@ bounded aggregate, recorded authority, and exact-source verification.
 - Deployed backend wire protocol: `3`
 - Checked-out backend wire protocol: `3`
 - Player authentication contract: `2` (unchanged)
-- Local world generation: `3` (undeployed; live predecessor is `2`)
+- Local and deployed world generation: `3`
 
 ### Pending Alpha 0.3.11 Gold, forest, Food, and Wood extensions
 
@@ -425,13 +426,22 @@ bootstrap_player_v2
 Missing/disabled status is handled by the bridge's tokenless pending path before
 any player access token or database connection exists.
 
-In protocol 3, `admin_allow_fid` is the atomic founding boundary.
-After validating the complete canonical generation, one transaction creates or
-preserves the admission row, permanent slot claim, level-one castle, reverse
-tile occupancy, hidden public profile, zeroed private Mark account, and audit.
-The first three deterministic assignments are the close founding district at
-`(0,0)`, `(2,-1)`, and `(-1,2)`. Repeating allow is idempotent; disabling and
-re-enabling rotate authority without deleting or moving founder state.
+In this checked-out additive module, `admin_admit_founder_v1` is the only
+first-time founding boundary. The trusted operator supplies a reviewed
+Farcaster projection and the module re-normalizes it before any write,
+requiring a canonical username and public HTTPS PFP. After validating the
+complete canonical generation, one transaction creates the admission row,
+permanent slot claim, level-one castle, reverse tile occupancy, complete public
+profile, zeroed private Mark and resource accounts, and audit. The first three
+deterministic assignments are the close founding district at `(0,0)`, `(2,-1)`,
+and `(-1,2)`. This wire and its stricter completeness checks are not claims
+about the currently deployed Maincloud artifact; publication remains a
+separate approval boundary.
+
+The retained `admin_allow_fid` wire may only preserve or re-enable an existing
+complete founder/resource/profile graph; it rejects a first-time FID. Disabling
+and deliberate re-enabling rotate authority without deleting or moving founder
+state. Neither admin path creates player or ownership rows.
 
 `bootstrap_player_v2` is separately transactional and idempotent. It derives
 the FID only from signed claims, requires current admission, and binds the
@@ -441,6 +451,27 @@ reads or writes legacy `player`. Missing, partial, duplicate-identity,
 mismatched, or castle-only state fails closed. Indexed per-FID checks keep the
 player status/bootstrap/terms hot paths bounded; full static-world integrity
 scans remain on admin seed, expansion, founding, and attestation transitions.
+
+Recovery is deliberately narrower than player authority. Exact-admin
+`admin_upsert_realm_profile_v1` may repair a structurally valid existing founder
+whose required profile projection is incomplete, but only by committing a
+complete, normalized, reviewed username-and-PFP result. That exception cannot
+create or move founder state. Bootstrap, gameplay, ordinary player lookups, and
+legacy `admin_allow_fid` remain complete-profile-only. The profile refresh
+operator can repair such a row only when current authoritative data supplies
+every missing or invalid required field. An already-valid required field may
+retain its sanitized reviewed last-known-good value if that one response is
+unavailable or incomplete; an authoritative clear still stops. A fully blank
+row requires both current fields.
+
+The repository's `npm run stdb:admit-founder` wrapper implements a private
+reviewed-plan workflow for this reducer. Identity/profile values enter through
+owner-only stdin files, not argv; confirmation submits the exact expiring plan
+without a profile refetch and requires the immutable production database
+identity. Each private plan records a separate exact source-use approval for
+that founder; the historical source-provenance record does not authorize new
+lookups. See `docs/operations/alpha-activation.md` for the bounded procedure and
+its separate publication-approval boundary.
 
 The bridge issues no optional profile claims, and the module ignores any
 profile-shaped JWT fields. Trusted public profile and private wallet snapshots
@@ -460,6 +491,7 @@ Exact fresh Hermes authority is required for:
 
 - `admin_seed_world`
 - `admin_expand_genesis_world_v3`
+- `admin_admit_founder_v1`
 - `admin_allow_fid`
 - `admin_disable_fid`
 - `admin_bump_auth_epoch`

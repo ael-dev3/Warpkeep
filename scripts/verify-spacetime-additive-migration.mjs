@@ -64,6 +64,7 @@ const historicalEntryAgreementVersion = '2026-07-14';
 const alphaTermsVersion = '2026-07-18-hegemony-entry-agreement-v1';
 const resourcePolicyVersion = 'genesis-resource-yield-v1';
 const marksPolicyVersion = 'snap-current-linked-wallet-1to1-v1';
+const profilePolicyVersion = 'trusted-snapchain-profile-v3';
 const resourceQuantumMicros = 600_000_000n;
 const maximumU64 = (1n << 64n) - 1n;
 const startingResourceBalances = Object.freeze({
@@ -979,14 +980,19 @@ function adminServiceClaims() {
   return serviceClaims('service:hermes', ['warpkeep-admin'], 240);
 }
 
-function playerClaims(fid, subject = `farcaster:${fid}`) {
-  if (!Number.isSafeInteger(fid) || fid <= 0) fail('Disposable player claim was invalid.');
+function playerClaims(fid, subject = `farcaster:${fid}`, authEpoch = 1) {
+  if (
+    !Number.isSafeInteger(fid)
+    || fid <= 0
+    || !Number.isSafeInteger(authEpoch)
+    || authEpoch <= 0
+  ) fail('Disposable player claim was invalid.');
   const base = serviceClaims(subject, [], 240);
   return {
     ...base,
     auth_version: 2,
     fid: String(fid),
-    auth_epoch: 1,
+    auth_epoch: authEpoch,
     session_iat: base.iat,
     session_exp: base.exp,
   };
@@ -1055,7 +1061,9 @@ async function callLoopbackProcedure(
   }
   const responseText = await readBoundedProcedureResponse(response, credential);
   if (response.status !== expectedStatus) {
-    fail(`Loopback procedure returned status ${response.status}; expected ${expectedStatus}.`);
+    fail(
+      `Loopback procedure ${procedure} returned status ${response.status}; expected ${expectedStatus}.`,
+    );
   }
   if (
     expectedStatus === 200
@@ -1325,6 +1333,21 @@ async function callerRowDigest(server, token, database, table) {
   ));
 }
 
+async function founderAuthorityDigest(server, token, database) {
+  const queries = Object.freeze({
+    castle: `SELECT * FROM castle WHERE owner_fid = ${actualModuleFounderFid}`,
+    claim: `SELECT * FROM castle_slot_claim_v1 WHERE owner_fid = ${actualModuleFounderFid}`,
+    profile: `SELECT * FROM realm_profile_v1 WHERE fid = ${actualModuleFounderFid}`,
+    marks: `SELECT * FROM mark_account_v1 WHERE fid = ${actualModuleFounderFid}`,
+    resources: `SELECT * FROM resource_account_v1 WHERE fid = ${actualModuleFounderFid}`,
+  });
+  const digests = {};
+  for (const [name, query] of Object.entries(queries)) {
+    digests[name] = outputDigest(await privateSql(server, token, database, query));
+  }
+  return outputDigest(JSON.stringify(digests));
+}
+
 async function privateSql(server, token, database, query) {
   const result = await runCommand([
     ...configArguments(token),
@@ -1412,7 +1435,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
   const playerCredential = () => createEphemeralJwt(
     privateKey,
-    playerClaims(actualModuleFounderFid),
+    playerClaims(actualModuleFounderFid, `farcaster:${actualModuleFounderFid}`, 2),
   );
   try {
     await callLoopbackReducer(
@@ -1518,7 +1541,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       )) !== seededForestInstancesDigest
     ) fail('Exact forest seed rerun was not a complete no-op.');
 
-    stage = 'atomic-founder';
+    stage = 'atomic-founder-empty-fixture';
     for (const table of [
       'allowed_fid',
       'castle',
@@ -1531,13 +1554,84 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
         fail('Actual module founder fixture was not empty.');
       }
     }
+    stage = 'atomic-founder-legacy-rejection';
     await useActualModule();
     await callLoopbackReducer(
       server,
       database,
       'admin_allow_fid',
       adminCredential(),
-      JSON.stringify([actualModuleFounderFid, 'local additive migration proof']),
+      JSON.stringify([actualModuleFounderFid, 'legacy first-time admission must fail']),
+      530,
+    );
+    await usePrivateInspectionModule();
+    for (const table of [
+      'allowed_fid',
+      'castle',
+      'castle_slot_claim_v1',
+      'realm_profile_v1',
+      'mark_account_v1',
+      'resource_account_v1',
+    ]) {
+      if (await countForFid(server, ownerToken, database, table) !== 0n) {
+        fail('Rejected legacy first-time admission changed founder state.');
+      }
+    }
+    if (await actionCount(server, ownerToken, database, 'allow_fid') !== 0n) {
+      fail('Rejected legacy first-time admission changed audit history.');
+    }
+
+    stage = 'atomic-founder-invalid-profile-rollback';
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_admit_founder_v1',
+      adminCredential(),
+      JSON.stringify([
+        actualModuleOtherFid,
+        'invalid local profile must fail before writes',
+        'migration.invalid',
+        { some: 'Migration Invalid' },
+        'http://profiles.example.com/invalid.png',
+        { some: 'Disposable invalid profile fixture' },
+        profilePolicyVersion,
+      ]),
+      530,
+    );
+    await usePrivateInspectionModule();
+    for (const table of [
+      'allowed_fid',
+      'castle',
+      'castle_slot_claim_v1',
+      'realm_profile_v1',
+      'mark_account_v1',
+      'resource_account_v1',
+    ]) {
+      if (await countForFid(server, ownerToken, database, table, actualModuleOtherFid) !== 0n) {
+        fail('Rejected profiled admission changed founder state.');
+      }
+    }
+    if (await actionCount(server, ownerToken, database, 'admit_founder_v1') !== 0n) {
+      fail('Rejected profiled admission changed audit history.');
+    }
+
+    stage = 'atomic-founder-profiled-commit';
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_admit_founder_v1',
+      adminCredential(),
+      JSON.stringify([
+        actualModuleFounderFid,
+        'local additive migration proof',
+        'migration.founder',
+        { some: 'Migration Founder' },
+        'https://profiles.example.com/migration-founder.png',
+        { some: 'Disposable local founder fixture' },
+        profilePolicyVersion,
+      ]),
       200,
     );
     await usePrivateInspectionModule();
@@ -1557,6 +1651,186 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       await countForFid(server, ownerToken, database, 'player_v2') !== 0n
       || await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 0n
     ) fail('Actual module admission unexpectedly bootstrapped a player.');
+    stage = 'atomic-founder-profile-postcondition';
+    const completeProfileProjection = (await privateSql(
+      server,
+      ownerToken,
+      database,
+      `SELECT canonical_username, pfp_url FROM realm_profile_v1 WHERE fid = ${actualModuleFounderFid}`,
+    )).replace(/\u001b\[[0-9;]*m/g, '');
+    if (
+      !completeProfileProjection.includes('migration.founder')
+      || !completeProfileProjection.includes('https://profiles.example.com/migration-founder.png')
+      || await actionCount(server, ownerToken, database, 'admit_founder_v1') !== 1n
+    ) fail('Actual module profiled admission did not persist its reviewed projection exactly once.');
+
+    stage = 'atomic-founder-repeat-admission-rollback';
+    const founderAuthorityBeforeRepeatedAdmission = await founderAuthorityDigest(
+      server,
+      ownerToken,
+      database,
+    );
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_admit_founder_v1',
+      adminCredential(),
+      JSON.stringify([
+        actualModuleFounderFid,
+        'repeated local admission must fail',
+        'migration.changed',
+        { some: 'Migration Changed' },
+        'https://profiles.example.com/migration-changed.png',
+        { some: 'Repeated admission must not rewrite profile state' },
+        profilePolicyVersion,
+      ]),
+      530,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await founderAuthorityDigest(server, ownerToken, database)
+        !== founderAuthorityBeforeRepeatedAdmission
+      || await actionCount(server, ownerToken, database, 'admit_founder_v1') !== 1n
+    ) fail('Repeated profiled admission changed founder state or audit history.');
+
+    stage = 'atomic-founder-required-profile-clear-rollback';
+    const founderAuthorityBeforeRejectedClear = await founderAuthorityDigest(
+      server,
+      ownerToken,
+      database,
+    );
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_upsert_realm_profile_v1',
+      adminCredential(),
+      JSON.stringify([
+        actualModuleFounderFid,
+        { none: [] },
+        { some: 'Rejected Clear Fixture' },
+        { none: [] },
+        { some: 'Required castle identity must remain complete' },
+        profilePolicyVersion,
+      ]),
+      530,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await founderAuthorityDigest(server, ownerToken, database)
+        !== founderAuthorityBeforeRejectedClear
+      || await actionCount(server, ownerToken, database, 'profile_snapshot_v1') !== 0n
+    ) fail('Rejected required-profile clear changed founder state or audit history.');
+
+    stage = 'atomic-founder-legacy-reenable';
+    const founderAuthorityBeforeReenable = await founderAuthorityDigest(
+      server,
+      ownerToken,
+      database,
+    );
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_disable_fid',
+      adminCredential(),
+      JSON.stringify([actualModuleFounderFid, 'local complete-founder re-enable proof']),
+      200,
+    );
+    await usePrivateInspectionModule();
+    const disabledFounderCount = countFromSql(await privateSql(
+      server,
+      ownerToken,
+      database,
+      `SELECT COUNT(*) AS warpkeep_count FROM allowed_fid WHERE fid = ${actualModuleFounderFid} AND enabled = false`,
+    ));
+    if (
+      disabledFounderCount !== 1n
+      || await founderAuthorityDigest(server, ownerToken, database) !== founderAuthorityBeforeReenable
+    ) fail('Local disable changed permanent founder authority state.');
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_allow_fid',
+      adminCredential(),
+      JSON.stringify([actualModuleFounderFid, 'local complete-founder re-enable proof']),
+      200,
+    );
+    await usePrivateInspectionModule();
+    const reenabledFounderCount = countFromSql(await privateSql(
+      server,
+      ownerToken,
+      database,
+      `SELECT COUNT(*) AS warpkeep_count FROM allowed_fid WHERE fid = ${actualModuleFounderFid} AND enabled = true`,
+    ));
+    if (
+      reenabledFounderCount !== 1n
+      || await founderAuthorityDigest(server, ownerToken, database) !== founderAuthorityBeforeReenable
+      || await actionCount(server, ownerToken, database, 'allow_fid') !== 1n
+    ) fail('Legacy allow did not preserve and re-enable exactly one complete founder graph.');
+
+    stage = 'bootstrap-incomplete-profile-gate';
+    await callLoopbackReducer(
+      server,
+      database,
+      'fixture_clear_founder_pfp',
+      adminCredential(),
+      '[]',
+      200,
+    );
+    await useActualModule();
+    const incompleteProfileStatus = parseLoopbackJson(await callLoopbackProcedure(
+      server,
+      database,
+      'admin_get_alpha_status_v3',
+      adminCredential(),
+      '[]',
+      200,
+    ), 'incomplete founder profile aggregate');
+    if (
+      !Array.isArray(incompleteProfileStatus)
+      || incompleteProfileStatus.length !== 40
+      || readCanonicalUnsigned(
+        incompleteProfileStatus[29],
+        maximumU64,
+        'founder profile gap aggregate',
+      ) !== 1n
+    ) fail('Founder aggregate did not report the incomplete profile fixture.');
+    await callLoopbackReducer(
+      server,
+      database,
+      'bootstrap_player_v2',
+      playerCredential(),
+      '[]',
+      530,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await countForFid(server, ownerToken, database, 'player_v2') !== 0n
+      || await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 0n
+    ) fail('Incomplete profile bootstrap created player authority state.');
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_upsert_realm_profile_v1',
+      adminCredential(),
+      JSON.stringify([
+        actualModuleFounderFid,
+        { some: 'migration.founder' },
+        { some: 'Migration Founder' },
+        { some: 'https://profiles.example.com/migration-founder.png' },
+        { some: 'Disposable local founder fixture' },
+        profilePolicyVersion,
+      ]),
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (await actionCount(server, ownerToken, database, 'profile_snapshot_v1') !== 1n) {
+      fail('Exact-admin profile repair did not produce one audit transition.');
+    }
 
     stage = 'bootstrap-gate';
     await useActualModule();
@@ -1642,7 +1916,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
     await useActualModule();
     const invalidSubjectCredential = createEphemeralJwt(
       privateKey,
-      playerClaims(actualModuleFounderFid, `farcaster:${actualModuleOtherFid}`),
+      playerClaims(actualModuleFounderFid, `farcaster:${actualModuleOtherFid}`, 2),
     );
     await callLoopbackProcedure(
       server,
@@ -2812,7 +3086,10 @@ async function main() {
       + 'exact resolver HTTP lifecycle enforced without mutation, '
       + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `
       + `actual resource authority reducers exercised with ${resourceTimestampFixture} collection, `
-      + 'caller bootstrap/terms/identity gates, Marks isolation, atomic founding, '
+      + 'caller bootstrap/terms/identity gates, Marks isolation, atomic profiled founding, '
+      + 'repeat-admission and required-profile clear rejection with exact rollback, '
+      + 'incomplete-profile monitoring and bootstrap rollback, '
+      + 'legacy first-time admission rejection and complete-graph re-enable preservation, '
       + 'and guarded backfill rejection/idempotence held, '
       + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v8, '
       + `and guarded v7/v6/v5/v4/v3/v2 rollbacks refused before schema change. artifact_sha256=${builtArtifactDigest}`,

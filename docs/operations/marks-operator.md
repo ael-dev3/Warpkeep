@@ -123,8 +123,21 @@ FID, mainnet, and user-data contract, then retains only `USERNAME`, `DISPLAY`,
 `BIO`, and `PFP`; unrelated user-data fields are discarded and never persisted
 or reported. Redirects and pagination are rejected, response bodies and
 deadlines are bounded, and PFP URLs are re-sanitized. A successful complete
-current envelope can authoritatively clear a field; only unavailable or
-incomplete responses retain last-known-good public data.
+current envelope can authoritatively clear optional display name or bio.
+Canonical username and PFP are required castle-identity anchors: an
+authoritative removal stops before plan creation, while an unavailable or
+incomplete response may retain their last-known-good reviewed values. Refresh
+also fails when any founded profile has no reviewed fallback. In particular, a
+structurally valid legacy founder can be repaired only when every missing or
+invalid required field is supplied by current authoritative data. A required
+field that is already valid may retain its sanitized reviewed last-known-good
+value when that one response is unavailable or incomplete; an authoritative
+clear still stops. A fully blank row therefore needs both current required
+fields. The operator never invents or promotes a stale missing required value.
+The exact-admin reducer accepts that narrow repair only when the reviewed
+intended result is complete and normalized. Player bootstrap, gameplay
+authority, and legacy admission re-enable remain blocked until repair is
+complete.
 
 The dry run reads the canonical current profile rows and writes a private
 `profiles-reviewed-plan-*.json` file in
