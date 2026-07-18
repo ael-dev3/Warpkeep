@@ -194,6 +194,22 @@ export function LoggingCampInspectionPanel({
       aria-describedby={descriptionId}
       data-open="true"
     >
+      <div
+        aria-hidden="true"
+        className="gold-mine-inspection__art-stage logging-camp-inspection__art-stage"
+      >
+        <img
+          alt=""
+          aria-hidden="true"
+          className="gold-mine-inspection__hero-art logging-camp-inspection__hero-art"
+          decoding="async"
+          draggable={false}
+          height="1254"
+          src={publicAssetUrl('images/realm/hegemony-logging-camp-record.webp')}
+          width="1254"
+        />
+      </div>
+
       <div className="gold-mine-inspection__drawer">
         <header className="gold-mine-inspection__hero">
           <button
@@ -205,17 +221,6 @@ export function LoggingCampInspectionPanel({
           >
             <span aria-hidden="true">×</span>
           </button>
-          <div className="logging-camp-inspection__resource-lockup" aria-hidden="true">
-            <img
-              alt=""
-              className="logging-camp-inspection__resource-icon"
-              decoding="async"
-              draggable={false}
-              height="64"
-              src={publicAssetUrl('images/resources/hegemony-wood-add35506da245240.webp')}
-              width="64"
-            />
-          </div>
           <div className="gold-mine-inspection__title-lockup">
             <p>TIER {camp.tier} GATHERING SITE</p>
             <h2 id={titleId}>{camp.name}</h2>

@@ -39,6 +39,9 @@ describe('latest in-menu patch notes', () => {
       /Logging Camps.*provenance-pinned High, Balanced, and Compact models.*bounded shared node rendering.*nearby-only wagon presentation.*safe marker fallback.*never supplies placement or gameplay authority/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /provenance-pinned transparent Logging Camp record illustration.*Wood inspection card.*local, pointer-inert decoration.*never supplies map, balance, gathering, or reward authority/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
       /Community Marks remains a separate private authority.*no conversion.*transfer.*credit.*spending.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(

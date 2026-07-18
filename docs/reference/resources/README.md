@@ -27,3 +27,8 @@ The owner-supplied Logging Camp delivery has a separate immutable
 It pins the exact public High/Balanced/Compact GLBs, an offline source installer,
 and the visual-only collision/rendering boundary. It does not create a Wood
 site, worker, balance, reward, or gathering authority.
+
+Its separate [transparent inspection-art record](2026-07-18-hegemony-logging-camp/record-art/README.md)
+pins the corresponding high-resolution 2D Logging Camp card illustration. That
+decorative, pointer-inert asset does not create a Wood site, worker, balance,
+or gathering authority.

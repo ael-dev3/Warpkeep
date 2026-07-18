@@ -29,20 +29,23 @@ function block(source: string, marker: string) {
 }
 
 describe('Logging Camp inspection visual contract', () => {
-  it('frames only the compact resource glyph while retaining the shared safe dismiss shell', () => {
+  it('stages the high-resolution record art while retaining the shared safe dismiss shell', () => {
     const inspector = block(CAMP_CSS, '.logging-camp-inspection.gold-mine-inspection {');
-    const glyphLockup = block(CAMP_CSS, '.logging-camp-inspection__resource-lockup {');
-    const glyph = block(CAMP_CSS, '.logging-camp-inspection__resource-icon {');
+    const stage = block(CAMP_CSS, '.logging-camp-inspection__art-stage.gold-mine-inspection__art-stage {');
+    const art = block(CAMP_CSS, '.logging-camp-inspection__hero-art.gold-mine-inspection__hero-art {');
     const drawer = block(SHARED_CSS, '.gold-mine-inspection__drawer {');
     const close = block(SHARED_CSS, '.gold-mine-inspection__dismiss {');
 
-    expect(inspector).toContain('padding-top: 0;');
-    expect(glyphLockup).toContain('z-index: 3;');
-    expect(glyphLockup).toContain('place-items: center;');
-    expect(glyph).toContain('object-fit: contain;');
-    expect(glyph).toContain('drop-shadow(');
-    expect(CAMP_CSS).not.toContain('__hero-art');
-    expect(CAMP_CSS).not.toContain('__art-stage');
+    expect(inspector).toContain('padding-top: clamp(');
+    expect(stage).toContain('top: -0.28rem;');
+    expect(stage).toContain('width: min(');
+    expect(stage).toContain('height: clamp(');
+    expect(art).toContain('object-fit: contain;');
+    expect(art).toContain('object-position: 50% 54%;');
+    expect(art).toContain('transform: translateY(');
+    expect(art).toContain('drop-shadow(');
+    expect(SHARED_CSS).toContain('.gold-mine-inspection__art-stage');
+    expect(SHARED_CSS).toContain('pointer-events: none;');
     expect(drawer).toContain('overflow: hidden;');
     expect(close).toContain('z-index: 5;');
     expect(close).toContain('min-width: 2.75rem;');

@@ -173,6 +173,7 @@ const ALPHA_0_3_11_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Gold, Food, and Wood use separate private expedition loops, so one castle may operate one wagon of each kind at once. Public occupation shows only a site, phase, server timeline, and origin castle; FIDs, request keys, routes, accrued output, and balances stay private.',
     'Food and Wood each reserve their full remaining 30-day award alongside passive terrain output. One shared server-side settlement path preserves both reserves during collection and every lifecycle schedule, preventing a late delivery from truncating, duplicating, or stranding either award.',
     'Logging Camps use exact provenance-pinned High, Balanced, and Compact models with bounded shared node rendering, nearby-only wagon presentation, and safe marker fallback. A model never supplies placement or gameplay authority.',
+    'A provenance-pinned transparent Logging Camp record illustration rises above the Wood inspection card as local, pointer-inert decoration; it never supplies map, balance, gathering, or reward authority.',
     'Community Marks remains a separate private authority with no conversion, transfer, credit, or spending path. Construction, upgrades, combat, trading, public inventories, and financial rewards remain unavailable.'
   ]),
   alphaNotice:

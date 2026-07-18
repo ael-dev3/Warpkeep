@@ -22,8 +22,8 @@ The verified public alpha focuses on admission-gated founding, exploration,
 castle inspection, and the visual language of the Hegemony Lowlands. The
 undeployed 0.3.11 source candidate adds private Food, Wood, Stone, and Gold
 accounts, deterministic terrain collection, a 10,000-cell world with 2,000
-resource-capable anchors, and bounded Gold Mine, Wheat Farm, and Logging Camp wagon
-expeditions. Construction,
+resource-capable anchors, bounded Gold Mine, Wheat Farm, and Logging Camp wagon
+expeditions, and same-origin inspection records. Construction,
 upgrades, units, combat, alliances, chat, seasons, resource transfers, Marks
 spending, and rewards are not playable systems today. Alpha participation
 offers no financial return, airdrop, or promise of future value.

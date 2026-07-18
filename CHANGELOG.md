@@ -30,6 +30,9 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   narrow provenance, strict integrity checks, bounded shared node rendering,
   and marker fallback. The models are visual-only and do not determine world
   placement or gameplay authority.
+- Adds a provenance-pinned, transparent high-resolution Logging Camp inspection
+  illustration that rises slightly above the Wood card while remaining
+  decorative and pointer-inert.
 - Alpha 0.3.11 is **not deployed**. Alpha 0.3.6 remains the verified public
   release. Production requires separately approved additive publication,
   resource, Gold-site, forest-layout, Food-site, and Wood-site setup,

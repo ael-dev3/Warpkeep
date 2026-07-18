@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 describe('LoggingCampInspectionPanel', () => {
-  it('presents a focus-safe, decorative Logging Camp record without inventing high-resolution art or authority', async () => {
+  it('presents a focus-safe, decorative Logging Camp record without inventing authority', async () => {
     const onRequestClose = vi.fn();
     const focusTargetRef = createRef<HTMLButtonElement>();
     const { container } = render(
@@ -29,15 +29,15 @@ describe('LoggingCampInspectionPanel', () => {
     const dialog = screen.getByRole('dialog', { name: 'Logging Camp' });
     expect(dialog.className).toContain('logging-camp-inspection');
     expect(screen.getByText('Resource').nextElementSibling?.textContent).toBe('Wood');
-    const glyph = container.querySelector<HTMLImageElement>('.logging-camp-inspection__resource-icon');
-    expect(glyph?.getAttribute('src')).toBe('/images/resources/hegemony-wood-add35506da245240.webp');
-    expect(glyph?.getAttribute('alt')).toBe('');
-    expect(glyph?.getAttribute('aria-hidden')).toBeNull();
-    expect(glyph?.getAttribute('decoding')).toBe('async');
-    expect(glyph?.getAttribute('draggable')).toBe('false');
-    expect(glyph?.getAttribute('height')).toBe('64');
-    expect(glyph?.getAttribute('width')).toBe('64');
-    expect(container.querySelector('.gold-mine-inspection__hero-art')).toBeNull();
+    const art = container.querySelector<HTMLImageElement>('.logging-camp-inspection__hero-art');
+    expect(art?.getAttribute('src')).toBe('/images/realm/hegemony-logging-camp-record.webp');
+    expect(art?.getAttribute('alt')).toBe('');
+    expect(art?.getAttribute('aria-hidden')).toBe('true');
+    expect(art?.getAttribute('decoding')).toBe('async');
+    expect(art?.getAttribute('draggable')).toBe('false');
+    expect(art?.getAttribute('height')).toBe('1254');
+    expect(art?.getAttribute('width')).toBe('1254');
+    expect(container.querySelector('.logging-camp-inspection__art-stage')).not.toBeNull();
     const close = screen.getByRole('button', { name: 'CLOSE LOGGING CAMP RECORD' });
     await waitFor(() => expect(document.activeElement).toBe(close));
     expect(focusTargetRef.current).toBe(close);

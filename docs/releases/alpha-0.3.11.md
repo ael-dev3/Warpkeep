@@ -53,9 +53,10 @@ action.
   Compact GLBs with bounded shared node and wagon presentation plus safe marker
   fallback. Scene assets never determine collision, placement, movement,
   ownership, or rewards.
-- The supplied runtime package contains no separately authorized high-resolution
-  inspection illustration. This candidate therefore keeps the Wood inspector
-  data-led and does not manufacture a decorative record image from GLB bytes.
+- The supplied high-resolution Logging Camp illustration is a separately
+  provenance-pinned transparent inspection image. It is local, decorative,
+  pointer-inert card art only; it does not derive from GLB bytes or determine
+  placement, movement, ownership, balance, or rewards.
 
 ## Additive rollout gate
 

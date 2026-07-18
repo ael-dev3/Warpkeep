@@ -244,6 +244,30 @@ The reviewed draft integration mounts the card as decorative inspection art
 only; it grants no resource, currency, reward, entitlement, map-placement, or
 Food authority. No Pages deployment is authorized by this record.
 
+## Hegemony Logging Camp inspection artwork
+
+On 2026-07-19, the Warpkeep project owner instructed PR #62 to use the
+supplied high-resolution Logging Camp visual as a transparent inspection-card
+derivative. That authorization covers this exact checked-in output in the
+public Warpkeep GitHub repository and an eventual official `warpkeep.com`
+Pages runtime only after separately approved deployment. It is use authorization
+only, not merge or deployment approval; it does not establish ownership, a
+public/open-content licence, general derivative or redistribution rights, or
+Wood account, balance, placement, occupancy, route, worker, reward, collection,
+settlement, timing, or SpacetimeDB authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Decorative Logging Camp inspection card artwork | `public/images/realm/hegemony-logging-camp-record.webp` | 1254×1254 transparent WebP, 177,622 bytes, SHA-256 `fb9d171e423a7bd4bfcce1e68cd3faecb38b4904bc528f720e4283522fca1293`; prepared from the supplied 1254×1254 RGB preview through the recorded local foreground-matte workflow. |
+
+The exact source attachment and alpha-matte intermediate are not committed.
+Their hashes, transformation method, decoded RGBA hash, alpha profile, and
+visible bounds are recorded in the dated [Logging Camp inspection-art
+record](docs/reference/resources/2026-07-18-hegemony-logging-camp/record-art/manifest.json).
+The reviewed draft integration mounts the card as decorative inspection art
+only; it grants no resource, currency, reward, entitlement, map-placement, or
+Wood authority. No Pages deployment is authorized by this record.
+
 ## Hegemony Logging Camp runtime assets
 
 On 2026-07-18, the Warpkeep project owner supplied the named Logging Camp

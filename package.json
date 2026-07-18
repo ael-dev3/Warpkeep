@@ -21,6 +21,7 @@
     "prepare:hegemony-gold-mine-candidates": "node scripts/install-hegemony-gold-mine-review-candidates.mjs",
     "prepare:hegemony-gold-mine-record-art": "node scripts/install-hegemony-gold-mine-record-art.mjs",
     "prepare:hegemony-wheat-farm-record-art": "node scripts/install-hegemony-wheat-farm-record-art.mjs",
+    "prepare:hegemony-logging-camp-record-art": "node scripts/install-hegemony-logging-camp-record-art.mjs",
     "prepare:hegemony-gold-mine-runtime": "node scripts/install-hegemony-gold-mine-runtime.mjs",
     "prepare:hegemony-logging-camp-runtime": "node scripts/install-hegemony-logging-camp-runtime.mjs",
     "prepare:hegemony-supply-wagon": "node scripts/prepare-hegemony-supply-wagon.mjs",

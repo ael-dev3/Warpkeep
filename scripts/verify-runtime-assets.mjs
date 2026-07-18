@@ -40,7 +40,8 @@ const assets = Object.freeze([
   ['public/video/warpkeep-menu-loop-v2.mp4', 5_713_248, '6034f049e8ee25a412fdc1f8c7ccce1ab403a58eac9158e1d0b55a6bfa99260c', false],
   ['public/images/realm/hegemony-castle-record.webp', 145_416, '30e0c3cd1bbc4732bb5025a78a5dc0cc66bc01c1b752a3f21b48fb429cc11123', false],
   ['public/images/realm/hegemony-gold-mine-record.webp', 218_736, 'a2c52a5e1536860ce3ad778c1719e354637fe473495c45ee927c99f468c60fa3', false],
-  ['public/images/realm/hegemony-wheat-farm-record.webp', 224_806, '466c80380a8d23de043731a7c386e78c9b36a2d2e69fa175db4b87efc3f43eb0', false]
+  ['public/images/realm/hegemony-wheat-farm-record.webp', 224_806, '466c80380a8d23de043731a7c386e78c9b36a2d2e69fa175db4b87efc3f43eb0', false],
+  ['public/images/realm/hegemony-logging-camp-record.webp', 177_622, 'fb9d171e423a7bd4bfcce1e68cd3faecb38b4904bc528f720e4283522fca1293', false]
 ]);
 
 const referenceImageAssets = Object.freeze([
