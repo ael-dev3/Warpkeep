@@ -7,6 +7,8 @@ import {
 import type {
   WarpkeepAdmissionStatus,
   WarpkeepCastle,
+  WarpkeepFoodNodeOccupation,
+  WarpkeepFoodSite,
   WarpkeepGoldNodeOccupation,
   WarpkeepGoldSite,
   WarpkeepPlayer,
@@ -45,9 +47,17 @@ import {
   type ReadyGoldExpeditionPresentation
 } from '../components/realm/realmGoldExpeditionPresentation';
 import {
+  decodeFoodExpeditionPresentation,
+  type ReadyFoodExpeditionPresentation
+} from '../components/realm/realmFoodExpeditionPresentation';
+import {
   isRealmGoldNodeOccupationPublicRecord,
   isRealmGoldSitePublicRecord
 } from '../components/realm/realmGoldNodePresentation';
+import {
+  isRealmFoodNodeOccupationPublicRecord,
+  isRealmFoodSitePublicRecord
+} from '../components/realm/realmFoodNodePresentation';
 
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
@@ -73,6 +83,14 @@ type GoldProjectionAvailability =
   | typeof GOLD_PROJECTION_PENDING
   | typeof GOLD_PROJECTION_READY;
 const goldProjectionAvailability = new WeakMap<WarpkeepConnection, GoldProjectionAvailability>();
+const FOOD_PROJECTION_UNAVAILABLE = 'unavailable' as const;
+const FOOD_PROJECTION_PENDING = 'pending' as const;
+const FOOD_PROJECTION_READY = 'ready' as const;
+type FoodProjectionAvailability =
+  | typeof FOOD_PROJECTION_UNAVAILABLE
+  | typeof FOOD_PROJECTION_PENDING
+  | typeof FOOD_PROJECTION_READY;
+const foodProjectionAvailability = new WeakMap<WarpkeepConnection, FoodProjectionAvailability>();
 const FOREST_PROJECTION_UNAVAILABLE = 'unavailable' as const;
 const FOREST_PROJECTION_PENDING = 'pending' as const;
 const FOREST_PROJECTION_READY = 'ready' as const;
@@ -87,6 +105,8 @@ type ForestProjectionAvailability =
 const forestProjectionAvailability = new WeakMap<WarpkeepConnection, ForestProjectionAvailability>();
 const GOLD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const GOLD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
+const FOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
+const FOOD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
@@ -338,9 +358,79 @@ export async function collectWarpkeepGoldExpedition(
   return Object.freeze({ resources, goldExpedition });
 }
 
+type FoodProcedureSurface = Readonly<{
+  getMyFoodExpeditionStateV1?: (input: Readonly<Record<string, never>>) => Promise<unknown>;
+}>;
+
+type FoodReducerSurface = Readonly<{
+  dispatchFoodExpeditionV1?: (input: Readonly<{
+    siteId: string;
+    idempotencyKey: string;
+  }>) => Promise<unknown> | unknown;
+  collectFoodExpeditionV1?: (input: Readonly<Record<string, never>>) => Promise<unknown> | unknown;
+}>;
+
+function foodProcedureSurface(connection: WarpkeepConnection) {
+  return connection.procedures as unknown as FoodProcedureSurface;
+}
+
+function foodReducerSurface(connection: WarpkeepConnection) {
+  return connection.reducers as unknown as FoodReducerSurface;
+}
+
+/**
+ * Food remains a soft additive capability. A pre-v7 deployment or malformed
+ * private procedure simply suppresses Food actions; it must never fail the
+ * authenticated core Realm or independent Gold operations.
+ */
+export async function readWarpkeepFoodExpeditionState(
+  connection: WarpkeepConnection
+): Promise<ReadyFoodExpeditionPresentation | undefined> {
+  const procedure = foodProcedureSurface(connection).getMyFoodExpeditionStateV1;
+  if (typeof procedure !== 'function') return undefined;
+  const raw = await procedure({});
+  const decoded = decodeFoodExpeditionPresentation(raw);
+  return decoded.status === 'ready' ? decoded : undefined;
+}
+
+function assertFoodExpeditionDispatchInput(siteId: string, idempotencyKey: string) {
+  if (!FOOD_SITE_ID_PATTERN.test(siteId) || !FOOD_IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+    throw new Error('Food expedition is unavailable.');
+  }
+}
+
+export async function dispatchWarpkeepFoodExpedition(
+  connection: WarpkeepConnection,
+  siteId: string,
+  idempotencyKey: string
+): Promise<ReadyFoodExpeditionPresentation | undefined> {
+  assertFoodExpeditionDispatchInput(siteId, idempotencyKey);
+  const reducer = foodReducerSurface(connection).dispatchFoodExpeditionV1;
+  if (typeof reducer !== 'function') throw new Error('Food expedition is unavailable.');
+  await reducer({ siteId, idempotencyKey });
+  return readWarpkeepFoodExpeditionState(connection);
+}
+
+export async function collectWarpkeepFoodExpedition(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<Readonly<{
+  resources: ReadyRealmResourcePresentation;
+  foodExpedition: ReadyFoodExpeditionPresentation | undefined;
+}>> {
+  const reducer = foodReducerSurface(connection).collectFoodExpeditionV1;
+  if (typeof reducer !== 'function') throw new Error('Food expedition is unavailable.');
+  await reducer({});
+  const [resources, foodExpedition] = await Promise.all([
+    readWarpkeepResourceState(connection, ownFid),
+    readWarpkeepFoodExpeditionState(connection)
+  ]);
+  return Object.freeze({ resources, foodExpedition });
+}
+
 /**
  * Start the protocol-v3 core shared-state subscription and additive public
- * Gold/forest subscriptions. The scheduler, forest seeding reducer, and every
+ * Gold/Food/forest subscriptions. The scheduler, forest seeding reducer, and every
  * private economy table remain outside the player graph. If an additive
  * schema is not deployed yet, the core Realm remains live but that visual
  * layer is empty rather than locally synthesized.
@@ -352,6 +442,7 @@ export function subscribeToWarpkeepRealm(
 ): WarpkeepRealmSubscription {
   let coreApplied = false;
   goldProjectionAvailability.set(connection, GOLD_PROJECTION_PENDING);
+  foodProjectionAvailability.set(connection, FOOD_PROJECTION_PENDING);
   forestProjectionAvailability.set(connection, FOREST_PROJECTION_PENDING);
   const coreSubscription = connection
     .subscriptionBuilder()
@@ -402,6 +493,36 @@ export function subscribeToWarpkeepRealm(
     goldProjectionAvailability.set(connection, GOLD_PROJECTION_UNAVAILABLE);
   }
 
+  let foodSubscription: SubscriptionHandle | undefined;
+  const foodTables = publicFoodTables(connection);
+  const foodBindings = publicFoodSubscriptionTables();
+  // Food must have both generated bindings and both public db accessors. A
+  // missing pair means no Food nodes, never a false-free local farm and never
+  // a failure of Gold/core Realm subscriptions.
+  if (foodTables !== undefined && foodBindings !== undefined) {
+    try {
+      foodSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          foodProjectionAvailability.set(connection, FOOD_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          foodProjectionAvailability.set(connection, FOOD_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          foodBindings.foodSiteV1,
+          foodBindings.foodNodeOccupationV1
+        ]);
+    } catch {
+      foodProjectionAvailability.set(connection, FOOD_PROJECTION_UNAVAILABLE);
+      if (coreApplied) onApplied();
+    }
+  } else {
+    foodProjectionAvailability.set(connection, FOOD_PROJECTION_UNAVAILABLE);
+  }
+
   let forestSubscription: SubscriptionHandle | undefined;
   const forestTables = publicForestTables(connection);
   // A pre-forest service (or a deliberately narrow test double) cannot make
@@ -434,10 +555,15 @@ export function subscribeToWarpkeepRealm(
   return Object.freeze({
     unsubscribe: () => {
       goldProjectionAvailability.delete(connection);
+      foodProjectionAvailability.delete(connection);
       forestProjectionAvailability.delete(connection);
       try {
         try {
-          goldSubscription?.unsubscribe();
+          try {
+            goldSubscription?.unsubscribe();
+          } finally {
+            foodSubscription?.unsubscribe();
+          }
         } finally {
           forestSubscription?.unsubscribe();
         }
@@ -606,6 +732,14 @@ function asPublicGoldRow(value: unknown): PublicGoldTableRow | undefined {
     : undefined;
 }
 
+type PublicFoodTableRow = Readonly<Record<string, unknown>>;
+
+function asPublicFoodRow(value: unknown): PublicFoodTableRow | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as PublicFoodTableRow
+    : undefined;
+}
+
 type PublicForestTableRow = Readonly<Record<string, unknown>>;
 
 function asPublicForestRow(value: unknown): PublicForestTableRow | undefined {
@@ -697,6 +831,42 @@ function publicGoldTables(connection: WarpkeepConnection) {
   return db;
 }
 
+type PublicFoodTable = Readonly<{
+  iter: () => Iterable<unknown>;
+  onInsert?: (listener: (context: EventContext) => void) => void;
+  onDelete?: (listener: (context: EventContext) => void) => void;
+  onUpdate?: (listener: (context: EventContext) => void) => void;
+  removeOnInsert?: (listener: (context: EventContext) => void) => void;
+  removeOnDelete?: (listener: (context: EventContext) => void) => void;
+  removeOnUpdate?: (listener: (context: EventContext) => void) => void;
+}>;
+
+function publicFoodTables(connection: WarpkeepConnection) {
+  const db = connection.db as unknown as Readonly<{
+    foodSiteV1?: PublicFoodTable;
+    foodNodeOccupationV1?: PublicFoodTable;
+  }> | undefined;
+  if (!db?.foodSiteV1 || !db.foodNodeOccupationV1) return undefined;
+  return db;
+}
+
+/**
+ * Generated module bindings are intentionally optional at this browser
+ * boundary during the additive rollout. Referencing through this narrow cast
+ * lets an older deployed module leave Food absent without blocking Gold/core.
+ */
+function publicFoodSubscriptionTables() {
+  const bindingTables = tables as unknown as Readonly<{
+    foodSiteV1?: typeof tables.goldSiteV1;
+    foodNodeOccupationV1?: typeof tables.goldNodeOccupationV1;
+  }>;
+  if (!bindingTables.foodSiteV1 || !bindingTables.foodNodeOccupationV1) return undefined;
+  return bindingTables as Readonly<{
+    foodSiteV1: typeof tables.goldSiteV1;
+    foodNodeOccupationV1: typeof tables.goldNodeOccupationV1;
+  }>;
+}
+
 /**
  * Read the additive public Gold catalog as an all-or-nothing visual
  * projection. Any malformed or duplicate row omits the complete Gold layer;
@@ -759,6 +929,62 @@ function readPublicGoldProjection(connection: WarpkeepConnection): Readonly<{
   });
 }
 
+/**
+ * All-or-nothing Food catalog projection. It has an independent availability
+ * sentinel from Gold so a malformed Food row renders zero Food farms only.
+ */
+function readPublicFoodProjection(connection: WarpkeepConnection): Readonly<{
+  sites: readonly WarpkeepFoodSite[];
+  occupations: readonly WarpkeepFoodNodeOccupation[];
+}> | undefined {
+  if (foodProjectionAvailability.get(connection) !== FOOD_PROJECTION_READY) return undefined;
+  const db = publicFoodTables(connection);
+  if (!db) return undefined;
+  const foodSiteTable = db.foodSiteV1;
+  const foodOccupationTable = db.foodNodeOccupationV1;
+  if (!foodSiteTable || !foodOccupationTable) return undefined;
+  const sites: WarpkeepFoodSite[] = [];
+  const siteIds = new Set<string>();
+  for (const rawRow of foodSiteTable.iter()) {
+    const row = asPublicFoodRow(rawRow);
+    if (!row) return undefined;
+    const site = {
+      siteId: row.siteId,
+      q: row.q,
+      r: row.r,
+      tier: row.tier,
+      active: row.active
+    };
+    if (!isRealmFoodSitePublicRecord(site) || siteIds.has(site.siteId)) return undefined;
+    siteIds.add(site.siteId);
+    sites.push(Object.freeze({ ...site }));
+  }
+  const occupations: WarpkeepFoodNodeOccupation[] = [];
+  const occupiedSiteIds = new Set<string>();
+  for (const rawRow of foodOccupationTable.iter()) {
+    const row = asPublicFoodRow(rawRow);
+    if (!row) return undefined;
+    const occupation = {
+      siteId: row.siteId,
+      originCastleId: toSafeNumber(row.originCastleId as bigint | number | undefined),
+      phase: row.phase,
+      startedAtMicros: row.startedAtMicros,
+      arrivesAtMicros: row.arrivesAtMicros,
+      gatheringEndsAtMicros: row.gatheringEndsAtMicros,
+      returnsAtMicros: row.returnsAtMicros
+    };
+    if (!isRealmFoodNodeOccupationPublicRecord(occupation) || occupiedSiteIds.has(occupation.siteId)) {
+      return undefined;
+    }
+    occupiedSiteIds.add(occupation.siteId);
+    occupations.push(Object.freeze({ ...occupation }));
+  }
+  return Object.freeze({
+    sites: Object.freeze(sites.sort((left, right) => left.siteId.localeCompare(right.siteId))),
+    occupations: Object.freeze(occupations.sort((left, right) => left.siteId.localeCompare(right.siteId)))
+  });
+}
+
 type PublicForestProjection = Readonly<{
   /** `undefined`/an array here intentionally means present-but-invalid. */
   layout: unknown;
@@ -805,6 +1031,7 @@ export function readWarpkeepRealmSnapshot(
   const castles = readCastles(connection);
   const ownCastle = castles.find((castle) => castle.ownerFid === ownFid);
   const publicGold = readPublicGoldProjection(connection);
+  const publicFood = readPublicFoodProjection(connection);
   const publicForest = readPublicForestProjection(connection);
   const candidate: WarpkeepRealmSnapshotCandidate = {
     tiles: readWorldTiles(connection),
@@ -816,6 +1043,10 @@ export function readWarpkeepRealmSnapshot(
     ...(publicGold === undefined ? {} : {
       goldSites: publicGold.sites,
       goldNodeOccupations: publicGold.occupations
+    }),
+    ...(publicFood === undefined ? {} : {
+      foodSites: publicFood.sites,
+      foodNodeOccupations: publicFood.occupations
     }),
     ...(publicForest === undefined ? {} : {
       forestLayout: publicForest.layout,
@@ -885,6 +1116,13 @@ export function observeWarpkeepRealm(
   goldTables?.goldNodeOccupationV1?.onInsert?.(sync);
   goldTables?.goldNodeOccupationV1?.onDelete?.(sync);
   goldTables?.goldNodeOccupationV1?.onUpdate?.(sync);
+  const foodTables = publicFoodTables(connection);
+  foodTables?.foodSiteV1?.onInsert?.(sync);
+  foodTables?.foodSiteV1?.onDelete?.(sync);
+  foodTables?.foodSiteV1?.onUpdate?.(sync);
+  foodTables?.foodNodeOccupationV1?.onInsert?.(sync);
+  foodTables?.foodNodeOccupationV1?.onDelete?.(sync);
+  foodTables?.foodNodeOccupationV1?.onUpdate?.(sync);
   const forestTables = publicForestTables(connection);
   forestTables?.realmForestLayoutV1?.onInsert?.(sync);
   forestTables?.realmForestLayoutV1?.onDelete?.(sync);
@@ -919,6 +1157,12 @@ export function observeWarpkeepRealm(
     goldTables?.goldNodeOccupationV1?.removeOnInsert?.(sync);
     goldTables?.goldNodeOccupationV1?.removeOnDelete?.(sync);
     goldTables?.goldNodeOccupationV1?.removeOnUpdate?.(sync);
+    foodTables?.foodSiteV1?.removeOnInsert?.(sync);
+    foodTables?.foodSiteV1?.removeOnDelete?.(sync);
+    foodTables?.foodSiteV1?.removeOnUpdate?.(sync);
+    foodTables?.foodNodeOccupationV1?.removeOnInsert?.(sync);
+    foodTables?.foodNodeOccupationV1?.removeOnDelete?.(sync);
+    foodTables?.foodNodeOccupationV1?.removeOnUpdate?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnInsert?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnDelete?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnUpdate?.(sync);

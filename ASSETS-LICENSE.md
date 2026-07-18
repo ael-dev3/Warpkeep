@@ -186,6 +186,41 @@ verify it and never fetch or prepare the owner-supplied package. The dated
 pins input/output hashes, the bounded metadata repair, orientation, and the
 visual-only scope boundary.
 
+## Hegemony Wheat Farm runtime assets
+
+On 2026-07-18, the Warpkeep project owner supplied the named Wheat Farm runtime
+delivery and instructed a separate draft PR to add Tier 1 Food nodes. That
+instruction authorizes only the three exact digest-bearing GLBs below in the
+public Warpkeep repository and an eventual official `warpkeep.com` Pages
+runtime after separately approved merge and deployment. It is runtime-use
+authorization only, not approval to merge, deploy, seed a world, or activate
+Food gathering.
+
+The supplied `runtime-manifest.json` is 2,845 bytes with SHA-256
+`04beb96110a84593ebab8e2cd1b8fff59421a1eb498806bed2527dd43607a923` and
+declares the package as project-owned and authored for Warpkeep. That narrow
+delivery record does not establish a separate public/open-content licence,
+general derivative or redistribution rights, trademark rights, or Food
+account, balance, placement, occupancy, route, worker, reward, collection,
+settlement, timing, or SpacetimeDB authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Selected/near Wheat Farm | `public/models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-high-d1437bc1cfe81ee.glb` | Exact supplied High bytes: 1,884,180 bytes, SHA-256 `d1437bc1cfe81eef20cc5106acf849df919e6d4008a3b28d380a3d7194ed4ac7`, 17,860 triangles, 40,320 vertices, vertex colors and no embedded textures. |
+| Nearby Wheat Farm | `public/models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-balanced-bab5cbb18b45b6a5.glb` | Exact supplied Balanced bytes: 1,182,004 bytes, SHA-256 `bab5cbb18b45b6a565e2070d4b3f6ed17916e81f70be72203f704eeb86260403`, 10,906 triangles, 25,310 vertices, vertex colors and no embedded textures. |
+| Distant Wheat Farm | `public/models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-compact-a34bfdafd6b8923c.glb` | Exact supplied Compact bytes: 567,908 bytes, SHA-256 `a34bfdafd6b8923c7cf90071d3ad097858fd59ca8df5cd2e776f44b967e9e3e6`, 5,416 triangles, 12,102 vertices, vertex colors and no embedded textures. |
+
+The source manifest marks these runtime exports as provisional. The draft
+preserves their exact bytes and does not silently represent that delivery as a
+final release. `node scripts/verify-hegemony-wheat-farm-runtime-assets.mjs`
+fails closed on unknown, missing, non-regular, changed, reordered, or
+structurally incompatible LODs; ordinary builds never fetch, rewrite, or serve
+the external delivery package. The dated [Wheat Farm runtime
+record](docs/reference/resources/2026-07-18-hegemony-wheat-farm/runtime/manifest.json)
+pins the source-manifest facts, bounds, orientation, LOD budgets, collision
+guidance, and visual-only scope boundary. This family remains
+`LicenseRef-Warpkeep-Provenance-Required`.
+
 ## Hegemony Supply Wagon runtime assets
 
 On 2026-07-18, the same project-owner instruction authorizes the exact reviewed

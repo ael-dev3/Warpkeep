@@ -8,6 +8,8 @@ import { DbConnection, tables as playerTables } from '../src/spacetime/playerMod
 
 const PLAYER_TABLE_KEYS = [
   'castle',
+  'foodNodeOccupationV1',
+  'foodSiteV1',
   'goldNodeOccupationV1',
   'goldSiteV1',
   'playerV2',
@@ -53,16 +55,21 @@ describe('player SpacetimeDB bindings', () => {
     expect(connection).not.toContain("from './module_bindings'")
     expect(playerBindings).toContain("'accept_alpha_terms_v1'")
     expect(playerBindings).toContain("'bootstrap_player_v2'")
+    expect(playerBindings).toContain("'collect_food_expedition_v1'")
     expect(playerBindings).toContain("'collect_gold_expedition_v1'")
     expect(playerBindings).toContain("'collect_resources_v1'")
+    expect(playerBindings).toContain("'dispatch_food_expedition_v1'")
     expect(playerBindings).toContain("'dispatch_gold_expedition_v1'")
     expect(playerBindings).toContain("'get_alpha_backend_info'")
     expect(playerBindings).toContain("'get_my_admission_status_v2'")
+    expect(playerBindings).toContain("'get_my_food_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_gold_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_resource_state_v1'")
     expect(playerBindings).toContain("'realm_forest_layout_v1'")
     expect(playerBindings).toContain("'realm_forest_instance_v1'")
+    expect(playerBindings).not.toContain('food_expedition_schedule_v_1')
     expect(playerBindings).not.toContain('gold_expedition_schedule_v_1')
+    expect(playerBindings).not.toContain('admin_seed_genesis_tier_i_food_sites_v_1')
     expect(playerBindings).not.toContain('admin_seed_genesis_forest_layout_v_1')
     expect(playerBindings).not.toContain('qa_observer_')
     expect(playerBindings).not.toContain('QA_OBSERVER')
@@ -89,13 +96,16 @@ describe('player SpacetimeDB bindings', () => {
     expect(Object.keys(connection.reducers).sort()).toEqual([
       'acceptAlphaTermsV1',
       'bootstrapPlayerV2',
+      'collectFoodExpeditionV1',
       'collectGoldExpeditionV1',
       'collectResourcesV1',
+      'dispatchFoodExpeditionV1',
       'dispatchGoldExpeditionV1',
     ])
     expect(Object.keys(connection.procedures).sort()).toEqual([
       'getAlphaBackendInfo',
       'getMyAdmissionStatusV2',
+      'getMyFoodExpeditionStateV1',
       'getMyGoldExpeditionStateV1',
       'getMyResourceStateV1',
     ])

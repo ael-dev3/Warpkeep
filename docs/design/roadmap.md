@@ -12,9 +12,9 @@ shared-world authority unchanged.
 Public admission, resources, upgrades, units, combat, alliances, chat, seasons,
 wallet actions, and Marks crediting or spending are not live.
 
-## Undeployed candidate — Alpha 0.3.9 resources, world capacity, Gold expeditions, and forests
+## Undeployed candidate — Alpha 0.3.10 resources, world capacity, Gold/Food expeditions, and forests
 
-The checked-in 0.3.9 candidate carries the bounded resource authority prepared
+The checked-in 0.3.10 candidate carries the bounded resource authority prepared
 in 0.3.7, expands persistent map capacity, and adds a deliberately bounded
 Gold Mine expedition loop:
 
@@ -49,9 +49,14 @@ Gold Mine expedition loop:
     Gold placement, ownership, or gameplay state. Semantic biome changes and
     any outer-world forest layout remain separate owner-approved migration and
     balance decisions.
+11. A separate 96-site Tier-I Wheat Farm loop selects only passable Lowland and
+    Meadow resource-capable anchors after Gold, forest, castle, and protected
+    corridor clearance. One Food wagon and one Gold wagon may coexist per
+    castle; Food earns one completed server minute for at most 30 days while a
+    server-held passive-Food reservation preserves the final award.
 
 This candidate is not live. Module publication, the production founder
-backfill, world expansion, Gold-site and forest-layout setup, aggregate
+backfill, world expansion, Gold-site, forest-layout, and Food-site setup, aggregate
 verification, and exact Pages deployment remain separate gates requiring
 review and explicit owner approval.
 
@@ -62,10 +67,11 @@ review and explicit owner approval.
 3. Run the exact-count founder backfill only after separate owner approval.
 4. Expand the exact generation-two world with the guarded one-time operator
    only after a fresh read-only checkpoint and separate owner approval.
-5. Require the exact 10,000-cell generation-three aggregate, Gold placement
-   digest, forest-layout row and catalog digests, exactly 210 forest instances,
-   and zero missing, orphaned, or invalid resource-account and Gold-site
-   invariants before deploying the matching Pages SHA.
+5. Require the exact 10,000-cell generation-three aggregate, Gold and Food
+   placement digests, forest-layout row and catalog digests, exactly 210 forest
+   instances, and zero missing, orphaned, or invalid resource-account,
+   Gold-site, Food-site, and Food-reservation invariants before deploying the
+   matching Pages SHA.
 6. After the candidate boundary is stable, split the additive migration
    lifecycle proof and resource rollout security tests out of their large shared harnesses
    without changing their fail-closed public contracts.

@@ -427,6 +427,16 @@ export function validateCanonicalGenesisSnapshot(
   const goldNodeOccupations = goldSites !== undefined
     ? freezeRows(candidate.goldNodeOccupations!)
     : undefined;
+  // Food is independently additive. Preserve its paired public tables only
+  // when both arrive; strict Food presentation may then fail closed without
+  // revoking a valid Gold projection or the canonical Realm itself.
+  const foodSites = Array.isArray(candidate.foodSites)
+    && Array.isArray(candidate.foodNodeOccupations)
+    ? freezeRows(candidate.foodSites)
+    : undefined;
+  const foodNodeOccupations = foodSites !== undefined
+    ? freezeRows(candidate.foodNodeOccupations!)
+    : undefined;
   // The shared forest is another additive presentation pair. Keep each
   // field's presence intact for the browser-safe layout policy to verify. A
   // v6-but-unseeded `{ forestTrees: [] }`, a one-sided table, or malformed
@@ -455,6 +465,8 @@ export function validateCanonicalGenesisSnapshot(
     castles,
     ...(goldSites === undefined ? {} : { goldSites }),
     ...(goldNodeOccupations === undefined ? {} : { goldNodeOccupations }),
+    ...(foodSites === undefined ? {} : { foodSites }),
+    ...(foodNodeOccupations === undefined ? {} : { foodNodeOccupations }),
     ...(forestLayout === undefined ? {} : { forestLayout }),
     ...(forestTrees === undefined ? {} : { forestTrees }),
     ownCastle: frozenOwnCastle

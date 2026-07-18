@@ -19,10 +19,11 @@ while the player authentication contract remains v2. That deployment does not
 attest an arbitrary checkout. Every future republish requires a fresh proof,
 bounded aggregate, recorded authority, and exact-source verification.
 
-> **This checkout contains the undeployed Alpha 0.3.9 protocol-3 /
+> **This checkout contains the undeployed Alpha 0.3.10 protocol-3 /
 > generation-v3 candidate.** It preserves the complete 1,261-cell generation-v2
 > predecessor and all 100 permanent castle slots, then adds 8,739 cells for an
-> exact 10,000 persistent-cell world and a separately approval-gated Gold Mine
+> exact 10,000 persistent-cell world, a separately approval-gated Gold Mine
+> pilot, shared forest presentation, and a separate Tier-I Wheat Farm Food
 > pilot. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md) for
 > the exact world shape, budgets, compatibility boundary, and rollout invariants.
 
@@ -36,7 +37,7 @@ bounded aggregate, recorded authority, and exact-source verification.
 - Player authentication contract: `2` (unchanged)
 - Local world generation: `3` (undeployed; live predecessor is `2`)
 
-### Pending Alpha 0.3.9 Gold expeditions and shared forest layout
+### Pending Alpha 0.3.10 Gold, forest, and Food extensions
 
 This checkout additionally contains an **unreleased**, append-only Gold wagon
 extension. It does not change the deployed protocol number or authorize a
@@ -85,11 +86,27 @@ catalog, and render no new forest layer rather than inventing a replacement if
 the schema is unseeded or malformed. Graphics quality may choose a GLB LOD but
 never changes membership, species, position, rotation, or scale.
 
-The owner-approved rollout order is strict: publish the additive v6 module with
-deletion disabled; complete the existing resource/Gold checks; invoke the
-separate forest seed; verify one layout row, 210 instance rows, and the pinned
-layout/catalog digests; then deploy the dependent Pages build. A source merge,
-green test run, or client deployment never invokes that reducer automatically.
+The forest-only approval sequence remains strict: publish the additive v6 module
+with deletion disabled; complete the existing resource/Gold checks; invoke the
+separate forest seed; and verify one layout row, 210 instance rows, and the
+pinned layout/catalog digests. It does not authorize the later v7 Food suffix
+or a dependent Pages build. A source merge, green test run, or client deployment
+never invokes that reducer automatically.
+
+The Alpha 0.3.10 suffix then appends five Food tables at refs 27–31: public
+`food_site_v1` and identity-minimized `food_node_occupation_v1`, private
+`food_expedition_v1` and retry receipt, and a public-safe internal schedule
+projection. Its fixed policy selects exactly 96 Tier-I Wheat Farms from
+passable Lowland/Meadow resource-capable cells after Gold, forest, castle, and
+protected-route clearance. A Food dispatch accepts only a site ID and bounded
+idempotency key; the server derives the caller, castle, route, timing, one
+Food-wagon limit, and exact one-Food-per-completed-minute rate for 30 days.
+Food and Gold may each run one wagon from the same castle. The private Food
+award reserves raw passive Food through its deadline across resource reads and
+settlement, Food lifecycle, and concurrent Gold lifecycle, so a delayed schedule
+cannot truncate or duplicate a valid award. No source, test, local migration
+proof, asset delivery, or merge authorizes v7 publication, Food-site setup, or
+deployment.
 
 Run locally after installing directory dependencies:
 
@@ -109,13 +126,14 @@ From the repository root, `npm run stdb:verify-additive-migration` runs the
 pinned SpacetimeDB 2.6.1 CLI against disposable loopback-only databases. It
 starts from the independently frozen deployed seven-table checkpoint and proves
 the 12 protocol-3 tables at refs 7 through 18 remain exact while private
-`resource_account_v1` appends at ref 19 and the Gold candidate appends refs
-20–24 with `--delete-data=never`. The same loopback proof exercises an exact
+`resource_account_v1` appends at ref 19, Gold appends at refs 20–24, forest at
+refs 25–26, and Food at refs 27–31 with `--delete-data=never`. The same
+loopback proof exercises an exact
 populated 1,261-to-10,000 transition, ordinary-seed refusal, preserved founding
-links and realm timestamp, a zero-write retry, deterministic Gold-site
-placement, public/private projection boundaries, and replay-safe lifecycle
-settlement. It does not inspect or mutate Maincloud and is not production
-publish approval.
+links and realm timestamp, a zero-write retry, deterministic Gold/Food-site
+placement, public/private projection boundaries, Food-reservation preservation,
+and replay-safe lifecycle settlement. It does not inspect or mutate Maincloud
+and is not production publish approval.
 
 ## Authority and tables
 

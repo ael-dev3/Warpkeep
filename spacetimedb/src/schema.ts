@@ -4,6 +4,10 @@ import {
   goldExpeditionErrorCode,
   runGoldExpeditionSchedule,
 } from './goldExpeditionAuthority';
+import {
+  foodExpeditionErrorCode,
+  runFoodExpeditionSchedule,
+} from './foodExpeditionAuthority';
 
 /**
  * Private closed-alpha admission list. This table is intentionally omitted
@@ -536,6 +540,114 @@ export const realmForestInstanceV1 = table(
   },
 );
 
+/**
+ * Public immutable Tier-I Wheat Farm catalog. It has no owner, FID, wagon,
+ * or balance fields: all clients render the same reviewed Food node list.
+ * This is the v7 append after the v6 shared forest tables.
+ */
+export const foodSiteV1 = table(
+  { name: 'food_site_v1', public: true },
+  {
+    siteId: t.string().primaryKey(),
+    q: t.i32(),
+    r: t.i32(),
+    tier: t.u32(),
+    active: t.bool(),
+  },
+);
+
+/**
+ * Public identity-minimized Food-node lease. The origin castle is already public;
+ * private FID, earned Food, idempotency data, and account balances remain in
+ * non-public authority tables.
+ */
+export const foodNodeOccupationV1 = table(
+  {
+    name: 'food_node_occupation_v1',
+    public: true,
+    indexes: [{
+      accessor: 'byOriginCastle',
+      algorithm: 'btree',
+      columns: ['originCastleId'] as const,
+    }] as const,
+  },
+  {
+    siteId: t.string().primaryKey(),
+    originCastleId: t.u64(),
+    phase: t.string(),
+    startedAtMicros: t.u64(),
+    arrivesAtMicros: t.u64(),
+    gatheringEndsAtMicros: t.u64(),
+    returnsAtMicros: t.u64(),
+  },
+);
+
+/** Private active Wheat Farm wagon, accrual cursor, and owner binding. */
+export const foodExpeditionV1 = table(
+  {
+    name: 'food_expedition_v1',
+    indexes: [{
+      accessor: 'byFidAndPhase',
+      algorithm: 'btree',
+      columns: ['fid', 'phase'] as const,
+    }] as const,
+  },
+  {
+    expeditionId: t.string().primaryKey(),
+    // Food and Gold each have their own wagon table. A founder may therefore
+    // operate one Food wagon and one Gold wagon concurrently, while each
+    // resource type still permits only one active wagon per castle.
+    fid: t.u64().unique(),
+    originCastleId: t.u64().unique(),
+    siteId: t.string().index(),
+    phase: t.string(),
+    startedAtMicros: t.u64(),
+    arrivesAtMicros: t.u64(),
+    gatheringEndsAtMicros: t.u64(),
+    returnsAtMicros: t.u64(),
+    settledThroughMicros: t.u64(),
+    accruedFood: t.u64(),
+    creditedFood: t.u64(),
+    policyVersion: t.string(),
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+/** Private caller request receipt for bounded exactly-once Food dispatch retries. */
+export const foodExpeditionIdempotencyV1 = table(
+  { name: 'food_expedition_idempotency_v1' },
+  {
+    requestKey: t.string().primaryKey(),
+    fid: t.u64().index(),
+    siteId: t.string(),
+    expeditionId: t.string().unique(),
+    createdAt: t.timestamp(),
+  },
+);
+
+/**
+ * Public-safe scheduler projection for Food lifecycle transitions. It repeats
+ * only public occupation timing; private authority resolves the actual
+ * expedition and resource account before it writes any Food.
+ */
+export const foodExpeditionScheduleV1 = table(
+  {
+    // Keep the SDK-required separated v_1 wire spelling, matching the v5
+    // Gold schedule compatibility workaround.
+    name: 'food_expedition_schedule_v_1',
+    public: true,
+    scheduled: (): any => runFoodExpeditionScheduleV1,
+  },
+  {
+    scheduleId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    originCastleId: t.u64().index(),
+    siteId: t.string().index(),
+    stage: t.string(),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -566,6 +678,11 @@ const warpkeep = schema({
   goldExpeditionScheduleV1,
   realmForestLayoutV1,
   realmForestInstanceV1,
+  foodSiteV1,
+  foodNodeOccupationV1,
+  foodExpeditionV1,
+  foodExpeditionIdempotencyV1,
+  foodExpeditionScheduleV1,
 });
 
 /**
@@ -589,6 +706,24 @@ export const runGoldExpeditionScheduleV1 = warpkeep.reducer(
       runGoldExpeditionSchedule(ctx, arg);
     } catch (error) {
       const code = goldExpeditionErrorCode(error);
+      if (code !== undefined) throw new SenderError(code);
+      throw error;
+    }
+  },
+);
+
+/** Scheduler-only lifecycle reducer for the append-only Food expedition. */
+export const runFoodExpeditionScheduleV1 = warpkeep.reducer(
+  { name: 'run_food_expedition_schedule_v_1' },
+  { arg: foodExpeditionScheduleV1.rowType },
+  (ctx, { arg }) => {
+    if (!ctx.senderAuth.isInternal) {
+      throw new SenderError('FOOD_EXPEDITION_SCHEDULE_INTERNAL_ONLY');
+    }
+    try {
+      runFoodExpeditionSchedule(ctx, arg);
+    } catch (error) {
+      const code = foodExpeditionErrorCode(error);
       if (code !== undefined) throw new SenderError(code);
       throw error;
     }
@@ -622,6 +757,10 @@ for (const name of [
   'collect_gold_expedition_v1',
   'admin_seed_genesis_tier_i_gold_sites_v1',
   'admin_seed_genesis_forest_layout_v1',
+  'get_my_food_expedition_state_v1',
+  'dispatch_food_expedition_v1',
+  'collect_food_expedition_v1',
+  'admin_seed_genesis_tier_i_food_sites_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

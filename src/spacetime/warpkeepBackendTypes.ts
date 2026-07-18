@@ -1,6 +1,7 @@
 import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
 import type { ReadyRealmResourcePresentation } from '../components/realm/realmResourcePresentation';
 import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
+import type { ReadyFoodExpeditionPresentation } from '../components/realm/realmFoodExpeditionPresentation';
 
 export type WarpkeepAdmissionStatus =
   | 'not_admitted'
@@ -116,6 +117,26 @@ export type WarpkeepGoldNodeOccupation = Readonly<{
   returnsAtMicros: bigint;
 }>;
 
+/** Public v7 Food-site projection. It carries no ownership or economy data. */
+export type WarpkeepFoodSite = Readonly<{
+  siteId: string;
+  q: number;
+  r: number;
+  tier: number;
+  active: boolean;
+}>;
+
+/** Public timing/occupancy only; Food accrual remains caller-private. */
+export type WarpkeepFoodNodeOccupation = Readonly<{
+  siteId: string;
+  originCastleId: number;
+  phase: 'outbound' | 'gathering' | 'returning';
+  startedAtMicros: bigint;
+  arrivesAtMicros: bigint;
+  gatheringEndsAtMicros: bigint;
+  returnsAtMicros: bigint;
+}>;
+
 /**
  * Public, immutable realm-wide forest layout metadata. This is visual state
  * only: server-side seeding authority and all administrative reducers remain
@@ -169,6 +190,10 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   goldSites?: readonly WarpkeepGoldSite[];
   /** Omitted with `goldSites`; absent/invalid data renders no Gold nodes. */
   goldNodeOccupations?: readonly WarpkeepGoldNodeOccupation[];
+  /** Omitted while the additive public Food projection is unavailable. */
+  foodSites?: readonly WarpkeepFoodSite[];
+  /** Omitted with `foodSites`; absent/invalid data renders no Food nodes. */
+  foodNodeOccupations?: readonly WarpkeepFoodNodeOccupation[];
   /**
    * Additive public forest metadata. The connection publishes the pair only
    * after one atomic subscription applies; a one-sided test/malformed value
@@ -203,6 +228,8 @@ export type WarpkeepBackendState = Readonly<{
   resources?: ReadyRealmResourcePresentation;
   /** Caller-only, exact procedure projection for the active Gold expedition. */
   goldExpedition?: ReadyGoldExpeditionPresentation;
+  /** Caller-only, exact procedure projection for the active Food expedition. */
+  foodExpedition?: ReadyFoodExpeditionPresentation;
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({

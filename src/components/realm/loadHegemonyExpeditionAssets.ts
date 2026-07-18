@@ -55,6 +55,30 @@ export const HEGEMONY_GOLD_MINE_RUNTIME_ASSETS: HegemonyExpeditionRuntimeAssetFa
     })
   });
 
+/**
+ * Public, immutable assets only. The supplied source delivery remains outside
+ * the client: Food-site authority is owned by reviewed world state, never by
+ * model geometry or this visual catalog.
+ */
+export const HEGEMONY_WHEAT_FARM_RUNTIME_ASSETS: HegemonyExpeditionRuntimeAssetFamily =
+  Object.freeze({
+    high: Object.freeze({
+      path: 'models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-high-d1437bc1cfe81ee.glb',
+      bytes: 1_884_180,
+      sha256: 'd1437bc1cfe81eef20cc5106acf849df919e6d4008a3b28d380a3d7194ed4ac7'
+    }),
+    balanced: Object.freeze({
+      path: 'models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-balanced-bab5cbb18b45b6a5.glb',
+      bytes: 1_182_004,
+      sha256: 'bab5cbb18b45b6a565e2070d4b3f6ed17916e81f70be72203f704eeb86260403'
+    }),
+    compact: Object.freeze({
+      path: 'models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-compact-a34bfdafd6b8923c.glb',
+      bytes: 567_908,
+      sha256: 'a34bfdafd6b8923c7cf90071d3ad097858fd59ca8df5cd2e776f44b967e9e3e6'
+    })
+  });
+
 export const HEGEMONY_SUPPLY_WAGON_RUNTIME_ASSETS: HegemonyExpeditionRuntimeAssetFamily =
   Object.freeze({
     high: Object.freeze({

@@ -82,6 +82,13 @@ import {
   type RealmGoldNodeSceneRecord
 } from './realmGoldNodeLayer';
 import {
+  createRealmFoodNodeLayer,
+  type RealmFoodNodeLayer,
+  type RealmFoodNodePresentationTelemetry,
+  type RealmFoodNodeSceneRecord
+} from './realmFoodNodeLayer';
+import { createRealmExpeditionSceneBudget } from './realmExpeditionPresentationBudget';
+import {
   createRealmPointerGestureCoordinator,
   type RealmPointerGestureResult,
   type RealmPointerStartLane
@@ -116,6 +123,15 @@ function localPresentationElapsedSeconds() {
   return typeof performance === 'undefined' || !Number.isFinite(performance.now())
     ? 0
     : performance.now() / 1_000;
+}
+
+function isMobileExpeditionPresentation() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.matchMedia?.('(max-width: 760px), (pointer: coarse)').matches === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -223,6 +239,7 @@ export type RealmPeerCastleMarker = Readonly<{
 export type RealmInteractionTarget =
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
   | Readonly<{ kind: 'gold-site'; siteId: string; coord: HexCoord }>
+  | Readonly<{ kind: 'food-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ kind: 'terrain'; coord: HexCoord }>;
 
 export type RealmTerrainPresentationTelemetry = Readonly<{
@@ -255,6 +272,7 @@ export type RealmSceneHandle = Readonly<{
   setSelected: (coord: HexCoord | null) => void;
   setSelectedCastleId: (castleId: number | null) => void;
   setSelectedGoldSiteId: (siteId: string | null) => void;
+  setSelectedFoodSiteId: (siteId: string | null) => void;
   setComposition: (composition: RealmCameraComposition) => void;
   showRealm: () => void;
 }>;
@@ -309,6 +327,8 @@ export type CreateRealmSceneOptions = Readonly<{
   otherCastles: readonly RealmPeerCastleMarker[];
   /** Validated public v5 sites/occupations; absent data renders no Gold nodes. */
   goldNodes?: readonly RealmGoldNodeSceneRecord[];
+  /** Validated public Food sites/occupations; absent/malformed data renders no Food nodes. */
+  foodNodes?: readonly RealmFoodNodeSceneRecord[];
   /** Additive public `realm_forest_instance_v1` rows. */
   sharedForestTrees?: unknown;
   /** Additive public `realm_forest_layout_v1` metadata row. */
@@ -341,6 +361,7 @@ export type CreateRealmSceneOptions = Readonly<{
   onCastleProjection: (frame: RealmCastleProjectionFrame) => void;
   onTerrainPresentationTelemetry?: (telemetry: RealmTerrainPresentationTelemetry) => void;
   onGoldNodePresentationTelemetry?: (telemetry: RealmGoldNodePresentationTelemetry) => void;
+  onFoodNodePresentationTelemetry?: (telemetry: RealmFoodNodePresentationTelemetry) => void;
   onRendererUnavailable: () => void;
   /** @deprecated Prefer onTargetSelect for castle identity-aware interaction. */
   onSelect: (coord: HexCoord) => void;
@@ -569,7 +590,7 @@ function addForestPresentationDisc(
  * persistence. Its only purpose is to leave a calm, readable strip of open
  * ground beneath a rendered Gold expedition.
  */
-function reserveVisibleGoldTravelBelt(
+function reserveVisibleResourceTravelBelt(
   protectedTileKeys: Set<string>,
   from: HexCoord,
   to: HexCoord
@@ -594,10 +615,10 @@ function reserveVisibleGoldTravelBelt(
  * untouched.
  */
 function forestPresentationProtectedTileKeys(
-  options: Pick<CreateRealmSceneOptions, 'goldNodes' | 'terrainMetadata'>,
+  options: Pick<CreateRealmSceneOptions, 'goldNodes' | 'foodNodes' | 'terrainMetadata'>,
   terrainSemantics: ReturnType<typeof indexRealmTerrainSemantics>,
   placements: readonly TerrainStructurePlacement[],
-  includeGoldPresentationReservations = true
+  includeResourcePresentationReservations = true
 ) {
   const protectedTileKeys = new Set<string>();
   options.terrainMetadata.forEach((row) => {
@@ -627,8 +648,8 @@ function forestPresentationProtectedTileKeys(
     // owning hex edge, so reserve the six immediate neighboring cells too.
     addForestPresentationDisc(protectedTileKeys, placement.coord, 1);
   });
-  if (!includeGoldPresentationReservations) return protectedTileKeys;
-  (options.goldNodes ?? []).forEach((node) => {
+  if (!includeResourcePresentationReservations) return protectedTileKeys;
+  [...(options.goldNodes ?? []), ...(options.foodNodes ?? [])].forEach((node) => {
     addForestPresentationDisc(protectedTileKeys, node.coord, 1);
     // Occupation-specific wagon routes are local, changing presentation. They
     // keep the legacy fallback clear, but cannot invalidate an otherwise
@@ -637,7 +658,7 @@ function forestPresentationProtectedTileKeys(
     if (!node.originCastle) return;
     const origin = { q: node.originCastle.q, r: node.originCastle.r };
     addForestPresentationDisc(protectedTileKeys, origin, 1);
-    reserveVisibleGoldTravelBelt(protectedTileKeys, origin, node.coord);
+    reserveVisibleResourceTravelBelt(protectedTileKeys, origin, node.coord);
   });
   return protectedTileKeys;
 }
@@ -1092,10 +1113,14 @@ function initializeRealmScene(
   const goldNodeCoordinateKeys = new Set(
     (options.goldNodes ?? []).map((node) => hexKey(node.coord))
   );
+  const foodNodeCoordinateKeys = new Set(
+    (options.foodNodes ?? []).map((node) => hexKey(node.coord))
+  );
   const terrainOverlayCoord = (coord: HexCoord | null) => (
     coord
       && !occupiedCastleCoordinateKeys.has(hexKey(coord))
       && !goldNodeCoordinateKeys.has(hexKey(coord))
+      && !foodNodeCoordinateKeys.has(hexKey(coord))
       ? coord
       : null
   );
@@ -1111,6 +1136,7 @@ function initializeRealmScene(
 
   let castleLayer: RealmCastleInstanceLayer | null = null;
   let goldNodeLayer: RealmGoldNodeLayer | null = null;
+  let foodNodeLayer: RealmFoodNodeLayer | null = null;
   let castleProjectionEnvelopeByLod: ReadonlyMap<
     CastleLod,
     RealmCastleProjectionEnvelope
@@ -1123,6 +1149,7 @@ function initializeRealmScene(
   let fallbackCastleRenderEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let selectedCastleId: number | undefined;
   let selectedGoldSiteId: string | undefined;
+  let selectedFoodSiteId: string | undefined;
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
     height: 1.08,
     footprintDiameter: 1.48
@@ -1142,6 +1169,13 @@ function initializeRealmScene(
   let lastCastleProjectionKey = '';
   let lastCastlePresentationTelemetryKey = '';
   let lastGoldNodePresentationTelemetryKey = '';
+  let lastFoodNodePresentationTelemetryKey = '';
+  const expeditionSceneBudget = createRealmExpeditionSceneBudget({
+    quality: runtimeQuality.id,
+    goldNodeCount: options.goldNodes?.length ?? 0,
+    foodNodeCount: options.foodNodes?.length ?? 0,
+    mobile: isMobileExpeditionPresentation()
+  });
   let presentedCastleIds: ReadonlySet<number> | null = null;
   let presentedCastleKey = '*';
   let renderPendingWhileHidden = false;
@@ -1267,10 +1301,17 @@ function initializeRealmScene(
       lastCastlePresentationTelemetryKey = presentationTelemetryKey;
       options.onCastlePresentationTelemetry?.(presentationTelemetry);
     }
+    const expeditionPresentationNowMicros = localPresentationNowMicros();
+    const expeditionPresentationElapsedSeconds = localPresentationElapsedSeconds();
     goldNodeLayer?.update(
       cameraController.camera,
-      localPresentationNowMicros(),
-      localPresentationElapsedSeconds()
+      expeditionPresentationNowMicros,
+      expeditionPresentationElapsedSeconds
+    );
+    foodNodeLayer?.update(
+      cameraController.camera,
+      expeditionPresentationNowMicros,
+      expeditionPresentationElapsedSeconds
     );
     const goldNodeTelemetry = goldNodeLayer?.getPresentationTelemetry();
     if (goldNodeTelemetry) {
@@ -1285,6 +1326,21 @@ function initializeRealmScene(
       if (goldNodeTelemetryKey !== lastGoldNodePresentationTelemetryKey) {
         lastGoldNodePresentationTelemetryKey = goldNodeTelemetryKey;
         options.onGoldNodePresentationTelemetry?.(goldNodeTelemetry);
+      }
+    }
+    const foodNodeTelemetry = foodNodeLayer?.getPresentationTelemetry();
+    if (foodNodeTelemetry) {
+      const foodNodeTelemetryKey = [
+        foodNodeTelemetry.publicSiteCount,
+        foodNodeTelemetry.occupiedSiteCount,
+        foodNodeTelemetry.renderedFoodFarmCount,
+        foodNodeTelemetry.renderedWagonCount,
+        foodNodeTelemetry.animatedWagonCount,
+        foodNodeTelemetry.markerOnlySiteCount
+      ].join(':');
+      if (foodNodeTelemetryKey !== lastFoodNodePresentationTelemetryKey) {
+        lastFoodNodePresentationTelemetryKey = foodNodeTelemetryKey;
+        options.onFoodNodePresentationTelemetry?.(foodNodeTelemetry);
       }
     }
     environmentGroup?.position.copy(cameraController.camera.position);
@@ -1346,6 +1402,7 @@ function initializeRealmScene(
       baseUrl: options.baseUrl,
       maxAnisotropy: renderer.capabilities.getMaxAnisotropy(),
       reducedMotion: options.reducedMotion,
+      presentationBudget: expeditionSceneBudget.gold,
       onModelReady: render
     });
     scene.add(goldNodeLayer.group);
@@ -1361,6 +1418,31 @@ function initializeRealmScene(
     // or exhausted graphics device may not revoke the canonical Realm.
     goldNodeLayer = null;
   }
+  try {
+    foodNodeLayer = createRealmFoodNodeLayer({
+      sites: options.foodNodes ?? [],
+      surface: options.surface,
+      terrainPlacements,
+      quality: runtimeQuality,
+      baseUrl: options.baseUrl,
+      maxAnisotropy: renderer.capabilities.getMaxAnisotropy(),
+      reducedMotion: options.reducedMotion,
+      presentationBudget: expeditionSceneBudget.food,
+      onModelReady: render
+    });
+    scene.add(foodNodeLayer.group);
+    cleanup.add(() => {
+      const layer = foodNodeLayer;
+      if (!layer) return;
+      scene.remove(layer.group);
+      layer.dispose();
+      if (foodNodeLayer === layer) foodNodeLayer = null;
+    });
+  } catch {
+    // Food presentation is independently additive. An asset or graphics
+    // failure leaves Food empty but must not revoke Gold or core Realm state.
+    foodNodeLayer = null;
+  }
   const handleRenderVisibility = () => {
     if (!document.hidden && renderPendingWhileHidden && !cleanup.isDisposed()) render();
   };
@@ -1369,12 +1451,17 @@ function initializeRealmScene(
   const ambientScheduler = createRealmAmbientScheduler({
     enabled: !options.reducedMotion
       && options.quality.id !== 'reduced'
-      && (decorations.animated || goldNodeLayer?.hasMovingWagons() === true),
+      && (
+        decorations.animated
+        || goldNodeLayer?.hasMovingWagons() === true
+        || foodNodeLayer?.hasMovingWagons() === true
+      ),
     onStep: (elapsedSeconds) => {
       if (cleanup.isDisposed()) return;
       const terrainChanged = decorations.updateWind(elapsedSeconds);
       const wagonsMoving = goldNodeLayer?.hasMovingWagons() === true;
-      if (terrainChanged || wagonsMoving) render();
+      const foodWagonsMoving = foodNodeLayer?.hasMovingWagons() === true;
+      if (terrainChanged || wagonsMoving || foodWagonsMoving) render();
     }
   });
   cleanup.add(ambientScheduler.dispose);
@@ -1458,6 +1545,14 @@ function initializeRealmScene(
         kind: 'gold-site',
         siteId: goldNodeHit.siteId,
         coord: goldNodeHit.coord
+      });
+    }
+    const foodNodeHit = foodNodeLayer?.raycast(raycaster);
+    if (foodNodeHit) {
+      return Object.freeze({
+        kind: 'food-site',
+        siteId: foodNodeHit.siteId,
+        coord: foodNodeHit.coord
       });
     }
     const intersections = raycaster.intersectObject(terrain, false);
@@ -1666,7 +1761,9 @@ function initializeRealmScene(
     if (!picked) return;
     selectedCastleId = picked.kind === 'castle' ? picked.castleId : undefined;
     selectedGoldSiteId = picked.kind === 'gold-site' ? picked.siteId : undefined;
+    selectedFoodSiteId = picked.kind === 'food-site' ? picked.siteId : undefined;
     goldNodeLayer?.setSelectedSiteId(selectedGoldSiteId ?? null);
+    foodNodeLayer?.setSelectedSiteId(selectedFoodSiteId ?? null);
     dispatchSelect(picked);
     render();
     if (picked.kind === 'castle' && picked.castleId === options.ownCastleId) {
@@ -2103,6 +2200,13 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       selectedGoldSiteId = siteId === null ? undefined : siteId;
       goldNodeLayer?.setSelectedSiteId(siteId);
+      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      render();
+    },
+    setSelectedFoodSiteId: (siteId) => {
+      if (cleanup.isDisposed()) return;
+      selectedFoodSiteId = siteId === null ? undefined : siteId;
+      foodNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
       render();
     },

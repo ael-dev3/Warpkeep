@@ -19,6 +19,7 @@ import {
   type RealmGoldNodePresentation,
   type RealmGoldWagonPose
 } from './realmGoldNodePresentation';
+import type { RealmExpeditionLayerBudget } from './realmExpeditionPresentationBudget';
 
 const HEX_SIZE = 1;
 const RESOURCE_GROUND_LIFT = 0.018;
@@ -74,6 +75,12 @@ export type CreateRealmGoldNodeLayerOptions = Readonly<{
   baseUrl: string;
   maxAnisotropy: number;
   reducedMotion: boolean;
+  /**
+   * Optional scene-owned slice of the shared Gold/Food workload. Omit only
+   * for isolated Gold tests or legacy callers, which retain the historical
+   * Gold-only ceiling.
+   */
+  presentationBudget?: RealmExpeditionLayerBudget;
   onModelReady?: () => void;
 }>;
 
@@ -346,9 +353,15 @@ export function createRealmGoldNodeLayer(
   let disposed = false;
   let lastElapsedSeconds = 0;
   let markerPresentationSignature = '';
-  const wagonAnimationBudget = isMobileRealmPresentation()
-    ? WAGON_ANIMATION_BUDGET.mobile
-    : WAGON_ANIMATION_BUDGET.desktop;
+  const presentationBudget = options.presentationBudget;
+  const maximumRenderedGoldMines = presentationBudget?.maximumRenderedNodes
+    ?? MAX_RENDERED_GOLD_MINES[options.quality.id];
+  const maximumRenderedWagons = presentationBudget?.maximumRenderedWagons
+    ?? MAX_RENDERED_WAGONS[options.quality.id];
+  const wagonAnimationBudget = presentationBudget?.wagonAnimationBudget
+    ?? (isMobileRealmPresentation()
+      ? WAGON_ANIMATION_BUDGET.mobile
+      : WAGON_ANIMATION_BUDGET.desktop);
   let telemetry: RealmGoldNodePresentationTelemetry = Object.freeze({
     publicSiteCount: nodes.length,
     occupiedSiteCount: nodes.filter((node) => node.record.occupation !== undefined).length,
@@ -402,7 +415,7 @@ export function createRealmGoldNodeLayer(
     const mineCandidates = nodes
       .map((node) => ({ node, distance: cameraDistance(camera, node.world) }))
       .sort((left, right) => left.distance - right.distance)
-      .slice(0, MAX_RENDERED_GOLD_MINES[options.quality.id]);
+      .slice(0, maximumRenderedGoldMines);
     const desired = new Map<string, Readonly<{
       kind: ModelKind;
       lod: HegemonyExpeditionLod;
@@ -437,7 +450,7 @@ export function createRealmGoldNodeLayer(
         || Number(right.node.record.occupiedByViewer) - Number(left.node.record.occupiedByViewer)
         || left.distance - right.distance
       ))
-      .slice(0, MAX_RENDERED_WAGONS[options.quality.id]);
+      .slice(0, maximumRenderedWagons);
     let animatedWagons = 0;
     let detailedAnimatedWagons = 0;
     for (const candidate of wagonCandidates) {

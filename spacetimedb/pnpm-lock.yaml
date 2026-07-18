@@ -69,6 +69,16 @@ importers:
         specifier: 5.6.3
         version: 5.6.3
 
+  migration-fixtures/additive-v7-schema:
+    dependencies:
+      spacetimedb:
+        specifier: 2.6.1
+        version: 2.6.1
+    devDependencies:
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+
   migration-fixtures/production-v1:
     dependencies:
       spacetimedb:

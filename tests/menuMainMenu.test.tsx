@@ -22,7 +22,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.9'
+    name: 'Open patch notes for Warpkeep ALPHA 0.3.10'
   });
 }
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -239,19 +239,19 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' });
+    const notes = screen.getByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.9');
-    expect(notes.textContent).toContain('Twenty-four deterministic Tier-I Gold Mines');
-    expect(notes.textContent).toContain('preserved Genesis founding Lowlands');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.10');
+    expect(notes.textContent).toContain('Ninety-six deterministic Tier-I Wheat Farms');
+    expect(notes.textContent).toContain('Gold/forest/castle clearance');
     expect(notes.textContent).toContain(
-      'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, and forest-layout setup, aggregate verification, exact Pages deployment, and final owner approval.'
+      'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, forest-layout, and Food-site setup, aggregate verification, exact Pages deployment, and final owner approval.'
     );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
@@ -259,7 +259,7 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -272,19 +272,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -293,21 +293,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' });
+    const panel = screen.getByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'GENESIS GOLD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'GENESIS FOOD EXPEDITIONS' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

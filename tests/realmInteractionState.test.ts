@@ -86,6 +86,27 @@ describe('realm interaction state', () => {
     expect(resolveRealmEscape(state).state.keyboardIntent.target).toEqual({ kind: 'map' });
   });
 
+  it('opens a Food Farm inspector through a distinct target shape from Gold', () => {
+    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-food-site',
+      siteId: 'genesis-001:food:0001',
+      coord: { q: -4, r: 3 }
+    });
+
+    expect(state.selectedCell).toEqual({ q: -4, r: 3 });
+    expect(state.selectedCastle).toBeNull();
+    expect(state.inspectorTarget).toEqual({
+      foodSiteId: 'genesis-001:food:0001',
+      coord: { q: -4, r: 3 }
+    });
+    expect(state.inspectorTarget).not.toHaveProperty('siteId');
+    expect(state.keyboardIntent).toEqual({
+      sequence: 1,
+      target: { kind: 'food-farm-inspector', siteId: 'genesis-001:food:0001' }
+    });
+    expect(resolveRealmEscape(state).state.keyboardIntent.target).toEqual({ kind: 'map' });
+  });
+
   it('closes the inspector without erasing selection and can reopen the same castle', () => {
     const active = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
       type: 'activate-castle',

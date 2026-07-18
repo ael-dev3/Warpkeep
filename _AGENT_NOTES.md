@@ -3,9 +3,10 @@
 ## Current state
 
 The verified public release is Alpha 0.3.6. The checked-in package is the
-undeployed Alpha 0.3.9 candidate, which includes private resource authority,
-the generation-three world expansion, the pending Gold Mine wagon loop, and a
-server-seeded shared forest layout for the preserved founding Lowlands. The
+undeployed Alpha 0.3.10 candidate, which includes private resource authority,
+the generation-three world expansion, pending Gold Mine and Tier-I Wheat Farm
+wagon loops, and a server-seeded shared forest layout for the preserved
+founding Lowlands. The
 public menu build stamp
 identifies the exact deployed source. An annotated
 release tag is created only after the matching protected-main deployment passes
@@ -168,7 +169,7 @@ Start with:
   record, immutable digest-bearing names, geometry/image boundary, and
   visual-only scope. Neither family grants a renderer-derived world coordinate,
   site, route, reducer, account, balance, seed, deploy, or Gold/Marks coupling.
-  The 0.3.9 candidate defines 10,000 cells and 2,000 resource-capable anchors;
+  The 0.3.10 candidate defines 10,000 cells and 2,000 resource-capable anchors;
   the reviewed Gold-site policy, never capacity metadata alone, determines any
   site placement.
 - The Hegemony Supply Wagon LODs under `public/models/hegemony/` are pinned by
@@ -182,6 +183,17 @@ Start with:
   movement, route, dispatch, occupation, Gold/Marks, reward, or settlement
   authority. Preserve High/Balanced/Compact LOD selection and animation budgets
   from the runtime record when changing presentation.
+- The three Wheat Farm GLBs under
+  `public/models/hegemony/gathering-nodes/wheat-farm/` are exact owner-supplied
+  runtime bytes, pinned by `npm run verify:hegemony-wheat-farm` and recorded
+  under `docs/reference/resources/2026-07-18-hegemony-wheat-farm/`. Their
+  delivery is narrow runtime-use authorization only: it is not merge, deploy,
+  seed, production, open-license, placement, collision, route, worker,
+  balance, reward, timing, or SpacetimeDB authority. Preserve High → Balanced
+  → Compact source ordering, hash-bearing names, visual-only scope, strict
+  per-Food render ceiling, shared Gold/Food animation budget, and marker
+  fallback. Never derive Food catalog identity, occupation, route, or
+  settlement from GLB geometry or editable source metadata.
 - The Hegemony environment-tree family under
   `public/models/hegemony/environment/trees/` is 66 exact digest-bearing GLBs
   across 22 trees, pinned by `npm run verify:hegemony-trees` and documented in
@@ -236,14 +248,17 @@ verification succeed; tag only that verified deployment commit.
 
 ## Next product work
 
-The founding slice is live. The checked-in 0.3.9 candidate adds one bounded
-server-derived Gold Mine loop to the resource authority: 24 digest-pinned public
-sites, private expeditions, and one authoritative wagon per castle. It remains
-undeployed and requires separately approved publication, setup, verification,
-and deployment. The next deliberate gameplay slice after a verified resource
-release is deterministic construction queues. Marks spending and every further
-production or scheduler capability remain unavailable until their separate
-transport, recovery proof, review, and owner approval are complete. Each slice
-needs deterministic reducers, generated-binding parity, isolated tests,
-exact-head deployment, production verification, and rollback evidence before
-expansion.
+The founding slice is live. The checked-in 0.3.10 candidate adds bounded
+server-derived Gold Mine and Tier-I Wheat Farm loops: 24 Gold sites and 96
+Food sites, separate private expeditions/idempotency rows, and one authoritative
+wagon of each resource type per castle. Food dispatch must reserve the complete
+remaining Food award plus raw passive Food through its gathering deadline; every
+passive-settlement path, including Gold expiry, must preserve that reservation
+until Food is credited. Both loops remain undeployed and require separately
+approved publication, setup, verification, and deployment. The next deliberate
+gameplay slice after a verified resource release is deterministic construction
+queues. Marks spending and every further production or scheduler capability
+remain unavailable until their separate transport, recovery proof, review, and
+owner approval are complete. Each slice needs deterministic reducers,
+generated-binding parity, isolated tests, exact-head deployment, production
+verification, and rollback evidence before expansion.

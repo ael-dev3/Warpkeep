@@ -440,7 +440,7 @@ export function parseMigrationProofReceipt(output) {
     fail('The current additive migration proof did not produce its exact success receipt.');
   }
   const successLines = output.split(/\r?\n/).filter(line => (
-    line.startsWith('Additive protocol-v4 migration proof passed with SpacetimeDB 2.6.1:')
+    line.startsWith('Additive protocol-v7 migration proof passed with SpacetimeDB 2.6.1:')
   ));
   const digestMatches = [...output.matchAll(/\bartifact_sha256=([0-9a-f]{64})(?=\s|$)/g)];
   if (

@@ -22,9 +22,12 @@ import {
 import {
   RESOURCE_BALANCE_CAP,
   ResourceAuthorityPolicyError,
-  planResourceSettlement,
 } from './resourceAuthorityPolicy';
 import { assertGenesisResourceForFid } from './resourceAuthority';
+import {
+  FoodReservationAuthorityError,
+  planResourceSettlementForActiveFoodReservation,
+} from './foodReservationAuthority';
 import type warpkeep from './schema';
 import {
   CANONICAL_REALM,
@@ -241,7 +244,17 @@ function creditExpiredGold(
   const credit = accrual.accruedGold - expedition.creditedGold;
   if (credit < 0n) fail('GOLD_EXPEDITION_CREDIT_INVALID');
   const resource = assertGenesisResourceForFid(ctx, expedition.fid);
-  const passiveSettlement = planResourceSettlement(resource.account, resource.terrainKind, now);
+  // A founder may run Gold and Food wagons simultaneously. Gold expiry must
+  // therefore settle passive terrain through the same Food-reservation cap as
+  // the resource HUD/collector, never consuming an uncredited Wheat Farm
+  // award while this schedule happens to arrive first.
+  const passiveSettlement = planResourceSettlementForActiveFoodReservation(
+    ctx,
+    expedition.fid,
+    resource.account,
+    resource.terrainKind,
+    now,
+  );
   if (credit > RESOURCE_BALANCE_CAP - passiveSettlement.balances.gold) {
     // Dispatch preflights the entire thirty-day award. A later failure means
     // another authority path violated the account contract; do not truncate.
@@ -544,6 +557,7 @@ export function goldExpeditionErrorCode(error: unknown): string | undefined {
   if (
     error instanceof GoldExpeditionAuthorityError
     || error instanceof GoldExpeditionPolicyError
+    || error instanceof FoodReservationAuthorityError
     || error instanceof ResourceAuthorityPolicyError
   ) return error.code;
   return undefined;

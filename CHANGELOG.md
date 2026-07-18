@@ -4,6 +4,38 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
+## 0.3.10 — candidate (18 July 2026)
+
+- Adds a bounded Tier-I Wheat Farm expedition candidate to the reviewed
+  10,000-cell Genesis 001 world. Exactly 96 deterministic, passable Lowland
+  and Meadow resource-capable sites are placement-digest pinned; the catalog
+  preserves clearance from Gold Mines, the shared forest, keeps, and protected
+  travel corridors.
+- Lets an admitted founder dispatch one server-authorized Food wagon to an
+  available Farm. The server derives the route, timing, current castle,
+  one-Food-per-completed-minute rate, 30-day gathering window, return, and
+  idempotency; browser time, movement, and model geometry never settle Food.
+- Keeps Food and Gold loops independent: a castle may operate one Food wagon
+  and one Gold wagon at once, while each resource has its own one-wagon limit,
+  private expedition/idempotency state, public occupancy lease, and replay-safe
+  schedule lifecycle.
+- Preserves the full Food award with a server-side reservation that includes
+  raw passive Food through the gathering deadline. Passive collection and
+  concurrent Gold lifecycle settlement cannot consume, truncate, or duplicate
+  the outstanding Food award.
+- Adds public Food-site and identity-minimized occupation projections only; FIDs,
+  balances, request keys, routes, private expeditions, and accrued output stay
+  caller-private.
+- Adds exact High, Balanced, and Compact Wheat Farm runtime assets with narrow
+  provenance, strict integrity checks, a weighted shared Gold/Food render
+  budget, and marker fallback. The models are visual-only and do not determine
+  world placement or gameplay authority.
+- Alpha 0.3.10 is **not deployed**. Alpha 0.3.6 remains the verified public
+  release. Production requires separately approved additive publication,
+  Food-site setup, aggregate verification, and exact Pages deployment.
+
+See [Alpha 0.3.10 candidate notes](docs/releases/alpha-0.3.10.md).
+
 ## 0.3.9 — candidate (18 July 2026)
 
 - Adds a bounded Genesis 001 Gold Mine expedition pilot on the reviewed

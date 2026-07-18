@@ -9,16 +9,17 @@
 > every future republish, binding change, secret change, deploy, or enable
 > requires its own authority and verification.
 
-The checked-in Alpha 0.3.9 candidate is not part of that deployed inventory.
+The checked-in Alpha 0.3.10 candidate is not part of that deployed inventory.
 It retains the separately approval-gated 10,000-cell generation-three target
 and its 2,000 resource-capable anchors, appends private
-`resource_account_v1` at schema ref 19, and appends five Gold-expedition tables
-at refs 20–24. Those tables define a public 24-site catalog and identity-free
-occupation projection, private expedition/idempotency authority, and a
-public-safe scheduler projection. Neither source presence nor local proof
-attests a production module publication, world transition, resource backfill,
-Gold-site setup, or deployment. Alpha 0.3.6 remains the verified public
-release.
+`resource_account_v1` at schema ref 19, appends five Gold-expedition tables at
+refs 20–24, two decorative forest tables at refs 25–26, and five independent
+Food-expedition tables at refs 27–31. Those tables define public site and
+identity-minimized occupation projections plus private expedition/idempotency
+authority and public-safe scheduler projections. Neither source presence nor
+local proof attests a production module publication, world transition, resource
+backfill, Gold/forest/Food setup, or deployment. Alpha 0.3.6 remains the
+verified public release.
 
 ## Repositories and workflows
 
@@ -184,11 +185,14 @@ browser never subscribes to it, and its required production count is zero.
 The deployed v2 schema appended two tables: public `player_v2`, which excludes
 opaque identity, and private `player_ownership_v2`, which contains the
 authorization binding. Protocol 3 later appended the 12 frozen tables at refs
-7–18. The checked-in Alpha 0.3.9 candidate appends private
+7–18. The checked-in Alpha 0.3.10 candidate appends private
 `resource_account_v1` at exact ref 19, then `gold_site_v1`,
 `gold_node_occupation_v1`, `gold_expedition_v1`,
 `gold_expedition_idempotency_v1`, and `gold_expedition_schedule_v_1` at refs
-20–24 without changing any deployed declaration. Only the site catalog,
+20–24 without changing any deployed declaration, then forest refs 25–26 and
+the Food equivalents `food_site_v1`, `food_node_occupation_v1`,
+`food_expedition_v1`, `food_expedition_idempotency_v1`, and
+`food_expedition_schedule_v_1` at refs 27–31. Only the site catalog,
 occupation, and deliberately public-safe schedule projection are browser-table
 shapes; FID-bound expedition, retry, accrual, and balance state remain private.
 The private ownership table must have no generated browser table accessor.
@@ -208,9 +212,10 @@ The live `admin_get_alpha_status_v3` procedure covers the complete founded
 protocol-3 graph without exposing row identities. Candidate
 `admin_get_alpha_status_v4` is a separate closed counts-only resource contract:
 founder/castle/Mark coverage, resource coverage and invariant counts, protocol,
-and policy version. It is not evidence of the Alpha 0.3.9 Gold-site catalog,
-occupation, or private expedition state; a Gold rollout needs its own reviewed
-aggregate contract and explicit owner approval. The generation-two and
+and policy version. It is not evidence of the Alpha 0.3.10 Gold- or Food-site
+catalog, occupation, or private expedition state;
+Gold and Food rollouts each need their own reviewed aggregate contract and
+explicit owner approval. The generation-two and
 generation-three world gates remain separate exact contracts; a mixed tuple
 fails closed.
 

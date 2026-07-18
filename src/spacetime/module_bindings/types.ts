@@ -195,6 +195,63 @@ export const FidWalletAttributionV1 = __t.object("FidWalletAttributionV1", {
 });
 export type FidWalletAttributionV1 = __Infer<typeof FidWalletAttributionV1>;
 
+export const FoodExpeditionIdempotencyV1 = __t.object("FoodExpeditionIdempotencyV1", {
+  requestKey: __t.string(),
+  fid: __t.u64(),
+  siteId: __t.string(),
+  expeditionId: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type FoodExpeditionIdempotencyV1 = __Infer<typeof FoodExpeditionIdempotencyV1>;
+
+export const FoodExpeditionScheduleV1 = __t.object("FoodExpeditionScheduleV1", {
+  scheduleId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  stage: __t.string(),
+});
+export type FoodExpeditionScheduleV1 = __Infer<typeof FoodExpeditionScheduleV1>;
+
+export const FoodExpeditionV1 = __t.object("FoodExpeditionV1", {
+  expeditionId: __t.string(),
+  fid: __t.u64(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+  settledThroughMicros: __t.u64(),
+  accruedFood: __t.u64(),
+  creditedFood: __t.u64(),
+  policyVersion: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type FoodExpeditionV1 = __Infer<typeof FoodExpeditionV1>;
+
+export const FoodNodeOccupationV1 = __t.object("FoodNodeOccupationV1", {
+  siteId: __t.string(),
+  originCastleId: __t.u64(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+});
+export type FoodNodeOccupationV1 = __Infer<typeof FoodNodeOccupationV1>;
+
+export const FoodSiteV1 = __t.object("FoodSiteV1", {
+  siteId: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  tier: __t.u32(),
+  active: __t.bool(),
+});
+export type FoodSiteV1 = __Infer<typeof FoodSiteV1>;
+
 export const GoldExpeditionIdempotencyV1 = __t.object("GoldExpeditionIdempotencyV1", {
   requestKey: __t.string(),
   fid: __t.u64(),
@@ -262,6 +319,25 @@ export const MarkAccountV1 = __t.object("MarkAccountV1", {
   updatedAt: __t.timestamp(),
 });
 export type MarkAccountV1 = __Infer<typeof MarkAccountV1>;
+
+export const MyFoodExpeditionStateV1 = __t.object("MyFoodExpeditionStateV1", {
+  active: __t.bool(),
+  expeditionId: __t.option(__t.string()),
+  siteId: __t.option(__t.string()),
+  originCastleId: __t.option(__t.u64()),
+  phase: __t.option(__t.string()),
+  startedAtMicros: __t.option(__t.u64()),
+  arrivesAtMicros: __t.option(__t.u64()),
+  gatheringEndsAtMicros: __t.option(__t.u64()),
+  returnsAtMicros: __t.option(__t.u64()),
+  accruedFood: __t.u64(),
+  pendingFood: __t.u64(),
+  creditedFood: __t.u64(),
+  rateFoodPerMinute: __t.u64(),
+  gatheringDurationMicros: __t.u64(),
+  expeditionPolicyVersion: __t.option(__t.string()),
+});
+export type MyFoodExpeditionStateV1 = __Infer<typeof MyFoodExpeditionStateV1>;
 
 export const MyGoldExpeditionStateV1 = __t.object("MyGoldExpeditionStateV1", {
   active: __t.bool(),

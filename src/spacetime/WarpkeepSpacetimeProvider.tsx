@@ -16,14 +16,17 @@ import {
   acceptWarpkeepAlphaTerms,
   bootstrapWarpkeepPlayer,
   collectWarpkeepGoldExpedition,
+  collectWarpkeepFoodExpedition,
   collectWarpkeepResources,
   connectWarpkeep,
   dispatchWarpkeepGoldExpedition,
+  dispatchWarpkeepFoodExpedition,
   disconnectWarpkeep,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepGoldExpeditionState,
+  readWarpkeepFoodExpeditionState,
   readWarpkeepResourceState,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
@@ -46,6 +49,7 @@ import {
 import { readCompatibleWarpkeepBackendInfo } from './warpkeepProtocol';
 import type { ReadyRealmResourcePresentation } from '../components/realm/realmResourcePresentation';
 import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
+import type { ReadyFoodExpeditionPresentation } from '../components/realm/realmFoodExpeditionPresentation';
 
 export const CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS = 15_000;
 export const RESOURCE_OPERATION_TIMEOUT_MILLISECONDS = 15_000;
@@ -82,6 +86,10 @@ export type WarpkeepBackendControllerValue = Readonly<{
   dispatchGoldExpedition: (siteId: string, idempotencyKey: string) => Promise<void>;
   /** Settle only the caller's Gold expedition and refresh both private views. */
   claimGoldExpedition: () => Promise<void>;
+  /** Send a guarded Food dispatch; public occupancy remains subscription-owned. */
+  dispatchFoodExpedition: (siteId: string, idempotencyKey: string) => Promise<void>;
+  /** Settle only the caller's Food expedition and refresh both private views. */
+  claimFoodExpedition: () => Promise<void>;
 }>;
 
 /**
@@ -104,6 +112,12 @@ export type WarpkeepBackendRuntime = Readonly<{
   dispatchGoldExpedition?: typeof dispatchWarpkeepGoldExpedition;
   /** Optional only for older deterministic test/QA runtimes without v5 Gold. */
   collectGoldExpedition?: typeof collectWarpkeepGoldExpedition;
+  /** Optional during the additive Food rollout or legacy test runtimes. */
+  readFoodExpeditionState?: typeof readWarpkeepFoodExpeditionState;
+  /** Optional during the additive Food rollout or legacy test runtimes. */
+  dispatchFoodExpedition?: typeof dispatchWarpkeepFoodExpedition;
+  /** Optional during the additive Food rollout or legacy test runtimes. */
+  collectFoodExpedition?: typeof collectWarpkeepFoodExpedition;
   observeRealm: typeof observeWarpkeepRealm;
   readRealmSnapshot: typeof readWarpkeepRealmSnapshot;
   subscribeRealm: typeof subscribeToWarpkeepRealm;
@@ -121,6 +135,9 @@ const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.freeze({
   readGoldExpeditionState: readWarpkeepGoldExpeditionState,
   dispatchGoldExpedition: dispatchWarpkeepGoldExpedition,
   collectGoldExpedition: collectWarpkeepGoldExpedition,
+  readFoodExpeditionState: readWarpkeepFoodExpeditionState,
+  dispatchFoodExpedition: dispatchWarpkeepFoodExpedition,
+  collectFoodExpedition: collectWarpkeepFoodExpedition,
   observeRealm: observeWarpkeepRealm,
   readRealmSnapshot: readWarpkeepRealmSnapshot,
   subscribeRealm: subscribeToWarpkeepRealm
@@ -213,6 +230,11 @@ export function WarpkeepSpacetimeProvider({
     value: ReadyGoldExpeditionPresentation | undefined;
   }> | undefined>(undefined);
   const goldExpeditionOperationGenerationRef = useRef<number | undefined>(undefined);
+  const foodExpeditionStateRef = useRef<Readonly<{
+    generation: number;
+    value: ReadyFoodExpeditionPresentation | undefined;
+  }> | undefined>(undefined);
+  const foodExpeditionOperationGenerationRef = useRef<number | undefined>(undefined);
   const processTermsAttemptRef = useRef<() => void>(() => undefined);
   stateRef.current = state;
 
@@ -232,6 +254,8 @@ export function WarpkeepSpacetimeProvider({
     resourceStateRef.current = undefined;
     goldExpeditionStateRef.current = undefined;
     goldExpeditionOperationGenerationRef.current = undefined;
+    foodExpeditionStateRef.current = undefined;
+    foodExpeditionOperationGenerationRef.current = undefined;
     canonicalRealmSourceRef.current = undefined;
     processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
@@ -429,6 +453,107 @@ export function WarpkeepSpacetimeProvider({
     }
   }, [runtime]);
 
+  const dispatchFoodExpedition = useCallback(async (
+    siteId: string,
+    idempotencyKey: string
+  ) => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || currentState.foodExpedition === undefined
+      || connection === undefined
+      || fid === undefined
+      || runtime.dispatchFoodExpedition === undefined
+      || foodExpeditionOperationGenerationRef.current === generation
+    ) throw new Error('Food expedition is unavailable.');
+    foodExpeditionOperationGenerationRef.current = generation;
+    try {
+      const foodExpedition = await withResourceOperationDeadline(
+        runtime.dispatchFoodExpedition(connection, siteId, idempotencyKey)
+      );
+      if (generationRef.current !== generation) return;
+      foodExpeditionStateRef.current = Object.freeze({ generation, value: foodExpedition });
+      setState((latest) => {
+        if (
+          generationRef.current !== generation
+          || latest.phase !== 'ready'
+          || latest.admission !== 'ready'
+          || latest.identity?.fid !== fid
+          || latest.realm === undefined
+          || latest.resources === undefined
+        ) return latest;
+        return { ...latest, foodExpedition };
+      });
+    } catch {
+      if (generationRef.current === generation) throw new Error('Food expedition is unavailable.');
+    } finally {
+      if (foodExpeditionOperationGenerationRef.current === generation) {
+        foodExpeditionOperationGenerationRef.current = undefined;
+      }
+    }
+  }, [runtime]);
+
+  const claimFoodExpedition = useCallback(async () => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || currentState.foodExpedition === undefined
+      || connection === undefined
+      || fid === undefined
+      || runtime.collectFoodExpedition === undefined
+      || foodExpeditionOperationGenerationRef.current === generation
+    ) throw new Error('Food expedition is unavailable.');
+    foodExpeditionOperationGenerationRef.current = generation;
+    try {
+      const settled = await withResourceOperationDeadline(
+        runtime.collectFoodExpedition(connection, fid)
+      );
+      if (generationRef.current !== generation) return;
+      if (settled.resources.fid !== BigInt(fid)) throw new Error('Food expedition is unavailable.');
+      const retained = resourceStateRef.current?.generation === generation
+        ? resourceStateRef.current.value
+        : undefined;
+      if (!resourceProjectionIsAtLeastAsNew(settled.resources, retained)) return;
+      resourceStateRef.current = Object.freeze({ generation, value: settled.resources });
+      foodExpeditionStateRef.current = Object.freeze({ generation, value: settled.foodExpedition });
+      setState((latest) => {
+        const latestRetained = resourceStateRef.current?.generation === generation
+          ? resourceStateRef.current.value
+          : undefined;
+        if (
+          generationRef.current !== generation
+          || latest.phase !== 'ready'
+          || latest.admission !== 'ready'
+          || latest.identity?.fid !== fid
+          || latest.realm === undefined
+          || latest.resources === undefined
+          || latest.resources.fid !== settled.resources.fid
+          || !resourceProjectionIsAtLeastAsNew(settled.resources, latestRetained)
+          || !resourceProjectionIsAtLeastAsNew(settled.resources, latest.resources)
+        ) return latest;
+        return {
+          ...latest,
+          resources: settled.resources,
+          foodExpedition: settled.foodExpedition
+        };
+      });
+    } catch {
+      if (generationRef.current === generation) throw new Error('Food expedition is unavailable.');
+    } finally {
+      if (foodExpeditionOperationGenerationRef.current === generation) {
+        foodExpeditionOperationGenerationRef.current = undefined;
+      }
+    }
+  }, [runtime]);
+
   const beginAlphaTermsAcceptance = useCallback(() => {
     termsAttemptRef.current += 1;
     processTermsAttemptRef.current();
@@ -478,6 +603,8 @@ export function WarpkeepSpacetimeProvider({
     resourceStateRef.current = undefined;
     goldExpeditionStateRef.current = undefined;
     goldExpeditionOperationGenerationRef.current = undefined;
+    foodExpeditionStateRef.current = undefined;
+    foodExpeditionOperationGenerationRef.current = undefined;
     const previousState = stateRef.current;
     const canonicalRealmSource = [
       config.spacetimeUri,
@@ -570,6 +697,12 @@ export function WarpkeepSpacetimeProvider({
       }
       if (goldExpeditionOperationGenerationRef.current === generation) {
         goldExpeditionOperationGenerationRef.current = undefined;
+      }
+      if (foodExpeditionStateRef.current?.generation === generation) {
+        foodExpeditionStateRef.current = undefined;
+      }
+      if (foodExpeditionOperationGenerationRef.current === generation) {
+        foodExpeditionOperationGenerationRef.current = undefined;
       }
       const observer = cleanupObserver;
       cleanupObserver = undefined;
@@ -724,6 +857,9 @@ export function WarpkeepSpacetimeProvider({
           const goldExpedition = goldExpeditionStateRef.current?.generation === generation
             ? goldExpeditionStateRef.current.value
             : undefined;
+          const foodExpedition = foodExpeditionStateRef.current?.generation === generation
+            ? foodExpeditionStateRef.current.value
+            : undefined;
           if (
             !current()
             || !subscriptionApplied
@@ -746,7 +882,8 @@ export function WarpkeepSpacetimeProvider({
               admission: 'ready',
               realm,
               resources,
-              ...(goldExpedition === undefined ? {} : { goldExpedition })
+              ...(goldExpedition === undefined ? {} : { goldExpedition }),
+              ...(foodExpedition === undefined ? {} : { foodExpedition })
             });
           } catch {
             fail();
@@ -793,6 +930,18 @@ export function WarpkeepSpacetimeProvider({
                 initialGoldExpedition = undefined;
               }
             }
+            let initialFoodExpedition: ReadyFoodExpeditionPresentation | undefined;
+            if (runtime.readFoodExpeditionState !== undefined) {
+              try {
+                initialFoodExpedition = await withResourceOperationDeadline(
+                  runtime.readFoodExpeditionState(activeConnection)
+                );
+              } catch {
+                // Food is an independent additive capability. Its private
+                // procedure cannot revoke the core Realm or Gold controls.
+                initialFoodExpedition = undefined;
+              }
+            }
             if (!current()) return;
             resourceStateRef.current = Object.freeze({
               generation,
@@ -801,6 +950,10 @@ export function WarpkeepSpacetimeProvider({
             goldExpeditionStateRef.current = Object.freeze({
               generation,
               value: initialGoldExpedition
+            });
+            foodExpeditionStateRef.current = Object.freeze({
+              generation,
+              value: initialFoodExpedition
             });
             realmActivated = true;
             cleanupObserver = runtime.observeRealm(
@@ -818,11 +971,17 @@ export function WarpkeepSpacetimeProvider({
                   : withResourceOperationDeadline(
                     runtime.readGoldExpeditionState(activeConnection)
                   ).catch(() => undefined);
-                const [refreshed, refreshedGoldExpedition] = await Promise.all([
+                const foodRefresh = runtime.readFoodExpeditionState === undefined
+                  ? Promise.resolve<ReadyFoodExpeditionPresentation | undefined>(undefined)
+                  : withResourceOperationDeadline(
+                    runtime.readFoodExpeditionState(activeConnection)
+                  ).catch(() => undefined);
+                const [refreshed, refreshedGoldExpedition, refreshedFoodExpedition] = await Promise.all([
                   withResourceOperationDeadline(
                     runtime.readResourceState(activeConnection, bridgeFid!)
                   ),
-                  goldRefresh
+                  goldRefresh,
+                  foodRefresh
                 ]);
                 if (!current()) return;
                 if (refreshed.fid !== BigInt(bridgeFid!)) {
@@ -836,6 +995,10 @@ export function WarpkeepSpacetimeProvider({
                 goldExpeditionStateRef.current = Object.freeze({
                   generation,
                   value: refreshedGoldExpedition
+                });
+                foodExpeditionStateRef.current = Object.freeze({
+                  generation,
+                  value: refreshedFoodExpedition
                 });
                 setState((latest) => {
                   const latestRetained = resourceStateRef.current?.generation === generation
@@ -855,7 +1018,8 @@ export function WarpkeepSpacetimeProvider({
                   return {
                     ...latest,
                     resources: refreshed,
-                    goldExpedition: refreshedGoldExpedition
+                    goldExpedition: refreshedGoldExpedition,
+                    foodExpedition: refreshedFoodExpedition
                   };
                 });
               } catch {
@@ -921,15 +1085,19 @@ export function WarpkeepSpacetimeProvider({
     disconnect,
     collectResources,
     dispatchGoldExpedition,
-    claimGoldExpedition
+    claimGoldExpedition,
+    dispatchFoodExpedition,
+    claimFoodExpedition
   }), [
     beginAlphaTermsAcceptance,
     cancelAlphaTermsAcceptance,
     checkAgain,
+    claimFoodExpedition,
     claimGoldExpedition,
     collectResources,
     disconnect,
     dispatchGoldExpedition,
+    dispatchFoodExpedition,
     sharedAlphaAvailable,
     state
   ]);

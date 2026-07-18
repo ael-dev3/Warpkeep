@@ -1,0 +1,32 @@
+/* Food shares the resilient inspector shell with Gold but has a distinct,
+ * warm wheat identity; no runtime image or action affects node authority. */
+.food-farm-inspection {
+  --food-farm-accent: #d2a344;
+  --food-farm-bright: #f6d889;
+}
+
+.food-farm-inspection .gold-mine-inspection__hero::after {
+  background: linear-gradient(90deg, transparent, var(--food-farm-accent), transparent);
+}
+
+.food-farm-inspection .gold-mine-inspection__title-lockup::before {
+  background: var(--food-farm-accent);
+  box-shadow: 0 0 1.4rem color-mix(in srgb, var(--food-farm-accent) 68%, transparent);
+}
+
+.food-farm-inspection .gold-mine-inspection__action button,
+.food-farm-inspection .gold-mine-inspection__action--claim button {
+  background: linear-gradient(135deg, #8c5d1e, #d29d3e 48%, #f0cb6d);
+  border-color: #f7d88f;
+  color: #2e1b0d;
+}
+
+.food-farm-inspection__art-stage {
+  background: radial-gradient(circle at 48% 56%, rgba(240, 190, 86, 0.28), transparent 62%);
+}
+
+.food-farm-inspection__hero-art {
+  filter: drop-shadow(0 1rem 1.35rem rgba(53, 31, 9, 0.55));
+  object-fit: contain;
+  transform: translateY(0.5rem) scale(1.09);
+}

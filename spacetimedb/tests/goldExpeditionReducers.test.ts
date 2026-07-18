@@ -34,13 +34,13 @@ function schemaRegistrations(text: string): string[] {
     .map(line => line.slice(0, -1));
 }
 
-test('v5 Gold authority prefix remains intact before the v6 shared-forest append', () => {
+test('v5 Gold authority prefix remains intact before the v6 forest and v7 Food appends', () => {
   const schema = source('../src/schema.ts');
   const v4 = source('../migration-fixtures/additive-v4-schema/src/index.ts');
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-7), [
+  assert.deepEqual(registrations.slice(-12), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',
@@ -48,8 +48,13 @@ test('v5 Gold authority prefix remains intact before the v6 shared-forest append
     'goldExpeditionScheduleV1',
     'realmForestLayoutV1',
     'realmForestInstanceV1',
+    'foodSiteV1',
+    'foodNodeOccupationV1',
+    'foodExpeditionV1',
+    'foodExpeditionIdempotencyV1',
+    'foodExpeditionScheduleV1',
   ]);
-  assert.deepEqual(registrations.slice(-7, -2), [
+  assert.deepEqual(registrations.slice(-12, -7), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',

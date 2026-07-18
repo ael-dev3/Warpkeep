@@ -5,7 +5,7 @@ their approval boundaries forward to the current protocol-3 realm.
 
 For player-facing release claims, Alpha 0.3.6 remains the verified public
 release. The Alpha 0.3.2 backend coordinates recorded below are historical
-protocol-3 deployment evidence, not a claim that the checked-in Alpha 0.3.9
+protocol-3 deployment evidence, not a claim that the checked-in Alpha 0.3.10
 candidate has been published, seeded, or deployed.
 
 > **Alpha 0.3.2 is live on backend protocol 3.** The additive schema was
@@ -236,10 +236,16 @@ exact 1,261-cell generation-two predecessor remains; use `expanded` only after
 the separately approved 10,000-cell transition passes its independent
 checkpoint. The publisher never infers one lifecycle from the other.
 
-These v4 resource/world flags do not describe or attest the Alpha 0.3.9 Gold
-candidate. They do not prove that refs 20–24 are present, that the canonical
+These v4 resource/world flags do not describe or attest the Alpha 0.3.10 Gold
+loop. They do not prove that refs 20–24 are present, that the canonical
 24-site catalog is installed, or that any public occupation/private expedition
 state is valid. They must never be treated as a Gold-site seed approval.
+
+They also do not attest the v6 forest suffix or the Alpha 0.3.10 Food v7
+suffix. In particular, they do not prove that refs 27–31 are present, that the
+96-site Wheat Farm policy/digest is installed, that an occupation is valid, or
+that the raw passive-Food reservation survived a delayed schedule. They must
+never be treated as a Food-site seed or deployment approval.
 
 The wrapper supplies the Hermes credential only in parent memory. The publisher
 passes it to the protected inspection child over stdin and forwards neither the
@@ -386,7 +392,7 @@ An exact target retry exists at the reducer layer only for recovery proof. The
 guarded operator deliberately refuses to invoke it when the read-only
 precondition already reports generation three. At this v4 preparation point,
 module publication, resource backfill, world expansion, and Pages deployment
-are four separate approval boundaries. The later Alpha 0.3.9 Gold-site setup is
+are four separate approval boundaries. The later Alpha 0.3.10 Gold-site setup is
 an additional, independent boundary.
 
 ### Prepared post-backfill resource readiness checkpoint (not approval)
@@ -397,7 +403,7 @@ must supply the Hermes credential in memory and run this independent, read-only
 checkpoint with the separately reviewed current counts:
 
 The v4 resource/world checkpoint that must precede—but cannot stand in for—any
-Alpha 0.3.9 Gold candidate operation is:
+Alpha 0.3.10 Gold-loop operation is:
 
 ```sh
 npm run verify:alpha-production -- \
@@ -413,7 +419,7 @@ If resource backfill is approved and performed before the separate world
 transition, use `--require-genesis-v3-founded-aggregate` for that immediate
 post-backfill read. After expansion, rerun the v4 resource/world checkpoint
 above with `--require-genesis-generation-v3-founded-aggregate`. Never claim
-Alpha 0.3.9 candidate readiness from a predecessor-world resource check.
+Alpha 0.3.10 candidate readiness from a predecessor-world resource check.
 
 The new v4 flag is invalid without the founded protocol-v3 gate and all three
 explicit expectations. The verifier constructs and validates one exact
@@ -440,9 +446,9 @@ post-backfill outcome indeterminate: stop all further mutations and establish
 state through a fresh bounded read-only inspection. Do not retry the backfill
 on the assumption that it failed.
 
-### Prepared Alpha 0.3.9 Gold Mine candidate checkpoint (not approved)
+### Prepared Alpha 0.3.10 Gold Mine candidate checkpoint (not approved)
 
-Alpha 0.3.9 inherits the separately approval-gated 10,000-cell generation-three
+Alpha 0.3.10 inherits the separately approval-gated 10,000-cell generation-three
 world definition and its 2,000 resource-capable anchors. It adds an append-only
 v5 Gold Mine wagon candidate: exactly 24 digest-pinned, passable Tier-I sites;
 identity-minimized public site/occupation projections; and private
@@ -461,6 +467,39 @@ additive module publication, any resource backfill, world transition, Gold-site
 setup, Pages deployment, and live verification. A review, local migration
 proof, merge, or successful v4 checkpoint is not authority for any of those
 mutations.
+
+### Prepared Alpha 0.3.10 Wheat Farm candidate checkpoint (not approved)
+
+Alpha 0.3.10 adds an append-only v7 Food suffix after the Gold and forest
+tables: public `food_site_v1` and identity-minimized
+`food_node_occupation_v1` at refs 27–28; private FID-bound
+`food_expedition_v1` and retry receipt at refs 29–30; and the public-safe,
+internal-scheduler-only `food_expedition_schedule_v_1` at ref 31. It uses the
+reviewed `genesis-001-tier1-food-sites-v1` catalog of exactly 96 fixed Tier-I
+Wheat Farms. The digest-pinned policy accepts only passable lowland/meadow
+resource-capable cells and excludes the Gold catalog, forest clearance, castle
+clearance, and protected-corridor clearance.
+
+The server derives owner, castle, route, timestamps, capacity, rate, phase, and
+every lifecycle transition. A Food wagon credits exactly one Food per completed
+server minute during its 30-day gathering phase. Food and Gold use separate
+per-castle wagon limits, so one of each may coexist, but neither the browser nor
+the delivered Wheat Farm GLBs own authority. Because Food also passively
+accrues, Food dispatch must preflight raw passive Food through the gathering
+deadline plus the full award. The remaining-award reservation must survive
+resource reads/collection, Food collection/expiry, and concurrent Gold expiry;
+late scheduler delivery may neither truncate nor duplicate Food.
+
+This runbook deliberately supplies no v7 publication or Food-site seed command.
+Before any owner considers a production operation, a separately reviewed,
+identity-safe read-only aggregate contract must cover refs 27–31, the exact
+96-site policy/version/digest, public occupation, private expedition/retry
+state, and the Food reservation invariant. It must require independent explicit
+approval for module publication, Food-site setup, Pages deployment, and live
+verification. A Wheat Farm asset delivery, local migration proof, Gold/forest
+setup, review, merge, or successful v4 checkpoint authorizes none of them. Do
+not change DNS, remove the custom domain, or alter Pages configuration as part
+of this candidate without separate explicit authority.
 
 `admin_get_fid_auth_epoch` remains admin-only rollback compatibility. Do not
 configure new v2 issuance or refresh to use it.

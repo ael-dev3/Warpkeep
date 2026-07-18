@@ -129,6 +129,7 @@
   .realm-castle-labels,
   .castle-inspection,
   .gold-mine-inspection,
+  .food-farm-inspection,
   .realm-cell-navigator
 ) {
   visibility: hidden;
@@ -634,9 +635,9 @@
     max-height: calc(100svh - 1.1rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 
-  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection)) .realm-hud,
-  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection)) .realm-hud__actions,
-  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection)) .realm-cell-navigator,
+  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud,
+  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud__actions,
+  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-cell-navigator,
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud,
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud__actions {
     visibility: hidden;
@@ -724,7 +725,7 @@
 
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud,
   .realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud__actions,
-  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection)) .realm-hud__actions {
+  .realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud__actions {
     visibility: visible;
     pointer-events: auto;
   }

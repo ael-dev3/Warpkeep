@@ -16,6 +16,7 @@ import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fi
 import * as GetAlphaBackendInfoProcedure from "../get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "../get_my_admission_status_procedure";
 import * as GetMyAdmissionStatusV2Procedure from "../get_my_admission_status_v_2_procedure";
+import * as GetMyFoodExpeditionStateV1Procedure from "../get_my_food_expedition_state_v_1_procedure";
 import * as GetMyGoldExpeditionStateV1Procedure from "../get_my_gold_expedition_state_v_1_procedure";
 import * as GetMyResourceStateV1Procedure from "../get_my_resource_state_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "../qa_observer_get_realm_attestation_v_2_procedure";
@@ -41,6 +42,8 @@ export type GetMyAdmissionStatusArgs = __Infer<typeof GetMyAdmissionStatusProced
 export type GetMyAdmissionStatusResult = __Infer<typeof GetMyAdmissionStatusProcedure.returnType>;
 export type GetMyAdmissionStatusV2Args = __Infer<typeof GetMyAdmissionStatusV2Procedure.params>;
 export type GetMyAdmissionStatusV2Result = __Infer<typeof GetMyAdmissionStatusV2Procedure.returnType>;
+export type GetMyFoodExpeditionStateV1Args = __Infer<typeof GetMyFoodExpeditionStateV1Procedure.params>;
+export type GetMyFoodExpeditionStateV1Result = __Infer<typeof GetMyFoodExpeditionStateV1Procedure.returnType>;
 export type GetMyGoldExpeditionStateV1Args = __Infer<typeof GetMyGoldExpeditionStateV1Procedure.params>;
 export type GetMyGoldExpeditionStateV1Result = __Infer<typeof GetMyGoldExpeditionStateV1Procedure.returnType>;
 export type GetMyResourceStateV1Args = __Infer<typeof GetMyResourceStateV1Procedure.params>;

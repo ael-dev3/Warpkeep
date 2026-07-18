@@ -38,6 +38,7 @@ import type {
 import { isCanonicalGenesisSnapshot } from '../../spacetime/canonicalGenesisSnapshot';
 import type { ReadyRealmResourcePresentation } from './realmResourcePresentation';
 import { CastleInspectionPanel } from './CastleInspectionPanel';
+import { FoodFarmInspectionPanel } from './FoodFarmInspectionPanel';
 import { GoldMineInspectionPanel } from './GoldMineInspectionPanel';
 import { RealmAccessibilityControls } from './RealmAccessibilityControls';
 import {
@@ -57,8 +58,14 @@ import {
   resolveRealmGoldNodePresentations,
   type RealmGoldNodePresentation
 } from './realmGoldNodePresentation';
+import {
+  resolveRealmFoodNodePresentations,
+  type RealmFoodNodePresentation
+} from './realmFoodNodePresentation';
 import type { GoldExpeditionPresentation } from './realmGoldExpeditionPresentation';
+import type { FoodExpeditionPresentation } from './realmFoodExpeditionPresentation';
 import type { RealmGoldNodePresentationTelemetry } from './realmGoldNodeLayer';
+import type { RealmFoodNodePresentationTelemetry } from './realmFoodNodeLayer';
 import {
   createTerrainOverviewHull,
   pointyHexCorners,
@@ -125,6 +132,12 @@ type RealmMapScreenProps = Readonly<{
   onDispatchGoldExpedition?: (siteId: string, idempotencyKey: string) => Promise<void>;
   /** Guarded owner-only settlement reducer; never supplied to observers. */
   onClaimGoldExpedition?: () => Promise<void>;
+  /** Exact caller-only Food expedition procedure projection. */
+  foodExpedition?: FoodExpeditionPresentation;
+  /** Guarded Food reducer boundary; never supplied to observer presentation. */
+  onDispatchFoodExpedition?: (siteId: string, idempotencyKey: string) => Promise<void>;
+  /** Guarded owner-only Food settlement reducer; never supplied to observers. */
+  onClaimFoodExpedition?: () => Promise<void>;
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   audioMuted?: boolean;
@@ -222,9 +235,11 @@ function useStablePeerCastleMarkers(
   return stableMarkersRef.current;
 }
 
-function sameGoldNodes(
-  first: readonly RealmGoldNodePresentation[],
-  second: readonly RealmGoldNodePresentation[]
+type RealmGatheringNodePresentation = RealmGoldNodePresentation | RealmFoodNodePresentation;
+
+function sameGatheringNodes<T extends RealmGatheringNodePresentation>(
+  first: readonly T[],
+  second: readonly T[]
 ) {
   return first.length === second.length && first.every((node, index) => {
     const candidate = second[index];
@@ -270,9 +285,9 @@ function sameGoldNodes(
 }
 
 /** Do not recreate a GPU Realm scene for unrelated profile/name snapshot churn. */
-function useStableGoldNodes(nodes: readonly RealmGoldNodePresentation[]) {
+function useStableGatheringNodes<T extends RealmGatheringNodePresentation>(nodes: readonly T[]) {
   const stableNodesRef = useRef(nodes);
-  if (!sameGoldNodes(stableNodesRef.current, nodes)) stableNodesRef.current = nodes;
+  if (!sameGatheringNodes(stableNodesRef.current, nodes)) stableNodesRef.current = nodes;
   return stableNodesRef.current;
 }
 
@@ -544,6 +559,9 @@ function CanonicalRealmMapScreen({
   goldExpedition,
   onDispatchGoldExpedition,
   onClaimGoldExpedition,
+  foodExpedition,
+  onDispatchFoodExpedition,
+  onClaimFoodExpedition,
   graphicsPreference,
   resolvedGraphicsQuality,
   audioMuted,
@@ -640,12 +658,32 @@ function CanonicalRealmMapScreen({
       isPlayableCoord: (coord) => isPlayableRealmCoord(surface, coord)
     })
   ), [allCastles, observerMode, ownCastle.castleId, snapshot.goldNodeOccupations, snapshot.goldSites, surface]);
-  const goldNodes = useStableGoldNodes(resolvedGoldNodes);
+  const goldNodes = useStableGatheringNodes(resolvedGoldNodes);
   const goldNodesRef = useRef(goldNodes);
   goldNodesRef.current = goldNodes;
   const goldNodesBySiteId = useMemo(() => new Map(
     goldNodes.map((node) => [node.siteId, node] as const)
   ), [goldNodes]);
+  const resolvedFoodNodes = useMemo<readonly RealmFoodNodePresentation[]>(() => (
+    resolveRealmFoodNodePresentations({
+      sites: snapshot.foodSites,
+      occupations: snapshot.foodNodeOccupations,
+      castles: allCastles.map((castle) => ({
+        castleId: castle.castleId,
+        name: castle.name,
+        q: castle.q,
+        r: castle.r
+      })),
+      ownCastleId: observerMode ? undefined : ownCastle.castleId,
+      isPlayableCoord: (coord) => isPlayableRealmCoord(surface, coord)
+    })
+  ), [allCastles, observerMode, ownCastle.castleId, snapshot.foodNodeOccupations, snapshot.foodSites, surface]);
+  const foodNodes = useStableGatheringNodes(resolvedFoodNodes);
+  const foodNodesRef = useRef(foodNodes);
+  foodNodesRef.current = foodNodes;
+  const foodNodesBySiteId = useMemo(() => new Map(
+    foodNodes.map((node) => [node.siteId, node] as const)
+  ), [foodNodes]);
   const profileRecords = useMemo(() => {
     return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
       castle.castleId,
@@ -751,7 +789,12 @@ function CanonicalRealmMapScreen({
     && 'siteId' in selectedInspectorTarget
     ? goldNodesBySiteId.get(selectedInspectorTarget.siteId)
     : undefined;
+  const inspectorFoodNode = selectedInspectorTarget !== null
+    && 'foodSiteId' in selectedInspectorTarget
+    ? foodNodesBySiteId.get(selectedInspectorTarget.foodSiteId)
+    : undefined;
   const goldNodeAtSelectedCell = goldNodes.find((node) => sameCoord(node.coord, selectedCoord));
+  const foodNodeAtSelectedCell = foodNodes.find((node) => sameCoord(node.coord, selectedCoord));
   const ownProfile = profileRecords.get(ownCastle.castleId)?.profile;
   const focusedCastleId = interaction.cameraTarget.kind === 'castle'
     ? interaction.cameraTarget.castleId
@@ -816,6 +859,8 @@ function CanonicalRealmMapScreen({
       inspectorFocusRef.current?.focus({ preventScroll: true });
     } else if (target.kind === 'gold-mine-inspector') {
       inspectorFocusRef.current?.focus({ preventScroll: true });
+    } else if (target.kind === 'food-farm-inspector') {
+      inspectorFocusRef.current?.focus({ preventScroll: true });
     } else if (target.kind === 'castle-label') {
       const label = rootRef.current
         ?.querySelector<HTMLButtonElement>(`.realm-castle-label[data-castle-id="${target.castleId}"]`)
@@ -872,6 +917,16 @@ function CanonicalRealmMapScreen({
     sceneRef.current?.focusCell(node.coord);
   }, []);
 
+  const selectFoodNode = useCallback((node: RealmFoodNodePresentation) => {
+    selectedCoordRef.current = { ...node.coord };
+    dispatchInteraction({
+      type: 'activate-food-site',
+      siteId: node.siteId,
+      coord: node.coord
+    });
+    sceneRef.current?.focusCell(node.coord);
+  }, []);
+
   const markRendererUnavailable = useCallback(() => {
     rendererModeRef.current = 'fallback';
     setRendererMode('fallback');
@@ -911,8 +966,13 @@ function CanonicalRealmMapScreen({
       if (node) selectGoldNode(node);
       return;
     }
+    if (target.kind === 'food-site') {
+      const node = foodNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
+      if (node) selectFoodNode(node);
+      return;
+    }
     selectCoord(target.coord);
-  }, [selectCastle, selectCoord, selectGoldNode]);
+  }, [selectCastle, selectCoord, selectFoodNode, selectGoldNode]);
 
   const updateCastleProjection = useCallback((frame: RealmCastleProjectionFrame) => {
     latestProjectionRef.current = frame;
@@ -1014,6 +1074,19 @@ function CanonicalRealmMapScreen({
     root.dataset.goldMarkerOnlySiteCount = String(telemetry.markerOnlySiteCount);
   }, []);
 
+  const updateFoodNodePresentationTelemetry = useCallback((
+    telemetry: RealmFoodNodePresentationTelemetry
+  ) => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.dataset.publicFoodSiteCount = String(telemetry.publicSiteCount);
+    root.dataset.occupiedFoodSiteCount = String(telemetry.occupiedSiteCount);
+    root.dataset.renderedFoodFarmCount = String(telemetry.renderedFoodFarmCount);
+    root.dataset.renderedFoodWagonCount = String(telemetry.renderedWagonCount);
+    root.dataset.animatedFoodWagonCount = String(telemetry.animatedWagonCount);
+    root.dataset.foodMarkerOnlySiteCount = String(telemetry.markerOnlySiteCount);
+  }, []);
+
   const updateTerrainPresentationTelemetry = useCallback((
     telemetry: RealmTerrainPresentationTelemetry
   ) => {
@@ -1066,7 +1139,7 @@ function CanonicalRealmMapScreen({
       observer?.observe(root);
       root.querySelectorAll<HTMLElement>(
         '.realm-hud, .realm-hud__actions, .realm-profile-trigger, .realm-resource-rail, '
-        + '.castle-inspection, .gold-mine-inspection, .realm-cell-navigator'
+        + '.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .realm-cell-navigator'
       ).forEach((element) => observer?.observe(element));
     }
     window.addEventListener('resize', updateSceneComposition, { passive: true });
@@ -1156,6 +1229,12 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.renderedGoldWagonCount = '0';
         rootRef.current.dataset.animatedGoldWagonCount = '0';
         rootRef.current.dataset.goldMarkerOnlySiteCount = String(goldNodes.length);
+        rootRef.current.dataset.publicFoodSiteCount = String(foodNodes.length);
+        rootRef.current.dataset.occupiedFoodSiteCount = '0';
+        rootRef.current.dataset.renderedFoodFarmCount = '0';
+        rootRef.current.dataset.renderedFoodWagonCount = '0';
+        rootRef.current.dataset.animatedFoodWagonCount = '0';
+        rootRef.current.dataset.foodMarkerOnlySiteCount = String(foodNodes.length);
       }
       setVisibleCastleLabels([]);
       setCameraMode('realm');
@@ -1166,6 +1245,7 @@ function CanonicalRealmMapScreen({
         ownCastleId: observerMode ? undefined : ownCastle.castleId,
         otherCastles: peerCastles,
         goldNodes,
+        foodNodes,
         sharedForestLayout: sharedForestProjection.layout,
         sharedForestTrees: sharedForestProjection.trees,
         realmId: snapshot.realm.realmId,
@@ -1192,6 +1272,7 @@ function CanonicalRealmMapScreen({
         },
         onCastlePresentationTelemetry: updateCastlePresentationTelemetry,
         onGoldNodePresentationTelemetry: updateGoldNodePresentationTelemetry,
+        onFoodNodePresentationTelemetry: updateFoodNodePresentationTelemetry,
         onTerrainPresentationTelemetry: updateTerrainPresentationTelemetry,
         onCastleProjection: updateCastleProjection,
         onRendererUnavailable: markRendererUnavailable,
@@ -1209,6 +1290,13 @@ function CanonicalRealmMapScreen({
           ? interactionRef.current.inspectorTarget.siteId
           : null
       );
+      scene.setSelectedFoodSiteId?.(
+        interactionRef.current.inspectorOpen
+        && interactionRef.current.inspectorTarget !== null
+        && 'foodSiteId' in interactionRef.current.inspectorTarget
+          ? interactionRef.current.inspectorTarget.foodSiteId
+          : null
+      );
       scene.setHovered(hoveredCoordRef.current);
       const cameraTarget: RealmCameraTarget = interactionRef.current.cameraTarget;
       if (cameraTarget.kind === 'castle') scene.focusCastle(cameraTarget.castleId);
@@ -1224,7 +1312,7 @@ function CanonicalRealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [goldNodes, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedForestProjection, sharedTileMetadata, snapshot.realm.realmId, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateGoldNodePresentationTelemetry, updateSceneComposition, updateTerrainPresentationTelemetry]);
+  }, [foodNodes, goldNodes, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedForestProjection, sharedTileMetadata, snapshot.realm.realmId, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateTerrainPresentationTelemetry]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);
@@ -1237,6 +1325,10 @@ function CanonicalRealmMapScreen({
   useEffect(() => {
     sceneRef.current?.setSelectedGoldSiteId?.(inspectorGoldNode?.siteId ?? null);
   }, [inspectorGoldNode?.siteId]);
+
+  useEffect(() => {
+    sceneRef.current?.setSelectedFoodSiteId?.(inspectorFoodNode?.siteId ?? null);
+  }, [inspectorFoodNode?.siteId]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -1314,6 +1406,8 @@ function CanonicalRealmMapScreen({
         selectCastle(castleAtSelectedCell);
       } else if (goldNodeAtSelectedCell) {
         selectGoldNode(goldNodeAtSelectedCell);
+      } else if (foodNodeAtSelectedCell) {
+        selectFoodNode(foodNodeAtSelectedCell);
       } else {
         sceneRef.current?.focusCell(selectedCoord);
         dispatchInteraction({
@@ -1471,6 +1565,44 @@ function CanonicalRealmMapScreen({
                 );
               })}
             </g>
+            <g aria-hidden="true" className="realm-map-screen__fallback-food-sites">
+              {foodNodes.map((node) => {
+                const world = axialToWorld(node.coord, HEX_SIZE);
+                const occupied = node.availability !== 'available'
+                  && node.availability !== 'unavailable';
+                return (
+                  <g
+                    data-food-site-id={node.siteId}
+                    data-site-state={node.availability}
+                    key={node.siteId}
+                    transform={`translate(${world.x} ${-world.z})`}
+                  >
+                    {occupied ? (
+                      <circle
+                        fill="none"
+                        r="0.34"
+                        stroke="#ddef8b"
+                        strokeOpacity="0.94"
+                        strokeWidth="0.045"
+                      />
+                    ) : null}
+                    <path
+                      d="M0 -0.34L0.23 -0.08L0.17 0.25H-0.17L-0.23 -0.08Z"
+                      fill={node.availability === 'unavailable' ? '#708062' : '#b8d957'}
+                      stroke="#435a26"
+                      strokeWidth="0.04"
+                    />
+                    <path
+                      d="M-0.1 0.12V-0.17M0 0.16V-0.25M0.1 0.12V-0.17"
+                      fill="none"
+                      stroke="#fff8bb"
+                      strokeLinecap="round"
+                      strokeWidth="0.035"
+                    />
+                  </g>
+                );
+              })}
+            </g>
           </svg>
           <p className="realm-map-screen__fallback-copy">
             Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.
@@ -1566,6 +1698,19 @@ function CanonicalRealmMapScreen({
               privateExpedition={observerMode ? undefined : goldExpedition}
               onDispatchGoldExpedition={observerMode ? undefined : onDispatchGoldExpedition}
               onClaimGoldExpedition={observerMode ? undefined : onClaimGoldExpedition}
+              focusTargetRef={inspectorFocusRef}
+              onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
+            />
+          ) : null}
+
+          {inspectorFoodNode ? (
+            <FoodFarmInspectionPanel
+              id={`${inspectorId}-food-${inspectorFoodNode.siteId}`}
+              farm={{ name: 'Wheat Farm', tier: inspectorFoodNode.tier }}
+              node={inspectorFoodNode}
+              privateExpedition={observerMode ? undefined : foodExpedition}
+              onDispatchFoodExpedition={observerMode ? undefined : onDispatchFoodExpedition}
+              onClaimFoodExpedition={observerMode ? undefined : onClaimFoodExpedition}
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
             />

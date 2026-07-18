@@ -11,7 +11,13 @@ export type RealmGoldSiteTarget = Readonly<{
   coord: HexCoord;
 }>;
 
-export type RealmInspectorTarget = RealmCastleTarget | RealmGoldSiteTarget;
+/** Separate field prevents a Food site id from ever selecting a Gold panel. */
+export type RealmFoodSiteTarget = Readonly<{
+  foodSiteId: string;
+  coord: HexCoord;
+}>;
+
+export type RealmInspectorTarget = RealmCastleTarget | RealmGoldSiteTarget | RealmFoodSiteTarget;
 
 export type RealmCameraTarget =
   | Readonly<{ kind: 'realm' }>
@@ -24,6 +30,7 @@ export type RealmKeyboardTarget =
   | Readonly<{ kind: 'map' }>
   | Readonly<{ kind: 'inspector'; castleId: number }>
   | Readonly<{ kind: 'gold-mine-inspector'; siteId: string }>
+  | Readonly<{ kind: 'food-farm-inspector'; siteId: string }>
   | Readonly<{ kind: 'castle-label'; castleId: number }>
   | Readonly<{ kind: 'navigator' }>
   | Readonly<{ kind: 'navigator-trigger' }>;
@@ -51,6 +58,7 @@ export type RealmInteractionAction =
   | Readonly<{ type: 'select-cell'; coord: HexCoord }>
   | Readonly<{ type: 'activate-castle'; castleId: number; coord: HexCoord }>
   | Readonly<{ type: 'activate-gold-site'; siteId: string; coord: HexCoord }>
+  | Readonly<{ type: 'activate-food-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ type: 'close-inspector' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
@@ -76,6 +84,10 @@ function copyCastleTarget(target: RealmCastleTarget): RealmCastleTarget {
 
 function copyGoldSiteTarget(target: RealmGoldSiteTarget): RealmGoldSiteTarget {
   return { siteId: target.siteId, coord: copyCoord(target.coord) };
+}
+
+function copyFoodSiteTarget(target: RealmFoodSiteTarget): RealmFoodSiteTarget {
+  return { foodSiteId: target.foodSiteId, coord: copyCoord(target.coord) };
 }
 
 function isCastleTarget(target: RealmInspectorTarget | null): target is RealmCastleTarget {
@@ -155,6 +167,23 @@ export function realmInteractionReducer(
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'gold-mine-inspector',
           siteId: target.siteId
+        })
+      };
+    }
+
+    case 'activate-food-site': {
+      const target = copyFoodSiteTarget({ foodSiteId: action.siteId, coord: action.coord });
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: null,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: { kind: 'cell', coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'food-farm-inspector',
+          siteId: target.foodSiteId
         })
       };
     }

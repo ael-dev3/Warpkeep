@@ -1,12 +1,12 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.9",
+  "version": "0.3.10",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && node scripts/verify-runtime-assets.mjs && node scripts/verify-hegemony-gold-mine-candidates.mjs && node scripts/verify-hegemony-gold-mine-runtime.mjs && node scripts/verify-hegemony-supply-wagon-assets.mjs && node scripts/verify-hegemony-tree-runtime-assets.mjs && vite build && node scripts/verify-production-dist-exclusions.mjs",
+    "build": "tsc -b && node scripts/verify-runtime-assets.mjs && node scripts/verify-hegemony-gold-mine-candidates.mjs && node scripts/verify-hegemony-gold-mine-runtime.mjs && node scripts/verify-hegemony-wheat-farm-runtime-assets.mjs && node scripts/verify-hegemony-supply-wagon-assets.mjs && node scripts/verify-hegemony-tree-runtime-assets.mjs && vite build && node scripts/verify-production-dist-exclusions.mjs",
     "preview": "vite preview",
     "validate:pages-config": "node scripts/validate-pages-deploy-config.mjs",
     "verify:licenses": "node scripts/verify-license-policy.mjs",
@@ -41,6 +41,7 @@
     "verify:runtime-assets": "node scripts/verify-runtime-assets.mjs",
     "verify:gold-mine-candidates": "node scripts/verify-hegemony-gold-mine-candidates.mjs",
     "verify:hegemony-gold-mine-runtime": "node scripts/verify-hegemony-gold-mine-runtime.mjs",
+    "verify:hegemony-wheat-farm": "node scripts/verify-hegemony-wheat-farm-runtime-assets.mjs",
     "verify:hegemony-supply-wagon": "node scripts/verify-hegemony-supply-wagon-assets.mjs",
     "verify:hegemony-trees": "node scripts/verify-hegemony-tree-runtime-assets.mjs",
     "verify:file-sizes": "node scripts/verify-file-sizes.mjs",

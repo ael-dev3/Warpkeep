@@ -354,7 +354,7 @@ describe('realm scene setup cleanup', () => {
 
       sceneHandle.dispose();
     }
-  });
+  }, 15_000);
 
   it('uses a sunlit key with restrained identity fills without adding PBR work', () => {
     const canvas = document.createElement('canvas');

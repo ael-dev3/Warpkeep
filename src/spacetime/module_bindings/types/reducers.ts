@@ -17,14 +17,17 @@ import AdminExpandGenesisWorldV3Reducer from "../admin_expand_genesis_world_v_3_
 import AdminFinalizeSnapScanBatchV1Reducer from "../admin_finalize_snap_scan_batch_v_1_reducer";
 import AdminReplaceFidWalletSnapshotV1Reducer from "../admin_replace_fid_wallet_snapshot_v_1_reducer";
 import AdminSeedGenesisForestLayoutV1Reducer from "../admin_seed_genesis_forest_layout_v_1_reducer";
+import AdminSeedGenesisTierIFoodSitesV1Reducer from "../admin_seed_genesis_tier_i_food_sites_v_1_reducer";
 import AdminSeedGenesisTierIGoldSitesV1Reducer from "../admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
 import AdminSeedWorldReducer from "../admin_seed_world_reducer";
 import AdminUpsertFidWalletAttributionV1Reducer from "../admin_upsert_fid_wallet_attribution_v_1_reducer";
 import AdminUpsertRealmProfileV1Reducer from "../admin_upsert_realm_profile_v_1_reducer";
 import BootstrapPlayerReducer from "../bootstrap_player_reducer";
 import BootstrapPlayerV2Reducer from "../bootstrap_player_v_2_reducer";
+import CollectFoodExpeditionV1Reducer from "../collect_food_expedition_v_1_reducer";
 import CollectGoldExpeditionV1Reducer from "../collect_gold_expedition_v_1_reducer";
 import CollectResourcesV1Reducer from "../collect_resources_v_1_reducer";
+import DispatchFoodExpeditionV1Reducer from "../dispatch_food_expedition_v_1_reducer";
 import DispatchGoldExpeditionV1Reducer from "../dispatch_gold_expedition_v_1_reducer";
 
 export type AcceptAlphaTermsV1Params = __Infer<typeof AcceptAlphaTermsV1Reducer>;
@@ -38,13 +41,16 @@ export type AdminExpandGenesisWorldV3Params = __Infer<typeof AdminExpandGenesisW
 export type AdminFinalizeSnapScanBatchV1Params = __Infer<typeof AdminFinalizeSnapScanBatchV1Reducer>;
 export type AdminReplaceFidWalletSnapshotV1Params = __Infer<typeof AdminReplaceFidWalletSnapshotV1Reducer>;
 export type AdminSeedGenesisForestLayoutV1Params = __Infer<typeof AdminSeedGenesisForestLayoutV1Reducer>;
+export type AdminSeedGenesisTierIFoodSitesV1Params = __Infer<typeof AdminSeedGenesisTierIFoodSitesV1Reducer>;
 export type AdminSeedGenesisTierIGoldSitesV1Params = __Infer<typeof AdminSeedGenesisTierIGoldSitesV1Reducer>;
 export type AdminSeedWorldParams = __Infer<typeof AdminSeedWorldReducer>;
 export type AdminUpsertFidWalletAttributionV1Params = __Infer<typeof AdminUpsertFidWalletAttributionV1Reducer>;
 export type AdminUpsertRealmProfileV1Params = __Infer<typeof AdminUpsertRealmProfileV1Reducer>;
 export type BootstrapPlayerParams = __Infer<typeof BootstrapPlayerReducer>;
 export type BootstrapPlayerV2Params = __Infer<typeof BootstrapPlayerV2Reducer>;
+export type CollectFoodExpeditionV1Params = __Infer<typeof CollectFoodExpeditionV1Reducer>;
 export type CollectGoldExpeditionV1Params = __Infer<typeof CollectGoldExpeditionV1Reducer>;
 export type CollectResourcesV1Params = __Infer<typeof CollectResourcesV1Reducer>;
+export type DispatchFoodExpeditionV1Params = __Infer<typeof DispatchFoodExpeditionV1Reducer>;
 export type DispatchGoldExpeditionV1Params = __Infer<typeof DispatchGoldExpeditionV1Reducer>;
 

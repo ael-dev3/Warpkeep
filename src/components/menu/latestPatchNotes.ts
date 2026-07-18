@@ -143,6 +143,24 @@ const ALPHA_0_3_9_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, and forest-layout setup, aggregate verification, exact Pages deployment, and final owner approval.'
 });
 
+const ALPHA_0_3_10_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: 'CANDIDATE · 18 JUL 2026',
+  title: 'GENESIS FOOD EXPEDITIONS',
+  summary:
+    'Alpha 0.3.10 is an undeployed candidate for a bounded Tier-I Wheat Farm wagon loop on the expanded Genesis 001 world; Alpha 0.3.6 remains the verified public release.',
+  highlights: Object.freeze([
+    'The reviewed Alpha 0.3.9 world remains exact: 10,000 persistent cells, 2,000 resource-capable anchors, twenty-four Gold Mines, and the preserved founder slots and shared forest layout.',
+    'Ninety-six deterministic Tier-I Wheat Farms are selected only from passable Lowland and Meadow resource-capable anchors. A placement digest, Gold/forest/castle clearance, and protected-travel-corridor clearance keep the catalog consistent for every player.',
+    'A Food dispatch sends only a site id and idempotency key. The server derives admission, terms, castle, passable route, timing, one-wagon limit, 1 Food/minute rate, 30-day gathering window, and return; the browser never moves a wagon or credits Food.',
+    'Food and Gold are separate private expedition loops: one castle can run one Food wagon and one Gold wagon at the same time. Public occupation shows only a site, phase, server timeline, and origin castle; FIDs, request keys, routes, accrued output, and balances stay private.',
+    'Food capacity reserves the full 30-day award plus raw passive Food through the gathering deadline. Private passive settlement and concurrent Gold lifecycle work preserve that reserve, so a late schedule cannot truncate or double the award.',
+    'Wheat Farms use exact provenance-pinned High, Balanced, and Compact models. Their dense geometry receives strict weighted shared Gold/Food model and animation limits with a safe marker fallback; a Farm model never supplies authority.',
+    'Community Marks remains a separate private authority with no conversion, transfer, credit, or spending path. Construction, upgrades, combat, trading, public inventories, and financial rewards remain unavailable.'
+  ]),
+  alphaNotice:
+    'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, forest-layout, and Food-site setup, aggregate verification, exact Pages deployment, and final owner approval.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
     '0.3.2': ALPHA_0_3_2_PATCH_NOTES,
@@ -152,7 +170,8 @@ export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatc
     '0.3.6': ALPHA_0_3_6_PATCH_NOTES,
     '0.3.7': ALPHA_0_3_7_PATCH_NOTES,
     '0.3.8': ALPHA_0_3_8_PATCH_NOTES,
-    '0.3.9': ALPHA_0_3_9_PATCH_NOTES
+    '0.3.9': ALPHA_0_3_9_PATCH_NOTES,
+    '0.3.10': ALPHA_0_3_10_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

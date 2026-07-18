@@ -13,13 +13,14 @@ browser mock.
 > recorded source, deployment, aggregate, probe, and QA coordinates attest that
 > state; an arbitrary local checkout does not.
 
-The checked-in Alpha 0.3.9 candidate is deliberately ahead of that live
+The checked-in Alpha 0.3.10 candidate is deliberately ahead of that live
 checkpoint. It retains backend protocol 3 and the previously reviewed,
 separately approval-gated 10,000-cell / 2,000-resource-capable-anchor Genesis
-definition, appends one private resource table, and adds a bounded Gold Mine
-wagon loop with 24 deterministic Tier-I sites. It does not attest a production
-publish, world transition, resource backfill, Gold-site setup, or deployment.
-Alpha 0.3.6 remains the verified public release.
+definition, appends one private resource table, the bounded 24-site Gold Mine
+wagon loop, the shared forest suffix, and a bounded 96-site Tier-I Wheat Farm
+Food loop. It does not attest a production publish, world transition, resource
+backfill, Gold/forest/Food setup, or deployment. Alpha 0.3.6 remains the
+verified public release.
 
 ## Version contract
 
@@ -32,7 +33,7 @@ Alpha 0.3.6 remains the verified public release.
 | Checked-out backend protocol | `3` |
 | Deployed world generation | `2` (1,261 cells) |
 | Checked-out world generation | `3` candidate (10,000 cells; 2,000 resource-capable anchors) |
-| Checked-out economy candidate | resource authority v4 plus Gold expedition tables v5 (undeployed) |
+| Checked-out economy candidate | resource authority v4, Gold expedition tables v5, forest tables v6, and Food expedition tables v7 (all undeployed) |
 
 Bindings are generated from the local module and committed at
 [`src/spacetime/module_bindings/`](../src/spacetime/module_bindings/).
@@ -45,14 +46,16 @@ SpacetimeDB 2.6's default trailing-digit case conversion.
 
 `npm run stdb:verify-additive-migration` proves the checked-out schema locally
 against a disposable, loopback-only SpacetimeDB 2.6.1 server. It publishes the
-independently frozen v1, additive-v2, additive-v3, additive-v4, and additive-v5
-fixtures plus the checked-out module with `--delete-data=never`; proves refs
-0–18 and their rows remain exact while private `resource_account_v1` appends at
-ref 19 and Gold tables append at refs 20–24; and exercises empty, synthetic
-non-empty, idempotence, resource lifecycle, Gold table visibility/order,
-populated 1,261-to-10,000 expansion, target retry, partial state, and rollback
-refusal cases. It never contacts Maincloud and is neither production inspection
-nor production publish, expansion, or Gold-site setup approval.
+independently frozen v1, additive-v2, additive-v3, additive-v4, additive-v5,
+additive-v6, and additive-v7 fixtures plus the checked-out module with
+`--delete-data=never`; proves refs 0–18 and their rows remain exact while
+private `resource_account_v1` appends at ref 19, Gold at refs 20–24, forest at
+refs 25–26, and Food at refs 27–31. It exercises empty, synthetic non-empty,
+idempotence, resource lifecycle, Food/Gold table visibility and coexistence,
+the Food raw-passive reserve, populated 1,261-to-10,000 expansion, target
+retry, partial state, and rollback refusal. It never contacts Maincloud and is
+neither production inspection nor production publish, expansion, or
+Gold/forest/Food setup approval.
 
 ## Identity and authorization
 
@@ -121,19 +124,27 @@ lookup.
 | `gold_expedition_v1` | private | Candidate FID-bound wagon lifecycle, route-derived timing, private settlement cursor, and accrued/credited Gold. |
 | `gold_expedition_idempotency_v1` | private | Candidate caller-request receipt that makes same-request dispatch bounded and exactly-once. |
 | `gold_expedition_schedule_v_1` | public-safe scheduler projection | Candidate minimal schedule target; it has only already-public lifecycle fields and is never a gameplay subscription surface. |
+| `realm_forest_layout_v1` | public | Candidate immutable reviewed forest layout metadata; it has no ownership, actions, resources, or collision authority. |
+| `realm_forest_instance_v1` | public | Candidate fixed-point visual forest transforms selected from the reviewed layout only. |
+| `food_site_v1` | public | Candidate immutable catalog of exactly 96 canonical Tier-I Wheat Farm coordinates, tier, and active state. |
+| `food_node_occupation_v1` | public | Candidate identity-minimized Wheat Farm occupancy: site, public origin castle, phase, and server-derived lifecycle timestamps. |
+| `food_expedition_v1` | private | Candidate FID-bound Food-wagon lifecycle, route-derived timing, private settlement cursor, and accrued/credited Food. |
+| `food_expedition_idempotency_v1` | private | Candidate caller-request receipt that makes same-request Food dispatch bounded and exactly-once. |
+| `food_expedition_schedule_v_1` | public-safe scheduler projection | Candidate minimal Food schedule target; it has only already-public lifecycle fields, and its target reducer is internal-only rather than a gameplay subscription surface. |
 
 The exact original table prefix remains
 `allowed_fid`, `world_tile`, `player`, `castle`, `admin_audit`; the deployed v2
 pair follows it unchanged. Protocol 3 appends exactly 12 tables at references
-7–18 and never rewrites that seven-table deployed prefix. The Alpha 0.3.9
+7–18 and never rewrites that seven-table deployed prefix. The Alpha 0.3.10
 candidate appends private `resource_account_v1` at ref 19, then the five Gold
-tables at refs 20–24. Generated browser bindings omit accessors for every
-private resource/Gold authority table. The active browser keeps its six
-inherited Realm projections—`world_tile`, `world_tile_meta_v1`, `player_v2`,
-`castle`, `realm_v1`, and `realm_profile_v1`—and may additionally subscribe only
-to the public `gold_site_v1` catalog and `gold_node_occupation_v1` projection.
-It does not subscribe to the frozen legacy `player`, the slot-plan table, or the
-public-safe scheduler projection.
+tables at refs 20–24, the two forest tables at refs 25–26, and the five Food tables at refs
+27–31. Generated browser bindings omit accessors for every private
+resource/Gold/Food authority table. The active browser keeps its six inherited
+Realm projections—`world_tile`, `world_tile_meta_v1`, `player_v2`, `castle`,
+`realm_v1`, and `realm_profile_v1`—and may additionally subscribe only to the
+public Gold and Food site/occupation projections plus the validated public
+forest layout/instances. It does not subscribe to the frozen legacy `player`,
+the slot-plan table, or either public-safe scheduler projection.
 
 Authorization requires a consistent public `player_v2` row and matching private
 `player_ownership_v2` row, plus a complete founding graph. Partial, duplicate,
@@ -144,10 +155,14 @@ Hermes mutation paths and are never accepted from browser input.
 
 The renderer's visual apron is not authoritative data. Static
 `resource-capable` and `core-capable` labels reserve deterministic capacity; in
-the Alpha 0.3.9 candidate, only the compiled Gold policy may select 24 passable
-resource-capable anchors for a separately approved server-side installation.
-Labels never create browser authority, a balance, a resource yield, a building,
-unit, combat, alliance, chat, or season state.
+the Alpha 0.3.10 candidate, only the compiled Gold policy may select 24 passable
+resource-capable anchors for a separately approved server-side installation. A
+separate compiled Food policy selects exactly 96
+passable Lowland/Meadow resource-capable anchors, excludes the Gold catalog,
+forest clearance, castle clearance, and protected-corridor clearance, and pins
+the resulting fixed catalog by policy version and digest. Labels and GLB bytes
+never create browser authority, a balance, a resource yield, a building, unit,
+combat, alliance, chat, or season state.
 
 ## Admission and bootstrap
 
@@ -260,6 +275,8 @@ admin_get_alpha_status_v3
 admin_get_alpha_status_v4
 admin_get_fid_auth_epoch  # rollback compatibility only
 admin_seed_genesis_tier_i_gold_sites_v1
+admin_seed_genesis_forest_layout_v1
+admin_seed_genesis_tier_i_food_sites_v1
 admin_upsert_realm_profile_v1
 admin_replace_fid_wallet_snapshot_v1
 admin_begin_snap_scan_batch_v1
@@ -293,11 +310,18 @@ audit payload. The scan batch aggregate is likewise counts/totals/booleans only.
 Candidate `admin_get_alpha_status_v4` is a separate closed contract containing
 founder/castle/Mark counts, resource-account coverage and invariants, protocol,
 and policy version for ref 19 without returning balances or identities. The
-Alpha 0.3.9 Gold candidate does not treat that v4 aggregate as a v5 rollout
+Alpha 0.3.10 candidate's Gold loop does not treat that v4 aggregate as a v5 rollout
 attestation: any future Gold-site installation needs a separately reviewed
 counts-only aggregate contract for the 24-site placement, occupation, and
 private-expedition invariants. Legacy and v2 aggregate wires remain available
 for staged compatibility checks.
+
+The Alpha 0.3.10 Food candidate likewise does not treat a v4 resource aggregate,
+a Gold aggregate, or a forest-layout check as a v7 attestation. Any future Food
+installation needs its own reviewed, identity-safe aggregate contract for the
+append-only refs 27–31, exact 96-site policy/version/digest, public occupation,
+private idempotency/expedition invariants, and the Food reservation invariant.
+No aggregate may expose FIDs, routes, request keys, balances, or accrued output.
 
 ## Maincloud and rollout safety
 
@@ -370,13 +394,20 @@ bypass the guard. A post-publish inspection failure is indeterminate and must
 be resolved read-only before any retry.
 
 Those v4-oriented flags are not a Gold-v5 rollout stage or a Gold-site seed
-approval. Before any Alpha 0.3.9 production consideration, the append-only v5
+approval. Before any Alpha 0.3.10 production consideration of the v5 Gold loop, the append-only v5
 schema, exact 24-site policy/digest, resource-account preservation,
 identity-free public occupancy projection, and private expedition invariants
 require their own reviewed read-only aggregate design and explicit owner
 authority. No current repository command is permission to infer or combine that
 approval with module publication, the resource backfill, the world transition,
 or Pages deployment.
+
+The same separation applies to the Alpha 0.3.10 Food v7 suffix. An asset
+delivery, local migration proof, Gold/forest setup, or v4 resource checkpoint
+does not authorize production publication of refs 27–31, Food-site seeding, a
+worker change, Pages deployment, custom-domain/DNS modification, or enablement.
+Each requires its own explicit owner approval after a fresh read-only
+precondition.
 
 No earlier approval implies a later one. If any state or coordinate differs,
 stop and report it; never erase/recreate data, auto-advance an epoch, admit a
@@ -387,11 +418,14 @@ FID, or fall back to the legacy resolver implicitly. See the
 
 With the identity/session chain, generation-two protocol-3 world, deliberately
 admitted founders, and shared realm live at the recorded Alpha 0.3.2 backend
-coordinates, the checked-in Alpha 0.3.9 candidate carries the bounded private
-resource loop, 10,000-cell world definition, and one 24-site Gold Mine wagon
-pilot. Only completed server-derived wagon minutes may issue Gold; Food, Wood,
-and Stone retain the private terrain policy. These are undeployed candidate
-authorities, not a public release or a production state claim. No other resource
-nodes, queues, units, scouting, combat, alliances, seasons, or activity reports
-are introduced. AI may produce flavor or summaries, but never write authority
-tables directly.
+coordinates, the checked-in Alpha 0.3.10 candidate carries the bounded private
+resource loop, 10,000-cell world definition, a 24-site Gold Mine wagon pilot,
+and a separate 96-site Tier-I Wheat Farm wagon loop. Food and Gold may each run
+one wagon from the same castle concurrently, but all ownership, capacity, route,
+time, reward, and replay decisions remain server-side. Food credits exactly one
+completed server minute for at most 30 days and reserves raw passive Food through
+its deadline so delayed schedules and concurrent Gold expiry cannot truncate or
+duplicate it. These are undeployed candidate authorities, not a public release
+or a production state claim. No other resource nodes, queues, units, scouting,
+combat, alliances, seasons, or activity reports are introduced. AI may produce
+flavor or summaries, but never write authority tables directly.

@@ -38,6 +38,7 @@ vi.mock('../src/farcaster/FarcasterAuthProvider', () => ({
 
 import type { ReadyRealmResourcePresentation } from '../src/components/realm/realmResourcePresentation';
 import type { ReadyGoldExpeditionPresentation } from '../src/components/realm/realmGoldExpeditionPresentation';
+import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/realmFoodExpeditionPresentation';
 import {
   RESOURCE_OPERATION_TIMEOUT_MILLISECONDS,
   RESOURCE_REFRESH_INTERVAL_MILLISECONDS,
@@ -156,6 +157,34 @@ function goldExpeditionState(
   });
 }
 
+function foodExpeditionState(
+  active = false,
+  pendingFood = 0n
+): ReadyFoodExpeditionPresentation {
+  return Object.freeze({
+    status: 'ready' as const,
+    active,
+    accruedFood: pendingFood,
+    pendingFood,
+    creditedFood: 0n,
+    rateFoodPerMinute: 1n,
+    gatheringDurationMicros: 2_592_000_000_000n,
+    ...(active ? {
+      expedition: Object.freeze({
+        expeditionId: '00000000-0000-4000-8000-000000000002',
+        siteId: 'genesis-001:food:0001',
+        originCastleId: 1,
+        phase: 'gathering' as const,
+        startedAtMicros: 10n,
+        arrivesAtMicros: 20n,
+        gatheringEndsAtMicros: 30n,
+        returnsAtMicros: 40n,
+        policyVersion: 'genesis-food-wheat-farm-expedition-v1' as const
+      })
+    } : {})
+  });
+}
+
 function createRuntimeHarness() {
   const disconnect = vi.fn((connection: { disconnect?: () => void } | undefined) => {
     connection?.disconnect?.();
@@ -200,6 +229,11 @@ function Probe() {
           ? ''
           : String(backend.state.goldExpedition.active)}
       </output>
+      <output data-testid="food-expedition-active">
+        {backend.state.foodExpedition?.active === undefined
+          ? ''
+          : String(backend.state.foodExpedition.active)}
+      </output>
       <button type="button" onClick={backend.beginAlphaTermsAcceptance}>ACCEPT TERMS</button>
       <button type="button" onClick={() => void backend.collectResources()}>COLLECT</button>
       <button
@@ -213,6 +247,18 @@ function Probe() {
       </button>
       <button type="button" onClick={() => void backend.claimGoldExpedition()}>
         CLAIM GOLD
+      </button>
+      <button
+        type="button"
+        onClick={() => void backend.dispatchFoodExpedition(
+          'genesis-001:food:0001',
+          '4a9977d2-c7c4-4d63-8e65-f28f966c0c34'
+        )}
+      >
+        DISPATCH FOOD
+      </button>
+      <button type="button" onClick={() => void backend.claimFoodExpedition()}>
+        CLAIM FOOD
       </button>
       <button type="button" onClick={backend.disconnect}>DISCONNECT</button>
     </>
@@ -324,6 +370,64 @@ describe('Warpkeep private resource lifecycle', () => {
     ));
     await waitFor(() => expect(screen.getByTestId('resource-revision').textContent).toBe('1'));
     expect(screen.getByTestId('resource-food').textContent).toBe('9');
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+  });
+
+  it('keeps a failed Food capability isolated from Gold and the core Realm', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const gold = goldExpeditionState();
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => gold),
+      readFoodExpeditionState: vi.fn(async () => {
+        throw new Error('Food procedure unavailable');
+      })
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+    expect(screen.getByTestId('food-expedition-active').textContent).toBe('');
+  });
+
+  it('exposes Food dispatch and claim only through refreshed private server projections', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const gold = goldExpeditionState();
+    const inactiveFood = foodExpeditionState();
+    const activeFood = foodExpeditionState(true, 5n);
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => gold),
+      readFoodExpeditionState: vi.fn(async () => inactiveFood),
+      dispatchFoodExpedition: vi.fn(async () => activeFood),
+      collectFoodExpedition: vi.fn(async (_connection, fid: number) => Object.freeze({
+        resources: resourceState(fid, 1n, 11n),
+        foodExpedition: inactiveFood
+      }))
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+    expect(screen.getByTestId('food-expedition-active').textContent).toBe('false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH FOOD' }));
+    await waitFor(() => expect(runtime.dispatchFoodExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      'genesis-001:food:0001',
+      '4a9977d2-c7c4-4d63-8e65-f28f966c0c34'
+    ));
+    await waitFor(() => expect(screen.getByTestId('food-expedition-active').textContent).toBe('true'));
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLAIM FOOD' }));
+    await waitFor(() => expect(runtime.collectFoodExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      12_345
+    ));
+    await waitFor(() => expect(screen.getByTestId('resource-food').textContent).toBe('11'));
+    expect(screen.getByTestId('food-expedition-active').textContent).toBe('false');
     expect(screen.getByTestId('gold-active').textContent).toBe('false');
   });
 

@@ -2,11 +2,11 @@
 
 Warpkeep is an admission-gated persistent-world alpha. The current player
 experience is the verified Alpha 0.3.6 realm exploration and castle
-presentation release. The checked-in Alpha 0.3.9 candidate carries a bounded
-private resource loop, the 10,000-cell Genesis world candidate, and a 24-site
-Gold Mine wagon pilot plus a shared decorative forest layout, but it is not
-deployed. Construction, spending, combat, and social systems are deliberately
-not live.
+presentation release. The checked-in Alpha 0.3.10 candidate carries a bounded
+private resource loop, the 10,000-cell Genesis world candidate, a 24-site Gold
+Mine wagon pilot, a shared decorative forest layout, and a 96-site Wheat Farm
+Food extension, but it is not deployed. Construction, spending, combat, and
+social systems are deliberately not live.
 
 ## Authority boundaries
 
@@ -21,7 +21,7 @@ not live.
 - Public projections exist for display and navigation. They do not grant a
   player power to alter authoritative state.
 
-## Alpha 0.3.9 candidate resource, world, and Gold boundary
+## Alpha 0.3.10 candidate resource, world, Gold, and Food boundary
 
 The candidate appends one private `resource_account_v1` row per founded castle.
 It is keyed by FID, uniquely bound to the authoritative castle, and stores whole
@@ -78,9 +78,56 @@ timeline. Expedition, retry, account, request, route, accrued-output, and
 balance records stay private to the owning caller. The public Realm projection
 therefore never leaks a FID or Gold balance.
 
+## Alpha 0.3.10 candidate Food expedition extension
+
+The current candidate appends five Food tables at refs 27–31, after the
+unchanged v5 Gold and v6 forest suffixes: public `food_site_v1`, public
+identity-minimized `food_node_occupation_v1`, private
+`food_expedition_v1`, private `food_expedition_idempotency_v1`, and the
+public-safe `food_expedition_schedule_v_1`. The schedule repeats only already
+public timing and is not a gameplay subscription surface; its reducer accepts
+only the internal scheduler principal. FIDs, idempotency keys, routes, accrual,
+credited Food, and resource balances remain private.
+
+The immutable `genesis-001-tier1-food-sites-v1` policy selects exactly 96
+active Tier-I Wheat Farms and pins their reviewed catalog with digest
+`25d451ea4c8d94e0ff439d3a79873df47b4fd1cbeba887358017cfa8fb304bb7`.
+Candidates are passable, `resource-capable` Lowland or Meadow cells in the full
+Genesis map. The policy excludes the Gold catalog, forest transforms and their
+one-hex clearance, permanent castle slots and their two-hex clearance, and
+protected travel corridors with their one-hex clearance. A deterministic
+farthest-point selection then spreads the fixed catalog; browser random state,
+graphics quality, and asset geometry cannot add, remove, or reroll a Food node.
+
+Food uses a distinct wagon lane from Gold. One castle may operate one Food
+wagon and one Gold wagon concurrently, while each resource type still enforces
+its own one-wagon-per-castle and one-occupation-per-site limits. A Food dispatch
+accepts only a canonical site ID and bounded idempotency key. The module derives
+the caller, Terms acceptance, current castle, passable route, timestamps,
+occupancy, capacity, and lifecycle. It credits exactly one Food for each
+completed server-derived minute of a 30-day gathering phase; a browser cannot
+select a clock, route, owner, rate, phase, reward, or settlement result.
+
+Unlike Gold, Food also has passive terrain production. Before dispatch, the
+server preflights raw, uncapped passive Food through the fixed gathering deadline
+plus the full 43,200-Food wagon award against the account cap. The remaining
+award is preserved as a private reservation through Food state reads, Food and
+general resource collection, Food expiry/return, and a concurrent Gold expiry.
+Thus a late schedule or another legitimate settlement path cannot silently
+truncate the reserved award or credit a completed minute twice; private phase,
+timestamps, idempotency, and settlement cursors make every transition replay
+safe.
+
+The three Wheat Farm GLBs are integrity-pinned visual media under a
+provenance-required delivery record. They may render a reviewed Food site but
+do not supply collision, placement, routes, occupancy, ownership, balances,
+rewards, or any other authority. Their presence in `public/` does not authorize
+production seeding, deployment, DNS changes, public relicensing, or a gameplay
+rule outside the reviewed server policy.
+
 ## Shared forest presentation boundary
 
-The Alpha 0.3.9 candidate appends public `realm_forest_layout_v1` metadata and
+The Alpha 0.3.10 candidate retains public `realm_forest_layout_v1` metadata and
 `realm_forest_instance_v1` rows. They form one immutable visual catalog for the
 preserved Genesis founding Lowlands: a reviewed layout version, exact layout and
 asset-catalog digests, and 210 fixed-point tree selectors/transforms. They do
@@ -117,9 +164,12 @@ session authority.
 The player is built with React, TypeScript, Vite, Three.js/WebGL, and responsive
 CSS. The title, menu, and realm share quality preferences while preserving
 reduced-motion and non-WebGL fallbacks. Genesis readiness is validated before
-the Realm appears. In the 0.3.9 candidate, the caller's private resource
-projection and the public Gold-site projection must also validate before the
-public Realm subscription begins. The
+the Realm appears. In the 0.3.10 candidate, the caller's private resource
+projection and public Gold-site projection must also validate before the
+public Realm subscription begins. The Food extension renders only a
+complete validated public Food catalog and identity-minimized occupation view;
+malformed or partial Food data never creates a permissive "available" node.
+The
 renderer uses the exact authoritative tile-key set, so the deliberate partial
 ring is never expanded into invented cells, and bounds semantic detail work
 deterministically as the radius-60 presentation envelope grows.
@@ -176,6 +226,14 @@ forest layout has its own guarded, idempotent admin seed; its verification
 requires one layout row, exactly 210 instances, and the pinned layout/catalog
 digests.
 
+The additive v7 proof extends the same disposable lifecycle with the five Food
+tables at refs 27–31, the 96-site digest-pinned Wheat Farm catalog, public
+identity-minimized occupation, private retry/accrual state, and an internal-only
+schedule target. It exercises Food/Gold coexistence and the raw passive-Food
+reservation through collection and delayed lifecycle processing. This is local
+evidence only, never production publication, Food-site seeding, or a deploy
+authorization.
+
 ## Delivery
 
 Semantic versions name release lines; an annotated tag and exact build SHA
@@ -184,12 +242,16 @@ configuration, provenance, asset integrity, production exclusions, and additive
 backend compatibility before Pages publishes. Worker and SpacetimeDB operations
 remain separate release decisions.
 
-For Alpha 0.3.9, the safe production order is additive module publication,
+For Alpha 0.3.10, the safe production order is additive module publication,
 explicitly owner-approved founder backfill, explicit exact-state world
-expansion, Gold-site setup, and forest-layout setup, generation-three plus
-aggregate verification, exact reviewed Pages deployment, then live build
-verification. Each mutable step is a separate approval boundary. Source
-completion or a client merge authorizes none of those production operations.
+expansion, separately approved Gold-site, forest-layout, and Food-site setup,
+generation-three plus resource-specific aggregate verification, exact reviewed
+Pages deployment, then live build verification. Each mutable step is a separate
+approval boundary. The v7 publication and exact 96-site Food setup do not
+inherit authority from a Gold or forest setup, asset delivery, migration proof,
+merge, or Pages build. Source completion or a client merge authorizes none of
+those production operations. The custom domain and DNS remain untouched unless
+separately authorized.
 
 ## Repository guide
 
@@ -203,4 +265,4 @@ completion or a client merge authorizes none of those production operations.
 
 Start with the [README](../README.md), [product direction](design/warpkeep-direction.md),
 [roadmap](design/roadmap.md), [verified Alpha 0.3.6 release notes](releases/alpha-0.3.6.md),
-and [Alpha 0.3.9 candidate notes](releases/alpha-0.3.9.md).
+and the [Alpha 0.3.10 candidate notes](releases/alpha-0.3.10.md).
