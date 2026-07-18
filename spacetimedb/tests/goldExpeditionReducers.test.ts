@@ -34,13 +34,13 @@ function schemaRegistrations(text: string): string[] {
     .map(line => line.slice(0, -1));
 }
 
-test('v5 Gold authority prefix remains intact before the v6 forest and v7 Food appends', () => {
+test('v5 Gold authority prefix remains intact before the v6 forest, v7 Food, and v8 Wood appends', () => {
   const schema = source('../src/schema.ts');
   const v4 = source('../migration-fixtures/additive-v4-schema/src/index.ts');
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-12), [
+  assert.deepEqual(registrations.slice(-17), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',
@@ -53,8 +53,13 @@ test('v5 Gold authority prefix remains intact before the v6 forest and v7 Food a
     'foodExpeditionV1',
     'foodExpeditionIdempotencyV1',
     'foodExpeditionScheduleV1',
+    'woodSiteV1',
+    'woodNodeOccupationV1',
+    'woodExpeditionV1',
+    'woodExpeditionIdempotencyV1',
+    'woodExpeditionScheduleV1',
   ]);
-  assert.deepEqual(registrations.slice(-12, -7), [
+  assert.deepEqual(registrations.slice(-17, -12), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',

@@ -1,0 +1,107 @@
+/* Wood uses the shared resilient inspector shell. The only bitmap here is the
+ * existing 64px HUD glyph, deliberately framed as a resource marker rather
+ * than stretched and misrepresented as high-resolution Logging Camp art. */
+.logging-camp-inspection.gold-mine-inspection {
+  padding-top: 0;
+}
+
+.logging-camp-inspection .gold-mine-inspection__hero {
+  min-height: 8.7rem;
+  padding: 1.1rem 1rem 0.78rem;
+  background:
+    radial-gradient(circle at 50% 4%, rgb(177 216 112 / 24%), transparent 37%),
+    radial-gradient(circle at 50% 98%, rgb(45 94 47 / 34%), transparent 55%),
+    linear-gradient(165deg, #1d3525 0%, #112116 58%, #0b0d0c 100%);
+}
+
+.logging-camp-inspection .gold-mine-inspection__hero::after {
+  background: linear-gradient(180deg, transparent, rgb(7 12 8 / 88%) 78%, rgb(8 10 9 / 98%));
+}
+
+.logging-camp-inspection .gold-mine-inspection__title-lockup::before {
+  background: linear-gradient(90deg, transparent, rgb(178 218 115 / 84%), transparent);
+}
+
+.logging-camp-inspection .gold-mine-inspection__title-lockup p,
+.logging-camp-inspection .gold-mine-inspection__field dd {
+  color: #d3eda7;
+}
+
+.logging-camp-inspection__resource-lockup {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  width: 3.35rem;
+  height: 3.35rem;
+  place-items: center;
+  margin: 0.2rem auto 0.42rem;
+  border: 1px solid rgb(193 227 126 / 45%);
+  border-radius: 50%;
+  background: rgb(8 20 10 / 62%);
+  box-shadow: 0 0.35rem 1.1rem rgb(0 0 0 / 32%);
+}
+
+.logging-camp-inspection__resource-icon {
+  display: block;
+  width: 2.7rem;
+  height: 2.7rem;
+  filter: drop-shadow(0 0.12rem 0.22rem rgb(0 0 0 / 46%));
+  object-fit: contain;
+}
+
+.logging-camp-inspection .gold-mine-inspection__description {
+  border-left-color: rgb(173 215 110 / 62%);
+  background: linear-gradient(90deg, rgb(54 109 58 / 26%), transparent);
+}
+
+.logging-camp-inspection .gold-mine-inspection__action button {
+  border-color: rgb(194 232 126 / 72%);
+  background: linear-gradient(180deg, rgb(181 219 109 / 96%), rgb(61 118 59 / 98%));
+  color: #102313;
+}
+
+.logging-camp-inspection .gold-mine-inspection__action--claim button {
+  border-color: rgb(211 237 158 / 78%);
+  background: linear-gradient(180deg, rgb(119 179 101 / 96%), rgb(39 91 52 / 98%));
+  color: #f4fff0;
+}
+
+@media (max-width: 760px) {
+  .logging-camp-inspection.gold-mine-inspection {
+    padding-top: 0;
+  }
+
+  .logging-camp-inspection .gold-mine-inspection__hero {
+    min-height: 8.15rem;
+  }
+
+  .logging-camp-inspection .gold-mine-inspection__body {
+    max-height: min(calc(78svh - 9.4rem), 24.2rem);
+  }
+}
+
+@media (max-height: 600px) and (min-width: 581px) {
+  .logging-camp-inspection.gold-mine-inspection {
+    padding-top: 0;
+  }
+
+  .logging-camp-inspection .gold-mine-inspection__hero {
+    min-height: 7.05rem;
+    padding-top: 0.72rem;
+  }
+
+  .logging-camp-inspection__resource-lockup {
+    width: 2.65rem;
+    height: 2.65rem;
+    margin-bottom: 0.22rem;
+  }
+
+  .logging-camp-inspection__resource-icon {
+    width: 2.15rem;
+    height: 2.15rem;
+  }
+
+  .logging-camp-inspection .gold-mine-inspection__body {
+    max-height: calc(100svh - 8.45rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}

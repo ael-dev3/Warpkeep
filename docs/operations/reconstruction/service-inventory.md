@@ -9,17 +9,18 @@
 > every future republish, binding change, secret change, deploy, or enable
 > requires its own authority and verification.
 
-The checked-in Alpha 0.3.10 candidate is not part of that deployed inventory.
+The checked-in Alpha 0.3.11 candidate is not part of that deployed inventory.
 It retains the separately approval-gated 10,000-cell generation-three target
 and its 2,000 resource-capable anchors, appends private
 `resource_account_v1` at schema ref 19, appends five Gold-expedition tables at
 refs 20–24, two decorative forest tables at refs 25–26, and five independent
-Food-expedition tables at refs 27–31. Those tables define public site and
-identity-minimized occupation projections plus private expedition/idempotency
-authority and public-safe scheduler projections. Neither source presence nor
-local proof attests a production module publication, world transition, resource
-backfill, Gold/forest/Food setup, or deployment. Alpha 0.3.6 remains the
-verified public release.
+Food-expedition tables at refs 27–31, then five independent Wood-expedition
+tables at refs 32–36. Those tables define public site and identity-minimized
+occupation projections plus private expedition/idempotency authority and
+public-safe scheduler projections. Neither source presence nor local proof
+attests a production module publication, world transition, resource backfill,
+Gold/forest/Food/Wood setup, or deployment. Alpha 0.3.6 remains the verified
+public release.
 
 ## Repositories and workflows
 
@@ -185,7 +186,7 @@ browser never subscribes to it, and its required production count is zero.
 The deployed v2 schema appended two tables: public `player_v2`, which excludes
 opaque identity, and private `player_ownership_v2`, which contains the
 authorization binding. Protocol 3 later appended the 12 frozen tables at refs
-7–18. The checked-in Alpha 0.3.10 candidate appends private
+7–18. The checked-in Alpha 0.3.10 precursor appends private
 `resource_account_v1` at exact ref 19, then `gold_site_v1`,
 `gold_node_occupation_v1`, `gold_expedition_v1`,
 `gold_expedition_idempotency_v1`, and `gold_expedition_schedule_v_1` at refs
@@ -195,6 +196,13 @@ the Food equivalents `food_site_v1`, `food_node_occupation_v1`,
 `food_expedition_schedule_v_1` at refs 27–31. Only the site catalog,
 occupation, and deliberately public-safe schedule projection are browser-table
 shapes; FID-bound expedition, retry, accrual, and balance state remain private.
+The Alpha 0.3.11 candidate then appends the Wood equivalents `wood_site_v1`,
+`wood_node_occupation_v1`, `wood_expedition_v1`,
+`wood_expedition_idempotency_v1`, and `wood_expedition_schedule_v_1` at refs
+32–36. Wood uses the same public-site/private-authority boundary; its scheduler
+projection is public-safe only and its reducer remains internal-only. The private
+resource settlement adapter derives Food and Wood's remaining awards together,
+so neither passive capacity reservation becomes observable or browser-controlled.
 The private ownership table must have no generated browser table accessor.
 Bootstrap ignores optional profile-shaped JWT fields and explicitly inserts
 undefined `username`, `displayName`, and `pfpUrl`; profile changes require a
@@ -212,19 +220,22 @@ The live `admin_get_alpha_status_v3` procedure covers the complete founded
 protocol-3 graph without exposing row identities. Candidate
 `admin_get_alpha_status_v4` is a separate closed counts-only resource contract:
 founder/castle/Mark coverage, resource coverage and invariant counts, protocol,
-and policy version. It is not evidence of the Alpha 0.3.10 Gold- or Food-site
-catalog, occupation, or private expedition state;
-Gold and Food rollouts each need their own reviewed aggregate contract and
-explicit owner approval. The generation-two and
+and policy version. It is not evidence of the Alpha 0.3.10 Gold/Food or Alpha
+0.3.11 Wood catalog, occupation, private expedition, or paired Food/Wood
+reservation state. Gold, Food, and Wood rollouts each need their own reviewed
+aggregate contract and explicit owner approval. The generation-two and
 generation-three world gates remain separate exact contracts; a mixed tuple
 fails closed.
 
 `npm run stdb:verify-additive-migration` proves the exact prefix, append-only
-refs 0–24, empty and synthetic nonempty fixture preservation, idempotence,
-partial-state detection, guarded v4/v3/v2 rollback refusal, the populated exact
-generation-two-to-three world transition, the private resource lifecycle, and
-the v5 Gold table visibility/order contract against disposable loopback
-databases with the pinned CLI. This local proof grants no production authority.
+refs 0–36, empty and synthetic nonempty fixture preservation, idempotence,
+partial-state detection, guarded v8/v7/v6/v5/v4/v3/v2 rollback refusal, the
+populated exact generation-two-to-three world transition, the private resource
+lifecycle, and Gold/Food/Wood table visibility/order against disposable
+loopback databases with the pinned CLI. It does not seed, dispatch, or settle a
+Food/Wood expedition; focused authority, policy, and reducer-contract tests
+separately cover paired Food/Wood reservation preservation and concurrent Gold
+settlement. This local proof grants no production authority.
 If post-publish verification finds a mismatch, keep auth disabled and use a
 separately reviewed forward-compatible fix; never delete data, recreate the
 database, or roll the schema backward.

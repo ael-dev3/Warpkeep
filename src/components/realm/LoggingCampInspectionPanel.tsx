@@ -1,0 +1,296 @@
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref
+} from 'react';
+
+import {
+  createWoodExpeditionIdempotencyKey,
+  woodExpeditionForNode,
+  type ReadyWoodExpeditionPresentation,
+  type WoodExpeditionPresentation
+} from './realmWoodExpeditionPresentation';
+import {
+  woodNodeAvailabilityLabel,
+  woodNodeNextAuthorityTimestamp,
+  type RealmWoodNodePresentation
+} from './realmWoodNodePresentation';
+import './LoggingCampInspectionPanel.css';
+
+function InspectionField({
+  label,
+  children
+}: Readonly<{ label: string; children: ReactNode }>) {
+  return (
+    <div className="gold-mine-inspection__field">
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === 'function') ref(value);
+  else if (ref) (ref as { current: T | null }).current = value;
+}
+
+function publicAssetUrl(path: string) {
+  const base = import.meta.env.BASE_URL || '/';
+  return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\/+/, '')}`;
+}
+
+export type LoggingCampInspectionRecord = Readonly<{
+  name: string;
+  tier: number;
+}>;
+
+export type LoggingCampInspectionPanelProps = Readonly<{
+  id: string;
+  camp: LoggingCampInspectionRecord;
+  /** Validated public Wood site only; no balances or reducer authority. */
+  node?: RealmWoodNodePresentation;
+  /** Exact caller-only procedure data, joined again to the public site. */
+  privateExpedition?: WoodExpeditionPresentation;
+  /** Authenticated provider boundary; no optimistic public node mutation. */
+  onDispatchWoodExpedition?: (siteId: string, idempotencyKey: string) => Promise<void>;
+  /** Owner-only settlement boundary; resources refresh after server confirmation. */
+  onClaimWoodExpedition?: () => Promise<void>;
+  onRequestClose: () => void;
+  focusTargetRef?: Ref<HTMLButtonElement>;
+}>;
+
+function localNowMicros() {
+  return BigInt(Date.now()) * 1_000n;
+}
+
+function formatRemainingDuration(timestampMicros: bigint | undefined) {
+  if (timestampMicros === undefined) return undefined;
+  const remaining = timestampMicros - localNowMicros();
+  if (remaining <= 0n) return 'Awaiting Realm confirmation';
+  const totalMinutes = remaining / 60_000_000n;
+  const days = totalMinutes / 1_440n;
+  const hours = (totalMinutes % 1_440n) / 60n;
+  const minutes = totalMinutes % 60n;
+  if (days > 0n) return `${days}d ${hours}h remaining`;
+  if (hours > 0n) return `${hours}h ${minutes}m remaining`;
+  return `${minutes}m remaining`;
+}
+
+function nodeNotice(node: RealmWoodNodePresentation | undefined) {
+  if (!node) {
+    return 'This record presents the Logging Camp only; it does not disclose player inventory or gathering authority.';
+  }
+  if (node.availability === 'available') {
+    return 'This Camp is available. A dispatch exists only after the Realm records the occupation.';
+  }
+  if (node.availability === 'unavailable') {
+    return 'The public Wood state is incomplete. The Realm has not presented this Camp as available.';
+  }
+  if (node.occupiedByViewer) {
+    return 'Your expedition is recorded by the Realm. Wood settlement remains server-authoritative.';
+  }
+  return 'This Camp is occupied. Public occupancy is visible, but another player’s resources remain private.';
+}
+
+function visibleOwnerExpedition(
+  node: RealmWoodNodePresentation | undefined,
+  privateExpedition: WoodExpeditionPresentation | undefined
+): ReadyWoodExpeditionPresentation | undefined {
+  if (!node?.originCastle || !node.occupation || !node.occupiedByViewer) return undefined;
+  return woodExpeditionForNode(privateExpedition, {
+    siteId: node.siteId,
+    originCastleId: node.originCastle.castleId,
+    phase: node.occupation.phase,
+    startedAtMicros: node.occupation.startedAtMicros,
+    arrivesAtMicros: node.occupation.arrivesAtMicros,
+    gatheringEndsAtMicros: node.occupation.gatheringEndsAtMicros,
+    returnsAtMicros: node.occupation.returnsAtMicros
+  });
+}
+
+/**
+ * The Logging Camp inspector uses the established public/private split:
+ * public rows choose availability, the owner-only procedure chooses pending
+ * Wood, and the only action crosses an authenticated provider boundary.
+ * The compact HUD Wood glyph is intentionally not represented as record art.
+ */
+export function LoggingCampInspectionPanel({
+  id,
+  camp,
+  node,
+  privateExpedition,
+  onDispatchWoodExpedition,
+  onClaimWoodExpedition,
+  onRequestClose,
+  focusTargetRef
+}: LoggingCampInspectionPanelProps) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [dispatchState, setDispatchState] = useState<'idle' | 'submitting' | 'failed'>('idle');
+  const [claimState, setClaimState] = useState<'idle' | 'submitting' | 'failed'>('idle');
+  const titleId = `${id}-title`;
+  const descriptionId = `${id}-description`;
+  const scheduleTimestamp = node ? woodNodeNextAuthorityTimestamp(node) : undefined;
+  const scheduleLabel = formatRemainingDuration(scheduleTimestamp);
+  const ownerExpedition = visibleOwnerExpedition(node, privateExpedition);
+  const canDispatch = node?.availability === 'available'
+    && onDispatchWoodExpedition !== undefined
+    && dispatchState !== 'submitting';
+  const canClaim = ownerExpedition !== undefined
+    && ownerExpedition.pendingWood > 0n
+    && onClaimWoodExpedition !== undefined
+    && claimState !== 'submitting';
+
+  const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
+    closeButtonRef.current = element;
+    assignRef(focusTargetRef, element);
+  }, [focusTargetRef]);
+
+  useEffect(() => {
+    closeButtonRef.current?.focus({ preventScroll: true });
+  }, [camp.name, camp.tier, id]);
+
+  useEffect(() => {
+    setDispatchState('idle');
+    setClaimState('idle');
+  }, [node?.availability, node?.siteId]);
+
+  const dispatch = useCallback(async () => {
+    if (!node || node.availability !== 'available' || !onDispatchWoodExpedition) return;
+    const idempotencyKey = createWoodExpeditionIdempotencyKey();
+    if (!idempotencyKey) {
+      setDispatchState('failed');
+      return;
+    }
+    setDispatchState('submitting');
+    try {
+      await onDispatchWoodExpedition(node.siteId, idempotencyKey);
+      setDispatchState('idle');
+    } catch {
+      setDispatchState('failed');
+    }
+  }, [node, onDispatchWoodExpedition]);
+
+  const claim = useCallback(async () => {
+    if (!canClaim || !onClaimWoodExpedition) return;
+    setClaimState('submitting');
+    try {
+      await onClaimWoodExpedition();
+      setClaimState('idle');
+    } catch {
+      setClaimState('failed');
+    }
+  }, [canClaim, onClaimWoodExpedition]);
+
+  return (
+    <aside
+      id={id}
+      className="gold-mine-inspection logging-camp-inspection"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      data-open="true"
+    >
+      <div className="gold-mine-inspection__drawer">
+        <header className="gold-mine-inspection__hero">
+          <button
+            ref={setCloseButtonRef}
+            className="gold-mine-inspection__dismiss"
+            aria-label="CLOSE LOGGING CAMP RECORD"
+            onClick={onRequestClose}
+            type="button"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+          <div className="logging-camp-inspection__resource-lockup" aria-hidden="true">
+            <img
+              alt=""
+              className="logging-camp-inspection__resource-icon"
+              decoding="async"
+              draggable={false}
+              height="64"
+              src={publicAssetUrl('images/resources/hegemony-wood-add35506da245240.webp')}
+              width="64"
+            />
+          </div>
+          <div className="gold-mine-inspection__title-lockup">
+            <p>TIER {camp.tier} GATHERING SITE</p>
+            <h2 id={titleId}>{camp.name}</h2>
+          </div>
+        </header>
+
+        <div className="gold-mine-inspection__body">
+          <p id={descriptionId} className="gold-mine-inspection__description">
+            A Hegemony Logging Camp positioned beneath the Realm canopy. Availability and
+            all gathering operations are determined by the Realm.
+          </p>
+          <dl className="gold-mine-inspection__fields" aria-label="Logging Camp record">
+            <InspectionField label="Resource">Wood</InspectionField>
+            <InspectionField label="Node tier">{camp.tier}</InspectionField>
+            {node ? (
+              <InspectionField label="Site state">
+                {woodNodeAvailabilityLabel(node.availability)}
+              </InspectionField>
+            ) : null}
+            {node?.originCastle ? (
+              <InspectionField label="Occupied by">
+                {node.occupiedByViewer ? 'Your expedition' : node.originCastle.name}
+              </InspectionField>
+            ) : null}
+            {node ? (
+              <InspectionField label="Gather rate">+1 Wood / minute</InspectionField>
+            ) : null}
+            {ownerExpedition ? (
+              <InspectionField label="Pending Wood">
+                {ownerExpedition.pendingWood.toLocaleString('en-US')}
+              </InspectionField>
+            ) : null}
+            {scheduleLabel ? (
+              <InspectionField label="Realm schedule">{scheduleLabel}</InspectionField>
+            ) : null}
+          </dl>
+          <p className="gold-mine-inspection__notice">{nodeNotice(node)}</p>
+          {node?.availability === 'available' && onDispatchWoodExpedition ? (
+            <div className="gold-mine-inspection__action">
+              <button
+                aria-describedby={descriptionId}
+                disabled={!canDispatch}
+                onClick={() => void dispatch()}
+                type="button"
+              >
+                {dispatchState === 'submitting' ? 'DISPATCHING WAGON…' : 'DISPATCH WAGON'}
+              </button>
+              <p aria-live="polite" className="gold-mine-inspection__action-status">
+                {dispatchState === 'failed'
+                  ? 'The Realm could not confirm this dispatch. Check the Camp state and try again.'
+                  : 'Dispatch is confirmed only when the Realm publishes the occupation.'}
+              </p>
+            </div>
+          ) : null}
+          {ownerExpedition && onClaimWoodExpedition ? (
+            <div className="gold-mine-inspection__action gold-mine-inspection__action--claim">
+              <button
+                aria-describedby={descriptionId}
+                disabled={!canClaim}
+                onClick={() => void claim()}
+                type="button"
+              >
+                {claimState === 'submitting' ? 'CLAIMING WOOD…' : 'CLAIM ACCRUED WOOD'}
+              </button>
+              <p aria-live="polite" className="gold-mine-inspection__action-status">
+                {claimState === 'failed'
+                  ? 'The Realm could not confirm this claim. Try again after the record refreshes.'
+                  : canClaim
+                    ? 'Claim is confirmed only when the Realm refreshes your private resource record.'
+                    : 'Accrued Wood becomes claimable when the Realm reports a positive pending amount.'}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </aside>
+  );
+}

@@ -244,6 +244,41 @@ The reviewed draft integration mounts the card as decorative inspection art
 only; it grants no resource, currency, reward, entitlement, map-placement, or
 Food authority. No Pages deployment is authorized by this record.
 
+## Hegemony Logging Camp runtime assets
+
+On 2026-07-18, the Warpkeep project owner supplied the named Logging Camp
+runtime delivery and requested a separate Wood-node pull request. That request
+authorizes only the three exact digest-bearing GLBs below for review in this
+public Warpkeep repository. It is runtime-use authorization only, not approval
+to merge, deploy, seed a world, or activate Wood gathering.
+
+The supplied `runtime-manifest.json` is 2,246 bytes with SHA-256
+`0385c4e268445fe6529cb2d3285ee9bdd405f23f6ba8fecc8ccdf0d39a62cec2` and
+declares the package as project-owned and authored for Warpkeep. That narrow
+delivery record does not establish a separate public/open-content licence,
+general derivative or redistribution rights, trademark rights, or Wood account,
+balance, placement, occupancy, route, worker, reward, collection, settlement,
+timing, or SpacetimeDB authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Selected/near Logging Camp | `public/models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-high-a68c133a4a50654b.glb` | Exact supplied High bytes: 689,328 bytes, SHA-256 `a68c133a4a50654bc611de2b66e6d0d42729aaf0b91b59b7d2b7749566826f70`, 5,030 triangles, 10,952 vertices, vertex colors and no embedded textures. |
+| Nearby Logging Camp | `public/models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-balanced-227046f89c4150ee.glb` | Exact supplied Balanced bytes: 460,656 bytes, SHA-256 `227046f89c4150eec5b908cc75e162fa9ad489be123fc941714f9ad294b73593`, 3,318 triangles, 7,312 vertices, vertex colors and no embedded textures. |
+| Distant Logging Camp | `public/models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-compact-ecea536ae18ef3ef.glb` | Exact supplied Compact bytes: 236,252 bytes, SHA-256 `ecea536ae18ef3ef5c6dc5eda158fa33d8e5d3a1e7848478c248a32efac1eccf`, 1,698 triangles, 3,734 vertices, vertex colors and no embedded textures. |
+
+The owner-supplied source directory and editable masters are not committed.
+`WARPKEEP_LOGGING_CAMP_RUNTIME_ROOT=/path/to/Runtime npm run
+prepare:hegemony-logging-camp-runtime` is an audited offline installer only;
+it rejects a changed, incomplete, non-regular, or symbolic source package and
+atomically installs exact source bytes without fetching or transforming them.
+`node scripts/verify-hegemony-logging-camp-runtime-assets.mjs` runs in ordinary
+builds and fails closed on unknown, missing, non-regular, changed, or
+structurally incompatible LODs. The dated [Logging Camp runtime
+record](docs/reference/resources/2026-07-18-hegemony-logging-camp/runtime/manifest.json)
+pins its source-manifest facts, orientation, bounds, LOD budgets, collision
+guidance, and visual-only scope boundary. This family remains
+`LicenseRef-Warpkeep-Provenance-Required`.
+
 ## Hegemony Supply Wagon runtime assets
 
 On 2026-07-18, the same project-owner instruction authorizes the exact reviewed

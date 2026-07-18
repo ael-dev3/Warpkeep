@@ -8,6 +8,10 @@ import {
   foodExpeditionErrorCode,
   runFoodExpeditionSchedule,
 } from './foodExpeditionAuthority';
+import {
+  runWoodExpeditionSchedule,
+  woodExpeditionErrorCode,
+} from './woodExpeditionAuthority';
 
 /**
  * Private closed-alpha admission list. This table is intentionally omitted
@@ -648,6 +652,113 @@ export const foodExpeditionScheduleV1 = table(
   },
 );
 
+/**
+ * Public immutable Tier-I Logging Camp catalog. It contains neither player
+ * identity nor balances: all clients render the same reviewed Wood sites.
+ * This is the append-only v8 suffix after v7 Food.
+ */
+export const woodSiteV1 = table(
+  { name: 'wood_site_v1', public: true },
+  {
+    siteId: t.string().primaryKey(),
+    q: t.i32(),
+    r: t.i32(),
+    tier: t.u32(),
+    active: t.bool(),
+  },
+);
+
+/**
+ * Public identity-minimized Wood lease. The linked castle is already public;
+ * FID, idempotency material, accrued Wood, and private inventory remain out
+ * of all browser subscriptions.
+ */
+export const woodNodeOccupationV1 = table(
+  {
+    name: 'wood_node_occupation_v1',
+    public: true,
+    indexes: [{
+      accessor: 'byOriginCastle',
+      algorithm: 'btree',
+      columns: ['originCastleId'] as const,
+    }] as const,
+  },
+  {
+    siteId: t.string().primaryKey(),
+    originCastleId: t.u64(),
+    phase: t.string(),
+    startedAtMicros: t.u64(),
+    arrivesAtMicros: t.u64(),
+    gatheringEndsAtMicros: t.u64(),
+    returnsAtMicros: t.u64(),
+  },
+);
+
+/** Private active Logging Camp wagon, exact accrual cursor, and owner binding. */
+export const woodExpeditionV1 = table(
+  {
+    name: 'wood_expedition_v1',
+    indexes: [{
+      accessor: 'byFidAndPhase',
+      algorithm: 'btree',
+      columns: ['fid', 'phase'] as const,
+    }] as const,
+  },
+  {
+    expeditionId: t.string().primaryKey(),
+    // Independent resource tables permit one Wood wagon alongside one Food
+    // and one Gold wagon while still bounding Wood to one per founder/castle.
+    fid: t.u64().unique(),
+    originCastleId: t.u64().unique(),
+    siteId: t.string().index(),
+    phase: t.string(),
+    startedAtMicros: t.u64(),
+    arrivesAtMicros: t.u64(),
+    gatheringEndsAtMicros: t.u64(),
+    returnsAtMicros: t.u64(),
+    settledThroughMicros: t.u64(),
+    accruedWood: t.u64(),
+    creditedWood: t.u64(),
+    policyVersion: t.string(),
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+/** Private caller-request receipt for bounded exactly-once Wood dispatch retries. */
+export const woodExpeditionIdempotencyV1 = table(
+  { name: 'wood_expedition_idempotency_v1' },
+  {
+    requestKey: t.string().primaryKey(),
+    fid: t.u64().index(),
+    siteId: t.string(),
+    expeditionId: t.string().unique(),
+    createdAt: t.timestamp(),
+  },
+);
+
+/**
+ * Public-safe schedule projection for the Wood lifecycle. It duplicates only
+ * fields already present in public occupation rows; private authority is
+ * always re-resolved before any balance or lease mutation.
+ */
+export const woodExpeditionScheduleV1 = table(
+  {
+    // Keep the SDK-required separated v_1 physical spelling used by the v5
+    // and v7 scheduler tables while retaining the versioned TypeScript API.
+    name: 'wood_expedition_schedule_v_1',
+    public: true,
+    scheduled: (): any => runWoodExpeditionScheduleV1,
+  },
+  {
+    scheduleId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    originCastleId: t.u64().index(),
+    siteId: t.string().index(),
+    stage: t.string(),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -683,6 +794,11 @@ const warpkeep = schema({
   foodExpeditionV1,
   foodExpeditionIdempotencyV1,
   foodExpeditionScheduleV1,
+  woodSiteV1,
+  woodNodeOccupationV1,
+  woodExpeditionV1,
+  woodExpeditionIdempotencyV1,
+  woodExpeditionScheduleV1,
 });
 
 /**
@@ -730,6 +846,24 @@ export const runFoodExpeditionScheduleV1 = warpkeep.reducer(
   },
 );
 
+/** Scheduler-only lifecycle reducer for the append-only Wood expedition. */
+export const runWoodExpeditionScheduleV1 = warpkeep.reducer(
+  { name: 'run_wood_expedition_schedule_v_1' },
+  { arg: woodExpeditionScheduleV1.rowType },
+  (ctx, { arg }) => {
+    if (!ctx.senderAuth.isInternal) {
+      throw new SenderError('WOOD_EXPEDITION_SCHEDULE_INTERNAL_ONLY');
+    }
+    try {
+      runWoodExpeditionSchedule(ctx, arg);
+    } catch (error) {
+      const code = woodExpeditionErrorCode(error);
+      if (code !== undefined) throw new SenderError(code);
+      throw error;
+    }
+  },
+);
+
 // SpacetimeDB 2.6's default case converter separates a trailing digit from
 // its prefix (`v2` -> `v_2`). Pin every versioned wire spelling explicitly.
 for (const name of [
@@ -761,6 +895,10 @@ for (const name of [
   'dispatch_food_expedition_v1',
   'collect_food_expedition_v1',
   'admin_seed_genesis_tier_i_food_sites_v1',
+  'get_my_wood_expedition_state_v1',
+  'dispatch_wood_expedition_v1',
+  'collect_wood_expedition_v1',
+  'admin_seed_genesis_tier_i_wood_sites_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

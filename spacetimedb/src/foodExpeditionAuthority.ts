@@ -27,10 +27,10 @@ import {
 } from './resourceAuthorityPolicy';
 import { assertGenesisResourceForFid } from './resourceAuthority';
 import {
-  FoodReservationAuthorityError,
-  activeFoodExpeditionReservation,
-  planResourceSettlementForActiveFoodReservation,
-} from './foodReservationAuthority';
+  ResourceExpeditionReservationAuthorityError,
+  activeExpeditionResourceReservations,
+  planResourceSettlementForActiveExpeditionReservations,
+} from './resourceExpeditionReservationAuthority';
 import type warpkeep from './schema';
 import {
   CANONICAL_REALM,
@@ -209,7 +209,7 @@ function assertFoodCapacityReservation(
   resource: ReturnType<typeof assertGenesisResourceForFid>,
   expedition: Pick<FoodExpeditionRow, 'creditedFood'>,
 ): void {
-  const reservedFood = activeFoodExpeditionReservation(ctx, resource.account.fid);
+  const reservedFood = activeExpeditionResourceReservations(ctx, resource.account.fid).food;
   if (reservedFood !== FOOD_GATHERING_TOTAL_FOOD - expedition.creditedFood) {
     fail('FOOD_EXPEDITION_RESERVATION_INTEGRITY');
   }
@@ -272,7 +272,7 @@ function creditExpiredFood(
   // Advance normally to the current authoritative timestamp while preserving
   // the exact uncredited Food reserve. This handles delayed scheduler delivery
   // without cursor rewind and releases the reserve atomically with the award.
-  const passiveSettlement = planResourceSettlementForActiveFoodReservation(
+  const passiveSettlement = planResourceSettlementForActiveExpeditionReservations(
     ctx,
     expedition.fid,
     resource.account,
@@ -578,7 +578,7 @@ export function foodExpeditionErrorCode(error: unknown): string | undefined {
   if (
     error instanceof FoodExpeditionAuthorityError
     || error instanceof FoodExpeditionPolicyError
-    || error instanceof FoodReservationAuthorityError
+    || error instanceof ResourceExpeditionReservationAuthorityError
     || error instanceof ResourceAuthorityPolicyError
   ) return error.code;
   return undefined;

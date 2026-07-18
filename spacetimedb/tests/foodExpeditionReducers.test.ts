@@ -34,13 +34,13 @@ function schemaRegistrations(text: string): string[] {
     .map(line => line.slice(0, -1));
 }
 
-test('v7 Food tables append after the complete v5 Gold and v6 forest schema suffix', () => {
+test('v7 Food tables remain intact before the append-only v8 Wood suffix', () => {
   const schema = source('../src/schema.ts');
   const v4 = source('../migration-fixtures/additive-v4-schema/src/index.ts');
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-12), [
+  assert.deepEqual(registrations.slice(-17), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',
@@ -53,6 +53,11 @@ test('v7 Food tables append after the complete v5 Gold and v6 forest schema suff
     'foodExpeditionV1',
     'foodExpeditionIdempotencyV1',
     'foodExpeditionScheduleV1',
+    'woodSiteV1',
+    'woodNodeOccupationV1',
+    'woodExpeditionV1',
+    'woodExpeditionIdempotencyV1',
+    'woodExpeditionScheduleV1',
   ]);
 
   const site = tableDefinition(schema, 'foodSiteV1');
@@ -104,18 +109,19 @@ test('Food reducer inputs are caller-bound and its lifecycle is scheduler-only',
   assert.match(scheduled, /runFoodExpeditionSchedule\(ctx, arg\)/);
 });
 
-test('Food and Gold wagons are independent while every passive settlement preserves Food reserve', () => {
+test('Food, Gold, and Wood wagons are independent while every passive settlement preserves paired reserves', () => {
   const foodAuthority = source('../src/foodExpeditionAuthority.ts');
+  const woodAuthority = source('../src/woodExpeditionAuthority.ts');
   const goldAuthority = source('../src/goldExpeditionAuthority.ts');
   const resources = source('../src/reducers/resources.ts');
-  const reservation = source('../src/foodReservationAuthority.ts');
+  const reservation = source('../src/resourceExpeditionReservationAuthority.ts');
 
   const foodDispatch = section(foodAuthority, 'export function dispatchGenesisFoodExpedition', '/**\n * Claim');
   const goldDispatch = section(goldAuthority, 'export function dispatchGenesisGoldExpedition', '/**\n * Claim');
   assert.match(foodDispatch, /foodExpeditionV1\.originCastleId\.find/);
   assert.match(goldDispatch, /goldExpeditionV1\.originCastleId\.find/);
   // Separate private tables deliberately permit the same founder/castle to
-  // have one Food wagon and one Gold wagon in flight at the same time.
+  // have Food, Wood, and Gold wagons in flight at the same time.
   assert.doesNotMatch(foodDispatch, /goldExpeditionV1/);
   assert.doesNotMatch(goldDispatch, /foodExpeditionV1/);
 
@@ -123,28 +129,30 @@ test('Food and Gold wagons are independent while every passive settlement preser
     ['resource HUD/collector', resources],
     ['Gold lifecycle', goldAuthority],
     ['Food lifecycle', foodAuthority],
+    ['Wood lifecycle', woodAuthority],
   ] as const) {
     assert.match(
       text,
-      /planResourceSettlementForActiveFoodReservation\(/,
-      `${name} must preserve an active Food award`,
+      /planResourceSettlementForActiveExpeditionReservations\(/,
+      `${name} must preserve active Food and Wood awards`,
     );
   }
   assert.match(reservation, /ctx\.db\.foodExpeditionV1\.fid\.find\(fid\)/);
-  assert.match(reservation, /FOOD_GATHERING_TOTAL_FOOD - expedition\.creditedFood/);
-  assert.match(reservation, /planResourceSettlementWithFoodReservation\(/);
+  assert.match(reservation, /ctx\.db\.woodExpeditionV1\.fid\.find\(fid\)/);
+  assert.match(reservation, /FOOD_GATHERING_TOTAL_FOOD - food\.creditedFood/);
+  assert.match(reservation, /planResourceSettlementWithExpeditionReservations\(/);
 
   const foodExpiry = section(foodAuthority, 'function creditExpiredFood', 'function completeReturn');
-  assert.match(foodExpiry, /planResourceSettlementForActiveFoodReservation\([\s\S]*now,/);
+  assert.match(foodExpiry, /planResourceSettlementForActiveExpeditionReservations\([\s\S]*now,/);
   assert.doesNotMatch(foodExpiry, /planResourceSettlement\([\s\S]*gatheringEndsAtMicros/);
   const goldExpiry = section(goldAuthority, 'function creditExpiredGold', 'function completeReturn');
-  assert.match(goldExpiry, /planResourceSettlementForActiveFoodReservation\([\s\S]*now,/);
+  assert.match(goldExpiry, /planResourceSettlementForActiveExpeditionReservations\([\s\S]*now,/);
 
   const collect = section(resources, 'export const collectResourcesV1', '/**\n * Hermes-only');
   assert.match(collect, /collectActiveFoodExpedition\(ctx, claims\.fid\)/);
   assert.match(collect, /collectActiveGoldExpedition\(ctx, claims\.fid\)/);
   assert.ok(
     collect.indexOf('collectActiveFoodExpedition(ctx, claims.fid)')
-      < collect.indexOf('planResourceSettlementForActiveFoodReservation('),
+      < collect.indexOf('planResourceSettlementForActiveExpeditionReservations('),
   );
 });

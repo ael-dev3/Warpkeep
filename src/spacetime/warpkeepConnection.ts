@@ -9,6 +9,8 @@ import type {
   WarpkeepCastle,
   WarpkeepFoodNodeOccupation,
   WarpkeepFoodSite,
+  WarpkeepWoodNodeOccupation,
+  WarpkeepWoodSite,
   WarpkeepGoldNodeOccupation,
   WarpkeepGoldSite,
   WarpkeepPlayer,
@@ -51,6 +53,10 @@ import {
   type ReadyFoodExpeditionPresentation
 } from '../components/realm/realmFoodExpeditionPresentation';
 import {
+  decodeWoodExpeditionPresentation,
+  type ReadyWoodExpeditionPresentation
+} from '../components/realm/realmWoodExpeditionPresentation';
+import {
   isRealmGoldNodeOccupationPublicRecord,
   isRealmGoldSitePublicRecord
 } from '../components/realm/realmGoldNodePresentation';
@@ -58,6 +64,10 @@ import {
   isRealmFoodNodeOccupationPublicRecord,
   isRealmFoodSitePublicRecord
 } from '../components/realm/realmFoodNodePresentation';
+import {
+  isRealmWoodNodeOccupationPublicRecord,
+  isRealmWoodSitePublicRecord
+} from '../components/realm/realmWoodNodePresentation';
 
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
@@ -91,6 +101,14 @@ type FoodProjectionAvailability =
   | typeof FOOD_PROJECTION_PENDING
   | typeof FOOD_PROJECTION_READY;
 const foodProjectionAvailability = new WeakMap<WarpkeepConnection, FoodProjectionAvailability>();
+const WOOD_PROJECTION_UNAVAILABLE = 'unavailable' as const;
+const WOOD_PROJECTION_PENDING = 'pending' as const;
+const WOOD_PROJECTION_READY = 'ready' as const;
+type WoodProjectionAvailability =
+  | typeof WOOD_PROJECTION_UNAVAILABLE
+  | typeof WOOD_PROJECTION_PENDING
+  | typeof WOOD_PROJECTION_READY;
+const woodProjectionAvailability = new WeakMap<WarpkeepConnection, WoodProjectionAvailability>();
 const FOREST_PROJECTION_UNAVAILABLE = 'unavailable' as const;
 const FOREST_PROJECTION_PENDING = 'pending' as const;
 const FOREST_PROJECTION_READY = 'ready' as const;
@@ -107,6 +125,8 @@ const GOLD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const GOLD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const FOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const FOOD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
+const WOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
+const WOOD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
@@ -428,9 +448,79 @@ export async function collectWarpkeepFoodExpedition(
   return Object.freeze({ resources, foodExpedition });
 }
 
+type WoodProcedureSurface = Readonly<{
+  getMyWoodExpeditionStateV1?: (input: Readonly<Record<string, never>>) => Promise<unknown>;
+}>;
+
+type WoodReducerSurface = Readonly<{
+  dispatchWoodExpeditionV1?: (input: Readonly<{
+    siteId: string;
+    idempotencyKey: string;
+  }>) => Promise<unknown> | unknown;
+  collectWoodExpeditionV1?: (input: Readonly<Record<string, never>>) => Promise<unknown> | unknown;
+}>;
+
+function woodProcedureSurface(connection: WarpkeepConnection) {
+  return connection.procedures as unknown as WoodProcedureSurface;
+}
+
+function woodReducerSurface(connection: WarpkeepConnection) {
+  return connection.reducers as unknown as WoodReducerSurface;
+}
+
+/**
+ * Wood is a soft additive capability. An older deployment or malformed
+ * private procedure removes Wood controls only; it cannot revoke Food, Gold,
+ * or the authenticated core Realm.
+ */
+export async function readWarpkeepWoodExpeditionState(
+  connection: WarpkeepConnection
+): Promise<ReadyWoodExpeditionPresentation | undefined> {
+  const procedure = woodProcedureSurface(connection).getMyWoodExpeditionStateV1;
+  if (typeof procedure !== 'function') return undefined;
+  const raw = await procedure({});
+  const decoded = decodeWoodExpeditionPresentation(raw);
+  return decoded.status === 'ready' ? decoded : undefined;
+}
+
+function assertWoodExpeditionDispatchInput(siteId: string, idempotencyKey: string) {
+  if (!WOOD_SITE_ID_PATTERN.test(siteId) || !WOOD_IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+    throw new Error('Wood expedition is unavailable.');
+  }
+}
+
+export async function dispatchWarpkeepWoodExpedition(
+  connection: WarpkeepConnection,
+  siteId: string,
+  idempotencyKey: string
+): Promise<ReadyWoodExpeditionPresentation | undefined> {
+  assertWoodExpeditionDispatchInput(siteId, idempotencyKey);
+  const reducer = woodReducerSurface(connection).dispatchWoodExpeditionV1;
+  if (typeof reducer !== 'function') throw new Error('Wood expedition is unavailable.');
+  await reducer({ siteId, idempotencyKey });
+  return readWarpkeepWoodExpeditionState(connection);
+}
+
+export async function collectWarpkeepWoodExpedition(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<Readonly<{
+  resources: ReadyRealmResourcePresentation;
+  woodExpedition: ReadyWoodExpeditionPresentation | undefined;
+}>> {
+  const reducer = woodReducerSurface(connection).collectWoodExpeditionV1;
+  if (typeof reducer !== 'function') throw new Error('Wood expedition is unavailable.');
+  await reducer({});
+  const [resources, woodExpedition] = await Promise.all([
+    readWarpkeepResourceState(connection, ownFid),
+    readWarpkeepWoodExpeditionState(connection)
+  ]);
+  return Object.freeze({ resources, woodExpedition });
+}
+
 /**
  * Start the protocol-v3 core shared-state subscription and additive public
- * Gold/Food/forest subscriptions. The scheduler, forest seeding reducer, and every
+ * Gold/Food/Wood/forest subscriptions. The scheduler, forest seeding reducer, and every
  * private economy table remain outside the player graph. If an additive
  * schema is not deployed yet, the core Realm remains live but that visual
  * layer is empty rather than locally synthesized.
@@ -443,6 +533,7 @@ export function subscribeToWarpkeepRealm(
   let coreApplied = false;
   goldProjectionAvailability.set(connection, GOLD_PROJECTION_PENDING);
   foodProjectionAvailability.set(connection, FOOD_PROJECTION_PENDING);
+  woodProjectionAvailability.set(connection, WOOD_PROJECTION_PENDING);
   forestProjectionAvailability.set(connection, FOREST_PROJECTION_PENDING);
   const coreSubscription = connection
     .subscriptionBuilder()
@@ -523,6 +614,36 @@ export function subscribeToWarpkeepRealm(
     foodProjectionAvailability.set(connection, FOOD_PROJECTION_UNAVAILABLE);
   }
 
+  let woodSubscription: SubscriptionHandle | undefined;
+  const woodTables = publicWoodTables(connection);
+  const woodBindings = publicWoodSubscriptionTables();
+  // Wood is independent of the Food and Gold projection pairs. If the exact
+  // generated bindings or public rows are absent, no Wood marker appears;
+  // the client never substitutes a local free site or interrupts core Realm.
+  if (woodTables !== undefined && woodBindings !== undefined) {
+    try {
+      woodSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          woodProjectionAvailability.set(connection, WOOD_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          woodProjectionAvailability.set(connection, WOOD_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          woodBindings.woodSiteV1,
+          woodBindings.woodNodeOccupationV1
+        ]);
+    } catch {
+      woodProjectionAvailability.set(connection, WOOD_PROJECTION_UNAVAILABLE);
+      if (coreApplied) onApplied();
+    }
+  } else {
+    woodProjectionAvailability.set(connection, WOOD_PROJECTION_UNAVAILABLE);
+  }
+
   let forestSubscription: SubscriptionHandle | undefined;
   const forestTables = publicForestTables(connection);
   // A pre-forest service (or a deliberately narrow test double) cannot make
@@ -556,13 +677,18 @@ export function subscribeToWarpkeepRealm(
     unsubscribe: () => {
       goldProjectionAvailability.delete(connection);
       foodProjectionAvailability.delete(connection);
+      woodProjectionAvailability.delete(connection);
       forestProjectionAvailability.delete(connection);
       try {
         try {
           try {
             goldSubscription?.unsubscribe();
           } finally {
-            foodSubscription?.unsubscribe();
+            try {
+              foodSubscription?.unsubscribe();
+            } finally {
+              woodSubscription?.unsubscribe();
+            }
           }
         } finally {
           forestSubscription?.unsubscribe();
@@ -740,6 +866,14 @@ function asPublicFoodRow(value: unknown): PublicFoodTableRow | undefined {
     : undefined;
 }
 
+type PublicWoodTableRow = Readonly<Record<string, unknown>>;
+
+function asPublicWoodRow(value: unknown): PublicWoodTableRow | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as PublicWoodTableRow
+    : undefined;
+}
+
 type PublicForestTableRow = Readonly<Record<string, unknown>>;
 
 function asPublicForestRow(value: unknown): PublicForestTableRow | undefined {
@@ -850,6 +984,15 @@ function publicFoodTables(connection: WarpkeepConnection) {
   return db;
 }
 
+function publicWoodTables(connection: WarpkeepConnection) {
+  const db = connection.db as unknown as Readonly<{
+    woodSiteV1?: PublicFoodTable;
+    woodNodeOccupationV1?: PublicFoodTable;
+  }> | undefined;
+  if (!db?.woodSiteV1 || !db.woodNodeOccupationV1) return undefined;
+  return db;
+}
+
 /**
  * Generated module bindings are intentionally optional at this browser
  * boundary during the additive rollout. Referencing through this narrow cast
@@ -865,6 +1008,17 @@ function publicFoodSubscriptionTables() {
     foodSiteV1: typeof tables.goldSiteV1;
     foodNodeOccupationV1: typeof tables.goldNodeOccupationV1;
   }>;
+}
+
+/**
+ * Wood has canonical player bindings. A pre-v8 server still fails only this
+ * paired subscription (caught at the call site), leaving core/Gold/Food live.
+ */
+function publicWoodSubscriptionTables() {
+  return Object.freeze({
+    woodSiteV1: tables.woodSiteV1,
+    woodNodeOccupationV1: tables.woodNodeOccupationV1
+  });
 }
 
 /**
@@ -985,6 +1139,63 @@ function readPublicFoodProjection(connection: WarpkeepConnection): Readonly<{
   });
 }
 
+/**
+ * All-or-nothing Wood catalog projection. Its availability sentinel is
+ * independent: malformed Wood rows produce no Wood presentation only and can
+ * never make an occupied Logging Camp look free.
+ */
+function readPublicWoodProjection(connection: WarpkeepConnection): Readonly<{
+  sites: readonly WarpkeepWoodSite[];
+  occupations: readonly WarpkeepWoodNodeOccupation[];
+}> | undefined {
+  if (woodProjectionAvailability.get(connection) !== WOOD_PROJECTION_READY) return undefined;
+  const db = publicWoodTables(connection);
+  if (!db) return undefined;
+  const woodSiteTable = db.woodSiteV1;
+  const woodOccupationTable = db.woodNodeOccupationV1;
+  if (!woodSiteTable || !woodOccupationTable) return undefined;
+  const sites: WarpkeepWoodSite[] = [];
+  const siteIds = new Set<string>();
+  for (const rawRow of woodSiteTable.iter()) {
+    const row = asPublicWoodRow(rawRow);
+    if (!row) return undefined;
+    const site = {
+      siteId: row.siteId,
+      q: row.q,
+      r: row.r,
+      tier: row.tier,
+      active: row.active
+    };
+    if (!isRealmWoodSitePublicRecord(site) || siteIds.has(site.siteId)) return undefined;
+    siteIds.add(site.siteId);
+    sites.push(Object.freeze({ ...site }));
+  }
+  const occupations: WarpkeepWoodNodeOccupation[] = [];
+  const occupiedSiteIds = new Set<string>();
+  for (const rawRow of woodOccupationTable.iter()) {
+    const row = asPublicWoodRow(rawRow);
+    if (!row) return undefined;
+    const occupation = {
+      siteId: row.siteId,
+      originCastleId: toSafeNumber(row.originCastleId as bigint | number | undefined),
+      phase: row.phase,
+      startedAtMicros: row.startedAtMicros,
+      arrivesAtMicros: row.arrivesAtMicros,
+      gatheringEndsAtMicros: row.gatheringEndsAtMicros,
+      returnsAtMicros: row.returnsAtMicros
+    };
+    if (!isRealmWoodNodeOccupationPublicRecord(occupation) || occupiedSiteIds.has(occupation.siteId)) {
+      return undefined;
+    }
+    occupiedSiteIds.add(occupation.siteId);
+    occupations.push(Object.freeze({ ...occupation }));
+  }
+  return Object.freeze({
+    sites: Object.freeze(sites.sort((left, right) => left.siteId.localeCompare(right.siteId))),
+    occupations: Object.freeze(occupations.sort((left, right) => left.siteId.localeCompare(right.siteId)))
+  });
+}
+
 type PublicForestProjection = Readonly<{
   /** `undefined`/an array here intentionally means present-but-invalid. */
   layout: unknown;
@@ -1032,6 +1243,7 @@ export function readWarpkeepRealmSnapshot(
   const ownCastle = castles.find((castle) => castle.ownerFid === ownFid);
   const publicGold = readPublicGoldProjection(connection);
   const publicFood = readPublicFoodProjection(connection);
+  const publicWood = readPublicWoodProjection(connection);
   const publicForest = readPublicForestProjection(connection);
   const candidate: WarpkeepRealmSnapshotCandidate = {
     tiles: readWorldTiles(connection),
@@ -1047,6 +1259,10 @@ export function readWarpkeepRealmSnapshot(
     ...(publicFood === undefined ? {} : {
       foodSites: publicFood.sites,
       foodNodeOccupations: publicFood.occupations
+    }),
+    ...(publicWood === undefined ? {} : {
+      woodSites: publicWood.sites,
+      woodNodeOccupations: publicWood.occupations
     }),
     ...(publicForest === undefined ? {} : {
       forestLayout: publicForest.layout,
@@ -1123,6 +1339,13 @@ export function observeWarpkeepRealm(
   foodTables?.foodNodeOccupationV1?.onInsert?.(sync);
   foodTables?.foodNodeOccupationV1?.onDelete?.(sync);
   foodTables?.foodNodeOccupationV1?.onUpdate?.(sync);
+  const woodTables = publicWoodTables(connection);
+  woodTables?.woodSiteV1?.onInsert?.(sync);
+  woodTables?.woodSiteV1?.onDelete?.(sync);
+  woodTables?.woodSiteV1?.onUpdate?.(sync);
+  woodTables?.woodNodeOccupationV1?.onInsert?.(sync);
+  woodTables?.woodNodeOccupationV1?.onDelete?.(sync);
+  woodTables?.woodNodeOccupationV1?.onUpdate?.(sync);
   const forestTables = publicForestTables(connection);
   forestTables?.realmForestLayoutV1?.onInsert?.(sync);
   forestTables?.realmForestLayoutV1?.onDelete?.(sync);
@@ -1163,6 +1386,12 @@ export function observeWarpkeepRealm(
     foodTables?.foodNodeOccupationV1?.removeOnInsert?.(sync);
     foodTables?.foodNodeOccupationV1?.removeOnDelete?.(sync);
     foodTables?.foodNodeOccupationV1?.removeOnUpdate?.(sync);
+    woodTables?.woodSiteV1?.removeOnInsert?.(sync);
+    woodTables?.woodSiteV1?.removeOnDelete?.(sync);
+    woodTables?.woodSiteV1?.removeOnUpdate?.(sync);
+    woodTables?.woodNodeOccupationV1?.removeOnInsert?.(sync);
+    woodTables?.woodNodeOccupationV1?.removeOnDelete?.(sync);
+    woodTables?.woodNodeOccupationV1?.removeOnUpdate?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnInsert?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnDelete?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnUpdate?.(sync);

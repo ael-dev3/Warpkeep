@@ -1,8 +1,9 @@
 import type { RealmQuality } from './realmQuality';
 
 /**
- * One scene-wide ceiling for every expedition resource. A Food layer must not
- * silently double Gold's previously reviewed model, wagon, or mixer budget.
+ * One scene-wide ceiling for every expedition resource. Gold, Food, and Wood
+ * must share this allocator rather than each adding their own model, wagon,
+ * or mixer ceiling to the same realm scene.
  */
 export const HEGEMONY_EXPEDITION_SCENE_LIMITS = Object.freeze({
   maximumRenderedNodes: Object.freeze({
@@ -34,6 +35,19 @@ export const HEGEMONY_WHEAT_FARM_RENDER_LIMITS = Object.freeze({
   } as const)
 });
 
+/**
+ * Logging Camps have a broad rendered envelope and a richer High mesh than
+ * the original Gold Mine. Its independent cap protects a Wood-only scene
+ * before the shared allocator makes a cross-resource tradeoff.
+ */
+export const HEGEMONY_LOGGING_CAMP_RENDER_LIMITS = Object.freeze({
+  maximumRenderedNodes: Object.freeze({
+    high: 18,
+    balanced: 24,
+    reduced: 12
+  } as const)
+});
+
 export type RealmExpeditionLayerBudget = Readonly<{
   maximumRenderedNodes: number;
   maximumRenderedWagons: number;
@@ -46,9 +60,17 @@ export type RealmExpeditionLayerBudget = Readonly<{
 export type RealmExpeditionSceneBudget = Readonly<{
   gold: RealmExpeditionLayerBudget;
   food: RealmExpeditionLayerBudget;
+  wood: RealmExpeditionLayerBudget;
 }>;
 
-type ResourceCounts = Readonly<{ gold: number; food: number }>;
+type ExpeditionResource = 'gold' | 'food' | 'wood';
+type ResourceCounts = Readonly<Record<ExpeditionResource, number>>;
+type ResourceBudget = Readonly<Record<ExpeditionResource, number>>;
+const EXPEDITION_RESOURCES: readonly ExpeditionResource[] = Object.freeze([
+  'gold',
+  'food',
+  'wood'
+]);
 
 function asCount(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
@@ -60,37 +82,41 @@ function asCount(value: number) {
  * returned caps sum to no more than the same global ceiling, even before a
  * layer resolves its GLBs or discovers an occupation.
  */
-function splitBudget(total: number, counts: ResourceCounts): Readonly<{ gold: number; food: number }> {
-  const goldCount = asCount(counts.gold);
-  const foodCount = asCount(counts.food);
-  const active = (goldCount > 0 ? 1 : 0) + (foodCount > 0 ? 1 : 0);
-  if (total <= 0 || active === 0) return Object.freeze({ gold: 0, food: 0 });
-  if (active === 1) {
-    return Object.freeze({
-      gold: goldCount > 0 ? Math.min(total, goldCount) : 0,
-      food: foodCount > 0 ? Math.min(total, foodCount) : 0
-    });
+function splitBudget(total: number, counts: ResourceCounts): ResourceBudget {
+  const boundedTotal = asCount(total);
+  const normalized = Object.freeze({
+    gold: asCount(counts.gold),
+    food: asCount(counts.food),
+    wood: asCount(counts.wood)
+  });
+  const active = EXPEDITION_RESOURCES.filter((resource) => normalized[resource] > 0);
+  const allocations: Record<ExpeditionResource, number> = { gold: 0, food: 0, wood: 0 };
+  if (boundedTotal <= 0 || active.length === 0) return Object.freeze(allocations);
+  if (active.length === 1) {
+    const resource = active[0]!;
+    allocations[resource] = Math.min(boundedTotal, normalized[resource]);
+    return Object.freeze(allocations);
   }
 
-  const totalCount = goldCount + foodCount;
-  const goldExact = (total * goldCount) / totalCount;
-  const foodExact = (total * foodCount) / totalCount;
-  let gold = Math.min(goldCount, Math.floor(goldExact));
-  let food = Math.min(foodCount, Math.floor(foodExact));
-  let remaining = total - gold - food;
-  const priority: Array<'gold' | 'food'> = goldExact - gold >= foodExact - food
-    ? ['gold', 'food']
-    : ['food', 'gold'];
+  const totalCount = active.reduce((sum, resource) => sum + normalized[resource], 0);
+  const exact = new Map<ExpeditionResource, number>();
+  for (const resource of active) {
+    const value = (boundedTotal * normalized[resource]) / totalCount;
+    exact.set(resource, value);
+    allocations[resource] = Math.min(normalized[resource], Math.floor(value));
+  }
+  let remaining = boundedTotal - active.reduce((sum, resource) => sum + allocations[resource], 0);
+  const priority = [...active].sort((left, right) => (
+    (exact.get(right)! - allocations[right]) - (exact.get(left)! - allocations[left])
+    || EXPEDITION_RESOURCES.indexOf(left) - EXPEDITION_RESOURCES.indexOf(right)
+  ));
   while (remaining > 0) {
-    const next = priority.find((resource) => (
-      resource === 'gold' ? gold < goldCount : food < foodCount
-    ));
+    const next = priority.find((resource) => allocations[resource] < normalized[resource]);
     if (!next) break;
-    if (next === 'gold') gold += 1;
-    else food += 1;
+    allocations[next] += 1;
     remaining -= 1;
   }
-  return Object.freeze({ gold, food });
+  return Object.freeze(allocations);
 }
 
 function layerBudget(
@@ -113,31 +139,25 @@ export function createRealmExpeditionSceneBudget(input: Readonly<{
   quality: RealmQuality;
   goldNodeCount: number;
   foodNodeCount: number;
+  woodNodeCount: number;
   mobile: boolean;
 }>): RealmExpeditionSceneBudget {
   const counts = Object.freeze({
     gold: asCount(input.goldNodeCount),
-    food: asCount(input.foodNodeCount)
+    food: asCount(input.foodNodeCount),
+    wood: asCount(input.woodNodeCount)
   });
   const maximumSceneNodes = HEGEMONY_EXPEDITION_SCENE_LIMITS.maximumRenderedNodes[input.quality];
   const maximumFoodNodes = HEGEMONY_WHEAT_FARM_RENDER_LIMITS.maximumRenderedNodes[input.quality];
-  const provisionalNodeCaps = splitBudget(
+  const maximumWoodNodes = HEGEMONY_LOGGING_CAMP_RENDER_LIMITS.maximumRenderedNodes[input.quality];
+  const nodeCaps = splitBudget(
     maximumSceneNodes,
     Object.freeze({
       gold: counts.gold,
-      food: Math.min(counts.food, maximumFoodNodes)
+      food: Math.min(counts.food, maximumFoodNodes),
+      wood: Math.min(counts.wood, maximumWoodNodes)
     })
   );
-  // Keep this explicit even though splitBudget receives the Food capacity:
-  // a future allocator change cannot accidentally reintroduce a 72-Farm High
-  // scene. Any recovered Food capacity is offered only to existing Gold rows.
-  const foodNodes = Math.min(provisionalNodeCaps.food, maximumFoodNodes);
-  const goldNodes = Math.min(
-    counts.gold,
-    provisionalNodeCaps.gold + Math.max(0, provisionalNodeCaps.food - foodNodes),
-    maximumSceneNodes - foodNodes
-  );
-  const nodeCaps = Object.freeze({ gold: goldNodes, food: foodNodes });
   const wagonCaps = splitBudget(
     HEGEMONY_EXPEDITION_SCENE_LIMITS.maximumRenderedWagons[input.quality],
     counts
@@ -159,6 +179,12 @@ export function createRealmExpeditionSceneBudget(input: Readonly<{
       wagonCaps.food,
       detailedAnimationCaps.food,
       animationCaps.food
+    ),
+    wood: layerBudget(
+      nodeCaps.wood,
+      wagonCaps.wood,
+      detailedAnimationCaps.wood,
+      animationCaps.wood
     )
   });
 }

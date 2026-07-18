@@ -4,6 +4,39 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
+## 0.3.11 — candidate (18 July 2026)
+
+- Adds a bounded Tier-I Logging Camp expedition candidate to the reviewed
+  10,000-cell Genesis 001 world. Exactly 96 deterministic, passable forest
+  resource-capable sites are placement-digest pinned; the catalog preserves
+  clearance from Gold Mines, Wheat Farms, the shared forest layout, keeps, and
+  protected travel corridors.
+- Lets an admitted founder dispatch one server-authorized Wood wagon to an
+  available Camp. The server derives the route, timing, current castle,
+  one-Wood-per-completed-minute rate, 30-day gathering window, return, and
+  idempotency; browser time, movement, and model geometry never settle Wood.
+- Keeps Gold, Food, and Wood loops independent: a castle may operate one wagon
+  of each kind at once, while each resource has its own one-wagon limit,
+  private expedition/idempotency state, public identity-minimized occupation
+  lease, and replay-safe schedule lifecycle.
+- Preserves the full Food and Wood awards with paired server-side reservations.
+  Every passive settlement path, manual collection, and concurrent lifecycle
+  schedule caps each field below its uncredited award, so a delayed operation
+  cannot consume, truncate, duplicate, or strand either reward.
+- Adds public Wood-site and identity-minimized occupation projections only;
+  FIDs, balances, request keys, routes, private expeditions, and accrued output
+  stay caller-private.
+- Adds exact High, Balanced, and Compact Logging Camp runtime assets with
+  narrow provenance, strict integrity checks, bounded shared node rendering,
+  and marker fallback. The models are visual-only and do not determine world
+  placement or gameplay authority.
+- Alpha 0.3.11 is **not deployed**. Alpha 0.3.6 remains the verified public
+  release. Production requires separately approved additive publication,
+  resource, Gold-site, forest-layout, Food-site, and Wood-site setup,
+  aggregate verification, and exact Pages deployment.
+
+See [Alpha 0.3.11 candidate notes](docs/releases/alpha-0.3.11.md).
+
 ## 0.3.10 — candidate (18 July 2026)
 
 - Adds a bounded Tier-I Wheat Farm expedition candidate to the reviewed

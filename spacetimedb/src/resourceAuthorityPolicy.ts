@@ -182,13 +182,14 @@ function nextBalance(
   rate: bigint,
   completedQuanta: bigint,
   balanceCap = REALM_RESOURCE_BALANCE_CAP,
+  reservationErrorCode = 'RESOURCE_BALANCE_CAP_INVALID',
 ): Readonly<{ balance: bigint; delta: bigint }> {
   if (
     !isU64(balanceCap)
     || balanceCap > REALM_RESOURCE_BALANCE_CAP
     || current > balanceCap
   ) {
-    throw new ResourceAuthorityPolicyError('RESOURCE_FOOD_RESERVATION_BREACH');
+    throw new ResourceAuthorityPolicyError(reservationErrorCode);
   }
   const remainingCapacity = balanceCap - current;
   const potentialDelta = checkedU64Product(rate, completedQuanta);
@@ -226,9 +227,9 @@ export function createInitialRealmResourceState(
 
 /**
  * Project passive resources without applying the inventory cap. This is not a
- * credit path and writes nothing; it exists so a long-running Food expedition
- * can reserve capacity for both its own 30-day award and every passive Food
- * quantum through the immutable gathering deadline.
+ * credit path and writes nothing; it exists so long-running Food and Wood
+ * expeditions can reserve capacity for their own thirty-day awards and every
+ * passive quantum through each immutable gathering deadline.
  */
 export function planRawResourceSettlement(
   state: ResourceAccountState,
@@ -287,9 +288,9 @@ export function planRawResourceSettlement(
  * Incomplete time remains behind the returned cursor. Completed time always
  * advances the cursor, including while every balance is already capped.
  */
-function settleRealmResourcesWithFoodCap(
+function settleRealmResourcesWithExpeditionCaps(
   input: RealmResourceSettlementInput,
-  foodBalanceCap: bigint,
+  caps: Readonly<{ food: bigint; wood: bigint }>,
 ): RealmResourceSettlementPlan {
   const { account, observedAtMicros } = input;
   if (account.policyVersion !== REALM_RESOURCE_POLICY_VERSION) {
@@ -305,12 +306,11 @@ function settleRealmResourcesWithFoodCap(
     throw new ResourceAuthorityPolicyError('RESOURCE_REVISION_EXHAUSTED');
   }
   assertBalancesAreCanonical(account);
-  if (
-    !isU64(foodBalanceCap)
-    || foodBalanceCap > REALM_RESOURCE_BALANCE_CAP
-    || account.food > foodBalanceCap
-  ) {
+  if (!isU64(caps.food) || caps.food > REALM_RESOURCE_BALANCE_CAP || account.food > caps.food) {
     throw new ResourceAuthorityPolicyError('RESOURCE_FOOD_RESERVATION_BREACH');
+  }
+  if (!isU64(caps.wood) || caps.wood > REALM_RESOURCE_BALANCE_CAP || account.wood > caps.wood) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_WOOD_RESERVATION_BREACH');
   }
   const rates = terrainRates(input.terrainKind);
 
@@ -341,8 +341,20 @@ function settleRealmResourcesWithFoodCap(
     });
   }
 
-  const food = nextBalance(account.food, rates.food, completedQuanta, foodBalanceCap);
-  const wood = nextBalance(account.wood, rates.wood, completedQuanta);
+  const food = nextBalance(
+    account.food,
+    rates.food,
+    completedQuanta,
+    caps.food,
+    'RESOURCE_FOOD_RESERVATION_BREACH',
+  );
+  const wood = nextBalance(
+    account.wood,
+    rates.wood,
+    completedQuanta,
+    caps.wood,
+    'RESOURCE_WOOD_RESERVATION_BREACH',
+  );
   const stone = nextBalance(account.stone, rates.stone, completedQuanta);
   const gold = nextBalance(account.gold, rates.gold, completedQuanta);
 
@@ -375,7 +387,10 @@ function settleRealmResourcesWithFoodCap(
 export function settleRealmResources(
   input: RealmResourceSettlementInput,
 ): RealmResourceSettlementPlan {
-  return settleRealmResourcesWithFoodCap(input, REALM_RESOURCE_BALANCE_CAP);
+  return settleRealmResourcesWithExpeditionCaps(input, {
+    food: REALM_RESOURCE_BALANCE_CAP,
+    wood: REALM_RESOURCE_BALANCE_CAP,
+  });
 }
 
 /** Reducer-friendly positional form of {@link settleRealmResources}. */
@@ -388,11 +403,36 @@ export function planResourceSettlement(
 }
 
 /**
- * Settle passive production while preserving an uncredited Food expedition
- * award. `reservedFood` is the remaining exact award, not a client-provided
- * balance: callers derive it from the private active expedition row. Passive
- * Food may reach at most `RESOURCE_BALANCE_CAP - reservedFood`, leaving room
- * for the award even when a lifecycle delivery is delayed.
+ * Resource-specific reservation values are the exact uncredited awards from
+ * private authority rows, never browser input. Passive Food and Wood each
+ * stop below their own remaining award so either lifecycle can settle late
+ * without overflowing its account field.
+ */
+export function planResourceSettlementWithExpeditionReservations(
+  state: ResourceAccountState,
+  terrainKind: string,
+  observedAtMicros: bigint,
+  reservations: Readonly<{ food: bigint; wood: bigint }>,
+): ResourceSettlementPlan {
+  if (!isU64(reservations.food) || reservations.food > REALM_RESOURCE_BALANCE_CAP) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_FOOD_RESERVATION_INVALID');
+  }
+  if (!isU64(reservations.wood) || reservations.wood > REALM_RESOURCE_BALANCE_CAP) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_WOOD_RESERVATION_INVALID');
+  }
+  return settleRealmResourcesWithExpeditionCaps(
+    { account: state, terrainKind, observedAtMicros },
+    {
+      food: REALM_RESOURCE_BALANCE_CAP - reservations.food,
+      wood: REALM_RESOURCE_BALANCE_CAP - reservations.wood,
+    },
+  );
+}
+
+/**
+ * Compatibility wrapper for the v7 Food-only authority surface. New
+ * authority callers use the paired reservation API above so an active Wood
+ * expedition is preserved as well.
  */
 export function planResourceSettlementWithFoodReservation(
   state: ResourceAccountState,
@@ -400,11 +440,10 @@ export function planResourceSettlementWithFoodReservation(
   observedAtMicros: bigint,
   reservedFood: bigint,
 ): ResourceSettlementPlan {
-  if (!isU64(reservedFood) || reservedFood > REALM_RESOURCE_BALANCE_CAP) {
-    throw new ResourceAuthorityPolicyError('RESOURCE_FOOD_RESERVATION_INVALID');
-  }
-  return settleRealmResourcesWithFoodCap(
-    { account: state, terrainKind, observedAtMicros },
-    REALM_RESOURCE_BALANCE_CAP - reservedFood,
+  return planResourceSettlementWithExpeditionReservations(
+    state,
+    terrainKind,
+    observedAtMicros,
+    { food: reservedFood, wood: 0n },
   );
 }

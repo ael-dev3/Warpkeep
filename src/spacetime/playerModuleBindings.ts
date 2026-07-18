@@ -4,7 +4,7 @@
  *
  * The complete generated bindings remain the canonical schema artifact under
  * `module_bindings/` and are still used by server-side operators. The player
- * only needs the public realm tables plus five read procedures and seven
+ * only needs the public realm tables plus six read procedures and nine
  * self-service reducers. Keeping that runtime projection separate prevents
  * private/admin and machine-bound QA procedure names from becoming part of
  * the public Vite graph while preserving generated-binding parity unchanged.
@@ -34,15 +34,18 @@ import AcceptAlphaTermsV1Reducer from './module_bindings/accept_alpha_terms_v_1_
 import BootstrapPlayerV2Reducer from './module_bindings/bootstrap_player_v_2_reducer'
 import CollectFoodExpeditionV1Reducer from './module_bindings/collect_food_expedition_v_1_reducer'
 import CollectGoldExpeditionV1Reducer from './module_bindings/collect_gold_expedition_v_1_reducer'
+import CollectWoodExpeditionV1Reducer from './module_bindings/collect_wood_expedition_v_1_reducer'
 import CollectResourcesV1Reducer from './module_bindings/collect_resources_v_1_reducer'
 import CastleRow from './module_bindings/castle_table'
 import * as GetAlphaBackendInfoProcedure from './module_bindings/get_alpha_backend_info_procedure'
 import * as GetMyAdmissionStatusV2Procedure from './module_bindings/get_my_admission_status_v_2_procedure'
 import * as GetMyFoodExpeditionStateV1Procedure from './module_bindings/get_my_food_expedition_state_v_1_procedure'
 import * as GetMyGoldExpeditionStateV1Procedure from './module_bindings/get_my_gold_expedition_state_v_1_procedure'
+import * as GetMyWoodExpeditionStateV1Procedure from './module_bindings/get_my_wood_expedition_state_v_1_procedure'
 import * as GetMyResourceStateV1Procedure from './module_bindings/get_my_resource_state_v_1_procedure'
 import DispatchFoodExpeditionV1Reducer from './module_bindings/dispatch_food_expedition_v_1_reducer'
 import DispatchGoldExpeditionV1Reducer from './module_bindings/dispatch_gold_expedition_v_1_reducer'
+import DispatchWoodExpeditionV1Reducer from './module_bindings/dispatch_wood_expedition_v_1_reducer'
 import FoodNodeOccupationV1Row from './module_bindings/food_node_occupation_v_1_table'
 import FoodSiteV1Row from './module_bindings/food_site_v_1_table'
 import GoldNodeOccupationV1Row from './module_bindings/gold_node_occupation_v_1_table'
@@ -54,6 +57,8 @@ import RealmProfileV1Row from './module_bindings/realm_profile_v_1_table'
 import RealmV1Row from './module_bindings/realm_v_1_table'
 import WorldTileMetaV1Row from './module_bindings/world_tile_meta_v_1_table'
 import WorldTileRow from './module_bindings/world_tile_table'
+import WoodNodeOccupationV1Row from './module_bindings/wood_node_occupation_v_1_table'
+import WoodSiteV1Row from './module_bindings/wood_site_v_1_table'
 
 const tablesSchema = __schema({
   castle: __table({
@@ -191,6 +196,34 @@ const tablesSchema = __schema({
       { name: 'realm_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
     ],
   }, RealmV1Row),
+  // The Wood catalog follows the same narrow boundary as Gold and Food:
+  // public site geometry plus occupation timing, never the private ledger,
+  // idempotency receipts, or scheduler surface.
+  woodNodeOccupationV1: __table({
+    name: 'wood_node_occupation_v1',
+    indexes: [
+      { accessor: 'byOriginCastle', name: 'wood_node_occupation_v1_origin_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'originCastleId',
+      ] },
+      { accessor: 'siteId', name: 'wood_node_occupation_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'wood_node_occupation_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, WoodNodeOccupationV1Row),
+  woodSiteV1: __table({
+    name: 'wood_site_v1',
+    indexes: [
+      { accessor: 'siteId', name: 'wood_site_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'wood_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, WoodSiteV1Row),
   worldTile: __table({
     name: 'world_tile',
     indexes: [
@@ -227,9 +260,11 @@ const reducersSchema = __reducers(
   __reducerSchema('bootstrap_player_v2', BootstrapPlayerV2Reducer),
   __reducerSchema('collect_food_expedition_v1', CollectFoodExpeditionV1Reducer),
   __reducerSchema('collect_gold_expedition_v1', CollectGoldExpeditionV1Reducer),
+  __reducerSchema('collect_wood_expedition_v1', CollectWoodExpeditionV1Reducer),
   __reducerSchema('collect_resources_v1', CollectResourcesV1Reducer),
   __reducerSchema('dispatch_food_expedition_v1', DispatchFoodExpeditionV1Reducer),
   __reducerSchema('dispatch_gold_expedition_v1', DispatchGoldExpeditionV1Reducer),
+  __reducerSchema('dispatch_wood_expedition_v1', DispatchWoodExpeditionV1Reducer),
 )
 
 const proceduresSchema = __procedures(
@@ -252,6 +287,11 @@ const proceduresSchema = __procedures(
     'get_my_gold_expedition_state_v1',
     GetMyGoldExpeditionStateV1Procedure.params,
     GetMyGoldExpeditionStateV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_wood_expedition_state_v1',
+    GetMyWoodExpeditionStateV1Procedure.params,
+    GetMyWoodExpeditionStateV1Procedure.returnType,
   ),
   __procedureSchema(
     'get_my_resource_state_v1',

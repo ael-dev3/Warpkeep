@@ -12,14 +12,17 @@ import {
   connectWarpkeep,
   bootstrapWarpkeepPlayer,
   collectWarpkeepGoldExpedition,
+  collectWarpkeepWoodExpedition,
   collectWarpkeepResources,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
   dispatchWarpkeepGoldExpedition,
+  dispatchWarpkeepWoodExpedition,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepGoldExpeditionState,
+  readWarpkeepWoodExpeditionState,
   readWarpkeepResourceState,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
@@ -402,6 +405,41 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(goldSubscription.unsubscribe).toHaveBeenCalledTimes(1);
   });
 
+  it('subscribes only to public Wood site and occupancy tables, never the scheduler', () => {
+    const coreSubscription = { unsubscribe: vi.fn() };
+    const woodSubscription = { unsubscribe: vi.fn() };
+    const firstBuilder = {
+      onApplied: vi.fn(),
+      onError: vi.fn(),
+      subscribe: vi.fn(() => coreSubscription)
+    };
+    const secondBuilder = {
+      onApplied: vi.fn(),
+      onError: vi.fn(),
+      subscribe: vi.fn(() => woodSubscription)
+    };
+    firstBuilder.onApplied.mockReturnValue(firstBuilder);
+    firstBuilder.onError.mockReturnValue(firstBuilder);
+    secondBuilder.onApplied.mockReturnValue(secondBuilder);
+    secondBuilder.onError.mockReturnValue(secondBuilder);
+    const connection = {
+      db: { woodSiteV1: {}, woodNodeOccupationV1: {} },
+      subscriptionBuilder: vi.fn()
+        .mockReturnValueOnce(firstBuilder)
+        .mockReturnValueOnce(secondBuilder)
+    } as unknown as WarpkeepConnection;
+
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+
+    expect(secondBuilder.subscribe).toHaveBeenCalledWith([
+      tables.woodSiteV1,
+      tables.woodNodeOccupationV1
+    ]);
+    composite.unsubscribe();
+    expect(coreSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(woodSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
   it('makes the paired shared forest visible only after its subscription applies', () => {
     const candidate = createCanonicalGenesisCandidate();
     const { connection, core, pairedForest } = forestSubscriptionConnection(candidate);
@@ -603,6 +641,76 @@ describe('Warpkeep authenticated connection boundary', () => {
     await expect(dispatchWarpkeepGoldExpedition(connection, 'bad site', 'not-valid'))
       .rejects.toThrow('Gold expedition is unavailable.');
     expect(connection.reducers.dispatchGoldExpeditionV1).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Wood dispatch and settlement caller-bound, then reads exact private projections', async () => {
+    const resourceProjection = {
+      fid: BigInt(CANONICAL_TEST_FID),
+      food: 200n,
+      wood: 150n,
+      stone: 100n,
+      gold: 25n,
+      pendingFood: 8n,
+      pendingWood: 5n,
+      pendingStone: 3n,
+      pendingGold: 1n,
+      marksBalanceMicros: 12_500_000n,
+      observedAtMicros: 1_800_000_600_000_000n,
+      settledThroughMicros: 1_800_000_000_000_000n,
+      nextCollectAtMicros: 1_800_001_200_000_000n,
+      revision: 4n,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      terrainKind: 'lowland'
+    } as const;
+    const woodProjection = {
+      active: false,
+      expeditionId: undefined,
+      siteId: undefined,
+      originCastleId: undefined,
+      phase: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnsAtMicros: undefined,
+      accruedWood: 0n,
+      pendingWood: 0n,
+      creditedWood: 0n,
+      rateWoodPerMinute: 1n,
+      gatheringDurationMicros: 2_592_000_000_000n,
+      expeditionPolicyVersion: undefined
+    } as const;
+    const connection = {
+      procedures: {
+        getMyResourceStateV1: vi.fn(async () => resourceProjection),
+        getMyWoodExpeditionStateV1: vi.fn(async () => woodProjection)
+      },
+      reducers: {
+        dispatchWoodExpeditionV1: vi.fn(async () => undefined),
+        collectWoodExpeditionV1: vi.fn(async () => undefined)
+      }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepWoodExpeditionState(connection)).resolves
+      .toMatchObject({ active: false, pendingWood: 0n });
+    await expect(dispatchWarpkeepWoodExpedition(
+      connection,
+      'wood:genesis:001',
+      '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    )).resolves.toMatchObject({ active: false });
+    await expect(collectWarpkeepWoodExpedition(connection, CANONICAL_TEST_FID)).resolves
+      .toMatchObject({
+        resources: { fid: BigInt(CANONICAL_TEST_FID) },
+        woodExpedition: { active: false }
+      });
+    expect(connection.reducers.dispatchWoodExpeditionV1).toHaveBeenCalledWith({
+      siteId: 'wood:genesis:001',
+      idempotencyKey: '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    });
+    expect(connection.reducers.collectWoodExpeditionV1).toHaveBeenCalledWith({});
+    await expect(dispatchWarpkeepWoodExpedition(connection, 'bad site', 'not-valid'))
+      .rejects.toThrow('Wood expedition is unavailable.');
+    expect(connection.reducers.dispatchWoodExpeditionV1).toHaveBeenCalledTimes(1);
   });
 
   it('pins the browser and authoritative module to the same Terms version', () => {

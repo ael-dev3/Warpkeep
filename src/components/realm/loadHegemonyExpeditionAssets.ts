@@ -79,6 +79,30 @@ export const HEGEMONY_WHEAT_FARM_RUNTIME_ASSETS: HegemonyExpeditionRuntimeAssetF
     })
   });
 
+/**
+ * Digest-pinned public Logging Camp runtime family. Geometry is presentation
+ * only; the fixed Wood catalog, occupation, route, and settlement remain in
+ * separately validated Realm authority.
+ */
+export const HEGEMONY_LOGGING_CAMP_RUNTIME_ASSETS: HegemonyExpeditionRuntimeAssetFamily =
+  Object.freeze({
+    high: Object.freeze({
+      path: 'models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-high-a68c133a4a50654b.glb',
+      bytes: 689_328,
+      sha256: 'a68c133a4a50654bc611de2b66e6d0d42729aaf0b91b59b7d2b7749566826f70'
+    }),
+    balanced: Object.freeze({
+      path: 'models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-balanced-227046f89c4150ee.glb',
+      bytes: 460_656,
+      sha256: '227046f89c4150eec5b908cc75e162fa9ad489be123fc941714f9ad294b73593'
+    }),
+    compact: Object.freeze({
+      path: 'models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-compact-ecea536ae18ef3ef.glb',
+      bytes: 236_252,
+      sha256: 'ecea536ae18ef3ef5c6dc5eda158fa33d8e5d3a1e7848478c248a32efac1eccf'
+    })
+  });
+
 export const HEGEMONY_SUPPLY_WAGON_RUNTIME_ASSETS: HegemonyExpeditionRuntimeAssetFamily =
   Object.freeze({
     high: Object.freeze({

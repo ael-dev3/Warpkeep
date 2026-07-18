@@ -5,7 +5,7 @@ their approval boundaries forward to the current protocol-3 realm.
 
 For player-facing release claims, Alpha 0.3.6 remains the verified public
 release. The Alpha 0.3.2 backend coordinates recorded below are historical
-protocol-3 deployment evidence, not a claim that the checked-in Alpha 0.3.10
+protocol-3 deployment evidence, not a claim that the checked-in Alpha 0.3.11
 candidate has been published, seeded, or deployed.
 
 > **Alpha 0.3.2 is live on backend protocol 3.** The additive schema was
@@ -247,6 +247,12 @@ suffix. In particular, they do not prove that refs 27–31 are present, that the
 that the raw passive-Food reservation survived a delayed schedule. They must
 never be treated as a Food-site seed or deployment approval.
 
+They also do not attest the Alpha 0.3.11 Wood v8 suffix. They do not prove that
+refs 32–36 are present, that the 96-site Logging Camp policy/digest is
+installed, that a Wood occupation is valid, or that paired Food/Wood reservations
+survived a delayed lifecycle or concurrent settlement. They must never be
+treated as a Wood-site seed or deployment approval.
+
 The wrapper supplies the Hermes credential only in parent memory. The publisher
 passes it to the protected inspection child over stdin and forwards neither the
 secret nor the three expected counts in child arguments or environment. It
@@ -393,7 +399,8 @@ guarded operator deliberately refuses to invoke it when the read-only
 precondition already reports generation three. At this v4 preparation point,
 module publication, resource backfill, world expansion, and Pages deployment
 are four separate approval boundaries. The later Alpha 0.3.10 Gold-site setup is
-an additional, independent boundary.
+an additional, independent boundary; the later Alpha 0.3.11 Wood-site setup is
+another independent boundary.
 
 ### Prepared post-backfill resource readiness checkpoint (not approval)
 
@@ -486,9 +493,10 @@ server minute during its 30-day gathering phase. Food and Gold use separate
 per-castle wagon limits, so one of each may coexist, but neither the browser nor
 the delivered Wheat Farm GLBs own authority. Because Food also passively
 accrues, Food dispatch must preflight raw passive Food through the gathering
-deadline plus the full award. The remaining-award reservation must survive
-resource reads/collection, Food collection/expiry, and concurrent Gold expiry;
-late scheduler delivery may neither truncate nor duplicate Food.
+deadline plus the full award. The v8 candidate preserves that remaining Food
+award alongside the Wood award through one paired reservation across resource
+reads/collection, either resource's collection/expiry, and concurrent Gold
+expiry; late scheduler delivery may neither truncate nor duplicate Food.
 
 This runbook deliberately supplies no v7 publication or Food-site seed command.
 Before any owner considers a production operation, a separately reviewed,
@@ -500,6 +508,46 @@ verification. A Wheat Farm asset delivery, local migration proof, Gold/forest
 setup, review, merge, or successful v4 checkpoint authorizes none of them. Do
 not change DNS, remove the custom domain, or alter Pages configuration as part
 of this candidate without separate explicit authority.
+
+### Prepared Alpha 0.3.11 Logging Camp candidate checkpoint (not approved)
+
+Alpha 0.3.11 adds the append-only v8 Wood suffix after Gold, forest, and Food:
+public `wood_site_v1` and identity-minimized `wood_node_occupation_v1` at refs
+32–33; private FID-bound `wood_expedition_v1` and retry receipt at refs 34–35;
+and public-safe, internal-scheduler-only `wood_expedition_schedule_v_1` at ref
+36. Its reviewed `genesis-001-tier1-wood-sites-v1` catalog fixes exactly 96
+Tier-I Logging Camps with digest
+`c1b069db716a32363dc7528d544bf7e5a0c97afa0c8e3df5c712607d18da02c5`.
+The policy accepts only passable Forest resource-capable cells and excludes
+Gold/Food catalogs, forest clearance, castle clearance, and protected-corridor
+clearance.
+
+The server derives owner, castle, route, timestamps, capacity, rate, phase, and
+every lifecycle transition. A Wood wagon credits exactly one Wood per completed
+server minute during its 30-day gathering phase. Wood, Food, and Gold have
+separate per-castle wagon limits, so one of each may coexist, but neither the
+browser nor delivered Logging Camp GLBs own authority. Wood dispatch preflights
+raw passive Wood through its gathering deadline plus the full award. The paired
+Food/Wood reservation must survive resource reads/collection, Food or Wood
+collection/expiry, and concurrent Gold expiry; late scheduler delivery may
+neither truncate nor duplicate either resource award.
+
+This runbook deliberately supplies no v8 publication or Wood-site seed command.
+Before any owner considers a production operation, a separately reviewed,
+identity-safe read-only aggregate contract must cover refs 32–36, the exact
+96-site policy/version/digest, public occupation, private expedition/retry state,
+and paired Food/Wood reservation invariants. It must require independent explicit
+approval for module publication, Wood-site setup, Pages deployment, and live
+verification. A Logging Camp asset delivery, local migration proof, Gold/Food/
+forest setup, review, merge, or successful v4 checkpoint authorizes none of
+them. Do not change DNS, remove the custom domain, or alter Pages configuration
+as part of this candidate without separate explicit authority.
+
+The loopback additive-migration proof is limited to v8 schema/table order,
+public/private shapes, predecessor-row preservation, and rollback safety. It
+does not seed, dispatch, or settle Food/Wood expeditions. Focused authority,
+policy, and reducer-contract tests—not that migration proof—cover paired
+Food/Wood reservations and concurrent Gold settlement.
 
 `admin_get_fid_auth_epoch` remains admin-only rollback compatibility. Do not
 configure new v2 issuance or refresh to use it.

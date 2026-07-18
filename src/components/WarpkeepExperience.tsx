@@ -1112,6 +1112,13 @@ export function WarpkeepExperience() {
                 onClaimFoodExpedition={backend.state.foodExpedition === undefined
                   ? undefined
                   : backend.claimFoodExpedition}
+                woodExpedition={backend.state.woodExpedition}
+                onDispatchWoodExpedition={backend.state.woodExpedition === undefined
+                  ? undefined
+                  : backend.dispatchWoodExpedition}
+                onClaimWoodExpedition={backend.state.woodExpedition === undefined
+                  ? undefined
+                  : backend.claimWoodExpedition}
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}

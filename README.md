@@ -20,9 +20,9 @@ collection of disconnected screens. The near-term path is deliberate:
 
 The verified public alpha focuses on admission-gated founding, exploration,
 castle inspection, and the visual language of the Hegemony Lowlands. The
-undeployed 0.3.10 source candidate adds private Food, Wood, Stone, and Gold
+undeployed 0.3.11 source candidate adds private Food, Wood, Stone, and Gold
 accounts, deterministic terrain collection, a 10,000-cell world with 2,000
-resource-capable anchors, and bounded Gold Mine and Wheat Farm wagon
+resource-capable anchors, and bounded Gold Mine, Wheat Farm, and Logging Camp wagon
 expeditions. Construction,
 upgrades, units, combat, alliances, chat, seasons, resource transfers, Marks
 spending, and rewards are not playable systems today. Alpha participation
@@ -48,24 +48,25 @@ release truth lives in the [changelog](CHANGELOG.md),
 [release notes](docs/releases/), and exact-version in-game patch chronicle—not
 in this overview.
 
-The checked-in package is Alpha 0.3.10, an **undeployed candidate**. It retains
+The checked-in package is Alpha 0.3.11, an **undeployed candidate**. It retains
 the pending private Food, Wood, Stone, and Gold authority and expands the
 deterministic Genesis world definition to exactly 10,000 persistent cells. The
 existing 1,261 cells and all 100 close-outward founder slots remain exact, while
-8,739 outer cells add placement space. It stages a 24-site Genesis Gold Mine
-pilot and a 96-site Tier-I Wheat Farm pilot. A founder may operate one
-server-authorized Food wagon and one Gold wagon concurrently; each gathers one
+8,739 outer cells add placement space. It stages 24 Genesis Gold Mines,
+96 Tier-I Wheat Farms, and 96 Tier-I Logging Camps. A founder may operate one
+server-authorized Gold, Food, and Wood wagon concurrently; each gathers its own
 resource per completed minute for 30 days. Public occupancy exposes only the
 site, timeline, and origin castle, while identity, routes, requests, accrual,
-and balances remain private and server-controlled. Community Marks remains
+and balances remain private and server-controlled. Food and Wood capacity
+reserves stay independent during passive settlement. Community Marks remains
 separate with no conversion or spending path. A public, server-seeded layout
 gives every player the same 210 decorative trees, groves, and clearings in the
 preserved Genesis founding Lowlands; graphics quality changes only the selected
 model LOD. Forests do not change terrain, movement, resources, or ownership.
 Production publication, owner-approved world, resource, Gold-site,
-forest-layout, and Food-site setup, aggregate verification, and exact Pages
-deployment remain explicitly approval-gated. See the [candidate release
-notes](docs/releases/alpha-0.3.10.md).
+forest-layout, Food-site, and Wood-site setup, aggregate verification, and
+exact Pages deployment remain explicitly approval-gated. See the [candidate
+release notes](docs/releases/alpha-0.3.11.md).
 
 ## Architecture
 
@@ -75,19 +76,20 @@ bridge; SpacetimeDB owns the shared Realm records. WebGL is an enhancement, not
 an authority boundary: the product retains keyboard, touch, reduced-motion, and
 non-WebGL paths.
 
-Live Genesis 001 currently retains 1,261 authoritative cells. The 0.3.10
+Live Genesis 001 currently retains 1,261 authoritative cells. The 0.3.11
 candidate defines exactly 10,000 persistent cells: a complete radius-57 hex
 disc plus 81 cells arranged as six balanced, contiguous side-centred arcs on
 ring 58. It preserves the 100 permanent founder slots and their close founding
 district. Production admission remains deliberately closed except for
 explicitly approved founders.
 
-In the 0.3.10 candidate, each resource account and expedition remain private to
+In the 0.3.11 candidate, each resource account and expedition remain private to
 the authenticated caller. Peer balances never enter the public Realm
-subscription; public Gold- and Food-site occupancy exposes only the site, phase,
-timeline, and originating castle. The browser cannot supply the FID, castle, terrain,
-route, rate, balance, or clock used for settlement. Invalid or unavailable
-resource authority withholds the Realm instead of falling back to browser state.
+subscription; public Gold-, Food-, and Wood-site occupancy exposes only the
+site, phase, timeline, and originating castle. The browser cannot supply the
+FID, castle, terrain, route, rate, balance, or clock used for settlement.
+Invalid or unavailable resource authority withholds the Realm instead of
+falling back to browser state.
 
 ## Run locally
 

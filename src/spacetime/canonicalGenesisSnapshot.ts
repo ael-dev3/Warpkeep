@@ -437,6 +437,16 @@ export function validateCanonicalGenesisSnapshot(
   const foodNodeOccupations = foodSites !== undefined
     ? freezeRows(candidate.foodNodeOccupations!)
     : undefined;
+  // Wood is likewise independently additive. Keep only paired public tables
+  // and let the strict Wood decoder fail closed without revoking Food, Gold,
+  // forest presentation, or the canonical Realm itself.
+  const woodSites = Array.isArray(candidate.woodSites)
+    && Array.isArray(candidate.woodNodeOccupations)
+    ? freezeRows(candidate.woodSites)
+    : undefined;
+  const woodNodeOccupations = woodSites !== undefined
+    ? freezeRows(candidate.woodNodeOccupations!)
+    : undefined;
   // The shared forest is another additive presentation pair. Keep each
   // field's presence intact for the browser-safe layout policy to verify. A
   // v6-but-unseeded `{ forestTrees: [] }`, a one-sided table, or malformed
@@ -467,6 +477,8 @@ export function validateCanonicalGenesisSnapshot(
     ...(goldNodeOccupations === undefined ? {} : { goldNodeOccupations }),
     ...(foodSites === undefined ? {} : { foodSites }),
     ...(foodNodeOccupations === undefined ? {} : { foodNodeOccupations }),
+    ...(woodSites === undefined ? {} : { woodSites }),
+    ...(woodNodeOccupations === undefined ? {} : { woodNodeOccupations }),
     ...(forestLayout === undefined ? {} : { forestLayout }),
     ...(forestTrees === undefined ? {} : { forestTrees }),
     ownCastle: frozenOwnCastle

@@ -2,6 +2,7 @@ import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes'
 import type { ReadyRealmResourcePresentation } from '../components/realm/realmResourcePresentation';
 import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
 import type { ReadyFoodExpeditionPresentation } from '../components/realm/realmFoodExpeditionPresentation';
+import type { ReadyWoodExpeditionPresentation } from '../components/realm/realmWoodExpeditionPresentation';
 
 export type WarpkeepAdmissionStatus =
   | 'not_admitted'
@@ -137,6 +138,26 @@ export type WarpkeepFoodNodeOccupation = Readonly<{
   returnsAtMicros: bigint;
 }>;
 
+/** Public v8 Wood-site projection. It carries no ownership or economy data. */
+export type WarpkeepWoodSite = Readonly<{
+  siteId: string;
+  q: number;
+  r: number;
+  tier: number;
+  active: boolean;
+}>;
+
+/** Public timing/occupancy only; Wood accrual remains caller-private. */
+export type WarpkeepWoodNodeOccupation = Readonly<{
+  siteId: string;
+  originCastleId: number;
+  phase: 'outbound' | 'gathering' | 'returning';
+  startedAtMicros: bigint;
+  arrivesAtMicros: bigint;
+  gatheringEndsAtMicros: bigint;
+  returnsAtMicros: bigint;
+}>;
+
 /**
  * Public, immutable realm-wide forest layout metadata. This is visual state
  * only: server-side seeding authority and all administrative reducers remain
@@ -194,6 +215,10 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   foodSites?: readonly WarpkeepFoodSite[];
   /** Omitted with `foodSites`; absent/invalid data renders no Food nodes. */
   foodNodeOccupations?: readonly WarpkeepFoodNodeOccupation[];
+  /** Omitted while the additive public Wood projection is unavailable. */
+  woodSites?: readonly WarpkeepWoodSite[];
+  /** Omitted with `woodSites`; absent/invalid data renders no Wood nodes. */
+  woodNodeOccupations?: readonly WarpkeepWoodNodeOccupation[];
   /**
    * Additive public forest metadata. The connection publishes the pair only
    * after one atomic subscription applies; a one-sided test/malformed value
@@ -230,6 +255,8 @@ export type WarpkeepBackendState = Readonly<{
   goldExpedition?: ReadyGoldExpeditionPresentation;
   /** Caller-only, exact procedure projection for the active Food expedition. */
   foodExpedition?: ReadyFoodExpeditionPresentation;
+  /** Caller-only, exact procedure projection for the active Wood expedition. */
+  woodExpedition?: ReadyWoodExpeditionPresentation;
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({

@@ -17,6 +17,8 @@ const PLAYER_TABLE_KEYS = [
   'realmForestLayoutV1',
   'realmProfileV1',
   'realmV1',
+  'woodNodeOccupationV1',
+  'woodSiteV1',
   'worldTile',
   'worldTileMetaV1',
 ] as const
@@ -57,19 +59,27 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'bootstrap_player_v2'")
     expect(playerBindings).toContain("'collect_food_expedition_v1'")
     expect(playerBindings).toContain("'collect_gold_expedition_v1'")
+    expect(playerBindings).toContain("'collect_wood_expedition_v1'")
     expect(playerBindings).toContain("'collect_resources_v1'")
     expect(playerBindings).toContain("'dispatch_food_expedition_v1'")
     expect(playerBindings).toContain("'dispatch_gold_expedition_v1'")
+    expect(playerBindings).toContain("'dispatch_wood_expedition_v1'")
     expect(playerBindings).toContain("'get_alpha_backend_info'")
     expect(playerBindings).toContain("'get_my_admission_status_v2'")
     expect(playerBindings).toContain("'get_my_food_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_gold_expedition_state_v1'")
+    expect(playerBindings).toContain("'get_my_wood_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_resource_state_v1'")
     expect(playerBindings).toContain("'realm_forest_layout_v1'")
     expect(playerBindings).toContain("'realm_forest_instance_v1'")
     expect(playerBindings).not.toContain('food_expedition_schedule_v_1')
     expect(playerBindings).not.toContain('gold_expedition_schedule_v_1')
+    expect(playerBindings).not.toContain('wood_expedition_schedule_v_1')
+    expect(playerBindings).not.toMatch(/name:\s*'wood_expedition_v_1'/)
+    expect(playerBindings).not.toContain('wood_expedition_idempotency_v1')
+    expect(playerBindings).not.toContain('run_wood_expedition_schedule_v_1')
     expect(playerBindings).not.toContain('admin_seed_genesis_tier_i_food_sites_v_1')
+    expect(playerBindings).not.toContain('admin_seed_genesis_tier_i_wood_sites_v_1')
     expect(playerBindings).not.toContain('admin_seed_genesis_forest_layout_v_1')
     expect(playerBindings).not.toContain('qa_observer_')
     expect(playerBindings).not.toContain('QA_OBSERVER')
@@ -99,8 +109,10 @@ describe('player SpacetimeDB bindings', () => {
       'collectFoodExpeditionV1',
       'collectGoldExpeditionV1',
       'collectResourcesV1',
+      'collectWoodExpeditionV1',
       'dispatchFoodExpeditionV1',
       'dispatchGoldExpeditionV1',
+      'dispatchWoodExpeditionV1',
     ])
     expect(Object.keys(connection.procedures).sort()).toEqual([
       'getAlphaBackendInfo',
@@ -108,6 +120,7 @@ describe('player SpacetimeDB bindings', () => {
       'getMyFoodExpeditionStateV1',
       'getMyGoldExpeditionStateV1',
       'getMyResourceStateV1',
+      'getMyWoodExpeditionStateV1',
     ])
 
     connection.disconnect()

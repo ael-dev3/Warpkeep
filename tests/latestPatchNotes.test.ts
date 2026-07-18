@@ -18,25 +18,25 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: 'CANDIDATE · 18 JUL 2026',
-      title: 'GENESIS FOOD EXPEDITIONS'
+      title: 'GENESIS WOOD EXPEDITIONS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /10,000 persistent cells.*2,000 resource-capable anchors.*twenty-four Gold Mines.*preserved founder slots.*shared forest layout/i
+      /10,000 persistent cells.*2,000 resource-capable anchors.*twenty-four Gold Mines.*ninety-six Wheat Farms.*preserved founder slots.*shared Lowlands forest layout/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Ninety-six deterministic Tier-I Wheat Farms.*passable Lowland and Meadow resource-capable anchors.*placement digest.*Gold\/forest\/castle clearance.*protected-travel-corridor clearance/i
+      /Ninety-six deterministic Tier-I Logging Camps.*passable forest resource-capable anchors.*placement digest.*Gold\/Food\/forest\/castle\/corridor clearance.*catalog identical for every player/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Food dispatch.*site id.*idempotency key.*server derives.*one-wagon limit.*1 Food\/minute.*30-day gathering window.*browser never moves a wagon or credits Food/i
+      /Wood dispatch.*site id.*idempotency key.*server derives.*one-Wood-wagon limit.*1 Wood\/minute.*30-day gathering window.*browser never moves a wagon or credits Wood/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Food and Gold.*separate private expedition loops.*one Food wagon and one Gold wagon.*Public occupation.*site.*phase.*server timeline.*origin castle.*FIDs.*request keys.*routes.*accrued output.*balances stay private/i
+      /Gold, Food, and Wood.*separate private expedition loops.*one wagon of each kind.*Public occupation.*site.*phase.*server timeline.*origin castle.*FIDs.*request keys.*routes.*accrued output.*balances stay private/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Food capacity reserves.*30-day award.*raw passive Food.*gathering deadline.*concurrent Gold lifecycle.*late schedule.*truncate or double/i
+      /Food and Wood each reserve.*remaining 30-day award.*passive terrain output.*shared server-side settlement path.*collection.*every lifecycle schedule.*late delivery.*truncating, duplicating, or stranding either award/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Wheat Farms.*provenance-pinned High, Balanced, and Compact models.*weighted shared Gold\/Food model and animation limits.*safe marker fallback.*never supplies authority/i
+      /Logging Camps.*provenance-pinned High, Balanced, and Compact models.*bounded shared node rendering.*nearby-only wagon presentation.*safe marker fallback.*never supplies placement or gameplay authority/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
       /Community Marks remains a separate private authority.*no conversion.*transfer.*credit.*spending.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
@@ -49,7 +49,7 @@ describe('latest in-menu patch notes', () => {
       'additive module publication'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'owner-approved resource, Gold-site, forest-layout, and Food-site setup'
+      'owner-approved resource, Gold-site, forest-layout, Food-site, and Wood-site setup'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
       'aggregate verification'

@@ -13,15 +13,16 @@ Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
 > public shared auth and realm entry are enabled. `wrangler.toml` deliberately keeps
 > `PUBLIC_AUTH_ENABLED = "false"`; the recorded production override is true.
 
-The checked-in Alpha 0.3.10 candidate is separately approval-gated and remains
+The checked-in Alpha 0.3.11 candidate is separately approval-gated and remains
 undeployed. It inherits the 10,000-cell generation-three / 2,000
 resource-capable-anchor world target, then stacks a 24-site Tier-I Gold Mine
-wagon candidate and a separate 96-site Tier-I Wheat Farm Food candidate. It
-does not attest a module publication, world transition, resource backfill,
-Gold/forest/Food setup, or Pages deployment; Alpha 0.3.6 remains the verified
-public release. The QA aggregate parser supports only the two exact **world**
-rollout tuples and never infers a world stage, Gold/Food-site state, or economy
-state from partial counts.
+wagon candidate, a separate 96-site Tier-I Wheat Farm Food candidate, and a
+separate 96-site Tier-I Logging Camp Wood candidate. It does not attest a module
+publication, world transition, resource backfill, Gold/forest/Food/Wood setup,
+or Pages deployment; Alpha 0.3.6 remains the verified public release. The QA
+aggregate parser supports only the two exact **world** rollout tuples and never
+infers a world stage, Gold/Food/Wood-site state, paired resource-reservation
+state, or economy state from partial counts.
 
 `https://auth.warpkeep.com` is the canonical bridge coordinate, but its
 existence is not evidence that an arbitrary local v2 source is deployed. Every

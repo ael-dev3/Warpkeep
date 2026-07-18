@@ -52,8 +52,15 @@ export {
   collectFoodExpeditionV1,
   adminSeedGenesisTierIFoodSitesV1,
 } from './reducers/foodExpeditions';
+export {
+  getMyWoodExpeditionStateV1,
+  dispatchWoodExpeditionV1,
+  collectWoodExpeditionV1,
+  adminSeedGenesisTierIWoodSitesV1,
+} from './reducers/woodExpeditions';
 export { adminSeedGenesisForestLayoutV1 } from './reducers/forestLayout';
 export {
   runGoldExpeditionScheduleV1,
   runFoodExpeditionScheduleV1,
+  runWoodExpeditionScheduleV1,
 } from './schema';

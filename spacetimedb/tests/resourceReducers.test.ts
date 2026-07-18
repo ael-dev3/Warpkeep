@@ -42,7 +42,7 @@ function mutationTargets(text: string): string[] {
     .map(match => match[1]);
 }
 
-test('resource and Gold prefixes remain intact before the v6 forest and v7 Food appends', () => {
+test('resource and Gold prefixes remain intact before the v6 forest, v7 Food, and v8 Wood appends', () => {
   const schema = source('../src/schema.ts');
   const deployedV3 = source('../migration-fixtures/additive-v3-schema/src/index.ts');
   const deployedRegistrations = schemaRegistrations(deployedV3);
@@ -63,6 +63,11 @@ test('resource and Gold prefixes remain intact before the v6 forest and v7 Food 
     'foodExpeditionV1',
     'foodExpeditionIdempotencyV1',
     'foodExpeditionScheduleV1',
+    'woodSiteV1',
+    'woodNodeOccupationV1',
+    'woodExpeditionV1',
+    'woodExpeditionIdempotencyV1',
+    'woodExpeditionScheduleV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');
@@ -206,7 +211,7 @@ test('player get and collect wires accept no FID, balance, rate, terrain, or clo
   assert.doesNotMatch(browserCollect, /collectResourcesV1\(\{[\s\S]+\}\)/);
 });
 
-test('collect preserves an active Food reserve, settles with server time, and preserves Marks exactly', () => {
+test('collect preserves active Food and Wood reserves, settles with server time, and preserves Marks exactly', () => {
   const reducers = source('../src/reducers/resources.ts');
   const collect = section(
     reducers,
@@ -215,8 +220,9 @@ test('collect preserves an active Food reserve, settles with server time, and pr
   );
   const marksBeforeAt = collect.indexOf('const marksBefore =');
   const foodCollectAt = collect.indexOf('collectActiveFoodExpedition(ctx, claims.fid)');
+  const woodCollectAt = collect.indexOf('collectActiveWoodExpedition(ctx, claims.fid)');
   const settlementAt = collect.indexOf(
-    'const settlement = planResourceSettlementForActiveFoodReservation',
+    'const settlement = planResourceSettlementForActiveExpeditionReservations',
   );
   const accountUpdateAt = collect.indexOf('ctx.db.resourceAccountV1.fid.update({');
   const marksAfterAt = collect.indexOf('const marksAfter =');
@@ -225,17 +231,19 @@ test('collect preserves an active Food reserve, settles with server time, and pr
   assert.ok(
     marksBeforeAt >= 0
       && foodCollectAt > marksBeforeAt
-      && settlementAt > foodCollectAt
+      && woodCollectAt > foodCollectAt
+      && settlementAt > woodCollectAt
       && accountUpdateAt > settlementAt
       && marksAfterAt > accountUpdateAt
       && finalAssertionAt > marksAfterAt,
   );
   assert.match(
     collect,
-    /planResourceSettlementForActiveFoodReservation\(\s*ctx,\s*claims\.fid,\s*resourceAfterFood\.account,\s*resourceAfterFood\.terrainKind,\s*ctx\.timestamp\.microsSinceUnixEpoch,?\s*\)/,
+    /planResourceSettlementForActiveExpeditionReservations\(\s*ctx,\s*claims\.fid,\s*resourceAfterExpeditions\.account,\s*resourceAfterExpeditions\.terrainKind,\s*ctx\.timestamp\.microsSinceUnixEpoch,?\s*\)/,
   );
   assert.match(collect, /if \(settlement\.completedQuanta !== 0n\)/);
   assert.match(collect, /collectActiveFoodExpedition\(ctx, claims\.fid\)/);
+  assert.match(collect, /collectActiveWoodExpedition\(ctx, claims\.fid\)/);
   assert.match(collect, /collectActiveGoldExpedition\(ctx, claims\.fid\)/);
   assert.deepEqual(mutationTargets(collect), ['resourceAccountV1']);
   assert.match(collect, /updatedAt: ctx\.timestamp/);

@@ -161,6 +161,24 @@ const ALPHA_0_3_10_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, forest-layout, and Food-site setup, aggregate verification, exact Pages deployment, and final owner approval.'
 });
 
+const ALPHA_0_3_11_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: 'CANDIDATE · 18 JUL 2026',
+  title: 'GENESIS WOOD EXPEDITIONS',
+  summary:
+    'Alpha 0.3.11 is an undeployed candidate for bounded Tier-I Logging Camp expeditions on the expanded Genesis 001 world; Alpha 0.3.6 remains the verified public release.',
+  highlights: Object.freeze([
+    'The reviewed candidate world remains exact: 10,000 persistent cells, 2,000 resource-capable anchors, twenty-four Gold Mines, ninety-six Wheat Farms, preserved founder slots, and the shared Lowlands forest layout.',
+    'Ninety-six deterministic Tier-I Logging Camps are selected only from passable forest resource-capable anchors. A placement digest and Gold/Food/forest/castle/corridor clearance keep the catalog identical for every player.',
+    'A Wood dispatch sends only a site id and idempotency key. The server derives admission, Terms, castle, passable route, timing, one-Wood-wagon limit, 1 Wood/minute rate, 30-day gathering window, and return; the browser never moves a wagon or credits Wood.',
+    'Gold, Food, and Wood use separate private expedition loops, so one castle may operate one wagon of each kind at once. Public occupation shows only a site, phase, server timeline, and origin castle; FIDs, request keys, routes, accrued output, and balances stay private.',
+    'Food and Wood each reserve their full remaining 30-day award alongside passive terrain output. One shared server-side settlement path preserves both reserves during collection and every lifecycle schedule, preventing a late delivery from truncating, duplicating, or stranding either award.',
+    'Logging Camps use exact provenance-pinned High, Balanced, and Compact models with bounded shared node rendering, nearby-only wagon presentation, and safe marker fallback. A model never supplies placement or gameplay authority.',
+    'Community Marks remains a separate private authority with no conversion, transfer, credit, or spending path. Construction, upgrades, combat, trading, public inventories, and financial rewards remain unavailable.'
+  ]),
+  alphaNotice:
+    'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, forest-layout, Food-site, and Wood-site setup, aggregate verification, exact Pages deployment, and final owner approval.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
     '0.3.2': ALPHA_0_3_2_PATCH_NOTES,
@@ -171,7 +189,8 @@ export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatc
     '0.3.7': ALPHA_0_3_7_PATCH_NOTES,
     '0.3.8': ALPHA_0_3_8_PATCH_NOTES,
     '0.3.9': ALPHA_0_3_9_PATCH_NOTES,
-    '0.3.10': ALPHA_0_3_10_PATCH_NOTES
+    '0.3.10': ALPHA_0_3_10_PATCH_NOTES,
+    '0.3.11': ALPHA_0_3_11_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

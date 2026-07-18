@@ -19,13 +19,14 @@ while the player authentication contract remains v2. That deployment does not
 attest an arbitrary checkout. Every future republish requires a fresh proof,
 bounded aggregate, recorded authority, and exact-source verification.
 
-> **This checkout contains the undeployed Alpha 0.3.10 protocol-3 /
+> **This checkout contains the undeployed Alpha 0.3.11 protocol-3 /
 > generation-v3 candidate.** It preserves the complete 1,261-cell generation-v2
 > predecessor and all 100 permanent castle slots, then adds 8,739 cells for an
 > exact 10,000 persistent-cell world, a separately approval-gated Gold Mine
-> pilot, shared forest presentation, and a separate Tier-I Wheat Farm Food
-> pilot. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md) for
-> the exact world shape, budgets, compatibility boundary, and rollout invariants.
+> pilot, shared forest presentation, a Tier-I Wheat Farm Food pilot, and a
+> Tier-I Logging Camp Wood pilot. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md)
+> for the exact world shape, budgets, compatibility boundary, and rollout
+> invariants.
 
 ## Version compatibility
 
@@ -37,7 +38,7 @@ bounded aggregate, recorded authority, and exact-source verification.
 - Player authentication contract: `2` (unchanged)
 - Local world generation: `3` (undeployed; live predecessor is `2`)
 
-### Pending Alpha 0.3.10 Gold, forest, and Food extensions
+### Pending Alpha 0.3.11 Gold, forest, Food, and Wood extensions
 
 This checkout additionally contains an **unreleased**, append-only Gold wagon
 extension. It does not change the deployed protocol number or authorize a
@@ -93,7 +94,7 @@ pinned layout/catalog digests. It does not authorize the later v7 Food suffix
 or a dependent Pages build. A source merge, green test run, or client deployment
 never invokes that reducer automatically.
 
-The Alpha 0.3.10 suffix then appends five Food tables at refs 27–31: public
+The retained Alpha 0.3.10 suffix appends five Food tables at refs 27–31: public
 `food_site_v1` and identity-minimized `food_node_occupation_v1`, private
 `food_expedition_v1` and retry receipt, and a public-safe internal schedule
 projection. Its fixed policy selects exactly 96 Tier-I Wheat Farms from
@@ -101,12 +102,27 @@ passable Lowland/Meadow resource-capable cells after Gold, forest, castle, and
 protected-route clearance. A Food dispatch accepts only a site ID and bounded
 idempotency key; the server derives the caller, castle, route, timing, one
 Food-wagon limit, and exact one-Food-per-completed-minute rate for 30 days.
-Food and Gold may each run one wagon from the same castle. The private Food
-award reserves raw passive Food through its deadline across resource reads and
-settlement, Food lifecycle, and concurrent Gold lifecycle, so a delayed schedule
-cannot truncate or duplicate a valid award. No source, test, local migration
-proof, asset delivery, or merge authorizes v7 publication, Food-site setup, or
-deployment.
+Food and Gold may each run one wagon from the same castle. In the v8 candidate,
+the private Food award is retained with the Wood award through a paired
+Food/Wood reservation across resource reads and settlement, either resource's
+lifecycle, and concurrent Gold lifecycle. A delayed schedule cannot truncate or
+duplicate a valid award. No source, test, local migration proof, asset delivery,
+or merge authorizes v7 publication, Food-site setup, or deployment.
+
+The Alpha 0.3.11 suffix then appends five Wood tables at refs 32–36: public
+`wood_site_v1` and identity-minimized `wood_node_occupation_v1`, private
+`wood_expedition_v1` and retry receipt, and a public-safe internal schedule
+projection. Its fixed policy selects exactly 96 Tier-I Logging Camps from
+passable Forest resource-capable cells after Gold, Food, forest, castle, and
+protected-route clearance. A Wood dispatch accepts only a site ID and bounded
+idempotency key; the server derives the caller, castle, route, timing, one
+Wood-wagon limit, and exact one-Wood-per-completed-minute rate for 30 days.
+Gold, Food, and Wood may each run one wagon from the same castle. Wood dispatch
+preflights raw passive Wood through its deadline plus its full award; every
+resource read and settlement derives paired Food/Wood reservations, so Food or
+Wood collection/expiry and concurrent Gold lifecycle cannot truncate or
+duplicate either award. No source, test, local migration proof, asset delivery,
+or merge authorizes v8 publication, Wood-site setup, or deployment.
 
 Run locally after installing directory dependencies:
 
@@ -127,13 +143,15 @@ pinned SpacetimeDB 2.6.1 CLI against disposable loopback-only databases. It
 starts from the independently frozen deployed seven-table checkpoint and proves
 the 12 protocol-3 tables at refs 7 through 18 remain exact while private
 `resource_account_v1` appends at ref 19, Gold appends at refs 20–24, forest at
-refs 25–26, and Food at refs 27–31 with `--delete-data=never`. The same
-loopback proof exercises an exact
+refs 25–26, Food at refs 27–31, and Wood at refs 32–36 with
+`--delete-data=never`. The same loopback proof exercises an exact
 populated 1,261-to-10,000 transition, ordinary-seed refusal, preserved founding
-links and realm timestamp, a zero-write retry, deterministic Gold/Food-site
-placement, public/private projection boundaries, Food-reservation preservation,
-and replay-safe lifecycle settlement. It does not inspect or mutate Maincloud
-and is not production publish approval.
+links and realm timestamp, a zero-write retry, existing resource-account
+lifecycle, Gold/Food/Wood table-order and public/private shape checks, and
+rollback refusal. It does not seed, dispatch, or settle Food/Wood expeditions.
+Focused resource-authority, policy, and reducer-contract tests separately cover
+their paired reservation behavior and concurrent Gold settlement. It does not
+inspect or mutate Maincloud and is not production publish approval.
 
 ## Authority and tables
 
@@ -418,6 +436,10 @@ Exact fresh Hermes authority is required for:
 - `admin_get_alpha_status_v2`
 - `admin_get_alpha_status_v3`
 - `admin_get_alpha_status_v4`
+- `admin_seed_genesis_tier_i_gold_sites_v1`
+- `admin_seed_genesis_forest_layout_v1`
+- `admin_seed_genesis_tier_i_food_sites_v1`
+- `admin_seed_genesis_tier_i_wood_sites_v1`
 - `admin_upsert_realm_profile_v1`
 - `admin_replace_fid_wallet_snapshot_v1`
 - `admin_begin_snap_scan_batch_v1`
@@ -518,9 +540,13 @@ private `resource_account_v1` appends at ref 19, preserves empty and synthetic
 nonempty fixtures, matches the module to an independent schema fixture, proves
 idempotent artifact republish and guarded v3/v2 rollback refusal, exercises the
 private resource lifecycle, and proves the populated exact 1,261-to-10,000
-world transition plus a zero-write target retry. This proves only controlled
-local fixtures; it neither observes Maincloud nor authorizes a production
-republish or world mutation.
+world transition plus a zero-write target retry. The additive v5 Gold, v6
+forest, v7 Food, and v8 Wood suffixes must append in exact order; the proof also
+checks their public/private projection contracts and preservation of earlier
+rows. It does not seed or dispatch Food/Wood nodes, or exercise their reservation
+logic; focused authority, policy, and reducer-contract tests cover that behavior.
+This proves only controlled local fixtures; it neither observes Maincloud nor
+authorizes a production republish, world mutation, or site seed.
 
 Any separately approved current forward republish must run through the guarded
 publisher with a fresh, private counts-only contract:

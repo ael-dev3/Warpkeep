@@ -379,6 +379,25 @@ export const MyResourceStateV1 = __t.object("MyResourceStateV1", {
 });
 export type MyResourceStateV1 = __Infer<typeof MyResourceStateV1>;
 
+export const MyWoodExpeditionStateV1 = __t.object("MyWoodExpeditionStateV1", {
+  active: __t.bool(),
+  expeditionId: __t.option(__t.string()),
+  siteId: __t.option(__t.string()),
+  originCastleId: __t.option(__t.u64()),
+  phase: __t.option(__t.string()),
+  startedAtMicros: __t.option(__t.u64()),
+  arrivesAtMicros: __t.option(__t.u64()),
+  gatheringEndsAtMicros: __t.option(__t.u64()),
+  returnsAtMicros: __t.option(__t.u64()),
+  accruedWood: __t.u64(),
+  pendingWood: __t.u64(),
+  creditedWood: __t.u64(),
+  rateWoodPerMinute: __t.u64(),
+  gatheringDurationMicros: __t.u64(),
+  expeditionPolicyVersion: __t.option(__t.string()),
+});
+export type MyWoodExpeditionStateV1 = __Infer<typeof MyWoodExpeditionStateV1>;
+
 export const Player = __t.object("Player", {
   fid: __t.u64(),
   identity: __t.identity(),
@@ -639,6 +658,63 @@ export const WalletSnapshotEntryV1 = __t.object("WalletSnapshotEntryV1", {
   active: __t.bool(),
 });
 export type WalletSnapshotEntryV1 = __Infer<typeof WalletSnapshotEntryV1>;
+
+export const WoodExpeditionIdempotencyV1 = __t.object("WoodExpeditionIdempotencyV1", {
+  requestKey: __t.string(),
+  fid: __t.u64(),
+  siteId: __t.string(),
+  expeditionId: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type WoodExpeditionIdempotencyV1 = __Infer<typeof WoodExpeditionIdempotencyV1>;
+
+export const WoodExpeditionScheduleV1 = __t.object("WoodExpeditionScheduleV1", {
+  scheduleId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  stage: __t.string(),
+});
+export type WoodExpeditionScheduleV1 = __Infer<typeof WoodExpeditionScheduleV1>;
+
+export const WoodExpeditionV1 = __t.object("WoodExpeditionV1", {
+  expeditionId: __t.string(),
+  fid: __t.u64(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+  settledThroughMicros: __t.u64(),
+  accruedWood: __t.u64(),
+  creditedWood: __t.u64(),
+  policyVersion: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type WoodExpeditionV1 = __Infer<typeof WoodExpeditionV1>;
+
+export const WoodNodeOccupationV1 = __t.object("WoodNodeOccupationV1", {
+  siteId: __t.string(),
+  originCastleId: __t.u64(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+});
+export type WoodNodeOccupationV1 = __Infer<typeof WoodNodeOccupationV1>;
+
+export const WoodSiteV1 = __t.object("WoodSiteV1", {
+  siteId: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  tier: __t.u32(),
+  active: __t.bool(),
+});
+export type WoodSiteV1 = __Infer<typeof WoodSiteV1>;
 
 export const WorldTile = __t.object("WorldTile", {
   key: __t.string(),

@@ -21,3 +21,9 @@ Its separate [transparent inspection-art record](2026-07-18-hegemony-wheat-farm/
 pins the corresponding high-resolution 2D Wheat Farm card illustration. That
 decorative, pointer-inert asset does not create a Food site, worker, balance,
 or gathering authority.
+
+The owner-supplied Logging Camp delivery has a separate immutable
+[18 July runtime record](2026-07-18-hegemony-logging-camp/runtime/README.md).
+It pins the exact public High/Balanced/Compact GLBs, an offline source installer,
+and the visual-only collision/rendering boundary. It does not create a Wood
+site, worker, balance, reward, or gathering authority.
