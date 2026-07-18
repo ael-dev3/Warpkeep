@@ -197,10 +197,20 @@ describe('compact Realm CSS contract', () => {
       '.realm-profile-trigger .realm-castle-avatar {'
     );
     const resourceRail = block(PLAYER_CHROME, '.realm-resource-rail {');
+    const openResourceRail = block(
+      PLAYER_CHROME,
+      '.realm-resource-rail[data-tooltip-open] {'
+    );
     const resourceItem = block(PLAYER_CHROME, '.realm-resource-rail li {');
+    const resourceTrigger = block(PLAYER_CHROME, '.realm-resource-rail__trigger {');
     const resourceIcon = block(
       PLAYER_CHROME,
       '.realm-resource-rail picture,\n.realm-resource-rail img {'
+    );
+    const resourceTooltip = block(PLAYER_CHROME, '.realm-resource-tooltip {');
+    const hiddenResourceTooltip = block(
+      PLAYER_CHROME,
+      '.realm-resource-tooltip[hidden] {'
     );
     const commandPanel = block(PLAYER_CHROME, '.realm-profile-menu__panel {');
 
@@ -217,12 +227,25 @@ describe('compact Realm CSS contract', () => {
     expect(resourceRail).toContain('right: max(0.78rem, env(safe-area-inset-right));');
     expect(resourceRail).toContain('border: 0;');
     expect(resourceRail).toContain('pointer-events: none;');
+    expect(openResourceRail).toContain('pointer-events: auto;');
     expect(resourceItem).toContain('background: transparent;');
+    expect(resourceTrigger).toContain('pointer-events: auto;');
+    expect(resourceTrigger).toContain('background: transparent;');
     expect(resourceIcon).toContain('width: 2rem;');
     expect(resourceIcon).toContain('height: 2rem;');
+    expect(resourceTooltip).toContain('top: 100%;');
+    expect(resourceTooltip).not.toContain('calc(100% +');
+    expect(resourceTooltip).toContain('right: 0;');
+    expect(resourceTooltip).toContain('pointer-events: auto;');
+    expect(resourceTooltip).not.toContain('backdrop-filter:');
+    expect(hiddenResourceTooltip).toContain('display: none;');
+    expect(PLAYER_CHROME).toContain('@media (min-width: 681px) {');
+    expect(PLAYER_CHROME).toContain('.realm-resource-tooltip[data-resource="food"] {');
+    expect(PLAYER_CHROME).toContain('right: auto;\n    left: 0;');
     expect(commandPanel).toContain('overflow: auto;');
 
     expect(HUD_COMPONENT).toContain('className="realm-profile-trigger"');
+    expect(HUD_COMPONENT).toContain('data-tooltip-open={activeTooltip ?? undefined}');
     expect(HUD_COMPONENT).toContain('className="realm-resource-rail"');
     expect(HUD_COMPONENT).toContain('aria-label="Your resources"');
     expect(HUD_COMPONENT).toContain('aria-label={`Open Realm menu for ${playerLabel}`}');
