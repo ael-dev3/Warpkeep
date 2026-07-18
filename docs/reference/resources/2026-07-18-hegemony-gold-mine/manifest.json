@@ -1,0 +1,78 @@
+{
+  "schema": "warpkeep.resource-node-candidate.v1",
+  "assetId": "warpkeep.gold-mine-node",
+  "name": "Gold Mine Gathering Node",
+  "sourceVersion": "1.4.0",
+  "sourceRevision": "user-edited-2026-07-18",
+  "category": "GatheringNodes/Gold",
+  "sourceManifest": {
+    "filename": "runtime-manifest.json",
+    "bytes": 2191,
+    "sha256": "9bb0bcf28b3b2f073d8f4a9cdbe5c2ad1d41d921668f25172a2105f52fd82dd4"
+  },
+  "reviewStatus": {
+    "state": "prepared-not-integrated",
+    "scope": "exact-byte technical review candidate only",
+    "runtimeDelivery": "not-authorized",
+    "gameplayIntegration": "not-authorized",
+    "productionMutation": "not-authorized",
+    "deployment": "not-authorized"
+  },
+  "license": "LicenseRef-Warpkeep-Provenance-Required",
+  "sourceRuntimeContract": {
+    "gltfUp": "+Y",
+    "frontFacing": "+Z",
+    "interactionPivot": "footprint-center",
+    "collider": "engine-side oval/cylinder; do not mesh-collide render geometry",
+    "requiredExtensions": [
+      "EXT_meshopt_compression",
+      "EXT_texture_webp",
+      "KHR_mesh_quantization"
+    ],
+    "observedGroundingToleranceBlenderUnits": 0.001
+  },
+  "lods": [
+    {
+      "id": "high",
+      "sourceTier": "LOD0_High",
+      "sourceFilename": "Warpkeep_GoldMine_LOD0_High_Runtime.glb",
+      "candidateFilename": "hegemony-gold-mine-high-6c3731e0f3381014.glb",
+      "bytes": 263528,
+      "sha256": "6c3731e0f3381014d661d539c25f67e4f79f894b721d1feac9e275b07b8a6ab3",
+      "triangles": 4233,
+      "actualTextureSize": 1024,
+      "declaredAtlasSize": 1024,
+      "metadataStatus": "consistent"
+    },
+    {
+      "id": "balanced",
+      "sourceTier": "LOD1_Balanced",
+      "sourceFilename": "Warpkeep_GoldMine_LOD1_Balanced_Runtime.glb",
+      "candidateFilename": "hegemony-gold-mine-balanced-42776e6a0a1196c.glb",
+      "bytes": 154388,
+      "sha256": "42776e6a0a1196c43e872d9d6d08a8acbf398b5dbd26ba7ab20e0c0cfdd52008",
+      "triangles": 3553,
+      "actualTextureSize": 512,
+      "declaredAtlasSize": 1024,
+      "metadataStatus": "review-gate-required"
+    },
+    {
+      "id": "compact",
+      "sourceTier": "LOD2_Compact",
+      "sourceFilename": "Warpkeep_GoldMine_LOD2_Compact_Runtime.glb",
+      "candidateFilename": "hegemony-gold-mine-compact-b39ad147954ba420.glb",
+      "bytes": 95024,
+      "sha256": "b39ad147954ba4200efe680975038416784f759918ca295282d95812710ca853",
+      "triangles": 2681,
+      "actualTextureSize": 256,
+      "declaredAtlasSize": 1024,
+      "metadataStatus": "review-gate-required"
+    }
+  ],
+  "knownIntegrationGates": [
+    "A reviewed Genesis 001 expansion must prove exactly 10000 authoritative cells and 2000 resource-capable anchors before canonical Gold placement exists.",
+    "Balanced and Compact atlas metadata must receive an explicit reviewed decision before runtime promotion.",
+    "No client presentation, schema, resource balance, route, seed, reducer, or deployment is included by this candidate record.",
+    "Gold is not Community Marks and this record creates no currency, reward, entitlement, or account authority."
+  ]
+}

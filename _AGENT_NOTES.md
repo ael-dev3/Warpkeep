@@ -148,6 +148,17 @@ Start with:
   resource, currency, balance, cost, reward, or player entitlement, and do not
   replace one without an updated authorization, alpha audit, hash pin, and
   review.
+- The three Gold Mine GLBs under
+  `docs/reference/resources/2026-07-18-hegemony-gold-mine/runtime-candidates/`
+  are exact unintegrated review candidates, pinned by
+  `npm run verify:gold-mine-candidates`; they must remain outside `public/`.
+  They do not authorize a renderer import, world coordinate, site, route,
+  reducer, account, balance, seed, deploy, or Gold/Marks coupling. The current
+  Genesis 001 baseline has only 1,261 cells and 250 resource-capable anchors,
+  so do not invent the requested 10,000-cell / 2,000-anchor Gold placement.
+  The supplied Balanced and Compact candidates have 512²/256² embedded WebPs
+  but stale `wk_atlas_size: 1024` metadata; preserve their bytes and require an
+  explicit reviewed normalization or integration decision before promotion.
 
 ## Player-visible release truth
 
