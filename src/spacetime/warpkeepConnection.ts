@@ -45,7 +45,8 @@ export type WarpkeepConnectionCallbacks = Readonly<{
 
 export type WarpkeepConnection = DbConnection;
 
-const CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS = 10_000;
+/** Maincloud may need to wake a database before completing the authenticated handshake. */
+export const CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS = 30_000;
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([

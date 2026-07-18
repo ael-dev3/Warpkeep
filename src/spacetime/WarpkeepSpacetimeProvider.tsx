@@ -43,7 +43,12 @@ import {
 import { readCompatibleWarpkeepBackendInfo } from './warpkeepProtocol';
 import type { ReadyRealmResourcePresentation } from '../components/realm/realmResourcePresentation';
 
-export const CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS = 15_000;
+/**
+ * The generation-three Realm replicates 20,000 immutable world rows before
+ * SubscribeApplied. This deadline is intentionally independent from the
+ * smaller private resource procedure deadline below.
+ */
+export const CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS = 60_000;
 export const RESOURCE_OPERATION_TIMEOUT_MILLISECONDS = 15_000;
 export const RESOURCE_REFRESH_INTERVAL_MILLISECONDS = 60_000;
 
@@ -625,19 +630,45 @@ export function WarpkeepSpacetimeProvider({
             CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS
           );
           const activation = (async () => {
-            const initialResources = await runtime.readResourceState(activeConnection, bridgeFid!);
-            if (!current()) return;
-            resourceStateRef.current = Object.freeze({
-              generation,
-              value: initialResources
-            });
-            realmActivated = true;
+            // Begin the small private read and the large public subscription
+            // concurrently. Both remain mandatory and fail closed, but the
+            // 20,000-row snapshot no longer spends its budget waiting for the
+            // resource procedure to finish first.
+            const initialResourcePromise = withResourceOperationDeadline(
+              runtime.readResourceState(activeConnection, bridgeFid!)
+            );
+            // A synchronous observer/subscription exception can terminate this
+            // generation before the await below. Pre-handle the same promise so
+            // its eventual rejection cannot escape as an unhandled rejection;
+            // awaiting it still preserves the normal fail-closed path.
+            void initialResourcePromise.catch(() => undefined);
             cleanupObserver = runtime.observeRealm(
               activeConnection,
               bridgeFid!,
               updateObservedRealm,
               fail
             );
+            const startedSubscription = runtime.subscribeRealm(
+              activeConnection,
+              applySubscribedRealm,
+              fail
+            );
+            if (!current()) {
+              // A test runtime or SDK failure callback may fire synchronously from
+              // subscribe(). The returned handle was not available to fail(), so
+              // close it here instead of retaining a terminal subscription.
+              startedSubscription.unsubscribe();
+              return;
+            }
+            subscription = startedSubscription;
+
+            const initialResources = await initialResourcePromise;
+            if (!current()) return;
+            resourceStateRef.current = Object.freeze({
+              generation,
+              value: initialResources
+            });
+            realmActivated = true;
             const refreshResources = async () => {
               if (!current() || !realmActivated || resourceRefreshInFlight) return;
               resourceRefreshInFlight = true;
@@ -680,19 +711,8 @@ export function WarpkeepSpacetimeProvider({
             resourceRefreshInterval = setInterval(() => {
               void refreshResources();
             }, RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
-            const startedSubscription = runtime.subscribeRealm(
-              activeConnection,
-              applySubscribedRealm,
-              fail
-            );
-            if (!current()) {
-              // A test runtime or SDK failure callback may fire synchronously from
-              // subscribe(). The returned handle was not available to fail(), so
-              // close it here instead of retaining a terminal subscription.
-              startedSubscription.unsubscribe();
-              return;
-            }
-            subscription = startedSubscription;
+            // SubscribeApplied may have arrived while resources were pending.
+            publishReadySnapshot?.();
           })();
           realmActivationPromise = activation;
           void activation.catch(fail).finally(() => {
