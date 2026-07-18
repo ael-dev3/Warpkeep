@@ -241,9 +241,13 @@ decoded behavior rather than silently editing assets.
 
 The family remains LicenseRef-Warpkeep-Provenance-Required: use-authorized
 only, with no separate public open license asserted. It is decorative
-presentation only. Model selection, LOD, deterministic visual variation, and
-a private terrain-contact wrapper must not become a source of authoritative
-collision, placement, ownership, resources, rewards, or SpacetimeDB state.
+presentation only. The reviewed public `realm_forest_layout_v1` and
+`realm_forest_instance_v1` projection may store a fixed, digest-pinned Genesis
+visual layout that selects these immutable asset identifiers and transforms;
+that layout is authored and validated independently of GLB geometry. Model
+selection, LOD, deterministic visual variation, and a private terrain-contact
+wrapper must not become a source of authoritative collision, gameplay
+placement, ownership, resources, rewards, pathing, or other game authority.
 Legacy Regular Tree variants have no authorized runtime collision; species
 records retain only their supplied trunk-only guidance.
 

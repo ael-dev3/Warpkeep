@@ -155,6 +155,24 @@ function staticWorldForCandidate(
   return fail();
 }
 
+/**
+ * Additive presentation records are deliberately not canonical Realm
+ * authority. Preserve their *presence* (including malformed values) so the
+ * renderer's strict decoder can fail closed instead of mistaking an
+ * incomplete v6 projection for an older service that lacks the tables.
+ */
+function freezePresentationValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((entry) => (
+      entry !== null && typeof entry === 'object' && !Array.isArray(entry)
+        ? Object.freeze({ ...entry })
+        : entry
+    )));
+  }
+  if (value !== null && typeof value === 'object') return Object.freeze({ ...value });
+  return value;
+}
+
 function validateStaticWorld(candidate: WarpkeepRealmSnapshotCandidate) {
   const staticWorld = staticWorldForCandidate(candidate);
   if (
@@ -409,6 +427,19 @@ export function validateCanonicalGenesisSnapshot(
   const goldNodeOccupations = goldSites !== undefined
     ? freezeRows(candidate.goldNodeOccupations!)
     : undefined;
+  // The shared forest is another additive presentation pair. Keep each
+  // field's presence intact for the browser-safe layout policy to verify. A
+  // v6-but-unseeded `{ forestTrees: [] }`, a one-sided table, or malformed
+  // value must reach that decoder as present-invalid; collapsing it to both
+  // absent would incorrectly enable the DEV-only legacy preview path.
+  const rawForestLayout = (candidate as Readonly<{ forestLayout?: unknown }>).forestLayout;
+  const rawForestTrees = (candidate as Readonly<{ forestTrees?: unknown }>).forestTrees;
+  const forestLayout = rawForestLayout === undefined
+    ? undefined
+    : freezePresentationValue(rawForestLayout);
+  const forestTrees = rawForestTrees === undefined
+    ? undefined
+    : freezePresentationValue(rawForestTrees);
   const frozenOwnCastle = castles.find((castle) => castle.castleId === ownCastle.castleId);
   if (frozenOwnCastle === undefined) fail();
 
@@ -424,6 +455,8 @@ export function validateCanonicalGenesisSnapshot(
     castles,
     ...(goldSites === undefined ? {} : { goldSites }),
     ...(goldNodeOccupations === undefined ? {} : { goldNodeOccupations }),
+    ...(forestLayout === undefined ? {} : { forestLayout }),
+    ...(forestTrees === undefined ? {} : { forestTrees }),
     ownCastle: frozenOwnCastle
   } as BrandedSnapshot;
   Object.defineProperty(canonical, CANONICAL_SNAPSHOT_BRAND, {

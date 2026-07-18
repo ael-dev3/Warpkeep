@@ -1,16 +1,7 @@
-import { SenderError, schema, table, t } from 'spacetimedb/server';
+import { schema, table, t } from 'spacetimedb/server';
+import { Timestamp } from 'spacetimedb';
 
-import {
-  goldExpeditionErrorCode,
-  runGoldExpeditionSchedule,
-} from './goldExpeditionAuthority';
-
-/**
- * Private closed-alpha admission list. This table is intentionally omitted
- * from public subscriptions; reducers/procedures return only a caller's
- * admission status.
- */
-export const allowedFid = table(
+const allowedFid = table(
   { name: 'allowed_fid' },
   {
     fid: t.u64().primaryKey(),
@@ -22,8 +13,7 @@ export const allowedFid = table(
   },
 );
 
-/** Frozen tile row shape; the first 61 radius-four records remain immutable. */
-export const worldTile = table(
+const worldTile = table(
   { name: 'world_tile', public: true },
   {
     key: t.string().primaryKey(),
@@ -35,12 +25,7 @@ export const worldTile = table(
   },
 );
 
-/**
- * Frozen protocol-v1 projection. Its exact public shape, field order, indexes,
- * and placement are a deployed schema contract. Protocol v2 never reads or
- * writes this table; it remains present only for additive compatibility.
- */
-export const player = table(
+const player = table(
   { name: 'player', public: true },
   {
     fid: t.u64().primaryKey(),
@@ -53,8 +38,7 @@ export const player = table(
   },
 );
 
-/** One persistent keep per Farcaster FID and one occupant per world tile. */
-export const castle = table(
+const castle = table(
   { name: 'castle', public: true },
   {
     castleId: t.u64().primaryKey().autoInc(),
@@ -68,8 +52,7 @@ export const castle = table(
   },
 );
 
-/** Private admin action trace. No browser client may subscribe to this table. */
-export const adminAudit = table(
+const adminAudit = table(
   { name: 'admin_audit' },
   {
     id: t.u64().primaryKey().autoInc(),
@@ -81,8 +64,7 @@ export const adminAudit = table(
   },
 );
 
-/** Public protocol-v2 gameplay projection; opaque OIDC identity is excluded. */
-export const playerV2 = table(
+const playerV2 = table(
   { name: 'player_v2', public: true },
   {
     fid: t.u64().primaryKey(),
@@ -94,11 +76,7 @@ export const playerV2 = table(
   },
 );
 
-/**
- * Private protocol-v2 ownership binding. OIDC identities are authorization
- * material and must never be exposed through public subscriptions.
- */
-export const playerOwnershipV2 = table(
+const playerOwnershipV2 = table(
   { name: 'player_ownership_v2' },
   {
     fid: t.u64().primaryKey(),
@@ -106,8 +84,7 @@ export const playerOwnershipV2 = table(
   },
 );
 
-/** Public immutable identity for the Genesis 001 realm generation. */
-export const realmV1 = table(
+const realmV1 = table(
   { name: 'realm_v1', public: true },
   {
     realmId: t.string().primaryKey(),
@@ -123,12 +100,7 @@ export const realmV1 = table(
   },
 );
 
-/**
- * Public static-world sidecar introduced with generation v2 and extended
- * additively by generation v3. Canonical q/r remain single-source fields in
- * the frozen deployed `world_tile` shape.
- */
-export const worldTileMetaV1 = table(
+const worldTileMetaV1 = table(
   {
     name: 'world_tile_meta_v1',
     public: true,
@@ -152,8 +124,7 @@ export const worldTileMetaV1 = table(
   },
 );
 
-/** Public immutable slot coordinates. Claim state is normalized and private. */
-export const castleSlotV1 = table(
+const castleSlotV1 = table(
   { name: 'castle_slot_v1', public: true },
   {
     slotId: t.u32().primaryKey(),
@@ -165,11 +136,7 @@ export const castleSlotV1 = table(
   },
 );
 
-/**
- * Private one-to-one claim relation. Public castle rows already disclose a
- * founded castle; an unclaimed-slot allocation plan need not expose FIDs.
- */
-export const castleSlotClaimV1 = table(
+const castleSlotClaimV1 = table(
   { name: 'castle_slot_claim_v1' },
   {
     slotId: t.u32().primaryKey(),
@@ -180,11 +147,7 @@ export const castleSlotClaimV1 = table(
   },
 );
 
-/**
- * Public presentation projection. Community aggregates stay undefined until
- * accepted participation terms make `communityStatsVisible` true.
- */
-export const realmProfileV1 = table(
+const realmProfileV1 = table(
   { name: 'realm_profile_v1', public: true },
   {
     fid: t.u64().primaryKey(),
@@ -205,8 +168,7 @@ export const realmProfileV1 = table(
   },
 );
 
-/** Private authoritative Mark account; never subscribed to by browsers. */
-export const markAccountV1 = table(
+const markAccountV1 = table(
   { name: 'mark_account_v1' },
   {
     fid: t.u64().primaryKey(),
@@ -219,11 +181,7 @@ export const markAccountV1 = table(
   },
 );
 
-/**
- * Private event-neutral Ethereum mainnet burn credit receipt. Its policy pins
- * the reviewed SNAP contract/event separately from product semantics.
- */
-export const snapBurnCreditV1 = table(
+const snapBurnCreditV1 = table(
   { name: 'snap_burn_credit_v1' },
   {
     eventKey: t.string().primaryKey(),
@@ -245,8 +203,7 @@ export const snapBurnCreditV1 = table(
   },
 );
 
-/** Private trusted Farcaster address attribution snapshot. */
-export const fidWalletAttributionV1 = table(
+const fidWalletAttributionV1 = table(
   {
     name: 'fid_wallet_attribution_v1',
     indexes: [{
@@ -260,8 +217,6 @@ export const fidWalletAttributionV1 = table(
     attributionKey: t.string(),
     snapshotGeneration: t.u64(),
     fid: t.u64().index(),
-    // Non-unique by design: conflicting trusted snapshots must be representable
-    // so attribution can quarantine ambiguity rather than silently discard it.
     address: t.string(),
     addressType: t.string(),
     source: t.string(),
@@ -271,8 +226,7 @@ export const fidWalletAttributionV1 = table(
   },
 );
 
-/** Private singleton naming the complete current wallet attribution snapshot. */
-export const walletAttributionSnapshotV1 = table(
+const walletAttributionSnapshotV1 = table(
   { name: 'wallet_attribution_snapshot_v1' },
   {
     snapshotKey: t.string().primaryKey(),
@@ -284,8 +238,7 @@ export const walletAttributionSnapshotV1 = table(
   },
 );
 
-/** Private finalized-chain scan checkpoint. */
-export const snapScanCursorV1 = table(
+const snapScanCursorV1 = table(
   { name: 'snap_scan_cursor_v1' },
   {
     cursorKey: t.string().primaryKey(),
@@ -304,8 +257,7 @@ export const snapScanCursorV1 = table(
   },
 );
 
-/** Private resumable apply transaction; at most one row may be pending. */
-export const snapScanBatchV1 = table(
+const snapScanBatchV1 = table(
   {
     name: 'snap_scan_batch_v1',
     indexes: [{
@@ -337,8 +289,7 @@ export const snapScanBatchV1 = table(
   },
 );
 
-/** Private immutable evidence that one FID accepted one exact Terms version. */
-export const alphaTermsAcceptanceV1 = table(
+const alphaTermsAcceptanceV1 = table(
   { name: 'alpha_terms_acceptance_v1' },
   {
     acceptanceKey: t.string().primaryKey(),
@@ -348,12 +299,7 @@ export const alphaTermsAcceptanceV1 = table(
   },
 );
 
-/**
- * Private authoritative economic inventory for one founded castle. Strategic
- * balances are player-scoped and are never exposed through public Realm
- * subscriptions. Marks remain canonical in `mark_account_v1`.
- */
-export const resourceAccountV1 = table(
+const resourceAccountV1 = table(
   { name: 'resource_account_v1' },
   {
     fid: t.u64().primaryKey(),
@@ -371,11 +317,8 @@ export const resourceAccountV1 = table(
   },
 );
 
-/**
- * Public immutable Tier-I Gold pilot catalog. It has no ownership or balance
- * fields: every client can render the same approved Genesis 001 site list.
- */
-export const goldSiteV1 = table(
+
+const goldSiteV1 = table(
   { name: 'gold_site_v1', public: true },
   {
     siteId: t.string().primaryKey(),
@@ -386,12 +329,7 @@ export const goldSiteV1 = table(
   },
 );
 
-/**
- * Public occupancy is intentionally identity-free. `originCastleId` links to
- * the pre-existing public castle projection; private FID, accrued Gold, and
- * idempotency data stay outside browser subscriptions.
- */
-export const goldNodeOccupationV1 = table(
+const goldNodeOccupationV1 = table(
   {
     name: 'gold_node_occupation_v1',
     public: true,
@@ -412,8 +350,7 @@ export const goldNodeOccupationV1 = table(
   },
 );
 
-/** Private active wagon, exact accrual cursor, and owner binding. */
-export const goldExpeditionV1 = table(
+const goldExpeditionV1 = table(
   {
     name: 'gold_expedition_v1',
     indexes: [{
@@ -424,14 +361,8 @@ export const goldExpeditionV1 = table(
   },
   {
     expeditionId: t.string().primaryKey(),
-    // One permanent castle per founder means one active wagon per FID. A
-    // unique lookup keeps owner-only state reads hot and bounded.
     fid: t.u64().unique(),
     originCastleId: t.u64().unique(),
-    // A completed gathering releases the public site while its wagon is
-    // privately returning. Keep this indexed rather than unique so the next
-    // wagon may occupy that released site without waiting for the first wagon
-    // to reach its origin castle.
     siteId: t.string().index(),
     phase: t.string(),
     startedAtMicros: t.u64(),
@@ -447,8 +378,7 @@ export const goldExpeditionV1 = table(
   },
 );
 
-/** Private caller-request receipt for bounded exactly-once dispatch retries. */
-export const goldExpeditionIdempotencyV1 = table(
+const goldExpeditionIdempotencyV1 = table(
   { name: 'gold_expedition_idempotency_v1' },
   {
     requestKey: t.string().primaryKey(),
@@ -459,26 +389,13 @@ export const goldExpeditionIdempotencyV1 = table(
   },
 );
 
-/**
- * Three one-shot lifecycle rows are inserted atomically with a dispatch. This
- * is a deliberately public-safe scheduler projection, not economy state:
- * every field is already derivable from `gold_node_occupation_v1`. It contains
- * no FID, request key, private expedition ID, accrual cursor, or balance.
- *
- * The pinned 2.6.1 TypeScript generator cannot extract a scheduled reducer
- * whose exact table row stays private. Keeping this minimal projection public
- * preserves codegen while the reducer still resolves all authority through the
- * private expedition and resource rows. The client never subscribes to it.
- */
-export const goldExpeditionScheduleV1 = table(
+const goldExpeditionScheduleV1 = table(
   {
-    // SpacetimeDB 2.6.1's TypeScript generator cannot resolve a scheduled
-    // table whose physical name ends in an attached version suffix (`_v1`).
-    // The generator accepts the SDK's default separated spelling (`_v_1`),
-    // so use it for this newly additive scheduler table while retaining the
-    // versioned TypeScript accessor/API contract.
     name: 'gold_expedition_schedule_v_1',
     public: true,
+    // Keep the production reducer identity. SpacetimeDB treats changing this
+    // schedule target as removing a live schedule, which is intentionally not
+    // an additive migration.
     scheduled: (): any => runGoldExpeditionScheduleV1,
   },
   {
@@ -490,15 +407,8 @@ export const goldExpeditionScheduleV1 = table(
   },
 );
 
-/**
- * Public immutable receipt for the one shared Genesis 001 forest layout.
- *
- * It is presentation state only: no gameplay actor can edit it, and it does
- * not change terrain metadata, passability, resources, or route authority.
- * `seededAt` establishes provenance for the exact reviewed catalog without
- * becoming part of the pinned layout digest.
- */
-export const realmForestLayoutV1 = table(
+
+const realmForestLayoutV1 = table(
   { name: 'realm_forest_layout_v1', public: true },
   {
     realmId: t.string().primaryKey(),
@@ -511,12 +421,7 @@ export const realmForestLayoutV1 = table(
   },
 );
 
-/**
- * Public immutable tree instances. All transform values use fixed point so
- * every client renders the same reviewed position/rotation/scale regardless
- * of local PRNG behavior or graphics quality. Quality selects model LOD only.
- */
-export const realmForestInstanceV1 = table(
+const realmForestInstanceV1 = table(
   { name: 'realm_forest_instance_v1', public: true },
   {
     treeId: t.string().primaryKey(),
@@ -536,9 +441,7 @@ export const realmForestInstanceV1 = table(
   },
 );
 
-const warpkeep = schema({
-  // Preserve the original production schema prefix exactly. New tables are
-  // append-only so SpacetimeDB can apply this migration without rewriting it.
+const db = schema({
   allowedFid,
   worldTile,
   player,
@@ -568,65 +471,44 @@ const warpkeep = schema({
   realmForestInstanceV1,
 });
 
-/**
- * Scheduled reducers are normal callable reducers in SpacetimeDB. The
- * scheduler's internal principal is therefore verified before a lifecycle row
- * can advance an occupation, credit Gold, or release a site.
- */
-export const runGoldExpeditionScheduleV1 = warpkeep.reducer(
-  // This reducer is scheduler-only and never receives a browser binding. The
-  // `_v_1` wire spelling is required because SpacetimeDB 2.6.1 resolves
-  // scheduled reducer targets with its default trailing-digit conversion.
+/** Schema-only v6 schedule target; disposable migration proof never inserts it. */
+export const runGoldExpeditionScheduleV1 = db.reducer(
   { name: 'run_gold_expedition_schedule_v_1' },
-  // The scheduler receives the concrete table row as one argument. The
-  // wrapper is required by the SDK's scheduled-table type reference.
   { arg: goldExpeditionScheduleV1.rowType },
-  (ctx, { arg }) => {
-    if (!ctx.senderAuth.isInternal) {
-      throw new SenderError('GOLD_EXPEDITION_SCHEDULE_INTERNAL_ONLY');
-    }
-    try {
-      runGoldExpeditionSchedule(ctx, arg);
-    } catch (error) {
-      const code = goldExpeditionErrorCode(error);
-      if (code !== undefined) throw new SenderError(code);
-      throw error;
-    }
+  () => {},
+);
+
+const FIXTURE_RESOURCE_QUANTUM_MICROS = 600_000_000n;
+const FIXTURE_RESOURCE_POLICY_VERSION = 'genesis-resource-yield-v1';
+
+/**
+ * Disposable-loopback-only clock fixture. This schema package is never a
+ * production module; the reducer exists solely to exercise the actual
+ * module's positive-quantum persistence branch deterministically.
+ */
+export const fixtureRewindResourceOneQuantum = db.reducer(
+  { name: 'fixture_rewind_resource_one_quantum' },
+  { fid: t.u64() },
+  (ctx, { fid }) => {
+    const row = ctx.db.resourceAccountV1.fid.find(fid);
+    if (
+      row === null
+      || row.policyVersion !== FIXTURE_RESOURCE_POLICY_VERSION
+      || row.revision !== 0n
+      || row.food !== 0n
+      || row.wood !== 0n
+      || row.stone !== 0n
+      || row.gold !== 0n
+      || row.settledThroughMicros < FIXTURE_RESOURCE_QUANTUM_MICROS
+    ) throw new Error('FIXTURE_RESOURCE_STATE_INVALID');
+    const rewoundMicros = row.settledThroughMicros - FIXTURE_RESOURCE_QUANTUM_MICROS;
+    ctx.db.resourceAccountV1.fid.update({
+      ...row,
+      settledThroughMicros: rewoundMicros,
+      createdAt: new Timestamp(rewoundMicros),
+      updatedAt: ctx.timestamp,
+    });
   },
 );
 
-// SpacetimeDB 2.6's default case converter separates a trailing digit from
-// its prefix (`v2` -> `v_2`). Pin every versioned wire spelling explicitly.
-for (const name of [
-  'auth_resolver_get_fid_admission_v2',
-  'qa_observer_get_realm_snapshot_v1',
-  'qa_observer_get_realm_attestation_v2',
-  'get_my_admission_status_v2',
-  'bootstrap_player_v2',
-  'admin_get_alpha_status_v2',
-  'admin_get_alpha_status_v3',
-  'admin_upsert_realm_profile_v1',
-  'admin_upsert_fid_wallet_attribution_v1',
-  'admin_replace_fid_wallet_snapshot_v1',
-  'admin_begin_snap_scan_batch_v1',
-  'admin_credit_snap_burn_v1',
-  'admin_finalize_snap_scan_batch_v1',
-  'admin_get_snap_scan_batch_aggregate_v1',
-  'accept_alpha_terms_v1',
-  'get_my_resource_state_v1',
-  'collect_resources_v1',
-  'admin_backfill_resource_accounts_v1',
-  'admin_get_alpha_status_v4',
-  'get_my_gold_expedition_state_v1',
-  'dispatch_gold_expedition_v1',
-  'collect_gold_expedition_v1',
-  'admin_seed_genesis_tier_i_gold_sites_v1',
-  'admin_seed_genesis_forest_layout_v1',
-]) {
-  warpkeep.moduleDef.explicitNames.entries.push({
-    tag: 'Function',
-    value: { sourceName: name, canonicalName: name },
-  });
-}
-
-export default warpkeep;
+export default db;

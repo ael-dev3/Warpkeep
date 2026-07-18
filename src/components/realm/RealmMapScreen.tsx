@@ -292,6 +292,92 @@ function useStableRealmTerrainMetadata(
   return stableRowsRef.current.rows;
 }
 
+type RealmForestSnapshotProjection = Readonly<{
+  layout: unknown;
+  trees: unknown;
+}>;
+
+function primitiveForestSignature(value: unknown) {
+  if (
+    typeof value === 'string'
+    || typeof value === 'number'
+    || typeof value === 'boolean'
+    || typeof value === 'bigint'
+    || value === undefined
+    || value === null
+  ) return `${typeof value}:${String(value)}`;
+  return 'other';
+}
+
+function forestRecordSignature(value: unknown, fields: readonly string[]) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 'invalid';
+  const row = value as Readonly<Record<string, unknown>>;
+  return fields.map((field) => `${field}=${primitiveForestSignature(row[field])}`).join(';');
+}
+
+/**
+ * Snapshots deliberately use fresh public table arrays. Retain an unchanged
+ * forest projection so profile/resource churn never destroys and recreates a
+ * valid static GPU forest; every policy-relevant fixed-point field is part of
+ * this signature, so a real table update still replaces the scene input.
+ */
+function sharedForestProjectionSignature(layout: unknown, trees: unknown) {
+  const layoutSignature = Array.isArray(layout)
+    ? `array:${layout.length}:${layout.map((row) => forestRecordSignature(row, [
+      'realmId',
+      'layoutVersion',
+      'policyVersion',
+      'layoutDigest',
+      'assetCatalogDigest',
+      'instanceCount'
+    ])).sort().join('|')}`
+    : forestRecordSignature(layout, [
+      'realmId',
+      'layoutVersion',
+      'policyVersion',
+      'layoutDigest',
+      'assetCatalogDigest',
+      'instanceCount'
+    ]);
+  if (trees === undefined) return `layout:${layoutSignature}|trees:undefined`;
+  if (!Array.isArray(trees)) return `layout:${layoutSignature}|trees:invalid`;
+  const treeFields = [
+    'treeId',
+    'realmId',
+    'tileKey',
+    'q',
+    'r',
+    'localXMicrounits',
+    'localZMicrounits',
+    'worldXMicrounits',
+    'worldZMicrounits',
+    'rotationMilliDegrees',
+    'scaleBasisPoints',
+    'speciesId',
+    'habitat',
+    'layoutVersion'
+  ] as const;
+  return `layout:${layoutSignature}|trees:${trees.length}:${trees
+    .map((row) => forestRecordSignature(row, treeFields))
+    .sort()
+    .join('|')}`;
+}
+
+function useStableSharedForestProjection(layout: unknown, trees: unknown) {
+  const signature = sharedForestProjectionSignature(layout, trees);
+  const projectionRef = useRef<Readonly<{
+    signature: string;
+    projection: RealmForestSnapshotProjection;
+  }> | undefined>(undefined);
+  if (projectionRef.current?.signature !== signature) {
+    projectionRef.current = Object.freeze({
+      signature,
+      projection: Object.freeze({ layout, trees })
+    });
+  }
+  return projectionRef.current.projection;
+}
+
 function directionForKey(key: string): HexCoord | null {
   switch (key) {
     case 'ArrowRight': return { q: 1, r: 0 };
@@ -471,6 +557,10 @@ function CanonicalRealmMapScreen({
   // loopback snapshot. Compile the mode out of production even if a future
   // caller accidentally supplies the internal prop.
   const observerMode = import.meta.env.DEV && presentationMode === 'observer';
+  const sharedForestProjection = useStableSharedForestProjection(
+    snapshot.forestLayout,
+    snapshot.forestTrees
+  );
   const rootRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackMapRef = useRef<SVGSVGElement>(null);
@@ -941,6 +1031,8 @@ function CanonicalRealmMapScreen({
     root.dataset.semanticTerrainFeatureDrawCalls = String(telemetry.semanticFeatureDrawCalls);
     root.dataset.totalTerrainDetailInstanceCount = String(telemetry.totalDetailInstanceCount);
     root.dataset.totalTerrainDetailDrawCalls = String(telemetry.totalDetailDrawCalls);
+    root.dataset.forestPlacementSource = telemetry.forestPlacementSource;
+    root.dataset.sharedForestTreeCount = String(telemetry.forestSharedTreeCount);
   }, []);
 
   const updateSceneComposition = useCallback(() => {
@@ -1055,6 +1147,8 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.semanticTerrainFeatureDrawCalls = '0';
         rootRef.current.dataset.totalTerrainDetailInstanceCount = '0';
         rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
+        rootRef.current.dataset.forestPlacementSource = 'blocked';
+        rootRef.current.dataset.sharedForestTreeCount = '0';
         rootRef.current.dataset.labelBaseAnchorViolationCount = '0';
         rootRef.current.dataset.publicGoldSiteCount = String(goldNodes.length);
         rootRef.current.dataset.occupiedGoldSiteCount = '0';
@@ -1072,6 +1166,12 @@ function CanonicalRealmMapScreen({
         ownCastleId: observerMode ? undefined : ownCastle.castleId,
         otherCastles: peerCastles,
         goldNodes,
+        sharedForestLayout: sharedForestProjection.layout,
+        sharedForestTrees: sharedForestProjection.trees,
+        realmId: snapshot.realm.realmId,
+        // The retired local planner is exposed only to the synthetic dev
+        // observer. Player scenes wait for the paired shared public tables.
+        allowLegacyForestFallback: observerMode,
         terrainMetadata: sharedTileMetadata,
         quality: qualitySpec,
         reducedMotion,
@@ -1124,7 +1224,7 @@ function CanonicalRealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [goldNodes, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedTileMetadata, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateGoldNodePresentationTelemetry, updateSceneComposition, updateTerrainPresentationTelemetry]);
+  }, [goldNodes, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedForestProjection, sharedTileMetadata, snapshot.realm.realmId, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateGoldNodePresentationTelemetry, updateSceneComposition, updateTerrainPresentationTelemetry]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);

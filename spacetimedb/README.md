@@ -36,7 +36,7 @@ bounded aggregate, recorded authority, and exact-source verification.
 - Player authentication contract: `2` (unchanged)
 - Local world generation: `3` (undeployed; live predecessor is `2`)
 
-### Pending Alpha 0.3.9 Gold expeditions
+### Pending Alpha 0.3.9 Gold expeditions and shared forest layout
 
 This checkout additionally contains an **unreleased**, append-only Gold wagon
 extension. It does not change the deployed protocol number or authorize a
@@ -66,6 +66,30 @@ attached `_v1` table name. The scheduler reducer is internal-only and uses the
 same non-client wire spelling; it has no generated browser reducer binding.
 The disposable migration proof verifies both the exact ref order and this
 public-safe field contract before any release candidate can advance.
+
+The same undeployed candidate appends two public, decorative-only forest
+tables: `realm_forest_layout_v1` is one reviewed Genesis 001 layout metadata
+row, and `realm_forest_instance_v1` holds its fixed-point tree instances. The
+metadata pins the layout version, policy version, exact layout digest, reviewed
+asset-catalog digest, and instance count. Each instance carries only a stable
+tree ID, canonical tile association, allowed species ID, habitat, and fixed
+visual transform. No row contains FID, owner, route, timer, collision, resource,
+reward, or action state.
+
+An admin-only, idempotent seed reducer accepts only the compiled layout
+count/version/digests, rejects partial, unknown, duplicate, or altered existing
+rows, and inserts missing exact records. It is not invoked automatically and is
+not approved for production use by this source change. Player clients subscribe
+to the pair only after the additive projection applies, validate the exact
+catalog, and render no new forest layer rather than inventing a replacement if
+the schema is unseeded or malformed. Graphics quality may choose a GLB LOD but
+never changes membership, species, position, rotation, or scale.
+
+The owner-approved rollout order is strict: publish the additive v6 module with
+deletion disabled; complete the existing resource/Gold checks; invoke the
+separate forest seed; verify one layout row, 210 instance rows, and the pinned
+layout/catalog digests; then deploy the dependent Pages build. A source merge,
+green test run, or client deployment never invokes that reducer automatically.
 
 Run locally after installing directory dependencies:
 

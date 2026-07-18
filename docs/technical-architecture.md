@@ -4,8 +4,9 @@ Warpkeep is an admission-gated persistent-world alpha. The current player
 experience is the verified Alpha 0.3.6 realm exploration and castle
 presentation release. The checked-in Alpha 0.3.9 candidate carries a bounded
 private resource loop, the 10,000-cell Genesis world candidate, and a 24-site
-Gold Mine wagon pilot, but it is not deployed. Construction, spending, combat,
-and social systems are deliberately not live.
+Gold Mine wagon pilot plus a shared decorative forest layout, but it is not
+deployed. Construction, spending, combat, and social systems are deliberately
+not live.
 
 ## Authority boundaries
 
@@ -77,6 +78,21 @@ timeline. Expedition, retry, account, request, route, accrued-output, and
 balance records stay private to the owning caller. The public Realm projection
 therefore never leaks a FID or Gold balance.
 
+## Shared forest presentation boundary
+
+The Alpha 0.3.9 candidate appends public `realm_forest_layout_v1` metadata and
+`realm_forest_instance_v1` rows. They form one immutable Genesis 001 visual
+catalog: a reviewed layout version, exact layout and asset-catalog digests, and
+210 fixed-point tree selectors/transforms. They do not contain FIDs, ownership,
+routes, resources, collision, or actions.
+
+An admin-only, idempotent seeder accepts only the reviewed version/count/digest
+and rejects unknown, duplicate, partial, or drifted rows before inserting a
+missing canonical row. The player client renders a complete validated catalog
+or no new forest layer. It never uses graphics quality, Gold occupation, wagon
+motion, or a browser random generator to decide whether a shared tree exists;
+quality selects only an immutable model LOD.
+
 ## Authentication presentation
 
 FID is the only identity coordinate. Username, display name, biography, and PFP
@@ -128,6 +144,12 @@ active leases both reach zero, and disposes shared resources exactly once.
 Retired or failed entries do not revive during that Realm lifetime. An empty
 authoritative castle set reaches readiness with zero presented models.
 
+The tree GLB family remains visual media, not map authority. The shared forest
+tables are independently authored visual state: they select reviewed asset IDs
+and fixed transforms, while the renderer derives only terrain-contact height.
+Trees never enter picking, navigation, collision, ownership, economy, or
+server gameplay rules.
+
 ## Local QA boundary
 
 Unit and rendered-browser lanes cover readiness, responsive UI, WebGL models,
@@ -146,6 +168,12 @@ Existing founders require a separate exact-count, idempotent Hermes backfill;
 the v4 inspection returns only aggregate coverage and invariant counts, never
 FIDs or balances.
 
+The additive v6 proof extends that same lifecycle with public forest metadata
+and instances at refs 25–26. It is not a production publication. The static
+forest layout has its own guarded, idempotent admin seed; its verification
+requires one layout row, exactly 210 instances, and the pinned layout/catalog
+digests.
+
 ## Delivery
 
 Semantic versions name release lines; an annotated tag and exact build SHA
@@ -156,10 +184,10 @@ remain separate release decisions.
 
 For Alpha 0.3.9, the safe production order is additive module publication,
 explicitly owner-approved founder backfill, explicit exact-state world
-expansion and Gold-site setup, generation-three plus aggregate verification,
-exact reviewed Pages deployment, then live build verification. Each mutable
-step is a separate approval boundary. Source completion or a client merge
-authorizes none of those production operations.
+expansion, Gold-site setup, and forest-layout setup, generation-three plus
+aggregate verification, exact reviewed Pages deployment, then live build
+verification. Each mutable step is a separate approval boundary. Source
+completion or a client merge authorizes none of those production operations.
 
 ## Repository guide
 

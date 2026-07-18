@@ -192,12 +192,19 @@ Start with:
   double-sided visual assets with a +Y-up, +Z-forward trunk-base contract.
   The 16 source species manifests incorrectly say `doubleSided: false`; the
   decoded GLB bytes are authoritative and must not be silently repaired.
-  Renderers may use only a private terrain-contact wrapper, deterministic
-  rotation/scale variation, and conservative projected-height LOD. Do not
-  derive collision, canonical coordinates, pathing, ownership, resources,
-  rewards, placement, or persistent SpacetimeDB state from any tree model.
-  Retain `LicenseRef-Warpkeep-Provenance-Required`; the use authorization is
-  not an open licence, merge approval, or Pages deployment approval.
+  Renderers may use only a private terrain-contact wrapper, the transforms
+  selected by the reviewed shared layout, and conservative projected-height
+  LOD. The immutable GLBs and their geometry never determine collision,
+  canonical coordinates, pathing, ownership, resources, rewards, or gameplay
+  placement. The separately authored, exact-digest `realm_forest_layout_v1` /
+  `realm_forest_instance_v1` public projection may persist a fixed Genesis
+  visual layout; it contains only an allowed asset selector and fixed visual
+  transform, is seeded and validated server-side, and cannot change movement,
+  picking, combat, ownership, resources, rewards, or terrain authority. A
+  layout change requires a new reviewed version and seed, never ad-hoc client
+  culling. Retain `LicenseRef-Warpkeep-Provenance-Required`; the use
+  authorization is not an open licence, merge approval, or Pages deployment
+  approval.
 - `public/images/realm/hegemony-gold-mine-record.webp` is a separate,
   exact-hash-pinned transparent 2D inspection illustration with its provenance
   under `docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/`.

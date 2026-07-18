@@ -64,8 +64,12 @@ Y rotation and uniform scale within the recorded bounds, and place a private
 terrain-contact wrapper. Some authored bounds dip slightly below the pivot
 plane, so grounding needs a small visual tolerance without editing the GLB.
 Use the tree catalog for visual biome diversity only; it is not a source of
-authoritative collision, map placement, resources, rewards, or SpacetimeDB
-state.
+authoritative collision, gameplay map placement, resources, rewards, or
+authority. The reviewed `realm_forest_layout_v1` / `realm_forest_instance_v1`
+projection may persist one fixed Genesis visual layout, but its asset IDs and
+fixed-point transforms are authored and server-validated independently of GLB
+geometry. It cannot alter terrain semantics, movement, picking, ownership, or
+economy.
 
 The species-library source manifests state doubleSided: false, but all 66
 decoded GLBs actually set material.doubleSided: true. The runtime family keeps

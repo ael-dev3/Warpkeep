@@ -405,6 +405,35 @@ export const QaObserverRealmV2 = __t.object("QaObserverRealmV2", {
 });
 export type QaObserverRealmV2 = __Infer<typeof QaObserverRealmV2>;
 
+export const RealmForestInstanceV1 = __t.object("RealmForestInstanceV1", {
+  treeId: __t.string(),
+  realmId: __t.string(),
+  tileKey: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  localXMicrounits: __t.i64(),
+  localZMicrounits: __t.i64(),
+  worldXMicrounits: __t.i64(),
+  worldZMicrounits: __t.i64(),
+  rotationMilliDegrees: __t.u32(),
+  scaleBasisPoints: __t.u32(),
+  speciesId: __t.string(),
+  habitat: __t.string(),
+  layoutVersion: __t.u32(),
+});
+export type RealmForestInstanceV1 = __Infer<typeof RealmForestInstanceV1>;
+
+export const RealmForestLayoutV1 = __t.object("RealmForestLayoutV1", {
+  realmId: __t.string(),
+  layoutVersion: __t.u32(),
+  policyVersion: __t.string(),
+  layoutDigest: __t.string(),
+  assetCatalogDigest: __t.string(),
+  instanceCount: __t.u32(),
+  seededAt: __t.timestamp(),
+});
+export type RealmForestLayoutV1 = __Infer<typeof RealmForestLayoutV1>;
+
 export const RealmProfileV1 = __t.object("RealmProfileV1", {
   fid: __t.u64(),
   canonicalUsername: __t.option(__t.string()),

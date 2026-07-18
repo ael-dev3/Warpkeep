@@ -32,6 +32,10 @@ import {
 import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
 import type { WarpkeepRealmSnapshotCandidate } from '../src/spacetime/warpkeepBackendTypes';
 import {
+  CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+  CANONICAL_GENESIS_FOREST_LAYOUT_V1
+} from '../spacetimedb/src/forestLayoutPolicy';
+import {
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate
 } from './fixtures/canonicalGenesisSnapshot';
@@ -101,6 +105,66 @@ function connectionForCandidate(candidate: WarpkeepRealmSnapshotCandidate): Warp
       castle: table(rows.castle)
     }
   } as unknown as WarpkeepConnection;
+}
+
+function callbackSubscriptionDouble() {
+  let onApplied: (() => void) | undefined;
+  let onError: (() => void) | undefined;
+  const subscription = { unsubscribe: vi.fn() };
+  const builder = {
+    onApplied: vi.fn((callback: () => void) => {
+      onApplied = callback;
+      return builder;
+    }),
+    onError: vi.fn((callback: () => void) => {
+      onError = callback;
+      return builder;
+    }),
+    subscribe: vi.fn(() => subscription)
+  };
+  return Object.freeze({
+    builder,
+    subscription,
+    apply: () => onApplied?.(),
+    fail: () => onError?.()
+  });
+}
+
+/**
+ * A core + paired-forest browser double. Gold is intentionally absent so the
+ * test isolates the forest subscription's atomic visibility boundary.
+ */
+function forestSubscriptionConnection(
+  candidate: WarpkeepRealmSnapshotCandidate,
+  forest: Readonly<{
+    layoutRows?: readonly unknown[];
+    treeRows?: readonly unknown[];
+  }> = {}
+) {
+  const rows = rawRowsForCandidate(candidate);
+  const table = <T,>(values: readonly T[]) => ({
+    iter: function* () { yield* values; }
+  });
+  const core = callbackSubscriptionDouble();
+  const pairedForest = callbackSubscriptionDouble();
+  const connection = {
+    db: {
+      worldTile: table(rows.worldTile),
+      worldTileMetaV1: table(rows.worldTileMetaV1),
+      playerV2: table(rows.playerV2),
+      realmProfileV1: table(rows.realmProfileV1),
+      realmV1: table(rows.realmV1),
+      castle: table(rows.castle),
+      realmForestLayoutV1: table(forest.layoutRows ?? [
+        { ...CANONICAL_GENESIS_FOREST_LAYOUT_V1, seededAt: timestamp() }
+      ]),
+      realmForestInstanceV1: table(forest.treeRows ?? CANONICAL_GENESIS_FOREST_INSTANCES_V1)
+    },
+    subscriptionBuilder: vi.fn()
+      .mockReturnValueOnce(core.builder)
+      .mockReturnValueOnce(pairedForest.builder)
+  } as unknown as WarpkeepConnection;
+  return Object.freeze({ connection, core, pairedForest });
 }
 
 type RealmTableListener = (context: EventContext, ...rows: unknown[]) => void;
@@ -336,6 +400,71 @@ describe('Warpkeep authenticated connection boundary', () => {
     composite.unsubscribe();
     expect(coreSubscription.unsubscribe).toHaveBeenCalledTimes(1);
     expect(goldSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes the paired shared forest visible only after its subscription applies', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedForest } = forestSubscriptionConnection(candidate);
+    const onApplied = vi.fn();
+    const composite = subscribeToWarpkeepRealm(connection, onApplied, vi.fn());
+
+    expect(core.builder.subscribe).toHaveBeenCalledWith([
+      tables.worldTile,
+      tables.worldTileMetaV1,
+      tables.playerV2,
+      tables.castle,
+      tables.realmV1,
+      tables.realmProfileV1
+    ]);
+    expect(pairedForest.builder.subscribe).toHaveBeenCalledWith([
+      tables.realmForestLayoutV1,
+      tables.realmForestInstanceV1
+    ]);
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('forestTrees');
+
+    core.apply();
+    expect(onApplied).toHaveBeenCalledTimes(1);
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('forestTrees');
+
+    pairedForest.apply();
+    expect(onApplied).toHaveBeenCalledTimes(2);
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.forestLayout).toEqual(CANONICAL_GENESIS_FOREST_LAYOUT_V1);
+    expect(snapshot.forestTrees).toEqual(CANONICAL_GENESIS_FOREST_INSTANCES_V1);
+    expect(Object.isFrozen(snapshot.forestTrees)).toBe(true);
+
+    composite.unsubscribe();
+    expect(core.subscription.unsubscribe).toHaveBeenCalledOnce();
+    expect(pairedForest.subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('preserves an applied but unseeded forest pair as present-invalid', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedForest } = forestSubscriptionConnection(candidate, {
+      layoutRows: [],
+      treeRows: []
+    });
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+    core.apply();
+    pairedForest.apply();
+
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.forestLayout).toEqual([]);
+    expect(snapshot.forestTrees).toEqual([]);
+    expect(snapshot).toHaveProperty('forestTrees');
+
+    composite.unsubscribe();
+  });
+
+  it('omits forest fields for a pre-v6 connection without the public pair', () => {
+    const snapshot = readWarpkeepRealmSnapshot(
+      connectionForCandidate(createCanonicalGenesisCandidate()),
+      CANONICAL_TEST_FID
+    );
+    expect(snapshot).not.toHaveProperty('forestLayout');
+    expect(snapshot).not.toHaveProperty('forestTrees');
   });
 
   it('uses only the versioned admission procedure and bootstrap reducer', async () => {
@@ -698,6 +827,42 @@ describe('Warpkeep authenticated connection boundary', () => {
       realmV1.table,
       realmProfileV1.table
     ]) {
+      expect(source.removeOnInsert).toHaveBeenCalledOnce();
+      expect(source.removeOnDelete).toHaveBeenCalledOnce();
+      expect(source.removeOnUpdate).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('observes and releases both public forest tables with the Realm lifecycle', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const observed = observableConnectionForCandidate(candidate);
+    const forestLayout = observableTableDouble([
+      { ...CANONICAL_GENESIS_FOREST_LAYOUT_V1, seededAt: timestamp() }
+    ]);
+    const forestInstances = observableTableDouble(CANONICAL_GENESIS_FOREST_INSTANCES_V1);
+    Object.assign(
+      (observed.connection.db as unknown as Record<string, unknown>),
+      {
+        realmForestLayoutV1: forestLayout.table,
+        realmForestInstanceV1: forestInstances.table
+      }
+    );
+    const onChange = vi.fn();
+    const cleanup = observeWarpkeepRealm(
+      observed.connection,
+      CANONICAL_TEST_FID,
+      onChange,
+      vi.fn()
+    );
+    const context = {
+      event: { id: 'forest-layout-update', tag: 'Transaction' }
+    } as unknown as EventContext;
+
+    forestLayout.listeners.update?.(context);
+    expect(onChange).toHaveBeenCalledOnce();
+
+    cleanup();
+    for (const source of [forestLayout.table, forestInstances.table]) {
       expect(source.removeOnInsert).toHaveBeenCalledOnce();
       expect(source.removeOnDelete).toHaveBeenCalledOnce();
       expect(source.removeOnUpdate).toHaveBeenCalledOnce();

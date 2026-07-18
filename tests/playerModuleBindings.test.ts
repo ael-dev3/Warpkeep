@@ -11,6 +11,8 @@ const PLAYER_TABLE_KEYS = [
   'goldNodeOccupationV1',
   'goldSiteV1',
   'playerV2',
+  'realmForestInstanceV1',
+  'realmForestLayoutV1',
   'realmProfileV1',
   'realmV1',
   'worldTile',
@@ -58,7 +60,10 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_admission_status_v2'")
     expect(playerBindings).toContain("'get_my_gold_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_resource_state_v1'")
+    expect(playerBindings).toContain("'realm_forest_layout_v1'")
+    expect(playerBindings).toContain("'realm_forest_instance_v1'")
     expect(playerBindings).not.toContain('gold_expedition_schedule_v_1')
+    expect(playerBindings).not.toContain('admin_seed_genesis_forest_layout_v_1')
     expect(playerBindings).not.toContain('qa_observer_')
     expect(playerBindings).not.toContain('QA_OBSERVER')
     expect(playerBindings).not.toContain('/v1/qa/')

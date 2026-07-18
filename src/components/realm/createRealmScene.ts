@@ -11,8 +11,10 @@ import {
 } from '../../game/map/hexCoordinates';
 import {
   generateRealmForestBiomes,
-  REALM_FOREST_BIOME_BUDGETS
+  REALM_FOREST_BIOME_BUDGETS,
+  type RealmForestBiomeData
 } from '../../game/map/realmForestBiomes';
+import { resolveRealmSharedForestLayout } from '../../game/map/realmSharedForestPlacements';
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
 import { generateRealmTerrainFeatures } from '../../game/map/realmTerrainFeatures';
 import {
@@ -236,6 +238,9 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   semanticFeatureDrawCalls: number;
   totalDetailInstanceCount: number;
   totalDetailDrawCalls: number;
+  /** The canonical shared layout replaces local generation only when valid. */
+  forestPlacementSource: 'legacy-fallback' | 'shared' | 'blocked';
+  forestSharedTreeCount: number;
 }>;
 
 export type RealmSceneHandle = Readonly<{
@@ -304,6 +309,18 @@ export type CreateRealmSceneOptions = Readonly<{
   otherCastles: readonly RealmPeerCastleMarker[];
   /** Validated public v5 sites/occupations; absent data renders no Gold nodes. */
   goldNodes?: readonly RealmGoldNodeSceneRecord[];
+  /** Additive public `realm_forest_instance_v1` rows. */
+  sharedForestTrees?: unknown;
+  /** Additive public `realm_forest_layout_v1` metadata row. */
+  sharedForestLayout?: unknown;
+  /** Canonical realm id used to bind the shared forest table to this scene. */
+  realmId?: string;
+  /**
+   * Test/DEV-observer-only bridge for the retired deterministic preview.
+   * Production player scenes must not synthesize a forest before the public
+   * layout table is ready and seeded.
+   */
+  allowLegacyForestFallback?: boolean;
   terrainMetadata: readonly RealmTerrainSemanticRow[];
   quality: RealmQualitySpec;
   reducedMotion: boolean;
@@ -579,7 +596,8 @@ function reserveVisibleGoldTravelBelt(
 function forestPresentationProtectedTileKeys(
   options: Pick<CreateRealmSceneOptions, 'goldNodes' | 'terrainMetadata'>,
   terrainSemantics: ReturnType<typeof indexRealmTerrainSemantics>,
-  placements: readonly TerrainStructurePlacement[]
+  placements: readonly TerrainStructurePlacement[],
+  includeGoldPresentationReservations = true
 ) {
   const protectedTileKeys = new Set<string>();
   options.terrainMetadata.forEach((row) => {
@@ -609,14 +627,80 @@ function forestPresentationProtectedTileKeys(
     // owning hex edge, so reserve the six immediate neighboring cells too.
     addForestPresentationDisc(protectedTileKeys, placement.coord, 1);
   });
+  if (!includeGoldPresentationReservations) return protectedTileKeys;
   (options.goldNodes ?? []).forEach((node) => {
     addForestPresentationDisc(protectedTileKeys, node.coord, 1);
+    // Occupation-specific wagon routes are local, changing presentation. They
+    // keep the legacy fallback clear, but cannot invalidate an otherwise
+    // canonical shared forest row simply because one viewer's expedition is
+    // currently active.
     if (!node.originCastle) return;
     const origin = { q: node.originCastle.q, r: node.originCastle.r };
     addForestPresentationDisc(protectedTileKeys, origin, 1);
     reserveVisibleGoldTravelBelt(protectedTileKeys, origin, node.coord);
   });
   return protectedTileKeys;
+}
+
+/**
+ * Immutable shared forest rows were seeded against this deliberately narrow
+ * static contract. Do not let resource-capable/core/reserve slots, Gold
+ * occupations, or wagon presentation state change which authoritative trees
+ * render for a player. The legacy planner keeps its broader local clarity
+ * rules above; the shared layout must match every client exactly.
+ */
+function sharedForestLayoutProtectedTileKeys(
+  options: Pick<CreateRealmSceneOptions, 'terrainMetadata'>,
+  terrainSemantics: ReturnType<typeof indexRealmTerrainSemantics>
+) {
+  const protectedTileKeys = new Set<string>();
+  options.terrainMetadata.forEach((row) => {
+    if (row.staticContentKind !== 'castle-slot' && row.staticContentKind !== 'scenic-blocker') {
+      return;
+    }
+    const coord = parseHexKey(row.tileKey);
+    if (!coord) return;
+    addForestPresentationDisc(
+      protectedTileKeys,
+      coord,
+      0
+    );
+  });
+  // These terrain semantics are intrinsically non-foliage; retain them as
+  // static policy exclusions without importing any player-local runtime state.
+  terrainSemantics.terrainKindsByKey.forEach((kind, key) => {
+    if (kind === 'lake' || kind === 'ridge' || kind === 'ancient-stone') {
+      protectedTileKeys.add(key);
+    }
+  });
+  // Foundation clearance was reviewed into the exact server catalog and is
+  // proven by the canonical row matcher. Do not infer it from current castle
+  // occupancy or broaden it to neighbor cells: either makes player-specific
+  // state change a supposedly shared forest layout.
+  return protectedTileKeys;
+}
+
+function emptyForestBiomeData(
+  instanceBudget: number,
+  triangleBudget: number
+): RealmForestBiomeData {
+  return Object.freeze({
+    points: Object.freeze([]),
+    canopyByTileKey: new Map(),
+    counts: Object.freeze({
+      forestSemanticCellCount: 0,
+      groveCellCount: 0,
+      fringeCellCount: 0,
+      eligibleFoliageCellCount: 0,
+      openFoliageCellCount: 0,
+      openCellCount: 0,
+      treeCount: 0,
+      speciesCount: 0,
+      estimatedTriangleCount: 0
+    }),
+    instanceBudget,
+    triangleBudget
+  });
 }
 
 export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHandle {
@@ -723,10 +807,14 @@ function initializeRealmScene(
     terrainSemantics.castleSlotKeys,
     { includeForestTrees: false }
   );
-  const forestProtectedTileKeys = forestPresentationProtectedTileKeys(
+  const legacyForestProtectedTileKeys = forestPresentationProtectedTileKeys(
     options,
     terrainSemantics,
     terrainPlacements
+  );
+  const sharedForestProtectedTileKeys = sharedForestLayoutProtectedTileKeys(
+    options,
+    terrainSemantics
   );
   const forestLod = runtimeQuality.id === 'high'
     ? 'high'
@@ -737,25 +825,49 @@ function initializeRealmScene(
       - decorationData.points.length
       - nonForestSemanticFeatureData.points.length
   );
-  const forestBiomeData = generateRealmForestBiomes(
-    options.surface.renderMap,
-    terrainSemantics.terrainKindsByKey,
-    {
-      quality: runtimeQuality.id,
-      species: HEGEMONY_TREE_RUNTIME_ASSETS.map((asset) => Object.freeze({
-        id: asset.id,
-        triangles: hegemonyTreeModel(asset, forestLod).triangles,
-        footprintDiameter: hegemonyTreeModel(asset, forestLod).normalizedFootprintDiameter,
-        biomes: asset.biomes
-      })),
-      hexSize: HEX_SIZE,
-      placements: terrainPlacements,
-      protectedTileKeys: forestProtectedTileKeys,
-      isCoordPassable: options.isCoordPassable,
-      maximumInstanceCount: forestDetailBudget,
-      maximumTriangleCount: REALM_FOREST_BIOME_BUDGETS[runtimeQuality.id].triangles
-    }
-  );
+  const forestSpecies = HEGEMONY_TREE_RUNTIME_ASSETS.map((asset) => Object.freeze({
+    id: asset.id,
+    triangles: hegemonyTreeModel(asset, forestLod).triangles,
+    footprintDiameter: hegemonyTreeModel(asset, forestLod).normalizedFootprintDiameter,
+    biomes: asset.biomes
+  }));
+  const sharedForestLayout = resolveRealmSharedForestLayout({
+    layout: options.sharedForestLayout,
+    rows: options.sharedForestTrees,
+    allowLegacyFallback: options.allowLegacyForestFallback === true,
+    realmId: options.realmId ?? '',
+    renderMap: options.surface.renderMap,
+    terrainKindsByKey: terrainSemantics.terrainKindsByKey,
+    species: forestSpecies,
+    hexSize: HEX_SIZE,
+    protectedTileKeys: sharedForestProtectedTileKeys,
+    isCoordPassable: options.isCoordPassable
+  });
+  // A local preview can exist only behind the explicit DEV/test opt-in. Every
+  // normal player scene remains empty until both public tables attest the full
+  // canonical layout; a present but malformed or unseeded projection never
+  // falls back to independently generated tree positions.
+  const forestBiomeData = sharedForestLayout.source === 'legacy-fallback'
+    ? generateRealmForestBiomes(
+      options.surface.renderMap,
+      terrainSemantics.terrainKindsByKey,
+      {
+        quality: runtimeQuality.id,
+        species: forestSpecies,
+        hexSize: HEX_SIZE,
+        placements: terrainPlacements,
+        protectedTileKeys: legacyForestProtectedTileKeys,
+        isCoordPassable: options.isCoordPassable,
+        maximumInstanceCount: forestDetailBudget,
+        maximumTriangleCount: REALM_FOREST_BIOME_BUDGETS[runtimeQuality.id].triangles
+      }
+    )
+    : sharedForestLayout.source === 'shared'
+      ? sharedForestLayout.shared.data
+      : emptyForestBiomeData(
+        forestDetailBudget,
+        REALM_FOREST_BIOME_BUDGETS[runtimeQuality.id].triangles
+      );
 
   const { data: terrainData, geometry: terrainGeometry } = createTerrainGeometry(
     options.surface,
@@ -854,7 +966,15 @@ function initializeRealmScene(
   const totalDetailInstanceCount = decorationData.points.length
     + semanticFeatureData.points.length
     + (forestTelemetry?.instanceCount ?? 0);
-  if (totalDetailInstanceCount > renderPlan.decorationInstanceBudget) {
+  // The shared 210-tree layout is a separately bounded, one-draw-call static
+  // world layer. Do not subject it to the former quality-scaled procedural
+  // foliage cap: every device must retain the same canonical placement ids,
+  // changing only its selected GLB LOD. Legacy preview generation remains
+  // inside the ordinary detail budget.
+  const budgetedDetailInstanceCount = decorationData.points.length
+    + semanticFeatureData.points.length
+    + (sharedForestLayout.source === 'shared' ? 0 : (forestTelemetry?.instanceCount ?? 0));
+  if (budgetedDetailInstanceCount > renderPlan.decorationInstanceBudget) {
     throw new Error('REALM_TERRAIN_TOTAL_DETAIL_BUDGET_EXCEEDED');
   }
   const semanticFeatures = createRealmTerrainFeatureLayers(
@@ -887,7 +1007,11 @@ function initializeRealmScene(
         + (currentForestTelemetry?.instanceCount ?? 0),
       totalDetailDrawCalls: decorations.drawCalls
         + semanticFeatures.drawCalls
-        + (currentForestTelemetry?.drawCalls ?? 0)
+        + (currentForestTelemetry?.drawCalls ?? 0),
+      forestPlacementSource: sharedForestLayout.source,
+      forestSharedTreeCount: sharedForestLayout.source === 'shared'
+        ? forestBiomeData.points.length
+        : 0
     }));
   };
   reportTerrainPresentation();

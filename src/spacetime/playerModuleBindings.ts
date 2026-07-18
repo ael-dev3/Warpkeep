@@ -43,6 +43,8 @@ import DispatchGoldExpeditionV1Reducer from './module_bindings/dispatch_gold_exp
 import GoldNodeOccupationV1Row from './module_bindings/gold_node_occupation_v_1_table'
 import GoldSiteV1Row from './module_bindings/gold_site_v_1_table'
 import PlayerV2Row from './module_bindings/player_v_2_table'
+import RealmForestInstanceV1Row from './module_bindings/realm_forest_instance_v_1_table'
+import RealmForestLayoutV1Row from './module_bindings/realm_forest_layout_v_1_table'
 import RealmProfileV1Row from './module_bindings/realm_profile_v_1_table'
 import RealmV1Row from './module_bindings/realm_v_1_table'
 import WorldTileMetaV1Row from './module_bindings/world_tile_meta_v_1_table'
@@ -107,6 +109,34 @@ const tablesSchema = __schema({
       { name: 'player_v2_fid_key', constraint: 'unique', columns: ['fid'] },
     ],
   }, PlayerV2Row),
+  // The immutable forest pair is public presentation data only. The browser
+  // receives no seeding reducer or private authority table; connection code
+  // publishes rows only after both subscriptions apply atomically.
+  realmForestInstanceV1: __table({
+    name: 'realm_forest_instance_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_forest_instance_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+      { accessor: 'treeId', name: 'realm_forest_instance_v1_tree_id_idx_btree', algorithm: 'btree', columns: [
+        'treeId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_forest_instance_v1_tree_id_key', constraint: 'unique', columns: ['treeId'] },
+    ],
+  }, RealmForestInstanceV1Row),
+  realmForestLayoutV1: __table({
+    name: 'realm_forest_layout_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_forest_layout_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_forest_layout_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmForestLayoutV1Row),
   realmProfileV1: __table({
     name: 'realm_profile_v1',
     indexes: [

@@ -68,6 +68,11 @@ import { hexKey } from '../src/game/map/hexCoordinates';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { DEFAULT_REALM_CAMERA_SPEC } from '../src/components/realm/realmCameraController';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
+import {
+  CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+  CANONICAL_GENESIS_FOREST_LAYOUT_V1
+} from '../spacetimedb/src/forestLayoutPolicy';
+import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
 
@@ -111,6 +116,9 @@ function createOptions(
     keepCoord: { q: 0, r: 0 },
     ownCastleId: 1,
     otherCastles: [],
+    // Direct scene tests opt into the retired preview explicitly. Production
+    // player scenes never synthesize a forest while shared rows are absent.
+    allowLegacyForestFallback: true,
     terrainMetadata: surface.playableMap.cells.map((cell) => ({
       tileKey: hexKey(cell.coord),
       terrainKind: 'lowland',
@@ -254,7 +262,9 @@ describe('realm scene setup cleanup', () => {
       semanticFeatureCount: 0,
       semanticFeatureDrawCalls: 0,
       totalDetailInstanceCount: expect.any(Number),
-      totalDetailDrawCalls: expect.any(Number)
+      totalDetailDrawCalls: expect.any(Number),
+      forestPlacementSource: 'legacy-fallback',
+      forestSharedTreeCount: 0
     });
 
     sceneHandle.dispose();
@@ -297,6 +307,49 @@ describe('realm scene setup cleanup', () => {
     expect(renderedScene.getObjectByName('realm-hegemony-forest-presentation')).toBeTruthy();
 
     sceneHandle.dispose();
+  });
+
+  it('keeps all canonical shared trees at every quality under the real static exclusion set', () => {
+    const snapshot = createCanonicalGenesisSnapshot();
+    const surface = createRealmTerrainSurface(
+      snapshot.realm.numericSeed,
+      snapshot.realm.authoritativeRadius,
+      snapshot.realm.renderRadius
+    );
+    for (const quality of [
+      REALM_QUALITY_SPECS.high,
+      REALM_QUALITY_SPECS.balanced,
+      REALM_QUALITY_SPECS.reduced
+    ]) {
+      const canvas = document.createElement('canvas');
+      const onTerrainPresentationTelemetry = vi.fn();
+      const sceneHandle = createRealmScene(createOptions(canvas, {
+        surface,
+        terrainMetadata: snapshot.tileMetadata,
+        quality,
+        realmId: snapshot.realm.realmId,
+        sharedForestLayout: CANONICAL_GENESIS_FOREST_LAYOUT_V1,
+        sharedForestTrees: CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+        allowLegacyForestFallback: false,
+        onTerrainPresentationTelemetry
+      }));
+      const telemetry = onTerrainPresentationTelemetry.mock.calls.at(-1)?.[0];
+      const renderedScene = webglState.instances.at(-1)?.render.mock.calls.at(-1)?.[0] as THREE.Scene;
+      const fallback = renderedScene.getObjectByName(
+        'realm-hegemony-tree-static-fallback'
+      ) as THREE.InstancedMesh | undefined;
+
+      expect(telemetry).toMatchObject({
+        forestPlacementSource: 'shared',
+        forestSharedTreeCount: 210
+      });
+      expect(fallback).toBeInstanceOf(THREE.InstancedMesh);
+      expect(fallback?.count).toBe(210);
+      expect(fallback?.castShadow).toBe(false);
+      expect(fallback?.receiveShadow).toBe(false);
+
+      sceneHandle.dispose();
+    }
   });
 
   it('uses a sunlit key with restrained identity fills without adding PBR work', () => {

@@ -44,6 +44,7 @@ import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminExpandGenesisWorldV3Reducer from "./admin_expand_genesis_world_v_3_reducer";
 import AdminFinalizeSnapScanBatchV1Reducer from "./admin_finalize_snap_scan_batch_v_1_reducer";
 import AdminReplaceFidWalletSnapshotV1Reducer from "./admin_replace_fid_wallet_snapshot_v_1_reducer";
+import AdminSeedGenesisForestLayoutV1Reducer from "./admin_seed_genesis_forest_layout_v_1_reducer";
 import AdminSeedGenesisTierIGoldSitesV1Reducer from "./admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
 import AdminSeedWorldReducer from "./admin_seed_world_reducer";
 import AdminUpsertFidWalletAttributionV1Reducer from "./admin_upsert_fid_wallet_attribution_v_1_reducer";
@@ -78,6 +79,8 @@ import GoldNodeOccupationV1Row from "./gold_node_occupation_v_1_table";
 import GoldSiteV1Row from "./gold_site_v_1_table";
 import PlayerRow from "./player_table";
 import PlayerV2Row from "./player_v_2_table";
+import RealmForestInstanceV1Row from "./realm_forest_instance_v_1_table";
+import RealmForestLayoutV1Row from "./realm_forest_layout_v_1_table";
 import RealmProfileV1Row from "./realm_profile_v_1_table";
 import RealmV1Row from "./realm_v_1_table";
 import WorldTileRow from "./world_tile_table";
@@ -192,6 +195,31 @@ const tablesSchema = __schema({
       { name: 'player_v2_fid_key', constraint: 'unique', columns: ['fid'] },
     ],
   }, PlayerV2Row),
+  realmForestInstanceV1: __table({
+    name: 'realm_forest_instance_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_forest_instance_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+      { accessor: 'treeId', name: 'realm_forest_instance_v1_tree_id_idx_btree', algorithm: 'btree', columns: [
+        'treeId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_forest_instance_v1_tree_id_key', constraint: 'unique', columns: ['treeId'] },
+    ],
+  }, RealmForestInstanceV1Row),
+  realmForestLayoutV1: __table({
+    name: 'realm_forest_layout_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_forest_layout_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_forest_layout_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmForestLayoutV1Row),
   realmProfileV1: __table({
     name: 'realm_profile_v1',
     indexes: [
@@ -257,6 +285,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_expand_genesis_world_v3", AdminExpandGenesisWorldV3Reducer),
   __reducerSchema("admin_finalize_snap_scan_batch_v1", AdminFinalizeSnapScanBatchV1Reducer),
   __reducerSchema("admin_replace_fid_wallet_snapshot_v1", AdminReplaceFidWalletSnapshotV1Reducer),
+  __reducerSchema("admin_seed_genesis_forest_layout_v1", AdminSeedGenesisForestLayoutV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_gold_sites_v1", AdminSeedGenesisTierIGoldSitesV1Reducer),
   __reducerSchema("admin_seed_world", AdminSeedWorldReducer),
   __reducerSchema("admin_upsert_fid_wallet_attribution_v1", AdminUpsertFidWalletAttributionV1Reducer),

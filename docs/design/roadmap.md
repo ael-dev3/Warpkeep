@@ -42,11 +42,12 @@ Gold Mine expedition loop:
 9. Two thousand cells are classified as resource-capable placement anchors. A
    separate digest-pinned policy selects 24 Gold Mines; capacity metadata alone
    neither creates a node nor adds a yield source.
-10. Deterministic visual forest ecoregions use integrity-pinned tree LOD assets
-    to make groves and clearings feel natural without rewriting canonical
-    terrain, passability, resource economics, Gold placements, or persistent
-    world state. Semantic biome changes remain a separate owner-approved
-    migration and balance decision.
+10. A public, server-seeded visual forest layout uses integrity-pinned tree LOD
+   assets to make groves and clearings feel natural. All players receive the
+   same fixed instances; graphics quality changes only LOD. It does not rewrite
+   canonical terrain, passability, resource economics, Gold placement,
+   ownership, or gameplay state. Semantic biome changes remain a separate
+   owner-approved migration and balance decision.
 
 This candidate is not live. Module publication, the production founder
 backfill, world expansion, Gold-site and forest-layout setup, aggregate

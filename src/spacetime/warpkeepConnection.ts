@@ -73,6 +73,18 @@ type GoldProjectionAvailability =
   | typeof GOLD_PROJECTION_PENDING
   | typeof GOLD_PROJECTION_READY;
 const goldProjectionAvailability = new WeakMap<WarpkeepConnection, GoldProjectionAvailability>();
+const FOREST_PROJECTION_UNAVAILABLE = 'unavailable' as const;
+const FOREST_PROJECTION_PENDING = 'pending' as const;
+const FOREST_PROJECTION_READY = 'ready' as const;
+type ForestProjectionAvailability =
+  | typeof FOREST_PROJECTION_UNAVAILABLE
+  | typeof FOREST_PROJECTION_PENDING
+  | typeof FOREST_PROJECTION_READY;
+/**
+ * Forest metadata and instances share one subscription handle. They only
+ * become readable after that paired subscription has applied in full.
+ */
+const forestProjectionAvailability = new WeakMap<WarpkeepConnection, ForestProjectionAvailability>();
 const GOLD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const GOLD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
@@ -327,11 +339,11 @@ export async function collectWarpkeepGoldExpedition(
 }
 
 /**
- * Start the protocol-v3 core shared-state subscription and an additive public
- * Gold subscription. The scheduler and every private economy table remain
- * outside the player graph. If the additive schema is not deployed yet, core
- * Realm rendering remains live with no Gold nodes rather than treating any
- * site as available.
+ * Start the protocol-v3 core shared-state subscription and additive public
+ * Gold/forest subscriptions. The scheduler, forest seeding reducer, and every
+ * private economy table remain outside the player graph. If an additive
+ * schema is not deployed yet, the core Realm remains live but that visual
+ * layer is empty rather than locally synthesized.
  */
 export function subscribeToWarpkeepRealm(
   connection: WarpkeepConnection,
@@ -340,6 +352,7 @@ export function subscribeToWarpkeepRealm(
 ): WarpkeepRealmSubscription {
   let coreApplied = false;
   goldProjectionAvailability.set(connection, GOLD_PROJECTION_PENDING);
+  forestProjectionAvailability.set(connection, FOREST_PROJECTION_PENDING);
   const coreSubscription = connection
     .subscriptionBuilder()
     .onApplied(() => {
@@ -389,11 +402,45 @@ export function subscribeToWarpkeepRealm(
     goldProjectionAvailability.set(connection, GOLD_PROJECTION_UNAVAILABLE);
   }
 
+  let forestSubscription: SubscriptionHandle | undefined;
+  const forestTables = publicForestTables(connection);
+  // A pre-forest service (or a deliberately narrow test double) cannot make
+  // the renderer invent a local forest. It remains an empty layer until the
+  // paired public tables subscribe and apply together.
+  if (forestTables !== undefined) {
+    try {
+      forestSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          forestProjectionAvailability.set(connection, FOREST_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          forestProjectionAvailability.set(connection, FOREST_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          tables.realmForestLayoutV1,
+          tables.realmForestInstanceV1
+        ]);
+    } catch {
+      forestProjectionAvailability.set(connection, FOREST_PROJECTION_UNAVAILABLE);
+      if (coreApplied) onApplied();
+    }
+  } else {
+    forestProjectionAvailability.set(connection, FOREST_PROJECTION_UNAVAILABLE);
+  }
+
   return Object.freeze({
     unsubscribe: () => {
       goldProjectionAvailability.delete(connection);
+      forestProjectionAvailability.delete(connection);
       try {
-        goldSubscription?.unsubscribe();
+        try {
+          goldSubscription?.unsubscribe();
+        } finally {
+          forestSubscription?.unsubscribe();
+        }
       } finally {
         coreSubscription.unsubscribe();
       }
@@ -559,6 +606,72 @@ function asPublicGoldRow(value: unknown): PublicGoldTableRow | undefined {
     : undefined;
 }
 
+type PublicForestTableRow = Readonly<Record<string, unknown>>;
+
+function asPublicForestRow(value: unknown): PublicForestTableRow | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as PublicForestTableRow
+    : undefined;
+}
+
+type PublicForestTable = Readonly<{
+  iter?: () => Iterable<unknown>;
+  onInsert?: (listener: (context: EventContext) => void) => void;
+  onDelete?: (listener: (context: EventContext) => void) => void;
+  onUpdate?: (listener: (context: EventContext) => void) => void;
+  removeOnInsert?: (listener: (context: EventContext) => void) => void;
+  removeOnDelete?: (listener: (context: EventContext) => void) => void;
+  removeOnUpdate?: (listener: (context: EventContext) => void) => void;
+}>;
+
+function publicForestTables(connection: WarpkeepConnection) {
+  const db = connection.db as unknown as Readonly<{
+    realmForestLayoutV1?: PublicForestTable;
+    realmForestInstanceV1?: PublicForestTable;
+  }> | undefined;
+  if (!db?.realmForestLayoutV1 || !db.realmForestInstanceV1) return undefined;
+  return db;
+}
+
+function publicForestLayoutRecord(value: unknown): unknown {
+  const row = asPublicForestRow(value);
+  if (!row) return Object.freeze({});
+  // Project only the fixed public metadata columns. A malformed field remains
+  // visibly malformed to the strict browser policy instead of being coerced.
+  return Object.freeze({
+    realmId: row.realmId,
+    layoutVersion: row.layoutVersion,
+    policyVersion: row.policyVersion,
+    layoutDigest: row.layoutDigest,
+    assetCatalogDigest: row.assetCatalogDigest,
+    instanceCount: row.instanceCount
+  });
+}
+
+function publicForestTreeRecord(value: unknown): unknown {
+  const row = asPublicForestRow(value);
+  if (!row) return Object.freeze({});
+  // Do not expose seeded timestamps, reducers, or arbitrary generated row
+  // fields to the renderer. The policy receives exactly its fixed-point
+  // layout contract and rejects every incompatible value.
+  return Object.freeze({
+    treeId: row.treeId,
+    realmId: row.realmId,
+    tileKey: row.tileKey,
+    q: row.q,
+    r: row.r,
+    localXMicrounits: row.localXMicrounits,
+    localZMicrounits: row.localZMicrounits,
+    worldXMicrounits: row.worldXMicrounits,
+    worldZMicrounits: row.worldZMicrounits,
+    rotationMilliDegrees: row.rotationMilliDegrees,
+    scaleBasisPoints: row.scaleBasisPoints,
+    speciesId: row.speciesId,
+    habitat: row.habitat,
+    layoutVersion: row.layoutVersion
+  });
+}
+
 function publicGoldTables(connection: WarpkeepConnection) {
   const db = connection.db as unknown as {
     goldSiteV1?: {
@@ -646,6 +759,45 @@ function readPublicGoldProjection(connection: WarpkeepConnection): Readonly<{
   });
 }
 
+type PublicForestProjection = Readonly<{
+  /** `undefined`/an array here intentionally means present-but-invalid. */
+  layout: unknown;
+  /** Always present once the paired forest subscription has applied. */
+  trees: readonly unknown[];
+}>;
+
+const INVALID_PUBLIC_FOREST_PROJECTION: PublicForestProjection = Object.freeze({
+  layout: undefined,
+  trees: Object.freeze([])
+});
+
+/**
+ * Read the paired public forest tables as a single visual projection. Unlike
+ * the Gold catalog, malformed data is forwarded as present-invalid so the
+ * policy layer can distinguish it from an old deployment without forest
+ * tables. It can therefore never activate the DEV-only legacy fallback.
+ */
+function readPublicForestProjection(
+  connection: WarpkeepConnection
+): PublicForestProjection | undefined {
+  if (forestProjectionAvailability.get(connection) !== FOREST_PROJECTION_READY) return undefined;
+  const db = publicForestTables(connection);
+  if (!db) return undefined;
+  const layoutTable = db.realmForestLayoutV1;
+  const treeTable = db.realmForestInstanceV1;
+  if (typeof layoutTable?.iter !== 'function' || typeof treeTable?.iter !== 'function') {
+    return INVALID_PUBLIC_FOREST_PROJECTION;
+  }
+
+  const layoutRows = Object.freeze([...layoutTable.iter()].map(publicForestLayoutRecord));
+  const trees = Object.freeze([...treeTable.iter()].map(publicForestTreeRecord));
+  // The renderer accepts exactly one metadata row and the exact canonical
+  // instance count. Zero/multiple metadata rows stay as an explicit invalid
+  // value instead of silently looking like a pre-v6 unavailable projection.
+  const layout = layoutRows.length === 1 ? layoutRows[0] : layoutRows;
+  return Object.freeze({ layout, trees });
+}
+
 export function readWarpkeepRealmSnapshot(
   connection: WarpkeepConnection,
   ownFid: number
@@ -653,6 +805,7 @@ export function readWarpkeepRealmSnapshot(
   const castles = readCastles(connection);
   const ownCastle = castles.find((castle) => castle.ownerFid === ownFid);
   const publicGold = readPublicGoldProjection(connection);
+  const publicForest = readPublicForestProjection(connection);
   const candidate: WarpkeepRealmSnapshotCandidate = {
     tiles: readWorldTiles(connection),
     tileMetadata: readWorldTileMetadata(connection),
@@ -663,6 +816,10 @@ export function readWarpkeepRealmSnapshot(
     ...(publicGold === undefined ? {} : {
       goldSites: publicGold.sites,
       goldNodeOccupations: publicGold.occupations
+    }),
+    ...(publicForest === undefined ? {} : {
+      forestLayout: publicForest.layout,
+      forestTrees: publicForest.trees
     }),
     ...(ownCastle ? { ownCastle } : {})
   };
@@ -728,6 +885,13 @@ export function observeWarpkeepRealm(
   goldTables?.goldNodeOccupationV1?.onInsert?.(sync);
   goldTables?.goldNodeOccupationV1?.onDelete?.(sync);
   goldTables?.goldNodeOccupationV1?.onUpdate?.(sync);
+  const forestTables = publicForestTables(connection);
+  forestTables?.realmForestLayoutV1?.onInsert?.(sync);
+  forestTables?.realmForestLayoutV1?.onDelete?.(sync);
+  forestTables?.realmForestLayoutV1?.onUpdate?.(sync);
+  forestTables?.realmForestInstanceV1?.onInsert?.(sync);
+  forestTables?.realmForestInstanceV1?.onDelete?.(sync);
+  forestTables?.realmForestInstanceV1?.onUpdate?.(sync);
 
   return () => {
     active = false;
@@ -755,6 +919,12 @@ export function observeWarpkeepRealm(
     goldTables?.goldNodeOccupationV1?.removeOnInsert?.(sync);
     goldTables?.goldNodeOccupationV1?.removeOnDelete?.(sync);
     goldTables?.goldNodeOccupationV1?.removeOnUpdate?.(sync);
+    forestTables?.realmForestLayoutV1?.removeOnInsert?.(sync);
+    forestTables?.realmForestLayoutV1?.removeOnDelete?.(sync);
+    forestTables?.realmForestLayoutV1?.removeOnUpdate?.(sync);
+    forestTables?.realmForestInstanceV1?.removeOnInsert?.(sync);
+    forestTables?.realmForestInstanceV1?.removeOnDelete?.(sync);
+    forestTables?.realmForestInstanceV1?.removeOnUpdate?.(sync);
   };
 }
 

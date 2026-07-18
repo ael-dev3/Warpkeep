@@ -102,7 +102,7 @@ test('legacy admission wires are inert and v2 bootstrap binds only the pre-found
   );
 });
 
-test('generated bindings contain the eleven public projections and omit every private economy table', () => {
+test('generated bindings contain the thirteen public projections and omit every private economy table', () => {
   const bindingsRoot = new URL('../../src/spacetime/module_bindings/', import.meta.url);
   const index = readFileSync(new URL('index.ts', bindingsRoot), 'utf8');
   const legacyPlayer = readFileSync(new URL('player_table.ts', bindingsRoot), 'utf8');
@@ -127,6 +127,8 @@ test('generated bindings contain the eleven public projections and omit every pr
     'gold_site_v_1_table.ts',
     'player_table.ts',
     'player_v_2_table.ts',
+    'realm_forest_instance_v_1_table.ts',
+    'realm_forest_layout_v_1_table.ts',
     'realm_profile_v_1_table.ts',
     'realm_v_1_table.ts',
     'world_tile_meta_v_1_table.ts',

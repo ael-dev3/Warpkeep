@@ -6,7 +6,7 @@
   "authorization": {
     "integrationInstruction": "On 2026-07-18, the Warpkeep project owner supplied Warpkeep_Trees_Runtime_Bundle_2026-07-18.zip and instructed a new draft PR to integrate the supplied tree assets into natural, varied forest and open-biome presentation.",
     "scope": "This records use authorization for the exact digest-pinned tree GLBs in the public Warpkeep GitHub repository and an eventual official warpkeep.com Pages runtime after separately approved deployment. It is use authorization only, not merge or deployment approval.",
-    "limitations": "Delivery does not establish underlying ownership, a separate public/open-content licence, general derivative or redistribution rights, trademark rights, authoritative placement, collision, resource, reward, or SpacetimeDB authority."
+    "limitations": "Delivery does not establish underlying ownership, a separate public/open-content licence, general derivative or redistribution rights, trademark rights, GLB-derived authoritative placement, collision, resource, reward, or SpacetimeDB authority."
   },
   "sourceBundle": {
     "filename": "Warpkeep_Trees_Runtime_Bundle_2026-07-18.zip",
@@ -2488,5 +2488,5 @@
       ]
     }
   ],
-  "scopeBoundary": "This runtime family is visual-only. Biome selection, terrain presentation, model LOD, local wrapper grounding, and decorative forest density are client-renderer concerns only. Canonical map cells, ownership, placement, movement, collision, resource nodes, collection, balances, rewards, schedules, and persistent SpacetimeDB state remain governed solely by separately reviewed authority code."
+  "scopeBoundary": "This runtime family is visual-only. The immutable GLB geometry never determines canonical placement, collision, navigation, resources, rewards, or any game authority. A separately authored and server-validated public realm_forest_layout_v1 / realm_forest_instance_v1 projection may persist one exact digest-pinned Genesis visual catalog of allowed asset IDs and fixed transforms; model LOD only changes visual detail. Canonical map cells, ownership, movement, collision, resource nodes, collection, balances, rewards, schedules, and all gameplay state remain governed solely by separately reviewed SpacetimeDB authority code."
 }

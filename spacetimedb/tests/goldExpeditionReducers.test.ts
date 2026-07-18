@@ -34,13 +34,22 @@ function schemaRegistrations(text: string): string[] {
     .map(line => line.slice(0, -1));
 }
 
-test('v5 Gold authority tables append after the private resource account without rewriting prior registrations', () => {
+test('v5 Gold authority prefix remains intact before the v6 shared-forest append', () => {
   const schema = source('../src/schema.ts');
   const v4 = source('../migration-fixtures/additive-v4-schema/src/index.ts');
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-5), [
+  assert.deepEqual(registrations.slice(-7), [
+    'goldSiteV1',
+    'goldNodeOccupationV1',
+    'goldExpeditionV1',
+    'goldExpeditionIdempotencyV1',
+    'goldExpeditionScheduleV1',
+    'realmForestLayoutV1',
+    'realmForestInstanceV1',
+  ]);
+  assert.deepEqual(registrations.slice(-7, -2), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',

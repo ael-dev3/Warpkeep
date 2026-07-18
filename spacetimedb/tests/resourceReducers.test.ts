@@ -42,7 +42,7 @@ function mutationTargets(text: string): string[] {
     .map(match => match[1]);
 }
 
-test('resource_account_v1 remains the first private append after Alpha Terms before v5 Gold tables', () => {
+test('resource and Gold prefixes remain intact before the v6 shared-forest append', () => {
   const schema = source('../src/schema.ts');
   const deployedV3 = source('../migration-fixtures/additive-v3-schema/src/index.ts');
   const deployedRegistrations = schemaRegistrations(deployedV3);
@@ -56,6 +56,8 @@ test('resource_account_v1 remains the first private append after Alpha Terms bef
     'goldExpeditionV1',
     'goldExpeditionIdempotencyV1',
     'goldExpeditionScheduleV1',
+    'realmForestLayoutV1',
+    'realmForestInstanceV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');

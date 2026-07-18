@@ -1,0 +1,484 @@
+import {
+  GENESIS_FOREST_LAYOUT_V1_ASSET_CATALOG_DIGEST,
+  GENESIS_FOREST_LAYOUT_V1_DIGEST,
+  GENESIS_FOREST_LAYOUT_V1_HABITATS,
+  GENESIS_FOREST_LAYOUT_V1_POLICY_VERSION,
+  GENESIS_FOREST_LAYOUT_V1_REALM_ID,
+  GENESIS_FOREST_LAYOUT_V1_ROTATION_MILLIDEGREE_SCALE,
+  GENESIS_FOREST_LAYOUT_V1_SCALE_BASIS_POINTS,
+  GENESIS_FOREST_LAYOUT_V1_TRANSFORM_MICROUNITS,
+  GENESIS_FOREST_LAYOUT_V1_TREE_COUNT,
+  GENESIS_FOREST_LAYOUT_V1_VERSION,
+  type GenesisForestLayoutV1Habitat,
+} from './forestLayoutContract';
+
+/**
+ * The immutable Genesis 001 forest is deliberately a reviewed data record,
+ * rather than a browser-local procedural decision. The packed rows below are
+ * the quantized result of the previously reviewed 210-tree planner, using
+ * only static castle-slot/scenic-blocker clearances. They never react to live
+ * Gold activity, wagon routes, player state, or a graphics-quality setting.
+ *
+ * Columns:
+ * q,r,speciesIndex,localXMicrounits,localZMicrounits,
+ * worldXMicrounits,worldZMicrounits,rotationMilliDegrees,
+ * scaleBasisPoints,habitatIndex
+ */
+const GENESIS_FOREST_LAYOUT_V1_PACKED_ROWS = `
+-19,7,21,306128,253928,-26540659,10753928,74792,10692,1
+-19,7,21,-403995,211663,-27250783,10711663,103454,9262,1
+-19,7,21,92441,-482155,-26754346,10017845,309676,9943,1
+-18,5,20,-82842,-79291,-26929630,7420709,261581,9187,1
+-18,6,20,3646,-305825,-25977116,8694175,105561,10467,0
+-18,6,1,-182227,304410,-26162989,9304410,127421,9206,0
+-17,5,21,382137,-267384,-24732600,7232616,269471,10654,0
+-17,5,21,-128935,320525,-25243672,7820525,290073,9204,0
+-16,8,7,-284520,-56375,-21069130,11943625,84629,9551,1
+-15,6,20,-159966,216793,-20944576,9216793,18225,10063,1
+-15,7,21,-85478,-465066,-20004062,10034934,124752,10071,0
+-15,7,21,394839,344091,-19523745,10844091,238189,9178,0
+-15,8,16,224626,66142,-18827933,12066142,33489,9335,0
+-15,8,3,-249291,237438,-19301850,12237438,123130,10242,0
+-15,8,8,-435175,-78150,-19487733,11921850,322232,9409,0
+-14,7,20,514703,45643,-17671831,10545643,31800,9743,0
+-14,7,21,-25517,-430023,-18212050,10069977,138938,10766,0
+-14,7,21,-76888,395308,-18263421,10895308,356351,10202,0
+-13,6,21,-382397,310900,-17702905,9310900,326557,10093,2
+-13,17,3,73100,-67802,-7721129,25432198,73116,10489,0
+-13,17,6,351056,207338,-7443173,25707338,217827,9633,0
+-13,17,2,-437826,118758,-8232055,25618758,297134,9360,0
+-12,16,9,-517175,-151235,-7445379,23848765,106370,10337,1
+-12,16,3,98790,387034,-6829413,24387034,161113,9406,1
+-12,17,21,497629,-5234,-5564549,25494766,45389,10552,0
+-12,17,21,-197506,-218038,-6259683,25281962,223077,9363,0
+-12,20,10,-119037,78562,-3583139,30078562,71139,9990,1
+-12,20,4,263892,-68294,-3200209,29931706,152579,9809,1
+-11,16,3,-164100,413364,-5360252,24413364,74784,9178,1
+-11,16,15,-155033,112671,-5351185,24112671,124504,10992,1
+-11,16,2,263854,-213547,-4932299,23786453,355653,10882,1
+-11,19,21,-108448,159328,-2706524,28659328,226275,9430,1
+-11,20,18,-172342,-297483,-1904392,29702517,108219,10119,0
+-11,20,13,510238,-217738,-1221813,29782262,137202,9770,0
+-11,20,19,-328171,377971,-2060222,30377971,146437,10397,0
+-11,20,5,552080,90304,-1179971,30090304,159379,10235,0
+-11,20,19,78076,164901,-1653975,30164901,344115,10149,0
+-10,19,14,-46720,341800,-912745,28841800,57298,9592,1
+-10,19,16,-477167,162558,-1343193,28662558,226261,9210,1
+-10,20,18,368424,23463,368424,30023463,88723,10170,1
+-10,20,13,134145,-295877,134145,29704123,199309,9569,1
+-10,20,11,-388273,130986,-388273,30130986,308513,10588,1
+-8,5,20,-242800,232962,-9769079,7732962,306732,9511,2
+-8,6,21,48942,257128,-8611312,9257128,35840,10667,1
+-7,-2,6,-95161,-289272,-13951567,-3289272,285002,10295,1
+-7,-2,7,-213062,346439,-14069468,-2653561,346942,9123,1
+-7,5,6,-503035,36754,-8297264,7536754,24122,9358,0
+-7,5,9,356564,-412879,-7437665,7087121,188151,9254,0
+-7,5,15,91711,362812,-7702518,7862812,194229,10456,0
+-7,5,17,-314834,433278,-8109063,7933278,348496,10485,0
+-7,6,21,-529920,61335,-7458124,9061335,199312,10953,1
+-7,6,20,207883,362410,-6720320,9362410,240053,10013,1
+-7,6,20,266228,-335864,-6661975,8664136,241465,10066,1
+-7,10,2,103230,476165,-3360872,15476165,281397,9047,2
+-7,11,21,393690,271553,-2204386,16771553,142834,9358,1
+-7,11,20,-159431,-454290,-2757507,16045710,315714,9231,1
+-7,11,20,-284370,395535,-2882446,16895535,325334,10768,1
+-6,-4,7,-452656,42220,-14309063,-5957780,289554,9684,1
+-6,-4,2,304427,-244438,-13551979,-6244438,356175,9020,1
+-6,-3,21,-120011,252146,-13110392,-4247854,336599,10527,0
+-6,-2,7,156402,-320576,-11967954,-3320576,68854,9781,0
+-6,-2,6,530317,95941,-11594039,-2904059,77260,9083,0
+-6,-2,16,54250,496239,-12070106,-2503761,137017,9439,0
+-6,4,20,-117000,483404,-7045203,6483404,201133,10029,1
+-6,4,21,334694,-442127,-6593509,5557873,327883,10185,1
+-6,11,21,-97154,379741,-963179,16879741,300996,9903,0
+-6,12,6,511475,-43053,511475,17956947,108118,9229,1
+-6,12,15,288266,-398491,288266,17601509,141552,9354,1
+-6,12,8,-364269,-377839,-364269,17622161,150496,9742,1
+-6,12,15,-156257,160474,-156257,18160474,235095,10073,1
+-5,-4,16,267243,233150,-11857113,-5766850,65949,9783,1
+-5,-4,15,-425154,-240462,-12549510,-6240462,315634,9151,1
+-5,5,9,-275361,-373126,-4605488,7126874,12653,10451,1
+-5,5,16,292727,295156,-4037400,7795156,322976,10228,1
+-5,10,20,61300,330081,61300,15330081,12015,10440,0
+-5,10,21,67466,-397602,67466,14602398,92789,10946,0
+-5,12,20,-89387,-470828,1642664,17529172,32073,10498,2
+-5,12,20,-49004,281773,1683046,18281773,61004,10857,2
+-4,4,15,286400,-300904,-3177701,5699096,168398,9202,0
+-4,4,6,-304509,-144520,-3768611,5855480,236142,10481,0
+-4,4,3,-173365,202713,-3637467,6202713,306832,9790,0
+-4,4,9,267079,235867,-3197022,6235867,318046,9482,0
+-4,5,20,-399621,326230,-2997698,7826230,70339,10720,0
+-4,5,21,2111,-263431,-2595965,7236569,242300,10970,0
+-3,-10,20,452312,241497,-13404094,-14758503,81840,9305,0
+-3,-10,21,-448565,229169,-14304972,-14770831,95022,10931,0
+-3,-10,21,83464,-406133,-13772943,-15406133,236483,9601,0
+-3,-9,21,-136251,201557,-13126633,-13298443,101223,9663,1
+-3,4,15,-130212,192431,-1862263,6192431,199616,10387,1
+-3,4,3,-82968,-106287,-1815018,5893713,240825,10308,1
+-3,5,21,368546,301590,-497479,7801590,154760,10841,0
+-3,5,21,-271241,-41544,-1137266,7458456,209347,9575,0
+-2,-12,20,324786,28463,-13531621,-17971537,85434,10826,2
+-2,-11,7,-337237,-213546,-13327619,-16713546,192281,9234,1
+-2,-11,15,-2732,-393216,-12993113,-16893216,217866,9860,1
+-2,-10,20,115924,504756,-12008432,-14495244,3371,9843,1
+-2,-10,20,304568,-64566,-11819788,-15064566,50474,9646,1
+-2,1,16,465099,69010,-2132978,1569010,120222,9917,1
+-2,3,7,269039,-25101,-596986,4474899,183510,10391,2
+-2,9,20,-34477,257141,4295650,13757141,21317,9628,1
+-2,10,2,-34260,20977,5161892,15020977,32877,9112,1
+-2,10,15,34002,-476776,5230155,14523224,256496,9070,1
+-1,-12,6,-214260,-422291,-12338616,-18422291,165675,10112,2
+-1,0,3,-532835,-90598,-2264885,-90598,21861,9552,0
+-1,0,2,224939,82045,-1507112,82045,145543,9277,0
+-1,0,7,-29213,409205,-1761263,409205,200453,9494,0
+-1,0,9,-222401,-492528,-1954452,-492528,342596,9422,0
+-1,9,21,-59862,-124260,6002316,13375740,88855,9618,0
+-1,10,6,77012,190514,7005215,15190514,35931,9495,2
+0,8,20,21383,504858,6949586,12504858,50296,10187,1
+0,9,21,388592,189697,8182820,13689697,44301,10347,0
+0,9,20,-441825,-250548,7352404,13249452,191055,10067,0
+2,5,15,252443,-340759,8046671,7159241,58037,10985,2
+2,6,21,382956,-209045,9043210,8790955,21090,9163,0
+2,6,20,-446834,-121550,8213420,8878450,259375,10320,0
+3,1,21,-224978,-354957,5837200,1145043,37335,10850,0
+3,1,20,426859,151217,6489037,1651217,145173,10402,0
+3,2,6,-203553,203661,6724651,3203661,139945,10320,1
+3,5,3,-453793,-173764,9072487,7326236,19074,10975,1
+3,5,7,457301,287496,9983580,7787496,216707,10068,1
+3,5,2,-332807,322983,9193473,7822983,302568,10236,1
+4,1,8,222568,-57017,8016797,1442983,82658,10677,1
+5,3,21,478173,126142,11736503,4626142,190385,9109,1
+5,3,20,-158125,363881,11100205,4863881,339441,10482,1
+6,1,9,487379,40656,11745709,1540656,166310,9941,1
+6,1,3,303970,-321670,11562300,1178330,307906,9403,1
+6,2,20,-67201,463973,12057154,3463973,6498,9393,0
+6,2,21,354139,-190625,12478494,2809375,166208,10115,0
+6,2,20,-386136,-217144,11738220,2782856,173565,9478,0
+7,-2,20,340073,-35766,10732378,-3035766,68103,10448,0
+7,-2,20,-107484,334411,10284821,-2665589,167098,9548,0
+7,2,20,-276896,-417822,13579511,2582178,335877,10548,1
+7,2,20,-158454,317594,13697952,3317594,336054,9194,1
+8,-17,16,-122950,-471534,-988975,-25971534,143,10280,0
+8,-17,2,324721,275479,-541304,-25224521,150850,9180,0
+8,-17,2,-384396,34206,-1250422,-25465794,223081,9846,0
+8,-17,15,305422,-347063,-560603,-25847063,280017,10675,0
+8,-16,8,192466,-501920,192466,-24501920,27434,10425,0
+8,-16,16,-381438,-257126,-381438,-24257126,36640,9099,0
+8,-16,9,50751,364733,50751,-23635267,147621,10864,0
+8,-16,2,92524,-40857,92524,-24040857,340284,9650,0
+8,-2,9,-478257,-267901,11646098,-3267901,96411,9616,0
+8,-2,16,130409,-537990,12254764,-3537990,108032,9046,0
+8,-2,6,517724,-174445,12642080,-3174445,130396,9098,0
+8,-2,8,28629,98144,12152985,-2901856,138274,9299,0
+9,-17,16,-474538,15413,391488,-25484587,46640,9412,0
+9,-17,6,-74320,-367894,791705,-25867894,148175,10255,0
+9,-17,7,84185,371541,950210,-25128459,249370,9621,0
+9,-3,21,68063,529782,13058444,-3970218,11969,10471,1
+9,-2,3,546430,-112388,14402837,-3112388,125891,9643,1
+9,-2,6,-75287,-60542,13781120,-3060542,253292,9157,1
+10,-15,12,311264,27037,4641391,-22472963,29794,9947,1
+10,-15,3,-138615,238532,4191512,-22261468,195985,10976,1
+10,-2,2,337552,-120534,15926009,-3120534,655,10170,2
+10,-2,2,-280970,441179,15307488,-2558821,61587,9007,2
+11,-16,6,10839,105511,5206991,-23894489,62081,10145,0
+11,-16,3,355490,-200319,5551643,-24200319,173166,10404,0
+11,-16,3,327286,304863,5523438,-23695137,182194,9627,0
+11,-15,21,-342235,-165120,5719943,-22665120,71986,10495,0
+11,-15,20,417661,25205,6479838,-22474795,76852,9724,0
+11,-3,2,-297296,415649,16157187,-4084351,15654,10762,1
+11,-3,15,496614,70501,16951096,-4429499,118031,10191,1
+11,-3,15,64730,107499,16519212,-4392501,280665,9450,1
+12,-17,16,-195275,-55847,5866902,-25555847,274182,10746,2
+12,-16,21,88399,180256,7016602,-23819744,30490,10148,2
+12,-3,7,513265,-147340,18699798,-4647340,134510,10577,0
+12,-3,2,169481,183962,18356015,-4316038,190749,10608,0
+12,-3,0,-368448,-32003,17818086,-4532003,238296,9318,0
+12,-3,15,-107581,197305,18078952,-4302695,294088,9986,0
+12,-2,8,-57422,-84219,18995137,-3084219,105,9161,1
+13,-17,9,-68849,-43337,7725380,-25543337,145700,10312,2
+13,-3,15,-406301,-81129,19512283,-4581129,97658,9310,0
+13,-3,3,214117,-113268,20132701,-4613268,184890,9286,0
+13,-3,2,-427679,298087,19490905,-4201913,189834,10644,0
+13,-3,3,493670,-152617,20412255,-4652617,330585,10376,0
+13,-3,16,136116,-380554,20054700,-4880554,348290,9111,0
+13,-2,9,-480027,-223194,20304582,-3223194,224543,9102,1
+13,-2,15,176071,28813,20960681,-2971187,350804,9777,1
+13,1,7,108647,-413843,23491333,1086157,150512,9012,1
+14,-17,7,-493451,216568,9032829,-25283432,16506,9978,0
+14,-17,6,149178,-423312,9675457,-25923312,160077,9584,0
+14,-17,16,403647,-43921,9929927,-25543921,184108,9665,0
+14,-16,8,-222238,333165,10170067,-23666835,152919,9493,1
+14,-16,2,80226,-228112,10472531,-24228112,322541,10814,1
+14,-15,3,446541,326568,11704872,-22173432,35976,9432,2
+14,-15,8,536980,-9807,11795310,-22509807,96986,9414,2
+14,1,7,152216,365370,25266953,1865370,33419,10580,1
+14,1,7,-177784,-167134,24936953,1332866,91892,10809,1
+14,2,6,-20551,-73788,25960211,2926212,249252,10423,1
+15,-18,2,-387690,60485,10004615,-26939515,215044,10264,1
+15,-18,2,144982,-241181,10537287,-27241181,296256,9713,1
+15,-17,3,119247,268451,11377578,-25231549,198783,10114,0
+15,-17,9,-197932,68786,11060398,-25431214,226429,10595,0
+15,-17,7,451761,260853,11710091,-25239147,321788,10015,0
+15,-16,15,-375957,235771,11748399,-23764229,145045,9085,0
+15,-16,6,202952,219988,12327307,-23780012,205479,10097,0
+15,-16,7,-145487,-265387,11978869,-24265387,353605,10653,0
+15,1,16,433691,321018,27280478,1821018,32607,10635,0
+15,1,9,-305923,-194353,26540864,1305647,159624,10295,0
+15,1,2,78772,238333,26925559,1738333,357364,9600,0
+16,0,16,17329,314789,27730142,314789,79628,9028,1
+16,0,8,-278956,-454122,27433857,-454122,104450,9391,1
+16,1,8,-511216,-26560,28067623,1473440,118421,10231,1
+16,1,8,295427,110340,28874265,1610340,134538,10911,1
+17,2,6,249693,118803,31426607,3118803,234628,10194,0
+17,2,8,-514527,-154831,30662388,2845169,300499,10887,0
+17,2,3,355590,-401746,31532504,2598254,341615,9825,0
+18,1,2,49173,-395536,32092113,1104464,52078,9346,1
+18,1,9,-104441,500496,31938499,2000496,63598,10723,1
+18,2,7,175358,165244,33084323,3165244,199292,10016,2
+`;
+
+export const GENESIS_FOREST_LAYOUT_V1_SPECIES_IDS = Object.freeze([
+  'warpkeep.tree.birch.fresh-slender',
+  'warpkeep.tree.birch.golden-lean',
+  'warpkeep.tree.cypress.ancient-dark',
+  'warpkeep.tree.cypress.golden-columnar',
+  'warpkeep.tree.fir.alpine-lime',
+  'warpkeep.tree.fir.silver-young',
+  'warpkeep.tree.maple.ember-crown',
+  'warpkeep.tree.maple.meadow-round',
+  'warpkeep.tree.oak.gnarled-amber',
+  'warpkeep.tree.oak.spring-broad',
+  'warpkeep.tree.pine.alpine',
+  'warpkeep.tree.pine.windblown-blue',
+  'warpkeep.regular-tree',
+  'warpkeep.regular-tree.coolevergreen',
+  'warpkeep.regular-tree.deepforest',
+  'warpkeep.regular-tree.embermaple',
+  'warpkeep.regular-tree.goldengrove',
+  'warpkeep.regular-tree.sunlitlime',
+  'warpkeep.tree.spruce.deep-narrow',
+  'warpkeep.tree.spruce.sunlit-dense',
+  'warpkeep.tree.willow.lemon-weeping',
+  'warpkeep.tree.willow.river-mist',
+] as const);
+
+export type CanonicalForestLayoutV1 = Readonly<{
+  realmId: string;
+  layoutVersion: number;
+  policyVersion: string;
+  layoutDigest: string;
+  assetCatalogDigest: string;
+  instanceCount: number;
+}>;
+
+export type CanonicalForestInstanceV1 = Readonly<{
+  treeId: string;
+  realmId: string;
+  tileKey: string;
+  q: number;
+  r: number;
+  localXMicrounits: bigint;
+  localZMicrounits: bigint;
+  worldXMicrounits: bigint;
+  worldZMicrounits: bigint;
+  rotationMilliDegrees: number;
+  scaleBasisPoints: number;
+  speciesId: string;
+  habitat: GenesisForestLayoutV1Habitat;
+  layoutVersion: number;
+}>;
+
+/** Broad table-row input accepted by the exact canonical matcher. */
+export type CanonicalForestInstanceV1Like = Omit<CanonicalForestInstanceV1, 'habitat'>
+  & Readonly<{ habitat: string }>;
+
+const ASSET_DIGEST_POLICY_VERSION = 'genesis-001-shared-forest-assets-v1';
+
+function failForestLayout(message: string): never {
+  throw new Error(`GENESIS_FOREST_LAYOUT_V1_${message}`);
+}
+
+function parseSafeInteger(value: string, code: string) {
+  if (!/^-?\d+$/.test(value)) failForestLayout(code);
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) failForestLayout(code);
+  return parsed;
+}
+
+function packedTreeId(index: number) {
+  return `genesis-001-forest-${String(index + 1).padStart(3, '0')}`;
+}
+
+function unpackCanonicalForestInstances(): readonly CanonicalForestInstanceV1[] {
+  const seenWorldCoordinates = new Set<string>();
+  return Object.freeze(GENESIS_FOREST_LAYOUT_V1_PACKED_ROWS.trim().split('\n').map((line, index) => {
+    const values = line.split(',');
+    if (values.length !== 10) failForestLayout('PACKED_COLUMN_COUNT');
+    const [
+      qText,
+      rText,
+      speciesIndexText,
+      localXText,
+      localZText,
+      worldXText,
+      worldZText,
+      rotationText,
+      scaleText,
+      habitatIndexText,
+    ] = values;
+    const q = parseSafeInteger(qText!, 'PACKED_Q');
+    const r = parseSafeInteger(rText!, 'PACKED_R');
+    const speciesIndex = parseSafeInteger(speciesIndexText!, 'PACKED_SPECIES');
+    const localXMicrounits = parseSafeInteger(localXText!, 'PACKED_LOCAL_X');
+    const localZMicrounits = parseSafeInteger(localZText!, 'PACKED_LOCAL_Z');
+    const worldXMicrounits = parseSafeInteger(worldXText!, 'PACKED_WORLD_X');
+    const worldZMicrounits = parseSafeInteger(worldZText!, 'PACKED_WORLD_Z');
+    const rotationMilliDegrees = parseSafeInteger(rotationText!, 'PACKED_ROTATION');
+    const scaleBasisPoints = parseSafeInteger(scaleText!, 'PACKED_SCALE');
+    const habitatIndex = parseSafeInteger(habitatIndexText!, 'PACKED_HABITAT');
+    const speciesId = GENESIS_FOREST_LAYOUT_V1_SPECIES_IDS[speciesIndex];
+    const habitat = GENESIS_FOREST_LAYOUT_V1_HABITATS[habitatIndex];
+    if (!speciesId || !habitat) failForestLayout('PACKED_REFERENCE');
+    if (rotationMilliDegrees < 0 || rotationMilliDegrees >= 360_000) {
+      failForestLayout('PACKED_ROTATION_RANGE');
+    }
+    if (scaleBasisPoints < 9_000 || scaleBasisPoints > 11_000) {
+      failForestLayout('PACKED_SCALE_RANGE');
+    }
+    const coordinateKey = `${worldXMicrounits},${worldZMicrounits}`;
+    if (seenWorldCoordinates.has(coordinateKey)) failForestLayout('PACKED_DUPLICATE_POSITION');
+    seenWorldCoordinates.add(coordinateKey);
+    return Object.freeze({
+      treeId: packedTreeId(index),
+      realmId: GENESIS_FOREST_LAYOUT_V1_REALM_ID,
+      tileKey: `${q},${r}`,
+      q,
+      r,
+      localXMicrounits: BigInt(localXMicrounits),
+      localZMicrounits: BigInt(localZMicrounits),
+      worldXMicrounits: BigInt(worldXMicrounits),
+      worldZMicrounits: BigInt(worldZMicrounits),
+      rotationMilliDegrees,
+      scaleBasisPoints,
+      speciesId,
+      habitat,
+      layoutVersion: GENESIS_FOREST_LAYOUT_V1_VERSION,
+    } satisfies CanonicalForestInstanceV1);
+  }));
+}
+
+export const CANONICAL_GENESIS_FOREST_LAYOUT_V1: CanonicalForestLayoutV1 = Object.freeze({
+  realmId: GENESIS_FOREST_LAYOUT_V1_REALM_ID,
+  layoutVersion: GENESIS_FOREST_LAYOUT_V1_VERSION,
+  policyVersion: GENESIS_FOREST_LAYOUT_V1_POLICY_VERSION,
+  layoutDigest: GENESIS_FOREST_LAYOUT_V1_DIGEST,
+  assetCatalogDigest: GENESIS_FOREST_LAYOUT_V1_ASSET_CATALOG_DIGEST,
+  instanceCount: GENESIS_FOREST_LAYOUT_V1_TREE_COUNT,
+});
+
+export const CANONICAL_GENESIS_FOREST_INSTANCES_V1 = unpackCanonicalForestInstances();
+
+if (CANONICAL_GENESIS_FOREST_INSTANCES_V1.length !== GENESIS_FOREST_LAYOUT_V1_TREE_COUNT) {
+  failForestLayout('PACKED_INSTANCE_COUNT');
+}
+
+const CANONICAL_FOREST_INSTANCE_BY_ID = new Map(
+  CANONICAL_GENESIS_FOREST_INSTANCES_V1.map(instance => [instance.treeId, instance] as const),
+);
+
+export function canonicalGenesisForestInstanceV1ForId(treeId: string) {
+  return CANONICAL_FOREST_INSTANCE_BY_ID.get(treeId);
+}
+
+export function canonicalGenesisForestLayoutV1DigestInput(): string {
+  return CANONICAL_GENESIS_FOREST_INSTANCES_V1.map(instance => [
+    GENESIS_FOREST_LAYOUT_V1_POLICY_VERSION,
+    instance.treeId,
+    instance.realmId,
+    instance.tileKey,
+    instance.q,
+    instance.r,
+    instance.localXMicrounits,
+    instance.localZMicrounits,
+    instance.worldXMicrounits,
+    instance.worldZMicrounits,
+    instance.rotationMilliDegrees,
+    instance.scaleBasisPoints,
+    instance.speciesId,
+    instance.habitat,
+    instance.layoutVersion,
+  ].join('|')).join('\n');
+}
+
+export function canonicalGenesisForestAssetCatalogV1DigestInput(): string {
+  return GENESIS_FOREST_LAYOUT_V1_SPECIES_IDS.map((speciesId, index) => [
+    ASSET_DIGEST_POLICY_VERSION,
+    index,
+    speciesId,
+  ].join('|')).join('\n');
+}
+
+export function matchesCanonicalGenesisForestInstanceV1(
+  row: CanonicalForestInstanceV1Like,
+): boolean {
+  const expected = canonicalGenesisForestInstanceV1ForId(row.treeId);
+  return expected !== undefined
+    && expected.realmId === row.realmId
+    && expected.tileKey === row.tileKey
+    && expected.q === row.q
+    && expected.r === row.r
+    && expected.localXMicrounits === row.localXMicrounits
+    && expected.localZMicrounits === row.localZMicrounits
+    && expected.worldXMicrounits === row.worldXMicrounits
+    && expected.worldZMicrounits === row.worldZMicrounits
+    && expected.rotationMilliDegrees === row.rotationMilliDegrees
+    && expected.scaleBasisPoints === row.scaleBasisPoints
+    && expected.speciesId === row.speciesId
+    && expected.habitat === row.habitat
+    && expected.layoutVersion === row.layoutVersion;
+}
+
+export function matchesCanonicalGenesisForestLayoutV1(
+  row: CanonicalForestLayoutV1,
+): boolean {
+  return row.realmId === CANONICAL_GENESIS_FOREST_LAYOUT_V1.realmId
+    && row.layoutVersion === CANONICAL_GENESIS_FOREST_LAYOUT_V1.layoutVersion
+    && row.policyVersion === CANONICAL_GENESIS_FOREST_LAYOUT_V1.policyVersion
+    && row.layoutDigest === CANONICAL_GENESIS_FOREST_LAYOUT_V1.layoutDigest
+    && row.assetCatalogDigest === CANONICAL_GENESIS_FOREST_LAYOUT_V1.assetCatalogDigest
+    && row.instanceCount === CANONICAL_GENESIS_FOREST_LAYOUT_V1.instanceCount;
+}
+
+/**
+ * Browser-safe exact completeness check. It intentionally accepts no
+ * procedural fallback: a missing, duplicate, foreign, or altered row makes
+ * the complete shared forest unavailable until the public subscription is
+ * coherent again.
+ */
+export function isCompleteCanonicalGenesisForestLayoutV1(
+  layout: CanonicalForestLayoutV1 | undefined,
+  instances: Iterable<CanonicalForestInstanceV1Like>,
+): boolean {
+  if (layout === undefined || !matchesCanonicalGenesisForestLayoutV1(layout)) return false;
+  const seen = new Set<string>();
+  let count = 0;
+  for (const instance of instances) {
+    if (seen.has(instance.treeId) || !matchesCanonicalGenesisForestInstanceV1(instance)) {
+      return false;
+    }
+    seen.add(instance.treeId);
+    count += 1;
+  }
+  return count === CANONICAL_GENESIS_FOREST_LAYOUT_V1.instanceCount
+    && seen.size === CANONICAL_GENESIS_FOREST_LAYOUT_V1.instanceCount;
+}
+
+/**
+ * Retain the conversion constants in this policy module for server-side tests
+ * and operator tooling without forcing browser code to import packed rows.
+ */
+export const GENESIS_FOREST_LAYOUT_V1_FIXED_POINT = Object.freeze({
+  transformMicrounits: GENESIS_FOREST_LAYOUT_V1_TRANSFORM_MICROUNITS,
+  rotationMilliDegreeScale: GENESIS_FOREST_LAYOUT_V1_ROTATION_MILLIDEGREE_SCALE,
+  scaleBasisPoints: GENESIS_FOREST_LAYOUT_V1_SCALE_BASIS_POINTS,
+});

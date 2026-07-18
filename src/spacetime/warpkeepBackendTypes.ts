@@ -117,6 +117,42 @@ export type WarpkeepGoldNodeOccupation = Readonly<{
 }>;
 
 /**
+ * Public, immutable realm-wide forest layout metadata. This is visual state
+ * only: server-side seeding authority and all administrative reducers remain
+ * outside the player graph.
+ */
+export type WarpkeepForestLayout = Readonly<{
+  realmId: string;
+  layoutVersion: number;
+  policyVersion: string;
+  layoutDigest: string;
+  assetCatalogDigest: string;
+  instanceCount: number;
+}>;
+
+/**
+ * One fixed-point tree transform from the public realm-wide forest layout.
+ * BigInt coordinates retain the exact server values until the renderer's
+ * canonical policy decoder verifies and converts them.
+ */
+export type WarpkeepForestTree = Readonly<{
+  treeId: string;
+  realmId: string;
+  tileKey: string;
+  q: number;
+  r: number;
+  localXMicrounits: bigint;
+  localZMicrounits: bigint;
+  worldXMicrounits: bigint;
+  worldZMicrounits: bigint;
+  rotationMilliDegrees: number;
+  scaleBasisPoints: number;
+  speciesId: string;
+  habitat: string;
+  layoutVersion: number;
+}>;
+
+/**
  * Untrusted projection assembled from the six public subscription tables.
  * It may represent a partially applied subscription and must not reach the
  * renderer until `validateCanonicalGenesisSnapshot` accepts it.
@@ -133,6 +169,14 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   goldSites?: readonly WarpkeepGoldSite[];
   /** Omitted with `goldSites`; absent/invalid data renders no Gold nodes. */
   goldNodeOccupations?: readonly WarpkeepGoldNodeOccupation[];
+  /**
+   * Additive public forest metadata. The connection publishes the pair only
+   * after one atomic subscription applies; a one-sided test/malformed value
+   * is still preserved through validation so the renderer can fail closed.
+   */
+  forestLayout?: unknown;
+  /** Paired public rows; absent or incompatible data renders no trees. */
+  forestTrees?: readonly unknown[];
   ownCastle?: WarpkeepCastle;
 }>;
 

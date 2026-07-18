@@ -136,7 +136,7 @@ const ALPHA_0_3_9_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'A dispatch sends only a site id and idempotency key. The server derives admission, terms, castle, passable route, timing, one-wagon limit, 1 Gold/minute rate, 30-day gathering window, and return; the browser never moves a wagon or credits Gold.',
     'Every player can see a public Mine occupancy timeline and origin castle, while FIDs, request keys, routes, accrued output, and balances stay private. Internal-only arrival, expiry, and return schedules settle whole minutes exactly once.',
     'Gold Mines and Hegemony supply wagons use provenance-pinned High, Balanced, and Compact assets with bounded model reuse, nearby-only animation, safe marker fallback, and an accessible site record.',
-    'The Lowlands gain deterministic presentation-only forest groves, clearings, and subtle canopy variation from 22 provenance-pinned tree families across High, Balanced, and Compact models. Canonical terrain, passability, movement, resource rates, castle slots, Gold sites, routes, and persistent player state remain unchanged.',
+    'The Lowlands gain one shared, server-seeded forest layout: every player sees the same 210 trees, groves, and clearings from 22 provenance-pinned families, while High, Balanced, and Compact settings change model detail only. The layout stays decorative: terrain, passability, castle slots, Gold sites, ownership, and economy remain unchanged.',
     'Community Marks remains a separate private authority with no conversion, transfer, credit, or spending path. Construction, upgrades, combat, trading, public inventories, and financial rewards remain unavailable.'
   ]),
   alphaNotice:
