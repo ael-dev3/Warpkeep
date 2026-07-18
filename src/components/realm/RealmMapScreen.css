@@ -159,6 +159,28 @@
   filter: saturate(1.08) contrast(1.03) drop-shadow(0 1.35rem 1.8rem rgb(30 43 24 / 25%));
 }
 
+.realm-map-screen__fallback-surface {
+  vector-effect: non-scaling-stroke;
+}
+
+.realm-map-screen__fallback-surface--apron {
+  fill: #839374;
+  stroke: #9baa87;
+  stroke-width: 0.028;
+}
+
+.realm-map-screen__fallback-surface--playable {
+  fill: #a7b47d;
+  stroke: #6f7d54;
+  stroke-width: 0.036;
+}
+
+.realm-map-screen__fallback-selection {
+  fill: rgb(255 241 184 / 18%);
+  stroke: #fff1b8;
+  stroke-width: 0.08;
+}
+
 .realm-map-screen__fallback-keep {
   filter: drop-shadow(0 0.14rem 0.1rem rgb(29 23 33 / 46%));
 }

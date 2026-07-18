@@ -107,9 +107,11 @@ describe('RealmMapScreen', () => {
     });
   });
 
-  it('renders the exact canonical 1,261-cell Genesis disc and two-ring apron', () => {
-    const { container } = renderFallbackRealm();
+  it('keeps the exact 10,000-cell realm represented by a constant-size fallback surface', () => {
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const { container } = renderFallbackRealm({ snapshot });
 
+    expect(snapshot.tiles).toHaveLength(10_000);
     expect(playerMenuTrigger()).not.toBeNull();
     expect(screen.getByRole('region', { name: 'Your resources' })).not.toBeNull();
     const fallback = screen.getByTestId('realm-static-fallback');
@@ -117,12 +119,21 @@ describe('RealmMapScreen', () => {
       'Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.'
     )).not.toBeNull();
     expect(fallback.textContent).not.toMatch(/\b(?:traversable cells|realm cells|rendered)\b/i);
-    expect(container.querySelectorAll('.realm-map-screen__fallback-map polygon'))
-      .toHaveLength(1_519);
-    expect(container.querySelectorAll('polygon[data-realm-cell="true"]'))
-      .toHaveLength(1_261);
-    expect(container.querySelectorAll('polygon[data-playable="false"][data-realm-cell="true"]'))
-      .toHaveLength(160);
+    const polygons = container.querySelectorAll<SVGPolygonElement>(
+      '.realm-map-screen__fallback-map polygon'
+    );
+    const apron = container.querySelector<SVGPolygonElement>(
+      'polygon[data-surface-layer="render-apron"]'
+    );
+    const authoritative = container.querySelector<SVGPolygonElement>(
+      'polygon[data-surface-layer="authoritative"]'
+    );
+    expect(polygons).toHaveLength(3);
+    expect(apron?.getAttribute('points')?.split(' ').length).toBeLessThan(100);
+    expect(authoritative?.dataset.authoritativeCellCount).toBe('10000');
+    expect(authoritative?.getAttribute('points')?.split(' ').length).toBeLessThan(100);
+    expect(container.querySelectorAll('polygon[data-realm-cell]')).toHaveLength(0);
+    expect(container.querySelectorAll('.realm-map-screen__fallback-selection')).toHaveLength(1);
     expect(selectionAnnouncement().textContent)
       .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
     expect(screen.queryByRole('button', { name: /Explore realm/i })).toBeNull();

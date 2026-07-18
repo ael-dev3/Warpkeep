@@ -14,6 +14,7 @@ import {
   terrainPlacementsForCell,
   type TerrainStructurePlacement
 } from './terrainPlacements';
+import { createDeterministicBudgetCollector } from './deterministicBudget';
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
 
 export type TerrainDecorationKind = 'green-tuft' | 'dry-tuft' | 'stone';
@@ -41,6 +42,14 @@ export type TerrainDecorationQuality = Readonly<{
   dryTuftsPerApronCell: number;
   stoneChancePlayable: number;
   stoneChanceApron: number;
+}>;
+
+export type TerrainDecorationBudget = Readonly<{
+  maximumPoints: number;
+  /** Keep the established founding realm visually stable before filling expansion cells. */
+  preserveRadius?: number;
+  /** Exact authority set for partial perimeter rings; absent keys are visual apron. */
+  playableKeys?: ReadonlySet<string>;
 }>;
 
 const CENTER_COORD = { q: 0, r: 0 } as const;
@@ -91,69 +100,105 @@ function createPoint(
   return null;
 }
 
-function addKind(
-  points: TerrainDecorationPoint[],
-  cell: TerrainCell,
-  kind: TerrainDecorationKind,
-  count: number,
-  hexSize: number,
-  apron: boolean,
-  placements: readonly TerrainStructurePlacement[]
-) {
-  for (let index = 0; index < count; index += 1) {
-    const point = createPoint(cell, kind, index, hexSize, apron, placements);
-    if (point) points.push(point);
-  }
-}
+type TerrainDecorationCandidate = Readonly<{
+  cell: TerrainCell;
+  kind: TerrainDecorationKind;
+  index: number;
+  apron: boolean;
+}>;
 
 export function generateTerrainDecorations(
   renderMap: RealmTerrainMap,
   quality: TerrainDecorationQuality,
   hexSize = 1,
   placements: readonly TerrainStructurePlacement[] = EMPTY_TERRAIN_PLACEMENTS,
-  terrainKindsByKey?: ReadonlyMap<string, RealmTerrainKind>
+  terrainKindsByKey?: ReadonlyMap<string, RealmTerrainKind>,
+  budget?: TerrainDecorationBudget
 ): TerrainDecorationData {
-  const points: TerrainDecorationPoint[] = [];
+  const maximumPoints = budget === undefined
+    ? Number.MAX_SAFE_INTEGER
+    : Math.max(0, Number.isFinite(budget.maximumPoints)
+      ? Math.trunc(budget.maximumPoints)
+      : 0);
+  const preserveRadius = Math.max(0, Number.isFinite(budget?.preserveRadius)
+    ? Math.trunc(budget!.preserveRadius!)
+    : 20);
+  const candidates = createDeterministicBudgetCollector<TerrainDecorationCandidate>(
+    maximumPoints
+  );
+  let order = 0;
+
+  const offerKind = (
+    cell: TerrainCell,
+    kind: TerrainDecorationKind,
+    count: number,
+    apron: boolean
+  ) => {
+    for (let index = 0; index < count; index += 1) {
+      candidates.add({
+        value: { cell, kind, index, apron },
+        group: hexDistance(CENTER_COORD, cell.coord) <= preserveRadius ? 0 : 1,
+        rank: deriveChannelSeed(cell.seed, index, 0, `${kind}-detail-budget`),
+        order
+      });
+      order += 1;
+    }
+  };
 
   renderMap.cells.forEach((cell) => {
-    const terrainKind = terrainKindsByKey?.get(hexKey(cell.coord));
+    const tileKey = hexKey(cell.coord);
+    const terrainKind = terrainKindsByKey?.get(tileKey);
     if (
       terrainKind === 'ridge'
       || terrainKind === 'lake'
       || terrainKind === 'ancient-stone'
     ) return;
-    const apron = hexDistance(CENTER_COORD, cell.coord) > quality.playableRadius;
-    const localPlacements = terrainPlacementsForCell(
-      placements,
-      cell.coord,
-      hexSize,
-      STRUCTURE_CLEARANCE
-    );
-    addKind(
-      points,
+    const apron = budget?.playableKeys !== undefined
+      ? !budget.playableKeys.has(tileKey)
+      : hexDistance(CENTER_COORD, cell.coord) > quality.playableRadius;
+    offerKind(
       cell,
       'green-tuft',
       apron ? quality.greenTuftsPerApronCell : quality.greenTuftsPerPlayableCell,
-      hexSize,
-      apron,
-      localPlacements
+      apron
     );
-    addKind(
-      points,
+    offerKind(
       cell,
       'dry-tuft',
       apron ? quality.dryTuftsPerApronCell : quality.dryTuftsPerPlayableCell,
-      hexSize,
-      apron,
-      localPlacements
+      apron
     );
 
     const chance = apron ? quality.stoneChanceApron : quality.stoneChancePlayable;
     const stoneSignal = seededUnitFloat(deriveChannelSeed(cell.seed, 0, 0, 'stone-presence'));
     const biasedChance = chance * (0.82 + Math.max(-0.3, cell.rockBias * 0.22));
     if (stoneSignal < biasedChance) {
-      addKind(points, cell, 'stone', 1, hexSize, apron, localPlacements);
+      offerKind(cell, 'stone', 1, apron);
     }
+  });
+
+  const localPlacementsByCell = new Map<string, readonly TerrainStructurePlacement[]>();
+  const points = candidates.values().flatMap((candidate) => {
+    const key = hexKey(candidate.cell.coord);
+    let localPlacements = localPlacementsByCell.get(key);
+    if (!localPlacements) {
+      localPlacements = terrainPlacementsForCell(
+        placements,
+        candidate.cell.coord,
+        hexSize,
+        STRUCTURE_CLEARANCE
+      );
+      localPlacementsByCell.set(key, localPlacements);
+    }
+    const point = createPoint(
+      candidate.cell,
+      candidate.kind,
+      candidate.index,
+      hexSize,
+      candidate.apron,
+      localPlacements
+    );
+    return point ? [point] : [];
   });
 
   return {

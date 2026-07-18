@@ -109,6 +109,7 @@ export const PROTECTED_AGGREGATE_STAGE = Object.freeze({
   ADDITIVE_V3_PRESEED: 'additive-v3-preseed',
   GENESIS_V3_SEEDED_EMPTY: 'genesis-v3-seeded-empty',
   GENESIS_V3_FOUNDED: 'genesis-v3-founded',
+  GENESIS_GENERATION_V3_FOUNDED: 'genesis-generation-v3-founded',
 });
 
 const V3_STATE_COUNT_FIELDS = Object.freeze([
@@ -191,6 +192,11 @@ const EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS = Object.freeze({
   worldTileMeta: 1_261n,
   realms: 1n,
   castleSlots: 100n,
+});
+const EXPECTED_GENESIS_GENERATION_V3_COUNTS = Object.freeze({
+  ...EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS,
+  worldTiles: 10_000n,
+  worldTileMeta: 10_000n,
 });
 const MAX_GENESIS_FOUNDER_COUNT = 100;
 
@@ -1033,6 +1039,7 @@ function expectedV3StateCounts(
 ) {
   if (
     stage !== PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED
+    && stage !== PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED
     && (expectedPlayerCount !== 0 || expectedTermsAcceptanceCount !== 0)
   ) {
     fail('protocol-v3 authenticated count expectations require the founded aggregate stage.');
@@ -1043,7 +1050,10 @@ function expectedV3StateCounts(
   if (stage === PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY) {
     return EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS;
   }
-  if (stage === PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED) {
+  if (
+    stage === PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED
+    || stage === PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED
+  ) {
     const founders = readExpectedFounderCount(expectedFounderCount);
     const players = readExpectedFoundedMutableCount(
       expectedPlayerCount,
@@ -1056,7 +1066,9 @@ function expectedV3StateCounts(
       founders,
     );
     return Object.freeze({
-      ...EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS,
+      ...(stage === PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED
+        ? EXPECTED_GENESIS_GENERATION_V3_COUNTS
+        : EXPECTED_ALPHA_V3_SEEDED_EMPTY_COUNTS),
       occupiedWorldTiles: founders,
       castleSlotClaims: founders,
       playersV2: players,
@@ -1388,6 +1400,7 @@ function verifyProtectedAggregateIfConfigured(
     [PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED]: 'alpha status: required additive protocol-v3 preseed aggregate state verified',
     [PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY]: 'alpha status: required Genesis protocol-v3 seeded-empty aggregate state verified',
     [PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED]: 'alpha status: required Genesis protocol-v3 founded aggregate state verified',
+    [PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED]: 'alpha status: required Genesis generation-v3 10,000-cell founded aggregate state verified',
   }[normalizedStage];
   console.log(successMessage);
 }
@@ -1401,6 +1414,7 @@ export function verifyPostBackfillResourceAggregateCheckpoints(
   spawn = spawnSync,
   repositoryRoot = resolve(dirname(resolve(process.argv[1])), '..'),
   sourceEnvironment = process.env,
+  foundedStage = PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
 ) {
   const requiredSecret = requiredProtectedAggregateSecret(secret, true);
   const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
@@ -1417,7 +1431,7 @@ export function verifyPostBackfillResourceAggregateCheckpoints(
     process.execPath,
     protectedAggregateChildArguments(
       tsxCli,
-      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      foundedStage,
     ),
     childOptions,
   );
@@ -1426,12 +1440,16 @@ export function verifyPostBackfillResourceAggregateCheckpoints(
   }
   verifyExpectedAlphaV3Aggregate(
     foundedResult.stdout,
-    PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    foundedStage,
     expectedFounderCount,
     expectedPlayerCount,
     expectedTermsAcceptanceCount,
   );
-  console.log('alpha status: required Genesis protocol-v3 founded aggregate state verified');
+  console.log(
+    foundedStage === PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED
+      ? 'alpha status: required Genesis generation-v3 10,000-cell founded aggregate state verified'
+      : 'alpha status: required Genesis protocol-v3 founded aggregate state verified',
+  );
 
   const resourceResult = spawn(
     process.execPath,
@@ -1454,6 +1472,7 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     '--require-additive-v3-preseed-aggregate',
     '--require-genesis-v3-seeded-empty-aggregate',
     '--require-genesis-v3-founded-aggregate',
+    '--require-genesis-generation-v3-founded-aggregate',
     '--require-resource-v4-ready-aggregate',
     '--require-auth-v2',
     '--require-auth-v2-enabled',
@@ -1509,13 +1528,15 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     ['--require-additive-v3-preseed-aggregate', PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED],
     ['--require-genesis-v3-seeded-empty-aggregate', PROTECTED_AGGREGATE_STAGE.GENESIS_V3_SEEDED_EMPTY],
     ['--require-genesis-v3-founded-aggregate', PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED],
+    ['--require-genesis-generation-v3-founded-aggregate', PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED],
   ].filter(([flag]) => seen.has(flag));
   if (versionedAggregateStages.length > 1) {
     fail('versioned aggregate verification stages are mutually exclusive.');
   }
   const aggregateStage = versionedAggregateStages[0]?.[1]
     ?? PROTECTED_AGGREGATE_STAGE.LEGACY;
-  const requiresFoundedAggregate = seen.has('--require-genesis-v3-founded-aggregate');
+  const requiresFoundedAggregate = seen.has('--require-genesis-v3-founded-aggregate')
+    || seen.has('--require-genesis-generation-v3-founded-aggregate');
   const requiresResourceV4ReadyAggregate = seen.has('--require-resource-v4-ready-aggregate');
   if (requiresResourceV4ReadyAggregate && !requiresFoundedAggregate) {
     fail('the resource procedure-v4 ready aggregate requires the founded protocol-v3 aggregate stage.');
@@ -1555,6 +1576,9 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     requireAdditiveV3PreseedAggregate: seen.has('--require-additive-v3-preseed-aggregate'),
     requireGenesisV3SeededEmptyAggregate: seen.has('--require-genesis-v3-seeded-empty-aggregate'),
     requireGenesisV3FoundedAggregate: requiresFoundedAggregate,
+    requireGenesisGenerationV3FoundedAggregate: seen.has(
+      '--require-genesis-generation-v3-founded-aggregate',
+    ),
     requireResourceV4ReadyAggregate: requiresResourceV4ReadyAggregate,
     expectedFounderCount,
     expectedPlayerCount: foundedPlayerCount,
@@ -1572,6 +1596,7 @@ async function main() {
     requireAdditiveV3PreseedAggregate,
     requireGenesisV3SeededEmptyAggregate,
     requireGenesisV3FoundedAggregate,
+    requireGenesisGenerationV3FoundedAggregate,
     requireResourceV4ReadyAggregate,
     expectedFounderCount,
     expectedPlayerCount,
@@ -1598,6 +1623,10 @@ async function main() {
       expectedPlayerCount,
       expectedTermsAcceptanceCount,
       process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
+      spawnSync,
+      resolve(dirname(resolve(process.argv[1])), '..'),
+      process.env,
+      aggregateStage,
     );
   } else {
     verifyProtectedAggregateIfConfigured(
@@ -1606,7 +1635,8 @@ async function main() {
         || requireAdditiveV2Aggregate
         || requireAdditiveV3PreseedAggregate
         || requireGenesisV3SeededEmptyAggregate
-        || requireGenesisV3FoundedAggregate,
+        || requireGenesisV3FoundedAggregate
+        || requireGenesisGenerationV3FoundedAggregate,
       aggregateStage,
       expectedFounderCount,
       expectedPlayerCount,

@@ -19,8 +19,9 @@ collection of disconnected screens. The near-term path is deliberate:
 
 The verified public alpha focuses on admission-gated founding, exploration,
 castle inspection, and the visual language of the Hegemony Lowlands. The
-undeployed 0.3.7 source candidate adds only a private Food, Wood, Stone, and
-Gold inventory with deterministic terrain yield and collection. Construction,
+undeployed 0.3.8 source candidate adds a private Food, Wood, Stone, and Gold
+inventory with deterministic terrain yield and collection, plus persistent
+world capacity for future naturally placed nodes. Construction,
 upgrades, units, combat, alliances, chat, seasons, resource transfers, Marks
 spending, and rewards are not playable systems today. Alpha participation
 offers no financial return, airdrop, or promise of future value.
@@ -45,15 +46,15 @@ release truth lives in the [changelog](CHANGELOG.md),
 [release notes](docs/releases/), and exact-version in-game patch chronicle—not
 in this overview.
 
-The checked-in package is Alpha 0.3.7, an **undeployed candidate**. It prepares
-private caller-scoped Food, Wood, Stone, and Gold accounts, deterministic
-ten-minute server-time terrain yield, a no-input collect action, immutable
-resource icons, and an additive migration proof. Community Marks remains a
-separate private authority with no new conversion or spending path. Production
-still requires additive module publication, an explicitly owner-approved
-guarded founder backfill, counts-only v4 verification, deployment of the exact
-reviewed Pages SHA, and final owner approval. See the
-[candidate release notes](docs/releases/alpha-0.3.7.md).
+The checked-in package is Alpha 0.3.8, an **undeployed candidate**. It retains
+the pending private Food, Wood, Stone, and Gold authority from 0.3.7 and expands
+the deterministic Genesis world definition to exactly 10,000 persistent cells.
+The existing 1,261 cells and all 100 close-outward founder slots remain exact;
+8,739 outer cells are added as future placement space. No resource node,
+construction, combat, reward, or transfer mechanic is introduced by the map
+expansion. Production publication and the separate world-state migration remain
+explicitly approval-gated. See the
+[candidate release notes](docs/releases/alpha-0.3.8.md).
 
 ## Architecture
 
@@ -63,11 +64,14 @@ bridge; SpacetimeDB owns the shared Realm records. WebGL is an enhancement, not
 an authority boundary: the product retains keyboard, touch, reduced-motion, and
 non-WebGL paths.
 
-Genesis 001 is a deterministic Lowlands world with 1,261 authoritative cells
-and 100 permanent founder slots. Production admission remains deliberately
-closed except for explicitly approved founders.
+Live Genesis 001 currently retains 1,261 authoritative cells. The 0.3.8
+candidate defines exactly 10,000 persistent cells: a complete radius-57 hex
+disc plus 81 cells arranged as six balanced, contiguous side-centred arcs on
+ring 58. It preserves the 100 permanent founder slots and their close founding
+district. Production admission remains deliberately closed except for
+explicitly approved founders.
 
-In the 0.3.7 candidate, each resource account remains private to its
+In the 0.3.8 candidate, each resource account remains private to its
 authenticated caller. Peer balances never enter the public Realm subscription,
 and the browser cannot supply the FID, castle, terrain, rate, balance, or clock
 used for settlement. Invalid or unavailable resource authority withholds the

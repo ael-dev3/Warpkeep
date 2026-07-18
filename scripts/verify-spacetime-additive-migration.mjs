@@ -37,6 +37,7 @@ const emptyDatabase = 'warpkeep-migration-empty';
 const nonemptyDatabase = 'warpkeep-migration-nonempty';
 const actualModuleDatabase = 'warpkeep-migration-actual-module';
 const resourceLifecycleDatabase = 'warpkeep-migration-resource-lifecycle';
+const worldExpansionDatabase = 'warpkeep-migration-world-expansion';
 const maximumOutputBytes = 1_000_000;
 const commandTimeoutMilliseconds = 120_000;
 const procedureTimeoutMilliseconds = 5_000;
@@ -718,6 +719,7 @@ async function callLoopbackProcedure(
   body,
   expectedStatus,
   expectJsonSuccess = true,
+  timeoutMilliseconds = procedureTimeoutMilliseconds,
 ) {
   if (
     !/^http:\/\/127\.0\.0\.1:\d+$/.test(server)
@@ -736,7 +738,7 @@ async function callLoopbackProcedure(
       },
       body,
       redirect: 'manual',
-      signal: AbortSignal.timeout(procedureTimeoutMilliseconds),
+      signal: AbortSignal.timeout(timeoutMilliseconds),
     });
   } catch {
     fail('Loopback procedure request failed within its fixed boundary.');
@@ -760,6 +762,7 @@ async function callLoopbackReducer(
   credential,
   body,
   expectedStatus,
+  timeoutMilliseconds = procedureTimeoutMilliseconds,
 ) {
   return callLoopbackProcedure(
     server,
@@ -769,6 +772,7 @@ async function callLoopbackReducer(
     body,
     expectedStatus,
     false,
+    timeoutMilliseconds,
   );
 }
 
@@ -1105,12 +1109,13 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       adminCredential(),
       '[]',
       200,
+      120_000,
     );
     await usePrivateInspectionModule();
     if (
-      await count(server, ownerToken, database, 'world_tile') !== 1_261n
+      await count(server, ownerToken, database, 'world_tile') !== 10_000n
       || await count(server, ownerToken, database, 'realm_v1') !== 1n
-      || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 1_261n
+      || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 10_000n
       || await count(server, ownerToken, database, 'castle_slot_v1') !== 100n
     ) fail('Actual module seed did not create the exact canonical world.');
 
@@ -1506,6 +1511,149 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
   }
 }
 
+async function generationV2PreservationDigests(server, ownerToken, database) {
+  const queries = Object.freeze({
+    occupiedWorld: "SELECT * FROM world_tile WHERE key = '0,0'",
+    metadata: 'SELECT * FROM world_tile_meta_v1 WHERE generation_version = 2',
+    slots: 'SELECT * FROM castle_slot_v1',
+    castles: 'SELECT * FROM castle',
+    claims: 'SELECT * FROM castle_slot_claim_v1',
+    admissions: 'SELECT * FROM allowed_fid',
+    profiles: 'SELECT * FROM realm_profile_v1',
+    marks: 'SELECT * FROM mark_account_v1',
+    resources: 'SELECT * FROM resource_account_v1',
+    realmCreatedAt: "SELECT created_at FROM realm_v1 WHERE realm_id = 'GENESIS_001'",
+  });
+  const digests = {};
+  for (const [name, query] of Object.entries(queries)) {
+    digests[name] = outputDigest(await sql(server, ownerToken, database, query));
+  }
+  return Object.freeze(digests);
+}
+
+async function verifyGenesisWorldExpansionLifecycle(
+  server,
+  database,
+  privateKey,
+  ownerToken,
+) {
+  const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
+  const fixtureArtifactPath = join(additiveV4SchemaFixture, 'dist', 'bundle.js');
+  const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
+
+  await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
+  await callLoopbackReducer(
+    server,
+    database,
+    'fixture_seed_genesis_generation_v2',
+    adminCredential(),
+    '[]',
+    200,
+    120_000,
+  );
+  if (
+    await count(server, ownerToken, database, 'world_tile') !== 1_261n
+    || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 1_261n
+    || await count(server, ownerToken, database, 'realm_v1') !== 1n
+    || await count(server, ownerToken, database, 'castle_slot_v1') !== 100n
+    || await count(server, ownerToken, database, 'castle') !== 1n
+    || await count(server, ownerToken, database, 'castle_slot_claim_v1') !== 1n
+    || await count(server, ownerToken, database, 'allowed_fid') !== 1n
+    || await count(server, ownerToken, database, 'realm_profile_v1') !== 1n
+    || await count(server, ownerToken, database, 'mark_account_v1') !== 1n
+    || await count(server, ownerToken, database, 'resource_account_v1') !== 0n
+  ) fail('Generation-v2 expansion fixture was incomplete.');
+  const predecessorDigests = await generationV2PreservationDigests(
+    server,
+    ownerToken,
+    database,
+  );
+
+  await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
+  await callLoopbackReducer(
+    server,
+    database,
+    'admin_seed_world',
+    adminCredential(),
+    '[]',
+    530,
+  );
+  await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
+  assert.deepEqual(
+    await generationV2PreservationDigests(server, ownerToken, database),
+    predecessorDigests,
+  );
+  if (
+    await count(server, ownerToken, database, 'world_tile') !== 1_261n
+    || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 1_261n
+    || await count(server, ownerToken, database, 'admin_audit') !== 0n
+  ) fail('Routine world seeding mutated the generation-v2 predecessor.');
+
+  await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
+  const startedAt = Date.now();
+  await callLoopbackReducer(
+    server,
+    database,
+    'admin_expand_genesis_world_v3',
+    adminCredential(),
+    JSON.stringify([1_261, 1_261, 2]),
+    200,
+    120_000,
+  );
+  const durationMilliseconds = Date.now() - startedAt;
+
+  await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
+  if (
+    await count(server, ownerToken, database, 'world_tile') !== 10_000n
+    || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 10_000n
+    || await count(server, ownerToken, database, 'realm_v1') !== 1n
+    || await count(server, ownerToken, database, 'castle_slot_v1') !== 100n
+    || await count(server, ownerToken, database, 'castle') !== 1n
+    || await count(server, ownerToken, database, 'castle_slot_claim_v1') !== 1n
+    || await actionCount(server, ownerToken, database, 'expand_world_v3') !== 1n
+    || countFromSql(await sql(
+      server,
+      ownerToken,
+      database,
+      "SELECT COUNT(*) AS warpkeep_count FROM realm_v1 WHERE realm_id = 'GENESIS_001' AND generation_version = 3 AND authoritative_radius = 58 AND render_radius = 60 AND player_capacity = 100 AND active = true",
+    )) !== 1n
+  ) fail('Generation-v3 expansion did not reach the exact target state.');
+  assert.deepEqual(
+    await generationV2PreservationDigests(server, ownerToken, database),
+    predecessorDigests,
+  );
+  const targetRealmDigest = outputDigest(await sql(
+    server,
+    ownerToken,
+    database,
+    'SELECT * FROM realm_v1',
+  ));
+
+  await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
+  await callLoopbackReducer(
+    server,
+    database,
+    'admin_expand_genesis_world_v3',
+    adminCredential(),
+    JSON.stringify([10_000, 10_000, 3]),
+    200,
+    120_000,
+  );
+  await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
+  if (
+    await count(server, ownerToken, database, 'world_tile') !== 10_000n
+    || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 10_000n
+    || await actionCount(server, ownerToken, database, 'expand_world_v3') !== 1n
+    || outputDigest(await sql(server, ownerToken, database, 'SELECT * FROM realm_v1'))
+      !== targetRealmDigest
+  ) fail('Generation-v3 expansion retry was not a true no-op.');
+  assert.deepEqual(
+    await generationV2PreservationDigests(server, ownerToken, database),
+    predecessorDigests,
+  );
+  return durationMilliseconds;
+}
+
 export function containServerProcessErrors(serverProcess) {
   // `spawn` reports some startup failures asynchronously. Keep those failures
   // inside the proof's generic readiness boundary instead of allowing an
@@ -1788,6 +1936,12 @@ async function main() {
     await publish(server, owner.token, additiveModule, actualModuleDatabase);
     await publish(server, owner.token, additiveModule, resourceLifecycleDatabase);
     await verifyResolverHttpLifecycle(server, actualModuleDatabase, privateKey);
+    const worldExpansionDurationMilliseconds = await verifyGenesisWorldExpansionLifecycle(
+      server,
+      worldExpansionDatabase,
+      privateKey,
+      owner.token,
+    );
     const resourceTimestampFixture = await verifyActualModuleResourceLifecycle(
       server,
       resourceLifecycleDatabase,
@@ -1953,6 +2107,7 @@ async function main() {
       + 'private resource_account_v1 appended at exact product type ref 19, '
       + '61-tile empty and synthetic nonempty fixtures remained preserved, '
       + 'exact resolver HTTP lifecycle enforced without mutation, '
+      + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `
       + `actual resource authority reducers exercised with ${resourceTimestampFixture} collection, `
       + 'caller bootstrap/terms/identity gates, Marks isolation, atomic founding, '
       + 'and guarded backfill rejection/idempotence held, '

@@ -125,6 +125,10 @@ loopback-only, in-memory server and proves that:
   fixture survive the forward publish unchanged;
 - the complete deployed refs 0–18 remain unchanged while private
   `resource_account_v1` appends at exact ref 19;
+- a populated exact generation-two fixture expands atomically from 1,261 to
+  10,000 world and metadata rows while preserving its founding graph, private
+  dynamic counts, and realm creation timestamp, and an exact target retry writes
+  nothing;
 - a second forward publish is idempotent, populated deployed-prefix state
   survives, uniqueness constraints hold, and guarded v3/v2 rollback is refused
   before any schema change or compatibility override; and
@@ -147,7 +151,9 @@ WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
 WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
 WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
 WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
-npm run stdb:publish:dev -- --dry-run --resource-rollout-stage=<prebackfill-or-ready>
+npm run stdb:publish:dev -- --dry-run \
+  --resource-rollout-stage=<prebackfill-or-ready> \
+  --genesis-world-stage=<pre-expansion-or-expanded>
 ```
 
 All three count expectations are mandatory canonical decimal strings, including
@@ -170,13 +176,17 @@ WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
 WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
 WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
 WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
-npm run stdb:publish:dev -- --resource-rollout-stage=<prebackfill-or-ready>
+npm run stdb:publish:dev -- \
+  --resource-rollout-stage=<prebackfill-or-ready> \
+  --genesis-world-stage=<pre-expansion-or-expanded>
 ```
 
-The stage is mandatory: `prebackfill` is valid only for the first additive
+Both stages are mandatory: `prebackfill` is valid only for the first additive
 resource publication, while `ready` requires the exact resource-ready v4
-aggregate both before and after an already-backfilled republish. Never infer
-one stage from a prior command or approval.
+aggregate both before and after an already-backfilled republish.
+`pre-expansion` requires the exact 1,261-cell generation-two founded aggregate,
+while `expanded` requires the exact 10,000-cell generation-three founded
+aggregate. Never infer either stage from a prior command or approval.
 
 Use the private Keychain wrapper so the Hermes credential is loaded only into
 bounded publisher memory and forwarded to the protected inspection child over
@@ -195,8 +205,10 @@ different module between proof and publication.
 After a successful publish, the publisher repeats the same founded aggregate.
 Any post-publish inspection failure makes the outcome indeterminate and requires
 a fresh read-only inspection before any retry. Independently run the production
-verifier with `--require-genesis-v3-founded-aggregate` and the same private
-founder/player/Terms expectations. Require protocol `3`, the reviewed generation,
+verifier with the exact world-stage flag (`--require-genesis-v3-founded-aggregate`
+before expansion or `--require-genesis-generation-v3-founded-aggregate` after
+expansion) and the same private founder/player/Terms expectations. Require
+protocol `3`, the reviewed generation,
 all exact counts, and every orphan/drift/invariant counter at zero; never print
 the protected procedure body.
 

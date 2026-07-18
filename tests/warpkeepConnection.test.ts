@@ -391,19 +391,26 @@ describe('Warpkeep authenticated connection boundary', () => {
     await expect(readWarpkeepBackendInfo(connection)).rejects.toThrow(/protocol is incompatible/i);
   });
 
-  it('derives the own castle from the bridge-token FID passed by the provider', () => {
-    const candidate = createCanonicalGenesisCandidate({
-      ownFid: CANONICAL_TEST_FID,
-      peerFid: 77
-    });
-    const connection = connectionForCandidate(candidate);
+  it.each([
+    [2, 1_261],
+    [3, 10_000]
+  ] as const)(
+    'derives the own castle from the bridge-token FID for generation %i',
+    (generationVersion, cellCount) => {
+      const candidate = createCanonicalGenesisCandidate({
+        ownFid: CANONICAL_TEST_FID,
+        peerFid: 77,
+        generationVersion
+      });
+      const connection = connectionForCandidate(candidate);
 
-    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
-    expect(snapshot.ownCastle.name).toBe('Warpkeeper Bastion');
-    expect(snapshot.castles).toHaveLength(2);
-    expect(snapshot.tiles).toHaveLength(1_261);
-    expect(snapshot.tileMetadata).toHaveLength(1_261);
-  });
+      const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+      expect(snapshot.ownCastle.name).toBe('Warpkeeper Bastion');
+      expect(snapshot.castles).toHaveLength(2);
+      expect(snapshot.tiles).toHaveLength(cellCount);
+      expect(snapshot.tileMetadata).toHaveLength(cellCount);
+    }
+  );
 
   it('maps only the public realm metadata, profile, Marks, and founding presentation', () => {
     const base = createCanonicalGenesisCandidate();
@@ -433,8 +440,8 @@ describe('Warpkeep authenticated connection boundary', () => {
 
     expect(snapshot.realm).toEqual(base.activeRealms[0]);
     expect(snapshot.profiles).toEqual(candidate.profiles);
-    expect(snapshot.tiles).toHaveLength(1_261);
-    expect(snapshot.tileMetadata).toHaveLength(1_261);
+    expect(snapshot.tiles).toHaveLength(10_000);
+    expect(snapshot.tileMetadata).toHaveLength(10_000);
     expect(snapshot.ownCastle.ownerFid).toBe(CANONICAL_TEST_FID);
     expect(snapshot).not.toHaveProperty('identity');
     expect(snapshot).not.toHaveProperty('wallet');
@@ -550,7 +557,7 @@ describe('Warpkeep authenticated connection boundary', () => {
       protocolVersion: 3,
       canonicalFingerprint: expect.stringContaining('genesis-001')
     });
-    expect(onChange.mock.calls[0]?.[0].tiles).toHaveLength(1_261);
+    expect(onChange.mock.calls[0]?.[0].tiles).toHaveLength(10_000);
 
     castle.listeners.insert?.(context('transaction-2'));
     expect(onChange).toHaveBeenCalledTimes(2);

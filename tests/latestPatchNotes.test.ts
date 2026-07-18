@@ -18,48 +18,43 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: 'CANDIDATE · 18 JUL 2026',
-      title: 'GENESIS RESOURCE AUTHORITY'
+      title: 'GENESIS WORLD EXPANSION'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /private, caller-scoped Food, Wood, Stone, and Gold inventory.*SpacetimeDB.*peer balances never enter the public Realm subscription/i
+      /existing generation-two cell.*100 close-outward permanent castle slots.*8,739 outer cells.*without moving a founder/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Server time.*authoritative castle terrain.*ten-minute yields.*no browser-supplied FID.*balance.*terrain.*rate.*timestamp.*castle input/i
+      /complete radius-57 disc.*81 balanced ring-58 boundary cells.*radius-60 visual apron/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /fail closed.*admission.*current castle ownership.*exact Alpha Terms acceptance.*private resource-account graph.*never applies an optimistic balance/i
+      /2,000 cells.*future resource-capable sites.*no node.*marker.*collection entitlement.*reward mechanic/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Community Marks remains a separate private authority.*no conversion.*transfer.*credit.*spending/i
+      /SpacetimeDB.*1,261-to-10,000.*atomically.*admin-only exact-state check.*partial or mixed worlds fail closed.*target retry writes nothing/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /immutable, integrity-checked runtime icons.*without publishing.*source masters.*Pages artifact/i
+      /complete generation-two or generation-three snapshots.*deterministic bounded work/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /additive schema fixture.*generated-binding checks.*guarded founder backfill.*counts-only version-four inspection.*without exposing FIDs or balances/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Construction.*upgrades.*units.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
+      /Alpha 0.3.7.*Food, Wood, Stone, and Gold authority.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('undeployed candidate');
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain(
-      'Alpha 0.3.6 remains the verified public release'
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'Production module publication'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'additive module publication'
+      'world expansion'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'owner-approved guarded founder backfill'
+      'resource backfill'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'version-four counts verification'
+      'future resource-node placement'
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'exact Pages deployment'
-    );
+    expect(getLatestPatchNotes('0.3.7')?.title).toBe('GENESIS RESOURCE AUTHORITY');
     expect(getLatestPatchNotes('0.3.6')?.title).toBe('REALM READABILITY & STABILITY');
     expect(getLatestPatchNotes('0.3.5')?.title).toBe('GAME-READY CASTLE REFRESH');
     expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');

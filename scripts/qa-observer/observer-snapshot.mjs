@@ -22,6 +22,22 @@ const AGGREGATE_KEYS = Object.freeze([
   'foundedCount',
   'activeCount',
 ]);
+const EXPECTED_WORLD_STATES = Object.freeze([
+  Object.freeze({
+    worldTileCount: 1_261,
+    worldTileMetaCount: 1_261,
+    generationVersion: 2,
+    authoritativeRadius: 20,
+    renderRadius: 22,
+  }),
+  Object.freeze({
+    worldTileCount: 10_000,
+    worldTileMetaCount: 10_000,
+    generationVersion: 3,
+    authoritativeRadius: 58,
+    renderRadius: 60,
+  }),
+]);
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -35,6 +51,16 @@ function hasExactKeys(value, keys) {
 
 function safeInteger(value, minimum, maximum) {
   return Number.isSafeInteger(value) && value >= minimum && value <= maximum;
+}
+
+function matchesExpectedWorldState(value) {
+  return EXPECTED_WORLD_STATES.some(expected => (
+    value.worldTileCount === expected.worldTileCount
+    && value.worldTileMetaCount === expected.worldTileMetaCount
+    && value.realm.generationVersion === expected.generationVersion
+    && value.realm.authoritativeRadius === expected.authoritativeRadius
+    && value.realm.renderRadius === expected.renderRadius
+  ));
 }
 
 function freezeSnapshot(value) {
@@ -57,16 +83,12 @@ export function parseQaObserverSnapshot(value) {
     || value.protocolVersion !== 3
     || value.worldSeed !== 3_445_214_658
     || value.worldSeedName !== 'HEGEMONY_GENESIS_001'
-    || value.worldTileCount !== 1_261
-    || value.worldTileMetaCount !== 1_261
     || !isRecord(value.realm)
     || !hasExactKeys(value.realm, REALM_KEYS)
     || value.realm.realmId !== 'GENESIS_001'
     || value.realm.numericSeed !== value.worldSeed
-    || value.realm.generationVersion !== 2
-    || value.realm.authoritativeRadius !== 20
-    || value.realm.renderRadius !== 22
     || value.realm.playerCapacity !== 100
+    || !matchesExpectedWorldState(value)
     || !isRecord(value.aggregates)
     || !hasExactKeys(value.aggregates, AGGREGATE_KEYS)
     || !safeInteger(value.aggregates.castleCount, 1, value.realm.playerCapacity)

@@ -3,9 +3,13 @@ import {
   CANONICAL_REALM,
   CANONICAL_WORLD_TILES,
   CANONICAL_WORLD_TILE_META,
+  GENESIS_GENERATION_V2_REALM,
+  GENESIS_GENERATION_V2_WORLD_TILES,
+  GENESIS_GENERATION_V2_WORLD_TILE_META,
   matchesCanonicalRealm,
-  matchesCanonicalTerrain,
-  matchesCanonicalWorldMeta
+  matchesGenerationV2Realm,
+  type CanonicalWorldTile,
+  type CanonicalWorldTileMeta
 } from '../../spacetimedb/src/world';
 
 import type {
@@ -27,27 +31,89 @@ import {
 } from './publicRealmProjectionPolicy';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from './warpkeepProtocol';
 
-export const CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT = [
-  'warpkeep:genesis-001',
-  `protocol-${WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION}`,
-  `seed-${CANONICAL_REALM.numericSeed}`,
-  `generation-${CANONICAL_REALM.generationVersion}`,
-  `radius-${CANONICAL_REALM.authoritativeRadius}`,
-  `render-${CANONICAL_REALM.renderRadius}`,
-  `capacity-${CANONICAL_REALM.playerCapacity}`,
-  `tiles-${CANONICAL_WORLD_TILES.length}`,
-  `metadata-${CANONICAL_WORLD_TILE_META.length}`
-].join(':');
+function makeSnapshotFingerprint(
+  realm: WarpkeepRealmSnapshotCandidate['activeRealms'][number],
+  worldTileCount: number,
+  worldTileMetadataCount: number
+) {
+  return [
+    'warpkeep:genesis-001',
+    `protocol-${WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION}`,
+    `seed-${realm.numericSeed}`,
+    `generation-${realm.generationVersion}`,
+    `radius-${realm.authoritativeRadius}`,
+    `render-${realm.renderRadius}`,
+    `capacity-${realm.playerCapacity}`,
+    `tiles-${worldTileCount}`,
+    `metadata-${worldTileMetadataCount}`
+  ].join(':');
+}
+
+/** Frozen deployed fingerprint retained throughout the additive v2 -> v3 rollout. */
+export const GENESIS_GENERATION_V2_SNAPSHOT_FINGERPRINT = makeSnapshotFingerprint(
+  GENESIS_GENERATION_V2_REALM,
+  GENESIS_GENERATION_V2_WORLD_TILES.length,
+  GENESIS_GENERATION_V2_WORLD_TILE_META.length
+);
+
+/** Target fingerprint for the exact 10,000-cell generation-v3 snapshot. */
+export const GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT = makeSnapshotFingerprint(
+  CANONICAL_REALM,
+  CANONICAL_WORLD_TILES.length,
+  CANONICAL_WORLD_TILE_META.length
+);
+
+/** Backward-compatible name for the current target generation. */
+export const CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT =
+  GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT;
 
 const CANONICAL_SNAPSHOT_BRAND = Symbol('warpkeep.canonical-genesis-snapshot');
 const CANONICAL_CASTLE_TILE_KEYS = new Set(
   CANONICAL_CASTLE_SLOTS.map((slot) => slot.tileKey)
 );
 
-type CanonicalSnapshotBrand = Readonly<{ ownFid: number }>;
+type CanonicalSnapshotBrand = Readonly<{
+  ownFid: number;
+  canonicalFingerprint: string;
+}>;
 type BrandedSnapshot = CanonicalWarpkeepRealmSnapshot & Readonly<{
   [CANONICAL_SNAPSHOT_BRAND]: CanonicalSnapshotBrand;
 }>;
+
+type StaticWorldProfile = Readonly<{
+  fingerprint: string;
+  tiles: readonly CanonicalWorldTile[];
+  tileMetadata: readonly CanonicalWorldTileMeta[];
+  tileByKey: ReadonlyMap<string, CanonicalWorldTile>;
+  metadataByKey: ReadonlyMap<string, CanonicalWorldTileMeta>;
+}>;
+
+function makeStaticWorldProfile(
+  fingerprint: string,
+  tiles: readonly CanonicalWorldTile[],
+  tileMetadata: readonly CanonicalWorldTileMeta[]
+): StaticWorldProfile {
+  return Object.freeze({
+    fingerprint,
+    tiles,
+    tileMetadata,
+    tileByKey: new Map(tiles.map((tile) => [tile.key, tile] as const)),
+    metadataByKey: new Map(
+      tileMetadata.map((metadata) => [metadata.tileKey, metadata] as const)
+    )
+  });
+}
+
+const GENERATION_V2_STATIC_WORLD = makeStaticWorldProfile(
+  GENESIS_GENERATION_V2_SNAPSHOT_FINGERPRINT,
+  GENESIS_GENERATION_V2_WORLD_TILES,
+  GENESIS_GENERATION_V2_WORLD_TILE_META
+);
+const GENERATION_V3_STATIC_WORLD = makeStaticWorldProfile(
+  GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT,
+  CANONICAL_WORLD_TILES,
+  CANONICAL_WORLD_TILE_META
+);
 
 export class CanonicalGenesisSnapshotError extends Error {
   constructor() {
@@ -79,19 +145,33 @@ function freezeRows<T extends object>(rows: readonly T[]): readonly Readonly<T>[
   return Object.freeze(rows.map((row) => Object.freeze({ ...row })));
 }
 
+function staticWorldForCandidate(
+  candidate: WarpkeepRealmSnapshotCandidate
+): StaticWorldProfile {
+  if (candidate.activeRealms.length !== 1) fail();
+  const realm = candidate.activeRealms[0]!;
+  if (matchesGenerationV2Realm(realm)) return GENERATION_V2_STATIC_WORLD;
+  if (matchesCanonicalRealm(realm)) return GENERATION_V3_STATIC_WORLD;
+  return fail();
+}
+
 function validateStaticWorld(candidate: WarpkeepRealmSnapshotCandidate) {
+  const staticWorld = staticWorldForCandidate(candidate);
   if (
-    candidate.activeRealms.length !== 1
-    || !matchesCanonicalRealm(candidate.activeRealms[0]!)
-    || candidate.tiles.length !== CANONICAL_WORLD_TILES.length
-    || candidate.tileMetadata.length !== CANONICAL_WORLD_TILE_META.length
+    candidate.tiles.length !== staticWorld.tiles.length
+    || candidate.tileMetadata.length !== staticWorld.tileMetadata.length
   ) fail();
 
   const tilesByKey = new Map<string, WarpkeepWorldTile>();
   for (const tile of candidate.tiles) {
+    const expected = staticWorld.tileByKey.get(tile.key);
     if (
       tilesByKey.has(tile.key)
-      || !matchesCanonicalTerrain(tile)
+      || expected === undefined
+      || tile.q !== expected.q
+      || tile.r !== expected.r
+      || tile.biome !== expected.biome
+      || tile.terrainSeed !== expected.terrainSeed
       || (tile.occupantCastleId !== undefined && !safePositiveInteger(tile.occupantCastleId))
     ) fail();
     tilesByKey.set(tile.key, tile);
@@ -99,9 +179,19 @@ function validateStaticWorld(candidate: WarpkeepRealmSnapshotCandidate) {
 
   const metadataByKey = new Map<string, (typeof candidate.tileMetadata)[number]>();
   for (const metadata of candidate.tileMetadata) {
+    const expected = staticWorld.metadataByKey.get(metadata.tileKey);
     if (
       metadataByKey.has(metadata.tileKey)
-      || !matchesCanonicalWorldMeta(metadata)
+      || expected === undefined
+      || metadata.realmId !== expected.realmId
+      || metadata.s !== expected.s
+      || metadata.ring !== expected.ring
+      || metadata.sector !== expected.sector
+      || metadata.terrainKind !== expected.terrainKind
+      || metadata.passable !== expected.passable
+      || metadata.movementCost !== expected.movementCost
+      || metadata.staticContentKind !== expected.staticContentKind
+      || metadata.generationVersion !== expected.generationVersion
       || !tilesByKey.has(metadata.tileKey)
     ) fail();
     metadataByKey.set(metadata.tileKey, metadata);
@@ -110,7 +200,7 @@ function validateStaticWorld(candidate: WarpkeepRealmSnapshotCandidate) {
     if (!metadataByKey.has(tile.key)) fail();
   }
 
-  return { tilesByKey, metadataByKey };
+  return { tilesByKey, metadataByKey, staticWorld };
 }
 
 function validatePublicRows(
@@ -251,8 +341,12 @@ export function isCanonicalGenesisSnapshot(
   const brand = candidate[CANONICAL_SNAPSHOT_BRAND];
   return Object.isFrozen(candidate)
     && candidate.protocolVersion === WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION
-    && candidate.canonicalFingerprint === CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT
+    && (
+      candidate.canonicalFingerprint === GENESIS_GENERATION_V2_SNAPSHOT_FINGERPRINT
+      || candidate.canonicalFingerprint === GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT
+    )
     && brand !== undefined
+    && brand.canonicalFingerprint === candidate.canonicalFingerprint
     && (ownFid === undefined || brand.ownFid === ownFid);
 }
 
@@ -285,7 +379,7 @@ export function validateCanonicalGenesisSnapshot(
     || !Array.isArray(candidate.activeRealms)
   ) fail();
 
-  const { tilesByKey, metadataByKey } = validateStaticWorld(candidate);
+  const { tilesByKey, metadataByKey, staticWorld } = validateStaticWorld(candidate);
   const { profileFids } = validatePublicRows(
     candidate,
     input.allowLocalProfilePlaceholder === true
@@ -309,7 +403,7 @@ export function validateCanonicalGenesisSnapshot(
 
   const canonical = {
     protocolVersion: WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION,
-    canonicalFingerprint: CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT,
+    canonicalFingerprint: staticWorld.fingerprint,
     activeRealms,
     realm: activeRealms[0]!,
     tiles,
@@ -323,7 +417,10 @@ export function validateCanonicalGenesisSnapshot(
     configurable: false,
     enumerable: false,
     writable: false,
-    value: Object.freeze({ ownFid: input.ownFid })
+    value: Object.freeze({
+      ownFid: input.ownFid,
+      canonicalFingerprint: staticWorld.fingerprint
+    })
   });
   return Object.freeze(canonical);
 }

@@ -12,6 +12,7 @@ export {
 } from './reducers/admission';
 export {
   adminSeedWorld,
+  adminExpandGenesisWorldV3,
   adminAllowFid,
   adminDisableFid,
   adminBumpAuthEpoch,

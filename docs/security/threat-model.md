@@ -61,6 +61,21 @@ completed the additive protocol-3 publication, deterministic seed, deliberate
 founding actions, and enabled shared-realm verification. Historical Alpha 0.2
 or Alpha 0.3.1 evidence is not proof of the current protocol-3 coordinates.
 
+## Undeployed Alpha 0.3.8 candidate boundary
+
+The checkout adds one private resource table and an admin-only exact-state
+transition from the complete 1,261-cell generation-two world to the exact
+10,000-cell generation-three target. This source is not deployed authority.
+Routine seeding refuses the predecessor, the transition verifies the complete
+static and founding graphs plus an exact pre-backfill or ready resource state,
+and partial, mixed, duplicate, or altered state fails before mutation. Module
+publication and world expansion are separate owner approvals. The guarded
+operator requires the immutable database identity, an explicit command-line
+confirmation, a fresh counts-only precondition, unchanged private dynamic
+counts, and a postcondition with exactly one new audit row. A timeout or failed
+postcondition is indeterminate and permits only bounded read-only inspection,
+not a blind retry.
+
 ## System and data flow
 
 ```mermaid

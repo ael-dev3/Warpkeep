@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 
+import {
+  CANONICAL_WORLD_TILES,
+  GENESIS_RENDER_RADIUS,
+  LOWLANDS_RADIUS
+} from '../spacetimedb/src/world';
 import { createTerrainDecorationLayers } from '../src/components/realm/createTerrainDecorations';
 import {
   REALM_QUALITY_SPECS,
@@ -8,7 +13,10 @@ import {
 } from '../src/components/realm/realmQuality';
 import { axialToWorld, hexDistance, hexKey } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
-import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import {
+  createAuthoritativeRealmTerrainSurface,
+  createRealmTerrainSurface
+} from '../src/game/map/realmTerrainSurface';
 import { generateTerrainDecorations } from '../src/game/map/terrainDecorations';
 import { pointyHexBoundaryDistance } from '../src/game/map/terrainHeight';
 import {
@@ -23,6 +31,15 @@ function decorationQuality(
   playableRadius: number
 ) {
   return { ...quality, playableRadius };
+}
+
+function expandedGenesisSurface() {
+  return createAuthoritativeRealmTerrainSurface(
+    HEGEMONY_GENESIS_001,
+    CANONICAL_WORLD_TILES,
+    LOWLANDS_RADIUS,
+    GENESIS_RENDER_RADIUS
+  );
 }
 
 describe('deterministic lowland decorations', () => {
@@ -194,6 +211,82 @@ describe('deterministic lowland decorations', () => {
     expect(details.points.length).toBeLessThanOrEqual(plan.decorationInstanceBudget);
     expect(details.counts['green-tuft']).toBeGreaterThan(details.counts['dry-tuft']);
     expect(details.counts['dry-tuft']).toBeGreaterThan(details.counts.stone);
+  });
+
+  it('bounds radius-sixty decoration selection and treats missing ring-58 cells as apron', () => {
+    const surface = expandedGenesisSurface();
+    const plan = resolveRealmRenderPlan(REALM_QUALITY_SPECS.high, {
+      playableRadius: surface.playableMap.radius,
+      renderRadius: surface.renderMap.radius,
+      playableCellCount: surface.playableMap.cells.length,
+      renderCellCount: surface.renderMap.cells.length
+    });
+    const details = generateTerrainDecorations(
+      surface.renderMap,
+      { ...plan.decorationDensity, playableRadius: surface.playableMap.radius },
+      1,
+      [],
+      undefined,
+      {
+        maximumPoints: plan.genericDecorationInstanceBudget,
+        preserveRadius: 20,
+        playableKeys: surface.playableKeys
+      }
+    );
+    const absentPerimeterDetails = details.points.filter((point) => (
+      hexDistance({ q: 0, r: 0 }, point.coord) === LOWLANDS_RADIUS
+      && !surface.playableKeys.has(hexKey(point.coord))
+    ));
+
+    expect(details.points.length).toBeLessThanOrEqual(plan.genericDecorationInstanceBudget);
+    expect(details.points).toHaveLength(
+      details.counts['green-tuft'] + details.counts['dry-tuft'] + details.counts.stone
+    );
+    expect(absentPerimeterDetails.length).toBeGreaterThan(0);
+    expect(absentPerimeterDetails.every((point) => point.apron)).toBe(true);
+    expect(details.points.every((point) => (
+      point.apron === !surface.playableKeys.has(hexKey(point.coord))
+    ))).toBe(true);
+  });
+
+  it('preserves every established radius-twenty decoration and its encounter order', () => {
+    const establishedSurface = createRealmTerrainSurface(HEGEMONY_GENESIS_001, 20, 22);
+    const expandedSurface = expandedGenesisSurface();
+
+    for (const quality of Object.values(REALM_QUALITY_SPECS)) {
+      const plan = resolveRealmRenderPlan(quality, {
+        playableRadius: expandedSurface.playableMap.radius,
+        renderRadius: expandedSurface.renderMap.radius,
+        playableCellCount: expandedSurface.playableMap.cells.length,
+        renderCellCount: expandedSurface.renderMap.cells.length
+      });
+      const density = {
+        ...plan.decorationDensity,
+        playableRadius: establishedSurface.playableMap.radius
+      };
+      const established = generateTerrainDecorations(
+        establishedSurface.renderMap,
+        density
+      ).points.filter((point) => (
+        hexDistance({ q: 0, r: 0 }, point.coord) <= 20
+      ));
+      const expanded = generateTerrainDecorations(
+        expandedSurface.renderMap,
+        { ...density, playableRadius: expandedSurface.playableMap.radius },
+        1,
+        [],
+        undefined,
+        {
+          maximumPoints: plan.genericDecorationInstanceBudget,
+          preserveRadius: 20,
+          playableKeys: expandedSurface.playableKeys
+        }
+      ).points.filter((point) => (
+        hexDistance({ q: 0, r: 0 }, point.coord) <= 20
+      ));
+
+      expect(expanded, quality.id).toEqual(established);
+    }
   });
 
   it('does not scatter generic grass or stones across semantic blockers', () => {

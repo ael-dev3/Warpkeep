@@ -2,9 +2,10 @@
 
 Warpkeep is an admission-gated persistent-world alpha. The current player
 experience is the verified Alpha 0.3.6 realm exploration and castle
-presentation release. The checked-in Alpha 0.3.7 candidate adds a bounded
-private resource loop, but it is not deployed. Construction, spending, combat,
-and social systems are deliberately not live.
+presentation release. The checked-in Alpha 0.3.8 candidate carries a bounded
+private resource loop and expands the persistent Genesis world definition to
+10,000 cells, but it is not deployed. Construction, spending, combat, resource
+nodes, and social systems are deliberately not live.
 
 ## Authority boundaries
 
@@ -19,7 +20,7 @@ and social systems are deliberately not live.
 - Public projections exist for display and navigation. They do not grant a
   player power to alter authoritative state.
 
-## Alpha 0.3.7 candidate resource boundary
+## Alpha 0.3.8 candidate resource and world boundary
 
 The candidate appends one private `resource_account_v1` row per founded castle.
 It is keyed by FID, uniquely bound to the authoritative castle, and stores whole
@@ -47,6 +48,21 @@ subscription is unchanged. Community Marks stays in `mark_account_v1` under
 its existing policy; resource collection cannot convert, duplicate, credit,
 transfer, or spend Marks.
 
+The same candidate defines Genesis 001 generation three as exactly 10,000
+persistent cells: every cell of the generation-two radius-20 predecessor, the
+remainder of a complete radius-57 disc, and 81 balanced cells on ring 58. The
+maximum authoritative radius describes that partial-ring envelope; it does not
+claim a complete radius-58 disc. All 100 permanent castle slots and their
+close-outward generation-two order remain unchanged.
+
+An admin-only exact-state reducer atomically inserts 8,739 world rows and 8,739
+metadata rows, then updates the singleton realm while preserving its creation
+timestamp. Routine seeding refuses to perform this transition. Exact
+generation-two and generation-three snapshots are accepted during rollout;
+partial, duplicate, altered, or mixed states fail closed. Two thousand
+resource-capable metadata sites reserve future placement space only and do not
+create nodes or alter current resource yields.
+
 ## Authentication presentation
 
 FID is the only identity coordinate. Username, display name, biography, and PFP
@@ -69,8 +85,11 @@ session authority.
 The player is built with React, TypeScript, Vite, Three.js/WebGL, and responsive
 CSS. The title, menu, and realm share quality preferences while preserving
 reduced-motion and non-WebGL fallbacks. Genesis readiness is validated before
-the Realm appears. In the 0.3.7 candidate, the caller's private resource
-projection must also validate before the public Realm subscription begins.
+the Realm appears. In the 0.3.8 candidate, the caller's private resource
+projection must also validate before the public Realm subscription begins. The
+renderer uses the exact authoritative tile-key set, so the deliberate partial
+ring is never expanded into invented cells, and bounds semantic detail work
+deterministically as the radius-60 presentation envelope grows.
 
 Founded keeps use one realm-lifetime castle/base prefab repository. Each
 graphics profile pairs an integrity-pinned GameReady castle with its matching
@@ -102,9 +121,11 @@ local, machine-bound test subsystem. Production build checks reject its broker,
 fixture, endpoint, and procedure markers from Pages assets. It owns no Worker,
 SpacetimeDB, player, or admission authority.
 
-The resource migration proof uses a disposable protocol-3 fixture. It verifies
-that the private resource table and versioned operations append without
-renumbering or deleting deployed schema. It is not a production publication.
+The migration proof uses disposable protocol-3 fixtures. It verifies that the
+private resource table and versioned operations append without renumbering or
+deleting deployed schema, and separately proves the atomic 1,261-to-10,000
+world transition with preserved founding state and an idempotent target retry.
+It is not a production publication.
 Existing founders require a separate exact-count, idempotent Hermes backfill;
 the v4 inspection returns only aggregate coverage and invariant counts, never
 FIDs or balances.
@@ -117,10 +138,12 @@ configuration, provenance, asset integrity, production exclusions, and additive
 backend compatibility before Pages publishes. Worker and SpacetimeDB operations
 remain separate release decisions.
 
-For Alpha 0.3.7, the safe production order is additive module publication,
-explicitly owner-approved founder backfill, counts-only v4 verification, exact
-reviewed Pages deployment, then live build verification. Source completion or a
-client merge authorizes none of those production operations.
+For Alpha 0.3.8, the safe production order is additive module publication,
+explicitly owner-approved founder backfill, explicit exact-state world
+expansion, generation-three and v4 counts-only verification, exact reviewed
+Pages deployment, then live build verification. Each mutable step is a separate
+approval boundary. Source completion or a client merge authorizes none of
+those production operations.
 
 ## Repository guide
 
@@ -134,4 +157,4 @@ client merge authorizes none of those production operations.
 
 Start with the [README](../README.md), [product direction](design/warpkeep-direction.md),
 [roadmap](design/roadmap.md), [verified Alpha 0.3.6 release notes](releases/alpha-0.3.6.md),
-and [Alpha 0.3.7 candidate notes](releases/alpha-0.3.7.md).
+and [Alpha 0.3.8 candidate notes](releases/alpha-0.3.8.md).

@@ -617,6 +617,30 @@ private func rejectForbiddenSnapshotKeys(_ value: Any) throws {
     }
 }
 
+private func matchesExpectedWorldState(
+    _ value: [String: Any],
+    realm: [String: Any]
+) -> Bool {
+    let worldTileCount = exactInt64(value["worldTileCount"])
+    let worldTileMetaCount = exactInt64(value["worldTileMetaCount"])
+    let generationVersion = exactInt64(realm["generationVersion"])
+    let authoritativeRadius = exactInt64(realm["authoritativeRadius"])
+    let renderRadius = exactInt64(realm["renderRadius"])
+    return (
+        worldTileCount == 1_261
+            && worldTileMetaCount == 1_261
+            && generationVersion == 2
+            && authoritativeRadius == 20
+            && renderRadius == 22
+    ) || (
+        worldTileCount == 10_000
+            && worldTileMetaCount == 10_000
+            && generationVersion == 3
+            && authoritativeRadius == 58
+            && renderRadius == 60
+    )
+}
+
 private func validateSnapshot(_ data: Data) throws -> Data {
     guard
         data.count <= maximumSnapshotResponseBytes,
@@ -633,8 +657,6 @@ private func validateSnapshot(_ data: Data) throws -> Data {
         exactInt64(value["protocolVersion"]) == 3,
         exactInt64(value["worldSeed"]) == 3_445_214_658,
         value["worldSeedName"] as? String == "HEGEMONY_GENESIS_001",
-        exactInt64(value["worldTileCount"]) == 1_261,
-        exactInt64(value["worldTileMetaCount"]) == 1_261,
         let realm = value["realm"] as? [String: Any],
         Set(realm.keys) == [
             "realmId", "numericSeed", "generationVersion", "authoritativeRadius",
@@ -642,10 +664,8 @@ private func validateSnapshot(_ data: Data) throws -> Data {
         ],
         realm["realmId"] as? String == "GENESIS_001",
         exactInt64(realm["numericSeed"]) == 3_445_214_658,
-        exactInt64(realm["generationVersion"]) == 2,
-        exactInt64(realm["authoritativeRadius"]) == 20,
-        exactInt64(realm["renderRadius"]) == 22,
         exactInt64(realm["playerCapacity"]) == 100,
+        matchesExpectedWorldState(value, realm: realm),
         let aggregates = value["aggregates"] as? [String: Any],
         Set(aggregates.keys) == [
             "castleCount", "profileCount", "foundedCount", "activeCount",
@@ -665,24 +685,26 @@ private func validateSnapshot(_ data: Data) throws -> Data {
 }
 
 private func implementationSnapshot(
+    generationVersion: Int64 = 3,
     castleCount: Int64 = 2,
     profileCount: Int64 = 2,
     foundedCount: Int64 = 1,
     activeCount: Int64 = 1
 ) -> [String: Any] {
-    [
+    let isGenerationV2 = generationVersion == 2
+    return [
         "version": 2,
         "protocolVersion": 3,
         "worldSeed": 3_445_214_658,
         "worldSeedName": "HEGEMONY_GENESIS_001",
-        "worldTileCount": 1_261,
-        "worldTileMetaCount": 1_261,
+        "worldTileCount": isGenerationV2 ? 1_261 : 10_000,
+        "worldTileMetaCount": isGenerationV2 ? 1_261 : 10_000,
         "realm": [
             "realmId": "GENESIS_001",
             "numericSeed": 3_445_214_658,
-            "generationVersion": 2,
-            "authoritativeRadius": 20,
-            "renderRadius": 22,
+            "generationVersion": generationVersion,
+            "authoritativeRadius": isGenerationV2 ? 20 : 58,
+            "renderRadius": isGenerationV2 ? 22 : 60,
             "playerCapacity": 100,
         ],
         "aggregates": [
@@ -705,6 +727,21 @@ private func requireSnapshotRejection(_ snapshot: [String: Any]) throws {
 
 private func runSnapshotValidationImplementationSelfTest() throws {
     _ = try validateSnapshot(try jsonData(implementationSnapshot()))
+    _ = try validateSnapshot(try jsonData(implementationSnapshot(generationVersion: 2)))
+
+    for mask in 1..<0b1_1111 {
+        var mixed = implementationSnapshot(generationVersion: 2)
+        if mask & 0b0_0001 != 0 { mixed["worldTileCount"] = 10_000 }
+        if mask & 0b0_0010 != 0 { mixed["worldTileMetaCount"] = 10_000 }
+        guard var realm = mixed["realm"] as? [String: Any] else {
+            throw QaDeviceError.signatureFailed
+        }
+        if mask & 0b0_0100 != 0 { realm["generationVersion"] = 3 }
+        if mask & 0b0_1000 != 0 { realm["authoritativeRadius"] = 58 }
+        if mask & 0b1_0000 != 0 { realm["renderRadius"] = 60 }
+        mixed["realm"] = realm
+        try requireSnapshotRejection(mixed)
+    }
 
     var invalid = implementationSnapshot()
     invalid["version"] = 1

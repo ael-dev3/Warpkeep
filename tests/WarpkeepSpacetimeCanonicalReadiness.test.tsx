@@ -232,35 +232,41 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
     expect(harness.runtime.readRealmSnapshot).not.toHaveBeenCalled();
   });
 
-  it('retains only a branded same-FID snapshot while reconnecting', async () => {
-    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
-    const harness = createRuntimeHarness();
-    const rendered = renderProvider(harness);
-    await beginSubscription(harness);
-    act(() => harness.applied()?.());
-    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+  it.each([2, 3] as const)(
+    'retains only a branded same-FID generation-%i snapshot while reconnecting',
+    async (generationVersion) => {
+      mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+      const harness = createRuntimeHarness();
+      vi.mocked(harness.runtime.readRealmSnapshot).mockReturnValue(
+        createCanonicalGenesisSnapshot({ ownFid: 12_345, generationVersion })
+      );
+      const rendered = renderProvider(harness);
+      await beginSubscription(harness);
+      act(() => harness.applied()?.());
+      await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
 
-    const pendingReconnect = new Promise<never>(() => undefined);
-    vi.mocked(harness.runtime.connect).mockImplementationOnce(() => pendingReconnect);
-    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
-    rendered.rerender(
-      <WarpkeepSpacetimeProvider config={CONFIG} runtime={harness.runtime}>
-        <Probe />
-      </WarpkeepSpacetimeProvider>
-    );
-    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('reconnecting'));
-    expect(screen.getByTestId('fingerprint').textContent).toContain('genesis-001');
+      const pendingReconnect = new Promise<never>(() => undefined);
+      vi.mocked(harness.runtime.connect).mockImplementationOnce(() => pendingReconnect);
+      mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+      rendered.rerender(
+        <WarpkeepSpacetimeProvider config={CONFIG} runtime={harness.runtime}>
+          <Probe />
+        </WarpkeepSpacetimeProvider>
+      );
+      await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('reconnecting'));
+      expect(screen.getByTestId('fingerprint').textContent).toContain('genesis-001');
 
-    vi.mocked(harness.runtime.connect).mockImplementationOnce(() => pendingReconnect);
-    mockedFarcaster.current = authenticatedFarcaster(54_321, 3);
-    rendered.rerender(
-      <WarpkeepSpacetimeProvider config={CONFIG} runtime={harness.runtime}>
-        <Probe />
-      </WarpkeepSpacetimeProvider>
-    );
-    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('connecting'));
-    expect(screen.getByTestId('fingerprint').textContent).toBe('');
-  });
+      vi.mocked(harness.runtime.connect).mockImplementationOnce(() => pendingReconnect);
+      mockedFarcaster.current = authenticatedFarcaster(54_321, 3);
+      rendered.rerender(
+        <WarpkeepSpacetimeProvider config={CONFIG} runtime={harness.runtime}>
+          <Probe />
+        </WarpkeepSpacetimeProvider>
+      );
+      await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('connecting'));
+      expect(screen.getByTestId('fingerprint').textContent).toBe('');
+    }
+  );
 
   it('never publishes a 61-cell snapshot across hidden pageshow and StrictMode remounts', async () => {
     let hidden = true;

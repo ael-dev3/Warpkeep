@@ -9,6 +9,11 @@
 > every future republish, binding change, secret change, deploy, or enable
 > requires its own authority and verification.
 
+The checked-in Alpha 0.3.8 candidate is not part of that deployed inventory. It
+adds one private resource table at schema ref 19 and defines a separately
+approval-gated generation-three target with exactly 10,000 world and metadata
+rows. Neither source presence nor local proof attests that production state.
+
 ## Repositories and workflows
 
 | Repository | Purpose | Boundary |
@@ -170,8 +175,11 @@ compatible, including its opaque `identity` field. Its protocol-v1 status and
 bootstrap wires fail closed, protocol v2 never reads or writes it, the official
 browser never subscribes to it, and its required production count is zero.
 
-Two tables are appended: public `player_v2`, which excludes opaque identity,
-and private `player_ownership_v2`, which contains the authorization binding.
+The deployed v2 schema appended two tables: public `player_v2`, which excludes
+opaque identity, and private `player_ownership_v2`, which contains the
+authorization binding. Protocol 3 later appended the 12 frozen tables at refs
+7–18. The checked-in candidate appends private `resource_account_v1` at exact
+ref 19 without changing those deployed declarations.
 The private ownership table must have no generated browser table accessor.
 Bootstrap ignores optional profile-shaped JWT fields and explicitly inserts
 undefined `username`, `displayName`, and `pfpUrl`; profile changes require a
@@ -185,10 +193,18 @@ the preserved legacy table is public, an arbitrary old client can technically
 request it; the retired writer plus mandatory zero-row invariant is the
 compatibility safety boundary.
 
+The live `admin_get_alpha_status_v3` procedure covers the complete founded
+protocol-3 graph without exposing row identities. Candidate
+`admin_get_alpha_status_v4` is a separate closed counts-only resource contract:
+founder/castle/Mark coverage, resource coverage and invariant counts, protocol,
+and policy version. The generation-two and generation-three world gates remain
+separate exact contracts; a mixed tuple fails closed.
+
 `npm run stdb:verify-additive-migration` proves the exact prefix, append-only
-tables, empty and synthetic nonempty fixture preservation, idempotence, partial
-state detection, and guarded v1 rollback refusal before schema change against a disposable loopback server with
-the pinned CLI. This local proof grants no production authority. If post-publish
-verification finds a mismatch, keep auth disabled and use a separately reviewed
-forward-compatible fix; never delete data, recreate the database, or roll the
-schema backward.
+refs 0–19, empty and synthetic nonempty fixture preservation, idempotence,
+partial-state detection, guarded v3/v2 rollback refusal, the populated exact
+generation-two-to-three world transition, and the private resource lifecycle
+against disposable loopback databases with the pinned CLI. This local proof
+grants no production authority. If post-publish verification finds a mismatch,
+keep auth disabled and use a separately reviewed forward-compatible fix; never
+delete data, recreate the database, or roll the schema backward.

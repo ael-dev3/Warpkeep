@@ -28,14 +28,14 @@ const SNAPSHOT: QaObserverRealmSnapshot = Object.freeze({
   protocolVersion: 3,
   worldSeed: 3_445_214_658,
   worldSeedName: 'HEGEMONY_GENESIS_001',
-  worldTileCount: 1_261,
-  worldTileMetaCount: 1_261,
+  worldTileCount: 10_000,
+  worldTileMetaCount: 10_000,
   realm: Object.freeze({
     realmId: 'GENESIS_001',
     numericSeed: 3_445_214_658,
-    generationVersion: 2,
-    authoritativeRadius: 20,
-    renderRadius: 22,
+    generationVersion: 3,
+    authoritativeRadius: 58,
+    renderRadius: 60,
     playerCapacity: 100,
   }),
   aggregates: Object.freeze({
@@ -46,7 +46,30 @@ const SNAPSHOT: QaObserverRealmSnapshot = Object.freeze({
   }),
 })
 
+const SNAPSHOT_V2: QaObserverRealmSnapshot = Object.freeze({
+  ...SNAPSHOT,
+  worldTileCount: 1_261,
+  worldTileMetaCount: 1_261,
+  realm: Object.freeze({
+    ...SNAPSHOT.realm,
+    generationVersion: 2,
+    authoritativeRadius: 20,
+    renderRadius: 22,
+  }),
+})
+
 const RAW_SPACETIME_SNAPSHOT = Object.freeze([
+  2,
+  3,
+  3_445_214_658,
+  'HEGEMONY_GENESIS_001',
+  10_000,
+  10_000,
+  Object.freeze(['GENESIS_001', 3_445_214_658, 3, 58, 60, 100]),
+  Object.freeze([1, 1, 0, 1]),
+])
+
+const RAW_SPACETIME_SNAPSHOT_V2 = Object.freeze([
   2,
   3,
   3_445_214_658,
@@ -287,6 +310,27 @@ describe('machine-bound QA observer bridge', () => {
       const payload = JSON.parse(atob(payloadSegment.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>
       expect(payload.aud).toEqual(['warpkeep-qa-observer-spacetimedb'])
       expect(payload.aud).not.toEqual(['warpkeep-spacetimedb'])
+    } finally {
+      upstream.mockRestore()
+    }
+  })
+
+  it('keeps the exact generation-v2 attestation usable during the v3 rollout', async () => {
+    const upstream = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify(RAW_SPACETIME_SNAPSHOT_V2),
+      { headers: { 'content-type': 'application/json' } },
+    ))
+    try {
+      const h = harness({ useDefaultResolver: true })
+      const issued = await challenge(h)
+      const response = await h.app.fetch(post('/v1/qa/realm-snapshot', {
+        requestId: issued.requestId,
+        signature: await sign(String(issued.signingInput)),
+      }), environment())
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual(SNAPSHOT_V2)
+      expect(upstream).toHaveBeenCalledOnce()
     } finally {
       upstream.mockRestore()
     }

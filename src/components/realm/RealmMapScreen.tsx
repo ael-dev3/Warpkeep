@@ -18,7 +18,7 @@ import {
 } from '../../game/map/hexCoordinates';
 import { terrainCellByCoord } from '../../game/map/generateTerrainMap';
 import {
-  createRealmTerrainSurface,
+  createAuthoritativeRealmTerrainSurface,
   isPlayableRealmCoord,
   type RealmTerrainSurface
 } from '../../game/map/realmTerrainSurface';
@@ -53,6 +53,7 @@ import {
   type RealmTerrainPresentationTelemetry
 } from './createRealmScene';
 import {
+  createTerrainOverviewHull,
   pointyHexCorners,
   sampleLowlandsColor
 } from './createTerrainGeometry';
@@ -208,34 +209,20 @@ function useStablePeerCastleMarkers(
   return stableMarkersRef.current;
 }
 
-function sameRealmTerrainMetadata(
-  first: readonly WarpkeepWorldTileMetadata[],
-  second: readonly WarpkeepWorldTileMetadata[]
+/**
+ * Canonical terrain metadata is immutable for one fingerprint. Avoid scanning
+ * all 10,000 rows when a profile/castle subscription publishes a fresh
+ * presentation snapshot with the same validated world identity.
+ */
+function useStableRealmTerrainMetadata(
+  rows: readonly WarpkeepWorldTileMetadata[],
+  canonicalFingerprint: string
 ) {
-  if (first === second) return true;
-  return first.length === second.length && first.every((row, index) => {
-    const candidate = second[index];
-    return candidate !== undefined
-      && row.tileKey === candidate.tileKey
-      && row.realmId === candidate.realmId
-      && row.s === candidate.s
-      && row.ring === candidate.ring
-      && row.sector === candidate.sector
-      && row.terrainKind === candidate.terrainKind
-      && row.passable === candidate.passable
-      && row.movementCost === candidate.movementCost
-      && row.staticContentKind === candidate.staticContentKind
-      && row.generationVersion === candidate.generationVersion;
-  });
-}
-
-/** Preserve the GPU scene when a fresh snapshot changes presentation only. */
-function useStableRealmTerrainMetadata(rows: readonly WarpkeepWorldTileMetadata[]) {
-  const stableRowsRef = useRef(rows);
-  if (!sameRealmTerrainMetadata(stableRowsRef.current, rows)) {
-    stableRowsRef.current = rows;
+  const stableRowsRef = useRef({ canonicalFingerprint, rows });
+  if (stableRowsRef.current.canonicalFingerprint !== canonicalFingerprint) {
+    stableRowsRef.current = { canonicalFingerprint, rows };
   }
-  return stableRowsRef.current;
+  return stableRowsRef.current.rows;
 }
 
 function directionForKey(key: string): HexCoord | null {
@@ -265,19 +252,49 @@ function pointsForSvg(coord: HexCoord) {
     .join(' ');
 }
 
-function viewBoxForSurface(surface: RealmTerrainSurface): RealmViewBox {
-  const points = surface.renderMap.cells.flatMap((cell) => pointyHexCorners(cell.coord, HEX_SIZE));
-  if (points.length === 0) return { x: -2, y: -2, width: 4, height: 4 };
-  const minX = Math.min(...points.map((point) => point.x));
-  const maxX = Math.max(...points.map((point) => point.x));
-  const minZ = Math.min(...points.map((point) => point.z));
-  const maxZ = Math.max(...points.map((point) => point.z));
+type RealmFallbackSurfacePresentation = Readonly<{
+  viewBox: RealmViewBox;
+  renderHullPoints: string;
+  playableHullPoints: string;
+}>;
+
+function svgHullPoints(points: readonly Readonly<{ x: number; z: number }>[]) {
+  return points.map((point) => `${point.x.toFixed(4)},${(-point.z).toFixed(4)}`).join(' ');
+}
+
+function fallbackSurfacePresentation(
+  surface: RealmTerrainSurface
+): RealmFallbackSurfacePresentation {
+  const renderHull = createTerrainOverviewHull(surface.renderMap, HEX_SIZE);
+  const playableHull = createTerrainOverviewHull(surface.playableMap, HEX_SIZE);
+  const points = renderHull;
+  if (points.length === 0) {
+    return {
+      viewBox: { x: -2, y: -2, width: 4, height: 4 },
+      renderHullPoints: '',
+      playableHullPoints: ''
+    };
+  }
+  let minX = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let minZ = Number.POSITIVE_INFINITY;
+  let maxZ = Number.NEGATIVE_INFINITY;
+  points.forEach((point) => {
+    minX = Math.min(minX, point.x);
+    maxX = Math.max(maxX, point.x);
+    minZ = Math.min(minZ, point.z);
+    maxZ = Math.max(maxZ, point.z);
+  });
   const padding = 0.88;
   return {
-    x: minX - padding,
-    y: -maxZ - padding,
-    width: maxX - minX + padding * 2,
-    height: maxZ - minZ + padding * 2
+    viewBox: {
+      x: minX - padding,
+      y: -maxZ - padding,
+      width: maxX - minX + padding * 2,
+      height: maxZ - minZ + padding * 2
+    },
+    renderHullPoints: svgHullPoints(renderHull),
+    playableHullPoints: svgHullPoints(playableHull)
   };
 }
 
@@ -395,15 +412,20 @@ function CanonicalRealmMapScreen({
   const ownCastle = snapshot.ownCastle;
   const sharedPlayers = snapshot.players;
   const sharedProfiles = snapshot.profiles;
-  const sharedTileMetadata = useStableRealmTerrainMetadata(snapshot.tileMetadata);
+  const sharedTileMetadata = useStableRealmTerrainMetadata(
+    snapshot.tileMetadata,
+    snapshot.canonicalFingerprint
+  );
   const otherCastles = snapshot.castles;
   const surface = useMemo(
-    () => createRealmTerrainSurface(
+    () => createAuthoritativeRealmTerrainSurface(
       snapshot.realm.numericSeed,
+      snapshot.tiles,
       snapshot.realm.authoritativeRadius,
       snapshot.realm.renderRadius
     ),
     [
+      snapshot.canonicalFingerprint,
       snapshot.realm.authoritativeRadius,
       snapshot.realm.numericSeed,
       snapshot.realm.renderRadius
@@ -526,7 +548,11 @@ function CanonicalRealmMapScreen({
   const presentedCastleIdsRef = useRef<readonly number[]>([]);
   const handledKeyboardIntentSequenceRef = useRef(-1);
   const reducedMotion = useReducedMotionPreference();
-  const viewBox = useMemo(() => viewBoxForSurface(surface), [surface]);
+  const fallbackSurface = useMemo(
+    () => fallbackSurfacePresentation(surface),
+    [surface]
+  );
+  const viewBox = fallbackSurface.viewBox;
   const selectedCell = selectedCellFor(surface, selectedCoord, keepCoord);
   const selectedTerrainKindCandidate = tileMetadataByKey.get(hexKey(selectedCoord))?.terrainKind;
   const selectedTerrainKind = isRealmTerrainKind(selectedTerrainKindCandidate)
@@ -774,6 +800,12 @@ function CanonicalRealmMapScreen({
   ) => {
     const root = rootRef.current;
     if (!root) return;
+    root.dataset.terrainTriangleCount = String(telemetry.terrainTriangleCount);
+    root.dataset.terrainTriangleBudget = String(telemetry.terrainTriangleBudget);
+    root.dataset.terrainDetailRadius = String(telemetry.terrainDetailRadius);
+    root.dataset.highDetailTerrainCellCount = String(telemetry.highDetailTerrainCellCount);
+    root.dataset.coarseTerrainCellCount = String(telemetry.coarseTerrainCellCount);
+    root.dataset.terrainTransitionEdgeCount = String(telemetry.terrainTransitionEdgeCount);
     root.dataset.semanticTerrainCellCount = String(telemetry.semanticCellCount);
     root.dataset.semanticTerrainKindCount = String(telemetry.semanticKindCount);
     root.dataset.semanticTerrainFeatureCount = String(telemetry.semanticFeatureCount);
@@ -1094,38 +1126,24 @@ function CanonicalRealmMapScreen({
                 </radialGradient>
               ))}
             </defs>
-            {surface.renderMap.cells.map((cell) => {
-              const realmCell = isPlayableRealmCoord(surface, cell.coord);
-              const tileMetadata = tileMetadataByKey.get(hexKey(cell.coord));
-              const passable = realmCell && tileMetadata?.passable !== false;
-              const selected = sameCoord(selectedCoord, cell.coord);
-              const center = pointyHexCorners(cell.coord, HEX_SIZE)
-                .reduce((sum, point) => ({ x: sum.x + point.x / 6, z: sum.z + point.z / 6 }), { x: 0, z: 0 });
-              const color = sampleLowlandsColor(surface.renderMap.worldSeed, center, {
-                cell,
-                hexSize: HEX_SIZE,
-                playableRadius: surface.playableMap.radius,
-                renderRadius: surface.renderMap.radius,
-                terrainKind: isRealmTerrainKind(tileMetadata?.terrainKind)
-                  ? tileMetadata.terrainKind
-                  : undefined
-              });
-              return (
-                <polygon
-                  key={hexKey(cell.coord)}
-                  data-playable={passable ? 'true' : 'false'}
-                  data-realm-cell={realmCell ? 'true' : 'false'}
-                  data-static-content={tileMetadata?.staticContentKind}
-                  data-terrain-kind={tileMetadata?.terrainKind}
-                  points={pointsForSvg(cell.coord)}
-                  fill={colorToCss(color)}
-                  fillOpacity={passable ? 1 : realmCell ? 0.84 : 0.72}
-                  stroke={selected ? '#fff1b8' : passable ? '#788454' : realmCell ? '#565d4a' : '#859076'}
-                  strokeWidth={selected ? 0.07 : 0.018}
-                  vectorEffect="non-scaling-stroke"
-                />
-              );
-            })}
+            <polygon
+              className="realm-map-screen__fallback-surface realm-map-screen__fallback-surface--apron"
+              data-surface-layer="render-apron"
+              points={fallbackSurface.renderHullPoints}
+            />
+            <polygon
+              className="realm-map-screen__fallback-surface realm-map-screen__fallback-surface--playable"
+              data-authoritative-cell-count={surface.playableMap.cells.length}
+              data-surface-layer="authoritative"
+              points={fallbackSurface.playableHullPoints}
+            />
+            <polygon
+              className="realm-map-screen__fallback-selection"
+              data-q={selectedCoord.q}
+              data-r={selectedCoord.r}
+              points={pointsForSvg(selectedCoord)}
+              vectorEffect="non-scaling-stroke"
+            />
             <g aria-hidden="true">
               {fallbackFoundations.map((foundation) => (
                 <circle

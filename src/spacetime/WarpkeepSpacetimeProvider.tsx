@@ -32,7 +32,6 @@ import {
   type WarpkeepRealmSnapshot
 } from './warpkeepBackendTypes';
 import {
-  CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT,
   isCanonicalGenesisSnapshot,
   validateCanonicalGenesisSnapshot
 } from './canonicalGenesisSnapshot';
@@ -349,7 +348,6 @@ export function WarpkeepSpacetimeProvider({
       && previousState.identity?.fid === identity?.fid
       && previousState.admission === 'ready'
       && previousState.realm
-      && previousState.realm.canonicalFingerprint === CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT
       && isCanonicalGenesisSnapshot(previousState.realm, identity?.fid)
       && canonicalRealmSourceRef.current === canonicalRealmSource
       ? previousState

@@ -119,8 +119,9 @@ export const realmV1 = table(
 );
 
 /**
- * Public generation-v2 sidecar keyed by the unchanged `world_tile.key`.
- * Canonical q/r remain single-source fields in the deployed prefix table.
+ * Public static-world sidecar introduced with generation v2 and extended
+ * additively by generation v3. Canonical q/r remain single-source fields in
+ * the frozen deployed `world_tile` shape.
  */
 export const worldTileMetaV1 = table(
   {

@@ -19,10 +19,10 @@ import {
   matchesCanonicalRealm,
   matchesCanonicalTerrain,
   matchesCanonicalWorldMeta,
+  matchesGenerationV2Realm,
 } from './world';
 import {
-  GenesisWorldDriftError,
-  planCanonicalWorldSeed,
+  classifyGenesisStaticSnapshot,
 } from './worldSeedPolicy';
 import { worldCastleGraphIsConsistent } from './worldCastleIntegrity';
 
@@ -33,25 +33,13 @@ function fail(code = 'STATE_INTEGRITY'): never {
 }
 
 function assertGenesisStaticStateComplete(ctx: WarpkeepReducerContext): void {
-  try {
-    const plan = planCanonicalWorldSeed({
-      worldTiles: ctx.db.worldTile.iter(),
-      realms: ctx.db.realmV1.iter(),
-      worldMeta: ctx.db.worldTileMetaV1.iter(),
-      castleSlots: ctx.db.castleSlotV1.iter(),
-    });
-    if (
-      plan.worldTiles.length !== 0
-      || plan.realm !== undefined
-      || plan.worldMeta.length !== 0
-      || plan.castleSlots.length !== 0
-    ) {
-      fail('GENESIS_NOT_SEEDED');
-    }
-  } catch (error) {
-    if (error instanceof GenesisWorldDriftError) fail();
-    throw error;
-  }
+  const generation = classifyGenesisStaticSnapshot({
+    worldTiles: ctx.db.worldTile.iter(),
+    realms: ctx.db.realmV1.iter(),
+    worldMeta: ctx.db.worldTileMetaV1.iter(),
+    castleSlots: ctx.db.castleSlotV1.iter(),
+  });
+  if (generation === 'invalid') fail('GENESIS_NOT_SEEDED');
 }
 
 function profileProjectionIsConsistent(
@@ -161,7 +149,7 @@ export function assertGenesisFounderForFid(
     || realm === null
     || !matchesCanonicalTerrain(tile)
     || !matchesCanonicalWorldMeta(meta)
-    || !matchesCanonicalRealm(realm)
+    || (!matchesCanonicalRealm(realm) && !matchesGenerationV2Realm(realm))
     || !existingFounderAssignmentIsConsistent({
       fid,
       castleId: castle.castleId,

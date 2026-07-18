@@ -3,16 +3,12 @@ import {
   trustedProfilesEqual,
 } from './profileAuthorityPolicy';
 import {
-  CANONICAL_REALM,
-  CANONICAL_WORLD_TILES,
-  CANONICAL_WORLD_TILE_META,
   type CanonicalCastleSlot,
   type CanonicalRealm,
 } from './world';
 import { worldCastleGraphIsConsistent } from './worldCastleIntegrity';
 import {
-  GenesisWorldDriftError,
-  planCanonicalWorldSeed,
+  classifyGenesisStaticSnapshot,
 } from './worldSeedPolicy';
 
 export const QA_OBSERVER_ATTESTATION_VERSION = 2;
@@ -128,35 +124,30 @@ function readCastleName(value: string): string {
 function validateStaticState(source: QaObserverSnapshotSource): {
   worldTiles: readonly QaObserverWorldTileSource[];
   castles: readonly QaObserverCastleSource[];
+  realm: CanonicalRealm;
 } {
   const worldTiles = [...source.worldTiles];
   const worldMeta = [...source.worldMeta];
   const realms = [...source.realms];
   const castleSlots = [...source.castleSlots];
   const castles = [...source.castles];
-  try {
-    const plan = planCanonicalWorldSeed({
-      worldTiles,
-      realms,
-      worldMeta,
-      castleSlots,
-    });
-    if (
-      plan.worldTiles.length !== 0
-      || plan.realm !== undefined
-      || plan.worldMeta.length !== 0
-      || plan.castleSlots.length !== 0
-      || worldTiles.length !== CANONICAL_WORLD_TILES.length
-      || worldMeta.length !== CANONICAL_WORLD_TILE_META.length
-      || realms.length !== 1
-      || !worldCastleGraphIsConsistent(worldTiles, castles)
-    ) fail();
-  } catch (error) {
-    if (error instanceof QaObserverSnapshotError) throw error;
-    if (error instanceof GenesisWorldDriftError) fail();
-    fail();
-  }
-  return { worldTiles: Object.freeze(worldTiles), castles: Object.freeze(castles) };
+  const generation = classifyGenesisStaticSnapshot({
+    worldTiles,
+    realms,
+    worldMeta,
+    castleSlots,
+  });
+  if (
+    generation === 'invalid'
+    || realms.length !== 1
+    || worldTiles.length !== worldMeta.length
+    || !worldCastleGraphIsConsistent(worldTiles, castles)
+  ) fail();
+  return {
+    worldTiles: Object.freeze(worldTiles),
+    castles: Object.freeze(castles),
+    realm: realms[0]!,
+  };
 }
 
 /**
@@ -174,7 +165,7 @@ export function buildQaObserverRealmAttestationV2(
     || protocolVersion < 0
     || protocolVersion > 0xffff_ffff
   ) fail();
-  const { castles } = validateStaticState(source);
+  const { castles, realm, worldTiles } = validateStaticState(source);
   if (castles.length < 1 || castles.length > QA_OBSERVER_MAX_CASTLES) fail();
 
   const profilesByFid = new Map<bigint, QaObserverProfileSource>();
@@ -209,17 +200,17 @@ export function buildQaObserverRealmAttestationV2(
   return Object.freeze({
     version: QA_OBSERVER_ATTESTATION_VERSION,
     protocolVersion,
-    worldSeed: CANONICAL_REALM.numericSeed,
-    worldSeedName: CANONICAL_REALM.seedName,
-    worldTileCount: CANONICAL_WORLD_TILES.length,
-    worldTileMetaCount: CANONICAL_WORLD_TILE_META.length,
+    worldSeed: realm.numericSeed,
+    worldSeedName: realm.seedName,
+    worldTileCount: worldTiles.length,
+    worldTileMetaCount: worldTiles.length,
     realm: Object.freeze({
-      realmId: CANONICAL_REALM.realmId,
-      numericSeed: CANONICAL_REALM.numericSeed,
-      generationVersion: CANONICAL_REALM.generationVersion,
-      authoritativeRadius: CANONICAL_REALM.authoritativeRadius,
-      renderRadius: CANONICAL_REALM.renderRadius,
-      playerCapacity: CANONICAL_REALM.playerCapacity,
+      realmId: realm.realmId,
+      numericSeed: realm.numericSeed,
+      generationVersion: realm.generationVersion,
+      authoritativeRadius: realm.authoritativeRadius,
+      renderRadius: realm.renderRadius,
+      playerCapacity: realm.playerCapacity,
     }),
     aggregates: Object.freeze({
       castleCount: castles.length,

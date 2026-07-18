@@ -13,6 +13,10 @@ Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
 > public shared auth and realm entry are enabled. `wrangler.toml` deliberately keeps
 > `PUBLIC_AUTH_ENABLED = "false"`; the recorded production override is true.
 
+The checked-in Alpha 0.3.8 candidate defines a separately approval-gated
+10,000-cell generation-three target. The QA aggregate parser supports only the
+two exact rollout tuples and never infers one from partial counts.
+
 `https://auth.warpkeep.com` is the canonical bridge coordinate, but its
 existence is not evidence that an arbitrary local v2 source is deployed. Every
 future rollout step requires exact-head verification and recorded authority.
@@ -113,7 +117,10 @@ database read and can no longer return its former response.
 
 The `/v1/qa/realm-snapshot` route and `realm.snapshot` scope remain unchanged as
 device-proof compatibility names. They do not authorize or return per-player
-Realm data. The successful Worker response is exactly:
+Realm data. The successful Worker response keeps exactly this closed shape.
+During the bounded world rollout it accepts either the complete live
+generation-two tuple (`1261 / 1261 / 2 / 20 / 22`) or the complete candidate
+tuple shown below; every mixed tuple is rejected:
 
 ```text
 {
@@ -121,14 +128,14 @@ Realm data. The successful Worker response is exactly:
   protocolVersion: 3,
   worldSeed: 3445214658,
   worldSeedName: "HEGEMONY_GENESIS_001",
-  worldTileCount: 1261,
-  worldTileMetaCount: 1261,
+  worldTileCount: 10000,
+  worldTileMetaCount: 10000,
   realm: {
     realmId: "GENESIS_001",
     numericSeed: 3445214658,
-    generationVersion: 2,
-    authoritativeRadius: 20,
-    renderRadius: 22,
+    generationVersion: 3,
+    authoritativeRadius: 58,
+    renderRadius: 60,
     playerCapacity: 100
   },
   aggregates: {

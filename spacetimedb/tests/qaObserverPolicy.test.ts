@@ -12,6 +12,9 @@ import {
   CANONICAL_REALM,
   CANONICAL_WORLD_TILES,
   CANONICAL_WORLD_TILE_META,
+  GENESIS_GENERATION_V2_REALM,
+  GENESIS_GENERATION_V2_WORLD_TILES,
+  GENESIS_GENERATION_V2_WORLD_TILE_META,
 } from '../src/world';
 
 function fixture(castleCount = 2): QaObserverSnapshotSource {
@@ -55,6 +58,22 @@ function arrays(source: QaObserverSnapshotSource) {
     castleSlots: [...source.castleSlots],
     castles: [...source.castles],
     profiles: [...source.profiles],
+  };
+}
+
+function generationV2Fixture(castleCount = 2): QaObserverSnapshotSource {
+  const current = arrays(fixture(castleCount));
+  const occupantByTile = new Map(
+    current.castles.map(castle => [castle.tileKey, castle.castleId]),
+  );
+  return {
+    ...current,
+    worldTiles: GENESIS_GENERATION_V2_WORLD_TILES.map(tile => ({
+      ...tile,
+      occupantCastleId: occupantByTile.get(tile.key),
+    })),
+    worldMeta: GENESIS_GENERATION_V2_WORLD_TILE_META,
+    realms: [GENESIS_GENERATION_V2_REALM],
   };
 }
 
@@ -130,8 +149,22 @@ test('builds an exact bounded v2 aggregate attestation with no player or castle 
   const serialized = JSON.stringify(attestation);
   for (const forbiddenValue of [
     'founder.one', 'Founder One', 'Building in Genesis 001.',
-    'https://cdn.example.test/founder-one.png', 'Keep 1', '10000',
+    'https://cdn.example.test/founder-one.png', 'Keep 1', '10001',
   ]) assert.equal(serialized.includes(forbiddenValue), false);
+});
+
+test('emits the exact generation-v2 state during the bounded v3 rollout window', () => {
+  const attestation = buildQaObserverRealmAttestationV2(generationV2Fixture(), 3);
+  assert.equal(attestation.worldTileCount, 1_261);
+  assert.equal(attestation.worldTileMetaCount, 1_261);
+  assert.deepEqual(attestation.realm, {
+    realmId: 'GENESIS_001',
+    numericSeed: 3_445_214_658,
+    generationVersion: 2,
+    authoritativeRadius: 20,
+    renderRadius: 22,
+    playerCapacity: 100,
+  });
 });
 
 test('returns only stable aggregate counts and permits no more than 100 founders', () => {
@@ -163,6 +196,14 @@ test('fails closed on canonical static-state or castle-link drift', () => {
   const changedRealm = arrays(fixture());
   changedRealm.realms[0] = { ...CANONICAL_REALM, realmId: 'OTHER_REALM' };
   assertInvalid(changedRealm);
+
+  const mixedV3TilesV2Realm = arrays(fixture());
+  mixedV3TilesV2Realm.realms[0] = GENESIS_GENERATION_V2_REALM;
+  assertInvalid(mixedV3TilesV2Realm);
+
+  const mixedV2TilesV3Realm = arrays(generationV2Fixture());
+  mixedV2TilesV3Realm.realms[0] = CANONICAL_REALM;
+  assertInvalid(mixedV2TilesV3Realm);
 
   const missingSlot = arrays(fixture());
   missingSlot.castleSlots.pop();

@@ -12,10 +12,10 @@ shared-world authority unchanged.
 Public admission, resources, upgrades, units, combat, alliances, chat, seasons,
 wallet actions, and Marks crediting or spending are not live.
 
-## Undeployed candidate — Alpha 0.3.7 resource collection
+## Undeployed candidate — Alpha 0.3.8 resources and world capacity
 
-The checked-in 0.3.7 candidate implements only the resource half of the next
-vertical slice:
+The checked-in 0.3.8 candidate carries the bounded resource authority prepared
+in 0.3.7 and adds persistent map capacity for future naturally placed nodes:
 
 1. One private, caller-scoped Food, Wood, Stone, and Gold account belongs to
    each founded castle.
@@ -27,19 +27,28 @@ vertical slice:
 5. Immutable icons, generated bindings, a disposable additive-migration
    fixture, guarded founder backfill, and counts-only v4 inspection prepare the
    release boundary.
+6. Genesis 001 expands from its exact 1,261-cell generation-two predecessor to
+   exactly 10,000 persistent cells while preserving every existing cell, all
+   100 permanent castle slots, and all founder state.
+7. Two thousand cells are classified as future resource-capable placement
+   sites. No resource node, public marker, collection entitlement, or new yield
+   source is activated by that metadata.
 
 This candidate is not live. Module publication, the production founder
-backfill, aggregate verification, and exact Pages deployment remain gated by
-review and explicit owner approval.
+backfill, world expansion, aggregate verification, and exact Pages deployment
+remain separate gates requiring review and explicit owner approval.
 
-## Next release gate — verify and publish the bounded resource loop
+## Next release gate — verify and publish the bounded candidate
 
 1. Complete the release matrix against one exact reviewed candidate SHA.
 2. Publish the additive module with deletion disabled only after approval.
 3. Run the exact-count founder backfill only after separate owner approval.
-4. Require zero missing, orphaned, or invalid resource accounts in the
+4. Expand the exact generation-two world with the guarded one-time operator
+   only after a fresh read-only checkpoint and separate owner approval.
+5. Require the exact 10,000-cell generation-three aggregate plus zero missing,
+   orphaned, or invalid resource accounts in the
    counts-only v4 inspection before deploying the matching Pages SHA.
-5. After the candidate boundary is stable, split the v4 migration lifecycle
+6. After the candidate boundary is stable, split the v4 migration lifecycle
    proof and resource rollout security tests out of their large shared harnesses
    without changing their fail-closed public contracts.
 

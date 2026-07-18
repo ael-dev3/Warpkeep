@@ -11,20 +11,21 @@ import {
   probeLocalBrokerSnapshot
 } from '../scripts/qa-observer/qa-cycle-runner.mjs';
 
-function snapshot() {
+function snapshot(generationVersion: 2 | 3 = 3) {
+  const generationV2 = generationVersion === 2;
   return {
     version: 2,
     protocolVersion: 3,
     worldSeed: 3_445_214_658,
     worldSeedName: 'HEGEMONY_GENESIS_001',
-    worldTileCount: 1_261,
-    worldTileMetaCount: 1_261,
+    worldTileCount: generationV2 ? 1_261 : 10_000,
+    worldTileMetaCount: generationV2 ? 1_261 : 10_000,
     realm: {
       realmId: 'GENESIS_001',
       numericSeed: 3_445_214_658,
-      generationVersion: 2,
-      authoritativeRadius: 20,
-      renderRadius: 22,
+      generationVersion,
+      authoritativeRadius: generationV2 ? 20 : 58,
+      renderRadius: generationV2 ? 22 : 60,
       playerCapacity: 100
     },
     aggregates: {
@@ -43,12 +44,25 @@ describe('local QA Observatory security boundary', () => {
     expect(Object.isFrozen(parsed)).toBe(true);
     expect(Object.isFrozen(parsed?.realm)).toBe(true);
     expect(Object.isFrozen(parsed?.aggregates)).toBe(true);
+    expect(parseQaObserverSnapshot(snapshot(2))).toEqual(snapshot(2));
+
+    const mixedWorldStates = Array.from({ length: 30 }, (_, index) => {
+      const mask = index + 1;
+      const candidate = snapshot(2);
+      if ((mask & 0b0_0001) !== 0) candidate.worldTileCount = 10_000;
+      if ((mask & 0b0_0010) !== 0) candidate.worldTileMetaCount = 10_000;
+      if ((mask & 0b0_0100) !== 0) candidate.realm.generationVersion = 3;
+      if ((mask & 0b0_1000) !== 0) candidate.realm.authoritativeRadius = 58;
+      if ((mask & 0b1_0000) !== 0) candidate.realm.renderRadius = 60;
+      return candidate;
+    });
 
     for (const candidate of [
+      ...mixedWorldStates,
       { ...snapshot(), fid: 1 },
       { ...snapshot(), token: 'never' },
       { ...snapshot(), castles: [] },
-      { ...snapshot(), worldTileCount: 1_260 },
+      { ...snapshot(), realm: { ...snapshot().realm, playerCapacity: 99 } },
       { ...snapshot(), realm: { ...snapshot().realm, identity: 'opaque' } },
       { ...snapshot(), aggregates: { ...snapshot().aggregates, fid: 1 } },
       { ...snapshot(), aggregates: { ...snapshot().aggregates, castleId: 1 } },

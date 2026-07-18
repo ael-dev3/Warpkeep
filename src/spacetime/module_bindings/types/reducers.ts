@@ -13,6 +13,7 @@ import AdminBeginSnapScanBatchV1Reducer from "../admin_begin_snap_scan_batch_v_1
 import AdminBumpAuthEpochReducer from "../admin_bump_auth_epoch_reducer";
 import AdminCreditSnapBurnV1Reducer from "../admin_credit_snap_burn_v_1_reducer";
 import AdminDisableFidReducer from "../admin_disable_fid_reducer";
+import AdminExpandGenesisWorldV3Reducer from "../admin_expand_genesis_world_v_3_reducer";
 import AdminFinalizeSnapScanBatchV1Reducer from "../admin_finalize_snap_scan_batch_v_1_reducer";
 import AdminReplaceFidWalletSnapshotV1Reducer from "../admin_replace_fid_wallet_snapshot_v_1_reducer";
 import AdminSeedWorldReducer from "../admin_seed_world_reducer";
@@ -29,6 +30,7 @@ export type AdminBeginSnapScanBatchV1Params = __Infer<typeof AdminBeginSnapScanB
 export type AdminBumpAuthEpochParams = __Infer<typeof AdminBumpAuthEpochReducer>;
 export type AdminCreditSnapBurnV1Params = __Infer<typeof AdminCreditSnapBurnV1Reducer>;
 export type AdminDisableFidParams = __Infer<typeof AdminDisableFidReducer>;
+export type AdminExpandGenesisWorldV3Params = __Infer<typeof AdminExpandGenesisWorldV3Reducer>;
 export type AdminFinalizeSnapScanBatchV1Params = __Infer<typeof AdminFinalizeSnapScanBatchV1Reducer>;
 export type AdminReplaceFidWalletSnapshotV1Params = __Infer<typeof AdminReplaceFidWalletSnapshotV1Reducer>;
 export type AdminSeedWorldParams = __Infer<typeof AdminSeedWorldReducer>;

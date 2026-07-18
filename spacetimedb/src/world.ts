@@ -1,15 +1,39 @@
 /** The original deployed disc is an immutable compatibility boundary. */
 export const LEGACY_LOWLANDS_RADIUS = 4;
-/** Genesis 001 generation-v2 authoritative gameplay radius. */
-export const LOWLANDS_RADIUS = 20;
-export const GENESIS_RENDER_RADIUS = 22;
+/** The complete generation-v2 disc is also an immutable deployed boundary. */
+export const GENESIS_GENERATION_V2_RADIUS = 20;
+/** Generation v3 contains every cell through this radius. */
+export const GENESIS_FULL_DISC_RADIUS = 57;
+/** The authoritative maximum ring includes a balanced partial outer ring. */
+export const LOWLANDS_RADIUS = 58;
+export const GENESIS_RENDER_RADIUS = 60;
+export const GENESIS_AUTHORITATIVE_CELL_COUNT = 10_000;
+export const GENESIS_PARTIAL_OUTER_RING_CELL_COUNT = 81;
+/** Sector zero is the origin; sectors 1..6 alternate 14/13-cell centered arcs. */
+export const GENESIS_PARTIAL_OUTER_RING_SECTOR_COUNTS = Object.freeze([
+  0, 14, 13, 14, 13, 14, 13,
+] as const);
 export const GENESIS_PLAYER_CAPACITY = 100;
 export const GENESIS_CASTLE_SLOT_COUNT = 100;
-export const GENESIS_BLOCKER_COUNT = 160;
-export const GENESIS_RESOURCE_SITE_COUNT = 250;
-export const GENESIS_CORE_SITE_COUNT = 175;
-export const GENESIS_EMPTY_SITE_COUNT = 400;
-export const HEGEMONY_WORLD_GENERATION_VERSION = 2;
+export const GENESIS_BLOCKER_COUNT = 1_250;
+export const GENESIS_RESOURCE_SITE_COUNT = 2_000;
+export const GENESIS_CORE_SITE_COUNT = 1_400;
+export const GENESIS_EMPTY_SITE_COUNT = 3_200;
+export const GENESIS_RESERVE_SITE_COUNT = 2_050;
+export const GENESIS_GENERATION_V2_BLOCKER_COUNT = 160;
+export const GENESIS_GENERATION_V2_RESOURCE_SITE_COUNT = 250;
+export const GENESIS_GENERATION_V2_CORE_SITE_COUNT = 175;
+export const GENESIS_GENERATION_V2_EMPTY_SITE_COUNT = 400;
+export const GENESIS_GENERATION_V3_BLOCKER_COUNT =
+  GENESIS_BLOCKER_COUNT - GENESIS_GENERATION_V2_BLOCKER_COUNT;
+export const GENESIS_GENERATION_V3_RESOURCE_SITE_COUNT =
+  GENESIS_RESOURCE_SITE_COUNT - GENESIS_GENERATION_V2_RESOURCE_SITE_COUNT;
+export const GENESIS_GENERATION_V3_CORE_SITE_COUNT =
+  GENESIS_CORE_SITE_COUNT - GENESIS_GENERATION_V2_CORE_SITE_COUNT;
+export const GENESIS_GENERATION_V3_EMPTY_SITE_COUNT =
+  GENESIS_EMPTY_SITE_COUNT - GENESIS_GENERATION_V2_EMPTY_SITE_COUNT;
+export const GENESIS_GENERATION_V2_VERSION = 2;
+export const HEGEMONY_WORLD_GENERATION_VERSION = 3;
 export const LOWLANDS_BIOME = 'temperate-lowland';
 export const HEGEMONY_GENESIS_001 = 'HEGEMONY_GENESIS_001';
 export const HEGEMONY_REALM_ID = 'GENESIS_001';
@@ -141,6 +165,19 @@ export function deriveChannelSeed(
 
 export const HEGEMONY_WORLD_SEED = hashSeedString(HEGEMONY_GENESIS_001);
 
+/** Exact deployed generation-v2 singleton, accepted only as an update source. */
+export const GENESIS_GENERATION_V2_REALM = Object.freeze<CanonicalRealm>({
+  realmId: HEGEMONY_REALM_ID,
+  publicName: 'The Hegemony · Genesis 001',
+  seedName: HEGEMONY_GENESIS_001,
+  numericSeed: HEGEMONY_WORLD_SEED,
+  generationVersion: GENESIS_GENERATION_V2_VERSION,
+  authoritativeRadius: GENESIS_GENERATION_V2_RADIUS,
+  renderRadius: GENESIS_GENERATION_V2_RADIUS + 2,
+  playerCapacity: GENESIS_PLAYER_CAPACITY,
+  active: true,
+});
+
 export const CANONICAL_REALM = Object.freeze<CanonicalRealm>({
   realmId: HEGEMONY_REALM_ID,
   publicName: 'The Hegemony · Genesis 001',
@@ -160,12 +197,12 @@ function compareSpawnOrder(
   return hexDistance(left) - hexDistance(right) || left.q - right.q || left.r - right.r;
 }
 
-function makeCanonicalWorldTiles(): readonly CanonicalWorldTile[] {
+function makeCanonicalHexDisc(radius: number): readonly CanonicalWorldTile[] {
   const tiles: CanonicalWorldTile[] = [];
 
-  for (let q = -LOWLANDS_RADIUS; q <= LOWLANDS_RADIUS; q += 1) {
-    const minR = Math.max(-LOWLANDS_RADIUS, -q - LOWLANDS_RADIUS);
-    const maxR = Math.min(LOWLANDS_RADIUS, -q + LOWLANDS_RADIUS);
+  for (let q = -radius; q <= radius; q += 1) {
+    const minR = Math.max(-radius, -q - radius);
+    const maxR = Math.min(radius, -q + radius);
     for (let r = minR; r <= maxR; r += 1) {
       tiles.push(Object.freeze({
         key: hexKey(q, r),
@@ -180,7 +217,38 @@ function makeCanonicalWorldTiles(): readonly CanonicalWorldTile[] {
   return Object.freeze([...tiles].sort(compareSpawnOrder));
 }
 
-export const CANONICAL_WORLD_TILES = makeCanonicalWorldTiles();
+function makeBalancedPartialOuterRing(): readonly CanonicalWorldTile[] {
+  const outerRing = makeCanonicalHexDisc(LOWLANDS_RADIUS)
+    .filter(tile => hexDistance(tile) === LOWLANDS_RADIUS);
+  const selected: CanonicalWorldTile[] = [];
+
+  for (let sector = 1; sector <= 6; sector += 1) {
+    const side = outerRing
+      .filter(tile => sectorForCoord(tile.q, tile.r) === sector)
+      .sort((left, right) => left.q - right.q || left.r - right.r);
+    const count = GENESIS_PARTIAL_OUTER_RING_SECTOR_COUNTS[sector]!;
+    if (side.length !== LOWLANDS_RADIUS) throw new Error('GENESIS_OUTER_RING_SECTOR');
+    // An odd 58-count side cannot center a 13-cell arc perfectly; flooring
+    // keeps the one-cell bias deterministic while the alternating quotas keep
+    // the full perimeter balanced under 120-degree rotation.
+    const start = Math.floor((side.length - count) / 2);
+    selected.push(...side.slice(start, start + count));
+  }
+
+  if (selected.length !== GENESIS_PARTIAL_OUTER_RING_CELL_COUNT) {
+    throw new Error('GENESIS_OUTER_RING_CAPACITY');
+  }
+  return Object.freeze(selected.sort(compareSpawnOrder));
+}
+
+export const GENESIS_PARTIAL_OUTER_RING_TILES = makeBalancedPartialOuterRing();
+export const CANONICAL_WORLD_TILES = Object.freeze([
+  ...makeCanonicalHexDisc(GENESIS_FULL_DISC_RADIUS),
+  ...GENESIS_PARTIAL_OUTER_RING_TILES,
+].sort(compareSpawnOrder));
+export const GENESIS_GENERATION_V2_WORLD_TILES = Object.freeze(
+  CANONICAL_WORLD_TILES.filter(tile => hexDistance(tile) <= GENESIS_GENERATION_V2_RADIUS),
+);
 export const LEGACY_CANONICAL_WORLD_TILES = Object.freeze(
   CANONICAL_WORLD_TILES.filter(tile => hexDistance(tile) <= LEGACY_LOWLANDS_RADIUS),
 );
@@ -249,17 +317,19 @@ function protectedTravelCorridor(tile: CanonicalWorldTile): boolean {
     || s === 0;
 }
 
-const BLOCKED_TILE_KEYS = new Set(
+const GENERATION_V2_BLOCKED_TILE_KEYS = new Set(
   rankedTiles(
-    CANONICAL_WORLD_TILES.filter(tile => !protectedTravelCorridor(tile)),
+    GENESIS_GENERATION_V2_WORLD_TILES.filter(tile => !protectedTravelCorridor(tile)),
     'genesis-v2-scenic-blocker',
-  ).slice(0, GENESIS_BLOCKER_COUNT).map(tile => tile.key),
+  ).slice(0, GENESIS_GENERATION_V2_BLOCKER_COUNT).map(tile => tile.key),
 );
 
-function passableNeighborCount(tile: CanonicalWorldTile): number {
+function generationV2PassableNeighborCount(tile: CanonicalWorldTile): number {
   return neighboringHexes(tile).filter(coord => {
     const neighbor = CANONICAL_TILE_BY_KEY.get(hexKey(coord.q, coord.r));
-    return neighbor !== undefined && !BLOCKED_TILE_KEYS.has(neighbor.key);
+    return neighbor !== undefined
+      && hexDistance(neighbor) <= GENESIS_GENERATION_V2_RADIUS
+      && !GENERATION_V2_BLOCKED_TILE_KEYS.has(neighbor.key);
   }).length;
 }
 
@@ -272,17 +342,17 @@ const FOUNDING_DISTRICT_COORDS = Object.freeze([
 function makeCanonicalCastleSlots(): readonly CanonicalCastleSlot[] {
   const selected = FOUNDING_DISTRICT_COORDS.map(coord => {
     const tile = CANONICAL_TILE_BY_KEY.get(hexKey(coord.q, coord.r));
-    if (tile === undefined || BLOCKED_TILE_KEYS.has(tile.key)) {
+    if (tile === undefined || GENERATION_V2_BLOCKED_TILE_KEYS.has(tile.key)) {
       throw new Error('GENESIS_FOUNDING_SLOT_INVALID');
     }
     return tile;
   });
   const selectedKeys = new Set(selected.map(tile => tile.key));
-  const candidates = CANONICAL_WORLD_TILES.filter(tile => (
+  const candidates = GENESIS_GENERATION_V2_WORLD_TILES.filter(tile => (
     !selectedKeys.has(tile.key)
-    && !BLOCKED_TILE_KEYS.has(tile.key)
-    && hexDistance(tile) <= LOWLANDS_RADIUS - 2
-    && passableNeighborCount(tile) >= 4
+    && !GENERATION_V2_BLOCKED_TILE_KEYS.has(tile.key)
+    && hexDistance(tile) <= GENESIS_GENERATION_V2_RADIUS - 2
+    && generationV2PassableNeighborCount(tile) >= 4
   ));
 
   while (selected.length < GENESIS_CASTLE_SLOT_COUNT) {
@@ -357,7 +427,7 @@ function makeCanonicalCastleSlots(): readonly CanonicalCastleSlot[] {
     tileKey: tile.key,
     q: tile.q,
     r: tile.r,
-    generationVersion: HEGEMONY_WORLD_GENERATION_VERSION,
+    generationVersion: GENESIS_GENERATION_V2_VERSION,
   })));
 }
 
@@ -372,7 +442,7 @@ function makeProtectedEmptyKeys(): Set<string> {
       .map(coord => CANONICAL_TILE_BY_KEY.get(hexKey(coord.q, coord.r)))
       .filter((tile): tile is CanonicalWorldTile => (
         tile !== undefined
-        && !BLOCKED_TILE_KEYS.has(tile.key)
+        && !GENERATION_V2_BLOCKED_TILE_KEYS.has(tile.key)
         && !CASTLE_SLOT_KEYS.has(tile.key)
       ))
       .sort((left, right) => (
@@ -388,40 +458,45 @@ function makeProtectedEmptyKeys(): Set<string> {
 
 const EMPTY_TILE_KEYS = makeProtectedEmptyKeys();
 for (const tile of rankedTiles(
-  CANONICAL_WORLD_TILES.filter(tile => (
-    !BLOCKED_TILE_KEYS.has(tile.key)
+  GENESIS_GENERATION_V2_WORLD_TILES.filter(tile => (
+    !GENERATION_V2_BLOCKED_TILE_KEYS.has(tile.key)
     && !CASTLE_SLOT_KEYS.has(tile.key)
     && !EMPTY_TILE_KEYS.has(tile.key)
   )),
   'genesis-v2-empty-site',
 )) {
-  if (EMPTY_TILE_KEYS.size >= GENESIS_EMPTY_SITE_COUNT) break;
+  if (EMPTY_TILE_KEYS.size >= GENESIS_GENERATION_V2_EMPTY_SITE_COUNT) break;
   EMPTY_TILE_KEYS.add(tile.key);
 }
-if (EMPTY_TILE_KEYS.size !== GENESIS_EMPTY_SITE_COUNT) {
+if (EMPTY_TILE_KEYS.size !== GENESIS_GENERATION_V2_EMPTY_SITE_COUNT) {
   throw new Error('GENESIS_EMPTY_SITE_CAPACITY');
 }
 
 const AVAILABLE_CONTENT_TILES = rankedTiles(
-  CANONICAL_WORLD_TILES.filter(tile => (
-    !BLOCKED_TILE_KEYS.has(tile.key)
+  GENESIS_GENERATION_V2_WORLD_TILES.filter(tile => (
+    !GENERATION_V2_BLOCKED_TILE_KEYS.has(tile.key)
     && !CASTLE_SLOT_KEYS.has(tile.key)
     && !EMPTY_TILE_KEYS.has(tile.key)
   )),
   'genesis-v2-static-content',
 );
 const RESOURCE_TILE_KEYS = new Set(
-  AVAILABLE_CONTENT_TILES.slice(0, GENESIS_RESOURCE_SITE_COUNT).map(tile => tile.key),
+  AVAILABLE_CONTENT_TILES
+    .slice(0, GENESIS_GENERATION_V2_RESOURCE_SITE_COUNT)
+    .map(tile => tile.key),
 );
 const CORE_TILE_KEYS = new Set(
   AVAILABLE_CONTENT_TILES
-    .slice(GENESIS_RESOURCE_SITE_COUNT, GENESIS_RESOURCE_SITE_COUNT + GENESIS_CORE_SITE_COUNT)
+    .slice(
+      GENESIS_GENERATION_V2_RESOURCE_SITE_COUNT,
+      GENESIS_GENERATION_V2_RESOURCE_SITE_COUNT + GENESIS_GENERATION_V2_CORE_SITE_COUNT,
+    )
     .map(tile => tile.key),
 );
 
-function terrainKindForTile(tile: CanonicalWorldTile): GenesisTerrainKind {
+function generationV2TerrainKindForTile(tile: CanonicalWorldTile): GenesisTerrainKind {
   const signal = deriveChannelSeed(HEGEMONY_WORLD_SEED, tile.q, tile.r, 'genesis-v2-terrain-kind');
-  if (BLOCKED_TILE_KEYS.has(tile.key)) {
+  if (GENERATION_V2_BLOCKED_TILE_KEYS.has(tile.key)) {
     return (['ridge', 'lake', 'ancient-stone'] as const)[signal % 3]!;
   }
   return (['lowland', 'meadow', 'forest', 'heath'] as const)[signal % 4]!;
@@ -433,32 +508,142 @@ function movementCostForTerrain(terrainKind: GenesisTerrainKind): number {
   return 0;
 }
 
-function contentKindForTile(tile: CanonicalWorldTile): GenesisStaticContentKind {
+function generationV2ContentKindForTile(tile: CanonicalWorldTile): GenesisStaticContentKind {
   if (CASTLE_SLOT_KEYS.has(tile.key)) return 'castle-slot';
-  if (BLOCKED_TILE_KEYS.has(tile.key)) return 'scenic-blocker';
+  if (GENERATION_V2_BLOCKED_TILE_KEYS.has(tile.key)) return 'scenic-blocker';
   if (EMPTY_TILE_KEYS.has(tile.key)) return 'empty';
   if (RESOURCE_TILE_KEYS.has(tile.key)) return 'resource-capable';
   if (CORE_TILE_KEYS.has(tile.key)) return 'core-capable';
   return 'reserve';
 }
 
-export const CANONICAL_WORLD_TILE_META = Object.freeze(
-  CANONICAL_WORLD_TILES.map(tile => {
-    const terrainKind = terrainKindForTile(tile);
-    return Object.freeze<CanonicalWorldTileMeta>({
-      tileKey: tile.key,
-      realmId: HEGEMONY_REALM_ID,
-      s: -tile.q - tile.r,
-      ring: hexDistance(tile),
-      sector: sectorForCoord(tile.q, tile.r),
+const PARTIAL_OUTER_RING_TILE_KEYS = new Set(
+  GENESIS_PARTIAL_OUTER_RING_TILES.map(tile => tile.key),
+);
+const GENESIS_GENERATION_V3_WORLD_TILES = Object.freeze(
+  CANONICAL_WORLD_TILES.filter(tile => hexDistance(tile) > GENESIS_GENERATION_V2_RADIUS),
+);
+
+function protectsGenerationV3Travel(tile: CanonicalWorldTile): boolean {
+  const ring = hexDistance(tile);
+  const s = -tile.q - tile.r;
+  // A four-cell axial lattice makes the v3 expansion multiply connected even
+  // after blocker placement. The ranked blockers remain visually irregular,
+  // but no traversable pocket can depend on a single bridge cell.
+  if (
+    protectedTravelCorridor(tile)
+    || tile.q % 4 === 0
+    || tile.r % 4 === 0
+    || s % 4 === 0
+    || ring === LOWLANDS_RADIUS
+  ) return true;
+  return ring === GENESIS_FULL_DISC_RADIUS && neighboringHexes(tile).some(coord => (
+    PARTIAL_OUTER_RING_TILE_KEYS.has(hexKey(coord.q, coord.r))
+  ));
+}
+
+const GENERATION_V3_BLOCKED_TILE_KEYS = new Set(
+  rankedTiles(
+    GENESIS_GENERATION_V3_WORLD_TILES.filter(tile => !protectsGenerationV3Travel(tile)),
+    'genesis-v3-scenic-blocker',
+  ).slice(0, GENESIS_GENERATION_V3_BLOCKER_COUNT).map(tile => tile.key),
+);
+
+const GENERATION_V3_PASSABLE_CONTENT_TILES = GENESIS_GENERATION_V3_WORLD_TILES.filter(
+  tile => !GENERATION_V3_BLOCKED_TILE_KEYS.has(tile.key),
+);
+const GENERATION_V3_EMPTY_TILE_KEYS = new Set(
+  rankedTiles(
+    GENERATION_V3_PASSABLE_CONTENT_TILES,
+    'genesis-v3-empty-site',
+  ).slice(0, GENESIS_GENERATION_V3_EMPTY_SITE_COUNT).map(tile => tile.key),
+);
+const GENERATION_V3_AVAILABLE_CONTENT_TILES = rankedTiles(
+  GENERATION_V3_PASSABLE_CONTENT_TILES.filter(tile => (
+    !GENERATION_V3_EMPTY_TILE_KEYS.has(tile.key)
+  )),
+  'genesis-v3-static-content',
+);
+const GENERATION_V3_RESOURCE_TILE_KEYS = new Set(
+  GENERATION_V3_AVAILABLE_CONTENT_TILES
+    .slice(0, GENESIS_GENERATION_V3_RESOURCE_SITE_COUNT)
+    .map(tile => tile.key),
+);
+const GENERATION_V3_CORE_TILE_KEYS = new Set(
+  GENERATION_V3_AVAILABLE_CONTENT_TILES
+    .slice(
+      GENESIS_GENERATION_V3_RESOURCE_SITE_COUNT,
+      GENESIS_GENERATION_V3_RESOURCE_SITE_COUNT + GENESIS_GENERATION_V3_CORE_SITE_COUNT,
+    )
+    .map(tile => tile.key),
+);
+
+function generationV3TerrainKindForTile(tile: CanonicalWorldTile): GenesisTerrainKind {
+  const signal = deriveChannelSeed(HEGEMONY_WORLD_SEED, tile.q, tile.r, 'genesis-v3-terrain-kind');
+  if (GENERATION_V3_BLOCKED_TILE_KEYS.has(tile.key)) {
+    return (['ridge', 'lake', 'ancient-stone'] as const)[signal % 3]!;
+  }
+  return (['lowland', 'meadow', 'forest', 'heath'] as const)[signal % 4]!;
+}
+
+function generationV3ContentKindForTile(tile: CanonicalWorldTile): GenesisStaticContentKind {
+  if (GENERATION_V3_BLOCKED_TILE_KEYS.has(tile.key)) return 'scenic-blocker';
+  if (GENERATION_V3_EMPTY_TILE_KEYS.has(tile.key)) return 'empty';
+  if (GENERATION_V3_RESOURCE_TILE_KEYS.has(tile.key)) return 'resource-capable';
+  if (GENERATION_V3_CORE_TILE_KEYS.has(tile.key)) return 'core-capable';
+  return 'reserve';
+}
+
+function makeCanonicalMeta(
+  tile: CanonicalWorldTile,
+  generationVersion: number,
+  terrainKind: GenesisTerrainKind,
+  staticContentKind: GenesisStaticContentKind,
+): CanonicalWorldTileMeta {
+  return Object.freeze<CanonicalWorldTileMeta>({
+    tileKey: tile.key,
+    realmId: HEGEMONY_REALM_ID,
+    s: -tile.q - tile.r,
+    ring: hexDistance(tile),
+    sector: sectorForCoord(tile.q, tile.r),
+    terrainKind,
+    passable: staticContentKind !== 'scenic-blocker',
+    movementCost: movementCostForTerrain(terrainKind),
+    staticContentKind,
+    generationVersion,
+  });
+}
+
+export const GENESIS_GENERATION_V2_WORLD_TILE_META = Object.freeze(
+  GENESIS_GENERATION_V2_WORLD_TILES.map(tile => {
+    const terrainKind = generationV2TerrainKindForTile(tile);
+    const staticContentKind = generationV2ContentKindForTile(tile);
+    return makeCanonicalMeta(
+      tile,
+      GENESIS_GENERATION_V2_VERSION,
       terrainKind,
-      passable: !BLOCKED_TILE_KEYS.has(tile.key),
-      movementCost: movementCostForTerrain(terrainKind),
-      staticContentKind: contentKindForTile(tile),
-      generationVersion: HEGEMONY_WORLD_GENERATION_VERSION,
-    });
+      staticContentKind,
+    );
   }),
 );
+
+export const GENESIS_GENERATION_V3_WORLD_TILE_META = Object.freeze(
+  GENESIS_GENERATION_V3_WORLD_TILES.map(tile => {
+    const terrainKind = generationV3TerrainKindForTile(tile);
+    const staticContentKind = generationV3ContentKindForTile(tile);
+    return makeCanonicalMeta(
+      tile,
+      HEGEMONY_WORLD_GENERATION_VERSION,
+      terrainKind,
+      staticContentKind,
+    );
+  }),
+);
+
+export const CANONICAL_WORLD_TILE_META = Object.freeze([
+  ...GENESIS_GENERATION_V2_WORLD_TILE_META,
+  ...GENESIS_GENERATION_V3_WORLD_TILE_META,
+]);
 
 const CANONICAL_META_BY_KEY = new Map(
   CANONICAL_WORLD_TILE_META.map(meta => [meta.tileKey, meta] as const),
@@ -510,14 +695,22 @@ export function matchesCanonicalCastleSlot(row: CanonicalCastleSlot): boolean {
     && expected.generationVersion === row.generationVersion;
 }
 
+function matchesRealm(row: CanonicalRealm, expected: CanonicalRealm): boolean {
+  return row.realmId === expected.realmId
+    && row.publicName === expected.publicName
+    && row.seedName === expected.seedName
+    && row.numericSeed === expected.numericSeed
+    && row.generationVersion === expected.generationVersion
+    && row.authoritativeRadius === expected.authoritativeRadius
+    && row.renderRadius === expected.renderRadius
+    && row.playerCapacity === expected.playerCapacity
+    && row.active === expected.active;
+}
+
 export function matchesCanonicalRealm(row: CanonicalRealm): boolean {
-  return row.realmId === CANONICAL_REALM.realmId
-    && row.publicName === CANONICAL_REALM.publicName
-    && row.seedName === CANONICAL_REALM.seedName
-    && row.numericSeed === CANONICAL_REALM.numericSeed
-    && row.generationVersion === CANONICAL_REALM.generationVersion
-    && row.authoritativeRadius === CANONICAL_REALM.authoritativeRadius
-    && row.renderRadius === CANONICAL_REALM.renderRadius
-    && row.playerCapacity === CANONICAL_REALM.playerCapacity
-    && row.active === CANONICAL_REALM.active;
+  return matchesRealm(row, CANONICAL_REALM);
+}
+
+export function matchesGenerationV2Realm(row: CanonicalRealm): boolean {
+  return matchesRealm(row, GENESIS_GENERATION_V2_REALM);
 }

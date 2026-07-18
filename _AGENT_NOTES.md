@@ -2,8 +2,10 @@
 
 ## Current state
 
-The checked-in package is the verified Alpha 0.3.6 Pages-only public release.
-Its public menu build stamp identifies the exact deployed source. An annotated
+The verified public release is Alpha 0.3.6. The checked-in package is the
+undeployed Alpha 0.3.8 candidate, which includes the pending private resource
+authority and the generation-three world expansion. The public menu build stamp
+identifies the exact deployed source. An annotated
 release tag is created only after the matching protected-main deployment passes
 exact-build verification. Do not turn the disabled local QA observer into a
 Worker or SpacetimeDB release without a separately reviewed production scope.
@@ -55,9 +57,11 @@ ready with zero models rather than treated as a missing pair.
 Warpkeep Alpha 0.3.6 preserves the live title/menu, explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
 least-privilege Cloudflare Worker OIDC bridge, and a non-destructively published
-protocol-3 SpacetimeDB module. Genesis 001 contains 1,261 authoritative cells
-and 100 permanent castle slots ordered outward from the close founding district.
-Deliberately admitted founders occupy the shared frontier; do not add an
+protocol-3 SpacetimeDB module. Live Genesis 001 contains 1,261 authoritative
+cells. The undeployed generation-v3 candidate expands that same persistent
+world additively to exactly 10,000 cells while preserving all 100 permanent
+castle slots ordered outward from the close founding district. Deliberately
+admitted founders occupy the shared frontier; do not add an
 admission, create a convenience player, or mutate their state during diagnostics.
 
 Start with:
@@ -153,9 +157,11 @@ Start with:
   are exact unintegrated review candidates, pinned by
   `npm run verify:gold-mine-candidates`; they must remain outside `public/`.
   They do not authorize a renderer import, world coordinate, site, route,
-  reducer, account, balance, seed, deploy, or Gold/Marks coupling. The current
-  Genesis 001 baseline has only 1,261 cells and 250 resource-capable anchors,
-  so do not invent the requested 10,000-cell / 2,000-anchor Gold placement.
+  reducer, account, balance, seed, deploy, or Gold/Marks coupling. Live
+  Genesis 001 still has 1,261 cells and 250 resource-capable anchors; the
+  undeployed Alpha 0.3.8 candidate expands those capacities to 10,000 and
+  2,000 without placing a Gold node. Do not invent a placement from capacity
+  metadata alone.
   The supplied Balanced and Compact candidates have 512²/256² embedded WebPs
   but stale `wk_atlas_size: 1024` metadata; preserve their bytes and require an
   explicit reviewed normalization or integration decision before promotion.
@@ -187,8 +193,10 @@ verification succeed; tag only that verified deployment commit.
 
 ## Next product work
 
-The founding slice is live. The next deliberate gameplay slice is
-server-derived resources and deterministic construction queues. Marks apply,
+The founding slice is live. The checked-in candidate prepares server-derived
+resources and persistent capacity for future naturally placed resource nodes;
+those nodes are not implemented. The next deliberate gameplay slice after a
+verified resource release is deterministic construction queues. Marks apply,
 spending, production crediting, and scheduler installation remain unavailable
 until their separate transport, recovery proof, review, and owner approval are
 complete. Each slice needs deterministic reducers, generated-binding parity,
