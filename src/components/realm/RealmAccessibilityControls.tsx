@@ -50,6 +50,8 @@ export type RealmAccessibilityControlsProps = Readonly<{
   onActivateCastle: (castle: RealmNavigatorCastle) => void;
   coordinateJump?: RealmNavigatorCoordinateJump;
   cameraPresets?: readonly RealmNavigatorCameraPreset[];
+  /** Player chrome may provide its own PFP launcher while reusing this dialog. */
+  triggerVisible?: boolean;
   /** Receives the trigger element; focus is restored here after controlled close. */
   triggerRef?: Ref<HTMLButtonElement>;
 }>;
@@ -85,6 +87,7 @@ export function RealmAccessibilityControls({
   onActivateCastle,
   coordinateJump,
   cameraPresets = [],
+  triggerVisible = true,
   triggerRef
 }: RealmAccessibilityControlsProps) {
   const [search, setSearch] = useState('');
@@ -158,17 +161,19 @@ export function RealmAccessibilityControls({
 
   return (
     <div className="realm-cell-navigator">
-      <button
-        ref={setTriggerRef}
-        type="button"
-        aria-label={`Explore realm, ${castles.length} founded ${castles.length === 1 ? 'castle' : 'castles'}`}
-        aria-controls={id}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={onRequestOpen}
-      >
-        Explore <span>{castles.length} {castles.length === 1 ? 'CASTLE' : 'CASTLES'}</span>
-      </button>
+      {triggerVisible ? (
+        <button
+          ref={setTriggerRef}
+          type="button"
+          aria-label={`Explore realm, ${castles.length} founded ${castles.length === 1 ? 'castle' : 'castles'}`}
+          aria-controls={id}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onClick={onRequestOpen}
+        >
+          Explore <span>{castles.length} {castles.length === 1 ? 'CASTLE' : 'CASTLES'}</span>
+        </button>
+      ) : null}
 
       {open ? (
         <section

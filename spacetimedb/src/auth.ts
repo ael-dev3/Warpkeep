@@ -23,7 +23,9 @@ import {
 import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
 import { assertGenesisFounderForFid } from './foundingAuthority';
+import { WARPKEEP_ALPHA_TERMS_VERSION } from './marksAuthorityPolicy';
 import { evaluatePlayerOwnership } from './playerOwnershipPolicy';
+import { assertGenesisResourceForFid } from './resourceAuthority';
 import type warpkeep from './schema';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
@@ -207,6 +209,25 @@ export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {
   }
 
   return { claims, player: player! };
+}
+
+/**
+ * Require the complete current gameplay graph. Resource entry points never
+ * infer Alpha consent from public presentation fields alone.
+ */
+export function requireGameplayPlayerV1(ctx: WarpkeepReducerContext) {
+  const admitted = requireAdmittedPlayer(ctx);
+  const acceptanceKey = `${admitted.claims.fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`;
+  const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(acceptanceKey);
+  if (
+    acceptance === null
+    || acceptance.fid !== admitted.claims.fid
+    || acceptance.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION
+  ) {
+    throw new SenderError('ALPHA_TERMS_REQUIRED');
+  }
+  const resource = assertGenesisResourceForFid(ctx, admitted.claims.fid);
+  return Object.freeze({ ...admitted, ...resource });
 }
 
 /** Admin inputs use the same safe FID envelope as bridge-issued player claims. */

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
-import { connect, parseHermesArguments, readStatus, requestAdminToken, requireCredentialedProductionTarget } from '../scripts/hermes-admin';
+import { connect, parseHermesArguments, readStatus, requestAdminToken, requireCredentialedProductionTarget, requireResourceBackfillProductionTarget, verifyExpectedResourceAggregateV4 } from '../scripts/hermes-admin';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
@@ -84,7 +84,7 @@ describe('Hermes machine-readable output', () => {
       procedures: { adminGetAlphaStatusV2: vi.fn(async () => status) },
     };
 
-    await readStatus(connection as never, true, true);
+    await readStatus(connection as never, 'v2', true);
     expect(output).toHaveBeenCalledOnce();
     const rendered = output.mock.calls[0]?.[0] as string;
     expect(JSON.parse(rendered)).toEqual({
@@ -132,7 +132,7 @@ describe('Hermes machine-readable output', () => {
       procedures: { adminGetAlphaStatusV3: vi.fn(async () => status) },
     };
 
-    await readStatus(connection as never, false, true, true);
+    await readStatus(connection as never, 'v3', true);
     expect(output).toHaveBeenCalledOnce();
     const rendered = output.mock.calls[0]?.[0] as string;
     const parsed = JSON.parse(rendered) as Record<string, unknown>;
@@ -149,6 +149,72 @@ describe('Hermes machine-readable output', () => {
     });
     expect(rendered).not.toContain('must-not-escape');
   });
+
+  it('projects protocol-v4 inspection to resource counts and policy only', async () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const status = {
+      allowedFids: 4n,
+      castles: 4n,
+      markAccounts: 4n,
+      resourceAccounts: 4n,
+      missingResourceAccounts: 0n,
+      orphanedResourceAccounts: 0n,
+      resourceInvariantViolations: 0n,
+      protocolVersion: 3,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+      fid: 424_242_424_242n,
+      food: 200n,
+      identity: 'must-not-escape',
+    };
+    const connection = {
+      procedures: { adminGetAlphaStatusV4: vi.fn(async () => status) },
+    };
+
+    await readStatus(connection as never, 'v4', true, 4n);
+    expect(output).toHaveBeenCalledOnce();
+    const rendered = output.mock.calls[0]?.[0] as string;
+    expect(JSON.parse(rendered)).toEqual({
+      allowedFids: '4',
+      castles: '4',
+      markAccounts: '4',
+      resourceAccounts: '4',
+      missingResourceAccounts: '0',
+      orphanedResourceAccounts: '0',
+      resourceInvariantViolations: '0',
+      protocolVersion: 3,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+    });
+    expect(rendered).not.toContain('424242424242');
+    expect(rendered).not.toContain('must-not-escape');
+  });
+
+  it('requires the exact post-backfill founder graph before reporting success', () => {
+    const valid = {
+      allowedFids: 4n,
+      castles: 4n,
+      markAccounts: 4n,
+      resourceAccounts: 4n,
+      missingResourceAccounts: 0n,
+      orphanedResourceAccounts: 0n,
+      resourceInvariantViolations: 0n,
+      protocolVersion: 3,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+    };
+    expect(verifyExpectedResourceAggregateV4(valid, 4n)).toEqual(valid);
+    for (const changed of [
+      { resourceAccounts: 3n },
+      { missingResourceAccounts: 1n },
+      { orphanedResourceAccounts: 1n },
+      { resourceInvariantViolations: 1n },
+      { protocolVersion: 4 },
+      { resourcePolicyVersion: 'genesis-resource-yield-v2' },
+    ]) {
+      expect(() => verifyExpectedResourceAggregateV4({ ...valid, ...changed }, 4n))
+        .toThrow(/postcondition failed/i);
+    }
+    expect(() => verifyExpectedResourceAggregateV4(valid, 0n)).toThrow(/postcondition failed/i);
+    expect(() => verifyExpectedResourceAggregateV4(valid, 101n)).toThrow(/postcondition failed/i);
+  });
 });
 
 describe('Hermes command-line boundary', () => {
@@ -163,6 +229,18 @@ describe('Hermes command-line boundary', () => {
     expect(() => parseHermesArguments(['inspect-alpha', '--confirm'])).toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments(['allow-fid', '123', 'note', '--json'])).toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments(['inspect-alpha', 'extra'])).toThrow(/unexpected number/i);
+    expect(parseHermesArguments(['inspect-alpha-v4', '--json'])).toMatchObject({
+      command: 'inspect-alpha-v4',
+      inspection: true,
+      machineReadableInspection: true,
+    });
+    expect(parseHermesArguments(['backfill-resources', '4', '--confirm'])).toMatchObject({
+      command: 'backfill-resources',
+      inspection: false,
+      confirmedByFlag: true,
+    });
+    expect(() => parseHermesArguments(['backfill-resources', '4', '--json'])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments(['backfill-resources'])).toThrow(/unexpected number/i);
   });
 });
 
@@ -189,6 +267,24 @@ describe('Hermes credential destination policy', () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('require the canonical Warpkeep production targets');
     expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
+  });
+
+  it('pins durable resource backfill to the immutable database identity before token acquisition', () => {
+    const identity = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
+    expect(() => requireResourceBackfillProductionTarget(identity)).not.toThrow();
+    expect(() => requireResourceBackfillProductionTarget('warpkeep-89e4u'))
+      .toThrow(/immutable Warpkeep production database identity/i);
+
+    for (const database of [undefined, 'warpkeep-89e4u', 'warpkeep-lookalike']) {
+      const result = runHermes(
+        ['backfill-resources', '4', '--confirm'],
+        { WARPKEEP_SPACETIMEDB_DATABASE: database },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('immutable Warpkeep production database identity');
+      expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
+      expect(`${result.stdout}${result.stderr}`).not.toContain('Could not reach');
+    }
   });
 
   it('allows custom targets only for a secret-free dry run', () => {
@@ -226,6 +322,51 @@ describe('Hermes credential destination policy', () => {
     expect(result.stdout).toContain('"command":"inspect-alpha-v3"');
     expect(result.stdout).toContain('"mutation":false');
     expect(result.stderr).toBe('');
+  });
+
+  it('classifies protocol-v4 aggregate inspection as read-only', () => {
+    const result = runHermes(['inspect-alpha-v4', '--json', '--dry-run'], {
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('"command":"inspect-alpha-v4"');
+    expect(result.stdout).toContain('"mutation":false');
+    expect(result.stderr).toBe('');
+  });
+
+  it('validates and dry-runs the resource backfill without credentials or network use', () => {
+    const result = runHermes(['backfill-resources', '4', '--dry-run', '--confirm'], {
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('"command":"backfill-resources"');
+    expect(result.stdout).toContain('"expectedFounderCount":"4"');
+    expect(result.stdout).toContain('"resourcePolicyVersion":"genesis-resource-yield-v1"');
+    expect(result.stdout).toContain('"mutation":true');
+    expect(result.stderr).toBe('');
+
+    for (const count of ['0', '001', '101', '1000', '-1', '1e2']) {
+      const rejected = runHermes(['backfill-resources', count, '--dry-run', '--confirm'], {
+        WARPKEEP_AUTH_BRIDGE_URL: undefined,
+        WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+      });
+      expect(rejected.status, count).toBe(1);
+      expect(rejected.stderr, count).toContain('founder count from 1 to 100');
+    }
+  });
+
+  it('does not let the legacy noninteractive switch authorize a resource backfill', () => {
+    const result = runHermes(['backfill-resources', '4'], {
+      WARPKEEP_HERMES_NONINTERACTIVE: 'yes',
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Refusing mutation without --confirm');
+    expect(result.stdout).toContain('Warpkeep Hermes target');
+    expect(result.stdout).not.toContain(TEST_SECRET);
   });
 
   it('rejects a weak admin secret before network use', () => {

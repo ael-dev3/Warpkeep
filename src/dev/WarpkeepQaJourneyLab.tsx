@@ -11,6 +11,7 @@ import { FarcasterQrAuthPanel } from '../components/auth/FarcasterQrAuthPanel';
 import { AlphaParticipationTermsDialog } from '../components/menu/AlphaParticipationTermsDialog';
 import { WarpkeepMainMenu } from '../components/menu/WarpkeepMainMenu';
 import { RealmMapScreen } from '../components/realm/RealmMapScreen';
+import type { GraphicsPreference } from '../settings/graphicsPreference';
 import type { FarcasterAuthViewState } from '../farcaster/farcasterAuthTypes';
 import {
   boundQaAutoCycleInterval,
@@ -24,6 +25,7 @@ import {
   type QaAdmissionScenario,
   type QaJourneyScenario
 } from './qaJourneyFixture';
+import { createZeroQaResourcePresentation } from './qaResourceFixture';
 import './qaJourney.css';
 
 type WarpkeepQaJourneyLabProps = Readonly<{
@@ -203,6 +205,42 @@ function DirectAdmissionStage({
   );
 }
 
+function DirectRealmStage({
+  scenario,
+  onScenarioChange
+}: Readonly<{
+  scenario: 'realm-player' | 'realm-observer';
+  onScenarioChange: (scenario: QaJourneyScenario) => void;
+}>) {
+  const [graphicsPreference, setGraphicsPreference] = useState<GraphicsPreference>('auto');
+  const [audioMuted, setAudioMuted] = useState(false);
+  const realm = createQaJourneyRealm();
+  const identity = {
+    ...realm.identity,
+    username: QA_SYNTHETIC_IDENTITY.username,
+    displayName: QA_SYNTHETIC_IDENTITY.displayName
+  };
+
+  return (
+    <RealmMapScreen
+      audioMuted={audioMuted}
+      graphicsPreference={graphicsPreference}
+      identity={identity}
+      onAudioMutedChange={setAudioMuted}
+      onGraphicsPreferenceChange={setGraphicsPreference}
+      onRequestReturn={() => onScenarioChange('menu')}
+      presentationMode={scenario === 'realm-observer' ? 'observer' : 'player'}
+      resources={scenario === 'realm-player'
+        ? createZeroQaResourcePresentation(identity)
+        : undefined}
+      resolvedGraphicsQuality={graphicsPreference === 'auto'
+        ? 'balanced'
+        : graphicsPreference}
+      snapshot={realm.snapshot}
+    />
+  );
+}
+
 function ScenarioStage({
   controlsSuppressed,
   scenario,
@@ -242,19 +280,7 @@ function ScenarioStage({
     );
   }
   if (scenario === 'realm-player' || scenario === 'realm-observer') {
-    const realm = createQaJourneyRealm();
-    return (
-      <RealmMapScreen
-        identity={{
-          ...realm.identity,
-          username: QA_SYNTHETIC_IDENTITY.username,
-          displayName: QA_SYNTHETIC_IDENTITY.displayName
-        }}
-        onRequestReturn={() => onScenarioChange('menu')}
-        presentationMode={scenario === 'realm-observer' ? 'observer' : 'player'}
-        snapshot={realm.snapshot}
-      />
-    );
+    return <DirectRealmStage onScenarioChange={onScenarioChange} scenario={scenario} />;
   }
   return <DirectAuthStage onScenarioChange={onScenarioChange} scenario={scenario} />;
 }

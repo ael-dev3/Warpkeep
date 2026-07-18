@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 
 import { RealmMapScreen } from '../components/realm/RealmMapScreen';
 import type { RealmQuality } from '../components/realm/realmQuality';
+import type {
+  GraphicsPreference,
+  GraphicsQualityTier
+} from '../settings/graphicsPreference';
 import {
   boundedRenderedWebglQaReadyMilliseconds,
   RENDERED_WEBGL_QA_CASTLE_COUNT,
@@ -16,6 +20,7 @@ import {
   createRenderedWebglQaFixtureRealm
 } from './renderedWebglQaFixture';
 import type { RealmObserverHarnessRealm } from './realmObserverSnapshot';
+import { createZeroQaResourcePresentation } from './qaResourceFixture';
 
 type RenderedWebglQaPhase =
   | Readonly<{ kind: 'active'; realm: RealmObserverHarnessRealm }>
@@ -71,6 +76,12 @@ function statusCopy(observation: RenderedWebglQaObservation, phase: RenderedWebg
   return 'The renderer did not expose an accepted local QA state.';
 }
 
+function graphicsTierForRealmQuality(quality: RealmQuality): GraphicsQualityTier {
+  if (quality === 'high') return 'cinematic';
+  if (quality === 'reduced') return 'performance';
+  return 'balanced';
+}
+
 export function RenderedWebglQaHarness({
   presentationMode = 'observer',
   quality,
@@ -78,6 +89,8 @@ export function RenderedWebglQaHarness({
 }: RenderedWebglQaHarnessProps) {
   const [phase, setPhase] = useState<RenderedWebglQaPhase>(() => initialPhase(createFixtureRealm));
   const [observation, setObservation] = useState<RenderedWebglQaObservation>({ renderer: 'loading' });
+  const [graphicsPreference, setGraphicsPreference] = useState<GraphicsPreference>('auto');
+  const [audioMuted, setAudioMuted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const startedAtRef = useRef(
     typeof performance === 'undefined' ? Date.now() : performance.now()
@@ -190,10 +203,20 @@ export function RenderedWebglQaHarness({
 
       {phase.kind === 'active' ? (
         <RealmMapScreen
+          audioMuted={audioMuted}
+          graphicsPreference={graphicsPreference}
           identity={phase.realm.identity}
+          onAudioMutedChange={setAudioMuted}
+          onGraphicsPreferenceChange={setGraphicsPreference}
           onRequestReturn={() => setPhase({ kind: 'closed' })}
           presentationMode={presentationMode}
           qualityOverride={quality}
+          resources={presentationMode === 'player'
+            ? createZeroQaResourcePresentation(phase.realm.identity)
+            : undefined}
+          resolvedGraphicsQuality={graphicsPreference === 'auto'
+            ? graphicsTierForRealmQuality(quality)
+            : graphicsPreference}
           snapshot={phase.realm.snapshot}
         />
       ) : (

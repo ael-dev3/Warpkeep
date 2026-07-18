@@ -1,6 +1,6 @@
 export const QA_JOURNEY_BROWSER_DIRECT_CASE_COUNT: 22;
 export const QA_JOURNEY_BROWSER_RESPONSIVE_CASE_COUNT: 2;
-export const QA_JOURNEY_BROWSER_FLOW_STAGE_COUNT: 9;
+export const QA_JOURNEY_BROWSER_FLOW_STAGE_COUNT: 15;
 
 export function isAllowedQaJourneyResourceUrl(value: unknown): boolean;
 
@@ -36,7 +36,13 @@ export function parseQaJourneyFlowObservation(
     | 'pending'
     | 'admitted'
     | 'final-terms'
-    | 'realm',
+    | 'realm'
+    | 'realm-menu'
+    | 'realm-settings'
+    | 'realm-menu-after-settings'
+    | 'realm-explore'
+    | 'realm-menu-return'
+    | 'returned-menu',
   expectedHref: string,
 ): Readonly<{ stage: string }>;
 

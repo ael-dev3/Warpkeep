@@ -33,3 +33,9 @@ export {
   qaObserverGetRealmSnapshotV1,
   qaObserverGetRealmAttestationV2,
 } from './reducers/qaObserver';
+export {
+  getMyResourceStateV1,
+  collectResourcesV1,
+  adminBackfillResourceAccountsV1,
+  adminGetAlphaStatusV4,
+} from './reducers/resources';

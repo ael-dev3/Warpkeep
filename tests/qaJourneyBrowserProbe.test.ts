@@ -24,13 +24,27 @@ const EMPTY_FLOW = Object.freeze({
   authPhase: 'absent',
   continuationDisabled: false,
   continuationKind: 'absent',
+  directExploreControlCount: 0,
   enterRealmButtonCount: 0,
+  exploreDialogCount: 0,
   href: 'http://127.0.0.1:41733/dev/qa-journey.html?scenario=journey',
   navigationCount: 0,
   pendingHeadingCount: 0,
+  legacyPlayerActionCount: 0,
+  profileMenuCount: 0,
+  profileTriggerAvatarCount: 0,
+  profileTriggerCount: 0,
+  profileTriggerTextBearingCount: 0,
   qrSafe: false,
   realmMainCount: 0,
-  returnToMenuButtonCount: 0,
+  realmMenuExploreCommandCount: 0,
+  realmMenuMainMenuCommandCount: 0,
+  realmMenuSettingsCommandCount: 0,
+  realmSettingsCount: 0,
+  resourceIconCount: 0,
+  resourceItemCount: 0,
+  resourceRailCount: 0,
+  resourceZeroValueCount: 0,
   rootScenario: 'journey',
   termsAcceptanceUnchecked: false,
   termsCount: 0
@@ -141,7 +155,7 @@ describe('real-browser synthetic journey probe', () => {
     }, probeCase)).toThrow(/horizontal-overflow/i);
   });
 
-  it('requires all nine phase-aware flow stages including fresh final consent', () => {
+  it('requires all fifteen flow stages including consent and portrait-menu Realm commands', () => {
     const href = EMPTY_FLOW.href;
     const realmHref = href.replace('scenario=journey', 'scenario=realm-player');
     const stages = [
@@ -176,15 +190,104 @@ describe('real-browser synthetic journey probe', () => {
         termsCount: 1
       }],
       ['realm', {
+        directExploreControlCount: 0,
+        exploreDialogCount: 0,
+        legacyPlayerActionCount: 0,
+        profileMenuCount: 0,
+        profileTriggerAvatarCount: 1,
+        profileTriggerCount: 1,
+        profileTriggerTextBearingCount: 0,
         realmMainCount: 1,
+        realmMenuSettingsCommandCount: 0,
+        resourceIconCount: 5,
+        resourceItemCount: 5,
+        resourceRailCount: 1,
+        resourceZeroValueCount: 5,
         rootScenario: 'realm-player',
-        returnToMenuButtonCount: 1
+      }],
+      ['realm-menu', {
+        profileMenuCount: 1,
+        profileTriggerAvatarCount: 1,
+        profileTriggerCount: 1,
+        realmMainCount: 1,
+        realmMenuExploreCommandCount: 1,
+        realmMenuMainMenuCommandCount: 1,
+        realmMenuSettingsCommandCount: 1,
+        resourceIconCount: 5,
+        resourceItemCount: 5,
+        resourceRailCount: 1,
+        resourceZeroValueCount: 5,
+        rootScenario: 'realm-player'
+      }],
+      ['realm-settings', {
+        profileTriggerAvatarCount: 1,
+        profileTriggerCount: 1,
+        realmMainCount: 1,
+        realmSettingsCount: 1,
+        resourceIconCount: 5,
+        resourceItemCount: 5,
+        resourceRailCount: 1,
+        resourceZeroValueCount: 5,
+        rootScenario: 'realm-player'
+      }],
+      ['realm-menu-after-settings', {
+        profileMenuCount: 1,
+        profileTriggerAvatarCount: 1,
+        profileTriggerCount: 1,
+        realmMainCount: 1,
+        realmMenuExploreCommandCount: 1,
+        realmMenuMainMenuCommandCount: 1,
+        realmMenuSettingsCommandCount: 1,
+        resourceIconCount: 5,
+        resourceItemCount: 5,
+        resourceRailCount: 1,
+        resourceZeroValueCount: 5,
+        rootScenario: 'realm-player'
+      }],
+      ['realm-explore', {
+        exploreDialogCount: 1,
+        profileTriggerAvatarCount: 1,
+        profileTriggerCount: 1,
+        realmMainCount: 1,
+        resourceIconCount: 5,
+        resourceItemCount: 5,
+        resourceRailCount: 1,
+        resourceZeroValueCount: 5,
+        rootScenario: 'realm-player'
+      }],
+      ['realm-menu-return', {
+        profileMenuCount: 1,
+        profileTriggerAvatarCount: 1,
+        profileTriggerCount: 1,
+        realmMainCount: 1,
+        realmMenuExploreCommandCount: 1,
+        realmMenuMainMenuCommandCount: 1,
+        realmMenuSettingsCommandCount: 1,
+        resourceIconCount: 5,
+        resourceItemCount: 5,
+        resourceRailCount: 1,
+        resourceZeroValueCount: 5,
+        rootScenario: 'realm-player'
+      }],
+      ['returned-menu', {
+        enterRealmButtonCount: 1,
+        navigationCount: 1,
+        rootScenario: 'menu'
       }]
     ] as const;
 
     expect(stages).toHaveLength(QA_JOURNEY_BROWSER_FLOW_STAGE_COUNT);
     for (const [stage, overlay] of stages) {
-      const expectedHref = stage === 'realm' ? realmHref : href;
+      const expectedHref = stage === 'realm'
+        || stage === 'realm-menu'
+        || stage === 'realm-settings'
+        || stage === 'realm-menu-after-settings'
+        || stage === 'realm-explore'
+        || stage === 'realm-menu-return'
+        ? realmHref
+        : stage === 'returned-menu'
+          ? href.replace('scenario=journey', 'scenario=menu')
+          : href;
       expect(parseQaJourneyFlowObservation({
         ...EMPTY_FLOW,
         ...overlay,
@@ -195,8 +298,13 @@ describe('real-browser synthetic journey probe', () => {
     expect(() => parseQaJourneyFlowObservation({
       ...EMPTY_FLOW,
       realmMainCount: 1,
+      profileTriggerAvatarCount: 1,
+      profileTriggerCount: 1,
+      resourceIconCount: 5,
+      resourceItemCount: 5,
+      resourceRailCount: 1,
+      resourceZeroValueCount: 5,
       rootScenario: 'realm-player',
-      returnToMenuButtonCount: 1
     }, 'realm', realmHref)).toThrow(/href/i);
     expect(() => parseQaJourneyFlowObservation({
       ...EMPTY_FLOW,
@@ -330,6 +438,9 @@ describe('real-browser synthetic journey probe', () => {
     expect(journeySource).toContain(
       "await waitForFlowStage(session, 'realm', realmHref, state)"
     );
+    expect(journeySource).toContain("await activateRealmMenuCommand(session, 'EXPLORE')");
+    expect(journeySource).toContain("await activateRealmMenuCommand(session, 'SETTINGS')");
+    expect(journeySource).toContain("await activateRealmMenuCommand(session, 'MAIN MENU')");
     expect(journeySource).toContain('document.elementFromPoint(centerX, centerY)');
     expect(journeySource).toContain('document.activeElement !== target');
     expect(journeySource).toContain(

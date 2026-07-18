@@ -127,7 +127,8 @@ describe('local Realm observer fixture boundary', () => {
 
     expect(realmObserverFixtureSnapshot()).toBe(fixture);
     expect(fixture.castles).toHaveLength(4);
-    expect(fixture.castles.every((castle) => !castle.portraitAvailable)).toBe(true);
+    expect(fixture.castles[0]?.portraitAvailable).toBe(true);
+    expect(fixture.castles.slice(1).every((castle) => !castle.portraitAvailable)).toBe(true);
     expect(JSON.stringify(fixture)).not.toMatch(
       /(?:"fid"|ownerFid|identity|token|session|admission|wallet|marks|terms|pfpUrl)/i
     );

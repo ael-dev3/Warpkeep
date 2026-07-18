@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "hegemony-food-resource-icon-v1",
   "recordedAt": "2026-07-17",
-  "purpose": "Transparent presentation icon prepared for the draft Alpha 0.3.6 food-resource mechanics workstream; it is not evidence of a live balance, currency, reward, or entitlement.",
+  "purpose": "Transparent food-resource presentation icon with faithful runtime derivatives for the separately reviewed Alpha 0.3.7 shared-world resource authority; the artwork alone is not evidence of a balance, currency, reward, or entitlement.",
   "projectAuthorization": {
     "authorizedBy": "Warpkeep project owner",
     "instructionDate": "2026-07-17",
@@ -81,7 +81,102 @@
         "maxY": 1089
       }
     },
-    "delivery": "checked-in dormant reference master; excluded from the Pages public directory until mechanics receive separate review"
+    "delivery": "checked-in provenance master outside public/; only the exact reviewed 64 px faithful derivatives below are served by Pages"
+  },
+  "runtimeDerivative": {
+    "authorizationBasis": "The separately reviewed Alpha 0.3.7 resource authority activates the previously recorded owner authorization for official Warpkeep Pages runtime use.",
+    "command": "node scripts/prepare-hegemony-resource-icons.mjs",
+    "sourceFetch": false,
+    "sourceOverride": false,
+    "immutablePathSha256PrefixLength": 16,
+    "pipeline": {
+      "tool": "sharp",
+      "toolVersion": "0.35.3",
+      "libvipsVersion": "8.18.3",
+      "libpngVersion": "1.6.58",
+      "libwebpVersion": "1.6.0",
+      "cache": false,
+      "decoder": {
+        "failOn": "warning",
+        "limitInputPixels": 1572516
+      },
+      "resize": {
+        "width": 64,
+        "height": 64,
+        "fit": "fill",
+        "kernel": "lanczos3",
+        "fastShrinkOnLoad": false,
+        "simd": false,
+        "concurrency": 1
+      },
+      "png": {
+        "colorMode": "RGBA",
+        "bitDepth": 8,
+        "compressionLevel": 9,
+        "adaptiveFiltering": true,
+        "palette": false,
+        "effort": 10,
+        "progressive": false
+      },
+      "webp": {
+        "lossless": true,
+        "quality": 100,
+        "alphaQuality": 100,
+        "effort": 6,
+        "preset": "icon",
+        "smartSubsample": false,
+        "exactTransparentRgb": true
+      }
+    },
+    "installation": {
+      "family": "all eight Hegemony resource runtime outputs",
+      "staging": "destination-local rollback-safe atomic file-family transaction",
+      "unexpectedDirectoryEntries": "reject",
+      "broadDeletion": false
+    },
+    "outputs": [
+      {
+        "path": "public/images/resources/hegemony-food-c2034046ead78f5f.png",
+        "format": "png",
+        "width": 64,
+        "height": 64,
+        "bytes": 7567,
+        "sha256": "c2034046ead78f5f23a79ae2fb742352c8c353586d0761e63bf725054bf5d3a4",
+        "decodedRgbaSha256": "c80fc693e2b3bf56836fe7f235e4ee457f8e7203892b72139f3c98b7ee05fcad",
+        "alpha": {
+          "transparentPixels": 1989,
+          "partiallyTransparentPixels": 723,
+          "opaquePixels": 1384
+        },
+        "visibleBoundsAlpha16": {
+          "minX": 5,
+          "minY": 7,
+          "maxX": 59,
+          "maxY": 55
+        }
+      },
+      {
+        "path": "public/images/resources/hegemony-food-5c012a7e939f8796.webp",
+        "format": "webp",
+        "width": 64,
+        "height": 64,
+        "bytes": 6314,
+        "sha256": "5c012a7e939f879698921bfb2d17a1007d5635cf6bfbaa8477205cef2375c509",
+        "decodedRgbaSha256": "c80fc693e2b3bf56836fe7f235e4ee457f8e7203892b72139f3c98b7ee05fcad",
+        "alpha": {
+          "transparentPixels": 1989,
+          "partiallyTransparentPixels": 723,
+          "opaquePixels": 1384
+        },
+        "visibleBoundsAlpha16": {
+          "minX": 5,
+          "minY": 7,
+          "maxX": 59,
+          "maxY": 55
+        }
+      }
+    ],
+    "pngAndLosslessWebpDecodeToIdenticalRgba": true
   },
   "licence": {
     "spdx": "LicenseRef-Warpkeep-Provenance-Required",

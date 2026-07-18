@@ -42,6 +42,7 @@ import {
   type WarpkeepRuntimeConfig
 } from '../src/spacetime/warpkeepConfig';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
+import { createReadyResourceState } from './fixtures/resourceState';
 
 const TEST_NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
 const TEST_ISSUER = 'https://auth.warpkeep.com';
@@ -273,6 +274,12 @@ function createBackendRuntime(
     )]!),
     bootstrapPlayer: vi.fn(async () => undefined),
     acceptAlphaTerms: vi.fn(async () => undefined),
+    readResourceState: vi.fn(async (_candidate, fid: number) => (
+      createReadyResourceState(fid)
+    )),
+    collectResources: vi.fn(async (_candidate, fid: number) => (
+      createReadyResourceState(fid, 1n)
+    )),
     observeRealm: vi.fn(() => vi.fn()),
     readRealmSnapshot: vi.fn(() => realm),
     subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
@@ -365,6 +372,29 @@ async function acceptAlphaParticipationTerms() {
   await settle();
 }
 
+function expectPlayerRealmChrome() {
+  expect(screen.getByRole('main', { name: 'Hegemony realm' })).not.toBeNull();
+  expect(screen.getByRole('button', {
+    name: /Open Realm menu/i
+  })).not.toBeNull();
+  expect(screen.getByRole('region', { name: 'Your resources' })).not.toBeNull();
+  expect(screen.queryByRole('button', { name: 'Return to Menu' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Recenter Keep' })).toBeNull();
+  expect(screen.queryByText(/LEVEL 2/i)).toBeNull();
+}
+
+function expectPlayerRealmChromeAbsent() {
+  expect(screen.queryByRole('button', { name: /Open Realm menu/i })).toBeNull();
+}
+
+function returnToMainMenuThroughPlayerProfile() {
+  fireEvent.click(screen.getByRole('button', {
+    name: /Open Realm menu/i
+  }));
+  const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+  fireEvent.click(within(menu).getByRole('button', { name: /MAIN MENU/i }));
+}
+
 function installBrowserStubs() {
   vi.stubGlobal('matchMedia', vi.fn(() => ({
     matches: false,
@@ -431,6 +461,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).not.toHaveBeenCalled();
     expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(backend.runtime.readResourceState).not.toHaveBeenCalled();
     expect(backend.runtime.subscribeRealm).not.toHaveBeenCalled();
 
     await acceptAlphaParticipationTerms();
@@ -447,6 +478,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(encodeQrCode).toHaveBeenCalledTimes(1);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
     expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(1);
     expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_CHANNEL_TOKEN_123456');
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_MESSAGE');
@@ -454,8 +486,7 @@ describe('Warpkeep shared realm admission', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     await settle();
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
-    expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
-    expect(screen.getByText('LEVEL 2')).not.toBeNull();
+    expectPlayerRealmChrome();
   });
 
   it('cancels the terms gate without creating any authentication or backend side effect', async () => {
@@ -617,6 +648,10 @@ describe('Warpkeep shared realm admission', () => {
     vi.mocked(backend.runtime.acceptAlphaTerms).mockImplementation(async () => {
       order.push('terms');
     });
+    vi.mocked(backend.runtime.readResourceState).mockImplementation(async (_connection, fid) => {
+      order.push('resources');
+      return createReadyResourceState(fid);
+    });
     vi.mocked(backend.runtime.subscribeRealm).mockImplementation((_connection, onApplied) => {
       order.push('subscribe');
       onApplied();
@@ -630,7 +665,7 @@ describe('Warpkeep shared realm admission', () => {
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
 
-    expect(order).toEqual(['bootstrap', 'terms', 'subscribe']);
+    expect(order).toEqual(['bootstrap', 'terms', 'resources', 'subscribe']);
     expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledWith(backend.connection);
   });
 
@@ -698,7 +733,7 @@ describe('Warpkeep shared realm admission', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     await settle();
-    expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
+    expectPlayerRealmChrome();
     expect(window.location.hash).toBe('#realm');
   });
 
@@ -745,7 +780,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps a same-FID realm mounted while a rotated access token reconnects', async () => {
+  it('keeps the same-FID realm route while withholding private state during token reconnect', async () => {
     const initial = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW, 40_000);
     const bridge = createBridge(initial, Date.now);
     vi.mocked(bridge.refreshSession)
@@ -782,13 +817,23 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
+    expect(screen.getByRole('alert').textContent).toBe('Opening Genesis 001…');
+    expectPlayerRealmChromeAbsent();
+    expect(screen.queryByRole('region', { name: 'Your resources' })).toBeNull();
+    expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(1);
 
     await act(async () => reconnect.resolve(reconnectConnection));
     await settle();
 
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(window.location.hash).toBe('#realm');
+    expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(2);
+    expect(backend.runtime.readResourceState).toHaveBeenLastCalledWith(
+      reconnectConnection,
+      VERIFIED_IDENTITY.fid
+    );
+    expectPlayerRealmChrome();
+    expect(screen.getByRole('region', { name: 'Your resources' })).not.toBeNull();
     expect(reconnectConnection.disconnect).not.toHaveBeenCalled();
   });
 
@@ -825,7 +870,7 @@ describe('Warpkeep shared realm admission', () => {
 
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(window.location.hash).toBe('#menu');
-    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expectPlayerRealmChromeAbsent();
   });
 
   it('never opens a Spacetime connection for a v2 pending-admission cookie session', async () => {
@@ -881,7 +926,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(storage.getItem('warpkeep:/:farcaster-device-session:v1')).toBeNull();
     expect(window.location.hash).toBe('#menu');
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
-    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expectPlayerRealmChromeAbsent();
     expect(bridge.refreshSession).not.toHaveBeenCalled();
     expect(bridge.createChallenge).not.toHaveBeenCalled();
     expect(createBrowserBinding).not.toHaveBeenCalled();
@@ -934,7 +979,7 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
 
     expect(screen.getByText('This Farcaster identity is not yet admitted to the Hegemony frontier.')).not.toBeNull();
-    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expectPlayerRealmChromeAbsent();
     const requestAccess = screen.getByRole('link', {
       name: 'Open @0xael.eth on Farcaster to request Warpkeep access'
     });
@@ -1041,7 +1086,7 @@ describe('Warpkeep shared realm admission', () => {
 
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
     expect(window.location.hash).toBe('#menu');
-    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expectPlayerRealmChromeAbsent();
   });
 
   it('does not connect anonymous title/menu visitors and sign-out tears down backend state', async () => {
@@ -1193,7 +1238,7 @@ describe('Warpkeep shared realm admission', () => {
     await settle();
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+    returnToMainMenuThroughPlayerProfile();
     await settle();
     fireEvent.click(screen.getByRole('button', {
       name: 'Open Farcaster identity, @warpkeeper'
@@ -1207,7 +1252,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.disconnect).toHaveBeenCalledTimes(1);
     expect(bridge.logoutSession).toHaveBeenCalledTimes(1);
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('menu');
-    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expectPlayerRealmChromeAbsent();
     expect(screen.queryByRole('button', { name: 'SIGN OUT' })).toBeNull();
   });
 

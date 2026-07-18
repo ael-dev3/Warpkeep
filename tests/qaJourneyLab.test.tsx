@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepQaJourneyLab } from '../src/dev/WarpkeepQaJourneyLab';
+import { WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH } from '../src/security/publicImageUrl';
 import {
   boundQaAutoCycleInterval,
   QA_ADMISSION_PHASE_BY_SCENARIO,
@@ -62,7 +63,14 @@ const QA_SCENARIO_LANDMARKS = {
 >>;
 
 function expectNoExternalSideEffects() {
-  expect(fetchImpl).not.toHaveBeenCalled();
+  const allowedProfileFixtureUrl = new URL(
+    WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH,
+    window.location.origin
+  ).toString();
+  expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(1);
+  fetchImpl.mock.calls.forEach(([input]) => {
+    expect(input).toBe(allowedProfileFixtureUrl);
+  });
   expect(storageRead).not.toHaveBeenCalled();
   expect(storageWrite).not.toHaveBeenCalled();
   expect(storageRemove).not.toHaveBeenCalled();
@@ -93,7 +101,18 @@ function acceptTerms() {
 beforeEach(() => {
   animationFrames = new Map();
   nextAnimationFrameId = 0;
-  fetchImpl = vi.fn(() => Promise.reject(new Error('Network is forbidden in local journey tests.')));
+  fetchImpl = vi.fn((input: string | URL | Request) => {
+    const allowedProfileFixtureUrl = new URL(
+      WARPKEEP_SAME_ORIGIN_PROFILE_PLACEHOLDER_PATH,
+      window.location.origin
+    ).toString();
+    if (String(input) === allowedProfileFixtureUrl) {
+      // Leave the repository-owned presentation request pending. Unit tests do
+      // not decode images, and no rejection may schedule state after cleanup.
+      return new Promise<Response>(() => undefined);
+    }
+    return Promise.reject(new Error('Network is forbidden in local journey tests.'));
+  });
   vi.stubGlobal('fetch', fetchImpl);
   vi.stubGlobal('XMLHttpRequest', class ForbiddenQaXmlHttpRequest {
     constructor() {
@@ -248,7 +267,11 @@ describe('Warpkeep local QA journey lab', () => {
 
     expect(screen.getByRole('main', { name: 'Hegemony realm' })).not.toBeNull();
     expect(screen.getByTestId('realm-static-fallback')).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Open Realm menu for @sentinel-one'
+    }));
+    const realmMenu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    fireEvent.click(within(realmMenu).getByRole('button', { name: /MAIN MENU/i }));
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
     expectNoExternalSideEffects();
   });
@@ -366,8 +389,10 @@ describe('Warpkeep local QA journey lab', () => {
     await settlePresentation();
 
     fireEvent.click(screen.getByRole('button', {
-      name: 'Explore realm, 4 founded castles'
+      name: 'Open Realm menu for @sentinel-one'
     }));
+    const realmMenu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    fireEvent.click(within(realmMenu).getByRole('button', { name: /EXPLORE/i }));
     const explore = screen.getByRole('dialog', { name: 'Explore' });
     fireEvent.change(within(explore).getByRole('searchbox', {
       name: 'Search founded castles'

@@ -36,6 +36,7 @@ import {
 // Import all reducer arg schemas
 import AcceptAlphaTermsV1Reducer from "./accept_alpha_terms_v_1_reducer";
 import AdminAllowFidReducer from "./admin_allow_fid_reducer";
+import AdminBackfillResourceAccountsV1Reducer from "./admin_backfill_resource_accounts_v_1_reducer";
 import AdminBeginSnapScanBatchV1Reducer from "./admin_begin_snap_scan_batch_v_1_reducer";
 import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
 import AdminCreditSnapBurnV1Reducer from "./admin_credit_snap_burn_v_1_reducer";
@@ -47,17 +48,20 @@ import AdminUpsertFidWalletAttributionV1Reducer from "./admin_upsert_fid_wallet_
 import AdminUpsertRealmProfileV1Reducer from "./admin_upsert_realm_profile_v_1_reducer";
 import BootstrapPlayerReducer from "./bootstrap_player_reducer";
 import BootstrapPlayerV2Reducer from "./bootstrap_player_v_2_reducer";
+import CollectResourcesV1Reducer from "./collect_resources_v_1_reducer";
 
 // Import all procedure arg schemas
 import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedure";
 import * as AdminGetAlphaStatusV2Procedure from "./admin_get_alpha_status_v_2_procedure";
 import * as AdminGetAlphaStatusV3Procedure from "./admin_get_alpha_status_v_3_procedure";
+import * as AdminGetAlphaStatusV4Procedure from "./admin_get_alpha_status_v_4_procedure";
 import * as AdminGetFidAuthEpochProcedure from "./admin_get_fid_auth_epoch_procedure";
 import * as AdminGetSnapScanBatchAggregateV1Procedure from "./admin_get_snap_scan_batch_aggregate_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "./get_my_admission_status_procedure";
 import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_procedure";
+import * as GetMyResourceStateV1Procedure from "./get_my_resource_state_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "./qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_snapshot_v_1_procedure";
 
@@ -195,6 +199,7 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema("accept_alpha_terms_v1", AcceptAlphaTermsV1Reducer),
   __reducerSchema("admin_allow_fid", AdminAllowFidReducer),
+  __reducerSchema("admin_backfill_resource_accounts_v1", AdminBackfillResourceAccountsV1Reducer),
   __reducerSchema("admin_begin_snap_scan_batch_v1", AdminBeginSnapScanBatchV1Reducer),
   __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
   __reducerSchema("admin_credit_snap_burn_v1", AdminCreditSnapBurnV1Reducer),
@@ -206,6 +211,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_upsert_realm_profile_v1", AdminUpsertRealmProfileV1Reducer),
   __reducerSchema("bootstrap_player", BootstrapPlayerReducer),
   __reducerSchema("bootstrap_player_v2", BootstrapPlayerV2Reducer),
+  __reducerSchema("collect_resources_v1", CollectResourcesV1Reducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
@@ -213,12 +219,14 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_alpha_status", AdminGetAlphaStatusProcedure.params, AdminGetAlphaStatusProcedure.returnType),
   __procedureSchema("admin_get_alpha_status_v2", AdminGetAlphaStatusV2Procedure.params, AdminGetAlphaStatusV2Procedure.returnType),
   __procedureSchema("admin_get_alpha_status_v3", AdminGetAlphaStatusV3Procedure.params, AdminGetAlphaStatusV3Procedure.returnType),
+  __procedureSchema("admin_get_alpha_status_v4", AdminGetAlphaStatusV4Procedure.params, AdminGetAlphaStatusV4Procedure.returnType),
   __procedureSchema("admin_get_fid_auth_epoch", AdminGetFidAuthEpochProcedure.params, AdminGetFidAuthEpochProcedure.returnType),
   __procedureSchema("admin_get_snap_scan_batch_aggregate_v1", AdminGetSnapScanBatchAggregateV1Procedure.params, AdminGetSnapScanBatchAggregateV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
   __procedureSchema("get_my_admission_status", GetMyAdmissionStatusProcedure.params, GetMyAdmissionStatusProcedure.returnType),
   __procedureSchema("get_my_admission_status_v2", GetMyAdmissionStatusV2Procedure.params, GetMyAdmissionStatusV2Procedure.returnType),
+  __procedureSchema("get_my_resource_state_v1", GetMyResourceStateV1Procedure.params, GetMyResourceStateV1Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_attestation_v2", QaObserverGetRealmAttestationV2Procedure.params, QaObserverGetRealmAttestationV2Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_snapshot_v1", QaObserverGetRealmSnapshotV1Procedure.params, QaObserverGetRealmSnapshotV1Procedure.returnType),
 );

@@ -335,11 +335,12 @@ an opened narrow-layout castle inspector, and an opened 667×375 short-landscape
 Explore surface. Four additional balanced cases use the same synthetic fixture
 in player presentation: default states at 1440×900 and 390×844, an explicit
 castle inspector at 1024×768, and an opened Explore surface at 667×375. Each
-requires Recenter Keep and Return to Menu while rejecting the observer badge and
-Close QA Observer control. The narrow player cases exercise the real compact
-Menu/Home rail, tablet inspector, short-landscape Explorer, and touch-target
-contract; the two interactive player cases additionally require that Menu/Home
-remain visible after their surface opens. These browser
+requires the PFP-only launcher, the five-resource transparent rail, and the
+PFP-menu My Keep and Main Menu commands while rejecting the observer badge and
+Close QA Observer control. The narrow player cases exercise the compact player
+chrome, tablet inspector, short-landscape Explorer, and touch-target contract;
+the two interactive player cases additionally require the portrait launcher and
+resource rail to remain visible after their surface opens. These browser
 cases prove responsive layout, not mobile-device
 or touch emulation; scene-level pointer tests separately exercise the shared
 canvas/rail gesture lane, first-attempt threshold crossing, exact ground-plane

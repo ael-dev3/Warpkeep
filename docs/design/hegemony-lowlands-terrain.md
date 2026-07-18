@@ -280,24 +280,27 @@ derivative/redistribution right.
 ## Camera and responsive UI
 
 The perspective camera composes against the unobstructed play region rather
-than the raw canvas center. Runtime measurements supply left HUD, right drawer,
-bottom toolbar/navigator, compact bottom-sheet, and device-safe insets. Opening
-or closing an inspector smoothly recomposes the same camera. Explicit castle
-activation focuses that castle; overview and Founding District remain separate
-actions.
+than the raw canvas center. Runtime measurements supply the portrait and
+resource footprints, right drawer, transient navigator, compact bottom sheet,
+and device-safe insets. Opening or closing an inspector smoothly recomposes the
+same camera. Explicit castle activation focuses that castle; My Keep and
+Explore remain separate portrait-menu actions.
 
 The close view uses an 18° telephoto-style field of view versus the 26° overview
 lens, increasing distance instead of distorting the castle. Safe-bound golden
 tests cover 1920×1080, 1440×900, 1024×768, 390×844, and 667×375 with the
 inspector open and closed. Reduced-motion mode settles composition immediately.
 
-The in-realm interface uses compact amethyst/electrum layers: an own-keep HUD,
-inline Marks presentation, bottom action toolbar, a responsive selected-castle
-record with bounded decorative art, and a searchable Realm Navigator. The
-record remains a stable side drawer on wide layouts and a safe-area-aware sheet
-on compact or short-landscape layouts. The navigator lists meaningful founded
-castles and offers an optional validated q/r jump; it does not expose a
-permanent grid of more than one thousand coordinate buttons.
+The player Realm keeps persistent chrome to a PFP-only launcher in the upper
+left and a transparent Food, Wood, Stone, Gold, and Marks rail in the upper
+right. My Keep, Explore, Settings, and Main Menu live behind the portrait menu;
+Collect appears only when authoritative pending production exists. Selection
+details open in a responsive castle record with bounded decorative art, while
+Explore opens the searchable Realm Navigator. The record remains a stable side
+drawer on wide layouts and a safe-area-aware sheet on compact or
+short-landscape layouts. The navigator lists meaningful founded castles and
+offers an optional validated q/r jump; it does not expose a permanent grid of
+more than one thousand coordinate buttons.
 
 Escape closes the topmost inspector or navigator before returning to the menu.
 Arrow keys move map selection only while the map owns focus. Labels and nested

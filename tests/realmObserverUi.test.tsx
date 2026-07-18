@@ -63,6 +63,7 @@ describe('Realm read-only observer presentation', () => {
     expect(screen.getByRole('button', { name: 'Close QA Observer' })).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Show Full Realm' })).not.toBeNull();
     expect(screen.queryByTestId('realm-keep-marker')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Open Realm menu/i })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Recenter Keep' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Return to Menu' })).toBeNull();
 
@@ -86,7 +87,7 @@ describe('Realm read-only observer presentation', () => {
     );
   });
 
-  it('leaves the normal player presentation and ownership controls unchanged by default', () => {
+  it('keeps player ownership commands behind the PFP while leaving observer chrome untouched', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     const snapshot = createCanonicalGenesisSnapshot();
     render(
@@ -99,9 +100,14 @@ describe('Realm read-only observer presentation', () => {
 
     expect(screen.getByRole('main', { name: 'Hegemony realm' })).not.toBeNull();
     expect(screen.queryByText('QA OBSERVER · READ ONLY')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Recenter Keep' })).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Return to Menu' })).not.toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Explore realm/i }));
+    expect(screen.queryByRole('button', { name: 'Recenter Keep' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Return to Menu' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Explore realm/i })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Realm menu for @warpkeeper' }));
+    const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    expect(within(menu).getByRole('button', { name: /MY KEEP/i })).not.toBeNull();
+    expect(within(menu).getByRole('button', { name: /MAIN MENU/i })).not.toBeNull();
+    fireEvent.click(within(menu).getByRole('button', { name: /EXPLORE/i }));
     expect(within(screen.getByRole('region', { name: 'Realm views' })).getByRole(
       'button',
       { name: 'My Keep' }

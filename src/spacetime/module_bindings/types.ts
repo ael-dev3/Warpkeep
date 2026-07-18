@@ -82,6 +82,19 @@ export const AdminAlphaStatusV3 = __t.object("AdminAlphaStatusV3", {
 });
 export type AdminAlphaStatusV3 = __Infer<typeof AdminAlphaStatusV3>;
 
+export const AdminAlphaStatusV4 = __t.object("AdminAlphaStatusV4", {
+  allowedFids: __t.u64(),
+  castles: __t.u64(),
+  markAccounts: __t.u64(),
+  resourceAccounts: __t.u64(),
+  missingResourceAccounts: __t.u64(),
+  orphanedResourceAccounts: __t.u64(),
+  resourceInvariantViolations: __t.u64(),
+  protocolVersion: __t.u32(),
+  resourcePolicyVersion: __t.string(),
+});
+export type AdminAlphaStatusV4 = __Infer<typeof AdminAlphaStatusV4>;
+
 export const AdminAudit = __t.object("AdminAudit", {
   id: __t.u64(),
   action: __t.string(),
@@ -192,6 +205,27 @@ export const MarkAccountV1 = __t.object("MarkAccountV1", {
   updatedAt: __t.timestamp(),
 });
 export type MarkAccountV1 = __Infer<typeof MarkAccountV1>;
+
+export const MyResourceStateV1 = __t.object("MyResourceStateV1", {
+  fid: __t.u64(),
+  food: __t.u64(),
+  wood: __t.u64(),
+  stone: __t.u64(),
+  gold: __t.u64(),
+  pendingFood: __t.u64(),
+  pendingWood: __t.u64(),
+  pendingStone: __t.u64(),
+  pendingGold: __t.u64(),
+  marksBalanceMicros: __t.u128(),
+  observedAtMicros: __t.u64(),
+  settledThroughMicros: __t.u64(),
+  nextCollectAtMicros: __t.u64(),
+  revision: __t.u64(),
+  resourcePolicyVersion: __t.string(),
+  marksPolicyVersion: __t.string(),
+  terrainKind: __t.string(),
+});
+export type MyResourceStateV1 = __Infer<typeof MyResourceStateV1>;
 
 export const Player = __t.object("Player", {
   fid: __t.u64(),
@@ -327,6 +361,22 @@ export const RealmV1 = __t.object("RealmV1", {
   createdAt: __t.timestamp(),
 });
 export type RealmV1 = __Infer<typeof RealmV1>;
+
+export const ResourceAccountV1 = __t.object("ResourceAccountV1", {
+  fid: __t.u64(),
+  castleId: __t.u64(),
+  realmId: __t.string(),
+  food: __t.u64(),
+  wood: __t.u64(),
+  stone: __t.u64(),
+  gold: __t.u64(),
+  settledThroughMicros: __t.u64(),
+  revision: __t.u64(),
+  policyVersion: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type ResourceAccountV1 = __Infer<typeof ResourceAccountV1>;
 
 export const SnapBurnCreditV1 = __t.object("SnapBurnCreditV1", {
   eventKey: __t.string(),

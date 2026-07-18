@@ -7,6 +7,7 @@ const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
 const DEFAULT_LEGACY_PAGES = 'https://ael-dev3.github.io/Warpkeep/';
 const DEFAULT_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com';
 const DEFAULT_SPACETIMEDB_DATABASE = 'warpkeep-89e4u';
+const CANONICAL_SPACETIMEDB_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const EXPECTED_AUDIENCE = 'warpkeep-spacetimedb';
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_DOCUMENT_BYTES = 1_000_000;
@@ -89,6 +90,18 @@ const EXPECTED_ALPHA_V2_KEYS = Object.freeze([
 const EXPECTED_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 const EXPECTED_WORLD_SEED = 3_445_214_658;
 const MAX_U64 = (1n << 64n) - 1n;
+const RESOURCE_V4_POLICY_VERSION = 'genesis-resource-yield-v1';
+const RESOURCE_V4_AGGREGATE_KEYS = Object.freeze([
+  'allowedFids',
+  'castles',
+  'markAccounts',
+  'missingResourceAccounts',
+  'orphanedResourceAccounts',
+  'protocolVersion',
+  'resourceAccounts',
+  'resourceInvariantViolations',
+  'resourcePolicyVersion',
+].sort());
 
 export const PROTECTED_AGGREGATE_STAGE = Object.freeze({
   LEGACY: 'legacy',
@@ -1113,6 +1126,96 @@ export function verifyExpectedAlphaV3Aggregate(
   }
 }
 
+/**
+ * Verify one exact counts-only procedure-v4 resource checkpoint. The procedure
+ * version is v4 while the deployed backend protocol deliberately remains 3 for
+ * the additive, backend-first rollout.
+ */
+function verifyExpectedAlphaV4ResourceAggregate(
+  output,
+  expectedFounderCount,
+  resourcesReady,
+  requiredState,
+) {
+  if (!Number.isSafeInteger(expectedFounderCount) || expectedFounderCount < 1 || expectedFounderCount > MAX_GENESIS_FOUNDER_COUNT) {
+    fail('resource procedure-v4 aggregate expected founder count was invalid.');
+  }
+  const founders = BigInt(expectedFounderCount);
+  let status;
+  try {
+    status = JSON.parse(output);
+  } catch {
+    fail('resource procedure-v4 aggregate inspection did not return machine-readable JSON.');
+  }
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    fail('resource procedure-v4 aggregate inspection returned an invalid status object.');
+  }
+  const actualKeys = Object.keys(status).sort();
+  if (
+    actualKeys.length !== RESOURCE_V4_AGGREGATE_KEYS.length
+    || actualKeys.some((key, index) => key !== RESOURCE_V4_AGGREGATE_KEYS[index])
+  ) {
+    fail('resource procedure-v4 aggregate inspection returned unexpected fields.');
+  }
+
+  const expectedCounts = Object.freeze({
+    allowedFids: founders,
+    castles: founders,
+    markAccounts: founders,
+    resourceAccounts: resourcesReady ? founders : 0n,
+    missingResourceAccounts: resourcesReady ? 0n : founders,
+    orphanedResourceAccounts: 0n,
+    resourceInvariantViolations: 0n,
+  });
+  for (const [field, expected] of Object.entries(expectedCounts)) {
+    const value = status[field];
+    if (typeof value !== 'string' || !/^(?:0|[1-9]\d*)$/.test(value)) {
+      fail(`resource procedure-v4 aggregate ${field} was not a canonical decimal string.`);
+    }
+    if (value.length > 20 || BigInt(value) > MAX_U64) {
+      fail(`resource procedure-v4 aggregate ${field} exceeded the u64 range.`);
+    }
+    if (BigInt(value) !== expected) {
+      fail(`resource procedure-v4 aggregate ${field} did not match the required ${requiredState} state.`);
+    }
+  }
+  if (typeof status.protocolVersion !== 'number' || status.protocolVersion !== 3) {
+    fail('resource procedure-v4 aggregate protocolVersion was invalid.');
+  }
+  if (status.resourcePolicyVersion !== RESOURCE_V4_POLICY_VERSION) {
+    fail('resource procedure-v4 aggregate resourcePolicyVersion was invalid.');
+  }
+}
+
+export function verifyExpectedAlphaV4ResourcePrebackfillAggregate(
+  output,
+  expectedFounderCount,
+) {
+  return verifyExpectedAlphaV4ResourceAggregate(
+    output,
+    expectedFounderCount,
+    false,
+    'pre-backfill',
+  );
+}
+
+/**
+ * Independently verify the read-only resource checkpoint after the separately
+ * approved backfill has completed. This proves only aggregate readiness; it
+ * intentionally rejects identity- and balance-shaped output.
+ */
+export function verifyExpectedAlphaV4ResourceReadyAggregate(
+  output,
+  expectedFounderCount,
+) {
+  return verifyExpectedAlphaV4ResourceAggregate(
+    output,
+    expectedFounderCount,
+    true,
+    'post-backfill ready',
+  );
+}
+
 export function protectedAggregateChildEnvironment(bridge) {
   return Object.freeze({
     WARPKEEP_SPACETIMEDB_URI: process.env.WARPKEEP_SPACETIMEDB_URI ?? DEFAULT_SPACETIMEDB_URI,
@@ -1169,6 +1272,77 @@ export function protectedAggregateChildArguments(tsxCli, stageOrProtocolV2 = fal
   ];
 }
 
+export function resourceV4AggregateChildArguments(tsxCli) {
+  return [
+    tsxCli,
+    'scripts/hermes-admin.ts',
+    'inspect-alpha-v4',
+    '--json',
+  ];
+}
+
+export function resourceV4ReadyAggregateChildEnvironment(
+  bridge,
+  source = process.env,
+) {
+  if (bridge !== DEFAULT_BRIDGE) {
+    fail('resource procedure-v4 production verification requires the canonical Warpkeep bridge.');
+  }
+  if (
+    source.WARPKEEP_SPACETIMEDB_URI !== undefined
+    && source.WARPKEEP_SPACETIMEDB_URI !== DEFAULT_SPACETIMEDB_URI
+  ) {
+    fail('resource procedure-v4 production verification rejects a remapped SpacetimeDB URI.');
+  }
+  if (
+    source.WARPKEEP_SPACETIMEDB_DATABASE !== undefined
+    && source.WARPKEEP_SPACETIMEDB_DATABASE !== CANONICAL_SPACETIMEDB_DATABASE_IDENTITY
+  ) {
+    fail('resource procedure-v4 production verification requires the immutable production database identity.');
+  }
+  return Object.freeze({
+    WARPKEEP_SPACETIMEDB_URI: DEFAULT_SPACETIMEDB_URI,
+    WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_SPACETIMEDB_DATABASE_IDENTITY,
+    WARPKEEP_AUTH_BRIDGE_URL: DEFAULT_BRIDGE,
+    WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+  });
+}
+
+export function resourceV4ReadyAggregateChildOptions(
+  repositoryRoot,
+  bridge,
+  secret,
+  source = process.env,
+) {
+  return resourceV4ReadyAggregateChildOptionsFromEnvironment(
+    repositoryRoot,
+    secret,
+    resourceV4ReadyAggregateChildEnvironment(bridge, source),
+  );
+}
+
+function resourceV4ReadyAggregateChildOptionsFromEnvironment(
+  repositoryRoot,
+  secret,
+  environment,
+) {
+  const secretBytes = typeof secret === 'string'
+    ? new TextEncoder().encode(secret).byteLength
+    : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('resource procedure-v4 production verification requires a local 32-to-512-byte Hermes credential.');
+  }
+  return {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+    env: environment,
+    input: secret,
+    maxBuffer: MAX_DOCUMENT_BYTES,
+    timeout: 30_000,
+    killSignal: 'SIGKILL',
+  };
+}
+
 function verifyProtectedAggregateIfConfigured(
   bridge,
   required,
@@ -1218,6 +1392,61 @@ function verifyProtectedAggregateIfConfigured(
   console.log(successMessage);
 }
 
+export function verifyPostBackfillResourceAggregateCheckpoints(
+  bridge,
+  expectedFounderCount,
+  expectedPlayerCount,
+  expectedTermsAcceptanceCount,
+  secret,
+  spawn = spawnSync,
+  repositoryRoot = resolve(dirname(resolve(process.argv[1])), '..'),
+  sourceEnvironment = process.env,
+) {
+  const requiredSecret = requiredProtectedAggregateSecret(secret, true);
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const childEnvironment = resourceV4ReadyAggregateChildEnvironment(
+    bridge,
+    sourceEnvironment,
+  );
+  const childOptions = resourceV4ReadyAggregateChildOptionsFromEnvironment(
+    repositoryRoot,
+    requiredSecret,
+    childEnvironment,
+  );
+  const foundedResult = spawn(
+    process.execPath,
+    protectedAggregateChildArguments(
+      tsxCli,
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    ),
+    childOptions,
+  );
+  if (foundedResult.error || foundedResult.status !== 0 || foundedResult.signal) {
+    fail('post-backfill founded protocol-v3 aggregate inspection failed.');
+  }
+  verifyExpectedAlphaV3Aggregate(
+    foundedResult.stdout,
+    PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    expectedFounderCount,
+    expectedPlayerCount,
+    expectedTermsAcceptanceCount,
+  );
+  console.log('alpha status: required Genesis protocol-v3 founded aggregate state verified');
+
+  const resourceResult = spawn(
+    process.execPath,
+    resourceV4AggregateChildArguments(tsxCli),
+    childOptions,
+  );
+  if (resourceResult.error || resourceResult.status !== 0 || resourceResult.signal) {
+    fail('resource procedure-v4 ready aggregate inspection failed.');
+  }
+  verifyExpectedAlphaV4ResourceReadyAggregate(resourceResult.stdout, expectedFounderCount);
+  // Never mirror the child output. The accepted contract is counts-only, but
+  // this remains safe if a future child regresses and emits private material.
+  console.log('alpha status: required resource procedure-v4 ready aggregate state verified');
+}
+
 export function parseProductionVerifierArguments(arguments_ = process.argv.slice(2)) {
   const allowed = new Set([
     '--require-protected-aggregate',
@@ -1225,6 +1454,7 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     '--require-additive-v3-preseed-aggregate',
     '--require-genesis-v3-seeded-empty-aggregate',
     '--require-genesis-v3-founded-aggregate',
+    '--require-resource-v4-ready-aggregate',
     '--require-auth-v2',
     '--require-auth-v2-enabled',
   ]);
@@ -1286,6 +1516,10 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
   const aggregateStage = versionedAggregateStages[0]?.[1]
     ?? PROTECTED_AGGREGATE_STAGE.LEGACY;
   const requiresFoundedAggregate = seen.has('--require-genesis-v3-founded-aggregate');
+  const requiresResourceV4ReadyAggregate = seen.has('--require-resource-v4-ready-aggregate');
+  if (requiresResourceV4ReadyAggregate && !requiresFoundedAggregate) {
+    fail('the resource procedure-v4 ready aggregate requires the founded protocol-v3 aggregate stage.');
+  }
   if (requiresFoundedAggregate !== (expectedFounderCount !== undefined)) {
     fail('the founded aggregate stage and expected founder count must be supplied together.');
   }
@@ -1294,6 +1528,12 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     && (expectedPlayerCount !== undefined || expectedTermsAcceptanceCount !== undefined)
   ) {
     fail('authenticated count expectations require the founded aggregate stage.');
+  }
+  if (
+    requiresResourceV4ReadyAggregate
+    && (expectedPlayerCount === undefined || expectedTermsAcceptanceCount === undefined)
+  ) {
+    fail('the resource procedure-v4 ready aggregate requires explicit player and Terms acceptance counts.');
   }
   const foundedPlayerCount = expectedPlayerCount ?? 0;
   const foundedTermsAcceptanceCount = expectedTermsAcceptanceCount ?? 0;
@@ -1315,6 +1555,7 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     requireAdditiveV3PreseedAggregate: seen.has('--require-additive-v3-preseed-aggregate'),
     requireGenesisV3SeededEmptyAggregate: seen.has('--require-genesis-v3-seeded-empty-aggregate'),
     requireGenesisV3FoundedAggregate: requiresFoundedAggregate,
+    requireResourceV4ReadyAggregate: requiresResourceV4ReadyAggregate,
     expectedFounderCount,
     expectedPlayerCount: foundedPlayerCount,
     expectedTermsAcceptanceCount: foundedTermsAcceptanceCount,
@@ -1331,6 +1572,7 @@ async function main() {
     requireAdditiveV3PreseedAggregate,
     requireGenesisV3SeededEmptyAggregate,
     requireGenesisV3FoundedAggregate,
+    requireResourceV4ReadyAggregate,
     expectedFounderCount,
     expectedPlayerCount,
     expectedTermsAcceptanceCount,
@@ -1349,18 +1591,28 @@ async function main() {
   await verifyFrontend(frontend, expectedDeployedSha);
   await verifyFrontendRedirects(frontend, www, legacyPages);
   await verifyBridge(frontend, bridge, { requireAuthV2, requireAuthV2Enabled });
-  verifyProtectedAggregateIfConfigured(
-    bridge,
-    requireProtectedAggregate
-      || requireAdditiveV2Aggregate
-      || requireAdditiveV3PreseedAggregate
-      || requireGenesisV3SeededEmptyAggregate
-      || requireGenesisV3FoundedAggregate,
-    aggregateStage,
-    expectedFounderCount,
-    expectedPlayerCount,
-    expectedTermsAcceptanceCount,
-  );
+  if (requireResourceV4ReadyAggregate) {
+    verifyPostBackfillResourceAggregateCheckpoints(
+      bridge,
+      expectedFounderCount,
+      expectedPlayerCount,
+      expectedTermsAcceptanceCount,
+      process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
+    );
+  } else {
+    verifyProtectedAggregateIfConfigured(
+      bridge,
+      requireProtectedAggregate
+        || requireAdditiveV2Aggregate
+        || requireAdditiveV3PreseedAggregate
+        || requireGenesisV3SeededEmptyAggregate
+        || requireGenesisV3FoundedAggregate,
+      aggregateStage,
+      expectedFounderCount,
+      expectedPlayerCount,
+      expectedTermsAcceptanceCount,
+    );
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

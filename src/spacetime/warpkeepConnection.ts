@@ -34,6 +34,10 @@ import {
   sanitizeOptionalRealmPublicText,
   sanitizeOptionalRealmUsername
 } from './publicRealmProjectionPolicy';
+import {
+  decodeRealmResourceProjection,
+  type ReadyRealmResourcePresentation
+} from '../components/realm/realmResourcePresentation';
 
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
@@ -210,6 +214,31 @@ export async function acceptWarpkeepAlphaTerms(connection: WarpkeepConnection) {
     termsVersion: WARPKEEP_ALPHA_TERMS_VERSION,
     accepted: true
   });
+}
+
+/** Read only the authenticated player's private economic and Marks projection. */
+export async function readWarpkeepResourceState(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<ReadyRealmResourcePresentation> {
+  if (!Number.isSafeInteger(ownFid) || ownFid <= 0) {
+    throw new Error('Warpkeep resources are unavailable.');
+  }
+  const raw = await connection.procedures.getMyResourceStateV1({});
+  const decoded = decodeRealmResourceProjection(raw, BigInt(ownFid));
+  if (decoded?.status !== 'ready') {
+    throw new Error('Warpkeep resources are unavailable.');
+  }
+  return decoded;
+}
+
+/** Settle server-authoritative yield, then fetch the exact committed view. */
+export async function collectWarpkeepResources(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<ReadyRealmResourcePresentation> {
+  await connection.reducers.collectResourcesV1({});
+  return readWarpkeepResourceState(connection, ownFid);
 }
 
 /** Start only the protocol-v3 public shared-state subscription, never private/admin tables. */

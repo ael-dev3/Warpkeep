@@ -11,6 +11,10 @@ import {
   markAccountIsConsistent,
 } from './marksAuthorityPolicy';
 import {
+  GENESIS_RESOURCE_POLICY_VERSION,
+  GENESIS_STARTING_RESOURCE_BALANCES,
+} from './resourceAuthorityPolicy';
+import {
   HEGEMONY_REALM_ID,
   matchesCanonicalRealm,
   matchesCanonicalTerrain,
@@ -189,13 +193,14 @@ export function ensureGenesisFounder(
   const existingClaim = ctx.db.castleSlotClaimV1.ownerFid.find(fid);
   const existingProfile = ctx.db.realmProfileV1.fid.find(fid);
   const existingAccount = ctx.db.markAccountV1.fid.find(fid);
+  const existingResourceAccount = ctx.db.resourceAccountV1.fid.find(fid);
 
   if (existingCastle !== null) {
     if (existingClaim === null || existingProfile === null || existingAccount === null) fail();
     assertGenesisFoundingGraph(ctx);
     return 'preserved';
   }
-  if (existingClaim !== null || existingAccount !== null) fail();
+  if (existingClaim !== null || existingAccount !== null || existingResourceAccount !== null) fail();
   assertGenesisFoundingGraph(ctx, fid);
 
   const claimedSlotIds = new Set<number>();
@@ -269,6 +274,17 @@ export function ensureGenesisFounder(
     generationVersion: slot.generationVersion,
   });
   ctx.db.worldTile.key.update({ ...tile, occupantCastleId: castle.castleId });
+  ctx.db.resourceAccountV1.insert({
+    fid,
+    castleId: castle.castleId,
+    realmId: HEGEMONY_REALM_ID,
+    ...GENESIS_STARTING_RESOURCE_BALANCES,
+    settledThroughMicros: ctx.timestamp.microsSinceUnixEpoch,
+    revision: 0n,
+    policyVersion: GENESIS_RESOURCE_POLICY_VERSION,
+    createdAt: ctx.timestamp,
+    updatedAt: ctx.timestamp,
+  });
 
   assertGenesisFoundingGraph(ctx);
   return 'created';

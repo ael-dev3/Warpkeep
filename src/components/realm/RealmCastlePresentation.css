@@ -187,48 +187,6 @@
   border-radius: inherit;
 }
 
-.realm-hud__marks {
-  display: inline-flex;
-  gap: 0.38rem;
-  align-items: center;
-  min-width: 0;
-  width: fit-content;
-  max-width: 100%;
-  padding: 0.22rem 0.38rem;
-  border: 1px solid rgb(225 190 105 / 25%);
-  border-radius: 999px;
-  background: rgb(85 42 106 / 24%);
-}
-
-.realm-hud__marks picture,
-.realm-hud__marks img {
-  display: block;
-  flex: 0 0 1.55rem;
-  width: 1.55rem;
-  height: 1.55rem;
-}
-
-.realm-hud__marks span {
-  display: grid;
-  min-width: 0;
-}
-
-.realm-hud__marks small {
-  color: #c9bfd0;
-  font-size: 0.625rem;
-  font-weight: 760;
-  letter-spacing: 0.08em;
-}
-
-.realm-hud__marks strong {
-  overflow: hidden;
-  color: #f0d58c;
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .castle-inspection {
   position: absolute;
   z-index: 9;
@@ -236,12 +194,15 @@
   right: max(0.8rem, env(safe-area-inset-right));
   width: min(21.5rem, calc(100vw - 1.6rem));
   max-height: calc(100svh - 1.6rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  padding-top: 1rem;
   color: #fff7e5;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 .castle-inspection__drawer {
-  overflow: hidden;
+  overflow: visible;
+  isolation: isolate;
   border: 1px solid rgb(231 199 121 / 46%);
   border-radius: 0.88rem;
   background: var(--warpkeep-surface-bg-strong, rgb(9 9 15 / 98%));
@@ -255,17 +216,16 @@
   display: grid;
   min-height: 12.15rem;
   place-items: end center;
-  overflow: hidden;
+  overflow: visible;
   isolation: isolate;
   background:
-    radial-gradient(circle at 48% 50%, rgb(174 113 210 / 28%), transparent 44%),
-    radial-gradient(circle at 50% 115%, rgb(225 190 105 / 22%), transparent 43%),
-    linear-gradient(165deg, #32223f 0%, #17131f 58%, #0b0b11 100%);
+    radial-gradient(circle at 48% 44%, rgb(174 113 210 / 24%), transparent 48%),
+    radial-gradient(circle at 50% 112%, rgb(225 190 105 / 18%), transparent 45%);
 }
 
 .castle-inspection__hero::after {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   right: 0;
   bottom: 0;
   left: 0;
@@ -277,7 +237,7 @@
 
 .castle-inspection__hero-orbit {
   position: absolute;
-  z-index: -1;
+  z-index: 0;
   top: 1rem;
   left: 50%;
   width: 12rem;
@@ -288,17 +248,33 @@
   transform: translateX(-50%);
 }
 
+.castle-inspection__hero-art-stage {
+  position: absolute;
+  z-index: 1;
+  top: -0.35rem;
+  left: 50%;
+  width: calc(100% - 3rem);
+  height: 9.75rem;
+  overflow: visible;
+  background: transparent;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
 .castle-inspection__hero-art {
   position: absolute;
-  z-index: 0;
-  top: -1.05rem;
+  top: -0.6rem;
   left: 50%;
   display: block;
-  width: 92%;
-  height: 12.75rem;
+  width: 108%;
+  height: 12.4rem;
+  max-width: none;
+  background: transparent;
   object-fit: contain;
   object-position: 50% 38%;
-  filter: drop-shadow(0 0.72rem 0.82rem rgb(0 0 0 / 58%));
+  filter:
+    drop-shadow(0 0.78rem 0.88rem rgb(0 0 0 / 62%))
+    drop-shadow(0 0 1.2rem rgb(214 174 91 / 10%));
   transform: translateX(-50%);
   pointer-events: none;
   user-select: none;
@@ -306,7 +282,7 @@
 
 .castle-inspection__title-lockup {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   width: calc(100% - 2rem);
   min-width: 0;
   padding: 0 0 0.68rem;
@@ -373,7 +349,7 @@
 }
 
 .castle-inspection__body {
-  max-height: calc(100svh - 14.8rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100svh - 15.8rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   padding: 0 0.82rem 0.82rem;
   overflow-x: hidden;
   overflow-y: auto;
@@ -517,6 +493,17 @@
   }
 }
 
+@media (min-width: 761px) and (min-height: 601px) {
+  .realm-map-screen[data-presentation-mode="player"] .castle-inspection {
+    top: max(3.05rem, calc(env(safe-area-inset-top) + 3.05rem));
+    max-height: calc(100svh - 3.85rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+
+  .realm-map-screen[data-presentation-mode="player"] .castle-inspection__body {
+    max-height: calc(100svh - 17rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+
 @media (max-width: 760px) {
   .castle-inspection {
     top: auto;
@@ -525,10 +512,11 @@
     left: max(0.55rem, env(safe-area-inset-left));
     width: auto;
     max-height: min(78svh, 36rem);
+    padding-top: 0.9rem;
   }
 
   .castle-inspection__drawer {
-    max-height: inherit;
+    max-height: min(calc(78svh - 0.9rem), 35.1rem);
     animation-name: realm-inspector-sheet-enter;
   }
 
@@ -536,13 +524,20 @@
     min-height: 10.25rem;
   }
 
+  .castle-inspection__hero-art-stage {
+    top: -0.3rem;
+    width: calc(100% - 3.25rem);
+    height: 7.8rem;
+  }
+
   .castle-inspection__hero-art {
-    top: -0.8rem;
-    height: 10.9rem;
+    top: -0.4rem;
+    width: 108%;
+    height: 10.1rem;
   }
 
   .castle-inspection__body {
-    max-height: min(calc(78svh - 10.25rem), 25.75rem);
+    max-height: min(calc(78svh - 11.15rem), 24.85rem);
   }
 }
 
@@ -554,6 +549,7 @@
     left: auto;
     width: min(19.5rem, 43vw);
     max-height: none;
+    padding-top: 0.7rem;
   }
 
   .castle-inspection__drawer {
@@ -562,16 +558,23 @@
   }
 
   .castle-inspection__body {
-    max-height: calc(100svh - 8.7rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    max-height: calc(100svh - 9.4rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 
   .castle-inspection__hero {
     min-height: 7.8rem;
   }
 
+  .castle-inspection__hero-art-stage {
+    top: -0.2rem;
+    width: calc(100% - 3rem);
+    height: 5.45rem;
+  }
+
   .castle-inspection__hero-art {
-    top: -0.9rem;
-    height: 8.55rem;
+    top: -0.3rem;
+    width: 108%;
+    height: 7.35rem;
   }
 
   .castle-inspection__title-lockup {
@@ -580,6 +583,14 @@
 
   .castle-inspection__title-lockup h2 {
     font-size: 1.15rem;
+  }
+
+  .realm-map-screen[data-presentation-mode="player"] .castle-inspection {
+    top: max(2.85rem, calc(env(safe-area-inset-top) + 2.85rem));
+  }
+
+  .realm-map-screen[data-presentation-mode="player"] .castle-inspection__body {
+    max-height: calc(100svh - 12.25rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 }
 

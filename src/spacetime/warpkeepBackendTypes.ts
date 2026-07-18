@@ -1,4 +1,5 @@
 import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
+import type { ReadyRealmResourcePresentation } from '../components/realm/realmResourcePresentation';
 
 export type WarpkeepAdmissionStatus =
   | 'not_admitted'
@@ -130,6 +131,7 @@ export type WarpkeepBackendState = Readonly<{
   identity?: VerifiedFarcasterIdentity;
   admission?: WarpkeepAdmissionStatus;
   realm?: CanonicalWarpkeepRealmSnapshot;
+  resources?: ReadyRealmResourcePresentation;
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({

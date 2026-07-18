@@ -4,6 +4,37 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
+## 0.3.7 — candidate (18 July 2026)
+
+- Adds one private SpacetimeDB-owned Food, Wood, Stone, and Gold account for
+  each founded castle. The authenticated player can read only their own
+  inventory; peer balances do not join the public Realm subscription.
+- Settles deterministic terrain yield in complete ten-minute server-time
+  quanta. The no-input collection reducer derives FID, castle, terrain, rates,
+  balances, and time from authoritative state and never trusts those values
+  from the browser.
+- Gates resource reads and collection on admission, current castle ownership,
+  exact Alpha Terms acceptance, and a complete private resource/Marks graph.
+  Malformed, stale, missing, or contradictory state withholds the Realm, and
+  the browser does not apply optimistic credits.
+- Keeps Community Marks in the existing separate private authority. This
+  candidate adds no Marks conversion, transfer, credit, spending, or duplicate
+  balance.
+- Adds immutable, integrity-checked Food, Wood, Stone, and Gold runtime icons
+  derived from the recorded reference masters. The reference masters remain
+  outside the Pages `public/` tree.
+- Appends the private resource table and versioned procedures without changing
+  the six-table public Realm subscription or the active protocol-3 boundary.
+  A disposable additive-migration fixture, generated-binding verification,
+  guarded founder backfill, and counts-only v4 status procedure define the
+  rollout and privacy checks.
+- Does not add construction, upgrades, units, combat, trading, public
+  inventories, transferable assets, rewards, or guaranteed financial value.
+- Alpha 0.3.7 is **not deployed**. Alpha 0.3.6 remains the verified public
+  release. Production requires an additive module publication, explicit owner
+  approval for the guarded founder backfill, counts-only v4 verification, an
+  exact reviewed Pages deployment, and final owner approval.
+
 ## [0.3.6] — 2026-07-18
 
 - Founded castles receive one bounded, role-specific diffuse-colour calibration
