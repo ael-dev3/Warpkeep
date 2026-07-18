@@ -32,3 +32,8 @@ Its separate [transparent inspection-art record](2026-07-18-hegemony-logging-cam
 pins the corresponding high-resolution 2D Logging Camp card illustration. That
 decorative, pointer-inert asset does not create a Wood site, worker, balance,
 or gathering authority.
+
+The owner-supplied Stone Quarry delivery has its own immutable
+[18 July runtime record](2026-07-18-hegemony-stone-quarry/runtime/README.md).
+It preserves the exact public LOD family and renderer contract only; it does
+not create a Stone-site catalog, local placement, worker, balance, or reward.

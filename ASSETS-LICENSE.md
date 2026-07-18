@@ -303,6 +303,39 @@ pins its source-manifest facts, orientation, bounds, LOD budgets, collision
 guidance, and visual-only scope boundary. This family remains
 `LicenseRef-Warpkeep-Provenance-Required`.
 
+## Hegemony Stone Quarry runtime assets
+
+On 2026-07-18, the Warpkeep project owner supplied the named Stone Quarry
+runtime package and instructed an isolated draft PR to start integrating
+another node through the established runtime-asset system. That authorizes only
+the three exact digest-bearing GLBs below in the public Warpkeep repository and
+an eventual official warpkeep.com Pages runtime after separately approved merge
+and deployment. It is use authorization only, not approval to merge, deploy,
+seed a world, or activate Stone gathering.
+
+The supplied runtime-manifest.json is 2,415 bytes with SHA-256
+3351ad854b4e3e173ed557bfb00684f9a7a1b02211822325cb117ff4fcdc9d85 and
+declares the package project-owned and authored for Warpkeep. That delivery
+does not establish a separate public/open-content licence, general derivative
+or redistribution rights, trademark rights, or Stone account, balance,
+placement, occupancy, route, worker, reward, collection, settlement, timing,
+or SpacetimeDB authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Selected/near Stone Quarry | `public/models/hegemony/gathering-nodes/stone-quarry/hegemony-stone-quarry-high-a4a3258f1f28a7d8.glb` | Exact supplied High bytes: 558,036 bytes, SHA-256 `a4a3258f1f28a7d85658b32a0257d3ca5cb810b8f7a010fd5ebbf7cde12c7537`, 5,362 triangles, 11,893 vertices, vertex colours and no embedded textures. |
+| Nearby Stone Quarry | `public/models/hegemony/gathering-nodes/stone-quarry/hegemony-stone-quarry-balanced-44573c53850a31ec.glb` | Exact supplied Balanced bytes: 337,788 bytes, SHA-256 `44573c53850a31ec0178f88918d18471309016a5b4edffdcf1d3e42670109925`, 3,346 triangles, 7,162 vertices, vertex colours and no embedded textures. |
+| Distant Stone Quarry | `public/models/hegemony/gathering-nodes/stone-quarry/hegemony-stone-quarry-compact-b4dbbc1c55a67c12.glb` | Exact supplied Compact bytes: 166,720 bytes, SHA-256 `b4dbbc1c55a67c120df2f2b54852e30a2de980254216821b4a599a10e2e5030e`, 1,654 triangles, 3,504 vertices, vertex colours and no embedded textures. |
+
+Node scripts/verify-hegemony-stone-quarry-runtime-assets.mjs fails closed on
+unknown, missing, non-regular, changed, reordered, or structurally
+incompatible LODs. Ordinary builds verify only the checked-in public family and
+never fetch, rewrite, or serve the owner-supplied delivery package. The dated
+[Stone Quarry runtime record](docs/reference/resources/2026-07-18-hegemony-stone-quarry/runtime/manifest.json)
+pins source-manifest facts, bounds, orientation, collision guidance, and the
+visual-only scope boundary. This family remains
+`LicenseRef-Warpkeep-Provenance-Required`.
+
 ## Hegemony Supply Wagon runtime assets
 
 On 2026-07-18, the same project-owner instruction authorizes the exact reviewed
