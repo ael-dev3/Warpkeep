@@ -135,6 +135,24 @@ describe('Warpkeep main-menu responsive layout', () => {
     );
   });
 
+  it('compacts the return control before it can overlap the patch disclosure on narrow phones', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
+      'utf8'
+    );
+    const narrowPortrait = readCssBlock(
+      css,
+      '@media (max-width: 430px) and (orientation: portrait)'
+    );
+
+    expect(narrowPortrait).toMatch(
+      /.warpkeep-menu \.warpkeep-menu-back\s*\{[^}]*width:\s*2\.75rem;/s
+    );
+    expect(narrowPortrait).toMatch(
+      /\.warpkeep-menu-back__label\s*\{[^}]*display:\s*none;/s
+    );
+  });
+
   it('frees vertical space at 568x320 without hiding the project link', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),

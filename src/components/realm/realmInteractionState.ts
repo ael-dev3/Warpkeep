@@ -5,6 +5,30 @@ export type RealmCastleTarget = Readonly<{
   coord: HexCoord;
 }>;
 
+/** A public world-site target; it contains no economy or authorization data. */
+export type RealmGoldSiteTarget = Readonly<{
+  siteId: string;
+  coord: HexCoord;
+}>;
+
+/** Separate field prevents a Food site id from ever selecting a Gold panel. */
+export type RealmFoodSiteTarget = Readonly<{
+  foodSiteId: string;
+  coord: HexCoord;
+}>;
+
+/** Separate field prevents a Wood site id from ever selecting another panel. */
+export type RealmWoodSiteTarget = Readonly<{
+  woodSiteId: string;
+  coord: HexCoord;
+}>;
+
+export type RealmInspectorTarget =
+  | RealmCastleTarget
+  | RealmGoldSiteTarget
+  | RealmFoodSiteTarget
+  | RealmWoodSiteTarget;
+
 export type RealmCameraTarget =
   | Readonly<{ kind: 'realm' }>
   | Readonly<{ kind: 'founding-district' }>
@@ -15,6 +39,9 @@ export type RealmCameraTarget =
 export type RealmKeyboardTarget =
   | Readonly<{ kind: 'map' }>
   | Readonly<{ kind: 'inspector'; castleId: number }>
+  | Readonly<{ kind: 'gold-mine-inspector'; siteId: string }>
+  | Readonly<{ kind: 'food-farm-inspector'; siteId: string }>
+  | Readonly<{ kind: 'logging-camp-inspector'; siteId: string }>
   | Readonly<{ kind: 'castle-label'; castleId: number }>
   | Readonly<{ kind: 'navigator' }>
   | Readonly<{ kind: 'navigator-trigger' }>;
@@ -31,7 +58,7 @@ export type RealmKeyboardIntent = Readonly<{
 export type RealmInteractionState = Readonly<{
   selectedCell: HexCoord;
   selectedCastle: RealmCastleTarget | null;
-  inspectorTarget: RealmCastleTarget | null;
+  inspectorTarget: RealmInspectorTarget | null;
   inspectorOpen: boolean;
   cameraTarget: RealmCameraTarget;
   navigatorOpen: boolean;
@@ -41,6 +68,9 @@ export type RealmInteractionState = Readonly<{
 export type RealmInteractionAction =
   | Readonly<{ type: 'select-cell'; coord: HexCoord }>
   | Readonly<{ type: 'activate-castle'; castleId: number; coord: HexCoord }>
+  | Readonly<{ type: 'activate-gold-site'; siteId: string; coord: HexCoord }>
+  | Readonly<{ type: 'activate-food-site'; siteId: string; coord: HexCoord }>
+  | Readonly<{ type: 'activate-wood-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ type: 'close-inspector' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
@@ -62,6 +92,22 @@ function copyCoord(coord: HexCoord): HexCoord {
 
 function copyCastleTarget(target: RealmCastleTarget): RealmCastleTarget {
   return { castleId: target.castleId, coord: copyCoord(target.coord) };
+}
+
+function copyGoldSiteTarget(target: RealmGoldSiteTarget): RealmGoldSiteTarget {
+  return { siteId: target.siteId, coord: copyCoord(target.coord) };
+}
+
+function copyFoodSiteTarget(target: RealmFoodSiteTarget): RealmFoodSiteTarget {
+  return { foodSiteId: target.foodSiteId, coord: copyCoord(target.coord) };
+}
+
+function copyWoodSiteTarget(target: RealmWoodSiteTarget): RealmWoodSiteTarget {
+  return { woodSiteId: target.woodSiteId, coord: copyCoord(target.coord) };
+}
+
+function isCastleTarget(target: RealmInspectorTarget | null): target is RealmCastleTarget {
+  return target !== null && 'castleId' in target;
 }
 
 function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
@@ -124,9 +170,62 @@ export function realmInteractionReducer(
       };
     }
 
+    case 'activate-gold-site': {
+      const target = copyGoldSiteTarget({ siteId: action.siteId, coord: action.coord });
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: null,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: { kind: 'cell', coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'gold-mine-inspector',
+          siteId: target.siteId
+        })
+      };
+    }
+
+    case 'activate-food-site': {
+      const target = copyFoodSiteTarget({ foodSiteId: action.siteId, coord: action.coord });
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: null,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: { kind: 'cell', coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'food-farm-inspector',
+          siteId: target.foodSiteId
+        })
+      };
+    }
+
+    case 'activate-wood-site': {
+      const target = copyWoodSiteTarget({ woodSiteId: action.siteId, coord: action.coord });
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: null,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: { kind: 'cell', coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'logging-camp-inspector',
+          siteId: target.woodSiteId
+        })
+      };
+    }
+
     case 'close-inspector': {
       if (!state.inspectorOpen) return state;
-      const castle = state.inspectorTarget ?? state.selectedCastle;
+      const castle = isCastleTarget(state.inspectorTarget)
+        ? state.inspectorTarget
+        : state.selectedCastle;
       return {
         ...state,
         inspectorOpen: false,

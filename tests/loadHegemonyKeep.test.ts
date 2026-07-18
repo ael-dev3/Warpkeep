@@ -191,7 +191,9 @@ describe('Hegemony keep runtime assets', () => {
       revision: 'sunlit-lowlands-v3',
       maximumColorChannel: 1.25,
       castleDiffuseGain: 1.22,
-      landscapeBaseDiffuseGain: 1.1
+      landscapeBaseDiffuseGain: 1.1,
+      gatheringNodeDiffuseGain: 1.13,
+      wagonDiffuseGain: 1.08
     });
     const material = new THREE.MeshStandardMaterial();
     material.color.setRGB(0.8, 0.6, 1.2);

@@ -352,7 +352,7 @@ describe('compact Realm CSS contract', () => {
     );
     const hiddenCoveredUi = block(
       compactMap,
-      '.realm-map-screen:has(.castle-inspection) .realm-hud,'
+      '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud,'
     );
     const compactInspector = block(compactPresentation, '.castle-inspection {');
     const compactDrawer = block(compactPresentation, '.castle-inspection__drawer {');
@@ -374,7 +374,7 @@ describe('compact Realm CSS contract', () => {
     expect(hiddenCoveredUi).toContain('visibility: hidden;');
     expect(hiddenCoveredUi).toContain('pointer-events: none;');
     expect(compactMap).toContain(
-      '.realm-map-screen:has(.castle-inspection) .realm-hud__actions,'
+      '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud__actions,'
     );
     expect(compactMap).toContain(
       '.realm-map-screen:has(.realm-cell-navigator__dialog) .realm-hud__actions {'
@@ -469,7 +469,7 @@ describe('compact Realm CSS contract', () => {
     expect(shortVisibleUi).toContain('visibility: visible;');
     expect(shortVisibleUi).toContain('pointer-events: auto;');
     expect(shortMap).toContain(
-      '.realm-map-screen:has(.castle-inspection) .realm-hud__actions {'
+      '.realm-map-screen:has(:is(.castle-inspection, .gold-mine-inspection, .food-farm-inspection)) .realm-hud__actions {'
     );
     expect(shortProfilePanel).toContain('padding: 0.65rem;');
     expect(shortProfilePanel).toContain('max-height: calc(100svh - 4.45rem');

@@ -14,6 +14,9 @@ import {
 } from '../spacetimedb/src/world';
 import type { WarpkeepRealmSnapshotCandidate } from '../src/spacetime/warpkeepBackendTypes';
 import {
+  CANONICAL_GENESIS_FOREST_LAYOUT_V1
+} from '../spacetimedb/src/forestLayoutPolicy';
+import {
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate
 } from './fixtures/canonicalGenesisSnapshot';
@@ -97,6 +100,35 @@ describe('canonical Genesis 001 browser snapshot boundary', () => {
     expect(snapshot.tiles).toHaveLength(10_000);
     expect(ring58).toHaveLength(81);
     expect(snapshot.tiles).not.toHaveLength(1 + (3 * 58 * 59));
+  });
+
+  it('preserves a present-but-incomplete forest projection for the strict renderer decoder', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const unseeded = validate({
+      ...candidate,
+      forestTrees: []
+    });
+    // An empty paired row array is materially different from a legacy server
+    // without the additive tables: the scene resolver must block it rather
+    // than enabling its explicit DEV-only preview.
+    expect(unseeded).not.toHaveProperty('forestLayout');
+    expect(unseeded.forestTrees).toEqual([]);
+    expect(Object.isFrozen(unseeded.forestTrees)).toBe(true);
+
+    const oneSided = validate({
+      ...candidate,
+      forestLayout: CANONICAL_GENESIS_FOREST_LAYOUT_V1
+    });
+    expect(oneSided.forestLayout).toEqual(CANONICAL_GENESIS_FOREST_LAYOUT_V1);
+    expect(oneSided).not.toHaveProperty('forestTrees');
+
+    const malformed = validate({
+      ...candidate,
+      forestLayout: null,
+      forestTrees: []
+    });
+    expect(malformed.forestLayout).toBeNull();
+    expect(malformed.forestTrees).toEqual([]);
   });
 
   it('rejects any backend protocol other than protocol 3', () => {

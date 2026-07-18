@@ -29,6 +29,22 @@ const additiveV4SchemaFixture = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/additive-v4-schema',
 );
+const additiveV5SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v5-schema',
+);
+const additiveV6SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v6-schema',
+);
+const additiveV7SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v7-schema',
+);
+const additiveV8SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v8-schema',
+);
 const additiveModule = resolve(repositoryRoot, 'spacetimedb');
 const command = process.env.SPACETIME_BIN || 'spacetime';
 const expectedCliVersion = '2.6.1';
@@ -56,13 +72,15 @@ const startingResourceBalances = Object.freeze({
   gold: 0n,
 });
 const terrainResourceRates = Object.freeze({
-  lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 1n }),
-  meadow: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
-  forest: Object.freeze({ food: 5n, wood: 10n, stone: 3n, gold: 1n }),
-  heath: Object.freeze({ food: 5n, wood: 6n, stone: 5n, gold: 2n }),
-  ridge: Object.freeze({ food: 3n, wood: 4n, stone: 10n, gold: 2n }),
-  lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
-  'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 4n }),
+  // Tier-I Gold comes exclusively from the separately bounded wagon
+  // authority. Terrain settlement deliberately cannot mint Gold anymore.
+  lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 0n }),
+  meadow: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 0n }),
+  forest: Object.freeze({ food: 5n, wood: 10n, stone: 3n, gold: 0n }),
+  heath: Object.freeze({ food: 5n, wood: 6n, stone: 5n, gold: 0n }),
+  ridge: Object.freeze({ food: 3n, wood: 4n, stone: 10n, gold: 0n }),
+  lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 0n }),
+  'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 0n }),
 });
 const existingTables = Object.freeze([
   'allowed_fid',
@@ -90,9 +108,54 @@ const additiveV3Tables = Object.freeze([
 const additiveV4Tables = Object.freeze([
   'resource_account_v1',
 ]);
+const additiveV5Tables = Object.freeze([
+  'gold_site_v1',
+  'gold_node_occupation_v1',
+  'gold_expedition_v1',
+  'gold_expedition_idempotency_v1',
+  'gold_expedition_schedule_v_1',
+]);
+const additiveV6Tables = Object.freeze([
+  'realm_forest_layout_v1',
+  'realm_forest_instance_v1',
+]);
+const additiveV7Tables = Object.freeze([
+  'food_site_v1',
+  'food_node_occupation_v1',
+  'food_expedition_v1',
+  'food_expedition_idempotency_v1',
+  'food_expedition_schedule_v_1',
+]);
+const additiveV8Tables = Object.freeze([
+  'wood_site_v1',
+  'wood_node_occupation_v1',
+  'wood_expedition_v1',
+  'wood_expedition_idempotency_v1',
+  'wood_expedition_schedule_v_1',
+]);
 const deployedV3Tables = Object.freeze([
   ...existingTables,
   ...additiveV3Tables,
+]);
+const deployedV4Tables = Object.freeze([
+  ...deployedV3Tables,
+  ...additiveV4Tables,
+]);
+const deployedV5Tables = Object.freeze([
+  ...deployedV4Tables,
+  ...additiveV5Tables,
+]);
+const deployedV6Tables = Object.freeze([
+  ...deployedV5Tables,
+  ...additiveV6Tables,
+]);
+const deployedV7Tables = Object.freeze([
+  ...deployedV6Tables,
+  ...additiveV7Tables,
+]);
+const deployedV8Tables = Object.freeze([
+  ...deployedV7Tables,
+  ...additiveV8Tables,
 ]);
 const expectedProductTypeRefs = Object.freeze({
   allowed_fid: 0,
@@ -115,6 +178,23 @@ const expectedProductTypeRefs = Object.freeze({
   snap_scan_batch_v1: 17,
   alpha_terms_acceptance_v1: 18,
   resource_account_v1: 19,
+  gold_site_v1: 20,
+  gold_node_occupation_v1: 21,
+  gold_expedition_v1: 22,
+  gold_expedition_idempotency_v1: 23,
+  gold_expedition_schedule_v_1: 24,
+  realm_forest_layout_v1: 25,
+  realm_forest_instance_v1: 26,
+  food_site_v1: 27,
+  food_node_occupation_v1: 28,
+  food_expedition_v1: 29,
+  food_expedition_idempotency_v1: 30,
+  food_expedition_schedule_v_1: 31,
+  wood_site_v1: 32,
+  wood_node_occupation_v1: 33,
+  wood_expedition_v1: 34,
+  wood_expedition_idempotency_v1: 35,
+  wood_expedition_schedule_v_1: 36,
 });
 const childEnvironmentKeys = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TMP', 'TEMP',
@@ -572,6 +652,235 @@ function assertAdditiveV4Schema(before, after) {
     tableSignature(after, 'resource_account_v1').product_type_ref,
     expectedProductTypeRefs.resource_account_v1,
   );
+}
+
+function assertDeployedV4TablesUnchanged(before, after) {
+  for (const name of deployedV4Tables) {
+    assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertAdditiveV5Schema(before, after) {
+  assertDeployedV4TablesUnchanged(before, after);
+  const beforeNames = new Set(before.tables.map(table => table.name));
+  const added = after.tables
+    .map(table => table.name)
+    .filter(name => !beforeNames.has(name))
+    .sort();
+  assert.deepEqual(added, [...additiveV5Tables].sort());
+
+  const contracts = {
+    gold_site_v1: {
+      access: 'Public',
+      fields: ['site_id', 'q', 'r', 'tier', 'active'],
+    },
+    gold_node_occupation_v1: {
+      access: 'Public',
+      fields: [
+        'site_id', 'origin_castle_id', 'phase', 'started_at_micros',
+        'arrives_at_micros', 'gathering_ends_at_micros', 'returns_at_micros',
+      ],
+    },
+    gold_expedition_v1: {
+      access: 'Private',
+      fields: [
+        'expedition_id', 'fid', 'origin_castle_id', 'site_id', 'phase',
+        'started_at_micros', 'arrives_at_micros', 'gathering_ends_at_micros',
+        'returns_at_micros', 'settled_through_micros', 'accrued_gold',
+        'credited_gold', 'policy_version', 'created_at', 'updated_at',
+      ],
+    },
+    gold_expedition_idempotency_v1: {
+      access: 'Private',
+      fields: ['request_key', 'fid', 'site_id', 'expedition_id', 'created_at'],
+    },
+    gold_expedition_schedule_v_1: {
+      access: 'Public',
+      fields: ['schedule_id', 'scheduled_at', 'origin_castle_id', 'site_id', 'stage'],
+    },
+  };
+
+  for (const [name, contract] of Object.entries(contracts)) {
+    assert.deepEqual(fieldNames(after, name), contract.fields);
+    assert.equal(access(after, name), contract.access);
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertDeployedV5TablesUnchanged(before, after) {
+  for (const name of deployedV5Tables) {
+    assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertAdditiveV6Schema(before, after) {
+  assertDeployedV5TablesUnchanged(before, after);
+  const beforeNames = new Set(before.tables.map(table => table.name));
+  const added = after.tables
+    .map(table => table.name)
+    .filter(name => !beforeNames.has(name))
+    .sort();
+  assert.deepEqual(added, [...additiveV6Tables].sort());
+
+  const contracts = {
+    realm_forest_layout_v1: {
+      access: 'Public',
+      fields: [
+        'realm_id', 'layout_version', 'policy_version', 'layout_digest',
+        'asset_catalog_digest', 'instance_count', 'seeded_at',
+      ],
+    },
+    realm_forest_instance_v1: {
+      access: 'Public',
+      fields: [
+        'tree_id', 'realm_id', 'tile_key', 'q', 'r',
+        'local_x_microunits', 'local_z_microunits',
+        'world_x_microunits', 'world_z_microunits',
+        'rotation_milli_degrees', 'scale_basis_points', 'species_id',
+        'habitat', 'layout_version',
+      ],
+    },
+  };
+
+  for (const [name, contract] of Object.entries(contracts)) {
+    assert.deepEqual(fieldNames(after, name), contract.fields);
+    assert.equal(access(after, name), contract.access);
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertDeployedV6TablesUnchanged(before, after) {
+  for (const name of deployedV6Tables) {
+    assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertAdditiveV7Schema(before, after) {
+  assertDeployedV6TablesUnchanged(before, after);
+  const beforeNames = new Set(before.tables.map(table => table.name));
+  const added = after.tables
+    .map(table => table.name)
+    .filter(name => !beforeNames.has(name))
+    .sort();
+  assert.deepEqual(added, [...additiveV7Tables].sort());
+
+  const contracts = {
+    food_site_v1: {
+      access: 'Public',
+      fields: ['site_id', 'q', 'r', 'tier', 'active'],
+    },
+    food_node_occupation_v1: {
+      access: 'Public',
+      fields: [
+        'site_id', 'origin_castle_id', 'phase', 'started_at_micros',
+        'arrives_at_micros', 'gathering_ends_at_micros', 'returns_at_micros',
+      ],
+    },
+    food_expedition_v1: {
+      access: 'Private',
+      fields: [
+        'expedition_id', 'fid', 'origin_castle_id', 'site_id', 'phase',
+        'started_at_micros', 'arrives_at_micros', 'gathering_ends_at_micros',
+        'returns_at_micros', 'settled_through_micros', 'accrued_food',
+        'credited_food', 'policy_version', 'created_at', 'updated_at',
+      ],
+    },
+    food_expedition_idempotency_v1: {
+      access: 'Private',
+      fields: ['request_key', 'fid', 'site_id', 'expedition_id', 'created_at'],
+    },
+    food_expedition_schedule_v_1: {
+      access: 'Public',
+      fields: ['schedule_id', 'scheduled_at', 'origin_castle_id', 'site_id', 'stage'],
+    },
+  };
+
+  for (const [name, contract] of Object.entries(contracts)) {
+    assert.deepEqual(fieldNames(after, name), contract.fields);
+    assert.equal(access(after, name), contract.access);
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertDeployedV7TablesUnchanged(before, after) {
+  for (const name of deployedV7Tables) {
+    assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertAdditiveV8Schema(before, after) {
+  assertDeployedV7TablesUnchanged(before, after);
+  const beforeNames = new Set(before.tables.map(table => table.name));
+  const added = after.tables
+    .map(table => table.name)
+    .filter(name => !beforeNames.has(name))
+    .sort();
+  assert.deepEqual(added, [...additiveV8Tables].sort());
+
+  const contracts = {
+    wood_site_v1: {
+      access: 'Public',
+      fields: ['site_id', 'q', 'r', 'tier', 'active'],
+    },
+    wood_node_occupation_v1: {
+      access: 'Public',
+      fields: [
+        'site_id', 'origin_castle_id', 'phase', 'started_at_micros',
+        'arrives_at_micros', 'gathering_ends_at_micros', 'returns_at_micros',
+      ],
+    },
+    wood_expedition_v1: {
+      access: 'Private',
+      fields: [
+        'expedition_id', 'fid', 'origin_castle_id', 'site_id', 'phase',
+        'started_at_micros', 'arrives_at_micros', 'gathering_ends_at_micros',
+        'returns_at_micros', 'settled_through_micros', 'accrued_wood',
+        'credited_wood', 'policy_version', 'created_at', 'updated_at',
+      ],
+    },
+    wood_expedition_idempotency_v1: {
+      access: 'Private',
+      fields: ['request_key', 'fid', 'site_id', 'expedition_id', 'created_at'],
+    },
+    wood_expedition_schedule_v_1: {
+      access: 'Public',
+      fields: ['schedule_id', 'scheduled_at', 'origin_castle_id', 'site_id', 'stage'],
+    },
+  };
+
+  for (const [name, contract] of Object.entries(contracts)) {
+    assert.deepEqual(fieldNames(after, name), contract.fields);
+    assert.equal(access(after, name), contract.access);
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
 }
 
 async function freeLoopbackPort() {
@@ -1081,7 +1390,10 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
   let stage = 'seed';
   let activeModule = 'actual';
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  const inspectionArtifactPath = join(additiveV4SchemaFixture, 'dist', 'bundle.js');
+  // The inspection fixture must retain every append that the real module has
+  // already introduced. Publishing an older artifact after the v8 Wood tables
+  // would be a destructive downgrade, correctly refused by SpacetimeDB.
+  const inspectionArtifactPath = join(additiveV8SchemaFixture, 'dist', 'bundle.js');
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
     await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
@@ -1118,6 +1430,92 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 10_000n
       || await count(server, ownerToken, database, 'castle_slot_v1') !== 100n
     ) fail('Actual module seed did not create the exact canonical world.');
+
+    // The forest reducer plans every canonical instance before it writes any
+    // of them. Corrupt one known foliage tile in this disposable fixture to
+    // prove a seed rejection cannot leave a partial public forest behind.
+    stage = 'forest-atomic-rejection';
+    await privateSql(
+      server,
+      ownerToken,
+      database,
+      "UPDATE world_tile_meta_v1 SET passable = false WHERE tile_key = '-19,7'",
+    );
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_seed_genesis_forest_layout_v1',
+      adminCredential(),
+      '[]',
+      530,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await count(server, ownerToken, database, 'realm_forest_layout_v1') !== 0n
+      || await count(server, ownerToken, database, 'realm_forest_instance_v1') !== 0n
+      || await actionCount(server, ownerToken, database, 'seed_genesis_forest_layout_v1') !== 0n
+    ) fail('Rejected forest seed left partial state or an audit record.');
+    await privateSql(
+      server,
+      ownerToken,
+      database,
+      "UPDATE world_tile_meta_v1 SET passable = true WHERE tile_key = '-19,7'",
+    );
+
+    stage = 'forest-seed';
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_seed_genesis_forest_layout_v1',
+      adminCredential(),
+      '[]',
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await count(server, ownerToken, database, 'realm_forest_layout_v1') !== 1n
+      || await count(server, ownerToken, database, 'realm_forest_instance_v1') !== 210n
+      || await actionCount(server, ownerToken, database, 'seed_genesis_forest_layout_v1') !== 1n
+    ) fail('Actual module forest seed was incomplete.');
+    const seededForestDigest = outputDigest(await privateSql(
+      server,
+      ownerToken,
+      database,
+      'SELECT * FROM realm_forest_layout_v1',
+    ));
+    const seededForestInstancesDigest = outputDigest(await privateSql(
+      server,
+      ownerToken,
+      database,
+      'SELECT * FROM realm_forest_instance_v1',
+    ));
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_seed_genesis_forest_layout_v1',
+      adminCredential(),
+      '[]',
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await actionCount(server, ownerToken, database, 'seed_genesis_forest_layout_v1') !== 1n
+      || outputDigest(await privateSql(
+        server,
+        ownerToken,
+        database,
+        'SELECT * FROM realm_forest_layout_v1',
+      )) !== seededForestDigest
+      || outputDigest(await privateSql(
+        server,
+        ownerToken,
+        database,
+        'SELECT * FROM realm_forest_instance_v1',
+      )) !== seededForestInstancesDigest
+    ) fail('Exact forest seed rerun was not a complete no-op.');
 
     stage = 'atomic-founder';
     for (const table of [
@@ -1190,6 +1588,35 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       await countForFid(server, ownerToken, database, 'player_v2') !== 1n
       || await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 1n
     ) fail('Actual module bootstrap was incomplete.');
+
+    stage = 'forest-non-admin-rejection';
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_seed_genesis_forest_layout_v1',
+      playerCredential(),
+      '[]',
+      530,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await actionCount(server, ownerToken, database, 'seed_genesis_forest_layout_v1') !== 1n
+      || outputDigest(await privateSql(
+        server,
+        ownerToken,
+        database,
+        'SELECT * FROM realm_forest_layout_v1',
+      )) !== seededForestDigest
+      || outputDigest(await privateSql(
+        server,
+        ownerToken,
+        database,
+        'SELECT * FROM realm_forest_instance_v1',
+      )) !== seededForestInstancesDigest
+    ) fail('Non-admin forest seed attempt changed the canonical layout.');
+
+    stage = 'bootstrap-renewal';
     const ownershipAfterBootstrap = await callerRowDigest(
       server,
       ownerToken,
@@ -1538,7 +1965,10 @@ async function verifyGenesisWorldExpansionLifecycle(
   ownerToken,
 ) {
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  const fixtureArtifactPath = join(additiveV4SchemaFixture, 'dist', 'bundle.js');
+  // The inspection fixture must retain every Gold, shared-forest, Food, and
+  // Wood append. Reverting to an earlier protocol after publishing the
+  // candidate would correctly be rejected as a destructive schema downgrade.
+  const fixtureArtifactPath = join(additiveV8SchemaFixture, 'dist', 'bundle.js');
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
 
   await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
@@ -1928,10 +2358,171 @@ async function main() {
       deployedV3Tables,
     );
 
-    // The schema-only v4 fixture and the current module must independently
-    // prove the exact same ref-19 append while every publish remains
-    // `--delete-data=never`.
+    // First freeze the exact v4 resource-authority shape on every database.
+    // This establishes ref 19 independently before the Gold expedition
+    // append, while every publish remains `--delete-data=never`.
     await publish(server, owner.token, additiveV4SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV4SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV4SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV4SchemaFixture, resourceLifecycleDatabase);
+
+    const emptyV4 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV4 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV4 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV4Schema(emptyV3, emptyV4);
+    assertAdditiveV4Schema(nonemptyV3, nonemptyV4);
+    assertAdditiveV4Schema(actualModuleV3, actualModuleV4);
+    for (const name of deployedV4Tables) {
+      assert.deepEqual(
+        tableSignature(actualModuleV4, name),
+        tableSignature(emptyV4, name),
+      );
+    }
+
+    // Freeze refs 20-24 before the forest append. This fixture stage proves
+    // that protocol-v5 remains intact independently of the current module.
+    await publish(server, owner.token, additiveV5SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV5SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV5SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV5SchemaFixture, resourceLifecycleDatabase);
+
+    const emptyV5 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV5 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV5 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV5Schema(emptyV4, emptyV5);
+    assertAdditiveV5Schema(nonemptyV4, nonemptyV5);
+    assertAdditiveV5Schema(actualModuleV4, actualModuleV5);
+    for (const name of deployedV5Tables) {
+      assert.deepEqual(
+        tableSignature(actualModuleV5, name),
+        tableSignature(emptyV5, name),
+      );
+    }
+    for (const table of [...additiveV4Tables, ...additiveV5Tables]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
+    // Protocol-v6 adds only the two public shared-forest tables at refs 25
+    // and 26. Freeze that checkpoint on every disposable database before the
+    // Food append, so the v6 -> v7 proof cannot accidentally skip a protocol.
+    await publish(server, owner.token, additiveV6SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV6SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV6SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV6SchemaFixture, resourceLifecycleDatabase);
+
+    const emptyV6 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV6 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV6 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV6Schema(emptyV5, emptyV6);
+    assertAdditiveV6Schema(nonemptyV5, nonemptyV6);
+    assertAdditiveV6Schema(actualModuleV5, actualModuleV6);
+    for (const name of deployedV6Tables) {
+      assert.deepEqual(
+        tableSignature(actualModuleV6, name),
+        tableSignature(emptyV6, name),
+      );
+    }
+    for (const table of [
+      ...additiveV4Tables,
+      ...additiveV5Tables,
+      ...additiveV6Tables,
+    ]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
+    const emptyV6Rows = await tableRowDigests(
+      server,
+      owner.token,
+      emptyDatabase,
+      deployedV6Tables,
+    );
+    const nonemptyV6Rows = await tableRowDigests(
+      server,
+      owner.token,
+      nonemptyDatabase,
+      deployedV6Tables,
+    );
+    const actualModuleV6Rows = await tableRowDigests(
+      server,
+      owner.token,
+      actualModuleDatabase,
+      deployedV6Tables,
+    );
+
+    // Protocol-v7 appends the independent Tier-I Food expedition tables at
+    // refs 27-31. Freeze the predecessor protocol before the Wood rollout so
+    // v7 row and schema preservation are independently observable.
+    await publish(server, owner.token, additiveV7SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV7SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV7SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV7SchemaFixture, resourceLifecycleDatabase);
+    const emptyV7 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV7 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV7 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV7Schema(emptyV6, emptyV7);
+    assertAdditiveV7Schema(nonemptyV6, nonemptyV7);
+    assertAdditiveV7Schema(actualModuleV6, actualModuleV7);
+    for (const name of deployedV7Tables) {
+      assert.deepEqual(
+        tableSignature(actualModuleV7, name),
+        tableSignature(emptyV7, name),
+      );
+    }
+    for (const table of [
+      ...additiveV4Tables,
+      ...additiveV5Tables,
+      ...additiveV6Tables,
+      ...additiveV7Tables,
+    ]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
+
+    const emptyV7Rows = await tableRowDigests(
+      server,
+      owner.token,
+      emptyDatabase,
+      deployedV7Tables,
+    );
+    const nonemptyV7Rows = await tableRowDigests(
+      server,
+      owner.token,
+      nonemptyDatabase,
+      deployedV7Tables,
+    );
+    const actualModuleV7Rows = await tableRowDigests(
+      server,
+      owner.token,
+      actualModuleDatabase,
+      deployedV7Tables,
+    );
+
+    // Protocol-v8 appends the independent Tier-I Wood expedition tables at
+    // refs 32-36. Every prior v7 table must retain both exact type refs and
+    // rows before the real candidate is exercised on populated databases.
+    await publish(server, owner.token, additiveV8SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV8SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV8SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV8SchemaFixture, resourceLifecycleDatabase);
+    const emptyV8 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV8 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV8 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV8Schema(emptyV7, emptyV8);
+    assertAdditiveV8Schema(nonemptyV7, nonemptyV8);
+    assertAdditiveV8Schema(actualModuleV7, actualModuleV8);
+    for (const name of deployedV8Tables) {
+      assert.deepEqual(
+        tableSignature(actualModuleV8, name),
+        tableSignature(emptyV8, name),
+      );
+    }
+    for (const table of [
+      ...additiveV4Tables,
+      ...additiveV5Tables,
+      ...additiveV6Tables,
+      ...additiveV7Tables,
+      ...additiveV8Tables,
+    ]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
+
     await publish(server, owner.token, additiveModule, nonemptyDatabase);
     await publish(server, owner.token, additiveModule, actualModuleDatabase);
     await publish(server, owner.token, additiveModule, resourceLifecycleDatabase);
@@ -1952,27 +2543,33 @@ async function main() {
     const builtArtifactDigest = createHash('sha256')
       .update(await readFile(builtArtifactPath))
       .digest('hex');
-
-    const emptyV4 = await describe(server, owner.token, emptyDatabase);
-    const nonemptyV4 = await describe(server, owner.token, nonemptyDatabase);
-    const actualModuleV4 = await describe(server, owner.token, actualModuleDatabase);
-    assertAdditiveV4Schema(emptyV3, emptyV4);
-    assertAdditiveV4Schema(nonemptyV3, nonemptyV4);
-    assertAdditiveV4Schema(actualModuleV3, actualModuleV4);
-    for (const name of [...deployedV3Tables, ...additiveV4Tables]) {
+    const nonemptyCandidateV8 = await describe(server, owner.token, nonemptyDatabase);
+    const actualCandidateV8 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV8Schema(nonemptyV7, nonemptyCandidateV8);
+    assertAdditiveV8Schema(actualModuleV7, actualCandidateV8);
+    for (const name of deployedV8Tables) {
       assert.deepEqual(
-        tableSignature(actualModuleV4, name),
-        tableSignature(emptyV4, name),
+        tableSignature(actualCandidateV8, name),
+        tableSignature(emptyV8, name),
       );
     }
-    assert.equal(await count(
-      server,
-      owner.token,
-      emptyDatabase,
-      'resource_account_v1',
-    ), 0n);
+    // The real module rejects the disposable CLI identity at on-connect. Swap
+    // only the two inspected databases to the table-identical v8 fixture
+    // before reading the preservation digests; no reducer is invoked here.
+    await publish(server, owner.token, additiveV8SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV8SchemaFixture, actualModuleDatabase);
+    for (const [database, beforeRows] of [
+      [emptyDatabase, emptyV7Rows],
+      [nonemptyDatabase, nonemptyV7Rows],
+      [actualModuleDatabase, actualModuleV7Rows],
+    ]) {
+      assert.deepEqual(
+        await tableRowDigests(server, owner.token, database, deployedV7Tables),
+        beforeRows,
+      );
+    }
 
-    const idempotentSchemaBefore = schemaDigest(nonemptyV4);
+    const idempotentSchemaBefore = schemaDigest(nonemptyCandidateV8);
     await publishBuiltArtifact(
       server,
       owner.token,
@@ -1985,10 +2582,10 @@ async function main() {
     );
 
     // The actual module correctly rejects the disposable local identity at its
-    // on-connect boundary. Re-publish the table-identical v4 schema fixture
+    // on-connect boundary. Re-publish the table-identical v8 schema fixture
     // before querying preservation; this changes no table or row.
-    await publish(server, owner.token, additiveV4SchemaFixture, nonemptyDatabase);
-    await publish(server, owner.token, additiveV4SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV8SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV8SchemaFixture, actualModuleDatabase);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 0n);
@@ -2004,7 +2601,15 @@ async function main() {
         await tableRowDigests(server, owner.token, database, deployedV3Tables),
         beforeRows,
       );
-      assert.equal(await count(server, owner.token, database, 'resource_account_v1'), 0n);
+      for (const table of [
+        ...additiveV4Tables,
+        ...additiveV5Tables,
+        ...additiveV6Tables,
+        ...additiveV7Tables,
+        ...additiveV8Tables,
+      ]) {
+        assert.equal(await count(server, owner.token, database, table), 0n);
+      }
     }
     assert.equal(outputDigest(await sql(
       server,
@@ -2040,8 +2645,16 @@ async function main() {
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
-    const populatedV4SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
+    for (const table of [
+      ...additiveV4Tables,
+      ...additiveV5Tables,
+      ...additiveV6Tables,
+      ...additiveV7Tables,
+      ...additiveV8Tables,
+    ]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
+    const populatedV8SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
 
     const { identity: secondIdentity } = await acquireDisposableIdentity(server);
     await sql(
@@ -2072,11 +2685,19 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV4SchemaDigest,
+      populatedV8SchemaDigest,
     );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
+    for (const table of [
+      ...additiveV4Tables,
+      ...additiveV5Tables,
+      ...additiveV6Tables,
+      ...additiveV7Tables,
+      ...additiveV8Tables,
+    ]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
     await publish(
       server,
       owner.token,
@@ -2087,32 +2708,105 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV4SchemaDigest,
+      populatedV8SchemaDigest,
     );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
-    await publish(server, owner.token, additiveV4SchemaFixture, emptyDatabase);
+    for (const table of [
+      ...additiveV4Tables,
+      ...additiveV5Tables,
+      ...additiveV6Tables,
+      ...additiveV7Tables,
+      ...additiveV8Tables,
+    ]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
+    await publish(
+      server,
+      owner.token,
+      additiveV4SchemaFixture,
+      emptyDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, emptyDatabase)),
+      populatedV8SchemaDigest,
+    );
+    await publish(
+      server,
+      owner.token,
+      additiveV5SchemaFixture,
+      emptyDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, emptyDatabase)),
+      populatedV8SchemaDigest,
+    );
+    await publish(
+      server,
+      owner.token,
+      additiveV6SchemaFixture,
+      emptyDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, emptyDatabase)),
+      populatedV8SchemaDigest,
+    );
+    // The immediate v8 -> v7 rollback is refused as well. This is the
+    // protocol boundary that protects the Wood suffix from a stale deploy.
+    await publish(
+      server,
+      owner.token,
+      additiveV7SchemaFixture,
+      emptyDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, emptyDatabase)),
+      populatedV8SchemaDigest,
+    );
+    await publish(server, owner.token, additiveV8SchemaFixture, emptyDatabase);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
+    for (const table of [
+      ...additiveV4Tables,
+      ...additiveV5Tables,
+      ...additiveV6Tables,
+      ...additiveV7Tables,
+      ...additiveV8Tables,
+    ]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
     assert.equal(
       createHash('sha256').update(await readFile(builtArtifactPath)).digest('hex'),
       builtArtifactDigest,
     );
 
     console.log(
-      `Additive protocol-v4 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
+      `Additive protocol-v8 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
       + 'the exact refs 0-18 deployed v3 prefix and every v3 row remained unchanged, '
       + 'private resource_account_v1 appended at exact product type ref 19, '
+      + 'public Gold sites, occupancy, and safe lifecycle schedule projection plus private expedition and idempotency '
+      + 'tables appended at exact refs 20-24, '
+      + 'public canonical shared-forest layout metadata and fixed-point instances appended at exact refs 25-26, '
+      + 'public Tier-I Food sites, identity-minimized occupations, and public-safe lifecycle schedule projection plus private Food expedition and idempotency '
+      + 'tables appended at exact refs 27-31, '
+      + 'public Tier-I Wood sites, identity-minimized occupations, and public-safe lifecycle schedule projection plus private Wood expedition and idempotency '
+      + 'tables appended at exact refs 32-36, '
       + '61-tile empty and synthetic nonempty fixtures remained preserved, '
       + 'exact resolver HTTP lifecycle enforced without mutation, '
       + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `
       + `actual resource authority reducers exercised with ${resourceTimestampFixture} collection, `
       + 'caller bootstrap/terms/identity gates, Marks isolation, atomic founding, '
       + 'and guarded backfill rejection/idempotence held, '
-      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v4, '
-      + `and guarded v3/v2 rollbacks refused before schema change. artifact_sha256=${builtArtifactDigest}`,
+      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v8, '
+      + `and guarded v7/v6/v5/v4/v3/v2 rollbacks refused before schema change. artifact_sha256=${builtArtifactDigest}`,
     );
   } finally {
     disposableCliCredential = null;
@@ -2124,7 +2818,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   main().catch(error => {
     console.error(error instanceof MigrationProofError
       ? error.message
-      : 'Additive protocol-v4 migration proof failed closed.');
+      : 'Additive protocol-v8 migration proof failed closed.');
     process.exitCode = 1;
   });
 }

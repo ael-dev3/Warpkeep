@@ -1,7 +1,7 @@
 # Hegemony Gold Mine inspection art
 
 This record identifies the supplied Gold Mine artwork and the exact transparent
-WebP prepared for the future Gold Mine inspection card. The original attachment,
+WebP prepared for the reviewed Gold Mine inspection card. The original attachment,
 the image-generation edit, and the chroma-matte intermediate remain outside the
 repository; their hashes, dimensions, and the complete bounded transformation
 are retained in [`manifest.json`](manifest.json).
@@ -9,10 +9,11 @@ are retained in [`manifest.json`](manifest.json).
 On 18 July 2026, the Warpkeep project owner instructed PR #49 to polish the
 supplied Gold Mine visual into a transparent high-resolution inspection image
 and prepare the matching card treatment. That authorization covers this exact
-checked-in derivative in the public Warpkeep GitHub repository and official
-`warpkeep.com` Pages runtime. It does not prove underlying ownership, create a
-public open-content licence, or grant general derivative, redistribution,
-trademark, or canonical-identity rights.
+checked-in derivative in the public Warpkeep GitHub repository and an eventual
+official `warpkeep.com` Pages runtime only after separately approved deployment.
+It is use authorization only, not deployment approval; it does not prove
+underlying ownership, create a public open-content licence, or grant general
+derivative, redistribution, trademark, or canonical-identity rights.
 
 ## Runtime output
 
@@ -28,6 +29,7 @@ transparent breathing room around the mine, cart, rails, and rock silhouette.
 
 `GoldMineInspectionPanel` displays this image as decorative, same-origin art
 with a pointer-inert art stage that rises above the card edge. It is deliberately
-not mounted by the current Realm: there are no approved Gold Mine sites, map
-targets, balances, or gathering actions yet. The 2D card does not promote the
-separate 3D review candidates under `runtime-candidates/`.
+mounted only by the reviewed draft integration when a public Gold Mine site is
+selected. It creates no map target, balance, gathering authority, or deployment
+approval. The 2D card does not promote the separate 3D review candidates under
+`runtime-candidates/`.

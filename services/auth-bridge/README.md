@@ -5,17 +5,24 @@ OIDC access JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the
 static browser app: browser code never receives a signing key, admin secret,
 Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
 
-> **Alpha 0.3.8 is live on backend protocol 3; the checked-in default fails
+> **Alpha 0.3.2 is live on backend protocol 3; the checked-in default fails
 > closed.** The v2 access/session and resolver contract described below remains
 > active at its privately recorded production source, deployment,
-> configuration, and canary coordinates. The 10,000-cell Genesis world is live,
-> deliberately admitted founders hold their permanent castles, and
+> configuration, and canary coordinates. The 1,261-cell Genesis world is
+> seeded, deliberately admitted founders hold their permanent castles, and
 > public shared auth and realm entry are enabled. `wrangler.toml` deliberately keeps
 > `PUBLIC_AUTH_ENABLED = "false"`; the recorded production override is true.
 
-Alpha 0.3.8 completed the separately approval-gated 10,000-cell
-generation-three transition. The QA aggregate parser supports only the two exact
-rollout tuples and never infers one from partial counts.
+The checked-in Alpha 0.3.11 candidate is separately approval-gated and remains
+undeployed. It inherits the 10,000-cell generation-three / 2,000
+resource-capable-anchor world target, then stacks a 24-site Tier-I Gold Mine
+wagon candidate, a separate 96-site Tier-I Wheat Farm Food candidate, and a
+separate 96-site Tier-I Logging Camp Wood candidate. It does not attest a module
+publication, world transition, resource backfill, Gold/forest/Food/Wood setup,
+or Pages deployment; Alpha 0.3.8 remains the verified public release. The QA
+aggregate parser supports only the two exact **world** rollout tuples and never
+infers a world stage, Gold/Food/Wood-site state, paired resource-reservation
+state, or economy state from partial counts.
 
 `https://auth.warpkeep.com` is the canonical bridge coordinate, but its
 existence is not evidence that an arbitrary local v2 source is deployed. Every
@@ -118,9 +125,9 @@ database read and can no longer return its former response.
 The `/v1/qa/realm-snapshot` route and `realm.snapshot` scope remain unchanged as
 device-proof compatibility names. They do not authorize or return per-player
 Realm data. The successful Worker response keeps exactly this closed shape.
-During rollout and recovery it accepts either the complete generation-two
-predecessor tuple (`1261 / 1261 / 2 / 20 / 22`) or the complete live
-generation-three tuple shown below; every mixed tuple is rejected:
+During the bounded world rollout it accepts either the complete live
+generation-two tuple (`1261 / 1261 / 2 / 20 / 22`) or the complete candidate
+tuple shown below; every mixed tuple is rejected:
 
 ```text
 {

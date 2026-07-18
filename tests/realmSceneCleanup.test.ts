@@ -65,9 +65,17 @@ import {
   type CreateRealmSceneOptions
 } from '../src/components/realm/createRealmScene';
 import { hexKey } from '../src/game/map/hexCoordinates';
-import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import {
+  createAuthoritativeRealmTerrainSurface,
+  createRealmTerrainSurface
+} from '../src/game/map/realmTerrainSurface';
 import { DEFAULT_REALM_CAMERA_SPEC } from '../src/components/realm/realmCameraController';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
+import {
+  CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+  CANONICAL_GENESIS_FOREST_LAYOUT_V1
+} from '../spacetimedb/src/forestLayoutPolicy';
+import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
 
@@ -111,6 +119,9 @@ function createOptions(
     keepCoord: { q: 0, r: 0 },
     ownCastleId: 1,
     otherCastles: [],
+    // Direct scene tests opt into the retired preview explicitly. Production
+    // player scenes never synthesize a forest while shared rows are absent.
+    allowLegacyForestFallback: true,
     terrainMetadata: surface.playableMap.cells.map((cell) => ({
       tileKey: hexKey(cell.coord),
       terrainKind: 'lowland',
@@ -254,11 +265,96 @@ describe('realm scene setup cleanup', () => {
       semanticFeatureCount: 0,
       semanticFeatureDrawCalls: 0,
       totalDetailInstanceCount: expect.any(Number),
-      totalDetailDrawCalls: expect.any(Number)
+      totalDetailDrawCalls: expect.any(Number),
+      forestPlacementSource: 'legacy-fallback',
+      forestSharedTreeCount: 0
     });
 
     sceneHandle.dispose();
   });
+
+  it('accounts clustered trees as one static semantic batch without adding pick or shadow work', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('forest-telemetry', 4, 4);
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      reducedMotion: true,
+      quality: REALM_QUALITY_SPECS.high,
+      terrainMetadata: surface.playableMap.cells.map((cell) => ({
+        tileKey: hexKey(cell.coord),
+        terrainKind: 'forest',
+        staticContentKind: cell.coord.q === 0 && cell.coord.r === 0
+          ? 'castle-slot'
+          : 'empty'
+      })),
+      onTerrainPresentationTelemetry
+    }));
+    const telemetry = onTerrainPresentationTelemetry.mock.calls.at(-1)?.[0];
+    const renderedScene = webglState.instances.at(-1)?.render.mock.calls.at(-1)?.[0] as THREE.Scene;
+    const fallback = renderedScene.getObjectByName(
+      'realm-hegemony-tree-static-fallback'
+    ) as THREE.InstancedMesh | undefined;
+
+    expect(telemetry).toMatchObject({
+      semanticFeatureCount: expect.any(Number),
+      semanticFeatureDrawCalls: 1,
+      totalDetailDrawCalls: expect.any(Number)
+    });
+    expect(telemetry.semanticFeatureCount).toBeGreaterThan(0);
+    expect(fallback).toBeInstanceOf(THREE.InstancedMesh);
+    expect(fallback?.castShadow).toBe(false);
+    expect(fallback?.receiveShadow).toBe(false);
+    // Interaction only calls castle, Gold, then terrain raycasts; the static
+    // forest layer intentionally exposes no layer raycast target.
+    expect(renderedScene.getObjectByName('realm-hegemony-forest-presentation')).toBeTruthy();
+
+    sceneHandle.dispose();
+  });
+
+  it('keeps all canonical shared trees at every quality under the real static exclusion set', () => {
+    const snapshot = createCanonicalGenesisSnapshot();
+    const surface = createAuthoritativeRealmTerrainSurface(
+      snapshot.realm.numericSeed,
+      snapshot.tiles,
+      snapshot.realm.authoritativeRadius,
+      snapshot.realm.renderRadius
+    );
+    for (const quality of [
+      REALM_QUALITY_SPECS.high,
+      REALM_QUALITY_SPECS.balanced,
+      REALM_QUALITY_SPECS.reduced
+    ]) {
+      const canvas = document.createElement('canvas');
+      const onTerrainPresentationTelemetry = vi.fn();
+      const sceneHandle = createRealmScene(createOptions(canvas, {
+        surface,
+        terrainMetadata: snapshot.tileMetadata,
+        quality,
+        realmId: snapshot.realm.realmId,
+        sharedForestLayout: CANONICAL_GENESIS_FOREST_LAYOUT_V1,
+        sharedForestTrees: CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+        allowLegacyForestFallback: false,
+        onTerrainPresentationTelemetry
+      }));
+      const telemetry = onTerrainPresentationTelemetry.mock.calls.at(-1)?.[0];
+      const renderedScene = webglState.instances.at(-1)?.render.mock.calls.at(-1)?.[0] as THREE.Scene;
+      const fallback = renderedScene.getObjectByName(
+        'realm-hegemony-tree-static-fallback'
+      ) as THREE.InstancedMesh | undefined;
+
+      expect(telemetry).toMatchObject({
+        forestPlacementSource: 'shared',
+        forestSharedTreeCount: 210
+      });
+      expect(fallback).toBeInstanceOf(THREE.InstancedMesh);
+      expect(fallback?.count).toBe(210);
+      expect(fallback?.castShadow).toBe(false);
+      expect(fallback?.receiveShadow).toBe(false);
+
+      sceneHandle.dispose();
+    }
+  }, 15_000);
 
   it('uses a sunlit key with restrained identity fills without adding PBR work', () => {
     const canvas = document.createElement('canvas');

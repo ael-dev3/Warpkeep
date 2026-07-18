@@ -4,43 +4,138 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-## [0.3.8] — 2026-07-18
+## 0.3.11 — candidate (18 July 2026)
 
-- Expands Genesis 001 from 1,261 to exactly 10,000 persistent cells while
-  preserving every original world cell and all 100 close-outward founder
-  sites. Existing castles remain where they were founded.
-- Keeps the founding district visually preferred as the frontier widens. The
-  world is a complete radius-57 disc with 81 balanced ring-58 boundary cells,
-  and rendering work stays within deterministic budgets.
-- Reserves 2,000 dormant resource-capable sites for future use without placing
-  map nodes or granting a new collection entitlement, reward, or mechanic.
-- Brings the private Food, Wood, Stone, and Gold authority prepared in 0.3.7
-  into the live Realm. Balances and terrain-bound settlement remain
-  caller-private and server-owned; peer inventories never join the public
-  world subscription.
-- Keeps Community Marks as separate private accounting with no conversion,
-  transfer, spending, or reward loop.
-- Performs the world transition through an atomic, admin-only exact-state
-  change. Partial or mixed states fail closed, the Realm timestamp is
-  preserved, and an exact-target retry writes nothing.
-- Withholds the Realm until the client has one complete, internally consistent
-  world and player-state snapshot; it never fills missing authority with
-  browser state.
-- Gives the expanded world a bounded 60-second readiness window and starts its
-  public snapshot beside the private resource read, avoiding the former
-  sequential entry bottleneck while keeping both projections mandatory.
-- Keeps a retained public Realm visible during a same-FID reconnect while
-  withholding private balances and collection until authority returns.
-- Allows a completed Farcaster proof exchange a bounded 20-second verification
-  window while challenge, refresh, and logout requests retain their tighter
-  10-second deadline.
-- Restores keyboard focus to the player portrait after Explore closes.
-- Leaves resource nodes, construction, upgrades, units, combat, alliances,
-  trading, chat, seasons, and rewards beyond the current playable boundary.
-  Alpha participation carries no airdrop, guaranteed reward, financial return,
-  or promise of future value.
+- Adds a bounded Tier-I Logging Camp expedition candidate to the reviewed
+  10,000-cell Genesis 001 world. Exactly 96 deterministic, passable forest
+  resource-capable sites are placement-digest pinned; the catalog preserves
+  clearance from Gold Mines, Wheat Farms, the shared forest layout, keeps, and
+  protected travel corridors.
+- Lets an admitted founder dispatch one server-authorized Wood wagon to an
+  available Camp. The server derives the route, timing, current castle,
+  one-Wood-per-completed-minute rate, 30-day gathering window, return, and
+  idempotency; browser time, movement, and model geometry never settle Wood.
+- Keeps Gold, Food, and Wood loops independent: a castle may operate one wagon
+  of each kind at once, while each resource has its own one-wagon limit,
+  private expedition/idempotency state, public identity-minimized occupation
+  lease, and replay-safe schedule lifecycle.
+- Preserves the full Food and Wood awards with paired server-side reservations.
+  Every passive settlement path, manual collection, and concurrent lifecycle
+  schedule caps each field below its uncredited award, so a delayed operation
+  cannot consume, truncate, duplicate, or strand either reward.
+- Adds public Wood-site and identity-minimized occupation projections only;
+  FIDs, balances, request keys, routes, private expeditions, and accrued output
+  stay caller-private.
+- Adds exact High, Balanced, and Compact Logging Camp runtime assets with
+  narrow provenance, strict integrity checks, bounded shared node rendering,
+  and marker fallback. The models are visual-only and do not determine world
+  placement or gameplay authority.
+- Adds a provenance-pinned, transparent high-resolution Logging Camp inspection
+  illustration that rises slightly above the Wood card while remaining
+  decorative and pointer-inert.
+- Alpha 0.3.11 is **not deployed**. Alpha 0.3.6 remains the verified public
+  release. Production requires separately approved additive publication,
+  resource, Gold-site, forest-layout, Food-site, and Wood-site setup,
+  aggregate verification, and exact Pages deployment.
 
-See [Alpha 0.3.8 release notes](docs/releases/alpha-0.3.8.md).
+See [Alpha 0.3.11 candidate notes](docs/releases/alpha-0.3.11.md).
+
+## 0.3.10 — candidate (18 July 2026)
+
+- Adds a bounded Tier-I Wheat Farm expedition candidate to the reviewed
+  10,000-cell Genesis 001 world. Exactly 96 deterministic, passable Lowland
+  and Meadow resource-capable sites are placement-digest pinned; the catalog
+  preserves clearance from Gold Mines, the shared forest, keeps, and protected
+  travel corridors.
+- Lets an admitted founder dispatch one server-authorized Food wagon to an
+  available Farm. The server derives the route, timing, current castle,
+  one-Food-per-completed-minute rate, 30-day gathering window, return, and
+  idempotency; browser time, movement, and model geometry never settle Food.
+- Keeps Food and Gold loops independent: a castle may operate one Food wagon
+  and one Gold wagon at once, while each resource has its own one-wagon limit,
+  private expedition/idempotency state, public occupancy lease, and replay-safe
+  schedule lifecycle.
+- Preserves the full Food award with a server-side reservation that includes
+  raw passive Food through the gathering deadline. Passive collection and
+  concurrent Gold lifecycle settlement cannot consume, truncate, or duplicate
+  the outstanding Food award.
+- Adds public Food-site and identity-minimized occupation projections only; FIDs,
+  balances, request keys, routes, private expeditions, and accrued output stay
+  caller-private.
+- Adds exact High, Balanced, and Compact Wheat Farm runtime assets with narrow
+  provenance, strict integrity checks, a weighted shared Gold/Food render
+  budget, and marker fallback. The models are visual-only and do not determine
+  world placement or gameplay authority.
+- Adds a provenance-pinned, transparent high-resolution Wheat Farm inspection
+  illustration that rises slightly above the Food card while remaining
+  decorative and pointer-inert.
+- Alpha 0.3.10 is **not deployed**. Alpha 0.3.6 remains the verified public
+  release. Production requires separately approved additive publication,
+  Food-site setup, aggregate verification, and exact Pages deployment.
+
+See [Alpha 0.3.10 candidate notes](docs/releases/alpha-0.3.10.md).
+
+## 0.3.9 — candidate (18 July 2026)
+
+- Adds a bounded Genesis 001 Gold Mine expedition pilot on the reviewed
+  10,000-cell candidate world. Exactly 24 deterministic, passable,
+  resource-capable Tier-I sites are selected and pinned by a placement digest.
+- Lets an admitted founder dispatch one server-authorized Hegemony supply wagon
+  to an available site. The server derives the route, timing, current castle,
+  one-Gold-per-minute rate, 30-day gathering window, return, and idempotency;
+  browser time and browser movement never settle it.
+- Exposes public Gold Mine occupancy and originating-castle timelines without
+  exposing FIDs, balances, accrued output, request keys, or private expedition
+  rows. Internal-only arrival, expiry, and return schedules are replay safe.
+- Makes Gold wagon-gathering the only Gold issuance path while Food, Wood, and
+  Stone retain their deterministic ten-minute private terrain rates.
+- Adds integrity-pinned High, Balanced, and Compact Gold Mine and supply-wagon
+  runtime models, bounded model reuse, nearby-only wagon animation, safe marker
+  fallback, and an accessible Gold Mine inspection record.
+- Adds one public, server-seeded forest layout for the preserved Genesis
+  founding Lowlands: 210 fixed visual tree instances across 22
+  provenance-recorded families. Every player receives the same tree identity,
+  species, transform, groves, and clearings; High, Balanced, and Compact
+  settings change only the selected model LOD.
+- Forest presentation is integrity-pinned, lazy, statically batched, and
+  non-interactive. Its additive layout/instance projection is digest-pinned and
+  rejects partial or drifted seed data; live Gold occupation and wagon movement
+  cannot cull or move trees. It does not change the canonical terrain digest,
+  `terrainKind`, passability, collision, movement costs, resource rates,
+  castle slots, Gold-site catalog, ownership, or economy.
+- Alpha 0.3.9 is **not deployed**. Alpha 0.3.6 remains the verified public
+  release. Production requires separately approved additive publication,
+  resource, Gold-site, and forest-layout setup, aggregate verification, and
+  exact Pages deployment.
+
+See [Alpha 0.3.9 candidate notes](docs/releases/alpha-0.3.9.md).
+
+## 0.3.8 — candidate (18 July 2026)
+
+- Expands the undeployed Genesis 001 world definition from 1,261 to exactly
+  10,000 persistent cells while preserving every generation-v2 tile, metadata
+  row, and permanent castle slot.
+- Uses a complete radius-57 disc plus 81 cells arranged as six balanced,
+  contiguous side-centred arcs on ring 58; `authoritativeRadius` is the maximum
+  envelope rather than an implied complete radius-58 disc.
+- Reserves 2,000 resource-capable sites for future placement without creating
+  resource nodes, exposing new markers, or adding a playable node mechanic.
+- Adds one atomic admin-only exact-CAS expansion reducer. Routine world seeding
+  refuses the deployed predecessor, partial/mixed states fail closed, the realm
+  timestamp is preserved, and an exact target retry performs no writes.
+- Adds separate pre-expansion and expanded production gates, an explicit
+  publisher world-stage requirement, a confirmation-only Hermes operator, and
+  a populated loopback migration proof. No production mutation is performed by
+  this candidate.
+- Scales terrain and decoration work with deterministic hard budgets and keeps
+  the established founding district visually preferred as the outer world is
+  added.
+- Retains Alpha 0.3.7's pending private resource authority. Construction,
+  combat, trading, rewards, and financial promises remain unavailable.
+- Alpha 0.3.8 is **not deployed**. Alpha 0.3.6 remains the verified public
+  release.
+
+See [Alpha 0.3.8 candidate notes](docs/releases/alpha-0.3.8.md).
 
 ## 0.3.7 — candidate (18 July 2026)
 
@@ -534,8 +629,7 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.8...HEAD
-[0.3.8]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.6...v0.3.8
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.6...HEAD
 [0.3.6]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...v0.3.4

@@ -112,10 +112,12 @@ their faithful runtime encodings are silently relicensed by their location.
 On 2026-07-18, the Warpkeep project owner supplied a high-resolution Gold Mine
 visual and instructed PR #49 to polish it into a transparent inspection-card
 derivative. That authorization covers this exact checked-in output in the
-public Warpkeep GitHub repository and official `warpkeep.com` Pages runtime,
-but does not establish underlying ownership, a public/open-content licence,
-general derivative or redistribution rights, trademark rights, or authority to
-place a Gold Mine, expose a balance, or activate gathering.
+public Warpkeep GitHub repository and an eventual official `warpkeep.com`
+Pages runtime after separately approved deployment. It is use authorization
+only, not deployment approval, and does not establish underlying ownership, a
+public/open-content licence, general derivative or redistribution rights,
+trademark rights, or authority to place a Gold Mine, expose a balance, or
+activate gathering.
 
 | Intended use | Repository file | Technical record |
 | --- | --- | --- |
@@ -125,8 +127,9 @@ The exact source attachment and image-generation/chroma-matte intermediates are
 not committed. Their hashes, prompt, cleanup parameters, decoded RGBA hash,
 alpha profile, and visible bounds are recorded in the dated [Gold Mine
 inspection-art record](docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/manifest.json).
-The card is currently standalone and unmounted; its decorative image grants no
-resource, currency, reward, entitlement, map-placement, or Gold/Marks authority.
+The reviewed draft integration mounts the card as decorative inspection art
+only; it grants no resource, currency, reward, entitlement, map-placement, or
+Gold/Marks authority. No Pages deployment is authorized by this record.
 
 ## Hegemony Gold Mine review candidates
 
@@ -148,13 +151,222 @@ The supplied `runtime-manifest.json` is 2,191 bytes with SHA-256
 `9bb0bcf28b3b2f073d8f4a9cdbe5c2ad1d41d921668f25172a2105f52fd82dd4`.
 Its High profile is internally consistent. The exact supplied Balanced and
 Compact files have 512×512 and 256×256 WebP atlases but retain
-`materials[0].extras.wk_atlas_size: 1024`; this staging record preserves their
-bytes without correction. A later approved integration needs a separately
-reviewed decision and new immutable output records before moving any candidate
-under `public/`. The dated [Gold Mine record](docs/reference/resources/2026-07-18-hegemony-gold-mine/)
-contains the complete candidate boundary. All three remain
-`LicenseRef-Warpkeep-Provenance-Required` and do not create a live Gold balance,
-currency, reward, entitlement, or link to Community Marks.
+`materials[0].extras.wk_atlas_size: 1024`; this candidate record preserves their
+source bytes without correction. The 2026-07-18 Gold Wagon integration uses a
+separate reviewed runtime-output record below; browser code must never import
+these candidate paths or substitute them for the digest-bearing public outputs.
+The dated [Gold Mine candidate record](docs/reference/resources/2026-07-18-hegemony-gold-mine/)
+preserves the full historical boundary. All three remain
+`LicenseRef-Warpkeep-Provenance-Required` and do not independently create a live
+Gold balance, currency, reward, entitlement, or link to Community Marks.
+
+## Hegemony Gold Mine runtime assets
+
+On 2026-07-18, the Warpkeep project owner instructed the Gold Wagon integration
+to use all available project assets. That authorizes the three exact reviewed
+Gold Mine runtime outputs below in the public Warpkeep GitHub repository and
+an eventual official `warpkeep.com` Pages runtime after separately approved
+deployment. This is use authorization only, not deployment approval. It does
+not establish underlying
+ownership, a separate public/open-content licence, general derivative or
+redistribution rights, trademark rights, or Gold/Marks, site, occupation,
+dispatch, route, reward, or settlement authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Selected/near Gold Mine | `public/models/hegemony/gathering-nodes/gold-mine/hegemony-gold-mine-high-6c3731e0f3381014.glb` | Exact supplied High bytes: 263,528 bytes, SHA-256 `6c3731e0f3381014d661d539c25f67e4f79f894b721d1feac9e275b07b8a6ab3`, 4,233 triangles, three 1024×1024 embedded WebPs. |
+| Nearby Gold Mine | `public/models/hegemony/gathering-nodes/gold-mine/hegemony-gold-mine-balanced-96a467baaf1dfba4.glb` | 154,380 bytes, SHA-256 `96a467baaf1dfba44d9c21e2ceb18348b564e3cdfe7daffb6d6bcd209634af42`, 3,553 triangles, three 512×512 embedded WebPs; only `material.extras.wk_atlas_size` is normalized from 1024 to 512. |
+| Distant Gold Mine | `public/models/hegemony/gathering-nodes/gold-mine/hegemony-gold-mine-compact-d2644366898cf610.glb` | 95,016 bytes, SHA-256 `d2644366898cf610c9824761ff01fb43346d9db92a8a13be0569b3d49557dd6f`, 2,681 triangles, three 256×256 embedded WebPs; only `material.extras.wk_atlas_size` is normalized from 1024 to 256. |
+
+The original candidate GLBs remain unchanged under `docs/reference/` as audit
+evidence. The checked-in output family is verified by
+`node scripts/verify-hegemony-gold-mine-runtime.mjs`; ordinary builds only
+verify it and never fetch or prepare the owner-supplied package. The dated
+[runtime record](docs/reference/resources/2026-07-18-hegemony-gold-mine/runtime/manifest.json)
+pins input/output hashes, the bounded metadata repair, orientation, and the
+visual-only scope boundary.
+
+## Hegemony Wheat Farm runtime assets
+
+On 2026-07-18, the Warpkeep project owner supplied the named Wheat Farm runtime
+delivery and instructed a separate draft PR to add Tier 1 Food nodes. That
+instruction authorizes only the three exact digest-bearing GLBs below in the
+public Warpkeep repository and an eventual official `warpkeep.com` Pages
+runtime after separately approved merge and deployment. It is runtime-use
+authorization only, not approval to merge, deploy, seed a world, or activate
+Food gathering.
+
+The supplied `runtime-manifest.json` is 2,845 bytes with SHA-256
+`04beb96110a84593ebab8e2cd1b8fff59421a1eb498806bed2527dd43607a923` and
+declares the package as project-owned and authored for Warpkeep. That narrow
+delivery record does not establish a separate public/open-content licence,
+general derivative or redistribution rights, trademark rights, or Food
+account, balance, placement, occupancy, route, worker, reward, collection,
+settlement, timing, or SpacetimeDB authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Selected/near Wheat Farm | `public/models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-high-d1437bc1cfe81ee.glb` | Exact supplied High bytes: 1,884,180 bytes, SHA-256 `d1437bc1cfe81eef20cc5106acf849df919e6d4008a3b28d380a3d7194ed4ac7`, 17,860 triangles, 40,320 vertices, vertex colors and no embedded textures. |
+| Nearby Wheat Farm | `public/models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-balanced-bab5cbb18b45b6a5.glb` | Exact supplied Balanced bytes: 1,182,004 bytes, SHA-256 `bab5cbb18b45b6a565e2070d4b3f6ed17916e81f70be72203f704eeb86260403`, 10,906 triangles, 25,310 vertices, vertex colors and no embedded textures. |
+| Distant Wheat Farm | `public/models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-compact-a34bfdafd6b8923c.glb` | Exact supplied Compact bytes: 567,908 bytes, SHA-256 `a34bfdafd6b8923c7cf90071d3ad097858fd59ca8df5cd2e776f44b967e9e3e6`, 5,416 triangles, 12,102 vertices, vertex colors and no embedded textures. |
+
+The source manifest marks these runtime exports as provisional. The draft
+preserves their exact bytes and does not silently represent that delivery as a
+final release. `node scripts/verify-hegemony-wheat-farm-runtime-assets.mjs`
+fails closed on unknown, missing, non-regular, changed, reordered, or
+structurally incompatible LODs; ordinary builds never fetch, rewrite, or serve
+the external delivery package. The dated [Wheat Farm runtime
+record](docs/reference/resources/2026-07-18-hegemony-wheat-farm/runtime/manifest.json)
+pins the source-manifest facts, bounds, orientation, LOD budgets, collision
+guidance, and visual-only scope boundary. This family remains
+`LicenseRef-Warpkeep-Provenance-Required`.
+
+## Hegemony Wheat Farm inspection artwork
+
+On 2026-07-18, the Warpkeep project owner instructed PR #57 to polish the
+supplied Wheat Farm visual into a transparent inspection-card derivative. That
+authorization covers this exact checked-in output in the public Warpkeep GitHub
+repository and an eventual official `warpkeep.com` Pages runtime only after
+separately approved deployment. It is use authorization only, not deployment
+approval, and does not establish underlying ownership, a public/open-content
+licence, general derivative or redistribution rights, trademark rights, or
+authority to place a Food site, expose a balance, or activate gathering.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Decorative Wheat Farm inspection card artwork | `public/images/realm/hegemony-wheat-farm-record.webp` | 1254×1254 transparent WebP, 224,806 bytes, SHA-256 `466c80380a8d23de043731a7c386e78c9b36a2d2e69fa175db4b87efc3f43eb0`; generated from the supplied 1254×1254 reference through the recorded image-edit and hard chroma-matte workflow. |
+
+The exact source attachment and image-generation/chroma-matte intermediates are
+not committed. Their hashes, transformation method, cleanup parameters,
+decoded RGBA hash, alpha profile, and visible bounds are recorded in the dated
+[Wheat Farm inspection-art record](docs/reference/resources/2026-07-18-hegemony-wheat-farm/record-art/manifest.json).
+The reviewed draft integration mounts the card as decorative inspection art
+only; it grants no resource, currency, reward, entitlement, map-placement, or
+Food authority. No Pages deployment is authorized by this record.
+
+## Hegemony Logging Camp inspection artwork
+
+On 2026-07-19, the Warpkeep project owner instructed PR #62 to use the
+supplied high-resolution Logging Camp visual as a transparent inspection-card
+derivative. That authorization covers this exact checked-in output in the
+public Warpkeep GitHub repository and an eventual official `warpkeep.com`
+Pages runtime only after separately approved deployment. It is use authorization
+only, not merge or deployment approval; it does not establish ownership, a
+public/open-content licence, general derivative or redistribution rights, or
+Wood account, balance, placement, occupancy, route, worker, reward, collection,
+settlement, timing, or SpacetimeDB authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Decorative Logging Camp inspection card artwork | `public/images/realm/hegemony-logging-camp-record.webp` | 1254×1254 transparent WebP, 177,622 bytes, SHA-256 `fb9d171e423a7bd4bfcce1e68cd3faecb38b4904bc528f720e4283522fca1293`; prepared from the supplied 1254×1254 RGB preview through the recorded local foreground-matte workflow. |
+
+The exact source attachment and alpha-matte intermediate are not committed.
+Their hashes, transformation method, decoded RGBA hash, alpha profile, and
+visible bounds are recorded in the dated [Logging Camp inspection-art
+record](docs/reference/resources/2026-07-18-hegemony-logging-camp/record-art/manifest.json).
+The reviewed draft integration mounts the card as decorative inspection art
+only; it grants no resource, currency, reward, entitlement, map-placement, or
+Wood authority. No Pages deployment is authorized by this record.
+
+## Hegemony Logging Camp runtime assets
+
+On 2026-07-18, the Warpkeep project owner supplied the named Logging Camp
+runtime delivery and requested a separate Wood-node pull request. That request
+authorizes only the three exact digest-bearing GLBs below for review in this
+public Warpkeep repository. It is runtime-use authorization only, not approval
+to merge, deploy, seed a world, or activate Wood gathering.
+
+The supplied `runtime-manifest.json` is 2,246 bytes with SHA-256
+`0385c4e268445fe6529cb2d3285ee9bdd405f23f6ba8fecc8ccdf0d39a62cec2` and
+declares the package as project-owned and authored for Warpkeep. That narrow
+delivery record does not establish a separate public/open-content licence,
+general derivative or redistribution rights, trademark rights, or Wood account,
+balance, placement, occupancy, route, worker, reward, collection, settlement,
+timing, or SpacetimeDB authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Selected/near Logging Camp | `public/models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-high-a68c133a4a50654b.glb` | Exact supplied High bytes: 689,328 bytes, SHA-256 `a68c133a4a50654bc611de2b66e6d0d42729aaf0b91b59b7d2b7749566826f70`, 5,030 triangles, 10,952 vertices, vertex colors and no embedded textures. |
+| Nearby Logging Camp | `public/models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-balanced-227046f89c4150ee.glb` | Exact supplied Balanced bytes: 460,656 bytes, SHA-256 `227046f89c4150eec5b908cc75e162fa9ad489be123fc941714f9ad294b73593`, 3,318 triangles, 7,312 vertices, vertex colors and no embedded textures. |
+| Distant Logging Camp | `public/models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-compact-ecea536ae18ef3ef.glb` | Exact supplied Compact bytes: 236,252 bytes, SHA-256 `ecea536ae18ef3ef5c6dc5eda158fa33d8e5d3a1e7848478c248a32efac1eccf`, 1,698 triangles, 3,734 vertices, vertex colors and no embedded textures. |
+
+The owner-supplied source directory and editable masters are not committed.
+`WARPKEEP_LOGGING_CAMP_RUNTIME_ROOT=/path/to/Runtime npm run
+prepare:hegemony-logging-camp-runtime` is an audited offline installer only;
+it rejects a changed, incomplete, non-regular, or symbolic source package and
+atomically installs exact source bytes without fetching or transforming them.
+`node scripts/verify-hegemony-logging-camp-runtime-assets.mjs` runs in ordinary
+builds and fails closed on unknown, missing, non-regular, changed, or
+structurally incompatible LODs. The dated [Logging Camp runtime
+record](docs/reference/resources/2026-07-18-hegemony-logging-camp/runtime/manifest.json)
+pins its source-manifest facts, orientation, bounds, LOD budgets, collision
+guidance, and visual-only scope boundary. This family remains
+`LicenseRef-Warpkeep-Provenance-Required`.
+
+## Hegemony Supply Wagon runtime assets
+
+On 2026-07-18, the same project-owner instruction authorizes the exact reviewed
+Hegemony Supply Wagon runtime outputs below in the public Warpkeep GitHub
+repository and an eventual official `warpkeep.com` Pages runtime after
+separately approved deployment. This is use authorization only, not deployment
+approval. The source is the
+checksum-pinned `Warpkeep_Wagon_NoTelescope_GameReady.glb` from the public
+`ael-dev3/Warpkeep-Assets` release; that provenance does not establish
+underlying ownership, a separate public/open-content licence, general
+derivative or redistribution rights, trademark rights, or Gold/Marks, site,
+route, dispatch, balance, settlement, or entitlement authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Selected/near animated wagon | `public/models/hegemony/hegemony-supply-wagon-high-4a0f762b9dadeadd.glb` | Exact selected NoTelescope source bytes: 1,637,452 bytes, SHA-256 `4a0f762b9dadeaddd8b2d528a7e165eaa98a8dd4134eb924604922524e7bbc5d`, 40,650 triangles, 47-joint rig, six clips, 2048/1024/2048 WebP atlases. |
+| Nearby animated wagon | `public/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb` | 752,364 bytes, SHA-256 `af0f8788eaaf9a32e9fd8d17e9ab897a9036d0cc7161a318afa0af3556c6e3b2`, 27,582 triangles, 47-joint rig, six clips, deterministic 512px WebP atlases. |
+| Distant animated wagon | `public/models/hegemony/hegemony-supply-wagon-compact-fefb5105b95d43b4.glb` | 452,676 bytes, SHA-256 `fefb5105b95d43b411571000e8ae3fd78460eaa5f490eaeb63f90e5d84aba6ca`, 16,954 triangles, 47-joint rig, six clips, deterministic 256px WebP atlases. |
+
+The release ZIP is retained only in ignored local cache during manual
+preparation, never served as a runtime CDN. The checked-in output family is
+verified by `node scripts/verify-hegemony-supply-wagon-assets.mjs`; ordinary
+builds never fetch or rewrite it. The dated [Supply Wagon runtime record](docs/reference/factions/hegemony/2026-07-18-hegemony-supply-wagon/manifest.json)
+pins the release, source, toolchain, output hashes, LOD budgets, rendering
+contract, and visual-only scope boundary.
+
+## Hegemony environment tree runtime assets
+
+On 2026-07-18, the Warpkeep project owner supplied
+Warpkeep_Trees_Runtime_Bundle_2026-07-18.zip and instructed a draft PR to
+integrate its trees into natural forest and open-biome presentation. The
+archive is 1,276,509 bytes with SHA-256
+8ff19bb2a9b4c779db0836ea8ab59f8d67abfd282d5b4cce70d48e062874f9e2.
+That instruction authorizes the 66 exact digest-bearing outputs in this public
+Warpkeep GitHub repository and an eventual official warpkeep.com Pages runtime
+after separately approved deployment. It is use authorization only, not merge
+or deployment approval; it does not establish underlying ownership, a
+public/open-content licence, general derivative or redistribution rights,
+trademark rights, or game-authority rights.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Visual-only Hegemony tree family | public/models/hegemony/environment/trees/hegemony-tree-*.glb | 22 distinct tree assets, each with exact High, Balanced, and Compact LODs: 66 files, 4,726,460 bytes, 25,528 total triangles. Every filename carries its SHA-256 prefix and every full hash, input manifest, source bundle record, GLB structure, and LOD count is pinned in the dated runtime manifest. |
+
+The exact source GLBs are copied byte-for-byte; ordinary builds only run
+node scripts/verify-hegemony-tree-runtime-assets.mjs and never fetch,
+unpack, transform, or rewrite the supplied bundle. The
+[Environment Trees record](docs/reference/assets/2026-07-18-hegemony-environment-trees/)
+also records the source-manifest double-sided discrepancy: the 16
+species-library manifests say false, while all supplied GLBs actually have
+an opaque, double-sided material. Preserve the GLB bytes and renderer-facing
+decoded behavior rather than silently editing assets.
+
+The family remains LicenseRef-Warpkeep-Provenance-Required: use-authorized
+only, with no separate public open license asserted. It is decorative
+presentation only. The reviewed public `realm_forest_layout_v1` and
+`realm_forest_instance_v1` projection may store a fixed, digest-pinned Genesis
+visual layout that selects these immutable asset identifiers and transforms;
+that layout is authored and validated independently of GLB geometry. Model
+selection, LOD, deterministic visual variation, and a private terrain-contact
+wrapper must not become a source of authoritative collision, gameplay
+placement, ownership, resources, rewards, pathing, or other game authority.
+Legacy Regular Tree variants have no authorized runtime collision; species
+records retain only their supplied trunk-only guidance.
 
 ## Historical Hegemony Frontier Keep provenance
 

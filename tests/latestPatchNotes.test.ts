@@ -17,42 +17,51 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '18 JUL 2026',
-      title: 'THE REALM GROWS'
+      releasedOn: 'CANDIDATE · 18 JUL 2026',
+      title: 'GENESIS WOOD EXPEDITIONS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /10,000 persistent cells.*original cell.*100 close-outward founder sites.*no castle was moved/i
+      /10,000 persistent cells.*2,000 resource-capable anchors.*twenty-four Gold Mines.*ninety-six Wheat Farms.*preserved founder slots.*shared Lowlands forest layout/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /return to their keep.*explore the Lowlands.*inspect the public identity.*nearby castle owners/i
+      /Ninety-six deterministic Tier-I Logging Camps.*passable forest resource-capable anchors.*placement digest.*Gold\/Food\/forest\/castle\/corridor clearance.*catalog identical for every player/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Food, Wood, Stone, and Gold.*begin at zero.*grow from its terrain.*Realm, not the browser.*Marks.*cannot be spent or earned as rewards/i
+      /Wood dispatch.*site id.*idempotency key.*server derives.*one-Wood-wagon limit.*1 Wood\/minute.*30-day gathering window.*browser never moves a wagon or credits Wood/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /outer frontier.*dormant space.*future resource sites.*no map node.*building.*unit.*combat.*alliance.*trade.*season/i
+      /Gold, Food, and Wood.*separate private expedition loops.*one wagon of each kind.*Public occupation.*site.*phase.*server timeline.*origin castle.*FIDs.*request keys.*routes.*accrued output.*balances stay private/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /sleeping Realm.*more time to wake.*same founder.*reconnects.*Genesis stays in view.*private controls wait safely.*authority to return/i
+      /Food and Wood each reserve.*remaining 30-day award.*passive terrain output.*shared server-side settlement path.*collection.*every lifecycle schedule.*late delivery.*truncating, duplicating, or stranding either award/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /no airdrop.*guaranteed reward.*financial return.*promise of future value/i
+      /Logging Camps.*provenance-pinned High, Balanced, and Compact models.*bounded shared node rendering.*nearby-only wagon presentation.*safe marker fallback.*never supplies placement or gameplay authority/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /provenance-pinned transparent Logging Camp record illustration.*Wood inspection card.*local, pointer-inert decoration.*never supplies map, balance, gathering, or reward authority/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /Community Marks remains a separate private authority.*no conversion.*transfer.*credit.*spending.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /public balances|guaranteed rewards/i
+      /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toMatch(
-      /wider horizon.*founding neighbourhood/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).not.toMatch(
-      /candidate|undeployed/i
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('undeployed candidate');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'additive module publication'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'Released 18 July 2026'
+      'owner-approved resource, Gold-site, forest-layout, Food-site, and Wood-site setup'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'Alpha systems remain experimental and may change'
+      'aggregate verification'
     );
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'exact Pages deployment'
+    );
+    expect(getLatestPatchNotes('0.3.9')?.title).toBe('GENESIS GOLD EXPEDITIONS');
+    expect(getLatestPatchNotes('0.3.8')?.title).toBe('THE REALM GROWS');
     expect(getLatestPatchNotes('0.3.7')?.title).toBe('GENESIS RESOURCE AUTHORITY');
     expect(getLatestPatchNotes('0.3.6')?.title).toBe('REALM READABILITY & STABILITY');
     expect(getLatestPatchNotes('0.3.5')?.title).toBe('GAME-READY CASTLE REFRESH');

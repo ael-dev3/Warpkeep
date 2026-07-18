@@ -3,13 +3,17 @@
 This runbook preserves the Alpha 0.2 and Alpha 0.3.1 recovery records and carries
 their approval boundaries forward to the current protocol-3 realm.
 
-> **Alpha 0.3.8 is live on backend protocol 3.** The additive schema was
+For player-facing release claims, Alpha 0.3.6 remains the verified public
+release. The Alpha 0.3.2 backend coordinates recorded below are historical
+protocol-3 deployment evidence, not a claim that the checked-in Alpha 0.3.11
+candidate has been published, seeded, or deployed.
+
+> **Alpha 0.3.2 is live on backend protocol 3.** The additive schema was
 > published to the existing Maincloud database with deletion prohibited, the
-> deterministic 10,000-cell Genesis world and 100 close-outward castle slots are
-> live, deliberately admitted founders received their permanent castles and
-> private resource accounts, and public shared auth and realm entry are enabled.
-> Exact founder counts and identities remain in the private operational record.
-> These observations are bound to the privately
+> deterministic 1,261-cell Genesis world and 100 close-outward castle slots were
+> seeded, deliberately admitted founders received their permanent castles, and
+> public shared auth and realm entry are enabled. Exact founder counts and identities remain in the
+> private operational record. These observations are bound to the privately
 > recorded deployment and verification coordinates; they do not authorize any
 > later change.
 
@@ -232,6 +236,23 @@ exact 1,261-cell generation-two predecessor remains; use `expanded` only after
 the separately approved 10,000-cell transition passes its independent
 checkpoint. The publisher never infers one lifecycle from the other.
 
+These v4 resource/world flags do not describe or attest the Alpha 0.3.10 Gold
+loop. They do not prove that refs 20–24 are present, that the canonical
+24-site catalog is installed, or that any public occupation/private expedition
+state is valid. They must never be treated as a Gold-site seed approval.
+
+They also do not attest the v6 forest suffix or the Alpha 0.3.10 Food v7
+suffix. In particular, they do not prove that refs 27–31 are present, that the
+96-site Wheat Farm policy/digest is installed, that an occupation is valid, or
+that the raw passive-Food reservation survived a delayed schedule. They must
+never be treated as a Food-site seed or deployment approval.
+
+They also do not attest the Alpha 0.3.11 Wood v8 suffix. They do not prove that
+refs 32–36 are present, that the 96-site Logging Camp policy/digest is
+installed, that a Wood occupation is valid, or that paired Food/Wood reservations
+survived a delayed lifecycle or concurrent settlement. They must never be
+treated as a Wood-site seed or deployment approval.
+
 The wrapper supplies the Hermes credential only in parent memory. The publisher
 passes it to the protected inspection child over stdin and forwards neither the
 secret nor the three expected counts in child arguments or environment. It
@@ -277,23 +298,22 @@ For the historical v2 checkpoint, the exact module contract was:
   `warpkeep-auth-epoch-resolver`, bound by exact `resolver_fid` to the one
   procedure argument; the module rejects windows over 60 seconds.
 
-The current production state is expanded. Every later republish must retain
-backend protocol `3`, the exact 10,000-cell generation-three aggregate, every
-inherited table reference and appended visibility contract, and the exact
-founded/resource-ready state. The 1,261-cell generation-two contract remains
-only a predecessor and recovery boundary.
+While production remains at the pre-expansion stage, a current republish must
+retain backend protocol `3`, the complete 1,261-cell generation-two world,
+every inherited table reference and appended visibility contract, and the exact
+founded-state aggregate. After a separately approved expansion, every later
+republish must instead retain the exact 10,000-cell generation-three aggregate.
 The publisher requires that world stage explicitly and repeats the matching
 aggregate after a successful publish. If this post-publish read fails, the
 outcome is indeterminate: stop and establish state through a fresh read-only
 inspection before making any further publication decision.
 
-### Completed Alpha 0.3.8 resource-module rollout record
+### Prepared resource-module checkpoint (not approved)
 
-Alpha 0.3.8 published the additive resource table and procedure, then backfilled
-founders under a second approval. Those completed approvals are not reusable:
-any future publication or resource mutation requires fresh, explicit owner
-approval. The procedure below is retained as rollout and recovery evidence, not
-as authority to replay a production mutation.
+Publishing the additive resource table and procedure is a new production
+mutation and requires fresh, explicit owner approval. The resource backfill is
+a second mutation and requires its own later approval; module-publication
+approval must never be treated as backfill approval.
 
 Before an approved resource-module publish, keep using the exact founded
 protocol-v3 checkpoint above. `admin_get_alpha_status_v4` does not exist before
@@ -337,9 +357,9 @@ the world transition is independently verified. A dry run performs only
 the bounded issuer check plus local CLI/artifact/migration/expectation proof;
 it does not publish, invoke the post-publish v4 procedure, or backfill rows.
 
-The separately approved durable backfill named the immutable database identity
-explicitly. The human-readable database name and an omitted database value are
-rejected before Hermes requests a token:
+The separately approved durable backfill must also name the immutable database
+identity explicitly. The human-readable database name and an omitted database
+value are rejected before Hermes requests a token:
 
 ```sh
 WARPKEEP_SPACETIMEDB_DATABASE=c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e \
@@ -351,11 +371,11 @@ the Hermes credential; the command line carries no secret. Publication approval
 does not authorize this backfill, and backfill approval does not authorize a
 later republish.
 
-### Completed Alpha 0.3.8 generation-three rollout record
+### Prepared generation-three world transition (not approved)
 
-Publishing the reducer did not authorize the persistent world mutation. After
-the additive module existed and a fresh read-only checkpoint proved the exact
-1,261-cell generation-two founded state, the separately approved operator was:
+Publishing the reducer does not authorize the persistent world mutation. After
+the additive module exists and a fresh read-only checkpoint proves the exact
+1,261-cell generation-two founded state, the separately approved operator is:
 
 ```sh
 WARPKEEP_SPACETIMEDB_DATABASE=<immutable-production-database-identity> \
@@ -376,18 +396,21 @@ account counts and policy fields unchanged across the world transaction.
 
 An exact target retry exists at the reducer layer only for recovery proof. The
 guarded operator deliberately refuses to invoke it when the read-only
-precondition already reports generation three. Module publication, resource
-backfill, world expansion, and Pages deployment are four separate approval
-boundaries.
+precondition already reports generation three. At this v4 preparation point,
+module publication, resource backfill, world expansion, and Pages deployment
+are four separate approval boundaries. The later Alpha 0.3.10 Gold-site setup is
+an additional, independent boundary; the later Alpha 0.3.11 Wood-site setup is
+another independent boundary.
 
-### Completed Alpha 0.3.8 post-backfill readiness record
+### Prepared post-backfill resource readiness checkpoint (not approval)
 
-After the separately approved resource backfill returned, the rollout did not
-rely on the mutation command's result as its only evidence. The private Keychain
-wrapper supplied the Hermes credential in memory and ran this independent,
-read-only checkpoint with the separately reviewed current counts:
+After a separately approved resource backfill returns, do not rely on the
+mutation command's result as the only evidence. The private Keychain wrapper
+must supply the Hermes credential in memory and run this independent, read-only
+checkpoint with the separately reviewed current counts:
 
-The final Alpha 0.3.8 combined-release checkpoint is:
+The v4 resource/world checkpoint that must precede—but cannot stand in for—any
+Alpha 0.3.10 Gold-loop operation is:
 
 ```sh
 npm run verify:alpha-production -- \
@@ -399,12 +422,13 @@ npm run verify:alpha-production -- \
   --expected-terms-acceptance-count=T
 ```
 
-The immediate post-backfill predecessor-world read used
-`--require-genesis-v3-founded-aggregate`. After expansion, the final checkpoint
-used `--require-genesis-generation-v3-founded-aggregate`. Never claim final
-release readiness from a predecessor-world resource check.
+If resource backfill is approved and performed before the separate world
+transition, use `--require-genesis-v3-founded-aggregate` for that immediate
+post-backfill read. After expansion, rerun the v4 resource/world checkpoint
+above with `--require-genesis-generation-v3-founded-aggregate`. Never claim
+Alpha 0.3.10 candidate readiness from a predecessor-world resource check.
 
-The v4 flag is invalid without the founded protocol-v3 gate and all three
+The new v4 flag is invalid without the founded protocol-v3 gate and all three
 explicit expectations. The verifier constructs and validates one exact
 four-variable child environment, then reuses the same bounded child options for
 both `inspect-alpha-v3 --json` and `inspect-alpha-v4 --json`. Both inspections
@@ -428,6 +452,102 @@ fields fail closed, and child output is never mirrored. A failure leaves the
 post-backfill outcome indeterminate: stop all further mutations and establish
 state through a fresh bounded read-only inspection. Do not retry the backfill
 on the assumption that it failed.
+
+### Prepared Alpha 0.3.10 Gold Mine candidate checkpoint (not approved)
+
+Alpha 0.3.10 inherits the separately approval-gated 10,000-cell generation-three
+world definition and its 2,000 resource-capable anchors. It adds an append-only
+v5 Gold Mine wagon candidate: exactly 24 digest-pinned, passable Tier-I sites;
+identity-minimized public site/occupation projections; and private
+FID/idempotency/settlement authority. Food, Wood, and Stone retain the private
+terrain policy; Gold can be credited only for completed server-derived wagon
+minutes at the reviewed one-Gold-per-minute rate during the bounded 30-day
+gathering phase.
+
+This runbook deliberately supplies no Gold publication or seed command. Before
+any owner considers a production operation, a separately reviewed update must
+define an exact read-only v5 aggregate contract covering the append-only schema,
+resource-account preservation, 24-site policy and placement digest, zero or
+valid occupation state, and private expedition invariants without returning
+FIDs or balances. It must then require distinct explicit approvals for the
+additive module publication, any resource backfill, world transition, Gold-site
+setup, Pages deployment, and live verification. A review, local migration
+proof, merge, or successful v4 checkpoint is not authority for any of those
+mutations.
+
+### Prepared Alpha 0.3.10 Wheat Farm candidate checkpoint (not approved)
+
+Alpha 0.3.10 adds an append-only v7 Food suffix after the Gold and forest
+tables: public `food_site_v1` and identity-minimized
+`food_node_occupation_v1` at refs 27–28; private FID-bound
+`food_expedition_v1` and retry receipt at refs 29–30; and the public-safe,
+internal-scheduler-only `food_expedition_schedule_v_1` at ref 31. It uses the
+reviewed `genesis-001-tier1-food-sites-v1` catalog of exactly 96 fixed Tier-I
+Wheat Farms. The digest-pinned policy accepts only passable lowland/meadow
+resource-capable cells and excludes the Gold catalog, forest clearance, castle
+clearance, and protected-corridor clearance.
+
+The server derives owner, castle, route, timestamps, capacity, rate, phase, and
+every lifecycle transition. A Food wagon credits exactly one Food per completed
+server minute during its 30-day gathering phase. Food and Gold use separate
+per-castle wagon limits, so one of each may coexist, but neither the browser nor
+the delivered Wheat Farm GLBs own authority. Because Food also passively
+accrues, Food dispatch must preflight raw passive Food through the gathering
+deadline plus the full award. The v8 candidate preserves that remaining Food
+award alongside the Wood award through one paired reservation across resource
+reads/collection, either resource's collection/expiry, and concurrent Gold
+expiry; late scheduler delivery may neither truncate nor duplicate Food.
+
+This runbook deliberately supplies no v7 publication or Food-site seed command.
+Before any owner considers a production operation, a separately reviewed,
+identity-safe read-only aggregate contract must cover refs 27–31, the exact
+96-site policy/version/digest, public occupation, private expedition/retry
+state, and the Food reservation invariant. It must require independent explicit
+approval for module publication, Food-site setup, Pages deployment, and live
+verification. A Wheat Farm asset delivery, local migration proof, Gold/forest
+setup, review, merge, or successful v4 checkpoint authorizes none of them. Do
+not change DNS, remove the custom domain, or alter Pages configuration as part
+of this candidate without separate explicit authority.
+
+### Prepared Alpha 0.3.11 Logging Camp candidate checkpoint (not approved)
+
+Alpha 0.3.11 adds the append-only v8 Wood suffix after Gold, forest, and Food:
+public `wood_site_v1` and identity-minimized `wood_node_occupation_v1` at refs
+32–33; private FID-bound `wood_expedition_v1` and retry receipt at refs 34–35;
+and public-safe, internal-scheduler-only `wood_expedition_schedule_v_1` at ref
+36. Its reviewed `genesis-001-tier1-wood-sites-v1` catalog fixes exactly 96
+Tier-I Logging Camps with digest
+`c1b069db716a32363dc7528d544bf7e5a0c97afa0c8e3df5c712607d18da02c5`.
+The policy accepts only passable Forest resource-capable cells and excludes
+Gold/Food catalogs, forest clearance, castle clearance, and protected-corridor
+clearance.
+
+The server derives owner, castle, route, timestamps, capacity, rate, phase, and
+every lifecycle transition. A Wood wagon credits exactly one Wood per completed
+server minute during its 30-day gathering phase. Wood, Food, and Gold have
+separate per-castle wagon limits, so one of each may coexist, but neither the
+browser nor delivered Logging Camp GLBs own authority. Wood dispatch preflights
+raw passive Wood through its gathering deadline plus the full award. The paired
+Food/Wood reservation must survive resource reads/collection, Food or Wood
+collection/expiry, and concurrent Gold expiry; late scheduler delivery may
+neither truncate nor duplicate either resource award.
+
+This runbook deliberately supplies no v8 publication or Wood-site seed command.
+Before any owner considers a production operation, a separately reviewed,
+identity-safe read-only aggregate contract must cover refs 32–36, the exact
+96-site policy/version/digest, public occupation, private expedition/retry state,
+and paired Food/Wood reservation invariants. It must require independent explicit
+approval for module publication, Wood-site setup, Pages deployment, and live
+verification. A Logging Camp asset delivery, local migration proof, Gold/Food/
+forest setup, review, merge, or successful v4 checkpoint authorizes none of
+them. Do not change DNS, remove the custom domain, or alter Pages configuration
+as part of this candidate without separate explicit authority.
+
+The loopback additive-migration proof is limited to v8 schema/table order,
+public/private shapes, predecessor-row preservation, and rollback safety. It
+does not seed, dispatch, or settle Food/Wood expeditions. Focused authority,
+policy, and reducer-contract tests—not that migration proof—cover paired
+Food/Wood reservations and concurrent Gold settlement.
 
 `admin_get_fid_auth_epoch` remains admin-only rollback compatibility. Do not
 configure new v2 issuance or refresh to use it.

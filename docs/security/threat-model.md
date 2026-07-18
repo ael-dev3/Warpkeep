@@ -1,13 +1,12 @@
-# Warpkeep threat model — historical baseline and active Alpha 0.3.8 boundary
+# Warpkeep threat model — historical baseline and active Alpha 0.3.2 boundary
 
-Status: the Alpha 0.2, Alpha 0.3.1, and Alpha 0.3.2 evidence remains historical.
-Alpha 0.3.8 is live on backend protocol 3 at its separately recorded production
-coordinates: the deterministic 10,000-cell Genesis world and 100 close-outward
-slots are live, deliberately admitted founders hold permanent castles, and
-Worker auth plus shared-alpha realm entry are enabled. Caller-private resource
-accounts are backfilled for the complete founding graph. Exact founder counts,
-identities, and balances remain private. This is not an OWASP ASVS certification
-or a penetration-test attestation.
+Status: the Alpha 0.2 and Alpha 0.3.1 evidence remains historical. Alpha 0.3.2
+is live on backend protocol 3 at its separately recorded production
+coordinates: the deterministic 1,261-cell Genesis world and 100 close-outward
+slots are seeded, deliberately admitted founders hold permanent castles, and
+Worker auth plus shared-alpha realm entry are enabled. Exact founder counts and
+identities remain private. This is not an OWASP ASVS certification or a
+penetration-test attestation.
 
 ## Scope and revision
 
@@ -31,7 +30,7 @@ deployment, configuration, aggregate, and owner-canary coordinates. It does not
 make an arbitrary checkout or later deployment trusted, and every future
 activation must repeat the fail-closed gates.
 
-## Deployed Alpha 0.3.8 status and continuing authority boundary
+## Deployed Alpha 0.3.2 status and continuing authority boundary
 
 The deployed protocol-3 target retains exact `auth_version: 2`, positive auth
 epochs, tokenless pending sessions, a `__Host-` session cookie, server-side
@@ -42,7 +41,7 @@ and issues only the verified FID. SpacetimeDB freezes the deployed public
 `player_v2` plus private
 `player_ownership_v2`. Worker `PUBLIC_AUTH_ENABLED` and frontend
 `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` are true only at the recorded enabled
-Alpha 0.3.8 production coordinates; the checked-in Worker default remains
+Alpha 0.3.2 production coordinates; the checked-in Worker default remains
 false so a normal redeploy fails closed.
 
 The repository includes a pinned SpacetimeDB 2.6.1 loopback rehearsal proving
@@ -62,21 +61,96 @@ completed the additive protocol-3 publication, deterministic seed, deliberate
 founding actions, and enabled shared-realm verification. Historical Alpha 0.2
 or Alpha 0.3.1 evidence is not proof of the current protocol-3 coordinates.
 
-## Deployed Alpha 0.3.8 resource and world boundary
+## Undeployed Alpha 0.3.10 Gold precursor boundary
 
-Alpha 0.3.8 adds one private resource table and used an admin-only exact-state
-transition from the complete 1,261-cell generation-two world to the exact
-10,000-cell generation-three target. The checkout alone is not deployed
-authority.
-Routine seeding refuses the predecessor, the transition verifies the complete
-static and founding graphs plus an exact pre-backfill or ready resource state,
-and partial, mixed, duplicate, or altered state fails before mutation. Module
-publication and world expansion used separate owner approvals. The guarded
-operator requires the immutable database identity, an explicit command-line
+The checkout's Alpha 0.3.10 candidate inherits the exact 10,000-cell
+generation-three definition and 2,000 resource-capable anchors, then appends
+the private resource account at ref 19 and five Gold-expedition tables at refs
+20–24. A digest-pinned policy selects exactly 24 passable Tier-I Gold Mine
+sites; the public catalog and occupancy projection disclose only site/castle
+presentation and lifecycle timing, while FIDs, request keys, routes, accrual,
+and balances remain private. The browser can submit only a site id and bounded
+idempotency key. The server derives admission, Terms acceptance, castle,
+canonical route, one-wagon limit, timing, and the one-Gold-per-completed-minute
+rate for a maximum 30-day gathering phase.
+
+This source is not deployed authority. The 10,000-cell transition remains an
+admin-only exact-state operation: routine seeding refuses the predecessor, the
+transition verifies the complete static and founding graphs plus an exact
+pre-backfill or ready resource state, and partial, mixed, duplicate, or altered
+state fails before mutation. Module publication, resource backfill, world
+transition, Gold-site setup, and Pages deployment are separate owner approvals.
+The current v4 resource aggregate is not evidence of v5 Gold-site or expedition
+state. The guarded operator requires an immutable database identity, explicit
 confirmation, a fresh counts-only precondition, unchanged private dynamic
 counts, and a postcondition with exactly one new audit row. A timeout or failed
 postcondition is indeterminate and permits only bounded read-only inspection,
-not a blind retry.
+not a blind retry. Alpha 0.3.6 remains the verified public release.
+
+## Undeployed Alpha 0.3.10 Food precursor boundary
+
+The checked-in Alpha 0.3.10 candidate appends five independent Food tables at
+refs 27–31 after the v5 Gold and v6 forest suffixes: public `food_site_v1`,
+public identity-minimized `food_node_occupation_v1`, private
+`food_expedition_v1`, private `food_expedition_idempotency_v1`, and the
+public-safe `food_expedition_schedule_v_1`. The schedule's reducer is
+internal-only; it is not a browser gameplay surface. The public rows contain
+only a reviewed site, public origin castle, phase, and server-derived timing.
+FIDs, retry keys, routes, accrued/credited Food, and account balances remain
+private.
+
+The immutable Food policy selects exactly 96 Tier-I Wheat Farms from passable
+Lowland/Meadow `resource-capable` cells, pins the result by version and digest,
+and excludes the Gold catalog, forest transforms plus their clearance,
+permanent-castle clearance, and protected-corridor clearance. The browser
+submits at most a canonical Food site ID and a bounded idempotency key. The
+module derives caller admission, Terms, owner castle, route, timing, occupancy,
+capacity, rate, and lifecycle. Each Food wagon earns exactly one Food per
+completed server minute during a maximum 30-day gathering phase. A castle may
+run one Food and one Gold wagon at the same time, but the browser controls
+neither resource's authority.
+
+Food's passive terrain yield makes capacity safety stricter than Gold's. Food
+dispatch reserves raw, uncapped passive Food through the fixed deadline plus the
+full wagon award. In the v8 candidate, Food's remaining award is retained with
+the Wood award by one paired reservation adapter across resource reads, Food/Wood
+collection or expiry, general resource collection, and concurrent Gold expiry.
+Delayed lifecycle delivery cannot truncate a valid Food award or duplicate a
+completed minute. An exact phase/timestamp/idempotency/settlement cursor check
+still gates every transition. This is candidate-only source: a Wheat Farm GLB,
+review, test, local migration proof, or merge authorizes neither v7 publication
+nor Food-site seeding, deployment, DNS change, or enablement.
+
+## Undeployed Alpha 0.3.11 Wood extension boundary
+
+The checked-in Alpha 0.3.11 candidate appends five independent Wood tables at
+refs 32–36 after the v5 Gold, v6 forest, and v7 Food suffixes: public
+`wood_site_v1`, public identity-minimized `wood_node_occupation_v1`, private
+`wood_expedition_v1`, private `wood_expedition_idempotency_v1`, and public-safe
+`wood_expedition_schedule_v_1`. The schedule reducer is internal-only and the
+browser does not subscribe to its projection. Public rows contain only a
+reviewed site, public origin castle, phase, and server-derived timing; FIDs,
+retry keys, routes, accrued/credited Wood, and account balances remain private.
+
+The immutable Wood policy selects exactly 96 Tier-I Logging Camps from passable
+Forest `resource-capable` cells, pins the catalog by policy version and digest,
+and excludes Gold/Food catalogs, forest transforms plus their clearance,
+permanent-castle clearance, and protected-corridor clearance. The browser
+supplies at most a canonical Wood site ID and bounded idempotency key. The module
+derives admission, Terms, owner castle, route, timing, occupancy, capacity, rate,
+and lifecycle. Each Wood wagon earns exactly one Wood per completed server
+minute during a maximum 30-day gathering phase. A castle may run one Wood, one
+Food, and one Gold wagon simultaneously, but the browser controls none of their
+authority.
+
+Wood has passive terrain yield like Food. Wood dispatch therefore preflights raw,
+uncapped passive Wood through the deadline plus its full 43,200-Wood award. The
+private settlement adapter derives Food and Wood reservations together, ensuring
+that resource reads, either resource's collection/expiry, general collection,
+and Gold expiry cannot consume the other award's capacity. Delayed schedules
+cannot truncate a valid award or double-credit a completed minute. A Logging
+Camp GLB, review, local migration proof, or merge authorizes neither v8
+publication nor Wood-site seeding, deployment, DNS change, or enablement.
 
 ## System and data flow
 
@@ -134,6 +208,12 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | SpacetimeDB identity and claims | Exact issuer, audience, token type, subject, role, FID, epoch, and time validation. |
 | Private whitelist, player-ownership binding, and admin audit data | Server-only confidentiality and authorized mutation; opaque OIDC identity must not enter public subscriptions. |
 | Persistent player, castle, and world state | Transactional integrity and module-authoritative ownership. |
+| Private resource accounts and Gold/Food/Wood expeditions | Caller-scoped authoritative balances, routes, idempotency receipts, accrual cursors, paired reservations, and ownership; never a public inventory projection. |
+| Public Gold-site catalog and occupation | Canonical 24-site placement and identity-minimized occupied/available presentation; no FID, request key, balance, or accrued output. |
+| Public Food-site catalog and occupation | Canonical 96-site Wheat Farm placement and identity-minimized occupied/available presentation; no FID, request key, balance, accrued Food, or route. |
+| Public Wood-site catalog and occupation | Canonical 96-site Logging Camp placement and identity-minimized occupied/available presentation; no FID, request key, balance, accrued Wood, or route. |
+| Wheat Farm runtime GLBs | Exact hash/length verification and provenance-required visual-only scope; the GLBs never create authoritative placement, collision, route, economy, scheduler, deployment, or licensing authority. |
+| Logging Camp runtime GLBs | Exact hash/length verification and provenance-required visual-only scope; the GLBs never create authoritative placement, collision, route, economy, scheduler, deployment, or licensing authority. |
 | Minimum browser identity state | No bearer/family secret persistence; strict parsing, expiry, logout propagation, and minimum data. |
 | GitHub deployment authority | Least privilege, immutable workflow dependencies, reviewed artifact provenance. |
 | Pages custom domain | HTTPS integrity, canonical redirects, and controlled deployment. |
@@ -269,6 +349,78 @@ creation, and world state. Anonymous visitors do not open a database connection.
   and matching private `player_ownership_v2` row. Public-only, ownership-only, or
   mismatched state fails closed.
 
+### Alpha 0.3.10 predecessor resource and Gold authority
+
+- Food, Wood, and Stone use the existing private server-time terrain policy.
+  Terrain Gold yield is zero: Tier-I Gold may be credited only from completed
+  server-derived wagon-gathering minutes.
+- The public `gold_site_v1` and `gold_node_occupation_v1` projections are
+  identity-minimized. The browser does not subscribe to private expedition,
+  idempotency, or resource-account rows, and the schedule projection is not a
+  gameplay subscription surface.
+- Dispatch validates the current private admission/Terms/castle/account graph,
+  canonical site and passable route, occupancy, per-castle wagon limit, and
+  account capacity in one transaction. Client time, route, rate, phase, reward,
+  balance, and ownership input is ignored because it is never accepted.
+- Arrival, expiry, and return are one-shot internal schedules. Replay, stale,
+  or out-of-order delivery is bounded by persisted phase/timestamp matching and
+  the private settlement cursor, so it cannot create another lease or credit a
+  completed minute twice.
+- The Gold Mine catalog is installed only by a separately approved Hermes-only
+  operation. It verifies the exact 24-site policy and rejects missing,
+  duplicate, noncanonical, impassable, or drifted rows rather than repairing
+  them. No local source, test, review, or merge authorizes that operation.
+
+### Alpha 0.3.10 predecessor Food authority
+
+- The append-only v7 Food tables are public only where map presentation needs
+  them: canonical site/occupation rows reveal no FID, retry key, route, balance,
+  accrued Food, or private schedule target. The Food scheduler projection has
+  already-public timing only, and its reducer rejects every non-internal sender.
+- A Food dispatch checks the private admission/Terms/castle/account graph,
+  canonical site, passable route, vacancy, Food-specific one-wagon limit, and
+  the full raw passive-Food plus 30-day award capacity reservation in one
+  transaction. Client clock, route, rate, phase, reward, balance, and owner
+  input are neither accepted nor authoritative.
+- Each active Food wagon reserves its uncredited award. In the v8 candidate,
+  resource-state reads, explicit Food/Wood collection, general resource
+  collection, either resource's expiry/return, and Gold expiry use paired Food/
+  Wood reservations before passive settlement. This preserves either award
+  through delayed scheduling without letting an attacker or a race consume
+  capacity, truncate output, or double-credit a completed minute.
+- The Food catalog is installed only by a separately approved Hermes-only
+  operation. It must verify the exact 96-site policy/version/digest and reject
+  missing, duplicate, noncanonical, impassable, overlapped, or drifted rows;
+  it never repairs or derives the catalog from rendered GLBs. No local source,
+  test, review, asset delivery, or merge authorizes that operation.
+
+### Alpha 0.3.11 candidate Wood authority
+
+- The append-only v8 Wood tables are public only where map presentation needs
+  them: canonical site/occupation rows reveal no FID, retry key, route, balance,
+  accrued Wood, or private schedule target. The schedule has already-public
+  timing only and its reducer rejects every non-internal sender.
+- Wood dispatch validates the private admission/Terms/castle/account graph,
+  canonical Forest site, passable route, vacancy, Wood-specific one-wagon limit,
+  and the full raw passive-Wood plus 30-day award reservation in one transaction.
+  Client clock, route, rate, phase, reward, balance, and owner input are neither
+  accepted nor authoritative.
+- The shared private reservation adapter derives Food and Wood's exact remaining
+  awards together. Resource reads, Food/Wood lifecycle and collection, general
+  resource collection, and Gold expiry use it before passive settlement, so a
+  race cannot consume either capacity headroom, truncate output, or double-credit
+  completed minutes.
+- The Wood catalog is installed only by a separately approved Hermes-only
+  operation. It must verify the exact 96-site policy/version/digest and reject
+  missing, duplicate, noncanonical, impassable, overlapped, or drifted rows;
+  it never derives sites from Logging Camp GLBs. No local source, test, review,
+  asset delivery, or merge authorizes that operation.
+- Evidence remains deliberately split: the loopback additive-migration proof
+  validates v8 table order, public/private shapes, row preservation, and
+  rollback refusal only. Focused authority, policy, and reducer-contract tests
+  cover paired Food/Wood reservations and concurrent Gold settlement; the
+  migration proof does not seed, dispatch, or settle Wood or Food expeditions.
+
 ### Browser session lifecycle
 
 - **ENTER REALM** opens an accessible Alpha Terms gate before any anonymous
@@ -376,6 +528,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
 | Whitelist bypass or private-row disclosure | Module-side admission and v2 private ownership checks on every protected operation; private tables/bindings; exact-zero legacy-player publication gate | Public world/player-v2/castle projections remain intentionally observable. Arbitrary old clients can request the frozen public legacy player table, so it must remain empty; any nonzero preflight count blocks publication. |
+| Forged, parallel, or replayed Gold/Food/Wood dispatch or duplicate completed minute | Server-derived site, route, timing, rate, ownership, capacity, and resource-specific one-wagon checks; idempotency receipt; public identity-minimized occupancy lease; replay-safe internal schedule and private settlement cursor. Food and Wood reserve raw passive production through their deadlines with one paired private adapter across every settlement path. | The Alpha 0.3.10 v5 Gold/v7 Food and Alpha 0.3.11 v8 Wood loops are undeployed. Any future resource-node publication/setup needs separate owner approval and fresh aggregate evidence; browser rendering and GLB assets remain non-authoritative. |
 | Browser supplies a spoofed profile or wallet link | Profile and wallet snapshots are accepted only through exact fresh Hermes authority, re-sanitized by the module, and separated into public presentation versus private attribution tables | Trusted Farcaster data can still be stale or incorrect; refresh and correction remain operator responsibilities. |
 | Ambiguous or forged burn credit | Two-provider `eth_chainId` and finalized-block agreement, exact raw-log agreement (including the opaque indexed word), reconciled upgrade history, per-event-block implementation/code/hash attestation, atomic wallet snapshot generations, unique indexed event/burn references, and a two-phase batch that advances its cursor only after exact receipt reconciliation | RPC/provider compromise, a contract upgrade, reorg evidence, attribution ambiguity, or a mismatched frozen total stops crediting and requires review; the module cannot independently query Ethereum, and recovery from an incorrectly planned pending batch remains a reviewed operator action. |
 | Wallet or burn receipt leaks into the browser | Private attribution, snapshot, receipt, batch, cursor, claim, Terms-acceptance, and authoritative Mark tables have no public subscription path; admin reconciliation returns counts only and public profiles contain aggregate values only | Public Ethereum events and public Farcaster wallet links remain observable at their original sources. Linking them to a FID inside Warpkeep creates private operator data that needs retention/deletion review. |
@@ -470,7 +623,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
   castle, admission, and v2 pair counts come from a fresh privacy-safe aggregate,
   not the historical empty checkpoint. Containment leaves additive tables inert
   and uses a forward fix rather than destructive rollback. The current Alpha
-  0.3.8 coordinates progressed through separately recorded gates to an enabled
+  0.3.2 coordinates progressed through separately recorded gates to an enabled
   shared realm; that state is not reusable authorization for a future deploy.
 - Public v1 challenge/exchange routes remain retired after Worker cutover; the
   legacy admin raw-epoch procedure exists only for rollback compatibility and
@@ -508,8 +661,7 @@ additive Durable Object migration, independent managed cookie secret, paused
 Worker/frontend deployments, configuration attestation, ordered enable gates,
 and owner QA. Alpha 0.3.2 subsequently completed the separately authorized
 protocol-3 publication, 1,261-cell seed, deliberate founder admissions, and
-shared-realm activation. Alpha 0.3.8 later completed the separately approved
-resource publication/backfill and exact 10,000-cell world expansion. Future
-recovery still begins with both switches false and repeats each applicable gate
-against fresh current-state aggregates. This document does not authorize a
-future republish, secret change, deploy, data mutation, or enable.
+shared-realm activation. Future recovery still begins with both switches false
+and repeats each applicable gate against fresh current-state aggregates. This
+document does not authorize a future republish, secret change, deploy, data
+mutation, or enable.

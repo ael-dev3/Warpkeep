@@ -477,7 +477,7 @@ describe('activation publish safety', () => {
 
   it('binds an exact single migration receipt and rejects artifact changes before spawn', async () => {
     await withTestProvenArtifact(async receipt => {
-      const success = 'Additive protocol-v4 migration proof passed with SpacetimeDB 2.6.1: '
+      const success = 'Additive protocol-v7 migration proof passed with SpacetimeDB 2.6.1: '
         + `test-only receipt. artifact_sha256=${receipt.artifactDigest}\n`;
       const parsed = parseMigrationProofReceipt(success);
       expect(parsed).toEqual(receipt);

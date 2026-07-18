@@ -5,26 +5,28 @@ It is independent of the static Pages client: title/menu visitors do not create
 a SpacetimeDB identity, and gameplay authority comes only from a strictly
 validated bridge-issued OIDC access token.
 
-> **Alpha 0.3.8 is live on backend protocol 3.** The module described below is
+> **Alpha 0.3.2 is live on backend protocol 3.** The module described below is
 > deployed only at its privately recorded Maincloud schema, artifact,
 > aggregate, and resolver coordinates. Publication used the pinned CLI with
 > deletion prohibited and preserved the existing database identity. The
-> 10,000-cell Genesis world and its 100 close-outward castle slots are live,
-> deliberately admitted founders hold their permanent castles and private
-> resource accounts, and public shared auth and realm entry are enabled. Exact
-> founder counts and identities remain in the private operational record rather
-> than this public document.
+> 1,261-cell Genesis world and its 100 close-outward castle slots are seeded,
+> deliberately admitted founders hold their permanent castles, and public shared
+> auth and realm entry are enabled. Exact founder counts and identities remain in the
+> private operational record rather than this public document.
 
-The production database and issuer run the recorded exact Alpha 0.3.8 release,
+The production database and issuer run the recorded exact Alpha 0.3.2 release,
 while the player authentication contract remains v2. That deployment does not
 attest an arbitrary checkout. Every future republish requires a fresh proof,
 bounded aggregate, recorded authority, and exact-source verification.
 
-> **This checkout matches the protocol-3 / generation-v3 release boundary.** It
-> preserves the complete 1,261-cell generation-v2 predecessor and all 100
-> permanent castle slots, then adds 8,739 cells for an exact 10,000
-> persistent-cell world. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md)
-> for the exact shape, budgets, compatibility boundary, and rollout invariants.
+> **This checkout contains the undeployed Alpha 0.3.11 protocol-3 /
+> generation-v3 candidate.** It preserves the complete 1,261-cell generation-v2
+> predecessor and all 100 permanent castle slots, then adds 8,739 cells for an
+> exact 10,000 persistent-cell world, a separately approval-gated Gold Mine
+> pilot, shared forest presentation, a Tier-I Wheat Farm Food pilot, and a
+> Tier-I Logging Camp Wood pilot. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md)
+> for the exact world shape, budgets, compatibility boundary, and rollout
+> invariants.
 
 ## Version compatibility
 
@@ -34,7 +36,93 @@ bounded aggregate, recorded authority, and exact-source verification.
 - Deployed backend wire protocol: `3`
 - Checked-out backend wire protocol: `3`
 - Player authentication contract: `2` (unchanged)
-- Deployed and local world generation: `3` (10,000 cells)
+- Local world generation: `3` (undeployed; live predecessor is `2`)
+
+### Pending Alpha 0.3.11 Gold, forest, Food, and Wood extensions
+
+This checkout additionally contains an **unreleased**, append-only Gold wagon
+extension. It does not change the deployed protocol number or authorize a
+production publish by itself. Its v5 migration appends five tables at refs
+20–24: a canonical catalog of 24 Tier-I Gold sites, public occupation state,
+private owner/economy state, private retry receipts, and a minimal lifecycle
+schedule projection.
+
+- A dispatch accepts only `siteId` and a bounded idempotency key. The server
+  derives the player, origin castle, passable route, timestamps, 30-day term,
+  and 1 Gold/minute rate.
+- `gold_site_v1` and `gold_node_occupation_v1` are the only gameplay map
+  projections a player client should subscribe to. The owner receives accrued
+  and pending Gold only through `get_my_gold_expedition_state_v1`.
+- `gold_expedition_v1` and `gold_expedition_idempotency_v1` remain private;
+  they hold FIDs, UUIDs, retry receipts, accrual cursors, and balances.
+- `gold_expedition_schedule_v_1` is public solely because the pinned 2.6.1
+  TypeScript generator cannot extract a private scheduled row. It contains
+  only a schedule id, an already-public lifecycle timestamp, origin castle,
+  site id, and stage—never FID, request key, private expedition id, balance,
+  or accrual. Normal browser code must not subscribe to this scheduler
+  projection.
+
+The `_v_1` spelling is intentional: the pinned generator resolves scheduled
+targets using the separated trailing-digit form and fails closed for an
+attached `_v1` table name. The scheduler reducer is internal-only and uses the
+same non-client wire spelling; it has no generated browser reducer binding.
+The disposable migration proof verifies both the exact ref order and this
+public-safe field contract before any release candidate can advance.
+
+The same undeployed candidate appends two public, decorative-only forest
+tables: `realm_forest_layout_v1` is one reviewed Genesis 001 layout metadata
+row, and `realm_forest_instance_v1` holds its fixed-point tree instances. The
+metadata pins the layout version, policy version, exact layout digest, reviewed
+asset-catalog digest, and instance count. Each instance carries only a stable
+tree ID, canonical tile association, allowed species ID, habitat, and fixed
+visual transform. No row contains FID, owner, route, timer, collision, resource,
+reward, or action state.
+
+An admin-only, idempotent seed reducer accepts only the compiled layout
+count/version/digests, rejects partial, unknown, duplicate, or altered existing
+rows, and inserts missing exact records. It is not invoked automatically and is
+not approved for production use by this source change. Player clients subscribe
+to the pair only after the additive projection applies, validate the exact
+catalog, and render no new forest layer rather than inventing a replacement if
+the schema is unseeded or malformed. Graphics quality may choose a GLB LOD but
+never changes membership, species, position, rotation, or scale.
+
+The forest-only approval sequence remains strict: publish the additive v6 module
+with deletion disabled; complete the existing resource/Gold checks; invoke the
+separate forest seed; and verify one layout row, 210 instance rows, and the
+pinned layout/catalog digests. It does not authorize the later v7 Food suffix
+or a dependent Pages build. A source merge, green test run, or client deployment
+never invokes that reducer automatically.
+
+The retained Alpha 0.3.10 suffix appends five Food tables at refs 27–31: public
+`food_site_v1` and identity-minimized `food_node_occupation_v1`, private
+`food_expedition_v1` and retry receipt, and a public-safe internal schedule
+projection. Its fixed policy selects exactly 96 Tier-I Wheat Farms from
+passable Lowland/Meadow resource-capable cells after Gold, forest, castle, and
+protected-route clearance. A Food dispatch accepts only a site ID and bounded
+idempotency key; the server derives the caller, castle, route, timing, one
+Food-wagon limit, and exact one-Food-per-completed-minute rate for 30 days.
+Food and Gold may each run one wagon from the same castle. In the v8 candidate,
+the private Food award is retained with the Wood award through a paired
+Food/Wood reservation across resource reads and settlement, either resource's
+lifecycle, and concurrent Gold lifecycle. A delayed schedule cannot truncate or
+duplicate a valid award. No source, test, local migration proof, asset delivery,
+or merge authorizes v7 publication, Food-site setup, or deployment.
+
+The Alpha 0.3.11 suffix then appends five Wood tables at refs 32–36: public
+`wood_site_v1` and identity-minimized `wood_node_occupation_v1`, private
+`wood_expedition_v1` and retry receipt, and a public-safe internal schedule
+projection. Its fixed policy selects exactly 96 Tier-I Logging Camps from
+passable Forest resource-capable cells after Gold, Food, forest, castle, and
+protected-route clearance. A Wood dispatch accepts only a site ID and bounded
+idempotency key; the server derives the caller, castle, route, timing, one
+Wood-wagon limit, and exact one-Wood-per-completed-minute rate for 30 days.
+Gold, Food, and Wood may each run one wagon from the same castle. Wood dispatch
+preflights raw passive Wood through its deadline plus its full award; every
+resource read and settlement derives paired Food/Wood reservations, so Food or
+Wood collection/expiry and concurrent Gold lifecycle cannot truncate or
+duplicate either award. No source, test, local migration proof, asset delivery,
+or merge authorizes v8 publication, Wood-site setup, or deployment.
 
 Run locally after installing directory dependencies:
 
@@ -54,11 +142,16 @@ From the repository root, `npm run stdb:verify-additive-migration` runs the
 pinned SpacetimeDB 2.6.1 CLI against disposable loopback-only databases. It
 starts from the independently frozen deployed seven-table checkpoint and proves
 the 12 protocol-3 tables at refs 7 through 18 remain exact while private
-`resource_account_v1` appends at ref 19 with `--delete-data=never`. The same
-loopback proof exercises an exact populated
-1,261-to-10,000 transition, ordinary-seed refusal, preserved founding links and
-realm timestamp, and a zero-write retry. It does not inspect or mutate
-Maincloud and is not production publish approval.
+`resource_account_v1` appends at ref 19, Gold appends at refs 20–24, forest at
+refs 25–26, Food at refs 27–31, and Wood at refs 32–36 with
+`--delete-data=never`. The same loopback proof exercises an exact
+populated 1,261-to-10,000 transition, ordinary-seed refusal, preserved founding
+links and realm timestamp, a zero-write retry, existing resource-account
+lifecycle, Gold/Food/Wood table-order and public/private shape checks, and
+rollback refusal. It does not seed, dispatch, or settle Food/Wood expeditions.
+Focused resource-authority, policy, and reducer-contract tests separately cover
+their paired reservation behavior and concurrent Gold settlement. It does not
+inspect or mutate Maincloud and is not production publish approval.
 
 ## Authority and tables
 
@@ -82,9 +175,9 @@ Inherited auth-v2 public tables in live protocol 3:
 
 - `world_tile`: the inherited declaration whose historical protocol-2
   checkpoint contained 61 canonical radius-four cells. Protocol 3 preserves
-  that declaration. Live production contains 10,000 generation-v3 rows,
-  including the preserved 1,261 canonical radius-20 predecessor rows. Visual
-  apron cells remain client-only.
+  that declaration. Live production currently contains 1,261 canonical
+  radius-20 rows; the generation-v3 candidate expands the same table
+  additively to exactly 10,000 rows. Visual apron cells remain client-only.
 - `player`: the frozen protocol-v1 compatibility table, preserved with its
   original public visibility, exact field order, and Identity column. Protocol
   v2 never reads, writes, or subscribes to it. Historical inspection recorded
@@ -104,8 +197,8 @@ lifecycle, and versioned Terms acceptance are never public. Optional public
 community aggregates remain absent unless the authenticated player accepts the
 exact current Terms version.
 
-Alpha 0.3.8 appends private `resource_account_v1` at exact schema ref 19. It is
-caller-scoped through versioned procedures and never becomes a
+The checked-in candidate appends private `resource_account_v1` at exact schema
+ref 19. It is caller-scoped through versioned procedures and never becomes a
 public table or peer inventory projection.
 
 The protocol-3 `world_tile` table retains the same frozen declaration.
@@ -343,6 +436,10 @@ Exact fresh Hermes authority is required for:
 - `admin_get_alpha_status_v2`
 - `admin_get_alpha_status_v3`
 - `admin_get_alpha_status_v4`
+- `admin_seed_genesis_tier_i_gold_sites_v1`
+- `admin_seed_genesis_forest_layout_v1`
+- `admin_seed_genesis_tier_i_food_sites_v1`
+- `admin_seed_genesis_tier_i_wood_sites_v1`
 - `admin_upsert_realm_profile_v1`
 - `admin_replace_fid_wallet_snapshot_v1`
 - `admin_begin_snap_scan_batch_v1`
@@ -365,7 +462,7 @@ never returns a FID, Identity, profile, allowlist row, note, or audit record.
 `admin_get_alpha_status_v3` remains counts-only while covering all 12 appended
 tables, occupied tiles, and canonical static-world drift in addition to orphan,
 ambiguity, projection, duplicate-reference, and ledger-reconciliation counters.
-Live `admin_get_alpha_status_v4` is a separate closed contract containing
+Candidate `admin_get_alpha_status_v4` is a separate closed contract containing
 founder/castle/Mark counts, resource-account coverage and invariants, protocol,
 and policy version; it returns no FID or balance.
 The trusted update and
@@ -385,7 +482,7 @@ local operator's apply transport remains deliberately disabled.
 
 Production and this checkout use
 `WARPKEEP_BACKEND_PROTOCOL_VERSION = 3` as an internal wire contract, separate
-from the player-facing release, auth contract 2, world generation 3, and the
+from the player-facing release, auth contract 2, world generation 2, and the
 `HEGEMONY_GENESIS_001` realm label.
 `get_alpha_backend_info` is available to lifecycle-admitted players, Hermes
 administrators, and the admission resolver; the QA resolver is explicitly
@@ -443,9 +540,13 @@ private `resource_account_v1` appends at ref 19, preserves empty and synthetic
 nonempty fixtures, matches the module to an independent schema fixture, proves
 idempotent artifact republish and guarded v3/v2 rollback refusal, exercises the
 private resource lifecycle, and proves the populated exact 1,261-to-10,000
-world transition plus a zero-write target retry. This proves only controlled
-local fixtures; it neither observes Maincloud nor authorizes a production
-republish or world mutation.
+world transition plus a zero-write target retry. The additive v5 Gold, v6
+forest, v7 Food, and v8 Wood suffixes must append in exact order; the proof also
+checks their public/private projection contracts and preservation of earlier
+rows. It does not seed or dispatch Food/Wood nodes, or exercise their reservation
+logic; focused authority, policy, and reducer-contract tests cover that behavior.
+This proves only controlled local fixtures; it neither observes Maincloud nor
+authorizes a production republish, world mutation, or site seed.
 
 Any separately approved current forward republish must run through the guarded
 publisher with a fresh, private counts-only contract:

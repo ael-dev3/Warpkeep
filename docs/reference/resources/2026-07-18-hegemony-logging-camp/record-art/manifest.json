@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-logging-camp-record-art-v1",
+  "recordedAt": "2026-07-19",
+  "purpose": "Transparent decorative Logging Camp art for the reviewed Wood-site inspection card",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-19",
+    "scope": "Warpkeep PR #62 preparation and its use of the background-cleaned derivative in the public Warpkeep GitHub repository, plus an eventual official warpkeep.com Pages runtime only after separately approved deployment. This is use authorization only, not merge or deployment approval.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "Wood placement, renderer, server, browser-derived balance, reward, or entitlement authority"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "high-resolution user-supplied edit source with baked checkerboard",
+      "repositoryRetained": false,
+      "originalName": "codex-clipboard-70445d6b-5f48-4bb4-9608-bb5c349e2bf6.png",
+      "bytes": 1677615,
+      "sha256": "dfe4a0879ad0e1c07f3971a95d8a17c2acdf2f2e4df59bc2000cacb7dcade32a",
+      "image": {
+        "format": "png",
+        "width": 1254,
+        "height": 1254,
+        "alpha": false
+      }
+    },
+    {
+      "role": "approved non-retained alpha-matte input",
+      "repositoryRetained": false,
+      "bytes": 1102387,
+      "sha256": "c714884f676b42dbc376e677b2f70293cc5d663bea96ddff4e37a63504a42c20",
+      "decodedRgbaSha256": "2ebd14869502741102b63380834c3ce09058261ea34be946ce7a1ab6313da16b",
+      "image": {
+        "format": "png",
+        "width": 1254,
+        "height": 1254,
+        "alpha": true
+      }
+    }
+  ],
+  "backgroundCleanup": {
+    "method": "A local macOS Vision foreground-instance alpha matte was generated from the exact supplied RGB source. The shipped pixels come from that supplied illustration; no generated replacement scene or GLB-derived artwork is included.",
+    "sourceCheckerboardWasNotAlpha": true,
+    "directGrayKeying": false,
+    "postMatteNeutralSpillCleanup": {
+      "pixelsRemoved": 19203,
+      "predicate": "nonzero alpha, RGB average >= 220, and RGB channel spread <= 20"
+    },
+    "matteIntermediateRetained": false,
+    "visualReview": "Reviewed after compositing on dark and light matte fields; the transparent source corners and interior equipment gaps contain no baked checkerboard."
+  },
+  "runtimeAsset": {
+    "path": "public/images/realm/hegemony-logging-camp-record.webp",
+    "format": "webp",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 177622,
+    "sha256": "fb9d171e423a7bd4bfcce1e68cd3faecb38b4904bc528f720e4283522fca1293",
+    "decodedRgbaSha256": "5975fb38a6f33e1feb19a0637cb8b3ce100721ce8d8909e426170fa18a95a1ad",
+    "alpha": {
+      "transparentPixels": 963484,
+      "partiallyTransparentPixels": 39058,
+      "opaquePixels": 569974
+    },
+    "brightNeutralPartialAlphaAudit": {
+      "pixels": 212,
+      "predicate": "0 < alpha < 255, RGB average >= 220, and RGB channel spread <= 20",
+      "maximumAllowedPixels": 256
+    },
+    "visibleBoundsAlpha16": {
+      "minX": 34,
+      "minY": 154,
+      "maxX": 1217,
+      "maxY": 1006
+    },
+    "delivery": "same-origin checked-in runtime asset; no external CDN"
+  },
+  "presentationBoundary": {
+    "component": "src/components/realm/LoggingCampInspectionPanel.tsx",
+    "currentRealmMount": "src/components/realm/RealmMapScreen.tsx",
+    "currentNodePlacement": "validated public Wood-site inspector only",
+    "interaction": "local decorative art only; empty alt text, aria-hidden, and pointer-inert",
+    "forbiddenClaims": [
+      "player inventory",
+      "reserve amount",
+      "owner",
+      "browser-derived gathering authority",
+      "reward",
+      "Marks linkage"
+    ]
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes this Warpkeep runtime use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "backgroundRemoved": true,
+    "fineSilhouettePreserved": true,
+    "reviewedOnDarkAndLightMatte": true,
+    "referenceScreenshotsRetained": false
+  }
+}

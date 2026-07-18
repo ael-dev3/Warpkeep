@@ -2,9 +2,12 @@
 
 ## Current state
 
-The verified public release and checked-in package are Alpha 0.3.8. The release
-includes caller-private resource authority and the live generation-three world
-expansion. The public menu build stamp
+The verified public release is Alpha 0.3.6. The checked-in package is the
+undeployed Alpha 0.3.11 candidate, which includes private resource authority,
+the generation-three world expansion, pending Gold Mine, Tier-I Wheat Farm, and
+Tier-I Logging Camp wagon loops, and a server-seeded shared forest layout for the preserved
+founding Lowlands. The
+public menu build stamp
 identifies the exact deployed source. An annotated
 release tag is created only after the matching protected-main deployment passes
 exact-build verification. Do not turn the disabled local QA observer into a
@@ -54,11 +57,12 @@ only after pending acquisitions and active leases both reach zero, then its one
 cache retain is released exactly once. Empty authoritative castle sets are
 ready with zero models rather than treated as a missing pair.
 
-Warpkeep Alpha 0.3.8 preserves the live title/menu, explicit Alpha Terms gate,
+Warpkeep Alpha 0.3.6 preserves the live title/menu, explicit Alpha Terms gate,
 browser-bound S256 website SIWF, rotating HttpOnly session families, a
 least-privilege Cloudflare Worker OIDC bridge, and a non-destructively published
-protocol-3 SpacetimeDB module. Live Genesis 001 contains 10,000 authoritative
-cells after the additive generation-v3 expansion, preserving all 100 permanent
+protocol-3 SpacetimeDB module. Live Genesis 001 contains 1,261 authoritative
+cells. The undeployed generation-v3 candidate expands that same persistent
+world additively to exactly 10,000 cells while preserving all 100 permanent
 castle slots ordered outward from the close founding district. Deliberately
 admitted founders occupy the shared frontier; do not add an
 admission, create a convenience player, or mutate their state during diagnostics.
@@ -153,16 +157,82 @@ Start with:
   review.
 - The three Gold Mine GLBs under
   `docs/reference/resources/2026-07-18-hegemony-gold-mine/runtime-candidates/`
-  are exact unintegrated review candidates, pinned by
-  `npm run verify:gold-mine-candidates`; they must remain outside `public/`.
-  They do not authorize a renderer import, world coordinate, site, route,
-  reducer, account, balance, seed, deploy, or Gold/Marks coupling. Live
-  Genesis 001 has 10,000 cells and 2,000 resource-capable anchors without a
-  placed Gold node. Do not invent a placement from capacity
-  metadata alone.
-  The supplied Balanced and Compact candidates have 512²/256² embedded WebPs
-  but stale `wk_atlas_size: 1024` metadata; preserve their bytes and require an
-  explicit reviewed normalization or integration decision before promotion.
+  remain exact historical review evidence, pinned by
+  `npm run verify:gold-mine-candidates`; they must remain outside `public/` and
+  must never be imported by browser code. Their Balanced and Compact files have
+  512²/256² embedded WebPs but stale `wk_atlas_size: 1024` metadata; preserve
+  their bytes unchanged. The distinct reviewed public runtime family under
+  `public/models/hegemony/gathering-nodes/gold-mine/` is pinned by
+  `npm run verify:hegemony-gold-mine-runtime`: High is exact source bytes,
+  while Balanced/Compact make only the recorded `wk_atlas_size` correction.
+  Any LLM changing either family must preserve its exact role, provenance
+  record, immutable digest-bearing names, geometry/image boundary, and
+  visual-only scope. Neither family grants a renderer-derived world coordinate,
+  site, route, reducer, account, balance, seed, deploy, or Gold/Marks coupling.
+  The 0.3.11 candidate defines 10,000 cells and 2,000 resource-capable anchors;
+  the reviewed Gold-site policy, never capacity metadata alone, determines any
+  site placement.
+- The Hegemony Supply Wagon LODs under `public/models/hegemony/` are pinned by
+  `npm run verify:hegemony-supply-wagon` and documented in
+  `docs/reference/factions/hegemony/2026-07-18-hegemony-supply-wagon/`. They
+  are visual-only, immutable 47-joint/six-clip assets sourced from the
+  checksum-pinned NoTelescope GameReady release payload. Do not fetch or
+  prepare assets during ordinary builds; only manual preparation may use the
+  approved checksum-pinned source/toolchain. Render through a bounds-centered,
+  ground-contact wrapper and engine-side collision proxy, never as a source of
+  movement, route, dispatch, occupation, Gold/Marks, reward, or settlement
+  authority. Preserve High/Balanced/Compact LOD selection and animation budgets
+  from the runtime record when changing presentation.
+- The three Wheat Farm GLBs under
+  `public/models/hegemony/gathering-nodes/wheat-farm/` are exact owner-supplied
+  runtime bytes, pinned by `npm run verify:hegemony-wheat-farm` and recorded
+  under `docs/reference/resources/2026-07-18-hegemony-wheat-farm/`. Their
+  delivery is narrow runtime-use authorization only: it is not merge, deploy,
+  seed, production, open-license, placement, collision, route, worker,
+  balance, reward, timing, or SpacetimeDB authority. Preserve High → Balanced
+  → Compact source ordering, hash-bearing names, visual-only scope, strict
+  per-Food render ceiling, shared Gold/Food animation budget, and marker
+  fallback. Never derive Food catalog identity, occupation, route, or
+  settlement from GLB geometry or editable source metadata.
+- The three Logging Camp GLBs under
+  `public/models/hegemony/gathering-nodes/logging-camp/` are exact
+  owner-supplied runtime bytes, pinned by `npm run verify:hegemony-logging-camp`
+  and recorded under
+  `docs/reference/resources/2026-07-18-hegemony-logging-camp/`. Their delivery
+  is narrow runtime-use authorization only: it is not merge, deploy, seed,
+  production, open-license, placement, collision, route, worker, balance,
+  reward, timing, or SpacetimeDB authority. Preserve High → Balanced → Compact
+  source ordering, hash-bearing names, visual-only scope, source-recommended
+  engine-side footprint, and marker fallback. The offline installer is the only
+  permitted source-package reader; ordinary builds only verify checked-in bytes.
+  Never derive Wood catalog identity, occupation, route, or settlement from GLB
+  geometry or editable source metadata.
+- The Hegemony environment-tree family under
+  `public/models/hegemony/environment/trees/` is 66 exact digest-bearing GLBs
+  across 22 trees, pinned by `npm run verify:hegemony-trees` and documented in
+  `docs/reference/assets/2026-07-18-hegemony-environment-trees/`. The
+  owner-supplied ZIP is an offline installation input only: ordinary builds
+  must verify it, never fetch, unpack, transform, or rewrite it. Preserve every
+  High/Balanced/Compact family member and its source-manifest/hash record; do
+  not use a same-named replacement. They are vertex-color, opaque,
+  double-sided visual assets with a +Y-up, +Z-forward trunk-base contract.
+  The 16 source species manifests incorrectly say `doubleSided: false`; the
+  decoded GLB bytes are authoritative and must not be silently repaired.
+  Renderers may use only a private terrain-contact wrapper, the transforms
+  selected by the reviewed shared layout, and conservative projected-height
+  LOD. The immutable GLBs and their geometry never determine collision,
+  canonical coordinates, pathing, ownership, resources, rewards, or gameplay
+  placement. The separately authored, exact-digest `realm_forest_layout_v1` /
+  `realm_forest_instance_v1` public projection may persist a fixed Genesis
+  visual layout; it contains only an allowed asset selector and fixed visual
+  transform, is seeded and validated server-side, and cannot change movement,
+  picking, combat, ownership, resources, rewards, or terrain authority. A
+  layout change requires a new reviewed version and seed, never ad-hoc client
+  culling. The current 210-instance catalog covers only the preserved
+  generation-two/founding-Lowlands footprint; do not infer a forest for the
+  outer generation-three cells. Retain `LicenseRef-Warpkeep-Provenance-Required`; the use
+  authorization is not an open licence, merge approval, or Pages deployment
+  approval.
 - `public/images/realm/hegemony-gold-mine-record.webp` is a separate,
   exact-hash-pinned transparent 2D inspection illustration with its provenance
   under `docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/`.
@@ -173,6 +243,28 @@ Start with:
   or Gold/Marks coupling. Keep the art decorative (`alt=""`, pointer-inert) and
   preserve its exact hash, alpha audit, authorization boundary, and no-external-
   CDN delivery contract when a future approved node interaction mounts it.
+- `public/images/realm/hegemony-wheat-farm-record.webp` is a separate,
+  exact-hash-pinned transparent 2D inspection illustration with its provenance
+  under `docs/reference/resources/2026-07-18-hegemony-wheat-farm/record-art/`.
+  It may appear only through `FoodFarmInspectionPanel` as local decorative
+  art for a validated public Food-site inspector. It does not authorize a 3D
+  runtime promotion, renderer-derived world coordinate, target, click path,
+  owner, reserve, inventory, Gather action, balance, reward, entitlement, or
+  Food/Marks coupling. Keep the art decorative (`alt=""`, `aria-hidden`, and
+  pointer-inert) and preserve its exact hash, alpha audit, authorization
+  boundary, and no-external-CDN delivery contract when a future approved node
+  interaction mounts it.
+- `public/images/realm/hegemony-logging-camp-record.webp` is a separate,
+  exact-hash-pinned transparent 2D inspection illustration with its provenance
+  under `docs/reference/resources/2026-07-18-hegemony-logging-camp/record-art/`.
+  It may appear only through `LoggingCampInspectionPanel` as local decorative
+  art for a validated public Wood-site inspector. It does not authorize a 3D
+  runtime promotion, renderer-derived world coordinate, target, click path,
+  owner, reserve, inventory, Gather action, balance, reward, entitlement, or
+  Wood/Marks coupling. Keep the art decorative (`alt=""`, `aria-hidden`, and
+  pointer-inert) and preserve its exact hash, alpha audit, authorization
+  boundary, and no-external-CDN delivery contract when a future approved node
+  interaction mounts it.
 
 ## Player-visible release truth
 
@@ -191,12 +283,18 @@ verification succeed; tag only that verified deployment commit.
 
 ## Next product work
 
-The founding slice, server-derived private resource accounts, and persistent
-capacity for future naturally placed resource nodes are live; those nodes are
-not implemented. A future deliberate gameplay slice may populate reviewed
-resource nodes before deterministic construction queues. Marks apply,
-spending, production crediting, and scheduler installation remain unavailable
-until their separate transport, recovery proof, review, and owner approval are
-complete. Each slice needs deterministic reducers, generated-binding parity,
-isolated tests, exact-head deployment, production verification, and rollback
-evidence before expansion.
+The founding slice is live. The checked-in 0.3.11 candidate adds bounded
+server-derived Gold Mine, Tier-I Wheat Farm, and Tier-I Logging Camp loops:
+24 Gold sites, 96 Food sites, and 96 Wood sites. They use separate private
+expedition/idempotency rows and allow one authoritative wagon of each resource
+type per castle. Food and Wood dispatch must reserve their complete remaining
+awards plus raw passive output through each gathering deadline; every
+passive-settlement path, including any Gold/Food/Wood lifecycle, must preserve
+both reservations until each award is credited. All loops remain undeployed and
+require separately approved publication, setup, verification, and deployment.
+The next deliberate gameplay slice after a verified resource release is
+deterministic construction queues. Marks spending and every further production
+or scheduler capability remain unavailable until their separate transport,
+recovery proof, review, and owner approval are complete. Each slice needs
+deterministic reducers, generated-binding parity, isolated tests, exact-head
+deployment, production verification, and rollback evidence before expansion.

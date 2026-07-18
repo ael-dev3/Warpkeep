@@ -1,7 +1,7 @@
 # Service inventory
 
-> **Alpha 0.3.8 is live on backend protocol 3; recovery remains fail-closed.**
-> The 10,000-cell Genesis world and 100 close-outward castle slots are live,
+> **Alpha 0.3.2 is live on backend protocol 3; recovery remains fail-closed.**
+> The 1,261-cell Genesis world and 100 close-outward castle slots are seeded,
 > deliberately admitted founders hold their permanent castles, and Worker public
 > auth plus shared-alpha realm entry are enabled at their separately recorded production
 > coordinates. Exact founder counts and identities remain private. Recovery
@@ -9,10 +9,18 @@
 > every future republish, binding change, secret change, deploy, or enable
 > requires its own authority and verification.
 
-Alpha 0.3.8 adds the private resource table at schema ref 19 and the
-generation-three world with exactly 10,000 world and metadata rows to the
-deployed inventory. Only the separately recorded deployment and fresh bounded
-inspection attest that production state; source presence and local proof do not.
+The checked-in Alpha 0.3.11 candidate is not part of that deployed inventory.
+It retains the separately approval-gated 10,000-cell generation-three target
+and its 2,000 resource-capable anchors, appends private
+`resource_account_v1` at schema ref 19, appends five Gold-expedition tables at
+refs 20–24, two decorative forest tables at refs 25–26, and five independent
+Food-expedition tables at refs 27–31, then five independent Wood-expedition
+tables at refs 32–36. Those tables define public site and identity-minimized
+occupation projections plus private expedition/idempotency authority and
+public-safe scheduler projections. Neither source presence nor local proof
+attests a production module publication, world transition, resource backfill,
+Gold/forest/Food/Wood setup, or deployment. Alpha 0.3.6 remains the verified
+public release.
 
 ## Repositories and workflows
 
@@ -75,7 +83,7 @@ development-only.
 - Compatibility flag: `nodejs_compat`
 - `workers_dev = false`
 - Checked-in/recovery default: `PUBLIC_AUTH_ENABLED=false`
-- Current Alpha 0.3.8 production state: `PUBLIC_AUTH_ENABLED=true`
+- Current Alpha 0.3.2 production state: `PUBLIC_AUTH_ENABLED=true`
 
 Durable Objects:
 
@@ -98,7 +106,7 @@ separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 
 The server-only config attestation profile is `warpkeep-auth-v2`. Its
 fail-closed recovery target has `publicAuthEnabled: false`; the current Alpha
-0.3.8 active target has `publicAuthEnabled: true`. It covers
+0.3.2 active target has `publicAuthEnabled: true`. It covers
 issuer/origins/SIWF coordinates, gameplay key/Maincloud coordinates, the
 observer URI/database/audience tuple and gate, S256, the 600-second access TTL,
 15-second resolver TTL, five-second resolver timeout, five-minute challenge TTL,
@@ -162,12 +170,11 @@ protocol-3 seed and founding rollout:
 backend protocol 2 / world seed 3445214658 / HEGEMONY_GENESIS_001
 ```
 
-Current Alpha 0.3.8 production has the complete 10,000-cell generation-three
-world, 10,000 metadata rows, one realm, 100 immutable slots, and deliberately
-admitted founders with matching founding and resource graphs. A recovery
-verifier must obtain the fresh privacy-safe aggregate and compare it with the
-private current-state record; it must not reuse the historical zero-admission
-values above.
+Current Alpha 0.3.2 production instead has the complete 1,261-cell world,
+1,261 metadata rows, one realm, 100 immutable slots, and deliberately admitted
+founders with matching founding graphs. A recovery verifier must obtain the
+fresh privacy-safe aggregate and compare it with the private current-state
+record; it must not reuse the historical zero-admission values above.
 
 The local module preserves the original five-table prefix exactly, in this
 order: private `allowed_fid`, public `world_tile`, public legacy `player`, public
@@ -179,8 +186,23 @@ browser never subscribes to it, and its required production count is zero.
 The deployed v2 schema appended two tables: public `player_v2`, which excludes
 opaque identity, and private `player_ownership_v2`, which contains the
 authorization binding. Protocol 3 later appended the 12 frozen tables at refs
-7–18. Alpha 0.3.8 appends private `resource_account_v1` at exact ref 19 without
-changing those deployed declarations.
+7–18. The checked-in Alpha 0.3.10 precursor appends private
+`resource_account_v1` at exact ref 19, then `gold_site_v1`,
+`gold_node_occupation_v1`, `gold_expedition_v1`,
+`gold_expedition_idempotency_v1`, and `gold_expedition_schedule_v_1` at refs
+20–24 without changing any deployed declaration, then forest refs 25–26 and
+the Food equivalents `food_site_v1`, `food_node_occupation_v1`,
+`food_expedition_v1`, `food_expedition_idempotency_v1`, and
+`food_expedition_schedule_v_1` at refs 27–31. Only the site catalog,
+occupation, and deliberately public-safe schedule projection are browser-table
+shapes; FID-bound expedition, retry, accrual, and balance state remain private.
+The Alpha 0.3.11 candidate then appends the Wood equivalents `wood_site_v1`,
+`wood_node_occupation_v1`, `wood_expedition_v1`,
+`wood_expedition_idempotency_v1`, and `wood_expedition_schedule_v_1` at refs
+32–36. Wood uses the same public-site/private-authority boundary; its scheduler
+projection is public-safe only and its reducer remains internal-only. The private
+resource settlement adapter derives Food and Wood's remaining awards together,
+so neither passive capacity reservation becomes observable or browser-controlled.
 The private ownership table must have no generated browser table accessor.
 Bootstrap ignores optional profile-shaped JWT fields and explicitly inserts
 undefined `username`, `displayName`, and `pfpUrl`; profile changes require a
@@ -195,17 +217,25 @@ request it; the retired writer plus mandatory zero-row invariant is the
 compatibility safety boundary.
 
 The live `admin_get_alpha_status_v3` procedure covers the complete founded
-protocol-3 graph without exposing row identities. Live
+protocol-3 graph without exposing row identities. Candidate
 `admin_get_alpha_status_v4` is a separate closed counts-only resource contract:
 founder/castle/Mark coverage, resource coverage and invariant counts, protocol,
-and policy version. The generation-two and generation-three world gates remain
-separate exact contracts; a mixed tuple fails closed.
+and policy version. It is not evidence of the Alpha 0.3.10 Gold/Food or Alpha
+0.3.11 Wood catalog, occupation, private expedition, or paired Food/Wood
+reservation state. Gold, Food, and Wood rollouts each need their own reviewed
+aggregate contract and explicit owner approval. The generation-two and
+generation-three world gates remain separate exact contracts; a mixed tuple
+fails closed.
 
 `npm run stdb:verify-additive-migration` proves the exact prefix, append-only
-refs 0–19, empty and synthetic nonempty fixture preservation, idempotence,
-partial-state detection, guarded v3/v2 rollback refusal, the populated exact
-generation-two-to-three world transition, and the private resource lifecycle
-against disposable loopback databases with the pinned CLI. This local proof
-grants no production authority. If post-publish verification finds a mismatch,
-keep auth disabled and use a separately reviewed forward-compatible fix; never
-delete data, recreate the database, or roll the schema backward.
+refs 0–36, empty and synthetic nonempty fixture preservation, idempotence,
+partial-state detection, guarded v8/v7/v6/v5/v4/v3/v2 rollback refusal, the
+populated exact generation-two-to-three world transition, the private resource
+lifecycle, and Gold/Food/Wood table visibility/order against disposable
+loopback databases with the pinned CLI. It does not seed, dispatch, or settle a
+Food/Wood expedition; focused authority, policy, and reducer-contract tests
+separately cover paired Food/Wood reservation preservation and concurrent Gold
+settlement. This local proof grants no production authority.
+If post-publish verification finds a mismatch, keep auth disabled and use a
+separately reviewed forward-compatible fix; never delete data, recreate the
+database, or roll the schema backward.

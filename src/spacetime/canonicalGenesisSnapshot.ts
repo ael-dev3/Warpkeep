@@ -155,6 +155,24 @@ function staticWorldForCandidate(
   return fail();
 }
 
+/**
+ * Additive presentation records are deliberately not canonical Realm
+ * authority. Preserve their *presence* (including malformed values) so the
+ * renderer's strict decoder can fail closed instead of mistaking an
+ * incomplete v6 projection for an older service that lacks the tables.
+ */
+function freezePresentationValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map((entry) => (
+      entry !== null && typeof entry === 'object' && !Array.isArray(entry)
+        ? Object.freeze({ ...entry })
+        : entry
+    )));
+  }
+  if (value !== null && typeof value === 'object') return Object.freeze({ ...value });
+  return value;
+}
+
 function validateStaticWorld(candidate: WarpkeepRealmSnapshotCandidate) {
   const staticWorld = staticWorldForCandidate(candidate);
   if (
@@ -398,6 +416,50 @@ export function validateCanonicalGenesisSnapshot(
   const players = freezeRows(candidate.players);
   const profiles = freezeRows(candidate.profiles);
   const castles = freezeRows(candidate.castles);
+  // Gold sites are additive v5 presentation data, not part of the Genesis
+  // world attestation. Preserve them only when both public tables arrived;
+  // their strict UI decoder then fails to an empty node layer on malformed or
+  // contradictory rows instead of revoking the entire canonical Realm.
+  const goldSites = Array.isArray(candidate.goldSites)
+    && Array.isArray(candidate.goldNodeOccupations)
+    ? freezeRows(candidate.goldSites)
+    : undefined;
+  const goldNodeOccupations = goldSites !== undefined
+    ? freezeRows(candidate.goldNodeOccupations!)
+    : undefined;
+  // Food is independently additive. Preserve its paired public tables only
+  // when both arrive; strict Food presentation may then fail closed without
+  // revoking a valid Gold projection or the canonical Realm itself.
+  const foodSites = Array.isArray(candidate.foodSites)
+    && Array.isArray(candidate.foodNodeOccupations)
+    ? freezeRows(candidate.foodSites)
+    : undefined;
+  const foodNodeOccupations = foodSites !== undefined
+    ? freezeRows(candidate.foodNodeOccupations!)
+    : undefined;
+  // Wood is likewise independently additive. Keep only paired public tables
+  // and let the strict Wood decoder fail closed without revoking Food, Gold,
+  // forest presentation, or the canonical Realm itself.
+  const woodSites = Array.isArray(candidate.woodSites)
+    && Array.isArray(candidate.woodNodeOccupations)
+    ? freezeRows(candidate.woodSites)
+    : undefined;
+  const woodNodeOccupations = woodSites !== undefined
+    ? freezeRows(candidate.woodNodeOccupations!)
+    : undefined;
+  // The shared forest is another additive presentation pair. Keep each
+  // field's presence intact for the browser-safe layout policy to verify. A
+  // v6-but-unseeded `{ forestTrees: [] }`, a one-sided table, or malformed
+  // value must reach that decoder as present-invalid; collapsing it to both
+  // absent would incorrectly enable the DEV-only legacy preview path.
+  const rawForestLayout = (candidate as Readonly<{ forestLayout?: unknown }>).forestLayout;
+  const rawForestTrees = (candidate as Readonly<{ forestTrees?: unknown }>).forestTrees;
+  const forestLayout = rawForestLayout === undefined
+    ? undefined
+    : freezePresentationValue(rawForestLayout);
+  const forestTrees = rawForestTrees === undefined
+    ? undefined
+    : freezePresentationValue(rawForestTrees);
   const frozenOwnCastle = castles.find((castle) => castle.castleId === ownCastle.castleId);
   if (frozenOwnCastle === undefined) fail();
 
@@ -411,6 +473,14 @@ export function validateCanonicalGenesisSnapshot(
     players,
     profiles,
     castles,
+    ...(goldSites === undefined ? {} : { goldSites }),
+    ...(goldNodeOccupations === undefined ? {} : { goldNodeOccupations }),
+    ...(foodSites === undefined ? {} : { foodSites }),
+    ...(foodNodeOccupations === undefined ? {} : { foodNodeOccupations }),
+    ...(woodSites === undefined ? {} : { woodSites }),
+    ...(woodNodeOccupations === undefined ? {} : { woodNodeOccupations }),
+    ...(forestLayout === undefined ? {} : { forestLayout }),
+    ...(forestTrees === undefined ? {} : { forestTrees }),
     ownCastle: frozenOwnCastle
   } as BrandedSnapshot;
   Object.defineProperty(canonical, CANONICAL_SNAPSHOT_BRAND, {

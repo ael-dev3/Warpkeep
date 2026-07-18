@@ -2,17 +2,17 @@
   "schemaVersion": 1,
   "id": "hegemony-gold-mine-record-art-v1",
   "recordedAt": "2026-07-18",
-  "purpose": "Transparent decorative Gold Mine art for the future approved Gold Mine inspection card",
+  "purpose": "Transparent decorative Gold Mine art for the approved Gold Mine inspection card",
   "projectAuthorization": {
     "authorizedBy": "Warpkeep project owner",
     "instructionDate": "2026-07-18",
-    "scope": "Warpkeep PR #49 preparation of the background-cleaned derivative in the public Warpkeep GitHub repository and official warpkeep.com Pages runtime, with a standalone visual inspection card that is not mounted by the current Realm.",
+    "scope": "Warpkeep PR #49 preparation and the reviewed Gold Wagon integration's use of the background-cleaned derivative in the public Warpkeep GitHub repository, plus an eventual official warpkeep.com Pages runtime only after separately approved deployment. This is use authorization only, not deployment approval.",
     "notGranted": [
       "proof of underlying copyright ownership",
       "a public open-content licence",
       "general third-party derivative or redistribution permission",
       "trademark or canonical-identity rights",
-      "Gold Mine placement, renderer, server, balance, gathering, reward, or entitlement authority"
+      "Gold Mine placement, renderer, server, browser-derived balance, reward, or entitlement authority"
     ]
   },
   "sourceInputs": [
@@ -88,13 +88,13 @@
   },
   "presentationBoundary": {
     "component": "src/components/realm/GoldMineInspectionPanel.tsx",
-    "currentRealmMount": "none",
-    "currentNodePlacement": "none",
+    "currentRealmMount": "src/components/realm/RealmMapScreen.tsx",
+    "currentNodePlacement": "validated public Gold-site inspector only",
     "forbiddenClaims": [
       "player inventory",
       "reserve amount",
       "owner",
-      "gathering action",
+      "browser-derived gathering authority",
       "reward",
       "Marks linkage"
     ]

@@ -38,6 +38,9 @@ import type {
 import { isCanonicalGenesisSnapshot } from '../../spacetime/canonicalGenesisSnapshot';
 import type { ReadyRealmResourcePresentation } from './realmResourcePresentation';
 import { CastleInspectionPanel } from './CastleInspectionPanel';
+import { FoodFarmInspectionPanel } from './FoodFarmInspectionPanel';
+import { GoldMineInspectionPanel } from './GoldMineInspectionPanel';
+import { LoggingCampInspectionPanel } from './LoggingCampInspectionPanel';
 import { RealmAccessibilityControls } from './RealmAccessibilityControls';
 import {
   RealmCastleLabels,
@@ -52,6 +55,24 @@ import {
   type RealmSceneHandle,
   type RealmTerrainPresentationTelemetry
 } from './createRealmScene';
+import {
+  resolveRealmGoldNodePresentations,
+  type RealmGoldNodePresentation
+} from './realmGoldNodePresentation';
+import {
+  resolveRealmFoodNodePresentations,
+  type RealmFoodNodePresentation
+} from './realmFoodNodePresentation';
+import {
+  resolveRealmWoodNodePresentations,
+  type RealmWoodNodePresentation
+} from './realmWoodNodePresentation';
+import type { GoldExpeditionPresentation } from './realmGoldExpeditionPresentation';
+import type { FoodExpeditionPresentation } from './realmFoodExpeditionPresentation';
+import type { WoodExpeditionPresentation } from './realmWoodExpeditionPresentation';
+import type { RealmGoldNodePresentationTelemetry } from './realmGoldNodeLayer';
+import type { RealmFoodNodePresentationTelemetry } from './realmFoodNodeLayer';
+import type { RealmWoodNodePresentationTelemetry } from './realmWoodNodeLayer';
 import {
   createTerrainOverviewHull,
   pointyHexCorners,
@@ -112,6 +133,24 @@ type RealmMapScreenProps = Readonly<{
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   onCollectResources?: () => Promise<void>;
+  /** Exact caller-only Gold expedition procedure projection. */
+  goldExpedition?: GoldExpeditionPresentation;
+  /** Guarded reducer boundary; never supplied to observer presentation. */
+  onDispatchGoldExpedition?: (siteId: string, idempotencyKey: string) => Promise<void>;
+  /** Guarded owner-only settlement reducer; never supplied to observers. */
+  onClaimGoldExpedition?: () => Promise<void>;
+  /** Exact caller-only Food expedition procedure projection. */
+  foodExpedition?: FoodExpeditionPresentation;
+  /** Guarded Food reducer boundary; never supplied to observer presentation. */
+  onDispatchFoodExpedition?: (siteId: string, idempotencyKey: string) => Promise<void>;
+  /** Guarded owner-only Food settlement reducer; never supplied to observers. */
+  onClaimFoodExpedition?: () => Promise<void>;
+  /** Exact caller-only Wood expedition procedure projection. */
+  woodExpedition?: WoodExpeditionPresentation;
+  /** Guarded Wood reducer boundary; never supplied to observer presentation. */
+  onDispatchWoodExpedition?: (siteId: string, idempotencyKey: string) => Promise<void>;
+  /** Guarded owner-only Wood settlement reducer; never supplied to observers. */
+  onClaimWoodExpedition?: () => Promise<void>;
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   audioMuted?: boolean;
@@ -209,6 +248,65 @@ function useStablePeerCastleMarkers(
   return stableMarkersRef.current;
 }
 
+type RealmGatheringNodePresentation =
+  | RealmGoldNodePresentation
+  | RealmFoodNodePresentation
+  | RealmWoodNodePresentation;
+
+function sameGatheringNodes<T extends RealmGatheringNodePresentation>(
+  first: readonly T[],
+  second: readonly T[]
+) {
+  return first.length === second.length && first.every((node, index) => {
+    const candidate = second[index];
+    if (
+      candidate === undefined
+      || node.siteId !== candidate.siteId
+      || node.coord.q !== candidate.coord.q
+      || node.coord.r !== candidate.coord.r
+      || node.tier !== candidate.tier
+      || node.availability !== candidate.availability
+      || node.occupiedByViewer !== candidate.occupiedByViewer
+    ) return false;
+    const occupation = node.occupation;
+    const candidateOccupation = candidate.occupation;
+    if ((occupation === undefined) !== (candidateOccupation === undefined)) return false;
+    if (
+      occupation !== undefined
+      && candidateOccupation !== undefined
+      && (
+        occupation.siteId !== candidateOccupation.siteId
+        || occupation.originCastleId !== candidateOccupation.originCastleId
+        || occupation.phase !== candidateOccupation.phase
+        || occupation.startedAtMicros !== candidateOccupation.startedAtMicros
+        || occupation.arrivesAtMicros !== candidateOccupation.arrivesAtMicros
+        || occupation.gatheringEndsAtMicros !== candidateOccupation.gatheringEndsAtMicros
+        || occupation.returnsAtMicros !== candidateOccupation.returnsAtMicros
+      )
+    ) return false;
+    const origin = node.originCastle;
+    const candidateOrigin = candidate.originCastle;
+    return (origin === undefined) === (candidateOrigin === undefined)
+      && (
+        origin === undefined
+        || candidateOrigin === undefined
+        || (
+          origin.castleId === candidateOrigin.castleId
+          && origin.name === candidateOrigin.name
+          && origin.q === candidateOrigin.q
+          && origin.r === candidateOrigin.r
+        )
+      );
+  });
+}
+
+/** Do not recreate a GPU Realm scene for unrelated profile/name snapshot churn. */
+function useStableGatheringNodes<T extends RealmGatheringNodePresentation>(nodes: readonly T[]) {
+  const stableNodesRef = useRef(nodes);
+  if (!sameGatheringNodes(stableNodesRef.current, nodes)) stableNodesRef.current = nodes;
+  return stableNodesRef.current;
+}
+
 /**
  * Canonical terrain metadata is immutable for one fingerprint. Avoid scanning
  * all 10,000 rows when a profile/castle subscription publishes a fresh
@@ -223,6 +321,92 @@ function useStableRealmTerrainMetadata(
     stableRowsRef.current = { canonicalFingerprint, rows };
   }
   return stableRowsRef.current.rows;
+}
+
+type RealmForestSnapshotProjection = Readonly<{
+  layout: unknown;
+  trees: unknown;
+}>;
+
+function primitiveForestSignature(value: unknown) {
+  if (
+    typeof value === 'string'
+    || typeof value === 'number'
+    || typeof value === 'boolean'
+    || typeof value === 'bigint'
+    || value === undefined
+    || value === null
+  ) return `${typeof value}:${String(value)}`;
+  return 'other';
+}
+
+function forestRecordSignature(value: unknown, fields: readonly string[]) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 'invalid';
+  const row = value as Readonly<Record<string, unknown>>;
+  return fields.map((field) => `${field}=${primitiveForestSignature(row[field])}`).join(';');
+}
+
+/**
+ * Snapshots deliberately use fresh public table arrays. Retain an unchanged
+ * forest projection so profile/resource churn never destroys and recreates a
+ * valid static GPU forest; every policy-relevant fixed-point field is part of
+ * this signature, so a real table update still replaces the scene input.
+ */
+function sharedForestProjectionSignature(layout: unknown, trees: unknown) {
+  const layoutSignature = Array.isArray(layout)
+    ? `array:${layout.length}:${layout.map((row) => forestRecordSignature(row, [
+      'realmId',
+      'layoutVersion',
+      'policyVersion',
+      'layoutDigest',
+      'assetCatalogDigest',
+      'instanceCount'
+    ])).sort().join('|')}`
+    : forestRecordSignature(layout, [
+      'realmId',
+      'layoutVersion',
+      'policyVersion',
+      'layoutDigest',
+      'assetCatalogDigest',
+      'instanceCount'
+    ]);
+  if (trees === undefined) return `layout:${layoutSignature}|trees:undefined`;
+  if (!Array.isArray(trees)) return `layout:${layoutSignature}|trees:invalid`;
+  const treeFields = [
+    'treeId',
+    'realmId',
+    'tileKey',
+    'q',
+    'r',
+    'localXMicrounits',
+    'localZMicrounits',
+    'worldXMicrounits',
+    'worldZMicrounits',
+    'rotationMilliDegrees',
+    'scaleBasisPoints',
+    'speciesId',
+    'habitat',
+    'layoutVersion'
+  ] as const;
+  return `layout:${layoutSignature}|trees:${trees.length}:${trees
+    .map((row) => forestRecordSignature(row, treeFields))
+    .sort()
+    .join('|')}`;
+}
+
+function useStableSharedForestProjection(layout: unknown, trees: unknown) {
+  const signature = sharedForestProjectionSignature(layout, trees);
+  const projectionRef = useRef<Readonly<{
+    signature: string;
+    projection: RealmForestSnapshotProjection;
+  }> | undefined>(undefined);
+  if (projectionRef.current?.signature !== signature) {
+    projectionRef.current = Object.freeze({
+      signature,
+      projection: Object.freeze({ layout, trees })
+    });
+  }
+  return projectionRef.current.projection;
 }
 
 function directionForKey(key: string): HexCoord | null {
@@ -388,6 +572,15 @@ function CanonicalRealmMapScreen({
   snapshot,
   resources,
   onCollectResources,
+  goldExpedition,
+  onDispatchGoldExpedition,
+  onClaimGoldExpedition,
+  foodExpedition,
+  onDispatchFoodExpedition,
+  onClaimFoodExpedition,
+  woodExpedition,
+  onDispatchWoodExpedition,
+  onClaimWoodExpedition,
   graphicsPreference,
   resolvedGraphicsQuality,
   audioMuted,
@@ -401,6 +594,10 @@ function CanonicalRealmMapScreen({
   // loopback snapshot. Compile the mode out of production even if a future
   // caller accidentally supplies the internal prop.
   const observerMode = import.meta.env.DEV && presentationMode === 'observer';
+  const sharedForestProjection = useStableSharedForestProjection(
+    snapshot.forestLayout,
+    snapshot.forestTrees
+  );
   const rootRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackMapRef = useRef<SVGSVGElement>(null);
@@ -466,6 +663,66 @@ function CanonicalRealmMapScreen({
   allCastlesRef.current = allCastles;
   const expectedCastleCountRef = useRef(allCastles.length);
   expectedCastleCountRef.current = allCastles.length;
+  const resolvedGoldNodes = useMemo<readonly RealmGoldNodePresentation[]>(() => (
+    resolveRealmGoldNodePresentations({
+      sites: snapshot.goldSites,
+      occupations: snapshot.goldNodeOccupations,
+      castles: allCastles.map((castle) => ({
+        castleId: castle.castleId,
+        name: castle.name,
+        q: castle.q,
+        r: castle.r
+      })),
+      ownCastleId: observerMode ? undefined : ownCastle.castleId,
+      isPlayableCoord: (coord) => isPlayableRealmCoord(surface, coord)
+    })
+  ), [allCastles, observerMode, ownCastle.castleId, snapshot.goldNodeOccupations, snapshot.goldSites, surface]);
+  const goldNodes = useStableGatheringNodes(resolvedGoldNodes);
+  const goldNodesRef = useRef(goldNodes);
+  goldNodesRef.current = goldNodes;
+  const goldNodesBySiteId = useMemo(() => new Map(
+    goldNodes.map((node) => [node.siteId, node] as const)
+  ), [goldNodes]);
+  const resolvedFoodNodes = useMemo<readonly RealmFoodNodePresentation[]>(() => (
+    resolveRealmFoodNodePresentations({
+      sites: snapshot.foodSites,
+      occupations: snapshot.foodNodeOccupations,
+      castles: allCastles.map((castle) => ({
+        castleId: castle.castleId,
+        name: castle.name,
+        q: castle.q,
+        r: castle.r
+      })),
+      ownCastleId: observerMode ? undefined : ownCastle.castleId,
+      isPlayableCoord: (coord) => isPlayableRealmCoord(surface, coord)
+    })
+  ), [allCastles, observerMode, ownCastle.castleId, snapshot.foodNodeOccupations, snapshot.foodSites, surface]);
+  const foodNodes = useStableGatheringNodes(resolvedFoodNodes);
+  const foodNodesRef = useRef(foodNodes);
+  foodNodesRef.current = foodNodes;
+  const foodNodesBySiteId = useMemo(() => new Map(
+    foodNodes.map((node) => [node.siteId, node] as const)
+  ), [foodNodes]);
+  const resolvedWoodNodes = useMemo<readonly RealmWoodNodePresentation[]>(() => (
+    resolveRealmWoodNodePresentations({
+      sites: snapshot.woodSites,
+      occupations: snapshot.woodNodeOccupations,
+      castles: allCastles.map((castle) => ({
+        castleId: castle.castleId,
+        name: castle.name,
+        q: castle.q,
+        r: castle.r
+      })),
+      ownCastleId: observerMode ? undefined : ownCastle.castleId,
+      isPlayableCoord: (coord) => isPlayableRealmCoord(surface, coord)
+    })
+  ), [allCastles, observerMode, ownCastle.castleId, snapshot.woodNodeOccupations, snapshot.woodSites, surface]);
+  const woodNodes = useStableGatheringNodes(resolvedWoodNodes);
+  const woodNodesRef = useRef(woodNodes);
+  woodNodesRef.current = woodNodes;
+  const woodNodesBySiteId = useMemo(() => new Map(
+    woodNodes.map((node) => [node.siteId, node] as const)
+  ), [woodNodes]);
   const profileRecords = useMemo(() => {
     return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
       castle.castleId,
@@ -562,9 +819,26 @@ function CanonicalRealmMapScreen({
     ? allCastles.find((castle) => castle.castleId === interaction.selectedCastle?.castleId)
     : undefined;
   const castleAtSelectedCell = allCastles.find((castle) => sameCoord(castle, selectedCoord));
-  const inspectorCastle = interaction.inspectorOpen && interaction.inspectorTarget
-    ? allCastles.find((castle) => castle.castleId === interaction.inspectorTarget?.castleId)
+  const selectedInspectorTarget = interaction.inspectorOpen ? interaction.inspectorTarget : null;
+  const inspectorCastle = selectedInspectorTarget !== null
+    && 'castleId' in selectedInspectorTarget
+    ? allCastles.find((castle) => castle.castleId === selectedInspectorTarget.castleId)
     : undefined;
+  const inspectorGoldNode = selectedInspectorTarget !== null
+    && 'siteId' in selectedInspectorTarget
+    ? goldNodesBySiteId.get(selectedInspectorTarget.siteId)
+    : undefined;
+  const inspectorFoodNode = selectedInspectorTarget !== null
+    && 'foodSiteId' in selectedInspectorTarget
+    ? foodNodesBySiteId.get(selectedInspectorTarget.foodSiteId)
+    : undefined;
+  const inspectorWoodNode = selectedInspectorTarget !== null
+    && 'woodSiteId' in selectedInspectorTarget
+    ? woodNodesBySiteId.get(selectedInspectorTarget.woodSiteId)
+    : undefined;
+  const goldNodeAtSelectedCell = goldNodes.find((node) => sameCoord(node.coord, selectedCoord));
+  const foodNodeAtSelectedCell = foodNodes.find((node) => sameCoord(node.coord, selectedCoord));
+  const woodNodeAtSelectedCell = woodNodes.find((node) => sameCoord(node.coord, selectedCoord));
   const ownProfile = profileRecords.get(ownCastle.castleId)?.profile;
   const focusedCastleId = interaction.cameraTarget.kind === 'castle'
     ? interaction.cameraTarget.castleId
@@ -627,6 +901,12 @@ function CanonicalRealmMapScreen({
       rootRef.current?.focus({ preventScroll: true });
     } else if (target.kind === 'inspector') {
       inspectorFocusRef.current?.focus({ preventScroll: true });
+    } else if (target.kind === 'gold-mine-inspector') {
+      inspectorFocusRef.current?.focus({ preventScroll: true });
+    } else if (target.kind === 'food-farm-inspector') {
+      inspectorFocusRef.current?.focus({ preventScroll: true });
+    } else if (target.kind === 'logging-camp-inspector') {
+      inspectorFocusRef.current?.focus({ preventScroll: true });
     } else if (target.kind === 'castle-label') {
       const label = rootRef.current
         ?.querySelector<HTMLButtonElement>(`.realm-castle-label[data-castle-id="${target.castleId}"]`)
@@ -671,6 +951,38 @@ function CanonicalRealmMapScreen({
     sceneRef.current?.focusCastle(castle.castleId);
   }, []);
 
+  const selectGoldNode = useCallback((node: RealmGoldNodePresentation) => {
+    selectedCoordRef.current = { ...node.coord };
+    dispatchInteraction({
+      type: 'activate-gold-site',
+      siteId: node.siteId,
+      coord: node.coord
+    });
+    // This is a camera/readability affordance only. The public node record
+    // remains the source of availability and the panel owns no local state.
+    sceneRef.current?.focusCell(node.coord);
+  }, []);
+
+  const selectFoodNode = useCallback((node: RealmFoodNodePresentation) => {
+    selectedCoordRef.current = { ...node.coord };
+    dispatchInteraction({
+      type: 'activate-food-site',
+      siteId: node.siteId,
+      coord: node.coord
+    });
+    sceneRef.current?.focusCell(node.coord);
+  }, []);
+
+  const selectWoodNode = useCallback((node: RealmWoodNodePresentation) => {
+    selectedCoordRef.current = { ...node.coord };
+    dispatchInteraction({
+      type: 'activate-wood-site',
+      siteId: node.siteId,
+      coord: node.coord
+    });
+    sceneRef.current?.focusCell(node.coord);
+  }, []);
+
   const markRendererUnavailable = useCallback(() => {
     rendererModeRef.current = 'fallback';
     setRendererMode('fallback');
@@ -705,8 +1017,23 @@ function CanonicalRealmMapScreen({
       if (castle) selectCastle(castle);
       return;
     }
+    if (target.kind === 'gold-site') {
+      const node = goldNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
+      if (node) selectGoldNode(node);
+      return;
+    }
+    if (target.kind === 'food-site') {
+      const node = foodNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
+      if (node) selectFoodNode(node);
+      return;
+    }
+    if (target.kind === 'wood-site') {
+      const node = woodNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
+      if (node) selectWoodNode(node);
+      return;
+    }
     selectCoord(target.coord);
-  }, [selectCastle, selectCoord]);
+  }, [selectCastle, selectCoord, selectFoodNode, selectGoldNode, selectWoodNode]);
 
   const updateCastleProjection = useCallback((frame: RealmCastleProjectionFrame) => {
     latestProjectionRef.current = frame;
@@ -795,6 +1122,45 @@ function CanonicalRealmMapScreen({
     root.dataset.raycastTargetCount = String(telemetry.raycastTargetCount);
   }, []);
 
+  const updateGoldNodePresentationTelemetry = useCallback((
+    telemetry: RealmGoldNodePresentationTelemetry
+  ) => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.dataset.publicGoldSiteCount = String(telemetry.publicSiteCount);
+    root.dataset.occupiedGoldSiteCount = String(telemetry.occupiedSiteCount);
+    root.dataset.renderedGoldMineCount = String(telemetry.renderedGoldMineCount);
+    root.dataset.renderedGoldWagonCount = String(telemetry.renderedWagonCount);
+    root.dataset.animatedGoldWagonCount = String(telemetry.animatedWagonCount);
+    root.dataset.goldMarkerOnlySiteCount = String(telemetry.markerOnlySiteCount);
+  }, []);
+
+  const updateFoodNodePresentationTelemetry = useCallback((
+    telemetry: RealmFoodNodePresentationTelemetry
+  ) => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.dataset.publicFoodSiteCount = String(telemetry.publicSiteCount);
+    root.dataset.occupiedFoodSiteCount = String(telemetry.occupiedSiteCount);
+    root.dataset.renderedFoodFarmCount = String(telemetry.renderedFoodFarmCount);
+    root.dataset.renderedFoodWagonCount = String(telemetry.renderedWagonCount);
+    root.dataset.animatedFoodWagonCount = String(telemetry.animatedWagonCount);
+    root.dataset.foodMarkerOnlySiteCount = String(telemetry.markerOnlySiteCount);
+  }, []);
+
+  const updateWoodNodePresentationTelemetry = useCallback((
+    telemetry: RealmWoodNodePresentationTelemetry
+  ) => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.dataset.publicWoodSiteCount = String(telemetry.publicSiteCount);
+    root.dataset.occupiedWoodSiteCount = String(telemetry.occupiedSiteCount);
+    root.dataset.renderedWoodCampCount = String(telemetry.renderedWoodCampCount);
+    root.dataset.renderedWoodWagonCount = String(telemetry.renderedWagonCount);
+    root.dataset.animatedWoodWagonCount = String(telemetry.animatedWagonCount);
+    root.dataset.woodMarkerOnlySiteCount = String(telemetry.markerOnlySiteCount);
+  }, []);
+
   const updateTerrainPresentationTelemetry = useCallback((
     telemetry: RealmTerrainPresentationTelemetry
   ) => {
@@ -812,6 +1178,8 @@ function CanonicalRealmMapScreen({
     root.dataset.semanticTerrainFeatureDrawCalls = String(telemetry.semanticFeatureDrawCalls);
     root.dataset.totalTerrainDetailInstanceCount = String(telemetry.totalDetailInstanceCount);
     root.dataset.totalTerrainDetailDrawCalls = String(telemetry.totalDetailDrawCalls);
+    root.dataset.forestPlacementSource = telemetry.forestPlacementSource;
+    root.dataset.sharedForestTreeCount = String(telemetry.forestSharedTreeCount);
   }, []);
 
   const updateSceneComposition = useCallback(() => {
@@ -845,7 +1213,7 @@ function CanonicalRealmMapScreen({
       observer?.observe(root);
       root.querySelectorAll<HTMLElement>(
         '.realm-hud, .realm-hud__actions, .realm-profile-trigger, .realm-resource-rail, '
-        + '.castle-inspection, .realm-cell-navigator'
+        + '.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .logging-camp-inspection, .realm-cell-navigator'
       ).forEach((element) => observer?.observe(element));
     }
     window.addEventListener('resize', updateSceneComposition, { passive: true });
@@ -926,7 +1294,27 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.semanticTerrainFeatureDrawCalls = '0';
         rootRef.current.dataset.totalTerrainDetailInstanceCount = '0';
         rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
+        rootRef.current.dataset.forestPlacementSource = 'blocked';
+        rootRef.current.dataset.sharedForestTreeCount = '0';
         rootRef.current.dataset.labelBaseAnchorViolationCount = '0';
+        rootRef.current.dataset.publicGoldSiteCount = String(goldNodes.length);
+        rootRef.current.dataset.occupiedGoldSiteCount = '0';
+        rootRef.current.dataset.renderedGoldMineCount = '0';
+        rootRef.current.dataset.renderedGoldWagonCount = '0';
+        rootRef.current.dataset.animatedGoldWagonCount = '0';
+        rootRef.current.dataset.goldMarkerOnlySiteCount = String(goldNodes.length);
+        rootRef.current.dataset.publicFoodSiteCount = String(foodNodes.length);
+        rootRef.current.dataset.occupiedFoodSiteCount = '0';
+        rootRef.current.dataset.renderedFoodFarmCount = '0';
+        rootRef.current.dataset.renderedFoodWagonCount = '0';
+        rootRef.current.dataset.animatedFoodWagonCount = '0';
+        rootRef.current.dataset.foodMarkerOnlySiteCount = String(foodNodes.length);
+        rootRef.current.dataset.publicWoodSiteCount = String(woodNodes.length);
+        rootRef.current.dataset.occupiedWoodSiteCount = '0';
+        rootRef.current.dataset.renderedWoodCampCount = '0';
+        rootRef.current.dataset.renderedWoodWagonCount = '0';
+        rootRef.current.dataset.animatedWoodWagonCount = '0';
+        rootRef.current.dataset.woodMarkerOnlySiteCount = String(woodNodes.length);
       }
       setVisibleCastleLabels([]);
       setCameraMode('realm');
@@ -936,6 +1324,15 @@ function CanonicalRealmMapScreen({
         keepCoord,
         ownCastleId: observerMode ? undefined : ownCastle.castleId,
         otherCastles: peerCastles,
+        goldNodes,
+        foodNodes,
+        woodNodes,
+        sharedForestLayout: sharedForestProjection.layout,
+        sharedForestTrees: sharedForestProjection.trees,
+        realmId: snapshot.realm.realmId,
+        // The retired local planner is exposed only to the synthetic dev
+        // observer. Player scenes wait for the paired shared public tables.
+        allowLegacyForestFallback: observerMode,
         terrainMetadata: sharedTileMetadata,
         quality: qualitySpec,
         reducedMotion,
@@ -955,6 +1352,9 @@ function CanonicalRealmMapScreen({
           updateSceneComposition();
         },
         onCastlePresentationTelemetry: updateCastlePresentationTelemetry,
+        onGoldNodePresentationTelemetry: updateGoldNodePresentationTelemetry,
+        onFoodNodePresentationTelemetry: updateFoodNodePresentationTelemetry,
+        onWoodNodePresentationTelemetry: updateWoodNodePresentationTelemetry,
         onTerrainPresentationTelemetry: updateTerrainPresentationTelemetry,
         onCastleProjection: updateCastleProjection,
         onRendererUnavailable: markRendererUnavailable,
@@ -965,6 +1365,27 @@ function CanonicalRealmMapScreen({
       scene.setPresentedCastleIds(presentedCastleIdsRef.current);
       scene.setSelected(selectedCoordRef.current);
       scene.setSelectedCastleId(interactionRef.current.selectedCastle?.castleId ?? null);
+      scene.setSelectedGoldSiteId?.(
+        interactionRef.current.inspectorOpen
+        && interactionRef.current.inspectorTarget !== null
+        && 'siteId' in interactionRef.current.inspectorTarget
+          ? interactionRef.current.inspectorTarget.siteId
+          : null
+      );
+      scene.setSelectedFoodSiteId?.(
+        interactionRef.current.inspectorOpen
+        && interactionRef.current.inspectorTarget !== null
+        && 'foodSiteId' in interactionRef.current.inspectorTarget
+          ? interactionRef.current.inspectorTarget.foodSiteId
+          : null
+      );
+      scene.setSelectedWoodSiteId?.(
+        interactionRef.current.inspectorOpen
+        && interactionRef.current.inspectorTarget !== null
+        && 'woodSiteId' in interactionRef.current.inspectorTarget
+          ? interactionRef.current.inspectorTarget.woodSiteId
+          : null
+      );
       scene.setHovered(hoveredCoordRef.current);
       const cameraTarget: RealmCameraTarget = interactionRef.current.cameraTarget;
       if (cameraTarget.kind === 'castle') scene.focusCastle(cameraTarget.castleId);
@@ -980,7 +1401,7 @@ function CanonicalRealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedTileMetadata, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateSceneComposition, updateTerrainPresentationTelemetry]);
+  }, [foodNodes, goldNodes, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedForestProjection, sharedTileMetadata, snapshot.realm.realmId, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, woodNodes]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);
@@ -989,6 +1410,18 @@ function CanonicalRealmMapScreen({
   useEffect(() => {
     sceneRef.current?.setSelectedCastleId(selectedCastle?.castleId ?? null);
   }, [selectedCastle?.castleId]);
+
+  useEffect(() => {
+    sceneRef.current?.setSelectedGoldSiteId?.(inspectorGoldNode?.siteId ?? null);
+  }, [inspectorGoldNode?.siteId]);
+
+  useEffect(() => {
+    sceneRef.current?.setSelectedFoodSiteId?.(inspectorFoodNode?.siteId ?? null);
+  }, [inspectorFoodNode?.siteId]);
+
+  useEffect(() => {
+    sceneRef.current?.setSelectedWoodSiteId?.(inspectorWoodNode?.siteId ?? null);
+  }, [inspectorWoodNode?.siteId]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -1064,6 +1497,12 @@ function CanonicalRealmMapScreen({
       event.preventDefault();
       if (castleAtSelectedCell) {
         selectCastle(castleAtSelectedCell);
+      } else if (goldNodeAtSelectedCell) {
+        selectGoldNode(goldNodeAtSelectedCell);
+      } else if (foodNodeAtSelectedCell) {
+        selectFoodNode(foodNodeAtSelectedCell);
+      } else if (woodNodeAtSelectedCell) {
+        selectWoodNode(woodNodeAtSelectedCell);
       } else {
         sceneRef.current?.focusCell(selectedCoord);
         dispatchInteraction({
@@ -1189,6 +1628,115 @@ function CanonicalRealmMapScreen({
                 </g>
               );
             })}
+            <g aria-hidden="true" className="realm-map-screen__fallback-gold-sites">
+              {goldNodes.map((node) => {
+                const world = axialToWorld(node.coord, HEX_SIZE);
+                const occupied = node.availability !== 'available'
+                  && node.availability !== 'unavailable';
+                return (
+                  <g
+                    data-gold-site-id={node.siteId}
+                    data-site-state={node.availability}
+                    key={node.siteId}
+                    transform={`translate(${world.x} ${-world.z})`}
+                  >
+                    {occupied ? (
+                      <circle
+                        fill="none"
+                        r="0.34"
+                        stroke="#f7d366"
+                        strokeOpacity="0.94"
+                        strokeWidth="0.045"
+                      />
+                    ) : null}
+                    <path
+                      d="M0 -0.3L0.25 -0.02L0.13 0.28H-0.13L-0.25 -0.02Z"
+                      fill={node.availability === 'unavailable' ? '#84775a' : '#efbb35'}
+                      stroke="#6e4810"
+                      strokeWidth="0.04"
+                    />
+                    <path d="M0 -0.21L0.12 -0.02L0 0.19L-0.12 -0.02Z" fill="#fff1a7" />
+                  </g>
+                );
+              })}
+            </g>
+            <g aria-hidden="true" className="realm-map-screen__fallback-food-sites">
+              {foodNodes.map((node) => {
+                const world = axialToWorld(node.coord, HEX_SIZE);
+                const occupied = node.availability !== 'available'
+                  && node.availability !== 'unavailable';
+                return (
+                  <g
+                    data-food-site-id={node.siteId}
+                    data-site-state={node.availability}
+                    key={node.siteId}
+                    transform={`translate(${world.x} ${-world.z})`}
+                  >
+                    {occupied ? (
+                      <circle
+                        fill="none"
+                        r="0.34"
+                        stroke="#ddef8b"
+                        strokeOpacity="0.94"
+                        strokeWidth="0.045"
+                      />
+                    ) : null}
+                    <path
+                      d="M0 -0.34L0.23 -0.08L0.17 0.25H-0.17L-0.23 -0.08Z"
+                      fill={node.availability === 'unavailable' ? '#708062' : '#b8d957'}
+                      stroke="#435a26"
+                      strokeWidth="0.04"
+                    />
+                    <path
+                      d="M-0.1 0.12V-0.17M0 0.16V-0.25M0.1 0.12V-0.17"
+                      fill="none"
+                      stroke="#fff8bb"
+                      strokeLinecap="round"
+                      strokeWidth="0.035"
+                    />
+                  </g>
+                );
+              })}
+            </g>
+            <g aria-hidden="true" className="realm-map-screen__fallback-wood-sites">
+              {woodNodes.map((node) => {
+                const world = axialToWorld(node.coord, HEX_SIZE);
+                const occupied = node.availability !== 'available'
+                  && node.availability !== 'unavailable';
+                return (
+                  <g
+                    data-wood-site-id={node.siteId}
+                    data-site-state={node.availability}
+                    key={node.siteId}
+                    transform={`translate(${world.x} ${-world.z})`}
+                  >
+                    {occupied ? (
+                      <circle
+                        fill="none"
+                        r="0.34"
+                        stroke="#b9e28d"
+                        strokeOpacity="0.94"
+                        strokeWidth="0.045"
+                      />
+                    ) : null}
+                    <path
+                      d="M-0.28 0.25L-0.17 -0.28H0.02L0.28 0.25ZM-0.08 -0.28V0.2M0.1 -0.28V0.2"
+                      fill={node.availability === 'unavailable' ? '#657260' : '#6eaa61'}
+                      stroke="#28482c"
+                      strokeWidth="0.04"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M-0.16 0.04H0.16M-0.12 -0.08H0.12"
+                      fill="none"
+                      stroke="#e2f5b7"
+                      strokeLinecap="round"
+                      strokeWidth="0.035"
+                    />
+                  </g>
+                );
+              })}
+            </g>
           </svg>
           <p className="realm-map-screen__fallback-copy">
             Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.
@@ -1271,6 +1819,45 @@ function CanonicalRealmMapScreen({
               profile={profileRecords.get(inspectorCastle.castleId)!.profile}
               own={!observerMode && inspectorCastle.ownerFid === identity.fid}
               observer={observerMode}
+              focusTargetRef={inspectorFocusRef}
+              onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
+            />
+          ) : null}
+
+          {inspectorGoldNode ? (
+            <GoldMineInspectionPanel
+              id={`${inspectorId}-gold-${inspectorGoldNode.siteId}`}
+              mine={{ name: 'Gold Mine', tier: inspectorGoldNode.tier }}
+              node={inspectorGoldNode}
+              privateExpedition={observerMode ? undefined : goldExpedition}
+              onDispatchGoldExpedition={observerMode ? undefined : onDispatchGoldExpedition}
+              onClaimGoldExpedition={observerMode ? undefined : onClaimGoldExpedition}
+              focusTargetRef={inspectorFocusRef}
+              onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
+            />
+          ) : null}
+
+          {inspectorFoodNode ? (
+            <FoodFarmInspectionPanel
+              id={`${inspectorId}-food-${inspectorFoodNode.siteId}`}
+              farm={{ name: 'Wheat Farm', tier: inspectorFoodNode.tier }}
+              node={inspectorFoodNode}
+              privateExpedition={observerMode ? undefined : foodExpedition}
+              onDispatchFoodExpedition={observerMode ? undefined : onDispatchFoodExpedition}
+              onClaimFoodExpedition={observerMode ? undefined : onClaimFoodExpedition}
+              focusTargetRef={inspectorFocusRef}
+              onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
+            />
+          ) : null}
+
+          {inspectorWoodNode ? (
+            <LoggingCampInspectionPanel
+              id={`${inspectorId}-wood-${inspectorWoodNode.siteId}`}
+              camp={{ name: 'Logging Camp', tier: inspectorWoodNode.tier }}
+              node={inspectorWoodNode}
+              privateExpedition={observerMode ? undefined : woodExpedition}
+              onDispatchWoodExpedition={observerMode ? undefined : onDispatchWoodExpedition}
+              onClaimWoodExpedition={observerMode ? undefined : onClaimWoodExpedition}
               focusTargetRef={inspectorFocusRef}
               onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
             />

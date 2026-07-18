@@ -11,9 +11,27 @@ import {
   planGenesisResourceBackfill,
 } from '../resourceAuthority';
 import {
+  collectActiveGoldExpedition,
+  goldExpeditionErrorCode,
+  myGoldExpeditionState,
+} from '../goldExpeditionAuthority';
+import {
+  collectActiveFoodExpedition,
+  foodExpeditionErrorCode,
+  myFoodExpeditionState,
+} from '../foodExpeditionAuthority';
+import {
+  collectActiveWoodExpedition,
+  myWoodExpeditionState,
+  woodExpeditionErrorCode,
+} from '../woodExpeditionAuthority';
+import {
+  ResourceExpeditionReservationAuthorityError,
+  planResourceSettlementForActiveExpeditionReservations,
+} from '../resourceExpeditionReservationAuthority';
+import {
   GENESIS_RESOURCE_POLICY_VERSION,
   ResourceAuthorityPolicyError,
-  planResourceSettlement,
 } from '../resourceAuthorityPolicy';
 import warpkeep from '../schema';
 
@@ -50,8 +68,15 @@ const adminAlphaStatusV4 = t.object('AdminAlphaStatusV4', {
 });
 
 function senderPolicyError(error: unknown): never {
+  const foodExpeditionCode = foodExpeditionErrorCode(error);
+  if (foodExpeditionCode !== undefined) throw new SenderError(foodExpeditionCode);
+  const woodExpeditionCode = woodExpeditionErrorCode(error);
+  if (woodExpeditionCode !== undefined) throw new SenderError(woodExpeditionCode);
+  const goldExpeditionCode = goldExpeditionErrorCode(error);
+  if (goldExpeditionCode !== undefined) throw new SenderError(goldExpeditionCode);
   if (
     error instanceof ResourceAuthorityError
+    || error instanceof ResourceExpeditionReservationAuthorityError
     || error instanceof ResourceAuthorityPolicyError
   ) throw new SenderError(error.code);
   throw error;
@@ -72,17 +97,34 @@ export const getMyResourceStateV1 = warpkeep.procedure(
         throw new SenderError('MARK_ACCOUNT_INVARIANT');
       }
       const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
-      const settlement = planResourceSettlement(account, terrainKind, observedAtMicros);
+      const settlement = planResourceSettlementForActiveExpeditionReservations(
+        tx,
+        claims.fid,
+        account,
+        terrainKind,
+        observedAtMicros,
+      );
+      const expedition = myGoldExpeditionState(tx, claims.fid);
+      const foodExpedition = myFoodExpeditionState(tx, claims.fid);
+      const woodExpedition = myWoodExpeditionState(tx, claims.fid);
       return {
         fid: claims.fid,
         food: account.food,
         wood: account.wood,
         stone: account.stone,
         gold: account.gold,
-        pendingFood: settlement.deltas.food,
-        pendingWood: settlement.deltas.wood,
+        // A Food wagon and passive terrain yield share one private inventory,
+        // so the existing HUD resource projection truthfully includes both
+        // whole-minute expedition Food and pending ten-minute terrain Food.
+        pendingFood: settlement.deltas.food + foodExpedition.pendingFood,
+        // Wood follows the same private, server-time-only whole-minute
+        // aggregation as Food; no public occupation row can alter this value.
+        pendingWood: settlement.deltas.wood + woodExpedition.pendingWood,
         pendingStone: settlement.deltas.stone,
-        pendingGold: settlement.deltas.gold,
+        // Passive terrain Gold is zero under the Tier-I pilot. This private
+        // aggregate nevertheless carries any whole-minute, unclaimed wagon
+        // Gold so the existing HUD state cannot silently under-report it.
+        pendingGold: settlement.deltas.gold + expedition.pendingGold,
         marksBalanceMicros: marks.balanceMicros,
         observedAtMicros,
         settledThroughMicros: account.settledThroughMicros,
@@ -103,25 +145,39 @@ export const collectResourcesV1 = warpkeep.reducer(
   { name: 'collect_resources_v1' },
   ctx => {
     try {
-      const { claims, account, terrainKind } = requireGameplayPlayerV1(ctx);
+      const { claims } = requireGameplayPlayerV1(ctx);
       const marksBefore = ctx.db.markAccountV1.fid.find(claims.fid);
       if (marksBefore === null || !markAccountIsConsistent(marksBefore)) {
         throw new SenderError('MARK_ACCOUNT_INVARIANT');
       }
-      const settlement = planResourceSettlement(
-        account,
-        terrainKind,
+      // Claim both capacity-reserved expedition fields before one passive
+      // settlement at the same server moment. This prevents either a delayed
+      // Food/Wood schedule or a manual claim from consuming the other
+      // resource's remaining award with a capped passive update first.
+      collectActiveFoodExpedition(ctx, claims.fid);
+      collectActiveWoodExpedition(ctx, claims.fid);
+      const resourceAfterExpeditions = assertGenesisResourceForFid(ctx, claims.fid);
+      const settlement = planResourceSettlementForActiveExpeditionReservations(
+        ctx,
+        claims.fid,
+        resourceAfterExpeditions.account,
+        resourceAfterExpeditions.terrainKind,
         ctx.timestamp.microsSinceUnixEpoch,
       );
-      if (settlement.completedQuanta === 0n) return;
-      ctx.db.resourceAccountV1.fid.update({
-        ...account,
-        ...settlement.balances,
-        settledThroughMicros: settlement.settledThroughMicros,
-        revision: settlement.revision,
-        policyVersion: settlement.policyVersion,
-        updatedAt: ctx.timestamp,
-      });
+      if (settlement.completedQuanta !== 0n) {
+        ctx.db.resourceAccountV1.fid.update({
+          ...resourceAfterExpeditions.account,
+          ...settlement.balances,
+          settledThroughMicros: settlement.settledThroughMicros,
+          revision: settlement.revision,
+          policyVersion: settlement.policyVersion,
+          updatedAt: ctx.timestamp,
+        });
+      }
+      // Whole-inventory collection also claims active Gold. Gold uses a
+      // separate wagon table and balances only its Gold field, so a founder
+      // may collect concurrent Food and Gold expeditions in one action.
+      collectActiveGoldExpedition(ctx, claims.fid);
       const marksAfter = ctx.db.markAccountV1.fid.find(claims.fid);
       if (
         marksAfter === null

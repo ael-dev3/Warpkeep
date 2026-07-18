@@ -40,3 +40,27 @@ export {
   adminBackfillResourceAccountsV1,
   adminGetAlphaStatusV4,
 } from './reducers/resources';
+export {
+  getMyGoldExpeditionStateV1,
+  dispatchGoldExpeditionV1,
+  collectGoldExpeditionV1,
+  adminSeedGenesisTierIGoldSitesV1,
+} from './reducers/goldExpeditions';
+export {
+  getMyFoodExpeditionStateV1,
+  dispatchFoodExpeditionV1,
+  collectFoodExpeditionV1,
+  adminSeedGenesisTierIFoodSitesV1,
+} from './reducers/foodExpeditions';
+export {
+  getMyWoodExpeditionStateV1,
+  dispatchWoodExpeditionV1,
+  collectWoodExpeditionV1,
+  adminSeedGenesisTierIWoodSitesV1,
+} from './reducers/woodExpeditions';
+export { adminSeedGenesisForestLayoutV1 } from './reducers/forestLayout';
+export {
+  runGoldExpeditionScheduleV1,
+  runFoodExpeditionScheduleV1,
+  runWoodExpeditionScheduleV1,
+} from './schema';

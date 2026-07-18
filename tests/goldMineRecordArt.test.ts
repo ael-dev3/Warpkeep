@@ -84,13 +84,16 @@ describe('Hegemony Gold Mine record art', () => {
     expect(manifest.projectAuthorization.scope).toContain('public Warpkeep GitHub repository');
     expect(manifest.projectAuthorization.scope).toContain('official warpkeep.com Pages runtime');
     expect(manifest.projectAuthorization.notGranted.join(' ')).toMatch(
-      /copyright ownership|public open-content licence|gathering/i
+      /copyright ownership|public open-content licence|browser-derived/i
     );
     expect(manifest.licence.spdx).toBe('LicenseRef-Warpkeep-Provenance-Required');
     expect(manifest.sourceInputs.every((source) => source.repositoryRetained === false)).toBe(true);
-    expect(manifest.presentationBoundary.currentRealmMount).toBe('none');
-    expect(manifest.presentationBoundary.currentNodePlacement).toBe('none');
-    expect(manifest.presentationBoundary.forbiddenClaims).toContain('gathering action');
+    expect(manifest.presentationBoundary.currentRealmMount)
+      .toBe('src/components/realm/RealmMapScreen.tsx');
+    expect(manifest.presentationBoundary.currentNodePlacement)
+      .toBe('validated public Gold-site inspector only');
+    expect(manifest.presentationBoundary.forbiddenClaims)
+      .toContain('browser-derived gathering authority');
 
     const attribution = readFileSync(resolve(ROOT, 'ASSETS-LICENSE.md'), 'utf8');
     expect(attribution).toContain('Hegemony Gold Mine inspection artwork');
@@ -135,7 +138,7 @@ describe('Hegemony Gold Mine record art', () => {
       .toBeGreaterThan(manifest.runtimeAsset.width * manifest.runtimeAsset.height * 0.5);
   });
 
-  it('keeps the asset local and decorative in the standalone future inspection panel', () => {
+  it('keeps the asset local and decorative in the validated Realm inspection panel', () => {
     const component = readFileSync(
       resolve(ROOT, manifest.presentationBoundary.component),
       'utf8'
@@ -148,6 +151,8 @@ describe('Hegemony Gold Mine record art', () => {
     expect(component).toContain('decoding="async"');
     expect(component).toContain('draggable={false}');
     expect(component).not.toMatch(/https?:\/\//i);
-    expect(map).not.toContain('GoldMineInspectionPanel');
+    expect(map).toContain('GoldMineInspectionPanel');
+    expect(map).toContain('privateExpedition={observerMode ? undefined : goldExpedition}');
+    expect(map).toContain('onDispatchGoldExpedition={observerMode ? undefined : onDispatchGoldExpedition}');
   });
 });

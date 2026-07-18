@@ -1,5 +1,12 @@
 # Tier-1 Gold Mine preparation gate
 
+> **Superseded as an integration gate on 18 July 2026.** This record remains
+> the provenance and candidate-asset preparation history. The reviewed
+> successor, [the Gold wagon expedition plan](2026-07-18-alpha-0.3.9-gold-wagon-expedition.md),
+> authorizes a bounded 24-site Genesis 001 pilot on the Alpha 0.3.8
+> 10,000-cell candidate map. It does not authorize a production publication,
+> seed, backfill, deployment, or merge.
+
 ## Decision
 
 This is an asset-and-contract preparation record, not a Gold gathering
@@ -19,14 +26,17 @@ The protected `main` baseline is `4c7cf7b7c91929f3d264636cb1a1b23eec04a34e`
 - 100 permanent castle slots; and
 - generation version 2 with the existing protocol-3 migration contract.
 
-The only current draft resource PR, #48, does not change the world generator,
-canonical seed policy, schema, migration fixtures, or those world counts. No
-reviewed 10,000-cell / 2,000-resource-capable expansion head is available.
+At the time of this preparation record, the then-current draft resource PR did
+not change the world generator, canonical seed policy, schema, migration
+fixtures, or those world counts. The reviewed Alpha 0.3.8 candidate now defines
+10,000 cells and 2,000 resource-capable anchors while preserving the original
+founding district.
 
-Consequently, generating 320 site coordinates, a placement digest, world rows,
-server nodes, orders, balances, or rendering transforms now would create false
-release truth against the 1,261-cell map. This preparation work explicitly does
-none of those things.
+Consequently, this preparation work did not generate the formerly proposed 320
+site coordinates or pretend that a 10,000-cell expansion existed. The successor
+plan deliberately chooses a separate, small 24-site pilot from the reviewed
+2,000 eligible anchors, records its exact placement artifact and digest, and
+keeps the separate 320-site proposal out of scope.
 
 ## What is staged
 
@@ -61,18 +71,13 @@ stale authoring counts are likewise not a future runtime contract.
 
 ## Required next gate
 
-Only after a reviewed expansion head proves the final canonical map can a
-separate integration workstream:
-
-1. validate exactly 10,000 cells and exactly 2,000 resource-capable anchors;
-2. deterministically generate and review the 320 Tier-1 Gold placement artifact
-   and digest against that exact world;
-3. decide the Gold Mine metadata correction and promote approved immutable
-   runtime output files;
-4. add server-authoritative sites, node state, routes, idempotent orders,
-   private balances, schedules, migrations, and operator controls; and
-5. add presentation only after public/private boundaries, accessibility,
-   performance, security, migration, and release gates pass.
+The current bounded workstream validates the reviewed Genesis 001 map and its
+resource-capable anchors before producing an exact 24-site artifact and digest.
+It may promote reviewed immutable runtime outputs, add server-authoritative
+sites, occupancy, expeditions, schedules, and private settlement, then add
+presentation after its public/private, accessibility, performance, security,
+migration, and release gates pass. The separate 320-site proposal remains out
+of scope for this candidate.
 
 Gold remains separate from Community Marks throughout. This preparation does
 not authorize a wallet, token, purchase, balance, reward, or resource mechanic.
