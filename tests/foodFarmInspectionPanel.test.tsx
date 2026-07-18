@@ -30,8 +30,15 @@ describe('FoodFarmInspectionPanel', () => {
     expect(dialog.className).toContain('food-farm-inspection');
     expect(screen.getByText('Resource').nextElementSibling?.textContent).toBe('Food');
     const art = container.querySelector<HTMLImageElement>('.food-farm-inspection__hero-art');
-    expect(art?.getAttribute('src')).toBe('/images/resources/hegemony-food-5c012a7e939f8796.webp');
+    expect(art?.getAttribute('src')).toBe('/images/realm/hegemony-wheat-farm-record.webp');
     expect(art?.getAttribute('alt')).toBe('');
+    expect(art?.getAttribute('aria-hidden')).toBe('true');
+    expect(art?.getAttribute('decoding')).toBe('async');
+    expect(art?.getAttribute('draggable')).toBe('false');
+    expect(art?.getAttribute('height')).toBe('1254');
+    expect(art?.getAttribute('width')).toBe('1254');
+    expect(art?.closest('.food-farm-inspection__art-stage')?.className)
+      .toContain('food-farm-inspection__art-stage');
     const close = screen.getByRole('button', { name: 'CLOSE FOOD FARM RECORD' });
     await waitFor(() => expect(document.activeElement).toBe(close));
     expect(focusTargetRef.current).toBe(close);

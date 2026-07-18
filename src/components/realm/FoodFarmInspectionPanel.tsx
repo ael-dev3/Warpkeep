@@ -200,9 +200,9 @@ export function FoodFarmInspectionPanel({
           className="gold-mine-inspection__hero-art food-farm-inspection__hero-art"
           decoding="async"
           draggable={false}
-          height="512"
-          src={publicAssetUrl('images/resources/hegemony-food-5c012a7e939f8796.webp')}
-          width="512"
+          height="1254"
+          src={publicAssetUrl('images/realm/hegemony-wheat-farm-record.webp')}
+          width="1254"
         />
       </div>
 

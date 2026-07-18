@@ -20,6 +20,7 @@
     "prepare:hegemony-castle-base": "node scripts/install-hegemony-gameready-castle-base.mjs",
     "prepare:hegemony-gold-mine-candidates": "node scripts/install-hegemony-gold-mine-review-candidates.mjs",
     "prepare:hegemony-gold-mine-record-art": "node scripts/install-hegemony-gold-mine-record-art.mjs",
+    "prepare:hegemony-wheat-farm-record-art": "node scripts/install-hegemony-wheat-farm-record-art.mjs",
     "prepare:hegemony-gold-mine-runtime": "node scripts/install-hegemony-gold-mine-runtime.mjs",
     "prepare:hegemony-supply-wagon": "node scripts/prepare-hegemony-supply-wagon.mjs",
     "prepare:hegemony-trees": "node scripts/install-hegemony-tree-runtime.mjs",

@@ -230,6 +230,17 @@ Start with:
   or Gold/Marks coupling. Keep the art decorative (`alt=""`, pointer-inert) and
   preserve its exact hash, alpha audit, authorization boundary, and no-external-
   CDN delivery contract when a future approved node interaction mounts it.
+- `public/images/realm/hegemony-wheat-farm-record.webp` is a separate,
+  exact-hash-pinned transparent 2D inspection illustration with its provenance
+  under `docs/reference/resources/2026-07-18-hegemony-wheat-farm/record-art/`.
+  It may appear only through `FoodFarmInspectionPanel` as local decorative
+  art for a validated public Food-site inspector. It does not authorize a 3D
+  runtime promotion, renderer-derived world coordinate, target, click path,
+  owner, reserve, inventory, Gather action, balance, reward, entitlement, or
+  Food/Marks coupling. Keep the art decorative (`alt=""`, `aria-hidden`, and
+  pointer-inert) and preserve its exact hash, alpha audit, authorization
+  boundary, and no-external-CDN delivery contract when a future approved node
+  interaction mounts it.
 
 ## Player-visible release truth
 

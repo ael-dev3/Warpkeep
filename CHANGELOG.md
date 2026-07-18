@@ -30,6 +30,9 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   provenance, strict integrity checks, a weighted shared Gold/Food render
   budget, and marker fallback. The models are visual-only and do not determine
   world placement or gameplay authority.
+- Adds a provenance-pinned, transparent high-resolution Wheat Farm inspection
+  illustration that rises slightly above the Food card while remaining
+  decorative and pointer-inert.
 - Alpha 0.3.10 is **not deployed**. Alpha 0.3.6 remains the verified public
   release. Production requires separately approved additive publication,
   Food-site setup, aggregate verification, and exact Pages deployment.

@@ -44,7 +44,7 @@ Pages deployment, tag, GitHub Release, merge, or production-world action.
 ## Public map, private economy
 
 - The public Food projection contains only the site coordinate/tier/status and
-  an identity-free occupation timeline with the originating public castle.
+  an identity-minimized occupation timeline with the originating public castle.
   FIDs, request keys, routes, accrued Food, private expedition rows, and
   balances stay caller-private.
 - Food Farm presentation uses exact provenance-pinned High, Balanced, and
@@ -52,9 +52,10 @@ Pages deployment, tag, GitHub Release, merge, or production-world action.
   budget. The substantially denser Farm family has strict per-resource limits
   and marker fallback; scene assets never determine collision, placement,
   movement, ownership, or rewards.
-- The Food inspector can show the existing decorative Food artwork and the
-  validated public/private projections. It never fabricates availability,
-  inventory, ownership, or a gather result.
+- The Food inspector mounts a provenance-pinned transparent Wheat Farm
+  illustration as decorative, pointer-inert local art that rises slightly above
+  the card edge beside the validated public/private projections. It never
+  fabricates availability, inventory, ownership, or a gather result.
 
 ## Additive rollout gate
 

@@ -221,6 +221,29 @@ pins the source-manifest facts, bounds, orientation, LOD budgets, collision
 guidance, and visual-only scope boundary. This family remains
 `LicenseRef-Warpkeep-Provenance-Required`.
 
+## Hegemony Wheat Farm inspection artwork
+
+On 2026-07-18, the Warpkeep project owner instructed PR #57 to polish the
+supplied Wheat Farm visual into a transparent inspection-card derivative. That
+authorization covers this exact checked-in output in the public Warpkeep GitHub
+repository and an eventual official `warpkeep.com` Pages runtime only after
+separately approved deployment. It is use authorization only, not deployment
+approval, and does not establish underlying ownership, a public/open-content
+licence, general derivative or redistribution rights, trademark rights, or
+authority to place a Food site, expose a balance, or activate gathering.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Decorative Wheat Farm inspection card artwork | `public/images/realm/hegemony-wheat-farm-record.webp` | 1254×1254 transparent WebP, 224,806 bytes, SHA-256 `466c80380a8d23de043731a7c386e78c9b36a2d2e69fa175db4b87efc3f43eb0`; generated from the supplied 1254×1254 reference through the recorded image-edit and hard chroma-matte workflow. |
+
+The exact source attachment and image-generation/chroma-matte intermediates are
+not committed. Their hashes, transformation method, cleanup parameters,
+decoded RGBA hash, alpha profile, and visible bounds are recorded in the dated
+[Wheat Farm inspection-art record](docs/reference/resources/2026-07-18-hegemony-wheat-farm/record-art/manifest.json).
+The reviewed draft integration mounts the card as decorative inspection art
+only; it grants no resource, currency, reward, entitlement, map-placement, or
+Food authority. No Pages deployment is authorized by this record.
+
 ## Hegemony Supply Wagon runtime assets
 
 On 2026-07-18, the same project-owner instruction authorizes the exact reviewed
