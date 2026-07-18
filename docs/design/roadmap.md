@@ -39,6 +39,9 @@ review and explicit owner approval.
 3. Run the exact-count founder backfill only after separate owner approval.
 4. Require zero missing, orphaned, or invalid resource accounts in the
    counts-only v4 inspection before deploying the matching Pages SHA.
+5. After the candidate boundary is stable, split the v4 migration lifecycle
+   proof and resource rollout security tests out of their large shared harnesses
+   without changing their fail-closed public contracts.
 
 ## Next gameplay slice — construction queues
 

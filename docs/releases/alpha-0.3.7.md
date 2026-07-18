@@ -83,20 +83,29 @@ combat, scouting, alliances, chat, seasons, trading, resource transfers, public
 inventories, wallet actions, Marks spending, airdrops, rewards, or guaranteed
 financial value.
 
-## Release evidence — pending
+## Release evidence
 
-No verification count is claimed before the final reviewed candidate SHA runs
-the release matrix. Replace each placeholder with exact evidence only after it
-exists:
+The complete local matrix passed for implementation commit
+`5b873ecd9b97fdfc42f29b7dfba68850dad295be`. The evidence-recording follow-up
+changes documentation only; hosted checks remain required on the final review
+head.
 
-- Root unit tests: **PENDING — exact count and SHA**
-- Typecheck and production builds: **PENDING — ordinary, Pages, canonical root**
-- Runtime assets, file sizes, licence policy, dependency and signature audits:
-  **PENDING**
-- Rendered WebGL and player-journey matrix: **PENDING — exact case counts**
-- Auth bridge tests and dry-run compilation: **PENDING — exact counts**
-- SpacetimeDB tests, module build, generated bindings, and additive migration:
-  **PENDING — exact counts and fixture result**
+- Root unit tests: **1,437/1,437 across 141 files**; TypeScript passed.
+- Production builds: **ordinary, Pages, and canonical-root variants passed**;
+  each rejected local QA/observer material from the output.
+- Runtime/provenance assets: **33 runtime assets and 4 reference masters**;
+  tracked file sizes and the Apache-2.0/CC-BY-4.0 licence policy passed.
+- Root dependency audit: **0 known vulnerabilities**; **190 registry
+  signatures** and **61 attestations** verified.
+- Rendered browser QA: **14 WebGL cases, 25 journey checks, and all three
+  hash-pinned castle LOD comparisons passed** on loopback.
+- Auth bridge: **175/175 tests**, TypeScript, dependency audit, and Wrangler
+  dry-run compilation passed; no deployment ran.
+- SpacetimeDB: **121/121 tests**, module build, generated public bindings, and
+  private-table exclusion passed. The disposable protocol-v3-to-v4 migration
+  proof preserved every existing row/ref, exercised one real production
+  quantum through the exact module artifact, and passed with SHA-256
+  `87759a75cb8c29d135e2a0016dbba9bb2c3f38389f9ad1e0c9f83815c5109a96`.
 - Hosted Verify and CodeQL: **PENDING — reviewed head SHA**
 - Production module publication, founder backfill, v4 aggregate, Pages deploy,
   and exact-build verification: **NOT RUN — OWNER APPROVAL REQUIRED**
