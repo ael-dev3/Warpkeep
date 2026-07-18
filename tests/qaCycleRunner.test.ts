@@ -450,7 +450,7 @@ describe('local autonomous QA cycle runner', () => {
       'spacetimedb-migration'
     ]));
     expect(JSON.stringify({ quick, standard, deep })).not.toMatch(
-      /(?:deploy|publish|seed-world|allow-fid|disable-fid|bump-auth|apply|reconcile|secret|token|credential)/i
+      /(?:deploy|publish|seed-world|admit-founder|allow-fid|disable-fid|bump-auth|apply|reconcile|secret|token|credential)/i
     );
   });
 

@@ -35,6 +35,7 @@ import {
 
 // Import all reducer arg schemas
 import AcceptAlphaTermsV1Reducer from "./accept_alpha_terms_v_1_reducer";
+import AdminAdmitFounderV1Reducer from "./admin_admit_founder_v_1_reducer";
 import AdminAllowFidReducer from "./admin_allow_fid_reducer";
 import AdminBackfillResourceAccountsV1Reducer from "./admin_backfill_resource_accounts_v_1_reducer";
 import AdminBeginSnapScanBatchV1Reducer from "./admin_begin_snap_scan_batch_v_1_reducer";
@@ -199,6 +200,7 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("accept_alpha_terms_v1", AcceptAlphaTermsV1Reducer),
+  __reducerSchema("admin_admit_founder_v1", AdminAdmitFounderV1Reducer),
   __reducerSchema("admin_allow_fid", AdminAllowFidReducer),
   __reducerSchema("admin_backfill_resource_accounts_v1", AdminBackfillResourceAccountsV1Reducer),
   __reducerSchema("admin_begin_snap_scan_batch_v1", AdminBeginSnapScanBatchV1Reducer),

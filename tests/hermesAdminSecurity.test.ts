@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
@@ -6,18 +7,28 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GENESIS_RESOURCE_POLICY_VERSION } from '../spacetimedb/src/resourceAuthorityPolicy';
 import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
 import {
+  admissionReadinessSummary,
   connect,
   parseHermesArguments,
+  privacySafeHermesErrorMessage,
   readStatus,
   requestAdminToken,
   requireCredentialedProductionTarget,
+  requireFounderAdmissionProductionTarget,
   requireGenesisExpansionProductionTarget,
   requireResourceBackfillProductionTarget,
+  resolveAdmissionReadyFounderProfile,
+  throwHermesOperationFailure,
   verifyExpectedResourceAggregateV4,
+  verifyFounderAdmissionPostconditionV3,
+  verifyFounderAdmissionPreconditionV3,
+  verifyFounderAdmissionResourcePostconditionV4,
+  verifyFounderAdmissionResourcePreconditionV4,
   verifyGenesisExpansionPostconditionV3,
   verifyGenesisExpansionPreconditionV3,
   verifyGenesisExpansionResourceCheckpointV4,
   verifyGenesisExpansionResourcePreservationV4,
+  withOperationTimeout,
 } from '../scripts/hermes-admin';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,7 +41,8 @@ afterEach(() => {
 
 function runHermes(
   args: string[],
-  overrides: Record<string, string | undefined> = {}
+  overrides: Record<string, string | undefined> = {},
+  input?: string,
 ) {
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH,
@@ -52,6 +64,7 @@ function runHermes(
     cwd: repositoryRoot,
     encoding: 'utf8',
     env,
+    input,
     timeout: 5_000
   });
 }
@@ -102,6 +115,14 @@ function foundedGenerationV2Status(overrides: Record<string, bigint | number | s
   };
 }
 
+function foundedGenerationV3Status(overrides: Record<string, bigint | number | string> = {}) {
+  return foundedGenerationV2Status({
+    worldTiles: 10_000n,
+    worldTileMeta: 10_000n,
+    ...overrides,
+  });
+}
+
 describe('Hermes machine-readable output', () => {
   afterEach(() => {
     setGlobalLogLevel('info');
@@ -118,6 +139,36 @@ describe('Hermes machine-readable output', () => {
     configureHermesMachineOutput(false);
     stdbLogger('info', 'human transport status');
     expect(output).toHaveBeenCalledOnce();
+  });
+
+  it('never prints arbitrary SDK, transport, or server error messages', () => {
+    const sensitive = 'FID 424242; token=private; response-body=private';
+    const rendered = privacySafeHermesErrorMessage(new Error(sensitive));
+    expect(rendered).toBe('Hermes command failed.');
+    expect(rendered).not.toContain('424242');
+    expect(rendered).not.toContain('private');
+  });
+
+  it('preserves fixed ambiguous-timeout guidance without exposing arbitrary errors', async () => {
+    vi.useFakeTimers();
+    const rendered = withOperationTimeout(new Promise<never>(() => undefined))
+      .catch(error => privacySafeHermesErrorMessage(error));
+    await vi.advanceTimersByTimeAsync(15_000);
+    await expect(rendered).resolves.toMatch(/may still commit; inspect current state before retrying/i);
+  });
+
+  it('maps every failure after a one-use admission claim to fresh-inspection guidance', () => {
+    const sensitive = new Error('private FID and server response must not escape');
+    let caught: unknown;
+    try {
+      throwHermesOperationFailure(sensitive, true);
+    } catch (error) {
+      caught = error;
+    }
+    const rendered = privacySafeHermesErrorMessage(caught);
+    expect(rendered).toMatch(/may have committed.*inspect fresh v3\/v4 aggregate state/i);
+    expect(rendered).not.toContain('private FID');
+    expect(rendered).not.toContain('server response');
   });
 
   it('projects the protocol-v2 inspection to an exact aggregate allowlist', async () => {
@@ -366,6 +417,70 @@ describe('Hermes machine-readable output', () => {
       before,
     )).toThrow(/nonzero termsAcceptanceInvariantViolations/i);
   });
+
+  it('checks exact v3/v4 founder capacity before claim and exact aggregate mutation after submit', () => {
+    const before = foundedGenerationV3Status();
+    expect(verifyFounderAdmissionPreconditionV3(before)).toEqual(before);
+    const beforeResources = {
+      allowedFids: 3n,
+      castles: 3n,
+      markAccounts: 3n,
+      resourceAccounts: 3n,
+      missingResourceAccounts: 0n,
+      orphanedResourceAccounts: 0n,
+      resourceInvariantViolations: 0n,
+      protocolVersion: 3,
+      resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
+    };
+    expect(verifyFounderAdmissionResourcePreconditionV4(beforeResources, 3n))
+      .toEqual(beforeResources);
+
+    const after = {
+      ...before,
+      occupiedWorldTiles: 4n,
+      castleSlotClaims: 4n,
+      castles: 4n,
+      realmProfiles: 4n,
+      markAccounts: 4n,
+      allowedFids: 4n,
+      enabledAllowedFids: 4n,
+      auditEntries: before.auditEntries + 1n,
+    };
+    expect(verifyFounderAdmissionPostconditionV3(after, before)).toEqual(after);
+    const afterResources = {
+      ...beforeResources,
+      allowedFids: 4n,
+      castles: 4n,
+      markAccounts: 4n,
+      resourceAccounts: 4n,
+    };
+    expect(verifyFounderAdmissionResourcePostconditionV4(afterResources, beforeResources))
+      .toEqual(afterResources);
+
+    expect(() => verifyFounderAdmissionPreconditionV3({
+      ...before,
+      founderStateGaps: 1n,
+    })).toThrow(/nonzero founderStateGaps/i);
+    expect(() => verifyFounderAdmissionPreconditionV3(foundedGenerationV3Status({
+      occupiedWorldTiles: 100n,
+      castleSlotClaims: 100n,
+      castles: 100n,
+      realmProfiles: 100n,
+      markAccounts: 100n,
+      allowedFids: 100n,
+      enabledAllowedFids: 100n,
+    }))).toThrow(/capacity-safe/i);
+    expect(() => verifyFounderAdmissionResourcePreconditionV4({
+      ...beforeResources,
+      resourceAccounts: 2n,
+      missingResourceAccounts: 1n,
+    }, 3n)).toThrow(/resource checkpoint/i);
+    expect(() => verifyFounderAdmissionPostconditionV3({
+      ...after,
+      playersV2: before.playersV2 + 1n,
+      playerOwnershipsV2: before.playerOwnershipsV2 + 1n,
+    }, before)).toThrow(/unrelated persistent aggregate state/i);
+  });
 });
 
 describe('Hermes command-line boundary', () => {
@@ -379,6 +494,33 @@ describe('Hermes command-line boundary', () => {
     expect(() => parseHermesArguments(['inspect-alpha', '--json', '--json'])).toThrow(/unknown or duplicate/i);
     expect(() => parseHermesArguments(['inspect-alpha', '--confirm'])).toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments(['allow-fid', '123', 'note', '--json'])).toThrow(/invalid for this operation/i);
+    expect(parseHermesArguments(['admit-founder', '--input-stdin', '--dry-run'])).toMatchObject({
+      command: 'admit-founder',
+      inspection: false,
+      dryRun: true,
+      existingFounderReenableOnly: false,
+      privateInputStdin: true,
+    });
+    expect(parseHermesArguments(['admit-founder', '--input-stdin', '--confirm'])).toMatchObject({
+      command: 'admit-founder',
+      confirmedByFlag: true,
+      privateInputStdin: true,
+    });
+    expect(parseHermesArguments(['allow-fid', '123', 'note', '--dry-run'])).toMatchObject({
+      command: 'allow-fid',
+      existingFounderReenableOnly: true,
+    });
+    expect(() => parseHermesArguments(['admit-founder', '123', 'note', '--dry-run']))
+      .toThrow(/unexpected number/i);
+    expect(() => parseHermesArguments(['admit-founder', '--dry-run']))
+      .toThrow(/private input/i);
+    expect(() => parseHermesArguments(['admit-founder', '--input-stdin']))
+      .toThrow(/exactly one/i);
+    expect(() => parseHermesArguments([
+      'admit-founder', '--input-stdin', '--dry-run', '--confirm',
+    ])).toThrow(/exactly one/i);
+    expect(() => parseHermesArguments(['inspect-alpha', '--input-stdin']))
+      .toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments(['inspect-alpha', 'extra'])).toThrow(/unexpected number/i);
     expect(parseHermesArguments(['inspect-alpha-v4', '--json'])).toMatchObject({
       command: 'inspect-alpha-v4',
@@ -403,6 +545,153 @@ describe('Hermes command-line boundary', () => {
   });
 });
 
+describe('Hermes atomic profiled admission boundary', () => {
+  const fid = 12_345n;
+
+  function currentProfileEnvelope(includePfp = true) {
+    const fields = [
+      ['USER_DATA_TYPE_USERNAME', 'fixture.eth'],
+      ['USER_DATA_TYPE_DISPLAY', 'Fixture Keeper'],
+      ['USER_DATA_TYPE_BIO', 'Controlled public fixture'],
+      ...(includePfp
+        ? [['USER_DATA_TYPE_PFP', 'https://images.example/fixture.png']] as const
+        : []),
+    ];
+    return {
+      messages: fields.map(([type, value], index) => ({
+        data: {
+          type: 'MESSAGE_TYPE_USER_DATA_ADD',
+          fid: Number(fid),
+          timestamp: 10 + index,
+          network: 'FARCASTER_NETWORK_MAINNET',
+          userDataBody: { type, value },
+        },
+      })),
+      nextPageToken: '',
+    };
+  }
+
+  it('resolves exactly one complete profile through the pinned public source', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(String(input));
+      expect(url.origin).toBe('https://rho.farcaster.xyz:3381');
+      expect(url.pathname).toBe('/v1/userDataByFid');
+      expect(url.searchParams.get('fid')).toBe(fid.toString());
+      expect(init).toMatchObject({ method: 'GET', cache: 'no-store', redirect: 'error' });
+      return new Response(JSON.stringify(currentProfileEnvelope()), {
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    await expect(resolveAdmissionReadyFounderProfile(fid, fetchImpl)).resolves.toEqual({
+      canonicalUsername: 'fixture.eth',
+      displayName: 'Fixture Keeper',
+      pfpUrl: 'https://images.example/fixture.png',
+      publicBio: 'Controlled public fixture',
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed before admission when username or HTTPS PFP is unavailable', async () => {
+    const missingPfp = vi.fn<typeof fetch>(async () => new Response(
+      JSON.stringify(currentProfileEnvelope(false)),
+      { headers: { 'content-type': 'application/json' } },
+    ));
+    await expect(resolveAdmissionReadyFounderProfile(fid, missingPfp))
+      .rejects.toThrow(/username and HTTPS profile image are required/i);
+
+    const unsafePfpEnvelope = currentProfileEnvelope();
+    const pfpMessage = unsafePfpEnvelope.messages.find(message => (
+      message.data.userDataBody.type === 'USER_DATA_TYPE_PFP'
+    ));
+    if (pfpMessage) pfpMessage.data.userDataBody.value = 'http://localhost/private.png';
+    const unsafePfp = vi.fn<typeof fetch>(async () => new Response(
+      JSON.stringify(unsafePfpEnvelope),
+      { headers: { 'content-type': 'application/json' } },
+    ));
+    await expect(resolveAdmissionReadyFounderProfile(fid, unsafePfp))
+      .rejects.toThrow(/username and HTTPS profile image are required/i);
+  });
+
+  it('renders a dry-run summary containing booleans and counts only', () => {
+    const summary = admissionReadinessSummary({
+      canonicalUsername: 'must-not-escape.eth',
+      displayName: 'must-not-escape',
+      pfpUrl: 'https://must-not-escape.example/pfp.png',
+      publicBio: 'must-not-escape',
+    });
+    expect(summary).toEqual({
+      ready: true,
+      trustedSourcePinned: true,
+      requiredFieldsPresent: 2,
+      requiredFieldsExpected: 2,
+      optionalFieldsPresent: 2,
+      publicFieldsPresent: 4,
+      credentialsAccessed: false,
+      mutationSubmitted: false,
+      dryRun: true,
+    });
+    expect(Object.values(summary).every(value => (
+      typeof value === 'boolean' || typeof value === 'number'
+    ))).toBe(true);
+    expect(JSON.stringify(summary)).not.toContain('must-not-escape');
+    expect(JSON.stringify(summary)).not.toContain(fid.toString());
+  });
+
+  it('binds confirmed admission to one reviewed plan without a profile refetch', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const resolveForPlan = mainSource.indexOf(
+      'await resolveAdmissionReadyFounderProfile(request.fid)',
+    );
+    const writePlan = mainSource.indexOf('writeReviewedFounderAdmissionPlan({ plan })');
+    const readPlan = mainSource.indexOf('readReviewedFounderAdmissionPlan({');
+    const readCredential = mainSource.indexOf('readAdminSecret(');
+    const verifyV3Checkpoint = mainSource.indexOf('verifyFounderAdmissionPreconditionV3(');
+    const verifyV4Checkpoint = mainSource.indexOf('verifyFounderAdmissionResourcePreconditionV4(');
+    const claimPlan = mainSource.indexOf('claimReviewedFounderAdmissionPlan({');
+    const submitAdmission = mainSource.indexOf('connection.reducers.adminAdmitFounderV1(');
+    expect(resolveForPlan).toBeGreaterThan(-1);
+    expect(writePlan).toBeGreaterThan(resolveForPlan);
+    expect(readPlan).toBeGreaterThan(writePlan);
+    expect(readCredential).toBeGreaterThan(readPlan);
+    expect(verifyV3Checkpoint).toBeGreaterThan(readCredential);
+    expect(verifyV4Checkpoint).toBeGreaterThan(verifyV3Checkpoint);
+    expect(claimPlan).toBeGreaterThan(verifyV4Checkpoint);
+    expect(submitAdmission).toBeGreaterThan(claimPlan);
+    expect(mainSource).not.toContain('resolveAdmissionReadyFounderProfile(fid)');
+
+    const packageManifest = JSON.parse(
+      readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+    expect(packageManifest.scripts['stdb:admit-founder'])
+      .toBe('tsx scripts/hermes-admin.ts admit-founder');
+  });
+
+  it('does not accept a founder identity or note in argv', () => {
+    const result = runHermes(['admit-founder', fid.toString(), 'controlled fixture', '--dry-run'], {
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('unexpected number');
+    expect(`${result.stdout}${result.stderr}`).not.toContain(fid.toString());
+    expect(`${result.stdout}${result.stderr}`).not.toContain('controlled fixture');
+  });
+
+  it('does not let the legacy noninteractive switch authorize a new founder', () => {
+    const result = runHermes(['admit-founder', '--input-stdin'], {
+      WARPKEEP_HERMES_NONINTERACTIVE: 'yes',
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('exactly one of --dry-run or --confirm');
+    expect(result.stderr).not.toContain('Farcaster');
+    expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
+  });
+});
+
 describe('Hermes credential destination policy', () => {
   it('accepts the canonical name or its pinned immutable identity only', () => {
     const uri = 'https://maincloud.spacetimedb.com';
@@ -415,6 +704,14 @@ describe('Hermes credential destination policy', () => {
     )).not.toThrow();
     expect(() => requireCredentialedProductionTarget(uri, 'warpkeep-lookalike', bridge))
       .toThrow(/canonical Warpkeep production targets/i);
+  });
+
+  it('requires the immutable database identity for profiled founder admission', () => {
+    expect(() => requireFounderAdmissionProductionTarget(
+      'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+    )).not.toThrow();
+    expect(() => requireFounderAdmissionProductionTarget('warpkeep-89e4u'))
+      .toThrow(/immutable Warpkeep production database identity/i);
   });
 
   it.each([
@@ -476,6 +773,8 @@ describe('Hermes credential destination policy', () => {
     );
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('"dryRun":true');
+    expect(result.stdout).toContain('existing complete founder re-enable only');
+    expect(result.stdout).toContain('"existingFounderReenableOnly":true');
     expect(result.stderr).toBe('');
   });
 
@@ -665,7 +964,7 @@ describe('Hermes credential destination policy', () => {
       () => builder as never,
     );
     const rejection = expect(connection).rejects.toThrow('Could not connect to the Warpkeep database.');
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(30_000);
     await rejection;
     expect(disconnect).toHaveBeenCalledTimes(1);
   });

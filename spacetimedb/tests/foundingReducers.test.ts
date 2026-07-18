@@ -6,24 +6,114 @@ function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
 }
 
-test('admin allow performs founding in the same reducer after the positive-epoch transition', () => {
+test('legacy admin allow rejects first-time admission and only re-enables a complete founder graph', () => {
   const admin = source('../src/reducers/admin.ts');
   const start = admin.indexOf('export const adminAllowFid');
-  const end = admin.indexOf('/** Trusted local-operator', start);
+  const end = admin.indexOf('export const adminAdmitFounderV1', start);
   const reducer = admin.slice(start, end);
-  assert.match(reducer, /executeAllowFidTransition/);
-  assert.match(reducer, /ensureGenesisFounder\(ctx, fid\)/);
-  assert.match(reducer, /audit: \(\) => audit\(ctx, 'allow_fid'/);
+
+  assert.match(reducer, /if \(existing === null\) throw new SenderError\('PROFILED_ADMISSION_REQUIRED'\)/);
+  assert.match(reducer, /assertGenesisFounderForFid\(ctx, fid\)/);
+  assert.match(reducer, /assertGenesisResourceForFid\(ctx, fid\)/);
+  assert.match(reducer, /profile === null \|\| !admissionProfileIsComplete\(profile\)/);
+  assert.match(reducer, /throw new SenderError\('FOUNDER_PROFILE_INCOMPLETE'\)/);
+  assert.match(reducer, /applyAllowedFidTransition/);
+  assert.match(reducer, /auditAction: 'allow_fid'/);
+  assert.ok(
+    reducer.indexOf("throw new SenderError('PROFILED_ADMISSION_REQUIRED')")
+      < reducer.indexOf('applyAllowedFidTransition'),
+  );
+  assert.ok(
+    reducer.indexOf('!admissionProfileIsComplete(profile)')
+      < reducer.indexOf('applyAllowedFidTransition'),
+  );
+  assert.doesNotMatch(reducer, /ensureGenesisFounder/);
+  assert.doesNotMatch(reducer, /realmProfileV1\.(?:insert|update)/);
+  assert.doesNotMatch(reducer, /playerV2\.(?:insert|update)|playerOwnershipV2\.(?:insert|update)/);
+
+  const transitionStart = admin.indexOf('function applyAllowedFidTransition');
+  const transitionEnd = admin.indexOf('function assertExactGenesisDynamicGraph', transitionStart);
+  const transition = admin.slice(transitionStart, transitionEnd);
+  assert.match(transition, /reenabled: plan =>/);
+  assert.match(transition, /allowedFid\.fid\.update/);
+  assert.match(transition, /auditAction: 'allow_fid' \| 'admit_founder_v1'/);
+});
+
+test('profiled admission validates before writes and atomically creates the complete founder graph', () => {
+  const admin = source('../src/reducers/admin.ts');
+  const start = admin.indexOf('export const adminAdmitFounderV1');
+  const end = admin.indexOf('export const adminUpsertRealmProfileV1', start);
+  const reducer = admin.slice(start, end);
+
+  assert.match(reducer, /name: 'admin_admit_founder_v1'/);
+  assert.match(reducer, /canonicalUsername: t\.string\(\)/);
+  assert.match(reducer, /pfpUrl: t\.string\(\)/);
+  assert.match(reducer, /profilePolicyVersion !== FARCASTER_PROFILE_POLICY_VERSION/);
+  assert.match(reducer, /normalizeAdmissionReadyTrustedProfile\(input\)/);
+  assert.match(reducer, /allowedFid\.fid\.find\(input\.fid\) !== null/);
+  assert.match(reducer, /FOUNDER_ALREADY_ADMITTED/);
+  assert.match(reducer, /applyAllowedFidTransition/);
+  assert.match(reducer, /auditAction: 'admit_founder_v1'/);
+  assert.match(reducer, /ensureGenesisFounder\(ctx, input\.fid, normalized\)/);
+  assert.doesNotMatch(reducer, /realmProfileV1\.fid\.update/);
+  assert.match(reducer, /admissionProfileIsComplete\(verifiedProfile\)/);
+  assert.match(reducer, /trustedProfilesEqual\(verifiedProfile, normalized\)/);
+  assert.match(reducer, /assertGenesisFounderForFid\(ctx, input\.fid\)/);
+  assert.match(reducer, /assertGenesisResourceForFid\(ctx, input\.fid\)/);
+  assert.ok(
+    reducer.indexOf('normalizeAdmissionReadyTrustedProfile(input)')
+      < reducer.indexOf('applyAllowedFidTransition'),
+  );
+  assert.ok(
+    reducer.indexOf('FOUNDER_ALREADY_ADMITTED')
+      < reducer.indexOf('applyAllowedFidTransition'),
+  );
+  assert.ok(
+    reducer.indexOf('applyAllowedFidTransition')
+      < reducer.indexOf('ensureGenesisFounder(ctx, input.fid, normalized)'),
+  );
+  assert.ok(
+    reducer.indexOf('ensureGenesisFounder(ctx, input.fid, normalized)')
+      < reducer.indexOf('admissionProfileIsComplete(verifiedProfile)'),
+  );
   assert.doesNotMatch(reducer, /playerV2\.(?:insert|update)|playerOwnershipV2\.(?:insert|update)/);
 
   const authority = source('../src/foundingAuthority.ts');
   assert.match(authority, /selectNextPermanentCastleSlot/);
-  assert.match(authority, /realmProfileV1\.insert/);
+  assert.match(
+    authority,
+    /realmProfileV1\.insert\(\{[\s\S]*canonicalUsername: admissionProfile\.canonicalUsername[\s\S]*pfpUrl: admissionProfile\.pfpUrl/,
+  );
+  assert.match(authority, /admissionProfileIsComplete\(profile\)/);
+  assert.match(authority, /trustedProfilesEqual\(profile, admissionProfile\)/);
   assert.match(authority, /markAccountV1\.insert/);
+  assert.match(authority, /resourceAccountV1\.insert/);
   assert.match(authority, /castle\.insert/);
   assert.match(authority, /castleSlotClaimV1\.insert/);
   assert.match(authority, /worldTile\.key\.update/);
   assert.match(authority, /communityStatsVisible: false/);
+});
+
+test('profile maintenance cannot clear the required canonical founder presentation', () => {
+  const admin = source('../src/reducers/admin.ts');
+  const start = admin.indexOf('export const adminUpsertRealmProfileV1');
+  const end = admin.indexOf('export const adminUpsertFidWalletAttributionV1', start);
+  const reducer = admin.slice(start, end);
+
+  assert.match(reducer, /normalizeAdmissionReadyTrustedProfile\(input\)/);
+  assert.match(reducer, /assertGenesisFounderForProfileRepair\(ctx, input\.fid\)/);
+  assert.match(reducer, /realmProfileV1\.fid\.update/);
+  assert.match(reducer, /admissionProfileIsComplete\(verifiedProfile\)/);
+  assert.match(reducer, /trustedProfilesEqual\(verifiedProfile, normalized\)/);
+  assert.ok(
+    reducer.indexOf('normalizeAdmissionReadyTrustedProfile(input)')
+      < reducer.indexOf('realmProfileV1.fid.update'),
+  );
+  assert.ok(
+    reducer.indexOf('realmProfileV1.fid.update')
+      < reducer.indexOf('admissionProfileIsComplete(verifiedProfile)'),
+  );
+  assert.doesNotMatch(reducer, /playerV2\.(?:insert|update)|playerOwnershipV2\.(?:insert|update)/);
 });
 
 test('first JWT bootstrap only binds and reuses the pre-founded castle', () => {
@@ -33,8 +123,14 @@ test('first JWT bootstrap only binds and reuses the pre-founded castle', () => {
   const reducer = admission.slice(start, end);
   assert.match(reducer, /assertExistingPlayerV2Consistency/);
   assert.match(admission, /function assertExistingPlayerV2Consistency[\s\S]*assertGenesisFounderForFid/);
+  assert.match(
+    source('../src/foundingAuthority.ts'),
+    /assertGenesisFounderForFid[\s\S]*admissionProfileIsComplete\(profile\)/,
+  );
   assert.match(reducer, /playerOwnershipV2\.insert/);
   assert.match(reducer, /playerV2\.insert/);
+  assert.match(reducer, /admissionProfileIsComplete\(profile\)/);
+  assert.match(reducer, /FOUNDER_PROFILE_INCOMPLETE/);
   assert.match(reducer, /firstAuthenticatedAt:/);
   assert.doesNotMatch(reducer, /castle\.(?:insert|update|delete)/);
   assert.doesNotMatch(reducer, /worldTile\.(?:insert|update|delete)/);
@@ -45,8 +141,8 @@ test('player admission, bootstrap, and terms paths never scan the full realm', (
   assert.doesNotMatch(admission, /\.iter\s*\(/);
 
   const authority = source('../src/foundingAuthority.ts');
-  const localStart = authority.indexOf('export function assertGenesisFounderForFid');
-  const localEnd = authority.indexOf('/**\n * Creates the complete permanent founder state', localStart);
+  const localStart = authority.indexOf('function requireGenesisFounderStructureForFid');
+  const localEnd = authority.indexOf('/** Exact-admin recovery gate', localStart);
   const localAssertion = authority.slice(localStart, localEnd);
   assert.match(localAssertion, /castle\.ownerFid\.find/);
   assert.match(localAssertion, /castleSlotClaimV1\.ownerFid\.find/);
@@ -147,6 +243,7 @@ test('v3 admin status is counts-only and includes founder and ledger orphan sign
   assert.match(procedure, /classifyGenesisStaticSnapshot/);
   assert.match(procedure, /=== 'invalid' \? 1n : 0n/);
   assert.match(procedure, /tile\.occupantCastleId !== undefined/);
+  assert.match(procedure, /!admissionProfileIsComplete\(profile\)/);
   assert.match(procedure, /walletAttributionSnapshotV1\.count/);
   assert.match(procedure, /snapScanBatchV1\.count/);
   assert.match(procedure, /alphaTermsAcceptanceV1\.count/);

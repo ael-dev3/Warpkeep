@@ -39,6 +39,13 @@ browser. The deployed auth-v2 wire names remain pinned to
 `bootstrap_player_v2`, and `admin_get_alpha_status_v2`; verification catches
 SpacetimeDB 2.6's default trailing-digit case conversion.
 
+The checked-out module also defines the additive
+`admin_admit_founder_v1` wire described below. It is not part of the attested
+Alpha 0.3.8 production surface until a separately approved, non-destructive
+module publication has completed its exact pre- and post-publication checks.
+A checkout, generated binding, merge, or approval to admit one FID does not
+approve or attest that publication.
+
 `npm run stdb:verify-additive-migration` proves the checked-out schema locally
 against a disposable, loopback-only SpacetimeDB 2.6.1 server. It publishes the
 independently frozen v1, additive-v2, additive-v3, and additive-v4 fixtures plus
@@ -141,19 +148,60 @@ First admission starts at epoch `1`; epoch `0` is reserved for structured
 non-enabled resolver results and is invalid player authority. The complete
 world must match either the exact generation-two rollout predecessor or the
 exact generation-three target, and all generation-two slot rows must remain
-exact. In one transaction,
-`admin_allow_fid` creates or re-enables the admission row, assigns the next
-close-outward unclaimed slot, creates the permanent level-one castle and reverse
-occupancy link, creates the private slot claim and zero Mark account, creates
-the public realm profile, and appends the audit record. Any missing canonical
-row, drift, capacity exhaustion, or inconsistent graph aborts the entire
-transition.
+exact. First-time founding uses `admin_admit_founder_v1`. Before submission, a
+trusted operator resolves and reviews the founder's bounded public Farcaster
+profile; the module independently normalizes it before any write and requires a
+canonical username plus a valid HTTPS PFP URL. Display name and public bio
+remain optional presentation fields and browser/JWT profile claims remain
+untrusted.
 
-Repeated allow of an enabled founder is idempotent and preserves the same
-castle. Disable blocks immediately without deleting founder state. Re-enable
-increments the epoch exactly once and preserves the founder. An enabled legacy
-epoch-zero row fails closed and must be inspected and deliberately migrated by
-an approved operator rather than silently accepted.
+In one transaction, `admin_admit_founder_v1` creates the admission row, assigns
+the next close-outward unclaimed slot, creates the permanent level-one castle
+and reverse occupancy link, creates the private slot claim, zero Mark account,
+and complete resource account, writes the reviewed public realm profile, and
+appends the audit record. Any absent required profile field, invalid profile
+normalization, missing canonical row, drift, capacity exhaustion, or
+inconsistent founder/resource graph aborts the entire transition. A castle can
+therefore no longer be newly admitted with an empty public identity projection.
+
+The legacy `admin_allow_fid` wire is retained only for idempotence or re-enable
+of an already complete founder/resource/profile graph. It rejects a missing FID
+instead of founding one, and it fails closed when the canonical username or
+HTTPS PFP is absent. Repeated allow of an enabled founder preserves the same
+castle. Disable blocks immediately without deleting founder state; a deliberate
+re-enable increments the epoch exactly once and preserves the founder. An
+enabled legacy epoch-zero row fails closed and must be inspected and
+deliberately migrated by an approved operator rather than silently accepted.
+
+Neither administrator path creates `player_v2` or
+`player_ownership_v2`. Castle control binds only when the admitted founder
+genuinely authenticates and calls `bootstrap_player_v2`, which derives the FID
+from strict signed claims and binds the private ownership row to that exact
+SpacetimeDB sender. Subsequent and future gameplay reducers must derive the
+owned castle through that caller-bound graph rather than accept a caller-chosen
+FID, castle, or owner selector.
+
+There is one narrow recovery exception: exact-admin
+`admin_upsert_realm_profile_v1` may update a structurally valid existing founder
+whose profile row is incomplete, but the reducer must receive and persist a
+complete normalized reviewed username-and-PFP projection. It cannot create,
+move, or reassign the founder. Bootstrap, gameplay, ordinary player resolution,
+and legacy `admin_allow_fid` remain complete-profile-only. The profile operator
+can plan the repair only when current authoritative data supplies every missing
+or invalid required field. An already-valid required field may retain its
+sanitized reviewed last-known-good value when that one response is unavailable
+or incomplete; an authoritative clear still stops. A fully blank row therefore
+requires both current fields.
+
+The local `stdb:admit-founder` wrapper keeps the FID, audit note, and resolved
+profile out of argv and ordinary output. Its dry run writes an expiring,
+content-attested `0600` reviewed plan; confirmation is bound to that exact plan,
+the pinned profile transport and policy, and the immutable production database
+identity. It never refetches at confirmation and claims the plan once directly
+before reducer submission. The private request must also carry the exact
+per-founder source-use approval phrase; historical transport provenance does
+not authorize a lookup for a new founder. This operator contract is distinct
+from module publication and mutation authority.
 
 The dedicated bridge resolver is:
 
@@ -237,6 +285,7 @@ Exact fresh Hermes authority is required for:
 ```txt
 admin_seed_world
 admin_expand_genesis_world_v3
+admin_admit_founder_v1
 admin_allow_fid
 admin_disable_fid
 admin_bump_auth_epoch
@@ -257,10 +306,12 @@ admin_backfill_resource_accounts_v1
 `admin_seed_world` is idempotent for its ordinary exact seed states, refuses
 conflicting rows, and will not expand the exact generation-two predecessor.
 Only `admin_expand_genesis_world_v3` may perform that reviewed transition.
-`admin_allow_fid` is idempotent for enabled state; `admin_disable_fid` blocks
-gameplay; `admin_bump_auth_epoch` revokes prior access tokens. Operator wrappers
-obtain admin tokens in memory, support dry-run/read-only checks, and require
-confirmation for mutations.
+`admin_admit_founder_v1` is the only first-time founding wire and requires the
+complete normalized public identity projection. `admin_allow_fid` is
+re-enable/idempotence compatibility for an already complete founder only;
+`admin_disable_fid` blocks gameplay; `admin_bump_auth_epoch` revokes prior
+access tokens. Operator wrappers obtain admin tokens in memory, support
+dry-run/read-only checks, and require confirmation for mutations.
 
 The old single-row wallet upsert wire is retained only to return
 `PROTOCOL_RETIRED`; complete generation-qualified replacement is mandatory.

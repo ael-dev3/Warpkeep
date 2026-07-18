@@ -7,6 +7,7 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
 import AcceptAlphaTermsV1Reducer from "../accept_alpha_terms_v_1_reducer";
+import AdminAdmitFounderV1Reducer from "../admin_admit_founder_v_1_reducer";
 import AdminAllowFidReducer from "../admin_allow_fid_reducer";
 import AdminBackfillResourceAccountsV1Reducer from "../admin_backfill_resource_accounts_v_1_reducer";
 import AdminBeginSnapScanBatchV1Reducer from "../admin_begin_snap_scan_batch_v_1_reducer";
@@ -24,6 +25,7 @@ import BootstrapPlayerV2Reducer from "../bootstrap_player_v_2_reducer";
 import CollectResourcesV1Reducer from "../collect_resources_v_1_reducer";
 
 export type AcceptAlphaTermsV1Params = __Infer<typeof AcceptAlphaTermsV1Reducer>;
+export type AdminAdmitFounderV1Params = __Infer<typeof AdminAdmitFounderV1Reducer>;
 export type AdminAllowFidParams = __Infer<typeof AdminAllowFidReducer>;
 export type AdminBackfillResourceAccountsV1Params = __Infer<typeof AdminBackfillResourceAccountsV1Reducer>;
 export type AdminBeginSnapScanBatchV1Params = __Infer<typeof AdminBeginSnapScanBatchV1Reducer>;

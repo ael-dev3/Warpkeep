@@ -134,6 +134,15 @@ describe('untrusted browser presentation boundaries', () => {
       .toBeUndefined();
   });
 
+  it('rejects alternate numeric spellings that URL canonicalizes to literal IPv4', () => {
+    for (const value of [
+      'https://127.1/profile.png',
+      'https://0177.0.0.1/profile.png',
+      'https://0x7f000001/profile.png',
+      'https://2130706433/profile.png',
+    ]) expect(safePublicHttpsImageUrl(value)).toBeUndefined();
+  });
+
   it('sanitizes relay profile controls before they enter verified identity state', async () => {
     const signature = `0x${'11'.repeat(65)}` as const;
     const client: FarcasterAppClientPort = {

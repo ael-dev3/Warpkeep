@@ -10,9 +10,9 @@ const MAXIMUM_CURRENT_USER_DATA_MESSAGES = 100;
 const CONTROLLED_FIXTURE_BASE_URL = 'https://profile-fixture.invalid/';
 
 /**
- * The owner-authorized Alpha 0.3.3 rollout separately verified the
- * Farcaster-operated rho host, its TLS HTTP surface, and the documented
- * Snapchain user-data contract. Upstream pins this hostname for mainnet
+ * The recorded owner-authorized profile-maintenance scope separately
+ * verified the Farcaster-operated rho host, its TLS HTTP surface, and the
+ * documented Snapchain user-data contract. Upstream pins this hostname for mainnet
  * replication and documents the HTTP contract/port, but does not itself claim
  * that the two are one public service. Keep those evidence claims separate.
  * Operators cannot replace this reviewed origin through argv, stdin, or

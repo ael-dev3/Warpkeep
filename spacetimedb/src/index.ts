@@ -14,6 +14,7 @@ export {
   adminSeedWorld,
   adminExpandGenesisWorldV3,
   adminAllowFid,
+  adminAdmitFounderV1,
   adminDisableFid,
   adminBumpAuthEpoch,
   adminGetAlphaStatus,

@@ -86,13 +86,14 @@ test('new founding writes the complete private resource account in the same atom
   assert.equal(founding.match(/ctx\.db\.resourceAccountV1\.insert\(\{/g)?.length, 1);
 
   const admin = source('../src/reducers/admin.ts');
-  const allowFid = section(
+  const profiledAdmission = section(
     admin,
-    'export const adminAllowFid',
-    '/** Trusted local-operator',
+    'export const adminAdmitFounderV1',
+    'export const adminUpsertRealmProfileV1',
   );
-  assert.match(allowFid, /executeAllowFidTransition/);
-  assert.match(allowFid, /ensureGenesisFounder\(ctx, fid\)/);
+  assert.match(profiledAdmission, /applyAllowedFidTransition/);
+  assert.match(profiledAdmission, /ensureGenesisFounder\(ctx, input\.fid, normalized\)/);
+  assert.match(profiledAdmission, /assertGenesisResourceForFid\(ctx, input\.fid\)/);
 });
 
 test('gameplay resource authority requires current Terms and the caller-bound founder graph', () => {
@@ -102,7 +103,7 @@ test('gameplay resource authority requires current Terms and the caller-bound fo
     'export function requireGameplayPlayerV1',
     '/** Admin inputs',
   );
-  const admittedAt = gameplay.indexOf('requireAdmittedPlayer(ctx)');
+  const admittedAt = gameplay.indexOf('requireOwnedCastleActionV1(ctx)');
   const acceptanceAt = gameplay.indexOf('alphaTermsAcceptanceV1.acceptanceKey.find');
   const resourceAt = gameplay.indexOf('assertGenesisResourceForFid(ctx, admitted.claims.fid)');
 
@@ -118,11 +119,22 @@ test('gameplay resource authority requires current Terms and the caller-bound fo
   const admitted = section(
     auth,
     'export function requireAdmittedPlayer',
-    '/**\n * Require the complete current gameplay graph',
+    '/**\n * Resolve the only castle',
   );
   assert.match(admitted, /playerOwnershipV2\.fid\.find\(claims\.fid\)/);
   assert.match(admitted, /ownership\?\.identity\.equals\(ctx\.sender\)/);
+  assert.match(admitted, /castle\.ownerFid\.find\(claims\.fid\)/);
+  assert.match(admitted, /return \{ claims, player: player!, castle \}/);
   assert.match(admitted, /IDENTITY_MISMATCH/);
+
+  const ownedCastle = section(
+    auth,
+    'export function requireOwnedCastleActionV1',
+    '/**\n * Require the complete current gameplay graph',
+  );
+  assert.match(ownedCastle, /requireAdmittedPlayer\(ctx\)/);
+  assert.match(ownedCastle, /admitted\.castle\.ownerFid !== admitted\.claims\.fid/);
+  assert.doesNotMatch(ownedCastle, /ctx\.db\.|\.find\s*\(/);
 
   const resourceAuthority = source('../src/resourceAuthority.ts');
   const localGraph = section(

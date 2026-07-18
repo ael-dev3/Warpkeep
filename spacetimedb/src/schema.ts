@@ -401,6 +401,7 @@ for (const name of [
   'bootstrap_player_v2',
   'admin_get_alpha_status_v2',
   'admin_get_alpha_status_v3',
+  'admin_admit_founder_v1',
   'admin_upsert_realm_profile_v1',
   'admin_upsert_fid_wallet_attribution_v1',
   'admin_replace_fid_wallet_snapshot_v1',

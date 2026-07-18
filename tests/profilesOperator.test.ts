@@ -9,18 +9,23 @@ import {
   parseProfilesArguments,
   parseReviewedPlanReference,
   foundedProfileSetDigest,
+  foundedProfileStateDigest,
   planPreconditionsMatch,
   planProfileUpdates,
+  PROFILE_CONNECTION_TIMEOUT_MS,
+  PROFILE_SUBSCRIPTION_TIMEOUT_MS,
   resolveTrustedProfiles,
   runProfileReducerWithDeadline,
 } from '../scripts/profiles/profiles-operator';
 import {
+  FARCASTER_PUBLIC_USER_DATA_TYPES,
   buildTrustedPublicFarcasterProfile,
 } from '../scripts/profiles/farcaster-profile-policy';
 import {
   CONTROLLED_PROFILE_FIXTURE_SOURCE_ID,
   fetchPublicProfileResponses,
   TRUSTED_PRODUCTION_PROFILE_SOURCE_ID,
+  trustedProfileTransportAttestation,
   validateProfileSource,
 } from '../scripts/profiles/profile-transport';
 import {
@@ -49,6 +54,11 @@ function privateDirectory(): string {
 }
 
 describe('trusted profile operator boundary', () => {
+  it('uses bounded expanded-Realm connection and subscription readiness windows', () => {
+    expect(PROFILE_CONNECTION_TIMEOUT_MS).toBe(30_000);
+    expect(PROFILE_SUBSCRIPTION_TIMEOUT_MS).toBe(60_000);
+  });
+
   it('requires stdin dry-run for refresh and stdin confirmation for apply', () => {
     expect(parseProfilesArguments(['refresh', '--input-stdin', '--dry-run'])).toMatchObject({
       command: 'refresh',
@@ -136,6 +146,8 @@ describe('trusted profile operator boundary', () => {
     expect(parseProfileRequest({
       source: { sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID },
     })).toEqual({ source: { sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID } });
+    expect(trustedProfileTransportAttestation().sourceEvidence.ownerApprovalScope)
+      .toBe('alpha-0.3.3-current-founded-public-profiles');
     expect(() => parseProfileRequest({
       source: { sourceId: CONTROLLED_PROFILE_FIXTURE_SOURCE_ID },
     })).toThrow('PROFILE_SOURCE_NOT_PINNED');
@@ -194,18 +206,76 @@ describe('trusted profile operator boundary', () => {
     expect(planned.lastKnownGoodFieldsPreserved).toBe(2);
   });
 
-  it('does not report authoritative complete-envelope clears as last-known-good preservation', () => {
+  it('repairs a missing required field from current authority while retaining one valid anchor', () => {
+    const pfpEnvelope = {
+      messages: [{
+        data: {
+          type: 'MESSAGE_TYPE_USER_DATA_ADD',
+          fid: Number(FID),
+          timestamp: 10,
+          network: 'FARCASTER_NETWORK_MAINNET',
+          userDataBody: {
+            type: 'USER_DATA_TYPE_PFP',
+            value: 'https://images.example/current.png',
+          },
+        },
+      }],
+      nextPageToken: '',
+    };
+    const resolved = buildTrustedPublicFarcasterProfile({
+      fid: FID,
+      responses: { USER_DATA_TYPE_PFP: pfpEnvelope },
+    });
+    const planned = planProfileUpdates([resolved], new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+    }]]));
+
+    expect(planned.updates).toEqual([{
+      fid: FID,
+      canonicalUsername: 'keeper.eth',
+      displayName: undefined,
+      pfpUrl: 'https://images.example/current.png',
+      publicBio: undefined,
+      farcasterProfileUrl: 'https://farcaster.xyz/keeper.eth',
+    }]);
+    expect(planned.lastKnownGoodFieldsPreserved).toBe(1);
+  });
+
+  it('fails closed when the trusted source authoritatively removes required castle identity', () => {
     const envelope = { messages: [], nextPageToken: '' };
     const cleared = buildTrustedPublicFarcasterProfile({
       fid: FID,
-      responses: Object.fromEntries([
-        'USER_DATA_TYPE_USERNAME',
-        'USER_DATA_TYPE_DISPLAY',
-        'USER_DATA_TYPE_BIO',
-        'USER_DATA_TYPE_PFP',
-      ].map(type => [type, envelope])),
+      responses: Object.fromEntries(FARCASTER_PUBLIC_USER_DATA_TYPES.map(type => [type, envelope])),
     });
-    const planned = planProfileUpdates([cleared], new Map([[FID, {
+    expect(() => planProfileUpdates([cleared], new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+      displayName: 'Keeper',
+      pfpUrl: 'https://images.example/stable.png',
+      publicBio: 'Stable bio',
+    }]]))).toThrow('PROFILES_REQUIRED_CASTLE_IDENTITY_MISSING');
+  });
+
+  it('allows authoritative optional-field clears when required identity remains current', () => {
+    const envelope = {
+      messages: [
+        ['USER_DATA_TYPE_USERNAME', 'keeper.eth'],
+        ['USER_DATA_TYPE_PFP', 'https://images.example/stable.png'],
+      ].map(([type, value], index) => ({
+        data: {
+          type: 'MESSAGE_TYPE_USER_DATA_ADD',
+          fid: Number(FID),
+          timestamp: 10 + index,
+          network: 'FARCASTER_NETWORK_MAINNET',
+          userDataBody: { type, value },
+        },
+      })),
+      nextPageToken: '',
+    };
+    const resolved = buildTrustedPublicFarcasterProfile({
+      fid: FID,
+      responses: Object.fromEntries(FARCASTER_PUBLIC_USER_DATA_TYPES.map(type => [type, envelope])),
+    });
+    const planned = planProfileUpdates([resolved], new Map([[FID, {
       canonicalUsername: 'keeper.eth',
       displayName: 'Keeper',
       pfpUrl: 'https://images.example/stable.png',
@@ -214,11 +284,41 @@ describe('trusted profile operator boundary', () => {
 
     expect(planned.lastKnownGoodFieldsPreserved).toBe(0);
     expect(planned.updates[0]).toMatchObject({
-      canonicalUsername: undefined,
+      canonicalUsername: 'keeper.eth',
       displayName: undefined,
-      pfpUrl: undefined,
+      pfpUrl: 'https://images.example/stable.png',
       publicBio: undefined,
     });
+  });
+
+  it.each([
+    ['canonical username', { pfpUrl: 'https://images.example/keeper.png' }],
+    ['PFP', { canonicalUsername: 'keeper.eth' }],
+    ['canonical username and PFP', {}],
+  ] as const)('fails closed when a newly founded profile lacks %s', (_field, resolved) => {
+    expect(() => planProfileUpdates([{ fid: FID, ...resolved }], new Map([[FID, {}]])))
+      .toThrow('PROFILES_REQUIRED_CASTLE_IDENTITY_MISSING');
+  });
+
+  it('fails the complete refresh when any one founded profile remains incomplete', () => {
+    expect(() => planProfileUpdates([
+      {
+        fid: FID,
+        canonicalUsername: 'keeper.eth',
+        pfpUrl: 'https://images.example/keeper.png',
+      },
+      { fid: 456n, canonicalUsername: 'second.eth' },
+    ], new Map([
+      [FID, {}],
+      [456n, {}],
+    ]))).toThrow('PROFILES_REQUIRED_CASTLE_IDENTITY_MISSING');
+  });
+
+  it('does not preserve a merely nonempty but noncanonical required identity anchor', () => {
+    expect(() => planProfileUpdates([{ fid: FID }], new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+      pfpUrl: 'http://localhost/private.png',
+    }]]))).toThrow('PROFILES_REQUIRED_CASTLE_IDENTITY_MISSING');
   });
 
   it('fails before mutation planning unless every current founded profile is resolved exactly once', () => {
@@ -243,12 +343,18 @@ describe('trusted profile operator boundary', () => {
   });
 
   it('binds apply preconditions to the exact founder set, not only its count', () => {
-    const current = new Map([[FID, { displayName: 'Keeper' }]]);
+    const current = new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+      displayName: 'Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+    }]]);
     const plan = createReviewedProfilePlan({
       sourceConfigurationDigest: 'a'.repeat(64),
       targetConfigurationDigest: 'b'.repeat(64),
       policyVersion: 'policy-v2',
       foundedProfileSetDigest: foundedProfileSetDigest(current.keys()),
+      expectedProfileStateDigest: foundedProfileStateDigest(current),
+      intendedProfileStateDigest: foundedProfileStateDigest(current),
       fetchedProfiles: 1,
       unchangedProfiles: 1,
       lastKnownGoodFieldsPreserved: 0,
@@ -257,8 +363,45 @@ describe('trusted profile operator boundary', () => {
     });
 
     expect(planPreconditionsMatch(plan, current)).toBe(true);
-    expect(planPreconditionsMatch(plan, new Map([[456n, { displayName: 'Other' }]])))
+    expect(planPreconditionsMatch(plan, new Map([[456n, {
+      canonicalUsername: 'other.eth',
+      displayName: 'Other',
+      pfpUrl: 'https://images.example/other.png',
+    }]])))
       .toBe(false);
+    expect(planPreconditionsMatch(plan, new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+      displayName: 'Changed',
+      pfpUrl: 'https://images.example/keeper.png',
+    }]])))
+      .toBe(false);
+  });
+
+  it('allows an exact reviewed plan to repair an incomplete current profile', () => {
+    const current = new Map([[FID, { displayName: 'Legacy Keeper' }]]);
+    const intended = {
+      canonicalUsername: 'keeper.eth',
+      displayName: 'Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+    };
+    const plan = createReviewedProfilePlan({
+      sourceConfigurationDigest: 'a'.repeat(64),
+      targetConfigurationDigest: 'b'.repeat(64),
+      policyVersion: 'policy-v2',
+      foundedProfileSetDigest: foundedProfileSetDigest(current.keys()),
+      expectedProfileStateDigest: foundedProfileStateDigest(current),
+      intendedProfileStateDigest: foundedProfileStateDigest(new Map([[FID, intended]])),
+      fetchedProfiles: 1,
+      unchangedProfiles: 0,
+      lastKnownGoodFieldsPreserved: 0,
+      updates: [{
+        fid: FID.toString(),
+        expectedCurrent: current.get(FID)!,
+        intended,
+      }],
+    });
+
+    expect(planPreconditionsMatch(plan, current)).toBe(true);
   });
 
   it('writes a mode-0600 content-attested short-lived reviewed plan and claims it once', () => {
@@ -271,6 +414,14 @@ describe('trusted profile operator boundary', () => {
       targetConfigurationDigest,
       policyVersion: 'policy-v1',
       foundedProfileSetDigest: foundedProfileSetDigest([FID]),
+      expectedProfileStateDigest: foundedProfileStateDigest(new Map([[
+        FID,
+        { displayName: 'Keeper' },
+      ]])),
+      intendedProfileStateDigest: foundedProfileStateDigest(new Map([[
+        FID,
+        { displayName: 'Keeper Prime', pfpUrl: 'https://images.example/pfp.png' },
+      ]])),
       fetchedProfiles: 1,
       unchangedProfiles: 0,
       lastKnownGoodFieldsPreserved: 2,

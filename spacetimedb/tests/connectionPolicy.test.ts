@@ -204,13 +204,36 @@ test('the v2 QA attestation SATS product exposes only world state and exact aggr
 test('admitted-player authority is derived only from the protocol-v2 pair', () => {
   const source = readFileSync(new URL('../src/auth.ts', import.meta.url), 'utf8');
   const start = source.indexOf('export function requireAdmittedPlayer');
-  const end = source.indexOf('/** Admin inputs', start);
+  const end = source.indexOf('/**\n * Resolve the only castle', start);
   assert.notEqual(start, -1);
   assert.notEqual(end, -1);
 
   const guard = source.slice(start, end);
   assert.match(guard, /ctx\.db\.playerV2\.fid\.find/);
   assert.match(guard, /ctx\.db\.playerOwnershipV2\.fid\.find/);
+  assert.match(guard, /const castle = ctx\.db\.castle\.ownerFid\.find\(claims\.fid\)/);
+  assert.match(guard, /ownership\?\.identity\.equals\(ctx\.sender\)/);
+  assert.match(guard, /if \(castle === null\)[\s\S]*STATE_INTEGRITY/);
+  assert.match(guard, /return \{ claims, player: player!, castle \}/);
   assert.doesNotMatch(guard, /ctx\.db\.player\./);
   assert.doesNotMatch(guard, /ctx\.db\.playerOwnership\./);
+});
+
+test('own-castle action authority is selector-free and rechecks the caller-derived owner', () => {
+  const source = readFileSync(new URL('../src/auth.ts', import.meta.url), 'utf8');
+  const start = source.indexOf('export function requireOwnedCastleActionV1');
+  const bodyStart = source.indexOf('{', start);
+  const end = source.indexOf('/**\n * Require the complete current gameplay graph', start);
+  assert.notEqual(start, -1);
+  assert.notEqual(bodyStart, -1);
+  assert.notEqual(end, -1);
+
+  const signature = source.slice(start, bodyStart);
+  const guard = source.slice(bodyStart, end);
+  assert.match(signature, /requireOwnedCastleActionV1\(\s*ctx: WarpkeepReducerContext,?\s*\)/);
+  assert.doesNotMatch(signature, /\b(?:fid|castleId|ownerFid|target)\b/);
+  assert.match(guard, /const admitted = requireAdmittedPlayer\(ctx\)/);
+  assert.match(guard, /admitted\.castle\.ownerFid !== admitted\.claims\.fid/);
+  assert.match(guard, /throw new SenderError\('STATE_INTEGRITY'\)/);
+  assert.doesNotMatch(guard, /ctx\.db\.|\.find\s*\(/);
 });

@@ -72,7 +72,7 @@ test('admin recovery seeding verifies the completed castle graph before audit', 
 
   const source = readFileSync(new URL('../src/reducers/admin.ts', import.meta.url), 'utf8');
   const start = source.indexOf('export const adminSeedWorld');
-  const end = source.indexOf('/**\n * First admission starts', start);
+  const end = source.indexOf('export const adminExpandGenesisWorldV3', start);
   assert.notEqual(start, -1);
   assert.notEqual(end, -1);
   const reducer = source.slice(start, end);
