@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AlphaParticipationTermsDialog } from '../src/components/menu/AlphaParticipationTermsDialog';
 import {
   WARPKEEP_ALPHA_PRIVACY_URL,
-  WARPKEEP_ALPHA_TERMS_URL
+  WARPKEEP_ALPHA_TERMS_URL,
+  WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_URL,
 } from '../src/legal/publicDocuments';
 
 afterEach(() => {
@@ -59,7 +60,7 @@ describe('AlphaParticipationTermsDialog', () => {
     renderDialog();
 
     const acceptance = screen.getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I have read and agree to the Alpha Terms and Hegemony Social Contract.'
     }) as HTMLInputElement;
     const continueButton = screen.getByRole('button', {
       name: 'CONTINUE TO SIGN-IN'
@@ -91,25 +92,50 @@ describe('AlphaParticipationTermsDialog', () => {
     expect(continueButton.disabled).toBe(false);
   });
 
-  it('offers the stable full Terms and Privacy documents before consent without starting auth', () => {
+  it('offers the ordered Terms, Social Contract, and Privacy documents before consent', () => {
     const { onCancel, onContinue } = renderDialog();
 
-    const termsLink = screen.getByRole('link', { name: 'full Alpha Terms' });
-    const privacyLink = screen.getByRole('link', { name: 'Privacy Notice' });
+    const termsLink = screen.getByRole('link', {
+      name: 'Read the Alpha Terms in a new tab',
+    });
+    const socialContractLink = screen.getByRole('link', {
+      name: 'Read the Hegemony Social Contract in a new tab',
+    });
+    const privacyLink = screen.getByRole('link', {
+      name: 'Read the Privacy Notice in a new tab',
+    });
     expect(termsLink.getAttribute('href')).toBe(WARPKEEP_ALPHA_TERMS_URL);
+    expect(socialContractLink.getAttribute('href')).toBe(WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_URL);
     expect(privacyLink.getAttribute('href')).toBe(WARPKEEP_ALPHA_PRIVACY_URL);
+    expect(screen.getAllByRole('link').map(link => link.textContent?.trim())).toEqual([
+      'Alpha Terms',
+      'Hegemony Social Contract',
+      'Privacy Notice',
+    ]);
 
-    for (const link of [termsLink, privacyLink]) {
+    for (const link of [termsLink, socialContractLink, privacyLink]) {
       expect(link.getAttribute('target')).toBe('_blank');
       expect(link.getAttribute('rel')?.split(/\s+/)).toEqual(
         expect.arrayContaining(['noopener', 'noreferrer'])
       );
     }
 
-    expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    const acceptance = screen.getByRole('checkbox') as HTMLInputElement;
+    expect(acceptance.checked).toBe(false);
     expect((screen.getByRole('button', {
       name: 'CONTINUE TO SIGN-IN'
     }) as HTMLButtonElement).disabled).toBe(true);
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onContinue).not.toHaveBeenCalled();
+
+    // Reading either public document must not become an implicit acceptance.
+    termsLink.addEventListener('click', event => event.preventDefault(), { once: true });
+    socialContractLink.addEventListener('click', event => event.preventDefault(), { once: true });
+    privacyLink.addEventListener('click', event => event.preventDefault(), { once: true });
+    fireEvent.click(termsLink);
+    fireEvent.click(socialContractLink);
+    fireEvent.click(privacyLink);
+    expect(acceptance.checked).toBe(false);
     expect(onCancel).not.toHaveBeenCalled();
     expect(onContinue).not.toHaveBeenCalled();
   });

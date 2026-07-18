@@ -16,6 +16,7 @@
         <a href="../">Warpkeep</a>
         <span class="legal-nav__documents">
           <a aria-current="page" href="./index.html">Alpha Terms</a>
+          <a href="../social-contract/index.html">Hegemony Social Contract</a>
           <a href="../privacy/index.html">Privacy Notice</a>
         </span>
       </nav>
@@ -27,7 +28,10 @@
           <p class="legal-page__lead">
             These short terms apply when you choose to enter and test the Warpkeep Alpha.
           </p>
-          <p class="legal-page__version">Version 0.3.2 · Last updated 14 July 2026</p>
+          <p class="legal-page__version">
+            Version 0.3.3 · Entry-agreement bundle
+            2026-07-18-hegemony-entry-agreement-v1 · Last updated 18 July 2026
+          </p>
           <p class="legal-page__notice">
             This is a project-authored Alpha notice, not a legal-compliance certification or
             legal advice. The project needs formal legal review before moving beyond Alpha.
@@ -67,19 +71,33 @@
             <h2 id="entering-alpha">3. Entering the Alpha</h2>
             <p>
               Checking the in-game box and selecting <strong>Continue to sign-in</strong> confirms
-              that you understand this notice and agree to these Alpha Terms for that entry
-              attempt. The checkbox begins unchecked each time and its UI state exists only in
-              browser component memory. If an admitted player completes authentication, Warpkeep
-              stores private, immutable evidence containing the player's FID, this Terms version,
-              and the acceptance time. That evidence enforces the versioned entry gate and
-              supports security and audit; it is not public game state and does not contain the
-              checkbox state, QR payload, proof, signature, access token, or session cookie.
+              that you understand this notice and agree to both these Alpha Terms and the
+              <a href="../social-contract/index.html">Hegemony Social Contract</a>, version
+              <strong>2026-07-18-hegemony-social-contract-v1</strong>, for that entry attempt.
+              Together they are the current entry-agreement bundle,
+              <strong>2026-07-18-hegemony-entry-agreement-v1</strong>. The checkbox begins
+              unchecked each time and its UI state exists only in browser component memory. It is
+              not acceptance of the Privacy Notice. If an admitted player completes
+              authentication, Warpkeep stores private, immutable evidence containing the player's
+              FID, this entry-agreement bundle version, and the acceptance time. That evidence
+              enforces the versioned entry gate and supports security and audit; it is not public
+              game state and does not contain the checkbox state, QR payload, proof, signature,
+              access token, or session cookie.
             </p>
             <p>
               Use Warpkeep only if you can legally accept these terms. Use only an account you are
               authorized to control, follow applicable law, and do not disrupt the service,
               bypass access controls, impersonate others, automate abusive traffic, or access
               another player's non-public data.
+            </p>
+            <p>
+              The current Alpha is allowlist and admission gated, and only the Hegemony is
+              playable. Admission is conditional rather than a permanent right. During the current
+              Hegemony-only Alpha, revocation of Hegemony admission removes game access because no
+              alternative faction is playable. The Social Contract describes conduct for that
+              current scope; it does not activate faction mechanics or promise future access. A
+              later material entry-agreement bundle requires a fresh unchecked acceptance before
+              current entry or gameplay can continue.
             </p>
           </section>
 
@@ -99,9 +117,11 @@
           <section aria-labelledby="privacy">
             <h2 id="privacy">5. Privacy and public game state</h2>
             <p>
-              The <a href="../privacy/index.html">Alpha Privacy Notice</a> explains the FID-only server
-              identity, session cookie, short-lived access token, public SpacetimeDB game
-              projections, retention limits, service providers, and available privacy choices.
+              The <a href="../privacy/index.html">Alpha Privacy Notice</a> explains the FID-only
+              server identity, session cookie, short-lived access token, public SpacetimeDB game
+              projections, retention limits, service providers, and available privacy choices. It
+              is linked for review but is not accepted by the entry checkbox as blanket privacy
+              consent.
               Some admitted-player state, including FID, trusted public Farcaster presentation,
               castle state, and—after entry—aggregate SNAP-burn and Mark statistics, is public to
               connected clients by design. Wallet addresses and individual burn-event receipts
@@ -132,8 +152,9 @@
           <section aria-labelledby="changes-contact">
             <h2 id="changes-contact">8. Changes and contact</h2>
             <p>
-              The version and date above identify this notice. Changes apply to later entry
-              attempts; a material change should be reviewed before continuing. For a question,
+              The version and date above identify this notice. A material change to either linked
+              entry document creates a later entry-agreement bundle and should be reviewed before
+              continuing. Changes apply to later entry attempts. For a question,
               use the public
               <a href="https://github.com/ael-dev3/Warpkeep" rel="noopener noreferrer" target="_blank">Warpkeep GitHub repository</a>
               without posting private account or authentication data. For a vulnerability, follow
