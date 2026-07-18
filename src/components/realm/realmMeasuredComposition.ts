@@ -6,6 +6,7 @@ const RESERVED_REALM_UI_SELECTOR = [
   '.realm-profile-trigger',
   '.realm-resource-rail',
   '.castle-inspection',
+  '.gold-mine-inspection',
   '.realm-hud__actions',
   '.realm-cell-navigator > button',
   '.realm-cell-navigator__dialog'
@@ -90,7 +91,7 @@ export function measuredRealmComposition(root: HTMLElement): RealmCameraComposit
   };
 
   const hud = rectFor('.realm-hud');
-  const inspector = rectFor('.castle-inspection');
+  const inspector = rectFor('.castle-inspection') ?? rectFor('.gold-mine-inspection');
   const actions = rectFor('.realm-hud__actions');
   const navigatorDialog = rectFor('.realm-cell-navigator__dialog');
   const navigatorTrigger = rectFor('.realm-cell-navigator > button');

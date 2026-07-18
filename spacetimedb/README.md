@@ -35,6 +35,37 @@ bounded aggregate, recorded authority, and exact-source verification.
 - Player authentication contract: `2` (unchanged)
 - Local world generation: `3` (undeployed; live predecessor is `2`)
 
+### Pending Alpha 0.3.7 Gold expeditions
+
+This checkout additionally contains an **unreleased**, append-only Gold wagon
+extension. It does not change the deployed protocol number or authorize a
+production publish by itself. Its v5 migration appends five tables at refs
+20–24: a canonical catalog of 24 Tier-I Gold sites, public occupation state,
+private owner/economy state, private retry receipts, and a minimal lifecycle
+schedule projection.
+
+- A dispatch accepts only `siteId` and a bounded idempotency key. The server
+  derives the player, origin castle, passable route, timestamps, 30-day term,
+  and 1 Gold/minute rate.
+- `gold_site_v1` and `gold_node_occupation_v1` are the only gameplay map
+  projections a player client should subscribe to. The owner receives accrued
+  and pending Gold only through `get_my_gold_expedition_state_v1`.
+- `gold_expedition_v1` and `gold_expedition_idempotency_v1` remain private;
+  they hold FIDs, UUIDs, retry receipts, accrual cursors, and balances.
+- `gold_expedition_schedule_v_1` is public solely because the pinned 2.6.1
+  TypeScript generator cannot extract a private scheduled row. It contains
+  only a schedule id, an already-public lifecycle timestamp, origin castle,
+  site id, and stage—never FID, request key, private expedition id, balance,
+  or accrual. Normal browser code must not subscribe to this scheduler
+  projection.
+
+The `_v_1` spelling is intentional: the pinned generator resolves scheduled
+targets using the separated trailing-digit form and fails closed for an
+attached `_v1` table name. The scheduler reducer is internal-only and uses the
+same non-client wire spelling; it has no generated browser reducer binding.
+The disposable migration proof verifies both the exact ref order and this
+public-safe field contract before any release candidate can advance.
+
 Run locally after installing directory dependencies:
 
 ```sh

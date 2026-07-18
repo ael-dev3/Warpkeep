@@ -1,5 +1,6 @@
 import type { VerifiedFarcasterIdentity } from '../farcaster/farcasterAuthTypes';
 import type { ReadyRealmResourcePresentation } from '../components/realm/realmResourcePresentation';
+import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
 
 export type WarpkeepAdmissionStatus =
   | 'not_admitted'
@@ -95,6 +96,26 @@ export type WarpkeepCastle = Readonly<{
   foundedAt?: number;
 }>;
 
+/** Public v5 Gold-site projection. It carries no ownership or economy data. */
+export type WarpkeepGoldSite = Readonly<{
+  siteId: string;
+  q: number;
+  r: number;
+  tier: number;
+  active: boolean;
+}>;
+
+/** Public occupancy only; player-private accrual stays in the procedure view. */
+export type WarpkeepGoldNodeOccupation = Readonly<{
+  siteId: string;
+  originCastleId: number;
+  phase: 'outbound' | 'gathering' | 'returning';
+  startedAtMicros: bigint;
+  arrivesAtMicros: bigint;
+  gatheringEndsAtMicros: bigint;
+  returnsAtMicros: bigint;
+}>;
+
 /**
  * Untrusted projection assembled from the six public subscription tables.
  * It may represent a partially applied subscription and must not reach the
@@ -108,6 +129,10 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   castles: readonly WarpkeepCastle[];
   /** Every active public realm row; cardinality is part of validation. */
   activeRealms: readonly WarpkeepRealm[];
+  /** Omitted while the additive v5 public projection is unavailable. */
+  goldSites?: readonly WarpkeepGoldSite[];
+  /** Omitted with `goldSites`; absent/invalid data renders no Gold nodes. */
+  goldNodeOccupations?: readonly WarpkeepGoldNodeOccupation[];
   ownCastle?: WarpkeepCastle;
 }>;
 
@@ -132,6 +157,8 @@ export type WarpkeepBackendState = Readonly<{
   admission?: WarpkeepAdmissionStatus;
   realm?: CanonicalWarpkeepRealmSnapshot;
   resources?: ReadyRealmResourcePresentation;
+  /** Caller-only, exact procedure projection for the active Gold expedition. */
+  goldExpedition?: ReadyGoldExpeditionPresentation;
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({

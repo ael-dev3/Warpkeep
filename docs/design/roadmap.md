@@ -12,25 +12,35 @@ shared-world authority unchanged.
 Public admission, resources, upgrades, units, combat, alliances, chat, seasons,
 wallet actions, and Marks crediting or spending are not live.
 
-## Undeployed candidate — Alpha 0.3.8 resources and world capacity
+## Undeployed candidate — Alpha 0.3.8 resources, world capacity, and Gold expeditions
 
 The checked-in 0.3.8 candidate carries the bounded resource authority prepared
-in 0.3.7 and adds persistent map capacity for future naturally placed nodes:
+in 0.3.7, expands persistent map capacity, and adds a deliberately bounded
+Gold Mine expedition loop:
 
 1. One private, caller-scoped Food, Wood, Stone, and Gold account belongs to
    each founded castle.
 2. Complete ten-minute server-time quanta and authoritative terrain determine
-   bounded yield; collection accepts no player-supplied authority inputs.
-3. The browser presents only the caller's exact projection and applies no
+   bounded Food, Wood, and Stone yield; collection accepts no player-supplied
+   authority inputs.
+3. A reviewable 24-site Tier-I Gold Mine pilot uses only the existing
+   passable/resource-capable Genesis anchors. One server-authorized wagon per
+   castle follows a server-derived route, gathers one Gold per completed minute
+   for 30 days, then returns; passive terrain Gold is zero.
+4. Public subscriptions expose a site and its occupied timeline only. Private
+   caller projections hold expedition ownership, idempotency, accrual, and
+   balances, so a peer cannot see or manipulate another player's Gold.
+5. The browser presents only the caller's exact projection and applies no
    optimistic credits. Peer balances remain outside public subscriptions.
-4. Community Marks remains separate, private, and unchanged.
-5. Immutable icons, generated bindings, a disposable additive-migration
+6. Community Marks remains separate, private, and unchanged.
+7. Immutable icons, reviewed Gold Mine/wagon LOD families, generated bindings,
+   a disposable additive-migration
    fixture, guarded founder backfill, and counts-only v4 inspection prepare the
    release boundary.
-6. Genesis 001 expands from its exact 1,261-cell generation-two predecessor to
+8. Genesis 001 expands from its exact 1,261-cell generation-two predecessor to
    exactly 10,000 persistent cells while preserving every existing cell, all
    100 permanent castle slots, and all founder state.
-7. Two thousand cells are classified as future resource-capable placement
+9. Two thousand cells are classified as future resource-capable placement
    sites. No resource node, public marker, collection entitlement, or new yield
    source is activated by that metadata.
 

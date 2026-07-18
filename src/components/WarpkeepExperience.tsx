@@ -1098,6 +1098,13 @@ export function WarpkeepExperience() {
                 snapshot={backend.state.realm}
                 resources={backend.state.resources}
                 onCollectResources={backend.collectResources}
+                goldExpedition={backend.state.goldExpedition}
+                onDispatchGoldExpedition={backend.state.goldExpedition === undefined
+                  ? undefined
+                  : backend.dispatchGoldExpedition}
+                onClaimGoldExpedition={backend.state.goldExpedition === undefined
+                  ? undefined
+                  : backend.claimGoldExpedition}
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}

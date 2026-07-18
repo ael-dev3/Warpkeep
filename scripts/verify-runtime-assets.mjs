@@ -24,6 +24,11 @@ const assets = Object.freeze([
   ['public/models/hegemony/hegemony-castle-landscape-base-high-be79476bee4e1f34.glb', 214_372, 'be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c', true],
   ['public/models/hegemony/hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb', 92_784, '179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f', true],
   ['public/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb', 27_328, 'f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3', true],
+  // The animated wagon has a dedicated structural verifier below the build
+  // boundary. Keep these top-level coordinates here so unknown GLBs fail closed.
+  ['public/models/hegemony/hegemony-supply-wagon-high-4a0f762b9dadeadd.glb', 1_637_452, '4a0f762b9dadeaddd8b2d528a7e165eaa98a8dd4134eb924604922524e7bbc5d', true],
+  ['public/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb', 752_364, 'af0f8788eaaf9a32e9fd8d17e9ab897a9036d0cc7161a318afa0af3556c6e3b2', true],
+  ['public/models/hegemony/hegemony-supply-wagon-compact-fefb5105b95d43b4.glb', 452_676, 'fefb5105b95d43b411571000e8ae3fd78460eaa5f490eaeb63f90e5d84aba6ca', true],
   // Retain the exact Alpha 0.3.4 coordinates for old clients and rollback.
   ['public/models/hegemony/hegemony-main-castle-high.glb', 1_934_920, '9e49713b5cb59f9b5ac10511652de4c243ba8b1edd2227935f4c9c415304a1a2', true],
   ['public/models/hegemony/hegemony-main-castle-balanced.glb', 1_172_132, 'aa3a557b1725dc4bd91e772f44136f72270b0c055c31d8913bb8738405b5934e', true],

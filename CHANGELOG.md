@@ -33,6 +33,28 @@ See [Alpha 0.3.8 candidate notes](docs/releases/alpha-0.3.8.md).
 
 ## 0.3.7 — candidate (18 July 2026)
 
+- Adds a bounded Genesis 001 Gold Mine expedition pilot: 24 deterministic,
+  passable, resource-capable Tier-I sites are drawn from the existing 1,261-cell
+  map and pinned by a placement digest. This is not a 10,000-cell expansion.
+- An admitted founder can dispatch one server-authorized Hegemony supply wagon
+  to an available site. The server derives the route, timing, current castle,
+  one-minute Gold rate, 30-day gathering window, return, and idempotency. A
+  full uninterrupted gathering window yields 43,200 Gold before the existing
+  account cap; browser time and browser movement never settle it.
+- Public Realm state shows which Gold Mine is occupied and its originating
+  public castle/timeline without exposing FIDs, balances, accrued output,
+  request keys, or private expedition rows. Arrival, expiry, and return use
+  internal-only one-shot server schedules; repeated calls and stale schedules
+  cannot double-credit or reopen a site.
+- Gold now has one issuance path: passive terrain Gold is zero, while Food,
+  Wood, and Stone keep their deterministic ten-minute terrain rates. Private
+  owner projections can show completed-but-unclaimed expedition Gold and
+  collect it exactly once without a per-minute database write.
+- Adds integrity-pinned High, Balanced, and Compact Gold Mine and supply-wagon
+  runtime models. The Realm keeps a safe marker fallback, bounded LOD/model
+  cache, nearby-only wagon animation, an accessible Gold Mine record, and
+  selected-site occupancy state; source packages and review candidates remain
+  preserved separately with their provenance.
 - Adds one private SpacetimeDB-owned Food, Wood, Stone, and Gold account for
   each founded castle. The authenticated player can read only their own
   inventory; peer balances do not join the public Realm subscription.

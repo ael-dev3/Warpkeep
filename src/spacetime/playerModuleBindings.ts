@@ -32,11 +32,16 @@ import {
 
 import AcceptAlphaTermsV1Reducer from './module_bindings/accept_alpha_terms_v_1_reducer'
 import BootstrapPlayerV2Reducer from './module_bindings/bootstrap_player_v_2_reducer'
+import CollectGoldExpeditionV1Reducer from './module_bindings/collect_gold_expedition_v_1_reducer'
 import CollectResourcesV1Reducer from './module_bindings/collect_resources_v_1_reducer'
 import CastleRow from './module_bindings/castle_table'
 import * as GetAlphaBackendInfoProcedure from './module_bindings/get_alpha_backend_info_procedure'
 import * as GetMyAdmissionStatusV2Procedure from './module_bindings/get_my_admission_status_v_2_procedure'
+import * as GetMyGoldExpeditionStateV1Procedure from './module_bindings/get_my_gold_expedition_state_v_1_procedure'
 import * as GetMyResourceStateV1Procedure from './module_bindings/get_my_resource_state_v_1_procedure'
+import DispatchGoldExpeditionV1Reducer from './module_bindings/dispatch_gold_expedition_v_1_reducer'
+import GoldNodeOccupationV1Row from './module_bindings/gold_node_occupation_v_1_table'
+import GoldSiteV1Row from './module_bindings/gold_site_v_1_table'
 import PlayerV2Row from './module_bindings/player_v_2_table'
 import RealmProfileV1Row from './module_bindings/realm_profile_v_1_table'
 import RealmV1Row from './module_bindings/realm_v_1_table'
@@ -63,6 +68,34 @@ const tablesSchema = __schema({
       { name: 'castle_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
     ],
   }, CastleRow),
+  // The public world projection intentionally includes only site geometry and
+  // occupancy timing. The scheduler is not a player table: it exposes no
+  // useful visual state and must never be pulled into the browser surface.
+  goldNodeOccupationV1: __table({
+    name: 'gold_node_occupation_v1',
+    indexes: [
+      { accessor: 'byOriginCastle', name: 'gold_node_occupation_v1_origin_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'originCastleId',
+      ] },
+      { accessor: 'siteId', name: 'gold_node_occupation_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gold_node_occupation_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, GoldNodeOccupationV1Row),
+  goldSiteV1: __table({
+    name: 'gold_site_v1',
+    indexes: [
+      { accessor: 'siteId', name: 'gold_site_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gold_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, GoldSiteV1Row),
   playerV2: __table({
     name: 'player_v2',
     indexes: [
@@ -130,7 +163,9 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema('accept_alpha_terms_v1', AcceptAlphaTermsV1Reducer),
   __reducerSchema('bootstrap_player_v2', BootstrapPlayerV2Reducer),
+  __reducerSchema('collect_gold_expedition_v1', CollectGoldExpeditionV1Reducer),
   __reducerSchema('collect_resources_v1', CollectResourcesV1Reducer),
+  __reducerSchema('dispatch_gold_expedition_v1', DispatchGoldExpeditionV1Reducer),
 )
 
 const proceduresSchema = __procedures(
@@ -143,6 +178,11 @@ const proceduresSchema = __procedures(
     'get_my_admission_status_v2',
     GetMyAdmissionStatusV2Procedure.params,
     GetMyAdmissionStatusV2Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_gold_expedition_state_v1',
+    GetMyGoldExpeditionStateV1Procedure.params,
+    GetMyGoldExpeditionStateV1Procedure.returnType,
   ),
   __procedureSchema(
     'get_my_resource_state_v1',

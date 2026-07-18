@@ -11,6 +11,11 @@ import {
   planGenesisResourceBackfill,
 } from '../resourceAuthority';
 import {
+  collectActiveGoldExpedition,
+  goldExpeditionErrorCode,
+  myGoldExpeditionState,
+} from '../goldExpeditionAuthority';
+import {
   GENESIS_RESOURCE_POLICY_VERSION,
   ResourceAuthorityPolicyError,
   planResourceSettlement,
@@ -50,6 +55,8 @@ const adminAlphaStatusV4 = t.object('AdminAlphaStatusV4', {
 });
 
 function senderPolicyError(error: unknown): never {
+  const goldExpeditionCode = goldExpeditionErrorCode(error);
+  if (goldExpeditionCode !== undefined) throw new SenderError(goldExpeditionCode);
   if (
     error instanceof ResourceAuthorityError
     || error instanceof ResourceAuthorityPolicyError
@@ -73,6 +80,7 @@ export const getMyResourceStateV1 = warpkeep.procedure(
       }
       const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
       const settlement = planResourceSettlement(account, terrainKind, observedAtMicros);
+      const expedition = myGoldExpeditionState(tx, claims.fid);
       return {
         fid: claims.fid,
         food: account.food,
@@ -82,7 +90,10 @@ export const getMyResourceStateV1 = warpkeep.procedure(
         pendingFood: settlement.deltas.food,
         pendingWood: settlement.deltas.wood,
         pendingStone: settlement.deltas.stone,
-        pendingGold: settlement.deltas.gold,
+        // Passive terrain Gold is zero under the Tier-I pilot. This private
+        // aggregate nevertheless carries any whole-minute, unclaimed wagon
+        // Gold so the existing HUD state cannot silently under-report it.
+        pendingGold: settlement.deltas.gold + expedition.pendingGold,
         marksBalanceMicros: marks.balanceMicros,
         observedAtMicros,
         settledThroughMicros: account.settledThroughMicros,
@@ -113,15 +124,20 @@ export const collectResourcesV1 = warpkeep.reducer(
         terrainKind,
         ctx.timestamp.microsSinceUnixEpoch,
       );
-      if (settlement.completedQuanta === 0n) return;
-      ctx.db.resourceAccountV1.fid.update({
-        ...account,
-        ...settlement.balances,
-        settledThroughMicros: settlement.settledThroughMicros,
-        revision: settlement.revision,
-        policyVersion: settlement.policyVersion,
-        updatedAt: ctx.timestamp,
-      });
+      if (settlement.completedQuanta !== 0n) {
+        ctx.db.resourceAccountV1.fid.update({
+          ...account,
+          ...settlement.balances,
+          settledThroughMicros: settlement.settledThroughMicros,
+          revision: settlement.revision,
+          policyVersion: settlement.policyVersion,
+          updatedAt: ctx.timestamp,
+        });
+      }
+      // Existing HUD collection remains a truthful whole-inventory action:
+      // if an active Gold wagon has completed minutes, claim them exactly once
+      // even when passive terrain has not crossed its ten-minute quantum.
+      collectActiveGoldExpedition(ctx, claims.fid);
       const marksAfter = ctx.db.markAccountV1.fid.find(claims.fid);
       if (
         marksAfter === null

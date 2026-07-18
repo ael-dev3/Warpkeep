@@ -7,6 +7,8 @@ import {
 import type {
   WarpkeepAdmissionStatus,
   WarpkeepCastle,
+  WarpkeepGoldNodeOccupation,
+  WarpkeepGoldSite,
   WarpkeepPlayer,
   WarpkeepRealm,
   WarpkeepRealmProfile,
@@ -38,6 +40,14 @@ import {
   decodeRealmResourceProjection,
   type ReadyRealmResourcePresentation
 } from '../components/realm/realmResourcePresentation';
+import {
+  decodeGoldExpeditionPresentation,
+  type ReadyGoldExpeditionPresentation
+} from '../components/realm/realmGoldExpeditionPresentation';
+import {
+  isRealmGoldNodeOccupationPublicRecord,
+  isRealmGoldSitePublicRecord
+} from '../components/realm/realmGoldNodePresentation';
 
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
@@ -45,7 +55,26 @@ export type WarpkeepConnectionCallbacks = Readonly<{
 
 export type WarpkeepConnection = DbConnection;
 
+/**
+ * Core Realm data remains available while the additive Gold projection is
+ * applying or unavailable on an older deployment. Both handles must still
+ * be released as one lifecycle unit.
+ */
+export type WarpkeepRealmSubscription = Readonly<{
+  unsubscribe: () => void;
+}>;
+
 const CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS = 10_000;
+const GOLD_PROJECTION_UNAVAILABLE = 'unavailable' as const;
+const GOLD_PROJECTION_PENDING = 'pending' as const;
+const GOLD_PROJECTION_READY = 'ready' as const;
+type GoldProjectionAvailability =
+  | typeof GOLD_PROJECTION_UNAVAILABLE
+  | typeof GOLD_PROJECTION_PENDING
+  | typeof GOLD_PROJECTION_READY;
+const goldProjectionAvailability = new WeakMap<WarpkeepConnection, GoldProjectionAvailability>();
+const GOLD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
+const GOLD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
@@ -241,15 +270,82 @@ export async function collectWarpkeepResources(
   return readWarpkeepResourceState(connection, ownFid);
 }
 
-/** Start only the protocol-v3 public shared-state subscription, never private/admin tables. */
+/**
+ * Read the caller-only expedition procedure. A malformed private projection
+ * disables the related controls; it is never coerced into a balance, an
+ * occupied node, or a server error for the otherwise-safe public Realm.
+ */
+export async function readWarpkeepGoldExpeditionState(
+  connection: WarpkeepConnection
+): Promise<ReadyGoldExpeditionPresentation | undefined> {
+  const raw = await connection.procedures.getMyGoldExpeditionStateV1({});
+  const decoded = decodeGoldExpeditionPresentation(raw);
+  return decoded.status === 'ready' ? decoded : undefined;
+}
+
+function assertGoldExpeditionDispatchInput(siteId: string, idempotencyKey: string) {
+  if (
+    !GOLD_SITE_ID_PATTERN.test(siteId)
+    || !GOLD_IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)
+  ) {
+    throw new Error('Gold expedition is unavailable.');
+  }
+}
+
+/**
+ * Dispatch sends only an approved public site id and a browser idempotency
+ * token. Ownership, route, timing, occupancy, and reward all stay server-side.
+ */
+export async function dispatchWarpkeepGoldExpedition(
+  connection: WarpkeepConnection,
+  siteId: string,
+  idempotencyKey: string
+): Promise<ReadyGoldExpeditionPresentation | undefined> {
+  assertGoldExpeditionDispatchInput(siteId, idempotencyKey);
+  await connection.reducers.dispatchGoldExpeditionV1({ siteId, idempotencyKey });
+  return readWarpkeepGoldExpeditionState(connection);
+}
+
+/**
+ * Explicitly settle the authenticated caller's Gold expedition, then refresh
+ * both private projections. No public occupation row or browser balance is
+ * changed optimistically.
+ */
+export async function collectWarpkeepGoldExpedition(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<Readonly<{
+  resources: ReadyRealmResourcePresentation;
+  goldExpedition: ReadyGoldExpeditionPresentation | undefined;
+}>> {
+  await connection.reducers.collectGoldExpeditionV1({});
+  const [resources, goldExpedition] = await Promise.all([
+    readWarpkeepResourceState(connection, ownFid),
+    readWarpkeepGoldExpeditionState(connection)
+  ]);
+  return Object.freeze({ resources, goldExpedition });
+}
+
+/**
+ * Start the protocol-v3 core shared-state subscription and an additive public
+ * Gold subscription. The scheduler and every private economy table remain
+ * outside the player graph. If the additive schema is not deployed yet, core
+ * Realm rendering remains live with no Gold nodes rather than treating any
+ * site as available.
+ */
 export function subscribeToWarpkeepRealm(
   connection: WarpkeepConnection,
   onApplied: () => void,
   onError: () => void
-): SubscriptionHandle {
-  return connection
+): WarpkeepRealmSubscription {
+  let coreApplied = false;
+  goldProjectionAvailability.set(connection, GOLD_PROJECTION_PENDING);
+  const coreSubscription = connection
     .subscriptionBuilder()
-    .onApplied(onApplied)
+    .onApplied(() => {
+      coreApplied = true;
+      onApplied();
+    })
     .onError(() => onError())
     .subscribe([
       tables.worldTile,
@@ -259,6 +355,50 @@ export function subscribeToWarpkeepRealm(
       tables.realmV1,
       tables.realmProfileV1
     ]);
+
+  let goldSubscription: SubscriptionHandle | undefined;
+  const publicTables = (connection.db ?? {}) as unknown as {
+    goldSiteV1?: unknown;
+    goldNodeOccupationV1?: unknown;
+  };
+  // A hand-built test connection or a pre-additive service can lack these
+  // accessors. Do not turn that absence into a false-free node or a Realm
+  // failure; the snapshot simply omits Gold until a compatible subscription
+  // applies.
+  if (publicTables.goldSiteV1 !== undefined && publicTables.goldNodeOccupationV1 !== undefined) {
+    try {
+      goldSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          goldProjectionAvailability.set(connection, GOLD_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          goldProjectionAvailability.set(connection, GOLD_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          tables.goldSiteV1,
+          tables.goldNodeOccupationV1
+        ]);
+    } catch {
+      goldProjectionAvailability.set(connection, GOLD_PROJECTION_UNAVAILABLE);
+      if (coreApplied) onApplied();
+    }
+  } else {
+    goldProjectionAvailability.set(connection, GOLD_PROJECTION_UNAVAILABLE);
+  }
+
+  return Object.freeze({
+    unsubscribe: () => {
+      goldProjectionAvailability.delete(connection);
+      try {
+        goldSubscription?.unsubscribe();
+      } finally {
+        coreSubscription.unsubscribe();
+      }
+    }
+  });
 }
 
 function readWorldTiles(connection: WarpkeepConnection): WarpkeepWorldTile[] {
@@ -411,12 +551,108 @@ function readCastles(connection: WarpkeepConnection): WarpkeepCastle[] {
   return rows.sort((left, right) => left.castleId - right.castleId);
 }
 
+type PublicGoldTableRow = Readonly<Record<string, unknown>>;
+
+function asPublicGoldRow(value: unknown): PublicGoldTableRow | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as PublicGoldTableRow
+    : undefined;
+}
+
+function publicGoldTables(connection: WarpkeepConnection) {
+  const db = connection.db as unknown as {
+    goldSiteV1?: {
+      iter: () => Iterable<unknown>;
+      onInsert?: (listener: (context: EventContext) => void) => void;
+      onDelete?: (listener: (context: EventContext) => void) => void;
+      onUpdate?: (listener: (context: EventContext) => void) => void;
+      removeOnInsert?: (listener: (context: EventContext) => void) => void;
+      removeOnDelete?: (listener: (context: EventContext) => void) => void;
+      removeOnUpdate?: (listener: (context: EventContext) => void) => void;
+    };
+    goldNodeOccupationV1?: {
+      iter: () => Iterable<unknown>;
+      onInsert?: (listener: (context: EventContext) => void) => void;
+      onDelete?: (listener: (context: EventContext) => void) => void;
+      onUpdate?: (listener: (context: EventContext) => void) => void;
+      removeOnInsert?: (listener: (context: EventContext) => void) => void;
+      removeOnDelete?: (listener: (context: EventContext) => void) => void;
+      removeOnUpdate?: (listener: (context: EventContext) => void) => void;
+    };
+  };
+  if (!db.goldSiteV1 || !db.goldNodeOccupationV1) return undefined;
+  return db;
+}
+
+/**
+ * Read the additive public Gold catalog as an all-or-nothing visual
+ * projection. Any malformed or duplicate row omits the complete Gold layer;
+ * it must not make a potentially occupied site appear available.
+ */
+function readPublicGoldProjection(connection: WarpkeepConnection): Readonly<{
+  sites: readonly WarpkeepGoldSite[];
+  occupations: readonly WarpkeepGoldNodeOccupation[];
+}> | undefined {
+  if (goldProjectionAvailability.get(connection) !== GOLD_PROJECTION_READY) return undefined;
+  const db = publicGoldTables(connection);
+  if (!db) return undefined;
+  const goldSiteTable = db.goldSiteV1;
+  const goldOccupationTable = db.goldNodeOccupationV1;
+  if (!goldSiteTable || !goldOccupationTable) return undefined;
+
+  const sites: WarpkeepGoldSite[] = [];
+  const siteIds = new Set<string>();
+  for (const rawRow of goldSiteTable.iter()) {
+    const row = asPublicGoldRow(rawRow);
+    if (!row) return undefined;
+    const site = {
+      siteId: row.siteId,
+      q: row.q,
+      r: row.r,
+      tier: row.tier,
+      active: row.active
+    };
+    if (!isRealmGoldSitePublicRecord(site) || siteIds.has(site.siteId)) return undefined;
+    siteIds.add(site.siteId);
+    sites.push(Object.freeze({ ...site }));
+  }
+
+  const occupations: WarpkeepGoldNodeOccupation[] = [];
+  const occupiedSiteIds = new Set<string>();
+  for (const rawRow of goldOccupationTable.iter()) {
+    const row = asPublicGoldRow(rawRow);
+    if (!row) return undefined;
+    const originCastleId = toSafeNumber(row.originCastleId as bigint | number | undefined);
+    const occupation = {
+      siteId: row.siteId,
+      originCastleId,
+      phase: row.phase,
+      startedAtMicros: row.startedAtMicros,
+      arrivesAtMicros: row.arrivesAtMicros,
+      gatheringEndsAtMicros: row.gatheringEndsAtMicros,
+      returnsAtMicros: row.returnsAtMicros
+    };
+    if (
+      !isRealmGoldNodeOccupationPublicRecord(occupation)
+      || occupiedSiteIds.has(occupation.siteId)
+    ) return undefined;
+    occupiedSiteIds.add(occupation.siteId);
+    occupations.push(Object.freeze({ ...occupation }));
+  }
+
+  return Object.freeze({
+    sites: Object.freeze(sites.sort((left, right) => left.siteId.localeCompare(right.siteId))),
+    occupations: Object.freeze(occupations.sort((left, right) => left.siteId.localeCompare(right.siteId)))
+  });
+}
+
 export function readWarpkeepRealmSnapshot(
   connection: WarpkeepConnection,
   ownFid: number
 ): WarpkeepRealmSnapshot {
   const castles = readCastles(connection);
   const ownCastle = castles.find((castle) => castle.ownerFid === ownFid);
+  const publicGold = readPublicGoldProjection(connection);
   const candidate: WarpkeepRealmSnapshotCandidate = {
     tiles: readWorldTiles(connection),
     tileMetadata: readWorldTileMetadata(connection),
@@ -424,6 +660,10 @@ export function readWarpkeepRealmSnapshot(
     profiles: readRealmProfiles(connection),
     castles,
     activeRealms: readActiveRealms(connection),
+    ...(publicGold === undefined ? {} : {
+      goldSites: publicGold.sites,
+      goldNodeOccupations: publicGold.occupations
+    }),
     ...(ownCastle ? { ownCastle } : {})
   };
   return validateCanonicalGenesisSnapshot(candidate, {
@@ -481,6 +721,13 @@ export function observeWarpkeepRealm(
   connection.db.realmProfileV1.onInsert(sync);
   connection.db.realmProfileV1.onDelete(sync);
   connection.db.realmProfileV1.onUpdate(sync);
+  const goldTables = publicGoldTables(connection);
+  goldTables?.goldSiteV1?.onInsert?.(sync);
+  goldTables?.goldSiteV1?.onDelete?.(sync);
+  goldTables?.goldSiteV1?.onUpdate?.(sync);
+  goldTables?.goldNodeOccupationV1?.onInsert?.(sync);
+  goldTables?.goldNodeOccupationV1?.onDelete?.(sync);
+  goldTables?.goldNodeOccupationV1?.onUpdate?.(sync);
 
   return () => {
     active = false;
@@ -502,6 +749,12 @@ export function observeWarpkeepRealm(
     connection.db.realmProfileV1.removeOnInsert(sync);
     connection.db.realmProfileV1.removeOnDelete(sync);
     connection.db.realmProfileV1.removeOnUpdate(sync);
+    goldTables?.goldSiteV1?.removeOnInsert?.(sync);
+    goldTables?.goldSiteV1?.removeOnDelete?.(sync);
+    goldTables?.goldSiteV1?.removeOnUpdate?.(sync);
+    goldTables?.goldNodeOccupationV1?.removeOnInsert?.(sync);
+    goldTables?.goldNodeOccupationV1?.removeOnDelete?.(sync);
+    goldTables?.goldNodeOccupationV1?.removeOnUpdate?.(sync);
   };
 }
 

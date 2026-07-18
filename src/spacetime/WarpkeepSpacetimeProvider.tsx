@@ -15,12 +15,15 @@ import { validateFarcasterOidcSession } from '../farcaster/farcasterOidcSession'
 import {
   acceptWarpkeepAlphaTerms,
   bootstrapWarpkeepPlayer,
+  collectWarpkeepGoldExpedition,
   collectWarpkeepResources,
   connectWarpkeep,
+  dispatchWarpkeepGoldExpedition,
   disconnectWarpkeep,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
+  readWarpkeepGoldExpeditionState,
   readWarpkeepResourceState,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
@@ -42,6 +45,7 @@ import {
 } from './warpkeepConfig';
 import { readCompatibleWarpkeepBackendInfo } from './warpkeepProtocol';
 import type { ReadyRealmResourcePresentation } from '../components/realm/realmResourcePresentation';
+import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
 
 export const CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS = 15_000;
 export const RESOURCE_OPERATION_TIMEOUT_MILLISECONDS = 15_000;
@@ -74,6 +78,10 @@ export type WarpkeepBackendControllerValue = Readonly<{
   disconnect: () => void;
   /** Settle the caller's server-time yield and refresh the private projection. */
   collectResources: () => Promise<void>;
+  /** Send a guarded Gold dispatch; public occupancy remains subscription-owned. */
+  dispatchGoldExpedition: (siteId: string, idempotencyKey: string) => Promise<void>;
+  /** Settle only the caller's Gold expedition and refresh both private views. */
+  claimGoldExpedition: () => Promise<void>;
 }>;
 
 /**
@@ -90,6 +98,12 @@ export type WarpkeepBackendRuntime = Readonly<{
   acceptAlphaTerms: typeof acceptWarpkeepAlphaTerms;
   readResourceState: typeof readWarpkeepResourceState;
   collectResources: typeof collectWarpkeepResources;
+  /** Optional only for older deterministic test/QA runtimes without v5 Gold. */
+  readGoldExpeditionState?: typeof readWarpkeepGoldExpeditionState;
+  /** Optional only for older deterministic test/QA runtimes without v5 Gold. */
+  dispatchGoldExpedition?: typeof dispatchWarpkeepGoldExpedition;
+  /** Optional only for older deterministic test/QA runtimes without v5 Gold. */
+  collectGoldExpedition?: typeof collectWarpkeepGoldExpedition;
   observeRealm: typeof observeWarpkeepRealm;
   readRealmSnapshot: typeof readWarpkeepRealmSnapshot;
   subscribeRealm: typeof subscribeToWarpkeepRealm;
@@ -104,6 +118,9 @@ const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.freeze({
   acceptAlphaTerms: acceptWarpkeepAlphaTerms,
   readResourceState: readWarpkeepResourceState,
   collectResources: collectWarpkeepResources,
+  readGoldExpeditionState: readWarpkeepGoldExpeditionState,
+  dispatchGoldExpedition: dispatchWarpkeepGoldExpedition,
+  collectGoldExpedition: collectWarpkeepGoldExpedition,
   observeRealm: observeWarpkeepRealm,
   readRealmSnapshot: readWarpkeepRealmSnapshot,
   subscribeRealm: subscribeToWarpkeepRealm
@@ -191,6 +208,11 @@ export function WarpkeepSpacetimeProvider({
     generation: number;
     value: ReadyRealmResourcePresentation;
   }> | undefined>(undefined);
+  const goldExpeditionStateRef = useRef<Readonly<{
+    generation: number;
+    value: ReadyGoldExpeditionPresentation | undefined;
+  }> | undefined>(undefined);
+  const goldExpeditionOperationGenerationRef = useRef<number | undefined>(undefined);
   const processTermsAttemptRef = useRef<() => void>(() => undefined);
   stateRef.current = state;
 
@@ -208,6 +230,8 @@ export function WarpkeepSpacetimeProvider({
     termsIdentityFidRef.current = undefined;
     collectingGenerationRef.current = undefined;
     resourceStateRef.current = undefined;
+    goldExpeditionStateRef.current = undefined;
+    goldExpeditionOperationGenerationRef.current = undefined;
     canonicalRealmSourceRef.current = undefined;
     processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
@@ -287,6 +311,124 @@ export function WarpkeepSpacetimeProvider({
     }
   }, [runActiveTeardown, runtime]);
 
+  const dispatchGoldExpedition = useCallback(async (
+    siteId: string,
+    idempotencyKey: string
+  ) => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || currentState.goldExpedition === undefined
+      || connection === undefined
+      || fid === undefined
+      || runtime.dispatchGoldExpedition === undefined
+      || goldExpeditionOperationGenerationRef.current === generation
+    ) {
+      throw new Error('Gold expedition is unavailable.');
+    }
+    goldExpeditionOperationGenerationRef.current = generation;
+    try {
+      // This only refreshes the exact private procedure after the reducer has
+      // committed. It intentionally does not edit public occupation state.
+      const goldExpedition = await withResourceOperationDeadline(
+        runtime.dispatchGoldExpedition(connection, siteId, idempotencyKey)
+      );
+      if (generationRef.current !== generation) return;
+      goldExpeditionStateRef.current = Object.freeze({ generation, value: goldExpedition });
+      setState((latest) => {
+        if (
+          generationRef.current !== generation
+          || latest.phase !== 'ready'
+          || latest.admission !== 'ready'
+          || latest.identity?.fid !== fid
+          || latest.realm === undefined
+          || latest.resources === undefined
+        ) return latest;
+        return { ...latest, goldExpedition };
+      });
+    } catch {
+      // Reducer failures and timeouts are intentionally generic. Do not
+      // expose server policy details or guess whether an ambiguous write won.
+      if (generationRef.current === generation) {
+        throw new Error('Gold expedition is unavailable.');
+      }
+    } finally {
+      if (goldExpeditionOperationGenerationRef.current === generation) {
+        goldExpeditionOperationGenerationRef.current = undefined;
+      }
+    }
+  }, [runtime]);
+
+  const claimGoldExpedition = useCallback(async () => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || currentState.goldExpedition === undefined
+      || connection === undefined
+      || fid === undefined
+      || runtime.collectGoldExpedition === undefined
+      || goldExpeditionOperationGenerationRef.current === generation
+    ) {
+      throw new Error('Gold expedition is unavailable.');
+    }
+    goldExpeditionOperationGenerationRef.current = generation;
+    try {
+      const settled = await withResourceOperationDeadline(
+        runtime.collectGoldExpedition(connection, fid)
+      );
+      if (generationRef.current !== generation) return;
+      if (settled.resources.fid !== BigInt(fid)) {
+        throw new Error('Gold expedition is unavailable.');
+      }
+      const retained = resourceStateRef.current?.generation === generation
+        ? resourceStateRef.current.value
+        : undefined;
+      if (!resourceProjectionIsAtLeastAsNew(settled.resources, retained)) return;
+      resourceStateRef.current = Object.freeze({ generation, value: settled.resources });
+      goldExpeditionStateRef.current = Object.freeze({
+        generation,
+        value: settled.goldExpedition
+      });
+      setState((latest) => {
+        const latestRetained = resourceStateRef.current?.generation === generation
+          ? resourceStateRef.current.value
+          : undefined;
+        if (
+          generationRef.current !== generation
+          || latest.phase !== 'ready'
+          || latest.admission !== 'ready'
+          || latest.identity?.fid !== fid
+          || latest.realm === undefined
+          || latest.resources === undefined
+          || latest.resources.fid !== settled.resources.fid
+          || !resourceProjectionIsAtLeastAsNew(settled.resources, latestRetained)
+          || !resourceProjectionIsAtLeastAsNew(settled.resources, latest.resources)
+        ) return latest;
+        return {
+          ...latest,
+          resources: settled.resources,
+          goldExpedition: settled.goldExpedition
+        };
+      });
+    } catch {
+      if (generationRef.current === generation) {
+        throw new Error('Gold expedition is unavailable.');
+      }
+    } finally {
+      if (goldExpeditionOperationGenerationRef.current === generation) {
+        goldExpeditionOperationGenerationRef.current = undefined;
+      }
+    }
+  }, [runtime]);
+
   const beginAlphaTermsAcceptance = useCallback(() => {
     termsAttemptRef.current += 1;
     processTermsAttemptRef.current();
@@ -334,6 +476,8 @@ export function WarpkeepSpacetimeProvider({
     generationRef.current += 1;
     const generation = generationRef.current;
     resourceStateRef.current = undefined;
+    goldExpeditionStateRef.current = undefined;
+    goldExpeditionOperationGenerationRef.current = undefined;
     const previousState = stateRef.current;
     const canonicalRealmSource = [
       config.spacetimeUri,
@@ -420,6 +564,12 @@ export function WarpkeepSpacetimeProvider({
       }
       if (resourceStateRef.current?.generation === generation) {
         resourceStateRef.current = undefined;
+      }
+      if (goldExpeditionStateRef.current?.generation === generation) {
+        goldExpeditionStateRef.current = undefined;
+      }
+      if (goldExpeditionOperationGenerationRef.current === generation) {
+        goldExpeditionOperationGenerationRef.current = undefined;
       }
       const observer = cleanupObserver;
       cleanupObserver = undefined;
@@ -571,6 +721,9 @@ export function WarpkeepSpacetimeProvider({
           const resources = resourceStateRef.current?.generation === generation
             ? resourceStateRef.current.value
             : undefined;
+          const goldExpedition = goldExpeditionStateRef.current?.generation === generation
+            ? goldExpeditionStateRef.current.value
+            : undefined;
           if (
             !current()
             || !subscriptionApplied
@@ -592,7 +745,8 @@ export function WarpkeepSpacetimeProvider({
               identity,
               admission: 'ready',
               realm,
-              resources
+              resources,
+              ...(goldExpedition === undefined ? {} : { goldExpedition })
             });
           } catch {
             fail();
@@ -626,10 +780,27 @@ export function WarpkeepSpacetimeProvider({
           );
           const activation = (async () => {
             const initialResources = await runtime.readResourceState(activeConnection, bridgeFid!);
+            let initialGoldExpedition: ReadyGoldExpeditionPresentation | undefined;
+            if (runtime.readGoldExpeditionState !== undefined) {
+              try {
+                initialGoldExpedition = await withResourceOperationDeadline(
+                  runtime.readGoldExpeditionState(activeConnection)
+                );
+              } catch {
+                // Gold is an additive caller-only capability. A malformed or
+                // temporarily unavailable private projection removes its
+                // controls without revoking the validated public Realm.
+                initialGoldExpedition = undefined;
+              }
+            }
             if (!current()) return;
             resourceStateRef.current = Object.freeze({
               generation,
               value: initialResources
+            });
+            goldExpeditionStateRef.current = Object.freeze({
+              generation,
+              value: initialGoldExpedition
             });
             realmActivated = true;
             cleanupObserver = runtime.observeRealm(
@@ -642,9 +813,17 @@ export function WarpkeepSpacetimeProvider({
               if (!current() || !realmActivated || resourceRefreshInFlight) return;
               resourceRefreshInFlight = true;
               try {
-                const refreshed = await withResourceOperationDeadline(
-                  runtime.readResourceState(activeConnection, bridgeFid!)
-                );
+                const goldRefresh = runtime.readGoldExpeditionState === undefined
+                  ? Promise.resolve<ReadyGoldExpeditionPresentation | undefined>(undefined)
+                  : withResourceOperationDeadline(
+                    runtime.readGoldExpeditionState(activeConnection)
+                  ).catch(() => undefined);
+                const [refreshed, refreshedGoldExpedition] = await Promise.all([
+                  withResourceOperationDeadline(
+                    runtime.readResourceState(activeConnection, bridgeFid!)
+                  ),
+                  goldRefresh
+                ]);
                 if (!current()) return;
                 if (refreshed.fid !== BigInt(bridgeFid!)) {
                   throw new Error('Warpkeep resource projection identity mismatch.');
@@ -654,6 +833,10 @@ export function WarpkeepSpacetimeProvider({
                   : undefined;
                 if (!resourceProjectionIsAtLeastAsNew(refreshed, retained)) return;
                 resourceStateRef.current = Object.freeze({ generation, value: refreshed });
+                goldExpeditionStateRef.current = Object.freeze({
+                  generation,
+                  value: refreshedGoldExpedition
+                });
                 setState((latest) => {
                   const latestRetained = resourceStateRef.current?.generation === generation
                     ? resourceStateRef.current.value
@@ -669,7 +852,11 @@ export function WarpkeepSpacetimeProvider({
                     || !resourceProjectionIsAtLeastAsNew(refreshed, latestRetained)
                     || !resourceProjectionIsAtLeastAsNew(refreshed, latest.resources)
                   ) return latest;
-                  return { ...latest, resources: refreshed };
+                  return {
+                    ...latest,
+                    resources: refreshed,
+                    goldExpedition: refreshedGoldExpedition
+                  };
                 });
               } catch {
                 fail();
@@ -732,13 +919,17 @@ export function WarpkeepSpacetimeProvider({
     beginAlphaTermsAcceptance,
     cancelAlphaTermsAcceptance,
     disconnect,
-    collectResources
+    collectResources,
+    dispatchGoldExpedition,
+    claimGoldExpedition
   }), [
     beginAlphaTermsAcceptance,
     cancelAlphaTermsAcceptance,
     checkAgain,
+    claimGoldExpedition,
     collectResources,
     disconnect,
+    dispatchGoldExpedition,
     sharedAlphaAvailable,
     state
   ]);

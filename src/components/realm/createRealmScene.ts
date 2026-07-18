@@ -63,6 +63,12 @@ import {
 } from './realmCastleProjectionGeometry';
 import { createRealmAmbientScheduler } from './realmAmbientScheduler';
 import {
+  createRealmGoldNodeLayer,
+  type RealmGoldNodeLayer,
+  type RealmGoldNodePresentationTelemetry,
+  type RealmGoldNodeSceneRecord
+} from './realmGoldNodeLayer';
+import {
   createRealmPointerGestureCoordinator,
   type RealmPointerGestureResult,
   type RealmPointerStartLane
@@ -87,6 +93,17 @@ const CAMERA_FILL_FACE_IRRADIANCE = 0.42;
 const CAMERA_FILL_INTENSITY = CAMERA_FILL_FACE_IRRADIANCE
   * Math.hypot(CAMERA_FILL_HORIZONTAL_DISTANCE, CAMERA_FILL_HEIGHT)
   / CAMERA_FILL_HORIZONTAL_DISTANCE;
+
+function localPresentationNowMicros() {
+  const now = Date.now();
+  return Number.isSafeInteger(now) && now >= 0 ? BigInt(now) * 1_000n : 0n;
+}
+
+function localPresentationElapsedSeconds() {
+  return typeof performance === 'undefined' || !Number.isFinite(performance.now())
+    ? 0
+    : performance.now() / 1_000;
+}
 
 /**
  * Stable, object-readable coordinates for the bounded Alpha 0.3.6 lighting
@@ -192,6 +209,7 @@ export type RealmPeerCastleMarker = Readonly<{
 
 export type RealmInteractionTarget =
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
+  | Readonly<{ kind: 'gold-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ kind: 'terrain'; coord: HexCoord }>;
 
 export type RealmTerrainPresentationTelemetry = Readonly<{
@@ -220,6 +238,7 @@ export type RealmSceneHandle = Readonly<{
   setPresentedCastleIds: (castleIds: readonly number[]) => void;
   setSelected: (coord: HexCoord | null) => void;
   setSelectedCastleId: (castleId: number | null) => void;
+  setSelectedGoldSiteId: (siteId: string | null) => void;
   setComposition: (composition: RealmCameraComposition) => void;
   showRealm: () => void;
 }>;
@@ -272,6 +291,8 @@ export type CreateRealmSceneOptions = Readonly<{
   keepCoord: HexCoord;
   ownCastleId?: number;
   otherCastles: readonly RealmPeerCastleMarker[];
+  /** Validated public v5 sites/occupations; absent data renders no Gold nodes. */
+  goldNodes?: readonly RealmGoldNodeSceneRecord[];
   terrainMetadata: readonly RealmTerrainSemanticRow[];
   quality: RealmQualitySpec;
   reducedMotion: boolean;
@@ -291,6 +312,7 @@ export type CreateRealmSceneOptions = Readonly<{
   ) => void;
   onCastleProjection: (frame: RealmCastleProjectionFrame) => void;
   onTerrainPresentationTelemetry?: (telemetry: RealmTerrainPresentationTelemetry) => void;
+  onGoldNodePresentationTelemetry?: (telemetry: RealmGoldNodePresentationTelemetry) => void;
   onRendererUnavailable: () => void;
   /** @deprecated Prefer onTargetSelect for castle identity-aware interaction. */
   onSelect: (coord: HexCoord) => void;
@@ -743,8 +765,15 @@ function initializeRealmScene(
   const occupiedCastleCoordinateKeys = new Set(
     authoritativeCastles.map((castle) => hexKey(castle.coord))
   );
+  const goldNodeCoordinateKeys = new Set(
+    (options.goldNodes ?? []).map((node) => hexKey(node.coord))
+  );
   const terrainOverlayCoord = (coord: HexCoord | null) => (
-    coord && !occupiedCastleCoordinateKeys.has(hexKey(coord)) ? coord : null
+    coord
+      && !occupiedCastleCoordinateKeys.has(hexKey(coord))
+      && !goldNodeCoordinateKeys.has(hexKey(coord))
+      ? coord
+      : null
   );
 
   const castleLabelAnchors = authoritativeCastles.map((castle) => ({
@@ -757,6 +786,7 @@ function initializeRealmScene(
   }));
 
   let castleLayer: RealmCastleInstanceLayer | null = null;
+  let goldNodeLayer: RealmGoldNodeLayer | null = null;
   let castleProjectionEnvelopeByLod: ReadonlyMap<
     CastleLod,
     RealmCastleProjectionEnvelope
@@ -768,6 +798,7 @@ function initializeRealmScene(
   let fallbackCastleProjectionEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let fallbackCastleRenderEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let selectedCastleId: number | undefined;
+  let selectedGoldSiteId: string | undefined;
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
     height: 1.08,
     footprintDiameter: 1.48
@@ -786,6 +817,7 @@ function initializeRealmScene(
 
   let lastCastleProjectionKey = '';
   let lastCastlePresentationTelemetryKey = '';
+  let lastGoldNodePresentationTelemetryKey = '';
   let presentedCastleIds: ReadonlySet<number> | null = null;
   let presentedCastleKey = '*';
   let renderPendingWhileHidden = false;
@@ -911,6 +943,26 @@ function initializeRealmScene(
       lastCastlePresentationTelemetryKey = presentationTelemetryKey;
       options.onCastlePresentationTelemetry?.(presentationTelemetry);
     }
+    goldNodeLayer?.update(
+      cameraController.camera,
+      localPresentationNowMicros(),
+      localPresentationElapsedSeconds()
+    );
+    const goldNodeTelemetry = goldNodeLayer?.getPresentationTelemetry();
+    if (goldNodeTelemetry) {
+      const goldNodeTelemetryKey = [
+        goldNodeTelemetry.publicSiteCount,
+        goldNodeTelemetry.occupiedSiteCount,
+        goldNodeTelemetry.renderedGoldMineCount,
+        goldNodeTelemetry.renderedWagonCount,
+        goldNodeTelemetry.animatedWagonCount,
+        goldNodeTelemetry.markerOnlySiteCount
+      ].join(':');
+      if (goldNodeTelemetryKey !== lastGoldNodePresentationTelemetryKey) {
+        lastGoldNodePresentationTelemetryKey = goldNodeTelemetryKey;
+        options.onGoldNodePresentationTelemetry?.(goldNodeTelemetry);
+      }
+    }
     environmentGroup?.position.copy(cameraController.camera.position);
     renderer.render(scene, cameraController.camera);
     projectCastleLabels();
@@ -954,17 +1006,44 @@ function initializeRealmScene(
     }
   });
   cleanup.add(cameraController.dispose);
+  try {
+    goldNodeLayer = createRealmGoldNodeLayer({
+      sites: options.goldNodes ?? [],
+      surface: options.surface,
+      terrainPlacements,
+      quality: runtimeQuality,
+      baseUrl: options.baseUrl,
+      maxAnisotropy: renderer.capabilities.getMaxAnisotropy(),
+      reducedMotion: options.reducedMotion,
+      onModelReady: render
+    });
+    scene.add(goldNodeLayer.group);
+    cleanup.add(() => {
+      const layer = goldNodeLayer;
+      if (!layer) return;
+      scene.remove(layer.group);
+      layer.dispose();
+      if (goldNodeLayer === layer) goldNodeLayer = null;
+    });
+  } catch {
+    // Resource visuals are non-authoritative enhancement. A malformed model
+    // or exhausted graphics device may not revoke the canonical Realm.
+    goldNodeLayer = null;
+  }
   const handleRenderVisibility = () => {
     if (!document.hidden && renderPendingWhileHidden && !cleanup.isDisposed()) render();
   };
   document.addEventListener('visibilitychange', handleRenderVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
   const ambientScheduler = createRealmAmbientScheduler({
-    enabled: decorations.animated
+    enabled: !options.reducedMotion
       && options.quality.id !== 'reduced'
-      && !options.reducedMotion,
+      && (decorations.animated || goldNodeLayer?.hasMovingWagons() === true),
     onStep: (elapsedSeconds) => {
-      if (!cleanup.isDisposed() && decorations.updateWind(elapsedSeconds)) render();
+      if (cleanup.isDisposed()) return;
+      const terrainChanged = decorations.updateWind(elapsedSeconds);
+      const wagonsMoving = goldNodeLayer?.hasMovingWagons() === true;
+      if (terrainChanged || wagonsMoving) render();
     }
   });
   cleanup.add(ambientScheduler.dispose);
@@ -1040,6 +1119,14 @@ function initializeRealmScene(
         kind: 'castle',
         castleId: castleHit.castleId,
         coord: castleHit.coord
+      });
+    }
+    const goldNodeHit = goldNodeLayer?.raycast(raycaster);
+    if (goldNodeHit) {
+      return Object.freeze({
+        kind: 'gold-site',
+        siteId: goldNodeHit.siteId,
+        coord: goldNodeHit.coord
       });
     }
     const intersections = raycaster.intersectObject(terrain, false);
@@ -1247,6 +1334,8 @@ function initializeRealmScene(
     const picked = pick(clientX, clientY);
     if (!picked) return;
     selectedCastleId = picked.kind === 'castle' ? picked.castleId : undefined;
+    selectedGoldSiteId = picked.kind === 'gold-site' ? picked.siteId : undefined;
+    goldNodeLayer?.setSelectedSiteId(selectedGoldSiteId ?? null);
     dispatchSelect(picked);
     render();
     if (picked.kind === 'castle' && picked.castleId === options.ownCastleId) {
@@ -1677,6 +1766,13 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       selectedCastleId = castleId === null ? undefined : castleId;
       if (castleId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      render();
+    },
+    setSelectedGoldSiteId: (siteId) => {
+      if (cleanup.isDisposed()) return;
+      selectedGoldSiteId = siteId === null ? undefined : siteId;
+      goldNodeLayer?.setSelectedSiteId(siteId);
+      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
       render();
     },
     setComposition: (composition) => cameraController.setComposition(composition),

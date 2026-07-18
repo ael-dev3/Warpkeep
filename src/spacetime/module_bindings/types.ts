@@ -195,6 +195,63 @@ export const FidWalletAttributionV1 = __t.object("FidWalletAttributionV1", {
 });
 export type FidWalletAttributionV1 = __Infer<typeof FidWalletAttributionV1>;
 
+export const GoldExpeditionIdempotencyV1 = __t.object("GoldExpeditionIdempotencyV1", {
+  requestKey: __t.string(),
+  fid: __t.u64(),
+  siteId: __t.string(),
+  expeditionId: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type GoldExpeditionIdempotencyV1 = __Infer<typeof GoldExpeditionIdempotencyV1>;
+
+export const GoldExpeditionScheduleV1 = __t.object("GoldExpeditionScheduleV1", {
+  scheduleId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  stage: __t.string(),
+});
+export type GoldExpeditionScheduleV1 = __Infer<typeof GoldExpeditionScheduleV1>;
+
+export const GoldExpeditionV1 = __t.object("GoldExpeditionV1", {
+  expeditionId: __t.string(),
+  fid: __t.u64(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+  settledThroughMicros: __t.u64(),
+  accruedGold: __t.u64(),
+  creditedGold: __t.u64(),
+  policyVersion: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type GoldExpeditionV1 = __Infer<typeof GoldExpeditionV1>;
+
+export const GoldNodeOccupationV1 = __t.object("GoldNodeOccupationV1", {
+  siteId: __t.string(),
+  originCastleId: __t.u64(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+});
+export type GoldNodeOccupationV1 = __Infer<typeof GoldNodeOccupationV1>;
+
+export const GoldSiteV1 = __t.object("GoldSiteV1", {
+  siteId: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  tier: __t.u32(),
+  active: __t.bool(),
+});
+export type GoldSiteV1 = __Infer<typeof GoldSiteV1>;
+
 export const MarkAccountV1 = __t.object("MarkAccountV1", {
   fid: __t.u64(),
   totalSnapBurnedMicros: __t.u128(),
@@ -205,6 +262,25 @@ export const MarkAccountV1 = __t.object("MarkAccountV1", {
   updatedAt: __t.timestamp(),
 });
 export type MarkAccountV1 = __Infer<typeof MarkAccountV1>;
+
+export const MyGoldExpeditionStateV1 = __t.object("MyGoldExpeditionStateV1", {
+  active: __t.bool(),
+  expeditionId: __t.option(__t.string()),
+  siteId: __t.option(__t.string()),
+  originCastleId: __t.option(__t.u64()),
+  phase: __t.option(__t.string()),
+  startedAtMicros: __t.option(__t.u64()),
+  arrivesAtMicros: __t.option(__t.u64()),
+  gatheringEndsAtMicros: __t.option(__t.u64()),
+  returnsAtMicros: __t.option(__t.u64()),
+  accruedGold: __t.u64(),
+  pendingGold: __t.u64(),
+  creditedGold: __t.u64(),
+  rateGoldPerMinute: __t.u64(),
+  gatheringDurationMicros: __t.u64(),
+  expeditionPolicyVersion: __t.option(__t.string()),
+});
+export type MyGoldExpeditionStateV1 = __Infer<typeof MyGoldExpeditionStateV1>;
 
 export const MyResourceStateV1 = __t.object("MyResourceStateV1", {
   fid: __t.u64(),

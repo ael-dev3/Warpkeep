@@ -398,6 +398,17 @@ export function validateCanonicalGenesisSnapshot(
   const players = freezeRows(candidate.players);
   const profiles = freezeRows(candidate.profiles);
   const castles = freezeRows(candidate.castles);
+  // Gold sites are additive v5 presentation data, not part of the Genesis
+  // world attestation. Preserve them only when both public tables arrived;
+  // their strict UI decoder then fails to an empty node layer on malformed or
+  // contradictory rows instead of revoking the entire canonical Realm.
+  const goldSites = Array.isArray(candidate.goldSites)
+    && Array.isArray(candidate.goldNodeOccupations)
+    ? freezeRows(candidate.goldSites)
+    : undefined;
+  const goldNodeOccupations = goldSites !== undefined
+    ? freezeRows(candidate.goldNodeOccupations!)
+    : undefined;
   const frozenOwnCastle = castles.find((castle) => castle.castleId === ownCastle.castleId);
   if (frozenOwnCastle === undefined) fail();
 
@@ -411,6 +422,8 @@ export function validateCanonicalGenesisSnapshot(
     players,
     profiles,
     castles,
+    ...(goldSites === undefined ? {} : { goldSites }),
+    ...(goldNodeOccupations === undefined ? {} : { goldNodeOccupations }),
     ownCastle: frozenOwnCastle
   } as BrandedSnapshot;
   Object.defineProperty(canonical, CANONICAL_SNAPSHOT_BRAND, {

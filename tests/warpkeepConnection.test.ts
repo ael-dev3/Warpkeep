@@ -11,12 +11,15 @@ import {
   acceptWarpkeepAlphaTerms,
   connectWarpkeep,
   bootstrapWarpkeepPlayer,
+  collectWarpkeepGoldExpedition,
   collectWarpkeepResources,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
+  dispatchWarpkeepGoldExpedition,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
+  readWarpkeepGoldExpeditionState,
   readWarpkeepResourceState,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
@@ -266,7 +269,7 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(window.localStorage.length).toBe(0);
   });
 
-  it('subscribes only to the six admission-gated public realm projections', () => {
+  it('keeps the core subscription live when additive Gold tables are absent', () => {
     const subscription = { unsubscribe: vi.fn() };
     const subscriptionBuilder = {
       onApplied: vi.fn(),
@@ -279,7 +282,7 @@ describe('Warpkeep authenticated connection boundary', () => {
       subscriptionBuilder: () => subscriptionBuilder
     } as unknown as WarpkeepConnection;
 
-    expect(subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn())).toBe(subscription);
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
     expect(subscriptionBuilder.subscribe).toHaveBeenCalledWith([
       tables.worldTile,
       tables.worldTileMetaV1,
@@ -288,6 +291,51 @@ describe('Warpkeep authenticated connection boundary', () => {
       tables.realmV1,
       tables.realmProfileV1
     ]);
+    composite.unsubscribe();
+    expect(subscription.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('subscribes only to public Gold site and occupancy tables, never the scheduler', () => {
+    const coreSubscription = { unsubscribe: vi.fn() };
+    const goldSubscription = { unsubscribe: vi.fn() };
+    const firstBuilder = {
+      onApplied: vi.fn(),
+      onError: vi.fn(),
+      subscribe: vi.fn(() => coreSubscription)
+    };
+    const secondBuilder = {
+      onApplied: vi.fn(),
+      onError: vi.fn(),
+      subscribe: vi.fn(() => goldSubscription)
+    };
+    firstBuilder.onApplied.mockReturnValue(firstBuilder);
+    firstBuilder.onError.mockReturnValue(firstBuilder);
+    secondBuilder.onApplied.mockReturnValue(secondBuilder);
+    secondBuilder.onError.mockReturnValue(secondBuilder);
+    const connection = {
+      db: { goldSiteV1: {}, goldNodeOccupationV1: {} },
+      subscriptionBuilder: vi.fn()
+        .mockReturnValueOnce(firstBuilder)
+        .mockReturnValueOnce(secondBuilder)
+    } as unknown as WarpkeepConnection;
+
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+
+    expect(firstBuilder.subscribe).toHaveBeenCalledWith([
+      tables.worldTile,
+      tables.worldTileMetaV1,
+      tables.playerV2,
+      tables.castle,
+      tables.realmV1,
+      tables.realmProfileV1
+    ]);
+    expect(secondBuilder.subscribe).toHaveBeenCalledWith([
+      tables.goldSiteV1,
+      tables.goldNodeOccupationV1
+    ]);
+    composite.unsubscribe();
+    expect(coreSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(goldSubscription.unsubscribe).toHaveBeenCalledTimes(1);
   });
 
   it('uses only the versioned admission procedure and bootstrap reducer', async () => {
@@ -356,6 +404,76 @@ describe('Warpkeep authenticated connection boundary', () => {
       .rejects.toThrow('Warpkeep resources are unavailable.');
     await expect(readWarpkeepResourceState(connection, 0))
       .rejects.toThrow('Warpkeep resources are unavailable.');
+  });
+
+  it('keeps Gold dispatch and settlement caller-bound, then reads exact private projections', async () => {
+    const resourceProjection = {
+      fid: BigInt(CANONICAL_TEST_FID),
+      food: 200n,
+      wood: 150n,
+      stone: 100n,
+      gold: 25n,
+      pendingFood: 8n,
+      pendingWood: 5n,
+      pendingStone: 3n,
+      pendingGold: 1n,
+      marksBalanceMicros: 12_500_000n,
+      observedAtMicros: 1_800_000_600_000_000n,
+      settledThroughMicros: 1_800_000_000_000_000n,
+      nextCollectAtMicros: 1_800_001_200_000_000n,
+      revision: 4n,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      terrainKind: 'lowland'
+    } as const;
+    const goldProjection = {
+      active: false,
+      expeditionId: undefined,
+      siteId: undefined,
+      originCastleId: undefined,
+      phase: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnsAtMicros: undefined,
+      accruedGold: 0n,
+      pendingGold: 0n,
+      creditedGold: 0n,
+      rateGoldPerMinute: 1n,
+      gatheringDurationMicros: 2_592_000_000_000n,
+      expeditionPolicyVersion: undefined
+    } as const;
+    const connection = {
+      procedures: {
+        getMyResourceStateV1: vi.fn(async () => resourceProjection),
+        getMyGoldExpeditionStateV1: vi.fn(async () => goldProjection)
+      },
+      reducers: {
+        dispatchGoldExpeditionV1: vi.fn(async () => undefined),
+        collectGoldExpeditionV1: vi.fn(async () => undefined)
+      }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepGoldExpeditionState(connection)).resolves
+      .toMatchObject({ active: false, pendingGold: 0n });
+    await expect(dispatchWarpkeepGoldExpedition(
+      connection,
+      'gold:genesis:001',
+      '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    )).resolves.toMatchObject({ active: false });
+    await expect(collectWarpkeepGoldExpedition(connection, CANONICAL_TEST_FID)).resolves
+      .toMatchObject({
+        resources: { fid: BigInt(CANONICAL_TEST_FID) },
+        goldExpedition: { active: false }
+      });
+    expect(connection.reducers.dispatchGoldExpeditionV1).toHaveBeenCalledWith({
+      siteId: 'gold:genesis:001',
+      idempotencyKey: '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    });
+    expect(connection.reducers.collectGoldExpeditionV1).toHaveBeenCalledWith({});
+    await expect(dispatchWarpkeepGoldExpedition(connection, 'bad site', 'not-valid'))
+      .rejects.toThrow('Gold expedition is unavailable.');
+    expect(connection.reducers.dispatchGoldExpeditionV1).toHaveBeenCalledTimes(1);
   });
 
   it('pins the browser and authoritative module to the same Terms version', () => {

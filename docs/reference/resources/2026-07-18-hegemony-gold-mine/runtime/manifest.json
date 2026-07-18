@@ -1,0 +1,105 @@
+{
+  "schema": "warpkeep.resource-node-runtime.v1",
+  "assetId": "warpkeep.gold-mine-node",
+  "name": "Gold Mine Gathering Node",
+  "authorization": {
+    "integrationInstruction": "On 2026-07-18, the Warpkeep project owner instructed the new Gold Wagon integration PR to use all available project assets.",
+    "scope": "This authorizes the named Gold Mine GLB outputs in the public Warpkeep repository and an eventual official Pages runtime after separately approved deployment as part of the reviewed Gold expedition integration; it is use authorization only, not deployment approval.",
+    "limitations": "It does not establish underlying ownership, a separate public/open-content license, general derivative or redistribution rights, trademark rights, or Gold/Marks account, settlement, placement, occupancy, route, or dispatch authority."
+  },
+  "sourcePackage": {
+    "kind": "owner-supplied external Gold Mine runtime package; source masters are not committed to Warpkeep",
+    "manifest": {
+      "filename": "runtime-manifest.json",
+      "bytes": 2191,
+      "sha256": "9bb0bcf28b3b2f073d8f4a9cdbe5c2ad1d41d921668f25172a2105f52fd82dd4"
+    },
+    "sourceVersion": "1.4.0",
+    "sourceRevision": "user-edited-2026-07-18",
+    "contract": {
+      "gltfUp": "+Y",
+      "frontFacing": "+Z",
+      "interactionPivot": "footprint-center",
+      "groundPlane": 0,
+      "collision": "engine-side oval/cylinder; do not mesh-collide render geometry"
+    }
+  },
+  "pipeline": {
+    "sourceRetainedInWarpkeep": false,
+    "runtimeUsesSourceAsCdn": false,
+    "prepareScript": "scripts/install-hegemony-gold-mine-runtime.mjs",
+    "verifyScript": "scripts/verify-hegemony-gold-mine-runtime.mjs",
+    "inputEnvironmentVariable": "WARPKEEP_GOLD_MINE_RUNTIME_ROOT",
+    "metadataRepair": "Balanced and Compact only correct material.extras.wk_atlas_size to their already-decoded atlas size. Geometry and embedded WebP image payloads are preserved byte-for-byte; output hashes are distinct immutable runtime coordinates.",
+    "safety": [
+      "The installer accepts only exact manifest and GLB input hashes through a regular, contained package root.",
+      "The runtime verifier pins every output hash, GLB structure, orientation extras, profile LOD, exact embedded image dimensions/hashes, and absence of external URIs/cameras.",
+      "Application builds do not read, fetch, or mutate the owner-supplied source package."
+    ]
+  },
+  "renderingContract": {
+    "authoredBlenderBoundsMeters": {
+      "min": [-6.259854, -5.299579, 0],
+      "max": [6.384532, 4.848966, 7.935],
+      "dimensions": [12.644386, 10.148544, 7.935]
+    },
+    "gltfVisualEnvelopeMeters": {
+      "widthX": 12.644386,
+      "heightY": 7.935,
+      "depthZ": 10.148544
+    },
+    "rendering": "The source node carries a non-zero transform. Renderers must center/ground a private wrapper from decoded bounds, retain a terrain-contact tolerance, and never mutate the immutable GLB.",
+    "collision": "Use an engine-side footprint roughly 13.4m × 10.9m with 8.4m visual clearance; do not use render geometry for collision.",
+    "lodPolicy": {
+      "high": "selected/near inspection",
+      "balanced": "nearby map node",
+      "compact": "visible distant node",
+      "beyondCompact": "occupancy marker only"
+    }
+  },
+  "runtimeAssets": [
+    {
+      "id": "high",
+      "sourceFilename": "Warpkeep_GoldMine_LOD0_High_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/gold-mine/hegemony-gold-mine-high-6c3731e0f3381014.glb",
+      "bytes": 263528,
+      "sha256": "6c3731e0f3381014d661d539c25f67e4f79f894b721d1feac9e275b07b8a6ab3",
+      "triangles": 4233,
+      "uploadedVertices": 11097,
+      "atlasSize": 1024,
+      "derivation": "exact owner-supplied High source bytes"
+    },
+    {
+      "id": "balanced",
+      "sourceFilename": "Warpkeep_GoldMine_LOD1_Balanced_Runtime.glb",
+      "sourceBytes": 154388,
+      "sourceSha256": "42776e6a0a1196c43e872d9d6d08a8acbf398b5dbd26ba7ab20e0c0cfdd52008",
+      "path": "public/models/hegemony/gathering-nodes/gold-mine/hegemony-gold-mine-balanced-96a467baaf1dfba4.glb",
+      "bytes": 154380,
+      "sha256": "96a467baaf1dfba44d9c21e2ceb18348b564e3cdfe7daffb6d6bcd209634af42",
+      "triangles": 3553,
+      "uploadedVertices": 9297,
+      "atlasSize": 512,
+      "derivation": "bounded metadata normalization only: material.extras.wk_atlas_size 1024 → 512"
+    },
+    {
+      "id": "compact",
+      "sourceFilename": "Warpkeep_GoldMine_LOD2_Compact_Runtime.glb",
+      "sourceBytes": 95024,
+      "sourceSha256": "b39ad147954ba4200efe680975038416784f759918ca295282d95812710ca853",
+      "path": "public/models/hegemony/gathering-nodes/gold-mine/hegemony-gold-mine-compact-d2644366898cf610.glb",
+      "bytes": 95016,
+      "sha256": "d2644366898cf610c9824761ff01fb43346d9db92a8a13be0569b3d49557dd6f",
+      "triangles": 2681,
+      "uploadedVertices": 7195,
+      "atlasSize": 256,
+      "derivation": "bounded metadata normalization only: material.extras.wk_atlas_size 1024 → 256"
+    }
+  ],
+  "reviewHistory": {
+    "candidateRecord": "../manifest.json",
+    "candidateFiles": "../runtime-candidates/",
+    "note": "The original review candidates remain intact as historical evidence. This separate runtime record is the approved integration output and does not silently replace candidate hashes."
+  },
+  "scopeBoundary": "This asset record is visual only. Canonical site identity, placement, occupation, wagon dispatch, travel, 1 Gold/min settlement, 30-day lifecycle, player visibility, concurrency, and persistent SpacetimeDB state are governed solely by reviewed application/server code."
+}

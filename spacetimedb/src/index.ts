@@ -40,3 +40,10 @@ export {
   adminBackfillResourceAccountsV1,
   adminGetAlphaStatusV4,
 } from './reducers/resources';
+export {
+  getMyGoldExpeditionStateV1,
+  dispatchGoldExpeditionV1,
+  collectGoldExpeditionV1,
+  adminSeedGenesisTierIGoldSitesV1,
+} from './reducers/goldExpeditions';
+export { runGoldExpeditionScheduleV1 } from './schema';

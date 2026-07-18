@@ -1,4 +1,9 @@
-import { schema, table, t } from 'spacetimedb/server';
+import { SenderError, schema, table, t } from 'spacetimedb/server';
+
+import {
+  goldExpeditionErrorCode,
+  runGoldExpeditionSchedule,
+} from './goldExpeditionAuthority';
 
 /**
  * Private closed-alpha admission list. This table is intentionally omitted
@@ -366,6 +371,125 @@ export const resourceAccountV1 = table(
   },
 );
 
+/**
+ * Public immutable Tier-I Gold pilot catalog. It has no ownership or balance
+ * fields: every client can render the same approved Genesis 001 site list.
+ */
+export const goldSiteV1 = table(
+  { name: 'gold_site_v1', public: true },
+  {
+    siteId: t.string().primaryKey(),
+    q: t.i32(),
+    r: t.i32(),
+    tier: t.u32(),
+    active: t.bool(),
+  },
+);
+
+/**
+ * Public occupancy is intentionally identity-free. `originCastleId` links to
+ * the pre-existing public castle projection; private FID, accrued Gold, and
+ * idempotency data stay outside browser subscriptions.
+ */
+export const goldNodeOccupationV1 = table(
+  {
+    name: 'gold_node_occupation_v1',
+    public: true,
+    indexes: [{
+      accessor: 'byOriginCastle',
+      algorithm: 'btree',
+      columns: ['originCastleId'] as const,
+    }] as const,
+  },
+  {
+    siteId: t.string().primaryKey(),
+    originCastleId: t.u64(),
+    phase: t.string(),
+    startedAtMicros: t.u64(),
+    arrivesAtMicros: t.u64(),
+    gatheringEndsAtMicros: t.u64(),
+    returnsAtMicros: t.u64(),
+  },
+);
+
+/** Private active wagon, exact accrual cursor, and owner binding. */
+export const goldExpeditionV1 = table(
+  {
+    name: 'gold_expedition_v1',
+    indexes: [{
+      accessor: 'byFidAndPhase',
+      algorithm: 'btree',
+      columns: ['fid', 'phase'] as const,
+    }] as const,
+  },
+  {
+    expeditionId: t.string().primaryKey(),
+    // One permanent castle per founder means one active wagon per FID. A
+    // unique lookup keeps owner-only state reads hot and bounded.
+    fid: t.u64().unique(),
+    originCastleId: t.u64().unique(),
+    // A completed gathering releases the public site while its wagon is
+    // privately returning. Keep this indexed rather than unique so the next
+    // wagon may occupy that released site without waiting for the first wagon
+    // to reach its origin castle.
+    siteId: t.string().index(),
+    phase: t.string(),
+    startedAtMicros: t.u64(),
+    arrivesAtMicros: t.u64(),
+    gatheringEndsAtMicros: t.u64(),
+    returnsAtMicros: t.u64(),
+    settledThroughMicros: t.u64(),
+    accruedGold: t.u64(),
+    creditedGold: t.u64(),
+    policyVersion: t.string(),
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+/** Private caller-request receipt for bounded exactly-once dispatch retries. */
+export const goldExpeditionIdempotencyV1 = table(
+  { name: 'gold_expedition_idempotency_v1' },
+  {
+    requestKey: t.string().primaryKey(),
+    fid: t.u64().index(),
+    siteId: t.string(),
+    expeditionId: t.string().unique(),
+    createdAt: t.timestamp(),
+  },
+);
+
+/**
+ * Three one-shot lifecycle rows are inserted atomically with a dispatch. This
+ * is a deliberately public-safe scheduler projection, not economy state:
+ * every field is already derivable from `gold_node_occupation_v1`. It contains
+ * no FID, request key, private expedition ID, accrual cursor, or balance.
+ *
+ * The pinned 2.6.1 TypeScript generator cannot extract a scheduled reducer
+ * whose exact table row stays private. Keeping this minimal projection public
+ * preserves codegen while the reducer still resolves all authority through the
+ * private expedition and resource rows. The client never subscribes to it.
+ */
+export const goldExpeditionScheduleV1 = table(
+  {
+    // SpacetimeDB 2.6.1's TypeScript generator cannot resolve a scheduled
+    // table whose physical name ends in an attached version suffix (`_v1`).
+    // The generator accepts the SDK's default separated spelling (`_v_1`),
+    // so use it for this newly additive scheduler table while retaining the
+    // versioned TypeScript accessor/API contract.
+    name: 'gold_expedition_schedule_v_1',
+    public: true,
+    scheduled: (): any => runGoldExpeditionScheduleV1,
+  },
+  {
+    scheduleId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    originCastleId: t.u64().index(),
+    siteId: t.string().index(),
+    stage: t.string(),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -389,7 +513,39 @@ const warpkeep = schema({
   snapScanBatchV1,
   alphaTermsAcceptanceV1,
   resourceAccountV1,
+  goldSiteV1,
+  goldNodeOccupationV1,
+  goldExpeditionV1,
+  goldExpeditionIdempotencyV1,
+  goldExpeditionScheduleV1,
 });
+
+/**
+ * Scheduled reducers are normal callable reducers in SpacetimeDB. The
+ * scheduler's internal principal is therefore verified before a lifecycle row
+ * can advance an occupation, credit Gold, or release a site.
+ */
+export const runGoldExpeditionScheduleV1 = warpkeep.reducer(
+  // This reducer is scheduler-only and never receives a browser binding. The
+  // `_v_1` wire spelling is required because SpacetimeDB 2.6.1 resolves
+  // scheduled reducer targets with its default trailing-digit conversion.
+  { name: 'run_gold_expedition_schedule_v_1' },
+  // The scheduler receives the concrete table row as one argument. The
+  // wrapper is required by the SDK's scheduled-table type reference.
+  { arg: goldExpeditionScheduleV1.rowType },
+  (ctx, { arg }) => {
+    if (!ctx.senderAuth.isInternal) {
+      throw new SenderError('GOLD_EXPEDITION_SCHEDULE_INTERNAL_ONLY');
+    }
+    try {
+      runGoldExpeditionSchedule(ctx, arg);
+    } catch (error) {
+      const code = goldExpeditionErrorCode(error);
+      if (code !== undefined) throw new SenderError(code);
+      throw error;
+    }
+  },
+);
 
 // SpacetimeDB 2.6's default case converter separates a trailing digit from
 // its prefix (`v2` -> `v_2`). Pin every versioned wire spelling explicitly.
@@ -413,6 +569,10 @@ for (const name of [
   'collect_resources_v1',
   'admin_backfill_resource_accounts_v1',
   'admin_get_alpha_status_v4',
+  'get_my_gold_expedition_state_v1',
+  'dispatch_gold_expedition_v1',
+  'collect_gold_expedition_v1',
+  'admin_seed_genesis_tier_i_gold_sites_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

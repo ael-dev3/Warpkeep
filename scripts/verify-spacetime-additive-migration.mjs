@@ -29,6 +29,10 @@ const additiveV4SchemaFixture = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/additive-v4-schema',
 );
+const additiveV5SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v5-schema',
+);
 const additiveModule = resolve(repositoryRoot, 'spacetimedb');
 const command = process.env.SPACETIME_BIN || 'spacetime';
 const expectedCliVersion = '2.6.1';
@@ -56,13 +60,15 @@ const startingResourceBalances = Object.freeze({
   gold: 0n,
 });
 const terrainResourceRates = Object.freeze({
-  lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 1n }),
-  meadow: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
-  forest: Object.freeze({ food: 5n, wood: 10n, stone: 3n, gold: 1n }),
-  heath: Object.freeze({ food: 5n, wood: 6n, stone: 5n, gold: 2n }),
-  ridge: Object.freeze({ food: 3n, wood: 4n, stone: 10n, gold: 2n }),
-  lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
-  'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 4n }),
+  // Tier-I Gold comes exclusively from the separately bounded wagon
+  // authority. Terrain settlement deliberately cannot mint Gold anymore.
+  lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 0n }),
+  meadow: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 0n }),
+  forest: Object.freeze({ food: 5n, wood: 10n, stone: 3n, gold: 0n }),
+  heath: Object.freeze({ food: 5n, wood: 6n, stone: 5n, gold: 0n }),
+  ridge: Object.freeze({ food: 3n, wood: 4n, stone: 10n, gold: 0n }),
+  lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 0n }),
+  'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 0n }),
 });
 const existingTables = Object.freeze([
   'allowed_fid',
@@ -90,9 +96,20 @@ const additiveV3Tables = Object.freeze([
 const additiveV4Tables = Object.freeze([
   'resource_account_v1',
 ]);
+const additiveV5Tables = Object.freeze([
+  'gold_site_v1',
+  'gold_node_occupation_v1',
+  'gold_expedition_v1',
+  'gold_expedition_idempotency_v1',
+  'gold_expedition_schedule_v_1',
+]);
 const deployedV3Tables = Object.freeze([
   ...existingTables,
   ...additiveV3Tables,
+]);
+const deployedV4Tables = Object.freeze([
+  ...deployedV3Tables,
+  ...additiveV4Tables,
 ]);
 const expectedProductTypeRefs = Object.freeze({
   allowed_fid: 0,
@@ -115,6 +132,11 @@ const expectedProductTypeRefs = Object.freeze({
   snap_scan_batch_v1: 17,
   alpha_terms_acceptance_v1: 18,
   resource_account_v1: 19,
+  gold_site_v1: 20,
+  gold_node_occupation_v1: 21,
+  gold_expedition_v1: 22,
+  gold_expedition_idempotency_v1: 23,
+  gold_expedition_schedule_v_1: 24,
 });
 const childEnvironmentKeys = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TMP', 'TEMP',
@@ -572,6 +594,66 @@ function assertAdditiveV4Schema(before, after) {
     tableSignature(after, 'resource_account_v1').product_type_ref,
     expectedProductTypeRefs.resource_account_v1,
   );
+}
+
+function assertDeployedV4TablesUnchanged(before, after) {
+  for (const name of deployedV4Tables) {
+    assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertAdditiveV5Schema(before, after) {
+  assertDeployedV4TablesUnchanged(before, after);
+  const beforeNames = new Set(before.tables.map(table => table.name));
+  const added = after.tables
+    .map(table => table.name)
+    .filter(name => !beforeNames.has(name))
+    .sort();
+  assert.deepEqual(added, [...additiveV5Tables].sort());
+
+  const contracts = {
+    gold_site_v1: {
+      access: 'Public',
+      fields: ['site_id', 'q', 'r', 'tier', 'active'],
+    },
+    gold_node_occupation_v1: {
+      access: 'Public',
+      fields: [
+        'site_id', 'origin_castle_id', 'phase', 'started_at_micros',
+        'arrives_at_micros', 'gathering_ends_at_micros', 'returns_at_micros',
+      ],
+    },
+    gold_expedition_v1: {
+      access: 'Private',
+      fields: [
+        'expedition_id', 'fid', 'origin_castle_id', 'site_id', 'phase',
+        'started_at_micros', 'arrives_at_micros', 'gathering_ends_at_micros',
+        'returns_at_micros', 'settled_through_micros', 'accrued_gold',
+        'credited_gold', 'policy_version', 'created_at', 'updated_at',
+      ],
+    },
+    gold_expedition_idempotency_v1: {
+      access: 'Private',
+      fields: ['request_key', 'fid', 'site_id', 'expedition_id', 'created_at'],
+    },
+    gold_expedition_schedule_v_1: {
+      access: 'Public',
+      fields: ['schedule_id', 'scheduled_at', 'origin_castle_id', 'site_id', 'stage'],
+    },
+  };
+
+  for (const [name, contract] of Object.entries(contracts)) {
+    assert.deepEqual(fieldNames(after, name), contract.fields);
+    assert.equal(access(after, name), contract.access);
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
 }
 
 async function freeLoopbackPort() {
@@ -1081,7 +1163,11 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
   let stage = 'seed';
   let activeModule = 'actual';
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  const inspectionArtifactPath = join(additiveV4SchemaFixture, 'dist', 'bundle.js');
+  // The inspection fixture must retain every append that the real module has
+  // already introduced. Publishing the older v4 artifact after the v5 Gold
+  // tables would be a destructive downgrade, correctly refused by
+  // SpacetimeDB.
+  const inspectionArtifactPath = join(additiveV5SchemaFixture, 'dist', 'bundle.js');
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
     await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
@@ -1928,10 +2014,32 @@ async function main() {
       deployedV3Tables,
     );
 
-    // The schema-only v4 fixture and the current module must independently
-    // prove the exact same ref-19 append while every publish remains
-    // `--delete-data=never`.
+    // First freeze the exact v4 resource-authority shape on every database.
+    // This establishes ref 19 independently before the Gold expedition
+    // append, while every publish remains `--delete-data=never`.
     await publish(server, owner.token, additiveV4SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV4SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV4SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV4SchemaFixture, resourceLifecycleDatabase);
+
+    const emptyV4 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV4 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV4 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV4Schema(emptyV3, emptyV4);
+    assertAdditiveV4Schema(nonemptyV3, nonemptyV4);
+    assertAdditiveV4Schema(actualModuleV3, actualModuleV4);
+    for (const name of deployedV4Tables) {
+      assert.deepEqual(
+        tableSignature(actualModuleV4, name),
+        tableSignature(emptyV4, name),
+      );
+    }
+
+    // The schema-only v5 fixture and the current module must independently
+    // prove the exact refs 20-24 append. The actual module is exercised on
+    // the nonempty and security lifecycle databases; the fixture proves an
+    // equivalent empty-schema migration with no authority side effects.
+    await publish(server, owner.token, additiveV5SchemaFixture, emptyDatabase);
     await publish(server, owner.token, additiveModule, nonemptyDatabase);
     await publish(server, owner.token, additiveModule, actualModuleDatabase);
     await publish(server, owner.token, additiveModule, resourceLifecycleDatabase);
@@ -1953,26 +2061,23 @@ async function main() {
       .update(await readFile(builtArtifactPath))
       .digest('hex');
 
-    const emptyV4 = await describe(server, owner.token, emptyDatabase);
-    const nonemptyV4 = await describe(server, owner.token, nonemptyDatabase);
-    const actualModuleV4 = await describe(server, owner.token, actualModuleDatabase);
-    assertAdditiveV4Schema(emptyV3, emptyV4);
-    assertAdditiveV4Schema(nonemptyV3, nonemptyV4);
-    assertAdditiveV4Schema(actualModuleV3, actualModuleV4);
-    for (const name of [...deployedV3Tables, ...additiveV4Tables]) {
+    const emptyV5 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV5 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV5 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV5Schema(emptyV4, emptyV5);
+    assertAdditiveV5Schema(nonemptyV4, nonemptyV5);
+    assertAdditiveV5Schema(actualModuleV4, actualModuleV5);
+    for (const name of [...deployedV4Tables, ...additiveV5Tables]) {
       assert.deepEqual(
-        tableSignature(actualModuleV4, name),
-        tableSignature(emptyV4, name),
+        tableSignature(actualModuleV5, name),
+        tableSignature(emptyV5, name),
       );
     }
-    assert.equal(await count(
-      server,
-      owner.token,
-      emptyDatabase,
-      'resource_account_v1',
-    ), 0n);
+    for (const table of [...additiveV4Tables, ...additiveV5Tables]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
 
-    const idempotentSchemaBefore = schemaDigest(nonemptyV4);
+    const idempotentSchemaBefore = schemaDigest(nonemptyV5);
     await publishBuiltArtifact(
       server,
       owner.token,
@@ -1985,10 +2090,10 @@ async function main() {
     );
 
     // The actual module correctly rejects the disposable local identity at its
-    // on-connect boundary. Re-publish the table-identical v4 schema fixture
+    // on-connect boundary. Re-publish the table-identical v5 schema fixture
     // before querying preservation; this changes no table or row.
-    await publish(server, owner.token, additiveV4SchemaFixture, nonemptyDatabase);
-    await publish(server, owner.token, additiveV4SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV5SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV5SchemaFixture, actualModuleDatabase);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 0n);
@@ -2004,7 +2109,9 @@ async function main() {
         await tableRowDigests(server, owner.token, database, deployedV3Tables),
         beforeRows,
       );
-      assert.equal(await count(server, owner.token, database, 'resource_account_v1'), 0n);
+      for (const table of [...additiveV4Tables, ...additiveV5Tables]) {
+        assert.equal(await count(server, owner.token, database, table), 0n);
+      }
     }
     assert.equal(outputDigest(await sql(
       server,
@@ -2040,8 +2147,10 @@ async function main() {
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
-    const populatedV4SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
+    for (const table of [...additiveV4Tables, ...additiveV5Tables]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
+    const populatedV5SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
 
     const { identity: secondIdentity } = await acquireDisposableIdentity(server);
     await sql(
@@ -2072,11 +2181,13 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV4SchemaDigest,
+      populatedV5SchemaDigest,
     );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
+    for (const table of [...additiveV4Tables, ...additiveV5Tables]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
     await publish(
       server,
       owner.token,
@@ -2087,32 +2198,50 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV4SchemaDigest,
+      populatedV5SchemaDigest,
     );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
-    await publish(server, owner.token, additiveV4SchemaFixture, emptyDatabase);
+    for (const table of [...additiveV4Tables, ...additiveV5Tables]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
+    await publish(
+      server,
+      owner.token,
+      additiveV4SchemaFixture,
+      emptyDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, emptyDatabase)),
+      populatedV5SchemaDigest,
+    );
+    await publish(server, owner.token, additiveV5SchemaFixture, emptyDatabase);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
+    for (const table of [...additiveV4Tables, ...additiveV5Tables]) {
+      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
+    }
     assert.equal(
       createHash('sha256').update(await readFile(builtArtifactPath)).digest('hex'),
       builtArtifactDigest,
     );
 
     console.log(
-      `Additive protocol-v4 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
+      `Additive protocol-v5 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
       + 'the exact refs 0-18 deployed v3 prefix and every v3 row remained unchanged, '
       + 'private resource_account_v1 appended at exact product type ref 19, '
+      + 'public Gold sites, occupancy, and safe lifecycle schedule projection plus private expedition and idempotency '
+      + 'tables appended at exact refs 20-24, '
       + '61-tile empty and synthetic nonempty fixtures remained preserved, '
       + 'exact resolver HTTP lifecycle enforced without mutation, '
       + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `
       + `actual resource authority reducers exercised with ${resourceTimestampFixture} collection, `
       + 'caller bootstrap/terms/identity gates, Marks isolation, atomic founding, '
       + 'and guarded backfill rejection/idempotence held, '
-      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v4, '
-      + `and guarded v3/v2 rollbacks refused before schema change. artifact_sha256=${builtArtifactDigest}`,
+      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v5, '
+      + `and guarded v4/v3/v2 rollbacks refused before schema change. artifact_sha256=${builtArtifactDigest}`,
     );
   } finally {
     disposableCliCredential = null;
@@ -2124,7 +2253,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   main().catch(error => {
     console.error(error instanceof MigrationProofError
       ? error.message
-      : 'Additive protocol-v4 migration proof failed closed.');
+      : 'Additive protocol-v5 migration proof failed closed.');
     process.exitCode = 1;
   });
 }

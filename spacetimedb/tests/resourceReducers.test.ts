@@ -42,17 +42,20 @@ function mutationTargets(text: string): string[] {
     .map(match => match[1]);
 }
 
-test('resource_account_v1 is one private append-only table registered immediately after Alpha Terms', () => {
+test('resource_account_v1 remains the first private append after Alpha Terms before v5 Gold tables', () => {
   const schema = source('../src/schema.ts');
   const deployedV3 = source('../migration-fixtures/additive-v3-schema/src/index.ts');
   const deployedRegistrations = schemaRegistrations(deployedV3);
   const registrations = schemaRegistrations(schema);
 
   assert.deepEqual(registrations.slice(0, deployedRegistrations.length), deployedRegistrations);
-  assert.deepEqual(registrations, [...deployedRegistrations, 'resourceAccountV1']);
-  assert.deepEqual(registrations.slice(-2), [
-    'alphaTermsAcceptanceV1',
+  assert.deepEqual(registrations.slice(deployedRegistrations.length), [
     'resourceAccountV1',
+    'goldSiteV1',
+    'goldNodeOccupationV1',
+    'goldExpeditionV1',
+    'goldExpeditionIdempotencyV1',
+    'goldExpeditionScheduleV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');
@@ -189,7 +192,7 @@ test('player get and collect wires accept no FID, balance, rate, terrain, or clo
   const browserCollect = section(
     browser,
     'export async function collectWarpkeepResources',
-    '/** Start only the protocol-v3',
+    '/**\n * Read the caller-only expedition procedure',
   );
   assert.match(browserRead, /procedures\.getMyResourceStateV1\(\{\}\)/);
   assert.match(browserCollect, /reducers\.collectResourcesV1\(\{\}\)/);
@@ -220,7 +223,8 @@ test('collect settles with server time, mutates only the private account, and pr
     collect,
     /planResourceSettlement\(\s*account,\s*terrainKind,\s*ctx\.timestamp\.microsSinceUnixEpoch,?\s*\)/,
   );
-  assert.match(collect, /if \(settlement\.completedQuanta === 0n\) return/);
+  assert.match(collect, /if \(settlement\.completedQuanta !== 0n\)/);
+  assert.match(collect, /collectActiveGoldExpedition\(ctx, claims\.fid\)/);
   assert.deepEqual(mutationTargets(collect), ['resourceAccountV1']);
   assert.match(collect, /updatedAt: ctx\.timestamp/);
   for (const field of [
@@ -246,7 +250,7 @@ test('collect settles with server time, mutates only the private account, and pr
   const browserCollect = section(
     browser,
     'export async function collectWarpkeepResources',
-    '/** Start only the protocol-v3',
+    '/**\n * Read the caller-only expedition procedure',
   );
   assert.ok(
     browserCollect.indexOf('reducers.collectResourcesV1({})')

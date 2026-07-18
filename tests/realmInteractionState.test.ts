@@ -65,6 +65,27 @@ describe('realm interaction state', () => {
     });
   });
 
+  it('opens a public Gold-site inspector without turning the site into a castle or local authority', () => {
+    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-gold-site',
+      siteId: 'genesis-001:gold:0001',
+      coord: { q: 4, r: -2 }
+    });
+
+    expect(state.selectedCell).toEqual({ q: 4, r: -2 });
+    expect(state.selectedCastle).toBeNull();
+    expect(state.inspectorTarget).toEqual({
+      siteId: 'genesis-001:gold:0001',
+      coord: { q: 4, r: -2 }
+    });
+    expect(state.cameraTarget).toEqual({ kind: 'cell', coord: { q: 4, r: -2 } });
+    expect(state.keyboardIntent).toEqual({
+      sequence: 1,
+      target: { kind: 'gold-mine-inspector', siteId: 'genesis-001:gold:0001' }
+    });
+    expect(resolveRealmEscape(state).state.keyboardIntent.target).toEqual({ kind: 'map' });
+  });
+
   it('closes the inspector without erasing selection and can reopen the same castle', () => {
     const active = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
       type: 'activate-castle',

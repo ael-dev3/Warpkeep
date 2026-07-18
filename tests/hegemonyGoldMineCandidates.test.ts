@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -52,7 +52,7 @@ function sourceFiles(directory: string): string[] {
 }
 
 describe('Hegemony Gold Mine review candidates', () => {
-  it('pins the complete supplied candidate family outside the Pages tree', () => {
+  it('pins the complete supplied candidate family as immutable audit evidence', () => {
     const candidateDirectory = resolve(ROOT, CANDIDATE_DIRECTORY);
     const candidateEntries = readdirSync(candidateDirectory, { withFileTypes: true });
     const candidateNames = candidateEntries.map(entry => entry.name).sort();
@@ -83,10 +83,6 @@ describe('Hegemony Gold Mine review candidates', () => {
       expect(json.materials[0].extras.wk_atlas_size).toBe(candidate.declaredAtlasSize);
     });
 
-    expect(existsSync(resolve(
-      ROOT,
-      'public/models/hegemony/gathering-nodes/gold-mine'
-    ))).toBe(false);
   });
 
   it('records the known atlas-metadata discrepancy instead of treating it as runtime-ready', () => {
@@ -111,15 +107,14 @@ describe('Hegemony Gold Mine review candidates', () => {
     expect(record.lods[2].metadataStatus).toBe('review-gate-required');
   });
 
-  it('does not wire any 3D candidate model into current browser presentation', () => {
+  it('does not wire historical candidate bytes into browser presentation', () => {
     const clientSource = sourceFiles(resolve(ROOT, 'src'))
       .map(path => readFileSync(path, 'utf8'))
       .join('\n');
     expect(clientSource).not.toContain(CANDIDATE_DIRECTORY);
     expect(clientSource).not.toContain('runtime-candidates/hegemony-gold-mine-');
-    CANDIDATES.forEach((candidate) => {
-      expect(clientSource).not.toContain(candidate.filename);
-    });
-    expect(clientSource).not.toContain('public/models/hegemony/gathering-nodes/gold-mine');
+    // High keeps the exact supplied bytes and therefore retains the same
+    // digest-bearing filename in the separate reviewed public runtime family.
+    // The boundary is the candidate directory, not an ambiguous basename.
   });
 });

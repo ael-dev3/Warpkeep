@@ -12,16 +12,17 @@ collection of disconnected screens. The near-term path is deliberate:
 
 1. establish a trustworthy shared world, clear castle presence, and strong map
    interaction;
-2. add private server-derived resources and deterministic collection;
+2. add private server-derived resources, deterministic collection, and a
+   bounded visible expedition loop;
 3. add authoritative construction queues; then
 4. expand into scouting, travel, conflict, and alliances only when their rules
    can be authoritative, recoverable, and understandable in the game.
 
 The verified public alpha focuses on admission-gated founding, exploration,
 castle inspection, and the visual language of the Hegemony Lowlands. The
-undeployed 0.3.8 source candidate adds a private Food, Wood, Stone, and Gold
-inventory with deterministic terrain yield and collection, plus persistent
-world capacity for future naturally placed nodes. Construction,
+undeployed 0.3.8 source candidate adds private Food, Wood, Stone, and Gold
+accounts, deterministic terrain collection, persistent world capacity for
+naturally placed nodes, and a bounded Gold Mine wagon expedition. Construction,
 upgrades, units, combat, alliances, chat, seasons, resource transfers, Marks
 spending, and rewards are not playable systems today. Alpha participation
 offers no financial return, airdrop, or promise of future value.
@@ -47,12 +48,15 @@ release truth lives in the [changelog](CHANGELOG.md),
 in this overview.
 
 The checked-in package is Alpha 0.3.8, an **undeployed candidate**. It retains
-the pending private Food, Wood, Stone, and Gold authority from 0.3.7 and expands
-the deterministic Genesis world definition to exactly 10,000 persistent cells.
-The existing 1,261 cells and all 100 close-outward founder slots remain exact;
-8,739 outer cells are added as future placement space. No resource node,
-construction, combat, reward, or transfer mechanic is introduced by the map
-expansion. Production publication and the separate world-state migration remain
+the pending private Food, Wood, Stone, and Gold authority and expands the
+deterministic Genesis world definition to exactly 10,000 persistent cells. The
+existing 1,261 cells and all 100 close-outward founder slots remain exact, while
+8,739 outer cells add placement space. It also stages a 24-site Genesis Gold
+Mine pilot where a server-authorized wagon gathers one Gold per completed minute
+for 30 days. Gold-site occupancy is public, while ownership, routes, requests,
+accrual, and balances remain private and server-controlled. Community Marks
+remains separate with no conversion or spending path. Production publication,
+owner-approved setup, aggregate verification, and exact Pages deployment remain
 explicitly approval-gated. See the
 [candidate release notes](docs/releases/alpha-0.3.8.md).
 

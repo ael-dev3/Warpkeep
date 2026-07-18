@@ -35,13 +35,15 @@ export const REALM_RESOURCE_STARTING_BALANCES = GENESIS_STARTING_RESOURCE_BALANC
 export const REALM_RESOURCE_TERRAIN_RATES: Readonly<
   Record<GenesisTerrainKind, RealmResourceBalances>
 > = Object.freeze({
-  lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 1n }),
-  meadow: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
-  forest: Object.freeze({ food: 5n, wood: 10n, stone: 3n, gold: 1n }),
-  heath: Object.freeze({ food: 5n, wood: 6n, stone: 5n, gold: 2n }),
-  ridge: Object.freeze({ food: 3n, wood: 4n, stone: 10n, gold: 2n }),
-  lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
-  'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 4n }),
+  // Tier-I Gold comes only from the persistent expedition authority. Keeping
+  // passive terrain Gold at zero prevents a second hidden issuance path.
+  lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 0n }),
+  meadow: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 0n }),
+  forest: Object.freeze({ food: 5n, wood: 10n, stone: 3n, gold: 0n }),
+  heath: Object.freeze({ food: 5n, wood: 6n, stone: 5n, gold: 0n }),
+  ridge: Object.freeze({ food: 3n, wood: 4n, stone: 10n, gold: 0n }),
+  lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 0n }),
+  'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 0n }),
 });
 
 const RESOURCE_KINDS: readonly RealmResourceKind[] = Object.freeze([

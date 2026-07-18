@@ -112,10 +112,12 @@ their faithful runtime encodings are silently relicensed by their location.
 On 2026-07-18, the Warpkeep project owner supplied a high-resolution Gold Mine
 visual and instructed PR #49 to polish it into a transparent inspection-card
 derivative. That authorization covers this exact checked-in output in the
-public Warpkeep GitHub repository and official `warpkeep.com` Pages runtime,
-but does not establish underlying ownership, a public/open-content licence,
-general derivative or redistribution rights, trademark rights, or authority to
-place a Gold Mine, expose a balance, or activate gathering.
+public Warpkeep GitHub repository and an eventual official `warpkeep.com`
+Pages runtime after separately approved deployment. It is use authorization
+only, not deployment approval, and does not establish underlying ownership, a
+public/open-content licence, general derivative or redistribution rights,
+trademark rights, or authority to place a Gold Mine, expose a balance, or
+activate gathering.
 
 | Intended use | Repository file | Technical record |
 | --- | --- | --- |
@@ -125,8 +127,9 @@ The exact source attachment and image-generation/chroma-matte intermediates are
 not committed. Their hashes, prompt, cleanup parameters, decoded RGBA hash,
 alpha profile, and visible bounds are recorded in the dated [Gold Mine
 inspection-art record](docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/manifest.json).
-The card is currently standalone and unmounted; its decorative image grants no
-resource, currency, reward, entitlement, map-placement, or Gold/Marks authority.
+The reviewed draft integration mounts the card as decorative inspection art
+only; it grants no resource, currency, reward, entitlement, map-placement, or
+Gold/Marks authority. No Pages deployment is authorized by this record.
 
 ## Hegemony Gold Mine review candidates
 
@@ -148,13 +151,66 @@ The supplied `runtime-manifest.json` is 2,191 bytes with SHA-256
 `9bb0bcf28b3b2f073d8f4a9cdbe5c2ad1d41d921668f25172a2105f52fd82dd4`.
 Its High profile is internally consistent. The exact supplied Balanced and
 Compact files have 512×512 and 256×256 WebP atlases but retain
-`materials[0].extras.wk_atlas_size: 1024`; this staging record preserves their
-bytes without correction. A later approved integration needs a separately
-reviewed decision and new immutable output records before moving any candidate
-under `public/`. The dated [Gold Mine record](docs/reference/resources/2026-07-18-hegemony-gold-mine/)
-contains the complete candidate boundary. All three remain
-`LicenseRef-Warpkeep-Provenance-Required` and do not create a live Gold balance,
-currency, reward, entitlement, or link to Community Marks.
+`materials[0].extras.wk_atlas_size: 1024`; this candidate record preserves their
+source bytes without correction. The 2026-07-18 Gold Wagon integration uses a
+separate reviewed runtime-output record below; browser code must never import
+these candidate paths or substitute them for the digest-bearing public outputs.
+The dated [Gold Mine candidate record](docs/reference/resources/2026-07-18-hegemony-gold-mine/)
+preserves the full historical boundary. All three remain
+`LicenseRef-Warpkeep-Provenance-Required` and do not independently create a live
+Gold balance, currency, reward, entitlement, or link to Community Marks.
+
+## Hegemony Gold Mine runtime assets
+
+On 2026-07-18, the Warpkeep project owner instructed the Gold Wagon integration
+to use all available project assets. That authorizes the three exact reviewed
+Gold Mine runtime outputs below in the public Warpkeep GitHub repository and
+an eventual official `warpkeep.com` Pages runtime after separately approved
+deployment. This is use authorization only, not deployment approval. It does
+not establish underlying
+ownership, a separate public/open-content licence, general derivative or
+redistribution rights, trademark rights, or Gold/Marks, site, occupation,
+dispatch, route, reward, or settlement authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Selected/near Gold Mine | `public/models/hegemony/gathering-nodes/gold-mine/hegemony-gold-mine-high-6c3731e0f3381014.glb` | Exact supplied High bytes: 263,528 bytes, SHA-256 `6c3731e0f3381014d661d539c25f67e4f79f894b721d1feac9e275b07b8a6ab3`, 4,233 triangles, three 1024×1024 embedded WebPs. |
+| Nearby Gold Mine | `public/models/hegemony/gathering-nodes/gold-mine/hegemony-gold-mine-balanced-96a467baaf1dfba4.glb` | 154,380 bytes, SHA-256 `96a467baaf1dfba44d9c21e2ceb18348b564e3cdfe7daffb6d6bcd209634af42`, 3,553 triangles, three 512×512 embedded WebPs; only `material.extras.wk_atlas_size` is normalized from 1024 to 512. |
+| Distant Gold Mine | `public/models/hegemony/gathering-nodes/gold-mine/hegemony-gold-mine-compact-d2644366898cf610.glb` | 95,016 bytes, SHA-256 `d2644366898cf610c9824761ff01fb43346d9db92a8a13be0569b3d49557dd6f`, 2,681 triangles, three 256×256 embedded WebPs; only `material.extras.wk_atlas_size` is normalized from 1024 to 256. |
+
+The original candidate GLBs remain unchanged under `docs/reference/` as audit
+evidence. The checked-in output family is verified by
+`node scripts/verify-hegemony-gold-mine-runtime.mjs`; ordinary builds only
+verify it and never fetch or prepare the owner-supplied package. The dated
+[runtime record](docs/reference/resources/2026-07-18-hegemony-gold-mine/runtime/manifest.json)
+pins input/output hashes, the bounded metadata repair, orientation, and the
+visual-only scope boundary.
+
+## Hegemony Supply Wagon runtime assets
+
+On 2026-07-18, the same project-owner instruction authorizes the exact reviewed
+Hegemony Supply Wagon runtime outputs below in the public Warpkeep GitHub
+repository and an eventual official `warpkeep.com` Pages runtime after
+separately approved deployment. This is use authorization only, not deployment
+approval. The source is the
+checksum-pinned `Warpkeep_Wagon_NoTelescope_GameReady.glb` from the public
+`ael-dev3/Warpkeep-Assets` release; that provenance does not establish
+underlying ownership, a separate public/open-content licence, general
+derivative or redistribution rights, trademark rights, or Gold/Marks, site,
+route, dispatch, balance, settlement, or entitlement authority.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Selected/near animated wagon | `public/models/hegemony/hegemony-supply-wagon-high-4a0f762b9dadeadd.glb` | Exact selected NoTelescope source bytes: 1,637,452 bytes, SHA-256 `4a0f762b9dadeaddd8b2d528a7e165eaa98a8dd4134eb924604922524e7bbc5d`, 40,650 triangles, 47-joint rig, six clips, 2048/1024/2048 WebP atlases. |
+| Nearby animated wagon | `public/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb` | 752,364 bytes, SHA-256 `af0f8788eaaf9a32e9fd8d17e9ab897a9036d0cc7161a318afa0af3556c6e3b2`, 27,582 triangles, 47-joint rig, six clips, deterministic 512px WebP atlases. |
+| Distant animated wagon | `public/models/hegemony/hegemony-supply-wagon-compact-fefb5105b95d43b4.glb` | 452,676 bytes, SHA-256 `fefb5105b95d43b411571000e8ae3fd78460eaa5f490eaeb63f90e5d84aba6ca`, 16,954 triangles, 47-joint rig, six clips, deterministic 256px WebP atlases. |
+
+The release ZIP is retained only in ignored local cache during manual
+preparation, never served as a runtime CDN. The checked-in output family is
+verified by `node scripts/verify-hegemony-supply-wagon-assets.mjs`; ordinary
+builds never fetch or rewrite it. The dated [Supply Wagon runtime record](docs/reference/factions/hegemony/2026-07-18-hegemony-supply-wagon/manifest.json)
+pins the release, source, toolchain, output hashes, LOD budgets, rendering
+contract, and visual-only scope boundary.
 
 ## Historical Hegemony Frontier Keep provenance
 

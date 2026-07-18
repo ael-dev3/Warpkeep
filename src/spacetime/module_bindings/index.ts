@@ -44,12 +44,15 @@ import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminExpandGenesisWorldV3Reducer from "./admin_expand_genesis_world_v_3_reducer";
 import AdminFinalizeSnapScanBatchV1Reducer from "./admin_finalize_snap_scan_batch_v_1_reducer";
 import AdminReplaceFidWalletSnapshotV1Reducer from "./admin_replace_fid_wallet_snapshot_v_1_reducer";
+import AdminSeedGenesisTierIGoldSitesV1Reducer from "./admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
 import AdminSeedWorldReducer from "./admin_seed_world_reducer";
 import AdminUpsertFidWalletAttributionV1Reducer from "./admin_upsert_fid_wallet_attribution_v_1_reducer";
 import AdminUpsertRealmProfileV1Reducer from "./admin_upsert_realm_profile_v_1_reducer";
 import BootstrapPlayerReducer from "./bootstrap_player_reducer";
 import BootstrapPlayerV2Reducer from "./bootstrap_player_v_2_reducer";
+import CollectGoldExpeditionV1Reducer from "./collect_gold_expedition_v_1_reducer";
 import CollectResourcesV1Reducer from "./collect_resources_v_1_reducer";
+import DispatchGoldExpeditionV1Reducer from "./dispatch_gold_expedition_v_1_reducer";
 
 // Import all procedure arg schemas
 import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedure";
@@ -62,6 +65,7 @@ import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "./get_my_admission_status_procedure";
 import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_procedure";
+import * as GetMyGoldExpeditionStateV1Procedure from "./get_my_gold_expedition_state_v_1_procedure";
 import * as GetMyResourceStateV1Procedure from "./get_my_resource_state_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "./qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_snapshot_v_1_procedure";
@@ -69,6 +73,9 @@ import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_
 // Import all table schema definitions
 import CastleRow from "./castle_table";
 import CastleSlotV1Row from "./castle_slot_v_1_table";
+import GoldExpeditionScheduleV1Row from "./gold_expedition_schedule_v_1_table";
+import GoldNodeOccupationV1Row from "./gold_node_occupation_v_1_table";
+import GoldSiteV1Row from "./gold_site_v_1_table";
 import PlayerRow from "./player_table";
 import PlayerV2Row from "./player_v_2_table";
 import RealmProfileV1Row from "./realm_profile_v_1_table";
@@ -117,6 +124,48 @@ const tablesSchema = __schema({
       { name: 'castle_slot_v1_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
     ],
   }, CastleSlotV1Row),
+  goldExpeditionScheduleV1: __table({
+    name: 'gold_expedition_schedule_v_1',
+    indexes: [
+      { accessor: 'originCastleId', name: 'gold_expedition_schedule_v_1_origin_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'originCastleId',
+      ] },
+      { accessor: 'scheduleId', name: 'gold_expedition_schedule_v_1_schedule_id_idx_btree', algorithm: 'btree', columns: [
+        'scheduleId',
+      ] },
+      { accessor: 'siteId', name: 'gold_expedition_schedule_v_1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gold_expedition_schedule_v_1_schedule_id_key', constraint: 'unique', columns: ['scheduleId'] },
+    ],
+  }, GoldExpeditionScheduleV1Row),
+  goldNodeOccupationV1: __table({
+    name: 'gold_node_occupation_v1',
+    indexes: [
+      { accessor: 'byOriginCastle', name: 'gold_node_occupation_v1_origin_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'originCastleId',
+      ] },
+      { accessor: 'siteId', name: 'gold_node_occupation_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gold_node_occupation_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, GoldNodeOccupationV1Row),
+  goldSiteV1: __table({
+    name: 'gold_site_v1',
+    indexes: [
+      { accessor: 'siteId', name: 'gold_site_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'gold_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, GoldSiteV1Row),
   player: __table({
     name: 'player',
     indexes: [
@@ -208,12 +257,15 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_expand_genesis_world_v3", AdminExpandGenesisWorldV3Reducer),
   __reducerSchema("admin_finalize_snap_scan_batch_v1", AdminFinalizeSnapScanBatchV1Reducer),
   __reducerSchema("admin_replace_fid_wallet_snapshot_v1", AdminReplaceFidWalletSnapshotV1Reducer),
+  __reducerSchema("admin_seed_genesis_tier_i_gold_sites_v1", AdminSeedGenesisTierIGoldSitesV1Reducer),
   __reducerSchema("admin_seed_world", AdminSeedWorldReducer),
   __reducerSchema("admin_upsert_fid_wallet_attribution_v1", AdminUpsertFidWalletAttributionV1Reducer),
   __reducerSchema("admin_upsert_realm_profile_v1", AdminUpsertRealmProfileV1Reducer),
   __reducerSchema("bootstrap_player", BootstrapPlayerReducer),
   __reducerSchema("bootstrap_player_v2", BootstrapPlayerV2Reducer),
+  __reducerSchema("collect_gold_expedition_v1", CollectGoldExpeditionV1Reducer),
   __reducerSchema("collect_resources_v1", CollectResourcesV1Reducer),
+  __reducerSchema("dispatch_gold_expedition_v1", DispatchGoldExpeditionV1Reducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
@@ -228,6 +280,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
   __procedureSchema("get_my_admission_status", GetMyAdmissionStatusProcedure.params, GetMyAdmissionStatusProcedure.returnType),
   __procedureSchema("get_my_admission_status_v2", GetMyAdmissionStatusV2Procedure.params, GetMyAdmissionStatusV2Procedure.returnType),
+  __procedureSchema("get_my_gold_expedition_state_v1", GetMyGoldExpeditionStateV1Procedure.params, GetMyGoldExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_resource_state_v1", GetMyResourceStateV1Procedure.params, GetMyResourceStateV1Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_attestation_v2", QaObserverGetRealmAttestationV2Procedure.params, QaObserverGetRealmAttestationV2Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_snapshot_v1", QaObserverGetRealmSnapshotV1Procedure.params, QaObserverGetRealmSnapshotV1Procedure.returnType),

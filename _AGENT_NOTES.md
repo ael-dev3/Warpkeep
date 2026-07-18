@@ -154,17 +154,32 @@ Start with:
   review.
 - The three Gold Mine GLBs under
   `docs/reference/resources/2026-07-18-hegemony-gold-mine/runtime-candidates/`
-  are exact unintegrated review candidates, pinned by
-  `npm run verify:gold-mine-candidates`; they must remain outside `public/`.
-  They do not authorize a renderer import, world coordinate, site, route,
-  reducer, account, balance, seed, deploy, or Gold/Marks coupling. Live
-  Genesis 001 still has 1,261 cells and 250 resource-capable anchors; the
-  undeployed Alpha 0.3.8 candidate expands those capacities to 10,000 and
-  2,000 without placing a Gold node. Do not invent a placement from capacity
-  metadata alone.
-  The supplied Balanced and Compact candidates have 512²/256² embedded WebPs
-  but stale `wk_atlas_size: 1024` metadata; preserve their bytes and require an
-  explicit reviewed normalization or integration decision before promotion.
+  remain exact historical review evidence, pinned by
+  `npm run verify:gold-mine-candidates`; they must remain outside `public/` and
+  must never be imported by browser code. Their Balanced and Compact files have
+  512²/256² embedded WebPs but stale `wk_atlas_size: 1024` metadata; preserve
+  their bytes unchanged. The distinct reviewed public runtime family under
+  `public/models/hegemony/gathering-nodes/gold-mine/` is pinned by
+  `npm run verify:hegemony-gold-mine-runtime`: High is exact source bytes,
+  while Balanced/Compact make only the recorded `wk_atlas_size` correction.
+  Any LLM changing either family must preserve its exact role, provenance
+  record, immutable digest-bearing names, geometry/image boundary, and
+  visual-only scope. Neither family grants a renderer-derived world coordinate,
+  site, route, reducer, account, balance, seed, deploy, or Gold/Marks coupling.
+  The 0.3.8 candidate defines 10,000 cells and 2,000 resource-capable anchors;
+  the reviewed Gold-site policy, never capacity metadata alone, determines any
+  site placement.
+- The Hegemony Supply Wagon LODs under `public/models/hegemony/` are pinned by
+  `npm run verify:hegemony-supply-wagon` and documented in
+  `docs/reference/factions/hegemony/2026-07-18-hegemony-supply-wagon/`. They
+  are visual-only, immutable 47-joint/six-clip assets sourced from the
+  checksum-pinned NoTelescope GameReady release payload. Do not fetch or
+  prepare assets during ordinary builds; only manual preparation may use the
+  approved checksum-pinned source/toolchain. Render through a bounds-centered,
+  ground-contact wrapper and engine-side collision proxy, never as a source of
+  movement, route, dispatch, occupation, Gold/Marks, reward, or settlement
+  authority. Preserve High/Balanced/Compact LOD selection and animation budgets
+  from the runtime record when changing presentation.
 - `public/images/realm/hegemony-gold-mine-record.webp` is a separate,
   exact-hash-pinned transparent 2D inspection illustration with its provenance
   under `docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/`.
