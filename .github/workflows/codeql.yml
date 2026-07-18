@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, feat/spacetimedb-basic-connection, security/alpha-0.2-preflight, ops/alpha-0.2-live-activation]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

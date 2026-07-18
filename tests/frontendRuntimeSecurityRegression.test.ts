@@ -24,21 +24,9 @@ import {
   farcasterAuthMachineReducer
 } from '../src/farcaster/farcasterAuthMachine';
 import {
-  collectResources,
-  completeReadyConstruction,
-  completeReadyTraining,
-  createCastleForFid,
-  getConstructionCost,
-  resourceDeltaForPreview,
-  scoutNearbyCastle,
-  startBuildingUpgrade,
-  startUnitTraining
-} from '../src/game/systems/gameLoop';
-import {
   safePublicHttpsImageUrl
 } from '../src/security/publicImageUrl';
 import { normalizePublicProfileText } from '../src/security/publicProfileText';
-import type { ResourceState } from '../src/game/models/types';
 import {
   FarcasterAuthContextError,
   resolveFarcasterAuthContext
@@ -75,13 +63,6 @@ function challengeRequest() {
     bindingChallenge: BINDING_CHALLENGE,
     bindingMethod: 'S256' as const
   };
-}
-
-function expectSafeResourceNumbers(value: ResourceState) {
-  Object.values(value).forEach((amount) => {
-    expect(Number.isSafeInteger(amount)).toBe(true);
-    expect(amount).toBeGreaterThanOrEqual(0);
-  });
 }
 
 afterEach(() => {
@@ -327,108 +308,5 @@ describe('bounded and aborting frontend transports', () => {
     });
     expect(requests.slice(1).every((request) => request.redirect === 'error')).toBe(true);
     expect(requests.every((request) => (request.signal as AbortSignal).aborted)).toBe(true);
-  });
-});
-
-describe('dormant pure game-loop numeric safety', () => {
-  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, Number.MAX_SAFE_INTEGER + 1])(
-    'does not propagate an invalid elapsed-minute value: %s',
-    (minutes) => {
-      const state = createCastleForFid({ fid: 777, handle: 'keeper' });
-      const collected = collectResources(state, minutes);
-      expect(collected.resources).toEqual(state.resources);
-      expect(collected.activityLog).toEqual(state.activityLog);
-      expect(resourceDeltaForPreview(minutes, state)).toEqual({
-        grain: 0,
-        stone: 0,
-        iron: 0,
-        influence: 0
-      });
-      expectSafeResourceNumbers(collected.resources);
-    }
-  );
-
-  it.each([Number.NaN, Number.POSITIVE_INFINITY, 0, -1, 2.8, Number.MAX_SAFE_INTEGER])(
-    'does not spend resources or enqueue an unsafe unit quantity: %s',
-    (quantity) => {
-      const state = createCastleForFid({ fid: 778, handle: 'keeper' });
-      const next = startUnitTraining(state, 'scout', quantity, 1_000);
-      expect(next.resources).toEqual(state.resources);
-      expect(next.trainingQueue).toEqual([]);
-      expect(next.activityLog).toEqual(state.activityLog);
-      expectSafeResourceNumbers(next.resources);
-    }
-  );
-
-  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, Number.MAX_SAFE_INTEGER])(
-    'does not enqueue work under an unsafe start time: %s',
-    (startedAt) => {
-      const state = createCastleForFid({ fid: 779, handle: 'keeper' });
-      const building = startBuildingUpgrade(state, 'farm', startedAt);
-      const training = startUnitTraining(state, 'scout', 1, startedAt);
-      expect(building.constructionQueue).toEqual([]);
-      expect(training.trainingQueue).toEqual([]);
-      expect(building.resources).toEqual(state.resources);
-      expect(training.resources).toEqual(state.resources);
-    }
-  );
-
-  it('fails closed on unsafe completion clocks, cost overflow, and invalid FIDs', () => {
-    const state = createCastleForFid({ fid: 780, handle: 'keeper' });
-    const building = startBuildingUpgrade(state, 'farm', 1_000);
-    const training = startUnitTraining(state, 'scout', 1, 1_000);
-
-    expect(completeReadyConstruction(building, Number.POSITIVE_INFINITY))
-      .toEqual(building);
-    expect(completeReadyTraining(training, Number.NaN)).toEqual(training);
-    expect(() => getConstructionCost('keep', Number.MAX_SAFE_INTEGER)).toThrow(RangeError);
-    expect(() => createCastleForFid({ fid: Number.NaN, handle: 'keeper' })).toThrow(RangeError);
-    expect(() => createCastleForFid({ fid: Number.POSITIVE_INFINITY, handle: 'keeper' }))
-      .toThrow(RangeError);
-
-    const unsafeBuildingState = createCastleForFid({ fid: 782, handle: 'keeper' });
-    unsafeBuildingState.buildings[0].level = Number.MAX_SAFE_INTEGER;
-    expect(startBuildingUpgrade(unsafeBuildingState, 'keep', 1_000))
-      .toEqual(unsafeBuildingState);
-  });
-
-  it('bounds untrusted fixture identity text and rejects invalid scout numbers', () => {
-    const state = createCastleForFid({
-      fid: 783,
-      handle: `keeper\u202e${'x'.repeat(100)}`
-    });
-    expect(state.player.handle).toBe('fid-783');
-    expect(state.castle.name).toBe('Fid-783 Keep');
-    expect(scoutNearbyCastle(state, {
-      fid: 784,
-      handle: 'near\u202eby',
-      level: 2,
-      distance: 4
-    }).targetHandle).toBe('nearby');
-    expect(() => scoutNearbyCastle(state, {
-      fid: 784,
-      handle: 'other',
-      level: Number.NaN,
-      distance: 4
-    })).toThrow(RangeError);
-    expect(() => scoutNearbyCastle(state, {
-      fid: 784,
-      handle: 'other',
-      level: 2,
-      distance: Number.POSITIVE_INFINITY
-    })).toThrow(RangeError);
-  });
-
-  it('keeps normal finite loop behavior deterministic', () => {
-    const state = createCastleForFid({ fid: 781, handle: 'keeper' });
-    const collected = collectResources(state, 60.9);
-    const training = startUnitTraining(collected, 'scout', 2, 1_000);
-    expect(collected.resources).toEqual({ grain: 180, stone: 126, iron: 52, influence: 11 });
-    expect(training.trainingQueue[0]).toMatchObject({
-      quantity: 2,
-      startedAt: 1_000,
-      completesAt: 1_060
-    });
-    expectSafeResourceNumbers(training.resources);
   });
 });

@@ -21,7 +21,12 @@ npm ci
 npm run dev
 ```
 
-Open the local URL Vite prints; shared Alpha access stays off by default. Contributor checks live in [CONTRIBUTING.md](CONTRIBUTING.md), authentication setup lives in the [Farcaster integration](docs/farcaster-integration.md) guide, and deeper setup lives in [reconstruction and recovery](docs/operations/reconstruction/README.md). Asset reconstruction is explicit and not part of a normal build; read [asset provenance](ASSETS-LICENSE.md) before working with protected source packages.
+Open the local URL Vite prints; shared Alpha access stays off by default. Run
+the contributor checks in [CONTRIBUTING.md](CONTRIBUTING.md), and use the
+[documentation guide](docs/README.md) for system-specific setup. Asset
+reconstruction is not part of a normal build; read
+[asset provenance](ASSETS-LICENSE.md) before working with protected source
+packages.
 
 ## Current status
 
@@ -32,7 +37,7 @@ Open the local URL Vite prints; shared Alpha access stays off by default. Contri
 | ✅ Authority | FID is the durable identity; handles and portraits are bounded presentation metadata. Farcaster sign-in uses a browser-bound, least-privilege bridge. The browser presents. The server decides admission and ownership. It also owns resources, timers, and saved state. |
 | ✅ Resources | Each keep privately collects Food / Wood / Stone / Gold from authoritative terrain. The browser never invents balances. |
 | ✅ Marks | Community Marks are separate private accounting and start at zero. They cannot be spent, converted, or transferred. They have no cash value, promised utility, or reward loop. The world, rules, and direction will evolve. |
-| 🚧 In progress | Draft PRs cover Gold and Food wagon expeditions; a shared forest; procedural grass and wind; founder-admission hardening; clearer Alpha framing; and a Hegemony entry agreement. None is live. |
+| 🚧 In progress | Resource nodes, expeditions, environmental detail, and stronger founder tooling are being explored in draft branches. Draft work is not live. |
 | 📋 Planned | Resource nodes; construction and upgrades; units / scouting / travel / combat; alliances / trading / chat; seasons / governance / rewards. Design notes are experiments, not promises that these features will ship unchanged. |
 
 ## Tech stack
@@ -50,13 +55,13 @@ Open the local URL Vite prints; shared Alpha access stays off by default. Contri
 ## Links
 
 - **Architecture:** The [technical architecture](docs/technical-architecture.md) explains what the browser shows and what the server decides.
+- **Documentation:** The [documentation guide](docs/README.md) points to the current product, development, security, and operations material.
 - **Roadmap:** The [roadmap](docs/design/roadmap.md) and [game direction](docs/design/warpkeep-direction.md) separate today's game from later plans.
 - **Authentication:** The [Farcaster integration](docs/farcaster-integration.md) guide covers sign-in, privacy, and public configuration.
-- **Release:** The [Alpha 0.3.8 release notes](docs/releases/alpha-0.3.8.md) record exactly what is live.
+- **Release history:** The [changelog](CHANGELOG.md) summarizes player-facing releases; [GitHub Releases](https://github.com/ael-dev3/Warpkeep/releases) retain fuller notes.
 - **Licensing:** [LICENSING.md](LICENSING.md) explains release rules; [asset provenance](ASSETS-LICENSE.md) records where media came from and what permissions apply.
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) covers checks and provenance; the [Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose) accept privacy-safe bugs and ideas.
 - **Security:** Report sensitive issues privately through [SECURITY.md](SECURITY.md), never through a public issue.
-- **Quality:** The [verification checklist](docs/operations/reconstruction/verification-checklist.md) covers desktop / phone / keyboard / touch / reduced-motion / fallback checks.
 - **Community:** Play at [warpkeep.com](https://warpkeep.com/), join the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep), and explore the [provenance-tracked visual archive](https://github.com/ael-dev3/Warpkeep-Assets).
 
 ## License

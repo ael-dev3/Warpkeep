@@ -24,7 +24,7 @@ describe('Warpkeep build identity', () => {
     );
   });
 
-  it('reads the live 0.3.8 product version from the package source of truth', () => {
+  it('reads the live 0.3.8 product version from package metadata', () => {
     const packageJson = JSON.parse(
       readFileSync(resolve(process.cwd(), 'package.json'), 'utf8')
     ) as { version?: unknown };
