@@ -315,4 +315,4 @@ The 100-castle path is architecture- and regression-tested, but real device GPU
 and thermal behavior still varies. Label count, pixel ratio, terrain detail, and
 LOD ceilings remain deliberately bounded. Rich gameplay overlays, persistent
 camera preferences, and alternate castle models are future work rather than
-claims of Alpha 0.3.5.
+claims of Alpha 0.3.6.

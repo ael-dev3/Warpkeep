@@ -4,7 +4,7 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 
 ## [Unreleased]
 
-## [0.3.6] — 2026-07-18 candidate
+## [0.3.6] — 2026-07-18
 
 - Founded castles receive one bounded, role-specific diffuse-colour calibration
   across High, Balanced, and Compact. Authored landscape bases receive a
@@ -72,10 +72,10 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
   tooling downloads, private caches, and exact CI action runtimes. It adds no
   authentication bypass and performs no admission, Worker, SpacetimeDB,
   production-data, DNS, wallet, or authoritative-world mutation.
-- Alpha 0.3.6 is checked into the integration branch as a candidate. Alpha 0.3.5 remains the
-  verified public release until protected-main deployment and exact-build
-  verification succeed; no `v0.3.6` tag or release claim is valid before those
-  gates pass.
+- Alpha 0.3.6 is a verified Pages-only release. Protected-main CI, Pages
+  deployment, and exact-build verification passed; the Cloudflare Worker and
+  SpacetimeDB module were not published, and no authoritative backend state was
+  changed for this release.
 
 ## [0.3.5] — 2026-07-16
 
@@ -465,8 +465,8 @@ See [Alpha 0.3.1 release notes](docs/releases/alpha-0.3.1.md).
 - Credential-bearing bridge routes use distributed exact rolling-window limits, and disabled-to-enabled admissions rotate the authorization epoch before old player tokens can regain authority.
 - No player, castle, or real Farcaster FID is created or admitted by this release candidate.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...HEAD
-[0.3.6]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...codex/alpha-0.3.6-integration
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.2...v0.3.3

@@ -36,11 +36,11 @@ financial return, airdrop, or promise of future value.
 
 ## Current status
 
-Alpha 0.3.5 is the verified public Pages release. The checked-in `0.3.6`
-candidate is not a public deployment until protected-main deployment and
-exact-build verification succeed. Detailed release truth lives in the
-[changelog](CHANGELOG.md), [release notes](docs/releases/), and the exact-version
-in-game patch chronicle—not in this overview.
+Alpha 0.3.6 is the verified public Pages release. Its in-menu build stamp
+identifies the exact protected-main commit deployed to players. Detailed
+release truth lives in the [changelog](CHANGELOG.md),
+[release notes](docs/releases/), and exact-version in-game patch chronicle—not
+in this overview.
 
 ## Architecture
 

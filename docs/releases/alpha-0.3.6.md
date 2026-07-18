@@ -1,8 +1,7 @@
 # Warpkeep Alpha 0.3.6 — Realm Readability & Stability
 
-**Status (18 July 2026): integration candidate; not merged, deployed, tagged,
-or verified as a public release. Alpha 0.3.5 remains live until protected-main
-deployment and exact-build verification succeed.**
+**Status (18 July 2026): verified Pages-only public release after
+protected-main CI, Pages deployment, and exact-build verification.**
 
 Alpha 0.3.6 is a bounded presentation, maintainability, and defensive-hardening
 patch. It changes no Terms decision, admission, castle ownership, authoritative
@@ -80,7 +79,7 @@ server acceptance gates remain in
 
 ## Defensive source hardening
 
-The candidate includes the separately reviewed repository hardening commit:
+The release includes the separately reviewed repository hardening commit:
 
 - stricter auth challenge configuration, bounded TTLs, fail-closed store
   errors, canonical cookie handling, and bounded administrative bearer parsing;
@@ -97,11 +96,25 @@ These are source controls, not an authentication bypass or a claim that the
 Cloudflare Worker has already been redeployed. Worker release, Pages release,
 and SpacetimeDB publication are separate gates.
 
-## Release gate
+## Release evidence
 
-Before public release, the exact combined head must pass root, auth-bridge, and
-SpacetimeDB tests; typecheck; both production builds; runtime-asset, licence,
-dependency, signature, generated-binding, and additive-migration checks; the
-rendered WebGL and journey matrices; protected-main CI; Pages deployment; and
-exact public build-stamp verification. Only that verified deployed commit may
-receive the annotated `v0.3.6` tag and GitHub Release.
+- The root workspace passed 1,407 tests, typecheck, ordinary, GitHub Pages, and
+  canonical-root production builds, runtime-asset and file-size verification,
+  licence policy, dependency audit, and package-signature/attestation checks.
+- Fourteen rendered WebGL browser cases passed repeatedly against the reviewed
+  integration head, and the journey matrix passed. The release-truth-only
+  follow-up was then covered by root tests and hosted CI.
+- The auth bridge passed 171 unit tests, four workerd cases, both typechecks,
+  and dependency audit. Its Worker bundle also compiled in dry-run mode only;
+  no Worker deployment was part of this release.
+- The SpacetimeDB workspace passed 102 tests, module build, generated-binding
+  verification, additive-migration proof, and dependency audit. No module was
+  published and no production row was mutated.
+- The reviewed integration and protected release-truth changes passed hosted
+  Verify and CodeQL. The Pages artifact then reported the exact protected-main
+  build SHA and passed canonical-root/assets, redirects, enabled auth-v2,
+  retired auth-v1, security-header, and credentialed-CORS checks.
+
+Only that verified deployed protected-main commit receives the annotated
+`v0.3.6` tag and GitHub Release. Authentication-bridge and SpacetimeDB releases
+remain separate, explicitly approved operations.

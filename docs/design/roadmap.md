@@ -1,36 +1,16 @@
 # Warpkeep roadmap
 
-## Current public release — Alpha 0.3.5
+## Current public release — Alpha 0.3.6
 
 Warpkeep is a Pages-only, admission-gated Genesis 001 preview. Players can view
 and navigate the shared Lowlands, inspect founded castles, and use the compact
-realm presentation. Alpha 0.3.5 refreshes the three castle LODs, adds matching
-authored landscape bases, fixes foundation-bound username presentation, and
-adds a responsive public castle record. It leaves shared-world authority
-unchanged.
+realm presentation. Alpha 0.3.6 improves castle and landscape-base readability,
+terrain support, direct foundation identity rails, map input and overview,
+hardware-aware graphics selection, and the compact player portrait. It leaves
+shared-world authority unchanged.
 
 Public admission, resources, upgrades, units, combat, alliances, chat, seasons,
 wallet actions, and Marks crediting or spending are not live.
-
-## Current candidate — Alpha 0.3.6
-
-The integration candidate raises castle and
-landscape-base readability through bounded role-aware material calibration and
-a camera-facing revision of the existing neutral fill. It supports the full
-authored island footprint with wider local terrain foundations, removes the
-occupied-cell outline that visually crosses a castle base, keeps one permanent
-direct identity rail for every projection-visible founded castle, and gives
-ordinary wheel/pinch input a readable zoom floor while the explicit Realm
-overview fits the actual convex rendered-terrain perimeter.
-
-It also keeps graphics selection hardware-aware, bounds world-label keyboard
-and viewport behavior, adds the sanitized player portrait to the compact HUD,
-includes reviewed resource-icon/decoder groundwork without mounting fake
-balances, and carries defensive repository/authentication source hardening.
-
-Alpha 0.3.6 changes no new gameplay or authority boundary. It is not public
-until protected-main deployment and exact-build verification pass; Alpha 0.3.5
-remains the verified public release until then.
 
 ## Next gameplay slice — resources and construction queues
 

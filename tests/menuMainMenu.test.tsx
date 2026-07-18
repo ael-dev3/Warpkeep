@@ -250,7 +250,7 @@ describe('WarpkeepMainMenu', () => {
     expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.6');
     expect(notes.textContent).toContain('exactly one visible label is tabbable');
     expect(notes.textContent).toContain(
-      'Alpha 0.3.6 candidate prepared 18 July 2026; it is not a verified public release until protected deployment and exact-build verification.'
+      'Released 18 July 2026 after protected Pages deployment and exact-build verification.'
     );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
