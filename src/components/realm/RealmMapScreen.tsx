@@ -812,6 +812,21 @@ function CanonicalRealmMapScreen({
     root.dataset.semanticTerrainFeatureDrawCalls = String(telemetry.semanticFeatureDrawCalls);
     root.dataset.totalTerrainDetailInstanceCount = String(telemetry.totalDetailInstanceCount);
     root.dataset.totalTerrainDetailDrawCalls = String(telemetry.totalDetailDrawCalls);
+    root.dataset.grassCandidateCellCount = String(telemetry.grassCandidateCellCount);
+    root.dataset.grassActiveCellCount = String(telemetry.grassActiveCellCount);
+    root.dataset.grassInstanceCount = String(telemetry.grassInstanceCount);
+    root.dataset.grassTriangleCount = String(telemetry.grassTriangleCount);
+    root.dataset.grassDrawCalls = String(telemetry.grassDrawCalls);
+    root.dataset.grassCacheEntries = String(telemetry.grassCacheEntries);
+    root.dataset.grassAnimated = String(telemetry.grassAnimated);
+    root.dataset.grassTargetAnimationCadence = String(telemetry.grassTargetAnimationCadence);
+    root.dataset.grassCountsByTerrain = JSON.stringify(telemetry.grassCountsByTerrain);
+    root.dataset.grassCompletelyBareActiveCells = String(telemetry.grassCompletelyBareActiveCells);
+    root.dataset.grassRejectedByStructureClearance = String(
+      telemetry.grassRejectedByStructureClearance
+    );
+    root.dataset.grassRejectedBySlope = String(telemetry.grassRejectedBySlope);
+    root.dataset.grassOverviewHidden = String(telemetry.grassOverviewHidden);
   }, []);
 
   const updateSceneComposition = useCallback(() => {
@@ -926,6 +941,19 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.semanticTerrainFeatureDrawCalls = '0';
         rootRef.current.dataset.totalTerrainDetailInstanceCount = '0';
         rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
+        rootRef.current.dataset.grassCandidateCellCount = '0';
+        rootRef.current.dataset.grassActiveCellCount = '0';
+        rootRef.current.dataset.grassInstanceCount = '0';
+        rootRef.current.dataset.grassTriangleCount = '0';
+        rootRef.current.dataset.grassDrawCalls = '0';
+        rootRef.current.dataset.grassCacheEntries = '0';
+        rootRef.current.dataset.grassAnimated = 'false';
+        rootRef.current.dataset.grassTargetAnimationCadence = '0';
+        rootRef.current.dataset.grassCountsByTerrain = '{}';
+        rootRef.current.dataset.grassCompletelyBareActiveCells = '0';
+        rootRef.current.dataset.grassRejectedByStructureClearance = '0';
+        rootRef.current.dataset.grassRejectedBySlope = '0';
+        rootRef.current.dataset.grassOverviewHidden = 'true';
         rootRef.current.dataset.labelBaseAnchorViolationCount = '0';
       }
       setVisibleCastleLabels([]);

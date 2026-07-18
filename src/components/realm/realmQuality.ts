@@ -1,5 +1,6 @@
 import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 import { REALM_TERRAIN_FEATURE_BUDGETS } from '../../game/map/realmTerrainFeatures';
+import type { RealmGrassRenderPlan } from './realmGrassActiveWindow';
 
 export type RealmQuality = 'high' | 'balanced' | 'reduced';
 
@@ -52,10 +53,6 @@ export const REALM_ENVIRONMENT_SPECS: Readonly<
 export type RealmQualitySpec = Readonly<{
   id: RealmQuality;
   subdivisionsPerEdge: number;
-  greenTuftsPerPlayableCell: number;
-  greenTuftsPerApronCell: number;
-  dryTuftsPerPlayableCell: number;
-  dryTuftsPerApronCell: number;
   stoneChancePlayable: number;
   stoneChanceApron: number;
   dynamicShadows: boolean;
@@ -68,11 +65,7 @@ export type RealmQualitySpec = Readonly<{
   fogFar: number;
 }>;
 
-export type RealmDecorationDensitySpec = Readonly<{
-  greenTuftsPerPlayableCell: number;
-  greenTuftsPerApronCell: number;
-  dryTuftsPerPlayableCell: number;
-  dryTuftsPerApronCell: number;
+export type RealmStoneDecorationDensitySpec = Readonly<{
   stoneChancePlayable: number;
   stoneChanceApron: number;
 }>;
@@ -87,10 +80,11 @@ export type RealmRenderPlan = Readonly<{
   outerSubdivisionsPerEdge: 1;
   terrainTriangleBudget: number;
   estimatedTerrainTriangles: number;
-  decorationDensity: RealmDecorationDensitySpec;
-  genericDecorationInstanceBudget: number;
+  stoneDecorationDensity: RealmStoneDecorationDensitySpec;
+  stoneDecorationInstanceBudget: number;
   decorationInstanceBudget: number;
   estimatedMaximumDecorationInstances: number;
+  grass: RealmGrassRenderPlan;
   dynamicShadows: boolean;
   shadowMapSize: 0 | 1024 | 2048;
   shadowCameraHalfExtent: number;
@@ -108,10 +102,6 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
   high: {
     id: 'high',
     subdivisionsPerEdge: 8,
-    greenTuftsPerPlayableCell: 11,
-    greenTuftsPerApronCell: 4,
-    dryTuftsPerPlayableCell: 2,
-    dryTuftsPerApronCell: 1,
     stoneChancePlayable: 0.78,
     stoneChanceApron: 0.28,
     dynamicShadows: true,
@@ -126,10 +116,6 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
   balanced: {
     id: 'balanced',
     subdivisionsPerEdge: 6,
-    greenTuftsPerPlayableCell: 7,
-    greenTuftsPerApronCell: 2,
-    dryTuftsPerPlayableCell: 1,
-    dryTuftsPerApronCell: 0,
     stoneChancePlayable: 0.58,
     stoneChanceApron: 0.22,
     dynamicShadows: true,
@@ -144,10 +130,6 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
   reduced: {
     id: 'reduced',
     subdivisionsPerEdge: 3,
-    greenTuftsPerPlayableCell: 1,
-    greenTuftsPerApronCell: 0,
-    dryTuftsPerPlayableCell: 0,
-    dryTuftsPerApronCell: 0,
     stoneChancePlayable: 0.2,
     stoneChanceApron: 0.08,
     dynamicShadows: false,
@@ -187,32 +169,69 @@ export const REALM_OUTER_TERRAIN_SUBDIVISIONS = 1 as const;
 const ESTABLISHED_TERRAIN_TRIANGLE_BUDGETS: Readonly<Record<RealmQuality, number>> =
   Object.freeze({ high: 150_000, balanced: 90_000, reduced: 40_000 });
 
-const EXPANDED_DECORATION_DENSITY: Readonly<Record<RealmQuality, RealmDecorationDensitySpec>> = {
+const EXPANDED_STONE_DECORATION_DENSITY: Readonly<
+  Record<RealmQuality, RealmStoneDecorationDensitySpec>
+> = {
   high: {
-    greenTuftsPerPlayableCell: 3,
-    greenTuftsPerApronCell: 1,
-    dryTuftsPerPlayableCell: 1,
-    dryTuftsPerApronCell: 0,
     stoneChancePlayable: 0.42,
     stoneChanceApron: 0.15
   },
   balanced: {
-    greenTuftsPerPlayableCell: 2,
-    greenTuftsPerApronCell: 0,
-    dryTuftsPerPlayableCell: 1,
-    dryTuftsPerApronCell: 0,
     stoneChancePlayable: 0.32,
     stoneChanceApron: 0.1
   },
   reduced: {
-    greenTuftsPerPlayableCell: 1,
-    greenTuftsPerApronCell: 0,
-    dryTuftsPerPlayableCell: 0,
-    dryTuftsPerApronCell: 0,
     stoneChancePlayable: 0.2,
     stoneChanceApron: 0.08
   }
 };
+
+/** Independent grass-window ceilings; they never scale with world cardinality. */
+export const REALM_GRASS_RENDER_PLANS: Readonly<Record<RealmQuality, RealmGrassRenderPlan>> =
+  Object.freeze({
+    high: Object.freeze({
+      enabled: true,
+      geometryProfile: 'high',
+      maximumActiveInstances: 14_000,
+      maximumActiveTriangles: 210_000,
+      activeRadius: 12,
+      hysteresisRadius: 2,
+      edgeFadeCells: 2,
+      animationFrameCap: 24,
+      cacheLimit: 2_048,
+      densityMultiplier: 1,
+      windStrengthMultiplier: 1,
+      overviewSuppressed: true
+    }),
+    balanced: Object.freeze({
+      enabled: true,
+      geometryProfile: 'balanced',
+      maximumActiveInstances: 7_000,
+      maximumActiveTriangles: 84_000,
+      activeRadius: 9,
+      hysteresisRadius: 2,
+      edgeFadeCells: 2,
+      animationFrameCap: 16,
+      cacheLimit: 1_024,
+      densityMultiplier: 0.62,
+      windStrengthMultiplier: 0.78,
+      overviewSuppressed: true
+    }),
+    reduced: Object.freeze({
+      enabled: true,
+      geometryProfile: 'reduced',
+      maximumActiveInstances: 2_000,
+      maximumActiveTriangles: 18_000,
+      activeRadius: 6,
+      hysteresisRadius: 1,
+      edgeFadeCells: 1.5,
+      animationFrameCap: 0,
+      cacheLimit: 512,
+      densityMultiplier: 0.25,
+      windStrengthMultiplier: 0,
+      overviewSuppressed: true
+    })
+  });
 
 function finiteCellCount(value: number) {
   return Math.max(1, Number.isFinite(value) ? Math.trunc(value) : 1);
@@ -241,17 +260,13 @@ function adaptiveTransitionEdgeCount(
 }
 
 function maximumDecorationInstances(
-  density: RealmDecorationDensitySpec,
+  density: RealmStoneDecorationDensitySpec,
   playableCellCount: number,
   renderCellCount: number
 ) {
   const apronCellCount = Math.max(0, renderCellCount - playableCellCount);
-  const playablePerCell = density.greenTuftsPerPlayableCell
-    + density.dryTuftsPerPlayableCell
-    + (density.stoneChancePlayable > 0 ? 1 : 0);
-  const apronPerCell = density.greenTuftsPerApronCell
-    + density.dryTuftsPerApronCell
-    + (density.stoneChanceApron > 0 ? 1 : 0);
+  const playablePerCell = density.stoneChancePlayable > 0 ? 1 : 0;
+  const apronPerCell = density.stoneChanceApron > 0 ? 1 : 0;
   return playableCellCount * playablePerCell + apronCellCount * apronPerCell;
 }
 
@@ -301,8 +316,8 @@ export function resolveRealmRenderPlan(
   if (estimatedTerrainTriangles > budget.terrainTriangles) {
     throw new RangeError('REALM_TERRAIN_CELL_BUDGET_EXCEEDED');
   }
-  const decorationDensity = EXPANDED_DECORATION_DENSITY[quality.id];
-  const genericDecorationInstanceBudget = Math.max(
+  const stoneDecorationDensity = EXPANDED_STONE_DECORATION_DENSITY[quality.id];
+  const stoneDecorationInstanceBudget = Math.max(
     0,
     budget.decorationInstances - REALM_TERRAIN_FEATURE_BUDGETS[quality.id]
   );
@@ -316,17 +331,18 @@ export function resolveRealmRenderPlan(
     outerSubdivisionsPerEdge: REALM_OUTER_TERRAIN_SUBDIVISIONS,
     terrainTriangleBudget: budget.terrainTriangles,
     estimatedTerrainTriangles,
-    decorationDensity,
-    genericDecorationInstanceBudget,
+    stoneDecorationDensity,
+    stoneDecorationInstanceBudget,
     decorationInstanceBudget: budget.decorationInstances,
     estimatedMaximumDecorationInstances: Math.min(
-      genericDecorationInstanceBudget,
+      stoneDecorationInstanceBudget,
       maximumDecorationInstances(
-        decorationDensity,
+        stoneDecorationDensity,
         playableCellCount,
         renderCellCount
       )
     ),
+    grass: REALM_GRASS_RENDER_PLANS[quality.id],
     dynamicShadows: false,
     shadowMapSize: 0,
     shadowCameraHalfExtent: 0,

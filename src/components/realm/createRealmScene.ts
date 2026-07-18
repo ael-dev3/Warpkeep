@@ -8,7 +8,9 @@ import {
   type HexCoord
 } from '../../game/map/hexCoordinates';
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
+import type { RealmGrassExclusion, RealmGrassTerrainKind } from '../../game/map/realmGrass';
 import { generateRealmTerrainFeatures } from '../../game/map/realmTerrainFeatures';
+import type { RealmTerrainFeaturePoint } from '../../game/map/realmTerrainFeatures';
 import {
   indexRealmTerrainSemantics,
   type RealmTerrainKind,
@@ -21,6 +23,7 @@ import {
   type TerrainStructurePlacement
 } from '../../game/map/terrainPlacements';
 import { createTerrainDecorationLayers } from './createTerrainDecorations';
+import { createRealmGrassLayer, type RealmGrassLayer, type RealmGrassTelemetry } from './createRealmGrassLayer';
 import { createRealmTerrainFeatureLayers } from './createRealmTerrainFeatures';
 import { createTerrainGeometryData, pointyHexCorners } from './createTerrainGeometry';
 import {
@@ -61,7 +64,7 @@ import {
   projectCastleSilhouetteScreenBounds,
   type RealmCastleProjectionEnvelope
 } from './realmCastleProjectionGeometry';
-import { createRealmAmbientScheduler } from './realmAmbientScheduler';
+import { createRealmAmbientScheduler, type RealmAmbientScheduler } from './realmAmbientScheduler';
 import {
   createRealmPointerGestureCoordinator,
   type RealmPointerGestureResult,
@@ -118,6 +121,28 @@ const DEFAULT_CASTLE_PROJECTION_ENVELOPE = createCastleBoundsProjectionEnvelope(
   maxY: 1.08,
   maxZ: 0.74
 })!;
+
+/** Semantic features remain their own family; grass only receives generic root circles. */
+export function grassExclusionsForTerrainFeatures(
+  points: readonly RealmTerrainFeaturePoint[]
+): readonly RealmGrassExclusion[] {
+  return Object.freeze(points.flatMap((point) => {
+    const radius = point.kind === 'forest-tree' ? 0.085
+      : point.kind === 'ridge-outcrop' ? 0.10
+        : point.kind === 'ancient-monolith' ? 0.11
+          : 0;
+    return radius > 0 ? [Object.freeze({
+      id: `terrain-feature:${point.kind}:${point.coord.q},${point.coord.r}`,
+      world: point.world,
+      radius
+    })] : [];
+  }));
+}
+
+function isGrassShaderContractFailure(error: unknown) {
+  return error instanceof Error
+    && error.message === 'REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED';
+}
 
 type RealmCastleLabelScreenPoint = Readonly<{ x: number; y: number }>;
 
@@ -207,6 +232,19 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   semanticFeatureDrawCalls: number;
   totalDetailInstanceCount: number;
   totalDetailDrawCalls: number;
+  grassCandidateCellCount: number;
+  grassActiveCellCount: number;
+  grassInstanceCount: number;
+  grassTriangleCount: number;
+  grassDrawCalls: number;
+  grassCacheEntries: number;
+  grassAnimated: boolean;
+  grassTargetAnimationCadence: number;
+  grassCountsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  grassCompletelyBareActiveCells: number;
+  grassRejectedByStructureClearance: number;
+  grassRejectedBySlope: number;
+  grassOverviewHidden: boolean;
 }>;
 
 export type RealmSceneHandle = Readonly<{
@@ -597,17 +635,25 @@ function initializeRealmScene(
   terrain.receiveShadow = renderPlan.dynamicShadows;
   scene.add(terrain);
 
+  const semanticFeatureData = generateRealmTerrainFeatures(
+    options.surface.renderMap,
+    terrainSemantics.terrainKindsByKey,
+    runtimeQuality.id,
+    HEX_SIZE,
+    terrainPlacements,
+    terrainSemantics.castleSlotKeys
+  );
   const decorationData = generateTerrainDecorations(
     options.surface.renderMap,
     {
-      ...renderPlan.decorationDensity,
+      ...renderPlan.stoneDecorationDensity,
       playableRadius: options.surface.playableMap.radius
     },
     HEX_SIZE,
     terrainPlacements,
     terrainSemantics.terrainKindsByKey,
     {
-      maximumPoints: renderPlan.genericDecorationInstanceBudget,
+      maximumPoints: renderPlan.stoneDecorationInstanceBudget,
       preserveRadius: 20,
       playableKeys: options.surface.playableKeys
     }
@@ -621,15 +667,6 @@ function initializeRealmScene(
   );
   cleanup.add(decorations.dispose);
   scene.add(decorations.group);
-
-  const semanticFeatureData = generateRealmTerrainFeatures(
-    options.surface.renderMap,
-    terrainSemantics.terrainKindsByKey,
-    runtimeQuality.id,
-    HEX_SIZE,
-    terrainPlacements,
-    terrainSemantics.castleSlotKeys
-  );
   const totalDetailInstanceCount = decorationData.points.length
     + semanticFeatureData.points.length;
   if (totalDetailInstanceCount > renderPlan.decorationInstanceBudget) {
@@ -644,21 +681,94 @@ function initializeRealmScene(
   );
   cleanup.add(semanticFeatures.dispose);
   scene.add(semanticFeatures.group);
-  options.onTerrainPresentationTelemetry?.(Object.freeze({
-    terrainTriangleCount: terrainData.triangleCount,
-    terrainTriangleBudget: renderPlan.terrainTriangleBudget,
-    terrainDetailRadius: terrainData.detailRadius,
-    highDetailTerrainCellCount: terrainData.highDetailCellCount,
-    coarseTerrainCellCount: terrainData.coarseCellCount,
-    terrainTransitionEdgeCount: terrainData.transitionEdgeCount,
-    semanticCellCount: terrainSemantics.terrainKindsByKey.size,
-    semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
-      .filter((count) => count > 0).length,
-    semanticFeatureCount: semanticFeatures.instanceCount,
-    semanticFeatureDrawCalls: semanticFeatures.drawCalls,
-    totalDetailInstanceCount,
-    totalDetailDrawCalls: decorations.drawCalls + semanticFeatures.drawCalls
-  }));
+  let grassLayer: RealmGrassLayer | null = null;
+  try {
+    grassLayer = createRealmGrassLayer({
+      surface: options.surface,
+      terrainKindsByKey: terrainSemantics.terrainKindsByKey,
+      castleSlotKeys: terrainSemantics.castleSlotKeys,
+      placements: terrainPlacements,
+      exclusions: grassExclusionsForTerrainFeatures(semanticFeatureData.points),
+      plan: renderPlan.grass,
+      reducedMotion: options.reducedMotion,
+      hexSize: HEX_SIZE
+    });
+    cleanup.add(grassLayer.dispose);
+    scene.add(grassLayer.group);
+    options.canvas.dataset.grassPresentation = 'ready';
+  } catch {
+    // Decorative failure must not take the terrain, input, or castle layer down.
+    options.canvas.dataset.grassPresentation = 'unavailable';
+  }
+  const emptyGrassTelemetry: RealmGrassTelemetry = Object.freeze({
+    candidateCellCount: 0,
+    activeCellCount: 0,
+    instanceCount: 0,
+    triangleCount: 0,
+    drawCalls: 0,
+    cacheEntries: 0,
+    animated: false,
+    targetAnimationCadence: renderPlan.grass.animationFrameCap,
+    countsByTerrain: Object.freeze({
+      meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+      'ancient-stone': 0, apron: 0
+    }),
+    completelyBareActiveCells: 0,
+    rejectedByStructureClearance: 0,
+    rejectedBySlope: 0,
+    overviewHidden: true
+  });
+  const terrainPresentationTelemetry = () => {
+    const grass = grassLayer?.getTelemetry() ?? emptyGrassTelemetry;
+    return Object.freeze({
+      terrainTriangleCount: terrainData.triangleCount,
+      terrainTriangleBudget: renderPlan.terrainTriangleBudget,
+      terrainDetailRadius: terrainData.detailRadius,
+      highDetailTerrainCellCount: terrainData.highDetailCellCount,
+      coarseTerrainCellCount: terrainData.coarseCellCount,
+      terrainTransitionEdgeCount: terrainData.transitionEdgeCount,
+      semanticCellCount: terrainSemantics.terrainKindsByKey.size,
+      semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
+        .filter((count) => count > 0).length,
+      semanticFeatureCount: semanticFeatures.instanceCount,
+      semanticFeatureDrawCalls: semanticFeatures.drawCalls,
+      totalDetailInstanceCount,
+      totalDetailDrawCalls: decorations.drawCalls + semanticFeatures.drawCalls,
+      grassCandidateCellCount: grass.candidateCellCount,
+      grassActiveCellCount: grass.activeCellCount,
+      grassInstanceCount: grass.instanceCount,
+      grassTriangleCount: grass.triangleCount,
+      grassDrawCalls: grass.drawCalls,
+      grassCacheEntries: grass.cacheEntries,
+      grassAnimated: grass.animated,
+      grassTargetAnimationCadence: grass.targetAnimationCadence,
+      grassCountsByTerrain: grass.countsByTerrain,
+      grassCompletelyBareActiveCells: grass.completelyBareActiveCells,
+      grassRejectedByStructureClearance: grass.rejectedByStructureClearance,
+      grassRejectedBySlope: grass.rejectedBySlope,
+      grassOverviewHidden: grass.overviewHidden
+    } satisfies RealmTerrainPresentationTelemetry);
+  };
+  let lastGrassTelemetrySignature = '';
+  const emitTerrainPresentationTelemetry = () => {
+    const telemetry = terrainPresentationTelemetry();
+    const signature = [
+      telemetry.grassActiveCellCount,
+      telemetry.grassInstanceCount,
+      telemetry.grassTriangleCount,
+      telemetry.grassCacheEntries,
+      telemetry.grassAnimated,
+      Object.values(telemetry.grassCountsByTerrain).join(','),
+      telemetry.grassCompletelyBareActiveCells,
+      telemetry.grassRejectedByStructureClearance,
+      telemetry.grassRejectedBySlope,
+      telemetry.grassOverviewHidden
+    ].join(':');
+    if (signature === lastGrassTelemetrySignature) return;
+    lastGrassTelemetrySignature = signature;
+    options.onTerrainPresentationTelemetry?.(telemetry);
+  };
+  emitTerrainPresentationTelemetry();
 
   const hemisphere = new THREE.HemisphereLight(
     REALM_CASTLE_READABILITY_LIGHTING.hemisphereSkyColour,
@@ -768,6 +878,8 @@ function initializeRealmScene(
   let fallbackCastleProjectionEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let fallbackCastleRenderEnvelope = DEFAULT_CASTLE_PROJECTION_ENVELOPE;
   let selectedCastleId: number | undefined;
+  let selectedTerrainCoord: HexCoord | null = null;
+  let hoveredTerrainCoord: HexCoord | null = null;
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
     height: 1.08,
     footprintDiameter: 1.48
@@ -790,6 +902,23 @@ function initializeRealmScene(
   let presentedCastleKey = '*';
   let renderPendingWhileHidden = false;
   let pendingCastlesReadyCount: number | null = null;
+  let ambientScheduler: RealmAmbientScheduler | null = null;
+  const disableGrassPresentation = () => {
+    const layer = grassLayer;
+    if (!layer) return false;
+    grassLayer = null;
+    scene.remove(layer.group);
+    try {
+      layer.dispose();
+    } catch {
+      // The decorative layer is already detached; do not turn a shader
+      // contract fallback into a gameplay/scene failure.
+    }
+    options.canvas.dataset.grassPresentation = 'unavailable';
+    ambientScheduler?.setActive(false);
+    emitTerrainPresentationTelemetry();
+    return true;
+  };
   const projectionPoint = new THREE.Vector3();
   const projectionBoundsPoint = new THREE.Vector3();
   const projectCastleLabels = () => {
@@ -887,6 +1016,13 @@ function initializeRealmScene(
       return;
     }
     renderPendingWhileHidden = false;
+    const pose = cameraController.getPose();
+    if (grassLayer?.updateView(pose.focus, pose.mode)) {
+      emitTerrainPresentationTelemetry();
+    }
+    ambientScheduler?.setActive(Boolean(
+      grassLayer?.isAnimationActive() && !options.reducedMotion
+    ));
     const viewportHeight = Math.max(
       1,
       options.canvas.clientHeight || window.innerHeight || 1
@@ -912,7 +1048,14 @@ function initializeRealmScene(
       options.onCastlePresentationTelemetry?.(presentationTelemetry);
     }
     environmentGroup?.position.copy(cameraController.camera.position);
-    renderer.render(scene, cameraController.camera);
+    try {
+      renderer.render(scene, cameraController.camera);
+    } catch (error) {
+      if (!isGrassShaderContractFailure(error) || !disableGrassPresentation()) throw error;
+      // `onBeforeCompile` runs during rendering. Retry the same frame without
+      // only the grass layer if its pinned shader chunk contract has changed.
+      renderer.render(scene, cameraController.camera);
+    }
     projectCastleLabels();
     if (pendingCastlesReadyCount !== null) {
       const castleCount = pendingCastlesReadyCount;
@@ -959,15 +1102,14 @@ function initializeRealmScene(
   };
   document.addEventListener('visibilitychange', handleRenderVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
-  const ambientScheduler = createRealmAmbientScheduler({
-    enabled: decorations.animated
-      && options.quality.id !== 'reduced'
-      && !options.reducedMotion,
+  ambientScheduler = createRealmAmbientScheduler({
+    frameCap: renderPlan.grass.animationFrameCap,
+    active: Boolean(grassLayer?.isAnimationActive() && !options.reducedMotion),
     onStep: (elapsedSeconds) => {
-      if (!cleanup.isDisposed() && decorations.updateWind(elapsedSeconds)) render();
+      if (!cleanup.isDisposed() && grassLayer?.updateWind(elapsedSeconds)) render();
     }
   });
-  cleanup.add(ambientScheduler.dispose);
+  cleanup.add(() => ambientScheduler?.dispose());
 
   const raycaster = new THREE.Raycaster();
   const normalizedPointer = new THREE.Vector2();
@@ -1635,6 +1777,8 @@ function initializeRealmScene(
     recenterKeep: cameraController.recenterKeep,
     setHovered: (coord) => {
       if (cleanup.isDisposed()) return;
+      hoveredTerrainCoord = coord;
+      grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
       // A terrain hex runs through the wider authored landscape-base mesh.
       // Castle identity and raycasting already provide the occupied-cell cue,
       // so reserve this outline for empty terrain instead of drawing through
@@ -1660,6 +1804,8 @@ function initializeRealmScene(
     },
     setSelected: (coord) => {
       if (cleanup.isDisposed()) return;
+      selectedTerrainCoord = coord;
+      grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
       selectedCastleId = coord
         ? authoritativeCastles.find((castle) => (
           castle.coord.q === coord.q && castle.coord.r === coord.r
@@ -1676,7 +1822,11 @@ function initializeRealmScene(
     setSelectedCastleId: (castleId) => {
       if (cleanup.isDisposed()) return;
       selectedCastleId = castleId === null ? undefined : castleId;
-      if (castleId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (castleId !== null) {
+        selectedTerrainCoord = null;
+        grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setComposition: (composition) => cameraController.setComposition(composition),

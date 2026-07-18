@@ -110,12 +110,12 @@ describe('semantic realm terrain features', () => {
       });
       const generic = generateTerrainDecorations(
         surface.renderMap,
-        { ...plan.decorationDensity, playableRadius: surface.playableMap.radius },
+        { ...plan.stoneDecorationDensity, playableRadius: surface.playableMap.radius },
         1,
         placements,
         semantics.terrainKindsByKey,
         {
-          maximumPoints: plan.genericDecorationInstanceBudget,
+          maximumPoints: plan.stoneDecorationInstanceBudget,
           preserveRadius: 20,
           playableKeys: surface.playableKeys
         }
@@ -131,7 +131,7 @@ describe('semantic realm terrain features', () => {
 
       expect(generic.points.length + semantic.points.length)
         .toBeLessThanOrEqual(plan.decorationInstanceBudget);
-      expect(generic.points.length).toBeLessThanOrEqual(plan.genericDecorationInstanceBudget);
+      expect(generic.points.length).toBeLessThanOrEqual(plan.stoneDecorationInstanceBudget);
     }
   });
 
