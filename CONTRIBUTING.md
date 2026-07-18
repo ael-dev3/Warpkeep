@@ -44,6 +44,7 @@ From the repository root:
 ```sh
 npm ci
 npm run verify:licenses
+npm run verify:runtime-assets
 npm test
 npm run typecheck
 npm run build
