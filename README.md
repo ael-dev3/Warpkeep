@@ -34,6 +34,14 @@ quiet. Resource nodes, construction, upgrades, units, combat, alliances,
 trading, chat, seasons, and rewards are not playable today. Their presence in
 design notes or groundwork is not a promise that they will ship unchanged.
 
+The direction is a lived-in frontier rather than a busier dashboard: groves
+that give the Lowlands texture, distinct gathering places for Food, Wood,
+Stone, and Gold, and visible caravans whose journeys leave a trace in the
+shared world. These are active design experiments, not shipped features or
+release promises. Nothing becomes part of Genesis 001 until its provenance,
+authority, placement, interaction, performance, and recovery boundaries are
+ready.
+
 Alpha participation does not earn an airdrop, financial return, guaranteed
 reward, or guaranteed future value. Warpkeep is an experimental project built
 by one person, and its world, rules, and direction will evolve.
@@ -89,6 +97,7 @@ working with protected source packages.
 
 - Play at [warpkeep.com](https://warpkeep.com/)
 - Join the [Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep)
+- Explore the [provenance-tracked visual archive](https://github.com/ael-dev3/Warpkeep-Assets)
 - Share bugs and ideas through the [Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose)
 - Read the [Alpha 0.3.8 release notes](docs/releases/alpha-0.3.8.md)
 - See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change
