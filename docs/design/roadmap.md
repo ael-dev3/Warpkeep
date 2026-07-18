@@ -12,9 +12,9 @@ shared-world authority unchanged.
 Public admission, resources, upgrades, units, combat, alliances, chat, seasons,
 wallet actions, and Marks crediting or spending are not live.
 
-## Undeployed candidate — Alpha 0.3.8 resources, world capacity, and Gold expeditions
+## Undeployed candidate — Alpha 0.3.9 resources, world capacity, and Gold expeditions
 
-The checked-in 0.3.8 candidate carries the bounded resource authority prepared
+The checked-in 0.3.9 candidate carries the bounded resource authority prepared
 in 0.3.7, expands persistent map capacity, and adds a deliberately bounded
 Gold Mine expedition loop:
 
@@ -23,8 +23,8 @@ Gold Mine expedition loop:
 2. Complete ten-minute server-time quanta and authoritative terrain determine
    bounded Food, Wood, and Stone yield; collection accepts no player-supplied
    authority inputs.
-3. A reviewable 24-site Tier-I Gold Mine pilot uses only the existing
-   passable/resource-capable Genesis anchors. One server-authorized wagon per
+3. A reviewable 24-site Tier-I Gold Mine pilot uses only passable,
+   resource-capable Genesis anchors from the 10,000-cell candidate. One server-authorized wagon per
    castle follows a server-derived route, gathers one Gold per completed minute
    for 30 days, then returns; passive terrain Gold is zero.
 4. Public subscriptions expose a site and its occupied timeline only. Private
@@ -34,19 +34,19 @@ Gold Mine expedition loop:
    optimistic credits. Peer balances remain outside public subscriptions.
 6. Community Marks remains separate, private, and unchanged.
 7. Immutable icons, reviewed Gold Mine/wagon LOD families, generated bindings,
-   a disposable additive-migration
-   fixture, guarded founder backfill, and counts-only v4 inspection prepare the
-   release boundary.
+   a disposable additive-migration fixture, guarded founder backfill, and
+   aggregate resource-and-Gold-site inspection prepare the release boundary.
 8. Genesis 001 expands from its exact 1,261-cell generation-two predecessor to
    exactly 10,000 persistent cells while preserving every existing cell, all
    100 permanent castle slots, and all founder state.
-9. Two thousand cells are classified as future resource-capable placement
-   sites. No resource node, public marker, collection entitlement, or new yield
-   source is activated by that metadata.
+9. Two thousand cells are classified as resource-capable placement anchors. A
+   separate digest-pinned policy selects 24 Gold Mines; capacity metadata alone
+   neither creates a node nor adds a yield source.
 
 This candidate is not live. Module publication, the production founder
-backfill, world expansion, aggregate verification, and exact Pages deployment
-remain separate gates requiring review and explicit owner approval.
+backfill, world expansion, Gold-site setup, aggregate verification, and exact
+Pages deployment remain separate gates requiring review and explicit owner
+approval.
 
 ## Next release gate — verify and publish the bounded candidate
 
@@ -55,11 +55,11 @@ remain separate gates requiring review and explicit owner approval.
 3. Run the exact-count founder backfill only after separate owner approval.
 4. Expand the exact generation-two world with the guarded one-time operator
    only after a fresh read-only checkpoint and separate owner approval.
-5. Require the exact 10,000-cell generation-three aggregate plus zero missing,
-   orphaned, or invalid resource accounts in the
-   counts-only v4 inspection before deploying the matching Pages SHA.
-6. After the candidate boundary is stable, split the v4 migration lifecycle
-   proof and resource rollout security tests out of their large shared harnesses
+5. Require the exact 10,000-cell generation-three aggregate, placement digest,
+   and zero missing, orphaned, or invalid resource-account and Gold-site
+   invariants before deploying the matching Pages SHA.
+6. After the candidate boundary is stable, split the additive migration
+   lifecycle proof and resource rollout security tests out of their large shared harnesses
    without changing their fail-closed public contracts.
 
 ## Next gameplay slice — construction queues

@@ -2,10 +2,10 @@
 
 > **Superseded as an integration gate on 18 July 2026.** This record remains
 > the provenance and candidate-asset preparation history. The reviewed
-> successor, [the Gold wagon expedition plan](2026-07-18-alpha-0.3.7-gold-wagon-expedition.md),
-> authorizes a bounded 24-site Genesis 001 pilot on the existing canonical map.
-> It does not authorize the formerly proposed 10,000-cell expansion or any
-> production publication, seed, backfill, deployment, or merge.
+> successor, [the Gold wagon expedition plan](2026-07-18-alpha-0.3.9-gold-wagon-expedition.md),
+> authorizes a bounded 24-site Genesis 001 pilot on the Alpha 0.3.8
+> 10,000-cell candidate map. It does not authorize a production publication,
+> seed, backfill, deployment, or merge.
 
 ## Decision
 
@@ -26,15 +26,17 @@ The protected `main` baseline is `4c7cf7b7c91929f3d264636cb1a1b23eec04a34e`
 - 100 permanent castle slots; and
 - generation version 2 with the existing protocol-3 migration contract.
 
-The only current draft resource PR, #48, does not change the world generator,
-canonical seed policy, schema, migration fixtures, or those world counts. No
-reviewed 10,000-cell / 2,000-resource-capable expansion head is available.
+At the time of this preparation record, the then-current draft resource PR did
+not change the world generator, canonical seed policy, schema, migration
+fixtures, or those world counts. The reviewed Alpha 0.3.8 candidate now defines
+10,000 cells and 2,000 resource-capable anchors while preserving the original
+founding district.
 
 Consequently, this preparation work did not generate the formerly proposed 320
-site coordinates or pretend that a 10,000-cell expansion exists. The successor
-plan deliberately chooses a separate, small 24-site pilot from the actual
-250 eligible anchors, records its exact placement artifact and digest, and
-keeps the larger expansion out of scope.
+site coordinates or pretend that a 10,000-cell expansion existed. The successor
+plan deliberately chooses a separate, small 24-site pilot from the reviewed
+2,000 eligible anchors, records its exact placement artifact and digest, and
+keeps the separate 320-site proposal out of scope.
 
 ## What is staged
 
@@ -69,14 +71,13 @@ stale authoring counts are likewise not a future runtime contract.
 
 ## Required next gate
 
-The current bounded workstream validates the actual Genesis 001 map and its
+The current bounded workstream validates the reviewed Genesis 001 map and its
 resource-capable anchors before producing an exact 24-site artifact and digest.
 It may promote reviewed immutable runtime outputs, add server-authoritative
 sites, occupancy, expeditions, schedules, and private settlement, then add
 presentation after its public/private, accessibility, performance, security,
-migration, and release gates pass. The separate 10,000-cell / 2,000-anchor / 320
-site proposal still needs its own reviewed world-expansion head before it can be
-considered.
+migration, and release gates pass. The separate 320-site proposal remains out
+of scope for this candidate.
 
 Gold remains separate from Community Marks throughout. This preparation does
 not authorize a wallet, token, purchase, balance, reward, or resource mechanic.

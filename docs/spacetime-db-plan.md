@@ -13,11 +13,13 @@ browser mock.
 > recorded source, deployment, aggregate, probe, and QA coordinates attest that
 > state; an arbitrary local checkout does not.
 
-The checked-in Alpha 0.3.8 candidate is deliberately ahead of that live
-checkpoint. It retains backend protocol 3, appends one private resource table,
-and defines a separately approval-gated expansion to exactly 10,000 persistent
-cells. It does not attest a production publish, world transition, or resource
-backfill.
+The checked-in Alpha 0.3.9 candidate is deliberately ahead of that live
+checkpoint. It retains backend protocol 3 and the previously reviewed,
+separately approval-gated 10,000-cell / 2,000-resource-capable-anchor Genesis
+definition, appends one private resource table, and adds a bounded Gold Mine
+wagon loop with 24 deterministic Tier-I sites. It does not attest a production
+publish, world transition, resource backfill, Gold-site setup, or deployment.
+Alpha 0.3.6 remains the verified public release.
 
 ## Version contract
 
@@ -29,7 +31,8 @@ backfill.
 | Deployed backend protocol | `3` |
 | Checked-out backend protocol | `3` |
 | Deployed world generation | `2` (1,261 cells) |
-| Checked-out world generation | `3` candidate (10,000 cells) |
+| Checked-out world generation | `3` candidate (10,000 cells; 2,000 resource-capable anchors) |
+| Checked-out economy candidate | resource authority v4 plus Gold expedition tables v5 (undeployed) |
 
 Bindings are generated from the local module and committed at
 [`src/spacetime/module_bindings/`](../src/spacetime/module_bindings/).
@@ -42,13 +45,14 @@ SpacetimeDB 2.6's default trailing-digit case conversion.
 
 `npm run stdb:verify-additive-migration` proves the checked-out schema locally
 against a disposable, loopback-only SpacetimeDB 2.6.1 server. It publishes the
-independently frozen v1, additive-v2, additive-v3, and additive-v4 fixtures plus
-the checked-out module with `--delete-data=never`; proves refs 0–18 and their
-rows remain exact while private `resource_account_v1` appends at ref 19; and
-exercises empty, synthetic non-empty, idempotence, resource-lifecycle,
-populated 1,261-to-10,000 expansion, target-retry, partial-state, and
-rollback-refusal cases. It never contacts Maincloud and is neither production
-inspection nor production publish or expansion approval.
+independently frozen v1, additive-v2, additive-v3, additive-v4, and additive-v5
+fixtures plus the checked-out module with `--delete-data=never`; proves refs
+0–18 and their rows remain exact while private `resource_account_v1` appends at
+ref 19 and Gold tables append at refs 20–24; and exercises empty, synthetic
+non-empty, idempotence, resource lifecycle, Gold table visibility/order,
+populated 1,261-to-10,000 expansion, target retry, partial state, and rollback
+refusal cases. It never contacts Maincloud and is neither production inspection
+nor production publish, expansion, or Gold-site setup approval.
 
 ## Identity and authorization
 
@@ -112,17 +116,24 @@ lookup.
 | `snap_scan_batch_v1` | private | Pending/finalized atomic scan-application transaction. |
 | `alpha_terms_acceptance_v1` | private | Immutable FID/version/time evidence for the current Alpha Terms gate. |
 | `resource_account_v1` | private | Candidate caller-scoped Food, Wood, Stone, and Gold account with authoritative settlement time and policy version. |
+| `gold_site_v1` | public | Candidate immutable catalog of exactly 24 canonical Tier-I Gold Mine coordinates, tier, and active state. |
+| `gold_node_occupation_v1` | public | Candidate identity-minimized Mine occupancy: site, public origin castle, phase, and server-derived lifecycle timestamps. |
+| `gold_expedition_v1` | private | Candidate FID-bound wagon lifecycle, route-derived timing, private settlement cursor, and accrued/credited Gold. |
+| `gold_expedition_idempotency_v1` | private | Candidate caller-request receipt that makes same-request dispatch bounded and exactly-once. |
+| `gold_expedition_schedule_v_1` | public-safe scheduler projection | Candidate minimal schedule target; it has only already-public lifecycle fields and is never a gameplay subscription surface. |
 
 The exact original table prefix remains
 `allowed_fid`, `world_tile`, `player`, `castle`, `admin_audit`; the deployed v2
 pair follows it unchanged. Protocol 3 appends exactly 12 tables at references
-7–18 and never rewrites that seven-table deployed prefix. The candidate appends
-one private table at exact ref 19. Generated browser bindings contain only the
-eight public table shapes and no accessor for any of the 12 private tables. The
-active browser subscribes to the six projections it
-needs: `world_tile`, `world_tile_meta_v1`, `player_v2`, `castle`, `realm_v1`, and
-`realm_profile_v1`. It does not subscribe to the frozen legacy `player` table or
-the slot-plan table.
+7–18 and never rewrites that seven-table deployed prefix. The Alpha 0.3.9
+candidate appends private `resource_account_v1` at ref 19, then the five Gold
+tables at refs 20–24. Generated browser bindings omit accessors for every
+private resource/Gold authority table. The active browser keeps its six
+inherited Realm projections—`world_tile`, `world_tile_meta_v1`, `player_v2`,
+`castle`, `realm_v1`, and `realm_profile_v1`—and may additionally subscribe only
+to the public `gold_site_v1` catalog and `gold_node_occupation_v1` projection.
+It does not subscribe to the frozen legacy `player`, the slot-plan table, or the
+public-safe scheduler projection.
 
 Authorization requires a consistent public `player_v2` row and matching private
 `player_ownership_v2` row, plus a complete founding graph. Partial, duplicate,
@@ -132,9 +143,11 @@ Trusted public profile and private wallet snapshots use separate reviewed
 Hermes mutation paths and are never accepted from browser input.
 
 The renderer's visual apron is not authoritative data. Static
-`resource-capable` and `core-capable` labels reserve deterministic future sites
-but create no resource, building, unit, combat, alliance, chat, or season
-authority in this slice.
+`resource-capable` and `core-capable` labels reserve deterministic capacity; in
+the Alpha 0.3.9 candidate, only the compiled Gold policy may select 24 passable
+resource-capable anchors for a separately approved server-side installation.
+Labels never create browser authority, a balance, a resource yield, a building,
+unit, combat, alliance, chat, or season state.
 
 ## Admission and bootstrap
 
@@ -246,6 +259,7 @@ admin_get_alpha_status_v2
 admin_get_alpha_status_v3
 admin_get_alpha_status_v4
 admin_get_fid_auth_epoch  # rollback compatibility only
+admin_seed_genesis_tier_i_gold_sites_v1
 admin_upsert_realm_profile_v1
 admin_replace_fid_wallet_snapshot_v1
 admin_begin_snap_scan_batch_v1
@@ -274,13 +288,16 @@ snapshot fails closed.
 `admin_get_alpha_status_v3` returns privacy-safe aggregate counts covering all
 19 deployed protocol-3 tables, all 12 appended references, occupied tiles,
 founder/orphan/invariant counts, exact static-world drift, protocol version, and
-world seed. It returns
-no FID, Identity, profile, address, receipt, token, or audit payload. The scan
-batch aggregate is likewise counts/totals/booleans only. Candidate
-`admin_get_alpha_status_v4` is a separate closed contract containing
+world seed. It returns no FID, Identity, profile, address, receipt, token, or
+audit payload. The scan batch aggregate is likewise counts/totals/booleans only.
+Candidate `admin_get_alpha_status_v4` is a separate closed contract containing
 founder/castle/Mark counts, resource-account coverage and invariants, protocol,
-and policy version for ref 19 without returning balances or identities. Legacy
-and v2 aggregate wires remain available for staged compatibility checks.
+and policy version for ref 19 without returning balances or identities. The
+Alpha 0.3.9 Gold candidate does not treat that v4 aggregate as a v5 rollout
+attestation: any future Gold-site installation needs a separately reviewed
+counts-only aggregate contract for the 24-site placement, occupation, and
+private-expedition invariants. Legacy and v2 aggregate wires remain available
+for staged compatibility checks.
 
 ## Maincloud and rollout safety
 
@@ -352,6 +369,15 @@ If preflight or publish reports any compatibility disagreement, stop; do not
 bypass the guard. A post-publish inspection failure is indeterminate and must
 be resolved read-only before any retry.
 
+Those v4-oriented flags are not a Gold-v5 rollout stage or a Gold-site seed
+approval. Before any Alpha 0.3.9 production consideration, the append-only v5
+schema, exact 24-site policy/digest, resource-account preservation,
+identity-free public occupancy projection, and private expedition invariants
+require their own reviewed read-only aggregate design and explicit owner
+authority. No current repository command is permission to infer or combine that
+approval with module publication, the resource backfill, the world transition,
+or Pages deployment.
+
 No earlier approval implies a later one. If any state or coordinate differs,
 stop and report it; never erase/recreate data, auto-advance an epoch, admit a
 FID, or fall back to the legacy resolver implicitly. See the
@@ -361,8 +387,11 @@ FID, or fall back to the legacy resolver implicitly. See the
 
 With the identity/session chain, generation-two protocol-3 world, deliberately
 admitted founders, and shared realm live at the recorded Alpha 0.3.2 backend
-coordinates, the checked-in Alpha 0.3.8 candidate prepares a bounded private
-resource loop and persistent placement capacity. It does not place resource
-nodes. Later versions may add those nodes, queues, units, scouting, combat,
-alliances, seasons, or activity reports. AI may produce flavor or summaries,
-but never write authority tables directly.
+coordinates, the checked-in Alpha 0.3.9 candidate carries the bounded private
+resource loop, 10,000-cell world definition, and one 24-site Gold Mine wagon
+pilot. Only completed server-derived wagon minutes may issue Gold; Food, Wood,
+and Stone retain the private terrain policy. These are undeployed candidate
+authorities, not a public release or a production state claim. No other resource
+nodes, queues, units, scouting, combat, alliances, seasons, or activity reports
+are introduced. AI may produce flavor or summaries, but never write authority
+tables directly.

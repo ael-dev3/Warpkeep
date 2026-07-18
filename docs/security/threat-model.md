@@ -61,20 +61,31 @@ completed the additive protocol-3 publication, deterministic seed, deliberate
 founding actions, and enabled shared-realm verification. Historical Alpha 0.2
 or Alpha 0.3.1 evidence is not proof of the current protocol-3 coordinates.
 
-## Undeployed Alpha 0.3.8 candidate boundary
+## Undeployed Alpha 0.3.9 candidate boundary
 
-The checkout adds one private resource table and an admin-only exact-state
-transition from the complete 1,261-cell generation-two world to the exact
-10,000-cell generation-three target. This source is not deployed authority.
-Routine seeding refuses the predecessor, the transition verifies the complete
-static and founding graphs plus an exact pre-backfill or ready resource state,
-and partial, mixed, duplicate, or altered state fails before mutation. Module
-publication and world expansion are separate owner approvals. The guarded
-operator requires the immutable database identity, an explicit command-line
+The checkout's Alpha 0.3.9 candidate inherits the exact 10,000-cell
+generation-three definition and 2,000 resource-capable anchors, then appends
+the private resource account at ref 19 and five Gold-expedition tables at refs
+20–24. A digest-pinned policy selects exactly 24 passable Tier-I Gold Mine
+sites; the public catalog and occupancy projection disclose only site/castle
+presentation and lifecycle timing, while FIDs, request keys, routes, accrual,
+and balances remain private. The browser can submit only a site id and bounded
+idempotency key. The server derives admission, Terms acceptance, castle,
+canonical route, one-wagon limit, timing, and the one-Gold-per-completed-minute
+rate for a maximum 30-day gathering phase.
+
+This source is not deployed authority. The 10,000-cell transition remains an
+admin-only exact-state operation: routine seeding refuses the predecessor, the
+transition verifies the complete static and founding graphs plus an exact
+pre-backfill or ready resource state, and partial, mixed, duplicate, or altered
+state fails before mutation. Module publication, resource backfill, world
+transition, Gold-site setup, and Pages deployment are separate owner approvals.
+The current v4 resource aggregate is not evidence of v5 Gold-site or expedition
+state. The guarded operator requires an immutable database identity, explicit
 confirmation, a fresh counts-only precondition, unchanged private dynamic
 counts, and a postcondition with exactly one new audit row. A timeout or failed
 postcondition is indeterminate and permits only bounded read-only inspection,
-not a blind retry.
+not a blind retry. Alpha 0.3.6 remains the verified public release.
 
 ## System and data flow
 
@@ -132,6 +143,8 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | SpacetimeDB identity and claims | Exact issuer, audience, token type, subject, role, FID, epoch, and time validation. |
 | Private whitelist, player-ownership binding, and admin audit data | Server-only confidentiality and authorized mutation; opaque OIDC identity must not enter public subscriptions. |
 | Persistent player, castle, and world state | Transactional integrity and module-authoritative ownership. |
+| Private resource accounts and Gold expeditions | Caller-scoped authoritative balances, routes, idempotency receipts, accrual cursors, and ownership; never a public inventory projection. |
+| Public Gold-site catalog and occupation | Canonical 24-site placement and identity-minimized occupied/available presentation; no FID, request key, balance, or accrued output. |
 | Minimum browser identity state | No bearer/family secret persistence; strict parsing, expiry, logout propagation, and minimum data. |
 | GitHub deployment authority | Least privilege, immutable workflow dependencies, reviewed artifact provenance. |
 | Pages custom domain | HTTPS integrity, canonical redirects, and controlled deployment. |
@@ -267,6 +280,28 @@ creation, and world state. Anonymous visitors do not open a database connection.
   and matching private `player_ownership_v2` row. Public-only, ownership-only, or
   mismatched state fails closed.
 
+### Alpha 0.3.9 candidate resource and Gold authority
+
+- Food, Wood, and Stone use the existing private server-time terrain policy.
+  Terrain Gold yield is zero: Tier-I Gold may be credited only from completed
+  server-derived wagon-gathering minutes.
+- The public `gold_site_v1` and `gold_node_occupation_v1` projections are
+  identity-minimized. The browser does not subscribe to private expedition,
+  idempotency, or resource-account rows, and the schedule projection is not a
+  gameplay subscription surface.
+- Dispatch validates the current private admission/Terms/castle/account graph,
+  canonical site and passable route, occupancy, per-castle wagon limit, and
+  account capacity in one transaction. Client time, route, rate, phase, reward,
+  balance, and ownership input is ignored because it is never accepted.
+- Arrival, expiry, and return are one-shot internal schedules. Replay, stale,
+  or out-of-order delivery is bounded by persisted phase/timestamp matching and
+  the private settlement cursor, so it cannot create another lease or credit a
+  completed minute twice.
+- The Gold Mine catalog is installed only by a separately approved Hermes-only
+  operation. It verifies the exact 24-site policy and rejects missing,
+  duplicate, noncanonical, impassable, or drifted rows rather than repairing
+  them. No local source, test, review, or merge authorizes that operation.
+
 ### Browser session lifecycle
 
 - **ENTER REALM** opens an accessible Alpha Terms gate before any anonymous
@@ -374,6 +409,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
 | Admin credential exfiltration through operator target override | Canonical destination allowlist and secret-free custom dry run | Operator host compromise remains out of application scope. |
 | Admin WebSocket remains privileged after JWT expiry | Reducer/procedure-side expiry check using authoritative time | Ensure every future admin entry point calls the common guard. |
 | Whitelist bypass or private-row disclosure | Module-side admission and v2 private ownership checks on every protected operation; private tables/bindings; exact-zero legacy-player publication gate | Public world/player-v2/castle projections remain intentionally observable. Arbitrary old clients can request the frozen public legacy player table, so it must remain empty; any nonzero preflight count blocks publication. |
+| Forged, parallel, or replayed Gold dispatch / duplicate Gold minute | Server-derived site, route, timing, rate, ownership, capacity, and one-wagon checks; site-idempotency receipt; public occupancy lease; replay-safe internal schedule and private settlement cursor | The Alpha 0.3.9 loop is undeployed. Any future v5 publication or Gold-site setup needs separate owner approval and fresh aggregate evidence; browser rendering remains non-authoritative. |
 | Browser supplies a spoofed profile or wallet link | Profile and wallet snapshots are accepted only through exact fresh Hermes authority, re-sanitized by the module, and separated into public presentation versus private attribution tables | Trusted Farcaster data can still be stale or incorrect; refresh and correction remain operator responsibilities. |
 | Ambiguous or forged burn credit | Two-provider `eth_chainId` and finalized-block agreement, exact raw-log agreement (including the opaque indexed word), reconciled upgrade history, per-event-block implementation/code/hash attestation, atomic wallet snapshot generations, unique indexed event/burn references, and a two-phase batch that advances its cursor only after exact receipt reconciliation | RPC/provider compromise, a contract upgrade, reorg evidence, attribution ambiguity, or a mismatched frozen total stops crediting and requires review; the module cannot independently query Ethereum, and recovery from an incorrectly planned pending batch remains a reviewed operator action. |
 | Wallet or burn receipt leaks into the browser | Private attribution, snapshot, receipt, batch, cursor, claim, Terms-acceptance, and authoritative Mark tables have no public subscription path; admin reconciliation returns counts only and public profiles contain aggregate values only | Public Ethereum events and public Farcaster wallet links remain observable at their original sources. Linking them to a FID inside Warpkeep creates private operator data that needs retention/deletion review. |

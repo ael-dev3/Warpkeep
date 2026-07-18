@@ -19,11 +19,12 @@ while the player authentication contract remains v2. That deployment does not
 attest an arbitrary checkout. Every future republish requires a fresh proof,
 bounded aggregate, recorded authority, and exact-source verification.
 
-> **This checkout contains an undeployed protocol-3 / generation-v3
-> candidate.** It preserves the complete 1,261-cell generation-v2 predecessor
-> and all 100 permanent castle slots, then adds 8,739 cells for an exact 10,000
-> persistent-cell world. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md)
-> for the exact shape, budgets, compatibility boundary, and rollout invariants.
+> **This checkout contains the undeployed Alpha 0.3.9 protocol-3 /
+> generation-v3 candidate.** It preserves the complete 1,261-cell generation-v2
+> predecessor and all 100 permanent castle slots, then adds 8,739 cells for an
+> exact 10,000 persistent-cell world and a separately approval-gated Gold Mine
+> pilot. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md) for
+> the exact world shape, budgets, compatibility boundary, and rollout invariants.
 
 ## Version compatibility
 
@@ -35,7 +36,7 @@ bounded aggregate, recorded authority, and exact-source verification.
 - Player authentication contract: `2` (unchanged)
 - Local world generation: `3` (undeployed; live predecessor is `2`)
 
-### Pending Alpha 0.3.7 Gold expeditions
+### Pending Alpha 0.3.9 Gold expeditions
 
 This checkout additionally contains an **unreleased**, append-only Gold wagon
 extension. It does not change the deployed protocol number or authorize a
@@ -84,11 +85,13 @@ From the repository root, `npm run stdb:verify-additive-migration` runs the
 pinned SpacetimeDB 2.6.1 CLI against disposable loopback-only databases. It
 starts from the independently frozen deployed seven-table checkpoint and proves
 the 12 protocol-3 tables at refs 7 through 18 remain exact while private
-`resource_account_v1` appends at ref 19 with `--delete-data=never`. The same
-loopback proof exercises an exact populated
-1,261-to-10,000 transition, ordinary-seed refusal, preserved founding links and
-realm timestamp, and a zero-write retry. It does not inspect or mutate
-Maincloud and is not production publish approval.
+`resource_account_v1` appends at ref 19 and the Gold candidate appends refs
+20–24 with `--delete-data=never`. The same loopback proof exercises an exact
+populated 1,261-to-10,000 transition, ordinary-seed refusal, preserved founding
+links and realm timestamp, a zero-write retry, deterministic Gold-site
+placement, public/private projection boundaries, and replay-safe lifecycle
+settlement. It does not inspect or mutate Maincloud and is not production
+publish approval.
 
 ## Authority and tables
 

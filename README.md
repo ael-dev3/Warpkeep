@@ -20,9 +20,9 @@ collection of disconnected screens. The near-term path is deliberate:
 
 The verified public alpha focuses on admission-gated founding, exploration,
 castle inspection, and the visual language of the Hegemony Lowlands. The
-undeployed 0.3.8 source candidate adds private Food, Wood, Stone, and Gold
-accounts, deterministic terrain collection, persistent world capacity for
-naturally placed nodes, and a bounded Gold Mine wagon expedition. Construction,
+undeployed 0.3.9 source candidate adds private Food, Wood, Stone, and Gold
+accounts, deterministic terrain collection, a 10,000-cell world with 2,000
+resource-capable anchors, and a bounded 24-site Gold Mine wagon expedition. Construction,
 upgrades, units, combat, alliances, chat, seasons, resource transfers, Marks
 spending, and rewards are not playable systems today. Alpha participation
 offers no financial return, airdrop, or promise of future value.
@@ -47,7 +47,7 @@ release truth lives in the [changelog](CHANGELOG.md),
 [release notes](docs/releases/), and exact-version in-game patch chronicle—not
 in this overview.
 
-The checked-in package is Alpha 0.3.8, an **undeployed candidate**. It retains
+The checked-in package is Alpha 0.3.9, an **undeployed candidate**. It retains
 the pending private Food, Wood, Stone, and Gold authority and expands the
 deterministic Genesis world definition to exactly 10,000 persistent cells. The
 existing 1,261 cells and all 100 close-outward founder slots remain exact, while
@@ -58,7 +58,7 @@ accrual, and balances remain private and server-controlled. Community Marks
 remains separate with no conversion or spending path. Production publication,
 owner-approved setup, aggregate verification, and exact Pages deployment remain
 explicitly approval-gated. See the
-[candidate release notes](docs/releases/alpha-0.3.8.md).
+[candidate release notes](docs/releases/alpha-0.3.9.md).
 
 ## Architecture
 
@@ -68,18 +68,19 @@ bridge; SpacetimeDB owns the shared Realm records. WebGL is an enhancement, not
 an authority boundary: the product retains keyboard, touch, reduced-motion, and
 non-WebGL paths.
 
-Live Genesis 001 currently retains 1,261 authoritative cells. The 0.3.8
+Live Genesis 001 currently retains 1,261 authoritative cells. The 0.3.9
 candidate defines exactly 10,000 persistent cells: a complete radius-57 hex
 disc plus 81 cells arranged as six balanced, contiguous side-centred arcs on
 ring 58. It preserves the 100 permanent founder slots and their close founding
 district. Production admission remains deliberately closed except for
 explicitly approved founders.
 
-In the 0.3.8 candidate, each resource account remains private to its
-authenticated caller. Peer balances never enter the public Realm subscription,
-and the browser cannot supply the FID, castle, terrain, rate, balance, or clock
-used for settlement. Invalid or unavailable resource authority withholds the
-Realm instead of falling back to browser state.
+In the 0.3.9 candidate, each resource account and expedition remain private to
+the authenticated caller. Peer balances never enter the public Realm
+subscription; public Gold-site occupancy exposes only the site, phase, timeline,
+and originating castle. The browser cannot supply the FID, castle, terrain,
+route, rate, balance, or clock used for settlement. Invalid or unavailable
+resource authority withholds the Realm instead of falling back to browser state.
 
 ## Run locally
 

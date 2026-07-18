@@ -2,10 +2,10 @@
 
 Warpkeep is an admission-gated persistent-world alpha. The current player
 experience is the verified Alpha 0.3.6 realm exploration and castle
-presentation release. The checked-in Alpha 0.3.8 candidate carries a bounded
-private resource loop and expands the persistent Genesis world definition to
-10,000 cells, but it is not deployed. Construction, spending, combat, resource
-nodes, and social systems are deliberately not live.
+presentation release. The checked-in Alpha 0.3.9 candidate carries a bounded
+private resource loop, the 10,000-cell Genesis world candidate, and a 24-site
+Gold Mine wagon pilot, but it is not deployed. Construction, spending, combat,
+and social systems are deliberately not live.
 
 ## Authority boundaries
 
@@ -20,7 +20,7 @@ nodes, and social systems are deliberately not live.
 - Public projections exist for display and navigation. They do not grant a
   player power to alter authoritative state.
 
-## Alpha 0.3.8 candidate resource and world boundary
+## Alpha 0.3.9 candidate resource, world, and Gold boundary
 
 The candidate appends one private `resource_account_v1` row per founded castle.
 It is keyed by FID, uniquely bound to the authoritative castle, and stores whole
@@ -28,11 +28,18 @@ Food, Wood, Stone, and Gold units, a server settlement cursor, revision, and
 exact policy version. Initial balances are 200, 150, 100, and 25 respectively;
 each balance is capped at 1,000,000.
 
-Production is a pure, versioned terrain policy evaluated in complete ten-minute
-quanta. The module derives caller FID, castle, terrain, rates, balances, and
-transaction time. `collect_resources_v1` accepts no input and settles only
-quanta after the stored cursor. A capped account still advances its cursor so
-discarded historic production cannot later reappear.
+Food, Wood, and Stone production is a pure, versioned terrain policy evaluated
+in complete ten-minute quanta. The module derives caller FID, castle, terrain,
+rates, balances, and transaction time. `collect_resources_v1` accepts no input
+and settles only quanta after the stored cursor. A capped account still advances
+its cursor so discarded historic production cannot later reappear.
+
+Gold has one separate issuance path: a completed server-authoritative wagon
+gathering minute. The dispatch accepts only a canonical site id and bounded
+idempotency key; the module derives admission, Terms, current castle, passable
+route, timing, rate, and one-wagon limit. Arrival, gathering, expiry, and
+return use replay-safe internal schedules. The browser cannot move a wagon,
+choose a clock, credit Gold, or reopen an occupied Mine.
 
 `get_my_resource_state_v1` accepts no FID. Admission, current player/castle
 ownership, exact Alpha Terms acceptance, the resource graph, and the separate
@@ -60,8 +67,15 @@ metadata rows, then updates the singleton realm while preserving its creation
 timestamp. Routine seeding refuses to perform this transition. Exact
 generation-two and generation-three snapshots are accepted during rollout;
 partial, duplicate, altered, or mixed states fail closed. Two thousand
-resource-capable metadata sites reserve future placement space only and do not
-create nodes or alter current resource yields.
+resource-capable metadata sites support a separate, digest-pinned Gold-site
+policy. That policy selects exactly 24 passable Tier-I Gold Mines; capacity
+metadata alone does not create a node or alter resource yields.
+
+Gold-site and Gold-occupation projections are public only to the extent needed
+to render a site, originating castle, phase, and server-derived lifecycle
+timeline. Expedition, retry, account, request, route, accrued-output, and
+balance records stay private to the owning caller. The public Realm projection
+therefore never leaks a FID or Gold balance.
 
 ## Authentication presentation
 
@@ -85,8 +99,9 @@ session authority.
 The player is built with React, TypeScript, Vite, Three.js/WebGL, and responsive
 CSS. The title, menu, and realm share quality preferences while preserving
 reduced-motion and non-WebGL fallbacks. Genesis readiness is validated before
-the Realm appears. In the 0.3.8 candidate, the caller's private resource
-projection must also validate before the public Realm subscription begins. The
+the Realm appears. In the 0.3.9 candidate, the caller's private resource
+projection and the public Gold-site projection must also validate before the
+public Realm subscription begins. The
 renderer uses the exact authoritative tile-key set, so the deliberate partial
 ring is never expanded into invented cells, and bounds semantic detail work
 deterministically as the radius-60 presentation envelope grows.
@@ -123,9 +138,10 @@ SpacetimeDB, player, or admission authority.
 
 The migration proof uses disposable protocol-3 fixtures. It verifies that the
 private resource table and versioned operations append without renumbering or
-deleting deployed schema, and separately proves the atomic 1,261-to-10,000
-world transition with preserved founding state and an idempotent target retry.
-It is not a production publication.
+deleting deployed schema, separately proves the atomic 1,261-to-10,000 world
+transition with preserved founding state and an idempotent target retry, and
+then verifies the additive Gold-site, occupation, expedition, retry, and
+schedule records. It is not a production publication.
 Existing founders require a separate exact-count, idempotent Hermes backfill;
 the v4 inspection returns only aggregate coverage and invariant counts, never
 FIDs or balances.
@@ -138,12 +154,12 @@ configuration, provenance, asset integrity, production exclusions, and additive
 backend compatibility before Pages publishes. Worker and SpacetimeDB operations
 remain separate release decisions.
 
-For Alpha 0.3.8, the safe production order is additive module publication,
+For Alpha 0.3.9, the safe production order is additive module publication,
 explicitly owner-approved founder backfill, explicit exact-state world
-expansion, generation-three and v4 counts-only verification, exact reviewed
-Pages deployment, then live build verification. Each mutable step is a separate
-approval boundary. Source completion or a client merge authorizes none of
-those production operations.
+expansion and Gold-site setup, generation-three plus aggregate verification,
+exact reviewed Pages deployment, then live build verification. Each mutable
+step is a separate approval boundary. Source completion or a client merge
+authorizes none of those production operations.
 
 ## Repository guide
 
@@ -157,4 +173,4 @@ those production operations.
 
 Start with the [README](../README.md), [product direction](design/warpkeep-direction.md),
 [roadmap](design/roadmap.md), [verified Alpha 0.3.6 release notes](releases/alpha-0.3.6.md),
-and [Alpha 0.3.8 candidate notes](releases/alpha-0.3.8.md).
+and [Alpha 0.3.9 candidate notes](releases/alpha-0.3.9.md).

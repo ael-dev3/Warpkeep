@@ -9,10 +9,16 @@
 > every future republish, binding change, secret change, deploy, or enable
 > requires its own authority and verification.
 
-The checked-in Alpha 0.3.8 candidate is not part of that deployed inventory. It
-adds one private resource table at schema ref 19 and defines a separately
-approval-gated generation-three target with exactly 10,000 world and metadata
-rows. Neither source presence nor local proof attests that production state.
+The checked-in Alpha 0.3.9 candidate is not part of that deployed inventory.
+It retains the separately approval-gated 10,000-cell generation-three target
+and its 2,000 resource-capable anchors, appends private
+`resource_account_v1` at schema ref 19, and appends five Gold-expedition tables
+at refs 20–24. Those tables define a public 24-site catalog and identity-free
+occupation projection, private expedition/idempotency authority, and a
+public-safe scheduler projection. Neither source presence nor local proof
+attests a production module publication, world transition, resource backfill,
+Gold-site setup, or deployment. Alpha 0.3.6 remains the verified public
+release.
 
 ## Repositories and workflows
 
@@ -178,8 +184,13 @@ browser never subscribes to it, and its required production count is zero.
 The deployed v2 schema appended two tables: public `player_v2`, which excludes
 opaque identity, and private `player_ownership_v2`, which contains the
 authorization binding. Protocol 3 later appended the 12 frozen tables at refs
-7–18. The checked-in candidate appends private `resource_account_v1` at exact
-ref 19 without changing those deployed declarations.
+7–18. The checked-in Alpha 0.3.9 candidate appends private
+`resource_account_v1` at exact ref 19, then `gold_site_v1`,
+`gold_node_occupation_v1`, `gold_expedition_v1`,
+`gold_expedition_idempotency_v1`, and `gold_expedition_schedule_v_1` at refs
+20–24 without changing any deployed declaration. Only the site catalog,
+occupation, and deliberately public-safe schedule projection are browser-table
+shapes; FID-bound expedition, retry, accrual, and balance state remain private.
 The private ownership table must have no generated browser table accessor.
 Bootstrap ignores optional profile-shaped JWT fields and explicitly inserts
 undefined `username`, `displayName`, and `pfpUrl`; profile changes require a
@@ -197,14 +208,18 @@ The live `admin_get_alpha_status_v3` procedure covers the complete founded
 protocol-3 graph without exposing row identities. Candidate
 `admin_get_alpha_status_v4` is a separate closed counts-only resource contract:
 founder/castle/Mark coverage, resource coverage and invariant counts, protocol,
-and policy version. The generation-two and generation-three world gates remain
-separate exact contracts; a mixed tuple fails closed.
+and policy version. It is not evidence of the Alpha 0.3.9 Gold-site catalog,
+occupation, or private expedition state; a Gold rollout needs its own reviewed
+aggregate contract and explicit owner approval. The generation-two and
+generation-three world gates remain separate exact contracts; a mixed tuple
+fails closed.
 
 `npm run stdb:verify-additive-migration` proves the exact prefix, append-only
-refs 0–19, empty and synthetic nonempty fixture preservation, idempotence,
-partial-state detection, guarded v3/v2 rollback refusal, the populated exact
-generation-two-to-three world transition, and the private resource lifecycle
-against disposable loopback databases with the pinned CLI. This local proof
-grants no production authority. If post-publish verification finds a mismatch,
-keep auth disabled and use a separately reviewed forward-compatible fix; never
-delete data, recreate the database, or roll the schema backward.
+refs 0–24, empty and synthetic nonempty fixture preservation, idempotence,
+partial-state detection, guarded v4/v3/v2 rollback refusal, the populated exact
+generation-two-to-three world transition, the private resource lifecycle, and
+the v5 Gold table visibility/order contract against disposable loopback
+databases with the pinned CLI. This local proof grants no production authority.
+If post-publish verification finds a mismatch, keep auth disabled and use a
+separately reviewed forward-compatible fix; never delete data, recreate the
+database, or roll the schema backward.

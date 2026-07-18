@@ -2,7 +2,6 @@ import {
   CANONICAL_WORLD_TILES,
   GENESIS_RESOURCE_SITE_COUNT,
   HEGEMONY_REALM_ID,
-  HEGEMONY_WORLD_GENERATION_VERSION,
   canonicalMetaForKey,
   deriveChannelSeed,
   hexDistance,
@@ -15,12 +14,17 @@ import {
  * procedural browser decoration: the same exact records are seeded into the
  * public `gold_site_v1` table by an explicit admin-only transition.
  */
-export const GOLD_SITE_POLICY_VERSION = 'genesis-001-tier1-gold-sites-v1';
+/**
+ * v2 pins the placement against the full generation-three 10,000-cell world.
+ * The earlier v1 candidate only saw the 250-anchor generation-two prefix and
+ * is intentionally not interchangeable with this unreleased policy.
+ */
+export const GOLD_SITE_POLICY_VERSION = 'genesis-001-tier1-gold-sites-v2';
 export const GENESIS_TIER_I_GOLD_SITE_COUNT = 24;
 export const GENESIS_TIER_I_GOLD_SITE_TIER = 1;
 export const GOLD_SITE_SELECTION_CHANNEL = 'genesis-v3-tier1-gold-site';
 export const GENESIS_TIER_I_GOLD_SITE_DIGEST =
-  '3765ebbacc5cd648fb80ed5182dab319b130e126e52c464d95b5714c13ea7d47';
+  '8e88fe301269bf581a48d3c79242d2c0302d8447510138b8ea17de6abdf40818';
 
 export type CanonicalGoldSiteV1 = Readonly<{
   siteId: string;
@@ -50,8 +54,9 @@ function candidateRank(q: number, r: number): number {
 
 /**
  * The source candidate pool is deliberately bounded to the already canonical
- * resource-capable layer. No new world coordinates, expansion tiles, or
- * browser-owned placement rules can enter through this selection.
+ * resource-capable layer, including the preserved generation-two district and
+ * the generation-three expansion. No browser-owned placement rules can enter
+ * through this selection.
  */
 const tierOneCandidates = Object.freeze(
   CANONICAL_WORLD_TILES.flatMap(tile => {
@@ -59,7 +64,6 @@ const tierOneCandidates = Object.freeze(
     if (
       meta === undefined
       || meta.realmId !== HEGEMONY_REALM_ID
-      || meta.generationVersion !== HEGEMONY_WORLD_GENERATION_VERSION
       || !meta.passable
       || meta.staticContentKind !== 'resource-capable'
     ) return [];

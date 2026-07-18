@@ -3,8 +3,9 @@
 ## Current state
 
 The verified public release is Alpha 0.3.6. The checked-in package is the
-undeployed Alpha 0.3.8 candidate, which includes the pending private resource
-authority and the generation-three world expansion. The public menu build stamp
+undeployed Alpha 0.3.9 candidate, which includes private resource authority,
+the generation-three world expansion, and the pending Gold Mine wagon loop. The
+public menu build stamp
 identifies the exact deployed source. An annotated
 release tag is created only after the matching protected-main deployment passes
 exact-build verification. Do not turn the disabled local QA observer into a
@@ -166,7 +167,7 @@ Start with:
   record, immutable digest-bearing names, geometry/image boundary, and
   visual-only scope. Neither family grants a renderer-derived world coordinate,
   site, route, reducer, account, balance, seed, deploy, or Gold/Marks coupling.
-  The 0.3.8 candidate defines 10,000 cells and 2,000 resource-capable anchors;
+  The 0.3.9 candidate defines 10,000 cells and 2,000 resource-capable anchors;
   the reviewed Gold-site policy, never capacity metadata alone, determines any
   site placement.
 - The Hegemony Supply Wagon LODs under `public/models/hegemony/` are pinned by
@@ -208,12 +209,14 @@ verification succeed; tag only that verified deployment commit.
 
 ## Next product work
 
-The founding slice is live. The checked-in candidate prepares server-derived
-resources and persistent capacity for future naturally placed resource nodes;
-those nodes are not implemented. The next deliberate gameplay slice after a
-verified resource release is deterministic construction queues. Marks apply,
-spending, production crediting, and scheduler installation remain unavailable
-until their separate transport, recovery proof, review, and owner approval are
-complete. Each slice needs deterministic reducers, generated-binding parity,
-isolated tests, exact-head deployment, production verification, and rollback
-evidence before expansion.
+The founding slice is live. The checked-in 0.3.9 candidate adds one bounded
+server-derived Gold Mine loop to the resource authority: 24 digest-pinned public
+sites, private expeditions, and one authoritative wagon per castle. It remains
+undeployed and requires separately approved publication, setup, verification,
+and deployment. The next deliberate gameplay slice after a verified resource
+release is deterministic construction queues. Marks spending and every further
+production or scheduler capability remain unavailable until their separate
+transport, recovery proof, review, and owner approval are complete. Each slice
+needs deterministic reducers, generated-binding parity, isolated tests,
+exact-head deployment, production verification, and rollback evidence before
+expansion.

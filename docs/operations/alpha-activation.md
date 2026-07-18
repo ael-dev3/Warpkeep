@@ -3,6 +3,11 @@
 This runbook preserves the Alpha 0.2 and Alpha 0.3.1 recovery records and carries
 their approval boundaries forward to the current protocol-3 realm.
 
+For player-facing release claims, Alpha 0.3.6 remains the verified public
+release. The Alpha 0.3.2 backend coordinates recorded below are historical
+protocol-3 deployment evidence, not a claim that the checked-in Alpha 0.3.9
+candidate has been published, seeded, or deployed.
+
 > **Alpha 0.3.2 is live on backend protocol 3.** The additive schema was
 > published to the existing Maincloud database with deletion prohibited, the
 > deterministic 1,261-cell Genesis world and 100 close-outward castle slots were
@@ -231,6 +236,11 @@ exact 1,261-cell generation-two predecessor remains; use `expanded` only after
 the separately approved 10,000-cell transition passes its independent
 checkpoint. The publisher never infers one lifecycle from the other.
 
+These v4 resource/world flags do not describe or attest the Alpha 0.3.9 Gold
+candidate. They do not prove that refs 20–24 are present, that the canonical
+24-site catalog is installed, or that any public occupation/private expedition
+state is valid. They must never be treated as a Gold-site seed approval.
+
 The wrapper supplies the Hermes credential only in parent memory. The publisher
 passes it to the protected inspection child over stdin and forwards neither the
 secret nor the three expected counts in child arguments or environment. It
@@ -374,9 +384,10 @@ account counts and policy fields unchanged across the world transaction.
 
 An exact target retry exists at the reducer layer only for recovery proof. The
 guarded operator deliberately refuses to invoke it when the read-only
-precondition already reports generation three. Module publication, resource
-backfill, world expansion, and Pages deployment are four separate approval
-boundaries.
+precondition already reports generation three. At this v4 preparation point,
+module publication, resource backfill, world expansion, and Pages deployment
+are four separate approval boundaries. The later Alpha 0.3.9 Gold-site setup is
+an additional, independent boundary.
 
 ### Prepared post-backfill resource readiness checkpoint (not approval)
 
@@ -385,7 +396,8 @@ mutation command's result as the only evidence. The private Keychain wrapper
 must supply the Hermes credential in memory and run this independent, read-only
 checkpoint with the separately reviewed current counts:
 
-The final Alpha 0.3.8 combined-release checkpoint is:
+The v4 resource/world checkpoint that must precede—but cannot stand in for—any
+Alpha 0.3.9 Gold candidate operation is:
 
 ```sh
 npm run verify:alpha-production -- \
@@ -399,9 +411,9 @@ npm run verify:alpha-production -- \
 
 If resource backfill is approved and performed before the separate world
 transition, use `--require-genesis-v3-founded-aggregate` for that immediate
-post-backfill read. After expansion, rerun the final checkpoint above with
-`--require-genesis-generation-v3-founded-aggregate`. Never claim final candidate
-readiness from a predecessor-world resource check.
+post-backfill read. After expansion, rerun the v4 resource/world checkpoint
+above with `--require-genesis-generation-v3-founded-aggregate`. Never claim
+Alpha 0.3.9 candidate readiness from a predecessor-world resource check.
 
 The new v4 flag is invalid without the founded protocol-v3 gate and all three
 explicit expectations. The verifier constructs and validates one exact
@@ -427,6 +439,28 @@ fields fail closed, and child output is never mirrored. A failure leaves the
 post-backfill outcome indeterminate: stop all further mutations and establish
 state through a fresh bounded read-only inspection. Do not retry the backfill
 on the assumption that it failed.
+
+### Prepared Alpha 0.3.9 Gold Mine candidate checkpoint (not approved)
+
+Alpha 0.3.9 inherits the separately approval-gated 10,000-cell generation-three
+world definition and its 2,000 resource-capable anchors. It adds an append-only
+v5 Gold Mine wagon candidate: exactly 24 digest-pinned, passable Tier-I sites;
+identity-minimized public site/occupation projections; and private
+FID/idempotency/settlement authority. Food, Wood, and Stone retain the private
+terrain policy; Gold can be credited only for completed server-derived wagon
+minutes at the reviewed one-Gold-per-minute rate during the bounded 30-day
+gathering phase.
+
+This runbook deliberately supplies no Gold publication or seed command. Before
+any owner considers a production operation, a separately reviewed update must
+define an exact read-only v5 aggregate contract covering the append-only schema,
+resource-account preservation, 24-site policy and placement digest, zero or
+valid occupation state, and private expedition invariants without returning
+FIDs or balances. It must then require distinct explicit approvals for the
+additive module publication, any resource backfill, world transition, Gold-site
+setup, Pages deployment, and live verification. A review, local migration
+proof, merge, or successful v4 checkpoint is not authority for any of those
+mutations.
 
 `admin_get_fid_auth_epoch` remains admin-only rollback compatibility. Do not
 configure new v2 issuance or refresh to use it.

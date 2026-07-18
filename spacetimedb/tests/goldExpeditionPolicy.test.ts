@@ -69,7 +69,7 @@ test('the Tier-I pilot is exactly 24 active resource-capable Genesis sites with 
     assert.equal(meta?.passable, true);
     assert.equal(meta?.staticContentKind, 'resource-capable');
   }
-  assert.equal(GOLD_SITE_POLICY_VERSION, 'genesis-001-tier1-gold-sites-v1');
+  assert.equal(GOLD_SITE_POLICY_VERSION, 'genesis-001-tier1-gold-sites-v2');
 });
 
 test('a wagon route uses the canonical passable graph rather than a browser-supplied distance', () => {

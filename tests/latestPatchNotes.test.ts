@@ -18,43 +18,47 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: 'CANDIDATE · 18 JUL 2026',
-      title: 'GENESIS WORLD EXPANSION'
+      title: 'GENESIS GOLD EXPEDITIONS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /existing generation-two cell.*100 close-outward permanent castle slots.*8,739 outer cells.*without moving a founder/i
+      /10,000 persistent cells.*2,000 resource-capable anchors.*original founder slot preserved/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /complete radius-57 disc.*81 balanced ring-58 boundary cells.*radius-60 visual apron/i
+      /Food, Wood, and Stone.*server-time terrain collection.*Gold.*one issuance path.*wagon-gathering minute/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /2,000 cells.*future resource-capable sites.*no node.*marker.*collection entitlement.*reward mechanic/i
+      /Twenty-four deterministic Tier-I Gold Mines.*passable resource-capable Genesis anchors.*placement digest/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /SpacetimeDB.*1,261-to-10,000.*atomically.*admin-only exact-state check.*partial or mixed worlds fail closed.*target retry writes nothing/i
+      /dispatch.*site id.*idempotency key.*server derives.*one-wagon limit.*1 Gold\/minute.*30-day gathering window.*browser never moves a wagon or credits Gold/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /complete generation-two or generation-three snapshots.*deterministic bounded work/i
+      /public Mine occupancy timeline.*origin castle.*FIDs.*request keys.*routes.*accrued output.*balances stay private.*whole minutes exactly once/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Alpha 0.3.7.*Food, Wood, Stone, and Gold authority.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
+      /Gold Mines.*Hegemony supply wagons.*provenance-pinned High, Balanced, and Compact assets.*nearby-only animation.*safe marker fallback/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /Community Marks remains separate.*no conversion.*transfer.*credit.*spending.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('undeployed candidate');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'Production module publication'
+      'additive module publication'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'world expansion'
+      'owner-approved resource and Gold-site setup'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'resource backfill'
+      'aggregate verification'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'future resource-node placement'
+      'exact Pages deployment'
     );
     expect(getLatestPatchNotes('0.3.7')?.title).toBe('GENESIS RESOURCE AUTHORITY');
+    expect(getLatestPatchNotes('0.3.8')?.title).toBe('GENESIS WORLD EXPANSION');
     expect(getLatestPatchNotes('0.3.6')?.title).toBe('REALM READABILITY & STABILITY');
     expect(getLatestPatchNotes('0.3.5')?.title).toBe('GAME-READY CASTLE REFRESH');
     expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');

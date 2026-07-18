@@ -1,5 +1,11 @@
 import { schema, table, t } from 'spacetimedb/server';
 import { Timestamp } from 'spacetimedb';
+import {
+  CANONICAL_CASTLE_SLOTS,
+  GENESIS_GENERATION_V2_REALM,
+  GENESIS_GENERATION_V2_WORLD_TILE_META,
+  GENESIS_GENERATION_V2_WORLD_TILES,
+} from '../../../src/world';
 
 const allowedFid = table(
   { name: 'allowed_fid' },
@@ -444,6 +450,101 @@ export const runGoldExpeditionScheduleV1 = db.reducer(
 
 const FIXTURE_RESOURCE_QUANTUM_MICROS = 600_000_000n;
 const FIXTURE_RESOURCE_POLICY_VERSION = 'genesis-resource-yield-v1';
+const FIXTURE_MARK_POLICY_VERSION = 'snap-current-linked-wallet-1to1-v1';
+const FIXTURE_GENERATION_V2_FOUNDER_FID = 730_001n;
+
+/**
+ * Disposable-loopback-only exact predecessor for the generation-v3 expansion
+ * proof. The v5 fixture retains the Gold append so swapping it in for bounded
+ * inspection never attempts a destructive schema downgrade.
+ */
+export const fixtureSeedGenesisGenerationV2 = db.reducer(
+  { name: 'fixture_seed_genesis_generation_v2' },
+  ctx => {
+    if (
+      ctx.db.worldTile.count() !== 0n
+      || ctx.db.realmV1.count() !== 0n
+      || ctx.db.worldTileMetaV1.count() !== 0n
+      || ctx.db.castleSlotV1.count() !== 0n
+      || ctx.db.castle.count() !== 0n
+      || ctx.db.castleSlotClaimV1.count() !== 0n
+      || ctx.db.allowedFid.count() !== 0n
+      || ctx.db.realmProfileV1.count() !== 0n
+      || ctx.db.markAccountV1.count() !== 0n
+      || ctx.db.resourceAccountV1.count() !== 0n
+      || ctx.db.goldSiteV1.count() !== 0n
+      || ctx.db.goldNodeOccupationV1.count() !== 0n
+      || ctx.db.goldExpeditionV1.count() !== 0n
+      || ctx.db.goldExpeditionIdempotencyV1.count() !== 0n
+      || ctx.db.goldExpeditionScheduleV1.count() !== 0n
+    ) throw new Error('FIXTURE_GENERATION_V2_NOT_EMPTY');
+
+    for (const tile of GENESIS_GENERATION_V2_WORLD_TILES) {
+      ctx.db.worldTile.insert({ ...tile, occupantCastleId: undefined });
+    }
+    ctx.db.realmV1.insert({ ...GENESIS_GENERATION_V2_REALM, createdAt: ctx.timestamp });
+    for (const metadata of GENESIS_GENERATION_V2_WORLD_TILE_META) {
+      ctx.db.worldTileMetaV1.insert(metadata);
+    }
+    for (const slot of CANONICAL_CASTLE_SLOTS) ctx.db.castleSlotV1.insert(slot);
+
+    const foundingSlot = CANONICAL_CASTLE_SLOTS[0]!;
+    const castle = ctx.db.castle.insert({
+      castleId: 0n,
+      ownerFid: FIXTURE_GENERATION_V2_FOUNDER_FID,
+      tileKey: foundingSlot.tileKey,
+      q: foundingSlot.q,
+      r: foundingSlot.r,
+      level: 1,
+      name: 'Migration Fixture Keep',
+      createdAt: ctx.timestamp,
+    });
+    const tile = ctx.db.worldTile.key.find(foundingSlot.tileKey);
+    if (tile === null) throw new Error('FIXTURE_GENERATION_V2_TILE_MISSING');
+    ctx.db.worldTile.key.update({ ...tile, occupantCastleId: castle.castleId });
+    ctx.db.castleSlotClaimV1.insert({
+      slotId: foundingSlot.slotId,
+      ownerFid: FIXTURE_GENERATION_V2_FOUNDER_FID,
+      castleId: castle.castleId,
+      claimedAt: ctx.timestamp,
+      generationVersion: foundingSlot.generationVersion,
+    });
+    ctx.db.allowedFid.insert({
+      fid: FIXTURE_GENERATION_V2_FOUNDER_FID,
+      enabled: true,
+      authEpoch: 1,
+      invitedAt: ctx.timestamp,
+      invitedBy: 'migration-fixture',
+      note: 'generation-v2 world expansion fixture',
+    });
+    ctx.db.realmProfileV1.insert({
+      fid: FIXTURE_GENERATION_V2_FOUNDER_FID,
+      canonicalUsername: undefined,
+      displayName: undefined,
+      pfpUrl: undefined,
+      publicBio: undefined,
+      admittedAt: ctx.timestamp,
+      firstAuthenticatedAt: undefined,
+      profileUpdatedAt: ctx.timestamp,
+      publicStatus: 'founded',
+      communityStatsVisible: false,
+      totalSnapBurnedMicros: undefined,
+      marksEarnedMicros: undefined,
+      marksSpentMicros: undefined,
+      marksBalanceMicros: undefined,
+      marksPolicyVersion: undefined,
+    });
+    ctx.db.markAccountV1.insert({
+      fid: FIXTURE_GENERATION_V2_FOUNDER_FID,
+      totalSnapBurnedMicros: 0n,
+      earnedMicros: 0n,
+      spentMicros: 0n,
+      balanceMicros: 0n,
+      policyVersion: FIXTURE_MARK_POLICY_VERSION,
+      updatedAt: ctx.timestamp,
+    });
+  },
+);
 
 /**
  * Disposable-loopback-only clock fixture. This schema package is never a
