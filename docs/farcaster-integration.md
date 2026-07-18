@@ -3,7 +3,7 @@
 Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
 App, Quick Auth, wallet connection, or a client-only permanent identity system.
 
-> **Protocol-3 Alpha 0.3.2 is active; admission remains gated.** The additive
+> **Protocol-3 Alpha 0.3.8 is active; admission remains gated.** The additive
 > module, expanded Genesis 001, reviewed Worker, and exact-main frontend are live
 > at their separately recorded production coordinates. The Worker includes the
 > additive `SessionFamily` migration and independent managed session-cookie
@@ -243,7 +243,7 @@ VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 
 The Worker configuration is documented in
 [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its
-checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.2
+checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.8
 production override is true. Before any future enable, the server-only v2
 configuration attestation must match the reviewed issuer, origins, SIWF
 coordinates, key ID, Maincloud coordinates, S256 binding, 600-second access
@@ -262,8 +262,9 @@ explicit `ENVIRONMENT=development` bridge remains configurable for local tests.
 ## Rollout and approval gates
 
 The v2 authentication/session rollout remains the preserved authority boundary
-under live protocol 3. Alpha 0.3.2 completed the additive module, expanded seed,
-founding, frontend, and public-entry gates at its recorded exact coordinates.
+under live protocol 3. Alpha 0.3.8 retains the additive module, founding,
+frontend, and public-entry gates at its recorded exact coordinates and adds the
+separately approved private-resource and generation-three world boundaries.
 The module preserves the exact five-table legacy prefix plus the deployed v2
 player/ownership pair, then appends twelve protocol-3 tables. The recorded
 guarded publication first ran
@@ -282,7 +283,7 @@ no compatibility override. Any future republish requires fresh approval plus
 explicit canonical founder/player/Terms expectations from a private current
 inspection. The guarded publisher must verify the complete founded protocol-3
 aggregate against the immutable database identity before and after publication.
-The checked-in candidate also requires explicit resource-lifecycle and Genesis
+The guarded publisher also requires explicit resource-lifecycle and Genesis
 world stages; neither may be inferred from the other or from local source.
 Historical counts never substitute for a fresh matching aggregate.
 
@@ -290,8 +291,9 @@ The recorded checkpoints also completed the additive session-family Durable
 Object migration, independent managed cookie-secret setup, paused Worker and
 frontend deployments, exact protocol-3 aggregates, resolver, discovery/JWKS,
 retired-v1, ownership isolation, configuration attestation, ordered
-public-auth/shared-realm enablement, Genesis 001's 1,261 cells and 100
-close-outward slots, and deliberately approved founder admissions. Founder
+public-auth/shared-realm enablement, Genesis 001's 10,000 generation-three cells
+and 100 close-outward slots, the complete private resource-account graph, and
+deliberately approved founder admissions. Founder
 identities are intentionally omitted here. Further admissions, profile/wallet
 updates, credits, and world mutations remain separate owner-approved actions.
 Marks apply and spending remain disabled, and no scheduler is installed.

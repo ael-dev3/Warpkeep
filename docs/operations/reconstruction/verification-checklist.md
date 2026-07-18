@@ -61,7 +61,9 @@ production approval.
 
 ## Hosted checks
 
-Required final source checks are Pages, Verify, and CodeQL for the exact candidate/main commit. Inspect failures rather than rerunning blindly. Resolve actionable review threads before merge.
+Required final source checks are Pages, Verify, and CodeQL for the exact
+release/main commit. Inspect failures rather than rerunning blindly. Resolve
+actionable review threads before merge.
 
 ## Production
 
@@ -85,13 +87,14 @@ Required final source checks are Pages, Verify, and CodeQL for the exact candida
   consistent v2 pairs, either orphan class, castles, allowlist rows, and enabled
   FIDs; protocol `2`; seed `3445214658`; and seed name
   `HEGEMONY_GENESIS_001`. `auditEntries` may be any nonnegative aggregate count.
-- For the current live generation-two realm, use
-  `--require-genesis-v3-founded-aggregate` with exact private expected founder,
-  activated-player, and Terms-acceptance counts. Require 1,261 world/meta rows,
-  one realm, 100 slots, matching founder-owned occupied/claim/castle/profile/
-  Mark/admission counts, matching player/ownership counts, and zero orphan,
-  drift, reconciliation, ambiguity, and invariant counters.
-- Only after the separately approved world transition, use
+- For the historical generation-two predecessor or a staged recovery before
+  expansion, use `--require-genesis-v3-founded-aggregate` with exact private
+  expected founder, activated-player, and Terms-acceptance counts. Require 1,261
+  world/meta rows, one realm, 100 slots, matching founder-owned occupied/claim/
+  castle/profile/Mark/admission counts, matching player/ownership counts, and
+  zero orphan, drift, reconciliation, ambiguity, and invariant counters. This is
+  not current final release evidence.
+- For the current live realm, use
   `--require-genesis-generation-v3-founded-aggregate` and require exactly
   10,000 world/meta rows, generation `3`, maximum authoritative ring `58`,
   render radius `60`, the same 100 slots, the reviewed private dynamic counts,

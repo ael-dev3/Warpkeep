@@ -1,12 +1,13 @@
-# Warpkeep threat model — historical baseline and active Alpha 0.3.2 boundary
+# Warpkeep threat model — historical baseline and active Alpha 0.3.8 boundary
 
-Status: the Alpha 0.2 and Alpha 0.3.1 evidence remains historical. Alpha 0.3.2
-is live on backend protocol 3 at its separately recorded production
-coordinates: the deterministic 1,261-cell Genesis world and 100 close-outward
-slots are seeded, deliberately admitted founders hold permanent castles, and
-Worker auth plus shared-alpha realm entry are enabled. Exact founder counts and
-identities remain private. This is not an OWASP ASVS certification or a
-penetration-test attestation.
+Status: the Alpha 0.2, Alpha 0.3.1, and Alpha 0.3.2 evidence remains historical.
+Alpha 0.3.8 is live on backend protocol 3 at its separately recorded production
+coordinates: the deterministic 10,000-cell Genesis world and 100 close-outward
+slots are live, deliberately admitted founders hold permanent castles, and
+Worker auth plus shared-alpha realm entry are enabled. Caller-private resource
+accounts are backfilled for the complete founding graph. Exact founder counts,
+identities, and balances remain private. This is not an OWASP ASVS certification
+or a penetration-test attestation.
 
 ## Scope and revision
 
@@ -30,7 +31,7 @@ deployment, configuration, aggregate, and owner-canary coordinates. It does not
 make an arbitrary checkout or later deployment trusted, and every future
 activation must repeat the fail-closed gates.
 
-## Deployed Alpha 0.3.2 status and continuing authority boundary
+## Deployed Alpha 0.3.8 status and continuing authority boundary
 
 The deployed protocol-3 target retains exact `auth_version: 2`, positive auth
 epochs, tokenless pending sessions, a `__Host-` session cookie, server-side
@@ -41,7 +42,7 @@ and issues only the verified FID. SpacetimeDB freezes the deployed public
 `player_v2` plus private
 `player_ownership_v2`. Worker `PUBLIC_AUTH_ENABLED` and frontend
 `VITE_WARPKEEP_SHARED_ALPHA_ENABLED` are true only at the recorded enabled
-Alpha 0.3.2 production coordinates; the checked-in Worker default remains
+Alpha 0.3.8 production coordinates; the checked-in Worker default remains
 false so a normal redeploy fails closed.
 
 The repository includes a pinned SpacetimeDB 2.6.1 loopback rehearsal proving
@@ -61,15 +62,16 @@ completed the additive protocol-3 publication, deterministic seed, deliberate
 founding actions, and enabled shared-realm verification. Historical Alpha 0.2
 or Alpha 0.3.1 evidence is not proof of the current protocol-3 coordinates.
 
-## Undeployed Alpha 0.3.8 candidate boundary
+## Deployed Alpha 0.3.8 resource and world boundary
 
-The checkout adds one private resource table and an admin-only exact-state
+Alpha 0.3.8 adds one private resource table and used an admin-only exact-state
 transition from the complete 1,261-cell generation-two world to the exact
-10,000-cell generation-three target. This source is not deployed authority.
+10,000-cell generation-three target. The checkout alone is not deployed
+authority.
 Routine seeding refuses the predecessor, the transition verifies the complete
 static and founding graphs plus an exact pre-backfill or ready resource state,
 and partial, mixed, duplicate, or altered state fails before mutation. Module
-publication and world expansion are separate owner approvals. The guarded
+publication and world expansion used separate owner approvals. The guarded
 operator requires the immutable database identity, an explicit command-line
 confirmation, a fresh counts-only precondition, unchanged private dynamic
 counts, and a postcondition with exactly one new audit row. A timeout or failed
@@ -468,7 +470,7 @@ creation, and world state. Anonymous visitors do not open a database connection.
   castle, admission, and v2 pair counts come from a fresh privacy-safe aggregate,
   not the historical empty checkpoint. Containment leaves additive tables inert
   and uses a forward fix rather than destructive rollback. The current Alpha
-  0.3.2 coordinates progressed through separately recorded gates to an enabled
+  0.3.8 coordinates progressed through separately recorded gates to an enabled
   shared realm; that state is not reusable authorization for a future deploy.
 - Public v1 challenge/exchange routes remain retired after Worker cutover; the
   legacy admin raw-epoch procedure exists only for rollback compatibility and
@@ -506,7 +508,8 @@ additive Durable Object migration, independent managed cookie secret, paused
 Worker/frontend deployments, configuration attestation, ordered enable gates,
 and owner QA. Alpha 0.3.2 subsequently completed the separately authorized
 protocol-3 publication, 1,261-cell seed, deliberate founder admissions, and
-shared-realm activation. Future recovery still begins with both switches false
-and repeats each applicable gate against fresh current-state aggregates. This
-document does not authorize a future republish, secret change, deploy, data
-mutation, or enable.
+shared-realm activation. Alpha 0.3.8 later completed the separately approved
+resource publication/backfill and exact 10,000-cell world expansion. Future
+recovery still begins with both switches false and repeats each applicable gate
+against fresh current-state aggregates. This document does not authorize a
+future republish, secret change, deploy, data mutation, or enable.

@@ -253,6 +253,69 @@ describe('Farcaster OIDC bridge v2 client', () => {
     expect(body).not.toHaveProperty('bindingChallenge');
   });
 
+  it('allows a completed proof exchange to use its bounded 20-second verification window', async () => {
+    vi.useFakeTimers({ now: NOW });
+    let requestSignal: AbortSignal | undefined;
+    const fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      requestSignal = init?.signal ?? undefined;
+      return new Promise<Response>((resolve) => {
+        setTimeout(() => resolve(jsonResponse(authorized())), 14_000);
+      });
+    }) as unknown as FarcasterOidcBridgeFetch;
+    const result = createBridge(fetch).exchangeCompletedSignIn(exchangeRequest());
+
+    await vi.advanceTimersByTimeAsync(13_999);
+    expect(requestSignal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(result).resolves.toEqual(authorized());
+    expect(requestSignal?.aborted).toBe(false);
+  });
+
+  it('aborts a completed proof exchange after its bounded 20-second deadline', async () => {
+    vi.useFakeTimers({ now: NOW });
+    let requestSignal: AbortSignal | undefined;
+    const fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
+      new Promise<Response>((_resolve, reject) => {
+        requestSignal = init?.signal ?? undefined;
+        const rejectAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+        if (requestSignal?.aborted) rejectAbort();
+        else requestSignal?.addEventListener('abort', rejectAbort, { once: true });
+      })
+    )) as unknown as FarcasterOidcBridgeFetch;
+    const result = createBridge(fetch).exchangeCompletedSignIn(exchangeRequest());
+    const rejection = expect(result).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(requestSignal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(2);
+
+    expect(requestSignal?.aborted).toBe(true);
+    await rejection;
+  });
+
+  it('keeps non-exchange bridge requests on the 10-second deadline', async () => {
+    vi.useFakeTimers({ now: NOW });
+    let requestSignal: AbortSignal | undefined;
+    const fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => (
+      new Promise<Response>((_resolve, reject) => {
+        requestSignal = init?.signal ?? undefined;
+        const rejectAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+        if (requestSignal?.aborted) rejectAbort();
+        else requestSignal?.addEventListener('abort', rejectAbort, { once: true });
+      })
+    )) as unknown as FarcasterOidcBridgeFetch;
+    const result = createBridge(fetch).refreshSession();
+    const rejection = expect(result).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(requestSignal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(2);
+
+    expect(requestSignal?.aborted).toBe(true);
+    await rejection;
+  });
+
   it('accepts the exact pending-admission variant without token keys', async () => {
     vi.useFakeTimers({ now: NOW });
     const bridge = createBridge(createFetch(pending()));

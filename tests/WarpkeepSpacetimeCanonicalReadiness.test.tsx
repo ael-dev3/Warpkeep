@@ -10,6 +10,7 @@ vi.mock('../src/farcaster/FarcasterAuthProvider', () => ({
 
 import {
   CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS,
+  RESOURCE_OPERATION_TIMEOUT_MILLISECONDS,
   WarpkeepSpacetimeProvider,
   useWarpkeepBackend,
   type WarpkeepBackendRuntime
@@ -80,6 +81,16 @@ function authenticatedFarcaster(fid = 12_345, sequence = 1) {
 }
 
 type RuntimeHarness = ReturnType<typeof createRuntimeHarness>;
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
 
 function createRuntimeHarness() {
   let observed: ((snapshot: WarpkeepRealmSnapshot) => void) | undefined;
@@ -167,6 +178,57 @@ afterEach(() => {
 });
 
 describe('Warpkeep canonical realm readiness lifecycle', () => {
+  it('starts the expanded public subscription while the private resource read is pending', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    const pendingResources = deferred<ReturnType<typeof createReadyResourceState>>();
+    vi.mocked(harness.runtime.readResourceState).mockReturnValueOnce(pendingResources.promise);
+    renderProvider(harness);
+
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms'));
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await waitFor(() => expect(harness.runtime.subscribeRealm).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('phase').textContent).toBe('opening-realm');
+
+    act(() => harness.applied()?.());
+    expect(screen.getByTestId('phase').textContent).toBe('opening-realm');
+
+    await act(async () => {
+      pendingResources.resolve(createReadyResourceState(12_345));
+      await pendingResources.promise;
+    });
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+  });
+
+  it('contains a pending resource deadline after a synchronous subscription failure', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    const pendingResources = new Promise<never>(() => undefined);
+    const unsubscribe = vi.fn();
+    vi.mocked(harness.runtime.readResourceState).mockReturnValueOnce(pendingResources);
+    vi.mocked(harness.runtime.subscribeRealm).mockImplementationOnce(
+      (_connection, _onApplied, onError) => {
+        onError();
+        return { unsubscribe } as never;
+      }
+    );
+    renderProvider(harness);
+
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_OPERATION_TIMEOUT_MILLISECONDS);
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(harness.connection.disconnect).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores observer snapshots until onApplied validates one complete canonical snapshot', async () => {
     mockedFarcaster.current = authenticatedFarcaster();
     const harness = createRuntimeHarness();

@@ -202,7 +202,7 @@ afterEach(() => {
 });
 
 describe('Warpkeep private resource lifecycle', () => {
-  it('fails closed before installing the public Realm subscription when the private read fails', async () => {
+  it('fails closed and tears down the concurrent public subscription when the private read fails', async () => {
     mockedFarcaster.current = authenticatedFarcaster();
     const { runtime, disconnect } = createRuntimeHarness();
     vi.mocked(runtime.readResourceState).mockRejectedValueOnce(new Error('private projection unavailable'));
@@ -213,8 +213,10 @@ describe('Warpkeep private resource lifecycle', () => {
 
     await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('error'));
     expect(runtime.readResourceState).toHaveBeenCalledTimes(1);
-    expect(runtime.observeRealm).not.toHaveBeenCalled();
-    expect(runtime.subscribeRealm).not.toHaveBeenCalled();
+    expect(runtime.observeRealm).toHaveBeenCalledTimes(1);
+    expect(runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(runtime.subscribeRealm).mock.results[0]?.value.unsubscribe)
+      .toHaveBeenCalledTimes(1);
     expect(disconnect).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('resource-revision').textContent).toBe('');
   });

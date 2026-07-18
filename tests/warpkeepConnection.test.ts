@@ -9,6 +9,7 @@ import {
 } from '../src/spacetime/playerModuleBindings';
 import {
   acceptWarpkeepAlphaTerms,
+  CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS,
   connectWarpkeep,
   bootstrapWarpkeepPlayer,
   collectWarpkeepResources,
@@ -253,7 +254,7 @@ describe('Warpkeep authenticated connection boundary', () => {
       () => { outcome = 'rejected'; }
     );
 
-    await vi.advanceTimersByTimeAsync(9_999);
+    await vi.advanceTimersByTimeAsync(CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS - 1);
     expect(outcome).toBe('pending');
     await vi.advanceTimersByTimeAsync(1);
     await expect(connection).rejects.toThrow('Warpkeep records are unavailable.');

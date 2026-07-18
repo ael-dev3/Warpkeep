@@ -17,42 +17,41 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: 'CANDIDATE · 18 JUL 2026',
-      title: 'GENESIS WORLD EXPANSION'
+      releasedOn: '18 JUL 2026',
+      title: 'THE REALM GROWS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /existing generation-two cell.*100 close-outward permanent castle slots.*8,739 outer cells.*without moving a founder/i
+      /10,000 persistent cells.*original cell.*100 close-outward founder sites.*no castle was moved/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /complete radius-57 disc.*81 balanced ring-58 boundary cells.*radius-60 visual apron/i
+      /return to their keep.*explore the Lowlands.*inspect the public identity.*nearby castle owners/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /2,000 cells.*future resource-capable sites.*no node.*marker.*collection entitlement.*reward mechanic/i
+      /Food, Wood, Stone, and Gold.*begin at zero.*grow from its terrain.*Realm, not the browser.*Marks.*cannot be spent or earned as rewards/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /SpacetimeDB.*1,261-to-10,000.*atomically.*admin-only exact-state check.*partial or mixed worlds fail closed.*target retry writes nothing/i
+      /outer frontier.*dormant space.*future resource sites.*no map node.*building.*unit.*combat.*alliance.*trade.*season/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /complete generation-two or generation-three snapshots.*deterministic bounded work/i
+      /sleeping Realm.*more time to wake.*same founder.*reconnects.*Genesis stays in view.*private controls wait safely.*authority to return/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Alpha 0.3.7.*Food, Wood, Stone, and Gold authority.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
+      /no airdrop.*guaranteed reward.*financial return.*promise of future value/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /released to players|deployed to players|public balances|guaranteed rewards/i
+      /public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('undeployed candidate');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'Production module publication'
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toMatch(
+      /wider horizon.*founding neighbourhood/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'world expansion'
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'resource backfill'
+    expect(getLatestPatchNotes(packageJson.version)?.summary).not.toMatch(
+      /candidate|undeployed/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'future resource-node placement'
+      'Released 18 July 2026'
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'Alpha systems remain experimental and may change'
     );
     expect(getLatestPatchNotes('0.3.7')?.title).toBe('GENESIS RESOURCE AUTHORITY');
     expect(getLatestPatchNotes('0.3.6')?.title).toBe('REALM READABILITY & STABILITY');

@@ -4,20 +4,19 @@ Warpkeep contains a TypeScript SpacetimeDB authority module under
 [`spacetimedb/`](../spacetimedb/). It is authoritative shared-world code, not a
 browser mock.
 
-> **Alpha 0.3.2 is live on backend protocol 3; authority remains invite-only.**
+> **Alpha 0.3.8 is live on backend protocol 3; authority remains invite-only.**
 > The guarded additive module was published to the existing Maincloud database
-> with deletion prohibited, the deterministic 1,261-cell Genesis world and 100
-> close-outward slots were seeded, deliberately admitted founders received
+> with deletion prohibited. The deterministic 10,000-cell Genesis world and 100
+> close-outward slots are live, deliberately admitted founders received
 > permanent castles, and public shared auth plus realm entry are enabled. Exact founder counts and
 > identities remain in the private operational record. Only the privately
 > recorded source, deployment, aggregate, probe, and QA coordinates attest that
 > state; an arbitrary local checkout does not.
 
-The checked-in Alpha 0.3.8 candidate is deliberately ahead of that live
-checkpoint. It retains backend protocol 3, appends one private resource table,
-and defines a separately approval-gated expansion to exactly 10,000 persistent
-cells. It does not attest a production publish, world transition, or resource
-backfill.
+Alpha 0.3.8 retains backend protocol 3, appends one private resource table, and
+expands Genesis 001 to exactly 10,000 persistent cells. Its additive
+publication, founder backfill, and world transition were separately approved;
+the checkout alone does not attest their production state.
 
 ## Version contract
 
@@ -28,8 +27,8 @@ backfill.
 | TypeScript server SDK | `2.6.1` |
 | Deployed backend protocol | `3` |
 | Checked-out backend protocol | `3` |
-| Deployed world generation | `2` (1,261 cells) |
-| Checked-out world generation | `3` candidate (10,000 cells) |
+| Deployed world generation | `3` (10,000 cells) |
+| Checked-out world generation | `3` (10,000 cells) |
 
 Bindings are generated from the local module and committed at
 [`src/spacetime/module_bindings/`](../src/spacetime/module_bindings/).
@@ -93,7 +92,7 @@ lookup.
 | Table | Visibility | Purpose |
 | --- | --- | --- |
 | `allowed_fid` | private | FID primary key, enabled flag, auth epoch, invitation metadata and note. |
-| `world_tile` | public | Frozen row shape. Live production contains the exact 1,261-cell generation-two predecessor; the candidate appends 8,739 rows for an exact 10,000-cell target. |
+| `world_tile` | public | Frozen row shape. Live production contains the exact 10,000-cell generation-three world, including the preserved 1,261-cell generation-two predecessor. |
 | `player` | public | Frozen legacy v1 table with its original exact column order and public opaque OIDC Identity column. It must remain empty and is never read, written, or subscribed by protocol v2. |
 | `castle` | public | One persistent level-one keep per FID and one occupant per tile. |
 | `admin_audit` | private | Admin action trace only. |
@@ -111,12 +110,12 @@ lookup.
 | `snap_scan_cursor_v1` | private | Finalized-block and pinned contract/implementation checkpoint. |
 | `snap_scan_batch_v1` | private | Pending/finalized atomic scan-application transaction. |
 | `alpha_terms_acceptance_v1` | private | Immutable FID/version/time evidence for the current Alpha Terms gate. |
-| `resource_account_v1` | private | Candidate caller-scoped Food, Wood, Stone, and Gold account with authoritative settlement time and policy version. |
+| `resource_account_v1` | private | Live caller-scoped Food, Wood, Stone, and Gold account with authoritative settlement time and policy version. |
 
 The exact original table prefix remains
 `allowed_fid`, `world_tile`, `player`, `castle`, `admin_audit`; the deployed v2
 pair follows it unchanged. Protocol 3 appends exactly 12 tables at references
-7–18 and never rewrites that seven-table deployed prefix. The candidate appends
+7–18 and never rewrites that seven-table deployed prefix. Alpha 0.3.8 appends
 one private table at exact ref 19. Generated browser bindings contain only the
 eight public table shapes and no accessor for any of the 12 private tables. The
 active browser subscribes to the six projections it
@@ -276,7 +275,7 @@ snapshot fails closed.
 founder/orphan/invariant counts, exact static-world drift, protocol version, and
 world seed. It returns
 no FID, Identity, profile, address, receipt, token, or audit payload. The scan
-batch aggregate is likewise counts/totals/booleans only. Candidate
+batch aggregate is likewise counts/totals/booleans only. Live
 `admin_get_alpha_status_v4` is a separate closed contract containing
 founder/castle/Mark counts, resource-account coverage and invariants, protocol,
 and policy version for ref 19 without returning balances or identities. Legacy
@@ -359,10 +358,10 @@ FID, or fall back to the legacy resolver implicitly. See the
 
 ## What follows this slice
 
-With the identity/session chain, generation-two protocol-3 world, deliberately
-admitted founders, and shared realm live at the recorded Alpha 0.3.2 backend
-coordinates, the checked-in Alpha 0.3.8 candidate prepares a bounded private
-resource loop and persistent placement capacity. It does not place resource
-nodes. Later versions may add those nodes, queues, units, scouting, combat,
+With the identity/session chain, generation-three protocol-3 world,
+deliberately admitted founders, private resource accounts, and shared realm live
+at the recorded Alpha 0.3.8 backend coordinates, the release provides a bounded
+private resource loop and persistent placement capacity. It does not place
+resource nodes. Later versions may add those nodes, queues, units, scouting, combat,
 alliances, seasons, or activity reports. AI may produce flavor or summaries,
 but never write authority tables directly.

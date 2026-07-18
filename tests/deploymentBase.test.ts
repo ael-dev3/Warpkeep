@@ -32,6 +32,8 @@ describe('Warpkeep deployment base and canonical metadata', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
     expect(html).toContain('<link rel="canonical" href="https://warpkeep.com/" />');
     expect(html).toContain('<meta property="og:url" content="https://warpkeep.com/" />');
-    expect(html).toContain('<meta name="description" content="Warpkeep: Every FID has a castle." />');
+    expect(html).toContain(
+      'content="Warpkeep is a persistent Farcaster strategy world where every admitted founder has a castle in Genesis 001."',
+    );
   });
 });

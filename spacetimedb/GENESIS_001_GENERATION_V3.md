@@ -2,10 +2,10 @@
 
 ## Status
 
-Generation v3 is the undeployed Alpha 0.3.8 candidate world definition. It is
-an additive expansion of the live generation-v2 state, not a second realm and
-not authorization to publish or mutate production. Production module
-publication and the world-state transition require separate explicit approval.
+Generation v3 is the live Alpha 0.3.8 world definition. It is an additive
+expansion of the generation-v2 predecessor, not a second realm. The completed
+module publication and world-state transition were separately approved; this
+document grants no authority to publish or mutate production again.
 
 ## Exact shape
 
@@ -100,7 +100,7 @@ that v4 aggregate before and after the transaction and requires it unchanged.
 
 ## Rollout boundary
 
-The production sequence is intentionally split:
+The completed Alpha 0.3.8 production sequence was intentionally split:
 
 1. Prove the exact current 1,261-cell founded aggregate.
 2. Publish the additive module with `--delete-data=never`.
@@ -115,8 +115,8 @@ requires the immutable production database identity and an explicit
 command-line confirmation for expansion.
 
 The disposable loopback migration proof seeds a populated exact generation-v2
-fixture, proves routine-seed refusal, publishes the real candidate without data
-deletion, runs the expansion, verifies preserved founding/static digests and
+fixture, proves routine-seed refusal, publishes the checked-out module without
+data deletion, runs the expansion, verifies preserved founding/static digests and
 realm timestamp, and proves an idempotent retry. This local proof is required
 release evidence but is not production approval.
 

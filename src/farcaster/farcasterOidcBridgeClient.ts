@@ -26,6 +26,7 @@ import {
 const MAX_RESPONSE_BYTES = 32_768;
 const MAX_PROOF_MESSAGE_LENGTH = 8 * 1_024;
 const BRIDGE_REQUEST_TIMEOUT_MS = 10_000;
+const BRIDGE_EXCHANGE_TIMEOUT_MS = 20_000;
 const FARCASTER_SERVER_SESSION_MAX_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 const NONCE_PATTERN = /^[A-Za-z0-9]{8,128}$/;
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9._~-]{8,256}$/;
@@ -353,7 +354,8 @@ async function postJson(
   fetchImplementation: FarcasterOidcBridgeFetch,
   url: URL,
   body: unknown,
-  callerSignal?: AbortSignal
+  callerSignal?: AbortSignal,
+  timeoutMs = BRIDGE_REQUEST_TIMEOUT_MS
 ) {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -363,7 +365,7 @@ async function postJson(
       throw new FarcasterOidcBridgeClientError();
     }
     callerSignal?.addEventListener('abort', abort, { once: true });
-    timeout = setTimeout(abort, BRIDGE_REQUEST_TIMEOUT_MS);
+    timeout = setTimeout(abort, timeoutMs);
     const response = await fetchImplementation(url, {
       method: 'POST',
       mode: 'cors',
@@ -517,7 +519,8 @@ export function createFarcasterOidcBridgeClient(
         fetchImplementation,
         exchangeUrl,
         body,
-        requestOptions?.signal
+        requestOptions?.signal,
+        BRIDGE_EXCHANGE_TIMEOUT_MS
       );
       const session = readSafeSessionResponse(
         result,

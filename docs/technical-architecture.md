@@ -1,11 +1,10 @@
 # Technical architecture
 
 Warpkeep is an admission-gated persistent-world alpha. The current player
-experience is the verified Alpha 0.3.6 realm exploration and castle
-presentation release. The checked-in Alpha 0.3.8 candidate carries a bounded
-private resource loop and expands the persistent Genesis world definition to
-10,000 cells, but it is not deployed. Construction, spending, combat, resource
-nodes, and social systems are deliberately not live.
+experience is the verified Alpha 0.3.8 release: realm exploration, castle
+presentation, a bounded caller-private resource loop, and a persistent
+10,000-cell Genesis world. Construction, spending, combat, resource nodes, and
+social systems are deliberately not live.
 
 ## Authority boundaries
 
@@ -20,13 +19,13 @@ nodes, and social systems are deliberately not live.
 - Public projections exist for display and navigation. They do not grant a
   player power to alter authoritative state.
 
-## Alpha 0.3.8 candidate resource and world boundary
+## Alpha 0.3.8 resource and world boundary
 
-The candidate appends one private `resource_account_v1` row per founded castle.
+The deployed schema appends one private `resource_account_v1` row per founded
+castle.
 It is keyed by FID, uniquely bound to the authoritative castle, and stores whole
 Food, Wood, Stone, and Gold units, a server settlement cursor, revision, and
-exact policy version. Initial balances are 200, 150, 100, and 25 respectively;
-each balance is capped at 1,000,000.
+exact policy version. Every balance starts at zero and is capped at 1,000,000.
 
 Production is a pure, versioned terrain policy evaluated in complete ten-minute
 quanta. The module derives caller FID, castle, terrain, rates, balances, and
@@ -48,7 +47,7 @@ subscription is unchanged. Community Marks stays in `mark_account_v1` under
 its existing policy; resource collection cannot convert, duplicate, credit,
 transfer, or spend Marks.
 
-The same candidate defines Genesis 001 generation three as exactly 10,000
+The same release defines Genesis 001 generation three as exactly 10,000
 persistent cells: every cell of the generation-two radius-20 predecessor, the
 remainder of a complete radius-57 disc, and 81 balanced cells on ring 58. The
 maximum authoritative radius describes that partial-ring envelope; it does not
@@ -57,9 +56,10 @@ close-outward generation-two order remain unchanged.
 
 An admin-only exact-state reducer atomically inserts 8,739 world rows and 8,739
 metadata rows, then updates the singleton realm while preserving its creation
-timestamp. Routine seeding refuses to perform this transition. Exact
-generation-two and generation-three snapshots are accepted during rollout;
-partial, duplicate, altered, or mixed states fail closed. Two thousand
+timestamp. Routine seeding refuses to perform this transition. Rollout and
+recovery gates recognize only the exact generation-two predecessor or
+generation-three release snapshot; partial, duplicate, altered, or mixed states
+fail closed. Two thousand
 resource-capable metadata sites reserve future placement space only and do not
 create nodes or alter current resource yields.
 
@@ -84,12 +84,12 @@ session authority.
 
 The player is built with React, TypeScript, Vite, Three.js/WebGL, and responsive
 CSS. The title, menu, and realm share quality preferences while preserving
-reduced-motion and non-WebGL fallbacks. Genesis readiness is validated before
-the Realm appears. In the 0.3.8 candidate, the caller's private resource
-projection must also validate before the public Realm subscription begins. The
-renderer uses the exact authoritative tile-key set, so the deliberate partial
-ring is never expanded into invented cells, and bounds semantic detail work
-deterministically as the radius-60 presentation envelope grows.
+reduced-motion and non-WebGL fallbacks. The caller's private resource read and
+the public Realm subscription start concurrently; both must validate before the
+Realm appears. The renderer uses the exact authoritative tile-key set, so the
+deliberate partial ring is never expanded into invented cells, and bounds
+semantic detail work deterministically as the radius-60 presentation envelope
+grows.
 
 Founded keeps use one realm-lifetime castle/base prefab repository. Each
 graphics profile pairs an integrity-pinned GameReady castle with its matching
@@ -138,12 +138,12 @@ configuration, provenance, asset integrity, production exclusions, and additive
 backend compatibility before Pages publishes. Worker and SpacetimeDB operations
 remain separate release decisions.
 
-For Alpha 0.3.8, the safe production order is additive module publication,
+Alpha 0.3.8 followed the safe production order: additive module publication,
 explicitly owner-approved founder backfill, explicit exact-state world
 expansion, generation-three and v4 counts-only verification, exact reviewed
-Pages deployment, then live build verification. Each mutable step is a separate
-approval boundary. Source completion or a client merge authorizes none of
-those production operations.
+Pages deployment, then live build verification. Those completed approvals are
+not reusable. Each future mutable step remains a separate approval boundary;
+source completion or a client merge authorizes no production operation.
 
 ## Repository guide
 
@@ -155,6 +155,7 @@ those production operations.
 - `scripts` — build, asset, QA, and release tooling
 - `docs` — current decisions, release records, recovery, and provenance
 
-Start with the [README](../README.md), [product direction](design/warpkeep-direction.md),
-[roadmap](design/roadmap.md), [verified Alpha 0.3.6 release notes](releases/alpha-0.3.6.md),
-and [Alpha 0.3.8 candidate notes](releases/alpha-0.3.8.md).
+Start with the [README](../README.md),
+[product direction](design/warpkeep-direction.md),
+[roadmap](design/roadmap.md), and
+[verified Alpha 0.3.8 release notes](releases/alpha-0.3.8.md).

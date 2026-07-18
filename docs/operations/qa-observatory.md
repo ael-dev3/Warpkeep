@@ -89,9 +89,9 @@ per-player Realm snapshot. After proof, the Worker calls only
 `qa_observer_get_realm_snapshot_v1` procedure immediately fails with
 `QA_OBSERVER_V1_DISABLED` before authentication, transaction entry, or any
 database read. The successful v2 response keeps exactly this closed shape.
-During the bounded generation-three rollout, every consumer accepts either the
-complete live generation-two tuple (`1261 / 1261 / 2 / 20 / 22`) or the
-complete candidate tuple shown below; all mixed tuples fail closed:
+For rollout and recovery compatibility, every consumer accepts either the
+complete generation-two predecessor tuple (`1261 / 1261 / 2 / 20 / 22`) or the
+complete live generation-three tuple shown below; all mixed tuples fail closed:
 
 ```text
 {

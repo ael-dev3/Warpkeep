@@ -1,7 +1,7 @@
 # Warpkeep Security Policy
 
-Warpkeep is an early closed-alpha project, not a production service. Security
-reports are welcome and are handled on a best-effort basis.
+Warpkeep is a live, admission-gated Alpha, not a finished or publicly open game.
+Security reports are welcome and are handled on a best-effort basis.
 
 ## Supported versions
 
