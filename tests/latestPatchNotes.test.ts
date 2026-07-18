@@ -53,8 +53,8 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /durability|destroy|alliance|released to players|deployed to players/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('candidate prepared 18 July 2026');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('not a verified public release');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 18 July 2026');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('protected Pages deployment');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('exact-build verification');
     expect(getLatestPatchNotes('0.3.5')?.title).toBe('GAME-READY CASTLE REFRESH');
     expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');

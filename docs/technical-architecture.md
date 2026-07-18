@@ -90,4 +90,4 @@ remain separate release decisions.
 - `docs` — current decisions, release records, recovery, and provenance
 
 Start with the [README](../README.md), [product direction](design/warpkeep-direction.md),
-[roadmap](design/roadmap.md), and [Alpha 0.3.5 release notes](releases/alpha-0.3.5.md).
+[roadmap](design/roadmap.md), and [Alpha 0.3.6 release notes](releases/alpha-0.3.6.md).

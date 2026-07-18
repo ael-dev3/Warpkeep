@@ -73,7 +73,7 @@ const ALPHA_0_3_6_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '18 JUL 2026',
   title: 'REALM READABILITY & STABILITY',
   summary:
-    'Alpha 0.3.6 is a candidate Realm-presentation patch for a brighter, greener, more dependable Lowlands without changing player authority.',
+    'Alpha 0.3.6 is a Realm-presentation patch for a brighter, greener, more dependable Lowlands without changing player authority.',
   highlights: Object.freeze([
     'A camera-visible daylight sun, clear-sky/earth bounce, brighter bounded IBL, and role-specific material calibration give every castle tier a more sunlit read; global exposure, light count, shadow allocation, and demand-driven rendering remain unchanged.',
     'Lowlands now favor cleaner green scene-linear terrain colours, and the SVG fallback correctly encodes that same palette for display.',
@@ -86,7 +86,7 @@ const ALPHA_0_3_6_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Defensive source hardening tightens authentication configuration, cookies, bounded transports, canonical profile/castle ingress, complete founder-profile projections without requiring first-auth player bootstrap, tooling, and CI without adding a bypass or mutating admission, Worker, SpacetimeDB, production data, authoritative world state, DNS, wallet, or Marks.'
   ]),
   alphaNotice:
-    'Alpha 0.3.6 candidate prepared 18 July 2026; it is not a verified public release until protected deployment and exact-build verification.'
+    'Released 18 July 2026 after protected Pages deployment and exact-build verification.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =

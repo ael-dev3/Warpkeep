@@ -2,21 +2,19 @@
 
 ## Current state
 
-The checked-in package is the reviewed Alpha 0.3.6 integration candidate. It is
-not merged, deployed, tagged, or verified as a public release. Alpha 0.3.5 remains the
-verified Pages-only public release, and its public menu build stamp identifies
-the exact deployed source. An annotated release tag is created only after the
-matching protected-main deployment passes exact-build verification. Do not
-turn the disabled local QA observer into a Worker or SpacetimeDB release without
-a separately reviewed production scope.
+The checked-in package is the verified Alpha 0.3.6 Pages-only public release.
+Its public menu build stamp identifies the exact deployed source. An annotated
+release tag is created only after the matching protected-main deployment passes
+exact-build verification. Do not turn the disabled local QA observer into a
+Worker or SpacetimeDB release without a separately reviewed production scope.
 
-The candidate makes the Realm read as a brighter Lowlands day without changing
+The release makes the Realm read as a brighter Lowlands day without changing
 global exposure, GLB bytes, textures, light count, or authority. A
 camera-visible key sun, clear-sky/earth bounce, restrained amethyst identity
 fill, bounded castle/base calibration, and a greener scene-linear terrain
 palette make masonry sunlit rather than shadowed. A single small shared
 castle-plus-base placement clearance protects the dense High base skirt at the
-terrain seam; no LOD or base receives an independent transform. The candidate
+terrain seam; no LOD or base receives an independent transform. The release
 also widens local terrain support around the authored landscape footprint,
 removes occupied-cell outlines that visually cross the base, keeps one
 permanent direct identity rail per projection-visible founded castle, and adds
@@ -26,14 +24,14 @@ Balanced, and Performance remain explicit player choices. The canvas and those r
 map-gesture lane: direct ground-plane drag engages on the first deliberate
 attempt, wheel/pinch retain their ground anchor, explicit-overview departure is
 continuous, gesture cancellation is fail-clean, and rails receive same-frame
-subpixel projection. The candidate also includes defensive source hardening for
+subpixel projection. The release also includes defensive source hardening for
 authentication configuration, cookies, bounded transports, profile text/image
 ingress, tooling downloads, and CI action runtimes. Those source changes do not
 themselves deploy the Worker, mutate admission or backend state, change DNS, or
 touch production data.
 
-The verified Alpha 0.3.5 release also presented the selected keep in a
-responsive Farcaster castle record, while this candidate makes every direct
+Alpha 0.3.5 introduced the responsive Farcaster castle record, while this
+release makes every direct
 Realm username rail permanent at its projected foundation base. Its decorative
 castle art is a same-origin, integrity-pinned,
 provenance-required runtime asset. These are browser presentation changes only;
