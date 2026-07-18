@@ -8,6 +8,7 @@ import { configureHermesMachineOutput } from './hermes-machine-output';
 
 type Command =
   | 'seed-world'
+  | 'expand-world-v3'
   | 'allow-fid'
   | 'disable-fid'
   | 'bump-auth-epoch'
@@ -27,6 +28,14 @@ const CONNECT_TIMEOUT_MS = 10_000;
 const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const MAX_RESOURCE_BACKFILL_FOUNDERS = 100n;
+const GENESIS_GENERATION_V2_WORLD_CELLS = 1_261n;
+const GENESIS_GENERATION_V3_WORLD_CELLS = 10_000n;
+const GENESIS_REALM_COUNT = 1n;
+const GENESIS_CASTLE_SLOT_COUNT = 100n;
+const GENESIS_GENERATION_V2_VERSION = 2;
+const GENESIS_MAX_FOUNDERS = 100n;
+const HEGEMONY_WORLD_SEED = 3_445_214_658;
+const HEGEMONY_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 
 function fail(message: string): never {
   throw new Error(message);
@@ -104,6 +113,7 @@ export function readAdminSecret(value: string | undefined, fromStdin: string | u
 function commandFrom(value: string | undefined): Command {
   if (
     value === 'seed-world'
+    || value === 'expand-world-v3'
     || value === 'allow-fid'
     || value === 'disable-fid'
     || value === 'bump-auth-epoch'
@@ -115,7 +125,7 @@ function commandFrom(value: string | undefined): Command {
   ) {
     return value;
   }
-  fail('Usage: hermes-admin.ts <seed-world|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4> [...args] [--dry-run] [--confirm]');
+  fail('Usage: hermes-admin.ts <seed-world|expand-world-v3|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4> [...args] [--dry-run] [--confirm]');
 }
 
 export function parseHermesArguments(arguments_: readonly string[] = process.argv.slice(2)) {
@@ -182,6 +192,213 @@ type ResourceAggregateV4 = Readonly<{
   protocolVersion: number;
   resourcePolicyVersion: string;
 }>;
+
+type GenesisExpansionResourceStatusV4 = ResourceAggregateV4;
+
+type GenesisExpansionStatusV3 = Readonly<{
+  worldTiles: bigint;
+  occupiedWorldTiles: bigint;
+  worldTileMeta: bigint;
+  realms: bigint;
+  castleSlots: bigint;
+  castleSlotClaims: bigint;
+  legacyPlayers: bigint;
+  playersV2: bigint;
+  playerOwnershipsV2: bigint;
+  castles: bigint;
+  realmProfiles: bigint;
+  markAccounts: bigint;
+  snapBurnCredits: bigint;
+  walletAttributions: bigint;
+  walletAttributionSnapshots: bigint;
+  scanCursors: bigint;
+  scanBatches: bigint;
+  alphaTermsAcceptances: bigint;
+  allowedFids: bigint;
+  enabledAllowedFids: bigint;
+  auditEntries: bigint;
+  orphanedPlayerRowsV2: bigint;
+  orphanedOwnershipRowsV2: bigint;
+  orphanedCastleClaims: bigint;
+  orphanedCastles: bigint;
+  orphanedRealmProfiles: bigint;
+  orphanedMarkAccounts: bigint;
+  orphanedBurnCredits: bigint;
+  orphanedTermsAcceptances: bigint;
+  founderStateGaps: bigint;
+  markAccountInvariantViolations: bigint;
+  publicMarkProjectionViolations: bigint;
+  duplicateBurnReferences: bigint;
+  burnAccountReconciliationViolations: bigint;
+  ambiguousActiveWalletAddresses: bigint;
+  staticWorldDriftViolations: bigint;
+  termsAcceptanceInvariantViolations: bigint;
+  protocolVersion: number;
+  worldSeed: number;
+  worldSeedName: string;
+}>;
+
+const GENESIS_EXPANSION_ZERO_INVARIANT_FIELDS = Object.freeze([
+  'orphanedPlayerRowsV2',
+  'orphanedOwnershipRowsV2',
+  'orphanedCastleClaims',
+  'orphanedCastles',
+  'orphanedRealmProfiles',
+  'orphanedMarkAccounts',
+  'orphanedBurnCredits',
+  'orphanedTermsAcceptances',
+  'founderStateGaps',
+  'markAccountInvariantViolations',
+  'publicMarkProjectionViolations',
+  'duplicateBurnReferences',
+  'burnAccountReconciliationViolations',
+  'ambiguousActiveWalletAddresses',
+  'staticWorldDriftViolations',
+  'termsAcceptanceInvariantViolations',
+] as const satisfies readonly (keyof GenesisExpansionStatusV3)[]);
+
+const GENESIS_EXPANSION_PRESERVED_COUNT_FIELDS = Object.freeze([
+  'occupiedWorldTiles',
+  'castleSlotClaims',
+  'legacyPlayers',
+  'playersV2',
+  'playerOwnershipsV2',
+  'castles',
+  'realmProfiles',
+  'markAccounts',
+  'snapBurnCredits',
+  'walletAttributions',
+  'walletAttributionSnapshots',
+  'scanCursors',
+  'scanBatches',
+  'alphaTermsAcceptances',
+  'allowedFids',
+  'enabledAllowedFids',
+] as const satisfies readonly (keyof GenesisExpansionStatusV3)[]);
+
+function verifyGenesisExpansionIdentity(status: GenesisExpansionStatusV3): void {
+  if (
+    status.protocolVersion !== 3
+    || status.worldSeed !== HEGEMONY_WORLD_SEED
+    || status.worldSeedName !== HEGEMONY_WORLD_SEED_NAME
+  ) {
+    fail('Genesis world v3 expansion checkpoint had an unexpected backend identity.');
+  }
+  for (const field of GENESIS_EXPANSION_ZERO_INVARIANT_FIELDS) {
+    if (status[field] !== 0n) {
+      fail(`Genesis world v3 expansion checkpoint reported nonzero ${field}.`);
+    }
+  }
+}
+
+function verifyFoundedGenesisState(status: GenesisExpansionStatusV3): void {
+  const founders = status.allowedFids;
+  if (
+    founders < 1n
+    || founders > GENESIS_MAX_FOUNDERS
+    || status.enabledAllowedFids !== founders
+    || status.occupiedWorldTiles !== founders
+    || status.castleSlotClaims !== founders
+    || status.castles !== founders
+    || status.realmProfiles !== founders
+    || status.markAccounts !== founders
+    || status.playersV2 !== status.playerOwnershipsV2
+    || status.playersV2 > founders
+    || status.alphaTermsAcceptances > status.playersV2
+  ) {
+    fail('Genesis world v3 expansion checkpoint did not contain an exact founded player graph.');
+  }
+}
+
+export function verifyGenesisExpansionPreconditionV3(
+  status: GenesisExpansionStatusV3,
+): GenesisExpansionStatusV3 {
+  verifyGenesisExpansionIdentity(status);
+  verifyFoundedGenesisState(status);
+  if (
+    status.worldTiles !== GENESIS_GENERATION_V2_WORLD_CELLS
+    || status.worldTileMeta !== GENESIS_GENERATION_V2_WORLD_CELLS
+    || status.realms !== GENESIS_REALM_COUNT
+    || status.castleSlots !== GENESIS_CASTLE_SLOT_COUNT
+  ) {
+    fail('Genesis world v3 expansion requires the exact generation-v2 static world checkpoint.');
+  }
+  return Object.freeze({ ...status });
+}
+
+export function verifyGenesisExpansionPostconditionV3(
+  status: GenesisExpansionStatusV3,
+  before: GenesisExpansionStatusV3,
+): GenesisExpansionStatusV3 {
+  verifyGenesisExpansionIdentity(status);
+  verifyFoundedGenesisState(status);
+  if (
+    status.worldTiles !== GENESIS_GENERATION_V3_WORLD_CELLS
+    || status.worldTileMeta !== GENESIS_GENERATION_V3_WORLD_CELLS
+    || status.realms !== GENESIS_REALM_COUNT
+    || status.castleSlots !== GENESIS_CASTLE_SLOT_COUNT
+  ) {
+    fail(
+      'Genesis world v3 expansion postcondition failed. The mutation outcome may be indeterminate; '
+      + 'perform a fresh read-only v3 inspection before any retry.',
+    );
+  }
+  for (const field of GENESIS_EXPANSION_PRESERVED_COUNT_FIELDS) {
+    if (status[field] !== before[field]) {
+      fail(
+        'Genesis world v3 expansion changed persistent player state. '
+        + 'Do not retry before a bounded read-only investigation.',
+      );
+    }
+  }
+  if (status.auditEntries !== before.auditEntries + 1n) {
+    fail(
+      'Genesis world v3 expansion did not produce the exact audit transition. '
+      + 'Do not retry before a bounded read-only investigation.',
+    );
+  }
+  return Object.freeze({ ...status });
+}
+
+export function verifyGenesisExpansionResourceCheckpointV4(
+  status: GenesisExpansionResourceStatusV4,
+): GenesisExpansionResourceStatusV4 {
+  const founders = status.allowedFids;
+  const exactPrebackfill = status.resourceAccounts === 0n
+    && status.missingResourceAccounts === founders;
+  const exactReady = status.resourceAccounts === founders
+    && status.missingResourceAccounts === 0n;
+  if (
+    founders < 1n
+    || founders > GENESIS_MAX_FOUNDERS
+    || status.castles !== founders
+    || status.markAccounts !== founders
+    || (!exactPrebackfill && !exactReady)
+    || status.orphanedResourceAccounts !== 0n
+    || status.resourceInvariantViolations !== 0n
+    || status.protocolVersion !== 3
+    || status.resourcePolicyVersion !== GENESIS_RESOURCE_POLICY_VERSION
+  ) {
+    fail('Genesis world v3 expansion resource checkpoint was not exact.');
+  }
+  return Object.freeze({ ...status });
+}
+
+export function verifyGenesisExpansionResourcePreservationV4(
+  status: GenesisExpansionResourceStatusV4,
+  before: GenesisExpansionResourceStatusV4,
+): GenesisExpansionResourceStatusV4 {
+  const verified = verifyGenesisExpansionResourceCheckpointV4(status);
+  for (const field of Object.keys(before) as (keyof GenesisExpansionResourceStatusV4)[]) {
+    if (verified[field] !== before[field]) {
+      fail(
+        'Genesis world v3 expansion changed private resource aggregate state. '
+        + 'Do not retry before a bounded read-only investigation.',
+      );
+    }
+  }
+  return verified;
+}
 
 export function verifyExpectedResourceAggregateV4(
   status: ResourceAggregateV4,
@@ -314,6 +531,13 @@ export function requireCredentialedProductionTarget(
 export function requireResourceBackfillProductionTarget(database: string): void {
   if (database !== DEFAULT_DATABASE_IDENTITY) {
     fail('Resource backfill requires the immutable Warpkeep production database identity.');
+  }
+}
+
+/** The one-time persistent world expansion may target only the attested identity. */
+export function requireGenesisExpansionProductionTarget(database: string): void {
+  if (database !== DEFAULT_DATABASE_IDENTITY) {
+    fail('Genesis world v3 expansion requires the immutable Warpkeep production database identity.');
   }
 }
 
@@ -451,7 +675,7 @@ export async function readStatus(
       worldSeedName: status.worldSeedName,
     };
     console.log(JSON.stringify(printable(safeStatus)));
-    return;
+    return Object.freeze(safeStatus);
   }
   if (version === 'v2') {
     const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV2({}));
@@ -501,11 +725,12 @@ async function main() {
     machineReadableInspection,
   } = parseHermesArguments();
   configureHermesMachineOutput(machineReadableInspection);
-  // Backfilling durable player state always requires a visible command-line
-  // confirmation. The legacy noninteractive switch remains available to the
-  // older bounded operators, but cannot silently authorize this migration.
+  // Durable data migrations always require a visible command-line confirmation.
+  // The legacy noninteractive switch remains available to older bounded
+  // operators, but cannot silently authorize either one-time migration.
   const confirmed = confirmedByFlag || (
     command !== 'backfill-resources'
+    && command !== 'expand-world-v3'
     && process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes'
   );
   const mutation = !inspection;
@@ -524,6 +749,10 @@ async function main() {
       ? sanitizeNote(positional[2], 'auth epoch rotation')
       : undefined;
 
+  if (command === 'expand-world-v3') {
+    requireGenesisExpansionProductionTarget(database);
+  }
+
   if (!machineReadableInspection) {
     console.log(`Warpkeep Hermes target: ${database} at ${uri}`);
   }
@@ -533,6 +762,18 @@ async function main() {
       fid,
       note,
       expectedFounderCount,
+      expectedWorldTiles: command === 'expand-world-v3'
+        ? GENESIS_GENERATION_V2_WORLD_CELLS
+        : undefined,
+      expectedWorldTileMeta: command === 'expand-world-v3'
+        ? GENESIS_GENERATION_V2_WORLD_CELLS
+        : undefined,
+      expectedGenerationVersion: command === 'expand-world-v3'
+        ? GENESIS_GENERATION_V2_VERSION
+        : undefined,
+      targetWorldTiles: command === 'expand-world-v3'
+        ? GENESIS_GENERATION_V3_WORLD_CELLS
+        : undefined,
       resourcePolicyVersion: command === 'backfill-resources'
         ? GENESIS_RESOURCE_POLICY_VERSION
         : undefined,
@@ -542,7 +783,11 @@ async function main() {
     return;
   }
   if (mutation && !confirmed) {
-    fail('Refusing mutation without --confirm (or WARPKEEP_HERMES_NONINTERACTIVE=yes).');
+    fail(
+      command === 'backfill-resources' || command === 'expand-world-v3'
+        ? 'Refusing mutation without --confirm.'
+        : 'Refusing mutation without --confirm (or WARPKEEP_HERMES_NONINTERACTIVE=yes).',
+    );
   }
   if (command === 'backfill-resources') {
     requireResourceBackfillProductionTarget(database);
@@ -557,7 +802,29 @@ async function main() {
   const token = await requestAdminToken(bridgeUrl, secret);
   const connection = await connect(uri, database, token);
   try {
-    if (command === 'seed-world') {
+    let expansionStatusHandled = false;
+    if (command === 'expand-world-v3') {
+      const before = verifyGenesisExpansionPreconditionV3(
+        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
+      );
+      const beforeResources = verifyGenesisExpansionResourceCheckpointV4(
+        await readStatus(connection, 'v4') as GenesisExpansionResourceStatusV4,
+      );
+      await withOperationTimeout(connection.reducers.adminExpandGenesisWorldV3({
+        expectedWorldTiles: GENESIS_GENERATION_V2_WORLD_CELLS,
+        expectedWorldTileMeta: GENESIS_GENERATION_V2_WORLD_CELLS,
+        expectedGenerationVersion: GENESIS_GENERATION_V2_VERSION,
+      }));
+      verifyGenesisExpansionPostconditionV3(
+        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
+        before,
+      );
+      verifyGenesisExpansionResourcePreservationV4(
+        await readStatus(connection, 'v4') as GenesisExpansionResourceStatusV4,
+        beforeResources,
+      );
+      expansionStatusHandled = true;
+    } else if (command === 'seed-world') {
       await withOperationTimeout(connection.reducers.adminSeedWorld({}));
     } else if (command === 'allow-fid' && fid !== undefined && note !== undefined) {
       await withOperationTimeout(connection.reducers.adminAllowFid({ fid, note }));
@@ -578,12 +845,14 @@ async function main() {
         : command === 'inspect-alpha-v4' || command === 'backfill-resources'
           ? 'v4'
           : 'v1';
-    await readStatus(
-      connection,
-      statusVersion,
-      machineReadableInspection,
-      command === 'backfill-resources' ? expectedFounderCount : undefined,
-    );
+    if (!expansionStatusHandled) {
+      await readStatus(
+        connection,
+        statusVersion,
+        machineReadableInspection,
+        command === 'backfill-resources' ? expectedFounderCount : undefined,
+      );
+    }
   } finally {
     connection.disconnect();
   }

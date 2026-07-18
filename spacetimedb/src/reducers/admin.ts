@@ -13,6 +13,7 @@ import {
   WARPKEEP_BACKEND_PROTOCOL_VERSION,
 } from '../config';
 import {
+  assertGenesisFoundingGraph,
   assertGenesisFounderForFid,
   ensureGenesisFounder,
 } from '../foundingAuthority';
@@ -60,12 +61,23 @@ import {
 } from '../auth';
 import warpkeep from '../schema';
 import { seedCanonicalWorld } from './worldSeed';
-import { HEGEMONY_GENESIS_001, HEGEMONY_WORLD_SEED } from '../world';
+import {
+  GENESIS_AUTHORITATIVE_CELL_COUNT,
+  GENESIS_CASTLE_SLOT_COUNT,
+  GENESIS_GENERATION_V2_REALM,
+  GENESIS_GENERATION_V2_WORLD_TILE_META,
+  GENESIS_GENERATION_V2_WORLD_TILES,
+  HEGEMONY_GENESIS_001,
+  HEGEMONY_REALM_ID,
+  HEGEMONY_WORLD_GENERATION_VERSION,
+  HEGEMONY_WORLD_SEED,
+  matchesGenerationV2Realm,
+} from '../world';
 import { worldCastleGraphIsConsistent } from '../worldCastleIntegrity';
 import {
-  GenesisWorldDriftError,
-  planCanonicalWorldSeed,
+  classifyGenesisStaticSnapshot,
 } from '../worldSeedPolicy';
+import { inspectGenesisResourceGraph } from '../resourceAuthority';
 
 function cleanAdminNote(note: string): string {
   const trimmed = note.trim();
@@ -90,6 +102,24 @@ function audit(
     createdAt: ctx.timestamp,
     note,
   });
+}
+
+function assertExactGenesisDynamicGraph(ctx: Parameters<typeof requireAdmin>[0]) {
+  assertGenesisFoundingGraph(ctx);
+  const resource = inspectGenesisResourceGraph(ctx);
+  const founderCount = ctx.db.allowedFid.count();
+  const exactResourcePrebackfill = resource.resourceAccounts === 0n
+    && resource.missingResourceAccounts === founderCount;
+  const exactResourceReady = resource.resourceAccounts === founderCount
+    && resource.missingResourceAccounts === 0n;
+  if (
+    (!exactResourcePrebackfill && !exactResourceReady)
+    || resource.orphanedResourceAccounts !== 0n
+    || resource.resourceInvariantViolations !== 0n
+  ) {
+    throw new SenderError('STATE_INTEGRITY');
+  }
+  return resource;
 }
 
 type AdminContext = Parameters<typeof requireAdmin>[0];
@@ -460,18 +490,12 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
     ctx.withTx(tx => {
       requireAdmin(tx);
 
-      let staticWorldDriftViolations = 0n;
-      try {
-        planCanonicalWorldSeed({
-          worldTiles: tx.db.worldTile.iter(),
-          realms: tx.db.realmV1.iter(),
-          worldMeta: tx.db.worldTileMetaV1.iter(),
-          castleSlots: tx.db.castleSlotV1.iter(),
-        });
-      } catch (error) {
-        if (error instanceof GenesisWorldDriftError) staticWorldDriftViolations = 1n;
-        else throw error;
-      }
+      const staticWorldDriftViolations = classifyGenesisStaticSnapshot({
+        worldTiles: tx.db.worldTile.iter(),
+        realms: tx.db.realmV1.iter(),
+        worldMeta: tx.db.worldTileMetaV1.iter(),
+        castleSlots: tx.db.castleSlotV1.iter(),
+      }) === 'invalid' ? 1n : 0n;
 
       let occupiedWorldTiles = 0n;
       for (const tile of tx.db.worldTile.iter()) {
@@ -709,11 +733,19 @@ export const authResolverGetFidAdmissionV2 = warpkeep.procedure(
     }),
 );
 
-/** Protected and idempotent canonical world seeding. */
+/**
+ * Protected generation-v3 creation/recovery. The deployed generation-v2
+ * singleton is deliberately excluded so this routine operator cannot trigger
+ * the reviewed world expansion by accident.
+ */
 export const adminSeedWorld = warpkeep.reducer(
   { name: 'admin_seed_world' },
   ctx => {
     const admin = requireAdmin(ctx);
+    const existingRealm = ctx.db.realmV1.realmId.find(HEGEMONY_REALM_ID);
+    if (existingRealm !== null && matchesGenerationV2Realm(existingRealm)) {
+      throw new SenderError('WORLD_EXPANSION_REQUIRES_V3_REDUCER');
+    }
     seedCanonicalWorld(ctx);
     // A partial recovery seed may fill missing canonical tiles, but it must not
     // commit if an existing castle still lacks the exact reverse occupancy
@@ -721,7 +753,96 @@ export const adminSeedWorld = warpkeep.reducer(
     if (!worldCastleGraphIsConsistent(ctx.db.worldTile.iter(), ctx.db.castle.iter())) {
       throw new SenderError('STATE_INTEGRITY');
     }
-    audit(ctx, 'seed_world', undefined, admin.subject, 'genesis-001-generation-v2-radius-20');
+    assertExactGenesisDynamicGraph(ctx);
+    audit(ctx, 'seed_world', undefined, admin.subject, 'genesis-001-generation-v3-cells-10000');
+  },
+);
+
+/**
+ * Exact-CAS production transition from the frozen generation-v2 world to the
+ * 10,000-cell generation-v3 world. Reducer atomicity makes the 17,478 inserts
+ * and singleton realm update visible together or not at all.
+ */
+export const adminExpandGenesisWorldV3 = warpkeep.reducer(
+  { name: 'admin_expand_genesis_world_v3' },
+  {
+    expectedWorldTiles: t.u64(),
+    expectedWorldTileMeta: t.u64(),
+    expectedGenerationVersion: t.u32(),
+  },
+  (ctx, {
+    expectedWorldTiles,
+    expectedWorldTileMeta,
+    expectedGenerationVersion,
+  }) => {
+    const admin = requireAdmin(ctx);
+    const generationV2Expectation = expectedWorldTiles
+      === BigInt(GENESIS_GENERATION_V2_WORLD_TILES.length)
+      && expectedWorldTileMeta === BigInt(GENESIS_GENERATION_V2_WORLD_TILE_META.length)
+      && expectedGenerationVersion === GENESIS_GENERATION_V2_REALM.generationVersion;
+    const generationV3Expectation = expectedWorldTiles
+      === BigInt(GENESIS_AUTHORITATIVE_CELL_COUNT)
+      && expectedWorldTileMeta === BigInt(GENESIS_AUTHORITATIVE_CELL_COUNT)
+      && expectedGenerationVersion === HEGEMONY_WORLD_GENERATION_VERSION;
+    if (!generationV2Expectation && !generationV3Expectation) {
+      throw new SenderError('WORLD_EXPANSION_PRECONDITION');
+    }
+
+    const snapshot = {
+      worldTiles: ctx.db.worldTile.iter(),
+      realms: ctx.db.realmV1.iter(),
+      worldMeta: ctx.db.worldTileMetaV1.iter(),
+      castleSlots: ctx.db.castleSlotV1.iter(),
+    };
+    const generation = classifyGenesisStaticSnapshot(snapshot);
+    if (
+      (generation === 'generation-v2' && !generationV2Expectation)
+      || (generation === 'generation-v3' && !generationV3Expectation)
+      || generation === 'invalid'
+    ) {
+      throw new SenderError('WORLD_EXPANSION_PRECONDITION');
+    }
+    if (!worldCastleGraphIsConsistent(ctx.db.worldTile.iter(), ctx.db.castle.iter())) {
+      throw new SenderError('STATE_INTEGRITY');
+    }
+    const resourceBefore = assertExactGenesisDynamicGraph(ctx);
+
+    // An exact generation-v3 target is a true no-op: no rows and no audit
+    // entry change, so a bounded retry can prove idempotence byte-for-byte.
+    if (generation === 'generation-v3') return;
+
+    seedCanonicalWorld(ctx);
+    if (
+      ctx.db.worldTile.count() !== BigInt(GENESIS_AUTHORITATIVE_CELL_COUNT)
+      || ctx.db.worldTileMetaV1.count() !== BigInt(GENESIS_AUTHORITATIVE_CELL_COUNT)
+      || ctx.db.realmV1.count() !== 1n
+      || ctx.db.castleSlotV1.count() !== BigInt(GENESIS_CASTLE_SLOT_COUNT)
+      || classifyGenesisStaticSnapshot({
+        worldTiles: ctx.db.worldTile.iter(),
+        realms: ctx.db.realmV1.iter(),
+        worldMeta: ctx.db.worldTileMetaV1.iter(),
+        castleSlots: ctx.db.castleSlotV1.iter(),
+      }) !== 'generation-v3'
+      || !worldCastleGraphIsConsistent(ctx.db.worldTile.iter(), ctx.db.castle.iter())
+    ) {
+      throw new SenderError('STATE_INTEGRITY');
+    }
+    const resourceAfter = assertExactGenesisDynamicGraph(ctx);
+    if (
+      resourceAfter.resourceAccounts !== resourceBefore.resourceAccounts
+      || resourceAfter.missingResourceAccounts !== resourceBefore.missingResourceAccounts
+      || resourceAfter.orphanedResourceAccounts !== resourceBefore.orphanedResourceAccounts
+      || resourceAfter.resourceInvariantViolations !== resourceBefore.resourceInvariantViolations
+    ) {
+      throw new SenderError('STATE_INTEGRITY');
+    }
+    audit(
+      ctx,
+      'expand_world_v3',
+      undefined,
+      admin.subject,
+      'genesis-001-generation-v2-to-v3-cells-1261-to-10000',
+    );
   },
 );
 

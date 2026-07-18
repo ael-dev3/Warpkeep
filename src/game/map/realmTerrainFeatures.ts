@@ -5,6 +5,7 @@ import {
   type HexWorldPosition
 } from './hexCoordinates';
 import { deriveChannelSeed, seededUnitFloat } from './realmSeed';
+import { createDeterministicBudgetCollector } from './deterministicBudget';
 import type { RealmTerrainKind } from './realmTerrainSemantics';
 import {
   EMPTY_TERRAIN_PLACEMENTS,
@@ -49,6 +50,13 @@ const FEATURE_KINDS: readonly RealmTerrainFeatureKind[] = Object.freeze([
   'ancient-monolith'
 ]);
 const FEATURE_CLEARANCE = 0.045;
+const ESTABLISHED_GENESIS_PRESENTATION_RADIUS = 20;
+
+type RealmTerrainFeatureCandidate = Readonly<{
+  cell: TerrainCell;
+  kind: RealmTerrainFeatureKind;
+  index: number;
+}>;
 
 function featureKindForTerrain(kind: RealmTerrainKind): RealmTerrainFeatureKind | undefined {
   if (kind === 'forest') return 'forest-tree';
@@ -140,7 +148,9 @@ export function generateRealmTerrainFeatures(
   placements: readonly TerrainStructurePlacement[] = EMPTY_TERRAIN_PLACEMENTS,
   suppressedTileKeys: ReadonlySet<string> = new Set()
 ): RealmTerrainFeatureData {
-  const points: RealmTerrainFeaturePoint[] = [];
+  const budget = REALM_TERRAIN_FEATURE_BUDGETS[quality];
+  const candidates = createDeterministicBudgetCollector<RealmTerrainFeatureCandidate>(budget);
+  let order = 0;
   renderMap.cells.forEach((cell) => {
     const tileKey = hexKey(cell.coord);
     if (suppressedTileKeys.has(tileKey)) return;
@@ -150,13 +160,29 @@ export function generateRealmTerrainFeatures(
     if (featureKind === undefined) return;
     const count = featureCountForCell(cell, terrainKind, quality);
     for (let index = 0; index < count; index += 1) {
-      const point = createFeaturePoint(cell, featureKind, index, hexSize, placements);
-      if (point) points.push(point);
+      candidates.add({
+        value: { cell, kind: featureKind, index },
+        group: Math.max(Math.abs(cell.coord.q), Math.abs(cell.coord.r), Math.abs(-cell.coord.q - cell.coord.r))
+          <= ESTABLISHED_GENESIS_PRESENTATION_RADIUS
+          ? 0
+          : 1,
+        rank: deriveChannelSeed(cell.seed, index, 0, `${featureKind}-detail-budget`),
+        order
+      });
+      order += 1;
     }
   });
 
-  const budget = REALM_TERRAIN_FEATURE_BUDGETS[quality];
-  if (points.length > budget) throw new Error('REALM_TERRAIN_FEATURE_BUDGET_EXCEEDED');
+  const points = candidates.values().flatMap((candidate) => {
+    const point = createFeaturePoint(
+      candidate.cell,
+      candidate.kind,
+      candidate.index,
+      hexSize,
+      placements
+    );
+    return point ? [point] : [];
+  });
   const counts = Object.fromEntries(FEATURE_KINDS.map((kind) => [
     kind,
     points.filter((point) => point.kind === kind).length

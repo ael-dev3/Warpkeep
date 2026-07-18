@@ -4,13 +4,14 @@ import {
   indexRealmTerrainSemantics,
   realmTerrainLabel
 } from '../src/game/map/realmTerrainSemantics';
-import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import { createAuthoritativeRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
 function canonicalInput() {
   const snapshot = createCanonicalGenesisSnapshot();
-  const surface = createRealmTerrainSurface(
+  const surface = createAuthoritativeRealmTerrainSurface(
     snapshot.realm.numericSeed,
+    snapshot.tiles,
     snapshot.realm.authoritativeRadius,
     snapshot.realm.renderRadius
   );
@@ -22,16 +23,16 @@ describe('realm terrain semantic index', () => {
     const { snapshot, surface } = canonicalInput();
     const index = indexRealmTerrainSemantics(surface, snapshot.tileMetadata);
 
-    expect(index.terrainKindsByKey.size).toBe(1_261);
+    expect(index.terrainKindsByKey.size).toBe(10_000);
     expect(index.castleSlotKeys.size).toBe(100);
     expect(index.terrainKindCounts).toEqual({
-      lowland: 266,
-      meadow: 274,
-      forest: 280,
-      heath: 281,
-      ridge: 59,
-      lake: 48,
-      'ancient-stone': 53
+      lowland: 2_131,
+      meadow: 2_133,
+      forest: 2_255,
+      heath: 2_231,
+      ridge: 426,
+      lake: 409,
+      'ancient-stone': 415
     });
     expect(new Set(index.terrainKindsByKey.values()).size).toBe(7);
   });

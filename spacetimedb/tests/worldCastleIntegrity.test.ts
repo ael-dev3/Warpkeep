@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { CANONICAL_WORLD_TILES } from '../src/world';
+import {
+  CANONICAL_WORLD_TILES,
+  GENESIS_GENERATION_V2_WORLD_TILES,
+} from '../src/world';
 import { worldCastleGraphIsConsistent } from '../src/worldCastleIntegrity';
 
 function emptyWorld() {
@@ -12,8 +15,20 @@ function emptyWorld() {
   }));
 }
 
-test('the exact unoccupied canonical 1,261-tile world is consistent', () => {
+test('the exact unoccupied canonical 10,000-tile world is consistent', () => {
   assert.equal(worldCastleGraphIsConsistent(emptyWorld(), []), true);
+});
+
+test('the exact generation-v2 predecessor remains consistent during rollout', () => {
+  const generationV2 = GENESIS_GENERATION_V2_WORLD_TILES.map(tile => ({
+    ...tile,
+    occupantCastleId: undefined,
+  }));
+  assert.equal(worldCastleGraphIsConsistent(generationV2, []), true);
+  assert.equal(worldCastleGraphIsConsistent([
+    ...generationV2.slice(0, -1),
+    { ...CANONICAL_WORLD_TILES[GENESIS_GENERATION_V2_WORLD_TILES.length]!, occupantCastleId: undefined },
+  ], []), false);
 });
 
 test('a castle and occupied tile must link bidirectionally with matching coordinates', () => {

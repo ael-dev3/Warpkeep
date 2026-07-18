@@ -16,6 +16,8 @@ export {
 export {
   CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT,
   CanonicalGenesisSnapshotError,
+  GENESIS_GENERATION_V2_SNAPSHOT_FINGERPRINT,
+  GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT,
   isCanonicalGenesisSnapshot,
   validateCanonicalGenesisSnapshot
 } from './canonicalGenesisSnapshot';

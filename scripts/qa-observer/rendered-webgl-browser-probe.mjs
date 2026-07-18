@@ -52,6 +52,11 @@ const TABLET_VIEWPORT = Object.freeze({ width: 1_024, height: 768 });
 const MOBILE_VIEWPORT = Object.freeze({ width: 390, height: 844 });
 const SHORT_LANDSCAPE_VIEWPORT = Object.freeze({ width: 667, height: 375 });
 export const RENDERED_WEBGL_QA_CASE_COUNT = 14;
+// The rendered browser lane targets the undeployed Genesis generation-v3
+// candidate, not the dual-version production attestation rollout. An exact
+// count prevents a complete generation-v2 surface (1,261 cells), a partial
+// expansion, or a mixed snapshot from being accepted as current render proof.
+export const RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT = 10_000;
 // Every projection-visible keeper name is locked to its castle foundation.
 // Dense overviews may overlap, but camera motion cannot aggregate, displace,
 // or hide founded identities.
@@ -856,7 +861,8 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     candidate.readyOverlayVisible !== false ? 'ready-overlay-visible' : '',
     candidate.mapViewportCovered !== true ? 'map-coverage' : '',
     candidate.environmentLighting !== 'procedural' ? 'environment-lighting' : '',
-    candidate.semanticTerrainCellCount !== 1_261 ? 'semantic-terrain-cell-count' : '',
+    candidate.semanticTerrainCellCount !== RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT
+      ? 'semantic-terrain-cell-count' : '',
     candidate.semanticTerrainKindCount !== 7 ? 'semantic-terrain-kind-count' : '',
     !terrainBudgets
       || !Number.isSafeInteger(candidate.semanticTerrainFeatureCount)

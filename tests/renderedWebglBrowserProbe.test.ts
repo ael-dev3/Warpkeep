@@ -23,6 +23,7 @@ import {
   RENDERED_WEBGL_QA_CHROME_APP,
   RENDERED_WEBGL_QA_CASE_COUNT,
   RENDERED_WEBGL_QA_CHROME_TEAM_ID,
+  RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
   RENDERED_WEBGL_QA_VITE_FS_DENY,
   renderedWebglLabelAnchorDistanceTelemetry,
   renderedWebglLabelDisplacementClassificationValid,
@@ -915,7 +916,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
-      semanticTerrainCellCount: 1_261,
+      semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
       semanticTerrainKindCount: 7,
       semanticTerrainFeatureCount: 700,
       semanticTerrainFeatureDrawCalls: 5,
@@ -996,7 +997,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
-      semanticTerrainCellCount: 1_261,
+      semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
       semanticTerrainKindCount: 7,
       semanticTerrainFeatureCount: 700,
       semanticTerrainFeatureDrawCalls: 5,
@@ -1027,10 +1028,12 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...ready,
       environmentLighting: 'direct-light-fallback'
     }, expected)).toThrow(/environment-lighting/i);
-    expect(() => parseRenderedWebglBrowserDom({
-      ...ready,
-      semanticTerrainCellCount: 1_260
-    }, expected)).toThrow(/semantic-terrain-cell-count/i);
+    for (const staleOrMixedTerrainCellCount of [1_261, 9_999, 10_001]) {
+      expect(() => parseRenderedWebglBrowserDom({
+        ...ready,
+        semanticTerrainCellCount: staleOrMixedTerrainCellCount
+      }, expected)).toThrow(/semantic-terrain-cell-count/i);
+    }
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       semanticTerrainKindCount: 6

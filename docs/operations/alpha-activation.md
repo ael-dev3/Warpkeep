@@ -215,16 +215,21 @@ WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
 WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
 WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
 WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
-npm run stdb:publish:dev -- --resource-rollout-stage=<prebackfill-or-ready>
+npm run stdb:publish:dev -- \
+  --resource-rollout-stage=<prebackfill-or-ready> \
+  --genesis-world-stage=<pre-expansion-or-expanded>
 ```
 
-The rollout stage is mandatory. Use `prebackfill` only for the first additive
-resource-module publication, when no resource rows exist. Use `ready` only
-after the separately approved backfill has been independently verified. A
-ready-state republish proves the exact v4 ready aggregate both before and after
-publication; a pre-backfill publication proves the exact empty-resource v4
-aggregate immediately afterward. Omitting or guessing the stage fails before
-publication.
+Both rollout stages are mandatory. Use resource stage `prebackfill` only for
+the first additive resource-module publication, when no resource rows exist.
+Use `ready` only after the separately approved backfill has been independently
+verified. A ready-state republish proves the exact v4 ready aggregate both
+before and after publication; a pre-backfill publication proves the exact
+empty-resource v4 aggregate immediately afterward. Omitting or guessing the
+stage fails before publication. Use world stage `pre-expansion` only while the
+exact 1,261-cell generation-two predecessor remains; use `expanded` only after
+the separately approved 10,000-cell transition passes its independent
+checkpoint. The publisher never infers one lifecycle from the other.
 
 The wrapper supplies the Hermes credential only in parent memory. The publisher
 passes it to the protected inspection child over stdin and forwards neither the
@@ -271,12 +276,15 @@ For the historical v2 checkpoint, the exact module contract was:
   `warpkeep-auth-epoch-resolver`, bound by exact `resolver_fid` to the one
   procedure argument; the module rejects windows over 60 seconds.
 
-A current republish must retain backend protocol `3`, the complete 1,261-cell
-generation, every inherited table reference and appended visibility contract,
-and the exact founded-state aggregate. The publisher repeats that aggregate
-after a successful publish. If this post-publish read fails, the outcome is
-indeterminate: stop and establish state through a fresh read-only inspection
-before making any further publication decision.
+While production remains at the pre-expansion stage, a current republish must
+retain backend protocol `3`, the complete 1,261-cell generation-two world,
+every inherited table reference and appended visibility contract, and the exact
+founded-state aggregate. After a separately approved expansion, every later
+republish must instead retain the exact 10,000-cell generation-three aggregate.
+The publisher requires that world stage explicitly and repeats the matching
+aggregate after a successful publish. If this post-publish read fails, the
+outcome is indeterminate: stop and establish state through a fresh read-only
+inspection before making any further publication decision.
 
 ### Prepared resource-module checkpoint (not approved)
 
@@ -315,9 +323,15 @@ stop, do not backfill, and establish state through a fresh bounded read-only
 inspection before making any further publication decision. The operator must
 not infer that retrying publication is safe.
 
-`npm run stdb:publish:dev -- --dry-run --resource-rollout-stage=prebackfill`
-remains non-mutating for the first publication plan. Use `ready` instead when
-rehearsing an already-backfilled republish. A dry run performs only
+```sh
+npm run stdb:publish:dev -- --dry-run \
+  --resource-rollout-stage=prebackfill \
+  --genesis-world-stage=pre-expansion
+```
+
+This remains non-mutating for the first publication plan. Use `ready` instead when
+rehearsing an already-backfilled republish, and `expanded` instead only after
+the world transition is independently verified. A dry run performs only
 the bounded issuer check plus local CLI/artifact/migration/expectation proof;
 it does not publish, invoke the post-publish v4 procedure, or backfill rows.
 
@@ -335,6 +349,35 @@ the Hermes credential; the command line carries no secret. Publication approval
 does not authorize this backfill, and backfill approval does not authorize a
 later republish.
 
+### Prepared generation-three world transition (not approved)
+
+Publishing the reducer does not authorize the persistent world mutation. After
+the additive module exists and a fresh read-only checkpoint proves the exact
+1,261-cell generation-two founded state, the separately approved operator is:
+
+```sh
+WARPKEEP_SPACETIMEDB_DATABASE=<immutable-production-database-identity> \
+npm run stdb:expand-world-v3 -- --confirm
+```
+
+The private Keychain wrapper supplies the canonical Maincloud and bridge
+coordinates plus the Hermes credential in parent memory. The operator rejects
+the human-readable database name, requires a visible command-line confirmation,
+and does not accept the legacy noninteractive bypass. It reads and verifies the
+complete counts-only v3 checkpoint, invokes the exact-CAS reducer with
+`1261 / 1261 / generation 2`, then requires `10000 / 10000` plus every dynamic
+count unchanged and exactly one new audit row. A timeout or postcondition
+failure is indeterminate: stop and perform a fresh bounded read-only inspection
+before considering any retry. A v4 checkpoint also requires either the exact
+pre-backfill or exact resource-ready aggregate and proves all private resource
+account counts and policy fields unchanged across the world transaction.
+
+An exact target retry exists at the reducer layer only for recovery proof. The
+guarded operator deliberately refuses to invoke it when the read-only
+precondition already reports generation three. Module publication, resource
+backfill, world expansion, and Pages deployment are four separate approval
+boundaries.
+
 ### Prepared post-backfill resource readiness checkpoint (not approval)
 
 After a separately approved resource backfill returns, do not rely on the
@@ -342,15 +385,23 @@ mutation command's result as the only evidence. The private Keychain wrapper
 must supply the Hermes credential in memory and run this independent, read-only
 checkpoint with the separately reviewed current counts:
 
+The final Alpha 0.3.8 combined-release checkpoint is:
+
 ```sh
 npm run verify:alpha-production -- \
   --require-auth-v2-enabled \
-  --require-genesis-v3-founded-aggregate \
+  --require-genesis-generation-v3-founded-aggregate \
   --require-resource-v4-ready-aggregate \
   --expected-founder-count=N \
   --expected-player-count=P \
   --expected-terms-acceptance-count=T
 ```
+
+If resource backfill is approved and performed before the separate world
+transition, use `--require-genesis-v3-founded-aggregate` for that immediate
+post-backfill read. After expansion, rerun the final checkpoint above with
+`--require-genesis-generation-v3-founded-aggregate`. Never claim final candidate
+readiness from a predecessor-world resource check.
 
 The new v4 flag is invalid without the founded protocol-v3 gate and all three
 explicit expectations. The verifier constructs and validates one exact

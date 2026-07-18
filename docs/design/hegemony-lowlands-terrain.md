@@ -14,10 +14,12 @@ movement, combat, fog of war, or alternate biomes.
 ## Canonical readiness boundary
 
 The authenticated realm mounts only after a single validator accepts the whole
-snapshot. The contract requires one active Genesis 001 realm at protocol 3,
-radius 20, the expected generation and render radius, exactly 1,261 world rows,
-exactly 1,261 matching metadata rows, valid tile keys/rings/static metadata,
-valid castle occupancy, and an own castle that belongs to the authenticated
+snapshot. During the bounded generation-v3 rollout, the contract accepts one
+of two complete protocol-3 Genesis 001 profiles: the exact 1,261-cell
+generation-v2 predecessor or the exact 10,000-cell generation-v3 target. Each
+profile pins its realm fields, tile keys, metadata, counts, and fingerprint;
+mixed or inferred geography is never accepted. Both profiles also require
+valid castle occupancy and an own castle that belongs to the authenticated
 player.
 
 Partial subscriptions, ambiguous realms, missing sidecars, stale geography, and
@@ -28,12 +30,13 @@ canonical Genesis contract. No authenticated production path generates or
 renders a standalone radius-four world.
 
 ```txt
-authoritative radius:        20
-authoritative cells:      1,261
-render radius:               22
-visual apron cells:         258
-total rendered cells:     1,519
-current passable cells:   1,101
+generation-v3 full disc:          radius 57
+maximum authoritative ring:      radius 58 (81 cells)
+authoritative cells:                 10,000
+render envelope:                radius 60
+visual apron cells:                    981
+total rendered cells:                10,981
+passable authoritative cells:         8,750
 ```
 
 The original 61 radius-four rows remain unchanged as rings 0–4 inside this same
@@ -52,20 +55,24 @@ decoration candidates without mutable random state or `Math.random()`.
 
 ## Terrain and foundations
 
-Each pointy hex is split into six radial wedges and barycentrically subdivided.
-Vertices are deduplicated by stable quantized world position before normals are
-computed for the combined mesh. Shared edges therefore reuse positions and do
-not create overlapping cell meshes, cracks, or hard normal seams.
+The established radius-22 presentation keeps its original pointy-hex radial
+wedge topology exactly. Outer cells use a coarse center fan, while the 270
+interfaces at the detail boundary receive deterministic edge segmentation that
+matches the inner subdivision. Vertices are deduplicated by stable quantized
+world position before normals are computed for the combined mesh. Shared edges
+therefore reuse positions without overlapping cell meshes, cracks, degenerate
+triangles, or hard normal seams.
 
-One deterministic quality plan is applied to canonical Genesis before large
-arrays or GPU resources are allocated. There is no special 61/91-cell runtime
-branch:
+One deterministic quality plan is applied before large arrays or GPU resources
+are allocated. Every profile retains all 1,519 radius-22 detail cells, renders
+the remaining 9,462 envelope cells coarsely, and stays within an attested
+geometry ceiling:
 
-| Profile | Subdivisions | Terrain triangles | Triangle ceiling | Detail ceiling |
+| Profile | Inner subdivisions | Terrain triangles | Vertices | Triangle ceiling |
 | --- | ---: | ---: | ---: | ---: |
-| High | 4 | 145,824 | 150,000 | 7,000 |
-| Balanced | 3 | 82,026 | 90,000 | 5,500 |
-| Reduced | 2 | 36,456 | 40,000 | 3,000 |
+| High | 4 | 203,406 | 102,067 | 204,000 |
+| Balanced | 3 | 139,338 | 70,033 | 140,000 |
+| Reduced | 2 | 93,498 | 47,113 | 94,000 |
 
 Every authoritative castle receives a deterministic local placement. The
 normalized castle spans 1.48 world units and its authored island reaches about
@@ -85,16 +92,16 @@ terrain presentations:
 
 | Terrain | Cells | Presentation |
 | --- | ---: | --- |
-| Lowland | 266 | moss and packed-soil substrate |
-| Meadow | 274 | lighter grass and dried-gold interior |
-| Forest | 280 | cooler ground with low procedural coppices |
-| Heath | 281 | muted amethyst heather |
-| Ridge | 59 | weathered stone outcrops |
-| Lake | 48 | opaque, low-profile slate water |
-| Ancient stone | 53 | compact monoliths and cool stone |
+| Lowland | 2,131 | moss and packed-soil substrate |
+| Meadow | 2,133 | lighter grass and dried-gold interior |
+| Forest | 2,255 | cooler ground with low procedural coppices |
+| Heath | 2,231 | muted amethyst heather |
+| Ridge | 426 | weathered stone outcrops |
+| Lake | 409 | opaque, low-profile slate water |
+| Ancient stone | 415 | compact monoliths and cool stone |
 
 The semantic tint fades completely at shared cell edges, preserving the one
-continuous mesh rather than drawing a categorical hex board. The 258-cell
+continuous mesh rather than drawing a categorical hex board. The 981-cell
 visual apron has no authoritative metadata and remains neutral. Vertical
 features are suppressed on all 100 founding slots and inside every occupied
 castle clearance. Generic grass and stones are removed from scenic blockers,
@@ -206,7 +213,7 @@ transform to the authored base without independently normalizing it. Authored
 material differences are preserved; only unsafe numeric extremes are bounded.
 Warm frontier sunlight, neutral stone light, cool amethyst fill, restrained
 ACES exposure, and the base's physical island thickness provide depth without
-stretching a realm-wide shadow map over 1,519 cells. When the complete base LOD
+stretching a realm-wide shadow map over 10,981 rendered cells. When the complete base LOD
 family is ready, the old footprint contact-shadow instance is suppressed to
 avoid double-dark grounding.
 
@@ -307,10 +314,12 @@ Arrow keys move map selection only while the map owns focus. Labels and nested
 controls contain their events, focus is visibly restored, touch targets remain
 at least 44 CSS pixels, and hover is never announced.
 
-If WebGL2 or a required model is unavailable, an illustrated SVG fallback still
-renders the radius-22 surface, distinguishes all 1,261 authoritative cells from
-the 258-cell apron, shows every founded castle and public identity, and retains
-the same selection, HUD, inspector, and navigator contract.
+If WebGL2 or a required model is unavailable, an illustrated SVG fallback uses
+a constant-size radius-60 hull approximation rather than creating 10,000 DOM
+hexes. It reports the exact accepted authoritative-cell count, keeps every
+founded castle at its authoritative coordinate, and retains public identity,
+selection, HUD, inspector, and navigator behavior. The hull is presentation
+only and never invents authority for the 981-cell visual apron.
 
 ## Residual limits
 

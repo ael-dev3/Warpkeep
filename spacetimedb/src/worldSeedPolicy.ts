@@ -3,10 +3,14 @@ import {
   CANONICAL_REALM,
   CANONICAL_WORLD_TILES,
   CANONICAL_WORLD_TILE_META,
+  GENESIS_GENERATION_V2_REALM,
+  GENESIS_GENERATION_V2_WORLD_TILE_META,
+  GENESIS_GENERATION_V2_WORLD_TILES,
   matchesCanonicalCastleSlot,
   matchesCanonicalRealm,
   matchesCanonicalTerrain,
   matchesCanonicalWorldMeta,
+  matchesGenerationV2Realm,
   type CanonicalCastleSlot,
   type CanonicalRealm,
   type CanonicalWorldTile,
@@ -38,10 +42,19 @@ export type GenesisSeedSnapshot = Readonly<{
 
 export type GenesisSeedPlan = Readonly<{
   worldTiles: readonly CanonicalWorldTile[];
-  realm: CanonicalRealm | undefined;
+  realmTransition: GenesisRealmSeedTransition;
   worldMeta: readonly CanonicalWorldTileMeta[];
   castleSlots: readonly CanonicalCastleSlot[];
 }>;
+
+export type GenesisRealmSeedTransition =
+  | Readonly<{ kind: 'none' }>
+  | Readonly<{ kind: 'insert'; realm: CanonicalRealm }>
+  | Readonly<{
+      kind: 'update';
+      previous: CanonicalRealm;
+      realm: CanonicalRealm;
+    }>;
 
 export class GenesisWorldDriftError extends Error {
   constructor() {
@@ -49,6 +62,8 @@ export class GenesisWorldDriftError extends Error {
     this.name = 'GenesisWorldDriftError';
   }
 }
+
+export type GenesisStaticSnapshotGeneration = 'generation-v2' | 'generation-v3' | 'invalid';
 
 function validateUniqueRows<T>(
   rows: Iterable<T>,
@@ -64,10 +79,79 @@ function validateUniqueRows<T>(
   return seen;
 }
 
+function containsExactKeys<T>(
+  actual: ReadonlySet<string | number>,
+  expected: readonly T[],
+  keyFor: (row: T) => string | number,
+): boolean {
+  return actual.size === expected.length && expected.every(row => actual.has(keyFor(row)));
+}
+
 /**
- * Produces only missing generation-v2 static rows. Any unknown, duplicate, or
- * changed row fails before a write plan exists, so a second seed is a no-op and
- * drift is never silently overwritten.
+ * Classifies only the two complete static snapshots that may bracket the v3
+ * rollout. A partial recovery, duplicated row, unknown row, or same-count mix
+ * of v2/v3 rows is invalid rather than being mistaken for a deployment state.
+ */
+export function classifyGenesisStaticSnapshot(
+  snapshot: GenesisSeedSnapshot,
+): GenesisStaticSnapshotGeneration {
+  try {
+    const worldKeys = validateUniqueRows(
+      snapshot.worldTiles,
+      row => row.key,
+      matchesCanonicalTerrain,
+    );
+    const metaKeys = validateUniqueRows(
+      snapshot.worldMeta,
+      row => row.tileKey,
+      matchesCanonicalWorldMeta,
+    );
+    const slotIds = validateUniqueRows(
+      snapshot.castleSlots,
+      row => row.slotId,
+      matchesCanonicalCastleSlot,
+    );
+    const realms = [...snapshot.realms];
+    if (realms.length !== 1) return 'invalid';
+
+    const hasCanonicalSlots = containsExactKeys(
+      slotIds,
+      CANONICAL_CASTLE_SLOTS,
+      row => row.slotId,
+    );
+    if (!hasCanonicalSlots) return 'invalid';
+
+    if (
+      matchesGenerationV2Realm(realms[0]!)
+      && containsExactKeys(
+        worldKeys,
+        GENESIS_GENERATION_V2_WORLD_TILES,
+        row => row.key,
+      )
+      && containsExactKeys(
+        metaKeys,
+        GENESIS_GENERATION_V2_WORLD_TILE_META,
+        row => row.tileKey,
+      )
+    ) return 'generation-v2';
+
+    if (
+      matchesCanonicalRealm(realms[0]!)
+      && containsExactKeys(worldKeys, CANONICAL_WORLD_TILES, row => row.key)
+      && containsExactKeys(metaKeys, CANONICAL_WORLD_TILE_META, row => row.tileKey)
+    ) return 'generation-v3';
+
+    return 'invalid';
+  } catch (error) {
+    if (error instanceof GenesisWorldDriftError) return 'invalid';
+    throw error;
+  }
+}
+
+/**
+ * Produces only missing canonical static rows plus an explicit singleton realm
+ * transition. The sole accepted update source is the exact deployed v2 realm;
+ * all other unknown, duplicate, or changed rows fail before a write plan exists.
  */
 export function planCanonicalWorldSeed(snapshot: GenesisSeedSnapshot): GenesisSeedPlan {
   const worldKeys = validateUniqueRows(
@@ -86,13 +170,28 @@ export function planCanonicalWorldSeed(snapshot: GenesisSeedSnapshot): GenesisSe
     matchesCanonicalCastleSlot,
   );
   const realms = [...snapshot.realms];
-  if (realms.length > 1 || (realms[0] !== undefined && !matchesCanonicalRealm(realms[0]))) {
+  if (realms.length > 1) {
+    throw new GenesisWorldDriftError();
+  }
+  const existingRealm = realms[0];
+  let realmTransition: GenesisRealmSeedTransition;
+  if (existingRealm === undefined) {
+    realmTransition = Object.freeze({ kind: 'insert', realm: CANONICAL_REALM });
+  } else if (matchesCanonicalRealm(existingRealm)) {
+    realmTransition = Object.freeze({ kind: 'none' });
+  } else if (matchesGenerationV2Realm(existingRealm)) {
+    realmTransition = Object.freeze({
+      kind: 'update',
+      previous: GENESIS_GENERATION_V2_REALM,
+      realm: CANONICAL_REALM,
+    });
+  } else {
     throw new GenesisWorldDriftError();
   }
 
   return Object.freeze({
     worldTiles: Object.freeze(CANONICAL_WORLD_TILES.filter(tile => !worldKeys.has(tile.key))),
-    realm: realms.length === 0 ? CANONICAL_REALM : undefined,
+    realmTransition,
     worldMeta: Object.freeze(CANONICAL_WORLD_TILE_META.filter(meta => !metaKeys.has(meta.tileKey))),
     castleSlots: Object.freeze(CANONICAL_CASTLE_SLOTS.filter(slot => !slotIds.has(slot.slotId))),
   });

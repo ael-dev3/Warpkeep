@@ -10,13 +10,24 @@ export const QA_OBSERVER_MAX_CASTLES = 100
 const EXPECTED_PROTOCOL_VERSION = 3
 const EXPECTED_WORLD_SEED = 3_445_214_658
 const EXPECTED_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001'
-const EXPECTED_WORLD_TILE_COUNT = 1_261
-const EXPECTED_WORLD_TILE_META_COUNT = 1_261
 const EXPECTED_REALM_ID = 'GENESIS_001'
-const EXPECTED_GENERATION_VERSION = 2
-const EXPECTED_AUTHORITATIVE_RADIUS = 20
-const EXPECTED_RENDER_RADIUS = 22
 const EXPECTED_PLAYER_CAPACITY = 100
+const EXPECTED_WORLD_STATES = Object.freeze([
+  Object.freeze({
+    worldTileCount: 1_261,
+    worldTileMetaCount: 1_261,
+    generationVersion: 2,
+    authoritativeRadius: 20,
+    renderRadius: 22,
+  }),
+  Object.freeze({
+    worldTileCount: 10_000,
+    worldTileMetaCount: 10_000,
+    generationVersion: 3,
+    authoritativeRadius: 58,
+    renderRadius: 60,
+  }),
+] as const)
 const DATABASE_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const encoder = new TextEncoder()
 
@@ -142,6 +153,24 @@ function exactString(value: unknown, maximumCharacters: number): string {
   return value
 }
 
+function matchesExpectedWorldState(
+  worldTileCount: number,
+  worldTileMetaCount: number,
+  realm: Readonly<{
+    generationVersion: number
+    authoritativeRadius: number
+    renderRadius: number
+  }>,
+): boolean {
+  return EXPECTED_WORLD_STATES.some(expected => (
+    worldTileCount === expected.worldTileCount
+    && worldTileMetaCount === expected.worldTileMetaCount
+    && realm.generationVersion === expected.generationVersion
+    && realm.authoritativeRadius === expected.authoritativeRadius
+    && realm.renderRadius === expected.renderRadius
+  ))
+}
+
 export function parseQaObserverSnapshot(raw: string, contentType: string | null): QaObserverRealmSnapshot {
   if (contentType?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
     return fail('response_validation')
@@ -191,14 +220,10 @@ export function parseQaObserverSnapshot(raw: string, contentType: string | null)
     || protocolVersion !== EXPECTED_PROTOCOL_VERSION
     || worldSeed !== EXPECTED_WORLD_SEED
     || worldSeedName !== EXPECTED_WORLD_SEED_NAME
-    || worldTileCount !== EXPECTED_WORLD_TILE_COUNT
-    || worldTileMetaCount !== EXPECTED_WORLD_TILE_META_COUNT
     || realm.realmId !== EXPECTED_REALM_ID
     || realm.numericSeed !== worldSeed
-    || realm.generationVersion !== EXPECTED_GENERATION_VERSION
-    || realm.authoritativeRadius !== EXPECTED_AUTHORITATIVE_RADIUS
-    || realm.renderRadius !== EXPECTED_RENDER_RADIUS
     || realm.playerCapacity !== EXPECTED_PLAYER_CAPACITY
+    || !matchesExpectedWorldState(worldTileCount, worldTileMetaCount, realm)
     || aggregates.castleCount < 1
     || aggregates.castleCount > QA_OBSERVER_MAX_CASTLES
     || aggregates.profileCount !== aggregates.castleCount

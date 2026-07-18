@@ -144,7 +144,7 @@ test('the v2 admission resolver is separately protected and leaves the legacy lo
   const source = readFileSync(new URL('../src/reducers/admin.ts', import.meta.url), 'utf8');
   const legacyStart = source.indexOf('export const adminGetFidAuthEpoch');
   const resolverStart = source.indexOf('export const authResolverGetFidAdmissionV2');
-  const resolverEnd = source.indexOf('/** Protected and idempotent canonical world seeding.', resolverStart);
+  const resolverEnd = source.indexOf('export const adminSeedWorld', resolverStart);
   assert.notEqual(legacyStart, -1);
   assert.notEqual(resolverStart, -1);
   assert.notEqual(resolverEnd, -1);

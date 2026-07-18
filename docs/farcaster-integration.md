@@ -281,8 +281,10 @@ prebuilt artifact through `--js-path`, `--delete-data=never`, closed stdin, and
 no compatibility override. Any future republish requires fresh approval plus
 explicit canonical founder/player/Terms expectations from a private current
 inspection. The guarded publisher must verify the complete founded protocol-3
-aggregate against the immutable database identity before and after publication;
-historical counts never substitute for it.
+aggregate against the immutable database identity before and after publication.
+The checked-in candidate also requires explicit resource-lifecycle and Genesis
+world stages; neither may be inferred from the other or from local source.
+Historical counts never substitute for a fresh matching aggregate.
 
 The recorded checkpoints also completed the additive session-family Durable
 Object migration, independent managed cookie-secret setup, paused Worker and

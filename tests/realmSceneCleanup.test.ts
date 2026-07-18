@@ -243,6 +243,12 @@ describe('realm scene setup cleanup', () => {
       raycastTargetCount: 0
     });
     expect(onTerrainPresentationTelemetry).toHaveBeenCalledWith({
+      terrainTriangleCount: 54,
+      terrainTriangleBudget: 94_000,
+      terrainDetailRadius: 0,
+      highDetailTerrainCellCount: 1,
+      coarseTerrainCellCount: 0,
+      terrainTransitionEdgeCount: 0,
       semanticCellCount: 1,
       semanticKindCount: 1,
       semanticFeatureCount: 0,

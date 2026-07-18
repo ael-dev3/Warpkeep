@@ -41,10 +41,11 @@ pass against its disposable loopback server: deployed refs 0–18 and all rows
 unchanged, private `resource_account_v1` appended at exact ref 19, empty and
 synthetic nonempty fixtures preserved, second publish idempotent, populated
 deployed-prefix state retained, guarded v3/v2 rollback refused before schema
-change, and the actual module founder/Terms/private-read/collection/backfill
-lifecycle proven before one artifact SHA-256 receipt is emitted. The guarded
-publisher must recheck that same prebuilt artifact and use `--js-path`; it must
-not rebuild after the proof.
+change, the populated 1,261-to-10,000 world transition and zero-write target
+retry proved, and the actual module founder/Terms/private-read/collection/
+backfill lifecycle proven before one artifact SHA-256 receipt is emitted. The
+guarded publisher must recheck that same prebuilt artifact and use `--js-path`;
+it must not rebuild after the proof.
 Run real CLI build/generation verification without publishing; a passing proof is not
 production approval.
 
@@ -84,13 +85,20 @@ Required final source checks are Pages, Verify, and CodeQL for the exact candida
   consistent v2 pairs, either orphan class, castles, allowlist rows, and enabled
   FIDs; protocol `2`; seed `3445214658`; and seed name
   `HEGEMONY_GENESIS_001`. `auditEntries` may be any nonnegative aggregate count.
-- For the current protocol-3 realm, use the protected founded aggregate with
-  exact private expected founder, activated-player, and Terms-acceptance counts.
-  Require 1,261 world/meta rows, one realm, 100 slots, matching founder-owned
-  occupied/claim/castle/profile/Mark/admission counts, matching player/ownership
-  counts, and zero orphan, drift, reconciliation, ambiguity, and invariant
-  counters. Current enabled production uses `--require-auth-v2-enabled`; the
-  paused flag is never auto-detected or substituted.
+- For the current live generation-two realm, use
+  `--require-genesis-v3-founded-aggregate` with exact private expected founder,
+  activated-player, and Terms-acceptance counts. Require 1,261 world/meta rows,
+  one realm, 100 slots, matching founder-owned occupied/claim/castle/profile/
+  Mark/admission counts, matching player/ownership counts, and zero orphan,
+  drift, reconciliation, ambiguity, and invariant counters.
+- Only after the separately approved world transition, use
+  `--require-genesis-generation-v3-founded-aggregate` and require exactly
+  10,000 world/meta rows, generation `3`, maximum authoritative ring `58`,
+  render radius `60`, the same 100 slots, the reviewed private dynamic counts,
+  and the same zero-error invariants. A predecessor check is not final Alpha
+  0.3.8 evidence, and a mixed tuple is never accepted.
+- Current enabled production uses `--require-auth-v2-enabled`; the paused flag
+  is never auto-detected or substituted.
 - The official browser subscribes to `player_v2`, never legacy `player`; the
   private `player_ownership_v2` table has no generated browser accessor.
 - Clean-browser SIWF denial and remembered-session phases pass without retaining proof data.

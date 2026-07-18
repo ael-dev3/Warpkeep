@@ -2,7 +2,10 @@ import {
   CANONICAL_CASTLE_SLOTS,
   CANONICAL_REALM,
   CANONICAL_WORLD_TILES,
-  CANONICAL_WORLD_TILE_META
+  CANONICAL_WORLD_TILE_META,
+  GENESIS_GENERATION_V2_REALM,
+  GENESIS_GENERATION_V2_WORLD_TILES,
+  GENESIS_GENERATION_V2_WORLD_TILE_META
 } from '../../spacetimedb/src/world';
 import { validateCanonicalGenesisSnapshot } from '../../src/spacetime/canonicalGenesisSnapshot';
 import type {
@@ -20,6 +23,7 @@ const TEST_PEER_SLOT = CANONICAL_CASTLE_SLOTS[1]!;
 type CanonicalGenesisFixtureOptions = Readonly<{
   ownFid?: number;
   peerFid?: number;
+  generationVersion?: 2 | 3;
 }>;
 
 export function createCanonicalGenesisCandidate(
@@ -29,6 +33,18 @@ export function createCanonicalGenesisCandidate(
     ? options
     : options.ownFid ?? CANONICAL_TEST_FID;
   const peerFid = typeof options === 'number' ? undefined : options.peerFid;
+  const generationVersion = typeof options === 'number'
+    ? 3
+    : options.generationVersion ?? 3;
+  const realm = generationVersion === 2
+    ? GENESIS_GENERATION_V2_REALM
+    : CANONICAL_REALM;
+  const worldTiles = generationVersion === 2
+    ? GENESIS_GENERATION_V2_WORLD_TILES
+    : CANONICAL_WORLD_TILES;
+  const worldTileMetadata = generationVersion === 2
+    ? GENESIS_GENERATION_V2_WORLD_TILE_META
+    : CANONICAL_WORLD_TILE_META;
   const ownCastle = {
     castleId: CANONICAL_TEST_CASTLE_ID,
     ownerFid: ownFid,
@@ -49,8 +65,8 @@ export function createCanonicalGenesisCandidate(
   } as const;
   const castles = peerCastle ? [ownCastle, peerCastle] : [ownCastle];
   return {
-    activeRealms: [{ ...CANONICAL_REALM }],
-    tiles: CANONICAL_WORLD_TILES.map((tile) => ({
+    activeRealms: [{ ...realm }],
+    tiles: worldTiles.map((tile) => ({
       ...tile,
       ...(tile.key === TEST_SLOT.tileKey
         ? { occupantCastleId: CANONICAL_TEST_CASTLE_ID }
@@ -58,7 +74,7 @@ export function createCanonicalGenesisCandidate(
           ? { occupantCastleId: peerCastle.castleId }
           : {})
     })),
-    tileMetadata: CANONICAL_WORLD_TILE_META.map((metadata) => ({ ...metadata })),
+    tileMetadata: worldTileMetadata.map((metadata) => ({ ...metadata })),
     players: [
       { fid: ownFid, status: 'active' },
       ...(peerFid === undefined ? [] : [{ fid: peerFid, status: 'active' }])

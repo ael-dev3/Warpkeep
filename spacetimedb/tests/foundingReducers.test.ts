@@ -144,8 +144,8 @@ test('v3 admin status is counts-only and includes founder and ledger orphan sign
     'scanBatches',
     'alphaTermsAcceptances',
   ]) assert.match(procedure, new RegExp(field));
-  assert.match(procedure, /planCanonicalWorldSeed/);
-  assert.match(procedure, /instanceof GenesisWorldDriftError/);
+  assert.match(procedure, /classifyGenesisStaticSnapshot/);
+  assert.match(procedure, /=== 'invalid' \? 1n : 0n/);
   assert.match(procedure, /tile\.occupantCastleId !== undefined/);
   assert.match(procedure, /walletAttributionSnapshotV1\.count/);
   assert.match(procedure, /snapScanBatchV1\.count/);

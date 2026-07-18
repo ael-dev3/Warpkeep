@@ -14,15 +14,26 @@ import type { QaSnapshotResolverTokenClaims } from '../src/types'
 const DEVICE_THUMBPRINT = 'A'.repeat(43)
 const NOW = 1_800_000_000_000
 
-function rawSnapshot(aggregates: unknown[] = [1, 1, 0, 1]): unknown[] {
+function rawSnapshot(
+  aggregates: unknown[] = [1, 1, 0, 1],
+  generationVersion: 2 | 3 = 3,
+): unknown[] {
+  const generationV2 = generationVersion === 2
   return [
     2,
     3,
     3_445_214_658,
     'HEGEMONY_GENESIS_001',
-    1_261,
-    1_261,
-    ['GENESIS_001', 3_445_214_658, 2, 20, 22, 100],
+    generationV2 ? 1_261 : 10_000,
+    generationV2 ? 1_261 : 10_000,
+    [
+      'GENESIS_001',
+      3_445_214_658,
+      generationVersion,
+      generationV2 ? 20 : 58,
+      generationV2 ? 22 : 60,
+      100,
+    ],
     aggregates,
   ]
 }
@@ -81,14 +92,14 @@ describe('Spacetime QA observer resolver', () => {
       protocolVersion: 3,
       worldSeed: 3_445_214_658,
       worldSeedName: 'HEGEMONY_GENESIS_001',
-      worldTileCount: 1_261,
-      worldTileMetaCount: 1_261,
+      worldTileCount: 10_000,
+      worldTileMetaCount: 10_000,
       realm: {
         realmId: 'GENESIS_001',
         numericSeed: 3_445_214_658,
-        generationVersion: 2,
-        authoritativeRadius: 20,
-        renderRadius: 22,
+        generationVersion: 3,
+        authoritativeRadius: 58,
+        renderRadius: 60,
         playerCapacity: 100,
       },
       aggregates: {
@@ -129,6 +140,35 @@ describe('Spacetime QA observer resolver', () => {
     expect(JSON.stringify(snapshot)).not.toContain('private-qa-resolver-token')
   })
 
+  it('accepts the exact generation-v2 rollout predecessor without widening the response', () => {
+    const snapshot = parseQaObserverSnapshot(
+      JSON.stringify(rawSnapshot([2, 2, 1, 1], 2)),
+      'application/json',
+    )
+    expect(snapshot).toEqual({
+      version: 2,
+      protocolVersion: 3,
+      worldSeed: 3_445_214_658,
+      worldSeedName: 'HEGEMONY_GENESIS_001',
+      worldTileCount: 1_261,
+      worldTileMetaCount: 1_261,
+      realm: {
+        realmId: 'GENESIS_001',
+        numericSeed: 3_445_214_658,
+        generationVersion: 2,
+        authoritativeRadius: 20,
+        renderRadius: 22,
+        playerCapacity: 100,
+      },
+      aggregates: {
+        castleCount: 2,
+        profileCount: 2,
+        foundedCount: 1,
+        activeCount: 1,
+      },
+    })
+  })
+
   it('accepts only the exact aggregate SATS product and contains no identity surface', () => {
     const snapshot = parseQaObserverSnapshot(JSON.stringify(rawSnapshot([2, 2, 1, 1])), 'application/json')
     expect(snapshot.aggregates).toEqual({
@@ -162,6 +202,18 @@ describe('Spacetime QA observer resolver', () => {
     const realmDrift = structuredClone(rawSnapshot())
     ;(realmDrift[6] as unknown[])[0] = 'OTHER_REALM'
     invalidSnapshots.push(realmDrift)
+    const capacityDrift = structuredClone(rawSnapshot())
+    ;(capacityDrift[6] as unknown[])[5] = 99
+    invalidSnapshots.push(capacityDrift)
+    for (let mask = 1; mask < 0b1_1111; mask += 1) {
+      const mixed = structuredClone(rawSnapshot([1, 1, 0, 1], 2))
+      if ((mask & 0b0_0001) !== 0) mixed[4] = 10_000
+      if ((mask & 0b0_0010) !== 0) mixed[5] = 10_000
+      if ((mask & 0b0_0100) !== 0) (mixed[6] as unknown[])[2] = 3
+      if ((mask & 0b0_1000) !== 0) (mixed[6] as unknown[])[3] = 58
+      if ((mask & 0b1_0000) !== 0) (mixed[6] as unknown[])[4] = 60
+      invalidSnapshots.push(mixed)
+    }
     invalidSnapshots.push([...rawSnapshot(), { fid: 1 }])
     invalidSnapshots.push(rawSnapshot([]))
     invalidSnapshots.push(rawSnapshot([0, 0, 0, 0]))

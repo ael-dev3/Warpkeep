@@ -1,4 +1,5 @@
 import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
+import { REALM_TERRAIN_FEATURE_BUDGETS } from '../../game/map/realmTerrainFeatures';
 
 export type RealmQuality = 'high' | 'balanced' | 'reduced';
 
@@ -77,10 +78,17 @@ export type RealmDecorationDensitySpec = Readonly<{
 }>;
 
 export type RealmRenderPlan = Readonly<{
+  /** Established lattice resolution retained throughout the founding district. */
   subdivisionsPerEdge: number;
+  terrainDetailRadius: number;
+  highDetailTerrainCellCount: number;
+  coarseTerrainCellCount: number;
+  terrainTransitionEdgeCount: number;
+  outerSubdivisionsPerEdge: 1;
   terrainTriangleBudget: number;
   estimatedTerrainTriangles: number;
   decorationDensity: RealmDecorationDensitySpec;
+  genericDecorationInstanceBudget: number;
   decorationInstanceBudget: number;
   estimatedMaximumDecorationInstances: number;
   dynamicShadows: boolean;
@@ -154,17 +162,30 @@ export const REALM_QUALITY_SPECS: Readonly<Record<RealmQuality, RealmQualitySpec
 } as const;
 
 /**
- * Hard scene-build ceilings for canonical radius-20 Genesis 001. They bound
- * CPU-side geometry generation and GPU instance count before allocation.
+ * Hard scene-build ceilings for canonical Genesis 001 at every supported
+ * radius. They bound CPU-side geometry generation and GPU instance count
+ * before allocation instead of scaling linearly with world area.
  */
 export const REALM_EXPANDED_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ terrainTriangles: 150_000, decorationInstances: 7_000 }),
-  balanced: Object.freeze({ terrainTriangles: 90_000, decorationInstances: 5_500 }),
-  reduced: Object.freeze({ terrainTriangles: 40_000, decorationInstances: 3_000 })
+  high: Object.freeze({ terrainTriangles: 204_000, decorationInstances: 7_000 }),
+  balanced: Object.freeze({ terrainTriangles: 140_000, decorationInstances: 5_500 }),
+  reduced: Object.freeze({ terrainTriangles: 94_000, decorationInstances: 3_000 })
 } satisfies Readonly<Record<RealmQuality, Readonly<{
   terrainTriangles: number;
   decorationInstances: number;
 }>>>);
+
+/** Frozen radius-22 presentation boundary from Genesis generation v2. */
+export const REALM_ESTABLISHED_TERRAIN_DETAIL_RADIUS = 22;
+export const REALM_OUTER_TERRAIN_SUBDIVISIONS = 1 as const;
+
+/**
+ * These are the previous global ceilings used to resolve the established
+ * radius-22 lattice. Keeping them separate prevents a larger adaptive-world
+ * budget from silently increasing or decreasing founding-district topology.
+ */
+const ESTABLISHED_TERRAIN_TRIANGLE_BUDGETS: Readonly<Record<RealmQuality, number>> =
+  Object.freeze({ high: 150_000, balanced: 90_000, reduced: 40_000 });
 
 const EXPANDED_DECORATION_DENSITY: Readonly<Record<RealmQuality, RealmDecorationDensitySpec>> = {
   high: {
@@ -197,6 +218,28 @@ function finiteCellCount(value: number) {
   return Math.max(1, Number.isFinite(value) ? Math.trunc(value) : 1);
 }
 
+function finiteRadius(value: number) {
+  return Math.max(0, Number.isFinite(value) ? Math.trunc(value) : 0);
+}
+
+function hexDiscCellCount(radius: number) {
+  return 1 + 3 * radius * (radius + 1);
+}
+
+function adaptiveTransitionEdgeCount(
+  detailRadius: number,
+  renderRadius: number,
+  coarseCellCount: number,
+  renderCellCount: number
+) {
+  if (coarseCellCount === 0 || renderRadius <= detailRadius) return 0;
+  const completeFirstOuterRingCellCount = hexDiscCellCount(detailRadius + 1);
+  const completeBoundaryEdgeCount = 6 * (2 * detailRadius + 1);
+  return renderCellCount >= completeFirstOuterRingCellCount
+    ? completeBoundaryEdgeCount
+    : Math.min(completeBoundaryEdgeCount, coarseCellCount * 3);
+}
+
 function maximumDecorationInstances(
   density: RealmDecorationDensitySpec,
   playableCellCount: number,
@@ -224,26 +267,65 @@ export function resolveRealmRenderPlan(
 ): RealmRenderPlan {
   const playableCellCount = finiteCellCount(input.playableCellCount);
   const renderCellCount = Math.max(playableCellCount, finiteCellCount(input.renderCellCount));
+  const renderRadius = finiteRadius(input.renderRadius);
   const budget = REALM_EXPANDED_RENDER_BUDGETS[quality.id];
-  const subdivisionsForBudget = Math.max(1, Math.floor(Math.sqrt(
-    budget.terrainTriangles / (renderCellCount * 6)
+  const terrainDetailRadius = Math.min(
+    renderRadius,
+    REALM_ESTABLISHED_TERRAIN_DETAIL_RADIUS
+  );
+  const highDetailTerrainCellCount = Math.min(
+    renderCellCount,
+    hexDiscCellCount(terrainDetailRadius)
+  );
+  const coarseTerrainCellCount = renderCellCount - highDetailTerrainCellCount;
+  const subdivisionsForEstablishedTopology = Math.max(1, Math.floor(Math.sqrt(
+    ESTABLISHED_TERRAIN_TRIANGLE_BUDGETS[quality.id]
+      / (highDetailTerrainCellCount * 6)
   )));
   const subdivisionsPerEdge = Math.min(
     quality.subdivisionsPerEdge,
-    subdivisionsForBudget
+    subdivisionsForEstablishedTopology
   );
+  const terrainTransitionEdgeCount = adaptiveTransitionEdgeCount(
+    terrainDetailRadius,
+    renderRadius,
+    coarseTerrainCellCount,
+    renderCellCount
+  );
+  const estimatedTerrainTriangles = highDetailTerrainCellCount
+      * 6
+      * subdivisionsPerEdge ** 2
+    + coarseTerrainCellCount * 6 * REALM_OUTER_TERRAIN_SUBDIVISIONS ** 2
+    + terrainTransitionEdgeCount
+      * (subdivisionsPerEdge - REALM_OUTER_TERRAIN_SUBDIVISIONS);
+  if (estimatedTerrainTriangles > budget.terrainTriangles) {
+    throw new RangeError('REALM_TERRAIN_CELL_BUDGET_EXCEEDED');
+  }
   const decorationDensity = EXPANDED_DECORATION_DENSITY[quality.id];
+  const genericDecorationInstanceBudget = Math.max(
+    0,
+    budget.decorationInstances - REALM_TERRAIN_FEATURE_BUDGETS[quality.id]
+  );
 
   return {
     subdivisionsPerEdge,
+    terrainDetailRadius,
+    highDetailTerrainCellCount,
+    coarseTerrainCellCount,
+    terrainTransitionEdgeCount,
+    outerSubdivisionsPerEdge: REALM_OUTER_TERRAIN_SUBDIVISIONS,
     terrainTriangleBudget: budget.terrainTriangles,
-    estimatedTerrainTriangles: renderCellCount * 6 * subdivisionsPerEdge ** 2,
+    estimatedTerrainTriangles,
     decorationDensity,
+    genericDecorationInstanceBudget,
     decorationInstanceBudget: budget.decorationInstances,
-    estimatedMaximumDecorationInstances: maximumDecorationInstances(
-      decorationDensity,
-      playableCellCount,
-      renderCellCount
+    estimatedMaximumDecorationInstances: Math.min(
+      genericDecorationInstanceBudget,
+      maximumDecorationInstances(
+        decorationDensity,
+        playableCellCount,
+        renderCellCount
+      )
     ),
     dynamicShadows: false,
     shadowMapSize: 0,

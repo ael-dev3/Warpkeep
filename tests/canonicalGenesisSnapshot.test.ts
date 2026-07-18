@@ -3,9 +3,15 @@ import { describe, expect, it } from 'vitest';
 import {
   CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT,
   CanonicalGenesisSnapshotError,
+  GENESIS_GENERATION_V2_SNAPSHOT_FINGERPRINT,
+  GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT,
   isCanonicalGenesisSnapshot,
   validateCanonicalGenesisSnapshot
 } from '../src/spacetime/canonicalGenesisSnapshot';
+import {
+  CANONICAL_REALM,
+  GENESIS_GENERATION_V2_REALM
+} from '../spacetimedb/src/world';
 import type { WarpkeepRealmSnapshotCandidate } from '../src/spacetime/warpkeepBackendTypes';
 import {
   CANONICAL_TEST_FID,
@@ -47,21 +53,50 @@ function replaceMetadata(
 }
 
 describe('canonical Genesis 001 browser snapshot boundary', () => {
-  it('brands and deeply freezes the exact protocol-3 Genesis snapshot', () => {
-    const snapshot = validate(createCanonicalGenesisCandidate());
+  it.each([
+    [2, 1_261, GENESIS_GENERATION_V2_SNAPSHOT_FINGERPRINT],
+    [3, 10_000, GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT]
+  ] as const)(
+    'brands and deeply freezes the exact generation-%i protocol-3 snapshot',
+    (generationVersion, cellCount, fingerprint) => {
+      const snapshot = validate(createCanonicalGenesisCandidate({ generationVersion }));
 
-    expect(snapshot.protocolVersion).toBe(3);
-    expect(snapshot.canonicalFingerprint).toBe(CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT);
-    expect(snapshot.realm).toEqual(snapshot.activeRealms[0]);
-    expect(snapshot.tiles).toHaveLength(1_261);
-    expect(snapshot.tileMetadata).toHaveLength(1_261);
-    expect(snapshot.ownCastle.ownerFid).toBe(CANONICAL_TEST_FID);
-    expect(isCanonicalGenesisSnapshot(snapshot, CANONICAL_TEST_FID)).toBe(true);
-    expect(isCanonicalGenesisSnapshot(snapshot, CANONICAL_TEST_FID + 1)).toBe(false);
-    expect(Object.isFrozen(snapshot)).toBe(true);
-    expect(Object.isFrozen(snapshot.tiles)).toBe(true);
-    expect(Object.isFrozen(snapshot.tiles[0])).toBe(true);
-    expect(validate(snapshot)).toBe(snapshot);
+      expect(snapshot.protocolVersion).toBe(3);
+      expect(snapshot.canonicalFingerprint).toBe(fingerprint);
+      expect(snapshot.realm).toEqual(snapshot.activeRealms[0]);
+      expect(snapshot.tiles).toHaveLength(cellCount);
+      expect(snapshot.tileMetadata).toHaveLength(cellCount);
+      expect(snapshot.ownCastle.ownerFid).toBe(CANONICAL_TEST_FID);
+      expect(isCanonicalGenesisSnapshot(snapshot, CANONICAL_TEST_FID)).toBe(true);
+      expect(isCanonicalGenesisSnapshot(snapshot, CANONICAL_TEST_FID + 1)).toBe(false);
+      expect(Object.isFrozen(snapshot)).toBe(true);
+      expect(Object.isFrozen(snapshot.tiles)).toBe(true);
+      expect(Object.isFrozen(snapshot.tiles[0])).toBe(true);
+      expect(validate(snapshot)).toBe(snapshot);
+    }
+  );
+
+  it('preserves the deployed v2 fingerprint and points the compatibility alias at v3', () => {
+    expect(GENESIS_GENERATION_V2_SNAPSHOT_FINGERPRINT).toBe(
+      'warpkeep:genesis-001:protocol-3:seed-3445214658:generation-2:radius-20:render-22:capacity-100:tiles-1261:metadata-1261'
+    );
+    expect(GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT).toBe(
+      'warpkeep:genesis-001:protocol-3:seed-3445214658:generation-3:radius-58:render-60:capacity-100:tiles-10000:metadata-10000'
+    );
+    expect(CANONICAL_GENESIS_SNAPSHOT_FINGERPRINT)
+      .toBe(GENESIS_GENERATION_V3_SNAPSHOT_FINGERPRINT);
+  });
+
+  it('treats radius 58 as a maximum envelope, not as a complete radius-58 disc', () => {
+    const snapshot = validate(createCanonicalGenesisCandidate({ generationVersion: 3 }));
+    const ring58 = snapshot.tiles.filter((tile) => (
+      Math.max(Math.abs(tile.q), Math.abs(tile.r), Math.abs(-tile.q - tile.r)) === 58
+    ));
+
+    expect(snapshot.realm.authoritativeRadius).toBe(58);
+    expect(snapshot.tiles).toHaveLength(10_000);
+    expect(ring58).toHaveLength(81);
+    expect(snapshot.tiles).not.toHaveLength(1 + (3 * 58 * 59));
   });
 
   it('rejects any backend protocol other than protocol 3', () => {
@@ -96,10 +131,31 @@ describe('canonical Genesis 001 browser snapshot boundary', () => {
     })).toThrow(CanonicalGenesisSnapshotError);
   });
 
-  it.each([0, 61, 1_260])('rejects an incomplete %i-tile projection', (count) => {
+  it.each([0, 61, 1_260, 9_999])('rejects an incomplete %i-tile projection', (count) => {
     const candidate = createCanonicalGenesisCandidate();
     expect(() => validate({ ...candidate, tiles: candidate.tiles.slice(0, count) }))
       .toThrow(CanonicalGenesisSnapshotError);
+  });
+
+  it('rejects every mixed generation tuple, including a same-count valid-row swap', () => {
+    const v2 = createCanonicalGenesisCandidate({ generationVersion: 2 });
+    const v3 = createCanonicalGenesisCandidate({ generationVersion: 3 });
+
+    expect(() => validate({ ...v2, activeRealms: [{ ...CANONICAL_REALM }] }))
+      .toThrow(CanonicalGenesisSnapshotError);
+    expect(() => validate({ ...v3, activeRealms: [{ ...GENESIS_GENERATION_V2_REALM }] }))
+      .toThrow(CanonicalGenesisSnapshotError);
+
+    const v2Keys = new Set(v2.tiles.map((tile) => tile.key));
+    const validOuterTile = v3.tiles.find((tile) => !v2Keys.has(tile.key))!;
+    const validOuterMetadata = v3.tileMetadata.find(
+      (metadata) => metadata.tileKey === validOuterTile.key
+    )!;
+    expect(() => validate({
+      ...v2,
+      tiles: [...v2.tiles.slice(0, -1), validOuterTile],
+      tileMetadata: [...v2.tileMetadata.slice(0, -1), validOuterMetadata]
+    })).toThrow(CanonicalGenesisSnapshotError);
   });
 
   it('rejects duplicate or noncanonical world tiles', () => {

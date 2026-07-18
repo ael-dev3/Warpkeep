@@ -3,8 +3,22 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { GENESIS_RESOURCE_POLICY_VERSION } from '../spacetimedb/src/resourceAuthorityPolicy';
 import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
-import { connect, parseHermesArguments, readStatus, requestAdminToken, requireCredentialedProductionTarget, requireResourceBackfillProductionTarget, verifyExpectedResourceAggregateV4 } from '../scripts/hermes-admin';
+import {
+  connect,
+  parseHermesArguments,
+  readStatus,
+  requestAdminToken,
+  requireCredentialedProductionTarget,
+  requireGenesisExpansionProductionTarget,
+  requireResourceBackfillProductionTarget,
+  verifyExpectedResourceAggregateV4,
+  verifyGenesisExpansionPostconditionV3,
+  verifyGenesisExpansionPreconditionV3,
+  verifyGenesisExpansionResourceCheckpointV4,
+  verifyGenesisExpansionResourcePreservationV4,
+} from '../scripts/hermes-admin';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
@@ -40,6 +54,52 @@ function runHermes(
     env,
     timeout: 5_000
   });
+}
+
+function foundedGenerationV2Status(overrides: Record<string, bigint | number | string> = {}) {
+  return {
+    worldTiles: 1_261n,
+    occupiedWorldTiles: 3n,
+    worldTileMeta: 1_261n,
+    realms: 1n,
+    castleSlots: 100n,
+    castleSlotClaims: 3n,
+    legacyPlayers: 0n,
+    playersV2: 2n,
+    playerOwnershipsV2: 2n,
+    castles: 3n,
+    realmProfiles: 3n,
+    markAccounts: 3n,
+    snapBurnCredits: 2n,
+    walletAttributions: 4n,
+    walletAttributionSnapshots: 1n,
+    scanCursors: 1n,
+    scanBatches: 2n,
+    alphaTermsAcceptances: 2n,
+    allowedFids: 3n,
+    enabledAllowedFids: 3n,
+    auditEntries: 14n,
+    orphanedPlayerRowsV2: 0n,
+    orphanedOwnershipRowsV2: 0n,
+    orphanedCastleClaims: 0n,
+    orphanedCastles: 0n,
+    orphanedRealmProfiles: 0n,
+    orphanedMarkAccounts: 0n,
+    orphanedBurnCredits: 0n,
+    orphanedTermsAcceptances: 0n,
+    founderStateGaps: 0n,
+    markAccountInvariantViolations: 0n,
+    publicMarkProjectionViolations: 0n,
+    duplicateBurnReferences: 0n,
+    burnAccountReconciliationViolations: 0n,
+    ambiguousActiveWalletAddresses: 0n,
+    staticWorldDriftViolations: 0n,
+    termsAcceptanceInvariantViolations: 0n,
+    protocolVersion: 3,
+    worldSeed: 3_445_214_658,
+    worldSeedName: 'HEGEMONY_GENESIS_001',
+    ...overrides,
+  };
 }
 
 describe('Hermes machine-readable output', () => {
@@ -132,7 +192,7 @@ describe('Hermes machine-readable output', () => {
       procedures: { adminGetAlphaStatusV3: vi.fn(async () => status) },
     };
 
-    await readStatus(connection as never, 'v3', true);
+    const safeStatus = await readStatus(connection as never, 'v3', true);
     expect(output).toHaveBeenCalledOnce();
     const rendered = output.mock.calls[0]?.[0] as string;
     const parsed = JSON.parse(rendered) as Record<string, unknown>;
@@ -148,6 +208,11 @@ describe('Hermes machine-readable output', () => {
       worldSeedName: 'HEGEMONY_GENESIS_001',
     });
     expect(rendered).not.toContain('must-not-escape');
+    expect(safeStatus).toMatchObject({
+      worldTiles: 0n,
+      protocolVersion: 3,
+      worldSeedName: 'HEGEMONY_GENESIS_001',
+    });
   });
 
   it('projects protocol-v4 inspection to resource counts and policy only', async () => {
@@ -215,6 +280,92 @@ describe('Hermes machine-readable output', () => {
     expect(() => verifyExpectedResourceAggregateV4(valid, 0n)).toThrow(/postcondition failed/i);
     expect(() => verifyExpectedResourceAggregateV4(valid, 101n)).toThrow(/postcondition failed/i);
   });
+
+  it('accepts only the exact generation-v2 founded expansion checkpoint', () => {
+    const status = foundedGenerationV2Status();
+    expect(verifyGenesisExpansionPreconditionV3(status)).toEqual(status);
+
+    for (const changed of [
+      { worldTiles: 1_260n },
+      { worldTileMeta: 10_000n },
+      { realms: 2n },
+      { castleSlots: 99n },
+      { staticWorldDriftViolations: 1n },
+      { orphanedCastleClaims: 1n },
+      { playerOwnershipsV2: 1n },
+      { enabledAllowedFids: 2n },
+      { protocolVersion: 4 },
+      { worldSeedName: 'LOOKALIKE_WORLD' },
+    ]) {
+      expect(() => verifyGenesisExpansionPreconditionV3({ ...status, ...changed }))
+        .toThrow(/expansion|checkpoint|founded/i);
+    }
+  });
+
+  it('preserves either exact pre-backfill or ready private resource aggregates', () => {
+    const prebackfill = {
+      allowedFids: 3n,
+      castles: 3n,
+      markAccounts: 3n,
+      resourceAccounts: 0n,
+      missingResourceAccounts: 3n,
+      orphanedResourceAccounts: 0n,
+      resourceInvariantViolations: 0n,
+      protocolVersion: 3,
+      resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
+    };
+    const ready = {
+      ...prebackfill,
+      resourceAccounts: 3n,
+      missingResourceAccounts: 0n,
+    };
+    expect(verifyGenesisExpansionResourceCheckpointV4(prebackfill)).toEqual(prebackfill);
+    expect(verifyGenesisExpansionResourceCheckpointV4(ready)).toEqual(ready);
+    expect(verifyGenesisExpansionResourcePreservationV4(ready, ready)).toEqual(ready);
+
+    for (const changed of [
+      { resourceAccounts: 1n },
+      { missingResourceAccounts: 2n },
+      { orphanedResourceAccounts: 1n },
+      { resourceInvariantViolations: 1n },
+      { resourcePolicyVersion: 'unknown' },
+    ]) {
+      expect(() => verifyGenesisExpansionResourceCheckpointV4({
+        ...prebackfill,
+        ...changed,
+      })).toThrow(/resource checkpoint was not exact/i);
+    }
+    expect(() => verifyGenesisExpansionResourcePreservationV4(ready, prebackfill))
+      .toThrow(/changed private resource aggregate state/i);
+  });
+
+  it('requires an exact 10,000-cell transition that preserves all player state', () => {
+    const before = verifyGenesisExpansionPreconditionV3(foundedGenerationV2Status());
+    const after = {
+      ...before,
+      worldTiles: 10_000n,
+      worldTileMeta: 10_000n,
+      auditEntries: before.auditEntries + 1n,
+    };
+    expect(verifyGenesisExpansionPostconditionV3(after, before)).toEqual(after);
+
+    expect(() => verifyGenesisExpansionPostconditionV3(
+      { ...after, worldTiles: 9_999n },
+      before,
+    )).toThrow(/postcondition failed/i);
+    expect(() => verifyGenesisExpansionPostconditionV3(
+      { ...after, playersV2: before.playersV2 + 1n, playerOwnershipsV2: before.playerOwnershipsV2 + 1n },
+      before,
+    )).toThrow(/changed persistent player state/i);
+    expect(() => verifyGenesisExpansionPostconditionV3(
+      { ...after, auditEntries: before.auditEntries + 2n },
+      before,
+    )).toThrow(/audit transition/i);
+    expect(() => verifyGenesisExpansionPostconditionV3(
+      { ...after, termsAcceptanceInvariantViolations: 1n },
+      before,
+    )).toThrow(/nonzero termsAcceptanceInvariantViolations/i);
+  });
 });
 
 describe('Hermes command-line boundary', () => {
@@ -241,6 +392,14 @@ describe('Hermes command-line boundary', () => {
     });
     expect(() => parseHermesArguments(['backfill-resources', '4', '--json'])).toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments(['backfill-resources'])).toThrow(/unexpected number/i);
+    expect(parseHermesArguments(['expand-world-v3', '--dry-run', '--confirm'])).toMatchObject({
+      command: 'expand-world-v3',
+      inspection: false,
+      dryRun: true,
+      confirmedByFlag: true,
+    });
+    expect(() => parseHermesArguments(['expand-world-v3', '1261', '--confirm']))
+      .toThrow(/unexpected number/i);
   });
 });
 
@@ -278,6 +437,24 @@ describe('Hermes credential destination policy', () => {
     for (const database of [undefined, 'warpkeep-89e4u', 'warpkeep-lookalike']) {
       const result = runHermes(
         ['backfill-resources', '4', '--confirm'],
+        { WARPKEEP_SPACETIMEDB_DATABASE: database },
+      );
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('immutable Warpkeep production database identity');
+      expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
+      expect(`${result.stdout}${result.stderr}`).not.toContain('Could not reach');
+    }
+  });
+
+  it('pins the persistent world expansion to the immutable database identity before token acquisition', () => {
+    const identity = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
+    expect(() => requireGenesisExpansionProductionTarget(identity)).not.toThrow();
+    expect(() => requireGenesisExpansionProductionTarget('warpkeep-89e4u'))
+      .toThrow(/immutable Warpkeep production database identity/i);
+
+    for (const database of [undefined, 'warpkeep-89e4u', 'warpkeep-lookalike']) {
+      const result = runHermes(
+        ['expand-world-v3', '--confirm'],
         { WARPKEEP_SPACETIMEDB_DATABASE: database },
       );
       expect(result.status).toBe(1);
@@ -357,6 +534,22 @@ describe('Hermes credential destination policy', () => {
     }
   });
 
+  it('dry-runs the exact world expansion without credentials or network use', () => {
+    const result = runHermes(['expand-world-v3', '--dry-run', '--confirm'], {
+      WARPKEEP_SPACETIMEDB_DATABASE: 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('"command":"expand-world-v3"');
+    expect(result.stdout).toContain('"expectedWorldTiles":"1261"');
+    expect(result.stdout).toContain('"expectedWorldTileMeta":"1261"');
+    expect(result.stdout).toContain('"expectedGenerationVersion":2');
+    expect(result.stdout).toContain('"targetWorldTiles":"10000"');
+    expect(result.stdout).toContain('"mutation":true');
+    expect(result.stderr).toBe('');
+  });
+
   it('does not let the legacy noninteractive switch authorize a resource backfill', () => {
     const result = runHermes(['backfill-resources', '4'], {
       WARPKEEP_HERMES_NONINTERACTIVE: 'yes',
@@ -367,6 +560,20 @@ describe('Hermes credential destination policy', () => {
     expect(result.stderr).toContain('Refusing mutation without --confirm');
     expect(result.stdout).toContain('Warpkeep Hermes target');
     expect(result.stdout).not.toContain(TEST_SECRET);
+  });
+
+  it('does not let the legacy noninteractive switch authorize the world expansion', () => {
+    const result = runHermes(['expand-world-v3'], {
+      WARPKEEP_SPACETIMEDB_DATABASE: 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+      WARPKEEP_HERMES_NONINTERACTIVE: 'yes',
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Refusing mutation without --confirm');
+    expect(result.stdout).toContain('Warpkeep Hermes target');
+    expect(result.stdout).not.toContain(TEST_SECRET);
+    expect(result.stderr).not.toContain('WARPKEEP_ADMIN_TOKEN_SECRET');
   });
 
   it('rejects a weak admin secret before network use', () => {

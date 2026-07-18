@@ -64,7 +64,7 @@ test('metadata connection guard fails closed for the QA principal', () => {
 test('the resolver guard is used only by its read-only procedure', () => {
   const source = readFileSync(new URL('../src/reducers/admin.ts', import.meta.url), 'utf8');
   const resolverStart = source.indexOf('export const authResolverGetFidAdmissionV2');
-  const resolverEnd = source.indexOf('/** Protected and idempotent canonical world seeding.', resolverStart);
+  const resolverEnd = source.indexOf('export const adminSeedWorld', resolverStart);
   assert.notEqual(resolverStart, -1);
   assert.notEqual(resolverEnd, -1);
 

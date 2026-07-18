@@ -41,6 +41,7 @@ import AdminBeginSnapScanBatchV1Reducer from "./admin_begin_snap_scan_batch_v_1_
 import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
 import AdminCreditSnapBurnV1Reducer from "./admin_credit_snap_burn_v_1_reducer";
 import AdminDisableFidReducer from "./admin_disable_fid_reducer";
+import AdminExpandGenesisWorldV3Reducer from "./admin_expand_genesis_world_v_3_reducer";
 import AdminFinalizeSnapScanBatchV1Reducer from "./admin_finalize_snap_scan_batch_v_1_reducer";
 import AdminReplaceFidWalletSnapshotV1Reducer from "./admin_replace_fid_wallet_snapshot_v_1_reducer";
 import AdminSeedWorldReducer from "./admin_seed_world_reducer";
@@ -204,6 +205,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
   __reducerSchema("admin_credit_snap_burn_v1", AdminCreditSnapBurnV1Reducer),
   __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
+  __reducerSchema("admin_expand_genesis_world_v3", AdminExpandGenesisWorldV3Reducer),
   __reducerSchema("admin_finalize_snap_scan_batch_v1", AdminFinalizeSnapScanBatchV1Reducer),
   __reducerSchema("admin_replace_fid_wallet_snapshot_v1", AdminReplaceFidWalletSnapshotV1Reducer),
   __reducerSchema("admin_seed_world", AdminSeedWorldReducer),

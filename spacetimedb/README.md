@@ -19,11 +19,11 @@ while the player authentication contract remains v2. That deployment does not
 attest an arbitrary checkout. Every future republish requires a fresh proof,
 bounded aggregate, recorded authority, and exact-source verification.
 
-> **This checkout contains the live protocol-3 / generation-v2 contract.** It
-> expands Genesis 001 to 1,261 deterministic cells, appends 12 versioned tables,
-> and defines 100 permanent castle slots. See
-> [Genesis 001 generation v2](./GENESIS_001_GENERATION_V2.md) for exact counts,
-> digests, privacy boundaries, and release invariants.
+> **This checkout contains an undeployed protocol-3 / generation-v3
+> candidate.** It preserves the complete 1,261-cell generation-v2 predecessor
+> and all 100 permanent castle slots, then adds 8,739 cells for an exact 10,000
+> persistent-cell world. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md)
+> for the exact shape, budgets, compatibility boundary, and rollout invariants.
 
 ## Version compatibility
 
@@ -33,7 +33,7 @@ bounded aggregate, recorded authority, and exact-source verification.
 - Deployed backend wire protocol: `3`
 - Checked-out backend wire protocol: `3`
 - Player authentication contract: `2` (unchanged)
-- Local world generation: `2`
+- Local world generation: `3` (undeployed; live predecessor is `2`)
 
 Run locally after installing directory dependencies:
 
@@ -44,16 +44,20 @@ pnpm run verify
 
 `pnpm run stdb:build` invokes `spacetime build --module-path .`. Pure tests
 cover JWT principals/claims, session windows, admission/epoch transitions,
-resolver response policy, connection gating, the deterministic radius-20
-Genesis map, inner-61 preservation, castle-slot distribution/connectivity, and
-fail-closed seed planning. They do not connect to or publish a database.
+resolver response policy, connection gating, the deterministic 10,000-cell
+Genesis map, generation-v2 preservation, castle-slot distribution/connectivity,
+and fail-closed seed/expansion planning. They do not connect to or publish a
+database.
 
 From the repository root, `npm run stdb:verify-additive-migration` runs the
 pinned SpacetimeDB 2.6.1 CLI against disposable loopback-only databases. It
 starts from the independently frozen deployed seven-table checkpoint and proves
-the 12 protocol-3 tables append at refs 7 through 18 with
-`--delete-data=never`. It does not inspect or mutate Maincloud and is not
-production publish approval.
+the 12 protocol-3 tables at refs 7 through 18 remain exact while private
+`resource_account_v1` appends at ref 19 with `--delete-data=never`. The same
+loopback proof exercises an exact populated
+1,261-to-10,000 transition, ordinary-seed refusal, preserved founding links and
+realm timestamp, and a zero-write retry. It does not inspect or mutate
+Maincloud and is not production publish approval.
 
 ## Authority and tables
 
@@ -77,8 +81,9 @@ Inherited auth-v2 public tables in live protocol 3:
 
 - `world_tile`: the inherited declaration whose historical protocol-2
   checkpoint contained 61 canonical radius-four cells. Protocol 3 preserves
-  that declaration and now contains 1,261 canonical radius-20 rows; visual
-  apron cells remain client-only.
+  that declaration. Live production currently contains 1,261 canonical
+  radius-20 rows; the generation-v3 candidate expands the same table
+  additively to exactly 10,000 rows. Visual apron cells remain client-only.
 - `player`: the frozen protocol-v1 compatibility table, preserved with its
   original public visibility, exact field order, and Identity column. Protocol
   v2 never reads, writes, or subscribes to it. Historical inspection recorded
@@ -98,10 +103,16 @@ lifecycle, and versioned Terms acceptance are never public. Optional public
 community aggregates remain absent unless the authenticated player accepts the
 exact current Terms version.
 
-The protocol-3 `world_tile` table contains the same frozen declaration. Its
-completed admin-only seed appended exactly 1,200 canonical outer rows after
-validating the original 61. Terrain/content metadata and 100 immutable slot
-coordinates live in sidecar tables, so no inherited row or field was rewritten.
+The checked-in candidate appends private `resource_account_v1` at exact schema
+ref 19. It is caller-scoped through versioned procedures and never becomes a
+public table or peer inventory projection.
+
+The protocol-3 `world_tile` table retains the same frozen declaration.
+Generation v3 appends 8,739 rows to the complete generation-v2 predecessor and
+updates only the exact `realm_v1` singleton generation/radius fields while
+preserving its creation timestamp. Terrain/content metadata is appended in the
+existing sidecar; all 100 immutable slot rows remain generation-v2 rows so no
+founder coordinate or allocation order changes.
 
 Private-table query/subscription accessors are omitted from generated browser
 bindings. The protocol-3 bindings expose only the eight public tables:
@@ -111,7 +122,8 @@ the frozen legacy `player` compatibility accessor, active `world_tile`,
 `allowed_fid`, `admin_audit`, `player_ownership_v2`, slot claims, authoritative
 Mark accounts, wallet attribution, burn receipts, or scan cursors. Browser
 bindings also omit wallet snapshot metadata, scan batches, and Terms acceptance
-history. The active browser subscribes to exactly six protocol-3 projections:
+history, plus private resource accounts. The active browser subscribes to
+exactly six protocol-3 projections:
 `world_tile`, `world_tile_meta_v1`, `player_v2`, `castle`, `realm_v1`, and
 `realm_profile_v1`. It does not subscribe to static slot rows or the frozen
 legacy `player`; that compatibility accessor exists solely because the deployed
@@ -225,7 +237,9 @@ accepts it.
 Before returning, the procedure validates the complete canonical Genesis
 founding graph and revalidates the world, static metadata, castle links, and
 trusted profile projections. Any missing, duplicate, drifted, or unsanitized
-row fails closed. The v2 HTTP SATS-JSON response is exactly:
+row fails closed. During the bounded expansion rollout, the v2 HTTP SATS-JSON
+response accepts exactly one of two complete static contracts—never a mixed
+combination:
 
 ```text
 [
@@ -236,6 +250,21 @@ row fails closed. The v2 HTTP SATS-JSON response is exactly:
   1261,
   1261,
   ["GENESIS_001", 3445214658, 2, 20, 22, 100],
+  [castleCount, profileCount, foundedCount, activeCount]
+]
+```
+
+or the generation-v3 target:
+
+```text
+[
+  2,
+  3,
+  3445214658,
+  "HEGEMONY_GENESIS_001",
+  10000,
+  10000,
+  ["GENESIS_001", 3445214658, 3, 58, 60, 100],
   [castleCount, profileCount, foundedCount, activeCount]
 ]
 ```
@@ -288,8 +317,8 @@ already-founded assignment by creating only private `player_ownership_v2` and
 public `player_v2`. It never creates, moves, or replaces a castle and never
 reads or writes legacy `player`. Missing, partial, duplicate-identity,
 mismatched, or castle-only state fails closed. Indexed per-FID checks keep the
-player status/bootstrap/terms hot paths bounded; full 1,261-row integrity scans
-remain on admin seed/founding/audit transitions.
+player status/bootstrap/terms hot paths bounded; full static-world integrity
+scans remain on admin seed, expansion, founding, and attestation transitions.
 
 The bridge issues no optional profile claims, and the module ignores any
 profile-shaped JWT fields. Trusted public profile and private wallet snapshots
@@ -305,18 +334,21 @@ fields in `realm_profile_v1`. A later Terms version creates a distinct record.
 Exact fresh Hermes authority is required for:
 
 - `admin_seed_world`
+- `admin_expand_genesis_world_v3`
 - `admin_allow_fid`
 - `admin_disable_fid`
 - `admin_bump_auth_epoch`
 - `admin_get_alpha_status`
 - `admin_get_alpha_status_v2`
 - `admin_get_alpha_status_v3`
+- `admin_get_alpha_status_v4`
 - `admin_upsert_realm_profile_v1`
 - `admin_replace_fid_wallet_snapshot_v1`
 - `admin_begin_snap_scan_batch_v1`
 - `admin_credit_snap_burn_v1`
 - `admin_finalize_snap_scan_batch_v1`
 - `admin_get_snap_scan_batch_aggregate_v1`
+- `admin_backfill_resource_accounts_v1`
 - rollback-only `admin_get_fid_auth_epoch`
 
 No real FID is seeded in source or by a verification script. Operator wrappers
@@ -332,6 +364,9 @@ never returns a FID, Identity, profile, allowlist row, note, or audit record.
 `admin_get_alpha_status_v3` remains counts-only while covering all 12 appended
 tables, occupied tiles, and canonical static-world drift in addition to orphan,
 ambiguity, projection, duplicate-reference, and ledger-reconciliation counters.
+Candidate `admin_get_alpha_status_v4` is a separate closed contract containing
+founder/castle/Mark counts, resource-account coverage and invariants, protocol,
+and policy version; it returns no FID or balance.
 The trusted update and
 credit reducers are idempotent and fail closed on policy mismatch, wallet
 ambiguity, chain/contract/implementation/code-hash mismatch, duplicate event or
@@ -402,12 +437,14 @@ npm run stdb:verify-additive-migration
 ```
 
 uses the pinned CLI and `--delete-data=never` against disposable loopback-only
-databases. It verifies exact refs 0-18, unchanged seven-table signatures,
-indexes and visibility, empty and synthetic nonempty row preservation, exact
-protocol-3 visibility, a module-to-independent-fixture match, idempotent artifact
-republish, and refusal of a guarded v2 rollback after a v3 row is populated.
-This proves only controlled local fixtures; it neither observes Maincloud nor
-authorizes a production republish or world mutation.
+databases. It verifies exact refs 0–18 and their rows remain unchanged while
+private `resource_account_v1` appends at ref 19, preserves empty and synthetic
+nonempty fixtures, matches the module to an independent schema fixture, proves
+idempotent artifact republish and guarded v3/v2 rollback refusal, exercises the
+private resource lifecycle, and proves the populated exact 1,261-to-10,000
+world transition plus a zero-write target retry. This proves only controlled
+local fixtures; it neither observes Maincloud nor authorizes a production
+republish or world mutation.
 
 Any separately approved current forward republish must run through the guarded
 publisher with a fresh, private counts-only contract:
@@ -418,16 +455,23 @@ WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
 WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
 WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
 WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
-npm run stdb:publish:dev
+npm run stdb:publish:dev -- \
+  --resource-rollout-stage=<prebackfill-or-ready> \
+  --genesis-world-stage=<pre-expansion-or-expanded>
 ```
 
 All three expectations are mandatory canonical decimal strings, including
-explicit zeroes, and stay in parent memory. The publisher sends only the Hermes
-credential over the protected inspector's stdin, targets the immutable database
-identity, requires the exact founded protocol-v3 aggregate before publication,
-uses one prebuilt artifact with `--delete-data=never`, and repeats the same
-aggregate afterward. Never retry after a post-publish inspection failure until
-a fresh read-only inspection establishes the actual outcome.
+explicit zeroes, and stay in parent memory. Both rollout stages are mandatory:
+the resource stage is `prebackfill` or `ready`, and the world stage is
+`pre-expansion` or `expanded`. Select each only from a fresh counts-only
+inspection; omission or inference fails before publication. The publisher
+sends only the Hermes credential over the protected inspector's stdin, targets
+the immutable database identity, requires the exact stage-qualified founded
+aggregate before publication, uses one prebuilt artifact with
+`--delete-data=never`, and repeats the matching aggregate afterward. The
+resource stage follows its separate pre-backfill/ready checkpoint contract in
+the activation runbook. Never retry after a post-publish inspection failure
+until a fresh read-only inspection establishes the actual outcome.
 
 The historical Alpha 0.3.2 rollout used the following fail-closed sequence. Its
 zero-admission checkpoints describe that earlier pre-founding interval, not the

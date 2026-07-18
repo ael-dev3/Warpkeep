@@ -195,6 +195,12 @@ export type RealmInteractionTarget =
   | Readonly<{ kind: 'terrain'; coord: HexCoord }>;
 
 export type RealmTerrainPresentationTelemetry = Readonly<{
+  terrainTriangleCount: number;
+  terrainTriangleBudget: number;
+  terrainDetailRadius: number;
+  highDetailTerrainCellCount: number;
+  coarseTerrainCellCount: number;
+  terrainTransitionEdgeCount: number;
   semanticCellCount: number;
   semanticKindCount: number;
   semanticFeatureCount: number;
@@ -350,11 +356,13 @@ function createRealmSceneCleanup(): RealmSceneCleanup {
 function createTerrainGeometry(
   surface: RealmTerrainSurface,
   subdivisionsPerEdge: number,
+  adaptiveDetailRadius: number,
   placements: readonly TerrainStructurePlacement[],
   terrainKindsByKey: ReadonlyMap<string, RealmTerrainKind>
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
     subdivisionsPerEdge,
+    adaptiveDetailRadius,
     playableRadius: surface.playableMap.radius,
     placements,
     terrainKindsByKey
@@ -565,10 +573,18 @@ function initializeRealmScene(
   const { data: terrainData, geometry: terrainGeometry } = createTerrainGeometry(
     options.surface,
     renderPlan.subdivisionsPerEdge,
+    renderPlan.terrainDetailRadius,
     terrainPlacements,
     terrainSemantics.terrainKindsByKey
   );
   cleanup.add(() => terrainGeometry.dispose());
+  if (
+    terrainData.triangleCount !== renderPlan.estimatedTerrainTriangles
+    || terrainData.triangleCount > renderPlan.terrainTriangleBudget
+    || terrainData.highDetailCellCount !== renderPlan.highDetailTerrainCellCount
+    || terrainData.coarseCellCount !== renderPlan.coarseTerrainCellCount
+    || terrainData.transitionEdgeCount !== renderPlan.terrainTransitionEdgeCount
+  ) throw new Error('REALM_TERRAIN_TOPOLOGY_ATTESTATION_FAILED');
   const terrainMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.96,
@@ -589,7 +605,12 @@ function initializeRealmScene(
     },
     HEX_SIZE,
     terrainPlacements,
-    terrainSemantics.terrainKindsByKey
+    terrainSemantics.terrainKindsByKey,
+    {
+      maximumPoints: renderPlan.genericDecorationInstanceBudget,
+      preserveRadius: 20,
+      playableKeys: options.surface.playableKeys
+    }
   );
   const decorations = createTerrainDecorationLayers(
     decorationData,
@@ -624,6 +645,12 @@ function initializeRealmScene(
   cleanup.add(semanticFeatures.dispose);
   scene.add(semanticFeatures.group);
   options.onTerrainPresentationTelemetry?.(Object.freeze({
+    terrainTriangleCount: terrainData.triangleCount,
+    terrainTriangleBudget: renderPlan.terrainTriangleBudget,
+    terrainDetailRadius: terrainData.detailRadius,
+    highDetailTerrainCellCount: terrainData.highDetailCellCount,
+    coarseTerrainCellCount: terrainData.coarseCellCount,
+    terrainTransitionEdgeCount: terrainData.transitionEdgeCount,
     semanticCellCount: terrainSemantics.terrainKindsByKey.size,
     semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
       .filter((count) => count > 0).length,

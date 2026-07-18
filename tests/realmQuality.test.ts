@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MIN_REALM_PIXEL_RATIO,
   REALM_ENVIRONMENT_SPECS,
+  REALM_EXPANDED_RENDER_BUDGETS,
   REALM_LIGHTING_SPECS,
   REALM_QUALITY_SPECS,
   resolveRealmPixelRatio,
@@ -159,7 +160,7 @@ describe('realm quality profiles', () => {
     expect([high.estimatedTerrainTriangles, balanced.estimatedTerrainTriangles, reduced.estimatedTerrainTriangles])
       .toEqual([145_824, 82_026, 36_456]);
     expect([high.estimatedMaximumDecorationInstances, balanced.estimatedMaximumDecorationInstances, reduced.estimatedMaximumDecorationInstances])
-      .toEqual([6_821, 5_302, 2_780]);
+      .toEqual([5_900, 4_700, 2_600]);
     [high, balanced, reduced].forEach((plan) => {
       expect(plan.estimatedTerrainTriangles).toBeLessThanOrEqual(plan.terrainTriangleBudget);
       expect(plan.estimatedMaximumDecorationInstances)
@@ -171,5 +172,45 @@ describe('realm quality profiles', () => {
         shadowMode: 'contact-only'
       });
     });
+  });
+
+  it('fits the exact 10,000-cell world and radius-sixty apron inside every declared topology budget', () => {
+    const input = {
+      playableRadius: 58,
+      renderRadius: 60,
+      playableCellCount: 10_000,
+      renderCellCount: hexDiscCellCount(60)
+    } as const;
+
+    const plans = Object.values(REALM_QUALITY_SPECS).map((quality) => (
+      resolveRealmRenderPlan(quality, input)
+    ));
+    expect(plans.map((plan) => plan.subdivisionsPerEdge)).toEqual([4, 3, 2]);
+    expect(plans.map((plan) => plan.estimatedTerrainTriangles))
+      .toEqual([203_406, 139_338, 93_498]);
+    plans.forEach((plan) => {
+      expect(plan.estimatedTerrainTriangles).toBeLessThanOrEqual(plan.terrainTriangleBudget);
+      expect(plan.terrainDetailRadius).toBe(22);
+      expect(plan.highDetailTerrainCellCount).toBe(1_519);
+      expect(plan.coarseTerrainCellCount).toBe(9_462);
+      expect(plan.terrainTransitionEdgeCount).toBe(270);
+      expect(plan.outerSubdivisionsPerEdge).toBe(1);
+      expect(plan.estimatedMaximumDecorationInstances)
+        .toBeLessThanOrEqual(plan.genericDecorationInstanceBudget);
+      expect(plan.genericDecorationInstanceBudget)
+        .toBeLessThanOrEqual(plan.decorationInstanceBudget);
+    });
+    expect(Object.values(REALM_EXPANDED_RENDER_BUDGETS).map((budget) => (
+      budget.terrainTriangles
+    ))).toEqual([204_000, 140_000, 94_000]);
+  });
+
+  it('fails before scene allocation when even one subdivision cannot fit the declared budget', () => {
+    expect(() => resolveRealmRenderPlan(REALM_QUALITY_SPECS.reduced, {
+      playableRadius: 60,
+      renderRadius: 61,
+      playableCellCount: 10_000,
+      renderCellCount: hexDiscCellCount(61)
+    })).toThrow('REALM_TERRAIN_CELL_BUDGET_EXCEEDED');
   });
 });

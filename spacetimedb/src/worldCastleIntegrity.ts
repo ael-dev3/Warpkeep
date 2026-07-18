@@ -1,7 +1,12 @@
 import {
   CANONICAL_WORLD_TILES,
+  GENESIS_GENERATION_V2_WORLD_TILES,
   matchesCanonicalTerrain,
 } from './world';
+
+const GENERATION_V2_TILE_KEYS = new Set(
+  GENESIS_GENERATION_V2_WORLD_TILES.map(tile => tile.key),
+);
 
 type WorldTileLink = Readonly<{
   key: string;
@@ -33,7 +38,10 @@ export function worldCastleGraphIsConsistent(
     if (tilesByKey.has(tile.key) || !matchesCanonicalTerrain(tile)) return false;
     tilesByKey.set(tile.key, tile);
   }
-  if (tilesByKey.size !== CANONICAL_WORLD_TILES.length) return false;
+  const completeGenerationV2 = tilesByKey.size === GENESIS_GENERATION_V2_WORLD_TILES.length
+    && [...tilesByKey.keys()].every(key => GENERATION_V2_TILE_KEYS.has(key));
+  const completeGenerationV3 = tilesByKey.size === CANONICAL_WORLD_TILES.length;
+  if (!completeGenerationV2 && !completeGenerationV3) return false;
 
   const castlesById = new Map<bigint, CastleLink>();
   for (const castle of castles) {

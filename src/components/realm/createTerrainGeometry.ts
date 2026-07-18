@@ -1,5 +1,6 @@
 import {
   axialToWorld,
+  hexDistance,
   hexKey,
   type HexCoord,
   type HexWorldPosition
@@ -40,7 +41,21 @@ export type TerrainGeometryData = Readonly<{
   degenerateTriangleCount: number;
   sharedVertexReuseCount: number;
   surfaceCellCount: number;
+  highDetailCellCount: number;
+  coarseCellCount: number;
+  transitionEdgeCount: number;
+  detailRadius: number;
   subdivisionsPerEdge: number;
+  outerSubdivisionsPerEdge: 1;
+}>;
+
+export type TerrainGeometryOptions = Readonly<{
+  subdivisionsPerEdge?: number;
+  /** Cells through this radius retain the established triangular lattice. */
+  adaptiveDetailRadius?: number;
+  playableRadius?: number;
+  placements?: readonly TerrainStructurePlacement[];
+  terrainKindsByKey?: ReadonlyMap<string, RealmTerrainKind>;
 }>;
 
 type MutableTerrainBounds = {
@@ -149,6 +164,22 @@ function safeSubdivisionCount(value: number) {
   return Math.min(16, Math.max(1, Math.trunc(value)));
 }
 
+function safeDetailRadius(value: number | undefined, renderRadius: number) {
+  if (value === undefined) return renderRadius;
+  if (!Number.isFinite(value)) return renderRadius;
+  return Math.min(renderRadius, Math.max(0, Math.trunc(value)));
+}
+
+/** Neighbor across the outer edge of each pointy-hex radial wedge. */
+const WEDGE_NEIGHBOR_DIRECTIONS: readonly HexCoord[] = Object.freeze([
+  Object.freeze({ q: 1, r: -1 }),
+  Object.freeze({ q: 1, r: 0 }),
+  Object.freeze({ q: 0, r: 1 }),
+  Object.freeze({ q: -1, r: 1 }),
+  Object.freeze({ q: -1, r: 0 }),
+  Object.freeze({ q: 0, r: -1 })
+]);
+
 function interpolateTriangle(
   center: HexWorldPosition,
   firstCorner: HexWorldPosition,
@@ -166,31 +197,33 @@ function interpolateTriangle(
 /**
  * Construct one tessellated indexed surface for every logical cell.
  *
- * Each logical hex remains a single gameplay cell, but each of its six radial
- * wedges is subdivided into a triangular lattice. Vertices are keyed in world
- * space so shared cell borders use the same point and the existing boundary
- * falloff keeps their height exactly continuous.
+ * Each logical hex remains a single gameplay cell. The founding district uses
+ * its established triangular lattice; expansion cells use one triangle per
+ * wedge. A coarse wedge touching that lattice fans across the same segmented
+ * edge, avoiding a T-junction without globally multiplying outer topology.
+ * Vertices are keyed in world space so every shared border resolves to one
+ * indexed point and the existing boundary falloff stays height-continuous.
  */
 export function createTerrainGeometryData(
   map: RealmTerrainMap,
   hexSize: number,
-  subdivisionsOrOptions: number | Readonly<{
-    subdivisionsPerEdge?: number;
-    playableRadius?: number;
-    placements?: readonly TerrainStructurePlacement[];
-    terrainKindsByKey?: ReadonlyMap<string, RealmTerrainKind>;
-  }> = DEFAULT_TERRAIN_SUBDIVISIONS
+  subdivisionsOrOptions: number | TerrainGeometryOptions = DEFAULT_TERRAIN_SUBDIVISIONS
 ): TerrainGeometryData {
   const options = typeof subdivisionsOrOptions === 'number'
     ? { subdivisionsPerEdge: subdivisionsOrOptions }
     : subdivisionsOrOptions;
   const placements = options.placements ?? EMPTY_TERRAIN_PLACEMENTS;
   const subdivisions = safeSubdivisionCount(options.subdivisionsPerEdge ?? DEFAULT_TERRAIN_SUBDIVISIONS);
+  const detailRadius = safeDetailRadius(options.adaptiveDetailRadius, map.radius);
+  const mapCellKeys = new Set(map.cells.map((cell) => hexKey(cell.coord)));
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
   const vertices = new Map<string, number>();
   let sharedVertexReuseCount = 0;
+  let highDetailCellCount = 0;
+  let coarseCellCount = 0;
+  let transitionEdgeCount = 0;
   const bounds: MutableTerrainBounds = {
     minX: Number.POSITIVE_INFINITY,
     maxX: Number.NEGATIVE_INFINITY,
@@ -232,45 +265,110 @@ export function createTerrainGeometryData(
     return index;
   };
 
+  const addLatticeWedge = (
+    cell: RealmTerrainMap['cells'][number],
+    center: HexWorldPosition,
+    corner: HexWorldPosition,
+    nextCorner: HexWorldPosition,
+    wedgeSubdivisions: number
+  ) => {
+    const rows: number[][] = [];
+    for (let first = 0; first <= wedgeSubdivisions; first += 1) {
+      rows[first] = [];
+      for (let second = 0; second <= wedgeSubdivisions - first; second += 1) {
+        const world = interpolateTriangle(
+          center,
+          nextCorner,
+          corner,
+          first / wedgeSubdivisions,
+          second / wedgeSubdivisions
+        );
+        rows[first][second] = addVertex(
+          `surface:${pointKey(world)}`,
+          world,
+          terrainHeightForCell(map.worldSeed, cell, world, hexSize, placements),
+          cell
+        );
+      }
+    }
+
+    for (let first = 0; first < wedgeSubdivisions; first += 1) {
+      for (let second = 0; second < wedgeSubdivisions - first; second += 1) {
+        const origin = rows[first][second];
+        const alongFirst = rows[first + 1][second];
+        const alongSecond = rows[first][second + 1];
+        // This x/z winding points normals upward along Three.js's +y axis.
+        indices.push(origin, alongFirst, alongSecond);
+
+        if (first + second < wedgeSubdivisions - 1) {
+          const opposite = rows[first + 1][second + 1];
+          indices.push(alongFirst, opposite, alongSecond);
+        }
+      }
+    }
+  };
+
+  const addTransitionFan = (
+    cell: RealmTerrainMap['cells'][number],
+    center: HexWorldPosition,
+    corner: HexWorldPosition,
+    nextCorner: HexWorldPosition
+  ) => {
+    const centerIndex = addVertex(
+      `surface:${pointKey(center)}`,
+      center,
+      terrainHeightForCell(map.worldSeed, cell, center, hexSize, placements),
+      cell
+    );
+    const edge: number[] = [];
+    for (let segment = 0; segment <= subdivisions; segment += 1) {
+      // Match the established lattice's barycentric operation exactly so the
+      // rounded world-space key resolves to one shared transition vertex.
+      const world = interpolateTriangle(
+        center,
+        nextCorner,
+        corner,
+        (subdivisions - segment) / subdivisions,
+        segment / subdivisions
+      );
+      edge.push(addVertex(
+        `surface:${pointKey(world)}`,
+        world,
+        terrainHeightForCell(map.worldSeed, cell, world, hexSize, placements),
+        cell
+      ));
+    }
+    for (let segment = 0; segment < subdivisions; segment += 1) {
+      indices.push(centerIndex, edge[segment], edge[segment + 1]);
+    }
+  };
+
   map.cells.forEach((cell) => {
     const center = axialToWorld(cell.coord, hexSize);
     const corners = pointyHexCorners(cell.coord, hexSize);
+    const highDetail = hexDistance({ q: 0, r: 0 }, cell.coord) <= detailRadius;
+    if (highDetail) highDetailCellCount += 1;
+    else coarseCellCount += 1;
+
     corners.forEach((corner, cornerIndex) => {
       const nextCorner = corners[(cornerIndex + 1) % corners.length];
-      const rows: number[][] = [];
-
-      for (let first = 0; first <= subdivisions; first += 1) {
-        rows[first] = [];
-        for (let second = 0; second <= subdivisions - first; second += 1) {
-          const world = interpolateTriangle(
-            center,
-            nextCorner,
-            corner,
-            first / subdivisions,
-            second / subdivisions
-          );
-          rows[first][second] = addVertex(
-            `surface:${pointKey(world)}`,
-            world,
-            terrainHeightForCell(map.worldSeed, cell, world, hexSize, placements),
-            cell
-          );
-        }
+      if (highDetail) {
+        addLatticeWedge(cell, center, corner, nextCorner, subdivisions);
+        return;
       }
 
-      for (let first = 0; first < subdivisions; first += 1) {
-        for (let second = 0; second < subdivisions - first; second += 1) {
-          const origin = rows[first][second];
-          const alongFirst = rows[first + 1][second];
-          const alongSecond = rows[first][second + 1];
-          // This x/z winding points normals upward along Three.js's +y axis.
-          indices.push(origin, alongFirst, alongSecond);
-
-          if (first + second < subdivisions - 1) {
-            const opposite = rows[first + 1][second + 1];
-            indices.push(alongFirst, opposite, alongSecond);
-          }
-        }
+      const direction = WEDGE_NEIGHBOR_DIRECTIONS[cornerIndex]!;
+      const neighbor = {
+        q: cell.coord.q + direction.q,
+        r: cell.coord.r + direction.r
+      };
+      const transition = mapCellKeys.has(hexKey(neighbor))
+        && hexDistance({ q: 0, r: 0 }, neighbor) <= detailRadius;
+      if (transition) {
+        transitionEdgeCount += 1;
+        addTransitionFan(cell, center, corner, nextCorner);
+      } else {
+        addLatticeWedge(cell, center, corner, nextCorner, 1);
       }
     });
   });
@@ -295,7 +393,12 @@ export function createTerrainGeometryData(
     degenerateTriangleCount,
     sharedVertexReuseCount,
     surfaceCellCount: map.cells.length,
-    subdivisionsPerEdge: subdivisions
+    highDetailCellCount,
+    coarseCellCount,
+    transitionEdgeCount,
+    detailRadius,
+    subdivisionsPerEdge: subdivisions,
+    outerSubdivisionsPerEdge: 1
   };
 }
 

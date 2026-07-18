@@ -88,7 +88,10 @@ per-player Realm snapshot. After proof, the Worker calls only
 `qa_observer_get_realm_attestation_v2`. The deployed-schema-compatible
 `qa_observer_get_realm_snapshot_v1` procedure immediately fails with
 `QA_OBSERVER_V1_DISABLED` before authentication, transaction entry, or any
-database read. The successful v2 response has exactly this closed shape:
+database read. The successful v2 response keeps exactly this closed shape.
+During the bounded generation-three rollout, every consumer accepts either the
+complete live generation-two tuple (`1261 / 1261 / 2 / 20 / 22`) or the
+complete candidate tuple shown below; all mixed tuples fail closed:
 
 ```text
 {
@@ -96,14 +99,14 @@ database read. The successful v2 response has exactly this closed shape:
   protocolVersion: 3,
   worldSeed: 3445214658,
   worldSeedName: "HEGEMONY_GENESIS_001",
-  worldTileCount: 1261,
-  worldTileMetaCount: 1261,
+  worldTileCount: 10000,
+  worldTileMetaCount: 10000,
   realm: {
     realmId: "GENESIS_001",
     numericSeed: 3445214658,
-    generationVersion: 2,
-    authoritativeRadius: 20,
-    renderRadius: 22,
+    generationVersion: 3,
+    authoritativeRadius: 58,
+    renderRadius: 60,
     playerCapacity: 100
   },
   aggregates: {

@@ -107,6 +107,23 @@ const ALPHA_0_3_7_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Undeployed candidate. Release requires additive module publication, an owner-approved guarded founder backfill, version-four counts verification, exact Pages deployment, and final owner approval.'
 });
 
+const ALPHA_0_3_8_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: 'CANDIDATE · 18 JUL 2026',
+  title: 'GENESIS WORLD EXPANSION',
+  summary:
+    'Alpha 0.3.8 is an undeployed candidate that prepares Genesis 001 for future naturally placed resource nodes by expanding its persistent world definition to exactly 10,000 cells.',
+  highlights: Object.freeze([
+    'Every existing generation-two cell and all 100 close-outward permanent castle slots remain exact; the expansion adds 8,739 outer cells without moving a founder.',
+    'A complete radius-57 disc plus 81 balanced ring-58 boundary cells forms the authoritative world, with a neutral radius-60 visual apron.',
+    'Exactly 2,000 cells are reserved as future resource-capable sites, but no node, marker, collection entitlement, or new reward mechanic is activated by this patch.',
+    'SpacetimeDB performs the reviewed 1,261-to-10,000 transition atomically behind an admin-only exact-state check; partial or mixed worlds fail closed and an exact target retry writes nothing.',
+    'The Realm accepts only complete generation-two or generation-three snapshots during rollout and scales terrain detail with deterministic bounded work.',
+    'Alpha 0.3.7’s private Food, Wood, Stone, and Gold authority remains part of this candidate. Construction, combat, trading, public inventories, and financial rewards remain unavailable.'
+  ]),
+  alphaNotice:
+    'Undeployed candidate. Production module publication, world expansion, resource backfill, Pages deployment, and future resource-node placement remain separately approval-gated.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
     '0.3.2': ALPHA_0_3_2_PATCH_NOTES,
@@ -114,7 +131,8 @@ export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatc
     '0.3.4': ALPHA_0_3_4_PATCH_NOTES,
     '0.3.5': ALPHA_0_3_5_PATCH_NOTES,
     '0.3.6': ALPHA_0_3_6_PATCH_NOTES,
-    '0.3.7': ALPHA_0_3_7_PATCH_NOTES
+    '0.3.7': ALPHA_0_3_7_PATCH_NOTES,
+    '0.3.8': ALPHA_0_3_8_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

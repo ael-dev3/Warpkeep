@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { RESOURCE_PUBLISH_ROLLOUT_STAGE, parseMigrationProofReceipt, parsePublishArguments, publishChildEnvironment, publishModule, readFoundedPublishExpectations, requireCanonicalPublishCoordinates, validateIssuerDeployment, verifyCanonicalDatabaseList, verifyFreshFoundedProtocolV3Aggregate, verifyFreshResourceProtocolV4PrebackfillAggregate, verifyFreshResourceProtocolV4ReadyAggregate, verifyMigrationArtifactReceipt, verifyPinnedCliAttestation, verifyPostPublishFoundedProtocolV3Aggregate, verifyPostPublishResourceProtocolV4PrebackfillAggregate, verifyPostPublishResourceProtocolV4ReadyAggregate, verifyPostPublishResourcePublicationCheckpoints } from '../scripts/publish-spacetime-dev.mjs';
+import { GENESIS_WORLD_PUBLISH_STAGE, RESOURCE_PUBLISH_ROLLOUT_STAGE, parseMigrationProofReceipt, parsePublishArguments, publishChildEnvironment, publishModule, readFoundedPublishExpectations, requireCanonicalPublishCoordinates, validateIssuerDeployment, verifyCanonicalDatabaseList, verifyFreshFoundedProtocolV3Aggregate, verifyFreshResourceProtocolV4PrebackfillAggregate, verifyFreshResourceProtocolV4ReadyAggregate, verifyMigrationArtifactReceipt, verifyPinnedCliAttestation, verifyPostPublishFoundedProtocolV3Aggregate, verifyPostPublishResourceProtocolV4PrebackfillAggregate, verifyPostPublishResourceProtocolV4ReadyAggregate, verifyPostPublishResourcePublicationCheckpoints } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
@@ -554,16 +554,20 @@ describe('activation publish safety', () => {
   it('rejects unknown publisher flags and noncanonical production coordinates', () => {
     expect(parsePublishArguments([
       '--resource-rollout-stage=prebackfill',
+      '--genesis-world-stage=pre-expansion',
     ])).toEqual({
       dryRun: false,
       resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
     });
     expect(parsePublishArguments([
       '--resource-rollout-stage=ready',
+      '--genesis-world-stage=expanded',
       '--dry-run',
     ])).toEqual({
       dryRun: true,
       resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+      genesisWorldRolloutStage: GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
     });
     expect(() => parsePublishArguments([])).toThrow(/explicit resource rollout stage/i);
     expect(() => parsePublishArguments(['--dry-run'])).toThrow(/explicit resource rollout stage/i);
@@ -572,13 +576,24 @@ describe('activation publish safety', () => {
       '--dry-run',
       '--dry-run',
       '--resource-rollout-stage=prebackfill',
+      '--genesis-world-stage=pre-expansion',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=prebackfill',
       '--resource-rollout-stage=ready',
+      '--genesis-world-stage=pre-expansion',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => parsePublishArguments([
       '--resource-rollout-stage=unknown',
+      '--genesis-world-stage=pre-expansion',
+    ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+    ])).toThrow(/explicit Genesis world stage/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--genesis-world-stage=pre-expansion',
+      '--genesis-world-stage=expanded',
     ])).toThrow(/unknown or duplicate/i);
     expect(() => requireCanonicalPublishCoordinates({
       WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-lookalike',
@@ -776,6 +791,16 @@ describe('activation publish safety', () => {
       },
       fakeSpawnSync,
     )).toThrow(/expectations are required/i);
+    expect(() => verifyFreshFoundedProtocolV3Aggregate(
+      testSecret,
+      {
+        expectedFounderCount: 4,
+        expectedPlayerCount: 1,
+        expectedTermsAcceptanceCount: 1,
+      },
+      fakeSpawnSync,
+      GENESIS_WORLD_PUBLISH_STAGE.EXPANDED,
+    )).toThrow(/did not match the required rollout stage/i);
 
     const postPublishFailure = () => verifyPostPublishFoundedProtocolV3Aggregate(
       'TEST_ONLY_HERMES_SECRET_'.repeat(2),
@@ -1058,6 +1083,7 @@ describe('activation publish safety', () => {
       'scripts/publish-spacetime-dev.mjs',
       '--dry-run',
       '--resource-rollout-stage=prebackfill',
+      '--genesis-world-stage=pre-expansion',
     ], {
       cwd: repositoryRoot,
       encoding: 'utf8',
@@ -1074,6 +1100,7 @@ describe('activation publish safety', () => {
       'scripts/publish-spacetime-dev.mjs',
       '--dry-run',
       '--resource-rollout-stage=prebackfill',
+      '--genesis-world-stage=pre-expansion',
     ], {
       cwd: repositoryRoot,
       encoding: 'utf8',
@@ -1432,6 +1459,11 @@ describe('protected aggregate child isolation', () => {
     playerOwnershipsV2: '1',
     alphaTermsAcceptances: '1',
   });
+  const genesisGenerationV3FoundedAggregate = Object.freeze({
+    ...genesisV3FoundedAggregate,
+    worldTiles: '10000',
+    worldTileMeta: '10000',
+  });
 
   it('accepts only exact legacy and additive-v2 aggregate objects', () => {
     expect(() => verifyExpectedAlphaAggregate(JSON.stringify({
@@ -1444,7 +1476,7 @@ describe('protected aggregate child isolation', () => {
     expect(() => verifyExpectedAlphaV2Aggregate(JSON.stringify(additiveV2Aggregate))).not.toThrow();
   });
 
-  it('accepts exact protocol-v3 preseed, seeded-empty, and founded aggregate stages', () => {
+  it('accepts exact protocol and world-generation rollout aggregate stages', () => {
     expect(() => verifyExpectedAlphaV3Aggregate(
       JSON.stringify(additiveV3PreseedAggregate),
       PROTECTED_AGGREGATE_STAGE.ADDITIVE_V3_PRESEED,
@@ -1465,6 +1497,16 @@ describe('protected aggregate child isolation', () => {
       1,
       1,
     )).not.toThrow();
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(genesisGenerationV3FoundedAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED,
+      3,
+    )).not.toThrow();
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(genesisV3FoundedAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED,
+      3,
+    )).toThrow(/rollout stage/i);
   });
 
   it('accepts only the exact counts-only resource procedure-v4 pre-backfill aggregate', () => {
@@ -1968,6 +2010,7 @@ describe('protected aggregate child isolation', () => {
       requireAdditiveV3PreseedAggregate: false,
       requireGenesisV3SeededEmptyAggregate: false,
       requireGenesisV3FoundedAggregate: false,
+      requireGenesisGenerationV3FoundedAggregate: false,
       requireResourceV4ReadyAggregate: false,
       expectedFounderCount: undefined,
       expectedPlayerCount: 0,
@@ -2024,6 +2067,16 @@ describe('protected aggregate child isolation', () => {
       requireGenesisV3FoundedAggregate: true,
       expectedFounderCount: 3,
       aggregateStage: PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    });
+    expect(parseProductionVerifierArguments([
+      '--require-genesis-generation-v3-founded-aggregate',
+      '--expected-founder-count=3',
+    ])).toEqual({
+      ...defaults,
+      requireGenesisV3FoundedAggregate: true,
+      requireGenesisGenerationV3FoundedAggregate: true,
+      expectedFounderCount: 3,
+      aggregateStage: PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED,
     });
     expect(parseProductionVerifierArguments([
       '--require-auth-v2-enabled',

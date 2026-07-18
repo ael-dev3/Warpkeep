@@ -49,6 +49,10 @@ export const RESOURCE_PUBLISH_ROLLOUT_STAGE = Object.freeze({
   PREBACKFILL: 'prebackfill',
   READY: 'ready',
 });
+export const GENESIS_WORLD_PUBLISH_STAGE = Object.freeze({
+  PRE_EXPANSION: 'pre-expansion',
+  EXPANDED: 'expanded',
+});
 
 class SafePublishError extends Error {}
 
@@ -193,6 +197,7 @@ export function publishChildEnvironment(source = process.env) {
 export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
   let dryRun = false;
   let resourceRolloutStage;
+  let genesisWorldRolloutStage;
   for (const argument of arguments_) {
     if (argument === '--dry-run' && !dryRun) {
       dryRun = true;
@@ -208,12 +213,25 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
         continue;
       }
     }
-    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready>. Unknown or duplicate arguments are rejected.');
+    if (
+      argument.startsWith('--genesis-world-stage=')
+      && genesisWorldRolloutStage === undefined
+    ) {
+      const value = argument.slice('--genesis-world-stage='.length);
+      if (Object.values(GENESIS_WORLD_PUBLISH_STAGE).includes(value)) {
+        genesisWorldRolloutStage = value;
+        continue;
+      }
+    }
+    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded>. Unknown or duplicate arguments are rejected.');
   }
   if (resourceRolloutStage === undefined) {
     fail('An explicit resource rollout stage is required: prebackfill for the first additive publication or ready for an already-backfilled republish.');
   }
-  return Object.freeze({ dryRun, resourceRolloutStage });
+  if (genesisWorldRolloutStage === undefined) {
+    fail('An explicit Genesis world stage is required: pre-expansion for the exact 1,261-cell predecessor or expanded for the exact 10,000-cell target.');
+  }
+  return Object.freeze({ dryRun, resourceRolloutStage, genesisWorldRolloutStage });
 }
 
 export function requireCanonicalPublishCoordinates(source = process.env) {
@@ -281,6 +299,16 @@ export function readFoundedPublishExpectations(source = process.env) {
       0,
     ),
   });
+}
+
+function foundedAggregateStageForWorldStage(genesisWorldRolloutStage) {
+  if (genesisWorldRolloutStage === GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION) {
+    return PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED;
+  }
+  if (genesisWorldRolloutStage === GENESIS_WORLD_PUBLISH_STAGE.EXPANDED) {
+    return PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED;
+  }
+  fail('The Genesis world publication stage was invalid.');
 }
 
 function resolveExecutablePath(executable, environment) {
@@ -444,6 +472,7 @@ export function verifyFreshFoundedProtocolV3Aggregate(
   secret,
   expectations,
   spawnSyncProcess = spawnSync,
+  genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
 ) {
   const exactExpectations = validateFoundedPublishExpectations(expectations);
   const secretBytes = typeof secret === 'string' ? new TextEncoder().encode(secret).byteLength : 0;
@@ -451,9 +480,10 @@ export function verifyFreshFoundedProtocolV3Aggregate(
     fail('A local 32-to-512-byte Hermes credential is required for the fresh protected preflight.');
   }
   const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const aggregateStage = foundedAggregateStageForWorldStage(genesisWorldRolloutStage);
   const result = runBoundedSync(
     process.execPath,
-    protectedAggregateChildArguments(tsxCli, PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED),
+    protectedAggregateChildArguments(tsxCli, aggregateStage),
     {
       env: {
         WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
@@ -471,7 +501,7 @@ export function verifyFreshFoundedProtocolV3Aggregate(
   );
   verifyExpectedAlphaV3Aggregate(
     result.stdout,
-    PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    aggregateStage,
     exactExpectations.expectedFounderCount,
     exactExpectations.expectedPlayerCount,
     exactExpectations.expectedTermsAcceptanceCount,
@@ -544,9 +574,15 @@ export function verifyPostPublishFoundedProtocolV3Aggregate(
   secret,
   expectations,
   spawnSyncProcess = spawnSync,
+  genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
 ) {
   try {
-    verifyFreshFoundedProtocolV3Aggregate(secret, expectations, spawnSyncProcess);
+    verifyFreshFoundedProtocolV3Aggregate(
+      secret,
+      expectations,
+      spawnSyncProcess,
+      genesisWorldRolloutStage,
+    );
   } catch {
     // Publication has already returned success. Never surface a preflight-style
     // "no publish attempted" message or invite an unsafe retry when only the
@@ -595,6 +631,7 @@ export function verifyPostPublishResourcePublicationCheckpoints(
   expectations,
   resourceRolloutStage,
   spawnSyncProcess = spawnSync,
+  genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
 ) {
   const exactExpectations = validateFoundedPublishExpectations(expectations);
   if (!Object.values(RESOURCE_PUBLISH_ROLLOUT_STAGE).includes(resourceRolloutStage)) {
@@ -604,6 +641,7 @@ export function verifyPostPublishResourcePublicationCheckpoints(
     secret,
     exactExpectations,
     spawnSyncProcess,
+    genesisWorldRolloutStage,
   );
   if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL) {
     verifyPostPublishResourceProtocolV4PrebackfillAggregate(
@@ -710,7 +748,11 @@ export async function publishModule(
 }
 
 async function main() {
-  const { dryRun, resourceRolloutStage } = parsePublishArguments();
+  const {
+    dryRun,
+    resourceRolloutStage,
+    genesisWorldRolloutStage,
+  } = parsePublishArguments();
   requireCanonicalPublishCoordinates();
   if (database !== CANONICAL_DATABASE) fail('The production publisher target was not canonical.');
   const issuer = requireHttpsOrigin(configuredIssuer, 'WARPKEEP_OIDC_ISSUER');
@@ -728,7 +770,7 @@ async function main() {
   const artifactReceipt = runCurrentAdditiveMigrationProof(executable);
   if (dryRun) {
     await validateIssuerDeployment(issuer);
-    console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, and ${issuer}; would update the canonical existing database without deleting data.`);
+    console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, explicit ${genesisWorldRolloutStage} Genesis world stage, and ${issuer}; would update the canonical existing database without deleting data.`);
     return;
   }
   await validateIssuerDeployment(issuer);
@@ -736,6 +778,8 @@ async function main() {
   verifyFreshFoundedProtocolV3Aggregate(
     process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
     foundedExpectations,
+    spawnSync,
+    genesisWorldRolloutStage,
   );
   if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.READY) {
     verifyFreshResourceProtocolV4ReadyAggregate(
@@ -748,6 +792,8 @@ async function main() {
     process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
     foundedExpectations,
     resourceRolloutStage,
+    spawnSync,
+    genesisWorldRolloutStage,
   );
 }
 
