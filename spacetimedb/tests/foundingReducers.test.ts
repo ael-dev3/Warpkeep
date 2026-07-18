@@ -54,7 +54,7 @@ test('player admission, bootstrap, and terms paths never scan the full realm', (
   assert.doesNotMatch(localAssertion, /\.iter\s*\(/);
 });
 
-test('public Mark projection is gated by an exact authenticated terms transition', () => {
+test('public Mark projection is gated by an exact authenticated current entry-agreement transition', () => {
   const admission = source('../src/reducers/admission.ts');
   const start = admission.indexOf('export const acceptAlphaTermsV1');
   const reducer = admission.slice(start);
@@ -69,6 +69,7 @@ test('public Mark projection is gated by an exact authenticated terms transition
   assert.match(reducer, /ALPHA_TERMS_ACCEPTANCE_CONFLICT/);
   assert.match(reducer, /communityStatsVisible: true/);
   assert.match(reducer, /marksBalanceMicros: account\.balanceMicros/);
+  assert.doesNotMatch(reducer, /ENTRY_AGREEMENT_EVIDENCE_VERSIONS/);
 });
 
 test('crediting is admin-only, receipt-immutable, fixed-policy, and never publishes private fields', () => {

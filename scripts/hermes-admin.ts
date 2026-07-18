@@ -3,6 +3,9 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DbConnection } from '../src/spacetime/module_bindings';
+import {
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+} from '../spacetimedb/src/entryAgreementPolicy';
 import { GENESIS_RESOURCE_POLICY_VERSION } from '../spacetimedb/src/resourceAuthorityPolicy';
 import { configureHermesMachineOutput } from './hermes-machine-output';
 
@@ -34,6 +37,9 @@ const GENESIS_REALM_COUNT = 1n;
 const GENESIS_CASTLE_SLOT_COUNT = 100n;
 const GENESIS_GENERATION_V2_VERSION = 2;
 const GENESIS_MAX_FOUNDERS = 100n;
+const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = BigInt(
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+);
 const HEGEMONY_WORLD_SEED = 3_445_214_658;
 const HEGEMONY_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 
@@ -304,7 +310,8 @@ function verifyFoundedGenesisState(status: GenesisExpansionStatusV3): void {
     || status.markAccounts !== founders
     || status.playersV2 !== status.playerOwnershipsV2
     || status.playersV2 > founders
-    || status.alphaTermsAcceptances > status.playersV2
+    || status.alphaTermsAcceptances
+      > status.playersV2 * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER
   ) {
     fail('Genesis world v3 expansion checkpoint did not contain an exact founded player graph.');
   }

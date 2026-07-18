@@ -60,7 +60,8 @@ const procedureTimeoutMilliseconds = 5_000;
 const maximumProcedureResponseBytes = 16_384;
 const actualModuleFounderFid = 730_001;
 const actualModuleOtherFid = 730_002;
-const alphaTermsVersion = '2026-07-14';
+const historicalEntryAgreementVersion = '2026-07-14';
+const alphaTermsVersion = '2026-07-18-hegemony-entry-agreement-v1';
 const resourcePolicyVersion = 'genesis-resource-yield-v1';
 const marksPolicyVersion = 'snap-current-linked-wallet-1to1-v1';
 const resourceQuantumMicros = 600_000_000n;
@@ -1669,9 +1670,17 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       JSON.stringify([alphaTermsVersion, false]),
       530,
     );
+    await callLoopbackReducer(
+      server,
+      database,
+      'accept_alpha_terms_v1',
+      playerCredential(),
+      JSON.stringify([historicalEntryAgreementVersion, true]),
+      530,
+    );
     await usePrivateInspectionModule();
     if (await countForFid(server, ownerToken, database, 'alpha_terms_acceptance_v1') !== 0n) {
-      fail('Rejected terms fixture changed consent state.');
+      fail('Rejected or historical entry-agreement fixture changed consent state.');
     }
     await useActualModule();
     await callLoopbackReducer(

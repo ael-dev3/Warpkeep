@@ -26,12 +26,15 @@ import {
   SNAP_MARK_POLICY_VERSION,
   SNAP_PROXY_ADDRESS,
   SNAP_PROXY_DEPLOYMENT_BLOCK,
-  WARPKEEP_ALPHA_TERMS_VERSION,
   applyOneToOneBurnCredit,
   markAccountIsConsistent,
   normalizeSnapBurnCredit,
   snapBurnCreditsEqual,
 } from '../marksAuthorityPolicy';
+import {
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+  WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS,
+} from '../entryAgreementPolicy';
 import {
   FARCASTER_PROFILE_POLICY_VERSION,
   FARCASTER_WALLET_POLICY_VERSION,
@@ -79,6 +82,22 @@ import {
 } from '../worldSeedPolicy';
 import { inspectGenesisResourceGraph } from '../resourceAuthority';
 
+type AdminContext = Parameters<typeof requireAdmin>[0];
+
+/**
+ * A public Marks projection can remain visible under its historical immutable
+ * acceptance evidence. That preserves a prior explicit publication choice
+ * while the current entry/gameplay gate still requires the newest bundle.
+ */
+function hasRetainedEntryAgreementEvidence(ctx: AdminContext, fid: bigint): boolean {
+  return WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.some((entryAgreementVersion) => {
+    const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(
+      fid + ':' + entryAgreementVersion,
+    );
+    return acceptance?.fid === fid && acceptance.termsVersion === entryAgreementVersion;
+  });
+}
+
 function cleanAdminNote(note: string): string {
   const trimmed = note.trim();
   if (trimmed.length > 512) {
@@ -121,8 +140,6 @@ function assertExactGenesisDynamicGraph(ctx: Parameters<typeof requireAdmin>[0])
   }
   return resource;
 }
-
-type AdminContext = Parameters<typeof requireAdmin>[0];
 
 type WalletSnapshotLike = Readonly<{
   generation: bigint;
@@ -565,9 +582,7 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
           && profile.marksPolicyVersion === undefined;
         const visibleProjectionMatches = account !== null
           && profile.firstAuthenticatedAt !== undefined
-          && tx.db.alphaTermsAcceptanceV1.acceptanceKey.find(
-            `${profile.fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`,
-          )?.termsVersion === WARPKEEP_ALPHA_TERMS_VERSION
+          && hasRetainedEntryAgreementEvidence(tx, profile.fid)
           && profile.totalSnapBurnedMicros === account.totalSnapBurnedMicros
           && profile.marksEarnedMicros === account.earnedMicros
           && profile.marksSpentMicros === account.spentMicros
@@ -591,12 +606,19 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
 
       let orphanedTermsAcceptances = 0n;
       let termsAcceptanceInvariantViolations = 0n;
+      const entryAgreementAcceptanceCounts = new Map<bigint, number>();
       for (const acceptance of tx.db.alphaTermsAcceptanceV1.iter()) {
+        const acceptanceCount = (entryAgreementAcceptanceCounts.get(acceptance.fid) ?? 0) + 1;
+        entryAgreementAcceptanceCounts.set(acceptance.fid, acceptanceCount);
         if (
           acceptance.fid === 0n
           || acceptance.termsVersion.trim() === ''
           || acceptance.termsVersion.length > 64
           || acceptance.acceptanceKey !== `${acceptance.fid}:${acceptance.termsVersion}`
+          || !WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.some(
+            entryAgreementVersion => entryAgreementVersion === acceptance.termsVersion,
+          )
+          || acceptanceCount > WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM
         ) termsAcceptanceInvariantViolations += 1n;
         if (
           tx.db.allowedFid.fid.find(acceptance.fid) === null
@@ -1332,12 +1354,9 @@ export const adminCreditSnapBurnV1 = warpkeep.reducer(
       updatedAt: ctx.timestamp,
     });
     if (profile.communityStatsVisible) {
-      const acceptanceKey = `${credit.attributedFid}:${WARPKEEP_ALPHA_TERMS_VERSION}`;
-      const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(acceptanceKey);
       if (
         profile.firstAuthenticatedAt === undefined
-        || acceptance?.fid !== credit.attributedFid
-        || acceptance.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION
+        || !hasRetainedEntryAgreementEvidence(ctx, credit.attributedFid)
       ) throw new SenderError('STATE_INTEGRITY');
       ctx.db.realmProfileV1.fid.update({
         ...profile,

@@ -3,6 +3,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+} from '../spacetimedb/src/entryAgreementPolicy';
 import { GENESIS_RESOURCE_POLICY_VERSION } from '../spacetimedb/src/resourceAuthorityPolicy';
 import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
 import {
@@ -285,6 +288,19 @@ describe('Hermes machine-readable output', () => {
     const status = foundedGenerationV2Status();
     expect(verifyGenesisExpansionPreconditionV3(status)).toEqual(status);
 
+    expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM).toBe(2);
+    const retainedHistoryStatus = {
+      ...status,
+      alphaTermsAcceptances: status.playersV2
+        * BigInt(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM),
+    };
+    expect(verifyGenesisExpansionPreconditionV3(retainedHistoryStatus))
+      .toEqual(retainedHistoryStatus);
+    expect(() => verifyGenesisExpansionPreconditionV3({
+      ...retainedHistoryStatus,
+      alphaTermsAcceptances: retainedHistoryStatus.alphaTermsAcceptances + 1n,
+    })).toThrow(/founded player graph/i);
+
     for (const changed of [
       { worldTiles: 1_260n },
       { worldTileMeta: 10_000n },
@@ -355,6 +371,10 @@ describe('Hermes machine-readable output', () => {
     )).toThrow(/postcondition failed/i);
     expect(() => verifyGenesisExpansionPostconditionV3(
       { ...after, playersV2: before.playersV2 + 1n, playerOwnershipsV2: before.playerOwnershipsV2 + 1n },
+      before,
+    )).toThrow(/changed persistent player state/i);
+    expect(() => verifyGenesisExpansionPostconditionV3(
+      { ...after, alphaTermsAcceptances: before.alphaTermsAcceptances + 1n },
       before,
     )).toThrow(/changed persistent player state/i);
     expect(() => verifyGenesisExpansionPostconditionV3(
