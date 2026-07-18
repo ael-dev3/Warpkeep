@@ -9,13 +9,28 @@ import {
 } from '../src/game/map/realmSharedForestPlacements';
 import { hexKey } from '../src/game/map/hexCoordinates';
 import { indexRealmTerrainSemantics } from '../src/game/map/realmTerrainSemantics';
-import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import { createAuthoritativeRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import {
   HEGEMONY_TREE_RUNTIME_ASSETS,
   hegemonyTreeModel,
   type HegemonyTreeLod
 } from '../src/components/realm/hegemonyTreeRuntimeAssets';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
+
+const CANONICAL_SNAPSHOT = createCanonicalGenesisSnapshot();
+const CANONICAL_SURFACE = createAuthoritativeRealmTerrainSurface(
+  CANONICAL_SNAPSHOT.realm.numericSeed,
+  CANONICAL_SNAPSHOT.tiles,
+  CANONICAL_SNAPSHOT.realm.authoritativeRadius,
+  CANONICAL_SNAPSHOT.realm.renderRadius
+);
+const CANONICAL_SEMANTICS = indexRealmTerrainSemantics(
+  CANONICAL_SURFACE,
+  CANONICAL_SNAPSHOT.tileMetadata
+);
+const CANONICAL_PASSABILITY_BY_TILE_KEY = new Map(
+  CANONICAL_SNAPSHOT.tileMetadata.map((row) => [row.tileKey, row.passable] as const)
+);
 
 function speciesFor(lod: HegemonyTreeLod) {
   return HEGEMONY_TREE_RUNTIME_ASSETS.map((asset) => {
@@ -34,13 +49,6 @@ function canonicalForestInput(lod: HegemonyTreeLod, overrides: Readonly<{
   rows?: unknown;
   allowLegacyFallback?: boolean;
 }> = {}) {
-  const snapshot = createCanonicalGenesisSnapshot();
-  const surface = createRealmTerrainSurface(
-    snapshot.realm.numericSeed,
-    snapshot.realm.authoritativeRadius,
-    snapshot.realm.renderRadius
-  );
-  const semantics = indexRealmTerrainSemantics(surface, snapshot.tileMetadata);
   return {
     layout: overrides.layout === undefined
       ? CANONICAL_GENESIS_FOREST_LAYOUT_V1
@@ -49,12 +57,12 @@ function canonicalForestInput(lod: HegemonyTreeLod, overrides: Readonly<{
       ? CANONICAL_GENESIS_FOREST_INSTANCES_V1
       : overrides.rows,
     allowLegacyFallback: overrides.allowLegacyFallback,
-    realmId: snapshot.realm.realmId,
-    renderMap: surface.renderMap,
-    terrainKindsByKey: semantics.terrainKindsByKey,
+    realmId: CANONICAL_SNAPSHOT.realm.realmId,
+    renderMap: CANONICAL_SURFACE.renderMap,
+    terrainKindsByKey: CANONICAL_SEMANTICS.terrainKindsByKey,
     species: speciesFor(lod),
     isCoordPassable: (coord: Readonly<{ q: number; r: number }>) => (
-      snapshot.tileMetadata.find((row) => row.tileKey === hexKey(coord))?.passable === true
+      CANONICAL_PASSABILITY_BY_TILE_KEY.get(hexKey(coord)) === true
     )
   };
 }

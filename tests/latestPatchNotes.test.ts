@@ -39,7 +39,10 @@ describe('latest in-menu patch notes', () => {
       /Gold Mines.*Hegemony supply wagons.*provenance-pinned High, Balanced, and Compact assets.*nearby-only animation.*safe marker fallback/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Community Marks remains separate.*no conversion.*transfer.*credit.*spending.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
+      /preserved Genesis founding Lowlands.*shared, server-seeded forest layout.*210 trees.*22 provenance-pinned families.*High, Balanced, and Compact.*terrain.*passability.*Gold sites.*ownership.*economy remain unchanged/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /Community Marks remains a separate private authority.*no conversion.*transfer.*credit.*spending.*Construction.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
@@ -49,7 +52,7 @@ describe('latest in-menu patch notes', () => {
       'additive module publication'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'owner-approved resource and Gold-site setup'
+      'owner-approved resource, Gold-site, and forest-layout setup'
     );
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
       'aggregate verification'

@@ -9,7 +9,7 @@ import {
   type RealmForestSpecies
 } from '../src/game/map/realmForestBiomes';
 import { indexRealmTerrainSemantics } from '../src/game/map/realmTerrainSemantics';
-import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import { createAuthoritativeRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { createHegemonyCastlePlacements } from '../src/game/map/terrainPlacements';
 import {
   HEGEMONY_TREE_RUNTIME_ASSETS,
@@ -34,8 +34,9 @@ const TEST_TREE_SPECIES = testTreeSpecies('high');
 
 function canonicalInput() {
   const snapshot = createCanonicalGenesisSnapshot();
-  const surface = createRealmTerrainSurface(
+  const surface = createAuthoritativeRealmTerrainSurface(
     snapshot.realm.numericSeed,
+    snapshot.tiles,
     snapshot.realm.authoritativeRadius,
     snapshot.realm.renderRadius
   );
@@ -82,13 +83,16 @@ function connectedTreeCellSizes(treeKeys: ReadonlySet<string>) {
 describe('renderer-only forest ecoregions', () => {
   it('forms deterministic separated groves while retaining broad open space', () => {
     const { placements, semantics, snapshot, surface, suppressed } = canonicalInput();
+    const passabilityByTileKey = new Map(snapshot.tileMetadata.map((row) => (
+      [row.tileKey, row.passable] as const
+    )));
     const options = {
       quality: 'high' as const,
       species: TEST_TREE_SPECIES,
       placements,
       suppressedTileKeys: suppressed,
       isCoordPassable: (coord: Readonly<{ q: number; r: number }>) => (
-        snapshot.tileMetadata.find((row) => row.tileKey === hexKey(coord))?.passable === true
+        passabilityByTileKey.get(hexKey(coord)) === true
       )
     };
     const first = generateRealmForestBiomes(
@@ -128,7 +132,10 @@ describe('renderer-only forest ecoregions', () => {
       hexKey(point.coord)
     ))));
     expect(componentSizes.length).toBeGreaterThanOrEqual(12);
-    expect(componentSizes.length).toBeLessThanOrEqual(24);
+    // The preserved authoritative v3 key set has a partial outer ring rather
+    // than the old full-radius synthetic disc. Keep the fallback bounded and
+    // groved without pretending that its deterministic grouping is unchanged.
+    expect(componentSizes.length).toBeLessThanOrEqual(28);
     expect(componentSizes.every((size) => size >= 2)).toBe(true);
     expect(componentSizes[0]).toBeGreaterThanOrEqual(10);
     first.points.forEach((point, index) => {

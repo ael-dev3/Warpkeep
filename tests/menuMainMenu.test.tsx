@@ -249,8 +249,9 @@ describe('WarpkeepMainMenu', () => {
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
     expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.9');
     expect(notes.textContent).toContain('Twenty-four deterministic Tier-I Gold Mines');
+    expect(notes.textContent).toContain('preserved Genesis founding Lowlands');
     expect(notes.textContent).toContain(
-      'Undeployed candidate. Release requires additive module publication, owner-approved resource and Gold-site setup, aggregate verification, exact Pages deployment, and final owner approval.'
+      'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, and forest-layout setup, aggregate verification, exact Pages deployment, and final owner approval.'
     );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();

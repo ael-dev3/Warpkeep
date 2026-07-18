@@ -1,13 +1,14 @@
-# Warpkeep Alpha 0.3.9 — Gold Mine wagon expeditions
+# Warpkeep Alpha 0.3.9 — Gold Mine wagon expeditions and shared forests
 
 **Status (18 July 2026): undeployed candidate. Alpha 0.3.6 remains the
 verified public release.**
 
 Alpha 0.3.9 combines the reviewed Alpha 0.3.8 Genesis 001 world-capacity
-candidate with one bounded, server-authoritative Gold Mine wagon loop. It is a
-source and review candidate only. It does not authorize a SpacetimeDB
-publication, resource or Gold-site setup, founder backfill, Pages deployment,
-tag, GitHub Release, or merge.
+candidate with one bounded, server-authoritative Gold Mine wagon loop and one
+public, server-seeded shared forest layout. It is a source and review candidate
+only. It does not authorize a SpacetimeDB publication, world/resource/Gold-site
+or forest-layout setup, founder backfill, Pages deployment, tag, GitHub Release,
+or merge.
 
 ## Bounded Gold Mine pilot
 
@@ -54,22 +55,43 @@ tag, GitHub Release, or merge.
 - The accessible inspection record identifies an available or occupied site
   without presenting private balances, FIDs, or gathering totals.
 
+## Shared forest layout
+
+- `realm_forest_layout_v1` and `realm_forest_instance_v1` append one public,
+  digest-pinned, server-seeded visual catalog. It contains exactly 210 fixed
+  tree transforms across 22 provenance-recorded asset families.
+- The catalog covers the preserved 1,261-cell Genesis founding Lowlands. It is
+  valid within the 10,000-cell candidate world but intentionally does not
+  invent trees for the newer outer cells; an outer-world layout requires its
+  own reviewed version, migration, and seed.
+- Every player receives the same tree identity, species, position, rotation,
+  scale, groves, and clearings. High, Balanced, and Compact settings select
+  only the immutable model LOD.
+- Trees are decorative only. The layout cannot change canonical terrain or its
+  digest, `terrainKind`, passability, collision, movement costs, Gold sites,
+  routes, castle slots, ownership, resource rates, or economy. Missing,
+  partial, malformed, or unseeded public rows render no player forest rather
+  than a local substitute.
+
 ## Additive rollout gate
 
-The Gold pilot is additive to the resource authority and 10,000-cell world
-candidate. It requires fresh generated bindings, migration proof, asset
-integrity checks, public/private subscription checks, deterministic placement
-verification, and browser-render coverage before review can be considered
-complete.
+The Gold pilot and shared forest layout are additive to the resource authority
+and 10,000-cell world candidate. They require fresh generated bindings,
+migration proof, asset integrity checks, public/private subscription checks,
+deterministic placement and layout verification, and browser-render coverage
+before review can be considered complete.
 
 Any future production sequence remains separately owner-approved:
 
 1. publish the reviewed additive module with deletion disabled;
-2. perform only an approved guarded resource and Gold-site setup operation;
+2. perform the separately approved exact-state world expansion, then only the
+   approved guarded resource and Gold-site setup operation;
 3. verify aggregate account, site, occupancy, and placement-digest invariants
    without returning player identities or balances;
-4. deploy the exact reviewed Pages SHA; and
-5. perform bounded live verification without changing balances or state outside
+4. separately approve and invoke the v6 forest-layout seed, then verify one
+   layout row, exactly 210 instance rows, and the pinned layout/catalog digests;
+5. deploy the exact reviewed Pages SHA; and
+6. perform bounded live verification without changing balances or state outside
    the approved operation.
 
 No local test, successful review, merge, or client build grants production

@@ -56,9 +56,10 @@ Mine pilot where a server-authorized wagon gathers one Gold per completed minute
 for 30 days. Gold-site occupancy is public, while ownership, routes, requests,
 accrual, and balances remain private and server-controlled. Community Marks
 remains separate with no conversion or spending path. A public, server-seeded
-layout gives every player the same 210 decorative trees, groves, and clearings;
-graphics quality changes only the selected model LOD. Forests do not change
-terrain, movement, resources, or ownership. Production publication,
+layout gives every player the same 210 decorative trees, groves, and clearings
+in the preserved Genesis founding Lowlands; graphics quality changes only the
+selected model LOD. Forests do not change terrain, movement, resources, or
+ownership. Production publication,
 owner-approved world, resource, Gold-site, and forest-layout setup, aggregate
 verification, and exact Pages deployment remain explicitly approval-gated. See the
 [candidate release notes](docs/releases/alpha-0.3.9.md).

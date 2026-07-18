@@ -65,7 +65,10 @@ import {
   type CreateRealmSceneOptions
 } from '../src/components/realm/createRealmScene';
 import { hexKey } from '../src/game/map/hexCoordinates';
-import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import {
+  createAuthoritativeRealmTerrainSurface,
+  createRealmTerrainSurface
+} from '../src/game/map/realmTerrainSurface';
 import { DEFAULT_REALM_CAMERA_SPEC } from '../src/components/realm/realmCameraController';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 import {
@@ -311,8 +314,9 @@ describe('realm scene setup cleanup', () => {
 
   it('keeps all canonical shared trees at every quality under the real static exclusion set', () => {
     const snapshot = createCanonicalGenesisSnapshot();
-    const surface = createRealmTerrainSurface(
+    const surface = createAuthoritativeRealmTerrainSurface(
       snapshot.realm.numericSeed,
+      snapshot.tiles,
       snapshot.realm.authoritativeRadius,
       snapshot.realm.renderRadius
     );

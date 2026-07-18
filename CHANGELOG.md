@@ -21,10 +21,11 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 - Adds integrity-pinned High, Balanced, and Compact Gold Mine and supply-wagon
   runtime models, bounded model reuse, nearby-only wagon animation, safe marker
   fallback, and an accessible Gold Mine inspection record.
-- Adds one public, server-seeded Genesis forest layout: 210 fixed visual tree
-  instances across 22 provenance-recorded families. Every player receives the
-  same tree identity, species, transform, groves, and clearings; High,
-  Balanced, and Compact settings change only the selected model LOD.
+- Adds one public, server-seeded forest layout for the preserved Genesis
+  founding Lowlands: 210 fixed visual tree instances across 22
+  provenance-recorded families. Every player receives the same tree identity,
+  species, transform, groves, and clearings; High, Balanced, and Compact
+  settings change only the selected model LOD.
 - Forest presentation is integrity-pinned, lazy, statically batched, and
   non-interactive. Its additive layout/instance projection is digest-pinned and
   rejects partial or drifted seed data; live Gold occupation and wagon movement

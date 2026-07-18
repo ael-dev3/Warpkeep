@@ -81,10 +81,12 @@ therefore never leaks a FID or Gold balance.
 ## Shared forest presentation boundary
 
 The Alpha 0.3.9 candidate appends public `realm_forest_layout_v1` metadata and
-`realm_forest_instance_v1` rows. They form one immutable Genesis 001 visual
-catalog: a reviewed layout version, exact layout and asset-catalog digests, and
-210 fixed-point tree selectors/transforms. They do not contain FIDs, ownership,
-routes, resources, collision, or actions.
+`realm_forest_instance_v1` rows. They form one immutable visual catalog for the
+preserved Genesis founding Lowlands: a reviewed layout version, exact layout and
+asset-catalog digests, and 210 fixed-point tree selectors/transforms. They do
+not contain FIDs, ownership, routes, resources, collision, or actions. The
+outer generation-three world remains unpopulated until a separately reviewed
+layout version is approved.
 
 An admin-only, idempotent seeder accepts only the reviewed version/count/digest
 and rejects unknown, duplicate, partial, or drifted rows before inserting a

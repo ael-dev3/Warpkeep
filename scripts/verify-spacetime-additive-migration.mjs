@@ -1802,10 +1802,10 @@ async function verifyGenesisWorldExpansionLifecycle(
   ownerToken,
 ) {
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  // The inspection fixture must retain every v5 Gold append. Reverting to the
-  // v4 fixture after publishing the candidate would correctly be rejected as a
-  // destructive schema downgrade.
-  const fixtureArtifactPath = join(additiveV5SchemaFixture, 'dist', 'bundle.js');
+  // The inspection fixture must retain every Gold and shared-forest append.
+  // Reverting to v4 or v5 after publishing the candidate would correctly be
+  // rejected as a destructive schema downgrade.
+  const fixtureArtifactPath = join(additiveV6SchemaFixture, 'dist', 'bundle.js');
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
 
   await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);

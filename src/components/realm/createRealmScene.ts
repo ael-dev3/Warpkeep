@@ -792,7 +792,12 @@ function initializeRealmScene(
     },
     HEX_SIZE,
     terrainPlacements,
-    terrainSemantics.terrainKindsByKey
+    terrainSemantics.terrainKindsByKey,
+    {
+      maximumPoints: renderPlan.genericDecorationInstanceBudget,
+      preserveRadius: 20,
+      playableKeys: options.surface.playableKeys
+    }
   );
   // The original semantic layer still owns heath, lake, ridge, and ancient
   // accents. Forest cones are held back until the static-tree layer has been
@@ -897,21 +902,6 @@ function initializeRealmScene(
   terrain.receiveShadow = renderPlan.dynamicShadows;
   scene.add(terrain);
 
-  const decorationData = generateTerrainDecorations(
-    options.surface.renderMap,
-    {
-      ...renderPlan.decorationDensity,
-      playableRadius: options.surface.playableMap.radius
-    },
-    HEX_SIZE,
-    terrainPlacements,
-    terrainSemantics.terrainKindsByKey,
-    {
-      maximumPoints: renderPlan.genericDecorationInstanceBudget,
-      preserveRadius: 20,
-      playableKeys: options.surface.playableKeys
-    }
-  );
   const decorations = createTerrainDecorationLayers(
     decorationData,
     options.surface.renderMap,

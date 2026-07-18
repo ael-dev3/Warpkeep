@@ -43,11 +43,12 @@ Gold Mine expedition loop:
    separate digest-pinned policy selects 24 Gold Mines; capacity metadata alone
    neither creates a node nor adds a yield source.
 10. A public, server-seeded visual forest layout uses integrity-pinned tree LOD
-   assets to make groves and clearings feel natural. All players receive the
-   same fixed instances; graphics quality changes only LOD. It does not rewrite
-   canonical terrain, passability, resource economics, Gold placement,
-   ownership, or gameplay state. Semantic biome changes remain a separate
-   owner-approved migration and balance decision.
+    assets to make the preserved Genesis founding Lowlands feel natural. All
+    players receive the same fixed instances; graphics quality changes only
+    LOD. It does not rewrite canonical terrain, passability, resource economics,
+    Gold placement, ownership, or gameplay state. Semantic biome changes and
+    any outer-world forest layout remain separate owner-approved migration and
+    balance decisions.
 
 This candidate is not live. Module publication, the production founder
 backfill, world expansion, Gold-site and forest-layout setup, aggregate

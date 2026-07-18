@@ -4,7 +4,8 @@
 
 The verified public release is Alpha 0.3.6. The checked-in package is the
 undeployed Alpha 0.3.9 candidate, which includes private resource authority,
-the generation-three world expansion, and the pending Gold Mine wagon loop. The
+the generation-three world expansion, the pending Gold Mine wagon loop, and a
+server-seeded shared forest layout for the preserved founding Lowlands. The
 public menu build stamp
 identifies the exact deployed source. An annotated
 release tag is created only after the matching protected-main deployment passes
@@ -202,7 +203,9 @@ Start with:
   transform, is seeded and validated server-side, and cannot change movement,
   picking, combat, ownership, resources, rewards, or terrain authority. A
   layout change requires a new reviewed version and seed, never ad-hoc client
-  culling. Retain `LicenseRef-Warpkeep-Provenance-Required`; the use
+  culling. The current 210-instance catalog covers only the preserved
+  generation-two/founding-Lowlands footprint; do not infer a forest for the
+  outer generation-three cells. Retain `LicenseRef-Warpkeep-Provenance-Required`; the use
   authorization is not an open licence, merge approval, or Pages deployment
   approval.
 - `public/images/realm/hegemony-gold-mine-record.webp` is a separate,
