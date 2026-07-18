@@ -119,9 +119,10 @@ describe('GitHub workflow security policy', () => {
     expect(source).toContain('npm audit signatures');
   });
 
-  it('runs pull-request verification against the protected default branch and ignores every Wrangler secret-file variant', () => {
+  it('runs verification for every pull-request base and ignores every Wrangler secret-file variant', () => {
     const source = workflow('verify.yml');
-    expect(source).toContain('pull_request:\n    branches: [main]');
+    expect(source).toContain('pull_request:');
+    expect(source).not.toMatch(/pull_request:\s*\n\s+branches:/);
     const ignored = execFileSync(
       'git',
       ['check-ignore', 'services/auth-bridge/.dev.vars.production'],
@@ -136,6 +137,7 @@ describe('GitHub workflow security policy', () => {
     expect(source).toContain('languages: javascript-typescript');
     expect(source).toContain('build-mode: none');
     expect(source).not.toMatch(/^\s+run:/m);
-    expect(source).toContain('pull_request:\n    branches: [main]');
+    expect(source).toContain('pull_request:');
+    expect(source).not.toMatch(/pull_request:\s*\n\s+branches:/);
   });
 });
