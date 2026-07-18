@@ -181,6 +181,23 @@ Start with:
   movement, route, dispatch, occupation, Gold/Marks, reward, or settlement
   authority. Preserve High/Balanced/Compact LOD selection and animation budgets
   from the runtime record when changing presentation.
+- The Hegemony environment-tree family under
+  `public/models/hegemony/environment/trees/` is 66 exact digest-bearing GLBs
+  across 22 trees, pinned by `npm run verify:hegemony-trees` and documented in
+  `docs/reference/assets/2026-07-18-hegemony-environment-trees/`. The
+  owner-supplied ZIP is an offline installation input only: ordinary builds
+  must verify it, never fetch, unpack, transform, or rewrite it. Preserve every
+  High/Balanced/Compact family member and its source-manifest/hash record; do
+  not use a same-named replacement. They are vertex-color, opaque,
+  double-sided visual assets with a +Y-up, +Z-forward trunk-base contract.
+  The 16 source species manifests incorrectly say `doubleSided: false`; the
+  decoded GLB bytes are authoritative and must not be silently repaired.
+  Renderers may use only a private terrain-contact wrapper, deterministic
+  rotation/scale variation, and conservative projected-height LOD. Do not
+  derive collision, canonical coordinates, pathing, ownership, resources,
+  rewards, placement, or persistent SpacetimeDB state from any tree model.
+  Retain `LicenseRef-Warpkeep-Provenance-Required`; the use authorization is
+  not an open licence, merge approval, or Pages deployment approval.
 - `public/images/realm/hegemony-gold-mine-record.webp` is a separate,
   exact-hash-pinned transparent 2D inspection illustration with its provenance
   under `docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/`.

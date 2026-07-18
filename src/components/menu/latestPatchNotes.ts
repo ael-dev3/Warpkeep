@@ -136,10 +136,11 @@ const ALPHA_0_3_9_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'A dispatch sends only a site id and idempotency key. The server derives admission, terms, castle, passable route, timing, one-wagon limit, 1 Gold/minute rate, 30-day gathering window, and return; the browser never moves a wagon or credits Gold.',
     'Every player can see a public Mine occupancy timeline and origin castle, while FIDs, request keys, routes, accrued output, and balances stay private. Internal-only arrival, expiry, and return schedules settle whole minutes exactly once.',
     'Gold Mines and Hegemony supply wagons use provenance-pinned High, Balanced, and Compact assets with bounded model reuse, nearby-only animation, safe marker fallback, and an accessible site record.',
-    'Community Marks remains separate with no conversion, transfer, credit, or spending path. Construction, upgrades, combat, trading, public inventories, and financial rewards remain unavailable.'
+    'The Lowlands gain deterministic presentation-only forest groves, clearings, and subtle canopy variation from 22 provenance-pinned tree families across High, Balanced, and Compact models. Canonical terrain, passability, movement, resource rates, castle slots, Gold sites, routes, and persistent player state remain unchanged.',
+    'Community Marks remains a separate private authority with no conversion, transfer, credit, or spending path. Construction, upgrades, combat, trading, public inventories, and financial rewards remain unavailable.'
   ]),
   alphaNotice:
-    'Undeployed candidate. Release requires additive module publication, owner-approved resource and Gold-site setup, aggregate verification, exact Pages deployment, and final owner approval.'
+    'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, and forest-layout setup, aggregate verification, exact Pages deployment, and final owner approval.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =

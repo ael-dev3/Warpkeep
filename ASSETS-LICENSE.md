@@ -212,6 +212,41 @@ builds never fetch or rewrite it. The dated [Supply Wagon runtime record](docs/r
 pins the release, source, toolchain, output hashes, LOD budgets, rendering
 contract, and visual-only scope boundary.
 
+## Hegemony environment tree runtime assets
+
+On 2026-07-18, the Warpkeep project owner supplied
+Warpkeep_Trees_Runtime_Bundle_2026-07-18.zip and instructed a draft PR to
+integrate its trees into natural forest and open-biome presentation. The
+archive is 1,276,509 bytes with SHA-256
+8ff19bb2a9b4c779db0836ea8ab59f8d67abfd282d5b4cce70d48e062874f9e2.
+That instruction authorizes the 66 exact digest-bearing outputs in this public
+Warpkeep GitHub repository and an eventual official warpkeep.com Pages runtime
+after separately approved deployment. It is use authorization only, not merge
+or deployment approval; it does not establish underlying ownership, a
+public/open-content licence, general derivative or redistribution rights,
+trademark rights, or game-authority rights.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Visual-only Hegemony tree family | public/models/hegemony/environment/trees/hegemony-tree-*.glb | 22 distinct tree assets, each with exact High, Balanced, and Compact LODs: 66 files, 4,726,460 bytes, 25,528 total triangles. Every filename carries its SHA-256 prefix and every full hash, input manifest, source bundle record, GLB structure, and LOD count is pinned in the dated runtime manifest. |
+
+The exact source GLBs are copied byte-for-byte; ordinary builds only run
+node scripts/verify-hegemony-tree-runtime-assets.mjs and never fetch,
+unpack, transform, or rewrite the supplied bundle. The
+[Environment Trees record](docs/reference/assets/2026-07-18-hegemony-environment-trees/)
+also records the source-manifest double-sided discrepancy: the 16
+species-library manifests say false, while all supplied GLBs actually have
+an opaque, double-sided material. Preserve the GLB bytes and renderer-facing
+decoded behavior rather than silently editing assets.
+
+The family remains LicenseRef-Warpkeep-Provenance-Required: use-authorized
+only, with no separate public open license asserted. It is decorative
+presentation only. Model selection, LOD, deterministic visual variation, and
+a private terrain-contact wrapper must not become a source of authoritative
+collision, placement, ownership, resources, rewards, or SpacetimeDB state.
+Legacy Regular Tree variants have no authorized runtime collision; species
+records retain only their supplied trunk-only guidance.
+
 ## Historical Hegemony Frontier Keep provenance
 
 The Hegemony Frontier Keep and its former runtime derivatives were project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the current tree or a public release while redistribution authority is unresolved. The three former runtime derivatives are also retired and absent; their future license follows the source-rights determination, not the fact of conversion.

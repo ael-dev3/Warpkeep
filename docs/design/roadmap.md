@@ -12,7 +12,7 @@ shared-world authority unchanged.
 Public admission, resources, upgrades, units, combat, alliances, chat, seasons,
 wallet actions, and Marks crediting or spending are not live.
 
-## Undeployed candidate — Alpha 0.3.9 resources, world capacity, and Gold expeditions
+## Undeployed candidate — Alpha 0.3.9 resources, world capacity, Gold expeditions, and forests
 
 The checked-in 0.3.9 candidate carries the bounded resource authority prepared
 in 0.3.7, expands persistent map capacity, and adds a deliberately bounded
@@ -42,11 +42,16 @@ Gold Mine expedition loop:
 9. Two thousand cells are classified as resource-capable placement anchors. A
    separate digest-pinned policy selects 24 Gold Mines; capacity metadata alone
    neither creates a node nor adds a yield source.
+10. Deterministic visual forest ecoregions use integrity-pinned tree LOD assets
+    to make groves and clearings feel natural without rewriting canonical
+    terrain, passability, resource economics, Gold placements, or persistent
+    world state. Semantic biome changes remain a separate owner-approved
+    migration and balance decision.
 
 This candidate is not live. Module publication, the production founder
-backfill, world expansion, Gold-site setup, aggregate verification, and exact
-Pages deployment remain separate gates requiring review and explicit owner
-approval.
+backfill, world expansion, Gold-site and forest-layout setup, aggregate
+verification, and exact Pages deployment remain separate gates requiring
+review and explicit owner approval.
 
 ## Next release gate — verify and publish the bounded candidate
 
@@ -55,7 +60,8 @@ approval.
 3. Run the exact-count founder backfill only after separate owner approval.
 4. Expand the exact generation-two world with the guarded one-time operator
    only after a fresh read-only checkpoint and separate owner approval.
-5. Require the exact 10,000-cell generation-three aggregate, placement digest,
+5. Require the exact 10,000-cell generation-three aggregate, Gold placement
+   digest, forest-layout row and catalog digests, exactly 210 forest instances,
    and zero missing, orphaned, or invalid resource-account and Gold-site
    invariants before deploying the matching Pages SHA.
 6. After the candidate boundary is stable, split the additive migration

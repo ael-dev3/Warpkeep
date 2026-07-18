@@ -21,6 +21,16 @@ All notable Warpkeep player-facing releases are recorded here. The product uses 
 - Adds integrity-pinned High, Balanced, and Compact Gold Mine and supply-wagon
   runtime models, bounded model reuse, nearby-only wagon animation, safe marker
   fallback, and an accessible Gold Mine inspection record.
+- Adds deterministic presentation-only forest groves, clearings, and a subtle
+  canopy tint across the Lowlands. The natural distribution uses 22
+  provenance-recorded tree families and matching High, Balanced, and Compact
+  runtime models while preserving ample open terrain and protected clearance
+  around castles, Gold sites, routes, water, and scenic landmarks.
+- Forest presentation is integrity-pinned, lazy, statically batched, and
+  non-interactive. It does not change the canonical terrain digest,
+  `terrainKind`, passability, collision, movement costs, resource rates,
+  castle slots, Gold-site catalog, SpacetimeDB authority, or persistent world
+  state.
 - Alpha 0.3.9 is **not deployed**. Alpha 0.3.6 remains the verified public
   release. Production requires separately approved additive publication,
   resource and Gold-site setup, aggregate verification, and exact Pages

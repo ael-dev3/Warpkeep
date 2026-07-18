@@ -260,6 +260,45 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('accounts clustered trees as one static semantic batch without adding pick or shadow work', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('forest-telemetry', 4, 4);
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      reducedMotion: true,
+      quality: REALM_QUALITY_SPECS.high,
+      terrainMetadata: surface.playableMap.cells.map((cell) => ({
+        tileKey: hexKey(cell.coord),
+        terrainKind: 'forest',
+        staticContentKind: cell.coord.q === 0 && cell.coord.r === 0
+          ? 'castle-slot'
+          : 'empty'
+      })),
+      onTerrainPresentationTelemetry
+    }));
+    const telemetry = onTerrainPresentationTelemetry.mock.calls.at(-1)?.[0];
+    const renderedScene = webglState.instances.at(-1)?.render.mock.calls.at(-1)?.[0] as THREE.Scene;
+    const fallback = renderedScene.getObjectByName(
+      'realm-hegemony-tree-static-fallback'
+    ) as THREE.InstancedMesh | undefined;
+
+    expect(telemetry).toMatchObject({
+      semanticFeatureCount: expect.any(Number),
+      semanticFeatureDrawCalls: 1,
+      totalDetailDrawCalls: expect.any(Number)
+    });
+    expect(telemetry.semanticFeatureCount).toBeGreaterThan(0);
+    expect(fallback).toBeInstanceOf(THREE.InstancedMesh);
+    expect(fallback?.castShadow).toBe(false);
+    expect(fallback?.receiveShadow).toBe(false);
+    // Interaction only calls castle, Gold, then terrain raycasts; the static
+    // forest layer intentionally exposes no layer raycast target.
+    expect(renderedScene.getObjectByName('realm-hegemony-forest-presentation')).toBeTruthy();
+
+    sceneHandle.dispose();
+  });
+
   it('uses a sunlit key with restrained identity fills without adding PBR work', () => {
     const canvas = document.createElement('canvas');
     const sceneHandle = createRealmScene(createOptions(canvas, {

@@ -38,6 +38,15 @@ export type RealmTerrainFeatureData = Readonly<{
   budget: number;
 }>;
 
+export type GenerateRealmTerrainFeatureOptions = Readonly<{
+  /**
+   * The legacy cone forest is a safe visual fallback for direct callers. The
+   * full Realm scene disables it when the real-tree ecoregion layer owns
+   * forest presentation, preventing duplicate trunks at the same sites.
+   */
+  includeForestTrees?: boolean;
+}>;
+
 export const REALM_TERRAIN_FEATURE_BUDGETS: Readonly<
   Record<RealmTerrainFeatureQuality, number>
 > = Object.freeze({ high: 1_100, balanced: 800, reduced: 400 });
@@ -146,7 +155,8 @@ export function generateRealmTerrainFeatures(
   quality: RealmTerrainFeatureQuality,
   hexSize = 1,
   placements: readonly TerrainStructurePlacement[] = EMPTY_TERRAIN_PLACEMENTS,
-  suppressedTileKeys: ReadonlySet<string> = new Set()
+  suppressedTileKeys: ReadonlySet<string> = new Set(),
+  options: GenerateRealmTerrainFeatureOptions = {}
 ): RealmTerrainFeatureData {
   const budget = REALM_TERRAIN_FEATURE_BUDGETS[quality];
   const candidates = createDeterministicBudgetCollector<RealmTerrainFeatureCandidate>(budget);
@@ -158,6 +168,7 @@ export function generateRealmTerrainFeatures(
     if (terrainKind === undefined) return;
     const featureKind = featureKindForTerrain(terrainKind);
     if (featureKind === undefined) return;
+    if (featureKind === 'forest-tree' && options.includeForestTrees === false) return;
     const count = featureCountForCell(cell, terrainKind, quality);
     for (let index = 0; index < count; index += 1) {
       candidates.add({

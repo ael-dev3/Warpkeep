@@ -2,11 +2,17 @@ import * as THREE from 'three';
 
 import {
   axialToWorld,
+  hexDisc,
   hexDistance,
   hexKey,
+  parseHexKey,
   worldToNearestAxial,
   type HexCoord
 } from '../../game/map/hexCoordinates';
+import {
+  generateRealmForestBiomes,
+  REALM_FOREST_BIOME_BUDGETS
+} from '../../game/map/realmForestBiomes';
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
 import { generateRealmTerrainFeatures } from '../../game/map/realmTerrainFeatures';
 import {
@@ -22,6 +28,7 @@ import {
 } from '../../game/map/terrainPlacements';
 import { createTerrainDecorationLayers } from './createTerrainDecorations';
 import { createRealmTerrainFeatureLayers } from './createRealmTerrainFeatures';
+import { createRealmForestLayer, type RealmForestLayer } from './realmForestLayer';
 import { createTerrainGeometryData, pointyHexCorners } from './createTerrainGeometry';
 import {
   DEFAULT_CASTLE_LOD_POLICY,
@@ -32,6 +39,10 @@ import {
   createHegemonyKeepPrefabRepository,
   type HegemonyKeepPrefabLease
 } from './hegemonyKeepPrefabRepository';
+import {
+  HEGEMONY_TREE_RUNTIME_ASSETS,
+  hegemonyTreeModel
+} from './hegemonyTreeRuntimeAssets';
 import {
   CASTLE_GROUND_LIFT,
   createRealmCastleInstanceLayer,
@@ -375,19 +386,35 @@ function createRealmSceneCleanup(): RealmSceneCleanup {
   };
 }
 
+/**
+ * The static tree batch replaces a synchronous fallback after its local GLBs
+ * finish parsing. Keep this tiny callback independently testable: model-ready
+ * must repaint once, while a disposed map may never receive a late render.
+ */
+export function createRealmForestModelReadyRenderCallback(
+  isDisposed: () => boolean,
+  render: () => void
+) {
+  return () => {
+    if (!isDisposed()) render();
+  };
+}
+
 function createTerrainGeometry(
   surface: RealmTerrainSurface,
   subdivisionsPerEdge: number,
   adaptiveDetailRadius: number,
   placements: readonly TerrainStructurePlacement[],
-  terrainKindsByKey: ReadonlyMap<string, RealmTerrainKind>
+  terrainKindsByKey: ReadonlyMap<string, RealmTerrainKind>,
+  forestCanopyByKey?: ReadonlyMap<string, number>
 ) {
   const data = createTerrainGeometryData(surface.renderMap, HEX_SIZE, {
     subdivisionsPerEdge,
     adaptiveDetailRadius,
     playableRadius: surface.playableMap.radius,
     placements,
-    terrainKindsByKey
+    terrainKindsByKey,
+    forestCanopyByKey
   });
   const geometry = new THREE.BufferGeometry();
   try {
@@ -511,6 +538,87 @@ function castleLodsForQuality(quality: RealmQualitySpec): readonly CastleLod[] {
   return ['compact'];
 }
 
+function addForestPresentationDisc(
+  protectedTileKeys: Set<string>,
+  coord: HexCoord,
+  radius: number
+) {
+  hexDisc(coord, radius).forEach((candidate) => protectedTileKeys.add(hexKey(candidate)));
+}
+
+/**
+ * This belt follows the already-visible direct wagon presentation segment;
+ * it is deliberately not a route finder and is never supplied to gameplay or
+ * persistence. Its only purpose is to leave a calm, readable strip of open
+ * ground beneath a rendered Gold expedition.
+ */
+function reserveVisibleGoldTravelBelt(
+  protectedTileKeys: Set<string>,
+  from: HexCoord,
+  to: HexCoord
+) {
+  const origin = axialToWorld(from, HEX_SIZE);
+  const destination = axialToWorld(to, HEX_SIZE);
+  const samples = Math.max(1, hexDistance(from, to) * 3);
+  for (let index = 0; index <= samples; index += 1) {
+    const progress = index / samples;
+    const coord = worldToNearestAxial({
+      x: THREE.MathUtils.lerp(origin.x, destination.x, progress),
+      z: THREE.MathUtils.lerp(origin.z, destination.z, progress)
+    }, HEX_SIZE);
+    addForestPresentationDisc(protectedTileKeys, coord, 1);
+  }
+}
+
+/**
+ * Forest exclusions live entirely at the scene boundary. They preserve clear
+ * presentation around canonical structures and visible resource expeditions,
+ * while leaving terrain semantics, passability, routes, and SpacetimeDB state
+ * untouched.
+ */
+function forestPresentationProtectedTileKeys(
+  options: Pick<CreateRealmSceneOptions, 'goldNodes' | 'terrainMetadata'>,
+  terrainSemantics: ReturnType<typeof indexRealmTerrainSemantics>,
+  placements: readonly TerrainStructurePlacement[]
+) {
+  const protectedTileKeys = new Set<string>();
+  options.terrainMetadata.forEach((row) => {
+    // Reserve every non-empty canonical static role. This includes future
+    // resource/core slots as well as existing scenic blockers, instead of
+    // making a renderer heuristic accidentally hide a gameplay landmark.
+    if (row.staticContentKind === 'empty') return;
+    const coord = parseHexKey(row.tileKey);
+    if (!coord) return;
+    addForestPresentationDisc(
+      protectedTileKeys,
+      coord,
+      row.staticContentKind === 'castle-slot' ? 1 : 0
+    );
+  });
+  terrainSemantics.terrainKindsByKey.forEach((kind, key) => {
+    if (kind === 'lake' || kind === 'ridge' || kind === 'ancient-stone') {
+      protectedTileKeys.add(key);
+    }
+  });
+  terrainSemantics.castleSlotKeys.forEach((key) => {
+    const coord = parseHexKey(key);
+    if (coord) addForestPresentationDisc(protectedTileKeys, coord, 1);
+  });
+  placements.forEach((placement) => {
+    // The normalized castle island and its decorative clearance cross the
+    // owning hex edge, so reserve the six immediate neighboring cells too.
+    addForestPresentationDisc(protectedTileKeys, placement.coord, 1);
+  });
+  (options.goldNodes ?? []).forEach((node) => {
+    addForestPresentationDisc(protectedTileKeys, node.coord, 1);
+    if (!node.originCastle) return;
+    const origin = { q: node.originCastle.q, r: node.originCastle.r };
+    addForestPresentationDisc(protectedTileKeys, origin, 1);
+    reserveVisibleGoldTravelBelt(protectedTileKeys, origin, node.coord);
+  });
+  return protectedTileKeys;
+}
+
 export function createRealmScene(options: CreateRealmSceneOptions): RealmSceneHandle {
   const cleanup = createRealmSceneCleanup();
   try {
@@ -592,12 +700,70 @@ function initializeRealmScene(
     options.canvas.dataset.environmentLighting = 'direct-light-fallback';
   }
 
+  const decorationData = generateTerrainDecorations(
+    options.surface.renderMap,
+    {
+      ...renderPlan.decorationDensity,
+      playableRadius: options.surface.playableMap.radius
+    },
+    HEX_SIZE,
+    terrainPlacements,
+    terrainSemantics.terrainKindsByKey
+  );
+  // The original semantic layer still owns heath, lake, ridge, and ancient
+  // accents. Forest cones are held back until the static-tree layer has been
+  // constructed successfully, so an asset/device failure can retain the
+  // existing visual fallback rather than silently removing all woodland.
+  const nonForestSemanticFeatureData = generateRealmTerrainFeatures(
+    options.surface.renderMap,
+    terrainSemantics.terrainKindsByKey,
+    runtimeQuality.id,
+    HEX_SIZE,
+    terrainPlacements,
+    terrainSemantics.castleSlotKeys,
+    { includeForestTrees: false }
+  );
+  const forestProtectedTileKeys = forestPresentationProtectedTileKeys(
+    options,
+    terrainSemantics,
+    terrainPlacements
+  );
+  const forestLod = runtimeQuality.id === 'high'
+    ? 'high'
+    : runtimeQuality.id === 'balanced' ? 'balanced' : 'compact';
+  const forestDetailBudget = Math.max(
+    0,
+    renderPlan.decorationInstanceBudget
+      - decorationData.points.length
+      - nonForestSemanticFeatureData.points.length
+  );
+  const forestBiomeData = generateRealmForestBiomes(
+    options.surface.renderMap,
+    terrainSemantics.terrainKindsByKey,
+    {
+      quality: runtimeQuality.id,
+      species: HEGEMONY_TREE_RUNTIME_ASSETS.map((asset) => Object.freeze({
+        id: asset.id,
+        triangles: hegemonyTreeModel(asset, forestLod).triangles,
+        footprintDiameter: hegemonyTreeModel(asset, forestLod).normalizedFootprintDiameter,
+        biomes: asset.biomes
+      })),
+      hexSize: HEX_SIZE,
+      placements: terrainPlacements,
+      protectedTileKeys: forestProtectedTileKeys,
+      isCoordPassable: options.isCoordPassable,
+      maximumInstanceCount: forestDetailBudget,
+      maximumTriangleCount: REALM_FOREST_BIOME_BUDGETS[runtimeQuality.id].triangles
+    }
+  );
+
   const { data: terrainData, geometry: terrainGeometry } = createTerrainGeometry(
     options.surface,
     renderPlan.subdivisionsPerEdge,
     renderPlan.terrainDetailRadius,
     terrainPlacements,
-    terrainSemantics.terrainKindsByKey
+    terrainSemantics.terrainKindsByKey,
+    forestBiomeData.canopyByTileKey
   );
   cleanup.add(() => terrainGeometry.dispose());
   if (
@@ -644,16 +810,50 @@ function initializeRealmScene(
   cleanup.add(decorations.dispose);
   scene.add(decorations.group);
 
-  const semanticFeatureData = generateRealmTerrainFeatures(
-    options.surface.renderMap,
-    terrainSemantics.terrainKindsByKey,
-    runtimeQuality.id,
-    HEX_SIZE,
-    terrainPlacements,
-    terrainSemantics.castleSlotKeys
-  );
+  let requestForestModelRender = () => {};
+  let reportTerrainPresentation = () => {};
+  let forestLayer: RealmForestLayer | null = null;
+  let semanticFeatureData = nonForestSemanticFeatureData;
+  if (forestBiomeData.points.length > 0) {
+    try {
+      const nextForestLayer = createRealmForestLayer({
+        data: forestBiomeData,
+        map: options.surface.renderMap,
+        terrainPlacements,
+        quality: runtimeQuality,
+        baseUrl: options.baseUrl,
+        onModelReady: () => {
+          reportTerrainPresentation();
+          requestForestModelRender();
+        }
+      });
+      forestLayer = nextForestLayer;
+      scene.add(nextForestLayer.group);
+      cleanup.add(() => {
+        scene.remove(nextForestLayer.group);
+        nextForestLayer.dispose();
+        if (forestLayer === nextForestLayer) forestLayer = null;
+      });
+    } catch {
+      // Keep the legacy static cone layer below when a GPU/device cannot even
+      // construct the deterministic local fallback mesh.
+      forestLayer = null;
+    }
+  }
+  if (!forestLayer) {
+    semanticFeatureData = generateRealmTerrainFeatures(
+      options.surface.renderMap,
+      terrainSemantics.terrainKindsByKey,
+      runtimeQuality.id,
+      HEX_SIZE,
+      terrainPlacements,
+      terrainSemantics.castleSlotKeys
+    );
+  }
+  const forestTelemetry = forestLayer?.getPresentationTelemetry();
   const totalDetailInstanceCount = decorationData.points.length
-    + semanticFeatureData.points.length;
+    + semanticFeatureData.points.length
+    + (forestTelemetry?.instanceCount ?? 0);
   if (totalDetailInstanceCount > renderPlan.decorationInstanceBudget) {
     throw new Error('REALM_TERRAIN_TOTAL_DETAIL_BUDGET_EXCEEDED');
   }
@@ -666,21 +866,31 @@ function initializeRealmScene(
   );
   cleanup.add(semanticFeatures.dispose);
   scene.add(semanticFeatures.group);
-  options.onTerrainPresentationTelemetry?.(Object.freeze({
-    terrainTriangleCount: terrainData.triangleCount,
-    terrainTriangleBudget: renderPlan.terrainTriangleBudget,
-    terrainDetailRadius: terrainData.detailRadius,
-    highDetailTerrainCellCount: terrainData.highDetailCellCount,
-    coarseTerrainCellCount: terrainData.coarseCellCount,
-    terrainTransitionEdgeCount: terrainData.transitionEdgeCount,
-    semanticCellCount: terrainSemantics.terrainKindsByKey.size,
-    semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
-      .filter((count) => count > 0).length,
-    semanticFeatureCount: semanticFeatures.instanceCount,
-    semanticFeatureDrawCalls: semanticFeatures.drawCalls,
-    totalDetailInstanceCount,
-    totalDetailDrawCalls: decorations.drawCalls + semanticFeatures.drawCalls
-  }));
+  reportTerrainPresentation = () => {
+    const currentForestTelemetry = forestLayer?.getPresentationTelemetry();
+    options.onTerrainPresentationTelemetry?.(Object.freeze({
+      terrainTriangleCount: terrainData.triangleCount,
+      terrainTriangleBudget: renderPlan.terrainTriangleBudget,
+      terrainDetailRadius: terrainData.detailRadius,
+      highDetailTerrainCellCount: terrainData.highDetailCellCount,
+      coarseTerrainCellCount: terrainData.coarseCellCount,
+      terrainTransitionEdgeCount: terrainData.transitionEdgeCount,
+      semanticCellCount: terrainSemantics.terrainKindsByKey.size,
+      semanticKindCount: Object.values(terrainSemantics.terrainKindCounts)
+        .filter((count) => count > 0).length,
+      semanticFeatureCount: semanticFeatures.instanceCount
+        + (currentForestTelemetry?.instanceCount ?? 0),
+      semanticFeatureDrawCalls: semanticFeatures.drawCalls
+        + (currentForestTelemetry?.drawCalls ?? 0),
+      totalDetailInstanceCount: decorationData.points.length
+        + semanticFeatures.instanceCount
+        + (currentForestTelemetry?.instanceCount ?? 0),
+      totalDetailDrawCalls: decorations.drawCalls
+        + semanticFeatures.drawCalls
+        + (currentForestTelemetry?.drawCalls ?? 0)
+    }));
+  };
+  reportTerrainPresentation();
 
   const hemisphere = new THREE.HemisphereLight(
     REALM_CASTLE_READABILITY_LIGHTING.hemisphereSkyColour,
@@ -985,6 +1195,13 @@ function initializeRealmScene(
       options.onCastlesReady?.(castleCount);
     }
   };
+  // The forest's digest-pinned GLBs resolve after the immediate static
+  // fallback. Repaint as soon as that batch is ready so it cannot remain a
+  // cone forest until the player next pans, taps, or zooms.
+  requestForestModelRender = createRealmForestModelReadyRenderCallback(
+    cleanup.isDisposed,
+    render
+  );
   const cameraController = createRealmCameraController({
     bounds: terrainData.bounds,
     overviewHull: terrainData.overviewHull,
