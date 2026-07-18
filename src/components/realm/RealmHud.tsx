@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
 import { HEGEMONY_MAIN_CASTLE } from '../../game/map/hegemonyLandmarks';
 import type { HexCoord } from '../../game/map/hexCoordinates';
@@ -14,12 +14,21 @@ import {
   type RealmCastlePublicPresentation
 } from './realmCastlePresentation';
 import { CastleProfileAvatar } from './RealmCastleLabels';
+import {
+  REALM_ECONOMIC_RESOURCE_ORDER,
+  formatCompactRealmResourceQuantity,
+  formatExactRealmResourceQuantity,
+  type ReadyRealmResourcePresentation,
+  type RealmEconomicResourceKey
+} from './realmResourcePresentation';
 
 type RealmHudProps = Readonly<{
   identity: RealmIdentity;
   ownCastle?: Readonly<{ name: string; level: number }>;
   ownProfile?: RealmCastlePublicPresentation;
   marksStatus?: 'loading' | 'unavailable' | 'ready';
+  resources?: ReadyRealmResourcePresentation;
+  onCollectResources?: () => Promise<void>;
   keepCoord?: HexCoord;
   selectedCell: TerrainCell;
   selectedTerrainKind?: RealmTerrainKind;
@@ -45,13 +54,15 @@ function publicAssetUrl(path: string) {
 
 function MarksBalance({
   profile,
-  status
+  status,
+  marksBalanceMicros
 }: Readonly<{
   profile: RealmCastlePublicPresentation | undefined;
   status: NonNullable<RealmHudProps['marksStatus']>;
+  marksBalanceMicros?: bigint;
 }>) {
   const formatted = status === 'ready'
-    ? formatPublicMarkMicros(profile?.marksBalanceMicros)
+    ? formatPublicMarkMicros(marksBalanceMicros ?? profile?.marksBalanceMicros)
     : undefined;
   if (formatted === undefined) return null;
 
@@ -83,11 +94,138 @@ function MarksBalance({
   );
 }
 
+const RESOURCE_LABELS: Readonly<Record<RealmEconomicResourceKey, string>> = Object.freeze({
+  food: 'Food',
+  wood: 'Wood',
+  stone: 'Stone',
+  gold: 'Gold'
+});
+
+const RESOURCE_ICON_PATHS: Readonly<
+  Record<RealmEconomicResourceKey, Readonly<Record<'png' | 'webp', string>>>
+> = Object.freeze({
+  food: Object.freeze({
+    png: 'images/resources/hegemony-food-c2034046ead78f5f.png',
+    webp: 'images/resources/hegemony-food-5c012a7e939f8796.webp'
+  }),
+  wood: Object.freeze({
+    png: 'images/resources/hegemony-wood-d992823f7a7f2999.png',
+    webp: 'images/resources/hegemony-wood-add35506da245240.webp'
+  }),
+  stone: Object.freeze({
+    png: 'images/resources/hegemony-stone-e23ed963027579c7.png',
+    webp: 'images/resources/hegemony-stone-ac50a538fc202d15.webp'
+  }),
+  gold: Object.freeze({
+    png: 'images/resources/hegemony-gold-3d087ebe1ba2beaf.png',
+    webp: 'images/resources/hegemony-gold-522eb5b1f40b5d51.webp'
+  })
+});
+
+function resourceIconPath(resource: RealmEconomicResourceKey, format: 'png' | 'webp') {
+  return publicAssetUrl(RESOURCE_ICON_PATHS[resource][format]);
+}
+
+function RealmResourceInventory({
+  resources,
+  onCollectResources
+}: Readonly<{
+  resources: ReadyRealmResourcePresentation;
+  onCollectResources?: () => Promise<void>;
+}>) {
+  const [collecting, setCollecting] = useState(false);
+  const pending = REALM_ECONOMIC_RESOURCE_ORDER.some(
+    (resource) => resources.pendingBalances[resource] > 0n
+  );
+  const marks = formatPublicMarkMicros(resources.marksBalanceMicros) ?? '0';
+  const marksCopy = `${marks} Marks`;
+  const collect = async () => {
+    if (collecting || !pending || !onCollectResources) return;
+    setCollecting(true);
+    try {
+      await onCollectResources();
+    } finally {
+      setCollecting(false);
+    }
+  };
+
+  return (
+    <section
+      aria-label="Your resources"
+      aria-live="polite"
+      className="realm-hud__resources"
+      data-policy={resources.resourcePolicyVersion}
+    >
+      <ul>
+        {REALM_ECONOMIC_RESOURCE_ORDER.map((resource) => {
+          const balance = formatCompactRealmResourceQuantity(resources.balances[resource])!;
+          const exact = formatExactRealmResourceQuantity(resources.balances[resource])!;
+          const pendingBalance = resources.pendingBalances[resource];
+          const pendingExact = formatExactRealmResourceQuantity(pendingBalance)!;
+          return (
+            <li
+              aria-label={`${RESOURCE_LABELS[resource]} balance: ${exact}${
+                pendingBalance > 0n ? `; pending yield: ${pendingExact}` : ''
+              }`}
+              key={resource}
+            >
+              <picture aria-hidden="true">
+                <source srcSet={resourceIconPath(resource, 'webp')} type="image/webp" />
+                <img
+                  alt=""
+                  decoding="async"
+                  height="64"
+                  src={resourceIconPath(resource, 'png')}
+                  width="64"
+                />
+              </picture>
+              <span>
+                <small>{RESOURCE_LABELS[resource]}</small>
+                <strong>{balance}</strong>
+              </span>
+              {pendingBalance > 0n ? <em>+{pendingExact}</em> : null}
+            </li>
+          );
+        })}
+        <li aria-label={`Marks balance: ${marksCopy}`} className="realm-hud__resource-marks">
+          <picture aria-hidden="true">
+            <source
+              srcSet={publicAssetUrl('images/factions/hegemony/marks/hegemony-mark-64.webp')}
+              type="image/webp"
+            />
+            <img
+              alt=""
+              decoding="async"
+              height="64"
+              src={publicAssetUrl('images/factions/hegemony/marks/hegemony-mark-64.png')}
+              width="64"
+            />
+          </picture>
+          <span>
+            <small>Marks</small>
+            <strong>{marks}</strong>
+          </span>
+        </li>
+      </ul>
+      <button
+        aria-label="Collect pending resource yield"
+        disabled={collecting || !pending || !onCollectResources}
+        onClick={() => void collect()}
+        type="button"
+      >
+        {collecting ? 'Collecting…' : pending ? 'Collect' : 'Next yield pending'}
+      </button>
+    </section>
+  );
+}
+
 export function RealmHud({
   identity,
   ownCastle,
   ownProfile,
   marksStatus = 'unavailable',
+  resources,
+  onCollectResources,
   keepCoord,
   selectedCell,
   selectedTerrainKind,
@@ -168,7 +306,14 @@ export function RealmHud({
           {selectionAnnouncementRef.current.copy}
         </p>
 
-        <MarksBalance profile={ownProfile} status={marksStatus} />
+        {resources ? (
+          <RealmResourceInventory
+            resources={resources}
+            onCollectResources={onCollectResources}
+          />
+        ) : (
+          <MarksBalance profile={ownProfile} status={marksStatus} />
+        )}
       </section>
 
       <div className="realm-hud__actions" aria-label="Realm actions">

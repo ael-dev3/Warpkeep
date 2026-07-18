@@ -37,13 +37,14 @@ pnpm --dir spacetimedb audit --audit-level high
 ```
 
 Confirm `spacetime --version` is 2.6.1. The local additive-migration proof must
-pass against its disposable loopback server: the complete seven-table inherited
-prefix unchanged, the exact 12-table protocol-3 suffix appended, empty and
+pass against its disposable loopback server: deployed refs 0–18 and all rows
+unchanged, private `resource_account_v1` appended at exact ref 19, empty and
 synthetic nonempty fixtures preserved, second publish idempotent, populated
-protocol-3 state retained, guarded v2 rollback refused before schema change,
-and one artifact SHA-256 receipt emitted. The guarded publisher must recheck
-that same prebuilt artifact and use `--js-path`; it must not rebuild after the
-proof.
+deployed-prefix state retained, guarded v3/v2 rollback refused before schema
+change, and the actual module founder/Terms/private-read/collection/backfill
+lifecycle proven before one artifact SHA-256 receipt is emitted. The guarded
+publisher must recheck that same prebuilt artifact and use `--js-path`; it must
+not rebuild after the proof.
 Run real CLI build/generation verification without publishing; a passing proof is not
 production approval.
 

@@ -229,6 +229,110 @@
   white-space: nowrap;
 }
 
+.realm-hud__resources {
+  display: grid;
+  gap: 0.3rem;
+  padding-top: 0.38rem;
+  border-top: 1px solid rgb(225 190 105 / 16%);
+}
+
+.realm-hud__resources ul {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.2rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.realm-hud__resources li {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  padding: 0.16rem 0.08rem 0.2rem;
+  border: 1px solid rgb(225 190 105 / 18%);
+  border-radius: 0.38rem;
+  background: rgb(58 36 69 / 32%);
+}
+
+.realm-hud__resources picture,
+.realm-hud__resources img {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.realm-hud__resources span {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+}
+
+.realm-hud__resources small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--realm-muted);
+  font-size: 0.5rem;
+  font-weight: 760;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+}
+
+.realm-hud__resources strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--realm-electrum);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+
+.realm-hud__resources em {
+  position: absolute;
+  top: 0.08rem;
+  right: 0.08rem;
+  padding: 0.04rem 0.13rem;
+  border-radius: 999px;
+  background: rgb(40 82 53 / 88%);
+  color: #d9f2ce;
+  font-size: 0.46rem;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.realm-hud__resources button {
+  justify-self: end;
+  min-height: 1.85rem;
+  padding: 0 0.58rem;
+  border: 1px solid rgb(225 190 105 / 38%);
+  border-radius: 0.38rem;
+  background: rgb(73 39 89 / 86%);
+  color: var(--realm-ivory);
+  font: 700 0.68rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.realm-hud__resources button:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.realm-hud__resources button:not(:disabled):hover,
+.realm-hud__resources button:not(:disabled):focus-visible {
+  border-color: var(--realm-electrum);
+  outline: 2px solid var(--realm-electrum);
+  outline-offset: 2px;
+}
+
+.realm-hud__resource-marks {
+  border-color: rgb(193 157 230 / 28%) !important;
+  background: rgb(85 42 106 / 42%) !important;
+}
+
 .castle-inspection {
   position: absolute;
   z-index: 9;

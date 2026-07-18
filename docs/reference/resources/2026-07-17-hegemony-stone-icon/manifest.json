@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "hegemony-stone-resource-icon-v1",
   "recordedAt": "2026-07-17",
-  "purpose": "Transparent presentation icon prepared for the draft Alpha 0.3.6 stone-resource mechanics workstream; it is not evidence of a live balance, currency, reward, or entitlement.",
+  "purpose": "Transparent stone-resource presentation icon with faithful runtime derivatives for the separately reviewed Alpha 0.3.7 shared-world resource authority; the artwork alone is not evidence of a balance, currency, reward, or entitlement.",
   "projectAuthorization": {
     "authorizedBy": "Warpkeep project owner",
     "instructionDate": "2026-07-17",
@@ -75,7 +75,102 @@
         "maxY": 1091
       }
     },
-    "delivery": "checked-in dormant reference master; excluded from the Pages public directory until mechanics receive separate review"
+    "delivery": "checked-in provenance master outside public/; only the exact reviewed 64 px faithful derivatives below are served by Pages"
+  },
+  "runtimeDerivative": {
+    "authorizationBasis": "The separately reviewed Alpha 0.3.7 resource authority activates the previously recorded owner authorization for official Warpkeep Pages runtime use.",
+    "command": "node scripts/prepare-hegemony-resource-icons.mjs",
+    "sourceFetch": false,
+    "sourceOverride": false,
+    "immutablePathSha256PrefixLength": 16,
+    "pipeline": {
+      "tool": "sharp",
+      "toolVersion": "0.35.3",
+      "libvipsVersion": "8.18.3",
+      "libpngVersion": "1.6.58",
+      "libwebpVersion": "1.6.0",
+      "cache": false,
+      "decoder": {
+        "failOn": "warning",
+        "limitInputPixels": 1572516
+      },
+      "resize": {
+        "width": 64,
+        "height": 64,
+        "fit": "fill",
+        "kernel": "lanczos3",
+        "fastShrinkOnLoad": false,
+        "simd": false,
+        "concurrency": 1
+      },
+      "png": {
+        "colorMode": "RGBA",
+        "bitDepth": 8,
+        "compressionLevel": 9,
+        "adaptiveFiltering": true,
+        "palette": false,
+        "effort": 10,
+        "progressive": false
+      },
+      "webp": {
+        "lossless": true,
+        "quality": 100,
+        "alphaQuality": 100,
+        "effort": 6,
+        "preset": "icon",
+        "smartSubsample": false,
+        "exactTransparentRgb": true
+      }
+    },
+    "installation": {
+      "family": "all eight Hegemony resource runtime outputs",
+      "staging": "destination-local rollback-safe atomic file-family transaction",
+      "unexpectedDirectoryEntries": "reject",
+      "broadDeletion": false
+    },
+    "outputs": [
+      {
+        "path": "public/images/resources/hegemony-stone-e23ed963027579c7.png",
+        "format": "png",
+        "width": 64,
+        "height": 64,
+        "bytes": 6149,
+        "sha256": "e23ed963027579c7dd6e465414e3a171aba622d25009af9d4d1077f568fa7f7b",
+        "decodedRgbaSha256": "97f48ef84d6f768f4e1b2242ae90eaa80e1aeba92de75c8c85b5843b854c0278",
+        "alpha": {
+          "transparentPixels": 2360,
+          "partiallyTransparentPixels": 555,
+          "opaquePixels": 1181
+        },
+        "visibleBoundsAlpha16": {
+          "minX": 6,
+          "minY": 8,
+          "maxX": 57,
+          "maxY": 55
+        }
+      },
+      {
+        "path": "public/images/resources/hegemony-stone-ac50a538fc202d15.webp",
+        "format": "webp",
+        "width": 64,
+        "height": 64,
+        "bytes": 4366,
+        "sha256": "ac50a538fc202d15b378649f4778c88d1a312bced1dd8f3f7cdbb829a50841de",
+        "decodedRgbaSha256": "97f48ef84d6f768f4e1b2242ae90eaa80e1aeba92de75c8c85b5843b854c0278",
+        "alpha": {
+          "transparentPixels": 2360,
+          "partiallyTransparentPixels": 555,
+          "opaquePixels": 1181
+        },
+        "visibleBoundsAlpha16": {
+          "minX": 6,
+          "minY": 8,
+          "maxX": 57,
+          "maxY": 55
+        }
+      }
+    ],
+    "pngAndLosslessWebpDecodeToIdenticalRgba": true
   },
   "licence": {
     "spdx": "LicenseRef-Warpkeep-Provenance-Required",

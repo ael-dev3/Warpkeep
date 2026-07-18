@@ -25,6 +25,10 @@ const additiveV3SchemaFixture = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/additive-v3-schema',
 );
+const additiveV4SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v4-schema',
+);
 const additiveModule = resolve(repositoryRoot, 'spacetimedb');
 const command = process.env.SPACETIME_BIN || 'spacetime';
 const expectedCliVersion = '2.6.1';
@@ -32,10 +36,33 @@ const expectedCliCommit = '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';
 const emptyDatabase = 'warpkeep-migration-empty';
 const nonemptyDatabase = 'warpkeep-migration-nonempty';
 const actualModuleDatabase = 'warpkeep-migration-actual-module';
+const resourceLifecycleDatabase = 'warpkeep-migration-resource-lifecycle';
 const maximumOutputBytes = 1_000_000;
 const commandTimeoutMilliseconds = 120_000;
 const procedureTimeoutMilliseconds = 5_000;
 const maximumProcedureResponseBytes = 16_384;
+const actualModuleFounderFid = 730_001;
+const actualModuleOtherFid = 730_002;
+const alphaTermsVersion = '2026-07-14';
+const resourcePolicyVersion = 'genesis-resource-yield-v1';
+const marksPolicyVersion = 'snap-current-linked-wallet-1to1-v1';
+const resourceQuantumMicros = 600_000_000n;
+const maximumU64 = (1n << 64n) - 1n;
+const startingResourceBalances = Object.freeze({
+  food: 200n,
+  wood: 150n,
+  stone: 100n,
+  gold: 25n,
+});
+const terrainResourceRates = Object.freeze({
+  lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 1n }),
+  meadow: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
+  forest: Object.freeze({ food: 5n, wood: 10n, stone: 3n, gold: 1n }),
+  heath: Object.freeze({ food: 5n, wood: 6n, stone: 5n, gold: 2n }),
+  ridge: Object.freeze({ food: 3n, wood: 4n, stone: 10n, gold: 2n }),
+  lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
+  'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 4n }),
+});
 const existingTables = Object.freeze([
   'allowed_fid',
   'world_tile',
@@ -59,6 +86,13 @@ const additiveV3Tables = Object.freeze([
   'snap_scan_batch_v1',
   'alpha_terms_acceptance_v1',
 ]);
+const additiveV4Tables = Object.freeze([
+  'resource_account_v1',
+]);
+const deployedV3Tables = Object.freeze([
+  ...existingTables,
+  ...additiveV3Tables,
+]);
 const expectedProductTypeRefs = Object.freeze({
   allowed_fid: 0,
   world_tile: 1,
@@ -79,6 +113,7 @@ const expectedProductTypeRefs = Object.freeze({
   snap_scan_cursor_v1: 16,
   snap_scan_batch_v1: 17,
   alpha_terms_acceptance_v1: 18,
+  resource_account_v1: 19,
 });
 const childEnvironmentKeys = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TMP', 'TEMP',
@@ -213,6 +248,10 @@ function sanitizedFailure(result) {
   return `${result.stderr}\n${result.stdout}`
     .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g, '[credential-redacted]')
     .replace(/\b(?:0x)?[0-9a-f]{64}\b/gi, '[identity-redacted]')
+    .replace(
+      new RegExp(`\\b(?:${actualModuleFounderFid}|${actualModuleOtherFid})\\b`, 'g'),
+      '[local-founder-redacted]',
+    )
     .replace(/\/[^\s:]+(?:\/[^\s:]+)+/g, '[path-redacted]')
     .replace(/\s+/g, ' ')
     .trim()
@@ -366,6 +405,20 @@ function outputDigest(output) {
   return createHash('sha256').update(output.replace(/\r\n/g, '\n').trim()).digest('hex');
 }
 
+async function tableRowDigests(server, token, database, tables) {
+  const digests = {};
+  for (const table of tables) {
+    if (!/^[a-z0-9_]+$/.test(table)) fail('Unsafe fixture table name.');
+    digests[table] = outputDigest(await sql(
+      server,
+      token,
+      database,
+      `SELECT * FROM ${table}`,
+    ));
+  }
+  return Object.freeze(digests);
+}
+
 function assertExistingTablesUnchanged(before, after) {
   for (const name of existingTables) {
     assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
@@ -376,7 +429,7 @@ function assertExistingTablesUnchanged(before, after) {
   }
 }
 
-function assertAdditiveSchema(before, after) {
+function assertAdditiveV3Schema(before, after) {
   assertExistingTablesUnchanged(before, after);
   const beforeNames = new Set(before.tables.map(table => table.name));
   const added = after.tables
@@ -490,6 +543,36 @@ function assertAdditiveSchema(before, after) {
   }
 }
 
+function assertDeployedV3TablesUnchanged(before, after) {
+  for (const name of deployedV3Tables) {
+    assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertAdditiveV4Schema(before, after) {
+  assertDeployedV3TablesUnchanged(before, after);
+  const beforeNames = new Set(before.tables.map(table => table.name));
+  const added = after.tables
+    .map(table => table.name)
+    .filter(name => !beforeNames.has(name))
+    .sort();
+  assert.deepEqual(added, [...additiveV4Tables].sort());
+  assert.deepEqual(fieldNames(after, 'resource_account_v1'), [
+    'fid', 'castle_id', 'realm_id', 'food', 'wood', 'stone', 'gold',
+    'settled_through_micros', 'revision', 'policy_version', 'created_at',
+    'updated_at',
+  ]);
+  assert.equal(access(after, 'resource_account_v1'), 'Private');
+  assert.equal(
+    tableSignature(after, 'resource_account_v1').product_type_ref,
+    expectedProductTypeRefs.resource_account_v1,
+  );
+}
+
 async function freeLoopbackPort() {
   return new Promise((resolvePromise, rejectPromise) => {
     const server = createServer();
@@ -581,6 +664,23 @@ function resolverServiceClaims(resolverFid, roles = ['warpkeep-auth-epoch-resolv
   };
 }
 
+function adminServiceClaims() {
+  return serviceClaims('service:hermes', ['warpkeep-admin'], 240);
+}
+
+function playerClaims(fid, subject = `farcaster:${fid}`) {
+  if (!Number.isSafeInteger(fid) || fid <= 0) fail('Disposable player claim was invalid.');
+  const base = serviceClaims(subject, [], 240);
+  return {
+    ...base,
+    auth_version: 2,
+    fid: String(fid),
+    auth_epoch: 1,
+    session_iat: base.iat,
+    session_exp: base.exp,
+  };
+}
+
 async function readBoundedProcedureResponse(response, credential) {
   if (!response.body) return '';
   const advertisedLength = response.headers.get('content-length');
@@ -617,6 +717,7 @@ async function callLoopbackProcedure(
   credential,
   body,
   expectedStatus,
+  expectJsonSuccess = true,
 ) {
   if (
     !/^http:\/\/127\.0\.0\.1:\d+$/.test(server)
@@ -646,9 +747,29 @@ async function callLoopbackProcedure(
   }
   if (
     expectedStatus === 200
+    && expectJsonSuccess
     && response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json'
   ) fail('Loopback procedure returned an unexpected media type.');
   return responseText;
+}
+
+async function callLoopbackReducer(
+  server,
+  database,
+  reducer,
+  credential,
+  body,
+  expectedStatus,
+) {
+  return callLoopbackProcedure(
+    server,
+    database,
+    reducer,
+    credential,
+    body,
+    expectedStatus,
+    false,
+  );
 }
 
 async function verifyResolverHttpLifecycle(server, database, privateKey) {
@@ -742,6 +863,646 @@ async function verifyResolverHttpLifecycle(server, database, privateKey) {
       throw new MigrationProofError(`Loopback resolver lifecycle failed at ${stage}: ${error.message}`);
     }
     throw new MigrationProofError(`Loopback resolver lifecycle failed at ${stage}.`);
+  }
+}
+
+function readCanonicalUnsigned(value, maximum, label) {
+  let parsed;
+  if (typeof value === 'string' && /^(?:0|[1-9][0-9]*)$/.test(value)) {
+    parsed = BigInt(value);
+  } else if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) {
+    parsed = BigInt(value);
+  } else {
+    fail(`Loopback ${label} was not a canonical unsigned integer.`);
+  }
+  if (parsed > maximum) fail(`Loopback ${label} exceeded its integer bound.`);
+  return parsed;
+}
+
+function parseLoopbackJson(text, label) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    fail(`Loopback ${label} response was invalid.`);
+  }
+}
+
+function parseResourceState(text) {
+  const value = parseLoopbackJson(text, 'resource-state');
+  if (!Array.isArray(value) || value.length !== 17) {
+    fail('Loopback resource-state response contract was invalid.');
+  }
+  const terrainKind = value[16];
+  if (
+    typeof value[14] !== 'string'
+    || typeof value[15] !== 'string'
+    || typeof terrainKind !== 'string'
+    || !Object.hasOwn(terrainResourceRates, terrainKind)
+  ) fail('Loopback resource-state policy contract was invalid.');
+  return Object.freeze({
+    fid: readCanonicalUnsigned(value[0], maximumU64, 'resource-state FID'),
+    balances: Object.freeze({
+      food: readCanonicalUnsigned(value[1], maximumU64, 'resource-state balance'),
+      wood: readCanonicalUnsigned(value[2], maximumU64, 'resource-state balance'),
+      stone: readCanonicalUnsigned(value[3], maximumU64, 'resource-state balance'),
+      gold: readCanonicalUnsigned(value[4], maximumU64, 'resource-state balance'),
+    }),
+    pending: Object.freeze({
+      food: readCanonicalUnsigned(value[5], maximumU64, 'resource-state pending balance'),
+      wood: readCanonicalUnsigned(value[6], maximumU64, 'resource-state pending balance'),
+      stone: readCanonicalUnsigned(value[7], maximumU64, 'resource-state pending balance'),
+      gold: readCanonicalUnsigned(value[8], maximumU64, 'resource-state pending balance'),
+    }),
+    marksBalanceMicros: readCanonicalUnsigned(
+      value[9],
+      (1n << 128n) - 1n,
+      'resource-state Marks balance',
+    ),
+    observedAtMicros: readCanonicalUnsigned(value[10], maximumU64, 'resource-state observation'),
+    settledThroughMicros: readCanonicalUnsigned(value[11], maximumU64, 'resource-state cursor'),
+    nextCollectAtMicros: readCanonicalUnsigned(value[12], maximumU64, 'resource-state boundary'),
+    revision: readCanonicalUnsigned(value[13], maximumU64, 'resource-state revision'),
+    resourcePolicyVersion: value[14],
+    marksPolicyVersion: value[15],
+    terrainKind,
+  });
+}
+
+function assertResourceState(
+  state,
+  { balances, pending, revision, expectedFid = BigInt(actualModuleFounderFid) },
+) {
+  if (
+    state.fid !== expectedFid
+    || state.balances.food !== balances.food
+    || state.balances.wood !== balances.wood
+    || state.balances.stone !== balances.stone
+    || state.balances.gold !== balances.gold
+    || state.pending.food !== pending.food
+    || state.pending.wood !== pending.wood
+    || state.pending.stone !== pending.stone
+    || state.pending.gold !== pending.gold
+    || state.marksBalanceMicros !== 0n
+    || state.revision !== revision
+    || state.resourcePolicyVersion !== resourcePolicyVersion
+    || state.marksPolicyVersion !== marksPolicyVersion
+    || state.settledThroughMicros > state.observedAtMicros
+    || state.nextCollectAtMicros <= state.observedAtMicros
+  ) fail('Loopback resource-state values violated the exact authority contract.');
+}
+
+function parseAdminResourceStatus(text) {
+  const value = parseLoopbackJson(text, 'resource aggregate');
+  if (
+    !Array.isArray(value)
+    || value.length !== 9
+    || value[7] !== 3
+    || value[8] !== resourcePolicyVersion
+  ) fail('Loopback resource aggregate contract was invalid.');
+  return Object.freeze({
+    allowedFids: readCanonicalUnsigned(value[0], maximumU64, 'resource aggregate'),
+    castles: readCanonicalUnsigned(value[1], maximumU64, 'resource aggregate'),
+    markAccounts: readCanonicalUnsigned(value[2], maximumU64, 'resource aggregate'),
+    resourceAccounts: readCanonicalUnsigned(value[3], maximumU64, 'resource aggregate'),
+    missingResourceAccounts: readCanonicalUnsigned(value[4], maximumU64, 'resource aggregate'),
+    orphanedResourceAccounts: readCanonicalUnsigned(value[5], maximumU64, 'resource aggregate'),
+    resourceInvariantViolations: readCanonicalUnsigned(value[6], maximumU64, 'resource aggregate'),
+  });
+}
+
+function assertAdminResourceStatus(status, expected) {
+  for (const [key, value] of Object.entries(expected)) {
+    if (status[key] !== value) fail('Loopback resource aggregate values were invalid.');
+  }
+}
+
+async function countForFid(server, token, database, table, fid = actualModuleFounderFid) {
+  if (!/^[a-z0-9_]+$/.test(table) || !Number.isSafeInteger(fid) || fid <= 0) {
+    fail('Unsafe caller-bound fixture count.');
+  }
+  const column = table === 'castle' || table === 'castle_slot_claim_v1'
+    ? 'owner_fid'
+    : 'fid';
+  return countFromSql(await privateSql(
+    server,
+    token,
+    database,
+    `SELECT COUNT(*) AS warpkeep_count FROM ${table} WHERE ${column} = ${fid}`,
+  ));
+}
+
+async function actionCount(server, token, database, action) {
+  if (!/^[a-z0-9_]+$/.test(action)) fail('Unsafe audit fixture action.');
+  return countFromSql(await privateSql(
+    server,
+    token,
+    database,
+    `SELECT COUNT(*) AS warpkeep_count FROM admin_audit WHERE action = '${action}'`,
+  ));
+}
+
+async function callerRowDigest(server, token, database, table) {
+  if (!/^[a-z0-9_]+$/.test(table)) fail('Unsafe caller-bound fixture table.');
+  return outputDigest(await privateSql(
+    server,
+    token,
+    database,
+    `SELECT * FROM ${table} WHERE fid = ${actualModuleFounderFid}`,
+  ));
+}
+
+async function privateSql(server, token, database, query) {
+  const result = await runCommand([
+    ...configArguments(token),
+    'sql',
+    '--server', server,
+    '--no-config',
+    database,
+    query,
+  ], { token });
+  if (result.code !== 0) {
+    // Private rows may contain caller identity, balances, or timestamps. Never
+    // surface either stream, even on a disposable-loopback proof failure.
+    fail('Disposable private SQL fixture operation failed.');
+  }
+  return result.stdout;
+}
+
+async function tryPrivateSqlMutation(server, token, database, query) {
+  const result = await runCommand([
+    ...configArguments(token),
+    'sql',
+    '--server', server,
+    '--no-config',
+    database,
+    query,
+  ], { token });
+  return result.code === 0;
+}
+
+async function readActualResourceState(server, database, credential) {
+  return parseResourceState(await callLoopbackProcedure(
+    server,
+    database,
+    'get_my_resource_state_v1',
+    credential,
+    '[]',
+    200,
+  ));
+}
+
+async function readActualAdminResourceStatus(server, database, credential) {
+  return parseAdminResourceStatus(await callLoopbackProcedure(
+    server,
+    database,
+    'admin_get_alpha_status_v4',
+    credential,
+    '[]',
+    200,
+  ));
+}
+
+async function prepareOneQuantumFixture(server, database, ownerCredential) {
+  await callLoopbackReducer(
+    server,
+    database,
+    'fixture_rewind_resource_one_quantum',
+    ownerCredential,
+    JSON.stringify([actualModuleFounderFid]),
+    200,
+  );
+}
+
+async function verifyActualModuleResourceLifecycle(server, database, privateKey, ownerToken) {
+  let stage = 'seed';
+  let activeModule = 'actual';
+  const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV4SchemaFixture, 'dist', 'bundle.js');
+  const useActualModule = async () => {
+    if (activeModule === 'actual') return;
+    await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
+    activeModule = 'actual';
+  };
+  const usePrivateInspectionModule = async () => {
+    if (activeModule === 'inspection') return;
+    // The real module deliberately rejects the server's disposable owner token
+    // at on-connect. Swap to the table-identical schema-only artifact solely
+    // for bounded owner SQL, then republish the exact real artifact before any
+    // reducer/procedure call. Both artifacts use `--delete-data=never`.
+    await publishBuiltArtifact(server, ownerToken, inspectionArtifactPath, database);
+    activeModule = 'inspection';
+  };
+  const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
+  const playerCredential = () => createEphemeralJwt(
+    privateKey,
+    playerClaims(actualModuleFounderFid),
+  );
+  try {
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_seed_world',
+      adminCredential(),
+      '[]',
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await count(server, ownerToken, database, 'world_tile') !== 1_261n
+      || await count(server, ownerToken, database, 'realm_v1') !== 1n
+      || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 1_261n
+      || await count(server, ownerToken, database, 'castle_slot_v1') !== 100n
+    ) fail('Actual module seed did not create the exact canonical world.');
+
+    stage = 'atomic-founder';
+    for (const table of [
+      'allowed_fid',
+      'castle',
+      'castle_slot_claim_v1',
+      'realm_profile_v1',
+      'mark_account_v1',
+      'resource_account_v1',
+    ]) {
+      if (await countForFid(server, ownerToken, database, table) !== 0n) {
+        fail('Actual module founder fixture was not empty.');
+      }
+    }
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_allow_fid',
+      adminCredential(),
+      JSON.stringify([actualModuleFounderFid, 'local additive migration proof']),
+      200,
+    );
+    await usePrivateInspectionModule();
+    for (const table of [
+      'allowed_fid',
+      'castle',
+      'castle_slot_claim_v1',
+      'realm_profile_v1',
+      'mark_account_v1',
+      'resource_account_v1',
+    ]) {
+      if (await countForFid(server, ownerToken, database, table) !== 1n) {
+        fail('Actual module founder transaction was incomplete.');
+      }
+    }
+    if (
+      await countForFid(server, ownerToken, database, 'player_v2') !== 0n
+      || await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 0n
+    ) fail('Actual module admission unexpectedly bootstrapped a player.');
+
+    stage = 'bootstrap-gate';
+    await useActualModule();
+    await callLoopbackProcedure(
+      server,
+      database,
+      'get_my_resource_state_v1',
+      playerCredential(),
+      '[]',
+      500,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'accept_alpha_terms_v1',
+      playerCredential(),
+      JSON.stringify([alphaTermsVersion, true]),
+      530,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'bootstrap_player_v2',
+      playerCredential(),
+      '[]',
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await countForFid(server, ownerToken, database, 'player_v2') !== 1n
+      || await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 1n
+    ) fail('Actual module bootstrap was incomplete.');
+    const ownershipAfterBootstrap = await callerRowDigest(
+      server,
+      ownerToken,
+      database,
+      'player_ownership_v2',
+    );
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'bootstrap_player_v2',
+      playerCredential(),
+      '[]',
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 1n
+      || await callerRowDigest(server, ownerToken, database, 'player_ownership_v2')
+      !== ownershipAfterBootstrap
+    ) fail('Actual module token renewal changed caller identity binding.');
+    await useActualModule();
+    const invalidSubjectCredential = createEphemeralJwt(
+      privateKey,
+      playerClaims(actualModuleFounderFid, `farcaster:${actualModuleOtherFid}`),
+    );
+    await callLoopbackProcedure(
+      server,
+      database,
+      'get_my_resource_state_v1',
+      invalidSubjectCredential,
+      '[]',
+      403,
+    );
+
+    stage = 'terms-gate';
+    await callLoopbackProcedure(
+      server,
+      database,
+      'get_my_resource_state_v1',
+      playerCredential(),
+      '[]',
+      500,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'accept_alpha_terms_v1',
+      playerCredential(),
+      JSON.stringify([alphaTermsVersion, false]),
+      530,
+    );
+    await usePrivateInspectionModule();
+    if (await countForFid(server, ownerToken, database, 'alpha_terms_acceptance_v1') !== 0n) {
+      fail('Rejected terms fixture changed consent state.');
+    }
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'accept_alpha_terms_v1',
+      playerCredential(),
+      JSON.stringify([alphaTermsVersion, true]),
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (await countForFid(server, ownerToken, database, 'alpha_terms_acceptance_v1') !== 1n) {
+      fail('Accepted terms fixture was not recorded exactly once.');
+    }
+
+    stage = 'resource-read';
+    await useActualModule();
+    const initial = await readActualResourceState(server, database, playerCredential());
+    assertResourceState(initial, {
+      balances: startingResourceBalances,
+      pending: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
+      revision: 0n,
+    });
+    if (initial.nextCollectAtMicros - initial.settledThroughMicros !== resourceQuantumMicros) {
+      fail('Actual module resource boundary was not one exact quantum.');
+    }
+
+    stage = 'resource-collect';
+    await usePrivateInspectionModule();
+    const marksBeforeCollect = await callerRowDigest(
+      server,
+      ownerToken,
+      database,
+      'mark_account_v1',
+    );
+    const resourceBeforeCollect = await callerRowDigest(
+      server,
+      ownerToken,
+      database,
+      'resource_account_v1',
+    );
+    await prepareOneQuantumFixture(
+      server,
+      database,
+      ownerToken,
+    );
+    await useActualModule();
+    const pending = await readActualResourceState(server, database, playerCredential());
+    const rates = terrainResourceRates[pending.terrainKind];
+    assertResourceState(pending, {
+      balances: startingResourceBalances,
+      pending: rates,
+      revision: 0n,
+    });
+    if (pending.settledThroughMicros + resourceQuantumMicros !== initial.settledThroughMicros) {
+      fail('Disposable timestamp fixture did not rewind exactly one quantum.');
+    }
+    const expectedBalances = Object.freeze({
+      food: startingResourceBalances.food + rates.food,
+      wood: startingResourceBalances.wood + rates.wood,
+      stone: startingResourceBalances.stone + rates.stone,
+      gold: startingResourceBalances.gold + rates.gold,
+    });
+    await callLoopbackReducer(
+      server,
+      database,
+      'collect_resources_v1',
+      playerCredential(),
+      '[]',
+      200,
+    );
+    const collected = await readActualResourceState(server, database, playerCredential());
+    assertResourceState(collected, {
+      balances: expectedBalances,
+      pending: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
+      revision: 1n,
+    });
+    if (collected.settledThroughMicros !== initial.settledThroughMicros) {
+      fail('Actual module collection cursor was invalid.');
+    }
+    await usePrivateInspectionModule();
+    if (await callerRowDigest(server, ownerToken, database, 'mark_account_v1') !== marksBeforeCollect) {
+      fail('Actual resource collection changed the independent Marks account.');
+    }
+    const resourceAfterCollect = await callerRowDigest(
+      server,
+      ownerToken,
+      database,
+      'resource_account_v1',
+    );
+    if (
+      resourceAfterCollect === resourceBeforeCollect
+    ) fail('Actual resource collection did not persist the positive-quantum settlement.');
+
+    stage = 'legacy-backfill';
+    const marksBeforeBackfill = await callerRowDigest(
+      server,
+      ownerToken,
+      database,
+      'mark_account_v1',
+    );
+    await privateSql(
+      server,
+      ownerToken,
+      database,
+      `DELETE FROM resource_account_v1 WHERE fid = ${actualModuleFounderFid}`,
+    );
+    if (await countForFid(server, ownerToken, database, 'resource_account_v1') !== 0n) {
+      fail('Legacy missing-resource fixture was not created.');
+    }
+    await useActualModule();
+    await callLoopbackProcedure(
+      server,
+      database,
+      'get_my_resource_state_v1',
+      playerCredential(),
+      '[]',
+      500,
+    );
+    assertAdminResourceStatus(
+      await readActualAdminResourceStatus(server, database, adminCredential()),
+      {
+        allowedFids: 1n,
+        castles: 1n,
+        markAccounts: 1n,
+        resourceAccounts: 0n,
+        missingResourceAccounts: 1n,
+        orphanedResourceAccounts: 0n,
+        resourceInvariantViolations: 0n,
+      },
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_resource_accounts_v1',
+      adminCredential(),
+      JSON.stringify([2, resourcePolicyVersion]),
+      530,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_resource_accounts_v1',
+      adminCredential(),
+      JSON.stringify([1, 'unsupported-resource-policy']),
+      530,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await countForFid(server, ownerToken, database, 'resource_account_v1') !== 0n
+      || await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 0n
+    ) fail('Rejected resource backfill changed private state or audit history.');
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_resource_accounts_v1',
+      adminCredential(),
+      JSON.stringify([1, resourcePolicyVersion]),
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await countForFid(server, ownerToken, database, 'resource_account_v1') !== 1n
+      || await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 1n
+      || await callerRowDigest(server, ownerToken, database, 'mark_account_v1') !== marksBeforeBackfill
+    ) fail('Guarded resource backfill did not create exactly one isolated account.');
+    await useActualModule();
+    assertAdminResourceStatus(
+      await readActualAdminResourceStatus(server, database, adminCredential()),
+      {
+        allowedFids: 1n,
+        castles: 1n,
+        markAccounts: 1n,
+        resourceAccounts: 1n,
+        missingResourceAccounts: 0n,
+        orphanedResourceAccounts: 0n,
+        resourceInvariantViolations: 0n,
+      },
+    );
+    const backfilledState = await readActualResourceState(
+      server,
+      database,
+      playerCredential(),
+    );
+    assertResourceState(backfilledState, {
+      balances: startingResourceBalances,
+      pending: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
+      revision: 0n,
+    });
+    await usePrivateInspectionModule();
+    const backfilledResourceDigest = await callerRowDigest(
+      server,
+      ownerToken,
+      database,
+      'resource_account_v1',
+    );
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_resource_accounts_v1',
+      adminCredential(),
+      JSON.stringify([1, resourcePolicyVersion]),
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 1n
+      || await callerRowDigest(server, ownerToken, database, 'resource_account_v1')
+        !== backfilledResourceDigest
+    ) fail('Exact resource backfill rerun was not a complete no-op.');
+
+    stage = 'conflict-rejection';
+    const conflictCreated = await tryPrivateSqlMutation(
+      server,
+      ownerToken,
+      database,
+      `UPDATE resource_account_v1 SET policy_version = 'conflicting-local-policy' WHERE fid = ${actualModuleFounderFid}`,
+    );
+    if (!conflictCreated) fail('Disposable SQL could not create a bounded resource conflict.');
+    const conflictingResourceDigest = await callerRowDigest(
+      server,
+      ownerToken,
+      database,
+      'resource_account_v1',
+    );
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_resource_accounts_v1',
+      adminCredential(),
+      JSON.stringify([1, resourcePolicyVersion]),
+      530,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 1n
+      || await callerRowDigest(server, ownerToken, database, 'resource_account_v1')
+      !== conflictingResourceDigest
+    ) fail('Rejected conflicting resource state was mutated or audited.');
+    await useActualModule();
+    assertAdminResourceStatus(
+      await readActualAdminResourceStatus(server, database, adminCredential()),
+      {
+        allowedFids: 1n,
+        castles: 1n,
+        markAccounts: 1n,
+        resourceAccounts: 1n,
+        missingResourceAccounts: 0n,
+        orphanedResourceAccounts: 0n,
+        resourceInvariantViolations: 1n,
+      },
+    );
+    return 'one-quantum';
+  } catch (error) {
+    if (error instanceof MigrationProofError) {
+      throw new MigrationProofError(
+        `Actual-module resource lifecycle failed at ${stage}: ${error.message}`,
+      );
+    }
+    throw new MigrationProofError(`Actual-module resource lifecycle failed at ${stage}.`);
   }
 }
 
@@ -887,6 +1648,7 @@ async function main() {
     await publish(server, owner.token, fixtureModule, emptyDatabase);
     await publish(server, owner.token, fixtureModule, nonemptyDatabase);
     await publish(server, owner.token, fixtureModule, actualModuleDatabase);
+    await publish(server, owner.token, fixtureModule, resourceLifecycleDatabase);
 
     assert.equal(await count(server, owner.token, emptyDatabase, 'world_tile'), 61n);
     assert.equal(await count(server, owner.token, nonemptyDatabase, 'world_tile'), 61n);
@@ -905,6 +1667,12 @@ async function main() {
       actualModuleDatabase,
       'DELETE FROM player WHERE fid = 424242',
     );
+    await sql(
+      server,
+      owner.token,
+      resourceLifecycleDatabase,
+      'DELETE FROM player WHERE fid = 424242',
+    );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player'), 0n);
 
     // Advance every disposable database to the independently frozen deployed
@@ -913,7 +1681,13 @@ async function main() {
     await publish(server, owner.token, additiveV2SchemaFixture, emptyDatabase);
     await publish(server, owner.token, additiveV2SchemaFixture, nonemptyDatabase);
     await publish(server, owner.token, additiveV2SchemaFixture, actualModuleDatabase);
-    for (const database of [emptyDatabase, nonemptyDatabase, actualModuleDatabase]) {
+    await publish(server, owner.token, additiveV2SchemaFixture, resourceLifecycleDatabase);
+    for (const database of [
+      emptyDatabase,
+      nonemptyDatabase,
+      actualModuleDatabase,
+      resourceLifecycleDatabase,
+    ]) {
       assert.equal(await count(server, owner.token, database, 'player_v2'), 0n);
       assert.equal(await count(server, owner.token, database, 'player_ownership_v2'), 0n);
     }
@@ -943,37 +1717,108 @@ async function main() {
       'SELECT * FROM world_tile',
     ));
 
-    const emptyBefore = await describe(server, owner.token, emptyDatabase);
-    const nonemptyBefore = await describe(server, owner.token, nonemptyDatabase);
-    const actualModuleBefore = await describe(server, owner.token, actualModuleDatabase);
-    assert.deepEqual(emptyBefore.tables.map(table => table.name).sort(), [
+    const emptyV2 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV2 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV2 = await describe(server, owner.token, actualModuleDatabase);
+    assert.deepEqual(emptyV2.tables.map(table => table.name).sort(), [
       'admin_audit', 'allowed_fid', 'castle', 'player', 'player_ownership_v2',
       'player_v2', 'world_tile',
     ]);
 
+    // Freeze the currently deployed v3 schema as an independent checkpoint on
+    // every database before the resource authority is introduced.
     await publish(server, owner.token, additiveV3SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV3SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV3SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV3SchemaFixture, resourceLifecycleDatabase);
+
+    const emptyV3 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV3 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV3 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV3Schema(emptyV2, emptyV3);
+    assertAdditiveV3Schema(nonemptyV2, nonemptyV3);
+    assertAdditiveV3Schema(actualModuleV2, actualModuleV3);
+    for (const name of deployedV3Tables) {
+      assert.deepEqual(
+        tableSignature(actualModuleV3, name),
+        tableSignature(emptyV3, name),
+      );
+    }
+    for (const database of [
+      emptyDatabase,
+      nonemptyDatabase,
+      actualModuleDatabase,
+      resourceLifecycleDatabase,
+    ]) {
+      for (const table of additiveV3Tables) {
+        assert.equal(await count(server, owner.token, database, table), 0n);
+      }
+    }
+    await sql(
+      server,
+      owner.token,
+      emptyDatabase,
+      "INSERT INTO castle_slot_v1 (slot_id, realm_id, tile_key, q, r, generation_version) VALUES (999999, 'MIGRATION_SENTINEL', 'migration,sentinel', 99, -99, 2)",
+    );
+    assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
+    const emptyV3Rows = await tableRowDigests(
+      server,
+      owner.token,
+      emptyDatabase,
+      deployedV3Tables,
+    );
+    const nonemptyV3Rows = await tableRowDigests(
+      server,
+      owner.token,
+      nonemptyDatabase,
+      deployedV3Tables,
+    );
+    const actualModuleV3Rows = await tableRowDigests(
+      server,
+      owner.token,
+      actualModuleDatabase,
+      deployedV3Tables,
+    );
+
+    // The schema-only v4 fixture and the current module must independently
+    // prove the exact same ref-19 append while every publish remains
+    // `--delete-data=never`.
+    await publish(server, owner.token, additiveV4SchemaFixture, emptyDatabase);
     await publish(server, owner.token, additiveModule, nonemptyDatabase);
     await publish(server, owner.token, additiveModule, actualModuleDatabase);
+    await publish(server, owner.token, additiveModule, resourceLifecycleDatabase);
     await verifyResolverHttpLifecycle(server, actualModuleDatabase, privateKey);
+    const resourceTimestampFixture = await verifyActualModuleResourceLifecycle(
+      server,
+      resourceLifecycleDatabase,
+      privateKey,
+      owner.token,
+    );
     const builtArtifactPath = join(additiveModule, 'dist', 'bundle.js');
     const builtArtifactDigest = createHash('sha256')
       .update(await readFile(builtArtifactPath))
       .digest('hex');
 
-    const emptyAfter = await describe(server, owner.token, emptyDatabase);
-    const nonemptyAfter = await describe(server, owner.token, nonemptyDatabase);
-    const actualModuleAfter = await describe(server, owner.token, actualModuleDatabase);
-    assertAdditiveSchema(emptyBefore, emptyAfter);
-    assertAdditiveSchema(nonemptyBefore, nonemptyAfter);
-    assertAdditiveSchema(actualModuleBefore, actualModuleAfter);
-    for (const name of [...existingTables, ...additiveV3Tables]) {
+    const emptyV4 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyV4 = await describe(server, owner.token, nonemptyDatabase);
+    const actualModuleV4 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV4Schema(emptyV3, emptyV4);
+    assertAdditiveV4Schema(nonemptyV3, nonemptyV4);
+    assertAdditiveV4Schema(actualModuleV3, actualModuleV4);
+    for (const name of [...deployedV3Tables, ...additiveV4Tables]) {
       assert.deepEqual(
-        tableSignature(actualModuleAfter, name),
-        tableSignature(emptyAfter, name),
+        tableSignature(actualModuleV4, name),
+        tableSignature(emptyV4, name),
       );
     }
+    assert.equal(await count(
+      server,
+      owner.token,
+      emptyDatabase,
+      'resource_account_v1',
+    ), 0n);
 
-    const idempotentSchemaBefore = schemaDigest(nonemptyAfter);
+    const idempotentSchemaBefore = schemaDigest(nonemptyV4);
     await publishBuiltArtifact(
       server,
       owner.token,
@@ -986,20 +1831,26 @@ async function main() {
     );
 
     // The actual module correctly rejects the disposable local identity at its
-    // on-connect boundary. Re-publish the table-identical schema-only fixture
+    // on-connect boundary. Re-publish the table-identical v4 schema fixture
     // before querying preservation; this changes no table or row.
-    await publish(server, owner.token, additiveV3SchemaFixture, nonemptyDatabase);
-    await publish(server, owner.token, additiveV3SchemaFixture, actualModuleDatabase);
+    await publish(server, owner.token, additiveV4SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV4SchemaFixture, actualModuleDatabase);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 0n);
     assert.equal(await count(server, owner.token, nonemptyDatabase, 'player'), 1n);
     assert.equal(await count(server, owner.token, nonemptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, nonemptyDatabase, 'player_ownership_v2'), 0n);
-    for (const table of additiveV3Tables) {
-      assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
-      assert.equal(await count(server, owner.token, nonemptyDatabase, table), 0n);
-      assert.equal(await count(server, owner.token, actualModuleDatabase, table), 0n);
+    for (const [database, beforeRows] of [
+      [emptyDatabase, emptyV3Rows],
+      [nonemptyDatabase, nonemptyV3Rows],
+      [actualModuleDatabase, actualModuleV3Rows],
+    ]) {
+      assert.deepEqual(
+        await tableRowDigests(server, owner.token, database, deployedV3Tables),
+        beforeRows,
+      );
+      assert.equal(await count(server, owner.token, database, 'resource_account_v1'), 0n);
     }
     assert.equal(outputDigest(await sql(
       server,
@@ -1032,16 +1883,11 @@ async function main() {
       emptyDatabase,
       `INSERT INTO player_ownership_v2 (fid, identity) VALUES (999999, 0x${owner.identity})`,
     );
-    await sql(
-      server,
-      owner.token,
-      emptyDatabase,
-      "INSERT INTO castle_slot_v1 (slot_id, realm_id, tile_key, q, r, generation_version) VALUES (999999, 'ROLLBACK_SENTINEL', 'rollback,sentinel', 99, -99, 2)",
-    );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    const populatedV3SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
+    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
+    const populatedV4SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
 
     const { identity: secondIdentity } = await acquireDisposableIdentity(server);
     await sql(
@@ -1065,6 +1911,21 @@ async function main() {
     await publish(
       server,
       owner.token,
+      additiveV3SchemaFixture,
+      emptyDatabase,
+      false,
+      /break|delete|remove|migration|incompatible|data loss|table/i,
+    );
+    assert.equal(
+      schemaDigest(await describe(server, owner.token, emptyDatabase)),
+      populatedV4SchemaDigest,
+    );
+    assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
+    assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
+    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
+    await publish(
+      server,
+      owner.token,
       additiveV2SchemaFixture,
       emptyDatabase,
       false,
@@ -1072,25 +1933,31 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV3SchemaDigest,
+      populatedV4SchemaDigest,
     );
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
-    await publish(server, owner.token, additiveV3SchemaFixture, emptyDatabase);
+    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
+    await publish(server, owner.token, additiveV4SchemaFixture, emptyDatabase);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
+    assert.equal(await count(server, owner.token, emptyDatabase, 'resource_account_v1'), 0n);
     assert.equal(
       createHash('sha256').update(await readFile(builtArtifactPath)).digest('hex'),
       builtArtifactDigest,
     );
 
     console.log(
-      `Additive protocol-v3 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
-      + 'seven deployed tables unchanged, 61-tile empty and synthetic nonempty fixtures preserved, '
-      + '12 v3 tables appended with exact public/private contracts, '
+      `Additive protocol-v4 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
+      + 'the exact refs 0-18 deployed v3 prefix and every v3 row remained unchanged, '
+      + 'private resource_account_v1 appended at exact product type ref 19, '
+      + '61-tile empty and synthetic nonempty fixtures remained preserved, '
       + 'exact resolver HTTP lifecycle enforced without mutation, '
-      + 'prebuilt-artifact republish idempotent, populated v3 state retained, '
-      + `and guarded v2 rollback refused before schema change. artifact_sha256=${builtArtifactDigest}`,
+      + `actual resource authority reducers exercised with ${resourceTimestampFixture} collection, `
+      + 'caller bootstrap/terms/identity gates, Marks isolation, atomic founding, '
+      + 'and guarded backfill rejection/idempotence held, '
+      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v4, '
+      + `and guarded v3/v2 rollbacks refused before schema change. artifact_sha256=${builtArtifactDigest}`,
     );
   } finally {
     disposableCliCredential = null;
@@ -1102,7 +1969,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   main().catch(error => {
     console.error(error instanceof MigrationProofError
       ? error.message
-      : 'Additive protocol-v3 migration proof failed closed.');
+      : 'Additive protocol-v4 migration proof failed closed.');
     process.exitCode = 1;
   });
 }

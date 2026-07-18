@@ -1,0 +1,448 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const mockedFarcaster = vi.hoisted(() => ({ current: undefined as unknown }));
+const deferredBackendStateUpdate = vi.hoisted(() => ({
+  armed: false,
+  queued: undefined as (() => void) | undefined
+}));
+
+vi.mock('react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react')>();
+  return {
+    ...actual,
+    useState: <State,>(initialState: State | (() => State)) => {
+      const [value, setValue] = actual.useState(initialState);
+      const isBackendState = typeof initialState === 'object'
+        && initialState !== null
+        && 'phase' in initialState
+        && initialState.phase === 'idle';
+      if (!isBackendState) return [value, setValue] as const;
+
+      const deferableSetValue: typeof setValue = (update) => {
+        if (deferredBackendStateUpdate.armed && typeof update === 'function') {
+          deferredBackendStateUpdate.armed = false;
+          deferredBackendStateUpdate.queued = () => setValue(update);
+          return;
+        }
+        setValue(update);
+      };
+      return [value, deferableSetValue] as const;
+    }
+  };
+});
+
+vi.mock('../src/farcaster/FarcasterAuthProvider', () => ({
+  useFarcasterAuth: () => mockedFarcaster.current
+}));
+
+import type { ReadyRealmResourcePresentation } from '../src/components/realm/realmResourcePresentation';
+import {
+  RESOURCE_OPERATION_TIMEOUT_MILLISECONDS,
+  RESOURCE_REFRESH_INTERVAL_MILLISECONDS,
+  WarpkeepSpacetimeProvider,
+  useWarpkeepBackend,
+  type WarpkeepBackendRuntime
+} from '../src/spacetime/WarpkeepSpacetimeProvider';
+import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
+import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
+import { createReadyResourceState } from './fixtures/resourceState';
+
+const CONFIG: WarpkeepRuntimeConfig = Object.freeze({
+  spacetimeUri: 'https://maincloud.spacetimedb.com',
+  spacetimeDatabase: 'warpkeep-89e4u',
+  bridgeUrl: 'https://auth.warpkeep.com',
+  issuer: 'https://auth.warpkeep.com',
+  audience: 'warpkeep-spacetimedb',
+  publicConfigValid: true,
+  sharedAlphaEnabled: true
+});
+
+function jwtSegment(value: unknown) {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+function authenticatedFarcaster(fid = 12_345, sequence = 1) {
+  const issuedAt = Math.floor(Date.now() / 1_000);
+  const expiresAt = issuedAt + 300;
+  return {
+    state: {
+      phase: 'authenticated',
+      assurance: 'bridge-oidc-alpha',
+      identity: {
+        fid,
+        username: `keeper${fid}`,
+        verifications: [],
+        authMethod: 'authAddress',
+        verifiedAt: Date.now()
+      }
+    },
+    oidcSession: {
+      jwt: [
+        jwtSegment({ alg: 'ES256', typ: 'JWT' }),
+        jwtSegment({
+          iss: CONFIG.issuer,
+          aud: CONFIG.audience,
+          sub: `farcaster:${fid}`,
+          fid: String(fid),
+          token_type: 'spacetime-access',
+          auth_version: 2,
+          auth_epoch: 1,
+          roles: [],
+          jti: `resource-lifecycle-${sequence}`,
+          iat: issuedAt,
+          nbf: issuedAt,
+          exp: expiresAt,
+          session_iat: issuedAt,
+          session_exp: expiresAt
+        }),
+        `signature-${sequence}`
+      ].join('.'),
+      issuer: CONFIG.issuer,
+      audience: CONFIG.audience,
+      expiresAt: expiresAt * 1_000
+    }
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function resourceState(
+  fid: number,
+  revision: bigint,
+  food: bigint
+): ReadyRealmResourcePresentation {
+  const base = createReadyResourceState(fid, revision);
+  return Object.freeze({
+    ...base,
+    balances: Object.freeze({ ...base.balances, food })
+  });
+}
+
+function createRuntimeHarness() {
+  const disconnect = vi.fn((connection: { disconnect?: () => void } | undefined) => {
+    connection?.disconnect?.();
+  });
+  const runtime = {
+    connect: vi.fn(async () => ({ isDisconnectRequested: false, disconnect: vi.fn() })),
+    disconnect,
+    readBackendInfo: vi.fn(async () => ({
+      protocolVersion: 3,
+      worldSeed: 3_445_214_658,
+      worldSeedName: 'HEGEMONY_GENESIS_001'
+    })),
+    readAdmission: vi.fn(async () => 'ready'),
+    bootstrapPlayer: vi.fn(async () => undefined),
+    acceptAlphaTerms: vi.fn(async () => undefined),
+    readResourceState: vi.fn(async (_connection, fid: number) => createReadyResourceState(fid)),
+    collectResources: vi.fn(async (_connection, fid: number) => createReadyResourceState(fid)),
+    observeRealm: vi.fn(() => vi.fn()),
+    readRealmSnapshot: vi.fn((_connection, fid: number) => createCanonicalGenesisSnapshot(fid)),
+    subscribeRealm: vi.fn((_connection, onApplied: () => void) => {
+      onApplied();
+      return { unsubscribe: vi.fn() };
+    })
+  } as unknown as WarpkeepBackendRuntime;
+  return { runtime, disconnect };
+}
+
+function Probe() {
+  const backend = useWarpkeepBackend();
+  return (
+    <>
+      <output data-testid="phase">{backend.state.phase}</output>
+      <output data-testid="resource-fid">{backend.state.resources?.fid.toString() ?? ''}</output>
+      <output data-testid="resource-revision">
+        {backend.state.resources?.revision.toString() ?? ''}
+      </output>
+      <output data-testid="resource-food">
+        {backend.state.resources?.balances.food.toString() ?? ''}
+      </output>
+      <button type="button" onClick={backend.beginAlphaTermsAcceptance}>ACCEPT TERMS</button>
+      <button type="button" onClick={() => void backend.collectResources()}>COLLECT</button>
+      <button type="button" onClick={backend.disconnect}>DISCONNECT</button>
+    </>
+  );
+}
+
+function renderProvider(runtime: WarpkeepBackendRuntime) {
+  return render(
+    <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+      <Probe />
+    </WarpkeepSpacetimeProvider>
+  );
+}
+
+async function enterRealm() {
+  await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms'));
+  fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+  await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+}
+
+async function flushProviderWork(rounds = 20) {
+  await act(async () => {
+    for (let round = 0; round < rounds; round += 1) await Promise.resolve();
+  });
+}
+
+afterEach(() => {
+  cleanup();
+  deferredBackendStateUpdate.armed = false;
+  deferredBackendStateUpdate.queued = undefined;
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+describe('Warpkeep private resource lifecycle', () => {
+  it('fails closed before installing the public Realm subscription when the private read fails', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime, disconnect } = createRuntimeHarness();
+    vi.mocked(runtime.readResourceState).mockRejectedValueOnce(new Error('private projection unavailable'));
+    renderProvider(runtime);
+
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms'));
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('error'));
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(1);
+    expect(runtime.observeRealm).not.toHaveBeenCalled();
+    expect(runtime.subscribeRealm).not.toHaveBeenCalled();
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('');
+  });
+
+  it('does not update optimistically and publishes only the newer authoritative collect result', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const pendingCollect = deferred<ReadyRealmResourcePresentation>();
+    vi.mocked(runtime.collectResources).mockImplementationOnce(() => pendingCollect.promise);
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('resource-revision').textContent).toBe('0');
+    expect(screen.getByTestId('resource-food').textContent).toBe('200');
+    fireEvent.click(screen.getByRole('button', { name: 'COLLECT' }));
+    await waitFor(() => expect(runtime.collectResources).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByTestId('resource-revision').textContent).toBe('0');
+    expect(screen.getByTestId('resource-food').textContent).toBe('200');
+
+    await act(async () => {
+      pendingCollect.resolve(resourceState(12_345, 1n, 208n));
+      await pendingCollect.promise;
+    });
+    await waitFor(() => expect(screen.getByTestId('resource-revision').textContent).toBe('1'));
+    expect(screen.getByTestId('resource-food').textContent).toBe('208');
+  });
+
+  it('leaves a late authoritative result inert after an explicit disconnect', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const pendingCollect = deferred<ReadyRealmResourcePresentation>();
+    vi.mocked(runtime.collectResources).mockImplementationOnce(() => pendingCollect.promise);
+    renderProvider(runtime);
+    await enterRealm();
+
+    fireEvent.click(screen.getByRole('button', { name: 'COLLECT' }));
+    await waitFor(() => expect(runtime.collectResources).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole('button', { name: 'DISCONNECT' }));
+    expect(screen.getByTestId('phase').textContent).toBe('idle');
+
+    await act(async () => {
+      pendingCollect.resolve(resourceState(12_345, 99n, 999n));
+      await pendingCollect.promise;
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('idle');
+    expect(screen.getByTestId('resource-fid').textContent).toBe('');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('');
+  });
+
+  it('cannot publish a late result across an authenticated identity generation change', async () => {
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+    const { runtime } = createRuntimeHarness();
+    const pendingCollect = deferred<ReadyRealmResourcePresentation>();
+    vi.mocked(runtime.collectResources).mockImplementationOnce(() => pendingCollect.promise);
+    const rendered = renderProvider(runtime);
+    await enterRealm();
+
+    fireEvent.click(screen.getByRole('button', { name: 'COLLECT' }));
+    await waitFor(() => expect(runtime.collectResources).toHaveBeenCalledTimes(1));
+
+    mockedFarcaster.current = authenticatedFarcaster(54_321, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await enterRealm();
+    expect(screen.getByTestId('resource-fid').textContent).toBe('54321');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('0');
+
+    await act(async () => {
+      pendingCollect.resolve(resourceState(12_345, 99n, 999n));
+      await pendingCollect.promise;
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('resource-fid').textContent).toBe('54321');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('0');
+    expect(screen.getByTestId('resource-food').textContent).toBe('200');
+  });
+
+  it('cannot publish a queued old collect after a same-FID token generation reconnects', async () => {
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+    const { runtime } = createRuntimeHarness();
+    const pendingOldCollect = deferred<ReadyRealmResourcePresentation>();
+    vi.mocked(runtime.readResourceState)
+      .mockResolvedValueOnce(resourceState(12_345, 0n, 200n))
+      .mockResolvedValueOnce(resourceState(12_345, 2n, 216n));
+    vi.mocked(runtime.collectResources).mockImplementationOnce(() => pendingOldCollect.promise);
+    const rendered = renderProvider(runtime);
+    await enterRealm();
+
+    fireEvent.click(screen.getByRole('button', { name: 'COLLECT' }));
+    await waitFor(() => expect(runtime.collectResources).toHaveBeenCalledTimes(1));
+
+    deferredBackendStateUpdate.armed = true;
+    pendingOldCollect.resolve(resourceState(12_345, 99n, 999n));
+    await flushProviderWork();
+    expect(deferredBackendStateUpdate.queued).toBeTypeOf('function');
+
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('2');
+    expect(screen.getByTestId('resource-food').textContent).toBe('216');
+
+    await act(async () => {
+      deferredBackendStateUpdate.queued?.();
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('2');
+    expect(screen.getByTestId('resource-food').textContent).toBe('216');
+  });
+
+  it('terminates a half-open collect at the hard deadline and leaves its late result inert', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime, disconnect } = createRuntimeHarness();
+    const pendingCollect = deferred<ReadyRealmResourcePresentation>();
+    vi.mocked(runtime.collectResources).mockImplementationOnce(() => pendingCollect.promise);
+    renderProvider(runtime);
+    await enterRealm();
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole('button', { name: 'COLLECT' }));
+    await act(async () => Promise.resolve());
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_OPERATION_TIMEOUT_MILLISECONDS);
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('');
+
+    await act(async () => {
+      pendingCollect.resolve(resourceState(12_345, 99n, 999n));
+      await pendingCollect.promise;
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('');
+  });
+
+  it('terminates a half-open periodic refresh instead of retaining stale ready state', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime, disconnect } = createRuntimeHarness();
+    const pendingRefresh = deferred<ReadyRealmResourcePresentation>();
+    vi.mocked(runtime.readResourceState)
+      .mockResolvedValueOnce(createReadyResourceState(12_345))
+      .mockImplementationOnce(() => pendingRefresh.promise);
+    renderProvider(runtime);
+
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms');
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_OPERATION_TIMEOUT_MILLISECONDS);
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('');
+
+    await act(async () => {
+      pendingRefresh.resolve(resourceState(12_345, 99n, 999n));
+      await pendingRefresh.promise;
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('');
+  });
+
+  it('cannot publish a queued old refresh after a same-FID token generation reconnects', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+    const { runtime } = createRuntimeHarness();
+    const pendingOldRefresh = deferred<ReadyRealmResourcePresentation>();
+    vi.mocked(runtime.readResourceState)
+      .mockResolvedValueOnce(resourceState(12_345, 0n, 200n))
+      .mockImplementationOnce(() => pendingOldRefresh.promise)
+      .mockResolvedValueOnce(resourceState(12_345, 2n, 216n));
+    const rendered = renderProvider(runtime);
+
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms');
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await flushProviderWork();
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+    });
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(2);
+
+    deferredBackendStateUpdate.armed = true;
+    pendingOldRefresh.resolve(resourceState(12_345, 99n, 999n));
+    await flushProviderWork();
+    expect(deferredBackendStateUpdate.queued).toBeTypeOf('function');
+
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await flushProviderWork();
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(3);
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('2');
+    expect(screen.getByTestId('resource-food').textContent).toBe('216');
+
+    await act(async () => {
+      deferredBackendStateUpdate.queued?.();
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('resource-revision').textContent).toBe('2');
+    expect(screen.getByTestId('resource-food').textContent).toBe('216');
+  });
+});

@@ -89,13 +89,32 @@ const ALPHA_0_3_6_PATCH_NOTES: LatestPatchNotes = Object.freeze({
     'Released 18 July 2026 after protected Pages deployment and exact-build verification.'
 });
 
+const ALPHA_0_3_7_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: 'CANDIDATE · 18 JUL 2026',
+  title: 'GENESIS RESOURCE AUTHORITY',
+  summary:
+    'Alpha 0.3.7 is an undeployed candidate for one small persistent resource loop; Alpha 0.3.6 remains the verified public release.',
+  highlights: Object.freeze([
+    'Each founder receives one private, caller-scoped Food, Wood, Stone, and Gold inventory owned by SpacetimeDB; peer balances never enter the public Realm subscription.',
+    'Server time and authoritative castle terrain determine completed ten-minute yields. Collect accepts no browser-supplied FID, balance, terrain, rate, timestamp, or castle input.',
+    'Resource reads and collection fail closed behind admission, current castle ownership, the exact Alpha Terms acceptance, and a complete private resource-account graph; the client never applies an optimistic balance.',
+    'Community Marks remains a separate private authority with its existing zero-start accounting and policy; this candidate adds no conversion, transfer, credit, or spending path.',
+    'Food, Wood, Stone, and Gold use immutable, integrity-checked runtime icons derived from the recorded masters without publishing those source masters in the Pages artifact.',
+    'The additive schema fixture, generated-binding checks, guarded founder backfill, and counts-only version-four inspection prepare a bounded migration without exposing FIDs or balances.',
+    'Construction, upgrades, units, combat, trading, public inventories, and financial rewards remain unavailable.'
+  ]),
+  alphaNotice:
+    'Undeployed candidate. Release requires additive module publication, an owner-approved guarded founder backfill, version-four counts verification, exact Pages deployment, and final owner approval.'
+});
+
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
     '0.3.2': ALPHA_0_3_2_PATCH_NOTES,
     '0.3.3': ALPHA_0_3_3_PATCH_NOTES,
     '0.3.4': ALPHA_0_3_4_PATCH_NOTES,
     '0.3.5': ALPHA_0_3_5_PATCH_NOTES,
-    '0.3.6': ALPHA_0_3_6_PATCH_NOTES
+    '0.3.6': ALPHA_0_3_6_PATCH_NOTES,
+    '0.3.7': ALPHA_0_3_7_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

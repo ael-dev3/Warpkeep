@@ -17,45 +17,50 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '18 JUL 2026',
-      title: 'REALM READABILITY & STABILITY'
+      releasedOn: 'CANDIDATE · 18 JUL 2026',
+      title: 'GENESIS RESOURCE AUTHORITY'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /camera-visible daylight sun.*clear-sky\/earth bounce.*role-specific material calibration.*sunlit/i
+      /private, caller-scoped Food, Wood, Stone, and Gold inventory.*SpacetimeDB.*peer balances never enter the public Realm subscription/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Lowlands now favor cleaner green scene-linear terrain colours.*SVG fallback.*display/i
+      /Server time.*authoritative castle terrain.*ten-minute yields.*no browser-supplied FID.*balance.*terrain.*rate.*timestamp.*castle input/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Hardware-aware Auto.*recommended default.*Cinematic.*measured headroom.*phones Balanced/i
+      /fail closed.*admission.*current castle ownership.*exact Alpha Terms acceptance.*private resource-account graph.*never applies an optimistic balance/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Wider local terrain foundations support each authored island footprint/i
+      /Community Marks remains a separate private authority.*no conversion.*transfer.*credit.*spending/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /interaction feedback no longer draws.*cell line through the landscape base/i
+      /immutable, integrity-checked runtime icons.*without publishing.*source masters.*Pages artifact/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /safely in-viewport founded castle.*direct identity rail.*exact foundation anchor/i
+      /additive schema fixture.*generated-binding checks.*guarded founder backfill.*counts-only version-four inspection.*without exposing FIDs or balances/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /one visible label is tabbable.*spatial arrow keys.*Home\/End.*label-on-label contention.*non-label hit obstruction.*HUD overlap.*Explore/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /wheel and pinch.*readable zoom floor.*convex rendered-terrain perimeter/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Farcaster portrait.*resource-icon masters.*future groundwork.*no balances.*construction/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Defensive source hardening.*authentication configuration.*without adding a bypass.*SpacetimeDB.*authoritative world state/i
+      /Construction.*upgrades.*units.*combat.*trading.*public inventories.*financial rewards remain unavailable/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /durability|destroy|alliance|released to players|deployed to players/i
+      /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('Released 18 July 2026');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('protected Pages deployment');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('exact-build verification');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('undeployed candidate');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain(
+      'Alpha 0.3.6 remains the verified public release'
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'additive module publication'
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'owner-approved guarded founder backfill'
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'version-four counts verification'
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'exact Pages deployment'
+    );
+    expect(getLatestPatchNotes('0.3.6')?.title).toBe('REALM READABILITY & STABILITY');
     expect(getLatestPatchNotes('0.3.5')?.title).toBe('GAME-READY CASTLE REFRESH');
     expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');
     expect(getLatestPatchNotes('0.3.3')?.title).toBe('GENESIS REALM QUALITY');

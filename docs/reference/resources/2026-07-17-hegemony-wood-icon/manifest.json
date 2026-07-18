@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "hegemony-wood-resource-icon-v1",
   "recordedAt": "2026-07-17",
-  "purpose": "Transparent presentation icon prepared for the draft Alpha 0.3.6 wood-resource mechanics workstream; it is not evidence of a live balance, currency, reward, or entitlement.",
+  "purpose": "Transparent wood-resource presentation icon with faithful runtime derivatives for the separately reviewed Alpha 0.3.7 shared-world resource authority; the artwork alone is not evidence of a balance, currency, reward, or entitlement.",
   "projectAuthorization": {
     "authorizedBy": "Warpkeep project owner",
     "instructionDate": "2026-07-17",
@@ -73,7 +73,102 @@
         "maxY": 1022
       }
     },
-    "delivery": "checked-in dormant reference master; excluded from the Pages public directory until mechanics receive separate review"
+    "delivery": "checked-in provenance master outside public/; only the exact reviewed 64 px faithful derivatives below are served by Pages"
+  },
+  "runtimeDerivative": {
+    "authorizationBasis": "The separately reviewed Alpha 0.3.7 resource authority activates the previously recorded owner authorization for official Warpkeep Pages runtime use.",
+    "command": "node scripts/prepare-hegemony-resource-icons.mjs",
+    "sourceFetch": false,
+    "sourceOverride": false,
+    "immutablePathSha256PrefixLength": 16,
+    "pipeline": {
+      "tool": "sharp",
+      "toolVersion": "0.35.3",
+      "libvipsVersion": "8.18.3",
+      "libpngVersion": "1.6.58",
+      "libwebpVersion": "1.6.0",
+      "cache": false,
+      "decoder": {
+        "failOn": "warning",
+        "limitInputPixels": 1572516
+      },
+      "resize": {
+        "width": 64,
+        "height": 64,
+        "fit": "fill",
+        "kernel": "lanczos3",
+        "fastShrinkOnLoad": false,
+        "simd": false,
+        "concurrency": 1
+      },
+      "png": {
+        "colorMode": "RGBA",
+        "bitDepth": 8,
+        "compressionLevel": 9,
+        "adaptiveFiltering": true,
+        "palette": false,
+        "effort": 10,
+        "progressive": false
+      },
+      "webp": {
+        "lossless": true,
+        "quality": 100,
+        "alphaQuality": 100,
+        "effort": 6,
+        "preset": "icon",
+        "smartSubsample": false,
+        "exactTransparentRgb": true
+      }
+    },
+    "installation": {
+      "family": "all eight Hegemony resource runtime outputs",
+      "staging": "destination-local rollback-safe atomic file-family transaction",
+      "unexpectedDirectoryEntries": "reject",
+      "broadDeletion": false
+    },
+    "outputs": [
+      {
+        "path": "public/images/resources/hegemony-wood-d992823f7a7f2999.png",
+        "format": "png",
+        "width": 64,
+        "height": 64,
+        "bytes": 5729,
+        "sha256": "d992823f7a7f2999eff03c77f68ab0c24a952ba6018bab4ee86ccd8f2dd3f689",
+        "decodedRgbaSha256": "3686140686a8801ca17fb10a12ed22368a0ad1fab5fc76a2d2b0b73cdb0d8479",
+        "alpha": {
+          "transparentPixels": 2450,
+          "partiallyTransparentPixels": 510,
+          "opaquePixels": 1136
+        },
+        "visibleBoundsAlpha16": {
+          "minX": 8,
+          "minY": 9,
+          "maxX": 57,
+          "maxY": 52
+        }
+      },
+      {
+        "path": "public/images/resources/hegemony-wood-add35506da245240.webp",
+        "format": "webp",
+        "width": 64,
+        "height": 64,
+        "bytes": 4386,
+        "sha256": "add35506da245240c245c8605433108b188b03c94eadab400b2cb9bab956c92c",
+        "decodedRgbaSha256": "3686140686a8801ca17fb10a12ed22368a0ad1fab5fc76a2d2b0b73cdb0d8479",
+        "alpha": {
+          "transparentPixels": 2450,
+          "partiallyTransparentPixels": 510,
+          "opaquePixels": 1136
+        },
+        "visibleBoundsAlpha16": {
+          "minX": 8,
+          "minY": 9,
+          "maxX": 57,
+          "maxY": 52
+        }
+      }
+    ],
+    "pngAndLosslessWebpDecodeToIdenticalRgba": true
   },
   "licence": {
     "spdx": "LicenseRef-Warpkeep-Provenance-Required",

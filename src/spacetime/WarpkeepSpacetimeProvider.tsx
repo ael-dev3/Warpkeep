@@ -15,11 +15,13 @@ import { validateFarcasterOidcSession } from '../farcaster/farcasterOidcSession'
 import {
   acceptWarpkeepAlphaTerms,
   bootstrapWarpkeepPlayer,
+  collectWarpkeepResources,
   connectWarpkeep,
   disconnectWarpkeep,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
+  readWarpkeepResourceState,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
   type WarpkeepConnection
@@ -40,8 +42,24 @@ import {
   type WarpkeepRuntimeConfig
 } from './warpkeepConfig';
 import { readCompatibleWarpkeepBackendInfo } from './warpkeepProtocol';
+import type { ReadyRealmResourcePresentation } from '../components/realm/realmResourcePresentation';
 
 export const CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS = 15_000;
+export const RESOURCE_OPERATION_TIMEOUT_MILLISECONDS = 15_000;
+export const RESOURCE_REFRESH_INTERVAL_MILLISECONDS = 60_000;
+
+function withResourceOperationDeadline<T>(operation: Promise<T>): Promise<T> {
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    deadline = setTimeout(
+      () => reject(new Error('Warpkeep resource operation timed out.')),
+      RESOURCE_OPERATION_TIMEOUT_MILLISECONDS
+    );
+  });
+  return Promise.race([operation, timeout]).finally(() => {
+    if (deadline !== undefined) clearTimeout(deadline);
+  });
+}
 
 export type WarpkeepBackendControllerValue = Readonly<{
   state: WarpkeepBackendState;
@@ -55,6 +73,8 @@ export type WarpkeepBackendControllerValue = Readonly<{
   cancelAlphaTermsAcceptance: () => void;
   /** Disconnect immediately; the Farcaster provider clears credentials separately. */
   disconnect: () => void;
+  /** Settle the caller's server-time yield and refresh the private projection. */
+  collectResources: () => Promise<void>;
 }>;
 
 /**
@@ -69,6 +89,8 @@ export type WarpkeepBackendRuntime = Readonly<{
   readAdmission: typeof readWarpkeepAdmissionStatus;
   bootstrapPlayer: typeof bootstrapWarpkeepPlayer;
   acceptAlphaTerms: typeof acceptWarpkeepAlphaTerms;
+  readResourceState: typeof readWarpkeepResourceState;
+  collectResources: typeof collectWarpkeepResources;
   observeRealm: typeof observeWarpkeepRealm;
   readRealmSnapshot: typeof readWarpkeepRealmSnapshot;
   subscribeRealm: typeof subscribeToWarpkeepRealm;
@@ -81,6 +103,8 @@ const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.freeze({
   readAdmission: readWarpkeepAdmissionStatus,
   bootstrapPlayer: bootstrapWarpkeepPlayer,
   acceptAlphaTerms: acceptWarpkeepAlphaTerms,
+  readResourceState: readWarpkeepResourceState,
+  collectResources: collectWarpkeepResources,
   observeRealm: observeWarpkeepRealm,
   readRealmSnapshot: readWarpkeepRealmSnapshot,
   subscribeRealm: subscribeToWarpkeepRealm
@@ -117,6 +141,18 @@ function backendError(identity: VerifiedFarcasterIdentity | undefined): Warpkeep
   };
 }
 
+function resourceProjectionIsAtLeastAsNew(
+  candidate: ReadyRealmResourcePresentation,
+  current: ReadyRealmResourcePresentation | undefined
+) {
+  return current === undefined
+    || candidate.revision > current.revision
+    || (
+      candidate.revision === current.revision
+      && candidate.observedAtMicros >= current.observedAtMicros
+    );
+}
+
 /**
  * A focused React provider around the generated client bindings. It bypasses
  * the SDK's URI/database-only connection cache so a sign-out or changed bridge
@@ -151,6 +187,11 @@ export function WarpkeepSpacetimeProvider({
   const completedTermsAttemptRef = useRef(0);
   const termsIntentGenerationRef = useRef(0);
   const termsIdentityFidRef = useRef<number | undefined>(undefined);
+  const collectingGenerationRef = useRef<number | undefined>(undefined);
+  const resourceStateRef = useRef<Readonly<{
+    generation: number;
+    value: ReadyRealmResourcePresentation;
+  }> | undefined>(undefined);
   const processTermsAttemptRef = useRef<() => void>(() => undefined);
   stateRef.current = state;
 
@@ -166,6 +207,8 @@ export function WarpkeepSpacetimeProvider({
     completedTermsAttemptRef.current = 0;
     termsIntentGenerationRef.current = 0;
     termsIdentityFidRef.current = undefined;
+    collectingGenerationRef.current = undefined;
+    resourceStateRef.current = undefined;
     canonicalRealmSourceRef.current = undefined;
     processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
@@ -183,6 +226,66 @@ export function WarpkeepSpacetimeProvider({
       }
     }
     setState(IDLE_WARPKEEP_BACKEND_STATE);
+  }, [runActiveTeardown, runtime]);
+
+  const collectResources = useCallback(async () => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || currentState.resources === undefined
+      || connection === undefined
+      || fid === undefined
+      || collectingGenerationRef.current === generation
+    ) return;
+    collectingGenerationRef.current = generation;
+    try {
+      // A reducer timeout is commit-ambiguous. Tear down this generation and
+      // reconcile through a fresh caller-bound read; never retry collection.
+      const resources = await withResourceOperationDeadline(
+        runtime.collectResources(connection, fid)
+      );
+      if (generationRef.current !== generation) return;
+      if (resources.fid !== BigInt(fid)) {
+        throw new Error('Warpkeep resource projection identity mismatch.');
+      }
+      const retained = resourceStateRef.current?.generation === generation
+        ? resourceStateRef.current.value
+        : undefined;
+      if (!resourceProjectionIsAtLeastAsNew(resources, retained)) return;
+      resourceStateRef.current = Object.freeze({ generation, value: resources });
+      setState((latest) => {
+        const latestRetained = resourceStateRef.current?.generation === generation
+          ? resourceStateRef.current.value
+          : undefined;
+        if (
+          generationRef.current !== generation
+          || resources.fid !== BigInt(fid)
+          || latest.phase !== 'ready'
+          || latest.admission !== 'ready'
+          || latest.identity?.fid !== fid
+          || latest.realm === undefined
+          || latest.resources === undefined
+          || latest.resources.fid !== resources.fid
+          || !resourceProjectionIsAtLeastAsNew(resources, latestRetained)
+          || !resourceProjectionIsAtLeastAsNew(resources, latest.resources)
+        ) return latest;
+        return { ...latest, resources };
+      });
+    } catch {
+      if (generationRef.current === generation) {
+        canonicalRealmSourceRef.current = undefined;
+        runActiveTeardown();
+        setState(backendError(currentState.identity));
+      }
+    } finally {
+      if (collectingGenerationRef.current === generation) {
+        collectingGenerationRef.current = undefined;
+      }
+    }
   }, [runActiveTeardown, runtime]);
 
   const beginAlphaTermsAcceptance = useCallback(() => {
@@ -231,6 +334,7 @@ export function WarpkeepSpacetimeProvider({
     }
     generationRef.current += 1;
     const generation = generationRef.current;
+    resourceStateRef.current = undefined;
     const previousState = stateRef.current;
     const canonicalRealmSource = [
       config.spacetimeUri,
@@ -284,10 +388,13 @@ export function WarpkeepSpacetimeProvider({
     let subscription: ReturnType<WarpkeepBackendRuntime['subscribeRealm']> | undefined;
     let publishReadySnapshot: (() => void) | undefined;
     let activateRealm: (() => void) | undefined;
+    let realmActivationPromise: Promise<void> | undefined;
+    let resourceRefreshInFlight = false;
     let realmActivated = false;
     let subscriptionApplied = false;
     let backendProtocolVersion: number | undefined;
     let readinessTimeout: ReturnType<typeof setTimeout> | undefined;
+    let resourceRefreshInterval: ReturnType<typeof setInterval> | undefined;
     let termsAcceptancePromise: Promise<boolean> | undefined;
     let terminated = false;
     const current = () => active && generationRef.current === generation;
@@ -300,6 +407,10 @@ export function WarpkeepSpacetimeProvider({
         clearTimeout(readinessTimeout);
         readinessTimeout = undefined;
       }
+      if (resourceRefreshInterval !== undefined) {
+        clearInterval(resourceRefreshInterval);
+        resourceRefreshInterval = undefined;
+      }
       // Invalidate callbacks before disconnecting: an injected runtime or the
       // SDK may synchronously report onDisconnected from disconnect().
       active = false;
@@ -308,6 +419,9 @@ export function WarpkeepSpacetimeProvider({
       }
       if (processTermsAttemptRef.current === processTermsAttempt) {
         processTermsAttemptRef.current = () => undefined;
+      }
+      if (resourceStateRef.current?.generation === generation) {
+        resourceStateRef.current = undefined;
       }
       const observer = cleanupObserver;
       cleanupObserver = undefined;
@@ -456,7 +570,15 @@ export function WarpkeepSpacetimeProvider({
         }
 
         const publishCanonicalRealm = (observedSnapshot?: WarpkeepRealmSnapshot) => {
-          if (!current() || !subscriptionApplied || backendProtocolVersion === undefined) return;
+          const resources = resourceStateRef.current?.generation === generation
+            ? resourceStateRef.current.value
+            : undefined;
+          if (
+            !current()
+            || !subscriptionApplied
+            || backendProtocolVersion === undefined
+            || resources === undefined
+          ) return;
           try {
             const realm = validateCanonicalGenesisSnapshot(
               observedSnapshot ?? runtime.readRealmSnapshot(activeConnection, bridgeFid!),
@@ -471,7 +593,8 @@ export function WarpkeepSpacetimeProvider({
               phase: 'ready',
               identity,
               admission: 'ready',
-              realm
+              realm,
+              resources
             });
           } catch {
             fail();
@@ -495,33 +618,88 @@ export function WarpkeepSpacetimeProvider({
             publishReadySnapshot?.();
             return;
           }
+          if (realmActivationPromise !== undefined) return;
           if (!reconnectingState) {
             setState({ phase: 'opening-realm', identity, admission: 'ready' });
           }
-          realmActivated = true;
-          cleanupObserver = runtime.observeRealm(
-            activeConnection,
-            bridgeFid!,
-            updateObservedRealm,
-            fail
-          );
           readinessTimeout = setTimeout(
             fail,
             CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS
           );
-          const startedSubscription = runtime.subscribeRealm(
-            activeConnection,
-            applySubscribedRealm,
-            fail
-          );
-          if (!current()) {
-            // A test runtime or SDK failure callback may fire synchronously from
-            // subscribe(). The returned handle was not available to fail(), so
-            // close it here instead of retaining a terminal subscription.
-            startedSubscription.unsubscribe();
-            return;
-          }
-          subscription = startedSubscription;
+          const activation = (async () => {
+            const initialResources = await runtime.readResourceState(activeConnection, bridgeFid!);
+            if (!current()) return;
+            resourceStateRef.current = Object.freeze({
+              generation,
+              value: initialResources
+            });
+            realmActivated = true;
+            cleanupObserver = runtime.observeRealm(
+              activeConnection,
+              bridgeFid!,
+              updateObservedRealm,
+              fail
+            );
+            const refreshResources = async () => {
+              if (!current() || !realmActivated || resourceRefreshInFlight) return;
+              resourceRefreshInFlight = true;
+              try {
+                const refreshed = await withResourceOperationDeadline(
+                  runtime.readResourceState(activeConnection, bridgeFid!)
+                );
+                if (!current()) return;
+                if (refreshed.fid !== BigInt(bridgeFid!)) {
+                  throw new Error('Warpkeep resource projection identity mismatch.');
+                }
+                const retained = resourceStateRef.current?.generation === generation
+                  ? resourceStateRef.current.value
+                  : undefined;
+                if (!resourceProjectionIsAtLeastAsNew(refreshed, retained)) return;
+                resourceStateRef.current = Object.freeze({ generation, value: refreshed });
+                setState((latest) => {
+                  const latestRetained = resourceStateRef.current?.generation === generation
+                    ? resourceStateRef.current.value
+                    : undefined;
+                  if (
+                    !current()
+                    || refreshed.fid !== BigInt(bridgeFid!)
+                    || latest.phase !== 'ready'
+                    || latest.identity?.fid !== bridgeFid
+                    || latest.realm === undefined
+                    || latest.resources === undefined
+                    || latest.resources.fid !== refreshed.fid
+                    || !resourceProjectionIsAtLeastAsNew(refreshed, latestRetained)
+                    || !resourceProjectionIsAtLeastAsNew(refreshed, latest.resources)
+                  ) return latest;
+                  return { ...latest, resources: refreshed };
+                });
+              } catch {
+                fail();
+              } finally {
+                resourceRefreshInFlight = false;
+              }
+            };
+            resourceRefreshInterval = setInterval(() => {
+              void refreshResources();
+            }, RESOURCE_REFRESH_INTERVAL_MILLISECONDS);
+            const startedSubscription = runtime.subscribeRealm(
+              activeConnection,
+              applySubscribedRealm,
+              fail
+            );
+            if (!current()) {
+              // A test runtime or SDK failure callback may fire synchronously from
+              // subscribe(). The returned handle was not available to fail(), so
+              // close it here instead of retaining a terminal subscription.
+              startedSubscription.unsubscribe();
+              return;
+            }
+            subscription = startedSubscription;
+          })();
+          realmActivationPromise = activation;
+          void activation.catch(fail).finally(() => {
+            if (realmActivationPromise === activation) realmActivationPromise = undefined;
+          });
         };
 
         const acceptedNow = await acknowledgePendingTerms(activeConnection);
@@ -555,11 +733,13 @@ export function WarpkeepSpacetimeProvider({
     checkAgain,
     beginAlphaTermsAcceptance,
     cancelAlphaTermsAcceptance,
-    disconnect
+    disconnect,
+    collectResources
   }), [
     beginAlphaTermsAcceptance,
     cancelAlphaTermsAcceptance,
     checkAgain,
+    collectResources,
     disconnect,
     sharedAlphaAvailable,
     state

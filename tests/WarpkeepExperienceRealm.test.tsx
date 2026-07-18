@@ -42,6 +42,7 @@ import {
   type WarpkeepRuntimeConfig
 } from '../src/spacetime/warpkeepConfig';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
+import { createReadyResourceState } from './fixtures/resourceState';
 
 const TEST_NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
 const TEST_ISSUER = 'https://auth.warpkeep.com';
@@ -273,6 +274,12 @@ function createBackendRuntime(
     )]!),
     bootstrapPlayer: vi.fn(async () => undefined),
     acceptAlphaTerms: vi.fn(async () => undefined),
+    readResourceState: vi.fn(async (_candidate, fid: number) => (
+      createReadyResourceState(fid)
+    )),
+    collectResources: vi.fn(async (_candidate, fid: number) => (
+      createReadyResourceState(fid, 1n)
+    )),
     observeRealm: vi.fn(() => vi.fn()),
     readRealmSnapshot: vi.fn(() => realm),
     subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
@@ -431,6 +438,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).not.toHaveBeenCalled();
     expect(backend.runtime.readBackendInfo).not.toHaveBeenCalled();
     expect(backend.runtime.readAdmission).not.toHaveBeenCalled();
+    expect(backend.runtime.readResourceState).not.toHaveBeenCalled();
     expect(backend.runtime.subscribeRealm).not.toHaveBeenCalled();
 
     await acceptAlphaParticipationTerms();
@@ -447,6 +455,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(encodeQrCode).toHaveBeenCalledTimes(1);
     expect(backend.runtime.connect).toHaveBeenCalledTimes(1);
     expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+    expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(1);
     expect(backend.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_CHANNEL_TOKEN_123456');
     expect(container.innerHTML).not.toContain('PRIVATE_TEST_MESSAGE');
@@ -617,6 +626,10 @@ describe('Warpkeep shared realm admission', () => {
     vi.mocked(backend.runtime.acceptAlphaTerms).mockImplementation(async () => {
       order.push('terms');
     });
+    vi.mocked(backend.runtime.readResourceState).mockImplementation(async (_connection, fid) => {
+      order.push('resources');
+      return createReadyResourceState(fid);
+    });
     vi.mocked(backend.runtime.subscribeRealm).mockImplementation((_connection, onApplied) => {
       order.push('subscribe');
       onApplied();
@@ -630,7 +643,7 @@ describe('Warpkeep shared realm admission', () => {
     await act(async () => vi.advanceTimersByTime(1));
     await settle();
 
-    expect(order).toEqual(['bootstrap', 'terms', 'subscribe']);
+    expect(order).toEqual(['bootstrap', 'terms', 'resources', 'subscribe']);
     expect(backend.runtime.acceptAlphaTerms).toHaveBeenCalledWith(backend.connection);
   });
 
@@ -745,7 +758,7 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.runtime.connect).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps a same-FID realm mounted while a rotated access token reconnects', async () => {
+  it('keeps the same-FID realm route while withholding private state during token reconnect', async () => {
     const initial = createAuthorizedResponse(VERIFIED_IDENTITY.fid, TEST_NOW, 40_000);
     const bridge = createBridge(initial, Date.now);
     vi.mocked(bridge.refreshSession)
@@ -782,13 +795,23 @@ describe('Warpkeep shared realm admission', () => {
     expect(backend.connection.disconnect).toHaveBeenCalledTimes(1);
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(window.location.hash).toBe('#realm');
-    expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
+    expect(screen.getByRole('alert').textContent).toBe('Opening Genesis 001…');
+    expect(screen.queryByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Your resources' })).toBeNull();
+    expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(1);
 
     await act(async () => reconnect.resolve(reconnectConnection));
     await settle();
 
     expect(container.querySelector('.warpkeep-experience')?.getAttribute('data-phase')).toBe('realm');
     expect(window.location.hash).toBe('#realm');
+    expect(backend.runtime.readResourceState).toHaveBeenCalledTimes(2);
+    expect(backend.runtime.readResourceState).toHaveBeenLastCalledWith(
+      reconnectConnection,
+      VERIFIED_IDENTITY.fid
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'Warpkeeper Bastion' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'Your resources' })).not.toBeNull();
     expect(reconnectConnection.disconnect).not.toHaveBeenCalled();
   });
 

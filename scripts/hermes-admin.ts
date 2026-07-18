@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DbConnection } from '../src/spacetime/module_bindings';
+import { GENESIS_RESOURCE_POLICY_VERSION } from '../spacetimedb/src/resourceAuthorityPolicy';
 import { configureHermesMachineOutput } from './hermes-machine-output';
 
 type Command =
@@ -12,7 +13,11 @@ type Command =
   | 'bump-auth-epoch'
   | 'inspect-alpha'
   | 'inspect-alpha-v2'
-  | 'inspect-alpha-v3';
+  | 'inspect-alpha-v3'
+  | 'inspect-alpha-v4'
+  | 'backfill-resources';
+
+type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4';
 
 const DEFAULT_DATABASE = 'warpkeep-89e4u';
 const DEFAULT_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
@@ -21,6 +26,7 @@ const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
 const CONNECT_TIMEOUT_MS = 10_000;
 const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
+const MAX_RESOURCE_BACKFILL_FOUNDERS = 100n;
 
 function fail(message: string): never {
   throw new Error(message);
@@ -59,6 +65,17 @@ function readFid(value: string | undefined) {
   return fid;
 }
 
+function readFounderCount(value: string | undefined) {
+  if (!value || !/^[1-9][0-9]{0,2}$/.test(value)) {
+    fail('An expected founder count from 1 to 100 is required.');
+  }
+  const count = BigInt(value);
+  if (count > MAX_RESOURCE_BACKFILL_FOUNDERS) {
+    fail('An expected founder count from 1 to 100 is required.');
+  }
+  return count;
+}
+
 function sanitizeNote(value: string | undefined, fallback?: string) {
   const note = (value ?? fallback ?? '').trim();
   if (!note || note.length > 512) fail('A non-empty note of at most 512 characters is required.');
@@ -93,10 +110,12 @@ function commandFrom(value: string | undefined): Command {
     || value === 'inspect-alpha'
     || value === 'inspect-alpha-v2'
     || value === 'inspect-alpha-v3'
+    || value === 'inspect-alpha-v4'
+    || value === 'backfill-resources'
   ) {
     return value;
   }
-  fail('Usage: hermes-admin.ts <seed-world|allow-fid|disable-fid|bump-auth-epoch|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3> [...args] [--dry-run] [--confirm]');
+  fail('Usage: hermes-admin.ts <seed-world|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4> [...args] [--dry-run] [--confirm]');
 }
 
 export function parseHermesArguments(arguments_: readonly string[] = process.argv.slice(2)) {
@@ -117,11 +136,14 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
   const command = commandFrom(positional[0]);
   const inspection = command === 'inspect-alpha'
     || command === 'inspect-alpha-v2'
-    || command === 'inspect-alpha-v3';
+    || command === 'inspect-alpha-v3'
+    || command === 'inspect-alpha-v4';
   const expectedPositionals = command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
     ? 3
+    : command === 'backfill-resources'
+      ? 2
     : 1;
   if (positional.length !== expectedPositionals) {
     fail('Hermes command received an unexpected number of positional arguments.');
@@ -147,6 +169,43 @@ function printable(value: unknown): unknown {
     return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, printable(entry)]));
   }
   return value;
+}
+
+type ResourceAggregateV4 = Readonly<{
+  allowedFids: bigint;
+  castles: bigint;
+  markAccounts: bigint;
+  resourceAccounts: bigint;
+  missingResourceAccounts: bigint;
+  orphanedResourceAccounts: bigint;
+  resourceInvariantViolations: bigint;
+  protocolVersion: number;
+  resourcePolicyVersion: string;
+}>;
+
+export function verifyExpectedResourceAggregateV4(
+  status: ResourceAggregateV4,
+  expectedFounderCount: bigint,
+): ResourceAggregateV4 {
+  if (
+    expectedFounderCount < 1n
+    || expectedFounderCount > MAX_RESOURCE_BACKFILL_FOUNDERS
+    || status.allowedFids !== expectedFounderCount
+    || status.castles !== expectedFounderCount
+    || status.markAccounts !== expectedFounderCount
+    || status.resourceAccounts !== expectedFounderCount
+    || status.missingResourceAccounts !== 0n
+    || status.orphanedResourceAccounts !== 0n
+    || status.resourceInvariantViolations !== 0n
+    || status.protocolVersion !== 3
+    || status.resourcePolicyVersion !== GENESIS_RESOURCE_POLICY_VERSION
+  ) {
+    fail(
+      'Resource backfill postcondition failed. The mutation outcome may be indeterminate; '
+      + 'perform a fresh read-only v4 inspection before any retry.',
+    );
+  }
+  return Object.freeze({ ...status });
 }
 
 async function readBoundedAdminResponse(response: Response): Promise<unknown> {
@@ -251,6 +310,13 @@ export function requireCredentialedProductionTarget(
   }
 }
 
+/** Durable resource migration may target only the attested immutable identity. */
+export function requireResourceBackfillProductionTarget(database: string): void {
+  if (database !== DEFAULT_DATABASE_IDENTITY) {
+    fail('Resource backfill requires the immutable Warpkeep production database identity.');
+  }
+}
+
 function withOperationTimeout<T>(operation: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
@@ -317,11 +383,30 @@ export function connect(
 
 export async function readStatus(
   connection: DbConnection,
-  protocolV2 = false,
+  version: AlphaStatusVersion = 'v1',
   machineReadable = false,
-  protocolV3 = false,
+  expectedResourceFounderCount?: bigint,
 ) {
-  if (protocolV3) {
+  if (version === 'v4') {
+    const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV4({}));
+    const safeStatus = {
+      allowedFids: status.allowedFids,
+      castles: status.castles,
+      markAccounts: status.markAccounts,
+      resourceAccounts: status.resourceAccounts,
+      missingResourceAccounts: status.missingResourceAccounts,
+      orphanedResourceAccounts: status.orphanedResourceAccounts,
+      resourceInvariantViolations: status.resourceInvariantViolations,
+      protocolVersion: status.protocolVersion,
+      resourcePolicyVersion: status.resourcePolicyVersion,
+    };
+    const verifiedStatus = expectedResourceFounderCount === undefined
+      ? safeStatus
+      : verifyExpectedResourceAggregateV4(safeStatus, expectedResourceFounderCount);
+    console.log(JSON.stringify(printable(verifiedStatus)));
+    return verifiedStatus;
+  }
+  if (version === 'v3') {
     const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV3({}));
     const safeStatus = {
       worldTiles: status.worldTiles,
@@ -368,7 +453,7 @@ export async function readStatus(
     console.log(JSON.stringify(printable(safeStatus)));
     return;
   }
-  if (protocolV2) {
+  if (version === 'v2') {
     const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV2({}));
     const safeStatus = {
       worldTiles: status.worldTiles,
@@ -416,13 +501,22 @@ async function main() {
     machineReadableInspection,
   } = parseHermesArguments();
   configureHermesMachineOutput(machineReadableInspection);
-  const confirmed = confirmedByFlag || process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes';
+  // Backfilling durable player state always requires a visible command-line
+  // confirmation. The legacy noninteractive switch remains available to the
+  // older bounded operators, but cannot silently authorize this migration.
+  const confirmed = confirmedByFlag || (
+    command !== 'backfill-resources'
+    && process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes'
+  );
   const mutation = !inspection;
   const database = readDatabase(process.env.WARPKEEP_SPACETIMEDB_DATABASE);
   const uri = readHttpsUrl(process.env.WARPKEEP_SPACETIMEDB_URI || DEFAULT_URI, 'WARPKEEP_SPACETIMEDB_URI');
 
   const fid = command === 'allow-fid' || command === 'disable-fid' || command === 'bump-auth-epoch'
     ? readFid(positional[1])
+    : undefined;
+  const expectedFounderCount = command === 'backfill-resources'
+    ? readFounderCount(positional[1])
     : undefined;
   const note = command === 'allow-fid' || command === 'disable-fid'
     ? sanitizeNote(positional[2])
@@ -434,11 +528,24 @@ async function main() {
     console.log(`Warpkeep Hermes target: ${database} at ${uri}`);
   }
   if (dryRun) {
-    console.log(JSON.stringify(printable({ command, fid, note, mutation, dryRun: true })));
+    console.log(JSON.stringify(printable({
+      command,
+      fid,
+      note,
+      expectedFounderCount,
+      resourcePolicyVersion: command === 'backfill-resources'
+        ? GENESIS_RESOURCE_POLICY_VERSION
+        : undefined,
+      mutation,
+      dryRun: true,
+    })));
     return;
   }
   if (mutation && !confirmed) {
     fail('Refusing mutation without --confirm (or WARPKEEP_HERMES_NONINTERACTIVE=yes).');
+  }
+  if (command === 'backfill-resources') {
+    requireResourceBackfillProductionTarget(database);
   }
 
   const bridgeUrl = readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
@@ -458,12 +565,24 @@ async function main() {
       await withOperationTimeout(connection.reducers.adminDisableFid({ fid, note }));
     } else if (command === 'bump-auth-epoch' && fid !== undefined && note !== undefined) {
       await withOperationTimeout(connection.reducers.adminBumpAuthEpoch({ fid, note }));
+    } else if (command === 'backfill-resources' && expectedFounderCount !== undefined) {
+      await withOperationTimeout(connection.reducers.adminBackfillResourceAccountsV1({
+        expectedFounderCount,
+        policyVersion: GENESIS_RESOURCE_POLICY_VERSION,
+      }));
     }
+    const statusVersion: AlphaStatusVersion = command === 'inspect-alpha-v2'
+      ? 'v2'
+      : command === 'inspect-alpha-v3'
+        ? 'v3'
+        : command === 'inspect-alpha-v4' || command === 'backfill-resources'
+          ? 'v4'
+          : 'v1';
     await readStatus(
       connection,
-      command === 'inspect-alpha-v2',
+      statusVersion,
       machineReadableInspection,
-      command === 'inspect-alpha-v3',
+      command === 'backfill-resources' ? expectedFounderCount : undefined,
     );
   } finally {
     connection.disconnect();

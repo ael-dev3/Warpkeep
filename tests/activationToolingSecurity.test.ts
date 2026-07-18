@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { parseMigrationProofReceipt, parsePublishArguments, publishChildEnvironment, publishModule, readFoundedPublishExpectations, requireCanonicalPublishCoordinates, validateIssuerDeployment, verifyCanonicalDatabaseList, verifyFreshFoundedProtocolV3Aggregate, verifyMigrationArtifactReceipt, verifyPinnedCliAttestation, verifyPostPublishFoundedProtocolV3Aggregate } from '../scripts/publish-spacetime-dev.mjs';
+import { RESOURCE_PUBLISH_ROLLOUT_STAGE, parseMigrationProofReceipt, parsePublishArguments, publishChildEnvironment, publishModule, readFoundedPublishExpectations, requireCanonicalPublishCoordinates, validateIssuerDeployment, verifyCanonicalDatabaseList, verifyFreshFoundedProtocolV3Aggregate, verifyFreshResourceProtocolV4PrebackfillAggregate, verifyFreshResourceProtocolV4ReadyAggregate, verifyMigrationArtifactReceipt, verifyPinnedCliAttestation, verifyPostPublishFoundedProtocolV3Aggregate, verifyPostPublishResourceProtocolV4PrebackfillAggregate, verifyPostPublishResourceProtocolV4ReadyAggregate, verifyPostPublishResourcePublicationCheckpoints } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
+import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { cleanupMigrationProofResources, containServerProcessErrors, stopServer } from '../scripts/verify-spacetime-additive-migration.mjs';
 
@@ -477,7 +477,7 @@ describe('activation publish safety', () => {
 
   it('binds an exact single migration receipt and rejects artifact changes before spawn', async () => {
     await withTestProvenArtifact(async receipt => {
-      const success = 'Additive protocol-v3 migration proof passed with SpacetimeDB 2.6.1: '
+      const success = 'Additive protocol-v4 migration proof passed with SpacetimeDB 2.6.1: '
         + `test-only receipt. artifact_sha256=${receipt.artifactDigest}\n`;
       const parsed = parseMigrationProofReceipt(success);
       expect(parsed).toEqual(receipt);
@@ -552,10 +552,34 @@ describe('activation publish safety', () => {
   });
 
   it('rejects unknown publisher flags and noncanonical production coordinates', () => {
-    expect(parsePublishArguments([])).toEqual({ dryRun: false });
-    expect(parsePublishArguments(['--dry-run'])).toEqual({ dryRun: true });
+    expect(parsePublishArguments([
+      '--resource-rollout-stage=prebackfill',
+    ])).toEqual({
+      dryRun: false,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+    });
+    expect(parsePublishArguments([
+      '--resource-rollout-stage=ready',
+      '--dry-run',
+    ])).toEqual({
+      dryRun: true,
+      resourceRolloutStage: RESOURCE_PUBLISH_ROLLOUT_STAGE.READY,
+    });
+    expect(() => parsePublishArguments([])).toThrow(/explicit resource rollout stage/i);
+    expect(() => parsePublishArguments(['--dry-run'])).toThrow(/explicit resource rollout stage/i);
     expect(() => parsePublishArguments(['--dryrun'])).toThrow(/unknown or duplicate/i);
-    expect(() => parsePublishArguments(['--dry-run', '--dry-run'])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--dry-run',
+      '--dry-run',
+      '--resource-rollout-stage=prebackfill',
+    ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=prebackfill',
+      '--resource-rollout-stage=ready',
+    ])).toThrow(/unknown or duplicate/i);
+    expect(() => parsePublishArguments([
+      '--resource-rollout-stage=unknown',
+    ])).toThrow(/unknown or duplicate/i);
     expect(() => requireCanonicalPublishCoordinates({
       WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-lookalike',
     })).toThrow(/canonical existing/i);
@@ -764,6 +788,153 @@ describe('activation publish safety', () => {
     );
     expect(postPublishFailure).toThrow(/fresh read-only inspection/i);
     expect(postPublishFailure).not.toThrow(/no publish was attempted/i);
+    expect(postPublishFailure).not.toThrow(/retry/i);
+  });
+
+  it('runs an exact counts-only resource procedure-v4 checkpoint only for post-publish pre-backfill state', () => {
+    const calls: unknown[][] = [];
+    const aggregate = {
+      allowedFids: '4',
+      castles: '4',
+      markAccounts: '4',
+      resourceAccounts: '0',
+      missingResourceAccounts: '4',
+      orphanedResourceAccounts: '0',
+      resourceInvariantViolations: '0',
+      protocolVersion: 3,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+    };
+    const fakeSpawnSync = (...args: unknown[]) => {
+      calls.push(args);
+      return {
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(aggregate),
+        stderr: '',
+      };
+    };
+    const testSecret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+    expect(() => verifyFreshResourceProtocolV4PrebackfillAggregate(
+      testSecret,
+      4,
+      fakeSpawnSync,
+    )).not.toThrow();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual([
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+      'scripts/hermes-admin.ts',
+      'inspect-alpha-v4',
+      '--json',
+    ]);
+    const options = calls[0]?.[2] as {
+      env?: Record<string, string>;
+      input?: string;
+      timeout?: number;
+      maxBuffer?: number;
+      killSignal?: string;
+    };
+    expect(options).toMatchObject({
+      input: testSecret,
+      timeout: 30_000,
+      maxBuffer: 1_000_000,
+      killSignal: 'SIGKILL',
+    });
+    expect(options.env).toEqual({
+      WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+      WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+      WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',
+      WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+    });
+    expect(JSON.stringify(calls[0]?.[1])).not.toContain(testSecret);
+    expect(JSON.stringify(options.env)).not.toContain(testSecret);
+
+    expect(() => verifyFreshResourceProtocolV4PrebackfillAggregate(
+      testSecret,
+      5,
+      fakeSpawnSync,
+    )).toThrow(/pre-backfill state/i);
+    expect(() => verifyFreshResourceProtocolV4PrebackfillAggregate(
+      testSecret,
+      0,
+      fakeSpawnSync,
+    )).toThrow(/founder count was invalid/i);
+
+    const readyAggregate = {
+      ...aggregate,
+      resourceAccounts: '4',
+      missingResourceAccounts: '0',
+    };
+    const readySpawn = vi.fn(() => ({
+      status: 0,
+      signal: null,
+      stdout: JSON.stringify(readyAggregate),
+      stderr: '',
+    }));
+    expect(() => verifyFreshResourceProtocolV4ReadyAggregate(
+      testSecret,
+      4,
+      readySpawn as never,
+    )).not.toThrow();
+    expect(readySpawn).toHaveBeenCalledOnce();
+    expect(() => verifyFreshResourceProtocolV4ReadyAggregate(
+      testSecret,
+      4,
+      fakeSpawnSync,
+    )).toThrow(/post-backfill ready state/i);
+
+    const postPublishFailure = () => verifyPostPublishResourceProtocolV4PrebackfillAggregate(
+      testSecret,
+      4,
+      (() => ({ status: 1, signal: null, stdout: '', stderr: '' })) as never,
+    );
+    expect(postPublishFailure).toThrow(/indeterminate.*fresh read-only inspection/i);
+    expect(postPublishFailure).not.toThrow(/retry/i);
+    expect(postPublishFailure).not.toThrow(/no publish was attempted/i);
+    const postReadyFailure = () => verifyPostPublishResourceProtocolV4ReadyAggregate(
+      testSecret,
+      4,
+      (() => ({ status: 1, signal: null, stdout: '', stderr: '' })) as never,
+    );
+    expect(postReadyFailure).toThrow(/ready.*indeterminate.*fresh read-only inspection/i);
+    expect(postReadyFailure).not.toThrow(/retry/i);
+
+    const orderedFailureCalls: unknown[][] = [];
+    const orderedFailureSpawn = (...args: unknown[]) => {
+      orderedFailureCalls.push(args);
+      return {
+        status: 1,
+        signal: null,
+        stdout: '',
+        stderr: '',
+      };
+    };
+    expect(() => verifyPostPublishResourcePublicationCheckpoints(
+      testSecret,
+      {
+        expectedFounderCount: 4,
+        expectedPlayerCount: 1,
+        expectedTermsAcceptanceCount: 1,
+      },
+      RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL,
+      orderedFailureSpawn as never,
+    )).toThrow(/protocol-v3 verification is indeterminate/i);
+    expect(orderedFailureCalls).toHaveLength(1);
+    expect(orderedFailureCalls[0]?.[1]).toEqual([
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+      'scripts/hermes-admin.ts',
+      'inspect-alpha-v3',
+      '--json',
+    ]);
+    expect(() => verifyPostPublishResourcePublicationCheckpoints(
+      testSecret,
+      {
+        expectedFounderCount: 4,
+        expectedPlayerCount: 1,
+        expectedTermsAcceptanceCount: 1,
+      },
+      'unknown',
+      orderedFailureSpawn as never,
+    )).toThrow(/rollout stage was invalid/i);
   });
 
   it('enforces a hard deadline with graceful then forced termination', async () => {
@@ -883,7 +1054,11 @@ describe('activation publish safety', () => {
   });
 
   it('returns a failing status when dry-run issuer configuration is absent', () => {
-    const result = spawnSync(process.execPath, ['scripts/publish-spacetime-dev.mjs', '--dry-run'], {
+    const result = spawnSync(process.execPath, [
+      'scripts/publish-spacetime-dev.mjs',
+      '--dry-run',
+      '--resource-rollout-stage=prebackfill',
+    ], {
       cwd: repositoryRoot,
       encoding: 'utf8',
       env: {},
@@ -895,7 +1070,11 @@ describe('activation publish safety', () => {
   });
 
   it('requires the founded-state expectation contract even for a dry run', () => {
-    const result = spawnSync(process.execPath, ['scripts/publish-spacetime-dev.mjs', '--dry-run'], {
+    const result = spawnSync(process.execPath, [
+      'scripts/publish-spacetime-dev.mjs',
+      '--dry-run',
+      '--resource-rollout-stage=prebackfill',
+    ], {
       cwd: repositoryRoot,
       encoding: 'utf8',
       env: { WARPKEEP_OIDC_ISSUER: ISSUER },
@@ -1288,6 +1467,97 @@ describe('protected aggregate child isolation', () => {
     )).not.toThrow();
   });
 
+  it('accepts only the exact counts-only resource procedure-v4 pre-backfill aggregate', () => {
+    const aggregate = {
+      allowedFids: '3',
+      castles: '3',
+      markAccounts: '3',
+      resourceAccounts: '0',
+      missingResourceAccounts: '3',
+      orphanedResourceAccounts: '0',
+      resourceInvariantViolations: '0',
+      protocolVersion: 3,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+    };
+    expect(() => verifyExpectedAlphaV4ResourcePrebackfillAggregate(
+      JSON.stringify(aggregate),
+      3,
+    )).not.toThrow();
+
+    for (const value of [
+      { ...aggregate, resourceAccounts: '1', missingResourceAccounts: '2' },
+      { ...aggregate, orphanedResourceAccounts: '1' },
+      { ...aggregate, resourceInvariantViolations: '1' },
+      { ...aggregate, protocolVersion: 4 },
+      { ...aggregate, resourcePolicyVersion: 'other' },
+      { ...aggregate, fid: '424242424242' },
+      { ...aggregate, balance: '200' },
+      { ...aggregate, resourceAccounts: 0 },
+      { ...aggregate, resourceAccounts: '00' },
+    ]) {
+      expect(() => verifyExpectedAlphaV4ResourcePrebackfillAggregate(
+        JSON.stringify(value),
+        3,
+      )).toThrow();
+    }
+
+    const missing = { ...aggregate } as Record<string, unknown>;
+    delete missing.missingResourceAccounts;
+    expect(() => verifyExpectedAlphaV4ResourcePrebackfillAggregate(
+      JSON.stringify(missing),
+      3,
+    )).toThrow(/unexpected fields/i);
+  });
+
+  it('accepts only the exact counts-only resource procedure-v4 post-backfill ready aggregate', () => {
+    const aggregate = {
+      allowedFids: '3',
+      castles: '3',
+      markAccounts: '3',
+      resourceAccounts: '3',
+      missingResourceAccounts: '0',
+      orphanedResourceAccounts: '0',
+      resourceInvariantViolations: '0',
+      protocolVersion: 3,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+    };
+    expect(() => verifyExpectedAlphaV4ResourceReadyAggregate(
+      JSON.stringify(aggregate),
+      3,
+    )).not.toThrow();
+
+    for (const value of [
+      { ...aggregate, resourceAccounts: '0', missingResourceAccounts: '3' },
+      { ...aggregate, allowedFids: '2' },
+      { ...aggregate, castles: '2' },
+      { ...aggregate, markAccounts: '2' },
+      { ...aggregate, orphanedResourceAccounts: '1' },
+      { ...aggregate, resourceInvariantViolations: '1' },
+      { ...aggregate, protocolVersion: 4 },
+      { ...aggregate, resourcePolicyVersion: 'other' },
+      { ...aggregate, fid: '424242424242' },
+      { ...aggregate, food: '200' },
+      { ...aggregate, resourceAccounts: 3 },
+      { ...aggregate, resourceAccounts: '03' },
+    ]) {
+      expect(() => verifyExpectedAlphaV4ResourceReadyAggregate(
+        JSON.stringify(value),
+        3,
+      )).toThrow();
+    }
+
+    const missing = { ...aggregate } as Record<string, unknown>;
+    delete missing.resourceInvariantViolations;
+    expect(() => verifyExpectedAlphaV4ResourceReadyAggregate(
+      JSON.stringify(missing),
+      3,
+    )).toThrow(/unexpected fields/i);
+    expect(() => verifyExpectedAlphaV4ResourceReadyAggregate(
+      JSON.stringify(aggregate),
+      undefined,
+    )).toThrow(/expected founder count/i);
+  });
+
   it.each(v3InvariantFields)(
     'rejects a nonzero protocol-v3 %s invariant at every empty rollout stage',
     field => {
@@ -1529,6 +1799,166 @@ describe('protected aggregate child isolation', () => {
     )).toEqual([
       '/test/tsx', 'scripts/hermes-admin.ts', 'inspect-alpha-v3', '--json',
     ]);
+    expect(resourceV4AggregateChildArguments('/test/tsx')).toEqual([
+      '/test/tsx', 'scripts/hermes-admin.ts', 'inspect-alpha-v4', '--json',
+    ]);
+  });
+
+  it('runs founded-v3 and resource-v4 readiness against one immutable child target', () => {
+    const calls: unknown[][] = [];
+    const secret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+    const exactEnvironment = {
+      WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+      WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+    };
+    const aggregate = {
+      allowedFids: '3',
+      castles: '3',
+      markAccounts: '3',
+      resourceAccounts: '3',
+      missingResourceAccounts: '0',
+      orphanedResourceAccounts: '0',
+      resourceInvariantViolations: '0',
+      protocolVersion: 3,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+    };
+    const fakeSpawnSync = (...args: unknown[]) => {
+      calls.push(args);
+      const childArguments = args[1] as string[];
+      return {
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(
+          childArguments.includes('inspect-alpha-v3')
+            ? authenticatedGenesisV3FoundedAggregate
+            : aggregate,
+        ),
+        stderr: '',
+      };
+    };
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      expect(() => verifyPostBackfillResourceAggregateCheckpoints(
+        ISSUER,
+        3,
+        1,
+        1,
+        secret,
+        fakeSpawnSync,
+        repositoryRoot,
+        exactEnvironment,
+      )).not.toThrow();
+      expect(calls).toHaveLength(2);
+      expect(calls[0]?.[0]).toBe(process.execPath);
+      expect(calls[0]?.[1]).toEqual([
+        resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+        'scripts/hermes-admin.ts',
+        'inspect-alpha-v3',
+        '--json',
+      ]);
+      expect(calls[1]?.[0]).toBe(process.execPath);
+      expect(calls[1]?.[1]).toEqual([
+        resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+        'scripts/hermes-admin.ts',
+        'inspect-alpha-v4',
+        '--json',
+      ]);
+      const options = calls[0]?.[2] as ReturnType<typeof resourceV4ReadyAggregateChildOptions>;
+      expect(calls[1]?.[2]).toBe(options);
+      expect(options).toEqual(resourceV4ReadyAggregateChildOptions(
+        repositoryRoot,
+        ISSUER,
+        secret,
+        exactEnvironment,
+      ));
+      expect(options.env).toEqual(resourceV4ReadyAggregateChildEnvironment(
+        ISSUER,
+        exactEnvironment,
+      ));
+      expect(options.env).toEqual({
+        WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: 'https://auth.warpkeep.com',
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      });
+      expect(JSON.stringify(options.env)).not.toContain(secret);
+      expect(log).toHaveBeenCalledWith(
+        'alpha status: required Genesis protocol-v3 founded aggregate state verified',
+      );
+      expect(log).toHaveBeenCalledWith(
+        'alpha status: required resource procedure-v4 ready aggregate state verified',
+      );
+      expect(JSON.stringify(log.mock.calls)).not.toContain(
+        JSON.stringify(authenticatedGenesisV3FoundedAggregate),
+      );
+      expect(JSON.stringify(log.mock.calls)).not.toContain(JSON.stringify(aggregate));
+    } finally {
+      log.mockRestore();
+    }
+
+    const childFailure = () => verifyPostBackfillResourceAggregateCheckpoints(
+      ISSUER,
+      3,
+      1,
+      1,
+      secret,
+      ((...args: unknown[]) => {
+        const childArguments = args[1] as string[];
+        return childArguments.includes('inspect-alpha-v3')
+          ? {
+            status: 0,
+            signal: null,
+            stdout: JSON.stringify(authenticatedGenesisV3FoundedAggregate),
+            stderr: '',
+          }
+          : { status: 1, signal: null, stdout: 'private', stderr: 'private' };
+      }) as never,
+      repositoryRoot,
+      exactEnvironment,
+    );
+    expect(childFailure).toThrow(/ready aggregate inspection failed/i);
+    expect(childFailure).not.toThrow(/private/i);
+
+    for (const [bridge, environment, expected] of [
+      ['https://staging-auth.warpkeep.com', exactEnvironment, /canonical Warpkeep bridge/i],
+      [ISSUER, {
+        ...exactEnvironment,
+        WARPKEEP_SPACETIMEDB_URI: 'https://staging.spacetimedb.com',
+      }, /remapped SpacetimeDB URI/i],
+      [ISSUER, {
+        ...exactEnvironment,
+        WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-89e4u',
+      }, /immutable production database identity/i],
+      [ISSUER, {
+        ...exactEnvironment,
+        WARPKEEP_SPACETIMEDB_DATABASE: 'warpkeep-staging',
+      }, /immutable production database identity/i],
+    ] as const) {
+      expect(() => resourceV4ReadyAggregateChildOptions(
+        repositoryRoot,
+        bridge,
+        secret,
+        environment,
+      )).toThrow(expected);
+      const spawn = vi.fn();
+      expect(() => verifyPostBackfillResourceAggregateCheckpoints(
+        bridge,
+        3,
+        1,
+        1,
+        secret,
+        spawn as never,
+        repositoryRoot,
+        environment,
+      )).toThrow(expected);
+      expect(spawn).not.toHaveBeenCalled();
+    }
+    expect(() => resourceV4ReadyAggregateChildOptions(
+      repositoryRoot,
+      ISSUER,
+      'too-short',
+      exactEnvironment,
+    )).toThrow(/32-to-512-byte Hermes credential/i);
   });
 
   it('rejects unknown or duplicate production-verifier flags', () => {
@@ -1538,6 +1968,7 @@ describe('protected aggregate child isolation', () => {
       requireAdditiveV3PreseedAggregate: false,
       requireGenesisV3SeededEmptyAggregate: false,
       requireGenesisV3FoundedAggregate: false,
+      requireResourceV4ReadyAggregate: false,
       expectedFounderCount: undefined,
       expectedPlayerCount: 0,
       expectedTermsAcceptanceCount: 0,
@@ -1595,6 +2026,23 @@ describe('protected aggregate child isolation', () => {
       aggregateStage: PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
     });
     expect(parseProductionVerifierArguments([
+      '--require-auth-v2-enabled',
+      '--require-genesis-v3-founded-aggregate',
+      '--require-resource-v4-ready-aggregate',
+      '--expected-founder-count=4',
+      '--expected-player-count=1',
+      '--expected-terms-acceptance-count=1',
+    ])).toEqual({
+      ...defaults,
+      requireGenesisV3FoundedAggregate: true,
+      requireResourceV4ReadyAggregate: true,
+      expectedFounderCount: 4,
+      expectedPlayerCount: 1,
+      expectedTermsAcceptanceCount: 1,
+      requireAuthV2Enabled: true,
+      aggregateStage: PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+    });
+    expect(parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=4',
       '--expected-player-count=1',
@@ -1632,6 +2080,31 @@ describe('protected aggregate child isolation', () => {
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=3',
     ])).toThrow(/mutually exclusive/i);
+    expect(() => parseProductionVerifierArguments([
+      '--require-resource-v4-ready-aggregate',
+    ])).toThrow(/requires the founded protocol-v3 aggregate stage/i);
+    expect(() => parseProductionVerifierArguments([
+      '--require-resource-v4-ready-aggregate',
+      '--require-resource-v4-ready-aggregate',
+    ])).toThrow(/unknown or duplicate/i);
+  });
+
+  it.each([
+    [[
+      '--require-genesis-v3-founded-aggregate',
+      '--require-resource-v4-ready-aggregate',
+      '--expected-founder-count=3',
+      '--expected-player-count=0',
+    ]],
+    [[
+      '--require-genesis-v3-founded-aggregate',
+      '--require-resource-v4-ready-aggregate',
+      '--expected-founder-count=3',
+      '--expected-terms-acceptance-count=0',
+    ]],
+  ])('requires explicit authenticated counts for a resource-v4 readiness check: %j', arguments_ => {
+    expect(() => parseProductionVerifierArguments(arguments_))
+      .toThrow(/requires explicit player and Terms acceptance counts/i);
   });
 
   it.each([

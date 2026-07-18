@@ -4,7 +4,7 @@
  *
  * The complete generated bindings remain the canonical schema artifact under
  * `module_bindings/` and are still used by server-side operators. The player
- * only needs the public realm tables plus its two read procedures and two
+ * only needs the public realm tables plus three read procedures and three
  * self-service reducers. Keeping that runtime projection separate prevents
  * private/admin and machine-bound QA procedure names from becoming part of
  * the public Vite graph while preserving generated-binding parity unchanged.
@@ -32,9 +32,11 @@ import {
 
 import AcceptAlphaTermsV1Reducer from './module_bindings/accept_alpha_terms_v_1_reducer'
 import BootstrapPlayerV2Reducer from './module_bindings/bootstrap_player_v_2_reducer'
+import CollectResourcesV1Reducer from './module_bindings/collect_resources_v_1_reducer'
 import CastleRow from './module_bindings/castle_table'
 import * as GetAlphaBackendInfoProcedure from './module_bindings/get_alpha_backend_info_procedure'
 import * as GetMyAdmissionStatusV2Procedure from './module_bindings/get_my_admission_status_v_2_procedure'
+import * as GetMyResourceStateV1Procedure from './module_bindings/get_my_resource_state_v_1_procedure'
 import PlayerV2Row from './module_bindings/player_v_2_table'
 import RealmProfileV1Row from './module_bindings/realm_profile_v_1_table'
 import RealmV1Row from './module_bindings/realm_v_1_table'
@@ -128,6 +130,7 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema('accept_alpha_terms_v1', AcceptAlphaTermsV1Reducer),
   __reducerSchema('bootstrap_player_v2', BootstrapPlayerV2Reducer),
+  __reducerSchema('collect_resources_v1', CollectResourcesV1Reducer),
 )
 
 const proceduresSchema = __procedures(
@@ -140,6 +143,11 @@ const proceduresSchema = __procedures(
     'get_my_admission_status_v2',
     GetMyAdmissionStatusV2Procedure.params,
     GetMyAdmissionStatusV2Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_resource_state_v1',
+    GetMyResourceStateV1Procedure.params,
+    GetMyResourceStateV1Procedure.returnType,
   ),
 )
 

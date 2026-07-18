@@ -161,4 +161,39 @@ describe('RealmHud', () => {
     expect(onRecenterKeep).toHaveBeenCalledOnce();
     expect(onRequestReturn).toHaveBeenCalledOnce();
   });
+
+  it('renders caller-bound resources in the fixed order and collects only through its callback', async () => {
+    const onCollectResources = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      <RealmHud
+        {...commonProps()}
+        onCollectResources={onCollectResources}
+        resources={{
+          status: 'ready',
+          fid: 12_345n,
+          balances: { food: 200n, wood: 150n, stone: 100n, gold: 25n },
+          pendingBalances: { food: 8n, wood: 5n, stone: 3n, gold: 1n },
+          marksBalanceMicros: 123_450_000n,
+          observedAtMicros: 1_800_000_600_000_000n,
+          settledThroughMicros: 1_800_000_000_000_000n,
+          nextCollectAtMicros: 1_800_001_200_000_000n,
+          revision: 7n,
+          resourcePolicyVersion: 'genesis-resource-yield-v1',
+          marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+          terrainKind: 'lowland'
+        }}
+      />
+    );
+
+    expect(screen.getByLabelText('Food balance: 200; pending yield: 8')).not.toBeNull();
+    expect(screen.getByLabelText('Wood balance: 150; pending yield: 5')).not.toBeNull();
+    expect(screen.getByLabelText('Stone balance: 100; pending yield: 3')).not.toBeNull();
+    expect(screen.getByLabelText('Gold balance: 25; pending yield: 1')).not.toBeNull();
+    expect(screen.getByLabelText('Marks balance: 123.45 Marks')).not.toBeNull();
+    expect([...container.querySelectorAll('.realm-hud__resources li small')]
+      .map((node) => node.textContent)).toEqual(['Food', 'Wood', 'Stone', 'Gold', 'Marks']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collect pending resource yield' }));
+    expect(onCollectResources).toHaveBeenCalledOnce();
+  });
 });

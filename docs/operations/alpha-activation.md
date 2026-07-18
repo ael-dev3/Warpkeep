@@ -215,8 +215,16 @@ WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
 WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
 WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
 WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
-npm run stdb:publish:dev
+npm run stdb:publish:dev -- --resource-rollout-stage=<prebackfill-or-ready>
 ```
+
+The rollout stage is mandatory. Use `prebackfill` only for the first additive
+resource-module publication, when no resource rows exist. Use `ready` only
+after the separately approved backfill has been independently verified. A
+ready-state republish proves the exact v4 ready aggregate both before and after
+publication; a pre-backfill publication proves the exact empty-resource v4
+aggregate immediately afterward. Omitting or guessing the stage fails before
+publication.
 
 The wrapper supplies the Hermes credential only in parent memory. The publisher
 passes it to the protected inspection child over stdin and forwards neither the
@@ -267,7 +275,107 @@ A current republish must retain backend protocol `3`, the complete 1,261-cell
 generation, every inherited table reference and appended visibility contract,
 and the exact founded-state aggregate. The publisher repeats that aggregate
 after a successful publish. If this post-publish read fails, the outcome is
-indeterminate: perform a fresh read-only inspection before any retry.
+indeterminate: stop and establish state through a fresh read-only inspection
+before making any further publication decision.
+
+### Prepared resource-module checkpoint (not approved)
+
+Publishing the additive resource table and procedure is a new production
+mutation and requires fresh, explicit owner approval. The resource backfill is
+a second mutation and requires its own later approval; module-publication
+approval must never be treated as backfill approval.
+
+Before an approved resource-module publish, keep using the exact founded
+protocol-v3 checkpoint above. `admin_get_alpha_status_v4` does not exist before
+the additive publish, so a v4 pre-publication probe is neither required nor
+permitted as a substitute. After `spacetime publish` returns success, the
+guarded publisher first repeats the founded v3 inspection and then, before any
+backfill, invokes this read-only child internally:
+
+```sh
+tsx scripts/hermes-admin.ts inspect-alpha-v4 --json
+```
+
+The publisher pins the immutable production database identity and canonical
+Maincloud/bridge origins, passes the Hermes credential only over stdin, uses an
+exact four-variable child environment, and hard-bounds time and output. The v4
+result may contain only counts and version strings. For reviewed founder count
+`N`, it must report exactly:
+
+- `allowedFids = castles = markAccounts = N`;
+- `resourceAccounts = 0` and `missingResourceAccounts = N`;
+- `orphanedResourceAccounts = 0` and `resourceInvariantViolations = 0`;
+- backend `protocolVersion = 3`; and
+- `resourcePolicyVersion = genesis-resource-yield-v1`.
+
+Any missing, extra, identity-shaped, balance-shaped, noncanonical, or mismatched
+field fails closed. Because publication has already returned success at this
+point, either post-publication inspection failure is an indeterminate state:
+stop, do not backfill, and establish state through a fresh bounded read-only
+inspection before making any further publication decision. The operator must
+not infer that retrying publication is safe.
+
+`npm run stdb:publish:dev -- --dry-run --resource-rollout-stage=prebackfill`
+remains non-mutating for the first publication plan. Use `ready` instead when
+rehearsing an already-backfilled republish. A dry run performs only
+the bounded issuer check plus local CLI/artifact/migration/expectation proof;
+it does not publish, invoke the post-publish v4 procedure, or backfill rows.
+
+The separately approved durable backfill must also name the immutable database
+identity explicitly. The human-readable database name and an omitted database
+value are rejected before Hermes requests a token:
+
+```sh
+WARPKEEP_SPACETIMEDB_DATABASE=c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e \
+npm run stdb:backfill-resources -- N --confirm
+```
+
+The private Keychain wrapper supplies the canonical Maincloud/bridge values and
+the Hermes credential; the command line carries no secret. Publication approval
+does not authorize this backfill, and backfill approval does not authorize a
+later republish.
+
+### Prepared post-backfill resource readiness checkpoint (not approval)
+
+After a separately approved resource backfill returns, do not rely on the
+mutation command's result as the only evidence. The private Keychain wrapper
+must supply the Hermes credential in memory and run this independent, read-only
+checkpoint with the separately reviewed current counts:
+
+```sh
+npm run verify:alpha-production -- \
+  --require-auth-v2-enabled \
+  --require-genesis-v3-founded-aggregate \
+  --require-resource-v4-ready-aggregate \
+  --expected-founder-count=N \
+  --expected-player-count=P \
+  --expected-terms-acceptance-count=T
+```
+
+The new v4 flag is invalid without the founded protocol-v3 gate and all three
+explicit expectations. The verifier constructs and validates one exact
+four-variable child environment, then reuses the same bounded child options for
+both `inspect-alpha-v3 --json` and `inspect-alpha-v4 --json`. Both inspections
+therefore use the same stdin-only credential, canonical Maincloud URI,
+immutable production database identity, canonical bridge, 30-second hard
+timeout, and one-megabyte output limit. Ambient URI, mutable or human-readable
+database, and noncanonical-bridge remaps fail before either aggregate child
+starts. It does not call a reducer or mutate database state.
+
+For founder count `N`, the v4 result must contain only the exact counts-only
+contract and report:
+
+- `allowedFids = castles = markAccounts = resourceAccounts = N`;
+- `missingResourceAccounts = orphanedResourceAccounts = 0`;
+- `resourceInvariantViolations = 0`;
+- backend `protocolVersion = 3`; and
+- `resourcePolicyVersion = genesis-resource-yield-v1`.
+
+Missing, extra, identity-shaped, balance-shaped, noncanonical, or mismatched
+fields fail closed, and child output is never mirrored. A failure leaves the
+post-backfill outcome indeterminate: stop all further mutations and establish
+state through a fresh bounded read-only inspection. Do not retry the backfill
+on the assumption that it failed.
 
 `admin_get_fid_auth_epoch` remains admin-only rollback compatibility. Do not
 configure new v2 issuance or refresh to use it.
