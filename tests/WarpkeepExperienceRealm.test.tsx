@@ -359,7 +359,7 @@ async function acceptAlphaParticipationTerms() {
   const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
   const terms = within(dialog);
   const checkbox = terms.getByRole('checkbox', {
-    name: 'I understand and agree to these Alpha Terms.'
+    name: 'I have read and agree to the Alpha Terms and Hegemony Social Contract.'
   });
   const continueButton = terms.getByRole('button', {
     name: /CONTINUE TO (?:SIGN-IN|ACCESS CHECK|REALM)/

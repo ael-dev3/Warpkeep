@@ -4,7 +4,7 @@ import type { WarpkeepJwtClaims } from '../claims';
 import { evaluateAdmissionEpoch } from '../admissionPolicy';
 import { requireAdmittedPlayer, requireAllowedFid, requireWarpkeepJwt } from '../auth';
 import { assertGenesisFounderForFid } from '../foundingAuthority';
-import { WARPKEEP_ALPHA_TERMS_VERSION } from '../marksAuthorityPolicy';
+import { WARPKEEP_ALPHA_TERMS_VERSION } from '../entryAgreementPolicy';
 import { evaluatePlayerOwnership } from '../playerOwnershipPolicy';
 import warpkeep from '../schema';
 
@@ -139,7 +139,9 @@ export const bootstrapPlayerV2 = warpkeep.reducer(
 );
 
 /**
- * Records the explicit current Alpha agreement after genuine authentication.
+ * Records the explicit current Hegemony entry-agreement bundle after genuine
+ * authentication. The deployed reducer wire remains Terms-shaped for
+ * compatibility; its version identifies the linked Terms + Social Contract.
  * This is the only player transition that makes private Mark aggregates public.
  */
 export const acceptAlphaTermsV1 = warpkeep.reducer(

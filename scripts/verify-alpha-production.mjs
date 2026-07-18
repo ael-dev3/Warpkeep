@@ -199,6 +199,10 @@ const EXPECTED_GENESIS_GENERATION_V3_COUNTS = Object.freeze({
   worldTileMeta: 10_000n,
 });
 const MAX_GENESIS_FOUNDER_COUNT = 100;
+// Keep aligned with the immutable version history in entryAgreementPolicy.ts.
+const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = 2;
+const MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT =
+  MAX_GENESIS_FOUNDER_COUNT * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER;
 
 function fail(message) {
   throw new Error(`Alpha production verification failed: ${message}`);
@@ -1031,6 +1035,18 @@ function readExpectedFoundedMutableCount(value, label, founders) {
   return BigInt(value);
 }
 
+function readExpectedTermsAcceptanceCount(value, players) {
+  if (
+    !Number.isSafeInteger(value)
+    || value < 0
+    || BigInt(value)
+      > players * BigInt(MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER)
+  ) {
+    fail('protocol-v3 founded aggregate expected entry-agreement row count was invalid.');
+  }
+  return BigInt(value);
+}
+
 function expectedV3StateCounts(
   stage,
   expectedFounderCount,
@@ -1060,10 +1076,9 @@ function expectedV3StateCounts(
       'player count',
       founders,
     );
-    const termsAcceptances = readExpectedFoundedMutableCount(
+    const termsAcceptances = readExpectedTermsAcceptanceCount(
       expectedTermsAcceptanceCount,
-      'Terms acceptance count',
-      founders,
+      players,
     );
     return Object.freeze({
       ...(stage === PROTECTED_AGGREGATE_STAGE.GENESIS_GENERATION_V3_FOUNDED
@@ -1509,8 +1524,14 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
         fail('unknown or duplicate command-line argument.');
       }
       const value = argument.slice('--expected-terms-acceptance-count='.length);
-      if (!/^(?:0|[1-9]|[1-9]\d|100)$/.test(value)) {
-        fail('expected Terms acceptance count must be a canonical integer from 0 through 100.');
+      if (
+        !/^(?:0|[1-9]\d{0,2})$/.test(value)
+        || Number(value) > MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT
+      ) {
+        fail(
+          'expected Terms acceptance count must be a canonical integer from 0 through '
+          + MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT + '.',
+        );
       }
       expectedTermsAcceptanceCount = Number(value);
       continue;
@@ -1562,13 +1583,15 @@ export function parseProductionVerifierArguments(arguments_ = process.argv.slice
     requiresFoundedAggregate
     && (
       foundedPlayerCount > expectedFounderCount
-      || foundedTermsAcceptanceCount > expectedFounderCount
     )
   ) {
     fail('authenticated count expectations cannot exceed the expected founder count.');
   }
-  if (foundedTermsAcceptanceCount > foundedPlayerCount) {
-    fail('the expected Terms acceptance count cannot exceed the expected player count.');
+  if (
+    foundedTermsAcceptanceCount
+      > foundedPlayerCount * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER
+  ) {
+    fail('the expected Terms acceptance count exceeds the supported immutable row history.');
   }
   return Object.freeze({
     requireProtectedAggregate: seen.has('--require-protected-aggregate'),

@@ -484,7 +484,7 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(connection.procedures.getMyAdmissionStatusV2).toHaveBeenCalledWith({});
     expect(connection.reducers.bootstrapPlayerV2).toHaveBeenCalledWith({});
     expect(connection.reducers.acceptAlphaTermsV1).toHaveBeenCalledWith({
-      termsVersion: '2026-07-14',
+      termsVersion: BROWSER_ALPHA_TERMS_VERSION,
       accepted: true
     });
   });
@@ -607,6 +607,9 @@ describe('Warpkeep authenticated connection boundary', () => {
 
   it('pins the browser and authoritative module to the same Terms version', () => {
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(MODULE_ALPHA_TERMS_VERSION);
+    expect(BROWSER_ALPHA_TERMS_VERSION).toBe(
+      '2026-07-18-hegemony-entry-agreement-v1'
+    );
   });
 
   it('contains no legacy player subscription, cache read, or observer path', () => {

@@ -23,7 +23,7 @@ import {
 import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
 import { assertGenesisFounderForFid } from './foundingAuthority';
-import { WARPKEEP_ALPHA_TERMS_VERSION } from './marksAuthorityPolicy';
+import { WARPKEEP_ALPHA_TERMS_VERSION } from './entryAgreementPolicy';
 import { evaluatePlayerOwnership } from './playerOwnershipPolicy';
 import { assertGenesisResourceForFid } from './resourceAuthority';
 import type warpkeep from './schema';
@@ -213,7 +213,8 @@ export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {
 
 /**
  * Require the complete current gameplay graph. Resource entry points never
- * infer Alpha consent from public presentation fields alone.
+ * infer current entry-agreement acceptance from public presentation fields or
+ * historical evidence alone.
  */
 export function requireGameplayPlayerV1(ctx: WarpkeepReducerContext) {
   const admitted = requireAdmittedPlayer(ctx);

@@ -25,6 +25,8 @@ bounded aggregate, recorded authority, and exact-source verification.
 > exact 10,000 persistent-cell world and a separately approval-gated Gold Mine
 > pilot. See [Genesis 001 generation v3](./GENESIS_001_GENERATION_V3.md) for
 > the exact world shape, budgets, compatibility boundary, and rollout invariants.
+> The dependent Alpha 0.3.10 Social Contract draft described below adds no
+> schema or protocol change and does not authorize a publication.
 
 ## Version compatibility
 
@@ -90,6 +92,31 @@ deletion disabled; complete the existing resource/Gold checks; invoke the
 separate forest seed; verify one layout row, 210 instance rows, and the pinned
 layout/catalog digests; then deploy the dependent Pages build. A source merge,
 green test run, or client deployment never invokes that reducer automatically.
+
+### Draft Alpha 0.3.10 versioned Hegemony entry agreement
+
+The proposed Alpha 0.3.10 successor keeps the backend wire protocol at `3` and
+adds neither a table nor a generated browser binding. It combines the Alpha
+Terms with a separately public Hegemony Social Contract as one exact current
+entry-agreement bundle. The established `accept_alpha_terms_v1` reducer and
+`{ termsVersion, accepted }` payload retain their compatibility names.
+
+After a truthful acknowledgement from an authenticated admitted player, the
+module writes only immutable private FID, exact bundle version, and timestamp
+evidence. It does not retain checkbox state, a Privacy Notice consent
+assertion, SIWF proof, token, cookie, wallet, chat, or social-graph data. Entry
+and gameplay require the exact current bundle. An explicitly listed historical
+record can preserve an already-public Community Marks projection only; it never
+meets the current entry/gameplay check or creates a new entitlement.
+
+The static Terms, Social Contract, and Privacy Notice are version-reviewed,
+script-free documents. A browser/module policy mismatch fails closed through
+the existing `ALPHA_TERMS_REQUIRED` path until matching reviewed versions are
+released. The current alpha remains Hegemony-only and admission gated;
+`Ousters` and `Core` are provisional future-setting names, not playable or
+active feature work. Formal legal, privacy, and naming/originality review plus
+the dependent stack's reconciliation remain required before any separately
+approved release operation.
 
 Run locally after installing directory dependencies:
 
@@ -157,9 +184,11 @@ and appends public `realm_v1`, `world_tile_meta_v1`, `castle_slot_v1`, and
 `wallet_attribution_snapshot_v1`, `snap_scan_cursor_v1`,
 `snap_scan_batch_v1`, and `alpha_terms_acceptance_v1`. Authoritative Mark
 totals, FID-bearing slot claims, wallet attribution, burn receipts, scan
-lifecycle, and versioned Terms acceptance are never public. Optional public
-community aggregates remain absent unless the authenticated player accepts the
-exact current Terms version.
+lifecycle, and versioned entry-agreement acceptance are never public. Optional
+public community aggregates remain absent unless the authenticated player
+accepts the exact current entry-agreement bundle. Explicit historical evidence
+can retain an already-public aggregate projection only; it is never current
+entry/gameplay authority.
 
 The checked-in candidate appends private `resource_account_v1` at exact schema
 ref 19. It is caller-scoped through versioned procedures and never becomes a
@@ -179,8 +208,8 @@ the frozen legacy `player` compatibility accessor, active `world_tile`,
 `castle_slot_v1`, and `realm_profile_v1`. They contain no accessor for
 `allowed_fid`, `admin_audit`, `player_ownership_v2`, slot claims, authoritative
 Mark accounts, wallet attribution, burn receipts, or scan cursors. Browser
-bindings also omit wallet snapshot metadata, scan batches, and Terms acceptance
-history, plus private resource accounts. The active browser subscribes to
+bindings also omit wallet snapshot metadata, scan batches, and entry-agreement
+acceptance history, plus private resource accounts. The active browser subscribes to
 exactly six protocol-3 projections:
 `world_tile`, `world_tile_meta_v1`, `player_v2`, `castle`, `realm_v1`, and
 `realm_profile_v1`. It does not subscribe to static slot rows or the frozen
@@ -382,10 +411,13 @@ The bridge issues no optional profile claims, and the module ignores any
 profile-shaped JWT fields. Trusted public profile and private wallet snapshots
 have dedicated exact-admin reducers and are sanitized again in the module.
 `accept_alpha_terms_v1` is an idempotent admitted-player transition using the
-current exact Terms version. It first inserts immutable private evidence keyed
-by FID and Terms version, including when aggregate visibility was already on;
-only that genuinely Terms-gated post-bootstrap call exposes aggregate Mark
-fields in `realm_profile_v1`. A later Terms version creates a distinct record.
+current exact entry-agreement bundle. It first inserts immutable private
+evidence keyed by FID and bundle version, including when aggregate visibility
+was already on; only that genuinely entry-agreement-gated post-bootstrap call
+exposes aggregate Mark fields in `realm_profile_v1`. A later bundle version
+creates a distinct record. Older evidence never passes the exact current
+entry/gameplay check; its only explicit retained use is preserving an
+already-public aggregate projection.
 
 ## Admin operations
 

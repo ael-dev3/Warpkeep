@@ -337,7 +337,7 @@ export const snapScanBatchV1 = table(
   },
 );
 
-/** Private immutable evidence that one FID accepted one exact Terms version. */
+/** Private immutable evidence that one FID accepted one exact entry-agreement bundle. */
 export const alphaTermsAcceptanceV1 = table(
   { name: 'alpha_terms_acceptance_v1' },
   {

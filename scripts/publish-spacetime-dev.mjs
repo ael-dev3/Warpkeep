@@ -44,6 +44,10 @@ const PUBLISH_CHILD_ENVIRONMENT_KEYS = Object.freeze([
   'XDG_CONFIG_HOME', 'XDG_DATA_HOME',
   'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SYSTEMROOT', 'COMSPEC', 'PATHEXT',
 ]);
+// Keep aligned with the immutable version history in entryAgreementPolicy.ts.
+const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = 2;
+const MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT =
+  100 * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER;
 
 export const RESOURCE_PUBLISH_ROLLOUT_STAGE = Object.freeze({
   PREBACKFILL: 'prebackfill',
@@ -269,7 +273,8 @@ function validateFoundedPublishExpectations(value) {
     || expectedPlayerCount > expectedFounderCount
     || !Number.isSafeInteger(expectedTermsAcceptanceCount)
     || expectedTermsAcceptanceCount < 0
-    || expectedTermsAcceptanceCount > expectedPlayerCount
+    || expectedTermsAcceptanceCount
+      > expectedPlayerCount * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER
   ) {
     fail('Founded protocol-v3 publication expectations were invalid.');
   }
@@ -281,13 +286,15 @@ function validateFoundedPublishExpectations(value) {
 }
 
 export function readFoundedPublishExpectations(source = process.env) {
-  const readCount = (key, minimum) => {
+  const readCount = (key, minimum, maximum = 100) => {
     const value = source[key];
-    const pattern = minimum === 1
-      ? /^(?:[1-9]|[1-9]\d|100)$/
-      : /^(?:0|[1-9]|[1-9]\d|100)$/;
-    if (typeof value !== 'string' || !pattern.test(value)) {
-      fail(`${key} must be a canonical integer from ${minimum} through 100.`);
+    if (
+      typeof value !== 'string'
+      || !/^(?:0|[1-9]\d*)$/.test(value)
+      || Number(value) < minimum
+      || Number(value) > maximum
+    ) {
+      fail(`${key} must be a canonical integer from ${minimum} through ${maximum}.`);
     }
     return Number(value);
   };
@@ -297,6 +304,7 @@ export function readFoundedPublishExpectations(source = process.env) {
     expectedTermsAcceptanceCount: readCount(
       'WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT',
       0,
+      MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT,
     ),
   });
 }

@@ -249,7 +249,10 @@ export async function bootstrapWarpkeepPlayer(connection: WarpkeepConnection) {
   await connection.reducers.bootstrapPlayerV2({});
 }
 
-/** Authenticated, idempotent acknowledgement; callers must retain gesture intent in memory only. */
+/**
+ * Authenticated, idempotent current-entry-agreement acknowledgement; callers
+ * must retain the one-box gesture intent in memory only.
+ */
 export async function acceptWarpkeepAlphaTerms(connection: WarpkeepConnection) {
   await connection.reducers.acceptAlphaTermsV1({
     termsVersion: WARPKEEP_ALPHA_TERMS_VERSION,

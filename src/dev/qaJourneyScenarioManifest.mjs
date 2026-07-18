@@ -18,7 +18,7 @@ export const QA_JOURNEY_SCENARIO_MANIFEST = Object.freeze([
   }),
   Object.freeze({
     id: 'terms',
-    label: 'Alpha Terms',
+    label: 'Alpha entry agreement',
     externalAnchorCount: 0,
     landmark: Object.freeze({ role: 'dialog', name: 'ALPHA PARTICIPATION TERMS' }),
   }),
@@ -90,9 +90,9 @@ export const QA_JOURNEY_SCENARIO_MANIFEST = Object.freeze([
   }),
   Object.freeze({
     id: 'admission-awaiting-terms',
-    label: 'Admission · Terms required',
+    label: 'Admission · entry agreement required',
     externalAnchorCount: 0,
-    landmark: Object.freeze({ role: 'heading', name: 'ALPHA TERMS REQUIRED' }),
+    landmark: Object.freeze({ role: 'heading', name: 'ENTRY AGREEMENT REQUIRED' }),
   }),
   Object.freeze({
     id: 'admission-denied',
@@ -108,9 +108,9 @@ export const QA_JOURNEY_SCENARIO_MANIFEST = Object.freeze([
   }),
   Object.freeze({
     id: 'admission-accepting-terms',
-    label: 'Admission · recording Terms',
+    label: 'Admission · recording entry agreement',
     externalAnchorCount: 0,
-    landmark: Object.freeze({ role: 'heading', name: 'RECORDING ALPHA TERMS' }),
+    landmark: Object.freeze({ role: 'heading', name: 'RECORDING ENTRY AGREEMENT' }),
   }),
   Object.freeze({
     id: 'admission-opening-realm',

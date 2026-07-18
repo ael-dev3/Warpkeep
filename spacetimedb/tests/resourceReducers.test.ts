@@ -100,7 +100,7 @@ test('new founding writes the complete private resource account in the same atom
   assert.match(allowFid, /ensureGenesisFounder\(ctx, fid\)/);
 });
 
-test('gameplay resource authority requires current Terms and the caller-bound founder graph', () => {
+test('gameplay resource authority requires the current entry agreement and the caller-bound founder graph', () => {
   const auth = source('../src/auth.ts');
   const gameplay = section(
     auth,
@@ -119,6 +119,7 @@ test('gameplay resource authority requires current Terms and the caller-bound fo
   assert.match(gameplay, /acceptance\.fid !== admitted\.claims\.fid/);
   assert.match(gameplay, /acceptance\.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION/);
   assert.match(gameplay, /ALPHA_TERMS_REQUIRED/);
+  assert.doesNotMatch(gameplay, /ENTRY_AGREEMENT_EVIDENCE_VERSIONS|hasRetainedEntryAgreementEvidence/);
 
   const admitted = section(
     auth,

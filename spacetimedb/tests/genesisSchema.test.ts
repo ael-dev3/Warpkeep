@@ -107,4 +107,7 @@ test('protocol-v3 tables are append-only, explicitly versioned, and privacy-sepa
   assert.doesNotMatch(acceptance, /public:\s*true/);
   assert.match(acceptance, /acceptanceKey: t\.string\(\)\.primaryKey\(\)/);
   assert.match(acceptance, /fid: t\.u64\(\)\.index\(\)/);
+  assert.match(acceptance, /termsVersion: t\.string\(\)/);
+  assert.match(acceptance, /acceptedAt: t\.timestamp\(\)/);
+  assert.doesNotMatch(acceptance, /socialContract|privacy|ipAddress|userAgent/i);
 });
