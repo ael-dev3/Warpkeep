@@ -119,6 +119,12 @@ export function AlphaParticipationTermsDialog({
               rules, availability, and progress may change or be reset at any time.
             </p>
             <p>
+              Warpkeep&apos;s intended core strategy loop is not yet implemented; this Alpha is an
+              early visual and persistent-world foundation for the living world actively being
+              built. Warpkeep&apos;s code is open source, and contributions and feedback are welcome.
+              Community ideas may help shape the Realm or find expression in the world.
+            </p>
+            <p>
               Participation alone will not earn tokens, airdrops, external rewards, or guaranteed
               financial gain. Experimental in-game Marks have no cash value and may change or reset.
             </p>
