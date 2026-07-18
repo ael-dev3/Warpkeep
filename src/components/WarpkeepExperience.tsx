@@ -1092,10 +1092,17 @@ export function WarpkeepExperience() {
           inert={experience.phase !== 'realm' ? true : undefined}
         >
           <Suspense fallback={<SceneModuleFallback label="OPENING GENESIS 001" />}>
-            {backend.state.realm ? (
+            {backend.state.realm && backend.state.resources ? (
               <RealmMapScreen
                 identity={realmIdentity}
                 snapshot={backend.state.realm}
+                resources={backend.state.resources}
+                onCollectResources={backend.collectResources}
+                graphicsPreference={graphicsPreference}
+                resolvedGraphicsQuality={resolvedGraphicsQuality}
+                audioMuted={audioMuted}
+                onGraphicsPreferenceChange={updateGraphicsPreference}
+                onAudioMutedChange={updateAudioMuted}
                 onRequestReturn={returnRealmToMenu}
                 qualityOverride={realmProfileForQuality(resolvedGraphicsQuality)}
               />

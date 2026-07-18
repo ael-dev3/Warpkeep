@@ -33,6 +33,7 @@ const GRAPHICS_COPY: Readonly<Record<GraphicsPreference, Readonly<{
 
 export type SettingsPanelProps = Readonly<{
   audioMuted?: boolean;
+  closeLabel?: string;
   preference: GraphicsPreference;
   resolvedQuality: GraphicsQualityTier;
   onAudioMutedChange?: (muted: boolean) => void;
@@ -42,6 +43,7 @@ export type SettingsPanelProps = Readonly<{
 
 export function SettingsPanel({
   audioMuted = false,
+  closeLabel = 'BACK TO THE MENU',
   preference,
   resolvedQuality,
   onAudioMutedChange,
@@ -133,7 +135,7 @@ export function SettingsPanel({
           >
             RESTORE RECOMMENDED DEFAULT
           </button>
-          <button onClick={onClose} type="button">BACK TO THE MENU</button>
+          <button onClick={onClose} type="button">{closeLabel}</button>
         </div>
       </section>
     </div>

@@ -47,6 +47,7 @@ import {
 const BINDING_CHALLENGE = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM';
 const NONCE = 'abcdefgh12345678';
 const REQUEST_ID = 'request-id-12345678';
+const TEST_FID = 424_242_424;
 
 function streamedResponse(chunks: readonly Uint8Array[], status = 200) {
   return new Response(new ReadableStream<Uint8Array>({
@@ -101,7 +102,7 @@ describe('untrusted browser presentation boundaries', () => {
 
     const restored = createFarcasterAuthMachineState({
       identity: {
-        fid: 539_854,
+        fid: TEST_FID,
         username: 'keep\u202eer',
         displayName: 'Warp\nKeeper',
         pfpUrl: 'https://images.example:8443/profile.png',
@@ -114,7 +115,7 @@ describe('untrusted browser presentation boundaries', () => {
     expect(restored.view).toMatchObject({
       phase: 'authenticated',
       identity: {
-        fid: 539_854,
+        fid: TEST_FID,
         username: 'keeper',
         displayName: 'Warp Keeper'
       }
@@ -145,7 +146,7 @@ describe('untrusted browser presentation boundaries', () => {
           nonce: NONCE,
           message: 'signed message',
           signature,
-          fid: 539_854,
+          fid: TEST_FID,
           signatureParams: {
             siweUri: 'https://warpkeep.com/',
             domain: 'warpkeep.com',

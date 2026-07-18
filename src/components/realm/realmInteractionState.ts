@@ -42,6 +42,7 @@ export type RealmInteractionAction =
   | Readonly<{ type: 'select-cell'; coord: HexCoord }>
   | Readonly<{ type: 'activate-castle'; castleId: number; coord: HexCoord }>
   | Readonly<{ type: 'close-inspector' }>
+  | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
   | Readonly<{ type: 'open-navigator' }>
   | Readonly<{ type: 'close-navigator' }>
@@ -137,6 +138,17 @@ export function realmInteractionReducer(
         )
       };
     }
+
+    case 'recenter-keep':
+      return {
+        ...state,
+        selectedCell: copyCoord(action.coord),
+        selectedCastle: null,
+        inspectorOpen: false,
+        cameraTarget: { kind: 'keep' },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, { kind: 'navigator-trigger' })
+      };
 
     case 'set-camera-target':
       return { ...state, cameraTarget: copyCameraTarget(action.target) };

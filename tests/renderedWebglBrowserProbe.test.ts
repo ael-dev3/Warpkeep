@@ -300,6 +300,43 @@ describe('rendered WebGL headless browser probe contract', () => {
     }));
   });
 
+  it('opens player Explore through the portrait menu without restoring a direct map control', async () => {
+    const command = vi.fn(async (method: string) => method === 'Runtime.evaluate'
+      ? { result: { type: 'boolean', value: true } }
+      : {});
+
+    await expect(applyRenderedWebglCaseInteraction(
+      { command },
+      'explore',
+      'player'
+    )).resolves.toEqual({});
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      awaitPromise: true,
+      expression: expect.stringContaining("document.querySelector('.realm-profile-trigger')"),
+      returnByValue: true
+    }));
+    expect(command).toHaveBeenCalledWith('Runtime.evaluate', expect.objectContaining({
+      expression: expect.stringContaining(".trim() === 'EXPLORE'")
+    }));
+    await expect(applyRenderedWebglCaseInteraction(
+      { command },
+      'explore',
+      'unreviewed' as never
+    )).rejects.toThrow(/presentation mode/i);
+  });
+
+  it('uses page-local gesture aggregates across projection remounts without exporting identity', () => {
+    const source = readFileSync(resolve(
+      process.cwd(),
+      'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
+    ), 'utf8');
+    expect(source).toContain('labelStartPositions = Object.fromEntries');
+    expect(source).toContain('state.wheelStartPositions = currentPositions');
+    expect(source).toContain('maximumDisplacement(state.labelStartPositions, currentPositions)');
+    expect(source).not.toContain('return { labelStartPositions');
+    expect(source).not.toContain('return { wheelStartPositions');
+  });
+
   it('records only structural world-label keyboard evidence', async () => {
     const evidence = {
       arrowMoved: true,
@@ -430,7 +467,6 @@ describe('rendered WebGL headless browser probe contract', () => {
       },
       {
         id: 'tablet-balanced-player-inspector',
-        expectedPlayerActionControlState: 'visible',
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'inspector',
@@ -501,7 +537,6 @@ describe('rendered WebGL headless browser probe contract', () => {
       },
       {
         id: 'short-landscape-balanced-player-explore',
-        expectedPlayerActionControlState: 'visible',
         expectedPresentationMode: 'player',
         expectedQuality: 'balanced',
         interaction: 'explore',
@@ -936,8 +971,18 @@ describe('rendered WebGL headless browser probe contract', () => {
       clusterReservedOverlapCount: 0,
       exploreCastleCount: 0,
       exploreAccessibleCastleCount: 0,
-      recenterKeepControlState: 'absent',
-      returnToMenuControlState: 'absent',
+      directExploreControlState: 'visible',
+      legacyPlayerActionCount: 0,
+      profileMenuState: 'absent',
+      profileTriggerAvatarCount: 0,
+      profileTriggerCount: 0,
+      profileTriggerState: 'absent',
+      profileTriggerTextBearingCount: 0,
+      resourceIconCount: 0,
+      resourceItemCount: 0,
+      resourceRailCount: 0,
+      resourceRailState: 'absent',
+      resourceZeroValueCount: 0,
       observerBadgeState: 'visible',
       closeQaObserverControlState: 'visible',
       readyOverlayVisible: false,
@@ -1129,8 +1174,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, expected)).toThrow(/label-accounting/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
-      recenterKeepControlState: 'visible'
-    }, expected)).toThrow(/observer-recenter-control/i);
+      legacyPlayerActionCount: 1
+    }, expected)).toThrow(/legacy-player-actions/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       observerBadgeState: 'hidden'
@@ -1198,8 +1243,15 @@ describe('rendered WebGL headless browser probe contract', () => {
       href: playerCase.url,
       presentationMode: 'player',
       mapPresentationMode: 'player',
-      recenterKeepControlState: 'visible',
-      returnToMenuControlState: 'visible',
+      directExploreControlState: 'absent',
+      profileTriggerAvatarCount: 1,
+      profileTriggerCount: 1,
+      profileTriggerState: 'visible',
+      resourceIconCount: 5,
+      resourceItemCount: 5,
+      resourceRailCount: 1,
+      resourceRailState: 'visible',
+      resourceZeroValueCount: 5,
       observerBadgeState: 'absent',
       closeQaObserverControlState: 'absent'
     } as const;
@@ -1209,12 +1261,20 @@ describe('rendered WebGL headless browser probe contract', () => {
     });
     expect(() => parseRenderedWebglBrowserDom({
       ...playerReady,
-      recenterKeepControlState: 'hidden'
-    }, playerCase)).toThrow(/player-recenter-control/i);
+      profileTriggerState: 'hidden'
+    }, playerCase)).toThrow(/player-profile-trigger/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...playerReady,
-      returnToMenuControlState: 'hidden'
-    }, playerCase)).toThrow(/player-return-control/i);
+      resourceRailState: 'hidden'
+    }, playerCase)).toThrow(/player-resource-rail/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...playerReady,
+      profileTriggerTextBearingCount: 1
+    }, playerCase)).toThrow(/profile-trigger-text/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...playerReady,
+      resourceZeroValueCount: 4
+    }, playerCase)).toThrow(/player-resource-zero-values/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...playerReady,
       observerBadgeState: 'visible'
@@ -1272,8 +1332,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, tabletPlayerInspectorExpected)).toThrow(/focused-readable-label-dom-focus-shape/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...tabletPlayerInspectorReady,
-      recenterKeepControlState: 'hidden'
-    }, tabletPlayerInspectorExpected)).toThrow(/player-recenter-control/i);
+      profileTriggerState: 'hidden'
+    }, tabletPlayerInspectorExpected)).toThrow(/player-profile-trigger/i);
 
     const shortLandscapePlayerExploreCase = renderedWebglBrowserProbeCases(41_733)
       .find((probeCase) => probeCase.id === 'short-landscape-balanced-player-explore')!;
@@ -1313,8 +1373,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     )).toMatchObject({ presentationMode: 'player' });
     expect(() => parseRenderedWebglBrowserDom({
       ...shortLandscapePlayerExploreReady,
-      returnToMenuControlState: 'hidden'
-    }, shortLandscapePlayerExploreExpected)).toThrow(/player-return-control/i);
+      directExploreControlState: 'hidden'
+    }, shortLandscapePlayerExploreExpected)).toThrow(/player-direct-explore/i);
 
     const inspectorCase = renderedWebglBrowserProbeCases(41_733)
       .find((probeCase) => probeCase.id === 'mobile-reduced-inspector')!;

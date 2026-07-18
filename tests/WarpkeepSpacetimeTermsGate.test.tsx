@@ -16,6 +16,7 @@ import {
 } from '../src/spacetime/WarpkeepSpacetimeProvider';
 import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
+import { createReadyResourceState } from './fixtures/resourceState';
 
 const CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
@@ -109,6 +110,8 @@ describe('Warpkeep server Terms gate', () => {
       readAdmission: vi.fn(async () => 'ready'),
       bootstrapPlayer: vi.fn(),
       acceptAlphaTerms: vi.fn(async () => undefined),
+      readResourceState: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      collectResources: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
       observeRealm: vi.fn(() => vi.fn()),
       readRealmSnapshot: vi.fn((_candidate, fid: number) => createCanonicalGenesisSnapshot(fid)),
       subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {
@@ -127,6 +130,7 @@ describe('Warpkeep server Terms gate', () => {
       expect(screen.getByTestId('backend-phase').textContent).toBe('awaiting-terms');
     });
     expect(runtime.acceptAlphaTerms).not.toHaveBeenCalled();
+    expect(runtime.readResourceState).not.toHaveBeenCalled();
     expect(runtime.observeRealm).not.toHaveBeenCalled();
     expect(runtime.subscribeRealm).not.toHaveBeenCalled();
 
@@ -135,8 +139,11 @@ describe('Warpkeep server Terms gate', () => {
       expect(screen.getByTestId('backend-phase').textContent).toBe('ready');
     });
     expect(runtime.acceptAlphaTerms).toHaveBeenCalledTimes(1);
+    expect(runtime.readResourceState).toHaveBeenCalledTimes(1);
     expect(runtime.observeRealm).toHaveBeenCalledTimes(1);
     expect(runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(runtime.readResourceState).mock.invocationCallOrder[0])
+      .toBeLessThan(vi.mocked(runtime.subscribeRealm).mock.invocationCallOrder[0]!);
 
     mockedFarcaster.current = authenticatedFarcasterState(54_321);
     rendered.rerender(
@@ -176,6 +183,8 @@ describe('Warpkeep server Terms gate', () => {
       readAdmission: vi.fn(async () => 'ready'),
       bootstrapPlayer: vi.fn(),
       acceptAlphaTerms: vi.fn(() => acceptance),
+      readResourceState: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
+      collectResources: vi.fn(async (_candidate, fid: number) => createReadyResourceState(fid)),
       observeRealm: vi.fn(() => vi.fn()),
       readRealmSnapshot: vi.fn((_candidate, fid: number) => createCanonicalGenesisSnapshot(fid)),
       subscribeRealm: vi.fn((_candidate, onApplied: () => void) => {

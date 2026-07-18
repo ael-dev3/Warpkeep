@@ -12,6 +12,10 @@ const PRESENTATION = readFileSync(
   resolve(ROOT, 'src/components/realm/RealmCastlePresentation.css'),
   'utf8'
 );
+const PLAYER_CHROME = readFileSync(
+  resolve(ROOT, 'src/components/realm/RealmPlayerChrome.css'),
+  'utf8'
+);
 const GLOBAL = readFileSync(resolve(ROOT, 'src/styles/global.css'), 'utf8');
 const HUD_COMPONENT = readFileSync(
   resolve(ROOT, 'src/components/realm/RealmHud.tsx'),
@@ -120,9 +124,23 @@ describe('compact Realm CSS contract', () => {
     expect(GLOBAL).not.toMatch(/^button:hover[^\n{]*\{/m);
   });
 
-  it('keeps the local castle artwork decorative, bounded, and clear of record controls', () => {
+  it('keeps the local castle artwork decorative and visibly overhanging the record', () => {
     const inspector = block(PRESENTATION, '.castle-inspection {');
+    const desktopPresentation = block(
+      PRESENTATION,
+      '@media (min-width: 761px) and (min-height: 601px) {'
+    );
+    const playerInspector = block(
+      desktopPresentation,
+      '.realm-map-screen[data-presentation-mode="player"] .castle-inspection {'
+    );
+    const playerBody = block(
+      desktopPresentation,
+      '.realm-map-screen[data-presentation-mode="player"] .castle-inspection__body {'
+    );
+    const drawer = block(PRESENTATION, '.castle-inspection__drawer {');
     const hero = block(PRESENTATION, '.castle-inspection__hero {');
+    const heroArtStage = block(PRESENTATION, '.castle-inspection__hero-art-stage {');
     const heroArt = block(PRESENTATION, '.castle-inspection__hero-art {');
     const titleLockupTypography = PRESENTATION.slice(
       PRESENTATION.indexOf('.castle-inspection__title-lockup p {')
@@ -131,10 +149,24 @@ describe('compact Realm CSS contract', () => {
     const body = block(PRESENTATION, '.castle-inspection__body {');
 
     expect(inspector).toContain('width: min(21.5rem, calc(100vw - 1.6rem));');
+    expect(inspector).toContain('top: max(0.8rem, env(safe-area-inset-top));');
+    expect(inspector).toContain('padding-top: 1rem;');
+    expect(playerInspector).toContain(
+      'top: max(3.05rem, calc(env(safe-area-inset-top) + 3.05rem));'
+    );
+    expect(playerBody).toContain('max-height: calc(100svh - 17rem');
+    expect(drawer).toContain('overflow: visible;');
+    expect(drawer).toContain('isolation: isolate;');
     expect(hero).toContain('min-height: 12.15rem;');
-    expect(hero).toContain('overflow: hidden;');
-    expect(heroArt).toContain('width: 92%;');
-    expect(heroArt).toContain('height: 12.75rem;');
+    expect(hero).toContain('overflow: visible;');
+    expect(heroArtStage).toContain('overflow: visible;');
+    expect(heroArtStage).toContain('background: transparent;');
+    expect(heroArtStage).toContain('top: -0.35rem;');
+    expect(heroArtStage).toContain('height: 9.75rem;');
+    expect(heroArt).toContain('top: -0.6rem;');
+    expect(heroArt).toContain('width: 108%;');
+    expect(heroArt).toContain('height: 12.4rem;');
+    expect(heroArt).toContain('background: transparent;');
     expect(heroArt).toContain('object-fit: contain;');
     expect(heroArt).toContain('pointer-events: none;');
     expect(heroArt).toContain('user-select: none;');
@@ -145,7 +177,9 @@ describe('compact Realm CSS contract', () => {
 
     expect(INSPECTOR_COMPONENT).toContain('alt=""');
     expect(INSPECTOR_COMPONENT).toContain('aria-hidden="true"');
+    expect(INSPECTOR_COMPONENT).toContain('className="castle-inspection__hero-art-stage"');
     expect(INSPECTOR_COMPONENT).toContain('decoding="async"');
+    expect(INSPECTOR_COMPONENT).toContain('draggable="false"');
     expect(INSPECTOR_COMPONENT).toContain('height="1254"');
     expect(INSPECTOR_COMPONENT).toContain('width="1254"');
     expect(INSPECTOR_COMPONENT).toContain(
@@ -153,7 +187,53 @@ describe('compact Realm CSS contract', () => {
     );
   });
 
-  it('keeps a slim identity/selection card beside stable Menu, Home, and Explore actions', () => {
+  it('keeps player chrome to a circular profile trigger and transparent resource rail', () => {
+    const profileTrigger = block(PLAYER_CHROME, '.realm-profile-trigger {');
+    const profileAvatar = block(
+      PLAYER_CHROME,
+      '.realm-profile-trigger .realm-castle-avatar {'
+    );
+    const resourceRail = block(PLAYER_CHROME, '.realm-resource-rail {');
+    const resourceItem = block(PLAYER_CHROME, '.realm-resource-rail li {');
+    const resourceIcon = block(
+      PLAYER_CHROME,
+      '.realm-resource-rail picture,\n.realm-resource-rail img {'
+    );
+    const commandPanel = block(PLAYER_CHROME, '.realm-profile-menu__panel {');
+
+    expect(profileTrigger).toContain('top: max(0.72rem, env(safe-area-inset-top));');
+    expect(profileTrigger).toContain('left: max(0.72rem, env(safe-area-inset-left));');
+    expect(profileTrigger).toContain('width: 3.25rem;');
+    expect(profileTrigger).toContain('height: 3.25rem;');
+    expect(profileTrigger).toContain('border: 0;');
+    expect(profileTrigger).toContain('border-radius: 50%;');
+    expect(profileTrigger).toContain('background: transparent;');
+    expect(profileAvatar).toContain('--realm-avatar-size: 3.05rem;');
+
+    expect(resourceRail).toContain('top: max(0.68rem, env(safe-area-inset-top));');
+    expect(resourceRail).toContain('right: max(0.78rem, env(safe-area-inset-right));');
+    expect(resourceRail).toContain('border: 0;');
+    expect(resourceRail).toContain('pointer-events: none;');
+    expect(resourceItem).toContain('background: transparent;');
+    expect(resourceIcon).toContain('width: 2rem;');
+    expect(resourceIcon).toContain('height: 2rem;');
+    expect(commandPanel).toContain('overflow: auto;');
+
+    expect(HUD_COMPONENT).toContain('className="realm-profile-trigger"');
+    expect(HUD_COMPONENT).toContain('className="realm-resource-rail"');
+    expect(HUD_COMPONENT).toContain('aria-label="Your resources"');
+    expect(HUD_COMPONENT).toContain('aria-label={`Open Realm menu for ${playerLabel}`}');
+    expect(HUD_COMPONENT).toContain('<strong>MY KEEP</strong>');
+    expect(HUD_COMPONENT).toContain('<strong>EXPLORE</strong>');
+    expect(HUD_COMPONENT).toContain('<strong>SETTINGS</strong>');
+    expect(HUD_COMPONENT).toContain('<strong>MAIN MENU</strong>');
+    expect(HUD_COMPONENT).not.toContain('className="realm-hud"');
+    expect(HUD_COMPONENT).not.toContain('className="realm-hud__actions"');
+    expect(HUD_COMPONENT).not.toContain('aria-label="Return to Menu"');
+    expect(HUD_COMPONENT).not.toContain('aria-label="Recenter Keep"');
+  });
+
+  it('preserves the read-only observer HUD and Explore control independently', () => {
     const hud = block(MAP, '.realm-hud {');
     const header = block(MAP, '.realm-hud__header {');
     const selection = block(MAP, '.realm-hud__selection {');
@@ -165,8 +245,6 @@ describe('compact Realm CSS contract', () => {
     expect(hud).toContain('gap: 0.42rem;');
     expect(hud).toContain('padding: 0.68rem 0.74rem;');
     expect(header).toContain('grid-template-columns: auto minmax(0, 1fr) auto;');
-    expect(MAP).toContain('.realm-hud .realm-castle-avatar {');
-    expect(MAP).toContain('.realm-hud__identity {');
     expect(selection).toContain('padding-top: 0.42rem;');
     expect(actions).toContain('position: fixed;');
     expect(actions).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
@@ -176,11 +254,6 @@ describe('compact Realm CSS contract', () => {
     expect(explore).toContain('bottom: max(0.8rem, env(safe-area-inset-bottom));');
     expect(exploreTrigger).toContain('width: 8.75rem;');
 
-    expect(HUD_COMPONENT).toContain('aria-label="Return to Menu"');
-    expect(HUD_COMPONENT).toContain('<span aria-hidden="true">Menu</span>');
-    expect(HUD_COMPONENT).toContain('aria-label="Recenter Keep"');
-    expect(HUD_COMPONENT).toContain('<span aria-hidden="true">Home</span>');
-    expect(HUD_COMPONENT).not.toMatch(/Founding District|Inspect Keep|Realm View/);
     expect(EXPLORE_COMPONENT).toContain('Explore <span>{castles.length}');
     expect(EXPLORE_COMPONENT).toContain('aria-label={`Explore realm, ${castles.length} founded');
   });
@@ -200,12 +273,17 @@ describe('compact Realm CSS contract', () => {
       PRESENTATION,
       '.castle-inspection__identity-copy span,\n.castle-inspection__bio {'
     );
+    const profileTrigger = block(PLAYER_CHROME, '.realm-profile-trigger {');
+    const commandButton = block(PLAYER_CHROME, '.realm-profile-menu__panel nav button {');
 
     expect(hudTitle).toContain('overflow: hidden;');
     expect(hudTitle).toContain('text-overflow: ellipsis;');
     expect(hudTitle).toContain('white-space: nowrap;');
     expect(selection).toContain('font-size: 0.8125rem;');
     expect(hudButton).toContain('min-height: 2.75rem;');
+    expect(profileTrigger).toContain('min-width: 3.25rem;');
+    expect(profileTrigger).toContain('min-height: 3.25rem;');
+    expect(commandButton).toContain('min-height: 3.2rem;');
     expect(exploreTrigger).toContain('min-height: 3.35rem;');
     expect(exploreControls).toContain('min-height: 2.75rem;');
     expect(communityLink).toContain('min-height: 2.75rem;');
@@ -277,6 +355,7 @@ describe('compact Realm CSS contract', () => {
       '.realm-map-screen:has(.castle-inspection) .realm-hud,'
     );
     const compactInspector = block(compactPresentation, '.castle-inspection {');
+    const compactDrawer = block(compactPresentation, '.castle-inspection__drawer {');
 
     expect(compactHud).toContain('width: min(14.75rem,');
     expect(compactActions).toContain('bottom: max(0.55rem, env(safe-area-inset-bottom));');
@@ -303,12 +382,21 @@ describe('compact Realm CSS contract', () => {
 
     expect(compactInspector).toContain('bottom: max(0.55rem, env(safe-area-inset-bottom));');
     expect(compactInspector).toContain('max-height: min(78svh, 36rem);');
+    expect(compactInspector).toContain('padding-top: 0.9rem;');
+    expect(compactDrawer).toContain('max-height: min(calc(78svh - 0.9rem), 35.1rem);');
     const compactHero = block(compactPresentation, '.castle-inspection__hero {');
+    const compactHeroArtStage = block(
+      compactPresentation,
+      '.castle-inspection__hero-art-stage {'
+    );
     const compactHeroArt = block(compactPresentation, '.castle-inspection__hero-art {');
     const compactBody = block(compactPresentation, '.castle-inspection__body {');
     expect(compactHero).toContain('min-height: 10.25rem;');
-    expect(compactHeroArt).toContain('height: 10.9rem;');
-    expect(compactBody).toContain('max-height: min(calc(78svh - 10.25rem), 25.75rem);');
+    expect(compactHeroArtStage).toContain('top: -0.3rem;');
+    expect(compactHeroArtStage).toContain('height: 7.8rem;');
+    expect(compactHeroArt).toContain('top: -0.4rem;');
+    expect(compactHeroArt).toContain('height: 10.1rem;');
+    expect(compactBody).toContain('max-height: min(calc(78svh - 11.15rem), 24.85rem);');
     expect(`${MAP}\n${PRESENTATION}`).not.toMatch(/7\.1rem|6\.55rem/);
   });
 
@@ -316,12 +404,15 @@ describe('compact Realm CSS contract', () => {
     const narrow = block(MAP, '@media (max-width: 430px) {');
     const compactest = block(MAP, '@media (max-width: 360px) {');
     const shortMap = block(MAP, '@media (max-height: 600px) and (min-width: 581px) {');
+    const shortPlayerChrome = block(
+      PLAYER_CHROME,
+      '@media (max-height: 600px) and (min-width: 581px) {'
+    );
     const shortPresentation = block(
       PRESENTATION,
       '@media (max-height: 600px) and (min-width: 581px) {'
     );
     const narrowHud = block(narrow, '.realm-hud {');
-    const narrowBadges = block(narrow, '.realm-hud__badges {');
     const narrowJump = block(narrow, '.realm-cell-navigator__jump fieldset {');
     const compactestExploreCount = block(
       compactest,
@@ -332,8 +423,28 @@ describe('compact Realm CSS contract', () => {
     const shortExplore = block(shortMap, '.realm-cell-navigator {');
     const shortDialog = block(shortMap, '.realm-cell-navigator__dialog {');
     const shortJump = block(shortMap, '.realm-cell-navigator__jump fieldset {');
+    const shortProfilePanel = block(
+      shortPlayerChrome,
+      '.realm-profile-menu__panel {'
+    );
+    const shortProfileButton = block(
+      shortPlayerChrome,
+      '.realm-profile-menu__panel nav button {'
+    );
     const shortInspector = block(shortPresentation, '.castle-inspection {');
+    const shortPlayerInspector = block(
+      shortPresentation,
+      '.realm-map-screen[data-presentation-mode="player"] .castle-inspection {'
+    );
+    const shortPlayerBody = block(
+      shortPresentation,
+      '.realm-map-screen[data-presentation-mode="player"] .castle-inspection__body {'
+    );
     const shortHero = block(shortPresentation, '.castle-inspection__hero {');
+    const shortHeroArtStage = block(
+      shortPresentation,
+      '.castle-inspection__hero-art-stage {'
+    );
     const shortHeroArt = block(shortPresentation, '.castle-inspection__hero-art {');
     const shortVisibleUi = block(
       shortMap,
@@ -341,7 +452,6 @@ describe('compact Realm CSS contract', () => {
     );
 
     expect(narrowHud).toContain('width: min(13.75rem,');
-    expect(narrowBadges).toContain('display: none;');
     expect(narrowJump).toContain('grid-template-columns: auto minmax(0, 1fr);');
     expect(compactestExploreCount).toContain('display: none;');
     expect(EXPLORE_COMPONENT).toContain('aria-label={`Explore realm, ${castles.length} founded');
@@ -361,17 +471,34 @@ describe('compact Realm CSS contract', () => {
     expect(shortMap).toContain(
       '.realm-map-screen:has(.castle-inspection) .realm-hud__actions {'
     );
+    expect(shortProfilePanel).toContain('padding: 0.65rem;');
+    expect(shortProfilePanel).toContain('max-height: calc(100svh - 4.45rem');
+    expect(shortProfileButton).toContain('min-height: 2.85rem;');
+    expect(shortProfileButton).toContain('padding: 0.42rem 0.6rem;');
 
     expect(shortInspector).toContain('right: max(0.55rem, env(safe-area-inset-right));');
+    expect(shortInspector).toContain('top: max(0.45rem, env(safe-area-inset-top));');
     expect(shortInspector).toContain('bottom: max(0.45rem, env(safe-area-inset-bottom));');
     expect(shortInspector).toContain('width: min(19.5rem, 43vw);');
+    expect(shortInspector).toContain('padding-top: 0.7rem;');
+    expect(shortPlayerInspector).toContain(
+      'top: max(2.85rem, calc(env(safe-area-inset-top) + 2.85rem));'
+    );
+    expect(shortPlayerBody).toContain('max-height: calc(100svh - 12.25rem');
     expect(shortHero).toContain('min-height: 7.8rem;');
-    expect(shortHeroArt).toContain('height: 8.55rem;');
+    expect(shortHeroArtStage).toContain('top: -0.2rem;');
+    expect(shortHeroArtStage).toContain('height: 5.45rem;');
+    expect(shortHeroArt).toContain('top: -0.3rem;');
+    expect(shortHeroArt).toContain('height: 7.35rem;');
     expect(`${MAP}\n${PRESENTATION}`).not.toContain('30rem');
   });
 
   it('does not retain removed telemetry, hints, audit fields, or future-action styling', () => {
     for (const removedSelector of [
+      '.realm-hud .realm-castle-avatar',
+      '.realm-hud__identity',
+      '.realm-hud__badges',
+      '.realm-hud__selection-announcement',
       '.realm-hud__shared-state',
       '.realm-hud__hint',
       '.castle-inspection details',

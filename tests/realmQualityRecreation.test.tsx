@@ -107,6 +107,28 @@ function installWebGlProbe() {
   } as unknown as RenderingContext);
 }
 
+function selectionAnnouncement() {
+  const announcement = document.querySelector(
+    '.realm-player-chrome__selection-announcement'
+  );
+  if (!(announcement instanceof HTMLParagraphElement)) {
+    throw new Error('missing player selection announcement');
+  }
+  return announcement;
+}
+
+function playerMenuTrigger() {
+  return screen.getByRole('button', { name: /Open Realm menu/i });
+}
+
+function openPlayerExplore() {
+  const trigger = playerMenuTrigger();
+  fireEvent.click(trigger);
+  const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+  fireEvent.click(screen.getByRole('button', { name: /EXPLORE/i }));
+  return { trigger, explore: screen.getByRole('dialog', { name: 'Explore' }), menu };
+}
+
 function validate(candidate: WarpkeepRealmSnapshotCandidate) {
   return validateCanonicalGenesisSnapshot(candidate, {
     ownFid: CANONICAL_TEST_FID,
@@ -246,8 +268,8 @@ describe('live realm quality recreation', () => {
 
     const realm = screen.getByRole('main', { name: 'Hegemony realm' });
     fireEvent.keyDown(realm, { key: 'ArrowRight' });
-    expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Lowland Forest · q 1, r 0');
+    expect(selectionAnnouncement().textContent)
+      .toContain('Lowland Forest. Selected cell 1, 0');
 
     rerender(
       <RealmMapScreen
@@ -262,8 +284,8 @@ describe('live realm quality recreation', () => {
     expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
     expect(mocked.handles[1]!.setSelected).toHaveBeenCalledWith({ q: 1, r: 0 });
     act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(1));
-    expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Lowland Forest · q 1, r 0');
+    expect(selectionAnnouncement().textContent)
+      .toContain('Lowland Forest. Selected cell 1, 0');
     expect(screen.getByRole('main', { name: 'Hegemony realm' }).getAttribute('data-quality'))
       .toBe('balanced');
   });
@@ -297,9 +319,7 @@ describe('live realm quality recreation', () => {
 
     expect(mocked.createRealmScene).toHaveBeenCalledOnce();
     expect(mocked.handles[0]!.dispose).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', {
-      name: 'Explore realm, 2 founded castles'
-    }));
+    openPlayerExplore();
     expect(screen.getByRole('button', {
       name: /Inspect @peerkeeper, Peer Bastion, q 2, r -1/i
     })).not.toBeNull();
@@ -351,14 +371,14 @@ describe('live realm quality recreation', () => {
     );
     expect(mocked.createRealmScene.mock.calls[0]![0].reducedMotion).toBe(false);
 
-    const returnButton = screen.getByRole('button', { name: 'Return to Menu' });
-    returnButton.focus();
+    const loadingReturn = screen.getByRole('button', { name: 'Return to Menu' });
+    loadingReturn.focus();
     act(() => motion.set(true));
 
     expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
     expect(mocked.createRealmScene.mock.calls[1]![0].reducedMotion).toBe(true);
-    expect(document.activeElement).toBe(returnButton);
+    expect(document.activeElement).toBe(loadingReturn);
 
     unmount();
     expect(motion.preference.removeEventListener).toHaveBeenCalledOnce();
@@ -523,8 +543,8 @@ describe('live realm quality recreation', () => {
     expect(scene.setHovered).toHaveBeenCalledTimes(3);
     expect(scene.setHovered).toHaveBeenNthCalledWith(2, { q: 1, r: 0 });
     expect(scene.setHovered).toHaveBeenLastCalledWith({ q: 2, r: -1 });
-    expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Warpkeeper Bastion · q 0, r 0');
+    expect(selectionAnnouncement().textContent)
+      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
 
     act(() => {
@@ -536,8 +556,8 @@ describe('live realm quality recreation', () => {
     });
 
     expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).not.toBeNull();
-    expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Peer Watch · q 2, r -1');
+    expect(selectionAnnouncement().textContent)
+      .toContain('Peer Watch. Selected castle at cell 2, -1');
     expect(scene.setSelectedCastleId).toHaveBeenLastCalledWith(2);
     expect(scene.focusCastle).toHaveBeenLastCalledWith(2);
   });
@@ -672,7 +692,7 @@ describe('live realm quality recreation', () => {
       });
     });
 
-    expect(screen.queryByLabelText('Current selection')).toBeNull();
+    expect(document.querySelector('.realm-player-chrome__selection-announcement')).toBeNull();
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
     expect(onRequestReturn).toHaveBeenCalledOnce();
@@ -767,8 +787,8 @@ describe('live realm quality recreation', () => {
     expect(scene.setHovered).toHaveBeenCalledTimes(hoverCallsBeforeStress + 334);
     expect(mocked.createRealmScene).toHaveBeenCalledOnce();
     expect(renderCommits.mock.calls.length - commitsBeforeStress).toBeLessThanOrEqual(2);
-    expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Warpkeeper Bastion · q 0, r 0');
+    expect(selectionAnnouncement().textContent)
+      .toContain('Warpkeeper Bastion. Your keep is selected at cell 0, 0');
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
     expect(consoleError).not.toHaveBeenCalled();
     expect(consoleWarn).not.toHaveBeenCalled();
@@ -788,9 +808,7 @@ describe('live realm quality recreation', () => {
     const options = mocked.createRealmScene.mock.calls[0]![0];
     act(() => options.onCastlesReady?.(1));
 
-    fireEvent.click(screen.getByRole('button', {
-      name: 'Explore realm, 1 founded castle'
-    }));
+    openPlayerExplore();
     fireEvent.change(screen.getByRole('textbox', { name: 'q coordinate' }), {
       target: { value: '1' }
     });
@@ -801,8 +819,8 @@ describe('live realm quality recreation', () => {
 
     expect(scene.focusCell).toHaveBeenCalledWith({ q: 1, r: 0 });
     expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
-    expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Lowland Forest · q 1, r 0');
+    expect(selectionAnnouncement().textContent)
+      .toContain('Lowland Forest. Selected cell 1, 0');
     expect(document.activeElement).toBe(screen.getByRole('main', { name: 'Hegemony realm' }));
   });
 
@@ -825,8 +843,8 @@ describe('live realm quality recreation', () => {
     expect(fireEvent.keyDown(realm, { key: ' ' })).toBe(false);
 
     expect(scene.focusCell).toHaveBeenCalledWith({ q: 1, r: 0 });
-    expect(screen.getByLabelText('Current selection').textContent)
-      .toContain('Lowland Forest · q 1, r 0');
+    expect(selectionAnnouncement().textContent)
+      .toContain('Lowland Forest. Selected cell 1, 0');
     expect(screen.queryByRole('button', { name: 'CLOSE RECORD' })).toBeNull();
   });
 });

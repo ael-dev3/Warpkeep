@@ -12,6 +12,7 @@ import type { FarcasterDeviceSessionStorage } from '../src/farcaster/farcasterDe
 const NOW = Date.UTC(2026, 6, 16, 12, 0, 0);
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1_000;
 const BASE_PATH = '/Warpkeep/';
+const TEST_FID = 424_242_424;
 
 class MemoryStorage implements FarcasterDeviceSessionStorage {
   readonly values = new Map<string, string>();
@@ -37,7 +38,7 @@ function presentation(
   overrides: Partial<FarcasterPresentationSession> = {}
 ): FarcasterPresentationSession {
   return {
-    fid: 539_854,
+    fid: TEST_FID,
     username: 'warpkeeper',
     displayName: 'Warp Keeper',
     pfpUrl: 'https://profiles.example/keeper.png',
@@ -85,7 +86,7 @@ describe('Farcaster tab-local presentation session', () => {
     expect(key).toBe(getFarcasterPresentationSessionStorageKey(BASE_PATH));
     expect(JSON.parse(serialized)).toEqual({
       version: 1,
-      fid: 539_854,
+      fid: TEST_FID,
       username: 'warpkeeper',
       displayName: 'Warp Keeper',
       pfpUrl: 'https://profiles.example/keeper.png',
@@ -102,7 +103,7 @@ describe('Farcaster tab-local presentation session', () => {
     expect(serialized).not.toMatch(/verifiedAt|jwt|accessToken|custody|verification|signature/i);
 
     expect(readFarcasterPresentationSession(environment)).toEqual({
-      fid: 539_854,
+      fid: TEST_FID,
       username: 'warpkeeper',
       displayName: 'Warp Keeper',
       pfpUrl: 'https://profiles.example/keeper.png',
@@ -119,7 +120,7 @@ describe('Farcaster tab-local presentation session', () => {
     ]) {
       const sessionStorage = new MemoryStorage();
       expect(persistFarcasterPresentationSession({
-        fid: 539_854,
+        fid: TEST_FID,
         expiresAt: NOW + THIRTY_DAYS_MS,
         ...onlyDisplayField
       }, {
@@ -130,7 +131,7 @@ describe('Farcaster tab-local presentation session', () => {
     }
 
     for (const invalid of [
-      { fid: 539_854, expiresAt: NOW + 1 },
+      { fid: TEST_FID, expiresAt: NOW + 1 },
       presentation({ fid: 0 }),
       presentation({ fid: Number.MAX_SAFE_INTEGER + 1 }),
       presentation({ expiresAt: NOW }),
@@ -156,34 +157,34 @@ describe('Farcaster tab-local presentation session', () => {
       'x'.repeat(4_097),
       JSON.stringify({
         version: 1,
-        fid: 539_854,
+        fid: TEST_FID,
         username: 'warpkeeper',
         expiresAt: NOW + 60_000,
         verifiedAt: NOW
       }),
       JSON.stringify({
         version: 1,
-        fid: 539_854,
+        fid: TEST_FID,
         username: 'warpkeeper',
         expiresAt: NOW + 60_000,
         accessToken: 'must-not-survive'
       }),
       JSON.stringify({
         version: 1,
-        fid: 539_854,
+        fid: TEST_FID,
         pfpUrl: 'https://127.0.0.1/profile.png',
         expiresAt: NOW + 60_000
       }),
-      JSON.stringify({ version: 1, fid: 539_854, expiresAt: NOW + 60_000 }),
+      JSON.stringify({ version: 1, fid: TEST_FID, expiresAt: NOW + 60_000 }),
       JSON.stringify({
         version: 1,
-        fid: 539_854,
+        fid: TEST_FID,
         username: 'warpkeeper',
         expiresAt: NOW
       }),
       JSON.stringify({
         version: 2,
-        fid: 539_854,
+        fid: TEST_FID,
         username: 'warpkeeper',
         expiresAt: NOW + 60_000
       })

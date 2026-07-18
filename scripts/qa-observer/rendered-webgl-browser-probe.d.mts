@@ -50,7 +50,6 @@ export type RenderedWebglBrowserProbeInteraction =
   | 'default'
   | 'inspector'
   | 'explore';
-export type RenderedWebglBrowserProbeControlState = 'visible' | 'hidden' | 'absent';
 
 export type RenderedWebglBrowserProbeCase = Readonly<{
   id:
@@ -70,8 +69,6 @@ export type RenderedWebglBrowserProbeCase = Readonly<{
     | 'short-landscape-balanced-player-explore';
   expectedQuality: RenderedWebglBrowserProbeQuality;
   expectedPresentationMode: RenderedWebglBrowserProbePresentationMode;
-  /** Strict player HUD state required after a constrained interactive surface opens. */
-  expectedPlayerActionControlState?: RenderedWebglBrowserProbeControlState;
   interaction: RenderedWebglBrowserProbeInteraction;
   /** Must remain zero: every projection-visible castle has a direct label. */
   maximumLabelOverflowCount: number;
@@ -262,7 +259,8 @@ export type RenderedWebglBrowserProbeInteractionEvidence = Readonly<{
 
 export function applyRenderedWebglCaseInteraction(
   session: RenderedWebglCastleCanvasPointerSession,
-  interaction: RenderedWebglBrowserProbeInteraction
+  interaction: RenderedWebglBrowserProbeInteraction,
+  presentationMode?: RenderedWebglBrowserProbePresentationMode,
 ): Promise<RenderedWebglBrowserProbeInteractionEvidence>;
 
 export function analyzeRenderedWebglPngScreenshot(

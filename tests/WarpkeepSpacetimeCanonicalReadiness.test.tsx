@@ -20,6 +20,7 @@ import {
   createCanonicalGenesisCandidate,
   createCanonicalGenesisSnapshot
 } from './fixtures/canonicalGenesisSnapshot';
+import { createReadyResourceState } from './fixtures/resourceState';
 
 const CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   spacetimeUri: 'https://maincloud.spacetimedb.com',
@@ -98,6 +99,8 @@ function createRuntimeHarness() {
     readAdmission: vi.fn(async () => 'ready'),
     bootstrapPlayer: vi.fn(async () => undefined),
     acceptAlphaTerms: vi.fn(async () => undefined),
+    readResourceState: vi.fn(async (_connection, fid: number) => createReadyResourceState(fid)),
+    collectResources: vi.fn(async (_connection, fid: number) => createReadyResourceState(fid)),
     observeRealm: vi.fn((_connection, _fid, onChange) => {
       observed = onChange;
       return removeObserver;

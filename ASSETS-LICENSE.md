@@ -73,26 +73,39 @@ project owner on 2026-07-17 with instructions to add transparent resource
 icons to the draft Alpha 0.3.6 mechanics PR. Those instructions authorize the
 exact background-cleaned reference PNGs in this public Warpkeep repository and
 future official Pages runtime use after the corresponding mechanic receives
-separate review. The reviewed Alpha 0.3.6 integration retains the exact masters
-beside their records, outside `public/`, and does not copy the images or mount
-placeholder resource counters into Pages; the instruction
-does not establish underlying ownership, grant a separate public
-open-content licence, authorize general third-party derivative or
-redistribution use, or grant trademark, canonical-identity, currency, reward,
-or entitlement rights.
+separate review. Alpha 0.3.7's reviewed shared-world resource authority activates
+that narrow official runtime permission. The exact masters remain beside their
+records outside `public/`; Pages serves only the faithful 64×64 derivatives at
+immutable SHA-256-prefixed paths. The instruction does not establish underlying
+ownership, grant a separate public open-content licence, authorize general
+third-party derivative or redistribution use, or grant trademark,
+canonical-identity, currency, reward, or entitlement rights.
 
-| Intended use | Repository file | Technical record |
-| --- | --- | --- |
-| Planned gold-resource presentation | `docs/reference/resources/2026-07-17-hegemony-gold-icon/hegemony-gold-reference.png` | 1254×1254 RGBA PNG, 1,142,819 bytes, SHA-256 `87dddaa91a23f630e86da35da8b5b7300c0ecce9fb850060c0c18b0f2de72f26`; background-cleaned through the recorded image-edit and chroma-matte workflow. |
-| Planned food-resource presentation | `docs/reference/resources/2026-07-17-hegemony-food-icon/hegemony-food-reference.png` | 1254×1254 RGBA PNG, 1,849,831 bytes, SHA-256 `d1e295299f710be2b04249d6a96e0abd53ccc6d2bd74560428ee0964f5fff474`; background-cleaned through the recorded image-edit and chroma-matte workflow. |
-| Planned stone-resource presentation | `docs/reference/resources/2026-07-17-hegemony-stone-icon/hegemony-stone-reference.png` | 1254×1254 RGBA PNG, 1,107,308 bytes, SHA-256 `dcf32bfe714b82c81a9db0d13bff0f176689ff35ff6c0554c3f7c0c8f24fa6e0`; background-cleaned through the recorded image-edit and chroma-matte workflow. |
-| Planned wood-resource presentation | `docs/reference/resources/2026-07-17-hegemony-wood-icon/hegemony-wood-reference.png` | 1254×1254 RGBA PNG, 1,190,014 bytes, SHA-256 `e8b586724afd1082c38c89f86de6d854b86234696b3978633be96152bc17c93a`; background-cleaned through the recorded image-edit and chroma-matte workflow. |
+| Resource | Provenance master | 64×64 RGBA PNG | 64×64 lossless WebP | Decoded RGBA SHA-256 |
+| --- | --- | --- | --- | --- |
+| Food | `docs/reference/resources/2026-07-17-hegemony-food-icon/hegemony-food-reference.png` — 1,849,831 bytes, SHA-256 `d1e295299f710be2b04249d6a96e0abd53ccc6d2bd74560428ee0964f5fff474` | `public/images/resources/hegemony-food-c2034046ead78f5f.png` — 7,567 bytes, SHA-256 `c2034046ead78f5f23a79ae2fb742352c8c353586d0761e63bf725054bf5d3a4` | `public/images/resources/hegemony-food-5c012a7e939f8796.webp` — 6,314 bytes, SHA-256 `5c012a7e939f879698921bfb2d17a1007d5635cf6bfbaa8477205cef2375c509` | `c80fc693e2b3bf56836fe7f235e4ee457f8e7203892b72139f3c98b7ee05fcad` |
+| Gold | `docs/reference/resources/2026-07-17-hegemony-gold-icon/hegemony-gold-reference.png` — 1,142,819 bytes, SHA-256 `87dddaa91a23f630e86da35da8b5b7300c0ecce9fb850060c0c18b0f2de72f26` | `public/images/resources/hegemony-gold-3d087ebe1ba2beaf.png` — 6,578 bytes, SHA-256 `3d087ebe1ba2beaf5590b93fcccde998546c4eb1c5e3c124a694a85683241d9a` | `public/images/resources/hegemony-gold-522eb5b1f40b5d51.webp` — 5,704 bytes, SHA-256 `522eb5b1f40b5d51395301a9f85b99e9f96008140e6c24d33c38b795546b9689` | `fc8afe04499adf8c0f0e1cb8c95e2cadb302365d9acca4e41ca595aff2caf256` |
+| Stone | `docs/reference/resources/2026-07-17-hegemony-stone-icon/hegemony-stone-reference.png` — 1,107,308 bytes, SHA-256 `dcf32bfe714b82c81a9db0d13bff0f176689ff35ff6c0554c3f7c0c8f24fa6e0` | `public/images/resources/hegemony-stone-e23ed963027579c7.png` — 6,149 bytes, SHA-256 `e23ed963027579c7dd6e465414e3a171aba622d25009af9d4d1077f568fa7f7b` | `public/images/resources/hegemony-stone-ac50a538fc202d15.webp` — 4,366 bytes, SHA-256 `ac50a538fc202d15b378649f4778c88d1a312bced1dd8f3f7cdbb829a50841de` | `97f48ef84d6f768f4e1b2242ae90eaa80e1aeba92de75c8c85b5843b854c0278` |
+| Wood | `docs/reference/resources/2026-07-17-hegemony-wood-icon/hegemony-wood-reference.png` — 1,190,014 bytes, SHA-256 `e8b586724afd1082c38c89f86de6d854b86234696b3978633be96152bc17c93a` | `public/images/resources/hegemony-wood-d992823f7a7f2999.png` — 5,729 bytes, SHA-256 `d992823f7a7f2999eff03c77f68ab0c24a952ba6018bab4ee86ccd8f2dd3f689` | `public/images/resources/hegemony-wood-add35506da245240.webp` — 4,386 bytes, SHA-256 `add35506da245240c245c8605433108b188b03c94eadab400b2cb9bab956c92c` | `3686140686a8801ca17fb10a12ed22368a0ad1fab5fc76a2d2b0b73cdb0d8479` |
+
+Reconstruct with `node scripts/prepare-hegemony-resource-icons.mjs`. The
+offline-only script accepts no source or destination override, requires each
+exact checked-in 1254×1254 RGBA master by path, length, SHA-256, decoded RGBA
+hash, and alpha profile, and pins Sharp 0.35.3 with libvips 8.18.3, libpng
+1.6.58, and libwebp 1.6.0. Decoding fails on warnings and is capped at
+1,572,516 input pixels. It disables SIMD and Sharp caching, uses concurrency 1,
+and resizes with Lanczos3, `fit: fill`, and `fastShrinkOnLoad: false`. PNG
+uses RGBA8, compression level 9, adaptive filtering, effort 10, no palette,
+and no progressive encoding. WebP uses lossless mode, quality and alpha quality
+100, effort 6, the icon preset, no smart subsampling, and exact transparent
+RGB. The complete eight-file family is validated before rollback-safe staged
+replacement; unexpected directory entries fail closed.
 
 The source attachments and chroma-key intermediates are not committed. Their
 hashes, edit prompts, cleanup parameters, decoded RGBA hashes, alpha profiles,
 and visible bounds are recorded in the [dated gold icon record](docs/reference/resources/2026-07-17-hegemony-gold-icon/manifest.json), [dated food icon record](docs/reference/resources/2026-07-17-hegemony-food-icon/manifest.json), [dated stone icon record](docs/reference/resources/2026-07-17-hegemony-stone-icon/manifest.json), and [dated wood icon record](docs/reference/resources/2026-07-17-hegemony-wood-icon/manifest.json). The reference masters remain under
-`LicenseRef-Warpkeep-Provenance-Required`; neither their inclusion as dormant
-reference masters nor a future gameplay implementation silently relicenses them.
+`LicenseRef-Warpkeep-Provenance-Required`; neither the provenance masters nor
+their faithful runtime encodings are silently relicensed by their location.
 
 ## Hegemony Gold Mine inspection artwork
 

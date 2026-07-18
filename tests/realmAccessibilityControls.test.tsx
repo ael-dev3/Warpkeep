@@ -58,9 +58,76 @@ function ControlledNavigator({
   );
 }
 
+function TriggerlessNavigator({
+  onRequestClose,
+  triggerRef
+}: Readonly<{
+  onRequestClose: (reason: RealmNavigatorCloseReason) => void;
+  triggerRef: Ref<HTMLButtonElement>;
+}>) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        aria-label="Open Realm menu for @warpkeeper"
+        onClick={() => setOpen(true)}
+        ref={triggerRef}
+        type="button"
+      >
+        PFP
+      </button>
+      <RealmAccessibilityControls
+        id="triggerless-realm-navigator"
+        open={open}
+        castles={CASTLES}
+        ownCastleId={1}
+        selectedCastleId={2}
+        onRequestOpen={() => setOpen(true)}
+        onRequestClose={(reason) => {
+          onRequestClose(reason);
+          setOpen(false);
+        }}
+        onActivateCastle={vi.fn()}
+        triggerRef={triggerRef}
+        triggerVisible={false}
+      />
+    </>
+  );
+}
+
 afterEach(cleanup);
 
 describe('RealmAccessibilityControls', () => {
+  it('supports the player PFP as its external launcher without rendering an Explore button', async () => {
+    const onRequestClose = vi.fn();
+    const triggerRef = createRef<HTMLButtonElement>();
+    render(
+      <TriggerlessNavigator
+        onRequestClose={onRequestClose}
+        triggerRef={triggerRef}
+      />
+    );
+
+    const playerTrigger = screen.getByRole('button', {
+      name: 'Open Realm menu for @warpkeeper'
+    });
+    expect(triggerRef.current).toBe(playerTrigger);
+    expect(screen.queryByRole('button', { name: /Explore realm/i })).toBeNull();
+
+    fireEvent.click(playerTrigger);
+    const dialog = screen.getByRole('dialog', { name: 'Explore' });
+    expect(dialog.getAttribute('aria-modal')).toBe('false');
+    expect(screen.queryByRole('button', { name: /Explore realm/i })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(
+      screen.getByRole('searchbox', { name: 'Search founded castles' })
+    ));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'CLOSE EXPLORE' }));
+    expect(onRequestClose).toHaveBeenCalledWith('close-button');
+    expect(screen.queryByRole('dialog', { name: 'Explore' })).toBeNull();
+    expect(triggerRef.current).toBe(playerTrigger);
+  });
+
   it('opens a compact controlled Explore surface without selecting on focus', async () => {
     const onActivateCastle = vi.fn();
     const onRequestClose = vi.fn();

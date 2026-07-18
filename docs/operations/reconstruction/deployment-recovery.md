@@ -123,11 +123,13 @@ loopback-only, in-memory server and proves that:
   original schema metadata unchanged;
 - both an empty legacy-player fixture and a synthetic nonempty legacy-player
   fixture survive the forward publish unchanged;
-- the complete seven-table protocol-v2 prefix remains unchanged while the exact
-  12-table protocol-v3 suffix is appended;
-- a second forward publish is idempotent, populated protocol-v3 state survives,
-  uniqueness constraints hold, and guarded v2 rollback is refused before any
-  schema change or compatibility override.
+- the complete deployed refs 0–18 remain unchanged while private
+  `resource_account_v1` appends at exact ref 19;
+- a second forward publish is idempotent, populated deployed-prefix state
+  survives, uniqueness constraints hold, and guarded v3/v2 rollback is refused
+  before any schema change or compatibility override; and
+- the actual module's loopback founder, Terms, private read, collection, and
+  guarded resource-backfill lifecycle passes independently of schema fixtures.
 
 The legacy public `player` table therefore retains its exact protocol-v1 shape,
 including `identity`. Protocol v2 never reads, writes, or subscribes to it. The
@@ -145,7 +147,7 @@ WARPKEEP_OIDC_ISSUER=https://auth.warpkeep.com \
 WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
 WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
 WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
-npm run stdb:publish:dev -- --dry-run
+npm run stdb:publish:dev -- --dry-run --resource-rollout-stage=<prebackfill-or-ready>
 ```
 
 All three count expectations are mandatory canonical decimal strings, including
@@ -168,8 +170,13 @@ WARPKEEP_PUBLISH_CONFIRM=warpkeep-89e4u \
 WARPKEEP_EXPECTED_FOUNDER_COUNT=<reviewed-current-founder-count> \
 WARPKEEP_EXPECTED_PLAYER_COUNT=<reviewed-current-player-count> \
 WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT=<reviewed-current-terms-count> \
-npm run stdb:publish:dev
+npm run stdb:publish:dev -- --resource-rollout-stage=<prebackfill-or-ready>
 ```
+
+The stage is mandatory: `prebackfill` is valid only for the first additive
+resource publication, while `ready` requires the exact resource-ready v4
+aggregate both before and after an already-backfilled republish. Never infer
+one stage from a prior command or approval.
 
 Use the private Keychain wrapper so the Hermes credential is loaded only into
 bounded publisher memory and forwarded to the protected inspection child over
@@ -192,6 +199,13 @@ verifier with `--require-genesis-v3-founded-aggregate` and the same private
 founder/player/Terms expectations. Require protocol `3`, the reviewed generation,
 all exact counts, and every orphan/drift/invariant counter at zero; never print
 the protected procedure body.
+
+For the post-backfill resource-ready checkpoint, also require
+`--require-resource-v4-ready-aggregate`. The verifier must validate one exact
+canonical Maincloud/immutable-database/bridge environment before spawning and
+reuse the same bounded options object for both the founded-v3 and resource-v4
+children. A mutable database name or any ambient URI/bridge remap fails before
+either aggregate child starts.
 
 Never use `--delete-data=always`, `--break-clients`, database recreation, or broad auto-confirmation. A timed-out publish is indeterminate: inspect before retrying.
 

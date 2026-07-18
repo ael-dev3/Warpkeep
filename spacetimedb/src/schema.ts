@@ -342,6 +342,29 @@ export const alphaTermsAcceptanceV1 = table(
   },
 );
 
+/**
+ * Private authoritative economic inventory for one founded castle. Strategic
+ * balances are player-scoped and are never exposed through public Realm
+ * subscriptions. Marks remain canonical in `mark_account_v1`.
+ */
+export const resourceAccountV1 = table(
+  { name: 'resource_account_v1' },
+  {
+    fid: t.u64().primaryKey(),
+    castleId: t.u64().unique(),
+    realmId: t.string().index(),
+    food: t.u64(),
+    wood: t.u64(),
+    stone: t.u64(),
+    gold: t.u64(),
+    settledThroughMicros: t.u64(),
+    revision: t.u64(),
+    policyVersion: t.string(),
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp(),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -364,6 +387,7 @@ const warpkeep = schema({
   snapScanCursorV1,
   snapScanBatchV1,
   alphaTermsAcceptanceV1,
+  resourceAccountV1,
 });
 
 // SpacetimeDB 2.6's default case converter separates a trailing digit from
@@ -384,6 +408,10 @@ for (const name of [
   'admin_finalize_snap_scan_batch_v1',
   'admin_get_snap_scan_batch_aggregate_v1',
   'accept_alpha_terms_v1',
+  'get_my_resource_state_v1',
+  'collect_resources_v1',
+  'admin_backfill_resource_accounts_v1',
+  'admin_get_alpha_status_v4',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

@@ -143,6 +143,27 @@ describe('realm interaction state', () => {
     expect(resolveRealmEscape(navigator).decision).toBe('close-navigator');
   });
 
+  it('recenters on the keep without leaving a stale castle record open', () => {
+    const active = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-castle',
+      castleId: 9,
+      coord: { q: 2, r: -1 }
+    });
+    const recentered = realmInteractionReducer(active, {
+      type: 'recenter-keep',
+      coord: { q: 0, r: 0 }
+    });
+
+    expect(recentered.selectedCell).toEqual({ q: 0, r: 0 });
+    expect(recentered.selectedCastle).toBeNull();
+    expect(recentered.inspectorOpen).toBe(false);
+    expect(recentered.cameraTarget).toEqual({ kind: 'keep' });
+    expect(recentered.keyboardIntent).toEqual({
+      sequence: 2,
+      target: { kind: 'navigator-trigger' }
+    });
+  });
+
   it('models camera and repeated keyboard focus requests without DOM references', () => {
     const initial = createRealmInteractionState({ q: 0, r: 0 });
     const camera = realmInteractionReducer(initial, {

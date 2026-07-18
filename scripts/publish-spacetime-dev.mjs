@@ -8,7 +8,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   PROTECTED_AGGREGATE_STAGE,
   protectedAggregateChildArguments,
+  resourceV4AggregateChildArguments,
   verifyExpectedAlphaV3Aggregate,
+  verifyExpectedAlphaV4ResourcePrebackfillAggregate,
+  verifyExpectedAlphaV4ResourceReadyAggregate,
 } from './verify-alpha-production.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -41,6 +44,11 @@ const PUBLISH_CHILD_ENVIRONMENT_KEYS = Object.freeze([
   'XDG_CONFIG_HOME', 'XDG_DATA_HOME',
   'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SYSTEMROOT', 'COMSPEC', 'PATHEXT',
 ]);
+
+export const RESOURCE_PUBLISH_ROLLOUT_STAGE = Object.freeze({
+  PREBACKFILL: 'prebackfill',
+  READY: 'ready',
+});
 
 class SafePublishError extends Error {}
 
@@ -183,11 +191,29 @@ export function publishChildEnvironment(source = process.env) {
 }
 
 export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
-  if (arguments_.length === 0) return Object.freeze({ dryRun: false });
-  if (arguments_.length === 1 && arguments_[0] === '--dry-run') {
-    return Object.freeze({ dryRun: true });
+  let dryRun = false;
+  let resourceRolloutStage;
+  for (const argument of arguments_) {
+    if (argument === '--dry-run' && !dryRun) {
+      dryRun = true;
+      continue;
+    }
+    if (
+      argument.startsWith('--resource-rollout-stage=')
+      && resourceRolloutStage === undefined
+    ) {
+      const value = argument.slice('--resource-rollout-stage='.length);
+      if (Object.values(RESOURCE_PUBLISH_ROLLOUT_STAGE).includes(value)) {
+        resourceRolloutStage = value;
+        continue;
+      }
+    }
+    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready>. Unknown or duplicate arguments are rejected.');
   }
-  fail('Usage: publish-spacetime-dev.mjs [--dry-run]. Unknown or duplicate arguments are rejected.');
+  if (resourceRolloutStage === undefined) {
+    fail('An explicit resource rollout stage is required: prebackfill for the first additive publication or ready for an already-backfilled republish.');
+  }
+  return Object.freeze({ dryRun, resourceRolloutStage });
 }
 
 export function requireCanonicalPublishCoordinates(source = process.env) {
@@ -386,7 +412,7 @@ export function parseMigrationProofReceipt(output) {
     fail('The current additive migration proof did not produce its exact success receipt.');
   }
   const successLines = output.split(/\r?\n/).filter(line => (
-    line.startsWith('Additive protocol-v3 migration proof passed with SpacetimeDB 2.6.1:')
+    line.startsWith('Additive protocol-v4 migration proof passed with SpacetimeDB 2.6.1:')
   ));
   const digestMatches = [...output.matchAll(/\bartifact_sha256=([0-9a-f]{64})(?=\s|$)/g)];
   if (
@@ -452,6 +478,68 @@ export function verifyFreshFoundedProtocolV3Aggregate(
   );
 }
 
+export function verifyFreshResourceProtocolV4PrebackfillAggregate(
+  secret,
+  expectedFounderCount,
+  spawnSyncProcess = spawnSync,
+) {
+  const secretBytes = typeof secret === 'string' ? new TextEncoder().encode(secret).byteLength : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the fresh protected resource checkpoint.');
+  }
+  if (!Number.isSafeInteger(expectedFounderCount) || expectedFounderCount < 1 || expectedFounderCount > 100) {
+    fail('The resource checkpoint expected founder count was invalid.');
+  }
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = runBoundedSync(
+    process.execPath,
+    resourceV4AggregateChildArguments(tsxCli),
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout: 30_000,
+    },
+    spawnSyncProcess,
+  );
+  verifyExpectedAlphaV4ResourcePrebackfillAggregate(result.stdout, expectedFounderCount);
+}
+
+export function verifyFreshResourceProtocolV4ReadyAggregate(
+  secret,
+  expectedFounderCount,
+  spawnSyncProcess = spawnSync,
+) {
+  const secretBytes = typeof secret === 'string' ? new TextEncoder().encode(secret).byteLength : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the fresh protected resource checkpoint.');
+  }
+  if (!Number.isSafeInteger(expectedFounderCount) || expectedFounderCount < 1 || expectedFounderCount > 100) {
+    fail('The resource checkpoint expected founder count was invalid.');
+  }
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = runBoundedSync(
+    process.execPath,
+    resourceV4AggregateChildArguments(tsxCli),
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout: 30_000,
+    },
+    spawnSyncProcess,
+  );
+  verifyExpectedAlphaV4ResourceReadyAggregate(result.stdout, expectedFounderCount);
+}
+
 export function verifyPostPublishFoundedProtocolV3Aggregate(
   secret,
   expectations,
@@ -463,7 +551,72 @@ export function verifyPostPublishFoundedProtocolV3Aggregate(
     // Publication has already returned success. Never surface a preflight-style
     // "no publish attempted" message or invite an unsafe retry when only the
     // bounded post-publication inspection failed.
-    throw new Error('Post-publication verification requires a fresh read-only inspection.');
+    fail('Post-publication protocol-v3 verification is indeterminate; a fresh read-only inspection is required before any backfill or further publication decision.');
+  }
+}
+
+export function verifyPostPublishResourceProtocolV4PrebackfillAggregate(
+  secret,
+  expectedFounderCount,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    verifyFreshResourceProtocolV4PrebackfillAggregate(
+      secret,
+      expectedFounderCount,
+      spawnSyncProcess,
+    );
+  } catch {
+    // The module is already published. The operator must establish state with
+    // a fresh bounded read-only inspection; neither backfill nor another
+    // publication attempt is safe to suggest from this indeterminate point.
+    fail('Post-publication resource procedure-v4 checkpoint is indeterminate; a fresh read-only inspection is required before any backfill or further publication decision.');
+  }
+}
+
+export function verifyPostPublishResourceProtocolV4ReadyAggregate(
+  secret,
+  expectedFounderCount,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    verifyFreshResourceProtocolV4ReadyAggregate(
+      secret,
+      expectedFounderCount,
+      spawnSyncProcess,
+    );
+  } catch {
+    fail('Post-publication ready resource procedure-v4 checkpoint is indeterminate; a fresh read-only inspection is required before any further publication decision.');
+  }
+}
+
+export function verifyPostPublishResourcePublicationCheckpoints(
+  secret,
+  expectations,
+  resourceRolloutStage,
+  spawnSyncProcess = spawnSync,
+) {
+  const exactExpectations = validateFoundedPublishExpectations(expectations);
+  if (!Object.values(RESOURCE_PUBLISH_ROLLOUT_STAGE).includes(resourceRolloutStage)) {
+    fail('The post-publication resource rollout stage was invalid.');
+  }
+  verifyPostPublishFoundedProtocolV3Aggregate(
+    secret,
+    exactExpectations,
+    spawnSyncProcess,
+  );
+  if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.PREBACKFILL) {
+    verifyPostPublishResourceProtocolV4PrebackfillAggregate(
+      secret,
+      exactExpectations.expectedFounderCount,
+      spawnSyncProcess,
+    );
+  } else {
+    verifyPostPublishResourceProtocolV4ReadyAggregate(
+      secret,
+      exactExpectations.expectedFounderCount,
+      spawnSyncProcess,
+    );
   }
 }
 
@@ -557,7 +710,7 @@ export async function publishModule(
 }
 
 async function main() {
-  const { dryRun } = parsePublishArguments();
+  const { dryRun, resourceRolloutStage } = parsePublishArguments();
   requireCanonicalPublishCoordinates();
   if (database !== CANONICAL_DATABASE) fail('The production publisher target was not canonical.');
   const issuer = requireHttpsOrigin(configuredIssuer, 'WARPKEEP_OIDC_ISSUER');
@@ -575,7 +728,7 @@ async function main() {
   const artifactReceipt = runCurrentAdditiveMigrationProof(executable);
   if (dryRun) {
     await validateIssuerDeployment(issuer);
-    console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, and ${issuer}; would update the canonical existing database without deleting data.`);
+    console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, and ${issuer}; would update the canonical existing database without deleting data.`);
     return;
   }
   await validateIssuerDeployment(issuer);
@@ -584,10 +737,17 @@ async function main() {
     process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
     foundedExpectations,
   );
+  if (resourceRolloutStage === RESOURCE_PUBLISH_ROLLOUT_STAGE.READY) {
+    verifyFreshResourceProtocolV4ReadyAggregate(
+      process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
+      foundedExpectations.expectedFounderCount,
+    );
+  }
   await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);
-  verifyPostPublishFoundedProtocolV3Aggregate(
+  verifyPostPublishResourcePublicationCheckpoints(
     process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
     foundedExpectations,
+    resourceRolloutStage,
   );
 }
 

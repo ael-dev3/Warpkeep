@@ -11,11 +11,13 @@ import {
   acceptWarpkeepAlphaTerms,
   connectWarpkeep,
   bootstrapWarpkeepPlayer,
+  collectWarpkeepResources,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
+  readWarpkeepResourceState,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
   WARPKEEP_ALPHA_TERMS_VERSION as BROWSER_ALPHA_TERMS_VERSION,
@@ -308,6 +310,52 @@ describe('Warpkeep authenticated connection boundary', () => {
       termsVersion: '2026-07-14',
       accepted: true
     });
+  });
+
+  it('reads and collects only the caller-bound private resource projection', async () => {
+    const projection = {
+      fid: BigInt(CANONICAL_TEST_FID),
+      food: 200n,
+      wood: 150n,
+      stone: 100n,
+      gold: 25n,
+      pendingFood: 8n,
+      pendingWood: 5n,
+      pendingStone: 3n,
+      pendingGold: 1n,
+      marksBalanceMicros: 12_500_000n,
+      observedAtMicros: 1_800_000_600_000_000n,
+      settledThroughMicros: 1_800_000_000_000_000n,
+      nextCollectAtMicros: 1_800_001_200_000_000n,
+      revision: 4n,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      terrainKind: 'lowland'
+    } as const;
+    const connection = {
+      procedures: { getMyResourceStateV1: vi.fn(async () => projection) },
+      reducers: { collectResourcesV1: vi.fn(async () => undefined) }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepResourceState(connection, CANONICAL_TEST_FID)).resolves
+      .toMatchObject({
+        fid: BigInt(CANONICAL_TEST_FID),
+        balances: { food: 200n, wood: 150n, stone: 100n, gold: 25n },
+        pendingBalances: { food: 8n, wood: 5n, stone: 3n, gold: 1n }
+      });
+    await expect(collectWarpkeepResources(connection, CANONICAL_TEST_FID)).resolves
+      .toMatchObject({ revision: 4n });
+    expect(connection.reducers.collectResourcesV1).toHaveBeenCalledWith({});
+    expect(connection.procedures.getMyResourceStateV1).toHaveBeenCalledTimes(2);
+
+    connection.procedures.getMyResourceStateV1 = vi.fn(async () => ({
+      ...projection,
+      fid: BigInt(CANONICAL_TEST_FID + 1)
+    }));
+    await expect(readWarpkeepResourceState(connection, CANONICAL_TEST_FID))
+      .rejects.toThrow('Warpkeep resources are unavailable.');
+    await expect(readWarpkeepResourceState(connection, 0))
+      .rejects.toThrow('Warpkeep resources are unavailable.');
   });
 
   it('pins the browser and authoritative module to the same Terms version', () => {

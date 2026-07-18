@@ -1,7 +1,7 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.6",
+  "version": "0.3.7",
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -50,6 +50,8 @@
     "stdb:inspect-alpha": "tsx scripts/hermes-admin.ts inspect-alpha",
     "stdb:inspect-alpha-v2": "tsx scripts/hermes-admin.ts inspect-alpha-v2",
     "stdb:inspect-alpha-v3": "tsx scripts/hermes-admin.ts inspect-alpha-v3",
+    "stdb:inspect-alpha-v4": "tsx scripts/hermes-admin.ts inspect-alpha-v4",
+    "stdb:backfill-resources": "tsx scripts/hermes-admin.ts backfill-resources",
     "test": "vitest --run",
     "typecheck": "tsc -b"
   },

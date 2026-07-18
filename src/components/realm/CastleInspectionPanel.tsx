@@ -105,15 +105,18 @@ export function CastleInspectionPanel({
       <div className="castle-inspection__drawer">
         <header className="castle-inspection__hero">
           <div aria-hidden="true" className="castle-inspection__hero-orbit" />
-          <img
-            alt=""
-            aria-hidden="true"
-            className="castle-inspection__hero-art"
-            decoding="async"
-            height="1254"
-            src={publicAssetUrl('images/realm/hegemony-castle-record.webp')}
-            width="1254"
-          />
+          <div aria-hidden="true" className="castle-inspection__hero-art-stage">
+            <img
+              alt=""
+              aria-hidden="true"
+              className="castle-inspection__hero-art"
+              decoding="async"
+              draggable="false"
+              height="1254"
+              src={publicAssetUrl('images/realm/hegemony-castle-record.webp')}
+              width="1254"
+            />
+          </div>
           <button
             ref={setCloseButtonRef}
             className="castle-inspection__dismiss"

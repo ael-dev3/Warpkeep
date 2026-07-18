@@ -49,8 +49,10 @@ describe('player SpacetimeDB bindings', () => {
     expect(connection).not.toContain("from './module_bindings'")
     expect(playerBindings).toContain("'accept_alpha_terms_v1'")
     expect(playerBindings).toContain("'bootstrap_player_v2'")
+    expect(playerBindings).toContain("'collect_resources_v1'")
     expect(playerBindings).toContain("'get_alpha_backend_info'")
     expect(playerBindings).toContain("'get_my_admission_status_v2'")
+    expect(playerBindings).toContain("'get_my_resource_state_v1'")
     expect(playerBindings).not.toContain('qa_observer_')
     expect(playerBindings).not.toContain('QA_OBSERVER')
     expect(playerBindings).not.toContain('/v1/qa/')
@@ -76,10 +78,12 @@ describe('player SpacetimeDB bindings', () => {
     expect(Object.keys(connection.reducers).sort()).toEqual([
       'acceptAlphaTermsV1',
       'bootstrapPlayerV2',
+      'collectResourcesV1',
     ])
     expect(Object.keys(connection.procedures).sort()).toEqual([
       'getAlphaBackendInfo',
       'getMyAdmissionStatusV2',
+      'getMyResourceStateV1',
     ])
 
     connection.disconnect()

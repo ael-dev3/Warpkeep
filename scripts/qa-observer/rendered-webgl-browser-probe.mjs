@@ -320,7 +320,6 @@ export function renderedWebglBrowserProbeCases(port) {
     // the real player HUD rather than assuming the observer case covers it.
     Object.freeze({
       id: 'tablet-balanced-player-inspector',
-      expectedPlayerActionControlState: 'visible',
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'inspector',
@@ -393,13 +392,10 @@ export function renderedWebglBrowserProbeCases(port) {
       url: renderedWebglQaUrl({ port: selectedPort, quality: 'balanced' }),
       viewport: SHORT_LANDSCAPE_VIEWPORT,
     }),
-    // This height-specific player layout retains the compact Menu/Home rail
-    // alongside the right-docked Explorer. It is intentionally distinct from
-    // the observer Explore case, whose read-only chrome cannot prove that
-    // player controls remain usable in the same constrained viewport.
+    // The constrained player lane must open Explore through the portrait menu;
+    // no persistent player action rail is allowed back into the map viewport.
     Object.freeze({
       id: 'short-landscape-balanced-player-explore',
-      expectedPlayerActionControlState: 'visible',
       expectedPresentationMode: 'player',
       expectedQuality: 'balanced',
       interaction: 'explore',
@@ -426,10 +422,8 @@ export function renderedWebglBrowserProbeCases(port) {
       }),
       viewport: DESKTOP_VIEWPORT,
     }),
-    // The player presentation owns the mobile HUD, including the compact
-    // Menu/Home rail and Explore affordance. Keep this separate from observer
-    // cases so a change to player-only chrome cannot be masked by the
-    // intentionally read-only observer matrix.
+    // Player chrome is intentionally distinct from the read-only observer:
+    // portrait-only launcher, resource rail, and no persistent action buttons.
     Object.freeze({
       id: 'mobile-balanced-player',
       expectedPresentationMode: 'player',
@@ -735,6 +729,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'clusterRepresentativeAnchorViolationCount',
     'clustersWithinViewportCount',
     'documentWidth',
+    'directExploreControlState',
     'environmentLighting',
     'exploreAccessibleCastleCount',
     'exploreCastleCount',
@@ -768,17 +763,26 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'mapRenderer',
     'mapPresentationMode',
     'mapViewportCovered',
+    'legacyPlayerActionCount',
     'observerBadgeState',
     'presentationMode',
+    'profileMenuState',
+    'profileTriggerAvatarCount',
+    'profileTriggerCount',
+    'profileTriggerState',
+    'profileTriggerTextBearingCount',
     'quality',
     'raycastTargetCount',
     'readyAfterMilliseconds',
     'readyOverlayVisible',
-    'recenterKeepControlState',
     'renderer',
     'presentedLandscapeBaseCount',
     'presentedModelCount',
-    'returnToMenuControlState',
+    'resourceIconCount',
+    'resourceItemCount',
+    'resourceRailCount',
+    'resourceRailState',
+    'resourceZeroValueCount',
     'semanticTerrainCellCount',
     'semanticTerrainFeatureCount',
     'semanticTerrainFeatureDrawCalls',
@@ -832,14 +836,9 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   const presentationControlsMayBeOccluded = ['inspector', 'explore'].includes(
     expected.interaction
   );
-  const expectedPlayerActionControlState = expected.expectedPlayerActionControlState;
   const expectedPresentationControlStateValid = (state) => state === 'visible'
     || (presentationControlsMayBeOccluded && state === 'hidden');
-  const expectedPlayerActionControlStateValid = (state) => (
-    expectedPlayerActionControlState === undefined
-      ? expectedPresentationControlStateValid(state)
-      : state === expectedPlayerActionControlState
-  );
+  const playerPresentation = expected.expectedPresentationMode === 'player';
   const terrainBudgets = TERRAIN_PRESENTATION_BUDGETS[expected.expectedQuality];
   const violations = [
     candidate.href !== expected.url ? 'href' : '',
@@ -1006,14 +1005,34 @@ export function parseRenderedWebglBrowserDom(value, expected) {
           ? candidate.undersizedPrimaryControlKinds.join('|')
           : 'invalid'}`
       : '',
-    (expected.expectedPresentationMode === 'player'
-      ? !expectedPlayerActionControlStateValid(candidate.recenterKeepControlState)
-      : candidate.recenterKeepControlState !== 'absent')
-      ? `${expected.expectedPresentationMode}-recenter-control` : '',
-    (expected.expectedPresentationMode === 'player'
-      ? !expectedPlayerActionControlStateValid(candidate.returnToMenuControlState)
-      : candidate.returnToMenuControlState !== 'absent')
-      ? `${expected.expectedPresentationMode}-return-control` : '',
+    candidate.legacyPlayerActionCount !== 0 ? 'legacy-player-actions' : '',
+    candidate.profileMenuState !== 'absent' ? 'profile-menu-dismissal' : '',
+    (playerPresentation
+      ? candidate.profileTriggerState !== 'visible'
+      : candidate.profileTriggerState !== 'absent')
+      ? `${expected.expectedPresentationMode}-profile-trigger` : '',
+    candidate.profileTriggerAvatarCount !== (playerPresentation ? 1 : 0)
+      ? `${expected.expectedPresentationMode}-profile-avatar` : '',
+    candidate.profileTriggerCount !== (playerPresentation ? 1 : 0)
+      ? `${expected.expectedPresentationMode}-profile-trigger-count` : '',
+    candidate.profileTriggerTextBearingCount !== 0
+      ? 'profile-trigger-text' : '',
+    (playerPresentation
+      ? candidate.resourceRailState !== 'visible'
+      : candidate.resourceRailState !== 'absent')
+      ? `${expected.expectedPresentationMode}-resource-rail` : '',
+    candidate.resourceItemCount !== (playerPresentation ? 5 : 0)
+      ? `${expected.expectedPresentationMode}-resource-items` : '',
+    candidate.resourceRailCount !== (playerPresentation ? 1 : 0)
+      ? `${expected.expectedPresentationMode}-resource-rail-count` : '',
+    candidate.resourceIconCount !== (playerPresentation ? 5 : 0)
+      ? `${expected.expectedPresentationMode}-resource-icons` : '',
+    candidate.resourceZeroValueCount !== (playerPresentation ? 5 : 0)
+      ? `${expected.expectedPresentationMode}-resource-zero-values` : '',
+    (playerPresentation
+      ? candidate.directExploreControlState !== 'absent'
+      : !expectedPresentationControlStateValid(candidate.directExploreControlState))
+      ? `${expected.expectedPresentationMode}-direct-explore` : '',
     (expected.expectedPresentationMode === 'observer'
       ? !expectedPresentationControlStateValid(candidate.observerBadgeState)
       : candidate.observerBadgeState !== 'absent')
@@ -2080,6 +2099,7 @@ const READ_DOM_EXPRESSION = `(() => {
   const labelLeaderMismatchCount = individualLeaderElements.length;
   const reserved = [...document.querySelectorAll(
     '.realm-hud, .castle-inspection, .realm-hud__actions, '
+      + '.realm-profile-trigger, .realm-resource-rail, .realm-profile-menu__panel, '
       + '.realm-cell-navigator > button, .realm-cell-navigator__dialog'
   )].filter(visible).map(rect);
   let labelCollisionCount = 0;
@@ -2098,7 +2118,8 @@ const READ_DOM_EXPRESSION = `(() => {
     }
   }
   const primaryControls = [...document.querySelectorAll(
-    '.realm-hud__actions button, .realm-cell-navigator > button, '
+    '.realm-hud__actions button, .realm-profile-trigger, '
+      + '.realm-profile-menu__panel button, .realm-cell-navigator > button, '
       + '.realm-cell-navigator__dialog button, .realm-cell-navigator__dialog input, '
       + '.realm-cell-navigator__dialog a, '
       + '.castle-inspection button, .castle-inspection a, '
@@ -2119,6 +2140,9 @@ const READ_DOM_EXPRESSION = `(() => {
     && (button.getAttribute('aria-label') ?? '').trim().length > 0
     && (button.textContent ?? '').trim().length > 0
   ));
+  const profileTrigger = document.querySelector('.realm-profile-trigger');
+  const resourceRail = document.querySelector('.realm-resource-rail');
+  const resourceItems = [...(resourceRail?.querySelectorAll('li') ?? [])];
   const undersizedPrimaryControls = primaryControls.filter((control) => {
     const bounds = rect(control);
     return bounds.width < 44 || bounds.height < 44;
@@ -2239,12 +2263,32 @@ const READ_DOM_EXPRESSION = `(() => {
     ), 0),
     exploreCastleCount: exploreCastleButtons.length,
     exploreAccessibleCastleCount: exploreAccessibleCastleButtons.length,
-    recenterKeepControlState: elementState(document.querySelector(
-      'button[aria-label="Recenter Keep"]'
+    directExploreControlState: elementState(document.querySelector(
+      '.realm-cell-navigator > button'
     )),
-    returnToMenuControlState: elementState(document.querySelector(
-      'button[aria-label="Return to Menu"]'
-    )),
+    legacyPlayerActionCount: document.querySelectorAll(
+      'button[aria-label="Recenter Keep"], button[aria-label="Return to Menu"]'
+    ).length,
+    profileMenuState: elementState(document.querySelector('.realm-profile-menu__panel')),
+    profileTriggerAvatarCount: profileTrigger?.querySelectorAll('.realm-castle-avatar').length ?? 0,
+    profileTriggerCount: document.querySelectorAll('.realm-profile-trigger').length,
+    profileTriggerState: elementState(profileTrigger),
+    profileTriggerTextBearingCount: profileTrigger
+      ? [...profileTrigger.childNodes].filter((node) => (
+          node.nodeType === Node.TEXT_NODE
+            ? (node.textContent ?? '').trim().length > 0
+            : node instanceof Element && !node.classList.contains('realm-castle-avatar')
+        )).length
+      : 0,
+    resourceIconCount: resourceItems.filter((item) => (
+      item.querySelectorAll('img').length === 1
+    )).length,
+    resourceItemCount: resourceItems.length,
+    resourceRailCount: document.querySelectorAll('.realm-resource-rail').length,
+    resourceRailState: elementState(resourceRail),
+    resourceZeroValueCount: resourceItems.filter((item) => (
+      (item.querySelector('strong')?.textContent ?? '').trim() === '0'
+    )).length,
     observerBadgeState: elementState(document.querySelector('.realm-observer-hud')),
     closeQaObserverControlState: elementState(document.querySelector(
       'button[aria-label="Close QA Observer"]'
@@ -2469,8 +2513,9 @@ export async function applyRenderedWebglCastleCanvasInteraction(session) {
 /**
  * Exercises the exact player-facing failure lane: acquire a drag directly on a
  * castle label, cross the threshold in small increments, release without
- * activating the label, then wheel over the same label. A second label is used
- * as a non-identifying witness that the anchored wheel changed the camera.
+ * activating the label, then wheel over a current direct label. Page-local
+ * coordinate aggregates prove both camera changes even if projection updates
+ * remount or cull an individual label between animation frames.
  */
 export async function applyRenderedWebglMapGestureInteraction(session) {
   const initialTargetEvaluation = await session.command('Runtime.evaluate', {
@@ -2519,29 +2564,22 @@ export async function applyRenderedWebglMapGestureInteraction(session) {
         x: labelBounds.left + labelBounds.width * 0.5,
         y: labelBounds.top + labelBounds.height * 0.5,
       };
-      const witness = labels.slice(1).sort((left, right) => {
-        const leftBounds = left.getBoundingClientRect();
-        const rightBounds = right.getBoundingClientRect();
-        return Math.hypot(
-          rightBounds.left + rightBounds.width * 0.5 - labelCentre.x,
-          rightBounds.top + rightBounds.height * 0.5 - labelCentre.y
-        ) - Math.hypot(
-          leftBounds.left + leftBounds.width * 0.5 - labelCentre.x,
-          leftBounds.top + leftBounds.height * 0.5 - labelCentre.y
-        );
-      })[0];
-      if (!(witness instanceof HTMLButtonElement)) return null;
+      const labelStartPositions = Object.fromEntries(labels.flatMap((candidate) => {
+        const id = candidate.getAttribute('data-castle-id');
+        const projected = position(candidate);
+        return id && Number.isFinite(projected.x) && Number.isFinite(projected.y)
+          ? [[id, projected]]
+          : [];
+      }));
       globalThis.__warpkeepRenderedMapGesture = {
         canvas,
         dragMoved: false,
         inputClean: false,
         settled: false,
-        label,
-        labelStart: position(label),
+        labelStartPositions,
         root,
         uiStable: false,
-        witness,
-        witnessBeforeWheel: null,
+        wheelStartPositions: null,
       };
       return {
         x: Math.round(labelCentre.x * 100) / 100,
@@ -2600,7 +2638,7 @@ export async function applyRenderedWebglMapGestureInteraction(session) {
     expression: `(async () => {
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const state = globalThis.__warpkeepRenderedMapGesture;
-      if (!state || !state.label?.isConnected || !state.witness?.isConnected) return null;
+      if (!state) return null;
       const position = (label) => {
         const style = getComputedStyle(label);
         return {
@@ -2608,18 +2646,53 @@ export async function applyRenderedWebglMapGestureInteraction(session) {
           y: Number.parseFloat(style.getPropertyValue('--realm-castle-label-y')),
         };
       };
-      const labelAfterDrag = position(state.label);
-      state.dragMoved = Math.hypot(
-        labelAfterDrag.x - state.labelStart.x,
-        labelAfterDrag.y - state.labelStart.y
-      ) >= 4;
+      const currentLabels = [...document.querySelectorAll('button.realm-castle-label')]
+        .filter((label) => {
+          if (!(label instanceof HTMLButtonElement) || label.disabled) return false;
+          const bounds = label.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            bounds.left + bounds.width * 0.5,
+            bounds.top + bounds.height * 0.5
+          );
+          const projected = position(label);
+          return label.contains(hit)
+            && Number.isFinite(projected.x)
+            && Number.isFinite(projected.y);
+        });
+      if (currentLabels.length < 2) return null;
+      const currentPositions = Object.fromEntries(currentLabels.flatMap((label) => {
+        const id = label.getAttribute('data-castle-id');
+        return id ? [[id, position(label)]] : [];
+      }));
+      const maximumDisplacement = (before, after) => {
+        let maximum = -1;
+        for (const [id, point] of Object.entries(after)) {
+          const prior = before?.[id];
+          if (!prior) continue;
+          maximum = Math.max(maximum, Math.hypot(point.x - prior.x, point.y - prior.y));
+        }
+        return maximum;
+      };
+      state.dragMoved = maximumDisplacement(state.labelStartPositions, currentPositions) >= 4;
       state.inputClean = state.canvas.getAttribute('data-dragging') !== 'true'
         && !state.root.hasAttribute('data-camera-interacting');
       state.uiStable = document.querySelector('.castle-inspection') === null
         && document.querySelector('.realm-cell-navigator__dialog') === null
         && state.root.getAttribute('data-renderer') === 'webgl';
-      state.witnessBeforeWheel = position(state.witness);
-      const bounds = state.label.getBoundingClientRect();
+      state.wheelStartPositions = currentPositions;
+      const mapBounds = state.root.getBoundingClientRect();
+      currentLabels.sort((left, right) => {
+        const leftBounds = left.getBoundingClientRect();
+        const rightBounds = right.getBoundingClientRect();
+        return Math.hypot(
+          leftBounds.left + leftBounds.width * 0.5 - (mapBounds.left + mapBounds.width * 0.5),
+          leftBounds.top + leftBounds.height * 0.5 - (mapBounds.top + mapBounds.height * 0.5)
+        ) - Math.hypot(
+          rightBounds.left + rightBounds.width * 0.5 - (mapBounds.left + mapBounds.width * 0.5),
+          rightBounds.top + rightBounds.height * 0.5 - (mapBounds.top + mapBounds.height * 0.5)
+        );
+      });
+      const bounds = currentLabels[0].getBoundingClientRect();
       return {
         x: Math.round((bounds.left + bounds.width * 0.5) * 100) / 100,
         y: Math.round((bounds.top + bounds.height * 0.5) * 100) / 100,
@@ -2664,23 +2737,34 @@ export async function applyRenderedWebglMapGestureInteraction(session) {
           y: Number.parseFloat(style.getPropertyValue('--realm-castle-label-y')),
         };
       };
-      let witnessAfterWheel = state.witness?.isConnected
-        ? position(state.witness)
-        : { x: Number.NaN, y: Number.NaN };
+      const readPositions = () => Object.fromEntries(
+        [...document.querySelectorAll('button.realm-castle-label')].flatMap((label) => {
+          const id = label.getAttribute('data-castle-id');
+          const projected = position(label);
+          return id && Number.isFinite(projected.x) && Number.isFinite(projected.y)
+            ? [[id, projected]]
+            : [];
+        })
+      );
+      const maximumDisplacement = (before, after) => {
+        let maximum = -1;
+        for (const [id, point] of Object.entries(after)) {
+          const prior = before?.[id];
+          if (!prior) continue;
+          maximum = Math.max(maximum, Math.hypot(point.x - prior.x, point.y - prior.y));
+        }
+        return maximum;
+      };
+      let positionsAfterWheel = readPositions();
       let stableFrameCount = 0;
       for (let frameIndex = 0; frameIndex < 180 && stableFrameCount < 4; frameIndex += 1) {
         await new Promise((resolve) => window.requestAnimationFrame(resolve));
-        const nextWitness = state.witness?.isConnected
-          ? position(state.witness)
-          : { x: Number.NaN, y: Number.NaN };
-        const movement = Math.hypot(
-          nextWitness.x - witnessAfterWheel.x,
-          nextWitness.y - witnessAfterWheel.y
-        );
-        stableFrameCount = Number.isFinite(movement) && movement <= 0.05
+        const nextPositions = readPositions();
+        const movement = maximumDisplacement(positionsAfterWheel, nextPositions);
+        stableFrameCount = movement >= 0 && movement <= 0.05
           ? stableFrameCount + 1
           : 0;
-        witnessAfterWheel = nextWitness;
+        positionsAfterWheel = nextPositions;
       }
       const evidence = {
         dragMoved: state.dragMoved === true,
@@ -2692,14 +2776,10 @@ export async function applyRenderedWebglMapGestureInteraction(session) {
           && document.querySelector('.castle-inspection') === null
           && document.querySelector('.realm-cell-navigator__dialog') === null
           && state.root.getAttribute('data-renderer') === 'webgl',
-        wheelMoved: Number.isFinite(state.witnessBeforeWheel?.x)
-          && Number.isFinite(state.witnessBeforeWheel?.y)
-          && Number.isFinite(witnessAfterWheel.x)
-          && Number.isFinite(witnessAfterWheel.y)
-          && Math.hypot(
-            witnessAfterWheel.x - state.witnessBeforeWheel.x,
-            witnessAfterWheel.y - state.witnessBeforeWheel.y
-          ) >= 2,
+        wheelMoved: maximumDisplacement(
+          state.wheelStartPositions,
+          positionsAfterWheel
+        ) >= 2,
       };
       delete globalThis.__warpkeepRenderedMapGesture;
       return evidence;
@@ -2801,8 +2881,55 @@ export async function applyRenderedWebglLabelKeyboardInteraction(session) {
   return parseRenderedWebglLabelKeyboardEvidence(evaluation.result.value);
 }
 
-export async function applyRenderedWebglCaseInteraction(session, interaction) {
+export async function applyRenderedWebglCaseInteraction(
+  session,
+  interaction,
+  presentationMode = 'observer'
+) {
   if (interaction === 'default') return Object.freeze({});
+  if (presentationMode !== 'observer' && presentationMode !== 'player') {
+    throw new Error('Invalid rendered WebGL QA presentation mode.');
+  }
+  if (interaction === 'explore' && presentationMode === 'player') {
+    const evaluation = await session.command('Runtime.evaluate', {
+      expression: `(async () => {
+        const visible = (element) => {
+          if (!(element instanceof HTMLElement)) return false;
+          const style = getComputedStyle(element);
+          const bounds = element.getBoundingClientRect();
+          return style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && Number(style.opacity || '1') > 0
+            && bounds.width > 0
+            && bounds.height > 0;
+        };
+        const launcher = document.querySelector('.realm-profile-trigger');
+        if (!(launcher instanceof HTMLButtonElement) || launcher.disabled || !visible(launcher)) {
+          return false;
+        }
+        launcher.focus({ preventScroll: true });
+        launcher.click();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const panel = document.querySelector('.realm-profile-menu__panel');
+        const targets = [...(panel?.querySelectorAll('nav button') ?? [])].filter((button) => (
+          button instanceof HTMLButtonElement
+          && !button.disabled
+          && visible(button)
+          && (button.querySelector('strong')?.textContent ?? '').trim() === 'EXPLORE'
+        ));
+        if (targets.length !== 1) return false;
+        targets[0].focus({ preventScroll: true });
+        targets[0].click();
+        return true;
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    if (evaluation?.exceptionDetails || evaluation?.result?.value !== true) {
+      throw new Error('Rendered WebGL QA player Explore interaction failed.');
+    }
+    return Object.freeze({});
+  }
   const selector = interaction === 'inspector'
     ? 'button.realm-castle-label'
     : interaction === 'explore'
@@ -2894,7 +3021,8 @@ async function runRenderedCase(session, probeCase, state) {
   if (probeCase.interaction !== 'default') {
     const interactionEvidence = await applyRenderedWebglCaseInteraction(
       session,
-      probeCase.interaction
+      probeCase.interaction,
+      probeCase.expectedPresentationMode
     );
     if (
       probeCase.interaction === 'inspector'

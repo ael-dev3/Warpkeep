@@ -81,6 +81,24 @@ describe('shared Warpkeep surface system', () => {
     }
   });
 
+  it('keeps persistent player chrome visually unboxed until the profile menu opens', () => {
+    const source = css('src/components/realm/RealmPlayerChrome.css');
+    const profileTrigger = firstBlock(source, '.realm-profile-trigger {');
+    const resourceRail = firstBlock(source, '.realm-resource-rail {');
+    const resourceItem = firstBlock(source, '.realm-resource-rail li {');
+    const menu = firstBlock(source, '.realm-profile-menu__panel {');
+
+    expect(profileTrigger).toContain('border: 0;');
+    expect(profileTrigger).toContain('background: transparent;');
+    expect(profileTrigger).not.toContain('backdrop-filter:');
+    expect(resourceRail).toContain('border: 0;');
+    expect(resourceRail).not.toContain('backdrop-filter:');
+    expect(resourceItem).toContain('border: 0;');
+    expect(resourceItem).toContain('background: transparent;');
+    expect(menu).toContain('backdrop-filter: blur(14px);');
+    expect(menu).toContain('overflow: auto;');
+  });
+
   it('removes backdrop compositing on the performance profile and has an opaque fallback', () => {
     const source = css('src/components/WarpkeepExperience.css');
     const performance = firstBlock(
@@ -90,6 +108,7 @@ describe('shared Warpkeep surface system', () => {
 
     expect(performance).toContain('--warpkeep-surface-bg: rgba(7, 9, 15, 0.97);');
     expect(performance).toContain('--warpkeep-surface-bg-strong: #07090f;');
+    expect(source).toContain('.realm-profile-menu__panel,');
     expect(source).toMatch(
       /data-graphics-quality="performance"\] :is\([\s\S]*?\.farcaster-auth-panel,[\s\S]*?\.realm-hud,[\s\S]*?\.castle-inspection__drawer,[\s\S]*?\.realm-castle-label__plate[\s\S]*?\)\s*\{[\s\S]*?backdrop-filter:\s*none;/
     );

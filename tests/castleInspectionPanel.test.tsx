@@ -77,10 +77,16 @@ describe('CastleInspectionPanel', () => {
     const heroArt = container.querySelector<HTMLImageElement>(
       '.castle-inspection__hero-art'
     );
+    const heroArtStage = container.querySelector<HTMLElement>(
+      '.castle-inspection__hero-art-stage'
+    );
+    expect(heroArtStage).not.toBeNull();
+    expect(heroArtStage?.getAttribute('aria-hidden')).toBe('true');
     expect(heroArt).not.toBeNull();
     expect(heroArt?.getAttribute('alt')).toBe('');
     expect(heroArt?.getAttribute('aria-hidden')).toBe('true');
     expect(heroArt?.getAttribute('decoding')).toBe('async');
+    expect(heroArt?.getAttribute('draggable')).toBe('false');
     expect(heroArt?.getAttribute('width')).toBe('1254');
     expect(heroArt?.getAttribute('height')).toBe('1254');
     expect(heroArt?.getAttribute('src')).toBe('/images/realm/hegemony-castle-record.webp');

@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 
+import sharp from 'sharp';
+
 import {
   assertNoStaleAtomicFamilyTransactions,
   readContainedRegularFile
@@ -47,6 +49,89 @@ const retiredResourceRuntimePaths = Object.freeze([
   'public/images/resources/hegemony-gold.png',
   'public/images/resources/hegemony-stone.png',
   'public/images/resources/hegemony-wood.png'
+]);
+
+const resourceImageAssets = Object.freeze([
+  Object.freeze({
+    name: 'food',
+    path: 'public/images/resources/hegemony-food-c2034046ead78f5f.png',
+    size: 64,
+    format: 'png',
+    bytes: 7_567,
+    sha256: 'c2034046ead78f5f23a79ae2fb742352c8c353586d0761e63bf725054bf5d3a4',
+    decodedRgbaSha256: 'c80fc693e2b3bf56836fe7f235e4ee457f8e7203892b72139f3c98b7ee05fcad',
+    alpha: Object.freeze({ transparentPixels: 1_989, partiallyTransparentPixels: 723, opaquePixels: 1_384 })
+  }),
+  Object.freeze({
+    name: 'food',
+    path: 'public/images/resources/hegemony-food-5c012a7e939f8796.webp',
+    size: 64,
+    format: 'webp',
+    bytes: 6_314,
+    sha256: '5c012a7e939f879698921bfb2d17a1007d5635cf6bfbaa8477205cef2375c509',
+    decodedRgbaSha256: 'c80fc693e2b3bf56836fe7f235e4ee457f8e7203892b72139f3c98b7ee05fcad',
+    alpha: Object.freeze({ transparentPixels: 1_989, partiallyTransparentPixels: 723, opaquePixels: 1_384 })
+  }),
+  Object.freeze({
+    name: 'gold',
+    path: 'public/images/resources/hegemony-gold-3d087ebe1ba2beaf.png',
+    size: 64,
+    format: 'png',
+    bytes: 6_578,
+    sha256: '3d087ebe1ba2beaf5590b93fcccde998546c4eb1c5e3c124a694a85683241d9a',
+    decodedRgbaSha256: 'fc8afe04499adf8c0f0e1cb8c95e2cadb302365d9acca4e41ca595aff2caf256',
+    alpha: Object.freeze({ transparentPixels: 2_214, partiallyTransparentPixels: 620, opaquePixels: 1_262 })
+  }),
+  Object.freeze({
+    name: 'gold',
+    path: 'public/images/resources/hegemony-gold-522eb5b1f40b5d51.webp',
+    size: 64,
+    format: 'webp',
+    bytes: 5_704,
+    sha256: '522eb5b1f40b5d51395301a9f85b99e9f96008140e6c24d33c38b795546b9689',
+    decodedRgbaSha256: 'fc8afe04499adf8c0f0e1cb8c95e2cadb302365d9acca4e41ca595aff2caf256',
+    alpha: Object.freeze({ transparentPixels: 2_214, partiallyTransparentPixels: 620, opaquePixels: 1_262 })
+  }),
+  Object.freeze({
+    name: 'stone',
+    path: 'public/images/resources/hegemony-stone-e23ed963027579c7.png',
+    size: 64,
+    format: 'png',
+    bytes: 6_149,
+    sha256: 'e23ed963027579c7dd6e465414e3a171aba622d25009af9d4d1077f568fa7f7b',
+    decodedRgbaSha256: '97f48ef84d6f768f4e1b2242ae90eaa80e1aeba92de75c8c85b5843b854c0278',
+    alpha: Object.freeze({ transparentPixels: 2_360, partiallyTransparentPixels: 555, opaquePixels: 1_181 })
+  }),
+  Object.freeze({
+    name: 'stone',
+    path: 'public/images/resources/hegemony-stone-ac50a538fc202d15.webp',
+    size: 64,
+    format: 'webp',
+    bytes: 4_366,
+    sha256: 'ac50a538fc202d15b378649f4778c88d1a312bced1dd8f3f7cdbb829a50841de',
+    decodedRgbaSha256: '97f48ef84d6f768f4e1b2242ae90eaa80e1aeba92de75c8c85b5843b854c0278',
+    alpha: Object.freeze({ transparentPixels: 2_360, partiallyTransparentPixels: 555, opaquePixels: 1_181 })
+  }),
+  Object.freeze({
+    name: 'wood',
+    path: 'public/images/resources/hegemony-wood-d992823f7a7f2999.png',
+    size: 64,
+    format: 'png',
+    bytes: 5_729,
+    sha256: 'd992823f7a7f2999eff03c77f68ab0c24a952ba6018bab4ee86ccd8f2dd3f689',
+    decodedRgbaSha256: '3686140686a8801ca17fb10a12ed22368a0ad1fab5fc76a2d2b0b73cdb0d8479',
+    alpha: Object.freeze({ transparentPixels: 2_450, partiallyTransparentPixels: 510, opaquePixels: 1_136 })
+  }),
+  Object.freeze({
+    name: 'wood',
+    path: 'public/images/resources/hegemony-wood-add35506da245240.webp',
+    size: 64,
+    format: 'webp',
+    bytes: 4_386,
+    sha256: 'add35506da245240c245c8605433108b188b03c94eadab400b2cb9bab956c92c',
+    decodedRgbaSha256: '3686140686a8801ca17fb10a12ed22368a0ad1fab5fc76a2d2b0b73cdb0d8479',
+    alpha: Object.freeze({ transparentPixels: 2_450, partiallyTransparentPixels: 510, opaquePixels: 1_136 })
+  })
 ]);
 
 const imageAssets = Object.freeze([
@@ -250,6 +335,16 @@ function exactRecord(value, expected) {
     && Object.entries(expected).every(([key, entry]) => value[key] === entry);
 }
 
+function alphaProfile(raw) {
+  const profile = { transparentPixels: 0, partiallyTransparentPixels: 0, opaquePixels: 0 };
+  for (let index = 3; index < raw.length; index += 4) {
+    if (raw[index] === 0) profile.transparentPixels += 1;
+    else if (raw[index] === 255) profile.opaquePixels += 1;
+    else profile.partiallyTransparentPixels += 1;
+  }
+  return profile;
+}
+
 for (const relativePath of retiredRuntimeAssets) {
   if (lstatSync(resolve(root, relativePath), { throwIfNoEntry: false })) {
     throw new Error(`${relativePath} is a retired unresolved-rights runtime asset and must remain absent.`);
@@ -352,12 +447,48 @@ for (const [relativePath, expectedBytes, expectedHash, glb] of assets) {
 
 for (const relativePath of retiredResourceRuntimePaths) {
   if (lstatSync(resolve(root, relativePath), { throwIfNoEntry: false }) !== undefined) {
-    throw new Error(`${relativePath} must remain outside the Pages public tree.`);
+    throw new Error(`${relativePath} is an old unhashed PR #45 coordinate and must remain absent.`);
   }
+}
+
+const resourceRuntimeRoot = resolve(root, 'public/images/resources');
+assertNoStaleAtomicFamilyTransactions(
+  resourceRuntimeRoot,
+  'Hegemony resource runtime directory'
+);
+const expectedResourceNames = new Set(resourceImageAssets.map(({ path }) => basename(path)));
+const resourceEntries = readdirSync(resourceRuntimeRoot, { withFileTypes: true });
+const invalidResourceEntries = resourceEntries
+  .filter((entry) => !entry.isFile())
+  .map((entry) => entry.name)
+  .sort();
+const observedResourceNames = resourceEntries.map((entry) => entry.name).sort();
+const unknownResourceNames = observedResourceNames
+  .filter((name) => !expectedResourceNames.has(name));
+const missingResourceNames = [...expectedResourceNames]
+  .filter((name) => !observedResourceNames.includes(name))
+  .sort();
+if (
+  invalidResourceEntries.length > 0
+  || unknownResourceNames.length > 0
+  || missingResourceNames.length > 0
+) {
+  throw new Error(
+    'Hegemony resource runtime set changed: '
+    + `unknown=[${unknownResourceNames.join(',')}], missing=[${missingResourceNames.join(',')}], `
+    + `nonFiles=[${invalidResourceEntries.join(',')}].`
+  );
 }
 
 for (const [relativePath, expectedSize, format, expectedBytes, expectedHash] of [
   ...imageAssets,
+  ...resourceImageAssets.map((asset) => [
+    asset.path,
+    asset.size,
+    asset.format,
+    asset.bytes,
+    asset.sha256
+  ]),
   ...referenceImageAssets
 ]) {
   const assetKind = relativePath.startsWith('public/') ? 'runtime image' : 'reference master';
@@ -375,6 +506,10 @@ for (const [relativePath, expectedSize, format, expectedBytes, expectedHash] of 
   });
   const hash = createHash('sha256').update(bytes).digest('hex');
   if (hash !== expectedHash) throw new Error(`${relativePath} hash changed: ${hash}.`);
+  if (
+    relativePath.startsWith('public/images/resources/')
+    && !relativePath.endsWith(`-${hash.slice(0, 16)}.${format}`)
+  ) throw new Error(`${relativePath} must carry its SHA-256 prefix as an immutable cache coordinate.`);
 
   if (format === 'png') {
     if (
@@ -405,7 +540,60 @@ for (const [relativePath, expectedSize, format, expectedBytes, expectedHash] of 
   }
 }
 
+for (const [name, expectedVersion] of Object.entries({
+  sharp: '0.35.3',
+  vips: '8.18.3',
+  png: '1.6.58',
+  webp: '1.6.0'
+})) {
+  if (sharp.versions[name] !== expectedVersion) {
+    throw new Error(`Runtime image verifier requires ${name} ${expectedVersion}, received ${String(sharp.versions[name])}.`);
+  }
+}
+sharp.cache(false);
+sharp.concurrency(1);
+sharp.simd(false);
+
+const resourcePixels = new Map();
+for (const asset of resourceImageAssets) {
+  const bytes = readContainedRegularFile({
+    root,
+    relativePath: asset.path,
+    label: `${asset.path} runtime image`,
+    expectedBytes: asset.bytes
+  });
+  const image = sharp(bytes, { failOn: 'warning', limitInputPixels: asset.size ** 2 });
+  const metadata = await image.metadata();
+  if (
+    metadata.format !== asset.format
+    || metadata.width !== asset.size
+    || metadata.height !== asset.size
+    || metadata.channels !== 4
+    || metadata.depth !== 'uchar'
+    || metadata.hasAlpha !== true
+    || (asset.format === 'png' && metadata.bitsPerSample !== 8)
+  ) throw new Error(`${asset.path} decoder metadata changed: ${JSON.stringify(metadata)}.`);
+
+  const raw = await image.ensureAlpha().raw().toBuffer();
+  const decodedHash = createHash('sha256').update(raw).digest('hex');
+  if (decodedHash !== asset.decodedRgbaSha256) {
+    throw new Error(`${asset.path} decoded RGBA hash changed: ${decodedHash}.`);
+  }
+  if (!exactRecord(alphaProfile(raw), asset.alpha)) {
+    throw new Error(`${asset.path} alpha profile changed.`);
+  }
+
+  const prior = resourcePixels.get(asset.name);
+  if (prior && !prior.equals(raw)) {
+    throw new Error(`${asset.name} PNG and lossless WebP decoded pixels differ.`);
+  }
+  resourcePixels.set(asset.name, raw);
+}
+if (resourcePixels.size !== 4) {
+  throw new Error('The reviewed resource runtime family must contain exactly four pixel-equivalent PNG/WebP pairs.');
+}
+
 console.log(
-  `Verified ${assets.length + imageAssets.length} exact runtime assets and `
-  + `${referenceImageAssets.length} dormant reference masters.`
+  `Verified ${assets.length + imageAssets.length + resourceImageAssets.length} exact runtime assets and `
+  + `${referenceImageAssets.length} exact provenance reference masters.`
 );
