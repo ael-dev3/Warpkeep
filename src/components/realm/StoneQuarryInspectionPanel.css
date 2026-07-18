@@ -1,0 +1,67 @@
+/* The Quarry reuses the resilient inspection shell while remaining a strictly
+ * decorative, unmounted visual record until an authoritative Stone site exists. */
+.stone-quarry-inspection {
+  --stone-quarry-accent: #62c7cc;
+  --stone-quarry-bright: #c6f4ee;
+}
+
+.stone-quarry-inspection .gold-mine-inspection__drawer {
+  border-color: rgb(105 204 207 / 54%);
+}
+
+.stone-quarry-inspection .gold-mine-inspection__hero {
+  background:
+    radial-gradient(circle at 50% 6%, rgb(129 216 215 / 28%), transparent 39%),
+    radial-gradient(circle at 50% 100%, rgb(56 107 107 / 28%), transparent 50%),
+    linear-gradient(165deg, #253a3d 0%, #132125 57%, #0b0d11 100%);
+}
+
+.stone-quarry-inspection .gold-mine-inspection__hero::after {
+  background: linear-gradient(180deg, transparent, rgb(8 13 16 / 88%) 78%, rgb(8 12 14 / 98%));
+}
+
+.stone-quarry-inspection .gold-mine-inspection__title-lockup::before {
+  background: linear-gradient(90deg, transparent, rgb(117 216 216 / 82%), transparent);
+}
+
+.stone-quarry-inspection .gold-mine-inspection__title-lockup p,
+.stone-quarry-inspection .gold-mine-inspection__field dd {
+  color: var(--stone-quarry-bright);
+}
+
+.stone-quarry-inspection .gold-mine-inspection__title-lockup h2 {
+  color: #ecffff;
+}
+
+.stone-quarry-inspection .gold-mine-inspection__dismiss {
+  border-color: rgb(153 238 236 / 54%);
+}
+
+.stone-quarry-inspection .gold-mine-inspection__dismiss:hover,
+.stone-quarry-inspection .gold-mine-inspection__dismiss:focus-visible {
+  border-color: #d5ffff;
+  outline-color: #c6f4ee;
+}
+
+.stone-quarry-inspection .gold-mine-inspection__description {
+  border-left-color: rgb(108 204 207 / 68%);
+  background: linear-gradient(90deg, rgb(60 148 151 / 26%), transparent);
+}
+
+.stone-quarry-inspection .gold-mine-inspection__fields {
+  border-color: rgb(133 219 218 / 22%);
+  background: rgb(191 255 251 / 5%);
+}
+
+.stone-quarry-inspection__art-stage {
+  background: radial-gradient(circle at 50% 60%, rgb(93 193 191 / 26%), transparent 62%);
+}
+
+.stone-quarry-inspection__hero-art {
+  filter:
+    drop-shadow(0 0.25rem 0.22rem rgb(129 223 219 / 20%))
+    drop-shadow(0 0.9rem 1rem rgb(0 0 0 / 62%));
+  object-fit: contain;
+  transform: translateY(0.1rem) scale(1.55);
+  transform-origin: 50% 50%;
+}

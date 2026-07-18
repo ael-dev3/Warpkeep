@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-stone-quarry-record-art-v1",
+  "recordedAt": "2026-07-18",
+  "purpose": "Transparent decorative Stone Quarry art for the prepared, unmounted Stone Quarry inspection card",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-18",
+    "scope": "Warpkeep draft PR #59 preparation and use of the background-cleaned derivative in the public Warpkeep GitHub repository, plus an eventual official warpkeep.com Pages runtime only after separately approved deployment. This is use authorization only, not deployment approval.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "Stone-site placement, renderer, server, browser-derived balance, gathering, reward, or entitlement authority"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "user-supplied visual reference",
+      "repositoryRetained": false,
+      "originalName": "codex-clipboard-7ad93a24-af82-424c-b964-1dbe1af9697c.png",
+      "bytes": 749278,
+      "sha256": "968a6d77a161f866ed46aa4d564d022daa51fa2fbc7961c1fd0bab1bd8f74d2f",
+      "decodedRgbaSha256": "f6c149ed92f7db3f5f03910ad7cb9535c41d23337d0126d8068a03022dbb6469",
+      "image": {
+        "format": "png",
+        "width": 1024,
+        "height": 1024,
+        "alpha": true
+      }
+    }
+  ],
+  "generation": {
+    "service": "OpenAI image generation edit (built-in Codex imagegen)",
+    "prompt": "Use case: background-extraction\nAsset type: high-resolution in-game Stone Quarry inspection-panel artwork.\nInput image: Image 1 is the edit target and visual reference.\nPrimary request: Preserve the supplied stylized 3D Stone Quarry illustration exactly in spirit and composition: stacked pale stone blocks, timber quarry hoist, small mine cart, workbench, teal sign, grass-and-dirt base, and warm low poly game-material style. Create a crisp, polished, high-detail square UI asset based on it.\nScene/backdrop: replace only the opaque black background with a perfectly flat solid #00ff00 chroma-key background for later background removal. No ground plane outside the illustrated base.\nComposition/framing: centered 3/4 isometric view, entire quarry and base visible, generous even padding, no cropping.\nLighting/mood: retain soft studio daylight with clean pale stone and warm timber.\nConstraints: keep the quarry recognizable and do not add people, buildings, text, logos, badges, watermark, UI frame, or new game symbols. The #00ff00 background must be one uniform color with no shadow, gradient, texture, reflection, floor, or lighting variation. Do not use #00ff00 in the quarry itself.",
+    "intermediateRetained": false,
+    "intermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1514501,
+      "sha256": "a53220dd4f848fd3193107ac73616fc1e954aa9cb7624c6a5b6fc70e6f81cc63",
+      "alpha": false
+    }
+  },
+  "backgroundCleanup": {
+    "tool": "Codex imagegen remove_chroma_key.py",
+    "runtime": "Python 3 with Pillow 12.2.0",
+    "sampleMode": "border median",
+    "sampledKey": "#09f712",
+    "softMatte": true,
+    "transparentThreshold": 12,
+    "opaqueThreshold": 220,
+    "edgeContractPixels": 0,
+    "edgeFeatherRadius": 0,
+    "despill": true,
+    "matteIntermediateRetained": false,
+    "matteIntermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 971515,
+      "sha256": "4890c895a39d7b00945cf909d78b47a748c0858febbb15314bd224e280b1b956",
+      "decodedRgbaSha256": "3128c53fca0a36281a9acf5053a0261e3b7f37cd2a269d0373be2a53694273eb",
+      "alpha": true
+    },
+    "outputEncoding": "sharp 0.35.3 WebP quality 92, alphaQuality 100, effort 6"
+  },
+  "runtimeAsset": {
+    "path": "public/images/realm/hegemony-stone-quarry-record.webp",
+    "format": "webp",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 134508,
+    "sha256": "58725387db6218ccd5f47aea46a22db80161b232e6bb4de6f60c21068efe40fd",
+    "decodedRgbaSha256": "dabda3c540e5dff8ab5727c6c13ee4c77f4e188b6c9a2f5bc77c36b56caae019",
+    "alpha": {
+      "transparentPixels": 1078736,
+      "partiallyTransparentPixels": 5760,
+      "opaquePixels": 488020
+    },
+    "visibleBoundsAlpha16": {
+      "minX": 93,
+      "minY": 227,
+      "maxX": 1219,
+      "maxY": 989
+    },
+    "delivery": "same-origin checked-in runtime asset; no external CDN"
+  },
+  "presentationBoundary": {
+    "component": "src/components/realm/StoneQuarryInspectionPanel.tsx",
+    "currentRealmMount": "not mounted; a separate reviewed authoritative Stone-site integration is required",
+    "currentNodePlacement": "none — visual record only",
+    "forbiddenClaims": [
+      "player inventory",
+      "reserve amount",
+      "owner",
+      "browser-derived gathering authority",
+      "reward",
+      "Marks linkage"
+    ]
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes this Warpkeep runtime use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "backgroundRemoved": true,
+    "fineSilhouettePreserved": true,
+    "reviewedOnTransparentViewer": true,
+    "referenceScreenshotsRetained": false
+  }
+}

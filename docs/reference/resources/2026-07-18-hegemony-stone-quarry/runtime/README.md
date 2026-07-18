@@ -16,3 +16,8 @@ This work intentionally adds no Stone-site catalog, local preview placement,
 client scene layer, economy, worker, reward, route, schema, seed, or server
 authority. See manifest.json for exact source and output hashes, bounds,
 orientation, collision guidance, and the narrow authorization boundary.
+
+The companion [inspection-art record](../record-art/README.md) tracks a
+separate high-resolution, decorative UI element. Its prepared panel remains
+unmounted until a separately reviewed authoritative Stone-site integration; it
+does not alter this asset-only runtime contract.
