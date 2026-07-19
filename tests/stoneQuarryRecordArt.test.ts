@@ -80,7 +80,7 @@ function visibleBounds(raw: Buffer, width: number, height: number) {
 describe('Hegemony Stone Quarry record art', () => {
   it('pins the narrow UI authorization while keeping gameplay server-owned', () => {
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.projectAuthorization.scope).toContain('PR #59');
+    expect(manifest.projectAuthorization.scope).toContain('PR #65');
     expect(manifest.projectAuthorization.scope).toContain('public Warpkeep GitHub repository');
     expect(manifest.projectAuthorization.scope).toContain('official warpkeep.com Pages runtime');
     expect(manifest.projectAuthorization.notGranted.join(' ')).toMatch(

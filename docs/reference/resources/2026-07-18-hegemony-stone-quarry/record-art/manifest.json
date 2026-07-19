@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "id": "hegemony-stone-quarry-record-art-v1",
-  "recordedAt": "2026-07-18",
+  "id": "hegemony-stone-quarry-record-art-v2",
+  "recordedAt": "2026-07-19",
   "purpose": "Transparent decorative Stone Quarry art for the Stone Quarry inspection card",
   "projectAuthorization": {
     "authorizedBy": "Warpkeep project owner",
-    "instructionDate": "2026-07-18",
-    "scope": "Warpkeep draft PR #59 preparation and use of the background-cleaned derivative in the public Warpkeep GitHub repository, plus an eventual official warpkeep.com Pages runtime only after separately approved deployment. This is use authorization only, not deployment approval.",
+    "instructionDate": "2026-07-19",
+    "scope": "Warpkeep draft PR #65 preparation and use of the background-cleaned derivative in the public Warpkeep GitHub repository, plus an eventual official warpkeep.com Pages runtime only after separately approved deployment. This is use authorization only, not deployment approval.",
     "notGranted": [
       "proof of underlying copyright ownership",
       "a public open-content licence",
@@ -19,10 +19,10 @@
     {
       "role": "user-supplied visual reference",
       "repositoryRetained": false,
-      "originalName": "codex-clipboard-7ad93a24-af82-424c-b964-1dbe1af9697c.png",
-      "bytes": 749278,
-      "sha256": "968a6d77a161f866ed46aa4d564d022daa51fa2fbc7961c1fd0bab1bd8f74d2f",
-      "decodedRgbaSha256": "f6c149ed92f7db3f5f03910ad7cb9535c41d23337d0126d8068a03022dbb6469",
+      "originalName": "codex-clipboard-dd6e3549-74f2-46a0-a19c-8640170a4beb.png",
+      "bytes": 693090,
+      "sha256": "1c554006ac5c036a1d781ed6d1a5f70f4e305478340fb79b185f14b72088f9e4",
+      "decodedRgbaSha256": "d16cbc793e5f2774cffb12c13ac19c36bc3b8586afb6beaee651d0e64a5768c0",
       "image": {
         "format": "png",
         "width": 1024,
@@ -33,22 +33,22 @@
   ],
   "generation": {
     "service": "OpenAI image generation edit (built-in Codex imagegen)",
-    "prompt": "Use case: background-extraction\nAsset type: high-resolution in-game Stone Quarry inspection-panel artwork.\nInput image: Image 1 is the edit target and visual reference.\nPrimary request: Preserve the supplied stylized 3D Stone Quarry illustration exactly in spirit and composition: stacked pale stone blocks, timber quarry hoist, small mine cart, workbench, teal sign, grass-and-dirt base, and warm low poly game-material style. Create a crisp, polished, high-detail square UI asset based on it.\nScene/backdrop: replace only the opaque black background with a perfectly flat solid #00ff00 chroma-key background for later background removal. No ground plane outside the illustrated base.\nComposition/framing: centered 3/4 isometric view, entire quarry and base visible, generous even padding, no cropping.\nLighting/mood: retain soft studio daylight with clean pale stone and warm timber.\nConstraints: keep the quarry recognizable and do not add people, buildings, text, logos, badges, watermark, UI frame, or new game symbols. The #00ff00 background must be one uniform color with no shadow, gradient, texture, reflection, floor, or lighting variation. Do not use #00ff00 in the quarry itself.",
+    "prompt": "Use case: background-extraction\nAsset type: high-resolution in-game Stone Quarry inspection-panel artwork\nInput images: Image 1 is the edit target and visual reference; preserve its subject identity and overall composition.\nPrimary request: Create a crisp, polished, high-detail square Stone Quarry cutout for a fantasy strategy-game inspection panel. Preserve the supplied quarry scene: stacked pale stone blocks, timber quarry hoist, small mine cart, workbench, teal sign, scattered stones, grass-and-dirt base, and warm low-poly 3D game-material style. Improve edge quality and material detail while keeping the same readable 3/4 isometric composition and no extra objects.\nScene/backdrop: perfectly flat solid #00ff00 chroma-key background for later alpha extraction. The background must be one uniform color with no shadows, gradients, texture, floor plane, reflection, vignette, or lighting variation.\nComposition/framing: centered subject, full quarry and ground base visible, generous even transparent-safe padding on every side, no cropping.\nLighting/mood: soft studio daylight, pale stone, warm timber, clean readable silhouette.\nConstraints: do not add people, buildings, text, logos, badges, watermark, UI frame, or new game symbols. Do not use #00ff00 anywhere in the quarry itself. Keep the quarry fully separated from the background with crisp antialiased edges and no cast/contact shadow.",
     "intermediateRetained": false,
     "intermediate": {
       "format": "png",
       "width": 1254,
       "height": 1254,
-      "bytes": 1514501,
-      "sha256": "a53220dd4f848fd3193107ac73616fc1e954aa9cb7624c6a5b6fc70e6f81cc63",
+      "bytes": 1730777,
+      "sha256": "f733afcd9c763c2519baee9cf77ae2d39440a1c17d2c9b8390e4c7b3a9d66d8d",
       "alpha": false
     }
   },
   "backgroundCleanup": {
     "tool": "Codex imagegen remove_chroma_key.py",
-    "runtime": "Python 3 with Pillow 12.2.0",
+    "runtime": "Python 3 with Pillow 11.3.0",
     "sampleMode": "border median",
-    "sampledKey": "#09f712",
+    "sampledKey": "#09f60e",
     "softMatte": true,
     "transparentThreshold": 12,
     "opaqueThreshold": 220,
@@ -60,9 +60,9 @@
       "format": "png",
       "width": 1254,
       "height": 1254,
-      "bytes": 971515,
-      "sha256": "4890c895a39d7b00945cf909d78b47a748c0858febbb15314bd224e280b1b956",
-      "decodedRgbaSha256": "3128c53fca0a36281a9acf5053a0261e3b7f37cd2a269d0373be2a53694273eb",
+      "bytes": 1260795,
+      "sha256": "442093b4372791ce5d0c38364f91a29b1cc0a2bdee9dfe53c477b54f65736975",
+      "decodedRgbaSha256": "d2202aafa6517b907dc890ed653f99c75b2ef38c566ed373ed44410ae7cf7329",
       "alpha": true
     },
     "outputEncoding": "sharp 0.35.3 WebP quality 92, alphaQuality 100, effort 6"
@@ -72,19 +72,19 @@
     "format": "webp",
     "width": 1254,
     "height": 1254,
-    "bytes": 134508,
-    "sha256": "58725387db6218ccd5f47aea46a22db80161b232e6bb4de6f60c21068efe40fd",
-    "decodedRgbaSha256": "dabda3c540e5dff8ab5727c6c13ee4c77f4e188b6c9a2f5bc77c36b56caae019",
+    "bytes": 186736,
+    "sha256": "86b13c14a0eda7403c3583d886be3242e04d7ef9e442fcfdbcc054642421a70a",
+    "decodedRgbaSha256": "fe834f7d3bda1e980c3ba3f7ce653b27b5108d1d9f42e0b709d0e9bbe606d737",
     "alpha": {
-      "transparentPixels": 1078736,
-      "partiallyTransparentPixels": 5760,
-      "opaquePixels": 488020
+      "transparentPixels": 987016,
+      "partiallyTransparentPixels": 7749,
+      "opaquePixels": 577751
     },
     "visibleBoundsAlpha16": {
-      "minX": 93,
-      "minY": 227,
-      "maxX": 1219,
-      "maxY": 989
+      "minX": 66,
+      "minY": 156,
+      "maxX": 1247,
+      "maxY": 990
     },
     "delivery": "same-origin checked-in runtime asset; no external CDN"
   },

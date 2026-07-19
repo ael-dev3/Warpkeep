@@ -7,8 +7,8 @@ chroma-matte intermediate remain outside the repository; their hashes,
 dimensions, and complete bounded transformation are retained in
 [`manifest.json`](manifest.json).
 
-On 18 July 2026, the Warpkeep project owner supplied the Quarry visual and
-instructed draft PR #59 to add a polished high-resolution UI element similar to
+On 19 July 2026, the Warpkeep project owner supplied the Quarry visual and
+instructed draft PR #65 to add a polished high-resolution UI element similar to
 the reviewed inspection-art pattern. That authorization covers this exact
 checked-in derivative in the public Warpkeep GitHub repository and an eventual
 official `warpkeep.com` Pages runtime only after separately approved deployment.
@@ -20,12 +20,12 @@ derivative, redistribution, trademark, or canonical-identity rights.
 
 | File | Dimensions | Bytes | SHA-256 |
 | --- | ---: | ---: | --- |
-| `public/images/realm/hegemony-stone-quarry-record.webp` | 1254×1254 | 134,508 | `58725387db6218ccd5f47aea46a22db80161b232e6bb4de6f60c21068efe40fd` |
+| `public/images/realm/hegemony-stone-quarry-record.webp` | 1254×1254 | 186,736 | `86b13c14a0eda7403c3583d886be3242e04d7ef9e442fcfdbcc054642421a70a` |
 
 The rendered Quarry was placed on a flat chroma-green field, then a recorded
 soft chroma matte removed the field and despilled the edge. The decoded result
-has 1,078,736 fully transparent, 5,760 partially transparent, and 488,020
-opaque pixels. Its alpha-16 visible bounds are `x=93..1219`, `y=227..989`,
+has 987,016 fully transparent, 7,749 partially transparent, and 577,751
+opaque pixels. Its alpha-16 visible bounds are `x=66..1247`, `y=156..990`,
 leaving transparent breathing room around the quarry, hoist, cart, workbench,
 and ground silhouette.
 

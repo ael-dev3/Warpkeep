@@ -15,8 +15,8 @@ const sourcePath = process.env.WARPKEEP_STONE_QUARRY_RECORD_ART_SOURCE
   : undefined;
 
 const SOURCE = Object.freeze({
-  bytes: 971_515,
-  sha256: '4890c895a39d7b00945cf909d78b47a748c0858febbb15314bd224e280b1b956',
+  bytes: 1_260_795,
+  sha256: '442093b4372791ce5d0c38364f91a29b1cc0a2bdee9dfe53c477b54f65736975',
   width: 1_254,
   height: 1_254
 });
@@ -24,11 +24,11 @@ const SOURCE = Object.freeze({
 const RUNTIME_ASSET = Object.freeze({
   directory: 'public/images/realm',
   filename: 'hegemony-stone-quarry-record.webp',
-  bytes: 134_508,
-  sha256: '58725387db6218ccd5f47aea46a22db80161b232e6bb4de6f60c21068efe40fd',
+  bytes: 186_736,
+  sha256: '86b13c14a0eda7403c3583d886be3242e04d7ef9e442fcfdbcc054642421a70a',
   width: 1_254,
   height: 1_254,
-  decodedRgbaSha256: 'dabda3c540e5dff8ab5727c6c13ee4c77f4e188b6c9a2f5bc77c36b56caae019'
+  decodedRgbaSha256: 'fe834f7d3bda1e980c3ba3f7ce653b27b5108d1d9f42e0b709d0e9bbe606d737'
 });
 
 function sha256(bytes) {
