@@ -875,6 +875,8 @@ function initializeRealmScene(
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const lighting = REALM_LIGHTING_SPECS[options.quality.id];
   renderer.toneMappingExposure = lighting.toneMappingExposure;
+  const rendererContext = typeof renderer.getContext === 'function' ? renderer.getContext() : null;
+  const grassAlphaToCoverage = rendererContext?.getContextAttributes?.()?.antialias === true;
   options.canvas.dataset.realmLighting = REALM_CASTLE_READABILITY_LIGHTING.revision;
   renderer.shadowMap.enabled = renderPlan.dynamicShadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -1111,7 +1113,8 @@ function initializeRealmScene(
       ]),
       plan: renderPlan.grass,
       reducedMotion: options.reducedMotion,
-      hexSize: HEX_SIZE
+      hexSize: HEX_SIZE,
+      alphaToCoverage: grassAlphaToCoverage
     });
     cleanup.add(grassLayer.dispose);
     scene.add(grassLayer.group);
@@ -1124,11 +1127,22 @@ function initializeRealmScene(
     candidateCellCount: 0,
     activeCellCount: 0,
     instanceCount: 0,
+    bladeCount: 0,
     triangleCount: 0,
     drawCalls: 0,
+    variantCounts: Object.freeze([]),
     cacheEntries: 0,
     animated: false,
     targetAnimationCadence: renderPlan.grass.animationFrameCap,
+    averageRetainedPatchesPerActiveCell: 0,
+    averagePatchFootprint: 0,
+    averageBladeHeight: 0,
+    paletteLuminanceMin: 0,
+    paletteLuminanceMax: 0,
+    alphaHashActive: true,
+    alphaToCoverageActive: grassAlphaToCoverage,
+    shaderFallbackActive: false,
+    edgeFadeCount: 0,
     countsByTerrain: Object.freeze({
       meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
       'ancient-stone': 0, apron: 0

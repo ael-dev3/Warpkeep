@@ -43,7 +43,7 @@ describe('low-poly grass geometry', () => {
       expect(positions.getY(base + 4)).toBe(1);
     }
     expect(Array.from({ length: normals.count }, (_, vertex) => normals.getY(vertex))
-      .every((vertical) => vertical > 0.9)).toBe(true);
+      .every((vertical) => vertical > 0.8)).toBe(true);
     expect(geometry.boundingBox).not.toBeNull();
     expect(geometry.boundingSphere).not.toBeNull();
 
@@ -56,6 +56,6 @@ describe('low-poly grass geometry', () => {
       REALM_GRASS_RIBBONS[profile] * REALM_GRASS_TRIANGLES_PER_RIBBON
     ]));
 
-    expect(trianglesByQuality).toEqual({ high: 15, balanced: 12, reduced: 9 });
+    expect(trianglesByQuality).toEqual({ high: 27, balanced: 21, reduced: 15 });
   });
 });

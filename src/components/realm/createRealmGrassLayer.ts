@@ -13,7 +13,12 @@ import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 import type { RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
 import { createDeterministicBudgetCollector } from '../../game/map/deterministicBudget';
-import { createLowPolyGrassGeometry, REALM_GRASS_TRIANGLES_PER_RIBBON } from './createLowPolyGrassGeometry';
+import {
+  createLowPolyGrassGeometry,
+  REALM_GRASS_BLADES_PER_PATCH,
+  REALM_GRASS_TRIANGLES_PER_PATCH,
+  REALM_GRASS_VARIANT_COUNTS
+} from './createLowPolyGrassGeometry';
 import { createRealmGrassMaterial, REALM_GRASS_MAX_WIND_SWAY } from './createRealmGrassMaterial';
 import {
   createRealmGrassCellCache,
@@ -28,11 +33,22 @@ export type RealmGrassTelemetry = Readonly<{
   candidateCellCount: number;
   activeCellCount: number;
   instanceCount: number;
+  bladeCount: number;
   triangleCount: number;
   drawCalls: number;
+  variantCounts: readonly number[];
   cacheEntries: number;
   animated: boolean;
   targetAnimationCadence: number;
+  averageRetainedPatchesPerActiveCell: number;
+  averagePatchFootprint: number;
+  averageBladeHeight: number;
+  paletteLuminanceMin: number;
+  paletteLuminanceMax: number;
+  alphaHashActive: boolean;
+  alphaToCoverageActive: boolean;
+  shaderFallbackActive: boolean;
+  edgeFadeCount: number;
   countsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   completelyBareActiveCells: number;
   rejectedByStructureClearance: number;
@@ -49,11 +65,14 @@ export type CreateRealmGrassLayerOptions = Readonly<{
   plan: RealmGrassRenderPlan;
   reducedMotion: boolean;
   hexSize?: number;
+  alphaToCoverage?: boolean;
 }>;
 
 export type RealmGrassLayer = Readonly<{
   group: THREE.Group;
+  /** Primary mesh retained for existing scene/test callers. */
   mesh: THREE.InstancedMesh;
+  meshes: readonly THREE.InstancedMesh[];
   updateView: (focus: HexWorldPosition, mode: RealmGrassCameraMode) => boolean;
   updateWind: (seconds: number) => boolean;
   setInteraction: (selected: HexCoord | null, hovered: HexCoord | null) => void;
@@ -81,16 +100,27 @@ function emptyCounts(): Record<RealmGrassTerrainKind, number> {
   };
 }
 
-function emptyTelemetry(plan: RealmGrassRenderPlan): RealmGrassTelemetry {
+function emptyTelemetry(plan: RealmGrassRenderPlan, alphaToCoverage = false): RealmGrassTelemetry {
   return Object.freeze({
     candidateCellCount: 0,
     activeCellCount: 0,
     instanceCount: 0,
+    bladeCount: 0,
     triangleCount: 0,
     drawCalls: 0,
+    variantCounts: Object.freeze([]),
     cacheEntries: 0,
     animated: false,
     targetAnimationCadence: plan.animationFrameCap,
+    averageRetainedPatchesPerActiveCell: 0,
+    averagePatchFootprint: 0,
+    averageBladeHeight: 0,
+    paletteLuminanceMin: 0,
+    paletteLuminanceMax: 0,
+    alphaHashActive: true,
+    alphaToCoverageActive: alphaToCoverage,
+    shaderFallbackActive: false,
+    edgeFadeCount: 0,
     countsByTerrain: Object.freeze(emptyCounts()),
     completelyBareActiveCells: 0,
     rejectedByStructureClearance: 0,
@@ -103,10 +133,20 @@ function safeCapacity(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
 }
 
+function createAttributeSet(capacity: number) {
+  return {
+    phase: new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1),
+    stiffness: new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1),
+    windScale: new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1),
+    cell: new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2),
+    edgeFade: new THREE.InstancedBufferAttribute(new Float32Array(capacity), 1)
+  };
+}
+
 /**
- * Owns one fixed-capacity instance pool. It never scans the entire Realm or
+ * Owns bounded variant instance pools. It never scans the entire Realm or
  * reallocates on camera frames; only a meaningful active-window transition
- * writes matrices/attributes. Wind advances a single material uniform.
+ * writes matrices/attributes. Wind advances a single shared material uniform.
  */
 export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): RealmGrassLayer {
   const plan = options.plan;
@@ -115,32 +155,40 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   const exclusionIndex = createRealmGrassExclusionIndex(options.exclusions ?? [], hexSize);
   const group = new THREE.Group();
   group.name = 'realm-procedural-biome-grass';
-  const geometry = createLowPolyGrassGeometry(plan.geometryProfile);
+  const variantCount = REALM_GRASS_VARIANT_COUNTS[plan.geometryProfile];
+  // Floor keeps the sum of variant pools at or below the quality ceiling.
+  const variantCapacity = Math.max(1, Math.floor(Math.max(1, capacity) / variantCount));
   const materialLayer = createRealmGrassMaterial(
     plan.windStrengthMultiplier,
-    !options.reducedMotion && plan.animationFrameCap > 0
+    !options.reducedMotion && plan.animationFrameCap > 0,
+    options.alphaToCoverage ?? false
   );
-  const mesh = new THREE.InstancedMesh(geometry, materialLayer.material, Math.max(1, capacity));
-  mesh.name = 'realm-procedural-biome-grass-clumps';
-  mesh.count = 0;
-  mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-  mesh.castShadow = false;
-  mesh.receiveShadow = false;
-  mesh.frustumCulled = false;
-  // Decorative blades must never intercept terrain/castle interaction rays.
-  mesh.raycast = () => {};
-  group.add(mesh);
-
-  const phaseAttribute = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, capacity)), 1);
-  const stiffnessAttribute = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, capacity)), 1);
-  const windScaleAttribute = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, capacity)), 1);
-  const cellAttribute = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, capacity) * 2), 2);
-  const edgeFadeAttribute = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, capacity)), 1);
-  geometry.setAttribute('grassPhase', phaseAttribute);
-  geometry.setAttribute('grassStiffness', stiffnessAttribute);
-  geometry.setAttribute('grassWindScale', windScaleAttribute);
-  geometry.setAttribute('grassCell', cellAttribute);
-  geometry.setAttribute('grassEdgeFade', edgeFadeAttribute);
+  const geometries = Array.from({ length: variantCount }, (_, variant) =>
+    createLowPolyGrassGeometry(plan.geometryProfile, variant)
+  );
+  const attributes = geometries.map((geometry) => {
+    const set = createAttributeSet(variantCapacity);
+    geometry.setAttribute('grassPhase', set.phase);
+    geometry.setAttribute('grassStiffness', set.stiffness);
+    geometry.setAttribute('grassWindScale', set.windScale);
+    geometry.setAttribute('grassCell', set.cell);
+    geometry.setAttribute('grassEdgeFade', set.edgeFade);
+    return set;
+  });
+  const meshes = geometries.map((geometry, variant) => {
+    const mesh = new THREE.InstancedMesh(geometry, materialLayer.material, variantCapacity);
+    mesh.name = `realm-procedural-biome-grass-variant-${variant}`;
+    mesh.count = 0;
+    mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.frustumCulled = false;
+    // Decorative blades must never intercept terrain/castle interaction rays.
+    mesh.raycast = () => {};
+    group.add(mesh);
+    return mesh;
+  });
+  const mesh = meshes[0]!;
 
   const cache = createRealmGrassCellCache<RealmGrassCellData>(plan.cacheLimit);
   const matrix = new THREE.Matrix4();
@@ -150,7 +198,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   const axis = new THREE.Vector3(0, 1, 0);
   const tint = new THREE.Color();
   let currentWindow: RealmGrassActiveWindow | null = null;
-  let telemetry = emptyTelemetry(plan);
+  let telemetry = emptyTelemetry(plan, options.alphaToCoverage ?? false);
   let disposed = false;
 
   const cellDataFor = (cell: RealmGrassActiveWindow['cells'][number]['cell']) => {
@@ -176,32 +224,38 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   };
 
   const updateBounds = () => {
-    mesh.computeBoundingBox();
-    if (mesh.boundingBox) mesh.boundingBox.expandByScalar(REALM_GRASS_MAX_WIND_SWAY);
-    mesh.computeBoundingSphere();
-    if (mesh.boundingSphere) mesh.boundingSphere.radius += REALM_GRASS_MAX_WIND_SWAY;
+    meshes.forEach((currentMesh) => {
+      currentMesh.computeBoundingBox();
+      if (currentMesh.boundingBox) currentMesh.boundingBox.expandByScalar(REALM_GRASS_MAX_WIND_SWAY);
+      currentMesh.computeBoundingSphere();
+      if (currentMesh.boundingSphere) currentMesh.boundingSphere.radius += REALM_GRASS_MAX_WIND_SWAY;
+    });
   };
 
   const repack = (window: RealmGrassActiveWindow) => {
     if (window.overviewHidden || !plan.enabled || capacity === 0) {
-      mesh.count = 0;
+      meshes.forEach((currentMesh) => {
+        currentMesh.count = 0;
+      });
       group.visible = false;
       materialLayer.setVisible(false);
       telemetry = Object.freeze({
-        ...emptyTelemetry(plan),
+        ...emptyTelemetry(plan, options.alphaToCoverage ?? false),
         cacheEntries: cache.size,
         overviewHidden: true
       });
       return;
     }
-    const collector = createDeterministicBudgetCollector<PackedPoint>(capacity);
+    const collectors = Array.from({ length: variantCount }, () =>
+      createDeterministicBudgetCollector<PackedPoint>(variantCapacity)
+    );
     let order = 0;
     let completelyBareActiveCells = 0;
     let rejectedByStructureClearance = 0;
     let rejectedBySlope = 0;
     window.cells.forEach((activeCell) => {
-      // At zero fade the opaque geometry would collapse at ground level. Do
-      // not spend cache/instance capacity on that invisible boundary ring.
+      // At zero fade the alpha-hashed geometry is fully discarded. Do not
+      // spend cache/instance capacity on that invisible boundary ring.
       if (activeCell.edgeFade <= 0) return;
       const data = cellDataFor(activeCell.cell);
       if (data.completelyBare) completelyBareActiveCells += 1;
@@ -209,53 +263,94 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       rejectedBySlope += data.rejectedBySlope;
       const distance = window.anchor ? hexDistance(window.anchor, data.coord) : 0;
       data.points.forEach((point) => {
-        collector.add({
-          value: Object.freeze({ point, edgeFade: activeCell.edgeFade, distance }),
+        collectors[point.variant % variantCount]!.add({
+          value: Object.freeze({
+            point,
+            edgeFade: activeCell.edgeFade,
+            distance
+          }),
           group: distance,
           rank: point.rank,
           order: order++
         });
       });
     });
-    const packed = collector.values();
+    const packedByVariant = collectors.map((collector) => collector.values());
+    const packed = packedByVariant.flat();
     const counts = emptyCounts();
-    packed.forEach(({ point, edgeFade }, index) => {
-      position.set(point.world.x, point.groundY + 0.002, point.world.z);
-      rotation.setFromAxisAngle(axis, point.yaw);
-      scale.set(point.width, point.height, point.width);
-      matrix.compose(position, rotation, scale);
-      mesh.setMatrixAt(index, matrix);
-      mesh.setColorAt(index, tint.setRGB(point.tint.r, point.tint.g, point.tint.b));
-      phaseAttribute.setX(index, point.windPhase);
-      stiffnessAttribute.setX(index, point.stiffness);
-      windScaleAttribute.setX(index, point.windScale);
-      cellAttribute.setXY(index, point.coord.q, point.coord.r);
-      edgeFadeAttribute.setX(index, edgeFade);
-      counts[point.terrainKind] += 1;
+    let footprintTotal = 0;
+    let heightTotal = 0;
+    let luminanceMin = Number.POSITIVE_INFINITY;
+    let luminanceMax = 0;
+    let edgeFadeCount = 0;
+    packedByVariant.forEach((variantPoints, variant) => {
+      const currentMesh = meshes[variant]!;
+      const currentAttributes = attributes[variant]!;
+      variantPoints.forEach(({ point, edgeFade }, index) => {
+        position.set(point.world.x, point.groundY + 0.002, point.world.z);
+        rotation.setFromAxisAngle(axis, point.yaw);
+        scale.set(point.width, point.height, point.width);
+        matrix.compose(position, rotation, scale);
+        currentMesh.setMatrixAt(index, matrix);
+        currentMesh.setColorAt(index, tint.setRGB(point.tint.r, point.tint.g, point.tint.b));
+        currentAttributes.phase.setX(index, point.windPhase);
+        currentAttributes.stiffness.setX(index, point.stiffness);
+        currentAttributes.windScale.setX(index, point.windScale);
+        currentAttributes.cell.setXY(index, point.coord.q, point.coord.r);
+        currentAttributes.edgeFade.setX(index, edgeFade);
+        counts[point.terrainKind] += 1;
+        footprintTotal += point.width * 0.46;
+        heightTotal += point.height;
+        const luminance = 0.2126 * point.tint.r + 0.7152 * point.tint.g + 0.0722 * point.tint.b;
+        luminanceMin = Math.min(luminanceMin, luminance);
+        luminanceMax = Math.max(luminanceMax, luminance);
+        if (edgeFade < 0.999) edgeFadeCount += 1;
+      });
+      currentMesh.count = variantPoints.length;
+      currentMesh.instanceMatrix.needsUpdate = true;
+      if (currentMesh.instanceColor) currentMesh.instanceColor.needsUpdate = true;
+      currentAttributes.phase.needsUpdate = true;
+      currentAttributes.stiffness.needsUpdate = true;
+      currentAttributes.windScale.needsUpdate = true;
+      currentAttributes.cell.needsUpdate = true;
+      currentAttributes.edgeFade.needsUpdate = true;
     });
-    mesh.count = packed.length;
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    phaseAttribute.needsUpdate = true;
-    stiffnessAttribute.needsUpdate = true;
-    windScaleAttribute.needsUpdate = true;
-    cellAttribute.needsUpdate = true;
-    edgeFadeAttribute.needsUpdate = true;
     updateBounds();
     group.visible = packed.length > 0;
     materialLayer.setVisible(packed.length > 0);
-    const trianglesPerClump = REALM_GRASS_TRIANGLES_PER_RIBBON * (
-      plan.geometryProfile === 'high' ? 5 : plan.geometryProfile === 'balanced' ? 4 : 3
-    );
+    const trianglesPerPatch = REALM_GRASS_TRIANGLES_PER_PATCH[plan.geometryProfile];
+    const alphaHash =
+      (
+        materialLayer.material as THREE.MeshStandardMaterial & {
+          alphaHash?: boolean;
+        }
+      ).alphaHash === true;
+    const alphaCoverage =
+      (
+        materialLayer.material as THREE.MeshStandardMaterial & {
+          alphaToCoverage?: boolean;
+        }
+      ).alphaToCoverage === true;
     telemetry = Object.freeze({
       candidateCellCount: window.cells.length,
       activeCellCount: window.cells.length,
       instanceCount: packed.length,
-      triangleCount: packed.length * trianglesPerClump,
-      drawCalls: packed.length > 0 ? 1 : 0,
+      bladeCount: packed.length * REALM_GRASS_BLADES_PER_PATCH[plan.geometryProfile],
+      triangleCount: packed.length * trianglesPerPatch,
+      drawCalls: packedByVariant.filter((variantPoints) => variantPoints.length > 0).length,
+      variantCounts: Object.freeze(packedByVariant.map((variantPoints) => variantPoints.length)),
       cacheEntries: cache.size,
       animated: packed.length > 0 && plan.animationFrameCap > 0 && !options.reducedMotion,
       targetAnimationCadence: plan.animationFrameCap,
+      averageRetainedPatchesPerActiveCell: packed.length / Math.max(1, window.cells.length),
+      averagePatchFootprint: packed.length > 0 ? footprintTotal / packed.length : 0,
+      averageBladeHeight: packed.length > 0 ? heightTotal / packed.length : 0,
+      paletteLuminanceMin: Number.isFinite(luminanceMin) ? luminanceMin : 0,
+      paletteLuminanceMax: luminanceMax,
+      alphaHashActive: alphaHash,
+      alphaToCoverageActive: alphaCoverage,
+      shaderFallbackActive: false,
+      edgeFadeCount,
       countsByTerrain: Object.freeze(counts),
       completelyBareActiveCells,
       rejectedByStructureClearance,
@@ -270,15 +365,10 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   return Object.freeze({
     group,
     mesh,
+    meshes: Object.freeze(meshes),
     updateView: (focus, mode) => {
       if (disposed) return false;
-      const next = resolveRealmGrassActiveWindow(
-        options.surface.renderMap,
-        focus,
-        mode,
-        plan,
-        hexSize
-      );
+      const next = resolveRealmGrassActiveWindow(options.surface.renderMap, focus, mode, plan, hexSize);
       if (!shouldRepackRealmGrassWindow(currentWindow, next, plan)) return false;
       currentWindow = next;
       repack(next);
@@ -298,9 +388,11 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       if (disposed) return;
       disposed = true;
       cache.dispose();
-      group.remove(mesh);
-      mesh.dispose();
-      geometry.dispose();
+      meshes.forEach((currentMesh, index) => {
+        group.remove(currentMesh);
+        currentMesh.dispose();
+        geometries[index]!.dispose();
+      });
       materialLayer.dispose();
     }
   });

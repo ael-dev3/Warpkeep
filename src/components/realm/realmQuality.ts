@@ -192,8 +192,8 @@ export const REALM_GRASS_RENDER_PLANS: Readonly<Record<RealmQuality, RealmGrassR
     high: Object.freeze({
       enabled: true,
       geometryProfile: 'high',
-      maximumActiveInstances: 14_000,
-      maximumActiveTriangles: 210_000,
+      maximumActiveInstances: 7_000,
+      maximumActiveTriangles: 189_000,
       activeRadius: 12,
       hysteresisRadius: 2,
       edgeFadeCells: 2,
@@ -206,7 +206,7 @@ export const REALM_GRASS_RENDER_PLANS: Readonly<Record<RealmQuality, RealmGrassR
     balanced: Object.freeze({
       enabled: true,
       geometryProfile: 'balanced',
-      maximumActiveInstances: 7_000,
+      maximumActiveInstances: 4_000,
       maximumActiveTriangles: 84_000,
       activeRadius: 9,
       hysteresisRadius: 2,
@@ -220,7 +220,7 @@ export const REALM_GRASS_RENDER_PLANS: Readonly<Record<RealmQuality, RealmGrassR
     reduced: Object.freeze({
       enabled: true,
       geometryProfile: 'reduced',
-      maximumActiveInstances: 2_000,
+      maximumActiveInstances: 1_200,
       maximumActiveTriangles: 18_000,
       activeRadius: 6,
       hysteresisRadius: 1,
