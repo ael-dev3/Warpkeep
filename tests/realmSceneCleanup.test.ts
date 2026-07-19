@@ -672,6 +672,52 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('reconciles a live occupation without rebuilding the scene or camera', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('live-occupation-reconciliation', 1, 1);
+    const initialNode = movingResourceNode('live-gold-site');
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      quality: REALM_QUALITY_SPECS.high,
+      reducedMotion: true,
+      goldNodes: [initialNode]
+    }));
+    const renderer = webglState.instances.at(-1)!;
+    const before = sceneHandle.getCameraAttestation();
+    const buildSequence = sceneHandle.getSceneBuildSequence();
+    renderer.render.mockClear();
+
+    const gatheringNode = Object.freeze({
+      ...initialNode,
+      availability: 'gathering' as const,
+      occupation: Object.freeze({
+        ...initialNode.occupation,
+        phase: 'gathering' as const
+      })
+    });
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [gatheringNode],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      observedAtMicros: 60_000_000n
+    });
+
+    const after = sceneHandle.getCameraAttestation();
+    expect(sceneHandle.getSceneBuildSequence()).toBe(buildSequence);
+    expect(after.sceneId).toBe(before.sceneId);
+    expect(after.canvasId).toBe(before.canvasId);
+    expect(after.mode).toBe(before.mode);
+    expect(after.position).toEqual(before.position);
+    expect(after.target).toEqual(before.target);
+    expect(after.zoom).toBe(before.zoom);
+    expect(renderer.render).toHaveBeenCalledOnce();
+    expect(canvas.dataset.realmDynamicReconciliationCount).toBe('1');
+    expect(canvas.dataset.realmDynamicReconciliationRejected).toBe('0');
+
+    sceneHandle.dispose();
+  });
+
   it('keeps the ambient loop stopped under reduced motion even with moving resource wagons', () => {
     const canvas = document.createElement('canvas');
     const surface = createRealmTerrainSurface('reduced-motion-moving-resources', 1, 1);

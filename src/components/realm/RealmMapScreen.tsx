@@ -48,6 +48,7 @@ import { RealmObserverHud } from './RealmObserverHud';
 import {
   createRealmScene,
   type RealmInteractionTarget,
+  type RealmLiveGatheringState,
   type RealmSceneHandle,
   type RealmTerrainPresentationTelemetry
 } from './createRealmScene';
@@ -103,6 +104,7 @@ import {
 } from './realmCastlePresentation';
 import {
   useStableGatheringNodes,
+  useStableGatheringNodeCatalog,
   useStablePeerCastleMarkers,
   useStableRealmTerrainMetadata,
   useStableSharedForestProjection,
@@ -323,6 +325,7 @@ function CanonicalRealmMapScreen({
     })
   ), [allCastles, observerMode, ownCastle.castleId, snapshot.goldNodeOccupations, snapshot.goldSites, surface]);
   const goldNodes = useStableGatheringNodes(resolvedGoldNodes);
+  const goldNodeCatalog = useStableGatheringNodeCatalog(goldNodes);
   const goldNodesRef = useRef(goldNodes);
   goldNodesRef.current = goldNodes;
   const goldNodesBySiteId = useMemo(() => new Map(
@@ -343,6 +346,7 @@ function CanonicalRealmMapScreen({
     })
   ), [allCastles, observerMode, ownCastle.castleId, snapshot.foodNodeOccupations, snapshot.foodSites, surface]);
   const foodNodes = useStableGatheringNodes(resolvedFoodNodes);
+  const foodNodeCatalog = useStableGatheringNodeCatalog(foodNodes);
   const foodNodesRef = useRef(foodNodes);
   foodNodesRef.current = foodNodes;
   const foodNodesBySiteId = useMemo(() => new Map(
@@ -363,6 +367,7 @@ function CanonicalRealmMapScreen({
     })
   ), [allCastles, observerMode, ownCastle.castleId, snapshot.woodNodeOccupations, snapshot.woodSites, surface]);
   const woodNodes = useStableGatheringNodes(resolvedWoodNodes);
+  const woodNodeCatalog = useStableGatheringNodeCatalog(woodNodes);
   const woodNodesRef = useRef(woodNodes);
   woodNodesRef.current = woodNodes;
   const woodNodesBySiteId = useMemo(() => new Map(
@@ -383,11 +388,33 @@ function CanonicalRealmMapScreen({
     })
   ), [allCastles, observerMode, ownCastle.castleId, snapshot.stoneNodeOccupations, snapshot.stoneSites, surface]);
   const stoneNodes = useStableGatheringNodes(resolvedStoneNodes);
+  const stoneNodeCatalog = useStableGatheringNodeCatalog(stoneNodes);
   const stoneNodesRef = useRef(stoneNodes);
   stoneNodesRef.current = stoneNodes;
   const stoneNodesBySiteId = useMemo(() => new Map(
     stoneNodes.map((node) => [node.siteId, node] as const)
   ), [stoneNodes]);
+  const liveGatheringState = useMemo<RealmLiveGatheringState>(() => {
+    let observedAtMicros = 0n;
+    for (const node of [...goldNodes, ...foodNodes, ...woodNodes, ...stoneNodes]) {
+      const occupation = node.occupation;
+      if (!occupation) continue;
+      observedAtMicros = [
+        observedAtMicros,
+        occupation.startedAtMicros,
+        occupation.arrivesAtMicros,
+        occupation.gatheringEndsAtMicros,
+        occupation.returnsAtMicros
+      ].reduce((latest, candidate) => candidate > latest ? candidate : latest, observedAtMicros);
+    }
+    return Object.freeze({
+      goldNodes,
+      foodNodes,
+      woodNodes,
+      stoneNodes,
+      observedAtMicros
+    });
+  }, [foodNodes, goldNodes, stoneNodes, woodNodes]);
   const profileRecords = useMemo(() => {
     return new Map<number, CastleLabelRecord>(allCastles.map((castle) => [
       castle.castleId,
@@ -1026,30 +1053,30 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.grassRejectedBySlope = '0';
         rootRef.current.dataset.grassOverviewHidden = 'true';
         rootRef.current.dataset.labelBaseAnchorViolationCount = '0';
-        rootRef.current.dataset.publicGoldSiteCount = String(goldNodes.length);
+        rootRef.current.dataset.publicGoldSiteCount = String(goldNodeCatalog.length);
         rootRef.current.dataset.occupiedGoldSiteCount = '0';
         rootRef.current.dataset.renderedGoldMineCount = '0';
         rootRef.current.dataset.renderedGoldWagonCount = '0';
         rootRef.current.dataset.animatedGoldWagonCount = '0';
-        rootRef.current.dataset.goldMarkerOnlySiteCount = String(goldNodes.length);
-        rootRef.current.dataset.publicFoodSiteCount = String(foodNodes.length);
+        rootRef.current.dataset.goldMarkerOnlySiteCount = String(goldNodeCatalog.length);
+        rootRef.current.dataset.publicFoodSiteCount = String(foodNodeCatalog.length);
         rootRef.current.dataset.occupiedFoodSiteCount = '0';
         rootRef.current.dataset.renderedFoodFarmCount = '0';
         rootRef.current.dataset.renderedFoodWagonCount = '0';
         rootRef.current.dataset.animatedFoodWagonCount = '0';
-        rootRef.current.dataset.foodMarkerOnlySiteCount = String(foodNodes.length);
-        rootRef.current.dataset.publicWoodSiteCount = String(woodNodes.length);
+        rootRef.current.dataset.foodMarkerOnlySiteCount = String(foodNodeCatalog.length);
+        rootRef.current.dataset.publicWoodSiteCount = String(woodNodeCatalog.length);
         rootRef.current.dataset.occupiedWoodSiteCount = '0';
         rootRef.current.dataset.renderedWoodCampCount = '0';
         rootRef.current.dataset.renderedWoodWagonCount = '0';
         rootRef.current.dataset.animatedWoodWagonCount = '0';
-        rootRef.current.dataset.woodMarkerOnlySiteCount = String(woodNodes.length);
-        rootRef.current.dataset.publicStoneSiteCount = String(stoneNodes.length);
+        rootRef.current.dataset.woodMarkerOnlySiteCount = String(woodNodeCatalog.length);
+        rootRef.current.dataset.publicStoneSiteCount = String(stoneNodeCatalog.length);
         rootRef.current.dataset.occupiedStoneSiteCount = '0';
         rootRef.current.dataset.renderedStoneQuarryCount = '0';
         rootRef.current.dataset.renderedStoneWagonCount = '0';
         rootRef.current.dataset.animatedStoneWagonCount = '0';
-        rootRef.current.dataset.stoneMarkerOnlySiteCount = String(stoneNodes.length);
+        rootRef.current.dataset.stoneMarkerOnlySiteCount = String(stoneNodeCatalog.length);
       }
       setVisibleCastleLabels([]);
       setCameraMode('realm');
@@ -1059,10 +1086,10 @@ function CanonicalRealmMapScreen({
         keepCoord,
         ownCastleId: observerMode ? undefined : ownCastle.castleId,
         otherCastles: peerCastles,
-        goldNodes,
-        foodNodes,
-        woodNodes,
-        stoneNodes,
+        goldNodes: goldNodeCatalog,
+        foodNodes: foodNodeCatalog,
+        woodNodes: woodNodeCatalog,
+        stoneNodes: stoneNodeCatalog,
         sharedForestLayout: sharedForestProjection.layout,
         sharedForestTrees: sharedForestProjection.trees,
         realmId: snapshot.realm.realmId,
@@ -1145,7 +1172,11 @@ function CanonicalRealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [foodNodes, goldNodes, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedForestProjection, sharedTileMetadata, snapshot.realm.realmId, stoneNodes, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, woodNodes]);
+  }, [foodNodeCatalog, goldNodeCatalog, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedForestProjection, sharedTileMetadata, snapshot.realm.realmId, stoneNodeCatalog, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, woodNodeCatalog]);
+
+  useEffect(() => {
+    sceneRef.current?.reconcileLiveGatheringState?.(liveGatheringState);
+  }, [liveGatheringState]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);

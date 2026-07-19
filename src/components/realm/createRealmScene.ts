@@ -132,6 +132,7 @@ const CAMERA_FILL_FACE_IRRADIANCE = 0.42;
 const CAMERA_FILL_INTENSITY = CAMERA_FILL_FACE_IRRADIANCE
   * Math.hypot(CAMERA_FILL_HORIZONTAL_DISTANCE, CAMERA_FILL_HEIGHT)
   / CAMERA_FILL_HORIZONTAL_DISTANCE;
+let nextRealmSceneBuildSequence = 1;
 
 function localPresentationNowMicros() {
   const now = Date.now();
@@ -356,6 +357,9 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
 
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
+  reconcileLiveGatheringState: (state: RealmLiveGatheringState) => void;
+  getCameraAttestation: () => RealmCameraAttestation;
+  getSceneBuildSequence: () => number;
   focusCastle: (castleId: number) => void;
   focusCell: (coord: HexCoord) => void;
   frameFoundingDistrict: () => void;
@@ -371,6 +375,31 @@ export type RealmSceneHandle = Readonly<{
   setSelectedStoneSiteId: (siteId: string | null) => void;
   setComposition: (composition: RealmCameraComposition) => void;
   showRealm: () => void;
+}>;
+
+export type RealmLiveGatheringState = Readonly<{
+  goldNodes: readonly RealmGoldNodeSceneRecord[];
+  foodNodes: readonly RealmFoodNodeSceneRecord[];
+  woodNodes: readonly RealmWoodNodeSceneRecord[];
+  stoneNodes: readonly RealmStoneNodeSceneRecord[];
+  observedAtMicros: bigint;
+}>;
+
+export type RealmCameraAttestation = Readonly<{
+  sceneBuildSequence: number;
+  sceneId: string;
+  canvasId: string;
+  mode: RealmCameraMode;
+  position: Readonly<{ x: number; y: number; z: number }>;
+  target: Readonly<{ x: number; y: number; z: number }>;
+  fov: number;
+  zoom: number;
+  selectedTerrainCoord: HexCoord | null;
+  selectedCastleId: number | null;
+  selectedGoldSiteId: string | null;
+  selectedFoodSiteId: string | null;
+  selectedWoodSiteId: string | null;
+  selectedStoneSiteId: string | null;
 }>;
 
 export function foundingDistrictZoomForViewport(
@@ -840,6 +869,7 @@ function initializeRealmScene(
   options: CreateRealmSceneOptions,
   cleanup: RealmSceneCleanup
 ): RealmSceneHandle {
+  const sceneBuildSequence = nextRealmSceneBuildSequence++;
   const renderPlan = resolveRealmRenderPlan(options.quality, {
     playableRadius: options.surface.playableMap.radius,
     renderRadius: options.surface.renderMap.radius,
@@ -868,6 +898,11 @@ function initializeRealmScene(
     }))
   ]);
   const scene = new THREE.Scene();
+  const canvasId = options.canvas.dataset.realmCanvasIdentity
+    ?? `realm-canvas-${sceneBuildSequence}`;
+  options.canvas.dataset.realmCanvasIdentity = canvasId;
+  options.canvas.dataset.realmSceneBuildSequence = String(sceneBuildSequence);
+  options.canvas.dataset.realmSceneIdentity = scene.uuid;
   scene.background = new THREE.Color(REALM_SKY_FALLBACK_COLOR);
   const fog = new THREE.Fog(
     REALM_SKY_FALLBACK_COLOR,
@@ -2470,8 +2505,93 @@ function initializeRealmScene(
     cleanup.dispose();
   }
 
+  let liveReconciliationCount = 0;
+  let rejectedLiveReconciliationCount = 0;
+  const recordLiveReconciliationTelemetry = (accepted: boolean) => {
+    if (accepted) liveReconciliationCount += 1;
+    else rejectedLiveReconciliationCount += 1;
+    options.canvas.dataset.realmDynamicReconciliationCount = String(liveReconciliationCount);
+    options.canvas.dataset.realmDynamicReconciliationRejected = String(
+      rejectedLiveReconciliationCount
+    );
+  };
+  const matchesStaticCatalog = <T extends {
+    siteId: string;
+    coord: HexCoord;
+    tier: number;
+  }>(next: readonly T[], initial: readonly T[]) => {
+    if (next.length !== initial.length) return false;
+    const initialBySiteId = new Map(initial.map((record) => [record.siteId, record]));
+    const seen = new Set<string>();
+    for (const record of next) {
+      const initialRecord = initialBySiteId.get(record.siteId);
+      if (
+        !initialRecord
+        || seen.has(record.siteId)
+        || record.coord.q !== initialRecord.coord.q
+        || record.coord.r !== initialRecord.coord.r
+        || record.tier !== initialRecord.tier
+      ) return false;
+      seen.add(record.siteId);
+    }
+    return seen.size === initialBySiteId.size;
+  };
+  const reconcileLiveGatheringState = (state: RealmLiveGatheringState) => {
+    if (
+      cleanup.isDisposed()
+      || typeof state?.observedAtMicros !== 'bigint'
+      || state.observedAtMicros < 0n
+      || !Array.isArray(state.goldNodes)
+      || !Array.isArray(state.foodNodes)
+      || !Array.isArray(state.woodNodes)
+      || !Array.isArray(state.stoneNodes)
+      || !matchesStaticCatalog(state.goldNodes, options.goldNodes ?? [])
+      || !matchesStaticCatalog(state.foodNodes, options.foodNodes ?? [])
+      || !matchesStaticCatalog(state.woodNodes, options.woodNodes ?? [])
+      || !matchesStaticCatalog(state.stoneNodes, options.stoneNodes ?? [])
+    ) {
+      recordLiveReconciliationTelemetry(false);
+      return;
+    }
+    const accepted = (
+      goldNodeLayer?.reconcile(state.goldNodes) ?? true
+    ) && (
+      foodNodeLayer?.reconcile(state.foodNodes) ?? true
+    ) && (
+      woodNodeLayer?.reconcile(state.woodNodes) ?? true
+    ) && (
+      stoneNodeLayer?.reconcile(state.stoneNodes) ?? true
+    );
+    recordLiveReconciliationTelemetry(accepted);
+    if (accepted) render();
+  };
+  const getCameraAttestation = (): RealmCameraAttestation => {
+    const pose = cameraController.getPose();
+    return Object.freeze({
+      sceneBuildSequence,
+      sceneId: scene.uuid,
+      canvasId,
+      mode: cameraController.getMode(),
+      position: Object.freeze({ ...pose.position }),
+      target: Object.freeze({ ...pose.target }),
+      fov: pose.fov,
+      zoom: cameraController.getZoom(),
+      selectedTerrainCoord: selectedTerrainCoord
+        ? Object.freeze({ ...selectedTerrainCoord })
+        : null,
+      selectedCastleId: selectedCastleId ?? null,
+      selectedGoldSiteId: selectedGoldSiteId ?? null,
+      selectedFoodSiteId: selectedFoodSiteId ?? null,
+      selectedWoodSiteId: selectedWoodSiteId ?? null,
+      selectedStoneSiteId: selectedStoneSiteId ?? null
+    });
+  };
+
   return {
     dispose: disposeScene,
+    reconcileLiveGatheringState,
+    getCameraAttestation,
+    getSceneBuildSequence: () => sceneBuildSequence,
     focusCastle: (castleId) => {
       if (cleanup.isDisposed()) return;
       const castle = authoritativeCastles.find((candidate) => candidate.castleId === castleId);
