@@ -8,6 +8,7 @@ export function publishChildEnvironment(...args: any[]): any;
 export function publishModule(...args: any[]): any;
 export function readFoundedPublishExpectations(...args: any[]): any;
 export function requireCanonicalPublishCoordinates(...args: any[]): any;
+export function runCurrentAdditiveMigrationProof(...args: any[]): any;
 export function validateIssuerDeployment(...args: any[]): any;
 export function verifyCanonicalDatabaseList(...args: any[]): any;
 export function verifyFreshAlphaStatusV8Aggregate(...args: any[]): any;

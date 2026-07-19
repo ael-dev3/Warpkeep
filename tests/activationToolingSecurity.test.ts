@@ -17,6 +17,7 @@ import {
   publishModule,
   readFoundedPublishExpectations,
   requireCanonicalPublishCoordinates,
+  runCurrentAdditiveMigrationProof,
   validateIssuerDeployment,
   verifyCanonicalDatabaseList,
   verifyFreshAlphaStatusV8Aggregate,
@@ -33,7 +34,7 @@ import {
   verifyPrivacySafeAlphaStatusV8Output,
 } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
+import { ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
@@ -602,6 +603,37 @@ describe('activation publish safety', () => {
         spawnProcess as never,
       )).rejects.toThrow(/changed after migration/i);
       expect(spawnProcess).not.toHaveBeenCalled();
+    });
+  });
+
+  it('gives the real scheduler migration proof a dedicated bounded process deadline', async () => {
+    await withTestProvenArtifact(async receipt => {
+      const calls: unknown[][] = [];
+      const success = `${formatAdditiveMigrationProofReceipt({
+        summary: 'test-only scheduler receipt.',
+        artifactDigest: receipt.artifactDigest,
+      })}\n`;
+      const fakeSpawnSync = (...args: unknown[]) => {
+        calls.push(args);
+        return {
+          error: undefined,
+          signal: null,
+          status: 0,
+          stderr: '',
+          stdout: success,
+        };
+      };
+
+      expect(runCurrentAdditiveMigrationProof('spacetime', fakeSpawnSync as never))
+        .toEqual(receipt);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.[0]).toBe(process.execPath);
+      expect(calls[0]?.[1]).toEqual(['scripts/verify-spacetime-additive-migration.mjs']);
+      expect(calls[0]?.[2]).toMatchObject({
+        timeout: ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS,
+      });
+      expect(ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS)
+        .toBe(15 * 60 * 1_000);
     });
   });
 

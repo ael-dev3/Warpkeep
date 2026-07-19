@@ -14,6 +14,7 @@ import {
   verifyExpectedAlphaV4ResourceReadyAggregate,
 } from './verify-alpha-production.mjs';
 import {
+  ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS,
   ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION,
   parseAdditiveMigrationProofReceipt,
 } from './spacetime-additive-migration-proof.mjs';
@@ -521,6 +522,7 @@ export function runCurrentAdditiveMigrationProof(executable, spawnSyncProcess = 
       ...publishChildEnvironment(),
       SPACETIME_BIN: executable,
     },
+    timeout: ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS,
   }, spawnSyncProcess);
   return parseMigrationProofReceipt(result.stdout);
 }
