@@ -44,6 +44,13 @@ import {
 } from '../spacetimedb/src/forestLayoutPolicy';
 import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../spacetimedb/src/stoneSitePolicy';
 import {
+  GENESIS_WATER_BODIES_V1,
+  GENESIS_WATER_CELLS_V1,
+  GENESIS_WATER_ENVIRONMENT_V1,
+  GENESIS_WATER_LAYOUT_V1
+} from '../spacetimedb/src/waterWorld';
+import { resolveCanonicalWaterProjection } from '../src/components/realm/realmWaterProjection';
+import {
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate
 } from './fixtures/canonicalGenesisSnapshot';
@@ -205,6 +212,54 @@ function stoneSubscriptionConnection(
       .mockReturnValueOnce(pairedStone.builder)
   } as unknown as WarpkeepConnection;
   return Object.freeze({ connection, core, pairedStone });
+}
+
+/** Core + Water projection using the generated SDK's exact Q15 wire spelling. */
+function waterSubscriptionConnection(candidate: WarpkeepRealmSnapshotCandidate) {
+  const rows = rawRowsForCandidate(candidate);
+  const table = <T,>(values: readonly T[]) => ({
+    iter: function* () { yield* values; }
+  });
+  const generatedBodyRows = GENESIS_WATER_BODIES_V1.map((body) => {
+    const {
+      flowDirectionXQ15,
+      flowDirectionZQ15,
+      ...generatedFields
+    } = body;
+    return {
+      ...generatedFields,
+      flowDirectionXq15: flowDirectionXQ15,
+      flowDirectionZq15: flowDirectionZQ15
+    };
+  });
+  const core = callbackSubscriptionDouble();
+  const pairedWater = callbackSubscriptionDouble();
+  const connection = {
+    db: {
+      worldTile: table(rows.worldTile),
+      worldTileMetaV1: table(rows.worldTileMetaV1),
+      playerV2: table(rows.playerV2),
+      realmProfileV1: table(rows.realmProfileV1),
+      realmV1: table(rows.realmV1),
+      castle: table(rows.castle),
+      realmWaterLayoutV1: table([{
+        ...GENESIS_WATER_LAYOUT_V1,
+        activated: true,
+        seededAt: timestamp(),
+        activatedAt: timestamp()
+      }]),
+      realmWaterBodyV1: table(generatedBodyRows),
+      realmWaterCellV1: table(GENESIS_WATER_CELLS_V1),
+      realmEnvironmentV1: table([{
+        ...GENESIS_WATER_ENVIRONMENT_V1,
+        updatedAt: timestamp()
+      }])
+    },
+    subscriptionBuilder: vi.fn()
+      .mockReturnValueOnce(core.builder)
+      .mockReturnValueOnce(pairedWater.builder)
+  } as unknown as WarpkeepConnection;
+  return Object.freeze({ connection, core, pairedWater });
 }
 
 type RealmTableListener = (context: EventContext, ...rows: unknown[]) => void;
@@ -538,6 +593,37 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(snapshot).not.toHaveProperty('stoneNodeOccupations');
 
     composite.unsubscribe();
+  });
+
+  it('adapts generated Q15 Water fields before exact Realm attestation', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedWater } = waterSubscriptionConnection(candidate);
+    const onApplied = vi.fn();
+    const composite = subscribeToWarpkeepRealm(connection, onApplied, vi.fn());
+
+    expect(pairedWater.builder.subscribe).toHaveBeenCalledWith([
+      tables.realmWaterLayoutV1,
+      tables.realmWaterBodyV1,
+      tables.realmWaterCellV1,
+      tables.realmEnvironmentV1
+    ]);
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('waterCells');
+
+    core.apply();
+    pairedWater.apply();
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(resolveCanonicalWaterProjection(
+      snapshot.waterLayout,
+      snapshot.waterBodies,
+      snapshot.waterCells,
+      snapshot.realmEnvironment
+    )).toBe(GENESIS_WATER_CELLS_V1);
+    expect(onApplied).toHaveBeenCalledTimes(2);
+
+    composite.unsubscribe();
+    expect(core.subscription.unsubscribe).toHaveBeenCalledOnce();
+    expect(pairedWater.subscription.unsubscribe).toHaveBeenCalledOnce();
   });
 
   it('makes the paired shared forest visible only after its subscription applies', () => {

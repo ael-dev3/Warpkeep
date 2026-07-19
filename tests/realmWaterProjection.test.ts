@@ -46,5 +46,19 @@ describe('canonical water projection boundary', () => {
       duplicate,
       environmentRow()
     )).toBeUndefined();
+
+    const driftedBodies = [
+      {
+        ...GENESIS_WATER_BODIES_V1[0]!,
+        flowDirectionXQ15: GENESIS_WATER_BODIES_V1[0]!.flowDirectionXQ15 + 1
+      },
+      ...GENESIS_WATER_BODIES_V1.slice(1)
+    ];
+    expect(resolveCanonicalWaterProjection(
+      { ...GENESIS_WATER_LAYOUT_V1, activated: true },
+      driftedBodies,
+      GENESIS_WATER_CELLS_V1,
+      environmentRow()
+    )).toBeUndefined();
   });
 });
