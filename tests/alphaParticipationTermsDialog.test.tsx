@@ -4,6 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AlphaParticipationTermsDialog } from '../src/components/menu/AlphaParticipationTermsDialog';
 import {
+  WARPKEEP_ENTRY_AGREEMENT_VERSION,
+  WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION,
+} from '../src/legal/alphaTermsPolicy';
+import {
   WARPKEEP_ALPHA_PRIVACY_URL,
   WARPKEEP_ALPHA_TERMS_URL,
   WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_URL,
@@ -46,8 +50,10 @@ describe('AlphaParticipationTermsDialog', () => {
       'Participation alone will not earn tokens, airdrops, external rewards, or guaranteed financial gain. Experimental in-game Marks have no cash value and may change or reset.'
     )).not.toBeNull();
     expect(screen.getByText(
-      'There is no promise of a future reward, payment, or profit.'
+      /There is no promise of a future reward, payment, or profit\./
     )).not.toBeNull();
+    expect(screen.getByText(new RegExp(WARPKEEP_ENTRY_AGREEMENT_VERSION))).not.toBeNull();
+    expect(screen.getByText(new RegExp(WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION))).not.toBeNull();
 
     const heading = screen.getByRole('heading', {
       level: 2,

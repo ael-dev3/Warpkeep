@@ -6,6 +6,11 @@ full engineering record.
 
 ## [Unreleased]
 
+- Replaced the Hegemony Social Contract with Charter V3 and moved the current
+  entry-agreement bundle to `2026-07-19-hegemony-entry-agreement-v3`. Existing
+  V2 acceptance evidence remains immutable; all participants must accept the
+  new bundle from an unchecked gate before entry.
+
 ## [0.3.11] — 2026-07-19
 
 - Opened Gold Mines, Wheat Farms, and Logging Camps across Genesis 001, giving

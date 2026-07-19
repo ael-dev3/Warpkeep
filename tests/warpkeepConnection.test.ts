@@ -762,7 +762,7 @@ describe('Warpkeep authenticated connection boundary', () => {
   it('pins the browser and authoritative module to the same Terms version', () => {
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(MODULE_ALPHA_TERMS_VERSION);
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(
-      '2026-07-19-hegemony-entry-agreement-v2'
+      '2026-07-19-hegemony-entry-agreement-v3'
     );
   });
 

@@ -141,22 +141,23 @@ describe('public Alpha legal documents', () => {
     expect(termsText).not.toContain('tokens, points, airdrops');
   });
 
-  it('keeps the Hegemony covenant focused on current conduct instead of speculative lore', () => {
+  it('keeps the Hegemony covenant explicit about fiction, conduct, and future systems', () => {
     for (const expected of [
       'Hegemony',
-      'Admission is an invitation',
-      'Good-faith dissent',
+      'Admission to the Hegemony is a grant',
+      'Article II',
+      'Article III',
+      'Article VII',
+      'Article VIII',
+      'Honest counsel is loyalty',
       'Criticizing Warpkeep',
       'threats',
       'core strategy loop',
-      'no suggestion or contribution is guaranteed',
       'Hegemony is game fiction',
+      'No sacrifice mechanic exists',
+      'non-transferable, non-redeemable',
       'warn, limit, suspend, or revoke',
     ]) expect(socialContractText).toContain(expected);
-
-    for (const speculativeConcept of ['Ousters', 'Core', 'Hyperion', 'TechnoCore']) {
-      expect(socialContractText).not.toContain(speculativeConcept);
-    }
   });
 
   it('keeps privacy disclosures factual while limiting entry-agreement evidence to the stated record', () => {

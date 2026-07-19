@@ -71,7 +71,7 @@ const historicalEntryAgreementVersions = Object.freeze([
   '2026-07-18-hegemony-entry-agreement-v1',
   '2026-07-14',
 ]);
-const alphaTermsVersion = '2026-07-19-hegemony-entry-agreement-v2';
+const alphaTermsVersion = '2026-07-19-hegemony-entry-agreement-v3';
 const resourcePolicyVersion = 'genesis-resource-yield-v1';
 const marksPolicyVersion = 'snap-current-linked-wallet-1to1-v1';
 const profilePolicyVersion = 'trusted-snapchain-profile-v3';

@@ -12,6 +12,10 @@ import {
   WARPKEEP_ALPHA_TERMS_URL,
   WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_URL
 } from '../../legal/publicDocuments';
+import {
+  WARPKEEP_ENTRY_AGREEMENT_VERSION,
+  WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION
+} from '../../legal/alphaTermsPolicy';
 import { useModalFocusBoundary } from './useModalFocusBoundary';
 import './AlphaParticipationTermsDialog.css';
 
@@ -156,7 +160,10 @@ export function AlphaParticipationTermsDialog({
               {' '}before continuing.
             </p>
             <p className="warpkeep-alpha-terms__warning">
-              There is no promise of a future reward, payment, or profit.
+              This gate presents entry-agreement bundle {WARPKEEP_ENTRY_AGREEMENT_VERSION},
+              incorporating Social Contract {WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION}. A
+              material update requires a fresh unchecked acceptance, including for previously
+              admitted founders. There is no promise of a future reward, payment, or profit.
             </p>
           </div>
 
