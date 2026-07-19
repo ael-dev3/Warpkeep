@@ -160,6 +160,26 @@ export const AdminSnapScanBatchAggregateV1 = __t.object("AdminSnapScanBatchAggre
 });
 export type AdminSnapScanBatchAggregateV1 = __Infer<typeof AdminSnapScanBatchAggregateV1>;
 
+export const AdminWaterLayoutStatusV1 = __t.object("AdminWaterLayoutStatusV1", {
+  ready: __t.bool(),
+  activated: __t.bool(),
+  layoutVersion: __t.u32(),
+  layoutDigest: __t.string(),
+  canonicalLandCellCount: __t.u32(),
+  oceanCellCount: __t.u32(),
+  lakeCellCount: __t.u32(),
+  lakeBodyCount: __t.u32(),
+  riverCount: __t.u32(),
+  riverCellCount: __t.u32(),
+  waterBodies: __t.u64(),
+  canonicalWaterBodies: __t.u64(),
+  waterCells: __t.u64(),
+  canonicalWaterCells: __t.u64(),
+  environmentRows: __t.u64(),
+  sourceCommit: __t.string(),
+});
+export type AdminWaterLayoutStatusV1 = __Infer<typeof AdminWaterLayoutStatusV1>;
+
 export const AllowedFid = __t.object("AllowedFid", {
   fid: __t.u64(),
   enabled: __t.bool(),
@@ -541,6 +561,18 @@ export const QaObserverRealmV2 = __t.object("QaObserverRealmV2", {
 });
 export type QaObserverRealmV2 = __Infer<typeof QaObserverRealmV2>;
 
+export const RealmEnvironmentV1 = __t.object("RealmEnvironmentV1", {
+  realmId: __t.string(),
+  environmentEpoch: __t.u64(),
+  waterLayoutVersion: __t.u32(),
+  seaLevelMilli: __t.i32(),
+  sunDirectionXMicro: __t.i32(),
+  sunDirectionYMicro: __t.i32(),
+  sunDirectionZMicro: __t.i32(),
+  updatedAt: __t.timestamp(),
+});
+export type RealmEnvironmentV1 = __Infer<typeof RealmEnvironmentV1>;
+
 export const RealmForestInstanceV1 = __t.object("RealmForestInstanceV1", {
   treeId: __t.string(),
   realmId: __t.string(),
@@ -602,6 +634,74 @@ export const RealmV1 = __t.object("RealmV1", {
   createdAt: __t.timestamp(),
 });
 export type RealmV1 = __Infer<typeof RealmV1>;
+
+export const RealmWaterBodyV1 = __t.object("RealmWaterBodyV1", {
+  bodyId: __t.string(),
+  realmId: __t.string(),
+  regime: __t.string(),
+  cellCount: __t.u32(),
+  sourceCellKey: __t.string(),
+  mouthCellKey: __t.string(),
+  surfaceLevelMilli: __t.i32(),
+  flowDirectionXq15: __t.i32(),
+  flowDirectionZq15: __t.i32(),
+  wavePreset: __t.string(),
+  ordinal: __t.u32(),
+  seed: __t.u32(),
+  generationVersion: __t.u32(),
+  layoutVersion: __t.u32(),
+});
+export type RealmWaterBodyV1 = __Infer<typeof RealmWaterBodyV1>;
+
+export const RealmWaterCellV1 = __t.object("RealmWaterCellV1", {
+  cellKey: __t.string(),
+  realmId: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  regime: __t.string(),
+  bodyId: __t.string(),
+  depthCells: __t.u32(),
+  elevationMilli: __t.i32(),
+  surfaceLevelMilli: __t.i32(),
+  ring: __t.u32(),
+  s: __t.i32(),
+  underlyingTileKey: __t.option(__t.string()),
+  riverOrdinal: __t.option(__t.u32()),
+  riverOrder: __t.option(__t.u32()),
+  downstreamWaterCellKey: __t.option(__t.string()),
+  flowAccumulation: __t.u32(),
+  depthClass: __t.u32(),
+  oceanDepth: __t.u32(),
+  bankSeed: __t.u32(),
+  generationVersion: __t.u32(),
+  fogBand: __t.string(),
+  layoutVersion: __t.u32(),
+});
+export type RealmWaterCellV1 = __Infer<typeof RealmWaterCellV1>;
+
+export const RealmWaterLayoutV1 = __t.object("RealmWaterLayoutV1", {
+  realmId: __t.string(),
+  layoutVersion: __t.u32(),
+  policyVersion: __t.string(),
+  generationVersion: __t.u32(),
+  canonicalLandCellCount: __t.u32(),
+  oceanCellCount: __t.u32(),
+  lakeCellCount: __t.u32(),
+  lakeBodyCount: __t.u32(),
+  riverCount: __t.u32(),
+  riverCellCount: __t.u32(),
+  seaLevelMilli: __t.i32(),
+  seaLevelPolicyVersion: __t.string(),
+  fogStartDepthCells: __t.u32(),
+  fogFullDepthCells: __t.u32(),
+  hiddenBufferCells: __t.u32(),
+  layoutDigest: __t.string(),
+  sourceCommit: __t.string(),
+  activated: __t.bool(),
+  seededAt: __t.timestamp(),
+  activatedAt: __t.option(__t.timestamp()),
+});
+export type RealmWaterLayoutV1 = __Infer<typeof RealmWaterLayoutV1>;
 
 export const ResourceAccountV1 = __t.object("ResourceAccountV1", {
   fid: __t.u64(),

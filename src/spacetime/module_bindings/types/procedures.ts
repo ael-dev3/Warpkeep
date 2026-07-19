@@ -13,6 +13,7 @@ import * as AdminGetAlphaStatusV4Procedure from "../admin_get_alpha_status_v_4_p
 import * as AdminGetAlphaStatusV8Procedure from "../admin_get_alpha_status_v_8_procedure";
 import * as AdminGetFidAuthEpochProcedure from "../admin_get_fid_auth_epoch_procedure";
 import * as AdminGetSnapScanBatchAggregateV1Procedure from "../admin_get_snap_scan_batch_aggregate_v_1_procedure";
+import * as AdminInspectGenesisWaterLayoutV1Procedure from "../admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "../get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "../get_my_admission_status_procedure";
@@ -38,6 +39,8 @@ export type AdminGetFidAuthEpochArgs = __Infer<typeof AdminGetFidAuthEpochProced
 export type AdminGetFidAuthEpochResult = __Infer<typeof AdminGetFidAuthEpochProcedure.returnType>;
 export type AdminGetSnapScanBatchAggregateV1Args = __Infer<typeof AdminGetSnapScanBatchAggregateV1Procedure.params>;
 export type AdminGetSnapScanBatchAggregateV1Result = __Infer<typeof AdminGetSnapScanBatchAggregateV1Procedure.returnType>;
+export type AdminInspectGenesisWaterLayoutV1Args = __Infer<typeof AdminInspectGenesisWaterLayoutV1Procedure.params>;
+export type AdminInspectGenesisWaterLayoutV1Result = __Infer<typeof AdminInspectGenesisWaterLayoutV1Procedure.returnType>;
 export type AuthResolverGetFidAdmissionV2Args = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.params>;
 export type AuthResolverGetFidAdmissionV2Result = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.returnType>;
 export type GetAlphaBackendInfoArgs = __Infer<typeof GetAlphaBackendInfoProcedure.params>;

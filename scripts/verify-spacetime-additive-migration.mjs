@@ -51,6 +51,10 @@ const additiveV8SchemaFixture = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/additive-v8-schema',
 );
+const additiveV9SchemaFixture = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v9-schema',
+);
 const additiveModule = resolve(repositoryRoot, 'spacetimedb');
 const command = process.env.SPACETIME_BIN || 'spacetime';
 const expectedCliVersion = ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION;
@@ -196,6 +200,12 @@ const additiveV8Tables = Object.freeze([
   'wood_expedition_idempotency_v1',
   'wood_expedition_schedule_v_1',
 ]);
+const additiveV9Tables = Object.freeze([
+  'realm_water_layout_v1',
+  'realm_water_body_v1',
+  'realm_water_cell_v1',
+  'realm_environment_v1',
+]);
 const deployedV3Tables = Object.freeze([
   ...existingTables,
   ...additiveV3Tables,
@@ -219,6 +229,10 @@ const deployedV7Tables = Object.freeze([
 const deployedV8Tables = Object.freeze([
   ...deployedV7Tables,
   ...additiveV8Tables,
+]);
+const deployedV9Tables = Object.freeze([
+  ...deployedV8Tables,
+  ...additiveV9Tables,
 ]);
 const expectedProductTypeRefs = Object.freeze({
   allowed_fid: 0,
@@ -258,6 +272,10 @@ const expectedProductTypeRefs = Object.freeze({
   wood_expedition_v1: 34,
   wood_expedition_idempotency_v1: 35,
   wood_expedition_schedule_v_1: 36,
+  realm_water_layout_v1: 37,
+  realm_water_body_v1: 38,
+  realm_water_cell_v1: 39,
+  realm_environment_v1: 40,
 });
 const childEnvironmentKeys = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TMP', 'TEMP',
@@ -495,6 +513,20 @@ async function count(server, token, database, table) {
     database,
     `SELECT COUNT(*) AS warpkeep_count FROM ${table}`,
   ));
+}
+
+async function assertFixtureOwnershipCount(server, token, database, fid, expectedCount) {
+  if (!Number.isSafeInteger(fid) || !Number.isSafeInteger(expectedCount) || fid < 0 || expectedCount < 0) {
+    fail('Fixture ownership assertion bounds were invalid.');
+  }
+  await callLoopbackReducer(
+    server,
+    database,
+    'fixture_assert_player_ownership_v9',
+    token,
+    JSON.stringify([fid, expectedCount]),
+    200,
+  );
 }
 
 async function describe(server, token, database) {
@@ -933,6 +965,77 @@ function assertAdditiveV8Schema(before, after) {
     wood_expedition_schedule_v_1: {
       access: 'Public',
       fields: ['schedule_id', 'scheduled_at', 'origin_castle_id', 'site_id', 'stage'],
+    },
+  };
+
+  for (const [name, contract] of Object.entries(contracts)) {
+    assert.deepEqual(fieldNames(after, name), contract.fields);
+    assert.equal(access(after, name), contract.access);
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertDeployedV8TablesUnchanged(before, after) {
+  for (const name of deployedV8Tables) {
+    assert.deepEqual(tableSignature(after, name), tableSignature(before, name));
+    assert.equal(
+      tableSignature(after, name).product_type_ref,
+      expectedProductTypeRefs[name],
+    );
+  }
+}
+
+function assertAdditiveV9Schema(before, after) {
+  assertDeployedV8TablesUnchanged(before, after);
+  const beforeNames = new Set(before.tables.map(table => table.name));
+  const added = after.tables
+    .map(table => table.name)
+    .filter(name => !beforeNames.has(name))
+    .sort();
+  assert.deepEqual(added, [...additiveV9Tables].sort());
+
+  const contracts = {
+    realm_water_layout_v1: {
+      access: 'Public',
+      fields: [
+        'realm_id', 'layout_version', 'policy_version', 'generation_version',
+        'canonical_land_cell_count', 'ocean_cell_count', 'lake_cell_count',
+        'lake_body_count', 'river_count', 'river_cell_count', 'sea_level_milli',
+        'sea_level_policy_version', 'fog_start_depth_cells', 'fog_full_depth_cells',
+        'hidden_buffer_cells', 'layout_digest', 'source_commit', 'activated',
+        'seeded_at', 'activated_at',
+      ],
+    },
+    realm_water_body_v1: {
+      access: 'Public',
+      fields: [
+        'body_id', 'realm_id', 'regime', 'cell_count', 'source_cell_key',
+        'mouth_cell_key', 'surface_level_milli', 'flow_direction_xq_15',
+        'flow_direction_zq_15', 'wave_preset', 'ordinal', 'seed',
+        'generation_version', 'layout_version',
+      ],
+    },
+    realm_water_cell_v1: {
+      access: 'Public',
+      fields: [
+        'cell_key', 'realm_id', 'q', 'r', 'regime', 'body_id', 'depth_cells',
+        'elevation_milli', 'surface_level_milli', 'ring', 's',
+        'underlying_tile_key', 'river_ordinal', 'river_order',
+        'downstream_water_cell_key', 'flow_accumulation', 'depth_class',
+        'ocean_depth', 'bank_seed', 'generation_version', 'fog_band',
+        'layout_version',
+      ],
+    },
+    realm_environment_v1: {
+      access: 'Public',
+      fields: [
+        'realm_id', 'environment_epoch', 'water_layout_version', 'sea_level_milli',
+        'sun_direction_x_micro', 'sun_direction_y_micro', 'sun_direction_z_micro',
+        'updated_at',
+      ],
     },
   };
 
@@ -1654,10 +1757,9 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
   let stage = 'seed';
   let activeModule = 'actual';
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  // The inspection fixture must retain every append that the real module has
-  // already introduced. Publishing an older artifact after the v8 Wood tables
-  // would be a destructive downgrade, correctly refused by SpacetimeDB.
-  const inspectionArtifactPath = join(additiveV8SchemaFixture, 'dist', 'bundle.js');
+  // Keep inspection on the complete candidate schema. Reverting to the v8
+  // fixture after water tables are appended would be a destructive downgrade.
+  const inspectionArtifactPath = join(additiveV9SchemaFixture, 'dist', 'bundle.js');
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
     await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
@@ -2472,7 +2574,9 @@ async function verifyActualModuleExpeditionLifecycles(
   let stage = 'seed-world';
   let activeModule = 'actual';
   const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
-  const inspectionArtifactPath = join(additiveV8SchemaFixture, 'dist', 'bundle.js');
+  // Reusing the candidate artifact preserves the v9 water suffix during SQL
+  // inspection; publishing the v8 fixture here would request a downgrade.
+  const inspectionArtifactPath = join(additiveV9SchemaFixture, 'dist', 'bundle.js');
   const useActualModule = async () => {
     if (activeModule === 'actual') return;
     await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
@@ -2847,6 +2951,7 @@ async function verifyGenesisWorldExpansionLifecycle(
   // Wood append. Reverting to an earlier protocol after publishing the
   // candidate would correctly be rejected as a destructive schema downgrade.
   const fixtureArtifactPath = join(additiveV8SchemaFixture, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV9SchemaFixture, 'dist', 'bundle.js');
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
 
   await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
@@ -2886,7 +2991,9 @@ async function verifyGenesisWorldExpansionLifecycle(
     '[]',
     530,
   );
-  await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
+  // The auth-neutral v9 schema fixture preserves the new suffix for owner SQL
+  // inspection without invoking the real module's on-connect policy.
+  await publishBuiltArtifact(server, ownerToken, inspectionArtifactPath, database);
   assert.deepEqual(
     await generationV2PreservationDigests(server, ownerToken, database),
     predecessorDigests,
@@ -2910,7 +3017,7 @@ async function verifyGenesisWorldExpansionLifecycle(
   );
   const durationMilliseconds = Date.now() - startedAt;
 
-  await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
+  await publishBuiltArtifact(server, ownerToken, inspectionArtifactPath, database);
   if (
     await count(server, ownerToken, database, 'world_tile') !== 10_000n
     || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 10_000n
@@ -2947,7 +3054,7 @@ async function verifyGenesisWorldExpansionLifecycle(
     200,
     120_000,
   );
-  await publishBuiltArtifact(server, ownerToken, fixtureArtifactPath, database);
+  await publishBuiltArtifact(server, ownerToken, inspectionArtifactPath, database);
   if (
     await count(server, ownerToken, database, 'world_tile') !== 10_000n
     || await count(server, ownerToken, database, 'world_tile_meta_v1') !== 10_000n
@@ -3401,6 +3508,10 @@ async function main() {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
 
+    // Advance every database, including the populated sentinel fixture, to the
+    // real candidate so the v8 -> v9 append is exercised on empty and nonempty
+    // state without any production endpoint.
+    await publish(server, owner.token, additiveModule, emptyDatabase);
     await publish(server, owner.token, additiveModule, nonemptyDatabase);
     await publish(server, owner.token, additiveModule, actualModuleDatabase);
     await publish(server, owner.token, additiveModule, resourceLifecycleDatabase);
@@ -3433,21 +3544,26 @@ async function main() {
     const builtArtifactDigest = createHash('sha256')
       .update(await readFile(builtArtifactPath))
       .digest('hex');
-    const nonemptyCandidateV8 = await describe(server, owner.token, nonemptyDatabase);
-    const actualCandidateV8 = await describe(server, owner.token, actualModuleDatabase);
-    assertAdditiveV8Schema(nonemptyV7, nonemptyCandidateV8);
-    assertAdditiveV8Schema(actualModuleV7, actualCandidateV8);
-    for (const name of deployedV8Tables) {
+    const emptyCandidateV9 = await describe(server, owner.token, emptyDatabase);
+    const nonemptyCandidateV9 = await describe(server, owner.token, nonemptyDatabase);
+    const actualCandidateV9 = await describe(server, owner.token, actualModuleDatabase);
+    assertAdditiveV9Schema(emptyV8, emptyCandidateV9);
+    assertAdditiveV9Schema(nonemptyV8, nonemptyCandidateV9);
+    assertAdditiveV9Schema(actualModuleV8, actualCandidateV9);
+    for (const name of deployedV9Tables) {
       assert.deepEqual(
-        tableSignature(actualCandidateV8, name),
-        tableSignature(emptyV8, name),
+        tableSignature(actualCandidateV9, name),
+        tableSignature(emptyCandidateV9, name),
       );
     }
-    // The real module rejects the disposable CLI identity at on-connect. Swap
-    // only the two inspected databases to the table-identical v8 fixture
-    // before reading the preservation digests; no reducer is invoked here.
-    await publish(server, owner.token, additiveV8SchemaFixture, nonemptyDatabase);
-    await publish(server, owner.token, additiveV8SchemaFixture, actualModuleDatabase);
+    // The candidate's on-connect policy intentionally rejects the disposable
+    // owner identity. Reuse the table-identical, auth-neutral v9 fixture before
+    // owner SQL reads and never downgrade the schema suffix.
+    await publish(server, owner.token, additiveV9SchemaFixture, emptyDatabase);
+    await publish(server, owner.token, additiveV9SchemaFixture, nonemptyDatabase);
+    await publish(server, owner.token, additiveV9SchemaFixture, actualModuleDatabase);
+    // SQL preservation reads remain on the complete v9 candidate. No reducer
+    // is invoked by these owner-only queries.
     for (const [database, beforeRows] of [
       [emptyDatabase, emptyV7Rows],
       [nonemptyDatabase, nonemptyV7Rows],
@@ -3459,7 +3575,7 @@ async function main() {
       );
     }
 
-    const idempotentSchemaBefore = schemaDigest(nonemptyCandidateV8);
+    const idempotentSchemaBefore = schemaDigest(nonemptyCandidateV9);
     await publishBuiltArtifact(
       server,
       owner.token,
@@ -3470,18 +3586,16 @@ async function main() {
       schemaDigest(await describe(server, owner.token, nonemptyDatabase)),
       idempotentSchemaBefore,
     );
+    await publish(server, owner.token, additiveV9SchemaFixture, nonemptyDatabase);
 
     // The actual module correctly rejects the disposable local identity at its
-    // on-connect boundary. Re-publish the table-identical v8 schema fixture
-    // before querying preservation; this changes no table or row.
-    await publish(server, owner.token, additiveV8SchemaFixture, nonemptyDatabase);
-    await publish(server, owner.token, additiveV8SchemaFixture, actualModuleDatabase);
+    // on-connect boundary; owner SQL still reads the unchanged v9 rows.
     assert.equal(await count(server, owner.token, emptyDatabase, 'player'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 0n);
+    await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 0);
     assert.equal(await count(server, owner.token, nonemptyDatabase, 'player'), 1n);
     assert.equal(await count(server, owner.token, nonemptyDatabase, 'player_v2'), 0n);
-    assert.equal(await count(server, owner.token, nonemptyDatabase, 'player_ownership_v2'), 0n);
+    await assertFixtureOwnershipCount(server, owner.token, nonemptyDatabase, 999999, 0);
     for (const [database, beforeRows] of [
       [emptyDatabase, emptyV3Rows],
       [nonemptyDatabase, nonemptyV3Rows],
@@ -3497,6 +3611,7 @@ async function main() {
         ...additiveV6Tables,
         ...additiveV7Tables,
         ...additiveV8Tables,
+        ...additiveV9Tables,
       ]) {
         assert.equal(await count(server, owner.token, database, table), 0n);
       }
@@ -3526,13 +3641,18 @@ async function main() {
       'SELECT * FROM world_tile',
     )), actualModuleWorldBefore);
 
-    await sql(
+    // Identity columns reject arbitrary SQL literals after the candidate's
+    // issuer boundary is active. The auth-neutral v9 fixture inserts the
+    // caller's verified sender identity through a disposable reducer instead.
+    await callLoopbackReducer(
       server,
-      owner.token,
       emptyDatabase,
-      `INSERT INTO player_ownership_v2 (fid, identity) VALUES (999999, 0x${owner.identity})`,
+      'fixture_insert_player_ownership_v9',
+      owner.token,
+      '[999999]',
+      200,
     );
-    assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
+    await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'player_v2'), 0n);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
     for (const table of [
@@ -3541,29 +3661,21 @@ async function main() {
       ...additiveV6Tables,
       ...additiveV7Tables,
       ...additiveV8Tables,
+      ...additiveV9Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
-    const populatedV8SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
+    const populatedV9SchemaDigest = schemaDigest(await describe(server, owner.token, emptyDatabase));
 
-    const { identity: secondIdentity } = await acquireDisposableIdentity(server);
-    await sql(
+    await callLoopbackReducer(
       server,
-      owner.token,
       emptyDatabase,
-      `INSERT INTO player_ownership_v2 (fid, identity) VALUES (999999, 0x${secondIdentity})`,
-      false,
-      /unique|constraint|duplicate|already exists/i,
-    );
-    await sql(
-      server,
+      'fixture_insert_player_ownership_v9',
       owner.token,
-      emptyDatabase,
-      `INSERT INTO player_ownership_v2 (fid, identity) VALUES (1000000, 0x${owner.identity})`,
-      false,
-      /unique|constraint|duplicate|already exists/i,
+      '[999999]',
+      530,
     );
-    assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
+    await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
 
     await publish(
       server,
@@ -3575,9 +3687,9 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV8SchemaDigest,
+      populatedV9SchemaDigest,
     );
-    assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
+    await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
     for (const table of [
       ...additiveV4Tables,
@@ -3585,6 +3697,7 @@ async function main() {
       ...additiveV6Tables,
       ...additiveV7Tables,
       ...additiveV8Tables,
+      ...additiveV9Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
@@ -3598,9 +3711,9 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV8SchemaDigest,
+      populatedV9SchemaDigest,
     );
-    assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
+    await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
     for (const table of [
       ...additiveV4Tables,
@@ -3608,6 +3721,7 @@ async function main() {
       ...additiveV6Tables,
       ...additiveV7Tables,
       ...additiveV8Tables,
+      ...additiveV9Tables,
     ]) {
       assert.equal(await count(server, owner.token, emptyDatabase, table), 0n);
     }
@@ -3621,7 +3735,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV8SchemaDigest,
+      populatedV9SchemaDigest,
     );
     await publish(
       server,
@@ -3633,7 +3747,7 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV8SchemaDigest,
+      populatedV9SchemaDigest,
     );
     await publish(
       server,
@@ -3645,10 +3759,11 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV8SchemaDigest,
+      populatedV9SchemaDigest,
     );
-    // The immediate v8 -> v7 rollback is refused as well. This is the
-    // protocol boundary that protects the Wood suffix from a stale deploy.
+    // The immediate v9 -> v7 rollback is refused as well. This is the
+    // protocol boundary that protects the water and Wood suffixes from a
+    // stale deploy.
     await publish(
       server,
       owner.token,
@@ -3659,10 +3774,18 @@ async function main() {
     );
     assert.equal(
       schemaDigest(await describe(server, owner.token, emptyDatabase)),
-      populatedV8SchemaDigest,
+      populatedV9SchemaDigest,
     );
-    await publish(server, owner.token, additiveV8SchemaFixture, emptyDatabase);
-    assert.equal(await count(server, owner.token, emptyDatabase, 'player_ownership_v2'), 1n);
+    await publish(server, owner.token, additiveModule, emptyDatabase);
+    assertAdditiveV9Schema(
+      emptyV8,
+      await describe(server, owner.token, emptyDatabase),
+    );
+    // Reuse the table-identical auth-neutral fixture for the final bounded
+    // identity assertion; the candidate itself deliberately rejects the
+    // disposable owner issuer before any private identity SQL can run.
+    await publish(server, owner.token, additiveV9SchemaFixture, emptyDatabase);
+    await assertFixtureOwnershipCount(server, owner.token, emptyDatabase, 999999, 1);
     assert.equal(await count(server, owner.token, emptyDatabase, 'castle_slot_v1'), 1n);
     for (const table of [
       ...additiveV4Tables,
@@ -3688,6 +3811,7 @@ async function main() {
       + 'tables appended at exact refs 27-31, '
       + 'public Tier-I Wood sites, identity-minimized occupations, and public-safe lifecycle schedule projection plus private Wood expedition and idempotency '
       + 'tables appended at exact refs 32-36, '
+      + 'canonical water layout, body, cell, and shared environment tables appended at exact refs 37-40, '
       + '61-tile empty and synthetic nonempty fixtures remained preserved, '
       + 'exact resolver HTTP lifecycle enforced without mutation, '
       + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `
@@ -3699,7 +3823,7 @@ async function main() {
       + 'presentation-independent founder monitoring and bootstrap, '
       + 'legacy first-time admission rejection and complete-graph re-enable preservation, '
       + 'and guarded backfill rejection/idempotence held, '
-      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v8, '
+      + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v9, '
       + 'and guarded v7/v6/v5/v4/v3/v2 rollbacks refused before schema change.',
       artifactDigest: builtArtifactDigest,
     }));

@@ -50,6 +50,7 @@ import {
   type RealmSceneHandle,
   type RealmTerrainPresentationTelemetry
 } from './createRealmScene';
+import { resolveCanonicalWaterProjection } from './realmWaterProjection';
 import {
   resolveRealmGoldNodePresentations,
   type RealmGoldNodePresentation
@@ -227,6 +228,12 @@ function CanonicalRealmMapScreen({
     snapshot.forestLayout,
     snapshot.forestTrees
   );
+  const waterCells = useMemo(() => resolveCanonicalWaterProjection(
+    snapshot.waterLayout,
+    snapshot.waterBodies,
+    snapshot.waterCells,
+    snapshot.realmEnvironment
+  ), [snapshot.realmEnvironment, snapshot.waterBodies, snapshot.waterCells, snapshot.waterLayout]);
   const rootRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackMapRef = useRef<SVGSVGElement>(null);
@@ -936,6 +943,10 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.semanticTerrainKindCount = '0';
         rootRef.current.dataset.semanticTerrainFeatureCount = '0';
         rootRef.current.dataset.semanticTerrainFeatureDrawCalls = '0';
+        rootRef.current.dataset.waterPresentation = waterCells ? 'pending' : 'unavailable';
+        rootRef.current.dataset.waterLayoutVersion = '0';
+        rootRef.current.dataset.waterTriangleCount = '0';
+        rootRef.current.dataset.waterDrawCalls = '0';
         rootRef.current.dataset.totalTerrainDetailInstanceCount = '0';
         rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
         rootRef.current.dataset.forestPlacementSource = 'blocked';
@@ -986,6 +997,7 @@ function CanonicalRealmMapScreen({
         woodNodes,
         sharedForestLayout: sharedForestProjection.layout,
         sharedForestTrees: sharedForestProjection.trees,
+        waterCells,
         realmId: snapshot.realm.realmId,
         // The retired local planner is exposed only to the synthetic dev
         // observer. Player scenes wait for the paired shared public tables.
@@ -1058,7 +1070,7 @@ function CanonicalRealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [foodNodes, goldNodes, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedForestProjection, sharedTileMetadata, snapshot.realm.realmId, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, woodNodes]);
+  }, [foodNodes, goldNodes, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedForestProjection, sharedTileMetadata, snapshot.realm.realmId, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, waterCells, woodNodes]);
 
   useEffect(() => {
     sceneRef.current?.setSelected(selectedCoord);

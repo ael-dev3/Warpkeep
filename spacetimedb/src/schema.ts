@@ -760,6 +760,118 @@ export const woodExpeditionScheduleV1 = table(
   },
 );
 
+/** Public singleton for the reviewed, append-only Genesis water artifact. */
+export const realmWaterLayoutV1 = table(
+  { name: 'realm_water_layout_v1', public: true },
+  {
+    realmId: t.string().primaryKey(),
+    layoutVersion: t.u32(),
+    policyVersion: t.string(),
+    generationVersion: t.u32(),
+    canonicalLandCellCount: t.u32(),
+    oceanCellCount: t.u32(),
+    lakeCellCount: t.u32(),
+    lakeBodyCount: t.u32(),
+    riverCount: t.u32(),
+    riverCellCount: t.u32(),
+    seaLevelMilli: t.i32(),
+    seaLevelPolicyVersion: t.string(),
+    fogStartDepthCells: t.u32(),
+    fogFullDepthCells: t.u32(),
+    hiddenBufferCells: t.u32(),
+    layoutDigest: t.string(),
+    sourceCommit: t.string(),
+    activated: t.bool(),
+    seededAt: t.timestamp(),
+    activatedAt: t.option(t.timestamp()),
+  },
+);
+
+/** Public body summaries keep subscriptions bounded while cells stay inspectable. */
+export const realmWaterBodyV1 = table(
+  {
+    name: 'realm_water_body_v1',
+    public: true,
+    indexes: [{
+      accessor: 'byRealmAndRegime',
+      algorithm: 'btree',
+      columns: ['realmId', 'regime'] as const,
+    }] as const,
+  },
+  {
+    bodyId: t.string().primaryKey(),
+    realmId: t.string().index(),
+    regime: t.string(),
+    cellCount: t.u32(),
+    sourceCellKey: t.string(),
+    mouthCellKey: t.string(),
+    surfaceLevelMilli: t.i32(),
+    flowDirectionXQ15: t.i32(),
+    flowDirectionZQ15: t.i32(),
+    wavePreset: t.string(),
+    ordinal: t.u32(),
+    seed: t.u32(),
+    generationVersion: t.u32(),
+    layoutVersion: t.u32(),
+  },
+);
+
+/** Public immutable per-cell topology; no per-frame wave state is persisted. */
+export const realmWaterCellV1 = table(
+  {
+    name: 'realm_water_cell_v1',
+    public: true,
+    indexes: [{
+      accessor: 'byRealmAndRegime',
+      algorithm: 'btree',
+      columns: ['realmId', 'regime'] as const,
+    }, {
+      accessor: 'byBody',
+      algorithm: 'btree',
+      columns: ['bodyId'] as const,
+    }] as const,
+  },
+  {
+    cellKey: t.string().primaryKey(),
+    realmId: t.string().index(),
+    q: t.i32(),
+    r: t.i32(),
+    regime: t.string(),
+    bodyId: t.string(),
+    depthCells: t.u32(),
+    elevationMilli: t.i32(),
+    surfaceLevelMilli: t.i32(),
+    ring: t.u32(),
+    s: t.i32(),
+    underlyingTileKey: t.option(t.string()),
+    riverOrdinal: t.option(t.u32()),
+    riverOrder: t.option(t.u32()),
+    downstreamWaterCellKey: t.option(t.string()),
+    flowAccumulation: t.u32(),
+    depthClass: t.u32(),
+    oceanDepth: t.u32(),
+    bankSeed: t.u32(),
+    generationVersion: t.u32(),
+    fogBand: t.string(),
+    layoutVersion: t.u32(),
+  },
+);
+
+/** Shared environment epoch consumed by all clients through one demand-driven clock. */
+export const realmEnvironmentV1 = table(
+  { name: 'realm_environment_v1', public: true },
+  {
+    realmId: t.string().primaryKey(),
+    environmentEpoch: t.u64(),
+    waterLayoutVersion: t.u32(),
+    seaLevelMilli: t.i32(),
+    sunDirectionXMicro: t.i32(),
+    sunDirectionYMicro: t.i32(),
+    sunDirectionZMicro: t.i32(),
+    updatedAt: t.timestamp(),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -800,6 +912,10 @@ const warpkeep = schema({
   woodExpeditionV1,
   woodExpeditionIdempotencyV1,
   woodExpeditionScheduleV1,
+  realmWaterLayoutV1,
+  realmWaterBodyV1,
+  realmWaterCellV1,
+  realmEnvironmentV1,
 });
 
 /**
@@ -895,6 +1011,9 @@ for (const name of [
   'collect_wood_expedition_v1',
   'admin_seed_genesis_tier_i_wood_sites_v1',
   'admin_get_alpha_status_v8',
+  'admin_seed_genesis_water_layout_v1',
+  'admin_activate_genesis_water_layout_v1',
+  'admin_inspect_genesis_water_layout_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

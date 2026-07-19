@@ -12,7 +12,8 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 8 |
+| Append-only schema generation | 8 deployed |
+| Draft Alpha 0.3.12 water suffix | candidate generation 9, refs 37–40 (not activated) |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The

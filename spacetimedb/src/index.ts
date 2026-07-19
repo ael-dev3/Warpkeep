@@ -62,6 +62,11 @@ export {
 export { adminSeedGenesisForestLayoutV1 } from './reducers/forestLayout';
 export { adminGetAlphaStatusV8 } from './reducers/alphaStatus';
 export {
+  adminSeedGenesisWaterLayoutV1,
+  adminActivateGenesisWaterLayoutV1,
+  adminInspectGenesisWaterLayoutV1,
+} from './reducers/waterLayout';
+export {
   runGoldExpeditionScheduleV1,
   runFoodExpeditionScheduleV1,
   runWoodExpeditionScheduleV1,

@@ -194,6 +194,81 @@ export type WarpkeepForestTree = Readonly<{
   layoutVersion: number;
 }>;
 
+/** Public, fixed-point Genesis water layout metadata. */
+export type WarpkeepWaterLayout = Readonly<{
+  realmId: string;
+  layoutVersion: number;
+  policyVersion: string;
+  generationVersion: number;
+  canonicalLandCellCount: number;
+  oceanCellCount: number;
+  lakeCellCount: number;
+  lakeBodyCount: number;
+  riverCount: number;
+  riverCellCount: number;
+  seaLevelMilli: number;
+  seaLevelPolicyVersion: string;
+  fogStartDepthCells: number;
+  fogFullDepthCells: number;
+  hiddenBufferCells: number;
+  layoutDigest: string;
+  sourceCommit: string;
+  activated: boolean;
+}>;
+
+export type WarpkeepWaterBody = Readonly<{
+  bodyId: string;
+  realmId: string;
+  regime: string;
+  cellCount: number;
+  sourceCellKey: string;
+  mouthCellKey: string;
+  surfaceLevelMilli: number;
+  flowDirectionXQ15: number;
+  flowDirectionZQ15: number;
+  wavePreset: string;
+  ordinal: number;
+  seed: number;
+  generationVersion: number;
+  layoutVersion: number;
+}>;
+
+export type WarpkeepWaterCell = Readonly<{
+  cellKey: string;
+  realmId: string;
+  q: number;
+  r: number;
+  regime: string;
+  bodyId: string;
+  depthCells: number;
+  elevationMilli: number;
+  surfaceLevelMilli: number;
+  ring: number;
+  s: number;
+  underlyingTileKey?: string;
+  riverOrdinal?: number;
+  riverOrder?: number;
+  downstreamWaterCellKey?: string;
+  flowAccumulation: number;
+  depthClass: number;
+  oceanDepth: number;
+  bankSeed: number;
+  generationVersion: number;
+  fogBand: string;
+  layoutVersion: number;
+}>;
+
+/** Shared fixed-point atmosphere clock and sun vector for all water clients. */
+export type WarpkeepRealmEnvironment = Readonly<{
+  realmId: string;
+  environmentEpoch: bigint;
+  waterLayoutVersion: number;
+  seaLevelMilli: number;
+  sunDirectionXMicro: number;
+  sunDirectionYMicro: number;
+  sunDirectionZMicro: number;
+}>;
+
 /**
  * Untrusted projection assembled from the six public subscription tables.
  * It may represent a partially applied subscription and must not reach the
@@ -227,6 +302,11 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   forestLayout?: unknown;
   /** Paired public rows; absent or incompatible data renders no trees. */
   forestTrees?: readonly unknown[];
+  /** Paired public canonical water projection; malformed data stays present-invalid. */
+  waterLayout?: unknown;
+  waterBodies?: readonly unknown[];
+  waterCells?: readonly unknown[];
+  realmEnvironment?: unknown;
   ownCastle?: WarpkeepCastle;
 }>;
 

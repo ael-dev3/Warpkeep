@@ -34,7 +34,11 @@ import { createTerrainDecorationLayers } from './createTerrainDecorations';
 import { createRealmGrassLayer, type RealmGrassLayer, type RealmGrassTelemetry } from './createRealmGrassLayer';
 import { createRealmTerrainFeatureLayers } from './createRealmTerrainFeatures';
 import { createRealmForestLayer, type RealmForestLayer } from './realmForestLayer';
-import { createTerrainGeometryData, pointyHexCorners } from './createTerrainGeometry';
+import {
+  createTerrainGeometryData,
+  createTerrainOverviewHull,
+  pointyHexCorners
+} from './createTerrainGeometry';
 import {
   DEFAULT_CASTLE_LOD_POLICY,
   type CastleLod,
@@ -78,6 +82,11 @@ import {
   type RealmCastleProjectionEnvelope
 } from './realmCastleProjectionGeometry';
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from './realmAmbientScheduler';
+import {
+  createRealmWaterLayer,
+  type RealmWaterLayer
+} from './realmWaterLayer';
+import type { GenesisWaterCellV1 } from '../../../spacetimedb/src/waterWorld';
 import {
   createRealmGoldNodeLayer,
   HEGEMONY_EXPEDITION_ASSET_BUDGETS,
@@ -125,6 +134,8 @@ const CAMERA_FILL_FACE_IRRADIANCE = 0.42;
 const CAMERA_FILL_INTENSITY = CAMERA_FILL_FACE_IRRADIANCE
   * Math.hypot(CAMERA_FILL_HORIZONTAL_DISTANCE, CAMERA_FILL_HEIGHT)
   / CAMERA_FILL_HORIZONTAL_DISTANCE;
+/** Ordinary Realm view deliberately exposes a strategic neighborhood, not the full board. */
+export const REALM_STRATEGIC_OVERVIEW_RADIUS = 28;
 
 function localPresentationNowMicros() {
   const now = Date.now();
@@ -424,6 +435,8 @@ export type CreateRealmSceneOptions = Readonly<{
   sharedForestLayout?: unknown;
   /** Canonical realm id used to bind the shared forest table to this scene. */
   realmId?: string;
+  /** Complete, digest-validated public water projection; absent means water is unavailable. */
+  waterCells?: readonly GenesisWaterCellV1[];
   /**
    * Test/DEV-observer-only bridge for the retired deterministic preview.
    * Production player scenes must not synthesize a forest before the public
@@ -1013,6 +1026,40 @@ function initializeRealmScene(
   terrain.receiveShadow = renderPlan.dynamicShadows;
   scene.add(terrain);
 
+  let waterLayer: RealmWaterLayer | null = null;
+  if (options.waterCells !== undefined) {
+    try {
+      waterLayer = createRealmWaterLayer({
+        cells: options.waterCells,
+        quality: runtimeQuality,
+        reducedMotion: options.reducedMotion,
+        hexSize: HEX_SIZE,
+        heightAt: (coord) => terrainHeightAtWorld(
+          options.surface.renderMap,
+          axialToWorld(coord, HEX_SIZE),
+          HEX_SIZE,
+          terrainPlacements
+        )
+      });
+      scene.add(waterLayer.group);
+      options.canvas.dataset.waterPresentation = 'ready';
+      options.canvas.dataset.waterLayoutVersion = String(waterLayer.getTelemetry().layoutVersion);
+      options.canvas.dataset.waterTriangleCount = String(waterLayer.getTelemetry().triangleCount);
+      options.canvas.dataset.waterDrawCalls = String(waterLayer.getTelemetry().drawCalls);
+      cleanup.add(() => {
+        const layer = waterLayer;
+        if (!layer) return;
+        scene.remove(layer.group);
+        layer.dispose();
+        if (waterLayer === layer) waterLayer = null;
+      });
+    } catch {
+      options.canvas.dataset.waterPresentation = 'unavailable';
+    }
+  } else {
+    options.canvas.dataset.waterPresentation = 'unavailable';
+  }
+
   const decorations = createTerrainDecorationLayers(
     decorationData,
     options.surface.renderMap,
@@ -1379,6 +1426,7 @@ function initializeRealmScene(
       || goldNodeLayer?.hasMovingWagons() === true
       || foodNodeLayer?.hasMovingWagons() === true
       || woodNodeLayer?.hasMovingWagons() === true
+      || waterLayer?.isAnimationActive() === true
     );
   const disableGrassPresentation = () => {
     const layer = grassLayer;
@@ -1620,9 +1668,19 @@ function initializeRealmScene(
     cleanup.isDisposed,
     render
   );
+  const strategicOverviewMap = {
+    ...options.surface.renderMap,
+    radius: REALM_STRATEGIC_OVERVIEW_RADIUS,
+    cells: options.surface.renderMap.cells.filter((cell) => (
+      hexDistance(cell.coord, { q: 0, r: 0 }) <= REALM_STRATEGIC_OVERVIEW_RADIUS
+    ))
+  } as const;
   const cameraController = createRealmCameraController({
     bounds: terrainData.bounds,
-    overviewHull: terrainData.overviewHull,
+    // Keep the full generated terrain available to pan/clamp, but make the
+    // ordinary overview a readable strategic footprint. The authoritative
+    // water apron and outer fog remain outside the initial camera composition.
+    overviewHull: createTerrainOverviewHull(strategicOverviewMap, HEX_SIZE),
     keepFocus: {
       x: keepWorld.x,
       y: keepGroundY,
@@ -1731,12 +1789,14 @@ function initializeRealmScene(
       const wagonsMoving = goldNodeLayer?.hasMovingWagons() === true;
       const foodWagonsMoving = foodNodeLayer?.hasMovingWagons() === true;
       const woodWagonsMoving = woodNodeLayer?.hasMovingWagons() === true;
+      const waterChanged = waterLayer?.updateEnvironment(elapsedSeconds) === true;
       if (
         grassChanged
         || terrainChanged
         || wagonsMoving
         || foodWagonsMoving
         || woodWagonsMoving
+        || waterChanged
       ) render();
     }
   });

@@ -55,8 +55,12 @@ import RealmForestInstanceV1Row from './module_bindings/realm_forest_instance_v_
 import RealmForestLayoutV1Row from './module_bindings/realm_forest_layout_v_1_table'
 import RealmProfileV1Row from './module_bindings/realm_profile_v_1_table'
 import RealmV1Row from './module_bindings/realm_v_1_table'
+import RealmEnvironmentV1Row from './module_bindings/realm_environment_v_1_table'
 import WorldTileMetaV1Row from './module_bindings/world_tile_meta_v_1_table'
 import WorldTileRow from './module_bindings/world_tile_table'
+import RealmWaterBodyV1Row from './module_bindings/realm_water_body_v_1_table'
+import RealmWaterCellV1Row from './module_bindings/realm_water_cell_v_1_table'
+import RealmWaterLayoutV1Row from './module_bindings/realm_water_layout_v_1_table'
 import WoodNodeOccupationV1Row from './module_bindings/wood_node_occupation_v_1_table'
 import WoodSiteV1Row from './module_bindings/wood_site_v_1_table'
 
@@ -196,6 +200,47 @@ const tablesSchema = __schema({
       { name: 'realm_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
     ],
   }, RealmV1Row),
+  realmEnvironmentV1: __table({
+    name: 'realm_environment_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_environment_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+    ],
+    constraints: [
+      { name: 'realm_environment_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmEnvironmentV1Row),
+  realmWaterBodyV1: __table({
+    name: 'realm_water_body_v1',
+    indexes: [
+      { accessor: 'bodyId', name: 'realm_water_body_v1_body_id_idx_btree', algorithm: 'btree', columns: ['bodyId'] },
+      { accessor: 'realmId', name: 'realm_water_body_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+      { accessor: 'byRealmAndRegime', name: 'realm_water_body_v1_realm_id_regime_idx_btree', algorithm: 'btree', columns: ['realmId', 'regime'] },
+    ],
+    constraints: [
+      { name: 'realm_water_body_v1_body_id_key', constraint: 'unique', columns: ['bodyId'] },
+    ],
+  }, RealmWaterBodyV1Row),
+  realmWaterCellV1: __table({
+    name: 'realm_water_cell_v1',
+    indexes: [
+      { accessor: 'byBody', name: 'realm_water_cell_v1_body_id_idx_btree', algorithm: 'btree', columns: ['bodyId'] },
+      { accessor: 'cellKey', name: 'realm_water_cell_v1_cell_key_idx_btree', algorithm: 'btree', columns: ['cellKey'] },
+      { accessor: 'realmId', name: 'realm_water_cell_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+      { accessor: 'byRealmAndRegime', name: 'realm_water_cell_v1_realm_id_regime_idx_btree', algorithm: 'btree', columns: ['realmId', 'regime'] },
+    ],
+    constraints: [
+      { name: 'realm_water_cell_v1_cell_key_key', constraint: 'unique', columns: ['cellKey'] },
+    ],
+  }, RealmWaterCellV1Row),
+  realmWaterLayoutV1: __table({
+    name: 'realm_water_layout_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_water_layout_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+    ],
+    constraints: [
+      { name: 'realm_water_layout_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmWaterLayoutV1Row),
   // The Wood catalog follows the same narrow boundary as Gold and Food:
   // public site geometry plus occupation timing, never the private ledger,
   // idempotency receipts, or scheduler surface.

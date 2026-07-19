@@ -7,6 +7,7 @@ import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
 import AcceptAlphaTermsV1Reducer from "../accept_alpha_terms_v_1_reducer";
+import AdminActivateGenesisWaterLayoutV1Reducer from "../admin_activate_genesis_water_layout_v_1_reducer";
 import AdminAdmitFounderV1Reducer from "../admin_admit_founder_v_1_reducer";
 import AdminAllowFidReducer from "../admin_allow_fid_reducer";
 import AdminBackfillResourceAccountsV1Reducer from "../admin_backfill_resource_accounts_v_1_reducer";
@@ -21,6 +22,7 @@ import AdminSeedGenesisForestLayoutV1Reducer from "../admin_seed_genesis_forest_
 import AdminSeedGenesisTierIFoodSitesV1Reducer from "../admin_seed_genesis_tier_i_food_sites_v_1_reducer";
 import AdminSeedGenesisTierIGoldSitesV1Reducer from "../admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
 import AdminSeedGenesisTierIWoodSitesV1Reducer from "../admin_seed_genesis_tier_i_wood_sites_v_1_reducer";
+import AdminSeedGenesisWaterLayoutV1Reducer from "../admin_seed_genesis_water_layout_v_1_reducer";
 import AdminSeedWorldReducer from "../admin_seed_world_reducer";
 import AdminUpsertFidWalletAttributionV1Reducer from "../admin_upsert_fid_wallet_attribution_v_1_reducer";
 import AdminUpsertRealmProfileV1Reducer from "../admin_upsert_realm_profile_v_1_reducer";
@@ -35,6 +37,7 @@ import DispatchGoldExpeditionV1Reducer from "../dispatch_gold_expedition_v_1_red
 import DispatchWoodExpeditionV1Reducer from "../dispatch_wood_expedition_v_1_reducer";
 
 export type AcceptAlphaTermsV1Params = __Infer<typeof AcceptAlphaTermsV1Reducer>;
+export type AdminActivateGenesisWaterLayoutV1Params = __Infer<typeof AdminActivateGenesisWaterLayoutV1Reducer>;
 export type AdminAdmitFounderV1Params = __Infer<typeof AdminAdmitFounderV1Reducer>;
 export type AdminAllowFidParams = __Infer<typeof AdminAllowFidReducer>;
 export type AdminBackfillResourceAccountsV1Params = __Infer<typeof AdminBackfillResourceAccountsV1Reducer>;
@@ -49,6 +52,7 @@ export type AdminSeedGenesisForestLayoutV1Params = __Infer<typeof AdminSeedGenes
 export type AdminSeedGenesisTierIFoodSitesV1Params = __Infer<typeof AdminSeedGenesisTierIFoodSitesV1Reducer>;
 export type AdminSeedGenesisTierIGoldSitesV1Params = __Infer<typeof AdminSeedGenesisTierIGoldSitesV1Reducer>;
 export type AdminSeedGenesisTierIWoodSitesV1Params = __Infer<typeof AdminSeedGenesisTierIWoodSitesV1Reducer>;
+export type AdminSeedGenesisWaterLayoutV1Params = __Infer<typeof AdminSeedGenesisWaterLayoutV1Reducer>;
 export type AdminSeedWorldParams = __Infer<typeof AdminSeedWorldReducer>;
 export type AdminUpsertFidWalletAttributionV1Params = __Infer<typeof AdminUpsertFidWalletAttributionV1Reducer>;
 export type AdminUpsertRealmProfileV1Params = __Infer<typeof AdminUpsertRealmProfileV1Reducer>;

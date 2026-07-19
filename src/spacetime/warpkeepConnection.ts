@@ -18,6 +18,10 @@ import type {
   WarpkeepRealmProfile,
   WarpkeepRealmSnapshot,
   WarpkeepRealmSnapshotCandidate,
+  WarpkeepWaterBody,
+  WarpkeepWaterCell,
+  WarpkeepWaterLayout,
+  WarpkeepRealmEnvironment,
   WarpkeepWorldTileMetadata,
   WarpkeepWorldTile
 } from './warpkeepBackendTypes';
@@ -77,6 +81,7 @@ import {
   isCanonicalRealmWoodSiteCatalog
 } from '../components/realm/realmResourceSiteCatalogPolicy';
 import { GENESIS_FOREST_LAYOUT_V1_TREE_COUNT } from '../../spacetimedb/src/forestLayoutContract';
+import { GENESIS_WATER_BODIES_V1, GENESIS_WATER_CELLS_V1 } from '../../spacetimedb/src/waterWorld';
 
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
@@ -131,6 +136,14 @@ type ForestProjectionAvailability =
  * become readable after that paired subscription has applied in full.
  */
 const forestProjectionAvailability = new WeakMap<WarpkeepConnection, ForestProjectionAvailability>();
+const WATER_PROJECTION_UNAVAILABLE = 'unavailable' as const;
+const WATER_PROJECTION_PENDING = 'pending' as const;
+const WATER_PROJECTION_READY = 'ready' as const;
+type WaterProjectionAvailability =
+  | typeof WATER_PROJECTION_UNAVAILABLE
+  | typeof WATER_PROJECTION_PENDING
+  | typeof WATER_PROJECTION_READY;
+const waterProjectionAvailability = new WeakMap<WarpkeepConnection, WaterProjectionAvailability>();
 const GOLD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const GOLD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const FOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
@@ -548,6 +561,7 @@ export function subscribeToWarpkeepRealm(
   foodProjectionAvailability.set(connection, FOOD_PROJECTION_PENDING);
   woodProjectionAvailability.set(connection, WOOD_PROJECTION_PENDING);
   forestProjectionAvailability.set(connection, FOREST_PROJECTION_PENDING);
+  waterProjectionAvailability.set(connection, WATER_PROJECTION_PENDING);
   const coreSubscription = connection
     .subscriptionBuilder()
     .onApplied(() => {
@@ -686,12 +700,44 @@ export function subscribeToWarpkeepRealm(
     forestProjectionAvailability.set(connection, FOREST_PROJECTION_UNAVAILABLE);
   }
 
+  let waterSubscription: SubscriptionHandle | undefined;
+  const waterTables = publicWaterTables(connection);
+  // Water is a single atomic public projection. A missing or older schema
+  // leaves the conservative terrain/sky fallback active; it never invents a
+  // shoreline from browser-local coordinates.
+  if (waterTables !== undefined) {
+    try {
+      waterSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          waterProjectionAvailability.set(connection, WATER_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          waterProjectionAvailability.set(connection, WATER_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          tables.realmWaterLayoutV1,
+          tables.realmWaterBodyV1,
+          tables.realmWaterCellV1,
+          tables.realmEnvironmentV1
+        ]);
+    } catch {
+      waterProjectionAvailability.set(connection, WATER_PROJECTION_UNAVAILABLE);
+      if (coreApplied) onApplied();
+    }
+  } else {
+    waterProjectionAvailability.set(connection, WATER_PROJECTION_UNAVAILABLE);
+  }
+
   return Object.freeze({
     unsubscribe: () => {
       goldProjectionAvailability.delete(connection);
       foodProjectionAvailability.delete(connection);
       woodProjectionAvailability.delete(connection);
       forestProjectionAvailability.delete(connection);
+      waterProjectionAvailability.delete(connection);
       try {
         try {
           try {
@@ -704,7 +750,11 @@ export function subscribeToWarpkeepRealm(
             }
           }
         } finally {
-          forestSubscription?.unsubscribe();
+          try {
+            forestSubscription?.unsubscribe();
+          } finally {
+            waterSubscription?.unsubscribe();
+          }
         }
       } finally {
         coreSubscription.unsubscribe();
@@ -951,6 +1001,121 @@ function publicForestTreeRecord(value: unknown): unknown {
     habitat: row.habitat,
     layoutVersion: row.layoutVersion
   });
+}
+
+type PublicWaterTable = PublicForestTable;
+
+function publicWaterTables(connection: WarpkeepConnection) {
+  const db = connection.db as unknown as Readonly<{
+    realmWaterLayoutV1?: PublicWaterTable;
+    realmWaterBodyV1?: PublicWaterTable;
+    realmWaterCellV1?: PublicWaterTable;
+    realmEnvironmentV1?: PublicWaterTable;
+  }> | undefined;
+  if (
+    !db?.realmWaterLayoutV1
+    || !db.realmWaterBodyV1
+    || !db.realmWaterCellV1
+    || !db.realmEnvironmentV1
+  ) return undefined;
+  return db;
+}
+
+function publicWaterLayoutRecord(value: unknown): unknown {
+  const row = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+  if (!row) return Object.freeze({});
+  return Object.freeze({
+    realmId: row.realmId,
+    layoutVersion: row.layoutVersion,
+    policyVersion: row.policyVersion,
+    generationVersion: row.generationVersion,
+    canonicalLandCellCount: row.canonicalLandCellCount,
+    oceanCellCount: row.oceanCellCount,
+    lakeCellCount: row.lakeCellCount,
+    lakeBodyCount: row.lakeBodyCount,
+    riverCount: row.riverCount,
+    riverCellCount: row.riverCellCount,
+    seaLevelMilli: row.seaLevelMilli,
+    seaLevelPolicyVersion: row.seaLevelPolicyVersion,
+    fogStartDepthCells: row.fogStartDepthCells,
+    fogFullDepthCells: row.fogFullDepthCells,
+    hiddenBufferCells: row.hiddenBufferCells,
+    layoutDigest: row.layoutDigest,
+    sourceCommit: row.sourceCommit,
+    activated: row.activated
+  }) as Partial<WarpkeepWaterLayout>;
+}
+
+function publicWaterBodyRecord(value: unknown): unknown {
+  const row = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+  if (!row) return Object.freeze({});
+  return Object.freeze({
+    bodyId: row.bodyId,
+    realmId: row.realmId,
+    regime: row.regime,
+    cellCount: row.cellCount,
+    sourceCellKey: row.sourceCellKey,
+    mouthCellKey: row.mouthCellKey,
+    surfaceLevelMilli: row.surfaceLevelMilli,
+    flowDirectionXQ15: row.flowDirectionXQ15,
+    flowDirectionZQ15: row.flowDirectionZQ15,
+    wavePreset: row.wavePreset,
+    ordinal: row.ordinal,
+    seed: row.seed,
+    generationVersion: row.generationVersion,
+    layoutVersion: row.layoutVersion
+  }) as Partial<WarpkeepWaterBody>;
+}
+
+function publicWaterCellRecord(value: unknown): unknown {
+  const row = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+  if (!row) return Object.freeze({});
+  return Object.freeze({
+    cellKey: row.cellKey,
+    realmId: row.realmId,
+    q: row.q,
+    r: row.r,
+    regime: row.regime,
+    bodyId: row.bodyId,
+    depthCells: row.depthCells,
+    elevationMilli: row.elevationMilli,
+    surfaceLevelMilli: row.surfaceLevelMilli,
+    ring: row.ring,
+    s: row.s,
+    underlyingTileKey: row.underlyingTileKey,
+    riverOrdinal: row.riverOrdinal,
+    riverOrder: row.riverOrder,
+    downstreamWaterCellKey: row.downstreamWaterCellKey,
+    flowAccumulation: row.flowAccumulation,
+    depthClass: row.depthClass,
+    oceanDepth: row.oceanDepth,
+    bankSeed: row.bankSeed,
+    generationVersion: row.generationVersion,
+    fogBand: row.fogBand,
+    layoutVersion: row.layoutVersion
+  }) as Partial<WarpkeepWaterCell>;
+}
+
+function publicRealmEnvironmentRecord(value: unknown): unknown {
+  const row = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+  if (!row) return Object.freeze({});
+  return Object.freeze({
+    realmId: row.realmId,
+    environmentEpoch: row.environmentEpoch,
+    waterLayoutVersion: row.waterLayoutVersion,
+    seaLevelMilli: row.seaLevelMilli,
+    sunDirectionXMicro: row.sunDirectionXMicro,
+    sunDirectionYMicro: row.sunDirectionYMicro,
+    sunDirectionZMicro: row.sunDirectionZMicro
+  }) as Partial<WarpkeepRealmEnvironment>;
 }
 
 function publicGoldTables(connection: WarpkeepConnection) {
@@ -1285,6 +1450,56 @@ function readPublicForestProjection(
   return Object.freeze({ layout, trees });
 }
 
+type PublicWaterProjection = Readonly<{
+  layout: unknown;
+  bodies: readonly unknown[];
+  cells: readonly unknown[];
+  realmEnvironment: unknown;
+}>;
+
+function readPublicWaterProjection(
+  connection: WarpkeepConnection
+): PublicWaterProjection | undefined {
+  if (waterProjectionAvailability.get(connection) !== WATER_PROJECTION_READY) return undefined;
+  const db = publicWaterTables(connection);
+  if (!db) return undefined;
+  const layoutRows = readBoundedPublicForestRows(db.realmWaterLayoutV1!.iter!(), 1, publicWaterLayoutRecord);
+  const bodies = readBoundedPublicForestRows(
+    db.realmWaterBodyV1!.iter!(),
+    GENESIS_WATER_BODIES_V1.length,
+    publicWaterBodyRecord
+  );
+  const cells = readBoundedPublicForestRows(
+    db.realmWaterCellV1!.iter!(),
+    GENESIS_WATER_CELLS_V1.length,
+    publicWaterCellRecord
+  );
+  const environmentRows = readBoundedPublicForestRows(
+    db.realmEnvironmentV1!.iter!(),
+    1,
+    publicRealmEnvironmentRecord
+  );
+  if (
+    layoutRows === undefined
+    || bodies === undefined
+    || cells === undefined
+    || environmentRows === undefined
+  ) {
+    return Object.freeze({
+      layout: Object.freeze({}),
+      bodies: Object.freeze([]),
+      cells: Object.freeze([]),
+      realmEnvironment: Object.freeze({})
+    });
+  }
+  return Object.freeze({
+    layout: layoutRows.length === 1 ? layoutRows[0] : layoutRows,
+    bodies,
+    cells,
+    realmEnvironment: environmentRows.length === 1 ? environmentRows[0] : environmentRows
+  });
+}
+
 export function readWarpkeepRealmSnapshot(
   connection: WarpkeepConnection,
   ownFid: number
@@ -1295,6 +1510,7 @@ export function readWarpkeepRealmSnapshot(
   const publicFood = readPublicFoodProjection(connection);
   const publicWood = readPublicWoodProjection(connection);
   const publicForest = readPublicForestProjection(connection);
+  const publicWater = readPublicWaterProjection(connection);
   const candidate: WarpkeepRealmSnapshotCandidate = {
     tiles: readWorldTiles(connection),
     tileMetadata: readWorldTileMetadata(connection),
@@ -1317,6 +1533,12 @@ export function readWarpkeepRealmSnapshot(
     ...(publicForest === undefined ? {} : {
       forestLayout: publicForest.layout,
       forestTrees: publicForest.trees
+    }),
+    ...(publicWater === undefined ? {} : {
+      waterLayout: publicWater.layout,
+      waterBodies: publicWater.bodies,
+      waterCells: publicWater.cells,
+      realmEnvironment: publicWater.realmEnvironment
     }),
     ...(ownCastle ? { ownCastle } : {})
   };
@@ -1403,6 +1625,19 @@ export function observeWarpkeepRealm(
   forestTables?.realmForestInstanceV1?.onInsert?.(sync);
   forestTables?.realmForestInstanceV1?.onDelete?.(sync);
   forestTables?.realmForestInstanceV1?.onUpdate?.(sync);
+  const waterTables = publicWaterTables(connection);
+  waterTables?.realmWaterLayoutV1?.onInsert?.(sync);
+  waterTables?.realmWaterLayoutV1?.onDelete?.(sync);
+  waterTables?.realmWaterLayoutV1?.onUpdate?.(sync);
+  waterTables?.realmWaterBodyV1?.onInsert?.(sync);
+  waterTables?.realmWaterBodyV1?.onDelete?.(sync);
+  waterTables?.realmWaterBodyV1?.onUpdate?.(sync);
+  waterTables?.realmWaterCellV1?.onInsert?.(sync);
+  waterTables?.realmWaterCellV1?.onDelete?.(sync);
+  waterTables?.realmWaterCellV1?.onUpdate?.(sync);
+  waterTables?.realmEnvironmentV1?.onInsert?.(sync);
+  waterTables?.realmEnvironmentV1?.onDelete?.(sync);
+  waterTables?.realmEnvironmentV1?.onUpdate?.(sync);
 
   return () => {
     active = false;
@@ -1448,6 +1683,18 @@ export function observeWarpkeepRealm(
     forestTables?.realmForestInstanceV1?.removeOnInsert?.(sync);
     forestTables?.realmForestInstanceV1?.removeOnDelete?.(sync);
     forestTables?.realmForestInstanceV1?.removeOnUpdate?.(sync);
+    waterTables?.realmWaterLayoutV1?.removeOnInsert?.(sync);
+    waterTables?.realmWaterLayoutV1?.removeOnDelete?.(sync);
+    waterTables?.realmWaterLayoutV1?.removeOnUpdate?.(sync);
+    waterTables?.realmWaterBodyV1?.removeOnInsert?.(sync);
+    waterTables?.realmWaterBodyV1?.removeOnDelete?.(sync);
+    waterTables?.realmWaterBodyV1?.removeOnUpdate?.(sync);
+    waterTables?.realmWaterCellV1?.removeOnInsert?.(sync);
+    waterTables?.realmWaterCellV1?.removeOnDelete?.(sync);
+    waterTables?.realmWaterCellV1?.removeOnUpdate?.(sync);
+    waterTables?.realmEnvironmentV1?.removeOnInsert?.(sync);
+    waterTables?.realmEnvironmentV1?.removeOnDelete?.(sync);
+    waterTables?.realmEnvironmentV1?.removeOnUpdate?.(sync);
   };
 }
 
