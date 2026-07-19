@@ -1190,8 +1190,11 @@ function publicWaterBodyRecord(value: unknown): unknown {
     sourceCellKey: row.sourceCellKey,
     mouthCellKey: row.mouthCellKey,
     surfaceLevelMilli: row.surfaceLevelMilli,
-    flowDirectionXQ15: row.flowDirectionXQ15,
-    flowDirectionZQ15: row.flowDirectionZQ15,
+    // SpacetimeDB's generated camel-case form lowers the acronym in Q15.
+    // Keep that wire spelling confined to this adapter; Realm presentation
+    // continues to use the reviewed domain-field names.
+    flowDirectionXQ15: row.flowDirectionXq15,
+    flowDirectionZQ15: row.flowDirectionZq15,
     wavePreset: row.wavePreset,
     ordinal: row.ordinal,
     seed: row.seed,
