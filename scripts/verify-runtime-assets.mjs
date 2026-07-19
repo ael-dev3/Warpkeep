@@ -42,7 +42,8 @@ const assets = Object.freeze([
   ['public/images/realm/hegemony-gold-mine-record.webp', 218_736, 'a2c52a5e1536860ce3ad778c1719e354637fe473495c45ee927c99f468c60fa3', false],
   ['public/images/realm/hegemony-wheat-farm-record.webp', 224_806, '466c80380a8d23de043731a7c386e78c9b36a2d2e69fa175db4b87efc3f43eb0', false],
   ['public/images/realm/hegemony-logging-camp-record.webp', 177_622, 'fb9d171e423a7bd4bfcce1e68cd3faecb38b4904bc528f720e4283522fca1293', false],
-  ['public/images/realm/hegemony-stone-quarry-record.webp', 186_736, '86b13c14a0eda7403c3583d886be3242e04d7ef9e442fcfdbcc054642421a70a', false]
+  ['public/images/realm/hegemony-stone-quarry-record.webp', 186_736, '86b13c14a0eda7403c3583d886be3242e04d7ef9e442fcfdbcc054642421a70a', false],
+  ['public/images/realm/hegemony-worker-record.webp', 86_984, 'ff758ecbf520b05ccf0a2fa490bcafa6c564514de5ee56ef5a720fd6da24193e', false]
 ]);
 
 const referenceImageAssets = Object.freeze([
