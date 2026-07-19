@@ -35,6 +35,8 @@ export type RealmFoodNodeSceneRecord = RealmFoodNodePresentation;
 export type RealmFoodNodeInstanceHit = Readonly<{
   siteId: string;
   coord: HexCoord;
+  source: 'site' | 'wagon';
+  distance: number;
 }>;
 
 export type RealmFoodNodePresentationTelemetry = Readonly<{
@@ -300,6 +302,32 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
     ?? (isMobileRealmPresentation()
       ? HEGEMONY_EXPEDITION_SCENE_LIMITS.wagonAnimationBudget.mobile
       : HEGEMONY_EXPEDITION_SCENE_LIMITS.wagonAnimationBudget.desktop);
+  const wagonPickGeometry = new THREE.CylinderGeometry(0.38, 0.38, 0.84, 12);
+  const wagonPickVolumes = new THREE.InstancedMesh(
+    wagonPickGeometry,
+    pickMaterial,
+    Math.max(1, maximumRenderedWagons)
+  );
+  wagonPickVolumes.name = 'realm-food-wagon-pick-volumes';
+  wagonPickVolumes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  wagonPickVolumes.count = 0;
+  const wagonPickIndexByInstance = new Map<number, SceneNode>();
+  const wagonPickMatrix = new THREE.Matrix4();
+  group.add(wagonPickVolumes);
+  const wagonFallbackGeometry = new THREE.OctahedronGeometry(0.17, 0);
+  const wagonFallbackMaterial = new THREE.MeshBasicMaterial({
+    color: '#e1b75a', transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false
+  });
+  const wagonFallbackMarkers = new THREE.InstancedMesh(
+    wagonFallbackGeometry,
+    wagonFallbackMaterial,
+    Math.max(1, maximumRenderedWagons)
+  );
+  wagonFallbackMarkers.name = 'realm-food-wagon-fallback-markers';
+  wagonFallbackMarkers.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  wagonFallbackMarkers.count = 0;
+  const wagonFallbackMatrix = new THREE.Matrix4();
+  fallbackGroup.add(wagonFallbackMarkers);
   let selectedSiteId: string | undefined;
   let disposed = false;
   let lastElapsedSeconds = 0;
@@ -368,7 +396,15 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
         const pose = resolveRealmFoodWagonPose(node.record, nowMicros);
         if (!pose) return undefined;
         const position = interpolatePose(pose, options.surface, options.terrainPlacements);
-        return { node, pose, position, distance: cameraDistance(camera, position) };
+        const distance = cameraDistance(camera, position);
+        const requestedLod = chooseWagonLod(
+          options.quality,
+          distance,
+          node.record.siteId === selectedSiteId
+        );
+        return requestedLod
+          ? { node, pose, position, distance, requestedLod }
+          : undefined;
       })
       .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== undefined)
       .sort((left, right) => (
@@ -380,8 +416,7 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
     let animatedWagons = 0;
     let detailedAnimatedWagons = 0;
     for (const candidate of wagonCandidates) {
-      const requested = chooseWagonLod(options.quality, candidate.distance, candidate.node.record.siteId === selectedSiteId);
-      const lod = requested ? loadedLodFor('wagon', requested) : undefined;
+      const lod = loadedLodFor('wagon', candidate.requestedLod);
       const detailedLod = lod === 'high' || lod === 'balanced';
       const animate = lod !== undefined
         && !options.reducedMotion
@@ -421,6 +456,27 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
         if (visual.mixer) visual.mixer.update(Math.max(0, Math.min(0.5, elapsedSeconds - lastElapsedSeconds)));
       }
     }
+    wagonPickIndexByInstance.clear();
+    let wagonPickCount = 0;
+    let wagonFallbackCount = 0;
+    for (const candidate of wagonCandidates) {
+      const key = `wagon:${candidate.node.record.siteId}`;
+      const { position } = candidate;
+      wagonPickMatrix.makeTranslation(position.x, position.y + 0.42, position.z);
+      wagonPickVolumes.setMatrixAt(wagonPickCount, wagonPickMatrix);
+      wagonPickIndexByInstance.set(wagonPickCount, candidate.node);
+      wagonPickCount += 1;
+      if (visualInstances.has(key)) continue;
+      wagonFallbackMatrix.makeTranslation(position.x, position.y + 0.3, position.z);
+      wagonFallbackMarkers.setMatrixAt(wagonFallbackCount, wagonFallbackMatrix);
+      wagonFallbackCount += 1;
+    }
+    wagonPickVolumes.count = wagonPickCount;
+    wagonPickVolumes.instanceMatrix.needsUpdate = true;
+    wagonPickVolumes.computeBoundingSphere();
+    wagonFallbackMarkers.count = wagonFallbackCount;
+    wagonFallbackMarkers.instanceMatrix.needsUpdate = true;
+    wagonFallbackMarkers.computeBoundingSphere();
     lastElapsedSeconds = elapsedSeconds;
     syncFallbackMarkers();
     const renderedFoodFarmCount = [...visualInstances.values()].filter((visual) => visual.kind === 'wheat-farm').length;
@@ -519,9 +575,19 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
     return before !== after || nodes.some((node) => node.record.availability === 'outbound' || node.record.availability === 'returning');
   };
   const raycast = (raycaster: THREE.Raycaster) => {
-    const hit = raycaster.intersectObject(pickVolumes, false)[0];
-    const node = hit?.instanceId === undefined ? undefined : pickIndexByInstance.get(hit.instanceId);
-    return node ? Object.freeze({ siteId: node.record.siteId, coord: node.record.coord }) : null;
+    const siteHit = raycaster.intersectObject(pickVolumes, false)[0];
+    const wagonHit = raycaster.intersectObject(wagonPickVolumes, false)[0];
+    const useWagon = wagonHit !== undefined;
+    const hit = useWagon ? wagonHit : siteHit;
+    const node = hit?.instanceId === undefined
+      ? undefined
+      : (useWagon ? wagonPickIndexByInstance : pickIndexByInstance).get(hit.instanceId);
+    return node ? Object.freeze({
+      siteId: node.record.siteId,
+      coord: node.record.coord,
+      source: useWagon ? 'wagon' as const : 'site' as const,
+      distance: hit!.distance
+    }) : null;
   };
   const dispose = () => {
     if (disposed) return;
@@ -541,6 +607,9 @@ export function createRealmFoodNodeLayer(options: CreateRealmFoodNodeLayerOption
     selectedRing.geometry.dispose();
     (selectedRing.material as THREE.Material).dispose();
     pickGeometry.dispose();
+    wagonPickGeometry.dispose();
+    wagonFallbackGeometry.dispose();
+    wagonFallbackMaterial.dispose();
     pickMaterial.dispose();
   };
   return Object.freeze({

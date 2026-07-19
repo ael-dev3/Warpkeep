@@ -21,6 +21,9 @@ import {
   HEGEMONY_LOGGING_CAMP_ASSET_BUDGETS
 } from '../src/components/realm/realmWoodNodeLayer';
 import {
+  HEGEMONY_STONE_QUARRY_ASSET_BUDGETS
+} from '../src/components/realm/realmStoneNodeLayer';
+import {
   HEGEMONY_TREE_RUNTIME_ASSETS,
   hegemonyTreeModel
 } from '../src/components/realm/hegemonyTreeRuntimeAssets';
@@ -42,6 +45,7 @@ import {
 } from '../spacetimedb/src/forestLayoutPolicy';
 import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../spacetimedb/src/foodSitePolicy';
 import { CANONICAL_TIER_I_GOLD_SITES_V1 } from '../spacetimedb/src/goldSitePolicy';
+import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../spacetimedb/src/stoneSitePolicy';
 import { CANONICAL_TIER_I_WOOD_SITES_V1 } from '../spacetimedb/src/woodSitePolicy';
 import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
@@ -191,6 +195,11 @@ describe('canonical Genesis 001 grass bounds', () => {
         'wood',
         resourceRecords(CANONICAL_TIER_I_WOOD_SITES_V1),
         HEGEMONY_LOGGING_CAMP_ASSET_BUDGETS.loggingCampTargetFootprint
+      ),
+      ...grassExclusionsForResourceNodes(
+        'stone',
+        resourceRecords(CANONICAL_TIER_I_STONE_SITES_V1),
+        HEGEMONY_STONE_QUARRY_ASSET_BUDGETS.stoneQuarryTargetFootprint
       )
     ]);
     expect(exclusions.filter(({ id }) => id.startsWith('forest-tree:'))).toHaveLength(210);
@@ -200,12 +209,15 @@ describe('canonical Genesis 001 grass bounds', () => {
       .toHaveLength(CANONICAL_TIER_I_FOOD_SITES_V1.length);
     expect(exclusions.filter(({ id }) => id.startsWith('resource-site:wood:')))
       .toHaveLength(CANONICAL_TIER_I_WOOD_SITES_V1.length);
+    expect(exclusions.filter(({ id }) => id.startsWith('resource-site:stone:')))
+      .toHaveLength(CANONICAL_TIER_I_STONE_SITES_V1.length);
 
     const exclusionCoords = [
       ...forest.shared.data.points.map((point) => point.coord),
       ...CANONICAL_TIER_I_GOLD_SITES_V1,
       ...CANONICAL_TIER_I_FOOD_SITES_V1,
-      ...CANONICAL_TIER_I_WOOD_SITES_V1
+      ...CANONICAL_TIER_I_WOOD_SITES_V1,
+      ...CANONICAL_TIER_I_STONE_SITES_V1
     ];
     const cellsByKey = new Map(exclusionCoords.flatMap((coord) => (
       hexDisc(coord, 1).flatMap((candidate) => {

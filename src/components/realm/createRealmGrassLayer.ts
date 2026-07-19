@@ -12,6 +12,7 @@ import { hexDistance, type HexCoord, type HexWorldPosition } from '../../game/ma
 import type { RealmTerrainKind } from '../../game/map/realmTerrainSemantics';
 import type { RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import type { TerrainStructurePlacement } from '../../game/map/terrainPlacements';
+import type { RealmVegetationField } from '../../game/map/realmVegetationField';
 import { createDeterministicBudgetCollector } from '../../game/map/deterministicBudget';
 import {
   createLowPolyGrassGeometry,
@@ -66,6 +67,10 @@ export type CreateRealmGrassLayerOptions = Readonly<{
   reducedMotion: boolean;
   hexSize?: number;
   alphaToCoverage?: boolean;
+  vegetationField?: RealmVegetationField;
+  isWorldExcluded?: (world: HexWorldPosition) => boolean;
+  visualizeLegacyLakes?: boolean;
+  suppressCastleSlots?: boolean;
 }>;
 
 export type RealmGrassLayer = Readonly<{
@@ -217,7 +222,11 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       castleSlotKeys: options.castleSlotKeys,
       exclusionIndex,
       hexSize,
-      densityMultiplier: plan.densityMultiplier
+      densityMultiplier: plan.densityMultiplier,
+      vegetationField: options.vegetationField,
+      isWorldExcluded: options.isWorldExcluded,
+      visualizeLegacyLakes: options.visualizeLegacyLakes,
+      suppressCastleSlots: options.suppressCastleSlots
     }).cells[0]!;
     cache.set(key, generated);
     return generated;

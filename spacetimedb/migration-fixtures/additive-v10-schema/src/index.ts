@@ -1,5 +1,5 @@
 import { schema, table, t } from 'spacetimedb/server';
-import { Timestamp } from 'spacetimedb';
+import { ScheduleAt, Timestamp } from 'spacetimedb';
 import { SenderError } from 'spacetimedb/server';
 import {
   goldExpeditionErrorCode,
@@ -285,6 +285,69 @@ export const fixtureSeedWaterSentinelV9 = db.reducer(
       sunDirectionYMicro: 1_000_000,
       sunDirectionZMicro: 0,
       updatedAt: ctx.timestamp,
+    });
+  },
+);
+
+/** One typed row per v10 Stone table for the next additive migration. */
+export const fixtureSeedStoneSentinelV10 = db.reducer(
+  { name: 'fixture_seed_stone_sentinel_v10' },
+  ctx => {
+    if (
+      ctx.db.stoneSiteV1.count() !== 0n
+      || ctx.db.stoneNodeOccupationV1.count() !== 0n
+      || ctx.db.stoneExpeditionV1.count() !== 0n
+      || ctx.db.stoneExpeditionIdempotencyV1.count() !== 0n
+      || ctx.db.stoneExpeditionScheduleV1.count() !== 0n
+    ) throw new Error('FIXTURE_STONE_NOT_EMPTY');
+    const startedAtMicros = ctx.timestamp.microsSinceUnixEpoch;
+    const arrivesAtMicros = startedAtMicros + 7n * 24n * 60n * 60n * 1_000_000n;
+    const gatheringEndsAtMicros = arrivesAtMicros + 24n * 60n * 60n * 1_000_000n;
+    const returnsAtMicros = gatheringEndsAtMicros + 24n * 60n * 60n * 1_000_000n;
+    const siteId = 'migration-stone-site';
+    const expeditionId = 'migration-stone-expedition';
+    const originCastleId = 991_001n;
+    const fid = 991_002n;
+    ctx.db.stoneSiteV1.insert({ siteId, q: 1, r: -1, tier: 1, active: true });
+    ctx.db.stoneNodeOccupationV1.insert({
+      siteId,
+      originCastleId,
+      phase: 'outbound',
+      startedAtMicros,
+      arrivesAtMicros,
+      gatheringEndsAtMicros,
+      returnsAtMicros,
+    });
+    ctx.db.stoneExpeditionV1.insert({
+      expeditionId,
+      fid,
+      originCastleId,
+      siteId,
+      phase: 'outbound',
+      startedAtMicros,
+      arrivesAtMicros,
+      gatheringEndsAtMicros,
+      returnsAtMicros,
+      settledThroughMicros: startedAtMicros,
+      accruedStone: 0n,
+      creditedStone: 0n,
+      policyVersion: 'migration-stone-sentinel-v1',
+      createdAt: ctx.timestamp,
+      updatedAt: ctx.timestamp,
+    });
+    ctx.db.stoneExpeditionIdempotencyV1.insert({
+      requestKey: 'migration-stone-sentinel-request-0001',
+      fid,
+      siteId,
+      expeditionId,
+      createdAt: ctx.timestamp,
+    });
+    ctx.db.stoneExpeditionScheduleV1.insert({
+      scheduleId: 0n,
+      scheduledAt: ScheduleAt.time(arrivesAtMicros),
+      originCastleId,
+      siteId,
+      stage: 'arrival',
     });
   },
 );

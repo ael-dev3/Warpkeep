@@ -34,13 +34,13 @@ function schemaRegistrations(text: string): string[] {
     .map(line => line.slice(0, -1));
 }
 
-test('v10 Stone tables append after the complete v9 Water suffix', () => {
+test('v10 Stone tables remain before the additive Water revision suffix', () => {
   const schema = source('../src/schema.ts');
   const v4 = source('../migration-fixtures/additive-v4-schema/src/index.ts');
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-9), [
+  assert.deepEqual(registrations.slice(-10), [
     'realmWaterLayoutV1',
     'realmWaterBodyV1',
     'realmWaterCellV1',
@@ -50,6 +50,7 @@ test('v10 Stone tables append after the complete v9 Water suffix', () => {
     'stoneExpeditionV1',
     'stoneExpeditionIdempotencyV1',
     'stoneExpeditionScheduleV1',
+    'realmWaterRevisionV1',
   ]);
 
   const site = tableDefinition(schema, 'stoneSiteV1');

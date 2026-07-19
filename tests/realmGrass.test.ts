@@ -9,6 +9,7 @@ import type { RealmTerrainKind } from '../src/game/map/realmTerrainSemantics';
 import { axialToWorld, hexKey } from '../src/game/map/hexCoordinates';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import { pointyHexBoundaryDistance } from '../src/game/map/terrainHeight';
+import { createRealmVegetationField } from '../src/game/map/realmVegetationField';
 import {
   createHegemonyCastlePlacements,
   distanceToPlacement
@@ -84,6 +85,37 @@ describe('procedural biome grass generation', () => {
     expect(lake?.points).toEqual([]);
     expect(slot?.points).toEqual([]);
     expect(data.cells.some((cell) => cell.apron && cell.candidateCount > 0)).toBe(true);
+  });
+
+  it('uses the live ecology field to present legacy lakes as land and reserves occupied castles only', () => {
+    const surface = createRealmTerrainSurface('grass-live-ecology', 4, 5);
+    const terrainKinds = semanticMap(surface);
+    terrainKinds.set('0,0', 'lake');
+    const field = createRealmVegetationField({
+      worldSeed: surface.renderMap.worldSeed,
+      terrainKindsByKey: terrainKinds,
+      playableKeys: surface.playableKeys,
+      visualizeLegacyLakesAsLand: true
+    });
+    const data = generateRealmGrassCells({
+      ...inputFor(surface),
+      cells: surface.playableMap.cells.filter((cell) => (
+        hexKey(cell.coord) === '0,0' || hexKey(cell.coord) === '1,0'
+      )),
+      terrainKindsByKey: terrainKinds,
+      castleSlotKeys: new Set(['1,0']),
+      vegetationField: field,
+      visualizeLegacyLakes: true,
+      suppressCastleSlots: false
+    });
+    const lake = data.cells.find((cell) => cell.key === '0,0');
+    const unoccupiedSlot = data.cells.find((cell) => cell.key === '1,0');
+
+    expect(lake?.terrainKind).toBe('lowland');
+    expect(lake?.completelyBare).toBe(false);
+    expect(lake?.points.length).toBeGreaterThan(0);
+    expect(unoccupiedSlot?.completelyBare).toBe(false);
+    expect(unoccupiedSlot?.points.length).toBeGreaterThan(0);
   });
 
   it('accepts generic semantic-root exclusions without knowing asset names', () => {

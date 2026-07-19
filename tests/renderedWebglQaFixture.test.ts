@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import { CANONICAL_CASTLE_SLOTS } from '../spacetimedb/src/world';
 import {
+  CANONICAL_GENESIS_FOREST_INSTANCES_V1
+} from '../spacetimedb/src/forestLayoutPolicy';
+import {
+  GENESIS_WATER_BODIES_V1,
+  GENESIS_WATER_CELLS_V1
+} from '../spacetimedb/src/waterWorld';
+import {
+  CANONICAL_GENESIS_WATER_REVISION_V1
+} from '../spacetimedb/src/waterRevision';
+import {
   createRenderedWebglQaFixtureRealm,
   RENDERED_WEBGL_QA_LONG_DISPLAY_NAME,
   RENDERED_WEBGL_QA_LONG_PUBLIC_BIO,
@@ -52,6 +62,13 @@ describe('rendered WebGL local QA fixture', () => {
     ))).toBe(true);
     expect(realm.snapshot.profiles.every((profile) => profile.communityStatsVisible === false)).toBe(true);
     expect(realm.snapshot.ownCastle.castleId).toBe(900_000);
+    expect(realm.snapshot.forestTrees).toHaveLength(CANONICAL_GENESIS_FOREST_INSTANCES_V1.length);
+    expect(realm.snapshot.waterBodies).toHaveLength(GENESIS_WATER_BODIES_V1.length);
+    expect(realm.snapshot.waterCells).toHaveLength(GENESIS_WATER_CELLS_V1.length);
+    expect(realm.snapshot.waterRevision).toMatchObject({
+      ...CANONICAL_GENESIS_WATER_REVISION_V1,
+      activated: true
+    });
   });
 
   it('accepts only reviewed quality and presentation modes and bounds local timing', () => {

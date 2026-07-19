@@ -6,6 +6,17 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.13] — 2026-07-19
+
+- Let the old scattered lakes return to lowland while preserving twelve
+  one-cell rivers and the ocean around Genesis 001.
+- Opened the strategic overview to coast-to-fog panning without letting the
+  camera cross the full-fog boundary.
+- Gathered grass and trees into clearer biome regions and kept water, roads,
+  keeps, and resource sites free of stray vegetation.
+- Made moving supply wagons selectable and placed active expedition shortcuts
+  in the Realm menu.
+
 ## [0.3.12] — 2026-07-19
 
 - Gave Genesis 001 a persistent coastline, lakes, and rivers, bringing water
@@ -100,7 +111,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.12...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.13...HEAD
+[0.3.13]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.8...v0.3.11
 [0.3.8]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.6...v0.3.8

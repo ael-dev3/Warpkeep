@@ -74,6 +74,11 @@ export {
   adminInspectGenesisWaterLayoutV1,
 } from './reducers/waterLayout';
 export {
+  adminSeedGenesisWaterRevisionV1,
+  adminActivateGenesisWaterRevisionV1,
+  adminInspectGenesisWaterRevisionV1,
+} from './reducers/waterRevision';
+export {
   runGoldExpeditionScheduleV1,
   runFoodExpeditionScheduleV1,
   runWoodExpeditionScheduleV1,

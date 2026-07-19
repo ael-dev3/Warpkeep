@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Profiler } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,6 +6,14 @@ const mocked = vi.hoisted(() => {
   type MockSceneOptions = {
     keepCoord: { q: number; r: number };
     otherCastles: readonly { castleId: number; q: number; r: number }[];
+    terrainMetadata: readonly {
+      tileKey: string;
+      terrainKind: string;
+      passable: boolean;
+      movementCost: number;
+      staticContentKind: string;
+    }[];
+    isCoordPassable?: (coord: { q: number; r: number }) => boolean;
     quality: { id: string };
     reducedMotion: boolean;
     onCastlesReady?: (castleCount: number) => void;
@@ -40,8 +48,10 @@ const mocked = vi.hoisted(() => {
       coord: { q: number; r: number };
     } | null) => void;
     onTargetSelect?: (target: {
-      kind: 'castle' | 'terrain';
+      kind: 'castle' | 'terrain' | 'gold-site' | 'food-site' | 'wood-site' | 'stone-site';
       castleId?: number;
+      siteId?: string;
+      source?: 'site' | 'wagon';
       coord: { q: number; r: number };
     }) => void;
   };
@@ -84,8 +94,20 @@ vi.mock('../src/components/realm/createRealmScene', () => ({
   createRealmScene: mocked.createRealmScene
 }));
 
+import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../spacetimedb/src/foodSitePolicy';
+import {
+  CANONICAL_GENESIS_WATER_REVISION_V1,
+  GENESIS_WATER_REVISION_RECLAIMED_LAKE_KEYS_V1
+} from '../spacetimedb/src/waterRevision';
+import {
+  GENESIS_WATER_BODIES_V1,
+  GENESIS_WATER_CELLS_V1,
+  GENESIS_WATER_ENVIRONMENT_V1,
+  GENESIS_WATER_LAYOUT_V1
+} from '../spacetimedb/src/waterWorld';
 import { CANONICAL_CASTLE_SLOTS } from '../spacetimedb/src/world';
 import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
+import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/realmFoodExpeditionPresentation';
 import { createRenderedWebglQaFixtureRealm } from '../src/dev/renderedWebglQaFixture';
 import { validateCanonicalGenesisSnapshot } from '../src/spacetime/canonicalGenesisSnapshot';
 import type {
@@ -94,6 +116,7 @@ import type {
 } from '../src/spacetime/warpkeepBackendTypes';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../src/spacetime/warpkeepProtocol';
 import {
+  CANONICAL_TEST_CASTLE_ID,
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate,
   createCanonicalGenesisSnapshot
@@ -136,6 +159,17 @@ function validate(candidate: WarpkeepRealmSnapshotCandidate) {
   });
 }
 
+function waterRevisionRealm(activated: boolean) {
+  return validate({
+    ...createCanonicalGenesisCandidate(CANONICAL_TEST_FID),
+    waterLayout: { ...GENESIS_WATER_LAYOUT_V1, activated: true },
+    waterBodies: GENESIS_WATER_BODIES_V1.map((row) => ({ ...row })),
+    waterCells: GENESIS_WATER_CELLS_V1.map((row) => ({ ...row })),
+    realmEnvironment: { ...GENESIS_WATER_ENVIRONMENT_V1 },
+    waterRevision: { ...CANONICAL_GENESIS_WATER_REVISION_V1, activated }
+  });
+}
+
 function presentationRefreshSnapshot(): CanonicalWarpkeepRealmSnapshot {
   const candidate = createCanonicalGenesisCandidate({
     ownFid: CANONICAL_TEST_FID,
@@ -157,6 +191,40 @@ function presentationRefreshSnapshot(): CanonicalWarpkeepRealmSnapshot {
       } : profile
     ))
   });
+}
+
+function activeFoodWagonRealm() {
+  const candidate = createCanonicalGenesisCandidate(CANONICAL_TEST_FID);
+  const site = CANONICAL_TIER_I_FOOD_SITES_V1[0]!;
+  const occupation = Object.freeze({
+    siteId: site.siteId,
+    originCastleId: CANONICAL_TEST_CASTLE_ID,
+    phase: 'outbound' as const,
+    startedAtMicros: 10n,
+    arrivesAtMicros: 20n,
+    gatheringEndsAtMicros: 30n,
+    returnsAtMicros: 40n
+  });
+  const snapshot = validate({
+    ...candidate,
+    foodSites: CANONICAL_TIER_I_FOOD_SITES_V1.map((row) => ({ ...row })),
+    foodNodeOccupations: [occupation]
+  });
+  const expedition: ReadyFoodExpeditionPresentation = Object.freeze({
+    status: 'ready',
+    active: true,
+    accruedFood: 0n,
+    pendingFood: 0n,
+    creditedFood: 0n,
+    rateFoodPerMinute: 1n,
+    gatheringDurationMicros: 2_592_000_000_000n,
+    expedition: Object.freeze({
+      expeditionId: '00000000-0000-4000-8000-000000000002',
+      ...occupation,
+      policyVersion: 'genesis-food-wheat-farm-expedition-v1'
+    })
+  });
+  return { expedition, occupation, site, snapshot };
 }
 
 function movedPeerSnapshot(): CanonicalWarpkeepRealmSnapshot {
@@ -249,6 +317,86 @@ describe('live realm quality recreation', () => {
 
     expect(screen.getByRole('alert').textContent).toMatch(/Genesis 001 is unavailable/i);
     expect(mocked.createRealmScene).not.toHaveBeenCalled();
+  });
+
+  it('keeps inactive Water v1 lakes blocked in scene and selection semantics', () => {
+    installWebGlProbe();
+    const snapshot = waterRevisionRealm(false);
+    const lakeCell = GENESIS_WATER_CELLS_V1.find((cell) => (
+      cell.cellKey === GENESIS_WATER_REVISION_RECLAIMED_LAKE_KEYS_V1[0]
+    ))!;
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => options.onCastlesReady?.(1));
+    expect(options.terrainMetadata.find((row) => row.tileKey === lakeCell.cellKey))
+      .toMatchObject({
+        terrainKind: 'lake',
+        passable: false,
+        movementCost: 0,
+        staticContentKind: 'scenic-blocker'
+      });
+    expect(options.isCoordPassable?.(lakeCell)).toBe(false);
+
+    const before = selectionAnnouncement().textContent;
+    act(() => options.onTargetSelect?.({ kind: 'terrain', coord: lakeCell }));
+    expect(selectionAnnouncement().textContent).toBe(before);
+  });
+
+  it('presents every active revision lake as selectable lowland to scene, HUD, and navigator', () => {
+    installWebGlProbe();
+    const snapshot = waterRevisionRealm(true);
+    const reclaimedKeys = new Set(GENESIS_WATER_REVISION_RECLAIMED_LAKE_KEYS_V1);
+    const lakeCell = GENESIS_WATER_CELLS_V1.find((cell) => (
+      cell.cellKey === GENESIS_WATER_REVISION_RECLAIMED_LAKE_KEYS_V1[0]
+    ))!;
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const scene = mocked.handles[0]!;
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => options.onCastlesReady?.(1));
+    const reclaimedRows = options.terrainMetadata.filter((row) => (
+      reclaimedKeys.has(row.tileKey)
+    ));
+    expect(reclaimedRows).toHaveLength(409);
+    expect(reclaimedRows.every((row) => (
+      row.terrainKind === 'lowland'
+      && row.passable
+      && row.movementCost === 1
+      && row.staticContentKind === 'empty'
+    ))).toBe(true);
+    expect(options.isCoordPassable?.(lakeCell)).toBe(true);
+    expect(snapshot.tileMetadata.find((row) => row.tileKey === lakeCell.cellKey))
+      .toMatchObject({ terrainKind: 'lake', passable: false });
+
+    act(() => options.onTargetSelect?.({ kind: 'terrain', coord: lakeCell }));
+    expect(selectionAnnouncement().textContent).toContain(
+      `Temperate Lowlands. Selected cell ${lakeCell.q}, ${lakeCell.r}`
+    );
+
+    openPlayerExplore();
+    fireEvent.change(screen.getByRole('textbox', { name: 'q coordinate' }), {
+      target: { value: String(lakeCell.q) }
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'r coordinate' }), {
+      target: { value: String(lakeCell.r) }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'JUMP TO CELL' }));
+    expect(scene.focusCell).toHaveBeenLastCalledWith({ q: lakeCell.q, r: lakeCell.r });
   });
 
   it('disposes one scene, preserves selection, and mounts the requested model tier', () => {
@@ -560,6 +708,123 @@ describe('live realm quality recreation', () => {
       .toContain('Peer Watch. Selected castle at cell 2, -1');
     expect(scene.setSelectedCastleId).toHaveBeenLastCalledWith(2);
     expect(scene.focusCastle).toHaveBeenLastCalledWith(2);
+  });
+
+  it('links the private active-wagon shortcut and opens a clicked wagon without a camera jump', () => {
+    installWebGlProbe();
+    const fixture = activeFoodWagonRealm();
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        foodExpedition={fixture.expedition}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const scene = mocked.handles[0]!;
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => options.onCastlesReady?.(1));
+
+    fireEvent.click(playerMenuTrigger());
+    const wagonGroup = screen.getByRole('group', { name: 'Expeditions' });
+    const wagonButton = within(wagonGroup).getByRole('button', { name: /Food WAGON/i });
+    expect(wagonButton.textContent).toContain('En route to site');
+    fireEvent.click(wagonButton);
+    expect(scene.focusCell).toHaveBeenLastCalledWith({ q: fixture.site.q, r: fixture.site.r });
+    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE FOOD FARM RECORD' }));
+    scene.focusCell.mockClear();
+    act(() => options.onTargetSelect?.({
+      kind: 'food-site',
+      siteId: fixture.site.siteId,
+      source: 'wagon',
+      coord: { q: fixture.site.q, r: fixture.site.r }
+    }));
+    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    expect(scene.focusCell).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE FOOD FARM RECORD' }));
+    act(() => options.onTargetSelect?.({
+      kind: 'food-site',
+      siteId: fixture.site.siteId,
+      source: 'site',
+      coord: { q: fixture.site.q, r: fixture.site.r }
+    }));
+    expect(scene.focusCell).toHaveBeenLastCalledWith({ q: fixture.site.q, r: fixture.site.r });
+  });
+
+  it('does not replay a static-site camera target after wagon selection and scene recreation', () => {
+    installWebGlProbe();
+    const fixture = activeFoodWagonRealm();
+    const { rerender } = render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        foodExpedition={fixture.expedition}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    const initialScene = mocked.handles[0]!;
+    act(() => {
+      initialOptions.onCastlesReady?.(1);
+      initialOptions.onTargetSelect?.({
+        kind: 'food-site',
+        siteId: fixture.site.siteId,
+        source: 'wagon',
+        coord: { q: fixture.site.q, r: fixture.site.r }
+      });
+    });
+    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    expect(initialScene.focusCell).not.toHaveBeenCalled();
+
+    rerender(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        foodExpedition={fixture.expedition}
+        onRequestReturn={vi.fn()}
+        qualityOverride="high"
+      />
+    );
+
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(1));
+    expect(initialScene.dispose).toHaveBeenCalledOnce();
+    expect(mocked.handles[1]!.focusCell).not.toHaveBeenCalled();
+    expect(mocked.handles[1]!.showRealm).toHaveBeenCalledOnce();
+    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+  });
+
+  it('omits active-wagon shortcuts when the private projection does not exactly join public occupancy', () => {
+    installWebGlProbe();
+    const fixture = activeFoodWagonRealm();
+    const mismatchedExpedition: ReadyFoodExpeditionPresentation = Object.freeze({
+      ...fixture.expedition,
+      expedition: Object.freeze({
+        ...fixture.expedition.expedition!,
+        phase: 'gathering'
+      })
+    });
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={fixture.snapshot}
+        foodExpedition={mismatchedExpedition}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+
+    const options = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => options.onCastlesReady?.(1));
+    fireEvent.click(playerMenuTrigger());
+    expect(screen.queryByRole('group', { name: 'Active wagons' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Food WAGON/i })).toBeNull();
   });
 
   it('publishes only aggregate live instance and raycast telemetry on the realm root', () => {

@@ -45,6 +45,8 @@ export type GenerateRealmTerrainFeatureOptions = Readonly<{
    * forest presentation, preventing duplicate trunks at the same sites.
    */
   includeForestTrees?: boolean;
+  /** Legacy lake cells can be presented as scenic land without changing authority. */
+  includeLakeSheen?: boolean;
 }>;
 
 export const REALM_TERRAIN_FEATURE_BUDGETS: Readonly<
@@ -169,6 +171,7 @@ export function generateRealmTerrainFeatures(
     const featureKind = featureKindForTerrain(terrainKind);
     if (featureKind === undefined) return;
     if (featureKind === 'forest-tree' && options.includeForestTrees === false) return;
+    if (featureKind === 'lake-sheen' && options.includeLakeSheen === false) return;
     const count = featureCountForCell(cell, terrainKind, quality);
     for (let index = 0; index < count; index += 1) {
       candidates.add({

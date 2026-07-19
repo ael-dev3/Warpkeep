@@ -75,7 +75,7 @@ and accessibility are presentation concerns; coordinates and ownership always
 come from server state.
 
 The shared forest and procedural grass are deterministic presentation layers.
-The coast, lakes, and rivers are rendered from an activated canonical water
+The coast and twelve rivers are rendered from an activated canonical water
 layout held by SpacetimeDB. Graphics quality may change environmental detail,
 but never world membership, resource placement, or authority.
 

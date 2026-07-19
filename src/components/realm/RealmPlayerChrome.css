@@ -272,6 +272,27 @@
   padding-top: 0.65rem;
 }
 
+.realm-profile-menu__active-wagons {
+  display: grid;
+  gap: 0.32rem;
+  padding: 0.42rem 0;
+  border-block: 1px solid rgb(231 199 121 / 14%);
+}
+
+.realm-profile-menu__active-wagons > p {
+  margin: 0 0 0.08rem;
+  color: var(--realm-lavender);
+  font-size: 0.625rem;
+  font-weight: 780;
+  letter-spacing: 0.14em;
+}
+
+.realm-profile-menu__expedition-empty {
+  display: block;
+  padding: 0.3rem 0.15rem 0.18rem;
+  line-height: 1.35;
+}
+
 .realm-profile-menu__panel nav button {
   display: grid;
   min-height: 3.2rem;

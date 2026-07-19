@@ -23,6 +23,7 @@ import type {
   WarpkeepWaterBody,
   WarpkeepWaterCell,
   WarpkeepWaterLayout,
+  WarpkeepWaterRevision,
   WarpkeepRealmEnvironment,
   WarpkeepWorldTileMetadata,
   WarpkeepWorldTile
@@ -823,6 +824,15 @@ export function subscribeToWarpkeepRealm(
   // shoreline from browser-local coordinates.
   if (waterTables !== undefined) {
     try {
+      const waterSubscriptionTables = [
+        tables.realmWaterLayoutV1,
+        tables.realmWaterBodyV1,
+        tables.realmWaterCellV1,
+        tables.realmEnvironmentV1,
+        ...(waterTables.realmWaterRevisionV1 === undefined
+          ? []
+          : [tables.realmWaterRevisionV1])
+      ];
       waterSubscription = connection
         .subscriptionBuilder()
         .onApplied(() => {
@@ -833,12 +843,7 @@ export function subscribeToWarpkeepRealm(
           waterProjectionAvailability.set(connection, WATER_PROJECTION_UNAVAILABLE);
           if (coreApplied) onApplied();
         })
-        .subscribe([
-          tables.realmWaterLayoutV1,
-          tables.realmWaterBodyV1,
-          tables.realmWaterCellV1,
-          tables.realmEnvironmentV1
-        ]);
+        .subscribe(waterSubscriptionTables);
     } catch {
       waterProjectionAvailability.set(connection, WATER_PROJECTION_UNAVAILABLE);
       if (coreApplied) onApplied();
@@ -1140,6 +1145,7 @@ function publicWaterTables(connection: WarpkeepConnection) {
     realmWaterBodyV1?: PublicWaterTable;
     realmWaterCellV1?: PublicWaterTable;
     realmEnvironmentV1?: PublicWaterTable;
+    realmWaterRevisionV1?: PublicWaterTable;
   }> | undefined;
   if (
     !db?.realmWaterLayoutV1
@@ -1248,6 +1254,34 @@ function publicRealmEnvironmentRecord(value: unknown): unknown {
     sunDirectionYMicro: row.sunDirectionYMicro,
     sunDirectionZMicro: row.sunDirectionZMicro
   }) as Partial<WarpkeepRealmEnvironment>;
+}
+
+function publicWaterRevisionRecord(value: unknown): unknown {
+  const row = value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+  if (!row) return Object.freeze({});
+  return Object.freeze({
+    realmId: row.realmId,
+    revisionVersion: row.revisionVersion,
+    policyVersion: row.policyVersion,
+    baseLayoutVersion: row.baseLayoutVersion,
+    baseLayoutDigest: row.baseLayoutDigest,
+    oceanBodyCount: row.oceanBodyCount,
+    riverBodyCount: row.riverBodyCount,
+    enabledBodyCount: row.enabledBodyCount,
+    oceanCellCount: row.oceanCellCount,
+    riverCellCount: row.riverCellCount,
+    enabledCellCount: row.enabledCellCount,
+    lakeBodyCount: row.lakeBodyCount,
+    lakeCellCount: row.lakeCellCount,
+    riverWidthCells: row.riverWidthCells,
+    navigationFogBoundaryDepthCells: row.navigationFogBoundaryDepthCells,
+    hiddenBufferCells: row.hiddenBufferCells,
+    revisionDigest: row.revisionDigest,
+    sourceCommit: row.sourceCommit,
+    activated: row.activated
+  }) as Partial<WarpkeepWaterRevision>;
 }
 
 function publicGoldTables(connection: WarpkeepConnection) {
@@ -1663,6 +1697,7 @@ type PublicWaterProjection = Readonly<{
   bodies: readonly unknown[];
   cells: readonly unknown[];
   realmEnvironment: unknown;
+  waterRevision?: unknown;
 }>;
 
 function readPublicWaterProjection(
@@ -1687,6 +1722,19 @@ function readPublicWaterProjection(
     1,
     publicRealmEnvironmentRecord
   );
+  let waterRevision: unknown;
+  if (db.realmWaterRevisionV1 !== undefined) {
+    const revisionRows = typeof db.realmWaterRevisionV1.iter === 'function'
+      ? readBoundedPublicForestRows(
+        db.realmWaterRevisionV1.iter(),
+        1,
+        publicWaterRevisionRecord
+      )
+      : undefined;
+    waterRevision = revisionRows === undefined || revisionRows.length > 1
+      ? Object.freeze({})
+      : revisionRows[0];
+  }
   if (
     layoutRows === undefined
     || bodies === undefined
@@ -1697,14 +1745,16 @@ function readPublicWaterProjection(
       layout: Object.freeze({}),
       bodies: Object.freeze([]),
       cells: Object.freeze([]),
-      realmEnvironment: Object.freeze({})
+      realmEnvironment: Object.freeze({}),
+      ...(waterRevision === undefined ? {} : { waterRevision })
     });
   }
   return Object.freeze({
     layout: layoutRows.length === 1 ? layoutRows[0] : layoutRows,
     bodies,
     cells,
-    realmEnvironment: environmentRows.length === 1 ? environmentRows[0] : environmentRows
+    realmEnvironment: environmentRows.length === 1 ? environmentRows[0] : environmentRows,
+    ...(waterRevision === undefined ? {} : { waterRevision })
   });
 }
 
@@ -1751,7 +1801,10 @@ export function readWarpkeepRealmSnapshot(
       waterLayout: publicWater.layout,
       waterBodies: publicWater.bodies,
       waterCells: publicWater.cells,
-      realmEnvironment: publicWater.realmEnvironment
+      realmEnvironment: publicWater.realmEnvironment,
+      ...(publicWater.waterRevision === undefined ? {} : {
+        waterRevision: publicWater.waterRevision
+      })
     }),
     ...(ownCastle ? { ownCastle } : {})
   };
@@ -1858,6 +1911,9 @@ export function observeWarpkeepRealm(
   waterTables?.realmEnvironmentV1?.onInsert?.(sync);
   waterTables?.realmEnvironmentV1?.onDelete?.(sync);
   waterTables?.realmEnvironmentV1?.onUpdate?.(sync);
+  waterTables?.realmWaterRevisionV1?.onInsert?.(sync);
+  waterTables?.realmWaterRevisionV1?.onDelete?.(sync);
+  waterTables?.realmWaterRevisionV1?.onUpdate?.(sync);
 
   return () => {
     active = false;
@@ -1921,6 +1977,9 @@ export function observeWarpkeepRealm(
     waterTables?.realmEnvironmentV1?.removeOnInsert?.(sync);
     waterTables?.realmEnvironmentV1?.removeOnDelete?.(sync);
     waterTables?.realmEnvironmentV1?.removeOnUpdate?.(sync);
+    waterTables?.realmWaterRevisionV1?.removeOnInsert?.(sync);
+    waterTables?.realmWaterRevisionV1?.removeOnDelete?.(sync);
+    waterTables?.realmWaterRevisionV1?.removeOnUpdate?.(sync);
   };
 }
 

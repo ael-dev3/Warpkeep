@@ -34,13 +34,13 @@ function schemaRegistrations(text: string): string[] {
     .map(line => line.slice(0, -1));
 }
 
-test('v5 Gold authority prefix remains intact through the v9 Water and v10 Stone appends', () => {
+test('v5 Gold authority prefix remains intact through later additive suffixes', () => {
   const schema = source('../src/schema.ts');
   const v4 = source('../migration-fixtures/additive-v4-schema/src/index.ts');
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-26), [
+  assert.deepEqual(registrations.slice(-27), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',
@@ -67,8 +67,9 @@ test('v5 Gold authority prefix remains intact through the v9 Water and v10 Stone
     'stoneExpeditionV1',
     'stoneExpeditionIdempotencyV1',
     'stoneExpeditionScheduleV1',
+    'realmWaterRevisionV1',
   ]);
-  assert.deepEqual(registrations.slice(-26, -21), [
+  assert.deepEqual(registrations.slice(-27, -22), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',

@@ -154,6 +154,28 @@ describe('static forest presentation layer', () => {
     layer.dispose();
   });
 
+  it('keeps decorative infill distinct and requests the compact reviewed LOD', async () => {
+    const asset = HEGEMONY_TREE_RUNTIME_ASSETS[0]!;
+    const acquirePrefab = vi.fn<RealmForestPrefabAcquirer>(async (requestedAsset) => (
+      fakeLease(requestedAsset)
+    ));
+    const layer = createRealmForestLayer({
+      data: biomeData([pointForAsset(asset)]),
+      map: surface.renderMap,
+      terrainPlacements: [],
+      quality: REALM_QUALITY_SPECS.high,
+      lod: 'compact',
+      presentationName: 'realm-hegemony-forest-decorative-infill',
+      baseUrl: '/',
+      acquirePrefab
+    });
+
+    await vi.waitFor(() => expect(acquirePrefab).toHaveBeenCalledOnce());
+    expect(acquirePrefab.mock.calls[0]![1]).toBe('compact');
+    expect(layer.group.name).toBe('realm-hegemony-forest-decorative-infill');
+    layer.dispose();
+  });
+
   it('aborts without a late attachment and releases a lease that resolves after disposal', async () => {
     const asset = HEGEMONY_TREE_RUNTIME_ASSETS[0]!;
     let resolveLease: ((lease: HegemonyTreePrefabLease) => void) | undefined;

@@ -12,7 +12,7 @@ contributors. This page routes deeper work without duplicating it.
   bridge, SpacetimeDB, rendering, and delivery
 - [Lowlands renderer](design/hegemony-lowlands-terrain.md) — terrain,
   presentation, and performance principles
-- [Genesis water](design/genesis-water.md) — canonical coast, lake, and river
+- [Genesis water](design/genesis-water.md) — canonical coast, river, and fog
   layout
 - [Lowlands audio](design/lowlands-audio.md) — scene transitions and runtime
   sound boundaries

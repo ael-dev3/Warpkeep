@@ -6,6 +6,12 @@ import {
   GENESIS_WATER_SUN_DIRECTION_MICRO,
   type GenesisWaterCellV1
 } from '../../../spacetimedb/src/waterWorld';
+import {
+  CANONICAL_GENESIS_WATER_REVISION_V1,
+  GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+  matchesCanonicalGenesisWaterRevisionV1,
+  type GenesisWaterRevisionV1
+} from '../../../spacetimedb/src/waterRevision';
 
 function row(value: unknown): Readonly<Record<string, unknown>> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -22,7 +28,8 @@ export function resolveCanonicalWaterProjection(
   layoutValue: unknown,
   bodiesValue: unknown,
   cellsValue: unknown,
-  environmentValue: unknown
+  environmentValue: unknown,
+  revisionValue?: unknown
 ): readonly GenesisWaterCellV1[] | undefined {
   const layout = row(layoutValue);
   if (!layout || layout.activated !== true) return undefined;
@@ -101,5 +108,19 @@ export function resolveCanonicalWaterProjection(
       || candidate.layoutVersion !== expected.layoutVersion) return undefined;
     seenCells.add(candidate.cellKey);
   }
-  return GENESIS_WATER_CELLS_V1;
+  if (revisionValue === undefined) return GENESIS_WATER_CELLS_V1;
+  const revision = row(revisionValue);
+  if (
+    !revision
+    || typeof revision.activated !== 'boolean'
+    || !matchesCanonicalGenesisWaterRevisionV1(
+      revision as GenesisWaterRevisionV1
+    )
+  ) return undefined;
+  if (!revision.activated) return GENESIS_WATER_CELLS_V1;
+  if (
+    revision.revisionVersion !== CANONICAL_GENESIS_WATER_REVISION_V1.revisionVersion
+    || GENESIS_WATER_REVISION_ENABLED_CELLS_V1.some((cell) => cell.regime === 'lake')
+  ) return undefined;
+  return GENESIS_WATER_REVISION_ENABLED_CELLS_V1;
 }

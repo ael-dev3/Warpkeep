@@ -35,8 +35,8 @@ pnpm --dir spacetimedb audit --audit-level high
 ```
 
 Confirm SpacetimeDB CLI 2.6.1. The disposable migration proof must preserve the
-deployed refs 0–45 and fixture rows, reject guarded v10-through-v2 rollback,
-prove the 1,261-to-10,000-cell transition, exercise Water activation and private
+deployed refs 0–46 and fixture rows, reject guarded v11-through-v2 rollback,
+prove the 1,261-to-10,000-cell transition, exercise Water and Water-revision activation and private
 resource authority, and complete a real scheduled Gold arrival and collection.
 The publisher must use the same prebuilt artifact through `--js-path`; it must
 not rebuild between proof and publication.
@@ -72,6 +72,8 @@ review threads before merge.
   digest, and catalog counts.
 - Alpha-v10 status matches the Water and Stone policies, digests, and canonical
   counts; Water is active and the Stone catalog is complete.
+- The Water revision inspector matches the reviewed ocean-and-river policy,
+  reports one active row, zero lakes, and a one-cell river width.
 - The legacy public `player` table remains unused and empty; the browser uses
   `player_v2` and has no accessor for private ownership rows.
 - A clean browser completes sign-in, admission, Realm entry, reconnect, and

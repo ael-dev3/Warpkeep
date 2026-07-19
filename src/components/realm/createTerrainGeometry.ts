@@ -58,6 +58,10 @@ export type TerrainGeometryOptions = Readonly<{
   terrainKindsByKey?: ReadonlyMap<string, RealmTerrainKind>;
   /** Non-authoritative forest ecoregion tint for the existing terrain cell. */
   forestCanopyByKey?: ReadonlyMap<string, number>;
+  /** Continuous presentation ecology retained when instance grass is hidden. */
+  vegetationDensityByKey?: ReadonlyMap<string, number>;
+  /** Renderer-only land treatment for legacy scenic lake cells. */
+  visualizeLegacyLakesAsLand?: boolean;
 }>;
 
 type MutableTerrainBounds = {
@@ -253,6 +257,8 @@ export function createTerrainGeometryData(
       renderRadius: map.radius,
       terrainKind: options.terrainKindsByKey?.get(hexKey(cell.coord)),
       forestCanopy: options.forestCanopyByKey?.get(hexKey(cell.coord)),
+      vegetationDensity: options.vegetationDensityByKey?.get(hexKey(cell.coord)),
+      visualizeLegacyLakeAsLand: options.visualizeLegacyLakesAsLand,
       placements
     });
     const index = positions.length / 3;

@@ -196,16 +196,19 @@ function validateWaterProjection(candidate: WarpkeepRealmSnapshotCandidate): {
   bodies?: readonly unknown[];
   cells?: readonly unknown[];
   realmEnvironment?: unknown;
+  waterRevision?: unknown;
 } {
   const rawLayout = candidate.waterLayout;
   const rawBodies = candidate.waterBodies;
   const rawCells = candidate.waterCells;
   const rawEnvironment = candidate.realmEnvironment;
+  const rawRevision = candidate.waterRevision;
   if (
     rawLayout === undefined
     && rawBodies === undefined
     && rawCells === undefined
     && rawEnvironment === undefined
+    && rawRevision === undefined
   ) return {};
   if (
     !waterRowObject(rawLayout)
@@ -217,7 +220,10 @@ function validateWaterProjection(candidate: WarpkeepRealmSnapshotCandidate): {
       layout: freezePresentationValue(rawLayout),
       bodies: Array.isArray(rawBodies) ? freezeRows(rawBodies) : undefined,
       cells: Array.isArray(rawCells) ? freezeRows(rawCells) : undefined,
-      realmEnvironment: freezePresentationValue(rawEnvironment)
+      realmEnvironment: freezePresentationValue(rawEnvironment),
+      waterRevision: rawRevision === undefined
+        ? undefined
+        : freezePresentationValue(rawRevision)
     };
   }
   if (rawBodies.length !== GENESIS_WATER_BODIES_V1.length || rawCells.length !== GENESIS_WATER_CELLS_V1.length) {
@@ -225,7 +231,10 @@ function validateWaterProjection(candidate: WarpkeepRealmSnapshotCandidate): {
       layout: freezePresentationValue(rawLayout),
       bodies: freezeRows(rawBodies),
       cells: freezeRows(rawCells),
-      realmEnvironment: freezePresentationValue(rawEnvironment)
+      realmEnvironment: freezePresentationValue(rawEnvironment),
+      waterRevision: rawRevision === undefined
+        ? undefined
+        : freezePresentationValue(rawRevision)
     };
   }
   const layout = rawLayout as Readonly<Record<string, unknown>>;
@@ -296,7 +305,10 @@ function validateWaterProjection(candidate: WarpkeepRealmSnapshotCandidate): {
     cells: validLayout && validCells ? freezeRows(rawCells) : freezeRows(rawCells),
     realmEnvironment: validEnvironment
       ? Object.freeze({ ...environment })
-      : freezePresentationValue(rawEnvironment)
+      : freezePresentationValue(rawEnvironment),
+    waterRevision: rawRevision === undefined
+      ? undefined
+      : freezePresentationValue(rawRevision)
   };
 }
 
@@ -626,6 +638,9 @@ export function validateCanonicalGenesisSnapshot(
     ...(waterProjection.cells === undefined ? {} : { waterCells: waterProjection.cells }),
     ...(waterProjection.realmEnvironment === undefined ? {} : {
       realmEnvironment: waterProjection.realmEnvironment
+    }),
+    ...(waterProjection.waterRevision === undefined ? {} : {
+      waterRevision: waterProjection.waterRevision
     }),
     ownCastle: frozenOwnCastle
   } as BrandedSnapshot;

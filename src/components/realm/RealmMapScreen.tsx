@@ -43,7 +43,7 @@ import {
   RealmCastleLabels,
   type CastleLabelRecord
 } from './RealmCastleLabels';
-import { RealmHud } from './RealmHud';
+import { RealmHud, type RealmActiveWagonMenuItem } from './RealmHud';
 import { RealmObserverHud } from './RealmObserverHud';
 import {
   createRealmScene,
@@ -53,6 +53,7 @@ import {
   type RealmTerrainPresentationTelemetry
 } from './createRealmScene';
 import { resolveCanonicalWaterProjection } from './realmWaterProjection';
+import { projectRealmWaterRevisionTerrainMetadata } from './realmWaterTerrainProjection';
 import {
   resolveRealmGoldNodePresentations,
   type RealmGoldNodePresentation
@@ -69,10 +70,22 @@ import {
   resolveRealmStoneNodePresentations,
   type RealmStoneNodePresentation
 } from './realmStoneNodePresentation';
-import type { GoldExpeditionPresentation } from './realmGoldExpeditionPresentation';
-import type { FoodExpeditionPresentation } from './realmFoodExpeditionPresentation';
-import type { WoodExpeditionPresentation } from './realmWoodExpeditionPresentation';
-import type { StoneExpeditionPresentation } from './realmStoneExpeditionPresentation';
+import {
+  goldExpeditionForNode,
+  type GoldExpeditionPresentation
+} from './realmGoldExpeditionPresentation';
+import {
+  foodExpeditionForNode,
+  type FoodExpeditionPresentation
+} from './realmFoodExpeditionPresentation';
+import {
+  woodExpeditionForNode,
+  type WoodExpeditionPresentation
+} from './realmWoodExpeditionPresentation';
+import {
+  stoneExpeditionForNode,
+  type StoneExpeditionPresentation
+} from './realmStoneExpeditionPresentation';
 import type { RealmGoldNodePresentationTelemetry } from './realmGoldNodeLayer';
 import type { RealmFoodNodePresentationTelemetry } from './realmFoodNodeLayer';
 import type { RealmWoodNodePresentationTelemetry } from './realmWoodNodeLayer';
@@ -183,6 +196,37 @@ type RealmMapScreenProps = Readonly<{
 
 type RendererMode = 'loading' | 'webgl' | 'fallback';
 
+type PrivateExpeditionPresentation =
+  | GoldExpeditionPresentation
+  | FoodExpeditionPresentation
+  | WoodExpeditionPresentation
+  | StoneExpeditionPresentation;
+
+type GatheringNodePresentation =
+  | RealmGoldNodePresentation
+  | RealmFoodNodePresentation
+  | RealmWoodNodePresentation
+  | RealmStoneNodePresentation;
+
+function activeExpeditionSiteId(value: PrivateExpeditionPresentation | undefined) {
+  return value?.status === 'ready' && value.active
+    ? value.expedition?.siteId
+    : undefined;
+}
+
+function ownerExpeditionPublicJoin(node: GatheringNodePresentation | undefined) {
+  if (!node?.occupiedByViewer || !node.occupation || !node.originCastle) return undefined;
+  return Object.freeze({
+    siteId: node.siteId,
+    originCastleId: node.originCastle.castleId,
+    phase: node.occupation.phase,
+    startedAtMicros: node.occupation.startedAtMicros,
+    arrivesAtMicros: node.occupation.arrivesAtMicros,
+    gatheringEndsAtMicros: node.occupation.gatheringEndsAtMicros,
+    returnsAtMicros: node.occupation.returnsAtMicros
+  });
+}
+
 function CanonicalRealmUnavailable({
   onRequestReturn
 }: Readonly<{ onRequestReturn: () => void }>) {
@@ -250,8 +294,15 @@ function CanonicalRealmMapScreen({
     snapshot.waterLayout,
     snapshot.waterBodies,
     snapshot.waterCells,
-    snapshot.realmEnvironment
-  ), [snapshot.realmEnvironment, snapshot.waterBodies, snapshot.waterCells, snapshot.waterLayout]);
+    snapshot.realmEnvironment,
+    snapshot.waterRevision
+  ), [
+    snapshot.realmEnvironment,
+    snapshot.waterBodies,
+    snapshot.waterCells,
+    snapshot.waterLayout,
+    snapshot.waterRevision
+  ]);
   const rootRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fallbackMapRef = useRef<SVGSVGElement>(null);
@@ -266,6 +317,10 @@ function CanonicalRealmMapScreen({
   const sharedTileMetadata = useStableRealmTerrainMetadata(
     snapshot.tileMetadata,
     snapshot.canonicalFingerprint
+  );
+  const projectedTileMetadata = useMemo(
+    () => projectRealmWaterRevisionTerrainMetadata(sharedTileMetadata, waterCells),
+    [sharedTileMetadata, waterCells]
   );
   const otherCastles = snapshot.castles;
   const surface = useMemo(
@@ -283,8 +338,8 @@ function CanonicalRealmMapScreen({
     ]
   );
   const tileMetadataByKey = useMemo(() => new Map(
-    sharedTileMetadata.map((metadata) => [metadata.tileKey, metadata] as const)
-  ), [sharedTileMetadata]);
+    projectedTileMetadata.map((metadata) => [metadata.tileKey, metadata] as const)
+  ), [projectedTileMetadata]);
   const surfaceRef = useRef(surface);
   surfaceRef.current = surface;
   const tileMetadataByKeyRef = useRef(tileMetadataByKey);
@@ -401,6 +456,69 @@ function CanonicalRealmMapScreen({
   const stoneNodesBySiteId = useMemo(() => new Map(
     stoneNodes.map((node) => [node.siteId, node] as const)
   ), [stoneNodes]);
+  const activeWagons = useMemo<readonly RealmActiveWagonMenuItem[]>(() => {
+    if (observerMode) return Object.freeze([]);
+    const items: RealmActiveWagonMenuItem[] = [];
+    const foodNode = foodNodesBySiteId.get(activeExpeditionSiteId(foodExpedition) ?? '');
+    const joinedFood = foodExpeditionForNode(
+      foodExpedition,
+      ownerExpeditionPublicJoin(foodNode)
+    );
+    if (joinedFood?.expedition) {
+      items.push(Object.freeze({
+        resource: 'food',
+        siteId: joinedFood.expedition.siteId,
+        phase: joinedFood.expedition.phase
+      }));
+    }
+    const woodNode = woodNodesBySiteId.get(activeExpeditionSiteId(woodExpedition) ?? '');
+    const joinedWood = woodExpeditionForNode(
+      woodExpedition,
+      ownerExpeditionPublicJoin(woodNode)
+    );
+    if (joinedWood?.expedition) {
+      items.push(Object.freeze({
+        resource: 'wood',
+        siteId: joinedWood.expedition.siteId,
+        phase: joinedWood.expedition.phase
+      }));
+    }
+    const stoneNode = stoneNodesBySiteId.get(activeExpeditionSiteId(stoneExpedition) ?? '');
+    const joinedStone = stoneExpeditionForNode(
+      stoneExpedition,
+      ownerExpeditionPublicJoin(stoneNode)
+    );
+    if (joinedStone?.expedition) {
+      items.push(Object.freeze({
+        resource: 'stone',
+        siteId: joinedStone.expedition.siteId,
+        phase: joinedStone.expedition.phase
+      }));
+    }
+    const goldNode = goldNodesBySiteId.get(activeExpeditionSiteId(goldExpedition) ?? '');
+    const joinedGold = goldExpeditionForNode(
+      goldExpedition,
+      ownerExpeditionPublicJoin(goldNode)
+    );
+    if (joinedGold?.expedition) {
+      items.push(Object.freeze({
+        resource: 'gold',
+        siteId: joinedGold.expedition.siteId,
+        phase: joinedGold.expedition.phase
+      }));
+    }
+    return Object.freeze(items);
+  }, [
+    foodExpedition,
+    foodNodesBySiteId,
+    goldExpedition,
+    goldNodesBySiteId,
+    observerMode,
+    stoneExpedition,
+    stoneNodesBySiteId,
+    woodExpedition,
+    woodNodesBySiteId
+  ]);
   const liveGatheringState = useMemo<RealmLiveGatheringState>(() => {
     let observedAtMicros = 0n;
     for (const node of [...goldNodes, ...foodNodes, ...woodNodes, ...stoneNodes]) {
@@ -657,47 +775,96 @@ function CanonicalRealmMapScreen({
     sceneRef.current?.focusCastle(castle.castleId);
   }, []);
 
-  const selectGoldNode = useCallback((node: RealmGoldNodePresentation) => {
+  const selectGoldNode = useCallback((
+    node: RealmGoldNodePresentation,
+    focusSite = true
+  ) => {
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-gold-site',
       siteId: node.siteId,
-      coord: node.coord
+      coord: node.coord,
+      cameraIntent: focusSite ? 'focus-site' : 'preserve'
     });
     // This is a camera/readability affordance only. The public node record
     // remains the source of availability and the panel owns no local state.
-    sceneRef.current?.focusCell(node.coord);
+    if (focusSite) sceneRef.current?.focusCell(node.coord);
   }, []);
 
-  const selectFoodNode = useCallback((node: RealmFoodNodePresentation) => {
+  const selectFoodNode = useCallback((
+    node: RealmFoodNodePresentation,
+    focusSite = true
+  ) => {
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-food-site',
       siteId: node.siteId,
-      coord: node.coord
+      coord: node.coord,
+      cameraIntent: focusSite ? 'focus-site' : 'preserve'
     });
-    sceneRef.current?.focusCell(node.coord);
+    if (focusSite) sceneRef.current?.focusCell(node.coord);
   }, []);
 
-  const selectWoodNode = useCallback((node: RealmWoodNodePresentation) => {
+  const selectWoodNode = useCallback((
+    node: RealmWoodNodePresentation,
+    focusSite = true
+  ) => {
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-wood-site',
       siteId: node.siteId,
-      coord: node.coord
+      coord: node.coord,
+      cameraIntent: focusSite ? 'focus-site' : 'preserve'
     });
-    sceneRef.current?.focusCell(node.coord);
+    if (focusSite) sceneRef.current?.focusCell(node.coord);
   }, []);
 
-  const selectStoneNode = useCallback((node: RealmStoneNodePresentation) => {
+  const selectStoneNode = useCallback((
+    node: RealmStoneNodePresentation,
+    focusSite = true
+  ) => {
     selectedCoordRef.current = { ...node.coord };
     dispatchInteraction({
       type: 'activate-stone-site',
       siteId: node.siteId,
-      coord: node.coord
+      coord: node.coord,
+      cameraIntent: focusSite ? 'focus-site' : 'preserve'
     });
-    sceneRef.current?.focusCell(node.coord);
+    if (focusSite) sceneRef.current?.focusCell(node.coord);
   }, []);
+
+  const openActiveWagon = useCallback((wagon: RealmActiveWagonMenuItem) => {
+    if (!activeWagons.some((candidate) => (
+      candidate.resource === wagon.resource && candidate.siteId === wagon.siteId
+    ))) return;
+    if (wagon.resource === 'food') {
+      const node = foodNodesBySiteId.get(wagon.siteId);
+      if (node) selectFoodNode(node);
+      return;
+    }
+    if (wagon.resource === 'wood') {
+      const node = woodNodesBySiteId.get(wagon.siteId);
+      if (node) selectWoodNode(node);
+      return;
+    }
+    if (wagon.resource === 'stone') {
+      const node = stoneNodesBySiteId.get(wagon.siteId);
+      if (node) selectStoneNode(node);
+      return;
+    }
+    const node = goldNodesBySiteId.get(wagon.siteId);
+    if (node) selectGoldNode(node);
+  }, [
+    activeWagons,
+    foodNodesBySiteId,
+    goldNodesBySiteId,
+    selectFoodNode,
+    selectGoldNode,
+    selectStoneNode,
+    selectWoodNode,
+    stoneNodesBySiteId,
+    woodNodesBySiteId
+  ]);
 
   const markRendererUnavailable = useCallback(() => {
     rendererModeRef.current = 'fallback';
@@ -735,22 +902,22 @@ function CanonicalRealmMapScreen({
     }
     if (target.kind === 'gold-site') {
       const node = goldNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
-      if (node) selectGoldNode(node);
+      if (node) selectGoldNode(node, target.source !== 'wagon');
       return;
     }
     if (target.kind === 'food-site') {
       const node = foodNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
-      if (node) selectFoodNode(node);
+      if (node) selectFoodNode(node, target.source !== 'wagon');
       return;
     }
     if (target.kind === 'wood-site') {
       const node = woodNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
-      if (node) selectWoodNode(node);
+      if (node) selectWoodNode(node, target.source !== 'wagon');
       return;
     }
     if (target.kind === 'stone-site') {
       const node = stoneNodesRef.current.find((candidate) => candidate.siteId === target.siteId);
-      if (node) selectStoneNode(node);
+      if (node) selectStoneNode(node, target.source !== 'wagon');
       return;
     }
     selectCoord(target.coord);
@@ -1108,7 +1275,7 @@ function CanonicalRealmMapScreen({
         // The retired local planner is exposed only to the synthetic dev
         // observer. Player scenes wait for the paired shared public tables.
         allowLegacyForestFallback: observerMode,
-        terrainMetadata: sharedTileMetadata,
+        terrainMetadata: projectedTileMetadata,
         quality: qualitySpec,
         reducedMotion,
         baseUrl: import.meta.env.BASE_URL || '/',
@@ -1184,7 +1351,7 @@ function CanonicalRealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [foodNodeCatalog, goldNodeCatalog, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, qualitySpec, reducedMotion, sharedForestProjection, sharedTileMetadata, snapshot.realm.realmId, stoneNodeCatalog, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, waterCells, woodNodeCatalog]);
+  }, [foodNodeCatalog, goldNodeCatalog, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, projectedTileMetadata, qualitySpec, reducedMotion, sharedForestProjection, snapshot.realm.realmId, stoneNodeCatalog, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, waterCells, woodNodeCatalog]);
 
   useEffect(() => {
     sceneRef.current?.reconcileLiveGatheringState?.(liveGatheringState);
@@ -1632,6 +1799,8 @@ function CanonicalRealmMapScreen({
               onGraphicsPreferenceChange={onGraphicsPreferenceChange}
               onAudioMutedChange={onAudioMutedChange}
               onRequestExplore={() => dispatchInteraction({ type: 'open-navigator' })}
+              activeWagons={activeWagons}
+              onOpenActiveWagon={openActiveWagon}
               keepCoord={keepCoord}
               selectedCell={selectedCell}
               selectedTerrainKind={selectedTerrainKind}

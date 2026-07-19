@@ -3,17 +3,18 @@
 Warpkeep is building a persistent strategy world one playable loop at a time.
 Dates and feature order may change as the Alpha is tested.
 
-## Live now — Alpha 0.3.12
+## Live now — Alpha 0.3.13
 
 - Farcaster-gated entry to the persistent Genesis 001 realm
 - 10,000 world cells and 100 permanent castle sites near the founding district
-- a persistent coastline, lakes, and rivers through the Lowlands
+- a persistent coastline and twelve one-cell rivers through the Lowlands
 - one durable castle for each founded player
 - public castle, username, and portrait presentation
 - private Food, Wood, and Stone terrain yield, plus server-owned Gold balances
 - shared Gold Mine, Wheat Farm, Logging Camp, and Stone Quarry sites with one
   private, server-governed expedition per resource type
-- a shared forest, broader procedural grass, and responsive mobile presentation
+- a shared forest, clustered outer groves, biome-driven grass, and responsive
+  mobile presentation
 - separate private Community Marks accounting with no spending, transfer,
   conversion, redemption, or reward loop
 

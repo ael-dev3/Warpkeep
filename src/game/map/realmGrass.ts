@@ -16,6 +16,7 @@ import {
 } from './terrainPlacements';
 import type { RealmTerrainKind } from './realmTerrainSemantics';
 import { sampleRealmGrassCoverage } from './realmGrassNoise';
+import type { RealmVegetationField } from './realmVegetationField';
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
 
 export type RealmGrassQuality = 'high' | 'balanced' | 'reduced';
@@ -175,6 +176,14 @@ export type RealmGrassGenerationInput = Readonly<{
   hexSize?: number;
   densityMultiplier?: number;
   heightAtWorld?: (world: HexWorldPosition) => number;
+  /** Shared renderer-only ecology field; omitted callers retain the v1 policy. */
+  vegetationField?: RealmVegetationField;
+  /** Narrow water/route/root mask shared with decorative tree infill. */
+  isWorldExcluded?: (world: HexWorldPosition) => boolean;
+  /** Present legacy scenic lake semantics as grass-covered land only. */
+  visualizeLegacyLakes?: boolean;
+  /** Defaults true for compatibility; the live scene suppresses occupied keeps only. */
+  suppressCastleSlots?: boolean;
 }>;
 
 const GOLDEN_RATIO_CONJUGATE = 0.6180339887498948;
@@ -359,10 +368,12 @@ export function estimateRealmGrassSlope(
 function resolveTerrainKind(
   key: string,
   terrainKindsByKey: ReadonlyMap<string, RealmTerrainKind>,
-  playableKeys: ReadonlySet<string>
+  playableKeys: ReadonlySet<string>,
+  visualizeLegacyLakes = false
 ): RealmGrassTerrainKind {
   if (!playableKeys.has(key)) return 'apron';
-  return terrainKindsByKey.get(key) ?? 'lowland';
+  const terrainKind = terrainKindsByKey.get(key) ?? 'lowland';
+  return visualizeLegacyLakes && terrainKind === 'lake' ? 'lowland' : terrainKind;
 }
 
 export function generateRealmGrassCells(input: RealmGrassGenerationInput): RealmGrassCellsData {
@@ -389,14 +400,23 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
   stableCells(input.cells).forEach((cell) => {
     const key = hexKey(cell.coord);
     const apron = !input.playableKeys.has(key);
-    const terrainKind = resolveTerrainKind(key, input.terrainKindsByKey, input.playableKeys);
+    const terrainKind = resolveTerrainKind(
+      key,
+      input.terrainKindsByKey,
+      input.playableKeys,
+      input.visualizeLegacyLakes === true
+    );
     const profile = resolveRealmGrassProfile(terrainKind);
     const count = realmGrassCandidateCount(profile, input.quality, input.densityMultiplier);
     const center = axialToWorld(cell.coord, hexSize);
     const coverage = sampleRealmGrassCoverage(input.map.worldSeed, center);
+    const vegetation = input.vegetationField?.sampleCell(cell.coord);
+    const suppressCastleSlot = input.suppressCastleSlots !== false && castleSlotKeys.has(key);
     const completelyBare = count === 0
-      || castleSlotKeys.has(key)
-      || coverage.macro < profile.completelyBareThreshold;
+      || suppressCastleSlot
+      || (vegetation
+        ? vegetation.grassDensity <= 0.035
+        : coverage.macro < profile.completelyBareThreshold);
     const accepted: RealmGrassPoint[] = [];
     let localStructure = 0;
     let localExclusion = 0;
@@ -411,9 +431,12 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
         const micro = seededUnitFloat(
           deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-micro-coverage-v1')
         );
-        const retainedByCoverage = profile.retention
-          * (0.35 + coverage.macro * 0.65)
-          * (0.4 + coverage.meso * 0.6);
+        const candidateVegetation = input.vegetationField?.sample(candidate.world);
+        const retainedByCoverage = candidateVegetation
+          ? clamp(profile.retention * (0.18 + candidateVegetation.grassDensity * 0.92), 0, 1)
+          : profile.retention
+            * (0.35 + coverage.macro * 0.65)
+            * (0.4 + coverage.meso * 0.6);
         if (micro > retainedByCoverage) continue;
         if (hasNearbyPoint(accepted, candidate, profile.minimumSeparation)) continue;
         if (!isPlacementClear(localPlacements, candidate.world, hexSize, 0.03)) {
@@ -422,6 +445,10 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
         }
         const candidateExclusions = input.exclusionIndex?.get(candidate.world) ?? exclusions;
         if (isExcluded(candidate.world, candidateExclusions)) {
+          localExclusion += 1;
+          continue;
+        }
+        if (input.isWorldExcluded?.(candidate.world) === true) {
           localExclusion += 1;
           continue;
         }

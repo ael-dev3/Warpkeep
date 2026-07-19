@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+import { hexKey, worldToNearestAxial } from '../../game/map/hexCoordinates';
 import type { TerrainBounds } from './createTerrainGeometry';
 
 export type RealmCameraMode = 'realm' | 'approach' | 'keep';
@@ -85,6 +86,12 @@ export type RealmKeepFocus = Readonly<{
 }>;
 
 export type RealmCameraPan = Readonly<{ x: number; z: number }>;
+
+export type RealmCameraNavigationBoundary = Readonly<{
+  maximumCenterHexRadius: number;
+  hexSize: number;
+  blockedCenterCellKeys?: ReadonlySet<string>;
+}>;
 
 export type RealmCameraSpec = Readonly<{
   overviewFov: number;
@@ -664,7 +671,7 @@ export function fitRealmFocusHalfHeight(
 export function clampRealmPan(
   pan: RealmCameraPan,
   bounds: TerrainBounds,
-  zoom: number,
+  _zoom: number,
   visibleHalfHeight: number,
   aspect: number,
   margin = DEFAULT_REALM_CAMERA_SPEC.panMargin
@@ -673,14 +680,67 @@ export function clampRealmPan(
   const centerZ = (bounds.minZ + bounds.maxZ) / 2;
   const halfSpanX = (bounds.maxX - bounds.minX) / 2;
   const halfSpanZ = (bounds.maxZ - bounds.minZ) / 2;
-  const freedom = smootherstep(clamp(zoom * 1.25, 0, 1));
   const visibleHalfWidth = Math.max(0, visibleHalfHeight * Math.max(0.35, aspect));
-  const maxX = Math.max(0, halfSpanX - visibleHalfWidth * 0.48) * freedom + margin * freedom;
-  const maxZ = Math.max(0, halfSpanZ - visibleHalfHeight * 0.5) * freedom + margin * freedom;
+  // The viewport footprint already provides the correct zoom-sensitive
+  // boundary. Multiplying that boundary by zoom used to pin the strategic
+  // overview to the world origin, which made the coast and ocean unreachable
+  // until the player zoomed in first. Keep the same fog/terrain envelope at
+  // every zoom level and let the visible footprint be the sole clamp.
+  const maxX = Math.max(0, halfSpanX - visibleHalfWidth * 0.48) + margin;
+  const maxZ = Math.max(0, halfSpanZ - visibleHalfHeight * 0.5) + margin;
   return {
     x: clamp(finite(pan.x, centerX), centerX - maxX, centerX + maxX),
     z: clamp(finite(pan.z, centerZ), centerZ - maxZ, centerZ + maxZ)
   };
+}
+
+function isBlockedRealmCameraCenter(
+  pan: RealmCameraPan,
+  boundary: RealmCameraNavigationBoundary
+) {
+  return boundary.blockedCenterCellKeys?.has(hexKey(
+    worldToNearestAxial(pan, boundary.hexSize)
+  )) === true;
+}
+
+/** Clamp a planar camera center to the exact non-full-fog ocean contour. */
+export function clampRealmPanToHexBoundary(
+  pan: RealmCameraPan,
+  boundary: RealmCameraNavigationBoundary | undefined
+): RealmCameraPan {
+  if (
+    !boundary
+    || !Number.isFinite(boundary.maximumCenterHexRadius)
+    || boundary.maximumCenterHexRadius <= 0
+    || !Number.isFinite(boundary.hexSize)
+    || boundary.hexSize <= 0
+  ) return pan;
+  const x = finite(pan.x, 0);
+  const z = finite(pan.z, 0);
+  const r = (z * 2) / (boundary.hexSize * 3);
+  const q = x / (boundary.hexSize * Math.sqrt(3)) - r * 0.5;
+  const s = -q - r;
+  const distance = Math.max(Math.abs(q), Math.abs(r), Math.abs(s));
+  const radialScale = distance <= boundary.maximumCenterHexRadius + 1e-9
+    ? 1
+    : boundary.maximumCenterHexRadius / Math.max(distance, 0.000001);
+  const radial = { x: x * radialScale, z: z * radialScale };
+  if (!isBlockedRealmCameraCenter(radial, boundary)) return radial;
+
+  // Full-fog cells follow the coast but are not a perfect axial ring. Search
+  // the request ray for the last exact non-blocked center rather than using a
+  // global radius that admits recessed full-fog cells such as -63,0.
+  let allowedScale = 0;
+  let blockedScale = radialScale;
+  for (let iteration = 0; iteration < 28; iteration += 1) {
+    const candidateScale = (allowedScale + blockedScale) * 0.5;
+    const candidate = { x: x * candidateScale, z: z * candidateScale };
+    if (isBlockedRealmCameraCenter(candidate, boundary)) blockedScale = candidateScale;
+    else allowedScale = candidateScale;
+  }
+  const clamped = { x: x * allowedScale, z: z * allowedScale };
+  if (!isBlockedRealmCameraCenter(clamped, boundary)) return clamped;
+  return { x: 0, z: 0 };
 }
 
 export function deriveRealmCameraPoseForViewport(
@@ -946,6 +1006,7 @@ export type RealmCameraController = Readonly<{
 
 export type CreateRealmCameraControllerOptions = Readonly<{
   bounds: TerrainBounds;
+  navigationBoundary?: RealmCameraNavigationBoundary;
   overviewHull?: readonly RealmOverviewHullPoint[];
   keepFocus: RealmKeepFocus;
   fog: THREE.Fog;
@@ -1051,13 +1112,17 @@ export function createRealmCameraController(
     composition: RealmCompositionState
   ) => {
     const pose = deriveStatePose(zoom, pan, focus, composition);
-    const clampedPan = clampRealmPan(
+    const rectangularPan = clampRealmPan(
       pan,
       options.bounds,
       zoom,
       pose.visibleHalfHeight * (pose.safeViewport.height / height),
       pose.safeViewport.aspect,
       spec.panMargin
+    );
+    const clampedPan = clampRealmPanToHexBoundary(
+      rectangularPan,
+      options.navigationBoundary
     );
     const delta = {
       x: clampedPan.x - pan.x,
@@ -1095,13 +1160,17 @@ export function createRealmCameraController(
       x: pan.x + anchor.x - projectedAnchor.x,
       z: pan.z + anchor.z - projectedAnchor.z
     };
-    const clampedPan = clampRealmPan(
+    const rectangularPan = clampRealmPan(
       requestedPan,
       options.bounds,
       zoom,
       pose.visibleHalfHeight * (pose.safeViewport.height / height),
       pose.safeViewport.aspect,
       spec.panMargin
+    );
+    const clampedPan = clampRealmPanToHexBoundary(
+      rectangularPan,
+      options.navigationBoundary
     );
     const actualShift = {
       x: clampedPan.x - pan.x,
