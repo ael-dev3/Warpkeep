@@ -411,10 +411,10 @@ export const fixtureSeedGenesisGenerationV2 = db.reducer(
     });
     ctx.db.realmProfileV1.insert({
       fid: FIXTURE_GENERATION_V2_FOUNDER_FID,
-      canonicalUsername: undefined,
-      displayName: undefined,
-      pfpUrl: undefined,
-      publicBio: undefined,
+      canonicalUsername: 'migration.expansion',
+      displayName: 'Migration Expansion Founder',
+      pfpUrl: 'https://profiles.example.com/migration-expansion.png',
+      publicBio: 'Disposable generation-two expansion fixture',
       admittedAt: ctx.timestamp,
       firstAuthenticatedAt: undefined,
       profileUpdatedAt: ctx.timestamp,
@@ -465,6 +465,16 @@ export const fixtureRewindResourceOneQuantum = db.reducer(
       createdAt: new Timestamp(rewoundMicros),
       updatedAt: ctx.timestamp,
     });
+  },
+);
+
+/** Disposable-only profile corruption for the actual module's repair/bootstrap proof. */
+export const fixtureClearFounderPfp = db.reducer(
+  { name: 'fixture_clear_founder_pfp' },
+  ctx => {
+    const row = ctx.db.realmProfileV1.fid.find(FIXTURE_GENERATION_V2_FOUNDER_FID);
+    if (row === null) throw new Error('FIXTURE_FOUNDER_PROFILE_MISSING');
+    ctx.db.realmProfileV1.fid.update({ ...row, pfpUrl: undefined });
   },
 );
 

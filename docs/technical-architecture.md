@@ -1,161 +1,128 @@
 # Technical architecture
 
-Warpkeep is an admission-gated persistent-world alpha. The current player
-experience is the verified Alpha 0.3.8 release: realm exploration, castle
-presentation, a bounded caller-private resource loop, and a persistent
-10,000-cell Genesis world. Construction, spending, combat, resource nodes, and
-social systems are deliberately not live.
+Warpkeep is an admission-gated persistent-world Alpha. The browser renders the
+Realm, a Cloudflare Worker verifies Farcaster sign-in, and SpacetimeDB owns game
+state. These responsibilities stay separate so a compromised or stale browser
+cannot grant admission, claim a castle, or invent resources.
 
-## Authority boundaries
+## System overview
 
-- The browser owns presentation and short-lived client state only. It never
-  decides admission, castle ownership, resource totals, timers, or outcomes.
-- The Cloudflare identity bridge independently verifies Farcaster sign-in and
-  brokers bounded OIDC/browser sessions. It is separate from game authority and
-  public admission.
-- The SpacetimeDB module is authoritative for admission, world, player, and
-  castle state. Private ownership and administrative records are not public
-  browser authority.
-- Public projections exist for display and navigation. They do not grant a
-  player power to alter authoritative state.
+### Browser client
 
-## Alpha 0.3.8 resource and world boundary
+The React and TypeScript client presents the title, menu, authentication flow,
+and Realm. Three.js/WebGL renders the Lowlands and founded castles, with
+responsive CSS and non-WebGL fallbacks for constrained devices.
 
-The deployed schema appends one private `resource_account_v1` row per founded
-castle.
-It is keyed by FID, uniquely bound to the authoritative castle, and stores whole
-Food, Wood, Stone, and Gold units, a server settlement cursor, revision, and
-exact policy version. Every balance starts at zero and is capped at 1,000,000.
+The client holds short-lived presentation state. It validates server
+projections before showing the Realm and does not apply optimistic ownership or
+resource changes.
 
-Production is a pure, versioned terrain policy evaluated in complete ten-minute
-quanta. The module derives caller FID, castle, terrain, rates, balances, and
-transaction time. `collect_resources_v1` accepts no input and settles only
-quanta after the stored cursor. A capped account still advances its cursor so
-discarded historic production cannot later reappear.
+### Identity bridge
 
-`get_my_resource_state_v1` accepts no FID. Admission, current player/castle
-ownership, exact Alpha Terms acceptance, the resource graph, and the separate
-private Marks account must all validate before the caller receives their own
-projection. The strict browser decoder requires the exact caller FID, bigint
-wire values, known terrain and policy versions, monotonic observations, and
-bounded totals. A failed initial read prevents the Realm subscription and any
-later lifecycle failure tears down the authority connection. The client never
-applies an optimistic balance.
+The Cloudflare Worker independently verifies Farcaster sign-in, binds the flow
+to the initiating browser, and manages short-lived sessions. Farcaster ID (FID)
+is the identity key; usernames, display names, biographies, and portraits are
+sanitized presentation data.
 
-Peer resource rows remain private and the established six-table public Realm
-subscription is unchanged. Community Marks stays in `mark_account_v1` under
-its existing policy; resource collection cannot convert, duplicate, credit,
-transfer, or spend Marks.
+Authentication proves identity but does not grant admission or game ownership.
+The bridge issues narrowly scoped claims that SpacetimeDB validates again.
+Implementation and local setup are documented in
+[`services/auth-bridge/README.md`](../services/auth-bridge/README.md).
 
-The same release defines Genesis 001 generation three as exactly 10,000
-persistent cells: every cell of the generation-two radius-20 predecessor, the
-remainder of a complete radius-57 disc, and 81 balanced cells on ring 58. The
-maximum authoritative radius describes that partial-ring envelope; it does not
-claim a complete radius-58 disc. All 100 permanent castle slots and their
-close-outward generation-two order remain unchanged.
+### SpacetimeDB module
 
-An admin-only exact-state reducer atomically inserts 8,739 world rows and 8,739
-metadata rows, then updates the singleton realm while preserving its creation
-timestamp. Routine seeding refuses to perform this transition. Rollout and
-recovery gates recognize only the exact generation-two predecessor or
-generation-three release snapshot; partial, duplicate, altered, or mixed states
-fail closed. Two thousand
-resource-capable metadata sites reserve future placement space only and do not
-create nodes or alter current resource yields.
+SpacetimeDB owns admission, player and castle bindings, the persistent world,
+Terms acceptance, resource accounts, Community Marks, and server-time
+settlement. Public tables expose only what the shared map needs; ownership,
+administration, and player balances remain private.
 
-## Authentication presentation
+Reducers derive identity and authority from the authenticated caller. The
+browser cannot choose an FID, castle owner, balance, timer, or outcome through
+request fields. Schema changes are additive because deployed tables and
+generated client bindings must remain compatible.
 
-FID is the only identity coordinate. Username, display name, biography, and PFP
-are sanitized public presentation fields. A tab-scoped cache may restore those
-fields only when its exact FID matches an authoritative cookie refresh; it
-cannot restore a session or choose identity. Browser-bound S256 flow, rotating
-HttpOnly session families, short-lived OIDC handoff, and SpacetimeDB admission
-remain separate fail-closed gates.
+The module guide, local commands, and schema notes live in
+[`spacetimedb/README.md`](../spacetimedb/README.md).
 
-Remote profile presentation is optional and fail-closed. Only reviewed
-provider/path pairs or the fixed same-origin observer placeholder may enter the
-bounded JPEG/PNG/static-WebP loader. It omits credentials and referrer, refuses
-redirects, caps time, transfer bytes, dimensions, and decoded pixels, then draws
-one temporary blob decode into a static canvas and disposes it. The DOM keeps a
-local monogram fallback throughout; profile delivery never grants identity or
-session authority.
+## Current world and resource model
 
-## Client presentation
+Genesis 001 contains 10,000 persistent cells and 100 permanent castle sites
+near its founding district. Founded players return to the same castle and can
+inspect public castle and profile presentation for nearby founders.
 
-The player is built with React, TypeScript, Vite, Three.js/WebGL, and responsive
-CSS. The title, menu, and realm share quality preferences while preserving
-reduced-motion and non-WebGL fallbacks. The caller's private resource read and
-the public Realm subscription start concurrently; both must validate before the
-Realm appears. The renderer uses the exact authoritative tile-key set, so the
-deliberate partial ring is never expanded into invented cells, and bounds
-semantic detail work deterministically as the radius-60 presentation envelope
-grows.
+Each founded castle has a private Food, Wood, Stone, and Gold account. Terrain
+and completed ten-minute server intervals determine yield. Collection settles
+only server-recorded production and never reveals another player's balances.
+Community Marks use separate accounting and currently have no spending,
+conversion, transfer, redemption, or reward loop.
 
-Founded keeps use one realm-lifetime castle/base prefab repository. Each
-graphics profile pairs an integrity-pinned GameReady castle with its matching
-authored landscape base, then shares those resources through instanced LOD
-buckets. The pair loads and fails as one assembly. Selection, labels, camera
-focus, culling, and disposal remain presentation concerns; authoritative
-coordinates and ownership come only from the validated snapshot.
+Gold Mines, Wheat Farms, and Logging Camps are public map projections. Their
+private expeditions are caller-bound and server-timed; public occupation rows
+show only the site, phase, timeline, and origin castle. Stone has no live site
+authority. Construction, upgrades, units, combat, alliances, trading, chat,
+seasons, and governance are not playable yet.
 
-Runtime GLBs use immutable SHA-prefixed filenames plus exact length/hash checks.
-The prior release's public castle paths retain their former bytes so cached
-clients and rollback remain safe. Source packages stay offline; checked-in
-runtime files, installers, dated manifests, and provenance records define the
-reviewable asset boundary.
+## Realm presentation
 
-Concurrent castle/base byte requests share a transport only for the same
-integrity-pinned URL and normalized timeout policy; individual cancellation
-cannot abort another consumer, while the final pending cancellation stops the
-transport. The mounted-Realm prefab repository coalesces LOD acquisitions,
-owns one retain per cached entry, retires only after pending acquisitions and
-active leases both reach zero, and disposes shared resources exactly once.
-Retired or failed entries do not revive during that Realm lifetime. An empty
-authoritative castle set reaches readiness with zero presented models.
+The client receives a validated public Realm snapshot and the authenticated
+player's private projection. It waits for both before entering the Realm.
+Reconnects may retain public scenery, but private actions remain unavailable
+until caller authority returns.
 
-## Local QA boundary
+Castle models and their landscape bases are shared across founded sites through
+instancing and level-of-detail tiers. Selection, labels, camera focus, culling,
+and accessibility are presentation concerns; coordinates and ownership always
+come from server state.
 
-Unit and rendered-browser lanes cover readiness, responsive UI, WebGL models,
-labels, picking, fallbacks, and cleanup. The optional macOS QA observatory is a
-local, machine-bound test subsystem. Production build checks reject its broker,
-fixture, endpoint, and procedure markers from Pages assets. It owns no Worker,
-SpacetimeDB, player, or admission authority.
+The shared forest and procedural grass are deterministic presentation layers.
+Graphics quality may change their detail, but never world membership,
+passability, resource placement, or authority.
 
-The migration proof uses disposable protocol-3 fixtures. It verifies that the
-private resource table and versioned operations append without renumbering or
-deleting deployed schema, and separately proves the atomic 1,261-to-10,000
-world transition with preserved founding state and an idempotent target retry.
-It is not a production publication.
-Existing founders require a separate exact-count, idempotent Hermes backfill;
-the v4 inspection returns only aggregate coverage and invariant counts, never
-FIDs or balances.
+Runtime assets use immutable filenames and integrity checks. Source packages,
+reference masters, and provenance records stay separate from public runtime
+files. See [`ASSETS-LICENSE.md`](../ASSETS-LICENSE.md) before changing media.
 
-## Delivery
+## Security and privacy
 
-Semantic versions name release lines; an annotated tag and exact build SHA
-identify a public deployment. Protected CI validates frontend behavior,
-configuration, provenance, asset integrity, production exclusions, and additive
-backend compatibility before Pages publishes. Worker and SpacetimeDB operations
-remain separate release decisions.
+The main design rules are:
 
-Alpha 0.3.8 followed the safe production order: additive module publication,
-explicitly owner-approved founder backfill, explicit exact-state world
-expansion, generation-three and v4 counts-only verification, exact reviewed
-Pages deployment, then live build verification. Those completed approvals are
-not reusable. Each future mutable step remains a separate approval boundary;
-source completion or a client merge authorizes no production operation.
+- treat browser, relay, profile, and network input as untrusted;
+- keep identity, admission, ownership, balances, and timers server-owned;
+- expose the minimum public projection needed by the Realm;
+- keep secrets, proofs, QR payloads, private logs, and operator data out of the
+  repository and browser output;
+- use least-privilege claims and short-lived sessions between services;
+- fail closed when configuration, identity, schema, or projection validation
+  is incomplete.
 
-## Repository guide
+The current defensive assumptions and residual risks are documented in the
+[`threat model`](security/threat-model.md). Sensitive reports follow
+[`SECURITY.md`](../SECURITY.md).
 
-- `src/components` — player presentation
-- `src/farcaster` — identity-entry state and browser presentation boundary
-- `src/spacetime` — generated client boundary
-- `spacetimedb` — authoritative server module
-- `services/auth-bridge` — independently verifying identity/session bridge
-- `scripts` — build, asset, QA, and release tooling
-- `docs` — current decisions, release records, recovery, and provenance
+## Development and delivery
 
-Start with the [README](../README.md),
-[product direction](design/warpkeep-direction.md),
-[roadmap](design/roadmap.md), and
-[verified Alpha 0.3.8 release notes](releases/alpha-0.3.8.md).
+Vitest covers client behavior, server-facing decoders, auth bridge logic,
+migration compatibility, and asset contracts. Local rendered-browser fixtures
+exercise responsive WebGL and fallback paths without real users or production
+state.
+
+GitHub Actions builds the client, auth bridge, and SpacetimeDB module; runs the
+test and dependency checks; verifies generated bindings and asset provenance;
+and scans the repository with CodeQL. Pages deployment is limited to `main`.
+Worker publication, database publication, data migration, and admission changes
+remain separate operator actions.
+
+## Repository map
+
+- `src/` — browser application and presentation contracts
+- `services/auth-bridge/` — Farcaster verification and session bridge
+- `spacetimedb/` — server-owned world and player state
+- `scripts/` — build, asset, migration, and local QA tooling
+- `tests/` — frontend and cross-boundary regression tests
+- `docs/design/` — product direction and world design
+- `docs/operations/` — operator and recovery guides
+- `docs/reference/` — asset provenance and review records
+
+For a shorter product view, start with the [README](../README.md) and
+[roadmap](design/roadmap.md). For development checks, see
+[CONTRIBUTING.md](../CONTRIBUTING.md).

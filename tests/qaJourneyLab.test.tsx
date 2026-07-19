@@ -46,10 +46,10 @@ const QA_SCENARIO_LANDMARKS = {
   'admission-connecting': { role: 'heading', name: 'OPENING HEGEMONY RECORDS' },
   'admission-reconnecting': { role: 'heading', name: 'REOPENING HEGEMONY RECORDS' },
   'admission-checking': { role: 'heading', name: 'VERIFYING FRONTIER ACCESS' },
-  'admission-awaiting-terms': { role: 'heading', name: 'ALPHA TERMS REQUIRED' },
+  'admission-awaiting-terms': { role: 'heading', name: 'ENTRY AGREEMENT REQUIRED' },
   'admission-denied': { role: 'heading', name: 'ENTRY NOT YET GRANTED' },
   'admission-bootstrapping': { role: 'heading', name: 'ESTABLISHING YOUR KEEP' },
-  'admission-accepting-terms': { role: 'heading', name: 'RECORDING ALPHA TERMS' },
+  'admission-accepting-terms': { role: 'heading', name: 'RECORDING ENTRY AGREEMENT' },
   'admission-opening-realm': { role: 'heading', name: 'OPENING GENESIS 001…' },
   'admission-error': { role: 'heading', name: 'HEGEMONY RECORDS UNREACHABLE' },
   'realm-player': { role: 'main', name: 'Hegemony realm' },
@@ -91,7 +91,7 @@ async function settlePresentation() {
 function acceptTerms() {
   const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
   fireEvent.click(within(dialog).getByRole('checkbox', {
-    name: 'I understand and agree to these Alpha Terms.'
+    name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
   }));
   fireEvent.click(within(dialog).getByRole('button', {
     name: /CONTINUE TO (?:SIGN-IN|ACCESS CHECK|REALM)/
@@ -308,10 +308,10 @@ describe('Warpkeep local QA journey lab', () => {
     ['admission-connecting', 'OPENING HEGEMONY RECORDS'],
     ['admission-reconnecting', 'REOPENING HEGEMONY RECORDS'],
     ['admission-checking', 'VERIFYING FRONTIER ACCESS'],
-    ['admission-awaiting-terms', 'ALPHA TERMS REQUIRED'],
+    ['admission-awaiting-terms', 'ENTRY AGREEMENT REQUIRED'],
     ['admission-denied', 'ENTRY NOT YET GRANTED'],
     ['admission-bootstrapping', 'ESTABLISHING YOUR KEEP'],
-    ['admission-accepting-terms', 'RECORDING ALPHA TERMS'],
+    ['admission-accepting-terms', 'RECORDING ENTRY AGREEMENT'],
     ['admission-opening-realm', 'OPENING GENESIS 001…'],
     ['admission-error', 'HEGEMONY RECORDS UNREACHABLE']
   ] as const)('renders exhaustive %s backend presentation state', (scenario, heading) => {

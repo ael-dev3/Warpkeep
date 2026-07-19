@@ -1,0 +1,5 @@
+# Historical synthetic test fixtures; fingerprints are scoped to one commit,
+# path, rule, and line so future findings remain visible.
+ab580c154812b35fb0a7703d8634e739717beca9:tests/warpkeepConnection.test.ts:generic-api-key:471
+0818e0946fcfc3dfb594e1c353645ce216cfefcc:tests/farcasterDeviceSession.test.ts:generic-api-key:110
+c3148ffc5abc8b6a6c7f73bdea678278d96fbbd6:tests/farcasterAuthClient.test.ts:generic-api-key:36

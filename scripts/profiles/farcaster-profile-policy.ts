@@ -4,7 +4,7 @@ const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
 const MAINNET_NETWORK = 'FARCASTER_NETWORK_MAINNET';
 const USER_DATA_MESSAGE = 'MESSAGE_TYPE_USER_DATA_ADD';
 
-export const FARCASTER_PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v2';
+export const FARCASTER_PROFILE_POLICY_VERSION = 'trusted-snapchain-profile-v3';
 
 export const FARCASTER_PUBLIC_USER_DATA_TYPES = Object.freeze([
   'USER_DATA_TYPE_USERNAME',

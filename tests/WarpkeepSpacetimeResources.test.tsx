@@ -37,11 +37,15 @@ vi.mock('../src/farcaster/FarcasterAuthProvider', () => ({
 }));
 
 import type { ReadyRealmResourcePresentation } from '../src/components/realm/realmResourcePresentation';
+import type { ReadyGoldExpeditionPresentation } from '../src/components/realm/realmGoldExpeditionPresentation';
+import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/realmFoodExpeditionPresentation';
+import type { ReadyWoodExpeditionPresentation } from '../src/components/realm/realmWoodExpeditionPresentation';
 import {
   RESOURCE_OPERATION_TIMEOUT_MILLISECONDS,
   RESOURCE_REFRESH_INTERVAL_MILLISECONDS,
   WarpkeepSpacetimeProvider,
   useWarpkeepBackend,
+  type WarpkeepBackendControllerValue,
   type WarpkeepBackendRuntime
 } from '../src/spacetime/WarpkeepSpacetimeProvider';
 import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
@@ -127,6 +131,102 @@ function resourceState(
   });
 }
 
+function goldExpeditionState(
+  active = false,
+  pendingGold = 0n
+): ReadyGoldExpeditionPresentation {
+  return Object.freeze({
+    status: 'ready' as const,
+    active,
+    accruedGold: pendingGold,
+    pendingGold,
+    creditedGold: 0n,
+    rateGoldPerMinute: 1n,
+    gatheringDurationMicros: 2_592_000_000_000n,
+    ...(active ? {
+      expedition: Object.freeze({
+        expeditionId: '00000000-0000-4000-8000-000000000001',
+        siteId: 'genesis-001:gold:0001',
+        originCastleId: 1,
+        phase: 'gathering' as const,
+        startedAtMicros: 10n,
+        arrivesAtMicros: 20n,
+        gatheringEndsAtMicros: 30n,
+        returnsAtMicros: 40n,
+        policyVersion: 'genesis-gold-wagon-expedition-v1' as const
+      })
+    } : {})
+  });
+}
+
+function foodExpeditionState(
+  active = false,
+  pendingFood = 0n
+): ReadyFoodExpeditionPresentation {
+  return Object.freeze({
+    status: 'ready' as const,
+    active,
+    accruedFood: pendingFood,
+    pendingFood,
+    creditedFood: 0n,
+    rateFoodPerMinute: 1n,
+    gatheringDurationMicros: 2_592_000_000_000n,
+    ...(active ? {
+      expedition: Object.freeze({
+        expeditionId: '00000000-0000-4000-8000-000000000002',
+        siteId: 'genesis-001:food:0001',
+        originCastleId: 1,
+        phase: 'gathering' as const,
+        startedAtMicros: 10n,
+        arrivesAtMicros: 20n,
+        gatheringEndsAtMicros: 30n,
+        returnsAtMicros: 40n,
+        policyVersion: 'genesis-food-wheat-farm-expedition-v1' as const
+      })
+    } : {})
+  });
+}
+
+function woodExpeditionState(
+  active = false,
+  pendingWood = 0n
+): ReadyWoodExpeditionPresentation {
+  return Object.freeze({
+    status: 'ready' as const,
+    active,
+    accruedWood: pendingWood,
+    pendingWood,
+    creditedWood: 0n,
+    rateWoodPerMinute: 1n,
+    gatheringDurationMicros: 2_592_000_000_000n,
+    ...(active ? {
+      expedition: Object.freeze({
+        expeditionId: '00000000-0000-4000-8000-000000000003',
+        siteId: 'genesis-001:wood:0001',
+        originCastleId: 1,
+        phase: 'gathering' as const,
+        startedAtMicros: 10n,
+        arrivesAtMicros: 20n,
+        gatheringEndsAtMicros: 30n,
+        returnsAtMicros: 40n,
+        policyVersion: 'genesis-wood-logging-camp-expedition-v1' as const
+      })
+    } : {})
+  });
+}
+
+function resourceStateWithWood(
+  fid: number,
+  revision: bigint,
+  wood: bigint
+): ReadyRealmResourcePresentation {
+  const base = createReadyResourceState(fid, revision);
+  return Object.freeze({
+    ...base,
+    balances: Object.freeze({ ...base.balances, wood })
+  });
+}
+
 function createRuntimeHarness() {
   const disconnect = vi.fn((connection: { disconnect?: () => void } | undefined) => {
     connection?.disconnect?.();
@@ -154,8 +254,11 @@ function createRuntimeHarness() {
   return { runtime, disconnect };
 }
 
+let capturedBackend: WarpkeepBackendControllerValue | undefined;
+
 function Probe() {
   const backend = useWarpkeepBackend();
+  capturedBackend = backend;
   return (
     <>
       <output data-testid="phase">{backend.state.phase}</output>
@@ -166,8 +269,56 @@ function Probe() {
       <output data-testid="resource-food">
         {backend.state.resources?.balances.food.toString() ?? ''}
       </output>
+      <output data-testid="resource-wood">
+        {backend.state.resources?.balances.wood.toString() ?? ''}
+      </output>
+      <output data-testid="gold-active">
+        {backend.state.goldExpedition?.active === undefined
+          ? ''
+          : String(backend.state.goldExpedition.active)}
+      </output>
+      <output data-testid="food-expedition-active">
+        {backend.state.foodExpedition?.active === undefined
+          ? ''
+          : String(backend.state.foodExpedition.active)}
+      </output>
+      <output data-testid="wood-expedition-active">
+        {backend.state.woodExpedition?.active === undefined
+          ? ''
+          : String(backend.state.woodExpedition.active)}
+      </output>
       <button type="button" onClick={backend.beginAlphaTermsAcceptance}>ACCEPT TERMS</button>
       <button type="button" onClick={() => void backend.collectResources()}>COLLECT</button>
+      <button
+        type="button"
+        onClick={() => void backend.dispatchGoldExpedition('genesis-001:gold:0001')
+          .catch(() => undefined)}
+      >
+        DISPATCH GOLD
+      </button>
+      <button type="button" onClick={() => void backend.claimGoldExpedition()}>
+        CLAIM GOLD
+      </button>
+      <button
+        type="button"
+        onClick={() => void backend.dispatchFoodExpedition('genesis-001:food:0001')
+          .catch(() => undefined)}
+      >
+        DISPATCH FOOD
+      </button>
+      <button type="button" onClick={() => void backend.claimFoodExpedition()}>
+        CLAIM FOOD
+      </button>
+      <button
+        type="button"
+        onClick={() => void backend.dispatchWoodExpedition('genesis-001:wood:0001')
+          .catch(() => undefined)}
+      >
+        DISPATCH WOOD
+      </button>
+      <button type="button" onClick={() => void backend.claimWoodExpedition()}>
+        CLAIM WOOD
+      </button>
       <button type="button" onClick={backend.disconnect}>DISCONNECT</button>
     </>
   );
@@ -195,6 +346,7 @@ async function flushProviderWork(rounds = 20) {
 
 afterEach(() => {
   cleanup();
+  capturedBackend = undefined;
   deferredBackendStateUpdate.armed = false;
   deferredBackendStateUpdate.queued = undefined;
   vi.useRealTimers();
@@ -202,6 +354,61 @@ afterEach(() => {
 });
 
 describe('Warpkeep private resource lifecycle', () => {
+  it('starts every private projection and the public Realm subscription concurrently', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const resources = deferred<ReadyRealmResourcePresentation>();
+    const gold = deferred<ReadyGoldExpeditionPresentation>();
+    const food = deferred<ReadyFoodExpeditionPresentation>();
+    const wood = deferred<ReadyWoodExpeditionPresentation>();
+    const starts: string[] = [];
+    vi.mocked(runtime.readResourceState).mockImplementationOnce((_connection, fid) => {
+      starts.push('resources');
+      expect(fid).toBe(12_345);
+      return resources.promise;
+    });
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(() => {
+        starts.push('gold');
+        return gold.promise;
+      }),
+      readFoodExpeditionState: vi.fn(() => {
+        starts.push('food');
+        return food.promise;
+      }),
+      readWoodExpeditionState: vi.fn(() => {
+        starts.push('wood');
+        return wood.promise;
+      }),
+      observeRealm: vi.fn(() => {
+        starts.push('observe');
+        return vi.fn();
+      }),
+      subscribeRealm: vi.fn((_connection, onApplied: () => void) => {
+        starts.push('subscribe');
+        onApplied();
+        return { unsubscribe: vi.fn() };
+      }),
+    });
+    renderProvider(runtime);
+
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms'));
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await waitFor(() => expect(starts).toEqual([
+      'resources', 'gold', 'food', 'wood', 'observe', 'subscribe',
+    ]));
+    expect(screen.getByTestId('phase').textContent).toBe('opening-realm');
+
+    await act(async () => {
+      resources.resolve(createReadyResourceState(12_345));
+      gold.resolve(goldExpeditionState());
+      food.resolve(foodExpeditionState());
+      wood.resolve(woodExpeditionState());
+      await Promise.all([resources.promise, gold.promise, food.promise, wood.promise]);
+    });
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+  });
+
   it('fails closed and tears down the concurrent public subscription when the private read fails', async () => {
     mockedFarcaster.current = authenticatedFarcaster();
     const { runtime, disconnect } = createRuntimeHarness();
@@ -243,6 +450,309 @@ describe('Warpkeep private resource lifecycle', () => {
     });
     await waitFor(() => expect(screen.getByTestId('resource-revision').textContent).toBe('1'));
     expect(screen.getByTestId('resource-food').textContent).toBe('8');
+  });
+
+  it('exposes Gold dispatch and claim only through refreshed private server projections', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const inactive = goldExpeditionState();
+    const active = goldExpeditionState(true, 3n);
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => inactive),
+      dispatchGoldExpedition: vi.fn(async () => active),
+      collectGoldExpedition: vi.fn(async (_connection, fid: number) => Object.freeze({
+        resources: resourceState(fid, 1n, 9n),
+        goldExpedition: inactive
+      }))
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH GOLD' }));
+    await waitFor(() => expect(runtime.dispatchGoldExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      'genesis-001:gold:0001',
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    ));
+    await waitFor(() => expect(screen.getByTestId('gold-active').textContent).toBe('true'));
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH GOLD' }));
+    await flushProviderWork();
+    expect(runtime.dispatchGoldExpedition).toHaveBeenCalledTimes(1);
+    // The dispatch callback changed only its server-confirmed private
+    // expedition projection; inventory stays untouched until a Gold claim.
+    expect(screen.getByTestId('resource-revision').textContent).toBe('0');
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLAIM GOLD' }));
+    await waitFor(() => expect(runtime.collectGoldExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      12_345
+    ));
+    await waitFor(() => expect(screen.getByTestId('resource-revision').textContent).toBe('1'));
+    expect(screen.getByTestId('resource-food').textContent).toBe('9');
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+  });
+
+  it('keeps a failed Food capability isolated from Gold and the core Realm', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const gold = goldExpeditionState();
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => gold),
+      readFoodExpeditionState: vi.fn(async () => {
+        throw new Error('Food procedure unavailable');
+      })
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+    expect(screen.getByTestId('food-expedition-active').textContent).toBe('');
+  });
+
+  it('keeps a failed Wood capability isolated from Gold, Food, and the core Realm', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => goldExpeditionState()),
+      readFoodExpeditionState: vi.fn(async () => foodExpeditionState()),
+      readWoodExpeditionState: vi.fn(async () => {
+        throw new Error('Wood procedure unavailable');
+      })
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+    expect(screen.getByTestId('food-expedition-active').textContent).toBe('false');
+    expect(screen.getByTestId('wood-expedition-active').textContent).toBe('');
+  });
+
+  it('exposes Food dispatch and claim only through refreshed private server projections', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const gold = goldExpeditionState();
+    const inactiveFood = foodExpeditionState();
+    const activeFood = foodExpeditionState(true, 5n);
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => gold),
+      readFoodExpeditionState: vi.fn(async () => inactiveFood),
+      dispatchFoodExpedition: vi.fn(async () => activeFood),
+      collectFoodExpedition: vi.fn(async (_connection, fid: number) => Object.freeze({
+        resources: resourceState(fid, 1n, 11n),
+        foodExpedition: inactiveFood
+      }))
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+    expect(screen.getByTestId('food-expedition-active').textContent).toBe('false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH FOOD' }));
+    await waitFor(() => expect(runtime.dispatchFoodExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      'genesis-001:food:0001',
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    ));
+    await waitFor(() => expect(screen.getByTestId('food-expedition-active').textContent).toBe('true'));
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH FOOD' }));
+    await flushProviderWork();
+    expect(runtime.dispatchFoodExpedition).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLAIM FOOD' }));
+    await waitFor(() => expect(runtime.collectFoodExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      12_345
+    ));
+    await waitFor(() => expect(screen.getByTestId('resource-food').textContent).toBe('11'));
+    expect(screen.getByTestId('food-expedition-active').textContent).toBe('false');
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+  });
+
+  it('exposes Wood dispatch and claim only through refreshed private server projections', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const inactiveWood = woodExpeditionState();
+    const activeWood = woodExpeditionState(true, 5n);
+    Object.assign(runtime, {
+      readWoodExpeditionState: vi.fn(async () => inactiveWood),
+      dispatchWoodExpedition: vi.fn(async () => activeWood),
+      collectWoodExpedition: vi.fn(async (_connection, fid: number) => Object.freeze({
+        resources: resourceStateWithWood(fid, 1n, 17n),
+        woodExpedition: inactiveWood
+      }))
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('wood-expedition-active').textContent).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH WOOD' }));
+    await waitFor(() => expect(runtime.dispatchWoodExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      'genesis-001:wood:0001',
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    ));
+    await waitFor(() => expect(screen.getByTestId('wood-expedition-active').textContent).toBe('true'));
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH WOOD' }));
+    await flushProviderWork();
+    expect(runtime.dispatchWoodExpedition).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('0');
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLAIM WOOD' }));
+    await waitFor(() => expect(runtime.collectWoodExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      12_345
+    ));
+    await waitFor(() => expect(screen.getByTestId('resource-wood').textContent).toBe('17'));
+    expect(screen.getByTestId('wood-expedition-active').textContent).toBe('false');
+  });
+
+  it('retains one dispatch key per resource and site until private authority proves the outcome', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const dispatchGold = vi.fn()
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValueOnce(goldExpeditionState(true));
+    const dispatchFood = vi.fn()
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValueOnce(foodExpeditionState(true));
+    const dispatchWood = vi.fn()
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValueOnce(woodExpeditionState(true));
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => goldExpeditionState()),
+      readFoodExpeditionState: vi.fn(async () => foodExpeditionState()),
+      readWoodExpeditionState: vi.fn(async () => woodExpeditionState()),
+      dispatchGoldExpedition: dispatchGold,
+      dispatchFoodExpedition: dispatchFood,
+      dispatchWoodExpedition: dispatchWood
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    for (const label of ['DISPATCH GOLD', 'DISPATCH FOOD', 'DISPATCH WOOD']) {
+      fireEvent.click(screen.getByRole('button', { name: label }));
+    }
+    await waitFor(() => {
+      expect(dispatchGold).toHaveBeenCalledTimes(1);
+      expect(dispatchFood).toHaveBeenCalledTimes(1);
+      expect(dispatchWood).toHaveBeenCalledTimes(1);
+    });
+    await flushProviderWork();
+    for (const label of ['DISPATCH GOLD', 'DISPATCH FOOD', 'DISPATCH WOOD']) {
+      fireEvent.click(screen.getByRole('button', { name: label }));
+    }
+    await waitFor(() => {
+      expect(dispatchGold).toHaveBeenCalledTimes(2);
+      expect(dispatchFood).toHaveBeenCalledTimes(2);
+      expect(dispatchWood).toHaveBeenCalledTimes(2);
+    });
+
+    for (const dispatch of [dispatchGold, dispatchFood, dispatchWood]) {
+      const firstKey = dispatch.mock.calls[0]?.[2];
+      expect(firstKey).toEqual(expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+      ));
+      expect(dispatch.mock.calls[1]?.[2]).toBe(firstKey);
+    }
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+  });
+
+  it('rejects a mismatched private dispatch result and reuses its key for reconciliation', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const active = goldExpeditionState(true);
+    const mismatched = Object.freeze({
+      ...active,
+      expedition: Object.freeze({
+        ...active.expedition!,
+        originCastleId: 999
+      })
+    });
+    const dispatchGold = vi.fn()
+      .mockResolvedValueOnce(mismatched)
+      .mockResolvedValueOnce(active);
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => goldExpeditionState()),
+      dispatchGoldExpedition: dispatchGold
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    await expect(capturedBackend!.dispatchGoldExpedition('genesis-001:gold:0001'))
+      .rejects.toThrow('Gold expedition is unavailable.');
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+
+    await act(async () => {
+      await capturedBackend!.dispatchGoldExpedition('genesis-001:gold:0001');
+    });
+    expect(screen.getByTestId('gold-active').textContent).toBe('true');
+    expect(dispatchGold).toHaveBeenCalledTimes(2);
+    expect(dispatchGold.mock.calls[1]?.[2]).toBe(dispatchGold.mock.calls[0]?.[2]);
+  });
+
+  it('rejects an old-generation dispatch result instead of reporting stale success', async () => {
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+    const { runtime } = createRuntimeHarness();
+    const pendingDispatch = deferred<ReadyGoldExpeditionPresentation>();
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => goldExpeditionState()),
+      dispatchGoldExpedition: vi.fn(() => pendingDispatch.promise)
+    });
+    const rendered = renderProvider(runtime);
+    await enterRealm();
+
+    const oldDispatch = capturedBackend!.dispatchGoldExpedition('genesis-001:gold:0001');
+    const oldDispatchRejection = expect(oldDispatch)
+      .rejects.toThrow('Gold expedition is unavailable.');
+    await waitFor(() => expect(runtime.dispatchGoldExpedition).toHaveBeenCalledTimes(1));
+
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+
+    pendingDispatch.resolve(goldExpeditionState(true));
+    await oldDispatchRejection;
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+  });
+
+  it('tears down a commit-ambiguous expedition timeout and ignores its late private result', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime, disconnect } = createRuntimeHarness();
+    const pendingDispatch = deferred<ReadyGoldExpeditionPresentation>();
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => goldExpeditionState()),
+      dispatchGoldExpedition: vi.fn(() => pendingDispatch.promise)
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH GOLD' }));
+    await act(async () => Promise.resolve());
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(RESOURCE_OPERATION_TIMEOUT_MILLISECONDS);
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(disconnect).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('gold-active').textContent).toBe('');
+
+    await act(async () => {
+      pendingDispatch.resolve(goldExpeditionState(true));
+      await pendingDispatch.promise;
+    });
+    expect(screen.getByTestId('phase').textContent).toBe('error');
+    expect(screen.getByTestId('gold-active').textContent).toBe('');
   });
 
   it('leaves a late authoritative result inert after an explicit disconnect', async () => {

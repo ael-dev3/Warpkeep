@@ -1,0 +1,99 @@
+{
+  "schema": "warpkeep.resource-node-runtime.v1",
+  "assetId": "warpkeep.stone-quarry-node",
+  "name": "Grand Stone Quarry Gathering Node",
+  "authorization": {
+    "integrationInstruction": "On 2026-07-18, the Warpkeep project owner supplied the named Stone Quarry runtime package and instructed an isolated draft PR to start integrating another node using the established runtime-asset system.",
+    "scope": "This authorizes use of only the three exact digest-pinned Stone Quarry GLBs in the public Warpkeep repository and an eventual official warpkeep.com Pages runtime after separately approved merge and deployment. It is use authorization only, not merge, deployment, seeding, or production-world approval.",
+    "limitations": "The delivery does not establish a separate public/open-content license, general derivative or redistribution rights, trademark rights, or Stone account, balance, placement, occupancy, route, worker, reward, collection, settlement, timing, or SpacetimeDB authority."
+  },
+  "sourcePackage": {
+    "kind": "owner-supplied Stone Quarry runtime delivery; source package and editable masters are not committed to Warpkeep",
+    "packageDirectory": "Warpkeep_StoneQuarry_GameReady",
+    "runtimeRoot": "Runtime",
+    "manifest": {
+      "filename": "runtime-manifest.json",
+      "bytes": 2415,
+      "sha256": "3351ad854b4e3e173ed557bfb00684f9a7a1b02211822325cb117ff4fcdc9d85"
+    },
+    "sourceVersion": "1.1.1",
+    "sourceRevision": "manual-polish-final-2026-07-18",
+    "sourcePackageName": "Warpkeep_StoneQuarry_GameReady",
+    "declaredLicense": "Project-owned; authored for Warpkeep",
+    "contract": {
+      "gltfUp": "+Y",
+      "frontFacing": "+Z",
+      "interactionPivot": "footprint-center",
+      "groundPlane": 0,
+      "embeddedTextures": 0,
+      "embeddedVertexColors": true,
+      "externalDependencies": 0,
+      "collision": "engine-side simple oval or 10-vertex convex-hull footprint; never mesh-collide render geometry"
+    }
+  },
+  "pipeline": {
+    "sourceRetainedInWarpkeep": false,
+    "runtimeUsesSourceAsCdn": false,
+    "prepareScript": "scripts/install-hegemony-stone-quarry-runtime.mjs",
+    "verifyScript": "scripts/verify-hegemony-stone-quarry-runtime-assets.mjs",
+    "inputEnvironmentVariable": "WARPKEEP_STONE_QUARRY_RUNTIME_ROOT",
+    "safety": [
+      "The installer accepts only the exact supplied manifest and GLB hashes through a regular, contained runtime directory and atomically installs the complete family.",
+      "The runtime verifier pins every output hash, byte length, GLB structure, source orientation extras, LOD, vertex and triangle count, bounds, material, and absence of external URIs, images, cameras, and animation.",
+      "Ordinary builds verify the checked-in public family only; they never acquire, rewrite, or serve the owner-supplied delivery package."
+    ]
+  },
+  "renderingContract": {
+    "authoredBlenderBoundsMeters": {
+      "min": [-6.602338, -5.168097, 0],
+      "max": [6.35, 5.175335, 5.625],
+      "dimensions": [12.952338, 10.343433, 5.625]
+    },
+    "gltfVisualEnvelopeMeters": {
+      "widthX": 12.952338,
+      "heightY": 5.625,
+      "depthZ": 10.343433
+    },
+    "rendering": "A future renderer must center and ground a private decoded-bounds wrapper. The immutable GLB is never rewritten to make its asymmetric footprint appear centered.",
+    "collision": "Use the supplied engine-side 5.85m by 4.65m half-extent oval or 10-vertex convex footprint with a 6.45m selection radius; render triangles are never collision or authoritative map geometry.",
+    "lodPolicy": {
+      "high": "selected or near inspection",
+      "balanced": "nearby map node",
+      "compact": "visible distant node",
+      "beyondCompact": "marker only after a separately reviewed Stone-site projection exists"
+    }
+  },
+  "runtimeAssets": [
+    {
+      "id": "high",
+      "sourceFilename": "Warpkeep_StoneQuarry_LOD0_High_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/stone-quarry/hegemony-stone-quarry-high-a4a3258f1f28a7d8.glb",
+      "bytes": 558036,
+      "sha256": "a4a3258f1f28a7d85658b32a0257d3ca5cb810b8f7a010fd5ebbf7cde12c7537",
+      "triangles": 5362,
+      "uploadedVertices": 11893,
+      "derivation": "exact owner-supplied runtime bytes"
+    },
+    {
+      "id": "balanced",
+      "sourceFilename": "Warpkeep_StoneQuarry_LOD1_Balanced_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/stone-quarry/hegemony-stone-quarry-balanced-44573c53850a31ec.glb",
+      "bytes": 337788,
+      "sha256": "44573c53850a31ec0178f88918d18471309016a5b4edffdcf1d3e42670109925",
+      "triangles": 3346,
+      "uploadedVertices": 7162,
+      "derivation": "exact owner-supplied runtime bytes"
+    },
+    {
+      "id": "compact",
+      "sourceFilename": "Warpkeep_StoneQuarry_LOD2_Compact_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/stone-quarry/hegemony-stone-quarry-compact-b4dbbc1c55a67c12.glb",
+      "bytes": 166720,
+      "sha256": "b4dbbc1c55a67c120df2f2b54852e30a2de980254216821b4a599a10e2e5030e",
+      "triangles": 1654,
+      "uploadedVertices": 3504,
+      "derivation": "exact owner-supplied runtime bytes"
+    }
+  ],
+  "scopeBoundary": "This record preserves a visual runtime family only. It does not add a canonical Stone-site catalog, map placement, collision, player subscription, worker, dispatch, route, occupancy, reward, settlement, balance, schema, reducer, scheduler, seed, or SpacetimeDB authority."
+}

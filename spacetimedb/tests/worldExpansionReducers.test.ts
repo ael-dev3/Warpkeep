@@ -20,7 +20,7 @@ test('routine world seeding refuses the deployed generation-v2 realm before any 
 test('the expansion reducer is admin-only, exact-CAS, atomic, and target-idempotent', () => {
   const admin = source('../src/reducers/admin.ts');
   const start = admin.indexOf('export const adminExpandGenesisWorldV3');
-  const end = admin.indexOf('/**\n * First admission starts', start);
+  const end = admin.indexOf('export const adminAllowFid', start);
   const reducer = admin.slice(start, end);
   assert.ok(start >= 0 && end > start);
   assert.match(reducer, /name: 'admin_expand_genesis_world_v3'/);

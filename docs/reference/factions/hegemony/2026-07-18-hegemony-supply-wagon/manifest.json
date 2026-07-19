@@ -1,0 +1,123 @@
+{
+  "schema": "warpkeep.runtime-unit-asset.v1",
+  "assetId": "hegemony-supply-wagon",
+  "name": "Hegemony Supply Wagon",
+  "faction": "Hegemony",
+  "role": "animated expedition transport visual",
+  "authorization": {
+    "integrationInstruction": "On 2026-07-18, the Warpkeep project owner instructed the new Gold Wagon integration PR to use all available project assets.",
+    "scope": "This authorizes the named, checked-in Wagon runtime outputs in the public Warpkeep repository and an eventual official Warpkeep Pages runtime after separately approved deployment for the reviewed Gold expedition feature; it is use authorization only, not deployment approval.",
+    "limitations": "It does not establish underlying ownership, grant a separate public/open-content license, general derivative or redistribution rights, trademark rights, or any server authority, currency, reward, entitlement, node-placement, or routing right."
+  },
+  "sourceRelease": {
+    "repository": "ael-dev3/Warpkeep-Assets",
+    "tag": "hegemony-supply-wagon-3d-2026-07-14",
+    "releaseUrl": "https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-supply-wagon-3d-2026-07-14",
+    "attachment": {
+      "name": "hegemony-supply-wagon-3d-sources-v1.zip",
+      "url": "https://github.com/ael-dev3/Warpkeep-Assets/releases/download/hegemony-supply-wagon-3d-2026-07-14/hegemony-supply-wagon-3d-sources-v1.zip",
+      "bytes": 6068830,
+      "sha256": "7abc2ed243286a970c9e2cc1fb589bf4e2c275e94b5ddcb4d51e9a5645e118e5"
+    },
+    "archiveManifest": {
+      "path": "hegemony-supply-wagon-3d-sources-v1/manifest.json",
+      "bytes": 11806,
+      "sha256": "9bd8fa4ead3636c86f0a7ad16e153da891339adaf394bbd7f30344f9a6d14719"
+    },
+    "archiveChecksums": {
+      "path": "hegemony-supply-wagon-3d-sources-v1/SHA256SUMS.txt",
+      "bytes": 661,
+      "sha256": "33500203f737c0ce1dabfdc8eaefa0cfb26be4f936a89997b4d3007af80276d2"
+    },
+    "selectedSource": {
+      "path": "hegemony-supply-wagon-3d-sources-v1/Warpkeep_Wagon_NoTelescope_GameReady.glb",
+      "bytes": 1637452,
+      "sha256": "4a0f762b9dadeaddd8b2d528a7e165eaa98a8dd4134eb924604922524e7bbc5d",
+      "selectionReason": "The no-telescope GameReady payload is the supplied animated runtime-reference variant and avoids shipping the telescope-only cargo difference."
+    }
+  },
+  "pipeline": {
+    "sourceRetainedInWarpkeep": false,
+    "runtimeUsesReleaseAsCdn": false,
+    "fetchScript": "scripts/fetch-hegemony-supply-wagon-assets.mjs",
+    "prepareScript": "scripts/prepare-hegemony-supply-wagon.mjs",
+    "verifyScript": "scripts/verify-hegemony-supply-wagon-assets.mjs",
+    "inputEnvironmentVariable": "WARPKEEP_WAGON_ARCHIVE or WARPKEEP_WAGON_ARCHIVE_CACHE",
+    "toolchain": {
+      "atlasRewriter": {
+        "sharp": "0.35.3",
+        "libvips": "8.18.3",
+        "libwebp": "1.6.0"
+      },
+      "optimizer": {
+        "name": "gltfpack",
+        "version": "1.2",
+        "platform": "darwin-arm64",
+        "binarySha256": "037336fafa46f342fe118ce8d17877fecb3deb1cd6dd8f62ee2a95bfaf2b79df"
+      }
+    },
+    "safety": [
+      "The fetcher permits only the checksum-pinned GitHub release attachment and approved one-hop GitHub payload hosts.",
+      "Preparation rejects symlinked archives/tools, changed archive membership, path traversal, path normalization collisions, archive links, unexpected source hashes, external URIs, unexpected cameras, changed skin/animation contracts, and stale atomic installation state.",
+      "Ordinary application builds do not fetch or rewrite the release source."
+    ]
+  },
+  "runtimeContract": {
+    "gltfUp": "+Y",
+    "frontFacing": "+Z",
+    "authoredBoundsMeters": {
+      "min": [-0.943, -0.09437833, -1.94022191],
+      "max": [0.943, 2.31999993, 1.89274561],
+      "dimensions": [1.886, 2.41437826, 3.83296752]
+    },
+    "rendering": "The GLB is not centered at its scene origin after decode. Renderers must calculate the loaded object bounds and center/ground a private wrapper group; never rewrite the immutable runtime asset at frame time.",
+    "collision": "Use an engine-side footprint roughly 2.1m wide by 4.2m long and 2.6m visual clearance. Never use animated render geometry for collision.",
+    "animation": {
+      "jointCount": 47,
+      "wheelBones": ["W_Wheel_L", "W_Wheel_R"],
+      "wheelRadiusMeters": 0.6993783339858055,
+      "clips": ["Idle", "Start", "Stop", "Turn_Left", "Turn_Right", "Walk"],
+      "rootMotion": "in_place; world position is an interpolation of server-owned journey timestamps, not animation data"
+    },
+    "lodPolicy": {
+      "high": "selected or within 12 world units",
+      "balanced": "owner/nearby wagon within 28 world units",
+      "compact": "visible wagon within 70 world units",
+      "beyondCompact": "occupancy marker only",
+      "animationBudget": "cap active animated wagons at 4 desktop/2 mobile for high/balanced and 12 desktop/6 mobile total; pause or render static when budget is exceeded"
+    }
+  },
+  "runtimeAssets": [
+    {
+      "id": "high",
+      "path": "public/models/hegemony/hegemony-supply-wagon-high-4a0f762b9dadeadd.glb",
+      "bytes": 1637452,
+      "sha256": "4a0f762b9dadeaddd8b2d528a7e165eaa98a8dd4134eb924604922524e7bbc5d",
+      "triangles": 40650,
+      "uploadedVertices": 51726,
+      "atlasSizes": [2048, 1024, 2048],
+      "derivation": "exact selected source bytes"
+    },
+    {
+      "id": "balanced",
+      "path": "public/models/hegemony/hegemony-supply-wagon-balanced-af0f8788eaaf9a32.glb",
+      "bytes": 752364,
+      "sha256": "af0f8788eaaf9a32e9fd8d17e9ab897a9036d0cc7161a318afa0af3556c6e3b2",
+      "triangles": 27582,
+      "uploadedVertices": 37055,
+      "atlasSizes": [512, 512, 512],
+      "derivation": "source WebP atlases resized deterministically to 512px, then gltfpack 1.2 with -cc -si 0.55 -se 0.008 -sp -vp 14 -vn 10 -vt 12 -kn -km -ke -af 30"
+    },
+    {
+      "id": "compact",
+      "path": "public/models/hegemony/hegemony-supply-wagon-compact-fefb5105b95d43b4.glb",
+      "bytes": 452676,
+      "sha256": "fefb5105b95d43b411571000e8ae3fd78460eaa5f490eaeb63f90e5d84aba6ca",
+      "triangles": 16954,
+      "uploadedVertices": 26507,
+      "atlasSizes": [256, 256, 256],
+      "derivation": "source WebP atlases resized deterministically to 256px, then gltfpack 1.2 with -cc -si 0.25 -se 0.014 -sp -vp 14 -vn 10 -vt 12 -kn -km -ke -af 30"
+    }
+  ],
+  "scopeBoundary": "This model record provides only visual and animation assets. SpacetimeDB authoritative sites, occupation leases, travel, settlement, Gold balances, visibility, dispatch authorization, and release policy are established independently by reviewed server/application code."
+}

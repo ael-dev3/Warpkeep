@@ -542,6 +542,45 @@ function protectsGenerationV3Travel(tile: CanonicalWorldTile): boolean {
   ));
 }
 
+/**
+ * Pure canonical primary-route predicate shared by authority-only site
+ * catalogs. It exposes the original protected spokes and five-ring routes
+ * used before scenic blockers are selected; the denser v3 blocker lattice
+ * remains an internal world-generation detail so resource placement retains
+ * a sufficiently broad reviewed candidate pool.
+ */
+export function isCanonicalTravelCorridor(
+  coordinate: Readonly<{ q: number; r: number }>,
+): boolean {
+  const tile = CANONICAL_TILE_BY_KEY.get(hexKey(coordinate.q, coordinate.r));
+  if (tile === undefined) return false;
+  return protectedTravelCorridor(tile);
+}
+
+/**
+ * Keep resource structures clear of the protected route itself and one
+ * canonical neighboring hex. The bounded axial-disc walk has no mutable
+ * dependency and avoids a layout whose visual footprint crowds travel lanes.
+ */
+export function hasCanonicalTravelCorridorClearance(
+  coordinate: Readonly<{ q: number; r: number }>,
+  clearanceSteps = 1,
+): boolean {
+  if (!Number.isSafeInteger(clearanceSteps) || clearanceSteps < 0) {
+    throw new Error('GENESIS_TRAVEL_CORRIDOR_CLEARANCE_INVALID');
+  }
+  for (let qOffset = -clearanceSteps; qOffset <= clearanceSteps; qOffset += 1) {
+    for (let rOffset = -clearanceSteps; rOffset <= clearanceSteps; rOffset += 1) {
+      if (hexDistance({ q: qOffset, r: rOffset }) > clearanceSteps) continue;
+      if (isCanonicalTravelCorridor({
+        q: coordinate.q + qOffset,
+        r: coordinate.r + rOffset,
+      })) return true;
+    }
+  }
+  return false;
+}
+
 const GENERATION_V3_BLOCKED_TILE_KEYS = new Set(
   rankedTiles(
     GENESIS_GENERATION_V3_WORLD_TILES.filter(tile => !protectsGenerationV3Travel(tile)),

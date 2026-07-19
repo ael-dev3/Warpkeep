@@ -1,0 +1,99 @@
+{
+  "schema": "warpkeep.resource-node-runtime.v1",
+  "assetId": "warpkeep.logging-camp-node",
+  "name": "Logging Camp Wood Gathering Node",
+  "authorization": {
+    "integrationInstruction": "On 2026-07-18, the Warpkeep project owner supplied the named Logging Camp runtime delivery and requested a separate Wood-node pull request.",
+    "scope": "This authorizes use of only the three exact digest-pinned Logging Camp GLBs in the public Warpkeep repository and a potential official warpkeep.com Pages runtime after separately approved merge and deployment. It is asset-use authorization only, not merge, deployment, seeding, or production-world approval.",
+    "limitations": "The delivery does not establish a separate public/open-content license, general derivative or redistribution rights, trademark rights, or Wood account, balance, placement, occupancy, route, worker, reward, collection, settlement, timing, or SpacetimeDB authority."
+  },
+  "sourcePackage": {
+    "kind": "owner-supplied Logging Camp runtime delivery; source package and editable masters are not committed to Warpkeep",
+    "packageDirectory": "Warpkeep_LoggingCamp_GameReady",
+    "runtimeRoot": "Runtime",
+    "manifest": {
+      "filename": "runtime-manifest.json",
+      "bytes": 2246,
+      "sha256": "0385c4e268445fe6529cb2d3285ee9bdd405f23f6ba8fecc8ccdf0d39a62cec2"
+    },
+    "sourceVersion": "1.0.0",
+    "sourceRevision": "initial-editable-2026-07-18",
+    "sourceGeneratedAt": "2026-07-18T13:55:38.208802+00:00",
+    "sourcePackageName": "Warpkeep_LoggingCamp_GameReady",
+    "declaredLicense": "Project-owned; authored for Warpkeep",
+    "contract": {
+      "gltfUp": "+Y",
+      "frontFacing": "+Z",
+      "interactionPivot": "footprint-center",
+      "groundPlane": 0,
+      "embeddedTextures": 0,
+      "embeddedVertexColors": true,
+      "externalDependencies": 0,
+      "collision": "engine-side simple oval or 10-vertex convex-hull footprint; never mesh-collide render geometry"
+    }
+  },
+  "pipeline": {
+    "sourceRetainedInWarpkeep": false,
+    "runtimeUsesSourceAsCdn": false,
+    "prepareScript": "scripts/install-hegemony-logging-camp-runtime.mjs",
+    "verifyScript": "scripts/verify-hegemony-logging-camp-runtime-assets.mjs",
+    "safety": [
+      "The public family contains only the three digest-bearing exact supplied runtime GLBs.",
+      "The offline installer requires an exact non-symbolic four-file source directory, validates the source manifest and every source GLB, and atomically stages the complete public family without fetching or transforming bytes.",
+      "The normal-build verifier rejects unknown, missing, non-regular, changed, or structurally incompatible LODs and never reads, fetches, rewrites, or serves the external delivery package."
+    ]
+  },
+  "renderingContract": {
+    "authoredBlenderBoundsMeters": {
+      "min": [-6.362841, -4.882012, 0],
+      "max": [6.1, 4.778124, 6.67],
+      "dimensions": [12.462841, 9.660136, 6.67]
+    },
+    "gltfVisualEnvelopeMeters": {
+      "widthX": 12.462841,
+      "heightY": 6.67,
+      "depthZ": 9.660136
+    },
+    "rendering": "Center and ground a private decoded-bounds wrapper. The immutable GLB has an exact y=0 ground plane; preserve source bytes rather than editing geometry or treating editable-source metadata as live placement data.",
+    "collision": "Use the source-recommended engine-side oval or 10-vertex convex-hull footprint with a 6.25m selection radius. Render triangles are never collision or authoritative map geometry.",
+    "lodPolicy": {
+      "high": "selected or near inspection",
+      "balanced": "nearby map node",
+      "compact": "visible distant node",
+      "beyondCompact": "occupancy marker only"
+    }
+  },
+  "runtimeAssets": [
+    {
+      "id": "high",
+      "sourceFilename": "Warpkeep_LoggingCamp_LOD0_High_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-high-a68c133a4a50654b.glb",
+      "bytes": 689328,
+      "sha256": "a68c133a4a50654bc611de2b66e6d0d42729aaf0b91b59b7d2b7749566826f70",
+      "triangles": 5030,
+      "uploadedVertices": 10952,
+      "derivation": "exact owner-supplied High runtime source bytes"
+    },
+    {
+      "id": "balanced",
+      "sourceFilename": "Warpkeep_LoggingCamp_LOD1_Balanced_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-balanced-227046f89c4150ee.glb",
+      "bytes": 460656,
+      "sha256": "227046f89c4150eec5b908cc75e162fa9ad489be123fc941714f9ad294b73593",
+      "triangles": 3318,
+      "uploadedVertices": 7312,
+      "derivation": "exact owner-supplied Balanced runtime source bytes"
+    },
+    {
+      "id": "compact",
+      "sourceFilename": "Warpkeep_LoggingCamp_LOD2_Compact_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/logging-camp/hegemony-logging-camp-compact-ecea536ae18ef3ef.glb",
+      "bytes": 236252,
+      "sha256": "ecea536ae18ef3ef5c6dc5eda158fa33d8e5d3a1e7848478c248a32efac1eccf",
+      "triangles": 1698,
+      "uploadedVertices": 3734,
+      "derivation": "exact owner-supplied Compact runtime source bytes"
+    }
+  ],
+  "scopeBoundary": "This record covers visual asset preservation and rendering guidance only. Canonical Wood site identity, map placement, occupation, worker dispatch, travel, collection, timing, player visibility, concurrency, balance, and persistent SpacetimeDB state must be governed solely by separately reviewed application and server code."
+}

@@ -9,18 +9,26 @@ import {
   parseProfilesArguments,
   parseReviewedPlanReference,
   foundedProfileSetDigest,
+  foundedProfileStateDigest,
   planPreconditionsMatch,
   planProfileUpdates,
+  PROFILE_CONNECTION_TIMEOUT_MS,
+  PROFILE_SUBSCRIPTION_TIMEOUT_MS,
   resolveTrustedProfiles,
   runProfileReducerWithDeadline,
 } from '../scripts/profiles/profiles-operator';
 import {
+  FARCASTER_PUBLIC_USER_DATA_TYPES,
   buildTrustedPublicFarcasterProfile,
 } from '../scripts/profiles/farcaster-profile-policy';
 import {
   CONTROLLED_PROFILE_FIXTURE_SOURCE_ID,
   fetchPublicProfileResponses,
-  TRUSTED_PRODUCTION_PROFILE_SOURCE_ID,
+  TRUSTED_FOUNDER_ADMISSION_PURPOSE,
+  TRUSTED_PROFILE_MAINTENANCE_PURPOSE,
+  TRUSTED_PRODUCTION_FOUNDER_ADMISSION_SOURCE_ID,
+  TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID,
+  trustedProfileTransportAttestation,
   validateProfileSource,
 } from '../scripts/profiles/profile-transport';
 import {
@@ -49,6 +57,25 @@ function privateDirectory(): string {
 }
 
 describe('trusted profile operator boundary', () => {
+  it('uses bounded expanded-Realm connection and subscription readiness windows', () => {
+    expect(PROFILE_CONNECTION_TIMEOUT_MS).toBe(30_000);
+    expect(PROFILE_SUBSCRIPTION_TIMEOUT_MS).toBe(60_000);
+  });
+
+  it('reports presentation repair as privacy-safe health without making it an apply gate', () => {
+    const operator = readFileSync(
+      join(process.cwd(), 'scripts/profiles/profiles-operator.ts'),
+      'utf8',
+    );
+    expect(operator).toContain('currentProfilesNeedingPresentationRepair');
+    expect(operator).toContain('intendedProfilesNeedingPresentationRepair');
+    expect(operator).toContain('postApplyProfilesNeedingPresentationRepair');
+    const finalGateStart = operator.indexOf("let finalOutcome: 'succeeded' | 'failed' | 'ambiguous'");
+    const finalGateEnd = operator.indexOf("audit('apply-complete'", finalGateStart);
+    expect(operator.slice(finalGateStart, finalGateEnd))
+      .not.toContain('ProfilesNeedingPresentationRepair');
+  });
+
   it('requires stdin dry-run for refresh and stdin confirmation for apply', () => {
     expect(parseProfilesArguments(['refresh', '--input-stdin', '--dry-run'])).toMatchObject({
       command: 'refresh',
@@ -119,28 +146,60 @@ describe('trusted profile operator boundary', () => {
   });
 
   it('pins the reviewed production source and rejects operator-selected origins or credentials', () => {
-    expect(validateProfileSource({ sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID }).href)
+    expect(validateProfileSource(
+      { sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID },
+      TRUSTED_PROFILE_MAINTENANCE_PURPOSE,
+    ).href)
       .toBe('https://rho.farcaster.xyz:3381/');
-    expect(() => validateProfileSource({ sourceId: 'https://attacker.example' }))
+    expect(() => validateProfileSource(
+      { sourceId: 'https://attacker.example' },
+      TRUSTED_PROFILE_MAINTENANCE_PURPOSE,
+    ))
       .toThrow('PROFILE_SOURCE_NOT_PINNED');
     expect(() => validateProfileSource({
-      sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID,
+      sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID,
       authorization: 'Bearer private',
-    })).toThrow('PROFILE_SOURCE_CREDENTIAL_UNSUPPORTED');
+    }, TRUSTED_PROFILE_MAINTENANCE_PURPOSE)).toThrow('PROFILE_SOURCE_CREDENTIAL_UNSUPPORTED');
     expect(() => parseProfileRequest({
       source: {
-        sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID,
+        sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID,
         baseUrl: 'https://attacker.example',
       },
     })).toThrow('PROFILES_SOURCE_INVALID');
     expect(parseProfileRequest({
-      source: { sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID },
-    })).toEqual({ source: { sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID } });
+      source: { sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID },
+    })).toEqual({ source: { sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID } });
+
+    const maintenance = trustedProfileTransportAttestation(TRUSTED_PROFILE_MAINTENANCE_PURPOSE);
+    const admission = trustedProfileTransportAttestation(TRUSTED_FOUNDER_ADMISSION_PURPOSE);
+    expect(maintenance).toMatchObject({
+      sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID,
+      ownerApprovalScope: 'current-founded-public-profile-maintenance',
+      individualFounderApprovalRequired: false,
+    });
+    expect(admission).toMatchObject({
+      sourceId: TRUSTED_PRODUCTION_FOUNDER_ADMISSION_SOURCE_ID,
+      ownerApprovalScope: 'individually-approved-new-founder-profile-resolution',
+      individualFounderApprovalRequired: true,
+    });
+    expect(maintenance.sourceEvidence.evidenceVersion)
+      .toBe('snapchain-profile-source-evidence-v2');
+    expect(JSON.stringify(maintenance)).not.toContain(
+      ['alpha-0.3.3', 'current-founded-public-profiles'].join('-'),
+    );
+    expect(() => validateProfileSource(
+      { sourceId: TRUSTED_PRODUCTION_FOUNDER_ADMISSION_SOURCE_ID },
+      TRUSTED_PROFILE_MAINTENANCE_PURPOSE,
+    )).toThrow('PROFILE_SOURCE_NOT_PINNED');
+    expect(() => validateProfileSource(
+      { sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID },
+      TRUSTED_FOUNDER_ADMISSION_PURPOSE,
+    )).toThrow('PROFILE_SOURCE_NOT_PINNED');
     expect(() => parseProfileRequest({
       source: { sourceId: CONTROLLED_PROFILE_FIXTURE_SOURCE_ID },
     })).toThrow('PROFILE_SOURCE_NOT_PINNED');
     expect(() => parseProfileRequest({
-      source: { sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID },
+      source: { sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID },
       fids: ['123'],
     })).toThrow('PROFILES_PRIVATE_INPUT_INVALID');
   });
@@ -148,6 +207,7 @@ describe('trusted profile operator boundary', () => {
   it.each([null, 17, {}, []])('rejects malformed pagination token %j', async (nextPageToken) => {
     await expect(fetchPublicProfileResponses({
       source: { sourceId: CONTROLLED_PROFILE_FIXTURE_SOURCE_ID },
+      purpose: TRUSTED_PROFILE_MAINTENANCE_PURPOSE,
       fid: FID,
       controlledFixture: true,
       fetchImpl: vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
@@ -165,7 +225,7 @@ describe('trusted profile operator boundary', () => {
       reviewedPlan: { filename: 'plan.json', sha256: 'a'.repeat(64), source: {} },
     })).toThrow('PROFILES_REVIEWED_PLAN_REFERENCE_INVALID');
     expect(() => parseProfileRequest({
-      source: { sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID },
+      source: { sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID },
       reviewedPlan: {},
     })).toThrow('PROFILES_PRIVATE_INPUT_INVALID');
   });
@@ -194,16 +254,46 @@ describe('trusted profile operator boundary', () => {
     expect(planned.lastKnownGoodFieldsPreserved).toBe(2);
   });
 
-  it('does not report authoritative complete-envelope clears as last-known-good preservation', () => {
+  it('repairs a missing required field from current authority while retaining one valid anchor', () => {
+    const pfpEnvelope = {
+      messages: [{
+        data: {
+          type: 'MESSAGE_TYPE_USER_DATA_ADD',
+          fid: Number(FID),
+          timestamp: 10,
+          network: 'FARCASTER_NETWORK_MAINNET',
+          userDataBody: {
+            type: 'USER_DATA_TYPE_PFP',
+            value: 'https://images.example/current.png',
+          },
+        },
+      }],
+      nextPageToken: '',
+    };
+    const resolved = buildTrustedPublicFarcasterProfile({
+      fid: FID,
+      responses: { USER_DATA_TYPE_PFP: pfpEnvelope },
+    });
+    const planned = planProfileUpdates([resolved], new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+    }]]));
+
+    expect(planned.updates).toEqual([{
+      fid: FID,
+      canonicalUsername: 'keeper.eth',
+      displayName: undefined,
+      pfpUrl: 'https://images.example/current.png',
+      publicBio: undefined,
+      farcasterProfileUrl: 'https://farcaster.xyz/keeper.eth',
+    }]);
+    expect(planned.lastKnownGoodFieldsPreserved).toBe(1);
+  });
+
+  it('projects an authoritative full profile clear as a non-personal maintenance update', () => {
     const envelope = { messages: [], nextPageToken: '' };
     const cleared = buildTrustedPublicFarcasterProfile({
       fid: FID,
-      responses: Object.fromEntries([
-        'USER_DATA_TYPE_USERNAME',
-        'USER_DATA_TYPE_DISPLAY',
-        'USER_DATA_TYPE_BIO',
-        'USER_DATA_TYPE_PFP',
-      ].map(type => [type, envelope])),
+      responses: Object.fromEntries(FARCASTER_PUBLIC_USER_DATA_TYPES.map(type => [type, envelope])),
     });
     const planned = planProfileUpdates([cleared], new Map([[FID, {
       canonicalUsername: 'keeper.eth',
@@ -212,13 +302,124 @@ describe('trusted profile operator boundary', () => {
       publicBio: 'Stable bio',
     }]]));
 
-    expect(planned.lastKnownGoodFieldsPreserved).toBe(0);
-    expect(planned.updates[0]).toMatchObject({
+    expect(planned.updates).toEqual([{
+      fid: FID,
       canonicalUsername: undefined,
       displayName: undefined,
       pfpUrl: undefined,
       publicBio: undefined,
+      farcasterProfileUrl: undefined,
+    }]);
+    expect(planned.lastKnownGoodFieldsPreserved).toBe(0);
+  });
+
+  it('allows authoritative optional-field clears when required identity remains current', () => {
+    const envelope = {
+      messages: [
+        ['USER_DATA_TYPE_USERNAME', 'keeper.eth'],
+        ['USER_DATA_TYPE_PFP', 'https://images.example/stable.png'],
+      ].map(([type, value], index) => ({
+        data: {
+          type: 'MESSAGE_TYPE_USER_DATA_ADD',
+          fid: Number(FID),
+          timestamp: 10 + index,
+          network: 'FARCASTER_NETWORK_MAINNET',
+          userDataBody: { type, value },
+        },
+      })),
+      nextPageToken: '',
+    };
+    const resolved = buildTrustedPublicFarcasterProfile({
+      fid: FID,
+      responses: Object.fromEntries(FARCASTER_PUBLIC_USER_DATA_TYPES.map(type => [type, envelope])),
     });
+    const planned = planProfileUpdates([resolved], new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+      displayName: 'Keeper',
+      pfpUrl: 'https://images.example/stable.png',
+      publicBio: 'Stable bio',
+    }]]));
+
+    expect(planned.lastKnownGoodFieldsPreserved).toBe(0);
+    expect(planned.updates[0]).toMatchObject({
+      canonicalUsername: 'keeper.eth',
+      displayName: undefined,
+      pfpUrl: 'https://images.example/stable.png',
+      publicBio: undefined,
+    });
+  });
+
+  it.each([
+    ['username', 'USER_DATA_TYPE_USERNAME', 'USER_DATA_TYPE_PFP', 'https://images.example/current.png'],
+    ['PFP', 'USER_DATA_TYPE_PFP', 'USER_DATA_TYPE_USERNAME', 'keeper.eth'],
+  ] as const)(
+    'projects an authoritative %s clear without retaining stale personal data',
+    (_field, clearedType, retainedType, retainedValue) => {
+      const retainedEnvelope = {
+        messages: [{
+          data: {
+            type: 'MESSAGE_TYPE_USER_DATA_ADD',
+            fid: Number(FID),
+            timestamp: 10,
+            network: 'FARCASTER_NETWORK_MAINNET',
+            userDataBody: { type: retainedType, value: retainedValue },
+          },
+        }],
+        nextPageToken: '',
+      };
+      const resolved = buildTrustedPublicFarcasterProfile({
+        fid: FID,
+        responses: {
+          [clearedType]: { messages: [], nextPageToken: '' },
+          [retainedType]: retainedEnvelope,
+        },
+      });
+      const planned = planProfileUpdates([resolved], new Map([[FID, {
+        canonicalUsername: 'old.eth',
+        pfpUrl: 'https://images.example/old.png',
+      }]]));
+
+      expect(planned.updates).toHaveLength(1);
+      expect(planned.updates[0]?.[clearedType === 'USER_DATA_TYPE_USERNAME'
+        ? 'canonicalUsername'
+        : 'pfpUrl']).toBeUndefined();
+      expect(planned.lastKnownGoodFieldsPreserved).toBe(0);
+    },
+  );
+
+  it('allows a complete refresh with repairable incomplete public presentation', () => {
+    const planned = planProfileUpdates([
+      {
+        fid: FID,
+        canonicalUsername: 'keeper.eth',
+        pfpUrl: 'https://images.example/keeper.png',
+      },
+      { fid: 456n, canonicalUsername: 'second.eth' },
+    ], new Map([
+      [FID, {}],
+      [456n, {}],
+    ]));
+    expect(planned.updates).toHaveLength(2);
+    expect(planned.updates[1]).toMatchObject({
+      fid: 456n,
+      canonicalUsername: 'second.eth',
+      pfpUrl: undefined,
+    });
+  });
+
+  it('removes a noncanonical last-known portrait instead of preserving it', () => {
+    const planned = planProfileUpdates([{ fid: FID }], new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+      pfpUrl: 'http://localhost/private.png',
+    }]]));
+    expect(planned.updates).toEqual([{
+      fid: FID,
+      canonicalUsername: 'keeper.eth',
+      displayName: undefined,
+      pfpUrl: undefined,
+      publicBio: undefined,
+      farcasterProfileUrl: 'https://farcaster.xyz/keeper.eth',
+    }]);
   });
 
   it('fails before mutation planning unless every current founded profile is resolved exactly once', () => {
@@ -243,12 +444,18 @@ describe('trusted profile operator boundary', () => {
   });
 
   it('binds apply preconditions to the exact founder set, not only its count', () => {
-    const current = new Map([[FID, { displayName: 'Keeper' }]]);
+    const current = new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+      displayName: 'Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+    }]]);
     const plan = createReviewedProfilePlan({
       sourceConfigurationDigest: 'a'.repeat(64),
       targetConfigurationDigest: 'b'.repeat(64),
       policyVersion: 'policy-v2',
       foundedProfileSetDigest: foundedProfileSetDigest(current.keys()),
+      expectedProfileStateDigest: foundedProfileStateDigest(current),
+      intendedProfileStateDigest: foundedProfileStateDigest(current),
       fetchedProfiles: 1,
       unchangedProfiles: 1,
       lastKnownGoodFieldsPreserved: 0,
@@ -257,8 +464,45 @@ describe('trusted profile operator boundary', () => {
     });
 
     expect(planPreconditionsMatch(plan, current)).toBe(true);
-    expect(planPreconditionsMatch(plan, new Map([[456n, { displayName: 'Other' }]])))
+    expect(planPreconditionsMatch(plan, new Map([[456n, {
+      canonicalUsername: 'other.eth',
+      displayName: 'Other',
+      pfpUrl: 'https://images.example/other.png',
+    }]])))
       .toBe(false);
+    expect(planPreconditionsMatch(plan, new Map([[FID, {
+      canonicalUsername: 'keeper.eth',
+      displayName: 'Changed',
+      pfpUrl: 'https://images.example/keeper.png',
+    }]])))
+      .toBe(false);
+  });
+
+  it('allows an exact reviewed plan to repair an incomplete current profile', () => {
+    const current = new Map([[FID, { displayName: 'Legacy Keeper' }]]);
+    const intended = {
+      canonicalUsername: 'keeper.eth',
+      displayName: 'Keeper',
+      pfpUrl: 'https://images.example/keeper.png',
+    };
+    const plan = createReviewedProfilePlan({
+      sourceConfigurationDigest: 'a'.repeat(64),
+      targetConfigurationDigest: 'b'.repeat(64),
+      policyVersion: 'policy-v2',
+      foundedProfileSetDigest: foundedProfileSetDigest(current.keys()),
+      expectedProfileStateDigest: foundedProfileStateDigest(current),
+      intendedProfileStateDigest: foundedProfileStateDigest(new Map([[FID, intended]])),
+      fetchedProfiles: 1,
+      unchangedProfiles: 0,
+      lastKnownGoodFieldsPreserved: 0,
+      updates: [{
+        fid: FID.toString(),
+        expectedCurrent: current.get(FID)!,
+        intended,
+      }],
+    });
+
+    expect(planPreconditionsMatch(plan, current)).toBe(true);
   });
 
   it('writes a mode-0600 content-attested short-lived reviewed plan and claims it once', () => {
@@ -271,6 +515,14 @@ describe('trusted profile operator boundary', () => {
       targetConfigurationDigest,
       policyVersion: 'policy-v1',
       foundedProfileSetDigest: foundedProfileSetDigest([FID]),
+      expectedProfileStateDigest: foundedProfileStateDigest(new Map([[
+        FID,
+        { displayName: 'Keeper' },
+      ]])),
+      intendedProfileStateDigest: foundedProfileStateDigest(new Map([[
+        FID,
+        { displayName: 'Keeper Prime', pfpUrl: 'https://images.example/pfp.png' },
+      ]])),
       fetchedProfiles: 1,
       unchangedProfiles: 0,
       lastKnownGoodFieldsPreserved: 2,

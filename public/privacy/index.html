@@ -16,6 +16,7 @@
         <a href="../">Warpkeep</a>
         <span class="legal-nav__documents">
           <a href="../terms/index.html">Alpha Terms</a>
+          <a href="../social-contract/index.html">Hegemony Social Contract</a>
           <a aria-current="page" href="./index.html">Privacy Notice</a>
         </span>
       </nav>
@@ -28,7 +29,9 @@
             This notice describes the personal data the current Warpkeep Alpha is designed to use,
             why it is used, where it goes, and the limits of retention and deletion.
           </p>
-          <p class="legal-page__version">Version 0.3.2 · Last updated 14 July 2026</p>
+          <p class="legal-page__version">
+            Alpha Privacy Notice revision 2026-07-19-v1 · Last updated 19 July 2026
+          </p>
           <p class="legal-page__notice">
             This is a factual, project-authored Alpha notice, not a legal-compliance certification
             or legal advice. Formal privacy review and a dedicated legal contact remain future work.
@@ -62,11 +65,13 @@
             <p>
               Loading the title or menu does not make the Warpkeep application start Farcaster
               authentication, read a Warpkeep session cookie, or connect to SpacetimeDB. Selecting
-              <strong>Enter Realm</strong> first opens an unchecked terms gate. Authentication begins
-              only after you check the box and continue. The gate state exists only in component
-              memory and is not itself an identity record or blanket consent to unrelated data
-              uses. After an admitted player authenticates, the game records separate private,
-              versioned acceptance evidence as described below.
+              <strong>Enter Realm</strong> first opens one unchecked entry-agreement gate.
+              Authentication begins only after you check the box and continue. That one box accepts
+              the current Alpha Terms and Hegemony Social Contract, not this Privacy Notice as
+              blanket privacy consent. The gate state exists only in component memory and is not
+              itself an identity record or consent to unrelated data uses. After an admitted player
+              authenticates, the game records separate private, versioned acceptance evidence as
+              described below.
             </p>
             <p>
               Hosting and network providers may still receive ordinary request data when your
@@ -88,12 +93,16 @@
                 and are never accepted from the browser as authoritative.
               </li>
               <li>
-                <strong>Alpha Terms acceptance:</strong> after an admitted player checks the gate,
+                <strong>Entry-agreement acceptance:</strong> after an admitted player checks the gate,
                 authenticates, and requests entry, SpacetimeDB stores private, immutable evidence
-                containing the verified FID, exact Terms version, and acceptance time. This is
-                used to enforce the current entry terms and preserve an audit trail. It is not a
-                public projection and does not contain the checkbox state, QR payload, proof,
-                signature, token, cookie, or wallet information.
+                containing the verified FID, exact entry-agreement bundle version, and acceptance
+                time. The Alpha Terms incorporate Hegemony Social Contract version
+                <code>2026-07-19-hegemony-social-contract-v2</code> in entry-agreement bundle
+                <code>2026-07-19-hegemony-entry-agreement-v2</code>; the published browser policy
+                cryptographically binds the exact visible Terms and Social Contract texts to their
+                reviewed hashes. This evidence is used to enforce the current entry agreement and
+                preserve an audit trail. It is not a public projection and does not contain the
+                checkbox state, QR payload, proof, signature, token, cookie, or wallet information.
               </li>
               <li>
                 <strong>Browser and session security:</strong> Warpkeep uses an origin, challenge
@@ -134,8 +143,9 @@
                 The opaque-identity ownership mapping, allowlist, slot claim, authoritative Mark
                 account, and administrative audit rows are private. A frozen legacy public player
                 schema still contains its original public opaque-identity column for wire
-                compatibility. The current protocol never reads, writes, or subscribes to that
-                table, and production verification requires it to remain empty.
+                compatibility. Browsers and gameplay paths never write or subscribe to that table.
+                Private deployment checks read only its aggregate row count and require it to
+                remain empty.
               </li>
               <li>
                 <strong>SNAP burns and Marks:</strong> a privacy-bounded operator process may read
@@ -171,9 +181,9 @@
             <p>
               Which legal basis applies depends on the jurisdiction and purpose. Where a legal
               basis is required, the project relies on steps needed to provide the Alpha you
-              request and perform these Alpha Terms; legitimate interests in authentication,
+              request and perform the current entry agreement; legitimate interests in authentication,
               service security, abuse prevention, and reliable operation; and legal obligations
-              where they apply. The terms checkbox is not intended as blanket privacy consent. If
+              where they apply. The entry-agreement checkbox is not intended as blanket privacy consent. If
               a future optional use relies on consent, it must be separately explained and that
               consent may be withdrawn without changing earlier lawful processing.
             </p>
@@ -193,12 +203,12 @@
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Unchecked terms-gate state</td>
+                    <td>Unchecked entry-agreement-gate state</td>
                     <td>Component memory for one entry attempt; cleared on cancel, completion, retry, navigation, or unmount.</td>
                   </tr>
                   <tr>
-                    <td>Versioned Alpha Terms acceptance evidence</td>
-                    <td>No fixed Alpha deletion schedule yet. The private FID, exact Terms version, and acceptance time remain while needed to enforce entry terms, resolve disputes, protect the service, and preserve the Alpha audit trail, unless reset or manually deleted.</td>
+                    <td>Versioned entry-agreement acceptance evidence</td>
+                    <td>No fixed Alpha deletion schedule yet. The private FID, exact entry-agreement bundle version, and acceptance time remain while needed to enforce entry terms, resolve disputes, protect the service, and preserve the Alpha audit trail, unless reset or manually deleted.</td>
                   </tr>
                   <tr>
                     <td>Sign-in challenge and browser-binding digest</td>
@@ -281,7 +291,7 @@
           <section aria-labelledby="choices-rights">
             <h2 id="choices-rights">7. Your choices and rights</h2>
             <p>
-              You can decline the terms gate and avoid starting Warpkeep authentication. Remember
+              You can decline the entry-agreement gate and avoid starting Warpkeep authentication. Remember
               device defaults off. You can sign out, close the application, and ask the project to
               access, correct, erase, restrict, or provide applicable personal data, or object to
               certain processing. Depending on applicable law, some rights—including portability

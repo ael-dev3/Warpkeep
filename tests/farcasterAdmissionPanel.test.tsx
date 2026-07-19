@@ -92,6 +92,23 @@ describe('FarcasterAdmissionPanel', () => {
     expect(screen.getByRole('button', { name: 'SIGN OUT' })).not.toBeNull();
   });
 
+  it('names both contractual documents when current entry acceptance is required', () => {
+    render(
+      <FarcasterAdmissionPanel
+        identity={identity}
+        onBackToMenu={vi.fn()}
+        onCheckAgain={vi.fn()}
+        onSignOut={vi.fn()}
+        phase="awaiting-terms"
+      />
+    );
+
+    expect(screen.getByRole('heading', { level: 2, name: 'ENTRY AGREEMENT REQUIRED' })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toBe(
+      'Return to Enter Realm and accept the current Alpha Terms and Hegemony Social Contract before Hegemony records open.',
+    );
+  });
+
   it('names the canonical opening boundary while subscription data is still pending', () => {
     render(
       <FarcasterAdmissionPanel

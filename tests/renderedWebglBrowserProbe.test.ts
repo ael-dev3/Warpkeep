@@ -1044,7 +1044,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, expected)).toThrow(/semantic-terrain-feature-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
-      semanticTerrainFeatureCount: 801
+      semanticTerrainFeatureCount: 1_011
     }, expected)).toThrow(/semantic-terrain-feature-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
@@ -1056,7 +1056,7 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, expected)).toThrow(/semantic-terrain-feature-draw-calls/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
-      totalTerrainDetailInstanceCount: 5_501
+      totalTerrainDetailInstanceCount: 5_711
     }, expected)).toThrow(/total-terrain-detail-budget/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
@@ -1211,8 +1211,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     }, expected)).toThrow(/observation/i);
 
     for (const [caseId, quality, semanticFeatureCount, totalDetailInstanceCount] of [
-      ['desktop-high', 'high', 1_100, 7_000],
-      ['desktop-reduced', 'reduced', 400, 3_000]
+      ['desktop-high', 'high', 1_310, 7_210],
+      ['desktop-reduced', 'reduced', 610, 3_210]
     ] as const) {
       const qualityCase = renderedWebglBrowserProbeCases(41_733)
         .find((probeCase) => probeCase.id === caseId)!;

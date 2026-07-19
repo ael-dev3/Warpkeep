@@ -1,0 +1,99 @@
+{
+  "schema": "warpkeep.resource-node-runtime.v1",
+  "assetId": "warpkeep.wheat-farm-node",
+  "name": "Royal Harvest Windmill Food Gathering Node",
+  "authorization": {
+    "integrationInstruction": "On 2026-07-18, the Warpkeep project owner supplied the named Wheat Farm runtime delivery and instructed a separate draft PR to add Tier 1 Food nodes across the reviewed world.",
+    "scope": "This authorizes use of only the three exact digest-pinned Wheat Farm GLBs in the public Warpkeep repository and an eventual official warpkeep.com Pages runtime after separately approved merge and deployment. It is use authorization only, not merge, deployment, seeding, or production-world approval.",
+    "limitations": "The delivery does not establish a separate public/open-content license, general derivative or redistribution rights, trademark rights, or Food account, balance, placement, occupancy, route, worker, reward, collection, settlement, timing, or SpacetimeDB authority."
+  },
+  "sourcePackage": {
+    "kind": "owner-supplied Wheat Farm runtime delivery; source package and editable masters are not committed to Warpkeep",
+    "packageDirectory": "Warpkeep_Windmill_Final_Delivery",
+    "runtimeRoot": "Runtime",
+    "manifest": {
+      "filename": "runtime-manifest.json",
+      "bytes": 2845,
+      "sha256": "04beb96110a84593ebab8e2cd1b8fff59421a1eb498806bed2527dd43607a923"
+    },
+    "sourceVersion": "1.3.1",
+    "sourceRevision": "final-manual-edit-2026-07-18",
+    "sourcePackageName": "Warpkeep_WheatFarm_GameReady",
+    "declaredLicense": "Project-owned; authored for Warpkeep",
+    "runtimeExportStatus": "The supplied manifest marks runtime_exports_provisional=true. This draft preserves the exact supplied bytes as immutable review coordinates; it does not relabel the delivery as a final release or expand its authorization.",
+    "contract": {
+      "gltfUp": "+Y",
+      "frontFacing": "+Z",
+      "interactionPivot": "footprint-center",
+      "groundPlane": 0,
+      "groundEmbedMinimumZ": -0.3,
+      "embeddedTextures": 0,
+      "embeddedVertexColors": true,
+      "externalDependencies": 0,
+      "collision": "engine-side simple oval or 10-vertex convex-hull footprint; exclude rotor sweep and never mesh-collide render geometry"
+    }
+  },
+  "pipeline": {
+    "sourceRetainedInWarpkeep": false,
+    "runtimeUsesSourceAsCdn": false,
+    "verifyScript": "scripts/verify-hegemony-wheat-farm-runtime-assets.mjs",
+    "safety": [
+      "The public family contains only the three digest-bearing exact supplied runtime GLBs.",
+      "The runtime verifier pins each file hash, source metadata, GLB structure, orientation extras, LOD, vertex/triangle count, bounds, material, and absence of external URIs, images, cameras, and animation.",
+      "Ordinary builds verify the checked-in public family only; they never acquire, rewrite, or serve the owner-supplied delivery package."
+    ]
+  },
+  "renderingContract": {
+    "authoredBlenderBoundsMeters": {
+      "min": [-6.362841, -4.882012, -0.235379],
+      "max": [6.1, 4.778124, 10.093256],
+      "dimensions": [12.462841, 9.660136, 10.328635]
+    },
+    "gltfVisualEnvelopeMeters": {
+      "widthX": 12.462841,
+      "heightY": 10.328635,
+      "depthZ": 9.660136
+    },
+    "rendering": "Center and ground a private decoded-bounds wrapper. The supplied High GLB intentionally includes a small grounded-rock embed within the declared -0.3m tolerance; preserve the immutable GLB rather than repairing it in place.",
+    "collision": "Use the source-recommended engine-side footprint with a 6.25m selection radius and exclude the rotor sweep. Render triangles are never collision or authoritative map geometry.",
+    "lodPolicy": {
+      "high": "selected or near inspection",
+      "balanced": "nearby map node",
+      "compact": "visible distant node",
+      "beyondCompact": "occupancy marker only"
+    }
+  },
+  "runtimeAssets": [
+    {
+      "id": "high",
+      "sourceFilename": "Warpkeep_WheatFarm_LOD0_High_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-high-d1437bc1cfe81ee.glb",
+      "bytes": 1884180,
+      "sha256": "d1437bc1cfe81eef20cc5106acf849df919e6d4008a3b28d380a3d7194ed4ac7",
+      "triangles": 17860,
+      "uploadedVertices": 40320,
+      "derivation": "exact owner-supplied High runtime source bytes"
+    },
+    {
+      "id": "balanced",
+      "sourceFilename": "Warpkeep_WheatFarm_LOD1_Balanced_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-balanced-bab5cbb18b45b6a5.glb",
+      "bytes": 1182004,
+      "sha256": "bab5cbb18b45b6a565e2070d4b3f6ed17916e81f70be72203f704eeb86260403",
+      "triangles": 10906,
+      "uploadedVertices": 25310,
+      "derivation": "exact owner-supplied Balanced runtime source bytes"
+    },
+    {
+      "id": "compact",
+      "sourceFilename": "Warpkeep_WheatFarm_LOD2_Compact_Runtime.glb",
+      "path": "public/models/hegemony/gathering-nodes/wheat-farm/hegemony-wheat-farm-compact-a34bfdafd6b8923c.glb",
+      "bytes": 567908,
+      "sha256": "a34bfdafd6b8923c7cf90071d3ad097858fd59ca8df5cd2e776f44b967e9e3e6",
+      "triangles": 5416,
+      "uploadedVertices": 12102,
+      "derivation": "exact owner-supplied Compact runtime source bytes"
+    }
+  ],
+  "scopeBoundary": "This record covers visual asset preservation and rendering guidance only. Canonical Tier 1 Food site identity, map placement, occupation, worker dispatch, travel, 1 Food/min settlement, 30-day lifecycle, player visibility, concurrency, and persistent SpacetimeDB state must be governed solely by separately reviewed application and server code."
+}

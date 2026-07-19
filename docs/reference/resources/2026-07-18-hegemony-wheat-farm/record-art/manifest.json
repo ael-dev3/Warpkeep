@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "id": "hegemony-wheat-farm-record-art-v1",
+  "recordedAt": "2026-07-18",
+  "purpose": "Transparent decorative Wheat Farm art for the approved Food Farm inspection card",
+  "projectAuthorization": {
+    "authorizedBy": "Warpkeep project owner",
+    "instructionDate": "2026-07-18",
+    "scope": "Warpkeep PR #57 preparation and its use of the background-cleaned derivative in the public Warpkeep GitHub repository, plus an eventual official warpkeep.com Pages runtime only after separately approved deployment. This is use authorization only, not deployment approval.",
+    "notGranted": [
+      "proof of underlying copyright ownership",
+      "a public open-content licence",
+      "general third-party derivative or redistribution permission",
+      "trademark or canonical-identity rights",
+      "Food placement, renderer, server, browser-derived balance, reward, or entitlement authority"
+    ]
+  },
+  "sourceInputs": [
+    {
+      "role": "high-resolution user-supplied edit source",
+      "repositoryRetained": false,
+      "originalName": "codex-clipboard-c7715082-ee5d-49ce-ba83-299781956b90.png",
+      "bytes": 1934312,
+      "sha256": "7234642d622433e2df43c9be4c84223a646a60bfbc3a61232780406e8fa8fb7a",
+      "image": {
+        "format": "png",
+        "width": 1254,
+        "height": 1254,
+        "alpha": false
+      }
+    }
+  ],
+  "generation": {
+    "service": "OpenAI image generation edit",
+    "method": "Used the user-supplied Wheat Farm image as the visual reference and generated a 1254-square RGB chroma intermediate on a flat #ff00ff background for later alpha extraction.",
+    "intermediateRetained": false,
+    "intermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1786146,
+      "sha256": "857ba155880881290d94f289527ff368a76135ff239abf8485b60594a636c679",
+      "alpha": false
+    }
+  },
+  "backgroundCleanup": {
+    "tool": "Codex imagegen remove_chroma_key.py",
+    "sampleMode": "auto-key border",
+    "requestedChromaKey": "#ff00ff",
+    "hardKey": true,
+    "tolerance": 110,
+    "edgeFeatherRadius": 0,
+    "matteIntermediateRetained": false,
+    "matteIntermediate": {
+      "format": "png",
+      "width": 1254,
+      "height": 1254,
+      "bytes": 1339462,
+      "sha256": "8269f478fa84e6995c98f41ed4e76677bd07c7a6a284e792635f47abdc089139",
+      "alpha": true
+    },
+    "residualMagentaCleanup": {
+      "pixelsRemoved": 198,
+      "predicate": "r >= 160, b >= 100, g <= 140, r - g >= 70, and b - g >= 30"
+    }
+  },
+  "runtimeAsset": {
+    "path": "public/images/realm/hegemony-wheat-farm-record.webp",
+    "format": "webp",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 224806,
+    "sha256": "466c80380a8d23de043731a7c386e78c9b36a2d2e69fa175db4b87efc3f43eb0",
+    "decodedRgbaSha256": "63b83f46aca05903828f90a22551c3d93acabd4855c3ef3ccb18a5a2b11f6d8a",
+    "alpha": {
+      "transparentPixels": 853604,
+      "partiallyTransparentPixels": 0,
+      "opaquePixels": 718912
+    },
+    "visibleBoundsAlpha16": {
+      "minX": 23,
+      "minY": 70,
+      "maxX": 1181,
+      "maxY": 1142
+    },
+    "delivery": "same-origin checked-in runtime asset; no external CDN"
+  },
+  "presentationBoundary": {
+    "component": "src/components/realm/FoodFarmInspectionPanel.tsx",
+    "currentRealmMount": "src/components/realm/RealmMapScreen.tsx",
+    "currentNodePlacement": "validated public Food-site inspector only",
+    "interaction": "local decorative art only; empty alt text, aria-hidden, and pointer-inert",
+    "forbiddenClaims": [
+      "player inventory",
+      "reserve amount",
+      "owner",
+      "browser-derived gathering authority",
+      "reward",
+      "Marks linkage"
+    ]
+  },
+  "licence": {
+    "spdx": "LicenseRef-Warpkeep-Provenance-Required",
+    "policy": "The exact project instruction authorizes this Warpkeep runtime use but does not establish a public relicensing grant. See ASSETS-LICENSE.md."
+  },
+  "visualQa": {
+    "backgroundRemoved": true,
+    "fineSilhouettePreserved": true,
+    "reviewedOnTransparentViewer": true,
+    "referenceScreenshotsRetained": false
+  }
+}

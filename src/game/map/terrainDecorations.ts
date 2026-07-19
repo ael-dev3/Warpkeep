@@ -5,6 +5,7 @@ import {
   type HexCoord,
   type HexWorldPosition
 } from './hexCoordinates';
+import { createDeterministicBudgetCollector } from './deterministicBudget';
 import { deriveChannelSeed, seededUnitFloat } from './realmSeed';
 import type { RealmTerrainKind } from './realmTerrainSemantics';
 import { pointyHexBoundaryDistance } from './terrainHeight';
@@ -14,13 +15,13 @@ import {
   terrainPlacementsForCell,
   type TerrainStructurePlacement
 } from './terrainPlacements';
-import { createDeterministicBudgetCollector } from './deterministicBudget';
 import type { RealmTerrainMap, TerrainCell } from './terrainTypes';
 
-export type TerrainDecorationKind = 'green-tuft' | 'dry-tuft' | 'stone';
+/** The former green/dry tuft path moved into the procedural grass layer. */
+export type TerrainDecorationKind = 'stone';
 
 export type TerrainDecorationPoint = Readonly<{
-  kind: TerrainDecorationKind;
+  kind: 'stone';
   coord: HexCoord;
   world: HexWorldPosition;
   rotation: number;
@@ -33,80 +34,58 @@ export type TerrainDecorationData = Readonly<{
   counts: Readonly<Record<TerrainDecorationKind, number>>;
 }>;
 
-/** Renderer-neutral density slice accepted from any visual quality profile. */
 export type TerrainDecorationQuality = Readonly<{
   playableRadius: number;
-  greenTuftsPerPlayableCell: number;
-  greenTuftsPerApronCell: number;
-  dryTuftsPerPlayableCell: number;
-  dryTuftsPerApronCell: number;
   stoneChancePlayable: number;
   stoneChanceApron: number;
 }>;
 
 export type TerrainDecorationBudget = Readonly<{
   maximumPoints: number;
-  /** Keep the established founding realm visually stable before filling expansion cells. */
   preserveRadius?: number;
-  /** Exact authority set for partial perimeter rings; absent keys are visual apron. */
   playableKeys?: ReadonlySet<string>;
 }>;
 
 const CENTER_COORD = { q: 0, r: 0 } as const;
-const MAX_LOCAL_RADIUS = 0.61;
 const STRUCTURE_CLEARANCE = 0.08;
 
-function candidatePoint(
-  cell: TerrainCell,
-  kind: TerrainDecorationKind,
-  index: number,
-  hexSize: number,
-  attempt: number
-): HexWorldPosition {
+function candidatePoint(cell: TerrainCell, hexSize: number): HexWorldPosition {
   const center = axialToWorld(cell.coord, hexSize);
-  const angle = seededUnitFloat(deriveChannelSeed(cell.seed, index, attempt, `${kind}-angle`)) * Math.PI * 2;
-  const radial = Math.sqrt(seededUnitFloat(
-    deriveChannelSeed(cell.seed, index, attempt, `${kind}-radius`)
-  )) * MAX_LOCAL_RADIUS * hexSize;
-  return {
+  const angle = seededUnitFloat(deriveChannelSeed(cell.seed, 0, 0, 'stone-angle')) * Math.PI * 2;
+  const radial = Math.sqrt(seededUnitFloat(deriveChannelSeed(cell.seed, 0, 0, 'stone-radius')))
+    * hexSize * 0.58;
+  return Object.freeze({
     x: center.x + Math.cos(angle) * radial,
     z: center.z + Math.sin(angle) * radial
-  };
+  });
 }
 
 function createPoint(
   cell: TerrainCell,
-  kind: TerrainDecorationKind,
-  index: number,
   hexSize: number,
   apron: boolean,
   placements: readonly TerrainStructurePlacement[]
 ): TerrainDecorationPoint | null {
+  const world = candidatePoint(cell, hexSize);
   const center = axialToWorld(cell.coord, hexSize);
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const world = candidatePoint(cell, kind, index, hexSize, attempt);
-    const local = { x: world.x - center.x, z: world.z - center.z };
-    if (pointyHexBoundaryDistance(local, hexSize) > 0.74) continue;
-    if (!isPlacementClear(placements, world, hexSize, STRUCTURE_CLEARANCE)) continue;
-    return {
-      kind,
-      coord: cell.coord,
-      world,
-      rotation: seededUnitFloat(deriveChannelSeed(cell.seed, index, attempt, `${kind}-rotation`)) * Math.PI * 2,
-      scale: 0.72 + seededUnitFloat(deriveChannelSeed(cell.seed, index, attempt, `${kind}-scale`)) * 0.62,
-      apron
-    };
-  }
-  return null;
+  const local = { x: world.x - center.x, z: world.z - center.z };
+  if (pointyHexBoundaryDistance(local, hexSize) > 0.72) return null;
+  if (!isPlacementClear(placements, world, hexSize, STRUCTURE_CLEARANCE)) return null;
+  return Object.freeze({
+    kind: 'stone',
+    coord: Object.freeze({ q: cell.coord.q, r: cell.coord.r }),
+    world,
+    rotation: seededUnitFloat(deriveChannelSeed(cell.seed, 0, 0, 'stone-rotation')) * Math.PI * 2,
+    scale: 0.72 + seededUnitFloat(deriveChannelSeed(cell.seed, 0, 0, 'stone-scale')) * 0.62,
+    apron
+  });
 }
 
-type TerrainDecorationCandidate = Readonly<{
-  cell: TerrainCell;
-  kind: TerrainDecorationKind;
-  index: number;
-  apron: boolean;
-}>;
-
+/**
+ * Static stones retain their existing bounded generic-detail family. Grass is
+ * intentionally absent here: its camera-local generator never scans the whole
+ * render map and owns a separate quality plan.
+ */
 export function generateTerrainDecorations(
   renderMap: RealmTerrainMap,
   quality: TerrainDecorationQuality,
@@ -117,96 +96,46 @@ export function generateTerrainDecorations(
 ): TerrainDecorationData {
   const maximumPoints = budget === undefined
     ? Number.MAX_SAFE_INTEGER
-    : Math.max(0, Number.isFinite(budget.maximumPoints)
-      ? Math.trunc(budget.maximumPoints)
-      : 0);
+    : Math.max(0, Number.isFinite(budget.maximumPoints) ? Math.trunc(budget.maximumPoints) : 0);
   const preserveRadius = Math.max(0, Number.isFinite(budget?.preserveRadius)
     ? Math.trunc(budget!.preserveRadius!)
     : 20);
-  const candidates = createDeterministicBudgetCollector<TerrainDecorationCandidate>(
+  const candidates = createDeterministicBudgetCollector<Readonly<{ cell: TerrainCell; apron: boolean }>>(
     maximumPoints
   );
   let order = 0;
-
-  const offerKind = (
-    cell: TerrainCell,
-    kind: TerrainDecorationKind,
-    count: number,
-    apron: boolean
-  ) => {
-    for (let index = 0; index < count; index += 1) {
+  [...renderMap.cells]
+    .sort((left, right) => left.coord.q - right.coord.q || left.coord.r - right.coord.r)
+    .forEach((cell) => {
+      const key = hexKey(cell.coord);
+      const terrainKind = terrainKindsByKey?.get(key);
+      if (terrainKind === 'lake' || terrainKind === 'ridge' || terrainKind === 'ancient-stone') return;
+      const apron = budget?.playableKeys !== undefined
+        ? !budget.playableKeys.has(key)
+        : hexDistance(CENTER_COORD, cell.coord) > quality.playableRadius;
+      const chance = apron ? quality.stoneChanceApron : quality.stoneChancePlayable;
+      const signal = seededUnitFloat(deriveChannelSeed(cell.seed, 0, 0, 'stone-presence'));
+      if (signal >= chance * (0.82 + Math.max(-0.3, cell.rockBias * 0.22))) return;
       candidates.add({
-        value: { cell, kind, index, apron },
+        value: Object.freeze({ cell, apron }),
         group: hexDistance(CENTER_COORD, cell.coord) <= preserveRadius ? 0 : 1,
-        rank: deriveChannelSeed(cell.seed, index, 0, `${kind}-detail-budget`),
-        order
+        rank: deriveChannelSeed(cell.seed, 0, 0, 'stone-detail-budget'),
+        order: order++
       });
-      order += 1;
-    }
-  };
-
-  renderMap.cells.forEach((cell) => {
-    const tileKey = hexKey(cell.coord);
-    const terrainKind = terrainKindsByKey?.get(tileKey);
-    if (
-      terrainKind === 'ridge'
-      || terrainKind === 'lake'
-      || terrainKind === 'ancient-stone'
-    ) return;
-    const apron = budget?.playableKeys !== undefined
-      ? !budget.playableKeys.has(tileKey)
-      : hexDistance(CENTER_COORD, cell.coord) > quality.playableRadius;
-    offerKind(
-      cell,
-      'green-tuft',
-      apron ? quality.greenTuftsPerApronCell : quality.greenTuftsPerPlayableCell,
-      apron
-    );
-    offerKind(
-      cell,
-      'dry-tuft',
-      apron ? quality.dryTuftsPerApronCell : quality.dryTuftsPerPlayableCell,
-      apron
-    );
-
-    const chance = apron ? quality.stoneChanceApron : quality.stoneChancePlayable;
-    const stoneSignal = seededUnitFloat(deriveChannelSeed(cell.seed, 0, 0, 'stone-presence'));
-    const biasedChance = chance * (0.82 + Math.max(-0.3, cell.rockBias * 0.22));
-    if (stoneSignal < biasedChance) {
-      offerKind(cell, 'stone', 1, apron);
-    }
-  });
-
+    });
   const localPlacementsByCell = new Map<string, readonly TerrainStructurePlacement[]>();
-  const points = candidates.values().flatMap((candidate) => {
-    const key = hexKey(candidate.cell.coord);
+  const points = candidates.values().flatMap(({ cell, apron }) => {
+    const key = hexKey(cell.coord);
     let localPlacements = localPlacementsByCell.get(key);
     if (!localPlacements) {
-      localPlacements = terrainPlacementsForCell(
-        placements,
-        candidate.cell.coord,
-        hexSize,
-        STRUCTURE_CLEARANCE
-      );
+      localPlacements = terrainPlacementsForCell(placements, cell.coord, hexSize, STRUCTURE_CLEARANCE);
       localPlacementsByCell.set(key, localPlacements);
     }
-    const point = createPoint(
-      candidate.cell,
-      candidate.kind,
-      candidate.index,
-      hexSize,
-      candidate.apron,
-      localPlacements
-    );
+    const point = createPoint(cell, hexSize, apron, localPlacements);
     return point ? [point] : [];
   });
-
-  return {
-    points,
-    counts: {
-      'green-tuft': points.filter((point) => point.kind === 'green-tuft').length,
-      'dry-tuft': points.filter((point) => point.kind === 'dry-tuft').length,
-      stone: points.filter((point) => point.kind === 'stone').length
-    }
-  };
+  return Object.freeze({
+    points: Object.freeze(points),
+    counts: Object.freeze({ stone: points.length })
+  });
 }

@@ -42,17 +42,32 @@ function mutationTargets(text: string): string[] {
     .map(match => match[1]);
 }
 
-test('resource_account_v1 is one private append-only table registered immediately after Alpha Terms', () => {
+test('resource and Gold prefixes remain intact before the v6 forest, v7 Food, and v8 Wood appends', () => {
   const schema = source('../src/schema.ts');
   const deployedV3 = source('../migration-fixtures/additive-v3-schema/src/index.ts');
   const deployedRegistrations = schemaRegistrations(deployedV3);
   const registrations = schemaRegistrations(schema);
 
   assert.deepEqual(registrations.slice(0, deployedRegistrations.length), deployedRegistrations);
-  assert.deepEqual(registrations, [...deployedRegistrations, 'resourceAccountV1']);
-  assert.deepEqual(registrations.slice(-2), [
-    'alphaTermsAcceptanceV1',
+  assert.deepEqual(registrations.slice(deployedRegistrations.length), [
     'resourceAccountV1',
+    'goldSiteV1',
+    'goldNodeOccupationV1',
+    'goldExpeditionV1',
+    'goldExpeditionIdempotencyV1',
+    'goldExpeditionScheduleV1',
+    'realmForestLayoutV1',
+    'realmForestInstanceV1',
+    'foodSiteV1',
+    'foodNodeOccupationV1',
+    'foodExpeditionV1',
+    'foodExpeditionIdempotencyV1',
+    'foodExpeditionScheduleV1',
+    'woodSiteV1',
+    'woodNodeOccupationV1',
+    'woodExpeditionV1',
+    'woodExpeditionIdempotencyV1',
+    'woodExpeditionScheduleV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');
@@ -86,23 +101,24 @@ test('new founding writes the complete private resource account in the same atom
   assert.equal(founding.match(/ctx\.db\.resourceAccountV1\.insert\(\{/g)?.length, 1);
 
   const admin = source('../src/reducers/admin.ts');
-  const allowFid = section(
+  const profiledAdmission = section(
     admin,
-    'export const adminAllowFid',
-    '/** Trusted local-operator',
+    'export const adminAdmitFounderV1',
+    'export const adminUpsertRealmProfileV1',
   );
-  assert.match(allowFid, /executeAllowFidTransition/);
-  assert.match(allowFid, /ensureGenesisFounder\(ctx, fid\)/);
+  assert.match(profiledAdmission, /applyAllowedFidTransition/);
+  assert.match(profiledAdmission, /ensureGenesisFounder\(ctx, input\.fid, normalized\)/);
+  assert.match(profiledAdmission, /assertGenesisResourceForFid\(ctx, input\.fid\)/);
 });
 
-test('gameplay resource authority requires current Terms and the caller-bound founder graph', () => {
+test('gameplay resource authority requires the current entry agreement and the caller-bound founder graph', () => {
   const auth = source('../src/auth.ts');
   const gameplay = section(
     auth,
     'export function requireGameplayPlayerV1',
     '/** Admin inputs',
   );
-  const admittedAt = gameplay.indexOf('requireAdmittedPlayer(ctx)');
+  const admittedAt = gameplay.indexOf('requireOwnedCastleActionV1(ctx)');
   const acceptanceAt = gameplay.indexOf('alphaTermsAcceptanceV1.acceptanceKey.find');
   const resourceAt = gameplay.indexOf('assertGenesisResourceForFid(ctx, admitted.claims.fid)');
 
@@ -114,15 +130,27 @@ test('gameplay resource authority requires current Terms and the caller-bound fo
   assert.match(gameplay, /acceptance\.fid !== admitted\.claims\.fid/);
   assert.match(gameplay, /acceptance\.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION/);
   assert.match(gameplay, /ALPHA_TERMS_REQUIRED/);
+  assert.doesNotMatch(gameplay, /ENTRY_AGREEMENT_EVIDENCE_VERSIONS|hasRetainedEntryAgreementEvidence/);
 
   const admitted = section(
     auth,
     'export function requireAdmittedPlayer',
-    '/**\n * Require the complete current gameplay graph',
+    '/**\n * Resolve the only castle',
   );
   assert.match(admitted, /playerOwnershipV2\.fid\.find\(claims\.fid\)/);
   assert.match(admitted, /ownership\?\.identity\.equals\(ctx\.sender\)/);
+  assert.match(admitted, /castle\.ownerFid\.find\(claims\.fid\)/);
+  assert.match(admitted, /return \{ claims, player: player!, castle \}/);
   assert.match(admitted, /IDENTITY_MISMATCH/);
+
+  const ownedCastle = section(
+    auth,
+    'export function requireOwnedCastleActionV1',
+    '/**\n * Require the complete current gameplay graph',
+  );
+  assert.match(ownedCastle, /requireAdmittedPlayer\(ctx\)/);
+  assert.match(ownedCastle, /admitted\.castle\.ownerFid !== admitted\.claims\.fid/);
+  assert.doesNotMatch(ownedCastle, /ctx\.db\.|\.find\s*\(/);
 
   const resourceAuthority = source('../src/resourceAuthority.ts');
   const localGraph = section(
@@ -189,14 +217,14 @@ test('player get and collect wires accept no FID, balance, rate, terrain, or clo
   const browserCollect = section(
     browser,
     'export async function collectWarpkeepResources',
-    '/** Start only the protocol-v3',
+    '/**\n * Read the caller-only expedition procedure',
   );
   assert.match(browserRead, /procedures\.getMyResourceStateV1\(\{\}\)/);
   assert.match(browserCollect, /reducers\.collectResourcesV1\(\{\}\)/);
   assert.doesNotMatch(browserCollect, /collectResourcesV1\(\{[\s\S]+\}\)/);
 });
 
-test('collect settles with server time, mutates only the private account, and preserves Marks exactly', () => {
+test('collect preserves active Food and Wood reserves, settles with server time, and preserves Marks exactly', () => {
   const reducers = source('../src/reducers/resources.ts');
   const collect = section(
     reducers,
@@ -204,23 +232,32 @@ test('collect settles with server time, mutates only the private account, and pr
     '/**\n * Hermes-only',
   );
   const marksBeforeAt = collect.indexOf('const marksBefore =');
-  const settlementAt = collect.indexOf('const settlement = planResourceSettlement');
+  const foodCollectAt = collect.indexOf('collectActiveFoodExpedition(ctx, claims.fid)');
+  const woodCollectAt = collect.indexOf('collectActiveWoodExpedition(ctx, claims.fid)');
+  const settlementAt = collect.indexOf(
+    'const settlement = planResourceSettlementForActiveExpeditionReservations',
+  );
   const accountUpdateAt = collect.indexOf('ctx.db.resourceAccountV1.fid.update({');
   const marksAfterAt = collect.indexOf('const marksAfter =');
-  const finalAssertionAt = collect.indexOf('assertGenesisResourceForFid(ctx, claims.fid)');
+  const finalAssertionAt = collect.lastIndexOf('assertGenesisResourceForFid(ctx, claims.fid)');
 
   assert.ok(
     marksBeforeAt >= 0
-      && settlementAt > marksBeforeAt
+      && foodCollectAt > marksBeforeAt
+      && woodCollectAt > foodCollectAt
+      && settlementAt > woodCollectAt
       && accountUpdateAt > settlementAt
       && marksAfterAt > accountUpdateAt
       && finalAssertionAt > marksAfterAt,
   );
   assert.match(
     collect,
-    /planResourceSettlement\(\s*account,\s*terrainKind,\s*ctx\.timestamp\.microsSinceUnixEpoch,?\s*\)/,
+    /planResourceSettlementForActiveExpeditionReservations\(\s*ctx,\s*claims\.fid,\s*resourceAfterExpeditions\.account,\s*resourceAfterExpeditions\.terrainKind,\s*ctx\.timestamp\.microsSinceUnixEpoch,?\s*\)/,
   );
-  assert.match(collect, /if \(settlement\.completedQuanta === 0n\) return/);
+  assert.match(collect, /if \(settlement\.completedQuanta !== 0n\)/);
+  assert.match(collect, /collectActiveFoodExpedition\(ctx, claims\.fid\)/);
+  assert.match(collect, /collectActiveWoodExpedition\(ctx, claims\.fid\)/);
+  assert.match(collect, /collectActiveGoldExpedition\(ctx, claims\.fid\)/);
   assert.deepEqual(mutationTargets(collect), ['resourceAccountV1']);
   assert.match(collect, /updatedAt: ctx\.timestamp/);
   for (const field of [
@@ -246,7 +283,7 @@ test('collect settles with server time, mutates only the private account, and pr
   const browserCollect = section(
     browser,
     'export async function collectWarpkeepResources',
-    '/** Start only the protocol-v3',
+    '/**\n * Read the caller-only expedition procedure',
   );
   assert.ok(
     browserCollect.indexOf('reducers.collectResourcesV1({})')

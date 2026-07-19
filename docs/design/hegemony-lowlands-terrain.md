@@ -1,331 +1,143 @@
-# Genesis 001 Realm Presentation
+# Genesis 001 Realm presentation
 
-## Purpose and authority
+## Purpose
 
-After Sign In with Farcaster, Terms acceptance, and private admission succeed,
-Warpkeep opens one shared world presentation: canonical Genesis 001. SpacetimeDB
-owns the realm, world tiles, public metadata, players, profiles, and castles. The
-browser renders that complete projection; it does not invent a smaller recovery
-map, ownership, castle coordinates, or player identity.
+Genesis 001 is one persistent Lowlands world. SpacetimeDB owns the realm,
+world tiles, public metadata, players, profiles, castles, and private resource
+state. The browser renders validated server data; it does not invent ownership,
+identity, castle coordinates, balances, or replacement geography.
 
-The Realm presents caller-private terrain yield and collection, but no map
-resource nodes, roads, farms, units, movement, combat, fog of war, or alternate
-biomes.
+The current Realm supports exploration, castle inspection, caller-private
+terrain yield, roads, and shared Gold Mine, Wheat Farm, and Logging Camp sites.
+Units, combat, fog of war, and alternate biomes are not part of the current
+presentation.
 
-## Canonical readiness boundary
+## Realm loading
 
-The authenticated realm mounts only after a single validator accepts the whole
-snapshot. For rollout and recovery compatibility, the contract accepts one of
-two complete protocol-3 Genesis 001 profiles: the exact 1,261-cell
-generation-v2 predecessor or the exact 10,000-cell generation-v3 target. Each
-profile pins its realm fields, tile keys, metadata, counts, and fingerprint;
-mixed or inferred geography is never accepted. Both profiles also require
-valid castle occupancy and an own castle that belongs to the authenticated
-player.
+The authenticated Realm appears only after the client has a complete,
+internally consistent snapshot for a recognized Genesis generation. Realm
+metadata, tile keys, terrain sidecars, castle occupancy, and the current
+player's castle must agree. Partial, stale, ambiguous, or mixed snapshots stay
+behind the loading surface and eventually offer Retry or Return to Menu.
 
-Partial subscriptions, ambiguous realms, missing sidecars, stale geography, and
-invalid castle relations remain behind a branded loading surface and eventually
-fail closed to Retry or Return to Menu. A same-player reconnect may retain an
-earlier snapshot only when its complete private fingerprint still matches the
-canonical Genesis contract. No authenticated production path generates or
-renders a standalone radius-four world.
+A reconnect may retain the previous public view only for the same player and
+matching world fingerprint. Private balances and actions remain unavailable
+until current authority returns. The browser never substitutes a local recovery
+map for missing server state.
 
-```txt
-generation-v3 full disc:          radius 57
-maximum authoritative ring:      radius 58 (81 cells)
-authoritative cells:                 10,000
-render envelope:                radius 60
-visual apron cells:                    981
-total rendered cells:                10,981
-passable authoritative cells:         8,750
-```
+The live generation contains 10,000 authoritative cells: a complete radius-57
+disc plus 81 cells on ring 58. Rendering extends to radius 60 with a neutral
+981-cell visual apron. Apron cells improve the horizon but have no server
+metadata, ownership, movement, resource, or gameplay meaning.
 
-The original 61 radius-four rows remain unchanged as rings 0–4 inside this same
-world. They are historical inner geography, not a second runtime topology.
+The map uses pointy-top axial coordinates. Stable hashes of the world seed,
+coordinates, channel, and item index generate presentation detail without
+mutable random state. Server coordinates determine every
+castle and authoritative cell.
 
-The map uses pointy-top axial coordinates:
+## Lowlands terrain
 
-```txt
-x = size × sqrt(3) × (q + r / 2)
-z = size × 1.5 × r
-s = -q - r
-```
+Genesis 001 should read as a continuous landscape, not a board of disconnected
+hexes. The renderer combines pointy-hex geometry into shared terrain, reuses
+edge positions, and computes normals across the result to avoid cracks,
+overlapping surfaces, and hard seams.
 
-Stable `(world seed, q, r, channel, index)` hashes generate terrain fields and
-decoration candidates without mutable random state or `Math.random()`.
+The central play area receives denser geometry while distant cells use a
+coarser representation. This split is deterministic and selected before large
+CPU or GPU allocations. High, Balanced, and Reduced profiles change detail
+budgets without changing world coordinates or terrain identity.
 
-## Terrain and foundations
+The Lowlands palette uses restrained moss, grass, dried gold, heather, stone,
+soil, and slate water. Authoritative metadata selects one of seven terrain
+families: Lowland, Meadow, Forest, Heath, Ridge, Lake, or Ancient stone. Tints
+fade at cell edges so terrain categories remain legible without drawing a hex
+grid over the world.
 
-The established radius-22 presentation keeps its original pointy-hex radial
-wedge topology exactly. Outer cells use a coarse center fan, while the 270
-interfaces at the detail boundary receive deterministic edge segmentation that
-matches the inner subdivision. Vertices are deduplicated by stable quantized
-world position before normals are computed for the combined mesh. Shared edges
-therefore reuse positions without overlapping cell meshes, cracks, degenerate
-triangles, or hard normal seams.
+Instanced grass, dry tufts, stones, coppices, heather, outcrops, water, and
+monoliths add local character. Their placement is deterministic, respects the
+active quality profile, and clears castle foundations and scenic blockers.
+Detail updates are demand-driven and pause while the document is hidden.
 
-One deterministic quality plan is applied before large arrays or GPU resources
-are allocated. Every profile retains all 1,519 radius-22 detail cells, renders
-the remaining 9,462 envelope cells coarsely, and stays within an attested
-geometry ceiling:
+Metadata such as `resource-capable`, `core-capable`, and `reserve` describes
+placement capacity only. Live resource sites come from separate, validated
+server catalogs; the terrain renderer never turns metadata flags into nodes,
+rewards, balances, or interactive targets.
 
-| Profile | Inner subdivisions | Terrain triangles | Vertices | Triangle ceiling |
-| --- | ---: | ---: | ---: | ---: |
-| High | 4 | 203,406 | 102,067 | 204,000 |
-| Balanced | 3 | 139,338 | 70,033 | 140,000 |
-| Reduced | 2 | 93,498 | 47,113 | 94,000 |
+## Castles and foundations
 
-Every authoritative castle receives a deterministic local placement. The
-normalized castle spans 1.48 world units and its authored island reaches about
-1.06 units from the shared origin. Terrain therefore uses a 1.08 level footprint
-and 1.22 smooth blend radius. The blend crosses the owning hex boundary but
-remains disjoint at the canonical minimum three-world-unit castle spacing. The
-same 1.22 outer radius clears local vegetation, while the placement continues to
-supply a packed-earth/stone tint.
+Every founded castle is presented at its server-provided axial coordinate.
+Presentation may normalize a model for consistent scale and grounding, but it
+must never move a castle to improve composition, resolve label crowding, or fit
+client-generated terrain.
 
-Three deterministic instanced detail layers add green tufts, dry tufts, and
-stones. Canonical density is bounded per profile and reduced further in the
-visual apron. Terrain and detail work remains demand-driven and pauses while the
-document is hidden.
+Each graphics profile pairs one Hegemony castle model with its matching authored
+landscape base. The castle receives the placement transform; the base copies
+that same position, rotation, and uniform scale. The base is decorative and is
+never independently centered, normalized, grounded, lifted, or treated as game
+authority.
 
-Canonical metadata also gives every authoritative cell one of seven restrained
-terrain presentations:
+Terrain levels and blends around the complete authored island, and nearby
+decoration is cleared from the same footprint. Castle geometry drives visual
+detail selection, camera focus, and identity anchoring. Composite bounds may
+support culling, while picking compares the nearest castle hit with a simple
+base collider instead of raycasting decorative island triangles.
 
-| Terrain | Cells | Presentation |
-| --- | ---: | --- |
-| Lowland | 2,131 | moss and packed-soil substrate |
-| Meadow | 2,133 | lighter grass and dried-gold interior |
-| Forest | 2,255 | cooler ground with low procedural coppices |
-| Heath | 2,231 | muted amethyst heather |
-| Ridge | 426 | weathered stone outcrops |
-| Lake | 409 | opaque, low-profile slate water |
-| Ancient stone | 415 | compact monoliths and cool stone |
+Models are loaded once per mounted Realm and shared through instanced detail
+groups. Screen-space detail selection uses stable hysteresis and profile limits
+to avoid rapid switching or unbounded high-detail residency. Cancellation,
+unmount, and failed loading release shared resources without leaving partial
+castles in the scene.
 
-The semantic tint fades completely at shared cell edges, preserving the one
-continuous mesh rather than drawing a categorical hex board. The 981-cell
-visual apron has no authoritative metadata and remains neutral. Vertical
-features are suppressed on all 100 founding slots and inside every occupied
-castle clearance. Generic grass and stones are removed from scenic blockers,
-so semantic features reallocate the existing detail budget rather than adding
-an unbounded layer. At runtime the five possible semantic instance families
-plus the three generic families remain at no more than eight detail draw calls.
+Sunlight, sky and earth bounce, restrained amethyst fill, a procedural
+environment map, and the authored base give keeps readable depth without a
+world-sized shadow pass or network HDR download. If environment allocation
+fails, the direct lights and solid sky remain usable.
 
-Static-content values such as `resource-capable`, `core-capable`, and `reserve`
-are future placement capability only. The renderer deliberately exposes no
-resource, Core, reward, or gameplay marker from those values.
-
-## Real castle rendering
-
-Every visible founded castle uses a verified Hegemony castle GLB. The ordinary
-WebGL path contains no cone, crystal, pin, number-circle, or temporary primitive
-castle. Realm presentation remains branded-loading until all authoritative
-castles have real instances; model failure switches the whole view to the
-canonical illustrated fallback instead of presenting mixed representations.
-
-The project-internally authorized GameReady installation boundary provides
-three integrity-pinned Hegemony Main Castle LODs:
-
-| LOD | Runtime path | Bytes | Triangles | Embedded images / profile texture target | SHA-256 |
-| --- | --- | ---: | ---: | --- | --- |
-| High | `public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb` | 2,215,972 | 72,850 | two 2048×2048 WebP images | `9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8` |
-| Balanced | `public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb` | 892,788 | 32,550 | two 1024×1024 WebP images | `a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157` |
-| Compact | `public/models/hegemony/hegemony-main-castle-compact-b665d75e10e3e289.glb` | 453,628 | 17,232 | two 512×512 WebP images | `b665d75e10e3e289dac09ebb9f0eeec75469dda77fb25265b03b5ad6081c627b` |
-
-Each castle LOD has one matching integrity-pinned GameReady landscape base:
-
-| LOD | Runtime path | Bytes | Triangles | Embedded images | SHA-256 |
-| --- | --- | ---: | ---: | --- | --- |
-| High | `public/models/hegemony/hegemony-castle-landscape-base-high-be79476bee4e1f34.glb` | 214,372 | 3,954 | two 1024×1024 WebPs | `be79476bee4e1f34fa7c4a5c55d7015a8722d88e6ede0208fb0207da7ac3639c` |
-| Balanced | `public/models/hegemony/hegemony-castle-landscape-base-balanced-179a5b28696aaa23.glb` | 92,784 | 2,138 | two 512×512 WebPs | `179a5b28696aaa239cc9059b2e1a48ef8dcd4a33c9964314356f7b6fb472856f` |
-| Compact | `public/models/hegemony/hegemony-castle-landscape-base-compact-f1f9322c2554ff42.glb` | 27,328 | 714 | two 256×256 WebPs | `f1f9322c2554ff42909df04799f25f5456284344297966e4e65eb2ff63b519a3` |
-
-The base is not another authoritative structure. Castle and base are assembled
-under the exact same parent position, quaternion, and uniform scale. Runtime
-must not independently center, normalize, ground, or scale the base; its
-below-ground skirt and `+Z` gate road are authored placement. Castle-only
-height and footprint continue to drive screen-space LOD, camera focus, and the
-username-foundation anchor. Composite castle-plus-base bounds exist only for
-conservative culling. Picking compares the nearest valid castle-geometry and
-simple non-rendered oval base-collider hits; decorative island triangles are
-never collision geometry.
-The 1.08 level footprint covers the complete authored island before terrain
-blends to natural relief at radius 1.22. Decoration clearance uses that same
-1.22 outer radius, preventing trees, rocks, and terrain relief from intersecting
-the approximately 2.056×1.705-world-unit base. Bounded neighboring-cell queries
-keep the wider influence local without scanning all 100 castle placements.
-
-The exact GameReady package and its three inputs were supplied and authorized
-by the project owner on 2026-07-16 for project-internal Warpkeep runtime
-integration plus bounded deterministic metadata correction only. That limited
-authorization is not a separate public open license, general redistribution or
-third-party derivative permission, trademark grant, or canonical-identity
-grant; the full provenance boundary is in the dated
-[GameReady castle record](../reference/castles/2026-07-16-hegemony-main-castle-gameready/).
-The separately supplied landscape package has the same narrow PR #40
-project-internal integration boundary and remains
-`LicenseRef-Warpkeep-Provenance-Required`; see its
-[GameReady landscape-base record](../reference/castles/2026-07-16-hegemony-castle-landscape-base-gameready/).
-
-The GameReady inputs already contain their final geometry and embedded WebP
-payloads. High is installed byte-for-byte. Balanced and Compact arrive with
-correct 1024×1024 and 512×512 images but incorrectly declare atlas size 2048;
-the deterministic metadata helper corrects those declarations while preserving
-all geometry and image payload bytes. The verifier decodes and checks both
-dimensions and per-image hashes, so a profile cannot silently misdeclare its
-atlas.
-
-The asset verifier also pins each LOD's VEC3 quantized position component type,
-exact three-axis accessor bounds, scene graph, and uniform mesh/root transforms.
-High and Balanced resolve to 14.062 source units of height; Compact resolves to
-13.47 and is about 4.2% shorter before the shared footprint normalization. The
-project owner explicitly accepted the GameReady family's profile-relative size
-and height differences. This makes a silent proportion or transform collapse
-an asset-policy failure without pretending that the accepted LODs are
-dimension-identical.
-
-Each required LOD is fetched and parsed once per mounted realm. A scene-lifetime
-repository owns its geometry, materials, and textures; deterministic
-`InstancedMesh` buckets reuse those resources across castles. Screen-space LOD
-selection has separate enter/exit thresholds, a selected-castle floor, quality
-ceilings, stable castle-ID-to-instance mapping, frustum culling, and tested
-4-castle/100-castle packing. Late loads cannot insert after unmount, and the
-final lease disposes each shared GPU resource exactly once.
-
-Higher-detail residency is explicitly bounded. High permits at most eight High
-and 24 Balanced castles; Balanced permits at most 24 Balanced castles; Reduced
-uses Compact throughout. With all 100 slots visible and promoted, the complete
-castle-plus-base ceilings are 2,667,272, 2,196,408, and 1,794,600 triangles for
-High, Balanced, and Reduced. The base adds 131,496, 105,576, or 71,400 of those
-triangles and at most three, two, or one corresponding instanced draws. The
-three base files add 334,484 compressed bytes; their approximately 10.5 MiB of
-decoded images before mipmaps is shared once per resident LOD, not per castle.
-Four fully promoted castles contain 307,216 High, 138,752 Balanced, or 71,784
-Compact castle-plus-base triangles.
-
-Derivative transfer sizes and geometry counts are integrity-pinned, but decoded
-GPU memory is device- and browser-dependent. The prefab repository owns one
-resource set per resident LOD and shares textures only after material and
-decoded-image compatibility are proven; no memory estimate is inferred solely
-from compressed transfer bytes.
-
-Normalization uses one uniform scale, centers X/Z, and aligns the lowest source
-point to the local foundation on the castle child, then copies that exact
-transform to the authored base without independently normalizing it. Authored
-material differences are preserved; only unsafe numeric extremes are bounded.
-Warm frontier sunlight, neutral stone light, cool amethyst fill, restrained
-ACES exposure, and the base's physical island thickness provide depth without
-stretching a realm-wide shadow map over 10,981 rendered cells. When the complete base LOD
-family is ready, the old footprint contact-shadow instance is suppressed to
-avoid double-dark grounding.
-
-The GameReady model refresh changes geometry and profile proportions, not the
-authored brightness contract. No brighter-material result is claimed by these
-GLBs; any castle-brightness improvement must come from separately reviewed
-renderer lighting, material-response, and palette changes.
-
-PBR separation comes from an asset-free procedural equirectangular environment,
-not a network HDR download. High, Balanced, and Reduced generate bounded
-256×128, 128×64, and 64×32 maps with intensities 0.44, 0.39, and 0.34. The map,
-visible sun disc, and directional light share one direction. Allocation failure
-keeps the solid sky and direct lights playable; local controlled WebGL QA
-requires the aggregate `procedural` environment status.
+Asset permissions, integrity records, and source/runtime distinctions belong in [ASSETS-LICENSE.md](../../ASSETS-LICENSE.md).
 
 ## Identity and interaction
 
-Public castle presentation comes only from sanitized trusted profile records.
-World labels prefer `@canonicalUsername`, then trusted display name, then
-`Hegemony Keep`. The direct world rail contains text rather than a portrait so
-its identity remains narrow and stationary. The selected castle record prefers
-a safe HTTPS Farcaster PFP, then a public-name initial, then the Warpkeep `W`.
-FID digits are never the main label or avatar; FID may appear once as secondary
-record metadata only where an existing public projection provides it.
+Castle identity comes from sanitized public profile records. World labels
+prefer a validated username, then display name, then `Hegemony Keep`; numeric
+FID values are not used as the primary name or avatar.
 
-Hover is an imperative, animation-frame-coalesced visual effect. It does not
-change terrain selection, castle selection, inspection, camera focus, the main
-HUD, or live-region output. Click, tap, Enter/Space, and explicit navigator
-activation are the only selection paths. Castle instances are raycast before
-terrain, and deterministic instance IDs resolve back to castle IDs. Drag and
-pinch gestures suppress hover and click activation until they end.
+Each visible castle label stays attached to its projected foundation. Camera
+distance, model detail, or crowding must not move it to a roof, cluster, or
+unrelated screen position. Labels that cannot fit safely remain available
+through Explore instead of becoming clipped controls.
 
-React owns label identity and public profile content. Camera movement updates
-CSS transforms at most once per animation frame. Every individual username rail
-uses the current projected foundation base as both layout and visual anchor.
-Full and compact rails share that point, have no nudge radius, roof stack, or
-connector leader, and retain one identity-keyed React control while camera
-distance and castle LOD change. Only a stable viewport-width breakpoint may
-select compact presentation; distance and projected density never change label
-membership or presentation. Projection and edge visibility use one fixed
-quality-session envelope rather than the active mesh LOD envelope.
+Hover is visual only. Click, tap, Enter, Space, and Explore activation select a
+castle. Drag and pinch gestures suppress accidental activation. One visible
+world label participates in the tab order at a time; arrow keys move spatially,
+Home and End follow reading order, and focus recovers when the active label
+leaves the viewport.
 
-Every founded castle whose conservative direct-control box fits inside the
-current viewport receives one rail. Camera distance, LOD, density, and collision never
-move that rail away from its projected foundation or turn it into a cluster.
-Fully clipped edge controls and rails whose conservative control box would be
-obstructed by visible Realm UI are omitted from the world layer. Rendered QA
-rejects non-label hit obstruction or reserved-UI overlap in the supported
-viewport matrix while retaining bounded label-on-label collision telemetry.
-Exactly one visible label is tabbable; arrow keys move spatially, Home/End
-follow deterministic reading order, and focus recovers when projection removes
-the active rail. Explore remains the complete navigator for every founded
-castle, including edge, UI-obstructed, and offscreen identities.
+The selected-castle record uses sanitized public identity and existing public
+Realm fields only. It does not invent durability, alliances, combat state,
+resources, rewards, or actions that the server does not provide.
 
-The responsive selected-castle record renders only already-sanitized public
-Farcaster presentation and existing public Realm fields: castle name, level,
-coordinates, a valid founded date, canonical username, trusted display name and
-biography, and public Marks values only when the profile's visibility flag is
-true. A validated canonical username may produce the Farcaster profile link.
-The record invents no durability, alliance, combat status, resource state, or
-destructive action.
+## Camera, responsive UI, and fallback
 
-Its decorative hero is the same-origin
-`public/images/realm/hegemony-castle-record.webp`, an accessibility-hidden
-1254×1254 alpha WebP with exact byte, decoded-pixel, alpha, hash, and provenance
-checks. The art is a background-cleaned presentation layer rather than a world
-model, profile signal, or authority source. Its dated narrow PR #40
-project-internal authorization does not imply an open licence or broader
-derivative/redistribution right.
+The camera composes against the unobstructed play region rather than the raw
+canvas center. It accounts for the player portrait, resource rail, drawers,
+sheets, and safe-area insets. Opening an inspector recomposes the existing view;
+reduced-motion mode settles it immediately.
 
-## Camera and responsive UI
-
-The perspective camera composes against the unobstructed play region rather
-than the raw canvas center. Runtime measurements supply the portrait and
-resource footprints, right drawer, transient navigator, compact bottom sheet,
-and device-safe insets. Opening or closing an inspector smoothly recomposes the
-same camera. Explicit castle activation focuses that castle; My Keep and
-Explore remain separate portrait-menu actions.
-
-The close view uses an 18° telephoto-style field of view versus the 26° overview
-lens, increasing distance instead of distorting the castle. Safe-bound golden
-tests cover 1920×1080, 1440×900, 1024×768, 390×844, and 667×375 with the
-inspector open and closed. Reduced-motion mode settles composition immediately.
-
-The player Realm keeps persistent chrome to a PFP-only launcher in the upper
-left and a transparent Food, Wood, Stone, Gold, and Marks rail in the upper
-right. My Keep, Explore, Settings, and Main Menu live behind the portrait menu;
-Collect appears only when authoritative pending production exists. Selection
-details open in a responsive castle record with bounded decorative art, while
-Explore opens the searchable Realm Navigator. The record remains a stable side
-drawer on wide layouts and a safe-area-aware sheet on compact or
-short-landscape layouts. The navigator lists meaningful founded castles and
-offers an optional validated q/r jump; it does not expose a permanent grid of
-more than one thousand coordinate buttons.
-
-Escape closes the topmost inspector or navigator before returning to the menu.
-Arrow keys move map selection only while the map owns focus. Labels and nested
-controls contain their events, focus is visibly restored, touch targets remain
-at least 44 CSS pixels, and hover is never announced.
+Keyboard focus remains visible and returns to the initiating control. Escape
+closes the topmost Realm surface first, touch targets remain at least 44 CSS
+pixels, and hover-only feedback is never required or announced as state.
 
 If WebGL2 or a required model is unavailable, an illustrated SVG fallback uses
-a constant-size radius-60 hull approximation rather than creating 10,000 DOM
-hexes. It reports the exact accepted authoritative-cell count, keeps every
-founded castle at its authoritative coordinate, and retains public identity,
-selection, HUD, inspector, and navigator behavior. The hull is presentation
-only and never invents authority for the 981-cell visual apron.
+a constant-size world hull rather than thousands of DOM hexes. It preserves
+authoritative castle coordinates, identity, selection, HUD, inspector, and
+Explore behavior. The hull and visual apron remain presentation only.
 
-## Residual limits
+## Performance intent
 
-The 100-castle path is architecture- and regression-tested, but real device GPU
-and thermal behavior still varies. Label count, pixel ratio, terrain detail, and
-LOD ceilings remain deliberately bounded. Rich gameplay overlays, persistent
-camera preferences, and alternate castle models are future work rather than
-claims of Alpha 0.3.6.
+The renderer favors shared geometry, instancing, deterministic detail budgets,
+frustum culling, display-frame input updates, and prompt resource disposal.
+Quality profiles should reduce visual cost without changing gameplay state or
+which castles exist. Real device GPU, memory, and thermal behavior still vary,
+so representative hardware checks remain important as the world gains detail.
+
+For system ownership and data flow, see the [technical architecture](../technical-architecture.md).

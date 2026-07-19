@@ -8,11 +8,12 @@ is playable. The machine-readable [candidate record](manifest.json) and
 
 ## Separate 2D inspection art
 
-The owner also authorized a distinct transparent 2D visual for a future Gold
-Mine inspection card. Its immutable runtime output, edit prompt, alpha audit,
-and authorization boundary are in the [Gold Mine inspection-art record](record-art/README.md).
-That asset is decorative and the standalone card is intentionally unmounted:
-the current Realm has no approved Gold Mine placement or interaction target.
+The owner also authorized a distinct transparent 2D visual for the reviewed
+Gold Mine inspection card. Its immutable runtime output, edit prompt, alpha
+audit, and authorization boundary are in the [Gold Mine inspection-art
+record](record-art/README.md). The draft Gold Wagon integration mounts that
+asset only as decorative inspection art for a validated public site; it does
+not authorize production seeding, deployment, or browser economic authority.
 This does not promote, alter, or deliver any GLB in `runtime-candidates/`.
 
 ## Candidate inventory

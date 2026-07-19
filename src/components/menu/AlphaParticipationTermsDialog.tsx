@@ -9,7 +9,8 @@ import {
 
 import {
   WARPKEEP_ALPHA_PRIVACY_URL,
-  WARPKEEP_ALPHA_TERMS_URL
+  WARPKEEP_ALPHA_TERMS_URL,
+  WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_URL
 } from '../../legal/publicDocuments';
 import { useModalFocusBoundary } from './useModalFocusBoundary';
 import './AlphaParticipationTermsDialog.css';
@@ -117,22 +118,35 @@ export function AlphaParticipationTermsDialog({
             <p>
               Warpkeep Alpha is experimental and currently developed by one person. Features,
               rules, availability, and progress may change or be reset at any time.
+              The core strategy loop is not implemented yet; this is a persistent visual preview
+              of the living world being built.
             </p>
             <p>
               Participation alone will not earn tokens, airdrops, external rewards, or guaranteed
               financial gain. Experimental in-game Marks have no cash value and may change or reset.
             </p>
             <p className="warpkeep-alpha-terms__documents">
-              Review the{' '}
+              You can review the full{' '}
               <a
+                aria-label="Read the Alpha Terms in a new tab"
                 href={WARPKEEP_ALPHA_TERMS_URL}
                 rel="noopener noreferrer"
                 target="_blank"
               >
-                full Alpha Terms
+                Alpha Terms
               </a>
-              {' '}and{' '}
+              {', '}
               <a
+                aria-label="Read the Hegemony Social Contract in a new tab"
+                href={WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_URL}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Hegemony Social Contract
+              </a>
+              {', and the '}
+              <a
+                aria-label="Read the Privacy Notice in a new tab"
                 href={WARPKEEP_ALPHA_PRIVACY_URL}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -154,7 +168,7 @@ export function AlphaParticipationTermsDialog({
               ref={checkboxRef}
               type="checkbox"
             />
-            <span>I understand and agree to these Alpha Terms.</span>
+            <span>I agree to the Alpha Terms and Hegemony Social Contract.</span>
           </label>
 
           <div className="warpkeep-alpha-terms__actions">

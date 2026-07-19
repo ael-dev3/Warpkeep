@@ -68,6 +68,12 @@ test('protocol-v2 ownership checks fail closed for missing, partial, and mismatc
   assert.match(guard, /assertGenesisFounderForFid/);
   assert.doesNotMatch(guard, /\.iter\s*\(/);
   assert.match(guard, /ctx\.db\.castle\.ownerFid\.find\(claims\.fid\)/);
+
+  const foundingAuthority = source('../src/foundingAuthority.ts');
+  const founderStart = foundingAuthority.indexOf('export function assertGenesisFounderForFid');
+  const founderEnd = foundingAuthority.indexOf('export function ensureGenesisFounder', founderStart);
+  const founderGate = foundingAuthority.slice(founderStart, founderEnd);
+  assert.doesNotMatch(founderGate, /admissionProfileIsComplete|canonicalUsername|pfpUrl/);
 });
 
 test('legacy admission wires are inert and v2 bootstrap binds only the pre-founded assignment', () => {
@@ -102,7 +108,7 @@ test('legacy admission wires are inert and v2 bootstrap binds only the pre-found
   );
 });
 
-test('generated bindings contain exactly eight public tables and omit every private table', () => {
+test('generated bindings contain the nineteen public projections and omit every private economy table', () => {
   const bindingsRoot = new URL('../../src/spacetime/module_bindings/', import.meta.url);
   const index = readFileSync(new URL('index.ts', bindingsRoot), 'utf8');
   const legacyPlayer = readFileSync(new URL('player_table.ts', bindingsRoot), 'utf8');
@@ -122,10 +128,21 @@ test('generated bindings contain exactly eight public tables and omit every priv
   const publicTableFiles = [
     'castle_slot_v_1_table.ts',
     'castle_table.ts',
+    'food_expedition_schedule_v_1_table.ts',
+    'food_node_occupation_v_1_table.ts',
+    'food_site_v_1_table.ts',
+    'gold_expedition_schedule_v_1_table.ts',
+    'gold_node_occupation_v_1_table.ts',
+    'gold_site_v_1_table.ts',
     'player_table.ts',
     'player_v_2_table.ts',
+    'realm_forest_instance_v_1_table.ts',
+    'realm_forest_layout_v_1_table.ts',
     'realm_profile_v_1_table.ts',
     'realm_v_1_table.ts',
+    'wood_expedition_schedule_v_1_table.ts',
+    'wood_node_occupation_v_1_table.ts',
+    'wood_site_v_1_table.ts',
     'world_tile_meta_v_1_table.ts',
     'world_tile_table.ts',
   ];
@@ -134,18 +151,61 @@ test('generated bindings contain exactly eight public tables and omit every priv
     publicTableFiles,
   );
 
+  const publicSchedule = readFileSync(
+    new URL('gold_expedition_schedule_v_1_table.ts', bindingsRoot),
+    'utf8',
+  );
+  assert.match(
+    publicSchedule,
+    /scheduleId:[\s\S]*scheduledAt:[\s\S]*originCastleId:[\s\S]*siteId:[\s\S]*stage:/,
+  );
+  assert.doesNotMatch(
+    publicSchedule,
+    /\b(?:fid|requestKey|expeditionId|accruedGold|creditedGold|balance)\b/,
+  );
+  const publicFoodSchedule = readFileSync(
+    new URL('food_expedition_schedule_v_1_table.ts', bindingsRoot),
+    'utf8',
+  );
+  assert.match(
+    publicFoodSchedule,
+    /scheduleId:[\s\S]*scheduledAt:[\s\S]*originCastleId:[\s\S]*siteId:[\s\S]*stage:/,
+  );
+  assert.doesNotMatch(
+    publicFoodSchedule,
+    /\b(?:fid|requestKey|expeditionId|accruedFood|creditedFood|balance)\b/,
+  );
+  const publicWoodSchedule = readFileSync(
+    new URL('wood_expedition_schedule_v_1_table.ts', bindingsRoot),
+    'utf8',
+  );
+  assert.match(
+    publicWoodSchedule,
+    /scheduleId:[\s\S]*scheduledAt:[\s\S]*originCastleId:[\s\S]*siteId:[\s\S]*stage:/,
+  );
+  assert.doesNotMatch(
+    publicWoodSchedule,
+    /\b(?:fid|requestKey|expeditionId|accruedWood|creditedWood|balance)\b/,
+  );
+
   const privateTableStems = [
     'admin_audit',
     'allowed_fid',
     'alpha_terms_acceptance_v_1',
     'castle_slot_claim_v_1',
     'fid_wallet_attribution_v_1',
+    'food_expedition_idempotency_v_1',
+    'food_expedition_v_1',
+    'gold_expedition_idempotency_v_1',
+    'gold_expedition_v_1',
     'mark_account_v_1',
     'player_ownership_v_2',
     'snap_burn_credit_v_1',
     'snap_scan_batch_v_1',
     'snap_scan_cursor_v_1',
     'wallet_attribution_snapshot_v_1',
+    'wood_expedition_idempotency_v_1',
+    'wood_expedition_v_1',
   ];
   for (const stem of privateTableStems) {
     assert.equal(existsSync(new URL(`${stem}_table.ts`, bindingsRoot)), false);

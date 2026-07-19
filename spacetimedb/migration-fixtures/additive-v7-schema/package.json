@@ -1,0 +1,13 @@
+{
+  "name": "warpkeep-additive-v7-schema-migration-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "spacetimedb": "2.6.1"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}

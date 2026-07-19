@@ -1,13 +1,16 @@
 # Resource reference records
 
-This directory holds dated technical and provenance records for resource artwork
-and unintegrated resource-model candidates. A record is not evidence that a
-resource mechanic, balance, reward, or entitlement is live. Runtime promotion
-requires its own reviewed authority, renderer, server-state, and release work.
+This directory holds dated technical and provenance records for resource art.
+The records establish source, integrity, and allowed use; gameplay authority
+still comes from reviewed server and client code.
 
-The current Gold Mine package is intentionally a review candidate outside
-`public/`; see
-[the 18 July Gold Mine record](2026-07-18-hegemony-gold-mine/README.md). Its
-separate [transparent inspection-art record](2026-07-18-hegemony-gold-mine/record-art/README.md)
-is a bounded 2D UI derivative only: it does not make a node, balance, or
-gathering action live.
+Alpha 0.3.11 uses the recorded Gold Mine, Wheat Farm, and Logging Camp runtime
+families and their inspection art for live server-governed expeditions:
+
+- [Gold Mine](2026-07-18-hegemony-gold-mine/README.md)
+- [Wheat Farm](2026-07-18-hegemony-wheat-farm/runtime/README.md)
+- [Logging Camp](2026-07-18-hegemony-logging-camp/runtime/README.md)
+
+The [Stone Quarry](2026-07-18-hegemony-stone-quarry/runtime/README.md) family is
+staged visual groundwork only. There is no live Stone-site catalog or Quarry
+expedition in Alpha 0.3.11.

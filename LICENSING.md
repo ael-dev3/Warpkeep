@@ -1,6 +1,6 @@
 # Warpkeep Licensing
 
-This document is the human-readable source of truth for Warpkeep's release-based licensing policy. It records a forward-looking transition; it does not provide individualized legal advice.
+This document is the human-readable overview of Warpkeep's release-based licensing policy. It records a forward-looking transition; it does not provide individualized legal advice.
 
 ## Current release policy
 

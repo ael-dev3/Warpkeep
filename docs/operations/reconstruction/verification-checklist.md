@@ -1,15 +1,13 @@
 # Verification checklist
 
-## Root application
+Run checks from a clean checkout of the intended release commit. A local pass
+is evidence about that checkout only; it does not authorize production changes.
+
+## Application
 
 ```sh
 npm ci
-npm run verify:licenses
-npm run verify:runtime-assets
-npm run verify:file-sizes
-npm test
-npm run typecheck
-npm run build
+npm run check
 GITHUB_PAGES=true npm run build
 GITHUB_PAGES=true DEPLOY_BASE=/ npm run build
 npm audit
@@ -36,81 +34,53 @@ npm run stdb:verify-additive-migration
 pnpm --dir spacetimedb audit --audit-level high
 ```
 
-Confirm `spacetime --version` is 2.6.1. The local additive-migration proof must
-pass against its disposable loopback server: deployed refs 0–18 and all rows
-unchanged, private `resource_account_v1` appended at exact ref 19, empty and
-synthetic nonempty fixtures preserved, second publish idempotent, populated
-deployed-prefix state retained, guarded v3/v2 rollback refused before schema
-change, the populated 1,261-to-10,000 world transition and zero-write target
-retry proved, and the actual module founder/Terms/private-read/collection/
-backfill lifecycle proven before one artifact SHA-256 receipt is emitted. The
-guarded publisher must recheck that same prebuilt artifact and use `--js-path`;
-it must not rebuild after the proof.
-Run real CLI build/generation verification without publishing; a passing proof is not
-production approval.
+Confirm SpacetimeDB CLI 2.6.1. The disposable migration proof must preserve the
+deployed refs 0–36 and fixture rows, reject guarded v8-through-v2 rollback,
+prove the 1,261-to-10,000-cell transition and idempotent retry, exercise private
+resource authority, and complete a real scheduled Gold arrival and collection.
+The publisher must use the same prebuilt artifact through `--js-path`; it must
+not rebuild between proof and publication.
 
 ## Assets
 
-- Verify release attachment bytes and SHA-256 after a fresh download.
-- Reject ZIP traversal, absolute/backslash paths, duplicates, and symlinks.
-- Check manifest/archive entry parity and internal file hashes.
-- Validate GLB headers and run glTF-Transform 4.4.1 validation.
-- Run `verify:runtime-assets` and `verify:file-sizes`.
-- Confirm no source/master archive blob exists in current Warpkeep HEAD.
-- Confirm unresolved-rights inputs were not uploaded publicly.
+- Verify immutable attachment bytes and SHA-256 after a fresh download.
+- Reject archive traversal, absolute paths, duplicate entries, and symlinks.
+- Check manifest parity, internal hashes, GLB headers, and model validation.
+- Run `verify:runtime-assets`, `verify:file-sizes`, and `verify:licenses`.
+- Confirm no protected source/master archive is tracked or deployed.
 
 ## Hosted checks
 
-Required final source checks are Pages, Verify, and CodeQL for the exact
-release/main commit. Inspect failures rather than rerunning blindly. Resolve
-actionable review threads before merge.
+Required checks are Pages, Verify, and CodeQL for the current pull-request head
+and final `main` commit. Inspect failures rather than rerunning blindly. Resolve
+review threads before merge.
 
 ## Production
 
-- Canonical `warpkeep.com`, `www`, and legacy redirects behave as documented.
-- The menu build stamp equals the final full main SHA.
-- Worker `/healthz`, discovery, and JWKS are healthy; JWKS has public P-256 data and no `d` member.
-- Browser CORS is exact and admin/synthetic endpoints remain server only.
-- While auth is paused, `verify:alpha-production -- --require-auth-v2` proves the
-  exact paused profile. After an approved enable,
-  `verify:alpha-production -- --require-auth-v2-enabled` proves only the
-  tokenless read-only enabled health/metadata/preflight surface. The latter
-  never creates challenge/session state and does not replace the private config
-  digest, exact Cloudflare source/deployment coordinate, resolver probe, or
-  immediate owner QA.
-- The synthetic resolver probe succeeds without state mutation.
-- For a legacy recovery or any future pre-v2 checkpoint, the legacy protected
-  aggregate remains `61/0/0/0/0`; do not infer deployment from local source.
-- At the recorded protocol-v2 checkpoint and after any separately approved
-  republish, the exact v2 aggregate has
-  61 world tiles; zero legacy players, v2 players, private v2 ownerships,
-  consistent v2 pairs, either orphan class, castles, allowlist rows, and enabled
-  FIDs; protocol `2`; seed `3445214658`; and seed name
-  `HEGEMONY_GENESIS_001`. `auditEntries` may be any nonnegative aggregate count.
-- For the historical generation-two predecessor or a staged recovery before
-  expansion, use `--require-genesis-v3-founded-aggregate` with exact private
-  expected founder, activated-player, and Terms-acceptance counts. Require 1,261
-  world/meta rows, one realm, 100 slots, matching founder-owned occupied/claim/
-  castle/profile/Mark/admission counts, matching player/ownership counts, and
-  zero orphan, drift, reconciliation, ambiguity, and invariant counters. This is
-  not current final release evidence.
-- For the current live realm, use
-  `--require-genesis-generation-v3-founded-aggregate` and require exactly
-  10,000 world/meta rows, generation `3`, maximum authoritative ring `58`,
-  render radius `60`, the same 100 slots, the reviewed private dynamic counts,
-  and the same zero-error invariants. A predecessor check is not final Alpha
-  0.3.8 evidence, and a mixed tuple is never accepted.
-- Current enabled production uses `--require-auth-v2-enabled`; the paused flag
-  is never auto-detected or substituted.
-- The official browser subscribes to `player_v2`, never legacy `player`; the
-  private `player_ownership_v2` table has no generated browser accessor.
-- Clean-browser SIWF denial and remembered-session phases pass without retaining proof data.
-- Title, menu, Settings, Credits, and Realm pass desktop/tablet/phone, keyboard, touch, reduced-motion, failure-fallback, and graphics-profile checks.
-- Browser console has no new uncaught error, WebGL error, or failed runtime asset request.
+- `warpkeep.com`, `www`, and the legacy Pages redirect resolve as documented.
+- The menu build stamp equals the deployed full `main` SHA.
+- Worker health, discovery, and JWKS are healthy; JWKS exposes no private key
+  member.
+- Browser CORS is exact; admin and synthetic endpoints remain server-only.
+- The private config attestation matches the reviewed Worker deployment.
+- The read-only production verifier confirms the intended paused or enabled
+  auth profile without creating challenge or session state.
+- Protected protocol-v3 and resource-v4 aggregates match the private current
+  founder, player, Terms, world, and resource expectations with every orphan,
+  drift, ambiguity, and invariant counter at zero.
+- Component-v8 status matches the reviewed Gold, forest, Food, and Wood policy,
+  digest, and catalog counts. Stone has no live component seed.
+- The legacy public `player` table remains unused and empty; the browser uses
+  `player_v2` and has no accessor for private ownership rows.
+- A clean browser completes sign-in, admission, Realm entry, reconnect, and
+  sign-out without retaining proof data.
+- Title, menu, Settings, Terms, Credits, and Realm pass desktop, tablet, phone,
+  keyboard, touch, reduced-motion, fallback, and graphics-profile checks.
+- Browser console has no new uncaught error, WebGL error, or failed runtime
+  asset request.
 
-Do not tag a release until final main, deployed Pages, and the reported build SHA match exactly.
-
-If any protocol-3 invariant, v2 pair/orphan, schema-prefix, or compatibility check fails, keep public
-authentication and shared alpha disabled. Repair through a reviewed additive
-forward publish with separate approval; never delete production data, recreate
-the database, use `--break-clients`, or roll back to the v1 schema.
+Do not tag a release until protected `main`, deployed Pages, and the reported
+build SHA match. If a compatibility or aggregate check fails, keep public entry
+disabled and repair through a reviewed additive forward change. Never delete
+production data, recreate the database, use `--break-clients`, or roll the
+schema backward.

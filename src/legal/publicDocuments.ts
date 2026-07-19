@@ -1,4 +1,5 @@
 export const WARPKEEP_ALPHA_TERMS_PATH = 'terms/index.html';
+export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_PATH = 'social-contract/index.html';
 export const WARPKEEP_ALPHA_PRIVACY_PATH = 'privacy/index.html';
 
 export function resolvePublicDocumentUrl(baseUrl: string, documentPath: string) {
@@ -9,6 +10,11 @@ export function resolvePublicDocumentUrl(baseUrl: string, documentPath: string) 
 export const WARPKEEP_ALPHA_TERMS_URL = resolvePublicDocumentUrl(
   import.meta.env.BASE_URL,
   WARPKEEP_ALPHA_TERMS_PATH
+);
+
+export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_URL = resolvePublicDocumentUrl(
+  import.meta.env.BASE_URL,
+  WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_PATH
 );
 
 export const WARPKEEP_ALPHA_PRIVACY_URL = resolvePublicDocumentUrl(

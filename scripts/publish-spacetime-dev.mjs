@@ -13,6 +13,14 @@ import {
   verifyExpectedAlphaV4ResourcePrebackfillAggregate,
   verifyExpectedAlphaV4ResourceReadyAggregate,
 } from './verify-alpha-production.mjs';
+import {
+  ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS,
+  ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION,
+  parseAdditiveMigrationProofReceipt,
+} from './spacetime-additive-migration-proof.mjs';
+import {
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+} from './entry-agreement-policy.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CANONICAL_DATABASE = 'warpkeep-89e4u';
@@ -24,7 +32,7 @@ const database = process.env.WARPKEEP_SPACETIMEDB_DATABASE || CANONICAL_DATABASE
 const configuredIssuer = process.env.WARPKEEP_OIDC_ISSUER;
 const sourceConfigPath = join(repositoryRoot, 'spacetimedb', 'src', 'config.ts');
 const command = process.env.SPACETIME_BIN || 'spacetime';
-const EXPECTED_CLI_VERSION = '2.6.1';
+const EXPECTED_CLI_VERSION = ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION;
 const EXPECTED_CLI_COMMIT = '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';
 const EXPECTED_CLI_BINARY_SHA256 = Object.freeze({
   'darwin-arm64': '4d76214ab1ba1462bd1500739641ec1c8322f99529d899c28612bfa665ccdfc6',
@@ -44,6 +52,10 @@ const PUBLISH_CHILD_ENVIRONMENT_KEYS = Object.freeze([
   'XDG_CONFIG_HOME', 'XDG_DATA_HOME',
   'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'SYSTEMROOT', 'COMSPEC', 'PATHEXT',
 ]);
+const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER =
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM;
+const MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT =
+  100 * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER;
 
 export const RESOURCE_PUBLISH_ROLLOUT_STAGE = Object.freeze({
   PREBACKFILL: 'prebackfill',
@@ -53,6 +65,56 @@ export const GENESIS_WORLD_PUBLISH_STAGE = Object.freeze({
   PRE_EXPANSION: 'pre-expansion',
   EXPANDED: 'expanded',
 });
+
+const ALPHA_V8_COUNT_FIELDS = Object.freeze([
+  'goldSites',
+  'canonicalGoldSites',
+  'goldOccupations',
+  'goldExpeditions',
+  'goldIdempotencyReceipts',
+  'goldSchedules',
+  'forestLayouts',
+  'canonicalForestLayouts',
+  'forestInstances',
+  'canonicalForestInstances',
+  'foodSites',
+  'canonicalFoodSites',
+  'foodOccupations',
+  'foodExpeditions',
+  'foodIdempotencyReceipts',
+  'foodSchedules',
+  'woodSites',
+  'canonicalWoodSites',
+  'woodOccupations',
+  'woodExpeditions',
+  'woodIdempotencyReceipts',
+  'woodSchedules',
+]);
+const ALPHA_V8_POLICY_FIELDS = Object.freeze([
+  'goldSitePolicyVersion',
+  'goldExpeditionPolicyVersion',
+  'forestPolicyVersion',
+  'foodSitePolicyVersion',
+  'foodExpeditionPolicyVersion',
+  'woodSitePolicyVersion',
+  'woodExpeditionPolicyVersion',
+]);
+const ALPHA_V8_DIGEST_FIELDS = Object.freeze([
+  'canonicalGoldSiteCatalogDigest',
+  'canonicalForestLayoutDigest',
+  'canonicalForestAssetCatalogDigest',
+  'canonicalFoodSiteCatalogDigest',
+  'canonicalWoodSiteCatalogDigest',
+]);
+const ALPHA_V8_STATUS_KEYS = Object.freeze([
+  'schemaProtocolVersion',
+  'backendProtocolVersion',
+  'forestLayoutVersion',
+  ...ALPHA_V8_POLICY_FIELDS,
+  ...ALPHA_V8_DIGEST_FIELDS,
+  ...ALPHA_V8_COUNT_FIELDS,
+].sort());
+const U64_MAXIMUM = (1n << 64n) - 1n;
 
 class SafePublishError extends Error {}
 
@@ -269,7 +331,8 @@ function validateFoundedPublishExpectations(value) {
     || expectedPlayerCount > expectedFounderCount
     || !Number.isSafeInteger(expectedTermsAcceptanceCount)
     || expectedTermsAcceptanceCount < 0
-    || expectedTermsAcceptanceCount > expectedPlayerCount
+    || expectedTermsAcceptanceCount
+      > expectedPlayerCount * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER
   ) {
     fail('Founded protocol-v3 publication expectations were invalid.');
   }
@@ -281,13 +344,15 @@ function validateFoundedPublishExpectations(value) {
 }
 
 export function readFoundedPublishExpectations(source = process.env) {
-  const readCount = (key, minimum) => {
+  const readCount = (key, minimum, maximum = 100) => {
     const value = source[key];
-    const pattern = minimum === 1
-      ? /^(?:[1-9]|[1-9]\d|100)$/
-      : /^(?:0|[1-9]|[1-9]\d|100)$/;
-    if (typeof value !== 'string' || !pattern.test(value)) {
-      fail(`${key} must be a canonical integer from ${minimum} through 100.`);
+    if (
+      typeof value !== 'string'
+      || !/^(?:0|[1-9]\d*)$/.test(value)
+      || Number(value) < minimum
+      || Number(value) > maximum
+    ) {
+      fail(`${key} must be a canonical integer from ${minimum} through ${maximum}.`);
     }
     return Number(value);
   };
@@ -297,6 +362,7 @@ export function readFoundedPublishExpectations(source = process.env) {
     expectedTermsAcceptanceCount: readCount(
       'WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT',
       0,
+      MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT,
     ),
   });
 }
@@ -436,23 +502,15 @@ export function verifyMigrationArtifactReceipt(receipt) {
 }
 
 export function parseMigrationProofReceipt(output) {
-  if (typeof output !== 'string') {
-    fail('The current additive migration proof did not produce its exact success receipt.');
-  }
-  const successLines = output.split(/\r?\n/).filter(line => (
-    line.startsWith('Additive protocol-v4 migration proof passed with SpacetimeDB 2.6.1:')
-  ));
-  const digestMatches = [...output.matchAll(/\bartifact_sha256=([0-9a-f]{64})(?=\s|$)/g)];
-  if (
-    successLines.length !== 1
-    || digestMatches.length !== 1
-    || !successLines[0].endsWith(`artifact_sha256=${digestMatches[0][1]}`)
-  ) {
+  let proofReceipt;
+  try {
+    proofReceipt = parseAdditiveMigrationProofReceipt(output);
+  } catch {
     fail('The current additive migration proof did not produce its exact success receipt.');
   }
   return verifyMigrationArtifactReceipt({
     artifactPath: PROVEN_ARTIFACT_PATH,
-    artifactDigest: digestMatches[0][1],
+    artifactDigest: proofReceipt.artifactDigest,
   });
 }
 
@@ -464,6 +522,7 @@ export function runCurrentAdditiveMigrationProof(executable, spawnSyncProcess = 
       ...publishChildEnvironment(),
       SPACETIME_BIN: executable,
     },
+    timeout: ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS,
   }, spawnSyncProcess);
   return parseMigrationProofReceipt(result.stdout);
 }
@@ -570,6 +629,99 @@ export function verifyFreshResourceProtocolV4ReadyAggregate(
   verifyExpectedAlphaV4ResourceReadyAggregate(result.stdout, expectedFounderCount);
 }
 
+export function alphaV8AggregateChildArguments(tsxCli) {
+  return [
+    tsxCli,
+    'scripts/hermes-admin.ts',
+    'inspect-alpha-v8',
+    '--json',
+  ];
+}
+
+/**
+ * The Hermes child already verifies exact v8 policy identities and catalog
+ * shape. This second boundary accepts only its closed, aggregate-only JSON
+ * envelope before the publisher treats the post-publication read as complete.
+ */
+export function verifyPrivacySafeAlphaStatusV8Output(output) {
+  let status;
+  try {
+    status = JSON.parse(output);
+  } catch {
+    fail('Alpha procedure-v8 inspection did not return machine-readable JSON.');
+  }
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    fail('Alpha procedure-v8 inspection returned an invalid status object.');
+  }
+  const actualKeys = Object.keys(status).sort();
+  if (
+    actualKeys.length !== ALPHA_V8_STATUS_KEYS.length
+    || actualKeys.some((key, index) => key !== ALPHA_V8_STATUS_KEYS[index])
+  ) {
+    fail('Alpha procedure-v8 inspection returned unexpected fields.');
+  }
+  if (
+    status.schemaProtocolVersion !== 8
+    || status.backendProtocolVersion !== 3
+    || !Number.isSafeInteger(status.forestLayoutVersion)
+    || status.forestLayoutVersion < 1
+  ) {
+    fail('Alpha procedure-v8 inspection returned invalid protocol metadata.');
+  }
+  for (const field of ALPHA_V8_POLICY_FIELDS) {
+    if (
+      typeof status[field] !== 'string'
+      || !/^[a-z0-9][a-z0-9._:-]{0,127}$/i.test(status[field])
+    ) {
+      fail('Alpha procedure-v8 inspection returned an invalid policy identifier.');
+    }
+  }
+  for (const field of ALPHA_V8_DIGEST_FIELDS) {
+    if (typeof status[field] !== 'string' || !/^[0-9a-f]{64}$/.test(status[field])) {
+      fail('Alpha procedure-v8 inspection returned an invalid canonical digest.');
+    }
+  }
+  for (const field of ALPHA_V8_COUNT_FIELDS) {
+    const value = status[field];
+    if (
+      typeof value !== 'string'
+      || !/^(?:0|[1-9]\d*)$/.test(value)
+      || value.length > 20
+      || BigInt(value) > U64_MAXIMUM
+    ) {
+      fail('Alpha procedure-v8 inspection returned an invalid aggregate count.');
+    }
+  }
+  return Object.freeze({ ...status });
+}
+
+export function verifyFreshAlphaStatusV8Aggregate(
+  secret,
+  spawnSyncProcess = spawnSync,
+) {
+  const secretBytes = typeof secret === 'string' ? new TextEncoder().encode(secret).byteLength : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the fresh Alpha v8 checkpoint.');
+  }
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = runBoundedSync(
+    process.execPath,
+    alphaV8AggregateChildArguments(tsxCli),
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout: 30_000,
+    },
+    spawnSyncProcess,
+  );
+  return verifyPrivacySafeAlphaStatusV8Output(result.stdout);
+}
+
 export function verifyPostPublishFoundedProtocolV3Aggregate(
   secret,
   expectations,
@@ -626,6 +778,17 @@ export function verifyPostPublishResourceProtocolV4ReadyAggregate(
   }
 }
 
+export function verifyPostPublishAlphaStatusV8Aggregate(
+  secret,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    return verifyFreshAlphaStatusV8Aggregate(secret, spawnSyncProcess);
+  } catch {
+    fail('Post-publication Alpha procedure-v8 checkpoint is indeterminate; a fresh read-only v8 inspection is required before any component seed or further publication decision.');
+  }
+}
+
 export function verifyPostPublishResourcePublicationCheckpoints(
   secret,
   expectations,
@@ -656,6 +819,7 @@ export function verifyPostPublishResourcePublicationCheckpoints(
       spawnSyncProcess,
     );
   }
+  verifyPostPublishAlphaStatusV8Aggregate(secret, spawnSyncProcess);
 }
 
 export async function publishModule(

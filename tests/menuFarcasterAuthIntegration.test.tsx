@@ -172,7 +172,7 @@ function openAlphaTerms() {
 function acceptAlphaTerms() {
   const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
   const checkbox = within(dialog).getByRole('checkbox', {
-    name: 'I understand and agree to these Alpha Terms.'
+    name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
   });
   fireEvent.click(checkbox);
   fireEvent.click(within(dialog).getByRole('button', {
@@ -255,7 +255,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     const dialog = openAlphaTerms();
     const checkbox = within(dialog).getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     });
     const continueButton = within(dialog).getByRole('button', {
       name: 'CONTINUE TO SIGN-IN'
@@ -303,7 +303,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     openAlphaTerms();
     fireEvent.click(screen.getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }));
     dismiss();
     flushAnimationFrames();
@@ -317,7 +317,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     fireEvent.click(enterRealm, { detail: 0 });
     expect((screen.getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }) as HTMLInputElement).checked).toBe(false);
     expect(callbacks.begin).not.toHaveBeenCalled();
   });
@@ -536,7 +536,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(screen.getByText('ADMISSION PENDING')).not.toBeNull();
     const terms = openAlphaTerms();
     expect((within(terms).getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }) as HTMLInputElement).checked).toBe(false);
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.enterRealm).not.toHaveBeenCalled();
@@ -634,7 +634,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }), { detail: 0 });
     const retryTerms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
     expect((within(retryTerms).getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }) as HTMLInputElement).checked).toBe(false);
     expect(callbacks.retry).not.toHaveBeenCalled();
     acceptAlphaTerms();
@@ -665,7 +665,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }), { detail: 0 });
     expect((screen.getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }) as HTMLInputElement).checked).toBe(false);
     acceptAlphaTerms();
     expect(callbacks.retry).toHaveBeenCalledTimes(1);
@@ -678,7 +678,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     expect(callbacks.retry).toHaveBeenCalledTimes(1);
     expect((screen.getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }) as HTMLInputElement).checked).toBe(false);
   });
 
@@ -723,7 +723,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     let dialog = openAlphaTerms();
     let checkbox = within(dialog).getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     });
     expect((checkbox as HTMLInputElement).checked).toBe(false);
 
@@ -741,7 +741,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     dialog = openAlphaTerms();
     checkbox = within(dialog).getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     });
     expect((checkbox as HTMLInputElement).checked).toBe(false);
     rendered.unmount();
@@ -750,7 +750,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     render(menu(freshCallbacks));
     dialog = openAlphaTerms();
     expect((within(dialog).getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }) as HTMLInputElement).checked).toBe(false);
     expect(storageWrite).not.toHaveBeenCalled();
     expect(callbacks.begin).not.toHaveBeenCalled();
@@ -791,7 +791,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       'CREDITS'
     ]);
     expect(screen.getByRole('button', {
-      name: 'Open patch notes for Warpkeep ALPHA 0.3.8'
+      name: 'Open patch notes for Warpkeep ALPHA 0.3.11'
     })).not.toBeNull();
 
     expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();

@@ -8,7 +8,11 @@ export const SNAP_APPROVED_PROXY_CODE_HASH =
   '0xa50288164ca4d99a6c559b6f601c35acc60fbf39e21b8c009d809ff35b955ed0';
 export const SNAP_BURN_METHOD = 'Burned(uint256,address,bytes32,uint256,uint32)';
 export const SNAP_MARK_POLICY_VERSION = 'snap-current-linked-wallet-1to1-v1';
-export const WARPKEEP_ALPHA_TERMS_VERSION = '2026-07-14';
+/** Compatibility export; entry-agreement authority now has its own module. */
+export {
+  WARPKEEP_ALPHA_TERMS_VERSION,
+  WARPKEEP_ENTRY_AGREEMENT_VERSION,
+} from './entryAgreementPolicy';
 export const MAX_U128 = (1n << 128n) - 1n;
 export const MAX_U256 = (1n << 256n) - 1n;
 

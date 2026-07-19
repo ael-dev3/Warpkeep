@@ -15,6 +15,7 @@ import {
 import {
   assertGenesisFoundingGraph,
   assertGenesisFounderForFid,
+  assertGenesisFounderForProfileRepair,
   ensureGenesisFounder,
 } from '../foundingAuthority';
 import {
@@ -26,16 +27,21 @@ import {
   SNAP_MARK_POLICY_VERSION,
   SNAP_PROXY_ADDRESS,
   SNAP_PROXY_DEPLOYMENT_BLOCK,
-  WARPKEEP_ALPHA_TERMS_VERSION,
   applyOneToOneBurnCredit,
   markAccountIsConsistent,
   normalizeSnapBurnCredit,
   snapBurnCreditsEqual,
 } from '../marksAuthorityPolicy';
 import {
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+  WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS,
+} from '../entryAgreementPolicy';
+import {
   FARCASTER_PROFILE_POLICY_VERSION,
   FARCASTER_WALLET_POLICY_VERSION,
   ProfileAuthorityPolicyError,
+  admissionProfileIsComplete,
+  normalizeAdmissionReadyTrustedProfile,
   normalizeTrustedPublicProfile,
   normalizeTrustedWalletAttribution,
   trustedProfilesEqual,
@@ -77,7 +83,26 @@ import { worldCastleGraphIsConsistent } from '../worldCastleIntegrity';
 import {
   classifyGenesisStaticSnapshot,
 } from '../worldSeedPolicy';
-import { inspectGenesisResourceGraph } from '../resourceAuthority';
+import {
+  assertGenesisResourceForFid,
+  inspectGenesisResourceGraph,
+} from '../resourceAuthority';
+
+type AdminContext = Parameters<typeof requireAdmin>[0];
+
+/**
+ * A public Marks projection can remain visible under its historical immutable
+ * acceptance evidence. That preserves a prior explicit publication choice
+ * while the current entry/gameplay gate still requires the newest bundle.
+ */
+function hasRetainedEntryAgreementEvidence(ctx: AdminContext, fid: bigint): boolean {
+  return WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.some((entryAgreementVersion) => {
+    const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(
+      fid + ':' + entryAgreementVersion,
+    );
+    return acceptance?.fid === fid && acceptance.termsVersion === entryAgreementVersion;
+  });
+}
 
 function cleanAdminNote(note: string): string {
   const trimmed = note.trim();
@@ -104,6 +129,63 @@ function audit(
   });
 }
 
+function applyAllowedFidTransition(
+  ctx: Parameters<typeof requireAdmin>[0],
+  input: Readonly<{
+    fid: bigint;
+    note: string;
+    adminSubject: string;
+    auditAction: 'allow_fid' | 'admit_founder_v1';
+  }>,
+): void {
+  const existing = ctx.db.allowedFid.fid.find(input.fid);
+  try {
+    executeAllowFidTransition(existing, {
+      insert: plan => {
+        ctx.db.allowedFid.insert({
+          fid: input.fid,
+          enabled: plan.enabled,
+          authEpoch: plan.authEpoch,
+          invitedAt: ctx.timestamp,
+          invitedBy: input.adminSubject,
+          note: input.note,
+        });
+      },
+      enabled: plan => {
+        if (existing !== null && existing.note !== input.note) {
+          ctx.db.allowedFid.fid.update({
+            ...existing,
+            enabled: plan.enabled,
+            authEpoch: plan.authEpoch,
+            note: input.note,
+          });
+        }
+      },
+      reenabled: plan => {
+        if (existing === null) throw new Error('ALLOW_FID_POLICY_INVARIANT');
+        ctx.db.allowedFid.fid.update({
+          ...existing,
+          enabled: plan.enabled,
+          authEpoch: plan.authEpoch,
+          note: input.note,
+        });
+      },
+      audit: () => audit(
+        ctx,
+        input.auditAction,
+        input.fid,
+        input.adminSubject,
+        input.note,
+      ),
+    });
+  } catch (error) {
+    if (error instanceof AuthEpochExhaustedError) {
+      throw new SenderError(error.message);
+    }
+    throw error;
+  }
+}
+
 function assertExactGenesisDynamicGraph(ctx: Parameters<typeof requireAdmin>[0]) {
   assertGenesisFoundingGraph(ctx);
   const resource = inspectGenesisResourceGraph(ctx);
@@ -121,8 +203,6 @@ function assertExactGenesisDynamicGraph(ctx: Parameters<typeof requireAdmin>[0])
   }
   return resource;
 }
-
-type AdminContext = Parameters<typeof requireAdmin>[0];
 
 type WalletSnapshotLike = Readonly<{
   generation: bigint;
@@ -503,13 +583,17 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
       }
 
       let enabledAllowedFids = 0n;
+      // This deployed invariant remains structural. Repairable username/PFP
+      // health is reported by the private profile-maintenance operator and is
+      // never folded into a migration or gameplay readiness gate.
       let founderStateGaps = 0n;
       for (const row of tx.db.allowedFid.iter()) {
         if (row.enabled) enabledAllowedFids += 1n;
+        const profile = tx.db.realmProfileV1.fid.find(row.fid);
         if (
           tx.db.castle.ownerFid.find(row.fid) === null
           || tx.db.castleSlotClaimV1.ownerFid.find(row.fid) === null
-          || tx.db.realmProfileV1.fid.find(row.fid) === null
+          || profile === null
           || tx.db.markAccountV1.fid.find(row.fid) === null
         ) founderStateGaps += 1n;
       }
@@ -565,9 +649,7 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
           && profile.marksPolicyVersion === undefined;
         const visibleProjectionMatches = account !== null
           && profile.firstAuthenticatedAt !== undefined
-          && tx.db.alphaTermsAcceptanceV1.acceptanceKey.find(
-            `${profile.fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`,
-          )?.termsVersion === WARPKEEP_ALPHA_TERMS_VERSION
+          && hasRetainedEntryAgreementEvidence(tx, profile.fid)
           && profile.totalSnapBurnedMicros === account.totalSnapBurnedMicros
           && profile.marksEarnedMicros === account.earnedMicros
           && profile.marksSpentMicros === account.spentMicros
@@ -591,12 +673,19 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
 
       let orphanedTermsAcceptances = 0n;
       let termsAcceptanceInvariantViolations = 0n;
+      const entryAgreementAcceptanceCounts = new Map<bigint, number>();
       for (const acceptance of tx.db.alphaTermsAcceptanceV1.iter()) {
+        const acceptanceCount = (entryAgreementAcceptanceCounts.get(acceptance.fid) ?? 0) + 1;
+        entryAgreementAcceptanceCounts.set(acceptance.fid, acceptanceCount);
         if (
           acceptance.fid === 0n
           || acceptance.termsVersion.trim() === ''
           || acceptance.termsVersion.length > 64
           || acceptance.acceptanceKey !== `${acceptance.fid}:${acceptance.termsVersion}`
+          || !WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.some(
+            entryAgreementVersion => entryAgreementVersion === acceptance.termsVersion,
+          )
+          || acceptanceCount > WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM
         ) termsAcceptanceInvariantViolations += 1n;
         if (
           tx.db.allowedFid.fid.find(acceptance.fid) === null
@@ -847,8 +936,10 @@ export const adminExpandGenesisWorldV3 = warpkeep.reducer(
 );
 
 /**
- * First admission starts at epoch 1. Repeating an enabled allow is idempotent,
- * while re-enabling a disabled row rotates exactly once before it becomes live.
+ * Legacy wire retained only for an already-founded player. First-time
+ * admission must use the atomic profiled path below so a public castle can
+ * never be created with an empty Farcaster presentation. Later presentation
+ * health is repairable and is not a re-enablement authority signal.
  */
 export const adminAllowFid = warpkeep.reducer(
   { name: 'admin_allow_fid' },
@@ -858,47 +949,74 @@ export const adminAllowFid = warpkeep.reducer(
     requireSupportedFid(fid);
     const cleanNote = cleanAdminNote(note);
     const existing = ctx.db.allowedFid.fid.find(fid);
-    // Exhaustion must fail before any table or audit callback runs.
+    if (existing === null) throw new SenderError('PROFILED_ADMISSION_REQUIRED');
+
+    assertGenesisFounderForFid(ctx, fid);
+    assertGenesisResourceForFid(ctx, fid);
+    applyAllowedFidTransition(ctx, {
+      fid,
+      note: cleanNote,
+      adminSubject: admin.subject,
+      auditAction: 'allow_fid',
+    });
+    assertGenesisFounderForFid(ctx, fid);
+    assertGenesisResourceForFid(ctx, fid);
+  },
+);
+
+/**
+ * Atomic owner-only founding path. The trusted operator resolves and reviews
+ * Farcaster presentation before submission; the module re-normalizes it before
+ * any write, then admits, founds, hydrates, and verifies one complete founder
+ * graph in the same transaction. Player ownership remains caller-bound on the
+ * founder's first authenticated session and is never forged by administration.
+ */
+export const adminAdmitFounderV1 = warpkeep.reducer(
+  { name: 'admin_admit_founder_v1' },
+  {
+    fid: t.u64(),
+    note: t.string(),
+    canonicalUsername: t.string(),
+    displayName: t.option(t.string()),
+    pfpUrl: t.string(),
+    publicBio: t.option(t.string()),
+    profilePolicyVersion: t.string(),
+  },
+  (ctx, input) => {
+    const admin = requireAdmin(ctx);
+    requireSupportedFid(input.fid);
+    const cleanNote = cleanAdminNote(input.note);
+    if (input.profilePolicyVersion !== FARCASTER_PROFILE_POLICY_VERSION) {
+      throw new SenderError('PROFILE_POLICY_MISMATCH');
+    }
+
+    let normalized;
     try {
-      executeAllowFidTransition(existing, {
-        insert: plan => {
-          ctx.db.allowedFid.insert({
-            fid,
-            enabled: plan.enabled,
-            authEpoch: plan.authEpoch,
-            invitedAt: ctx.timestamp,
-            invitedBy: admin.subject,
-            note: cleanNote,
-          });
-        },
-        enabled: plan => {
-          if (existing !== null && existing.note !== cleanNote) {
-            ctx.db.allowedFid.fid.update({
-              ...existing,
-              enabled: plan.enabled,
-              authEpoch: plan.authEpoch,
-              note: cleanNote,
-            });
-          }
-        },
-        reenabled: plan => {
-          if (existing === null) throw new Error('ALLOW_FID_POLICY_INVARIANT');
-          ctx.db.allowedFid.fid.update({
-            ...existing,
-            enabled: plan.enabled,
-            authEpoch: plan.authEpoch,
-            note: cleanNote,
-          });
-        },
-        audit: () => audit(ctx, 'allow_fid', fid, admin.subject, cleanNote),
-      });
-      ensureGenesisFounder(ctx, fid);
+      normalized = normalizeAdmissionReadyTrustedProfile(input);
     } catch (error) {
-      if (error instanceof AuthEpochExhaustedError) {
-        throw new SenderError(error.message);
-      }
+      if (error instanceof ProfileAuthorityPolicyError) throw new SenderError(error.code);
       throw error;
     }
+
+    if (ctx.db.allowedFid.fid.find(input.fid) !== null) {
+      throw new SenderError('FOUNDER_ALREADY_ADMITTED');
+    }
+
+    applyAllowedFidTransition(ctx, {
+      fid: input.fid,
+      note: cleanNote,
+      adminSubject: admin.subject,
+      auditAction: 'admit_founder_v1',
+    });
+    ensureGenesisFounder(ctx, input.fid, normalized);
+    const verifiedProfile = ctx.db.realmProfileV1.fid.find(input.fid);
+    if (
+      verifiedProfile === null
+      || !admissionProfileIsComplete(verifiedProfile)
+      || !trustedProfilesEqual(verifiedProfile, normalized)
+    ) throw new SenderError('FOUNDER_PROFILE_INCOMPLETE');
+    assertGenesisFounderForFid(ctx, input.fid);
+    assertGenesisResourceForFid(ctx, input.fid);
   },
 );
 
@@ -919,7 +1037,7 @@ export const adminUpsertRealmProfileV1 = warpkeep.reducer(
     if (input.profilePolicyVersion !== FARCASTER_PROFILE_POLICY_VERSION) {
       throw new SenderError('PROFILE_POLICY_MISMATCH');
     }
-    assertGenesisFounderForFid(ctx, input.fid);
+    assertGenesisFounderForProfileRepair(ctx, input.fid);
 
     let normalized;
     try {
@@ -937,6 +1055,11 @@ export const adminUpsertRealmProfileV1 = warpkeep.reducer(
       ...normalized,
       profileUpdatedAt: ctx.timestamp,
     });
+    const verifiedProfile = ctx.db.realmProfileV1.fid.find(input.fid);
+    if (
+      verifiedProfile === null
+      || !trustedProfilesEqual(verifiedProfile, normalized)
+    ) throw new SenderError('STATE_INTEGRITY');
     audit(
       ctx,
       'profile_snapshot_v1',
@@ -1332,12 +1455,9 @@ export const adminCreditSnapBurnV1 = warpkeep.reducer(
       updatedAt: ctx.timestamp,
     });
     if (profile.communityStatsVisible) {
-      const acceptanceKey = `${credit.attributedFid}:${WARPKEEP_ALPHA_TERMS_VERSION}`;
-      const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(acceptanceKey);
       if (
         profile.firstAuthenticatedAt === undefined
-        || acceptance?.fid !== credit.attributedFid
-        || acceptance.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION
+        || !hasRetainedEntryAgreementEvidence(ctx, credit.attributedFid)
       ) throw new SenderError('STATE_INTEGRITY');
       ctx.db.realmProfileV1.fid.update({
         ...profile,

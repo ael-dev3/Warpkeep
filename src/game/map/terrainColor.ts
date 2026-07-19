@@ -24,6 +24,11 @@ export type TerrainColorContext = Readonly<{
   playableRadius: number;
   renderRadius: number;
   terrainKind?: RealmTerrainKind;
+  /**
+   * Renderer-only canopy value derived from stable forest ecoregions. It never
+   * changes the canonical terrain kind or any gameplay/resource semantics.
+   */
+  forestCanopy?: number;
   placements?: readonly TerrainStructurePlacement[];
 }>;
 
@@ -33,7 +38,9 @@ const TERRAIN_KIND_PALETTE: Readonly<Record<RealmTerrainKind, Readonly<{
 }>>> = Object.freeze({
   lowland: Object.freeze({ color: { r: 0.34, g: 0.5, b: 0.24 }, strength: 0.14 }),
   meadow: Object.freeze({ color: { r: 0.48, g: 0.62, b: 0.27 }, strength: 0.34 }),
-  forest: Object.freeze({ color: { r: 0.18, g: 0.39, b: 0.22 }, strength: 0.5 }),
+  // Keep canonical forest tiles vivid enough to read under a sunlit canopy;
+  // the old near-black mix made real tree assets appear permanently shaded.
+  forest: Object.freeze({ color: { r: 0.21, g: 0.45, b: 0.23 }, strength: 0.46 }),
   heath: Object.freeze({ color: { r: 0.39, g: 0.3, b: 0.42 }, strength: 0.44 }),
   ridge: Object.freeze({ color: { r: 0.39, g: 0.38, b: 0.35 }, strength: 0.58 }),
   lake: Object.freeze({ color: { r: 0.22, g: 0.4, b: 0.46 }, strength: 0.72 }),
@@ -113,9 +120,32 @@ export function sampleLowlandsColor(
     dryAmount
   );
 
+  const forestCanopy = clamp(context.forestCanopy ?? 0, 0, 1);
   if (context.terrainKind) {
     const semantic = TERRAIN_KIND_PALETTE[context.terrainKind];
-    color = mixColor(color, semantic.color, semantic.strength * cellInfluence);
+    // Sparse canonical forest cells remain semantically forest, but a low
+    // visual canopy keeps their ground from reading as isolated black-green
+    // tiles between open meadows. The stable ecoregion field restores the full
+    // forest tint only inside a real clustered grove.
+    const semanticStrength = context.terrainKind === 'forest'
+      ? semantic.strength * (0.3 + forestCanopy * 0.7)
+      : semantic.strength;
+    color = mixColor(color, semantic.color, semanticStrength * cellInfluence);
+  }
+
+  // Clustered forest presentation can feather a little lush ground into
+  // neighboring meadow/lowland cells. This remains a pure visual overlay:
+  // canonical terrainKind, movement, passability, and resource rates are not
+  // modified by a canopy tint.
+  if (forestCanopy > 0) {
+    const underCanopy = context.terrainKind === 'forest'
+      ? { r: 0.25, g: 0.51, b: 0.24 }
+      : { r: 0.36, g: 0.57, b: 0.25 };
+    color = mixColor(
+      color,
+      underCanopy,
+      forestCanopy * cellInfluence * (context.terrainKind === 'forest' ? 0.22 : 0.16)
+    );
   }
 
   const placements = context.placements ?? EMPTY_TERRAIN_PLACEMENTS;

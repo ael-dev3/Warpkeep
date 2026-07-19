@@ -23,7 +23,7 @@ import {
 import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
 import { assertGenesisFounderForFid } from './foundingAuthority';
-import { WARPKEEP_ALPHA_TERMS_VERSION } from './marksAuthorityPolicy';
+import { WARPKEEP_ALPHA_TERMS_VERSION } from './entryAgreementPolicy';
 import { evaluatePlayerOwnership } from './playerOwnershipPolicy';
 import { assertGenesisResourceForFid } from './resourceAuthority';
 import type warpkeep from './schema';
@@ -181,11 +181,13 @@ export function requireAllowedFid(ctx: WarpkeepReducerContext): {
 export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {
   claims: WarpkeepJwtClaims;
   player: NonNullable<ReturnType<typeof ctx.db.playerV2.fid.find>>;
+  castle: NonNullable<ReturnType<typeof ctx.db.castle.ownerFid.find>>;
 } {
   const { claims } = requireAllowedFid(ctx);
   assertGenesisFounderForFid(ctx, claims.fid);
   const player = ctx.db.playerV2.fid.find(claims.fid);
   const ownership = ctx.db.playerOwnershipV2.fid.find(claims.fid);
+  const castle = ctx.db.castle.ownerFid.find(claims.fid);
   const ownershipState = evaluatePlayerOwnership(
     player !== null,
     ownership !== null,
@@ -204,19 +206,35 @@ export function requireAdmittedPlayer(ctx: WarpkeepReducerContext): {
     throw new SenderError('IDENTITY_MISMATCH');
   }
 
-  if (ctx.db.castle.ownerFid.find(claims.fid) === null) {
+  if (castle === null) {
     throw new SenderError('STATE_INTEGRITY');
   }
 
-  return { claims, player: player! };
+  return { claims, player: player!, castle };
+}
+
+/**
+ * Resolve the only castle the authenticated caller may control. Player-facing
+ * commands deliberately accept no FID or castle selector; future own-castle
+ * reducers should derive their actor through this boundary.
+ */
+export function requireOwnedCastleActionV1(
+  ctx: WarpkeepReducerContext,
+): ReturnType<typeof requireAdmittedPlayer> {
+  const admitted = requireAdmittedPlayer(ctx);
+  if (admitted.castle.ownerFid !== admitted.claims.fid) {
+    throw new SenderError('STATE_INTEGRITY');
+  }
+  return admitted;
 }
 
 /**
  * Require the complete current gameplay graph. Resource entry points never
- * infer Alpha consent from public presentation fields alone.
+ * infer current entry-agreement acceptance from public presentation fields or
+ * historical evidence alone.
  */
 export function requireGameplayPlayerV1(ctx: WarpkeepReducerContext) {
-  const admitted = requireAdmittedPlayer(ctx);
+  const admitted = requireOwnedCastleActionV1(ctx);
   const acceptanceKey = `${admitted.claims.fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`;
   const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(acceptanceKey);
   if (

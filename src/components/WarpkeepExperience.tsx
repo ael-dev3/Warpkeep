@@ -1100,6 +1100,27 @@ export function WarpkeepExperience() {
                 onCollectResources={backend.state.resources
                   ? backend.collectResources
                   : undefined}
+                goldExpedition={backend.state.goldExpedition}
+                onDispatchGoldExpedition={backend.state.goldExpedition === undefined
+                  ? undefined
+                  : backend.dispatchGoldExpedition}
+                onClaimGoldExpedition={backend.state.goldExpedition === undefined
+                  ? undefined
+                  : backend.claimGoldExpedition}
+                foodExpedition={backend.state.foodExpedition}
+                onDispatchFoodExpedition={backend.state.foodExpedition === undefined
+                  ? undefined
+                  : backend.dispatchFoodExpedition}
+                onClaimFoodExpedition={backend.state.foodExpedition === undefined
+                  ? undefined
+                  : backend.claimFoodExpedition}
+                woodExpedition={backend.state.woodExpedition}
+                onDispatchWoodExpedition={backend.state.woodExpedition === undefined
+                  ? undefined
+                  : backend.dispatchWoodExpedition}
+                onClaimWoodExpedition={backend.state.woodExpedition === undefined
+                  ? undefined
+                  : backend.claimWoodExpedition}
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}

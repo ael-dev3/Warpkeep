@@ -15,6 +15,7 @@ import {
   CASTLE_LABEL_LAYOUT_MAX_CASTLES,
   castleProfileIdentityReady,
   castleProfileLabel,
+  castleProfileMonogram,
   fallbackCastleProjection,
   farcasterProfileUrl,
   formatPublicMarkMicros,
@@ -92,22 +93,36 @@ describe('realm castle public presentation', () => {
       communityStatsVisible: false
     });
 
-    expect(publicProfileForCastle(42, [{
+    const cleared = publicProfileForCastle(42, [{
       ...authoritative,
       canonicalUsername: '',
       displayName: '',
-      pfpUrl: ''
+      pfpUrl: '',
+      publicBio: ''
     }], [{
       fid: 42,
       username: 'player-fallback',
       displayName: 'Player Fallback',
       pfpUrl: 'https://images.example/player.png',
       status: 'active'
-    }])).toMatchObject({
-      canonicalUsername: 'player-fallback',
-      displayName: 'Player Fallback',
-      pfpUrl: 'https://images.example/player.png'
+    }], {
+      fid: 42,
+      username: 'tab-local-fallback',
+      displayName: 'Tab Local Fallback',
+      pfpUrl: 'https://images.example/tab-local.png'
     });
+    expect(cleared).toStrictEqual({
+      canonicalUsername: undefined,
+      displayName: undefined,
+      pfpUrl: undefined,
+      publicBio: undefined,
+      communityStatsVisible: true,
+      totalSnapBurnedMicros: 200_000_000n,
+      marksBalanceMicros: 150_000_000n
+    });
+    expect(castleProfileIdentityReady(cleared)).toBe(false);
+    expect(castleProfileLabel(cleared)).toBe('Hegemony Keep');
+    expect(castleProfileMonogram(cleared)).toBe('W');
     expect(castleProfileIdentityReady({
       canonicalUsername: 'player-fallback',
       communityStatsVisible: false

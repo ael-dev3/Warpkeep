@@ -56,6 +56,8 @@ export type TerrainGeometryOptions = Readonly<{
   playableRadius?: number;
   placements?: readonly TerrainStructurePlacement[];
   terrainKindsByKey?: ReadonlyMap<string, RealmTerrainKind>;
+  /** Non-authoritative forest ecoregion tint for the existing terrain cell. */
+  forestCanopyByKey?: ReadonlyMap<string, number>;
 }>;
 
 type MutableTerrainBounds = {
@@ -250,6 +252,7 @@ export function createTerrainGeometryData(
       playableRadius: options.playableRadius ?? Math.max(0, map.radius - 1),
       renderRadius: map.radius,
       terrainKind: options.terrainKindsByKey?.get(hexKey(cell.coord)),
+      forestCanopy: options.forestCanopyByKey?.get(hexKey(cell.coord)),
       placements
     });
     const index = positions.length / 3;

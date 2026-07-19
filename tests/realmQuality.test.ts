@@ -4,6 +4,7 @@ import {
   MIN_REALM_PIXEL_RATIO,
   REALM_ENVIRONMENT_SPECS,
   REALM_EXPANDED_RENDER_BUDGETS,
+  REALM_GRASS_RENDER_PLANS,
   REALM_LIGHTING_SPECS,
   REALM_QUALITY_SPECS,
   resolveRealmPixelRatio,
@@ -160,7 +161,7 @@ describe('realm quality profiles', () => {
     expect([high.estimatedTerrainTriangles, balanced.estimatedTerrainTriangles, reduced.estimatedTerrainTriangles])
       .toEqual([145_824, 82_026, 36_456]);
     expect([high.estimatedMaximumDecorationInstances, balanced.estimatedMaximumDecorationInstances, reduced.estimatedMaximumDecorationInstances])
-      .toEqual([5_900, 4_700, 2_600]);
+      .toEqual([1_519, 1_519, 1_519]);
     [high, balanced, reduced].forEach((plan) => {
       expect(plan.estimatedTerrainTriangles).toBeLessThanOrEqual(plan.terrainTriangleBudget);
       expect(plan.estimatedMaximumDecorationInstances)
@@ -196,13 +197,18 @@ describe('realm quality profiles', () => {
       expect(plan.terrainTransitionEdgeCount).toBe(270);
       expect(plan.outerSubdivisionsPerEdge).toBe(1);
       expect(plan.estimatedMaximumDecorationInstances)
-        .toBeLessThanOrEqual(plan.genericDecorationInstanceBudget);
-      expect(plan.genericDecorationInstanceBudget)
+        .toBeLessThanOrEqual(plan.stoneDecorationInstanceBudget);
+      expect(plan.stoneDecorationInstanceBudget)
         .toBeLessThanOrEqual(plan.decorationInstanceBudget);
     });
     expect(Object.values(REALM_EXPANDED_RENDER_BUDGETS).map((budget) => (
       budget.terrainTriangles
     ))).toEqual([204_000, 140_000, 94_000]);
+    expect(REALM_GRASS_RENDER_PLANS).toMatchObject({
+      high: { maximumActiveInstances: 14_000, maximumActiveTriangles: 210_000, animationFrameCap: 24 },
+      balanced: { maximumActiveInstances: 7_000, maximumActiveTriangles: 84_000, animationFrameCap: 16 },
+      reduced: { maximumActiveInstances: 2_000, maximumActiveTriangles: 18_000, animationFrameCap: 0 }
+    });
   });
 
   it('fails before scene allocation when even one subdivision cannot fit the declared budget', () => {

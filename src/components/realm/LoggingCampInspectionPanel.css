@@ -1,0 +1,102 @@
+/* Wood shares the resilient inspector shell with Gold and Food. The large
+ * record art is decorative only; the shared stage keeps it pointer-inert and
+ * the dismiss target remains above it. */
+.logging-camp-inspection.gold-mine-inspection {
+  padding-top: clamp(5.05rem, 14vw, 6.05rem);
+}
+
+.logging-camp-inspection .gold-mine-inspection__hero {
+  min-height: 8.7rem;
+  padding: 1.1rem 1rem 0.78rem;
+  background:
+    radial-gradient(circle at 50% 4%, rgb(177 216 112 / 24%), transparent 37%),
+    radial-gradient(circle at 50% 98%, rgb(45 94 47 / 34%), transparent 55%),
+    linear-gradient(165deg, #1d3525 0%, #112116 58%, #0b0d0c 100%);
+}
+
+.logging-camp-inspection .gold-mine-inspection__hero::after {
+  background: linear-gradient(180deg, transparent, rgb(7 12 8 / 88%) 78%, rgb(8 10 9 / 98%));
+}
+
+.logging-camp-inspection .gold-mine-inspection__title-lockup::before {
+  background: linear-gradient(90deg, transparent, rgb(178 218 115 / 84%), transparent);
+}
+
+.logging-camp-inspection .gold-mine-inspection__title-lockup p,
+.logging-camp-inspection .gold-mine-inspection__field dd {
+  color: #d3eda7;
+}
+
+/* The source has a generous transparent margin. Its slightly wider stage lets
+ * the green base crest the drawer while keeping its visual bounds inside the
+ * inspector's safe, clipped region. */
+.logging-camp-inspection__art-stage.gold-mine-inspection__art-stage {
+  top: -0.28rem;
+  width: min(24.2rem, calc(100% + 2.35rem));
+  height: clamp(11.1rem, 33.5vw, 13.72rem);
+  background:
+    radial-gradient(circle at 49% 63%, rgb(186 223 106 / 25%), transparent 58%),
+    radial-gradient(circle at 54% 40%, rgb(222 164 73 / 18%), transparent 60%);
+}
+
+.logging-camp-inspection__hero-art.gold-mine-inspection__hero-art {
+  filter:
+    drop-shadow(0 0.12rem 0.14rem rgb(229 184 105 / 30%))
+    drop-shadow(0 0.92rem 1.12rem rgb(9 26 12 / 64%));
+  object-fit: contain;
+  object-position: 50% 54%;
+  transform: translateY(0.2rem) scale(1.055);
+}
+
+.logging-camp-inspection .gold-mine-inspection__description {
+  border-left-color: rgb(173 215 110 / 62%);
+  background: linear-gradient(90deg, rgb(54 109 58 / 26%), transparent);
+}
+
+.logging-camp-inspection .gold-mine-inspection__action button {
+  border-color: rgb(194 232 126 / 72%);
+  background: linear-gradient(180deg, rgb(181 219 109 / 96%), rgb(61 118 59 / 98%));
+  color: #102313;
+}
+
+.logging-camp-inspection .gold-mine-inspection__action--claim button {
+  border-color: rgb(211 237 158 / 78%);
+  background: linear-gradient(180deg, rgb(119 179 101 / 96%), rgb(39 91 52 / 98%));
+  color: #f4fff0;
+}
+
+@media (max-width: 760px) {
+  .logging-camp-inspection.gold-mine-inspection {
+    padding-top: 4.55rem;
+  }
+
+  .logging-camp-inspection__art-stage.gold-mine-inspection__art-stage {
+    top: -0.15rem;
+    width: min(22.8rem, calc(100% + 1.4rem));
+    height: 11.15rem;
+  }
+
+  .logging-camp-inspection .gold-mine-inspection__body {
+    max-height: min(calc(78svh - 9.4rem), 24.2rem);
+  }
+}
+
+@media (max-height: 600px) and (min-width: 581px) {
+  .logging-camp-inspection.gold-mine-inspection {
+    padding-top: 3.72rem;
+  }
+
+  .logging-camp-inspection .gold-mine-inspection__hero {
+    min-height: 7.05rem;
+    padding-top: 0.72rem;
+  }
+
+  .logging-camp-inspection__art-stage.gold-mine-inspection__art-stage {
+    top: -0.1rem;
+    height: 8.8rem;
+  }
+
+  .logging-camp-inspection .gold-mine-inspection__body {
+    max-height: calc(100svh - 8.45rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}

@@ -1,4 +1,4 @@
-import { lstatSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import {
@@ -15,10 +15,6 @@ import {
 
 const root = resolve(import.meta.dirname, '..');
 const candidateDirectory = resolve(root, GOLD_MINE_CANDIDATE_DIRECTORY);
-const publicCandidateDirectory = resolve(
-  root,
-  'public/models/hegemony/gathering-nodes/gold-mine'
-);
 
 assertNoStaleAtomicFamilyTransactions(
   candidateDirectory,
@@ -66,12 +62,6 @@ const candidateRecord = readContainedRegularFile({
 });
 assertGoldMineCandidateRecord(candidateRecord, 'Gold Mine candidate provenance record');
 
-if (lstatSync(publicCandidateDirectory, { throwIfNoEntry: false }) !== undefined) {
-  throw new Error(
-    'Gold Mine candidates must remain outside public/ until a separate approved integration PR.'
-  );
-}
-
 console.log(
-  `Verified ${GOLD_MINE_CANDIDATE_PROFILES.length} exact unintegrated Gold Mine review candidates.`
+  `Verified ${GOLD_MINE_CANDIDATE_PROFILES.length} exact historical Gold Mine review candidates.`
 );

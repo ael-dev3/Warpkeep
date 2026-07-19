@@ -35,13 +35,15 @@ export const REALM_RESOURCE_STARTING_BALANCES = GENESIS_STARTING_RESOURCE_BALANC
 export const REALM_RESOURCE_TERRAIN_RATES: Readonly<
   Record<GenesisTerrainKind, RealmResourceBalances>
 > = Object.freeze({
-  lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 1n }),
-  meadow: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
-  forest: Object.freeze({ food: 5n, wood: 10n, stone: 3n, gold: 1n }),
-  heath: Object.freeze({ food: 5n, wood: 6n, stone: 5n, gold: 2n }),
-  ridge: Object.freeze({ food: 3n, wood: 4n, stone: 10n, gold: 2n }),
-  lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 1n }),
-  'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 4n }),
+  // Tier-I Gold comes only from the persistent expedition authority. Keeping
+  // passive terrain Gold at zero prevents a second hidden issuance path.
+  lowland: Object.freeze({ food: 8n, wood: 5n, stone: 3n, gold: 0n }),
+  meadow: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 0n }),
+  forest: Object.freeze({ food: 5n, wood: 10n, stone: 3n, gold: 0n }),
+  heath: Object.freeze({ food: 5n, wood: 6n, stone: 5n, gold: 0n }),
+  ridge: Object.freeze({ food: 3n, wood: 4n, stone: 10n, gold: 0n }),
+  lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 0n }),
+  'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 0n }),
 });
 
 const RESOURCE_KINDS: readonly RealmResourceKind[] = Object.freeze([
@@ -97,6 +99,20 @@ export type RealmResourceSettlementPlan = Readonly<{
 }>;
 
 export type ResourceSettlementPlan = RealmResourceSettlementPlan;
+
+/**
+ * Uncapped, server-time-only projection for authorities that must reserve a
+ * future reward against passive production. It is intentionally separate
+ * from the ordinary collect plan: normal inventory settlement still caps each
+ * balance, whereas an expedition preflight must see the raw Food that would
+ * exist at its fixed gathering deadline.
+ */
+export type RawResourceSettlementProjection = Readonly<{
+  rawBalances: RealmResourceBalances;
+  rawDeltas: RealmResourceBalances;
+  completedQuanta: bigint;
+  settledThroughMicros: bigint;
+}>;
 
 function isU64(value: unknown): value is bigint {
   return typeof value === 'bigint' && value >= 0n && value <= RESOURCE_U64_MAX;
@@ -165,11 +181,32 @@ function nextBalance(
   current: bigint,
   rate: bigint,
   completedQuanta: bigint,
+  balanceCap = REALM_RESOURCE_BALANCE_CAP,
+  reservationErrorCode = 'RESOURCE_BALANCE_CAP_INVALID',
 ): Readonly<{ balance: bigint; delta: bigint }> {
-  const remainingCapacity = REALM_RESOURCE_BALANCE_CAP - current;
+  if (
+    !isU64(balanceCap)
+    || balanceCap > REALM_RESOURCE_BALANCE_CAP
+    || current > balanceCap
+  ) {
+    throw new ResourceAuthorityPolicyError(reservationErrorCode);
+  }
+  const remainingCapacity = balanceCap - current;
   const potentialDelta = checkedU64Product(rate, completedQuanta);
   const delta = potentialDelta > remainingCapacity ? remainingCapacity : potentialDelta;
   return Object.freeze({ balance: current + delta, delta });
+}
+
+function nextRawBalance(
+  current: bigint,
+  rate: bigint,
+  completedQuanta: bigint,
+): Readonly<{ balance: bigint; delta: bigint }> {
+  const delta = checkedU64Product(rate, completedQuanta);
+  return Object.freeze({
+    balance: checkedU64Sum(current, delta),
+    delta,
+  });
 }
 
 /**
@@ -189,12 +226,71 @@ export function createInitialRealmResourceState(
 }
 
 /**
+ * Project passive resources without applying the inventory cap. This is not a
+ * credit path and writes nothing; it exists so long-running Food and Wood
+ * expeditions can reserve capacity for their own thirty-day awards and every
+ * passive quantum through each immutable gathering deadline.
+ */
+export function planRawResourceSettlement(
+  state: ResourceAccountState,
+  terrainKind: string,
+  observedAtMicros: bigint,
+): RawResourceSettlementProjection {
+  if (state.policyVersion !== REALM_RESOURCE_POLICY_VERSION) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_POLICY_MISMATCH');
+  }
+  assertU64(observedAtMicros, 'RESOURCE_OBSERVED_TIME_INVALID');
+  assertU64(state.settledThroughMicros, 'RESOURCE_CURSOR_INVALID');
+  if (state.settledThroughMicros > observedAtMicros) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_CURSOR_IN_FUTURE');
+  }
+  assertU64(state.revision, 'RESOURCE_REVISION_INVALID');
+  if (state.revision === RESOURCE_U64_MAX) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_REVISION_EXHAUSTED');
+  }
+  assertBalancesAreCanonical(state);
+  const rates = terrainRates(terrainKind);
+  const completedQuanta = (
+    observedAtMicros - state.settledThroughMicros
+  ) / REALM_RESOURCE_QUANTUM_MICROS;
+  const elapsedWholeQuantaMicros = checkedU64Product(
+    completedQuanta,
+    REALM_RESOURCE_QUANTUM_MICROS,
+  );
+  const settledThroughMicros = checkedU64Sum(
+    state.settledThroughMicros,
+    elapsedWholeQuantaMicros,
+  );
+  const food = nextRawBalance(state.food, rates.food, completedQuanta);
+  const wood = nextRawBalance(state.wood, rates.wood, completedQuanta);
+  const stone = nextRawBalance(state.stone, rates.stone, completedQuanta);
+  const gold = nextRawBalance(state.gold, rates.gold, completedQuanta);
+  return Object.freeze({
+    rawBalances: frozenBalances({
+      food: food.balance,
+      wood: wood.balance,
+      stone: stone.balance,
+      gold: gold.balance,
+    }),
+    rawDeltas: frozenBalances({
+      food: food.delta,
+      wood: wood.delta,
+      stone: stone.delta,
+      gold: gold.delta,
+    }),
+    completedQuanta,
+    settledThroughMicros,
+  });
+}
+
+/**
  * Settles deterministic passive production using authoritative server time.
  * Incomplete time remains behind the returned cursor. Completed time always
  * advances the cursor, including while every balance is already capped.
  */
-export function settleRealmResources(
+function settleRealmResourcesWithExpeditionCaps(
   input: RealmResourceSettlementInput,
+  caps: Readonly<{ food: bigint; wood: bigint }>,
 ): RealmResourceSettlementPlan {
   const { account, observedAtMicros } = input;
   if (account.policyVersion !== REALM_RESOURCE_POLICY_VERSION) {
@@ -210,6 +306,12 @@ export function settleRealmResources(
     throw new ResourceAuthorityPolicyError('RESOURCE_REVISION_EXHAUSTED');
   }
   assertBalancesAreCanonical(account);
+  if (!isU64(caps.food) || caps.food > REALM_RESOURCE_BALANCE_CAP || account.food > caps.food) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_FOOD_RESERVATION_BREACH');
+  }
+  if (!isU64(caps.wood) || caps.wood > REALM_RESOURCE_BALANCE_CAP || account.wood > caps.wood) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_WOOD_RESERVATION_BREACH');
+  }
   const rates = terrainRates(input.terrainKind);
 
   const elapsedMicros = observedAtMicros - account.settledThroughMicros;
@@ -239,8 +341,20 @@ export function settleRealmResources(
     });
   }
 
-  const food = nextBalance(account.food, rates.food, completedQuanta);
-  const wood = nextBalance(account.wood, rates.wood, completedQuanta);
+  const food = nextBalance(
+    account.food,
+    rates.food,
+    completedQuanta,
+    caps.food,
+    'RESOURCE_FOOD_RESERVATION_BREACH',
+  );
+  const wood = nextBalance(
+    account.wood,
+    rates.wood,
+    completedQuanta,
+    caps.wood,
+    'RESOURCE_WOOD_RESERVATION_BREACH',
+  );
   const stone = nextBalance(account.stone, rates.stone, completedQuanta);
   const gold = nextBalance(account.gold, rates.gold, completedQuanta);
 
@@ -265,6 +379,20 @@ export function settleRealmResources(
   });
 }
 
+/**
+ * Settles deterministic passive production using the ordinary inventory cap.
+ * Incomplete time remains behind the returned cursor. Completed time always
+ * advances the cursor, including while every balance is already capped.
+ */
+export function settleRealmResources(
+  input: RealmResourceSettlementInput,
+): RealmResourceSettlementPlan {
+  return settleRealmResourcesWithExpeditionCaps(input, {
+    food: REALM_RESOURCE_BALANCE_CAP,
+    wood: REALM_RESOURCE_BALANCE_CAP,
+  });
+}
+
 /** Reducer-friendly positional form of {@link settleRealmResources}. */
 export function planResourceSettlement(
   state: ResourceAccountState,
@@ -272,4 +400,50 @@ export function planResourceSettlement(
   observedAtMicros: bigint,
 ): ResourceSettlementPlan {
   return settleRealmResources({ account: state, terrainKind, observedAtMicros });
+}
+
+/**
+ * Resource-specific reservation values are the exact uncredited awards from
+ * private authority rows, never browser input. Passive Food and Wood each
+ * stop below their own remaining award so either lifecycle can settle late
+ * without overflowing its account field.
+ */
+export function planResourceSettlementWithExpeditionReservations(
+  state: ResourceAccountState,
+  terrainKind: string,
+  observedAtMicros: bigint,
+  reservations: Readonly<{ food: bigint; wood: bigint }>,
+): ResourceSettlementPlan {
+  if (!isU64(reservations.food) || reservations.food > REALM_RESOURCE_BALANCE_CAP) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_FOOD_RESERVATION_INVALID');
+  }
+  if (!isU64(reservations.wood) || reservations.wood > REALM_RESOURCE_BALANCE_CAP) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_WOOD_RESERVATION_INVALID');
+  }
+  return settleRealmResourcesWithExpeditionCaps(
+    { account: state, terrainKind, observedAtMicros },
+    {
+      food: REALM_RESOURCE_BALANCE_CAP - reservations.food,
+      wood: REALM_RESOURCE_BALANCE_CAP - reservations.wood,
+    },
+  );
+}
+
+/**
+ * Compatibility wrapper for the v7 Food-only authority surface. New
+ * authority callers use the paired reservation API above so an active Wood
+ * expedition is preserved as well.
+ */
+export function planResourceSettlementWithFoodReservation(
+  state: ResourceAccountState,
+  terrainKind: string,
+  observedAtMicros: bigint,
+  reservedFood: bigint,
+): ResourceSettlementPlan {
+  return planResourceSettlementWithExpeditionReservations(
+    state,
+    terrainKind,
+    observedAtMicros,
+    { food: reservedFood, wood: 0n },
+  );
 }

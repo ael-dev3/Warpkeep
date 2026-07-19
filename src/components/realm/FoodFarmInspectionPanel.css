@@ -1,0 +1,68 @@
+/* Food shares the resilient inspector shell with Gold but has a distinct,
+ * warm wheat identity; no runtime image or action affects node authority. */
+.food-farm-inspection {
+  --food-farm-accent: #d2a344;
+  --food-farm-bright: #f6d889;
+}
+
+/* The Farm record is a tall illustrated site, so give it a measured overhang
+ * instead of enlarging the compact Food HUD glyph. The shared shell keeps the
+ * art pointer-inert and the close target above it. */
+.food-farm-inspection.gold-mine-inspection {
+  padding-top: clamp(5.05rem, 14vw, 6.05rem);
+}
+
+.food-farm-inspection .gold-mine-inspection__hero::after {
+  background: linear-gradient(90deg, transparent, var(--food-farm-accent), transparent);
+}
+
+.food-farm-inspection .gold-mine-inspection__title-lockup::before {
+  background: var(--food-farm-accent);
+  box-shadow: 0 0 1.4rem color-mix(in srgb, var(--food-farm-accent) 68%, transparent);
+}
+
+.food-farm-inspection .gold-mine-inspection__action button,
+.food-farm-inspection .gold-mine-inspection__action--claim button {
+  background: linear-gradient(135deg, #8c5d1e, #d29d3e 48%, #f0cb6d);
+  border-color: #f7d88f;
+  color: #2e1b0d;
+}
+
+.food-farm-inspection__art-stage.gold-mine-inspection__art-stage {
+  top: -0.25rem;
+  width: min(24rem, calc(100% + 2.2rem));
+  height: clamp(11.1rem, 34vw, 13.85rem);
+  background: radial-gradient(circle at 48% 56%, rgba(240, 190, 86, 0.28), transparent 62%);
+}
+
+.food-farm-inspection__hero-art.gold-mine-inspection__hero-art {
+  filter:
+    drop-shadow(0 0.18rem 0.16rem rgb(255 222 124 / 28%))
+    drop-shadow(0 0.92rem 1.16rem rgb(53 31 9 / 58%));
+  object-fit: contain;
+  object-position: 50% 54%;
+  transform: translateY(0.18rem) scale(1.035);
+}
+
+@media (max-width: 760px) {
+  .food-farm-inspection.gold-mine-inspection {
+    padding-top: 4.55rem;
+  }
+
+  .food-farm-inspection__art-stage.gold-mine-inspection__art-stage {
+    top: -0.15rem;
+    width: min(22.8rem, calc(100% + 1.4rem));
+    height: 11.15rem;
+  }
+}
+
+@media (max-height: 600px) and (min-width: 581px) {
+  .food-farm-inspection.gold-mine-inspection {
+    padding-top: 3.72rem;
+  }
+
+  .food-farm-inspection__art-stage.gold-mine-inspection__art-stage {
+    top: -0.1rem;
+    height: 8.8rem;
+  }
+}

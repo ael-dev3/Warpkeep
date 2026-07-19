@@ -1,6 +1,6 @@
 # Local Marks operator
 
-The Alpha 0.3.2 Marks operator is an offline-first, fail-closed macOS utility. It recognizes the canonical normal SNAP `Burned(...)` event on Ethereum mainnet and prepares privacy-safe 1:1 Mark-credit dry runs. It does not connect a browser wallet, initiate a burn, write directly to database tables, or make a production credit.
+The Marks operator is an offline-first, fail-closed macOS utility. It recognizes the canonical normal SNAP `Burned(...)` event on Ethereum mainnet and prepares privacy-safe 1:1 Mark-credit dry runs. It does not connect a browser wallet, initiate a burn, write directly to database tables, or make a production credit.
 
 `marks:apply` is deliberately unavailable. It always exits with
 `MARKS_APPLY_DISABLED`, even when `--confirm` is supplied. The deployed
@@ -112,7 +112,7 @@ owner-only stdin producer:
 ```json
 {
   "source": {
-    "sourceId": "owner-reviewed-snapchain-mainnet-v1"
+    "sourceId": "owner-reviewed-snapchain-mainnet-maintenance-v2"
   }
 }
 ```
@@ -122,9 +122,12 @@ authoritative founder. It validates every returned message against the expected
 FID, mainnet, and user-data contract, then retains only `USERNAME`, `DISPLAY`,
 `BIO`, and `PFP`; unrelated user-data fields are discarded and never persisted
 or reported. Redirects and pagination are rejected, response bodies and
-deadlines are bounded, and PFP URLs are re-sanitized. A successful complete
-current envelope can authoritatively clear a field; only unavailable or
-incomplete responses retain last-known-good public data.
+deadlines are bounded, and PFP URLs are re-sanitized. A successful authoritative
+empty value clears that public field, including username or PFP; an unavailable
+field may retain its sanitized last-known-good value. Cleared presentation uses
+the Realm's neutral keep label and monogram. It does not revoke the admitted
+FID's private ownership or gameplay authority. Complete username and PFP remain
+mandatory only in the atomic new-founder admission path.
 
 The dry run reads the canonical current profile rows and writes a private
 `profiles-reviewed-plan-*.json` file in

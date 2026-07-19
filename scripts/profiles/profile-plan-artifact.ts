@@ -38,7 +38,7 @@ export type ReviewedProfilePlanEntry = Readonly<{
 }>;
 
 export type ReviewedProfilePlan = Readonly<{
-  schemaVersion: 2;
+  schemaVersion: 3;
   kind: 'warpkeep-reviewed-profile-plan';
   planId: string;
   createdAt: string;
@@ -47,6 +47,8 @@ export type ReviewedProfilePlan = Readonly<{
   targetConfigurationDigest: string;
   policyVersion: string;
   foundedProfileSetDigest: string;
+  expectedProfileStateDigest: string;
+  intendedProfileStateDigest: string;
   fetchedProfiles: number;
   unchangedProfiles: number;
   lastKnownGoodFieldsPreserved: number;
@@ -138,13 +140,15 @@ function parsePlan(value: unknown): ReviewedProfilePlan {
     'targetConfigurationDigest',
     'policyVersion',
     'foundedProfileSetDigest',
+    'expectedProfileStateDigest',
+    'intendedProfileStateDigest',
     'fetchedProfiles',
     'unchangedProfiles',
     'lastKnownGoodFieldsPreserved',
     'updates',
   ]);
   if (
-    plan.schemaVersion !== 2
+    plan.schemaVersion !== 3
     || plan.kind !== 'warpkeep-reviewed-profile-plan'
     || typeof plan.planId !== 'string'
     || !/^[0-9a-f]{32}$/.test(plan.planId)
@@ -159,6 +163,10 @@ function parsePlan(value: unknown): ReviewedProfilePlan {
     || plan.policyVersion.length > 128
     || typeof plan.foundedProfileSetDigest !== 'string'
     || !DIGEST_PATTERN.test(plan.foundedProfileSetDigest)
+    || typeof plan.expectedProfileStateDigest !== 'string'
+    || !DIGEST_PATTERN.test(plan.expectedProfileStateDigest)
+    || typeof plan.intendedProfileStateDigest !== 'string'
+    || !DIGEST_PATTERN.test(plan.intendedProfileStateDigest)
     || !Array.isArray(plan.updates)
     || plan.updates.length > 100
   ) throw new ProfilePlanArtifactError('PROFILES_REVIEWED_PLAN_INVALID');
@@ -188,8 +196,11 @@ function parsePlan(value: unknown): ReviewedProfilePlan {
   if (new Set(updates.map(update => update.fid)).size !== updates.length) {
     throw new ProfilePlanArtifactError('PROFILES_REVIEWED_PLAN_INVALID');
   }
+  if (unchangedProfiles + updates.length !== fetchedProfiles) {
+    throw new ProfilePlanArtifactError('PROFILES_REVIEWED_PLAN_INVALID');
+  }
   return Object.freeze({
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'warpkeep-reviewed-profile-plan',
     planId: plan.planId,
     createdAt: plan.createdAt,
@@ -198,6 +209,8 @@ function parsePlan(value: unknown): ReviewedProfilePlan {
     targetConfigurationDigest: plan.targetConfigurationDigest,
     policyVersion: plan.policyVersion,
     foundedProfileSetDigest: plan.foundedProfileSetDigest,
+    expectedProfileStateDigest: plan.expectedProfileStateDigest,
+    intendedProfileStateDigest: plan.intendedProfileStateDigest,
     fetchedProfiles,
     unchangedProfiles,
     lastKnownGoodFieldsPreserved,
@@ -214,6 +227,8 @@ export function createReviewedProfilePlan(input: Readonly<{
   targetConfigurationDigest: string;
   policyVersion: string;
   foundedProfileSetDigest: string;
+  expectedProfileStateDigest: string;
+  intendedProfileStateDigest: string;
   fetchedProfiles: number;
   unchangedProfiles: number;
   lastKnownGoodFieldsPreserved: number;
@@ -222,7 +237,7 @@ export function createReviewedProfilePlan(input: Readonly<{
 }>): ReviewedProfilePlan {
   const now = input.now ?? new Date();
   return parsePlan({
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'warpkeep-reviewed-profile-plan',
     planId: randomUUID().replace(/-/g, ''),
     createdAt: now.toISOString(),
@@ -231,6 +246,8 @@ export function createReviewedProfilePlan(input: Readonly<{
     targetConfigurationDigest: input.targetConfigurationDigest,
     policyVersion: input.policyVersion,
     foundedProfileSetDigest: input.foundedProfileSetDigest,
+    expectedProfileStateDigest: input.expectedProfileStateDigest,
+    intendedProfileStateDigest: input.intendedProfileStateDigest,
     fetchedProfiles: input.fetchedProfiles,
     unchangedProfiles: input.unchangedProfiles,
     lastKnownGoodFieldsPreserved: input.lastKnownGoodFieldsPreserved,

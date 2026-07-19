@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const webglState = vi.hoisted(() => ({
+  failGrassShaderContractOnce: false,
   instances: [] as Array<{
     dispose: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
@@ -14,6 +15,16 @@ const keepLoadState = vi.hoisted(() => ({
 
 const environmentState = vi.hoisted(() => ({ failNext: false }));
 
+const grassLayerState = vi.hoisted(() => ({ failNextCreation: false }));
+
+const ambientSchedulerState = vi.hoisted(() => ({
+  creations: [] as Array<{
+    active: boolean | undefined;
+    isActive: () => boolean;
+    step: (elapsedSeconds: number) => void;
+  }>
+}));
+
 vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
 
@@ -21,7 +32,11 @@ vi.mock('three', async (importOriginal) => {
     capabilities = { getMaxAnisotropy: () => 1 };
     dispose = vi.fn();
     outputColorSpace = '';
-    render = vi.fn();
+    render = vi.fn(() => {
+      if (!webglState.failGrassShaderContractOnce) return;
+      webglState.failGrassShaderContractOnce = false;
+      throw new Error('REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED');
+    });
     setClearColor = vi.fn();
     setPixelRatio = vi.fn();
     setSize = vi.fn();
@@ -58,6 +73,48 @@ vi.mock('../src/components/realm/createRealmEnvironment', async (importOriginal)
   };
 });
 
+vi.mock('../src/components/realm/createRealmGrassLayer', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/components/realm/createRealmGrassLayer')>();
+  return {
+    ...actual,
+    createRealmGrassLayer: (...args: Parameters<typeof actual.createRealmGrassLayer>) => {
+      if (grassLayerState.failNextCreation) {
+        grassLayerState.failNextCreation = false;
+        throw new Error('synthetic grass allocation failure');
+      }
+      return actual.createRealmGrassLayer(...args);
+    }
+  };
+});
+
+vi.mock('../src/components/realm/realmAmbientScheduler', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/components/realm/realmAmbientScheduler')>();
+  return {
+    ...actual,
+    createRealmAmbientScheduler: (
+      options: Parameters<typeof actual.createRealmAmbientScheduler>[0]
+    ) => {
+      const scheduler = actual.createRealmAmbientScheduler(options);
+      ambientSchedulerState.creations.push({
+        active: options.active,
+        isActive: scheduler.isActive,
+        step: options.onStep
+      });
+      return scheduler;
+    }
+  };
+});
+
+vi.mock('../src/components/realm/loadHegemonyExpeditionAssets', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('../src/components/realm/loadHegemonyExpeditionAssets')
+  >();
+  return {
+    ...actual,
+    acquireHegemonyExpeditionPrefab: vi.fn(() => new Promise<never>(() => undefined))
+  };
+});
+
 import {
   createRealmScene,
   REALM_CASTLE_READABILITY_LIGHTING,
@@ -65,9 +122,17 @@ import {
   type CreateRealmSceneOptions
 } from '../src/components/realm/createRealmScene';
 import { hexKey } from '../src/game/map/hexCoordinates';
-import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
+import {
+  createAuthoritativeRealmTerrainSurface,
+  createRealmTerrainSurface
+} from '../src/game/map/realmTerrainSurface';
 import { DEFAULT_REALM_CAMERA_SPEC } from '../src/components/realm/realmCameraController';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
+import {
+  CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+  CANONICAL_GENESIS_FOREST_LAYOUT_V1
+} from '../spacetimedb/src/forestLayoutPolicy';
+import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnapshot';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
 
@@ -111,6 +176,9 @@ function createOptions(
     keepCoord: { q: 0, r: 0 },
     ownCastleId: 1,
     otherCastles: [],
+    // Direct scene tests opt into the retired preview explicitly. Production
+    // player scenes never synthesize a forest while shared rows are absent.
+    allowLegacyForestFallback: true,
     terrainMetadata: surface.playableMap.cells.map((cell) => ({
       tileKey: hexKey(cell.coord),
       terrainKind: 'lowland',
@@ -148,6 +216,31 @@ function loadedCastleAssembly(root: THREE.Group, suffix = 'compact') {
   };
 }
 
+function movingResourceNode(siteId: string) {
+  return Object.freeze({
+    siteId,
+    coord: Object.freeze({ q: 1, r: 0 }),
+    tier: 1,
+    availability: 'outbound' as const,
+    occupation: Object.freeze({
+      siteId,
+      originCastleId: 1,
+      phase: 'outbound' as const,
+      startedAtMicros: 0n,
+      arrivesAtMicros: 60_000_000n,
+      gatheringEndsAtMicros: 120_000_000n,
+      returnsAtMicros: 180_000_000n
+    }),
+    originCastle: Object.freeze({
+      castleId: 1,
+      name: 'Hegemony Keep 001',
+      q: 0,
+      r: 0
+    }),
+    occupiedByViewer: true
+  });
+}
+
 describe('realm scene setup cleanup', () => {
   const resizeObservers: Array<{
     disconnect: ReturnType<typeof vi.fn>;
@@ -155,10 +248,13 @@ describe('realm scene setup cleanup', () => {
   }> = [];
 
   beforeEach(() => {
+    webglState.failGrassShaderContractOnce = false;
     webglState.instances.length = 0;
     keepLoadState.load.mockReset();
     keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
     environmentState.failNext = false;
+    grassLayerState.failNextCreation = false;
+    ambientSchedulerState.creations.length = 0;
     resizeObservers.length = 0;
     vi.stubGlobal('ResizeObserver', class ResizeObserver {
       disconnect = vi.fn();
@@ -187,9 +283,8 @@ describe('realm scene setup cleanup', () => {
     expect(resolveRealmPinchGesture(new Map([[1, { x: 40, y: 80 }]]))).toBeNull();
   });
 
-  it('enables bounded ambience only for visible-motion high and balanced scenes', () => {
+  it('does not retain the removed CPU-decoration timer in any grass quality mode', () => {
     const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
-    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
     const surface = createRealmTerrainSurface('realm-ambient-gating', 4, 5);
 
     const reduced = createRealmScene(createOptions(document.createElement('canvas'), {
@@ -212,9 +307,8 @@ describe('realm scene setup cleanup', () => {
       quality: REALM_QUALITY_SPECS.balanced,
       reducedMotion: false
     }));
-    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 180);
+    expect(setTimeoutSpy).not.toHaveBeenCalled();
     animated.dispose();
-    expect(clearTimeoutSpy).toHaveBeenCalled();
   });
 
   it('renders the procedural environment centred on the active camera', () => {
@@ -254,8 +348,165 @@ describe('realm scene setup cleanup', () => {
       semanticFeatureCount: 0,
       semanticFeatureDrawCalls: 0,
       totalDetailInstanceCount: expect.any(Number),
+      totalDetailDrawCalls: expect.any(Number),
+      forestPlacementSource: 'legacy-fallback',
+      forestSharedTreeCount: 0,
+      grassCandidateCellCount: 0,
+      grassActiveCellCount: 0,
+      grassInstanceCount: 0,
+      grassTriangleCount: 0,
+      grassDrawCalls: 0,
+      grassCacheEntries: 0,
+      grassAnimated: false,
+      grassTargetAnimationCadence: 0,
+      grassCountsByTerrain: {
+        meadow: 0,
+        lowland: 0,
+        forest: 0,
+        heath: 0,
+        ridge: 0,
+        lake: 0,
+        'ancient-stone': 0,
+        apron: 0
+      },
+      grassCompletelyBareActiveCells: 0,
+      grassRejectedByStructureClearance: 0,
+      grassRejectedBySlope: 0,
+      grassOverviewHidden: true
+    });
+
+    sceneHandle.dispose();
+  });
+
+  it('accounts clustered trees as one static semantic batch without adding pick or shadow work', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('forest-telemetry', 4, 4);
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      reducedMotion: true,
+      quality: REALM_QUALITY_SPECS.high,
+      terrainMetadata: surface.playableMap.cells.map((cell) => ({
+        tileKey: hexKey(cell.coord),
+        terrainKind: 'forest',
+        staticContentKind: cell.coord.q === 0 && cell.coord.r === 0
+          ? 'castle-slot'
+          : 'empty'
+      })),
+      onTerrainPresentationTelemetry
+    }));
+    const telemetry = onTerrainPresentationTelemetry.mock.calls.at(-1)?.[0];
+    const renderedScene = webglState.instances.at(-1)?.render.mock.calls.at(-1)?.[0] as THREE.Scene;
+    const fallback = renderedScene.getObjectByName(
+      'realm-hegemony-tree-static-fallback'
+    ) as THREE.InstancedMesh | undefined;
+
+    expect(telemetry).toMatchObject({
+      semanticFeatureCount: expect.any(Number),
+      semanticFeatureDrawCalls: 1,
       totalDetailDrawCalls: expect.any(Number)
     });
+    expect(telemetry.semanticFeatureCount).toBeGreaterThan(0);
+    expect(fallback).toBeInstanceOf(THREE.InstancedMesh);
+    expect(fallback?.castShadow).toBe(false);
+    expect(fallback?.receiveShadow).toBe(false);
+    // Interaction only calls castle, Gold, then terrain raycasts; the static
+    // forest layer intentionally exposes no layer raycast target.
+    expect(renderedScene.getObjectByName('realm-hegemony-forest-presentation')).toBeTruthy();
+
+    sceneHandle.dispose();
+  });
+
+  it('keeps all canonical shared trees at every quality under the real static exclusion set', () => {
+    const snapshot = createCanonicalGenesisSnapshot();
+    const surface = createAuthoritativeRealmTerrainSurface(
+      snapshot.realm.numericSeed,
+      snapshot.tiles,
+      snapshot.realm.authoritativeRadius,
+      snapshot.realm.renderRadius
+    );
+    for (const quality of [
+      REALM_QUALITY_SPECS.high,
+      REALM_QUALITY_SPECS.balanced,
+      REALM_QUALITY_SPECS.reduced
+    ]) {
+      const canvas = document.createElement('canvas');
+      const onTerrainPresentationTelemetry = vi.fn();
+      const sceneHandle = createRealmScene(createOptions(canvas, {
+        surface,
+        terrainMetadata: snapshot.tileMetadata,
+        quality,
+        realmId: snapshot.realm.realmId,
+        sharedForestLayout: CANONICAL_GENESIS_FOREST_LAYOUT_V1,
+        sharedForestTrees: CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+        allowLegacyForestFallback: false,
+        onTerrainPresentationTelemetry
+      }));
+      const telemetry = onTerrainPresentationTelemetry.mock.calls.at(-1)?.[0];
+      const renderedScene = webglState.instances.at(-1)?.render.mock.calls.at(-1)?.[0] as THREE.Scene;
+      const fallback = renderedScene.getObjectByName(
+        'realm-hegemony-tree-static-fallback'
+      ) as THREE.InstancedMesh | undefined;
+
+      expect(telemetry).toMatchObject({
+        forestPlacementSource: 'shared',
+        forestSharedTreeCount: 210
+      });
+      expect(fallback).toBeInstanceOf(THREE.InstancedMesh);
+      expect(fallback?.count).toBe(210);
+      expect(fallback?.castShadow).toBe(false);
+      expect(fallback?.receiveShadow).toBe(false);
+
+      sceneHandle.dispose();
+    }
+  }, 15_000);
+
+  it.each([
+    {
+      projection: 'absent',
+      sharedForestLayout: undefined,
+      sharedForestTrees: undefined
+    },
+    {
+      projection: 'malformed',
+      sharedForestLayout: CANONICAL_GENESIS_FOREST_LAYOUT_V1,
+      sharedForestTrees: CANONICAL_GENESIS_FOREST_INSTANCES_V1.slice(0, -1)
+    }
+  ])('fails closed without constructing forest presentation for an $projection shared projection', ({
+    sharedForestLayout,
+    sharedForestTrees
+  }) => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('forest-fail-closed', 4, 4);
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      realmId: 'GENESIS_001',
+      reducedMotion: true,
+      quality: REALM_QUALITY_SPECS.high,
+      allowLegacyForestFallback: false,
+      sharedForestLayout,
+      sharedForestTrees,
+      terrainMetadata: surface.playableMap.cells.map((cell) => ({
+        tileKey: hexKey(cell.coord),
+        terrainKind: 'forest',
+        staticContentKind: cell.coord.q === 0 && cell.coord.r === 0
+          ? 'castle-slot'
+          : 'empty'
+      })),
+      onTerrainPresentationTelemetry
+    }));
+    const telemetry = onTerrainPresentationTelemetry.mock.calls.at(-1)?.[0];
+    const renderedScene = webglState.instances.at(-1)?.render.mock.calls.at(-1)?.[0] as THREE.Scene;
+
+    expect(telemetry).toMatchObject({
+      forestPlacementSource: 'blocked',
+      forestSharedTreeCount: 0,
+      semanticFeatureCount: 0,
+      semanticFeatureDrawCalls: 0
+    });
+    expect(renderedScene.getObjectByName('realm-hegemony-forest-presentation')).toBeUndefined();
+    expect(renderedScene.getObjectByName('realm-forest-trees')).toBeUndefined();
 
     sceneHandle.dispose();
   });
@@ -360,6 +611,86 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('fails closed to terrain-only presentation when the grass shader contract changes during render', () => {
+    const canvas = document.createElement('canvas');
+    webglState.failGrassShaderContractOnce = true;
+
+    const sceneHandle = createRealmScene(createOptions(canvas, { reducedMotion: true }));
+
+    expect(canvas.dataset.grassPresentation).toBe('unavailable');
+    expect(webglState.instances[0].render).toHaveBeenCalledTimes(2);
+    sceneHandle.dispose();
+  });
+
+  it.each(['food', 'wood'] as const)(
+    'keeps the ambient scheduler live for a moving %s wagon when grass creation fails',
+    (resourceKind) => {
+      const canvas = document.createElement('canvas');
+      const surface = createRealmTerrainSurface(`moving-${resourceKind}-without-grass`, 1, 1);
+      const node = movingResourceNode(`test-${resourceKind}-site`);
+      grassLayerState.failNextCreation = true;
+
+      const sceneHandle = createRealmScene(createOptions(canvas, {
+        surface,
+        quality: REALM_QUALITY_SPECS.balanced,
+        ...(resourceKind === 'food' ? { foodNodes: [node] } : { woodNodes: [node] })
+      }));
+      const renderer = webglState.instances.at(-1)!;
+      const ambient = ambientSchedulerState.creations.at(-1)!;
+
+      expect(canvas.dataset.grassPresentation).toBe('unavailable');
+      expect(ambient.active).toBe(true);
+      expect(ambient.isActive()).toBe(true);
+      renderer.render.mockClear();
+      ambient.step(0.1);
+      expect(renderer.render).toHaveBeenCalledOnce();
+
+      sceneHandle.dispose();
+    }
+  );
+
+  it('keeps moving Gold on the ambient clock after a grass shader fallback', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('moving-gold-after-grass-shader-fallback', 1, 1);
+    webglState.failGrassShaderContractOnce = true;
+
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      quality: REALM_QUALITY_SPECS.high,
+      goldNodes: [movingResourceNode('test-gold-site')]
+    }));
+    const renderer = webglState.instances.at(-1)!;
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+
+    expect(canvas.dataset.grassPresentation).toBe('unavailable');
+    expect(ambient.active).toBe(true);
+    expect(ambient.isActive()).toBe(true);
+    renderer.render.mockClear();
+    ambient.step(0.1);
+    expect(renderer.render).toHaveBeenCalledOnce();
+
+    sceneHandle.dispose();
+  });
+
+  it('keeps the ambient loop stopped under reduced motion even with moving resource wagons', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('reduced-motion-moving-resources', 1, 1);
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      quality: REALM_QUALITY_SPECS.high,
+      reducedMotion: true,
+      goldNodes: [movingResourceNode('test-reduced-gold-site')],
+      foodNodes: [movingResourceNode('test-reduced-food-site')],
+      woodNodes: [movingResourceNode('test-reduced-wood-site')]
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+
+    expect(ambient.active).toBe(false);
+    expect(ambient.isActive()).toBe(false);
+
+    sceneHandle.dispose();
+  });
+
   it('releases partial GPU and browser resources when late setup throws', () => {
     const canvas = document.createElement('canvas');
     const canvasAdd = vi.spyOn(canvas, 'addEventListener');
@@ -401,8 +732,8 @@ describe('realm scene setup cleanup', () => {
     });
     expect(listenerCalls(windowAdd, 'resize')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
-    expect(listenerCalls(documentAdd, 'visibilitychange')).toBe(3);
-    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(3);
+    expect(listenerCalls(documentAdd, 'visibilitychange')).toBe(4);
+    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(4);
   });
 
   it('keeps normal scene disposal idempotent', async () => {
@@ -425,7 +756,7 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(canvasRemove, 'wheel')).toBe(1);
     expect(listenerCalls(canvasRemove, 'webglcontextlost')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
-    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(3);
+    expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(4);
   });
 
   it('clears stale castle hover before wheel-driven camera motion', () => {

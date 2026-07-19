@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type Ref
@@ -65,6 +66,26 @@ const RESOURCE_LABELS: Readonly<Record<RealmEconomicResourceKey, string>> = Obje
   gold: 'Gold'
 });
 
+type RealmResourceTooltipKey = RealmEconomicResourceKey | 'marks';
+
+const REALM_RESOURCE_TOOLTIP_ORDER: readonly RealmResourceTooltipKey[] = Object.freeze([
+  ...REALM_ECONOMIC_RESOURCE_ORDER,
+  'marks'
+]);
+
+const RESOURCE_TOOLTIP_COPY: Readonly<Record<RealmResourceTooltipKey, string>> = Object.freeze({
+  food:
+    'Keeps and future armies will need Food. Your keep earns a private terrain yield, and farm expeditions can gather more from available sites. Spending is not live yet.',
+  wood:
+    'Wood is intended for construction and fortification. Your keep earns a private terrain yield, and logging expeditions can gather more from available sites. Spending is not live yet.',
+  stone:
+    'Stone is intended for strongholds and upgrades. It currently comes only from your keep\'s private terrain yield; quarry sites and Stone spending are not live yet.',
+  gold:
+    'Gold is intended for trade, upgrades, and command. It currently comes only from mine expeditions; terrain Gold and spending are not live.',
+  marks:
+    'Separate community-attribution balance. Marks currently have no live spending, conversion, transfer, redemption, or reward loop.'
+});
+
 const RESOURCE_ICON_PATHS: Readonly<
   Record<RealmEconomicResourceKey, Readonly<Record<'png' | 'webp', string>>>
 > = Object.freeze({
@@ -115,14 +136,78 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
 function RealmResourceRail({
   resources
 }: Readonly<{ resources: ReadyRealmResourcePresentation }>) {
+  const tooltipIdPrefix = `realm-resource-tooltip-${useId().replace(/:/g, '')}`;
+  const railRef = useRef<HTMLElement>(null);
+  const [activeTooltip, setActiveTooltip] = useState<RealmResourceTooltipKey | null>(null);
   const exactMarks = formatPublicMarkMicros(resources.marksBalanceMicros) ?? '0';
   const compactMarks = formatCompactRealmMarkMicros(resources.marksBalanceMicros) ?? '0';
+
+  useEffect(() => {
+    if (activeTooltip === null) return undefined;
+
+    const dismissOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && railRef.current?.contains(target)) return;
+      setActiveTooltip(null);
+    };
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setActiveTooltip(null);
+    };
+
+    document.addEventListener('pointerdown', dismissOutside, true);
+    document.addEventListener('keydown', dismissOnEscape, true);
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside, true);
+      document.removeEventListener('keydown', dismissOnEscape, true);
+    };
+  }, [activeTooltip]);
+
+  const tooltipId = (resource: RealmResourceTooltipKey) => (
+    `${tooltipIdPrefix}-${resource}`
+  );
+  const tooltipPresentation = (resource: RealmResourceTooltipKey) => {
+    if (resource === 'marks') {
+      return {
+        label: 'Community Marks',
+        status: `${exactMarks} Marks`
+      };
+    }
+    return {
+      label: RESOURCE_LABELS[resource],
+      status: `${formatExactRealmResourceQuantity(resources.balances[resource]) ?? '0'} stored · ${formatExactRealmResourceQuantity(resources.pendingBalances[resource]) ?? '0'} ready to collect`
+    };
+  };
+
+  const triggerEvents = (resource: RealmResourceTooltipKey) => ({
+    onBlur: () => {
+      setActiveTooltip((current) => current === resource ? null : current);
+    },
+    onClick: () => setActiveTooltip(resource),
+    onFocus: () => setActiveTooltip(resource),
+    onPointerEnter: (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.pointerType !== 'touch') setActiveTooltip(resource);
+    }
+  });
+
   return (
     <section
       aria-label="Your resources"
       aria-live="polite"
       className="realm-resource-rail"
       data-policy={resources.resourcePolicyVersion}
+      data-tooltip-open={activeTooltip ?? undefined}
+      onPointerLeave={(event) => {
+        if (
+          event.pointerType !== 'touch'
+          && !railRef.current?.contains(document.activeElement)
+        ) {
+          setActiveTooltip(null);
+        }
+      }}
+      ref={railRef}
     >
       <ul>
         {REALM_ECONOMIC_RESOURCE_ORDER.map((resource) => {
@@ -130,41 +215,75 @@ function RealmResourceRail({
           const exact = formatExactRealmResourceQuantity(resources.balances[resource])!;
           const pending = formatExactRealmResourceQuantity(resources.pendingBalances[resource])!;
           return (
-            <li
-              aria-label={`${RESOURCE_LABELS[resource]} balance: ${exact}; pending yield: ${pending}`}
-              key={resource}
-            >
-              <picture aria-hidden="true">
-                <source srcSet={resourceIconPath(resource, 'webp')} type="image/webp" />
-                <img
-                  alt=""
-                  decoding="async"
-                  height="64"
-                  src={resourceIconPath(resource, 'png')}
-                  width="64"
-                />
-              </picture>
-              <strong>{compact}</strong>
+            <li key={resource}>
+              <button
+                aria-describedby={tooltipId(resource)}
+                aria-label={`${RESOURCE_LABELS[resource]}: ${exact} stored; ${pending} ready to collect. Show resource details.`}
+                className="realm-resource-rail__trigger"
+                type="button"
+                {...triggerEvents(resource)}
+              >
+                <picture aria-hidden="true">
+                  <source srcSet={resourceIconPath(resource, 'webp')} type="image/webp" />
+                  <img
+                    alt=""
+                    decoding="async"
+                    height="64"
+                    src={resourceIconPath(resource, 'png')}
+                    width="64"
+                  />
+                </picture>
+                <strong>{compact}</strong>
+              </button>
             </li>
           );
         })}
-        <li aria-label={`Marks balance: ${exactMarks} Marks`} className="realm-resource-rail__marks">
-          <picture aria-hidden="true">
-            <source
-              srcSet={publicAssetUrl('images/factions/hegemony/marks/hegemony-mark-64.webp')}
-              type="image/webp"
-            />
-            <img
-              alt=""
-              decoding="async"
-              height="64"
-              src={publicAssetUrl('images/factions/hegemony/marks/hegemony-mark-64.png')}
-              width="64"
-            />
-          </picture>
-          <strong>{compactMarks}</strong>
+        <li className="realm-resource-rail__marks">
+          <button
+            aria-describedby={tooltipId('marks')}
+            aria-label={`Community Marks: ${exactMarks} Marks. Show Marks details.`}
+            className="realm-resource-rail__trigger"
+            type="button"
+            {...triggerEvents('marks')}
+          >
+            <picture aria-hidden="true">
+              <source
+                srcSet={publicAssetUrl('images/factions/hegemony/marks/hegemony-mark-64.webp')}
+                type="image/webp"
+              />
+              <img
+                alt=""
+                decoding="async"
+                height="64"
+                src={publicAssetUrl('images/factions/hegemony/marks/hegemony-mark-64.png')}
+                width="64"
+              />
+            </picture>
+            <strong>{compactMarks}</strong>
+          </button>
         </li>
       </ul>
+      {REALM_RESOURCE_TOOLTIP_ORDER.map((resource) => {
+        const presentation = tooltipPresentation(resource);
+        return (
+          <div
+            aria-atomic="true"
+            aria-live="off"
+            className="realm-resource-tooltip"
+            data-resource={resource}
+            hidden={activeTooltip !== resource}
+            id={tooltipId(resource)}
+            key={resource}
+            role="tooltip"
+          >
+            <span className="realm-resource-tooltip__title">{presentation.label}</span>
+            <span className="realm-resource-tooltip__status">{presentation.status}</span>
+            <span className="realm-resource-tooltip__copy">
+              {RESOURCE_TOOLTIP_COPY[resource]}
+            </span>
+          </div>
+        );
+      })}
     </section>
   );
 }

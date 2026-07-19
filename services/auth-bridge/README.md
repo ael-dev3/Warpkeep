@@ -5,17 +5,12 @@ OIDC access JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the
 static browser app: browser code never receives a signing key, admin secret,
 Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
 
-> **Alpha 0.3.8 is live on backend protocol 3; the checked-in default fails
-> closed.** The v2 access/session and resolver contract described below remains
-> active at its privately recorded production source, deployment,
-> configuration, and canary coordinates. The 10,000-cell Genesis world is live,
-> deliberately admitted founders hold their permanent castles, and
-> public shared auth and realm entry are enabled. `wrangler.toml` deliberately keeps
-> `PUBLIC_AUTH_ENABLED = "false"`; the recorded production override is true.
-
-Alpha 0.3.8 completed the separately approval-gated 10,000-cell
-generation-three transition. The QA aggregate parser supports only the two exact
-rollout tuples and never infers one from partial counts.
+Alpha 0.3.11 uses authentication contract v2 and backend protocol 3. The
+checked-in configuration fails closed: `wrangler.toml` keeps
+`PUBLIC_AUTH_ENABLED = "false"`, while any production enablement is a separate,
+privately recorded operation. World generation and resource features do not
+change this bridge contract. The QA aggregate parser recognizes only supported
+world tuples and never infers economy readiness from partial counts.
 
 `https://auth.warpkeep.com` is the canonical bridge coordinate, but its
 existence is not evidence that an arbitrary local v2 source is deployed. Every
@@ -118,9 +113,9 @@ database read and can no longer return its former response.
 The `/v1/qa/realm-snapshot` route and `realm.snapshot` scope remain unchanged as
 device-proof compatibility names. They do not authorize or return per-player
 Realm data. The successful Worker response keeps exactly this closed shape.
-During rollout and recovery it accepts either the complete generation-two
-predecessor tuple (`1261 / 1261 / 2 / 20 / 22`) or the complete live
-generation-three tuple shown below; every mixed tuple is rejected:
+During a bounded world recovery it accepts either the complete historical
+generation-two tuple (`1261 / 1261 / 2 / 20 / 22`) or the complete generation-three
+tuple shown below; every mixed tuple is rejected:
 
 ```text
 {
@@ -337,7 +332,7 @@ all-or-none tuple and have no gameplay fallback; the database and audience must
 both differ from the player/auth resolver target, and production pins the tuple's
 origin to exact `https://maincloud.spacetimedb.com`. `QA_OBSERVER_PUBLIC_JWK`,
 `QA_OBSERVER_KEY_REGISTERED_AT`, and `QA_OBSERVER_KEY_EXPIRES_AT` are required
-as one exact tuple only when the independent QA gate is enabled. Registration
+as a fixed tuple only when the independent QA gate is enabled. Registration
 and expiry are canonical RFC 3339 timestamps; their interval may not exceed 366
 days, so an old excessive expiry cannot become valid merely as time passes.
 Keep the registered public key in managed Worker configuration so the machine
@@ -364,50 +359,19 @@ Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use
 separate development keys. Set real secrets only through approved Cloudflare
 secret management, never Vite variables or committed config.
 
-## Approval-gated staged rollout
+## Deployment
 
-Alpha 0.3.1 completed the following recorded sequence. Every future redeploy or
-recovery must remain staged and fail closed in the same order. The zero check in
-this historical sequence applies only to the frozen legacy `player` table; it
-does not describe the current admission/founder count. A protocol-3 recovery
-must separately match the fresh privacy-safe aggregate to the reviewed private
-current-state record:
+The checked-in Worker keeps public authentication disabled. A production
+release must preserve that state while the repository checks, disposable
+migration proof, bounded production aggregates, OIDC metadata, resolver probe,
+retired routes, cookie policy, and configuration attestation are verified.
 
-1. keep both Worker public auth and the frontend shared-alpha switch false;
-2. run `npm run stdb:verify-additive-migration` from the repository root; its
-   disposable loopback-only proof verifies the frozen legacy shapes, retained
-   empty and synthetic non-empty rows, real resolver HTTP lifecycle and tuple
-   parsing without aggregate mutation, idempotent republish, v2 consistency,
-   and guarded v1 rollback refusal before schema change without contacting
-   Maincloud;
-3. obtain approval for a fresh, bounded, read-only Maincloud inspection and stop
-   unless the deployed-v1 `players` field (the legacy count) equals zero; any
-   enabled epoch-zero admission is also a hard stop, with no automatic migration
-   or deletion;
-4. obtain separate explicit owner approval for the guarded production module
-   publish; its same-run protected v1 aggregate must independently reproduce the
-   fresh legacy-player-zero result, while the publisher pins the reviewed CLI
-   binary and canonical existing database identity, uses `--delete-data=never`, never uses
-   `--break-clients`, and closes stdin so compatibility prompts fail closed;
-5. verify `admin_get_alpha_status_v2`, the exact v2 resolver/player wires,
-   legacy-wire retirement, private ownership isolation, and active-browser
-   `player_v2` use;
-6. obtain separate approval for the additive `SessionFamily` Durable Object
-   migration;
-7. obtain separate approval to configure `SESSION_COOKIE_KEY` and any other
-   required managed secrets without printing or reusing them;
-8. obtain separate approval to deploy the Worker with public auth still false,
-   then verify discovery/JWKS, the structured resolver probe, legacy-route
-   retirement, and the configuration attestation;
-9. obtain separate approval to deploy the v2 frontend while its realm switch
-   remains false;
-10. after exact-head hosted paused verification, obtain final authority and
-    proceed strictly: enable Worker public auth, pass its enabled public/private
-    gates, enable/deploy the exact frontend, then perform immediate owner QA.
-    The Alpha 0.3.1 authority is not reusable for a future change.
-
-If any stage disagrees, stop and leave public auth false. The legacy admin epoch
-procedure is rollback compatibility only, not permission to mint v1 tokens.
+Database publication, Durable Object migration, managed-secret changes, Worker
+deployment, frontend deployment, and public enablement are separate operator
+actions. A mismatch stops the release with public authentication disabled;
+historical approval or counts cannot be reused. Follow the current
+[activation runbook](../../docs/operations/alpha-activation.md) rather than
+reconstructing a rollout from this implementation guide.
 
 ## Checks, logs, and admin boundary
 

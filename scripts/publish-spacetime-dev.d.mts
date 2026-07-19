@@ -1,0 +1,25 @@
+export const GENESIS_WORLD_PUBLISH_STAGE: Readonly<Record<string, string>>;
+export const RESOURCE_PUBLISH_ROLLOUT_STAGE: Readonly<Record<string, string>>;
+
+export function alphaV8AggregateChildArguments(...args: any[]): any;
+export function parseMigrationProofReceipt(...args: any[]): any;
+export function parsePublishArguments(...args: any[]): any;
+export function publishChildEnvironment(...args: any[]): any;
+export function publishModule(...args: any[]): any;
+export function readFoundedPublishExpectations(...args: any[]): any;
+export function requireCanonicalPublishCoordinates(...args: any[]): any;
+export function runCurrentAdditiveMigrationProof(...args: any[]): any;
+export function validateIssuerDeployment(...args: any[]): any;
+export function verifyCanonicalDatabaseList(...args: any[]): any;
+export function verifyFreshAlphaStatusV8Aggregate(...args: any[]): any;
+export function verifyFreshFoundedProtocolV3Aggregate(...args: any[]): any;
+export function verifyFreshResourceProtocolV4PrebackfillAggregate(...args: any[]): any;
+export function verifyFreshResourceProtocolV4ReadyAggregate(...args: any[]): any;
+export function verifyMigrationArtifactReceipt(...args: any[]): any;
+export function verifyPinnedCliAttestation(...args: any[]): any;
+export function verifyPostPublishAlphaStatusV8Aggregate(...args: any[]): any;
+export function verifyPostPublishFoundedProtocolV3Aggregate(...args: any[]): any;
+export function verifyPostPublishResourceProtocolV4PrebackfillAggregate(...args: any[]): any;
+export function verifyPostPublishResourceProtocolV4ReadyAggregate(...args: any[]): any;
+export function verifyPostPublishResourcePublicationCheckpoints(...args: any[]): any;
+export function verifyPrivacySafeAlphaStatusV8Output(...args: any[]): any;

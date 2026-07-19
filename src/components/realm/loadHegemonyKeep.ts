@@ -33,7 +33,11 @@ export const HEGEMONY_KEEP_RUNTIME_ASSETS = Object.freeze({
   })
 });
 
-export type HegemonyModelMaterialRole = 'castle' | 'landscape-base';
+export type HegemonyModelMaterialRole =
+  | 'castle'
+  | 'landscape-base'
+  | 'gathering-node'
+  | 'wagon';
 
 /**
  * One bounded runtime response calibration for the owner-approved GameReady
@@ -46,7 +50,10 @@ export const HEGEMONY_MODEL_MATERIAL_CALIBRATION = Object.freeze({
   revision: 'sunlit-lowlands-v3',
   maximumColorChannel: 1.25,
   castleDiffuseGain: 1.22,
-  landscapeBaseDiffuseGain: 1.1
+  landscapeBaseDiffuseGain: 1.1,
+  /** Readable sunlit assets, without applying the castle masonry lift. */
+  gatheringNodeDiffuseGain: 1.13,
+  wagonDiffuseGain: 1.08
 });
 
 const MATERIAL_CALIBRATION_STATE_KEY = 'warpkeepReadableSurface';
@@ -383,7 +390,11 @@ export function tuneHegemonyModelMaterial(
   const authoredColor = authoredMaterialColor(material);
   const diffuseGain = role === 'castle'
     ? HEGEMONY_MODEL_MATERIAL_CALIBRATION.castleDiffuseGain
-    : HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain;
+    : role === 'landscape-base'
+      ? HEGEMONY_MODEL_MATERIAL_CALIBRATION.landscapeBaseDiffuseGain
+      : role === 'gathering-node'
+        ? HEGEMONY_MODEL_MATERIAL_CALIBRATION.gatheringNodeDiffuseGain
+        : HEGEMONY_MODEL_MATERIAL_CALIBRATION.wagonDiffuseGain;
   const maximumChannel = HEGEMONY_MODEL_MATERIAL_CALIBRATION.maximumColorChannel;
   material.color.setRGB(
     Math.min(maximumChannel, authoredColor[0] * diffuseGain),

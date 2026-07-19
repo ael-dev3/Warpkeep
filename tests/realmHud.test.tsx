@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RealmHud } from '../src/components/realm/RealmHud';
@@ -179,12 +179,12 @@ describe('RealmHud', () => {
 
     const rail = screen.getByRole('region', { name: 'Your resources' });
     const entries = within(rail).getAllByRole('listitem');
-    expect(entries.map((entry) => entry.getAttribute('aria-label'))).toEqual([
-      'Food balance: 0; pending yield: 0',
-      'Wood balance: 0; pending yield: 0',
-      'Stone balance: 0; pending yield: 0',
-      'Gold balance: 0; pending yield: 0',
-      'Marks balance: 0 Marks'
+    expect(entries.map((entry) => entry.querySelector('button')?.getAttribute('aria-label'))).toEqual([
+      'Food: 0 stored; 0 ready to collect. Show resource details.',
+      'Wood: 0 stored; 0 ready to collect. Show resource details.',
+      'Stone: 0 stored; 0 ready to collect. Show resource details.',
+      'Gold: 0 stored; 0 ready to collect. Show resource details.',
+      'Community Marks: 0 Marks. Show Marks details.'
     ]);
     expect(entries.map((entry) => entry.querySelector('strong')?.textContent))
       .toEqual(['0', '0', '0', '0', '0']);
@@ -195,6 +195,79 @@ describe('RealmHud', () => {
       .toContain('hegemony-mark-64.png');
     const { dialog } = openRealmMenu();
     expect(within(dialog).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
+  });
+
+  it('explains current resource behavior on pointer, keyboard, and touch', () => {
+    const base = createReadyResourceState();
+    render(
+      <RealmHud
+        {...commonProps()}
+        resources={{
+          ...base,
+          balances: { food: 200n, wood: 150n, stone: 100n, gold: 25n },
+          pendingBalances: { food: 8n, wood: 5n, stone: 3n, gold: 1n },
+          marksBalanceMicros: 123_450_000n
+        }}
+      />
+    );
+
+    const rail = screen.getByRole('region', { name: 'Your resources' });
+    const food = within(rail).getByRole('button', {
+      name: 'Food: 200 stored; 8 ready to collect. Show resource details.'
+    });
+    const wood = within(rail).getByRole('button', { name: /Wood: 150 stored/i });
+    const stone = within(rail).getByRole('button', { name: /Stone: 100 stored/i });
+    const gold = within(rail).getByRole('button', { name: /Gold: 25 stored/i });
+    const marks = within(rail).getByRole('button', {
+      name: 'Community Marks: 123.45 Marks. Show Marks details.'
+    });
+    const stableFoodDescriptionId = food.getAttribute('aria-describedby');
+
+    expect(stableFoodDescriptionId).toBeTruthy();
+    expect(document.getElementById(stableFoodDescriptionId!)?.hasAttribute('hidden')).toBe(true);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+
+    fireEvent.pointerEnter(food, { pointerType: 'mouse' });
+    let tooltip = screen.getByRole('tooltip');
+    expect(tooltip.textContent).toContain('200 stored · 8 ready to collect');
+    expect(tooltip.textContent).toContain('farm expeditions can gather more');
+    expect(tooltip.textContent).toContain('Spending is not live yet');
+    expect(tooltip.getAttribute('aria-live')).toBe('off');
+    expect(food.getAttribute('aria-describedby')).toBe(tooltip.id);
+    expect(rail.getAttribute('data-tooltip-open')).toBe('food');
+    fireEvent.pointerLeave(food, { pointerType: 'mouse', relatedTarget: rail });
+    expect(screen.getByRole('tooltip')).toBe(tooltip);
+    fireEvent.pointerEnter(tooltip, { pointerType: 'mouse', relatedTarget: food });
+    expect(screen.getByRole('tooltip')).toBe(tooltip);
+    fireEvent.pointerLeave(tooltip, { pointerType: 'mouse', relatedTarget: document.body });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+
+    act(() => wood.focus());
+    tooltip = screen.getByRole('tooltip');
+    expect(tooltip.textContent).toContain('logging expeditions can gather more');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    expect(document.activeElement).toBe(wood);
+
+    act(() => stone.focus());
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('quarry sites and Stone spending are not live yet');
+    act(() => gold.focus());
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('comes only from mine expeditions');
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('terrain Gold and spending are not live');
+    act(() => marks.focus());
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('Separate community-attribution balance');
+    expect(rail.getAttribute('data-tooltip-open')).toBe('marks');
+
+    act(() => marks.blur());
+    fireEvent.pointerDown(gold, { pointerType: 'touch' });
+    fireEvent.click(gold);
+    expect(screen.getByRole('tooltip').getAttribute('data-resource')).toBe('gold');
+    fireEvent.pointerDown(document.body, { pointerType: 'touch' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 
   it('collects an available yield only through the command callback', async () => {
@@ -213,8 +286,12 @@ describe('RealmHud', () => {
       />
     );
 
-    expect(screen.getByLabelText('Food balance: 200; pending yield: 8')).not.toBeNull();
-    expect(screen.getByLabelText('Marks balance: 123.45 Marks')).not.toBeNull();
+    expect(screen.getByRole('button', {
+      name: 'Food: 200 stored; 8 ready to collect. Show resource details.'
+    })).not.toBeNull();
+    expect(screen.getByRole('button', {
+      name: 'Community Marks: 123.45 Marks. Show Marks details.'
+    })).not.toBeNull();
     const { dialog } = openRealmMenu();
     fireEvent.click(within(dialog).getByRole('button', { name: /COLLECT YIELD/i }));
     await waitFor(() => expect(onCollectResources).toHaveBeenCalledOnce());

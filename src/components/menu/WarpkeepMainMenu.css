@@ -993,6 +993,25 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
   }
 }
 
+/* The build disclosure remains a 44px tap target on compact phones. Collapse
+ * the neighbouring Return label before the two independent footer controls
+ * can overlap; its accessible name still announces the full destination. */
+@media (max-width: 430px) and (orientation: portrait) {
+  .warpkeep-menu .warpkeep-menu-back {
+    justify-content: center;
+    width: 2.75rem;
+    padding-inline: 0.45rem;
+  }
+
+  .warpkeep-menu-back__arrow {
+    margin-right: 0;
+  }
+
+  .warpkeep-menu-back__label {
+    display: none;
+  }
+}
+
 @media (max-height: 650px) and (orientation: landscape) {
   .warpkeep-menu[data-menu-surface="farcaster-auth"] .warpkeep-menu-heading {
     top: max(0.75rem, calc(env(safe-area-inset-top) + 0.4rem));

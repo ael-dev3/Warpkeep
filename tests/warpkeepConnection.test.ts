@@ -12,12 +12,18 @@ import {
   CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS,
   connectWarpkeep,
   bootstrapWarpkeepPlayer,
+  collectWarpkeepGoldExpedition,
+  collectWarpkeepWoodExpedition,
   collectWarpkeepResources,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
+  dispatchWarpkeepGoldExpedition,
+  dispatchWarpkeepWoodExpedition,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
+  readWarpkeepGoldExpeditionState,
+  readWarpkeepWoodExpeditionState,
   readWarpkeepResourceState,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
@@ -29,6 +35,10 @@ import {
 } from '../spacetimedb/src/marksAuthorityPolicy';
 import type { WarpkeepRuntimeConfig } from '../src/spacetime/warpkeepConfig';
 import type { WarpkeepRealmSnapshotCandidate } from '../src/spacetime/warpkeepBackendTypes';
+import {
+  CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+  CANONICAL_GENESIS_FOREST_LAYOUT_V1
+} from '../spacetimedb/src/forestLayoutPolicy';
 import {
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate
@@ -99,6 +109,66 @@ function connectionForCandidate(candidate: WarpkeepRealmSnapshotCandidate): Warp
       castle: table(rows.castle)
     }
   } as unknown as WarpkeepConnection;
+}
+
+function callbackSubscriptionDouble() {
+  let onApplied: (() => void) | undefined;
+  let onError: (() => void) | undefined;
+  const subscription = { unsubscribe: vi.fn() };
+  const builder = {
+    onApplied: vi.fn((callback: () => void) => {
+      onApplied = callback;
+      return builder;
+    }),
+    onError: vi.fn((callback: () => void) => {
+      onError = callback;
+      return builder;
+    }),
+    subscribe: vi.fn(() => subscription)
+  };
+  return Object.freeze({
+    builder,
+    subscription,
+    apply: () => onApplied?.(),
+    fail: () => onError?.()
+  });
+}
+
+/**
+ * A core + paired-forest browser double. Gold is intentionally absent so the
+ * test isolates the forest subscription's atomic visibility boundary.
+ */
+function forestSubscriptionConnection(
+  candidate: WarpkeepRealmSnapshotCandidate,
+  forest: Readonly<{
+    layoutRows?: readonly unknown[];
+    treeRows?: readonly unknown[];
+  }> = {}
+) {
+  const rows = rawRowsForCandidate(candidate);
+  const table = <T,>(values: readonly T[]) => ({
+    iter: function* () { yield* values; }
+  });
+  const core = callbackSubscriptionDouble();
+  const pairedForest = callbackSubscriptionDouble();
+  const connection = {
+    db: {
+      worldTile: table(rows.worldTile),
+      worldTileMetaV1: table(rows.worldTileMetaV1),
+      playerV2: table(rows.playerV2),
+      realmProfileV1: table(rows.realmProfileV1),
+      realmV1: table(rows.realmV1),
+      castle: table(rows.castle),
+      realmForestLayoutV1: table(forest.layoutRows ?? [
+        { ...CANONICAL_GENESIS_FOREST_LAYOUT_V1, seededAt: timestamp() }
+      ]),
+      realmForestInstanceV1: table(forest.treeRows ?? CANONICAL_GENESIS_FOREST_INSTANCES_V1)
+    },
+    subscriptionBuilder: vi.fn()
+      .mockReturnValueOnce(core.builder)
+      .mockReturnValueOnce(pairedForest.builder)
+  } as unknown as WarpkeepConnection;
+  return Object.freeze({ connection, core, pairedForest });
 }
 
 type RealmTableListener = (context: EventContext, ...rows: unknown[]) => void;
@@ -267,7 +337,7 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(window.localStorage.length).toBe(0);
   });
 
-  it('subscribes only to the six admission-gated public realm projections', () => {
+  it('keeps the core subscription live when additive Gold tables are absent', () => {
     const subscription = { unsubscribe: vi.fn() };
     const subscriptionBuilder = {
       onApplied: vi.fn(),
@@ -280,7 +350,7 @@ describe('Warpkeep authenticated connection boundary', () => {
       subscriptionBuilder: () => subscriptionBuilder
     } as unknown as WarpkeepConnection;
 
-    expect(subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn())).toBe(subscription);
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
     expect(subscriptionBuilder.subscribe).toHaveBeenCalledWith([
       tables.worldTile,
       tables.worldTileMetaV1,
@@ -289,6 +359,196 @@ describe('Warpkeep authenticated connection boundary', () => {
       tables.realmV1,
       tables.realmProfileV1
     ]);
+    composite.unsubscribe();
+    expect(subscription.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('subscribes only to public Gold site and occupancy tables, never the scheduler', () => {
+    const coreSubscription = { unsubscribe: vi.fn() };
+    const goldSubscription = { unsubscribe: vi.fn() };
+    const firstBuilder = {
+      onApplied: vi.fn(),
+      onError: vi.fn(),
+      subscribe: vi.fn(() => coreSubscription)
+    };
+    const secondBuilder = {
+      onApplied: vi.fn(),
+      onError: vi.fn(),
+      subscribe: vi.fn(() => goldSubscription)
+    };
+    firstBuilder.onApplied.mockReturnValue(firstBuilder);
+    firstBuilder.onError.mockReturnValue(firstBuilder);
+    secondBuilder.onApplied.mockReturnValue(secondBuilder);
+    secondBuilder.onError.mockReturnValue(secondBuilder);
+    const connection = {
+      db: { goldSiteV1: {}, goldNodeOccupationV1: {} },
+      subscriptionBuilder: vi.fn()
+        .mockReturnValueOnce(firstBuilder)
+        .mockReturnValueOnce(secondBuilder)
+    } as unknown as WarpkeepConnection;
+
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+
+    expect(firstBuilder.subscribe).toHaveBeenCalledWith([
+      tables.worldTile,
+      tables.worldTileMetaV1,
+      tables.playerV2,
+      tables.castle,
+      tables.realmV1,
+      tables.realmProfileV1
+    ]);
+    expect(secondBuilder.subscribe).toHaveBeenCalledWith([
+      tables.goldSiteV1,
+      tables.goldNodeOccupationV1
+    ]);
+    composite.unsubscribe();
+    expect(coreSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(goldSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('subscribes only to public Wood site and occupancy tables, never the scheduler', () => {
+    const coreSubscription = { unsubscribe: vi.fn() };
+    const woodSubscription = { unsubscribe: vi.fn() };
+    const firstBuilder = {
+      onApplied: vi.fn(),
+      onError: vi.fn(),
+      subscribe: vi.fn(() => coreSubscription)
+    };
+    const secondBuilder = {
+      onApplied: vi.fn(),
+      onError: vi.fn(),
+      subscribe: vi.fn(() => woodSubscription)
+    };
+    firstBuilder.onApplied.mockReturnValue(firstBuilder);
+    firstBuilder.onError.mockReturnValue(firstBuilder);
+    secondBuilder.onApplied.mockReturnValue(secondBuilder);
+    secondBuilder.onError.mockReturnValue(secondBuilder);
+    const connection = {
+      db: { woodSiteV1: {}, woodNodeOccupationV1: {} },
+      subscriptionBuilder: vi.fn()
+        .mockReturnValueOnce(firstBuilder)
+        .mockReturnValueOnce(secondBuilder)
+    } as unknown as WarpkeepConnection;
+
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+
+    expect(secondBuilder.subscribe).toHaveBeenCalledWith([
+      tables.woodSiteV1,
+      tables.woodNodeOccupationV1
+    ]);
+    composite.unsubscribe();
+    expect(coreSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(woodSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes the paired shared forest visible only after its subscription applies', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedForest } = forestSubscriptionConnection(candidate);
+    const onApplied = vi.fn();
+    const composite = subscribeToWarpkeepRealm(connection, onApplied, vi.fn());
+
+    expect(core.builder.subscribe).toHaveBeenCalledWith([
+      tables.worldTile,
+      tables.worldTileMetaV1,
+      tables.playerV2,
+      tables.castle,
+      tables.realmV1,
+      tables.realmProfileV1
+    ]);
+    expect(pairedForest.builder.subscribe).toHaveBeenCalledWith([
+      tables.realmForestLayoutV1,
+      tables.realmForestInstanceV1
+    ]);
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('forestTrees');
+
+    core.apply();
+    expect(onApplied).toHaveBeenCalledTimes(1);
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('forestTrees');
+
+    pairedForest.apply();
+    expect(onApplied).toHaveBeenCalledTimes(2);
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.forestLayout).toEqual(CANONICAL_GENESIS_FOREST_LAYOUT_V1);
+    expect(snapshot.forestTrees).toEqual(CANONICAL_GENESIS_FOREST_INSTANCES_V1);
+    expect(Object.isFrozen(snapshot.forestTrees)).toBe(true);
+
+    composite.unsubscribe();
+    expect(core.subscription.unsubscribe).toHaveBeenCalledOnce();
+    expect(pairedForest.subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('preserves an applied but unseeded forest pair as present-invalid', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedForest } = forestSubscriptionConnection(candidate, {
+      layoutRows: [],
+      treeRows: []
+    });
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+    core.apply();
+    pairedForest.apply();
+
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.forestLayout).toEqual([]);
+    expect(snapshot.forestTrees).toEqual([]);
+    expect(snapshot).toHaveProperty('forestTrees');
+
+    composite.unsubscribe();
+  });
+
+  it('bounds malformed forest iterators before allocating their full projection', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedForest } = forestSubscriptionConnection(candidate);
+    const db = connection.db as unknown as Record<string, unknown>;
+    let layoutReads = 0;
+    db.realmForestLayoutV1 = {
+      iter: function* () {
+        while (true) {
+          layoutReads += 1;
+          if (layoutReads > 2) throw new Error('layout iterator read past overflow sentinel');
+          yield CANONICAL_GENESIS_FOREST_LAYOUT_V1;
+        }
+      }
+    };
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+    core.apply();
+    pairedForest.apply();
+
+    const oversizedLayout = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(layoutReads).toBe(2);
+    expect(oversizedLayout).not.toHaveProperty('forestLayout');
+    expect(oversizedLayout.forestTrees).toEqual([]);
+
+    let treeReads = 0;
+    db.realmForestLayoutV1 = {
+      iter: function* () { yield CANONICAL_GENESIS_FOREST_LAYOUT_V1; }
+    };
+    db.realmForestInstanceV1 = {
+      iter: function* () {
+        while (true) {
+          treeReads += 1;
+          if (treeReads > 211) throw new Error('tree iterator read past overflow sentinel');
+          yield CANONICAL_GENESIS_FOREST_INSTANCES_V1[0];
+        }
+      }
+    };
+
+    const oversizedTrees = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(treeReads).toBe(211);
+    expect(oversizedTrees).not.toHaveProperty('forestLayout');
+    expect(oversizedTrees.forestTrees).toEqual([]);
+
+    composite.unsubscribe();
+  });
+
+  it('omits forest fields for a pre-v6 connection without the public pair', () => {
+    const snapshot = readWarpkeepRealmSnapshot(
+      connectionForCandidate(createCanonicalGenesisCandidate()),
+      CANONICAL_TEST_FID
+    );
+    expect(snapshot).not.toHaveProperty('forestLayout');
+    expect(snapshot).not.toHaveProperty('forestTrees');
   });
 
   it('uses only the versioned admission procedure and bootstrap reducer', async () => {
@@ -308,7 +568,7 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(connection.procedures.getMyAdmissionStatusV2).toHaveBeenCalledWith({});
     expect(connection.reducers.bootstrapPlayerV2).toHaveBeenCalledWith({});
     expect(connection.reducers.acceptAlphaTermsV1).toHaveBeenCalledWith({
-      termsVersion: '2026-07-14',
+      termsVersion: BROWSER_ALPHA_TERMS_VERSION,
       accepted: true
     });
   });
@@ -359,8 +619,151 @@ describe('Warpkeep authenticated connection boundary', () => {
       .rejects.toThrow('Warpkeep resources are unavailable.');
   });
 
+  it('keeps Gold dispatch and settlement caller-bound, then reads exact private projections', async () => {
+    const resourceProjection = {
+      fid: BigInt(CANONICAL_TEST_FID),
+      food: 200n,
+      wood: 150n,
+      stone: 100n,
+      gold: 25n,
+      pendingFood: 8n,
+      pendingWood: 5n,
+      pendingStone: 3n,
+      pendingGold: 1n,
+      marksBalanceMicros: 12_500_000n,
+      observedAtMicros: 1_800_000_600_000_000n,
+      settledThroughMicros: 1_800_000_000_000_000n,
+      nextCollectAtMicros: 1_800_001_200_000_000n,
+      revision: 4n,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      terrainKind: 'lowland'
+    } as const;
+    const goldProjection = {
+      active: false,
+      expeditionId: undefined,
+      siteId: undefined,
+      originCastleId: undefined,
+      phase: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnsAtMicros: undefined,
+      accruedGold: 0n,
+      pendingGold: 0n,
+      creditedGold: 0n,
+      rateGoldPerMinute: 1n,
+      gatheringDurationMicros: 2_592_000_000_000n,
+      expeditionPolicyVersion: undefined
+    } as const;
+    const connection = {
+      procedures: {
+        getMyResourceStateV1: vi.fn(async () => resourceProjection),
+        getMyGoldExpeditionStateV1: vi.fn(async () => goldProjection)
+      },
+      reducers: {
+        dispatchGoldExpeditionV1: vi.fn(async () => undefined),
+        collectGoldExpeditionV1: vi.fn(async () => undefined)
+      }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepGoldExpeditionState(connection)).resolves
+      .toMatchObject({ active: false, pendingGold: 0n });
+    await expect(dispatchWarpkeepGoldExpedition(
+      connection,
+      'gold:genesis:001',
+      '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    )).resolves.toMatchObject({ active: false });
+    await expect(collectWarpkeepGoldExpedition(connection, CANONICAL_TEST_FID)).resolves
+      .toMatchObject({
+        resources: { fid: BigInt(CANONICAL_TEST_FID) },
+        goldExpedition: { active: false }
+      });
+    expect(connection.reducers.dispatchGoldExpeditionV1).toHaveBeenCalledWith({
+      siteId: 'gold:genesis:001',
+      idempotencyKey: '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    });
+    expect(connection.reducers.collectGoldExpeditionV1).toHaveBeenCalledWith({});
+    await expect(dispatchWarpkeepGoldExpedition(connection, 'bad site', 'not-valid'))
+      .rejects.toThrow('Gold expedition is unavailable.');
+    expect(connection.reducers.dispatchGoldExpeditionV1).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Wood dispatch and settlement caller-bound, then reads exact private projections', async () => {
+    const resourceProjection = {
+      fid: BigInt(CANONICAL_TEST_FID),
+      food: 200n,
+      wood: 150n,
+      stone: 100n,
+      gold: 25n,
+      pendingFood: 8n,
+      pendingWood: 5n,
+      pendingStone: 3n,
+      pendingGold: 1n,
+      marksBalanceMicros: 12_500_000n,
+      observedAtMicros: 1_800_000_600_000_000n,
+      settledThroughMicros: 1_800_000_000_000_000n,
+      nextCollectAtMicros: 1_800_001_200_000_000n,
+      revision: 4n,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      terrainKind: 'lowland'
+    } as const;
+    const woodProjection = {
+      active: false,
+      expeditionId: undefined,
+      siteId: undefined,
+      originCastleId: undefined,
+      phase: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnsAtMicros: undefined,
+      accruedWood: 0n,
+      pendingWood: 0n,
+      creditedWood: 0n,
+      rateWoodPerMinute: 1n,
+      gatheringDurationMicros: 2_592_000_000_000n,
+      expeditionPolicyVersion: undefined
+    } as const;
+    const connection = {
+      procedures: {
+        getMyResourceStateV1: vi.fn(async () => resourceProjection),
+        getMyWoodExpeditionStateV1: vi.fn(async () => woodProjection)
+      },
+      reducers: {
+        dispatchWoodExpeditionV1: vi.fn(async () => undefined),
+        collectWoodExpeditionV1: vi.fn(async () => undefined)
+      }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepWoodExpeditionState(connection)).resolves
+      .toMatchObject({ active: false, pendingWood: 0n });
+    await expect(dispatchWarpkeepWoodExpedition(
+      connection,
+      'wood:genesis:001',
+      '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    )).resolves.toMatchObject({ active: false });
+    await expect(collectWarpkeepWoodExpedition(connection, CANONICAL_TEST_FID)).resolves
+      .toMatchObject({
+        resources: { fid: BigInt(CANONICAL_TEST_FID) },
+        woodExpedition: { active: false }
+      });
+    expect(connection.reducers.dispatchWoodExpeditionV1).toHaveBeenCalledWith({
+      siteId: 'wood:genesis:001',
+      idempotencyKey: '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    });
+    expect(connection.reducers.collectWoodExpeditionV1).toHaveBeenCalledWith({});
+    await expect(dispatchWarpkeepWoodExpedition(connection, 'bad site', 'not-valid'))
+      .rejects.toThrow('Wood expedition is unavailable.');
+    expect(connection.reducers.dispatchWoodExpeditionV1).toHaveBeenCalledTimes(1);
+  });
+
   it('pins the browser and authoritative module to the same Terms version', () => {
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(MODULE_ALPHA_TERMS_VERSION);
+    expect(BROWSER_ALPHA_TERMS_VERSION).toBe(
+      '2026-07-19-hegemony-entry-agreement-v2'
+    );
   });
 
   it('contains no legacy player subscription, cache read, or observer path', () => {
@@ -581,6 +984,42 @@ describe('Warpkeep authenticated connection boundary', () => {
       realmV1.table,
       realmProfileV1.table
     ]) {
+      expect(source.removeOnInsert).toHaveBeenCalledOnce();
+      expect(source.removeOnDelete).toHaveBeenCalledOnce();
+      expect(source.removeOnUpdate).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('observes and releases both public forest tables with the Realm lifecycle', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const observed = observableConnectionForCandidate(candidate);
+    const forestLayout = observableTableDouble([
+      { ...CANONICAL_GENESIS_FOREST_LAYOUT_V1, seededAt: timestamp() }
+    ]);
+    const forestInstances = observableTableDouble(CANONICAL_GENESIS_FOREST_INSTANCES_V1);
+    Object.assign(
+      (observed.connection.db as unknown as Record<string, unknown>),
+      {
+        realmForestLayoutV1: forestLayout.table,
+        realmForestInstanceV1: forestInstances.table
+      }
+    );
+    const onChange = vi.fn();
+    const cleanup = observeWarpkeepRealm(
+      observed.connection,
+      CANONICAL_TEST_FID,
+      onChange,
+      vi.fn()
+    );
+    const context = {
+      event: { id: 'forest-layout-update', tag: 'Transaction' }
+    } as unknown as EventContext;
+
+    forestLayout.listeners.update?.(context);
+    expect(onChange).toHaveBeenCalledOnce();
+
+    cleanup();
+    for (const source of [forestLayout.table, forestInstances.table]) {
       expect(source.removeOnInsert).toHaveBeenCalledOnce();
       expect(source.removeOnDelete).toHaveBeenCalledOnce();
       expect(source.removeOnUpdate).toHaveBeenCalledOnce();

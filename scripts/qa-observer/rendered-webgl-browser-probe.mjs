@@ -103,10 +103,23 @@ const RENDERED_WEBGL_QA_MAP_DRAG_OFFSETS = Object.freeze([
   Object.freeze({ x: 52, y: 14 }),
 ]);
 const RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS = 10_000;
+// The canonical shared forest is a separate static world layer, not part of
+// the quality-scaled procedural feature budget. Presentation telemetry includes
+// it, so the browser ceiling must include its exact 210 instances as well.
+const RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT = 210;
 const TERRAIN_PRESENTATION_BUDGETS = Object.freeze({
-  high: Object.freeze({ semanticFeatureCount: 1_100, totalDetailInstanceCount: 7_000 }),
-  balanced: Object.freeze({ semanticFeatureCount: 800, totalDetailInstanceCount: 5_500 }),
-  reduced: Object.freeze({ semanticFeatureCount: 400, totalDetailInstanceCount: 3_000 }),
+  high: Object.freeze({
+    semanticFeatureCount: 1_100 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
+    totalDetailInstanceCount: 7_000 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
+  }),
+  balanced: Object.freeze({
+    semanticFeatureCount: 800 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
+    totalDetailInstanceCount: 5_500 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
+  }),
+  reduced: Object.freeze({
+    semanticFeatureCount: 400 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
+    totalDetailInstanceCount: 3_000 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
+  }),
 });
 const LABEL_CULL_REASONS = new Set([
   'associated-castle',

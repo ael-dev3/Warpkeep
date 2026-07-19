@@ -17,48 +17,30 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '18 JUL 2026',
-      title: 'THE REALM GROWS'
+      releasedOn: '19 JUL 2026',
+      title: 'THE FRONTIER STIRS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /10,000 persistent cells.*original cell.*100 close-outward founder sites.*no castle was moved/i
+      /Gold Mines.*Wheat Farms.*Logging Camps.*shared map.*private.*server-governed wagon/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /return to their keep.*explore the Lowlands.*inspect the public identity.*nearby castle owners/i
+      /shared forest.*wind-tossed Lowlands.*terrain.*roads.*castle ownership.*resource authority unchanged/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Food, Wood, Stone, and Gold.*begin at zero.*grow from its terrain.*Realm, not the browser.*Marks.*cannot be spent or earned as rewards/i
+      /Stone continues as keep terrain yield only.*Quarry art is visual groundwork/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /outer frontier.*dormant space.*future resource sites.*no map node.*building.*unit.*combat.*alliance.*trade.*season/i
+      /profile update or clear cannot take a founded keep away/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /sleeping Realm.*more time to wake.*same founder.*reconnects.*Genesis stays in view.*private controls wait safely.*authority to return/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /no airdrop.*guaranteed reward.*financial return.*promise of future value/i
+      /Construction.*upgrades.*armies.*combat.*trading.*not playable yet.*Community Marks remain separate.*no reward or financial promise/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /public balances|guaranteed rewards/i
+      /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toMatch(
-      /wider horizon.*founding neighbourhood/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).not.toMatch(
-      /candidate|undeployed/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'Released 18 July 2026'
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'Alpha systems remain experimental and may change'
-    );
-    expect(getLatestPatchNotes('0.3.7')?.title).toBe('GENESIS RESOURCE AUTHORITY');
-    expect(getLatestPatchNotes('0.3.6')?.title).toBe('REALM READABILITY & STABILITY');
-    expect(getLatestPatchNotes('0.3.5')?.title).toBe('GAME-READY CASTLE REFRESH');
-    expect(getLatestPatchNotes('0.3.4')?.title).toBe('REALM QUALITY FOLLOW-THROUGH');
-    expect(getLatestPatchNotes('0.3.3')?.title).toBe('GENESIS REALM QUALITY');
-    expect(getLatestPatchNotes('0.3.2')?.title).toBe('GENESIS 001 FOUNDING');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('living strategy world');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('core strategy loop');
+    expect(getLatestPatchNotes('0.3.8')).toBeUndefined();
     expect(getLatestPatchNotes('0.0.0')).toBeUndefined();
     expect(getLatestPatchNotes('__proto__')).toBeUndefined();
   });

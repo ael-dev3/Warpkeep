@@ -72,13 +72,13 @@ test('initial resources use whole-unit u64 balances and a server-supplied cursor
 
 test('every canonical terrain has explicit deterministic production rates', () => {
   const expected = {
-    lowland: { food: 8n, wood: 5n, stone: 3n, gold: 1n },
-    meadow: { food: 10n, wood: 4n, stone: 2n, gold: 1n },
-    forest: { food: 5n, wood: 10n, stone: 3n, gold: 1n },
-    heath: { food: 5n, wood: 6n, stone: 5n, gold: 2n },
-    ridge: { food: 3n, wood: 4n, stone: 10n, gold: 2n },
-    lake: { food: 10n, wood: 4n, stone: 2n, gold: 1n },
-    'ancient-stone': { food: 3n, wood: 4n, stone: 8n, gold: 4n },
+    lowland: { food: 8n, wood: 5n, stone: 3n, gold: 0n },
+    meadow: { food: 10n, wood: 4n, stone: 2n, gold: 0n },
+    forest: { food: 5n, wood: 10n, stone: 3n, gold: 0n },
+    heath: { food: 5n, wood: 6n, stone: 5n, gold: 0n },
+    ridge: { food: 3n, wood: 4n, stone: 10n, gold: 0n },
+    lake: { food: 10n, wood: 4n, stone: 2n, gold: 0n },
+    'ancient-stone': { food: 3n, wood: 4n, stone: 8n, gold: 0n },
   } as const;
 
   assert.deepEqual(REALM_RESOURCE_TERRAIN_RATES, expected);
@@ -106,7 +106,7 @@ test('settlement advances only through whole quanta and preserves the incomplete
   assert.equal(plan.settledThroughMicros, CURSOR + (2n * REALM_RESOURCE_QUANTUM_MICROS));
   assert.equal(plan.nextCollectAtMicros, CURSOR + (3n * REALM_RESOURCE_QUANTUM_MICROS));
   assert.equal(plan.revision, 8n);
-  assert.deepEqual(plan.deltas, { food: 10n, wood: 20n, stone: 6n, gold: 2n });
+  assert.deepEqual(plan.deltas, { food: 10n, wood: 20n, stone: 6n, gold: 0n });
 
   const followupState = account({
     ...plan.balances,
@@ -154,9 +154,9 @@ test('balances cap exactly while completed time and revision still advance', () 
     food: REALM_RESOURCE_BALANCE_CAP,
     wood: REALM_RESOURCE_BALANCE_CAP - 5n,
     stone: REALM_RESOURCE_BALANCE_CAP,
-    gold: REALM_RESOURCE_BALANCE_CAP,
+    gold: REALM_RESOURCE_BALANCE_CAP - 1n,
   });
-  assert.deepEqual(plan.deltas, { food: 2n, wood: 15n, stone: 0n, gold: 1n });
+  assert.deepEqual(plan.deltas, { food: 2n, wood: 15n, stone: 0n, gold: 0n });
   assert.equal(plan.settledThroughMicros, CURSOR + (3n * REALM_RESOURCE_QUANTUM_MICROS));
   assert.equal(plan.revision, 10n);
 
@@ -164,7 +164,7 @@ test('balances cap exactly while completed time and revision still advance', () 
     food: REALM_RESOURCE_BALANCE_CAP,
     wood: REALM_RESOURCE_BALANCE_CAP,
     stone: REALM_RESOURCE_BALANCE_CAP,
-    gold: REALM_RESOURCE_BALANCE_CAP,
+    gold: 0n,
   });
   const cappedPlan = settle(account({ ...capped }), 5n, 99n, 'ancient-stone');
   assert.deepEqual(cappedPlan.balances, capped);
@@ -190,7 +190,7 @@ test('very large server time settles with bigint math while an unrepresentable n
     food: REALM_RESOURCE_BALANCE_CAP,
     wood: REALM_RESOURCE_BALANCE_CAP,
     stone: REALM_RESOURCE_BALANCE_CAP,
-    gold: REALM_RESOURCE_BALANCE_CAP,
+    gold: 0n,
   });
   assert.equal(plan.revision, RESOURCE_U64_MAX);
   assert.throws(
