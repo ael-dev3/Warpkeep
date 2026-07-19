@@ -49,6 +49,10 @@ import {
   GENESIS_WATER_ENVIRONMENT_V1,
   GENESIS_WATER_LAYOUT_V1
 } from '../spacetimedb/src/waterWorld';
+import {
+  CANONICAL_GENESIS_WATER_REVISION_V1,
+  GENESIS_WATER_REVISION_ENABLED_CELLS_V1
+} from '../spacetimedb/src/waterRevision';
 import { resolveCanonicalWaterProjection } from '../src/components/realm/realmWaterProjection';
 import {
   CANONICAL_TEST_FID,
@@ -215,7 +219,10 @@ function stoneSubscriptionConnection(
 }
 
 /** Core + Water projection using the generated SDK's exact Q15 wire spelling. */
-function waterSubscriptionConnection(candidate: WarpkeepRealmSnapshotCandidate) {
+function waterSubscriptionConnection(
+  candidate: WarpkeepRealmSnapshotCandidate,
+  revisionRows?: readonly unknown[]
+) {
   const rows = rawRowsForCandidate(candidate);
   const table = <T,>(values: readonly T[]) => ({
     iter: function* () { yield* values; }
@@ -253,7 +260,10 @@ function waterSubscriptionConnection(candidate: WarpkeepRealmSnapshotCandidate) 
       realmEnvironmentV1: table([{
         ...GENESIS_WATER_ENVIRONMENT_V1,
         updatedAt: timestamp()
-      }])
+      }]),
+      ...(revisionRows === undefined ? {} : {
+        realmWaterRevisionV1: table(revisionRows)
+      })
     },
     subscriptionBuilder: vi.fn()
       .mockReturnValueOnce(core.builder)
@@ -624,6 +634,41 @@ describe('Warpkeep authenticated connection boundary', () => {
     composite.unsubscribe();
     expect(core.subscription.unsubscribe).toHaveBeenCalledOnce();
     expect(pairedWater.subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('subscribes and applies the additive river-only Water revision atomically', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedWater } = waterSubscriptionConnection(candidate, [{
+      ...CANONICAL_GENESIS_WATER_REVISION_V1,
+      activated: true,
+      seededAt: timestamp(),
+      activatedAt: timestamp()
+    }]);
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+
+    expect(pairedWater.builder.subscribe).toHaveBeenCalledWith([
+      tables.realmWaterLayoutV1,
+      tables.realmWaterBodyV1,
+      tables.realmWaterCellV1,
+      tables.realmEnvironmentV1,
+      tables.realmWaterRevisionV1
+    ]);
+    core.apply();
+    pairedWater.apply();
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.waterRevision).toEqual({
+      ...CANONICAL_GENESIS_WATER_REVISION_V1,
+      activated: true
+    });
+    expect(resolveCanonicalWaterProjection(
+      snapshot.waterLayout,
+      snapshot.waterBodies,
+      snapshot.waterCells,
+      snapshot.realmEnvironment,
+      snapshot.waterRevision
+    )).toBe(GENESIS_WATER_REVISION_ENABLED_CELLS_V1);
+
+    composite.unsubscribe();
   });
 
   it('makes the paired shared forest visible only after its subscription applies', () => {

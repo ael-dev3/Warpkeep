@@ -3,7 +3,7 @@ const RECEIPT_FIELD = 'artifact_sha256';
 const INVALID_RECEIPT_MESSAGE =
   'The current additive migration proof did not produce its exact success receipt.';
 
-export const ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 10;
+export const ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 11;
 export const ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION = '2.6.1';
 // The compiled lifecycle lane includes a nine-minute route and one complete
 // gathering minute. Keep a bounded margin for server startup and cleanup.

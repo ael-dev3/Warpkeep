@@ -18,26 +18,26 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '19 JUL 2026',
-      title: 'RIVERS OF GENESIS'
+      title: 'THE LIVING LOWLANDS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /persistent ocean.*lakes.*rivers.*unchanged castles and roads/i
+      /lakes have receded.*twelve persistent one-cell rivers.*ocean/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Stone Quarries.*Gold Mines.*Wheat Farms.*Logging Camps.*private.*server-governed wagon expedition/i
+      /pan through the coast and open water.*full fog boundary.*strategic overview/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Grass reaches farther.*touch.*viewport.*Safari.*smaller screens/i
+      /Grass.*biome patterns.*forests.*natural groves.*rivers.*roads.*keeps.*resource sites stay clear/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Social Contract is shorter and clearer.*core strategy loop is still unfinished.*no promise of rewards or financial return/i
+      /Moving supply wagons can be selected.*active expedition/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('living frontier');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('frontier');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
-    expect(getLatestPatchNotes('0.3.11')).toBeUndefined();
+    expect(getLatestPatchNotes('0.3.12')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.8')).toBeUndefined();
     expect(getLatestPatchNotes('0.0.0')).toBeUndefined();
     expect(getLatestPatchNotes('__proto__')).toBeUndefined();

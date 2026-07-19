@@ -969,6 +969,38 @@ export const realmEnvironmentV1 = table(
     updatedAt: t.timestamp(),
   },
 );
+
+/**
+ * Public singleton selecting the reviewed ocean-and-river presentation over
+ * immutable Water v1 topology. This v11 append stores policy only: no q/r,
+ * body, cell, or per-player state is duplicated here.
+ */
+export const realmWaterRevisionV1 = table(
+  { name: 'realm_water_revision_v1', public: true },
+  {
+    realmId: t.string().primaryKey(),
+    revisionVersion: t.u32(),
+    policyVersion: t.string(),
+    baseLayoutVersion: t.u32(),
+    baseLayoutDigest: t.string(),
+    oceanBodyCount: t.u32(),
+    riverBodyCount: t.u32(),
+    enabledBodyCount: t.u32(),
+    oceanCellCount: t.u32(),
+    riverCellCount: t.u32(),
+    enabledCellCount: t.u32(),
+    lakeBodyCount: t.u32(),
+    lakeCellCount: t.u32(),
+    riverWidthCells: t.u32(),
+    navigationFogBoundaryDepthCells: t.u32(),
+    hiddenBufferCells: t.u32(),
+    revisionDigest: t.string(),
+    sourceCommit: t.string(),
+    activated: t.bool(),
+    seededAt: t.timestamp(),
+    activatedAt: t.option(t.timestamp()),
+  },
+);
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -1018,6 +1050,7 @@ const warpkeep = schema({
   stoneExpeditionV1,
   stoneExpeditionIdempotencyV1,
   stoneExpeditionScheduleV1,
+  realmWaterRevisionV1,
 });
 
 /**

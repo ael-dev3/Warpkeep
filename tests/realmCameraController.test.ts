@@ -5,6 +5,7 @@ import { createTerrainOverviewHull } from '../src/components/realm/createTerrain
 import {
   clampRealmInteractiveZoom,
   clampRealmPan,
+  clampRealmPanToHexBoundary,
   createRealmCameraController,
   dampingAlpha,
   DEFAULT_REALM_CAMERA_SPEC,
@@ -19,7 +20,13 @@ import {
   REALM_INTERACTIVE_MIN_ZOOM
 } from '../src/components/realm/realmCameraController';
 import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
+import {
+  axialToWorld,
+  hexKey,
+  worldToNearestAxial
+} from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
+import { GENESIS_WATER_CELLS_V1 } from '../spacetimedb/src/waterWorld';
 
 const BOUNDS = {
   minX: -9.53,
@@ -174,15 +181,53 @@ describe('realm perspective camera math', () => {
     });
   });
 
-  it('clamps panning more tightly at the full-realm view', () => {
+  it('keeps strategic-overview panning available while clamping the visible footprint', () => {
     const overview = deriveRealmCameraPose(0, { x: 100, z: -100 }, BOUNDS, KEEP, 16 / 9);
     const closePose = deriveRealmCameraPose(1, { x: 0, z: 0 }, BOUNDS, KEEP, 16 / 9);
     const closePan = clampRealmPan({ x: 100, z: -100 }, BOUNDS, 1, closePose.visibleHalfHeight, 16 / 9);
 
-    expect(overview.target.x).toBeCloseTo(0, 6);
-    expect(overview.target.z).toBeCloseTo(0, 6);
+    expect(overview.target.x).toBeGreaterThan(0);
+    expect(overview.target.z).toBeLessThan(0);
+    expect(overview.target.x).toBeLessThanOrEqual(BOUNDS.maxX);
+    expect(overview.target.z).toBeGreaterThanOrEqual(BOUNDS.minZ);
     expect(closePan.x).toBeLessThan(11);
     expect(closePan.z).toBeGreaterThan(-10);
+  });
+
+  it('clamps diagonal camera centers to a hexagonal fog boundary', () => {
+    const boundary = { maximumCenterHexRadius: 5, hexSize: 1 };
+    const clamped = clampRealmPanToHexBoundary({ x: 100, z: 100 }, boundary);
+    const r = clamped.z * 2 / 3;
+    const q = clamped.x / Math.sqrt(3) - r * 0.5;
+    expect(Math.max(Math.abs(q), Math.abs(r), Math.abs(-q - r))).toBeCloseTo(5, 8);
+    expect(clampRealmPanToHexBoundary({ x: 1, z: -1 }, boundary))
+      .toEqual({ x: 1, z: -1 });
+  });
+
+  it('rejects every exact full-fog cell while preserving clear and haze ocean centers', () => {
+    const fullFog = GENESIS_WATER_CELLS_V1.filter((cell) => (
+      cell.regime === 'ocean' && cell.fogBand === 'full'
+    ));
+    const blockedCenterCellKeys = new Set(fullFog.map((cell) => cell.cellKey));
+    const boundary = {
+      maximumCenterHexRadius: 62,
+      hexSize: 1,
+      blockedCenterCellKeys
+    };
+    fullFog.forEach((cell) => {
+      const clamped = clampRealmPanToHexBoundary(axialToWorld(cell, 1), boundary);
+      expect(blockedCenterCellKeys.has(hexKey(worldToNearestAxial(clamped, 1))), cell.cellKey)
+        .toBe(false);
+    });
+    const recessed = clampRealmPanToHexBoundary(axialToWorld({ q: -63, r: 0 }, 1), boundary);
+    expect(hexKey(worldToNearestAxial(recessed, 1))).toBe('-61,0');
+
+    GENESIS_WATER_CELLS_V1
+      .filter((cell) => cell.regime === 'ocean' && cell.fogBand !== 'full' && cell.ring <= 62)
+      .forEach((cell) => {
+        const world = axialToWorld(cell, 1);
+        expect(clampRealmPanToHexBoundary(world, boundary), cell.cellKey).toEqual(world);
+      });
   });
 
   it('keeps the full keep footprint framed across tall portrait targets', () => {

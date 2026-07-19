@@ -45,6 +45,8 @@ export type RealmGoldNodeSceneRecord = RealmGoldNodePresentation;
 export type RealmGoldNodeInstanceHit = Readonly<{
   siteId: string;
   coord: HexCoord;
+  source: 'site' | 'wagon';
+  distance: number;
 }>;
 
 export type RealmGoldNodePresentationTelemetry = Readonly<{
@@ -368,6 +370,36 @@ export function createRealmGoldNodeLayer(
     ?? (isMobileRealmPresentation()
       ? WAGON_ANIMATION_BUDGET.mobile
       : WAGON_ANIMATION_BUDGET.desktop);
+  const wagonPickGeometry = new THREE.CylinderGeometry(0.38, 0.38, 0.84, 12);
+  const wagonPickVolumes = new THREE.InstancedMesh(
+    wagonPickGeometry,
+    pickMaterial,
+    Math.max(1, maximumRenderedWagons)
+  );
+  wagonPickVolumes.name = 'realm-gold-wagon-pick-volumes';
+  wagonPickVolumes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  wagonPickVolumes.count = 0;
+  const wagonPickIndexByInstance = new Map<number, SceneNode>();
+  const wagonPickMatrix = new THREE.Matrix4();
+  group.add(wagonPickVolumes);
+  const wagonFallbackGeometry = new THREE.OctahedronGeometry(0.17, 0);
+  const wagonFallbackMaterial = new THREE.MeshBasicMaterial({
+    color: '#f4ca58',
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const wagonFallbackMarkers = new THREE.InstancedMesh(
+    wagonFallbackGeometry,
+    wagonFallbackMaterial,
+    Math.max(1, maximumRenderedWagons)
+  );
+  wagonFallbackMarkers.name = 'realm-gold-wagon-fallback-markers';
+  wagonFallbackMarkers.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  wagonFallbackMarkers.count = 0;
+  const wagonFallbackMatrix = new THREE.Matrix4();
+  fallbackGroup.add(wagonFallbackMarkers);
   let telemetry: RealmGoldNodePresentationTelemetry = Object.freeze({
     publicSiteCount: nodes.length,
     occupiedSiteCount: nodes.filter((node) => node.record.occupation !== undefined).length,
@@ -447,7 +479,16 @@ export function createRealmGoldNodeLayer(
         const pose = resolveRealmGoldWagonPose(node.record, nowMicros);
         if (!pose) return undefined;
         const position = interpolatePose(pose, options.surface, options.terrainPlacements);
-        return { node, pose, position, distance: cameraDistance(camera, position) };
+        const distance = cameraDistance(camera, position);
+        const requestedLod = chooseWagonLod(
+          options.quality,
+          distance,
+          node.record.siteId === selectedSiteId,
+          node.record.occupiedByViewer
+        );
+        return requestedLod
+          ? { node, pose, position, distance, requestedLod }
+          : undefined;
       })
       .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== undefined)
       .sort((left, right) => (
@@ -460,13 +501,7 @@ export function createRealmGoldNodeLayer(
     let animatedWagons = 0;
     let detailedAnimatedWagons = 0;
     for (const candidate of wagonCandidates) {
-      const requestedLod = chooseWagonLod(
-        options.quality,
-        candidate.distance,
-        candidate.node.record.siteId === selectedSiteId,
-        candidate.node.record.occupiedByViewer
-      );
-      const lod = requestedLod ? loadedLodFor('wagon', requestedLod) : undefined;
+      const lod = loadedLodFor('wagon', candidate.requestedLod);
       const detailedLod = lod === 'high' || lod === 'balanced';
       const animate = lod !== undefined
         && !options.reducedMotion
@@ -518,6 +553,27 @@ export function createRealmGoldNodeLayer(
         }
       }
     }
+    wagonPickIndexByInstance.clear();
+    let wagonPickCount = 0;
+    let wagonFallbackCount = 0;
+    for (const candidate of wagonCandidates) {
+      const key = `wagon:${candidate.node.record.siteId}`;
+      const { position } = candidate;
+      wagonPickMatrix.makeTranslation(position.x, position.y + 0.42, position.z);
+      wagonPickVolumes.setMatrixAt(wagonPickCount, wagonPickMatrix);
+      wagonPickIndexByInstance.set(wagonPickCount, candidate.node);
+      wagonPickCount += 1;
+      if (visualInstances.has(key)) continue;
+      wagonFallbackMatrix.makeTranslation(position.x, position.y + 0.3, position.z);
+      wagonFallbackMarkers.setMatrixAt(wagonFallbackCount, wagonFallbackMatrix);
+      wagonFallbackCount += 1;
+    }
+    wagonPickVolumes.count = wagonPickCount;
+    wagonPickVolumes.instanceMatrix.needsUpdate = true;
+    wagonPickVolumes.computeBoundingSphere();
+    wagonFallbackMarkers.count = wagonFallbackCount;
+    wagonFallbackMarkers.instanceMatrix.needsUpdate = true;
+    wagonFallbackMarkers.computeBoundingSphere();
     lastElapsedSeconds = elapsedSeconds;
     syncFallbackMarkers();
     const renderedGoldMineCount = [...visualInstances.values()]
@@ -634,11 +690,23 @@ export function createRealmGoldNodeLayer(
   };
 
   const raycast = (raycaster: THREE.Raycaster) => {
-    const intersection = raycaster.intersectObject(pickVolumes, false)[0];
+    const siteIntersection = raycaster.intersectObject(pickVolumes, false)[0];
+    const wagonIntersection = raycaster.intersectObject(wagonPickVolumes, false)[0];
+    // A visible moving wagon is a transient, precise target and wins any
+    // overlap with its linked static site regardless of mesh depth.
+    const useWagon = wagonIntersection !== undefined;
+    const intersection = useWagon ? wagonIntersection : siteIntersection;
     const instanceId = intersection?.instanceId;
-    const node = instanceId === undefined ? undefined : pickIndexByInstance.get(instanceId);
+    const node = instanceId === undefined
+      ? undefined
+      : (useWagon ? wagonPickIndexByInstance : pickIndexByInstance).get(instanceId);
     return node
-      ? Object.freeze({ siteId: node.record.siteId, coord: node.record.coord })
+      ? Object.freeze({
+        siteId: node.record.siteId,
+        coord: node.record.coord,
+        source: useWagon ? 'wagon' as const : 'site' as const,
+        distance: intersection!.distance
+      })
       : null;
   };
 
@@ -666,6 +734,9 @@ export function createRealmGoldNodeLayer(
     selectedRing.geometry.dispose();
     (selectedRing.material as THREE.Material).dispose();
     pickGeometry.dispose();
+    wagonPickGeometry.dispose();
+    wagonFallbackGeometry.dispose();
+    wagonFallbackMaterial.dispose();
     pickMaterial.dispose();
   };
 

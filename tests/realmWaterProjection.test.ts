@@ -7,6 +7,7 @@ import {
   GENESIS_WATER_LAYOUT_V1,
   GENESIS_WATER_SUN_DIRECTION_MICRO
 } from '../spacetimedb/src/waterWorld';
+import { CANONICAL_GENESIS_WATER_REVISION_V1 } from '../spacetimedb/src/waterRevision';
 import { resolveCanonicalWaterProjection } from '../src/components/realm/realmWaterProjection';
 
 function environmentRow() {
@@ -59,6 +60,44 @@ describe('canonical water projection boundary', () => {
       driftedBodies,
       GENESIS_WATER_CELLS_V1,
       environmentRow()
+    )).toBeUndefined();
+  });
+
+  it('keeps v1 before activation and selects only ocean plus rivers afterward', () => {
+    const inactive = resolveCanonicalWaterProjection(
+      { ...GENESIS_WATER_LAYOUT_V1, activated: true },
+      GENESIS_WATER_BODIES_V1,
+      GENESIS_WATER_CELLS_V1,
+      environmentRow(),
+      { ...CANONICAL_GENESIS_WATER_REVISION_V1, activated: false }
+    );
+    expect(inactive).toBe(GENESIS_WATER_CELLS_V1);
+
+    const active = resolveCanonicalWaterProjection(
+      { ...GENESIS_WATER_LAYOUT_V1, activated: true },
+      GENESIS_WATER_BODIES_V1,
+      GENESIS_WATER_CELLS_V1,
+      environmentRow(),
+      { ...CANONICAL_GENESIS_WATER_REVISION_V1, activated: true }
+    );
+    expect(active).toHaveLength(
+      GENESIS_WATER_LAYOUT_V1.oceanCellCount + GENESIS_WATER_LAYOUT_V1.riverCellCount
+    );
+    expect(active!.every((cell) => cell.regime === 'ocean' || cell.regime === 'river')).toBe(true);
+    expect(active!.some((cell) => cell.regime === 'lake')).toBe(false);
+  });
+
+  it('fails water closed when a present revision row is malformed', () => {
+    expect(resolveCanonicalWaterProjection(
+      { ...GENESIS_WATER_LAYOUT_V1, activated: true },
+      GENESIS_WATER_BODIES_V1,
+      GENESIS_WATER_CELLS_V1,
+      environmentRow(),
+      {
+        ...CANONICAL_GENESIS_WATER_REVISION_V1,
+        revisionDigest: '0'.repeat(64),
+        activated: true
+      }
     )).toBeUndefined();
   });
 });

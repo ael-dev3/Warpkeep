@@ -135,6 +135,23 @@ describe('semantic realm terrain features', () => {
     }
   });
 
+  it('can omit legacy lake sheen for the visual land overlay', () => {
+    const { placements, semantics, surface } = canonicalInput();
+    const visualLand = generateRealmTerrainFeatures(
+      surface.renderMap,
+      semantics.terrainKindsByKey,
+      'high',
+      1,
+      placements,
+      semantics.castleSlotKeys,
+      { includeLakeSheen: false }
+    );
+
+    expect(visualLand.counts['lake-sheen']).toBe(0);
+    expect(visualLand.points.some((point) => point.kind === 'lake-sheen')).toBe(false);
+    expect(semantics.terrainKindCounts.lake).toBeGreaterThan(0);
+  });
+
   it('preserves established generation-v2 semantic features and order inside radius twenty', () => {
     const { placements, semantics, snapshot, surface } = canonicalInput();
     const establishedSurface = createAuthoritativeRealmTerrainSurface(

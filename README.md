@@ -3,15 +3,17 @@
 **[Warpkeep](https://warpkeep.com/) is an open-source software project building a persistent strategy world where a Farcaster identity becomes a permanent castle.**
 
 Genesis 001 is an invite-only Lowlands realm. Its 10,000 cells, coast, rivers,
-lakes, roads, forests, resource sites, and 100 castle foundations are shared by
+roads, forests, resource sites, and 100 castle foundations are shared by
 every player. A founder's keep stays in the same place between visits, carrying
 a public name and portrait while ownership and private resources remain
 server-controlled.
 
-Alpha 0.3.12 brings water to the Lowlands and opens Stone Quarries alongside
-Gold Mines, Wheat Farms, and Logging Camps. Founders can send a separate wagon
-to each kind of site, but this is still the beginning: construction, armies,
-combat, trade, and the wider strategy loop are not playable yet.
+Alpha 0.3.13 gives the Lowlands a more natural shape. Twelve persistent rivers
+cross clustered forests and grasslands before reaching an ocean that can be
+explored up to the fog. Founders can follow and select the separate supply
+wagon sent to each resource site, but this is still the beginning:
+construction, armies, combat, trade, and the wider strategy loop are not
+playable yet.
 
 Warpkeep is currently developed in the open by one person and shaped by
 community feedback. It is an experiment, not a financial product: Alpha
@@ -21,16 +23,16 @@ transfer, or cash-value loop.
 
 ## What is live
 
-- A persistent 10,000-cell world with a coastline, lakes, rivers, and 100
+- A persistent 10,000-cell world with a coastline, twelve rivers, and 100
   permanent castle sites.
 - Farcaster sign-in, invite-only founding, and one durable keep per player.
 - Public castle names and portraits with private ownership records.
 - Private Food, Wood, Stone, and Gold accounts; terrain yield and expedition
   settlement remain controlled by the server.
 - Shared Gold Mines, Wheat Farms, Logging Camps, and Stone Quarries, each with
-  an independent wagon expedition.
-- A shared forest, broader procedural grass, responsive WebGL rendering, and
-  accessible navigation across desktop and mobile layouts.
+  a selectable independent wagon expedition.
+- A shared forest, clustered outer groves, biome-driven grass, responsive WebGL
+  rendering, and coast-to-fog navigation across desktop and mobile layouts.
 
 The browser presents the realm. SpacetimeDB decides admission, ownership,
 balances, routes, timers, and expedition outcomes.

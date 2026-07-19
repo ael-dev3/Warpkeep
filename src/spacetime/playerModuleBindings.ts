@@ -64,6 +64,7 @@ import WorldTileRow from './module_bindings/world_tile_table'
 import RealmWaterBodyV1Row from './module_bindings/realm_water_body_v_1_table'
 import RealmWaterCellV1Row from './module_bindings/realm_water_cell_v_1_table'
 import RealmWaterLayoutV1Row from './module_bindings/realm_water_layout_v_1_table'
+import RealmWaterRevisionV1Row from './module_bindings/realm_water_revision_v_1_table'
 import WoodNodeOccupationV1Row from './module_bindings/wood_node_occupation_v_1_table'
 import WoodSiteV1Row from './module_bindings/wood_site_v_1_table'
 import StoneNodeOccupationV1Row from './module_bindings/stone_node_occupation_v_1_table'
@@ -246,6 +247,15 @@ const tablesSchema = __schema({
       { name: 'realm_water_layout_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
     ],
   }, RealmWaterLayoutV1Row),
+  realmWaterRevisionV1: __table({
+    name: 'realm_water_revision_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_water_revision_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+    ],
+    constraints: [
+      { name: 'realm_water_revision_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmWaterRevisionV1Row),
   // The Wood catalog follows the same narrow boundary as Gold and Food:
   // public site geometry plus occupation timing, never the private ledger,
   // idempotency receipts, or scheduler surface.

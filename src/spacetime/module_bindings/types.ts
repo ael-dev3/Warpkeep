@@ -207,6 +207,30 @@ export const AdminWaterLayoutStatusV1 = __t.object("AdminWaterLayoutStatusV1", {
 });
 export type AdminWaterLayoutStatusV1 = __Infer<typeof AdminWaterLayoutStatusV1>;
 
+export const AdminWaterRevisionStatusV1 = __t.object("AdminWaterRevisionStatusV1", {
+  ready: __t.bool(),
+  activated: __t.bool(),
+  revisionVersion: __t.u32(),
+  policyVersion: __t.string(),
+  baseLayoutVersion: __t.u32(),
+  baseLayoutDigest: __t.string(),
+  oceanBodyCount: __t.u32(),
+  riverBodyCount: __t.u32(),
+  enabledBodyCount: __t.u32(),
+  oceanCellCount: __t.u32(),
+  riverCellCount: __t.u32(),
+  enabledCellCount: __t.u32(),
+  lakeBodyCount: __t.u32(),
+  lakeCellCount: __t.u32(),
+  riverWidthCells: __t.u32(),
+  navigationFogBoundaryDepthCells: __t.u32(),
+  hiddenBufferCells: __t.u32(),
+  revisionRows: __t.u64(),
+  revisionDigest: __t.string(),
+  sourceCommit: __t.string(),
+});
+export type AdminWaterRevisionStatusV1 = __Infer<typeof AdminWaterRevisionStatusV1>;
+
 export const AllowedFid = __t.object("AllowedFid", {
   fid: __t.u64(),
   enabled: __t.bool(),
@@ -748,6 +772,31 @@ export const RealmWaterLayoutV1 = __t.object("RealmWaterLayoutV1", {
   activatedAt: __t.option(__t.timestamp()),
 });
 export type RealmWaterLayoutV1 = __Infer<typeof RealmWaterLayoutV1>;
+
+export const RealmWaterRevisionV1 = __t.object("RealmWaterRevisionV1", {
+  realmId: __t.string(),
+  revisionVersion: __t.u32(),
+  policyVersion: __t.string(),
+  baseLayoutVersion: __t.u32(),
+  baseLayoutDigest: __t.string(),
+  oceanBodyCount: __t.u32(),
+  riverBodyCount: __t.u32(),
+  enabledBodyCount: __t.u32(),
+  oceanCellCount: __t.u32(),
+  riverCellCount: __t.u32(),
+  enabledCellCount: __t.u32(),
+  lakeBodyCount: __t.u32(),
+  lakeCellCount: __t.u32(),
+  riverWidthCells: __t.u32(),
+  navigationFogBoundaryDepthCells: __t.u32(),
+  hiddenBufferCells: __t.u32(),
+  revisionDigest: __t.string(),
+  sourceCommit: __t.string(),
+  activated: __t.bool(),
+  seededAt: __t.timestamp(),
+  activatedAt: __t.option(__t.timestamp()),
+});
+export type RealmWaterRevisionV1 = __Infer<typeof RealmWaterRevisionV1>;
 
 export const ResourceAccountV1 = __t.object("ResourceAccountV1", {
   fid: __t.u64(),

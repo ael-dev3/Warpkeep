@@ -1,7 +1,7 @@
 {
   "name": "warpkeep",
   "private": true,
-  "version": "0.3.12",
+  "version": "0.3.13",
   "description": "A Farcaster-connected persistent strategy world in active Alpha development.",
   "license": "Apache-2.0",
   "homepage": "https://warpkeep.com",
@@ -84,6 +84,9 @@
     "stdb:inspect-alpha-v10": "tsx scripts/hermes-admin.ts inspect-alpha-v10",
     "stdb:seed-alpha-component": "tsx scripts/hermes-admin.ts seed-alpha-component",
     "stdb:activate-alpha-water": "tsx scripts/hermes-admin.ts activate-alpha-water",
+    "stdb:inspect-water-revision": "tsx scripts/water-revision-operator.ts inspect",
+    "stdb:seed-water-revision": "tsx scripts/water-revision-operator.ts seed",
+    "stdb:activate-water-revision": "tsx scripts/water-revision-operator.ts activate",
     "stdb:backfill-resources": "tsx scripts/hermes-admin.ts backfill-resources",
     "test": "vitest --run",
     "typecheck": "tsc -b"

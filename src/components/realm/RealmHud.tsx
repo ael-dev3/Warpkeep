@@ -55,6 +55,8 @@ type RealmHudProps = Readonly<{
   onGraphicsPreferenceChange?: (preference: GraphicsPreference) => void;
   onAudioMutedChange?: (muted: boolean) => void;
   onRequestExplore?: () => void;
+  activeWagons?: readonly RealmActiveWagonMenuItem[];
+  onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
   onRecenterKeep: () => void;
   onRequestReturn: () => void;
 }>;
@@ -67,6 +69,12 @@ const RESOURCE_LABELS: Readonly<Record<RealmEconomicResourceKey, string>> = Obje
 });
 
 type RealmResourceTooltipKey = RealmEconomicResourceKey | 'marks';
+
+export type RealmActiveWagonMenuItem = Readonly<{
+  resource: RealmEconomicResourceKey;
+  siteId: string;
+  phase: 'outbound' | 'gathering' | 'returning';
+}>;
 
 const REALM_RESOURCE_TOOLTIP_ORDER: readonly RealmResourceTooltipKey[] = Object.freeze([
   ...REALM_ECONOMIC_RESOURCE_ORDER,
@@ -295,9 +303,11 @@ type RealmCommandDialogProps = Readonly<{
   collecting: boolean;
   pendingYield: boolean;
   canCollect: boolean;
+  activeWagons: readonly RealmActiveWagonMenuItem[];
   onClose: () => void;
   onCollect: () => void;
   onExplore: () => void;
+  onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
   onRecenter: () => void;
   onRequestReturn: () => void;
   onSettings: () => void;
@@ -310,9 +320,11 @@ function RealmCommandDialog({
   collecting,
   pendingYield,
   canCollect,
+  activeWagons,
   onClose,
   onCollect,
   onExplore,
+  onOpenActiveWagon,
   onRecenter,
   onRequestReturn,
   onSettings
@@ -351,6 +363,36 @@ function RealmCommandDialog({
             <strong>EXPLORE</strong>
             <span>{castleCount} founded {castleCount === 1 ? 'castle' : 'castles'}</span>
           </button>
+          {onOpenActiveWagon ? (
+            <div
+              aria-label="Expeditions"
+              className="realm-profile-menu__active-wagons"
+              role="group"
+            >
+              <p>EXPEDITIONS</p>
+              {activeWagons.slice(0, 4).map((wagon) => (
+                <button
+                  key={`${wagon.resource}:${wagon.siteId}`}
+                  onClick={() => onOpenActiveWagon(wagon)}
+                  type="button"
+                >
+                  <strong>{RESOURCE_LABELS[wagon.resource]} WAGON</strong>
+                  <span>
+                    {wagon.phase === 'outbound'
+                      ? 'En route to site'
+                      : wagon.phase === 'gathering'
+                        ? 'Gathering at site'
+                        : 'Returning to keep'}
+                  </span>
+                </button>
+              ))}
+              {activeWagons.length === 0 ? (
+                <span className="realm-profile-menu__expedition-empty">
+                  No active wagons · select a resource site to dispatch
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           {canCollect && pendingYield ? (
             <button disabled={collecting} onClick={onCollect} type="button">
               <strong>{collecting ? 'COLLECTING…' : 'COLLECT YIELD'}</strong>
@@ -392,6 +434,8 @@ export function RealmHud({
   onGraphicsPreferenceChange,
   onAudioMutedChange,
   onRequestExplore,
+  activeWagons = [],
+  onOpenActiveWagon,
   onRecenterKeep,
   onRequestReturn
 }: RealmHudProps) {
@@ -502,9 +546,13 @@ export function RealmHud({
           collecting={collecting}
           pendingYield={pendingYield}
           canCollect={onCollectResources !== undefined}
+          activeWagons={activeWagons}
           onClose={() => setSurface('closed')}
           onCollect={() => void collect()}
           onExplore={() => closeThen(() => onRequestExplore?.())}
+          onOpenActiveWagon={onOpenActiveWagon
+            ? (wagon) => closeThen(() => onOpenActiveWagon(wagon))
+            : undefined}
           onRecenter={() => closeThen(onRecenterKeep)}
           onRequestReturn={() => closeThen(onRequestReturn)}
           onSettings={() => setSurface('settings')}

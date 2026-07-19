@@ -50,6 +50,10 @@ export type CreateRealmForestLayerOptions = Readonly<{
   baseUrl: string;
   /** Called after the local static GLB batch replaces the immediate fallback. */
   onModelReady?: () => void;
+  /** Decorative outer-Realm infill always requests the compact reviewed LOD. */
+  lod?: HegemonyTreeLod;
+  /** Keeps authoritative and decorative batches distinct in scene inspection. */
+  presentationName?: string;
   /** Internal test seam; production always uses the digest-pinned acquirer. */
   acquirePrefab?: RealmForestPrefabAcquirer;
 }>;
@@ -302,7 +306,7 @@ export function createRealmForestLayer(
   options: CreateRealmForestLayerOptions
 ): RealmForestLayer {
   const group = new THREE.Group();
-  group.name = 'realm-hegemony-forest-presentation';
+  group.name = options.presentationName ?? 'realm-hegemony-forest-presentation';
   const points = options.data.points;
   if (points.length === 0) {
     let disposed = false;
@@ -326,7 +330,7 @@ export function createRealmForestLayer(
   let usingFallback = true;
   let disposed = false;
   const abortController = new AbortController();
-  const lod = lodForQuality(options.quality);
+  const lod = options.lod ?? lodForQuality(options.quality);
   const acquirePrefab = options.acquirePrefab ?? ((asset, requestedLod, baseUrl, signal) => (
     acquireHegemonyTreePrefab({ asset, lod: requestedLod, baseUrl, signal })
   ));

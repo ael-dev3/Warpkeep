@@ -14,6 +14,19 @@ import {
   CANONICAL_WORLD_TILES,
   CANONICAL_WORLD_TILE_META
 } from '../../spacetimedb/src/world';
+import {
+  CANONICAL_GENESIS_FOREST_INSTANCES_V1,
+  CANONICAL_GENESIS_FOREST_LAYOUT_V1
+} from '../../spacetimedb/src/forestLayoutPolicy';
+import {
+  GENESIS_WATER_BODIES_V1,
+  GENESIS_WATER_CELLS_V1,
+  GENESIS_WATER_ENVIRONMENT_V1,
+  GENESIS_WATER_LAYOUT_V1
+} from '../../spacetimedb/src/waterWorld';
+import {
+  CANONICAL_GENESIS_WATER_REVISION_V1
+} from '../../spacetimedb/src/waterRevision';
 
 export const REALM_OBSERVER_SNAPSHOT_VERSION = 1;
 export const REALM_OBSERVER_PORTRAIT_PLACEHOLDER_PATH =
@@ -308,6 +321,16 @@ export function createRealmObserverHarnessRealm(
     players: syntheticOwnerKeys.map((fid) => Object.freeze({ fid, status: 'active' })),
     profiles,
     castles,
+    forestLayout: { ...CANONICAL_GENESIS_FOREST_LAYOUT_V1 },
+    forestTrees: CANONICAL_GENESIS_FOREST_INSTANCES_V1.map((row) => ({ ...row })),
+    waterLayout: { ...GENESIS_WATER_LAYOUT_V1, activated: true },
+    waterBodies: GENESIS_WATER_BODIES_V1.map((row) => ({ ...row })),
+    waterCells: GENESIS_WATER_CELLS_V1.map((row) => ({ ...row })),
+    realmEnvironment: { ...GENESIS_WATER_ENVIRONMENT_V1 },
+    waterRevision: {
+      ...CANONICAL_GENESIS_WATER_REVISION_V1,
+      activated: true
+    },
     ownCastle
   };
   const snapshot = validateCanonicalGenesisSnapshot(candidate, {

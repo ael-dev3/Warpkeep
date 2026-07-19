@@ -29,6 +29,10 @@ export type TerrainColorContext = Readonly<{
    * changes the canonical terrain kind or any gameplay/resource semantics.
    */
   forestCanopy?: number;
+  /** Continuous renderer-only ecology signal used when grass is hidden in overview. */
+  vegetationDensity?: number;
+  /** Repaints legacy scenic lake cells as land; passability is unchanged. */
+  visualizeLegacyLakeAsLand?: boolean;
   placements?: readonly TerrainStructurePlacement[];
 }>;
 
@@ -121,16 +125,28 @@ export function sampleLowlandsColor(
   );
 
   const forestCanopy = clamp(context.forestCanopy ?? 0, 0, 1);
-  if (context.terrainKind) {
-    const semantic = TERRAIN_KIND_PALETTE[context.terrainKind];
+  const visualTerrainKind = context.visualizeLegacyLakeAsLand && context.terrainKind === 'lake'
+    ? 'lowland'
+    : context.terrainKind;
+  if (visualTerrainKind) {
+    const semantic = TERRAIN_KIND_PALETTE[visualTerrainKind];
     // Sparse canonical forest cells remain semantically forest, but a low
     // visual canopy keeps their ground from reading as isolated black-green
     // tiles between open meadows. The stable ecoregion field restores the full
     // forest tint only inside a real clustered grove.
-    const semanticStrength = context.terrainKind === 'forest'
+    const semanticStrength = visualTerrainKind === 'forest'
       ? semantic.strength * (0.3 + forestCanopy * 0.7)
       : semantic.strength;
     color = mixColor(color, semantic.color, semanticStrength * cellInfluence);
+  }
+
+  const vegetationDensity = clamp(context.vegetationDensity ?? 0, 0, 1);
+  if (vegetationDensity > 0) {
+    color = mixColor(
+      color,
+      { r: 0.38, g: 0.56, b: 0.25 },
+      vegetationDensity * cellInfluence * 0.1
+    );
   }
 
   // Clustered forest presentation can feather a little lush ground into
@@ -138,13 +154,13 @@ export function sampleLowlandsColor(
   // canonical terrainKind, movement, passability, and resource rates are not
   // modified by a canopy tint.
   if (forestCanopy > 0) {
-    const underCanopy = context.terrainKind === 'forest'
+    const underCanopy = visualTerrainKind === 'forest'
       ? { r: 0.25, g: 0.51, b: 0.24 }
       : { r: 0.36, g: 0.57, b: 0.25 };
     color = mixColor(
       color,
       underCanopy,
-      forestCanopy * cellInfluence * (context.terrainKind === 'forest' ? 0.22 : 0.16)
+      forestCanopy * cellInfluence * (visualTerrainKind === 'forest' ? 0.22 : 0.16)
     );
   }
 

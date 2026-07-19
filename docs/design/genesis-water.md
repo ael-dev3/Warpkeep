@@ -1,7 +1,9 @@
 # Genesis 001 water
 
-Alpha 0.3.12 adds deterministic rivers, lakes, and an ocean apron without
-changing Genesis 001's 10,000 authoritative land cells.
+Alpha 0.3.12 established the immutable Water v1 catalog. Alpha 0.3.13 adds an
+append-only policy that keeps its ocean and twelve rivers while reclaiming the
+legacy scenic lake cells as ordinary lowland. Existing rows are preserved for
+schema compatibility.
 
 ## Frozen layout
 
@@ -16,8 +18,8 @@ radius-65 pointy-hex disc supplies the surrounding ocean apron:
 | Disc cells | 12,871 |
 | Canonical land cells | 10,000 |
 | Ocean cells | 2,871 |
-| Canonical lake cells | 409 |
-| Connected lake bodies | 362 |
+| Legacy v1 lake cells | 409 |
+| Legacy v1 lake bodies | 362 |
 | Primary rivers | 12 (two per sector) |
 | Unique river cells | 400 |
 | Drainage-eligible cells | 8,335 |
@@ -28,8 +30,8 @@ radius-65 pointy-hex disc supplies the surrounding ocean apron:
 | Layout digest | `e6e3601063254a232a80bcc2921e6717b7564f8fce7b276207ffca39c1843dba` |
 | Source commit | `f23643c0d07e91847cadd5445a294d965ad76e1c` |
 
-Ocean depth is a deterministic coast flood-fill. Lakes are all canonical
-`terrainKind = lake` cells grouped by connected component. Rivers are fixed,
+Ocean depth is a deterministic coast flood-fill. Water v1 recorded every
+legacy `terrainKind = lake` cell for compatibility. Rivers are fixed,
 one-cell-wide authority paths with no loops, gaps, shared cells, or gameplay
 movement changes. The fixed-point hydrology pass assigns all 8,335 eligible
 land cells to low coastal outlets by deterministic coast distance, then computes
@@ -52,8 +54,7 @@ ordered river paths, surface profiles, and body metadata.
 
 ## Additive authority surface
 
-The next schema suffix appends these public tables after the existing refs
-0–36 (water refs 37–40):
+Water v1 occupies refs 37–40:
 
 - `realm_water_layout_v1` — one immutable layout/activation row;
 - `realm_water_body_v1` — ocean, lake, and river summaries;
@@ -74,16 +75,25 @@ extra, partial, orphaned, or drifted rows, and writes the body/cell catalog and
 environment row as one staged authority operation. Existing tables and prior
 reducers are not updated.
 
+Alpha 0.3.13 appends `realm_water_revision_v1` at ref 46. Its exact activated
+policy selects 2,871 ocean cells and 400 river cells, commits the 409 former
+lake cells to lowland/passable semantics, fixes river width at one cell, and
+places the camera boundary at the persistent full-fog contour. Seed,
+inspection, and activation are separate admin-only operations with no topology
+arguments or data deletion.
+
 ## Browser presentation
 
-The browser subscribes to the four public tables as one fail-closed projection.
+The browser subscribes to Water v1 and the optional revision row as one
+fail-closed projection.
 It builds no local shoreline or river topology. Until the layout is activated
 and every row matches the frozen digest, the existing terrain, static sky, and
 fog fallback remains visible.
 
-The renderer uses one merged ocean surface, connected lake surfaces, twelve
-river ribbons, and an outer downward skirt. River ribbons taper into the ocean
-plane at their mouths. Per-vertex depth, bank-blend, and canonical fog-band
+Before revision activation, the exact Water v1 presentation remains unchanged.
+After activation, the renderer uses one merged ocean surface, twelve full-cell
+river channels, and an outer downward skirt; it draws no lake water. Per-vertex
+depth, bank-blend, and canonical fog-band
 attributes feed the reviewed Three.js r185 `MeshStandardMaterial`
 `onBeforeCompile` contract before the material's opaque output is written.
 Fresnel, depth tint, bank attenuation, horizon blending, fog, and generated
@@ -106,10 +116,12 @@ Quality ceilings are enforced before the layer is attached:
 
 The ordinary strategic overview is capped at a radius-28 footprint (about
 2,500 authoritative cells); it never fits the complete board. Full generated
-terrain remains available for controlled panning, with camera and fog bounds
-keeping the ocean edge outside the default composition.
+terrain remains available for controlled panning. The camera may cross the
+coast into clear and haze ocean cells, but the exact persistent full-fog
+contour is never a valid camera center.
 
 ## Activation
 
-Water remains invisible until the exact server-side layout has been seeded,
-checked, and activated. Publication alone does not activate the projection.
+Water v1 remains invisible until its exact server-side layout is seeded,
+checked, and activated. The ocean-and-river-only revision is also inert after
+publication and seed; its separate activation is the player-visible boundary.

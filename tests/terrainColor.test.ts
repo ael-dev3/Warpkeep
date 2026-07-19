@@ -98,4 +98,33 @@ describe('lowlands terrain color', () => {
     expect(forestEdge.g).toBeCloseTo(lakeEdge.g, 10);
     expect(forestEdge.b).toBeCloseTo(lakeEdge.b, 10);
   });
+
+  it('can repaint a legacy lake as land without mutating its semantic input', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 5);
+    const cell = terrainCellByCoord(map, { q: 0, r: 0 });
+    if (!cell) throw new Error('missing lake presentation cell');
+    const world = axialToWorld(cell.coord, 1);
+    const context = {
+      cell,
+      hexSize: 1,
+      playableRadius: 4,
+      renderRadius: 5
+    } as const;
+    const lowland = sampleLowlandsColor(map.worldSeed, world, {
+      ...context,
+      terrainKind: 'lowland'
+    });
+    const visualLand = sampleLowlandsColor(map.worldSeed, world, {
+      ...context,
+      terrainKind: 'lake',
+      visualizeLegacyLakeAsLand: true
+    });
+    const waterTint = sampleLowlandsColor(map.worldSeed, world, {
+      ...context,
+      terrainKind: 'lake'
+    });
+
+    expect(visualLand).toEqual(lowland);
+    expect(visualLand).not.toEqual(waterTint);
+  });
 });

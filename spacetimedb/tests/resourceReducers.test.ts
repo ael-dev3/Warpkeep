@@ -42,7 +42,7 @@ function mutationTargets(text: string): string[] {
     .map(match => match[1]);
 }
 
-test('resource and Gold prefixes remain intact through v9 Water and v10 Stone', () => {
+test('resource and Gold prefixes remain intact through later additive suffixes', () => {
   const schema = source('../src/schema.ts');
   const deployedV3 = source('../migration-fixtures/additive-v3-schema/src/index.ts');
   const deployedRegistrations = schemaRegistrations(deployedV3);
@@ -77,6 +77,7 @@ test('resource and Gold prefixes remain intact through v9 Water and v10 Stone', 
     'stoneExpeditionV1',
     'stoneExpeditionIdempotencyV1',
     'stoneExpeditionScheduleV1',
+    'realmWaterRevisionV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');

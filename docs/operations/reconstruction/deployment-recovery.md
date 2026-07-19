@@ -1,6 +1,6 @@
 # Deployment and recovery
 
-Alpha 0.3.12 uses backend protocol 3, schema generation 10, and the 10,000-cell
+Alpha 0.3.13 uses backend protocol 3, schema generation 11, and the 10,000-cell
 Genesis 001 world. Recovery starts by observing the existing services; it never
 assumes that a local checkout describes production.
 
@@ -90,8 +90,8 @@ npm run stdb:verify-additive-migration
 ```
 
 The additive proof uses disposable loopback databases and `--delete-data=never`.
-It preserves refs 0–45, exercises the generation-two-to-three transition,
-Water activation, resource authority, and a real scheduled Gold arrival, and
+It preserves refs 0–46, exercises the generation-two-to-three transition,
+Water and Water-revision activation, resource authority, and a real scheduled Gold arrival, and
 refuses guarded rollbacks before schema change.
 
 For an approved forward publication, follow

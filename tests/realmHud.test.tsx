@@ -167,6 +167,60 @@ describe('RealmHud', () => {
     expect(onRequestReturn).toHaveBeenCalledOnce();
   });
 
+  it('offers up to four privacy-bounded active wagon shortcuts in the PFP menu', async () => {
+    const onOpenActiveWagon = vi.fn();
+    const activeWagons = [
+      { resource: 'food', siteId: 'genesis-001:food:0001', phase: 'outbound' },
+      { resource: 'wood', siteId: 'genesis-001:wood:0001', phase: 'gathering' },
+      { resource: 'stone', siteId: 'genesis-001:stone:0001', phase: 'returning' },
+      { resource: 'gold', siteId: 'genesis-001:gold:0001', phase: 'gathering' },
+      { resource: 'food', siteId: 'genesis-001:food:0002', phase: 'outbound' }
+    ] as const;
+    render(
+      <RealmHud
+        {...commonProps()}
+        activeWagons={activeWagons}
+        onOpenActiveWagon={onOpenActiveWagon}
+      />
+    );
+
+    const { trigger, dialog } = openRealmMenu();
+    const group = within(dialog).getByRole('group', { name: 'Expeditions' });
+    const buttons = within(group).getAllByRole('button');
+    expect(buttons).toHaveLength(4);
+    expect(buttons.map((button) => button.textContent)).toEqual([
+      'Food WAGONEn route to site',
+      'Wood WAGONGathering at site',
+      'Stone WAGONReturning to keep',
+      'Gold WAGONGathering at site'
+    ]);
+    expect(group.textContent).not.toContain('0001');
+    expect(group.textContent).not.toContain('expedition');
+    expect(group.textContent).not.toContain('FID');
+
+    fireEvent.click(within(group).getByRole('button', { name: /STONE WAGON/i }));
+    expect(onOpenActiveWagon).toHaveBeenCalledOnce();
+    expect(onOpenActiveWagon).toHaveBeenCalledWith(activeWagons[2]);
+    expect(screen.queryByRole('dialog', { name: 'REALM MENU' })).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it('keeps the worker entry point visible when no expedition is active', () => {
+    render(
+      <RealmHud
+        {...commonProps()}
+        activeWagons={[]}
+        onOpenActiveWagon={vi.fn()}
+      />
+    );
+
+    const { dialog } = openRealmMenu();
+    const group = within(dialog).getByRole('group', { name: 'Expeditions' });
+    expect(within(group).queryAllByRole('button')).toHaveLength(0);
+    expect(group.textContent).toContain('No active wagons');
+    expect(group.textContent).toContain('select a resource site to dispatch');
+  });
+
   it('renders zero-valued caller-bound resources in the fixed top-rail order', () => {
     const resources = createReadyResourceState();
     const { container } = render(

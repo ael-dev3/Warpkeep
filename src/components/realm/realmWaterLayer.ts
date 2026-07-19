@@ -3,25 +3,30 @@ import * as THREE from 'three';
 import {
   axialToWorld,
   hexDistance,
-  hexNeighbors,
-  hexKey,
-  type HexCoord
+  type HexWorldPosition
 } from '../../game/map/hexCoordinates';
 import {
   GENESIS_OCEAN_DEPTH_BY_KEY,
-  GENESIS_RIVERS_V1,
   GENESIS_WATER_LAYOUT_VERSION,
   genesisWaterWorldHeightFromMilli,
   type GenesisWaterCellV1
 } from '../../../spacetimedb/src/waterWorld';
 import type { RealmQualitySpec } from './realmQuality';
 import { pointyHexCorners } from './createTerrainGeometry';
+import {
+  GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+  GENESIS_WATER_REVISION_VERSION
+} from '../../../spacetimedb/src/waterRevision';
 
 const WATER_Y_LIFT = 0.035;
-const RIVER_WIDTH = 0.58;
 const RIVER_BANK_BLEND = 0.28;
-const RIVER_MOUTH_LIFT = 0.003;
-const RIVER_MOUTH_BLEND_CELLS = 4;
+// The adaptive terrain and the full-cell river mesh are intentionally close,
+// but a sub-centimetre gap aliases away at strategic camera distances. Keep a
+// small deterministic presentation clearance so the persisted channel wins
+// the depth buffer without reading as a floating sheet.
+const RIVER_TERRAIN_CLEARANCE = 0.014;
+const RIVER_SURFACE_PROBE_SUBDIVISIONS = 6;
+const MAXIMUM_RIVER_SURFACE_CORRECTION = 0.16;
 
 /** Convert the persisted +1000 fixed-point datum into the terrain's world-Y space. */
 export function waterSurfaceLevelToWorldY(surfaceLevelMilli: number): number {
@@ -65,11 +70,11 @@ type WaterLayerOptions = Readonly<{
   quality: RealmQualitySpec;
   reducedMotion: boolean;
   hexSize: number;
-  heightAt: (coord: HexCoord) => number;
+  heightAtWorld: (world: HexWorldPosition) => number;
 }>;
 
 function regimeColor(cell: GenesisWaterCellV1): THREE.Color {
-  if (cell.regime === 'river') return new THREE.Color('#5eabc4');
+  if (cell.regime === 'river') return new THREE.Color('#4aa9c7');
   if (cell.regime === 'lake') return new THREE.Color('#548eac');
   const depth = GENESIS_OCEAN_DEPTH_BY_KEY.get(cell.cellKey) ?? cell.depthCells;
   return depth >= 5 ? new THREE.Color('#315b78') : depth >= 3
@@ -79,7 +84,7 @@ function regimeColor(cell: GenesisWaterCellV1): THREE.Color {
 function surfaceGeometry(
   cells: readonly GenesisWaterCellV1[],
   hexSize: number,
-  heightAt: (coord: HexCoord) => number
+  heightAtWorld: (world: HexWorldPosition) => number
 ) {
   const positions: number[] = [];
   const normals: number[] = [];
@@ -94,8 +99,11 @@ function surfaceGeometry(
     const ground = cell.regime === 'ocean'
       ? authoritativeSurfaceY
       : authoritativeSurfaceY + WATER_Y_LIFT;
-    if (cell.regime !== 'ocean' && ground < heightAt({ q: cell.q, r: cell.r })) {
-      throw new Error('REALM_WATER_SURFACE_BELOW_TERRAIN');
+    if (cell.regime !== 'ocean') {
+      const terrainY = heightAtWorld(center);
+      if (!Number.isFinite(terrainY) || ground < terrainY) {
+        throw new Error('REALM_WATER_SURFACE_BELOW_TERRAIN');
+      }
     }
     const color = regimeColor(cell);
     const base = positions.length / 3;
@@ -114,7 +122,9 @@ function surfaceGeometry(
       normals.push(0, 1, 0);
     });
     for (let corner = 0; corner < 6; corner += 1) {
-      indices.push(base, base + corner + 1, base + ((corner + 1) % 6) + 1);
+      // Pointy corners advance clockwise in Three.js's x/z ground plane when
+      // viewed from +y, so reverse the pair to keep the water front-facing.
+      indices.push(base, base + ((corner + 1) % 6) + 1, base + corner + 1);
     }
   });
   const geometry = new THREE.BufferGeometry();
@@ -134,88 +144,133 @@ function surfaceGeometry(
   }
 }
 
-function riverGeometry(
-  riverCells: readonly GenesisWaterCellV1[],
+type MutableRiverSurfaceNode = {
+  readonly world: HexWorldPosition;
+  height: number;
+};
+
+type RiverSurfacePlan = Readonly<{
+  cell: GenesisWaterCellV1;
+  baseHeight: number;
+  center: MutableRiverSurfaceNode;
+  corners: readonly MutableRiverSurfaceNode[];
+}>;
+
+function waterPointKey(point: HexWorldPosition) {
+  const precision = 1_000_000;
+  return `${Math.round(point.x * precision)},${Math.round(point.z * precision)}`;
+}
+
+/**
+ * River cells retain the reviewed six-triangle/full-hex topology, but their
+ * seven presentation vertices cannot all use the persisted center datum.
+ * Terrain detail is continuous at cell boundaries and can rise above that
+ * datum near a bank. Shared corner nodes give both sides of a river edge the
+ * exact same endpoints, while deterministic triangle probes lift only the
+ * presentation mesh enough to clear the rendered terrain between vertices.
+ */
+function riverSurfaceGeometry(
+  cells: readonly GenesisWaterCellV1[],
   hexSize: number,
-  heightAt: (coord: HexCoord) => number
+  heightAtWorld: (world: HexWorldPosition) => number
 ) {
-  const rowsByKey = new Map(riverCells.map((cell) => [cell.cellKey, cell]));
-  const oceanByKey = new Map(
-    riverCells.filter((cell) => cell.regime === 'ocean').map((cell) => [cell.cellKey, cell])
-  );
+  const sharedCorners = new Map<string, MutableRiverSurfaceNode>();
+  const plans = cells.map((cell): RiverSurfacePlan => {
+    const centerWorld = axialToWorld({ q: cell.q, r: cell.r }, hexSize);
+    const baseHeight = waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + WATER_Y_LIFT;
+    const center = { world: centerWorld, height: baseHeight };
+    const corners = pointyHexCorners({ q: cell.q, r: cell.r }, hexSize).map((world) => {
+      const key = waterPointKey(world);
+      const existing = sharedCorners.get(key);
+      if (existing) {
+        existing.height = Math.max(existing.height, baseHeight);
+        return existing;
+      }
+      const node = { world, height: baseHeight };
+      sharedCorners.set(key, node);
+      return node;
+    });
+    return { cell, baseHeight, center, corners };
+  });
+
+  // The elevation solution must not depend on subscription row order.
+  const orderedPlans = [...plans].sort((left, right) => (
+    left.cell.q - right.cell.q
+    || left.cell.r - right.cell.r
+    || left.cell.cellKey.localeCompare(right.cell.cellKey)
+  ));
+  for (const plan of orderedPlans) {
+    for (let triangle = 0; triangle < 6; triangle += 1) {
+      const first = plan.corners[triangle]!;
+      const second = plan.corners[(triangle + 1) % 6]!;
+      for (let firstStep = 0; firstStep <= RIVER_SURFACE_PROBE_SUBDIVISIONS; firstStep += 1) {
+        for (
+          let secondStep = 0;
+          secondStep <= RIVER_SURFACE_PROBE_SUBDIVISIONS - firstStep;
+          secondStep += 1
+        ) {
+          const firstWeight = firstStep / RIVER_SURFACE_PROBE_SUBDIVISIONS;
+          const secondWeight = secondStep / RIVER_SURFACE_PROBE_SUBDIVISIONS;
+          const centerWeight = 1 - firstWeight - secondWeight;
+          const world = {
+            x: plan.center.world.x * centerWeight
+              + first.world.x * firstWeight
+              + second.world.x * secondWeight,
+            z: plan.center.world.z * centerWeight
+              + first.world.z * firstWeight
+              + second.world.z * secondWeight
+          };
+          const terrainY = heightAtWorld(world);
+          if (
+            !Number.isFinite(terrainY)
+            || terrainY + RIVER_TERRAIN_CLEARANCE - plan.baseHeight
+              > MAXIMUM_RIVER_SURFACE_CORRECTION
+          ) throw new Error('REALM_WATER_SURFACE_BELOW_TERRAIN');
+          const surfaceY = plan.center.height * centerWeight
+            + first.height * firstWeight
+            + second.height * secondWeight;
+          const correction = terrainY + RIVER_TERRAIN_CLEARANCE - surfaceY;
+          if (correction <= 0) continue;
+          plan.center.height += correction;
+          first.height += correction;
+          second.height += correction;
+        }
+      }
+    }
+  }
+
   const positions: number[] = [];
+  const normals: number[] = [];
   const colors: number[] = [];
   const waterDepth: number[] = [];
   const waterBankBlend: number[] = [];
   const waterFogMix: number[] = [];
   const indices: number[] = [];
-  for (const river of GENESIS_RIVERS_V1) {
-    const riverPath = river.orderedCellKeys
-      .map((key) => rowsByKey.get(key))
-      .filter((cell): cell is GenesisWaterCellV1 => cell !== undefined);
-    const mouth = riverPath.at(-1);
-    const beforeMouth = riverPath.at(-2);
-    const oceanContinuation = mouth === undefined
-      ? undefined
-      : hexNeighbors(mouth)
-        .map((coord) => oceanByKey.get(hexKey(coord)))
-        .filter((cell): cell is GenesisWaterCellV1 => cell !== undefined)
-        .sort((left, right) => {
-          if (beforeMouth === undefined) return left.cellKey.localeCompare(right.cellKey);
-          const incoming = axialToWorld({ q: mouth.q - beforeMouth.q, r: mouth.r - beforeMouth.r }, hexSize);
-          const leftDirection = axialToWorld({ q: left.q - mouth.q, r: left.r - mouth.r }, hexSize);
-          const rightDirection = axialToWorld({ q: right.q - mouth.q, r: right.r - mouth.r }, hexSize);
-          const leftAlignment = incoming.x * leftDirection.x + incoming.z * leftDirection.z;
-          const rightAlignment = incoming.x * rightDirection.x + incoming.z * rightDirection.z;
-          return rightAlignment - leftAlignment || left.cellKey.localeCompare(right.cellKey);
-        })[0];
-    const path = oceanContinuation === undefined
-      ? riverPath
-      : [...riverPath, oceanContinuation];
-    for (let index = 0; index < path.length; index += 1) {
-      const cell = path[index]!;
-      const center = axialToWorld({ q: cell.q, r: cell.r }, hexSize);
-      const previous = path[Math.max(0, index - 1)]!;
-      const next = path[Math.min(path.length - 1, index + 1)]!;
-      const previousWorld = axialToWorld({ q: previous.q, r: previous.r }, hexSize);
-      const nextWorld = axialToWorld({ q: next.q, r: next.r }, hexSize);
-      const dx = nextWorld.x - previousWorld.x;
-      const dz = nextWorld.z - previousWorld.z;
-      const length = Math.max(0.001, Math.hypot(dx, dz));
-      const nx = -dz / length;
-      const nz = dx / length;
-      const width = RIVER_WIDTH * (1 + Math.sin((index + 1) * 1.71) * 0.07);
-      // River heights come from the frozen downstream surface profile, not
-      // per-frame terrain samples. This keeps every segment grade-monotonic
-      // and prevents apparent waterfalls when the camera or terrain LOD shifts.
-      const cellsFromMouth = Math.max(0, riverPath.length - 1 - index);
-      const mouthBlend = Math.min(1, cellsFromMouth / RIVER_MOUTH_BLEND_CELLS);
-      const lift = THREE.MathUtils.lerp(RIVER_MOUTH_LIFT, WATER_Y_LIFT + 0.008, mouthBlend);
-      const y = waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + lift;
-      if (cell.regime === 'river' && y < heightAt({ q: cell.q, r: cell.r })) {
-        throw new Error('REALM_WATER_RIVER_BELOW_TERRAIN');
-      }
-      const left = { x: center.x + nx * width * 0.5, z: center.z + nz * width * 0.5 };
-      const right = { x: center.x - nx * width * 0.5, z: center.z - nz * width * 0.5 };
-      const base = positions.length / 3;
-      positions.push(left.x, y, left.z, right.x, y, right.z);
-      const color = regimeColor(cell);
-      colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
-      waterDepth.push(0.08, 0.08);
-      waterBankBlend.push(RIVER_BANK_BLEND, RIVER_BANK_BLEND);
-      waterFogMix.push(0, 0);
-      if (index > 0) indices.push(base - 2, base - 1, base, base - 1, base + 1, base);
+  plans.forEach((plan) => {
+    const color = regimeColor(plan.cell);
+    const depth = Math.min(1, plan.cell.depthCells / 5);
+    const base = positions.length / 3;
+    [plan.center, ...plan.corners].forEach((node) => {
+      positions.push(node.world.x, node.height, node.world.z);
+      colors.push(color.r, color.g, color.b);
+      waterDepth.push(depth);
+      waterBankBlend.push(RIVER_BANK_BLEND);
+      waterFogMix.push(0);
+      normals.push(0, 1, 0);
+    });
+    for (let corner = 0; corner < 6; corner += 1) {
+      indices.push(base, base + ((corner + 1) % 6) + 1, base + corner + 1);
     }
-  }
+  });
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.setAttribute('waterDepth', new THREE.Float32BufferAttribute(waterDepth, 1));
   geometry.setAttribute('waterBankBlend', new THREE.Float32BufferAttribute(waterBankBlend, 1));
   geometry.setAttribute('waterFogMix', new THREE.Float32BufferAttribute(waterFogMix, 1));
   try {
     geometry.setIndex(indices);
-    geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
     return geometry;
   } catch (error) {
@@ -259,7 +314,9 @@ function outerSkirtGeometry(cells: readonly GenesisWaterCellV1[], hexSize: numbe
 function createWaterMaterial(quality: RealmQualitySpec, reducedMotion: boolean) {
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    color: '#8bcde1',
+    // Keep the material base neutral so the authoritative per-regime vertex
+    // palette is not multiplied back toward the pale Lowlands ground tint.
+    color: '#ffffff',
     roughness: 0.28,
     metalness: 0.04,
     transparent: false,
@@ -331,13 +388,23 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
     skirtMaterial?.dispose();
   };
   try {
-    oceanGeometry = surfaceGeometry(ocean, options.hexSize, options.heightAt);
-    lakeGeometry = surfaceGeometry(lakes, options.hexSize, options.heightAt);
-    riverGeometryData = riverGeometry(options.cells, options.hexSize, options.heightAt);
+    oceanGeometry = surfaceGeometry(ocean, options.hexSize, options.heightAtWorld);
+    lakeGeometry = surfaceGeometry(lakes, options.hexSize, options.heightAtWorld);
+    // Each reviewed river coordinate owns one complete hex surface. The old
+    // narrow spline left most of an authoritative river cell looking like
+    // ordinary terrain and read as a decorative line; full hexes make the
+    // persisted one-cell-wide topology legible without inventing new paths.
+    riverGeometryData = riverSurfaceGeometry(rivers, options.hexSize, options.heightAtWorld);
     skirtGeometry = outerSkirtGeometry(ocean, options.hexSize);
     waterMaterial = createWaterMaterial(options.quality, options.reducedMotion);
     lakeMaterial = createWaterMaterial(options.quality, options.reducedMotion);
     riverMaterial = createWaterMaterial(options.quality, options.reducedMotion);
+    // Rivers occupy only one authoritative hex at a time and sit over the
+    // pale Lowlands palette. A restrained cool emissive lift keeps the
+    // connected channel readable in daylight without changing its geometry.
+    riverMaterial.emissive.set('#0b607b');
+    riverMaterial.emissiveIntensity = 0.2;
+    riverMaterial.roughness = 0.22;
     skirtMaterial = new THREE.MeshBasicMaterial({
       color: '#26485e',
       transparent: true,
@@ -383,7 +450,9 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
   let lastTime = -1;
   let disposed = false;
   const telemetry = Object.freeze({
-    layoutVersion: GENESIS_WATER_LAYOUT_VERSION,
+    layoutVersion: options.cells === GENESIS_WATER_REVISION_ENABLED_CELLS_V1
+      ? GENESIS_WATER_REVISION_VERSION
+      : GENESIS_WATER_LAYOUT_VERSION,
     oceanCellCount: ocean.length,
     lakeCellCount: lakes.length,
     riverCellCount: rivers.length,

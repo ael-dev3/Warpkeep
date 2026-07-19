@@ -144,6 +144,7 @@ test('generated bindings contain the public projections and omit every private e
     'realm_water_body_v_1_table.ts',
     'realm_water_cell_v_1_table.ts',
     'realm_water_layout_v_1_table.ts',
+    'realm_water_revision_v_1_table.ts',
     'stone_expedition_schedule_v_1_table.ts',
     'stone_node_occupation_v_1_table.ts',
     'stone_site_v_1_table.ts',

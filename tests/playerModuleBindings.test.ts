@@ -21,6 +21,7 @@ const PLAYER_TABLE_KEYS = [
   'realmWaterBodyV1',
   'realmWaterCellV1',
   'realmWaterLayoutV1',
+  'realmWaterRevisionV1',
   'stoneNodeOccupationV1',
   'stoneSiteV1',
   'woodNodeOccupationV1',
@@ -81,6 +82,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_resource_state_v1'")
     expect(playerBindings).toContain("'realm_forest_layout_v1'")
     expect(playerBindings).toContain("'realm_forest_instance_v1'")
+    expect(playerBindings).toContain("'realm_water_revision_v1'")
     expect(playerBindings).not.toContain('food_expedition_schedule_v_1')
     expect(playerBindings).not.toContain('gold_expedition_schedule_v_1')
     expect(playerBindings).not.toContain('wood_expedition_schedule_v_1')

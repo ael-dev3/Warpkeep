@@ -76,10 +76,30 @@ export type RealmInteractionState = Readonly<{
 export type RealmInteractionAction =
   | Readonly<{ type: 'select-cell'; coord: HexCoord }>
   | Readonly<{ type: 'activate-castle'; castleId: number; coord: HexCoord }>
-  | Readonly<{ type: 'activate-gold-site'; siteId: string; coord: HexCoord }>
-  | Readonly<{ type: 'activate-food-site'; siteId: string; coord: HexCoord }>
-  | Readonly<{ type: 'activate-wood-site'; siteId: string; coord: HexCoord }>
-  | Readonly<{ type: 'activate-stone-site'; siteId: string; coord: HexCoord }>
+  | Readonly<{
+      type: 'activate-gold-site';
+      siteId: string;
+      coord: HexCoord;
+      cameraIntent?: 'focus-site' | 'preserve';
+    }>
+  | Readonly<{
+      type: 'activate-food-site';
+      siteId: string;
+      coord: HexCoord;
+      cameraIntent?: 'focus-site' | 'preserve';
+    }>
+  | Readonly<{
+      type: 'activate-wood-site';
+      siteId: string;
+      coord: HexCoord;
+      cameraIntent?: 'focus-site' | 'preserve';
+    }>
+  | Readonly<{
+      type: 'activate-stone-site';
+      siteId: string;
+      coord: HexCoord;
+      cameraIntent?: 'focus-site' | 'preserve';
+    }>
   | Readonly<{ type: 'close-inspector' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
@@ -129,6 +149,15 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
+}
+
+function siteCameraTarget(
+  state: RealmInteractionState,
+  action: Readonly<{ coord: HexCoord; cameraIntent?: 'focus-site' | 'preserve' }>
+) {
+  return action.cameraIntent === 'preserve'
+    ? state.cameraTarget
+    : { kind: 'cell' as const, coord: copyCoord(action.coord) };
 }
 
 function withKeyboardIntent(
@@ -191,7 +220,7 @@ export function realmInteractionReducer(
         selectedCastle: null,
         inspectorTarget: target,
         inspectorOpen: true,
-        cameraTarget: { kind: 'cell', coord: copyCoord(target.coord) },
+        cameraTarget: siteCameraTarget(state, action),
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'gold-mine-inspector',
@@ -208,7 +237,7 @@ export function realmInteractionReducer(
         selectedCastle: null,
         inspectorTarget: target,
         inspectorOpen: true,
-        cameraTarget: { kind: 'cell', coord: copyCoord(target.coord) },
+        cameraTarget: siteCameraTarget(state, action),
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'food-farm-inspector',
@@ -225,7 +254,7 @@ export function realmInteractionReducer(
         selectedCastle: null,
         inspectorTarget: target,
         inspectorOpen: true,
-        cameraTarget: { kind: 'cell', coord: copyCoord(target.coord) },
+        cameraTarget: siteCameraTarget(state, action),
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'logging-camp-inspector',
@@ -242,7 +271,7 @@ export function realmInteractionReducer(
         selectedCastle: null,
         inspectorTarget: target,
         inspectorOpen: true,
-        cameraTarget: { kind: 'cell', coord: copyCoord(target.coord) },
+        cameraTarget: siteCameraTarget(state, action),
         navigatorOpen: false,
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'stone-quarry-inspector',

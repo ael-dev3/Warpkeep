@@ -290,6 +290,29 @@ export type WarpkeepRealmEnvironment = Readonly<{
   sunDirectionZMicro: number;
 }>;
 
+/** Public additive policy selecting a reviewed subset of immutable Water v1. */
+export type WarpkeepWaterRevision = Readonly<{
+  realmId: string;
+  revisionVersion: number;
+  policyVersion: string;
+  baseLayoutVersion: number;
+  baseLayoutDigest: string;
+  oceanBodyCount: number;
+  riverBodyCount: number;
+  enabledBodyCount: number;
+  oceanCellCount: number;
+  riverCellCount: number;
+  enabledCellCount: number;
+  lakeBodyCount: number;
+  lakeCellCount: number;
+  riverWidthCells: number;
+  navigationFogBoundaryDepthCells: number;
+  hiddenBufferCells: number;
+  revisionDigest: string;
+  sourceCommit: string;
+  activated: boolean;
+}>;
+
 /**
  * Untrusted projection assembled from the six public subscription tables.
  * It may represent a partially applied subscription and must not reach the
@@ -332,6 +355,8 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   waterBodies?: readonly unknown[];
   waterCells?: readonly unknown[];
   realmEnvironment?: unknown;
+  /** Optional v11 policy row; absence keeps the exact active Water v1 view. */
+  waterRevision?: unknown;
   ownCastle?: WarpkeepCastle;
 }>;
 

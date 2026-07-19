@@ -107,6 +107,34 @@ describe('realm interaction state', () => {
     expect(resolveRealmEscape(state).state.keyboardIntent.target).toEqual({ kind: 'map' });
   });
 
+  it.each([
+    'gold',
+    'food',
+    'wood',
+    'stone'
+  ] as const)('opens a moving %s wagon record without replacing durable camera intent', (resource) => {
+    const camera = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'set-camera-target',
+      target: { kind: 'castle', castleId: 77, coord: { q: 2, r: -1 } }
+    });
+    const shared = {
+      siteId: `genesis-001:${resource}:0001`,
+      coord: { q: 8, r: -3 },
+      cameraIntent: 'preserve' as const
+    };
+    const state = resource === 'gold'
+      ? realmInteractionReducer(camera, { type: 'activate-gold-site', ...shared })
+      : resource === 'food'
+        ? realmInteractionReducer(camera, { type: 'activate-food-site', ...shared })
+        : resource === 'wood'
+          ? realmInteractionReducer(camera, { type: 'activate-wood-site', ...shared })
+          : realmInteractionReducer(camera, { type: 'activate-stone-site', ...shared });
+
+    expect(state.inspectorOpen).toBe(true);
+    expect(state.selectedCell).toEqual(shared.coord);
+    expect(state.cameraTarget).toBe(camera.cameraTarget);
+  });
+
   it('closes the inspector without erasing selection and can reopen the same castle', () => {
     const active = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
       type: 'activate-castle',
