@@ -1,12 +1,23 @@
 .warpkeep-experience {
   position: fixed;
   inset: 0;
+  height: 100vh;
+  height: 100dvh;
   min-width: 320px;
   min-height: 100vh;
   min-height: 100svh;
   overflow: hidden;
   isolation: isolate;
   background: #010207;
+}
+
+/* Keep the app viewport aligned with Safari's visible area as its browser
+   chrome expands and collapses. The stable viewport fallback above still
+   covers older WebKit releases that do not expose dynamic viewport units. */
+@supports (height: 100dvh) {
+  .warpkeep-experience {
+    min-height: 100dvh;
+  }
 }
 
 .warpkeep-experience__screen {

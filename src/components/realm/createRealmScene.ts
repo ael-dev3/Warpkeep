@@ -889,7 +889,10 @@ function initializeRealmScene(
     renderPendingWhileHidden = false;
     const viewportHeight = Math.max(
       1,
-      options.canvas.clientHeight || window.innerHeight || 1
+      options.canvas.clientHeight
+        || window.visualViewport?.height
+        || window.innerHeight
+        || 1
     );
     castleLayer?.update(
       cameraController.camera,
@@ -997,12 +1000,15 @@ function initializeRealmScene(
   let pendingHoverPoint: Readonly<{ x: number; y: number }> | null = null;
   let hoverAnimationFrame = 0;
   let resizeObserver: ResizeObserver | null = null;
+  let resizeFrame = 0;
   cleanup.add(() => {
     if (hoverAnimationFrame !== 0) window.cancelAnimationFrame(hoverAnimationFrame);
     hoverAnimationFrame = 0;
     pendingHoverPoint = null;
     if (directGestureFrame !== 0) window.cancelAnimationFrame(directGestureFrame);
     directGestureFrame = 0;
+    if (resizeFrame !== 0) window.cancelAnimationFrame(resizeFrame);
+    resizeFrame = 0;
     pendingDirectGesture = null;
     if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
     labelClickSuppressionTimer = 0;
@@ -1415,8 +1421,15 @@ function initializeRealmScene(
 
   const resize = () => {
     if (cleanup.isDisposed()) return;
-    const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
-    const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
+    const visualViewport = window.visualViewport;
+    const width = Math.max(
+      1,
+      options.canvas.clientWidth || visualViewport?.width || window.innerWidth || 1
+    );
+    const height = Math.max(
+      1,
+      options.canvas.clientHeight || visualViewport?.height || window.innerHeight || 1
+    );
     renderer.setPixelRatio(resolveRealmPixelRatio(
       width,
       height,
@@ -1426,11 +1439,27 @@ function initializeRealmScene(
     renderer.setSize(width, height, false);
     cameraController.setViewport(width, height);
   };
-  resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
+  const scheduleResize = () => {
+    if (resizeFrame !== 0 || cleanup.isDisposed()) return;
+    resizeFrame = window.requestAnimationFrame(() => {
+      resizeFrame = 0;
+      resize();
+    });
+  };
+  resizeObserver = typeof ResizeObserver === 'undefined'
+    ? null
+    : new ResizeObserver(scheduleResize);
   if (resizeObserver) cleanup.add(() => resizeObserver?.disconnect());
   resizeObserver?.observe(options.canvas);
-  window.addEventListener('resize', resize);
-  cleanup.add(() => window.removeEventListener('resize', resize));
+  window.addEventListener('resize', scheduleResize);
+  cleanup.add(() => window.removeEventListener('resize', scheduleResize));
+  const visualViewport = window.visualViewport;
+  visualViewport?.addEventListener('resize', scheduleResize, { passive: true });
+  visualViewport?.addEventListener('scroll', scheduleResize, { passive: true });
+  cleanup.add(() => {
+    visualViewport?.removeEventListener('resize', scheduleResize);
+    visualViewport?.removeEventListener('scroll', scheduleResize);
+  });
   resize();
 
   const usedCastleLods = castleLodsForQuality(runtimeQuality);

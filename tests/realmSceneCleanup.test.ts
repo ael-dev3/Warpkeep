@@ -5,6 +5,7 @@ const webglState = vi.hoisted(() => ({
   instances: [] as Array<{
     dispose: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
+    setSize: ReturnType<typeof vi.fn>;
   }>
 }));
 
@@ -426,6 +427,34 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(canvasRemove, 'webglcontextlost')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
     expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(3);
+  });
+
+  it('tracks Safari visual viewport changes and removes the listeners on disposal', () => {
+    const visualViewport = Object.assign(new EventTarget(), {
+      width: 390,
+      height: 844
+    });
+    vi.stubGlobal('visualViewport', visualViewport);
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const viewportAdd = vi.spyOn(visualViewport, 'addEventListener');
+    const viewportRemove = vi.spyOn(visualViewport, 'removeEventListener');
+    const canvas = document.createElement('canvas');
+    const scene = createRealmScene(createOptions(canvas));
+    const renderer = webglState.instances[0];
+
+    expect(renderer.setSize).toHaveBeenCalledWith(390, 844, false);
+    expect(listenerCalls(viewportAdd, 'resize')).toBe(1);
+    expect(listenerCalls(viewportAdd, 'scroll')).toBe(1);
+
+    visualViewport.dispatchEvent(new Event('resize'));
+    expect(renderer.setSize).toHaveBeenCalledWith(390, 844, false);
+
+    scene.dispose();
+    expect(listenerCalls(viewportRemove, 'resize')).toBe(1);
+    expect(listenerCalls(viewportRemove, 'scroll')).toBe(1);
   });
 
   it('clears stale castle hover before wheel-driven camera motion', () => {
