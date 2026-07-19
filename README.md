@@ -8,6 +8,10 @@ every player. A founder's keep stays in the same place between visits, carrying
 a public name and portrait while ownership and private resources remain
 server-controlled.
 
+![Development preview of Genesis 001 showing founded keeps, procedural grass, and an open castle record.](docs/reference/screenshots/2026-07-18-procedural-grass-wind-preview/warpkeep-procedural-grass-preview-eb156adea5befbd7.png)
+
+*Development preview from the procedural grass and wind draft; the screenshot is a visual reference and may not represent the exact current live build.*
+
 Alpha 0.3.12 brings water to the Lowlands and opens Stone Quarries alongside
 Gold Mines, Wheat Farms, and Logging Camps. Founders can send a separate wagon
 to each kind of site, but this is still the beginning: construction, armies,
