@@ -1,9 +1,12 @@
-# Warpkeep Faction Logos
+# Warpkeep faction records
 
-Official faction identity art recorded for Warpkeep.
+Provenance records for faction identity art reviewed by Warpkeep.
 
 ## Factions
 
-- [Hegemony](hegemony/) — official wordmark and in-game UI logo.
+- [Hegemony](hegemony/) — two retired logo candidates preserved as hash-only
+  records.
 
-The existing manifest calls these project-provided/project-owned assets and records the historical CC0 treatment. Source authority is not independently evidenced in the archive; do not assign a new license by assumption. See [`ASSETS-LICENSE.md`](../../../ASSETS-LICENSE.md).
+The underlying binaries are not part of the current tree or runtime because
+source authority is not independently evidenced. Do not restore or license them
+by assumption. See [`ASSETS-LICENSE.md`](../../../ASSETS-LICENSE.md).
