@@ -33,4 +33,3 @@ This suite is the public-safe map for rebuilding Warpkeep development and deploy
 - [`verification-checklist.md`](verification-checklist.md) — local, hosted, asset, production, and browser gates.
 - [`credential-rotation.md`](credential-rotation.md) — names, purposes, planned rotation, and compromise response.
 - [`incident-command.md`](incident-command.md) — ownership, modes, coordinates, evidence, and handoff.
-- [`recovery-manifest.example.json`](recovery-manifest.example.json) — parseable coordinate template with no secrets.

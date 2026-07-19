@@ -60,6 +60,7 @@ export {
   adminSeedGenesisTierIWoodSitesV1,
 } from './reducers/woodExpeditions';
 export { adminSeedGenesisForestLayoutV1 } from './reducers/forestLayout';
+export { adminGetAlphaStatusV8 } from './reducers/alphaStatus';
 export {
   runGoldExpeditionScheduleV1,
   runFoodExpeditionScheduleV1,

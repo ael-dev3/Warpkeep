@@ -134,7 +134,7 @@ test('dispatch and owner state wire accept no authority-shaped browser inputs', 
   assert.match(collect, /warpkeep\.reducer\(\s*\{ name: 'collect_gold_expedition_v1' \},\s*ctx =>/);
 });
 
-test('only the scheduler can change lifecycle phase, release a site, or credit scheduled remainder', () => {
+test('only the scheduler can change lifecycle phase, release a returned site, or credit scheduled remainder', () => {
   const schema = source('../src/schema.ts');
   const scheduled = section(
     schema,
@@ -142,8 +142,7 @@ test('only the scheduler can change lifecycle phase, release a site, or credit s
     'for (const name of [',
   );
   assert.match(scheduled, /name: 'run_gold_expedition_schedule_v_1'/);
-  assert.match(scheduled, /if \(!ctx\.senderAuth\.isInternal\)/);
-  assert.match(scheduled, /GOLD_EXPEDITION_SCHEDULE_INTERNAL_ONLY/);
+  assert.doesNotMatch(scheduled, /senderAuth\.isInternal|connectionId|databaseIdentity/);
   assert.match(scheduled, /runGoldExpeditionSchedule\(ctx, arg\)/);
 
   const authority = source('../src/goldExpeditionAuthority.ts');
@@ -160,16 +159,22 @@ test('only the scheduler can change lifecycle phase, release a site, or credit s
 
   const expiry = section(authority, 'function creditExpiredGold', 'function completeReturn');
   assert.match(expiry, /planGoldExpeditionAccrual\(expedition, expedition\.gatheringEndsAtMicros\)/);
-  assert.match(expiry, /ctx\.db\.goldNodeOccupationV1\.siteId\.delete\(occupation\.siteId\)/);
+  assert.match(expiry, /goldNodeOccupationV1\.siteId\.update\(\{[\s\S]*phase: 'returning'/);
+  assert.doesNotMatch(expiry, /siteId\.delete\(occupation\.siteId\)/);
   assert.match(expiry, /phase: 'returning'/);
 
   const completion = section(authority, 'function completeReturn', 'export type GoldSiteSeedPlan');
-  assert.match(completion, /occupationMatchesExpedition\(occupation, expedition\)/);
-  assert.doesNotMatch(completion, /siteId\.find\(expedition\.siteId\) !== null/);
+  assert.match(completion, /assertOccupationMatchesExpedition\(occupation, expedition\)/);
+  assert.match(completion, /occupation\.phase !== 'returning'/);
+  assert.match(completion, /goldNodeOccupationV1\.siteId\.delete\(occupation\.siteId\)/);
+  assert.ok(
+    completion.indexOf('goldNodeOccupationV1.siteId.delete(occupation.siteId)')
+      < completion.indexOf('goldExpeditionV1.expeditionId.delete(expedition.expeditionId)'),
+  );
 
   const dispatchAuthority = section(authority, 'export function dispatchGenesisGoldExpedition', '/**\n * Claim only');
   assert.match(dispatchAuthority, /goldExpeditionV1\.siteId\.filter\(site\.siteId\)/);
-  assert.match(dispatchAuthority, /existing\.phase !== 'returning'/);
+  assert.match(dispatchAuthority, /assertExpeditionState\(existing\);[\s\S]*fail\('GOLD_SITE_EXPEDITION_CONFLICT'\)/);
 
   const frontendBindingDirectory = new URL('../../src/spacetime/module_bindings/', import.meta.url);
   // Generated bindings are refreshed in the integration branch; private rows

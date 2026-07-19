@@ -104,9 +104,21 @@ test('Wood reducer inputs are caller-bound and its lifecycle is scheduler-only',
   const schema = source('../src/schema.ts');
   const scheduled = section(schema, 'export const runWoodExpeditionScheduleV1', 'for (const name of [');
   assert.match(scheduled, /name: 'run_wood_expedition_schedule_v_1'/);
-  assert.match(scheduled, /if \(!ctx\.senderAuth\.isInternal\)/);
-  assert.match(scheduled, /WOOD_EXPEDITION_SCHEDULE_INTERNAL_ONLY/);
+  assert.doesNotMatch(scheduled, /senderAuth\.isInternal|connectionId|databaseIdentity/);
   assert.match(scheduled, /runWoodExpeditionSchedule\(ctx, arg\)/);
+
+  const authority = source('../src/woodExpeditionAuthority.ts');
+  const expiry = section(authority, 'function creditExpiredWood', 'function completeReturn');
+  assert.match(expiry, /woodNodeOccupationV1\.siteId\.update\(\{[\s\S]*phase: 'returning'/);
+  assert.doesNotMatch(expiry, /siteId\.delete\(occupation\.siteId\)/);
+  const completion = section(authority, 'function completeReturn', 'export type WoodSiteSeedPlan');
+  assert.match(completion, /assertOccupationMatchesExpedition\(occupation, expedition\)/);
+  assert.match(completion, /occupation\.phase !== 'returning'/);
+  assert.match(completion, /woodNodeOccupationV1\.siteId\.delete\(occupation\.siteId\)/);
+  assert.ok(
+    completion.indexOf('woodNodeOccupationV1.siteId.delete(occupation.siteId)')
+      < completion.indexOf('woodExpeditionV1.expeditionId.delete(expedition.expeditionId)'),
+  );
 });
 
 test('Food, Wood, and Gold wagons are independent while every passive settlement preserves paired reserves', () => {

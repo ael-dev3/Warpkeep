@@ -2,6 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import {
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+} from './entry-agreement-policy.mjs';
+
 const DEFAULT_FRONTEND = 'https://warpkeep.com';
 const DEFAULT_BRIDGE = 'https://auth.warpkeep.com';
 const DEFAULT_LEGACY_PAGES = 'https://ael-dev3.github.io/Warpkeep/';
@@ -199,8 +203,8 @@ const EXPECTED_GENESIS_GENERATION_V3_COUNTS = Object.freeze({
   worldTileMeta: 10_000n,
 });
 const MAX_GENESIS_FOUNDER_COUNT = 100;
-// Keep aligned with the immutable version history in entryAgreementPolicy.ts.
-const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = 2;
+const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER =
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM;
 const MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT =
   MAX_GENESIS_FOUNDER_COUNT * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER;
 

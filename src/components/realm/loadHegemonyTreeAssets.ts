@@ -63,6 +63,7 @@ type CachedTreePrefab = Readonly<{
 }>;
 
 type TreePrefabCacheEntry = {
+  abortController: AbortController;
   leaseCount: number;
   model?: CachedTreePrefab;
   promise: Promise<CachedTreePrefab>;
@@ -147,6 +148,9 @@ function requestTreeBinary(
     .finally(() => {
       request.settled = true;
       if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      // Coalesce only in-flight work. Retaining settled ArrayBuffers pins the
+      // complete multi-LOD catalog in browser memory after parsed prefabs go.
+      if (binaryRequests.get(requestKey) === request) binaryRequests.delete(requestKey);
     })
     .catch((error: unknown) => {
       abortController.abort();
@@ -290,8 +294,10 @@ export async function acquireHegemonyTreePrefab(
   const key = cacheKey(options);
   let entry = prefabCache.get(key);
   if (!entry) {
-    const detachedOptions = { ...options, signal: undefined };
+    const abortController = new AbortController();
+    const detachedOptions = { ...options, signal: abortController.signal };
     const pending: TreePrefabCacheEntry = {
+      abortController,
       leaseCount: 0,
       releaseAfterLoad: false,
       promise: loadTreePrefab(detachedOptions)
@@ -324,6 +330,10 @@ export async function acquireHegemonyTreePrefab(
       if (prefabCache.get(key) === entry) prefabCache.delete(key);
     } else {
       entry!.releaseAfterLoad = true;
+      // Make an immediate scene recreation independent from the aborted
+      // promise; its rejection cleanup may not have run yet.
+      if (prefabCache.get(key) === entry) prefabCache.delete(key);
+      entry!.abortController.abort();
     }
   };
 
@@ -362,10 +372,21 @@ export async function acquireHegemonyTreePrefab(
 }
 
 export function clearHegemonyTreeAssetCachesForTests() {
+  for (const request of binaryRequests.values()) request.abortController.abort();
   binaryRequests.clear();
   for (const entry of prefabCache.values()) {
     if (entry.model) disposeCachedTreePrefab(entry.model);
-    else entry.releaseAfterLoad = true;
+    else {
+      entry.releaseAfterLoad = true;
+      entry.abortController.abort();
+    }
   }
   prefabCache.clear();
+}
+
+export function hegemonyTreeAssetCacheSizesForTests() {
+  return Object.freeze({
+    binaryRequests: binaryRequests.size,
+    prefabs: prefabCache.size,
+  });
 }

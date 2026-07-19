@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 export const REALM_GRASS_THREE_SHADER_CONTRACT = 'three-r185';
-export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v1-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
+export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v2-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
 export const REALM_GRASS_MAX_WIND_SWAY = 0.075;
 export const REALM_GRASS_CROSS_WIND_RATIO = 0.16;
 export const REALM_GRASS_MAX_PRIMARY_BEND = REALM_GRASS_MAX_WIND_SWAY / Math.hypot(
@@ -77,17 +77,27 @@ float grassVisibleScale = clamp(uGrassGlobalVisibility * grassEdgeFade, 0.0, 1.0
 transformed *= grassVisibleScale;
 transformed.y *= grassSelectionScale;
 vec4 grassWorldPosition = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
-vec2 grassDirection = normalize(uGrassWindDirection + vec2(0.00001, 0.00001));
-vec2 grassCrossDirection = vec2(-grassDirection.y, grassDirection.x);
-float grassPrimary = sin(dot(grassWorldPosition.xz, grassDirection) * 1.18 + uGrassTime * 1.24 + grassPhase);
-float grassSecondary = sin(dot(grassWorldPosition.xz, grassCrossDirection) * 2.78 + uGrassTime * 2.07 + grassPhase * 0.63);
-float grassGust = 0.79 + 0.21 * sin(uGrassTime * 0.31 + dot(grassWorldPosition.xz, grassDirection) * 0.19);
+vec2 grassWorldDirection = normalize(uGrassWindDirection + vec2(0.00001, 0.00001));
+vec2 grassWorldCrossDirection = vec2(-grassWorldDirection.y, grassWorldDirection.x);
+// begin_vertex is instance-local. Undo the horizontal instance/model basis so
+// the later project_vertex transform restores one shared world wind direction.
+mat3 grassInstanceBasis = mat3(modelMatrix * instanceMatrix);
+mat2 grassLocalToWorldXZ = mat2(grassInstanceBasis[0].xz, grassInstanceBasis[2].xz);
+float grassBasisDeterminant = determinant(grassLocalToWorldXZ);
+mat2 grassWorldToLocalXZ = abs(grassBasisDeterminant) > 0.000001
+  ? inverse(grassLocalToWorldXZ)
+  : mat2(1.0);
+vec2 grassLocalDirection = grassWorldToLocalXZ * grassWorldDirection;
+vec2 grassLocalCrossDirection = grassWorldToLocalXZ * grassWorldCrossDirection;
+float grassPrimary = sin(dot(grassWorldPosition.xz, grassWorldDirection) * 1.18 + uGrassTime * 1.24 + grassPhase);
+float grassSecondary = sin(dot(grassWorldPosition.xz, grassWorldCrossDirection) * 2.78 + uGrassTime * 2.07 + grassPhase * 0.63);
+float grassGust = 0.79 + 0.21 * sin(uGrassTime * 0.31 + dot(grassWorldPosition.xz, grassWorldDirection) * 0.19);
 float grassFlexAmount = pow(max(grassFlex, 0.0), 1.85);
 float grassBend = clamp((grassPrimary + grassSecondary * 0.28) * grassGust
   * grassWindScale * grassStiffness * uGrassWindStrength * ${REALM_GRASS_MAX_WIND_SWAY.toFixed(3)},
   -${REALM_GRASS_MAX_PRIMARY_BEND.toFixed(6)}, ${REALM_GRASS_MAX_PRIMARY_BEND.toFixed(6)});
-transformed.xz += grassDirection * grassBend * grassFlexAmount;
-transformed.xz += grassCrossDirection * grassBend * grassFlexAmount * ${REALM_GRASS_CROSS_WIND_RATIO.toFixed(2)};
+transformed.xz += grassLocalDirection * grassBend * grassFlexAmount;
+transformed.xz += grassLocalCrossDirection * grassBend * grassFlexAmount * ${REALM_GRASS_CROSS_WIND_RATIO.toFixed(2)};
 `;
   return `${VERTEX_DECLARATIONS}\n${vertexShader.replace(marker, wind)}`;
 }

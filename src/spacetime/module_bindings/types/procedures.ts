@@ -10,6 +10,7 @@ import * as AdminGetAlphaStatusProcedure from "../admin_get_alpha_status_procedu
 import * as AdminGetAlphaStatusV2Procedure from "../admin_get_alpha_status_v_2_procedure";
 import * as AdminGetAlphaStatusV3Procedure from "../admin_get_alpha_status_v_3_procedure";
 import * as AdminGetAlphaStatusV4Procedure from "../admin_get_alpha_status_v_4_procedure";
+import * as AdminGetAlphaStatusV8Procedure from "../admin_get_alpha_status_v_8_procedure";
 import * as AdminGetFidAuthEpochProcedure from "../admin_get_fid_auth_epoch_procedure";
 import * as AdminGetSnapScanBatchAggregateV1Procedure from "../admin_get_snap_scan_batch_aggregate_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fid_admission_v_2_procedure";
@@ -31,6 +32,8 @@ export type AdminGetAlphaStatusV3Args = __Infer<typeof AdminGetAlphaStatusV3Proc
 export type AdminGetAlphaStatusV3Result = __Infer<typeof AdminGetAlphaStatusV3Procedure.returnType>;
 export type AdminGetAlphaStatusV4Args = __Infer<typeof AdminGetAlphaStatusV4Procedure.params>;
 export type AdminGetAlphaStatusV4Result = __Infer<typeof AdminGetAlphaStatusV4Procedure.returnType>;
+export type AdminGetAlphaStatusV8Args = __Infer<typeof AdminGetAlphaStatusV8Procedure.params>;
+export type AdminGetAlphaStatusV8Result = __Infer<typeof AdminGetAlphaStatusV8Procedure.returnType>;
 export type AdminGetFidAuthEpochArgs = __Infer<typeof AdminGetFidAuthEpochProcedure.params>;
 export type AdminGetFidAuthEpochResult = __Infer<typeof AdminGetFidAuthEpochProcedure.returnType>;
 export type AdminGetSnapScanBatchAggregateV1Args = __Infer<typeof AdminGetSnapScanBatchAggregateV1Procedure.params>;

@@ -45,8 +45,10 @@ export const worldTile = table(
 
 /**
  * Frozen protocol-v1 projection. Its exact public shape, field order, indexes,
- * and placement are a deployed schema contract. Protocol v2 never reads or
- * writes this table; it remains present only for additive compatibility.
+ * and placement are a deployed schema contract. Gameplay never reads or writes
+ * this table; private administrator status procedures read only its aggregate
+ * row count and require it to remain empty. It remains present only for
+ * additive compatibility.
  */
 export const player = table(
   { name: 'player', public: true },
@@ -436,10 +438,9 @@ export const goldExpeditionV1 = table(
     // unique lookup keeps owner-only state reads hot and bounded.
     fid: t.u64().unique(),
     originCastleId: t.u64().unique(),
-    // A completed gathering releases the public site while its wagon is
-    // privately returning. Keep this indexed rather than unique so the next
-    // wagon may occupy that released site without waiting for the first wagon
-    // to reach its origin castle.
+    // Site identity stays indexed for bounded integrity checks. The public
+    // lease remains present through the return phase and is removed atomically
+    // with this row when the wagon reaches its origin castle.
     siteId: t.string().index(),
     phase: t.string(),
     startedAtMicros: t.u64(),
@@ -802,9 +803,11 @@ const warpkeep = schema({
 });
 
 /**
- * Scheduled reducers are normal callable reducers in SpacetimeDB. The
- * scheduler's internal principal is therefore verified before a lifecycle row
- * can advance an occupation, credit Gold, or release a site.
+ * SpacetimeDB 2.x makes reducers referenced by schedule tables private. The
+ * scheduler invokes them with the module identity and no client connection.
+ * Do not gate this path on `senderAuth.isInternal`: the 2.6.1 TypeScript
+ * runtime constructs a normal AuthCtx for scheduled calls, so that flag would
+ * reject the scheduler itself.
  */
 export const runGoldExpeditionScheduleV1 = warpkeep.reducer(
   // This reducer is scheduler-only and never receives a browser binding. The
@@ -815,9 +818,6 @@ export const runGoldExpeditionScheduleV1 = warpkeep.reducer(
   // wrapper is required by the SDK's scheduled-table type reference.
   { arg: goldExpeditionScheduleV1.rowType },
   (ctx, { arg }) => {
-    if (!ctx.senderAuth.isInternal) {
-      throw new SenderError('GOLD_EXPEDITION_SCHEDULE_INTERNAL_ONLY');
-    }
     try {
       runGoldExpeditionSchedule(ctx, arg);
     } catch (error) {
@@ -833,9 +833,6 @@ export const runFoodExpeditionScheduleV1 = warpkeep.reducer(
   { name: 'run_food_expedition_schedule_v_1' },
   { arg: foodExpeditionScheduleV1.rowType },
   (ctx, { arg }) => {
-    if (!ctx.senderAuth.isInternal) {
-      throw new SenderError('FOOD_EXPEDITION_SCHEDULE_INTERNAL_ONLY');
-    }
     try {
       runFoodExpeditionSchedule(ctx, arg);
     } catch (error) {
@@ -851,9 +848,6 @@ export const runWoodExpeditionScheduleV1 = warpkeep.reducer(
   { name: 'run_wood_expedition_schedule_v_1' },
   { arg: woodExpeditionScheduleV1.rowType },
   (ctx, { arg }) => {
-    if (!ctx.senderAuth.isInternal) {
-      throw new SenderError('WOOD_EXPEDITION_SCHEDULE_INTERNAL_ONLY');
-    }
     try {
       runWoodExpeditionSchedule(ctx, arg);
     } catch (error) {
@@ -900,6 +894,7 @@ for (const name of [
   'dispatch_wood_expedition_v1',
   'collect_wood_expedition_v1',
   'admin_seed_genesis_tier_i_wood_sites_v1',
+  'admin_get_alpha_status_v8',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

@@ -20,6 +20,12 @@ import {
   WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS,
   WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS,
 } from '../spacetimedb/src/entryAgreementPolicy';
+import {
+  WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM as TOOLING_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+  WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS as TOOLING_ENTRY_AGREEMENT_EVIDENCE_VERSIONS,
+  WARPKEEP_ENTRY_AGREEMENT_VERSION as TOOLING_ENTRY_AGREEMENT_VERSION,
+  WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS as TOOLING_HISTORICAL_ENTRY_AGREEMENT_VERSIONS,
+} from '../scripts/entry-agreement-policy.mjs';
 
 const termsHtml = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), '../public/terms/index.html'),
@@ -43,10 +49,10 @@ describe('versioned Alpha entry-agreement binding', () => {
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).toBe(MODULE_ENTRY_AGREEMENT_VERSION);
     expect(WARPKEEP_ALPHA_TERMS_VERSION).toBe(WARPKEEP_ENTRY_AGREEMENT_VERSION);
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).toBe(
-      '2026-07-18-hegemony-entry-agreement-v1',
+      '2026-07-19-hegemony-entry-agreement-v2',
     );
     expect(WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION).toBe(
-      '2026-07-18-hegemony-social-contract-v1',
+      '2026-07-19-hegemony-social-contract-v2',
     );
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).toBe(
       WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION.replace(
@@ -59,6 +65,8 @@ describe('versioned Alpha entry-agreement binding', () => {
 
   it('keeps historical evidence distinct from the current entry/gameplay version', () => {
     expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS).toContain('2026-07-14');
+    expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
+      .toContain('2026-07-18-hegemony-entry-agreement-v1');
     expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS).not.toContain(
       WARPKEEP_ENTRY_AGREEMENT_VERSION,
     );
@@ -68,6 +76,13 @@ describe('versioned Alpha entry-agreement binding', () => {
     ]);
     expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM)
       .toBe(WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.length);
+    expect(TOOLING_ENTRY_AGREEMENT_VERSION).toBe(WARPKEEP_ENTRY_AGREEMENT_VERSION);
+    expect(TOOLING_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
+      .toEqual(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS);
+    expect(TOOLING_ENTRY_AGREEMENT_EVIDENCE_VERSIONS)
+      .toEqual(WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS);
+    expect(TOOLING_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM)
+      .toBe(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM);
   });
 
   it.each([

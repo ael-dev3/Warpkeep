@@ -1,17 +1,15 @@
-import {
-  CANONICAL_GENESIS_FOREST_INSTANCES_V1,
-} from './forestLayoutPolicy';
 import { CANONICAL_TIER_I_GOLD_SITES_V1 } from './goldSitePolicy';
 import {
-  CANONICAL_CASTLE_SLOTS,
+  RESOURCE_SITE_CASTLE_CLEARANCE_STEPS,
+  RESOURCE_SITE_CORRIDOR_CLEARANCE_STEPS,
+  hasCanonicalResourceSiteStaticConflict,
+} from './resourceSitePlacementPolicy';
+import {
   CANONICAL_WORLD_TILES,
   HEGEMONY_REALM_ID,
   canonicalMetaForKey,
   deriveChannelSeed,
-  hasCanonicalTravelCorridorClearance,
   hexDistance,
-  hexKey,
-  neighboringHexes,
 } from './world';
 
 /**
@@ -20,14 +18,14 @@ import {
  * explicitly seeded into the public `food_site_v1` table by an admin-only
  * transition.
  */
-export const FOOD_SITE_POLICY_VERSION = 'genesis-001-tier1-food-sites-v1';
+export const FOOD_SITE_POLICY_VERSION = 'genesis-001-tier1-food-sites-v2';
 export const GENESIS_TIER_I_FOOD_SITE_COUNT = 96;
 export const GENESIS_TIER_I_FOOD_SITE_TIER = 1;
 export const FOOD_SITE_SELECTION_CHANNEL = 'genesis-v3-tier1-food-site';
-export const FOOD_SITE_CASTLE_CLEARANCE_STEPS = 2;
-export const FOOD_SITE_CORRIDOR_CLEARANCE_STEPS = 1;
+export const FOOD_SITE_CASTLE_CLEARANCE_STEPS = RESOURCE_SITE_CASTLE_CLEARANCE_STEPS;
+export const FOOD_SITE_CORRIDOR_CLEARANCE_STEPS = RESOURCE_SITE_CORRIDOR_CLEARANCE_STEPS;
 export const GENESIS_TIER_I_FOOD_SITE_DIGEST =
-  '25d451ea4c8d94e0ff439d3a79873df47b4fd1cbeba887358017cfa8fb304bb7';
+  '10756337e27138b536a250ad6bf704c603a8c3946c72a1f0d3a041630610ce72';
 
 export type CanonicalFoodSiteV1 = Readonly<{
   siteId: string;
@@ -58,19 +56,6 @@ function candidateRank(q: number, r: number): number {
 const canonicalGoldSiteKeys = new Set(
   CANONICAL_TIER_I_GOLD_SITES_V1.map(site => `${site.q},${site.r}`),
 );
-const canonicalForestClearanceTileKeys = new Set(
-  CANONICAL_GENESIS_FOREST_INSTANCES_V1.flatMap(instance => [
-    instance.tileKey,
-    ...neighboringHexes(instance).map(neighbor => hexKey(neighbor.q, neighbor.r)),
-  ]),
-);
-
-function isCastleClearance(candidate: Readonly<{ q: number; r: number }>): boolean {
-  return CANONICAL_CASTLE_SLOTS.some(slot => (
-    hexDistance(candidate, slot) <= FOOD_SITE_CASTLE_CLEARANCE_STEPS
-  ));
-}
-
 /**
  * Tier-I wheat farms only inhabit luminous, traversable lowland/meadow
  * resource tiles. The exclusions keep them distinct from the Gold pilot,
@@ -86,9 +71,7 @@ const tierOneCandidates = Object.freeze(
       || meta.staticContentKind !== 'resource-capable'
       || (meta.terrainKind !== 'lowland' && meta.terrainKind !== 'meadow')
       || canonicalGoldSiteKeys.has(tile.key)
-      || canonicalForestClearanceTileKeys.has(tile.key)
-      || isCastleClearance(tile)
-      || hasCanonicalTravelCorridorClearance(tile, FOOD_SITE_CORRIDOR_CLEARANCE_STEPS)
+      || hasCanonicalResourceSiteStaticConflict(tile)
     ) return [];
     return [Object.freeze({
       key: tile.key,

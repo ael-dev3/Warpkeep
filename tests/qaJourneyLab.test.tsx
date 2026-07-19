@@ -91,7 +91,7 @@ async function settlePresentation() {
 function acceptTerms() {
   const dialog = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
   fireEvent.click(within(dialog).getByRole('checkbox', {
-    name: 'I have read and agree to the Alpha Terms and Hegemony Social Contract.'
+    name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
   }));
   fireEvent.click(within(dialog).getByRole('button', {
     name: /CONTINUE TO (?:SIGN-IN|ACCESS CHECK|REALM)/

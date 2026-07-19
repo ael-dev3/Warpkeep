@@ -6,7 +6,7 @@ function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
 }
 
-test('legacy admin allow rejects first-time admission and only re-enables a complete founder graph', () => {
+test('legacy admin allow rejects first-time admission and re-enables a structurally valid founder', () => {
   const admin = source('../src/reducers/admin.ts');
   const start = admin.indexOf('export const adminAllowFid');
   const end = admin.indexOf('export const adminAdmitFounderV1', start);
@@ -15,16 +15,11 @@ test('legacy admin allow rejects first-time admission and only re-enables a comp
   assert.match(reducer, /if \(existing === null\) throw new SenderError\('PROFILED_ADMISSION_REQUIRED'\)/);
   assert.match(reducer, /assertGenesisFounderForFid\(ctx, fid\)/);
   assert.match(reducer, /assertGenesisResourceForFid\(ctx, fid\)/);
-  assert.match(reducer, /profile === null \|\| !admissionProfileIsComplete\(profile\)/);
-  assert.match(reducer, /throw new SenderError\('FOUNDER_PROFILE_INCOMPLETE'\)/);
+  assert.doesNotMatch(reducer, /admissionProfileIsComplete|FOUNDER_PROFILE_INCOMPLETE/);
   assert.match(reducer, /applyAllowedFidTransition/);
   assert.match(reducer, /auditAction: 'allow_fid'/);
   assert.ok(
     reducer.indexOf("throw new SenderError('PROFILED_ADMISSION_REQUIRED')")
-      < reducer.indexOf('applyAllowedFidTransition'),
-  );
-  assert.ok(
-    reducer.indexOf('!admissionProfileIsComplete(profile)')
       < reducer.indexOf('applyAllowedFidTransition'),
   );
   assert.doesNotMatch(reducer, /ensureGenesisFounder/);
@@ -94,26 +89,24 @@ test('profiled admission validates before writes and atomically creates the comp
   assert.match(authority, /communityStatsVisible: false/);
 });
 
-test('profile maintenance cannot clear the required canonical founder presentation', () => {
+test('profile maintenance accepts canonical clears without touching ownership or castle state', () => {
   const admin = source('../src/reducers/admin.ts');
   const start = admin.indexOf('export const adminUpsertRealmProfileV1');
   const end = admin.indexOf('export const adminUpsertFidWalletAttributionV1', start);
   const reducer = admin.slice(start, end);
 
-  assert.match(reducer, /normalizeAdmissionReadyTrustedProfile\(input\)/);
+  assert.match(reducer, /normalizeTrustedPublicProfile\(input\)/);
+  assert.doesNotMatch(reducer, /normalizeAdmissionReadyTrustedProfile\(input\)/);
   assert.match(reducer, /assertGenesisFounderForProfileRepair\(ctx, input\.fid\)/);
   assert.match(reducer, /realmProfileV1\.fid\.update/);
-  assert.match(reducer, /admissionProfileIsComplete\(verifiedProfile\)/);
+  assert.doesNotMatch(reducer, /admissionProfileIsComplete|FOUNDER_PROFILE_INCOMPLETE/);
   assert.match(reducer, /trustedProfilesEqual\(verifiedProfile, normalized\)/);
   assert.ok(
-    reducer.indexOf('normalizeAdmissionReadyTrustedProfile(input)')
+    reducer.indexOf('normalizeTrustedPublicProfile(input)')
       < reducer.indexOf('realmProfileV1.fid.update'),
   );
-  assert.ok(
-    reducer.indexOf('realmProfileV1.fid.update')
-      < reducer.indexOf('admissionProfileIsComplete(verifiedProfile)'),
-  );
   assert.doesNotMatch(reducer, /playerV2\.(?:insert|update)|playerOwnershipV2\.(?:insert|update)/);
+  assert.doesNotMatch(reducer, /castle\.(?:insert|update|delete)|worldTile\.(?:insert|update|delete)/);
 });
 
 test('first JWT bootstrap only binds and reuses the pre-founded castle', () => {
@@ -123,17 +116,47 @@ test('first JWT bootstrap only binds and reuses the pre-founded castle', () => {
   const reducer = admission.slice(start, end);
   assert.match(reducer, /assertExistingPlayerV2Consistency/);
   assert.match(admission, /function assertExistingPlayerV2Consistency[\s\S]*assertGenesisFounderForFid/);
-  assert.match(
-    source('../src/foundingAuthority.ts'),
-    /assertGenesisFounderForFid[\s\S]*admissionProfileIsComplete\(profile\)/,
-  );
   assert.match(reducer, /playerOwnershipV2\.insert/);
   assert.match(reducer, /playerV2\.insert/);
-  assert.match(reducer, /admissionProfileIsComplete\(profile\)/);
-  assert.match(reducer, /FOUNDER_PROFILE_INCOMPLETE/);
+  assert.match(reducer, /if \(profile === null\) throw new SenderError\('STATE_INTEGRITY'\)/);
+  assert.doesNotMatch(reducer, /admissionProfileIsComplete|FOUNDER_PROFILE_INCOMPLETE/);
   assert.match(reducer, /firstAuthenticatedAt:/);
   assert.doesNotMatch(reducer, /castle\.(?:insert|update|delete)/);
   assert.doesNotMatch(reducer, /worldTile\.(?:insert|update|delete)/);
+});
+
+test('post-founding presentation health cannot block owner control or unrelated graph checks', () => {
+  const authority = source('../src/foundingAuthority.ts');
+  const graphStart = authority.indexOf('export function assertGenesisFoundingGraph');
+  const localStart = authority.indexOf('function requireGenesisFounderStructureForFid', graphStart);
+  const gameplayStart = authority.indexOf('export function assertGenesisFounderForFid', localStart);
+  const foundingStart = authority.indexOf('export function ensureGenesisFounder', gameplayStart);
+  const globalGraph = authority.slice(graphStart, localStart);
+  const localGraph = authority.slice(localStart, gameplayStart);
+  const gameplayGate = authority.slice(gameplayStart, foundingStart);
+
+  assert.doesNotMatch(globalGraph, /admissionProfileIsComplete|FOUNDER_PROFILE_INCOMPLETE/);
+  assert.doesNotMatch(localGraph, /admissionProfileIsComplete|FOUNDER_PROFILE_INCOMPLETE/);
+  assert.doesNotMatch(gameplayGate, /admissionProfileIsComplete|FOUNDER_PROFILE_INCOMPLETE/);
+  assert.match(gameplayGate, /requireGenesisFounderStructureForFid\(ctx, fid\)/);
+
+  const auth = source('../src/auth.ts');
+  const admittedStart = auth.indexOf('export function requireAdmittedPlayer');
+  const admittedEnd = auth.indexOf('/** Admin inputs', admittedStart);
+  const ownerGate = auth.slice(admittedStart, admittedEnd);
+  assert.match(ownerGate, /assertGenesisFounderForFid\(ctx, claims\.fid\)/);
+  assert.match(ownerGate, /playerOwnershipV2\.fid\.find\(claims\.fid\)/);
+  assert.match(ownerGate, /ownership\?\.identity\.equals\(ctx\.sender\)/);
+  assert.doesNotMatch(ownerGate, /admissionProfileIsComplete|canonicalUsername|pfpUrl/);
+
+  // Admission itself remains strict and checks both required presentation
+  // fields before the first founder write.
+  const admin = source('../src/reducers/admin.ts');
+  const admissionStart = admin.indexOf('export const adminAdmitFounderV1');
+  const admissionEnd = admin.indexOf('export const adminUpsertRealmProfileV1', admissionStart);
+  const admission = admin.slice(admissionStart, admissionEnd);
+  assert.match(admission, /normalizeAdmissionReadyTrustedProfile\(input\)/);
+  assert.match(admission, /admissionProfileIsComplete\(verifiedProfile\)/);
 });
 
 test('player admission, bootstrap, and terms paths never scan the full realm', () => {
@@ -244,7 +267,7 @@ test('v3 admin status is counts-only and includes founder and ledger orphan sign
   assert.match(procedure, /classifyGenesisStaticSnapshot/);
   assert.match(procedure, /=== 'invalid' \? 1n : 0n/);
   assert.match(procedure, /tile\.occupantCastleId !== undefined/);
-  assert.match(procedure, /!admissionProfileIsComplete\(profile\)/);
+  assert.doesNotMatch(procedure, /admissionProfileIsComplete|FOUNDER_PROFILE_INCOMPLETE/);
   assert.match(procedure, /walletAttributionSnapshotV1\.count/);
   assert.match(procedure, /snapScanBatchV1\.count/);
   assert.match(procedure, /alphaTermsAcceptanceV1\.count/);

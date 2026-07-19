@@ -54,6 +54,7 @@ import type { ReadyRealmResourcePresentation } from '../components/realm/realmRe
 import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
 import type { ReadyFoodExpeditionPresentation } from '../components/realm/realmFoodExpeditionPresentation';
 import type { ReadyWoodExpeditionPresentation } from '../components/realm/realmWoodExpeditionPresentation';
+import { createExpeditionIdempotencyKey } from './expeditionIdempotencyKey';
 
 /**
  * The generation-three Realm replicates 20,000 immutable world rows before
@@ -64,11 +65,18 @@ export const CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS = 60_000;
 export const RESOURCE_OPERATION_TIMEOUT_MILLISECONDS = 15_000;
 export const RESOURCE_REFRESH_INTERVAL_MILLISECONDS = 60_000;
 
+class ResourceOperationDeadlineError extends Error {
+  constructor() {
+    super('Warpkeep resource operation timed out.');
+    this.name = 'ResourceOperationDeadlineError';
+  }
+}
+
 function withResourceOperationDeadline<T>(operation: Promise<T>): Promise<T> {
   let deadline: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     deadline = setTimeout(
-      () => reject(new Error('Warpkeep resource operation timed out.')),
+      () => reject(new ResourceOperationDeadlineError()),
       RESOURCE_OPERATION_TIMEOUT_MILLISECONDS
     );
   });
@@ -92,15 +100,15 @@ export type WarpkeepBackendControllerValue = Readonly<{
   /** Settle the caller's server-time yield and refresh the private projection. */
   collectResources: () => Promise<void>;
   /** Send a guarded Gold dispatch; public occupancy remains subscription-owned. */
-  dispatchGoldExpedition: (siteId: string, idempotencyKey: string) => Promise<void>;
+  dispatchGoldExpedition: (siteId: string) => Promise<void>;
   /** Settle only the caller's Gold expedition and refresh both private views. */
   claimGoldExpedition: () => Promise<void>;
   /** Send a guarded Food dispatch; public occupancy remains subscription-owned. */
-  dispatchFoodExpedition: (siteId: string, idempotencyKey: string) => Promise<void>;
+  dispatchFoodExpedition: (siteId: string) => Promise<void>;
   /** Settle only the caller's Food expedition and refresh both private views. */
   claimFoodExpedition: () => Promise<void>;
   /** Send a guarded Wood dispatch; public occupancy remains subscription-owned. */
-  dispatchWoodExpedition: (siteId: string, idempotencyKey: string) => Promise<void>;
+  dispatchWoodExpedition: (siteId: string) => Promise<void>;
   /** Settle only the caller's Wood expedition and refresh both private views. */
   claimWoodExpedition: () => Promise<void>;
 }>;
@@ -189,6 +197,50 @@ function presentationIdentity(
     : undefined;
 }
 
+type ExpeditionDispatchAttempt = Readonly<{
+  generation: number;
+  siteId: string;
+  idempotencyKey: string;
+}>;
+
+function dispatchAttemptFor(
+  retained: ExpeditionDispatchAttempt | undefined,
+  generation: number,
+  siteId: string
+): ExpeditionDispatchAttempt | undefined {
+  if (retained?.generation === generation && retained.siteId === siteId) return retained;
+  const idempotencyKey = createExpeditionIdempotencyKey();
+  return idempotencyKey === undefined
+    ? undefined
+    : Object.freeze({ generation, siteId, idempotencyKey });
+}
+
+type ActiveExpeditionProjection = Readonly<{
+  active: boolean;
+  expedition?: Readonly<{
+    siteId: string;
+    originCastleId: number;
+  }>;
+}>;
+
+function activeExpeditionMatchesDispatch(
+  projection: ActiveExpeditionProjection | undefined,
+  siteId: string,
+  originCastleId: number
+) {
+  return projection?.active === true
+    && projection.expedition?.siteId === siteId
+    && projection.expedition.originCastleId === originCastleId;
+}
+
+function activeExpeditionBelongsToCastle(
+  projection: ActiveExpeditionProjection | undefined,
+  originCastleId: number
+) {
+  return projection?.active !== true
+    || projection.expedition?.originCastleId === originCastleId;
+}
+
 function backendError(identity: VerifiedFarcasterIdentity | undefined): WarpkeepBackendState {
   return {
     phase: 'error',
@@ -252,16 +304,19 @@ export function WarpkeepSpacetimeProvider({
     value: ReadyGoldExpeditionPresentation | undefined;
   }> | undefined>(undefined);
   const goldExpeditionOperationGenerationRef = useRef<number | undefined>(undefined);
+  const goldDispatchAttemptRef = useRef<ExpeditionDispatchAttempt | undefined>(undefined);
   const foodExpeditionStateRef = useRef<Readonly<{
     generation: number;
     value: ReadyFoodExpeditionPresentation | undefined;
   }> | undefined>(undefined);
   const foodExpeditionOperationGenerationRef = useRef<number | undefined>(undefined);
+  const foodDispatchAttemptRef = useRef<ExpeditionDispatchAttempt | undefined>(undefined);
   const woodExpeditionStateRef = useRef<Readonly<{
     generation: number;
     value: ReadyWoodExpeditionPresentation | undefined;
   }> | undefined>(undefined);
   const woodExpeditionOperationGenerationRef = useRef<number | undefined>(undefined);
+  const woodDispatchAttemptRef = useRef<ExpeditionDispatchAttempt | undefined>(undefined);
   const processTermsAttemptRef = useRef<() => void>(() => undefined);
   stateRef.current = state;
 
@@ -281,10 +336,13 @@ export function WarpkeepSpacetimeProvider({
     resourceStateRef.current = undefined;
     goldExpeditionStateRef.current = undefined;
     goldExpeditionOperationGenerationRef.current = undefined;
+    goldDispatchAttemptRef.current = undefined;
     foodExpeditionStateRef.current = undefined;
     foodExpeditionOperationGenerationRef.current = undefined;
+    foodDispatchAttemptRef.current = undefined;
     woodExpeditionStateRef.current = undefined;
     woodExpeditionOperationGenerationRef.current = undefined;
+    woodDispatchAttemptRef.current = undefined;
     canonicalRealmSourceRef.current = undefined;
     processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
@@ -364,33 +422,55 @@ export function WarpkeepSpacetimeProvider({
     }
   }, [runActiveTeardown, runtime]);
 
-  const dispatchGoldExpedition = useCallback(async (
-    siteId: string,
-    idempotencyKey: string
-  ) => {
+  const dispatchGoldExpedition = useCallback(async (siteId: string) => {
     const generation = generationRef.current;
     const currentState = stateRef.current;
     const connection = connectionRef.current;
     const fid = currentState.identity?.fid;
+    const retainedExpedition = goldExpeditionStateRef.current?.generation === generation
+      ? goldExpeditionStateRef.current.value
+      : undefined;
     if (
       currentState.phase !== 'ready'
       || currentState.admission !== 'ready'
+      || currentState.realm === undefined
       || currentState.goldExpedition === undefined
       || connection === undefined
       || fid === undefined
       || runtime.dispatchGoldExpedition === undefined
+      || retainedExpedition?.active === true
       || goldExpeditionOperationGenerationRef.current === generation
     ) {
       throw new Error('Gold expedition is unavailable.');
     }
+    const attempt = dispatchAttemptFor(
+      goldDispatchAttemptRef.current,
+      generation,
+      siteId
+    );
+    if (attempt === undefined) throw new Error('Gold expedition is unavailable.');
+    goldDispatchAttemptRef.current = attempt;
     goldExpeditionOperationGenerationRef.current = generation;
     try {
       // This only refreshes the exact private procedure after the reducer has
       // committed. It intentionally does not edit public occupation state.
       const goldExpedition = await withResourceOperationDeadline(
-        runtime.dispatchGoldExpedition(connection, siteId, idempotencyKey)
+        runtime.dispatchGoldExpedition(connection, siteId, attempt.idempotencyKey)
       );
-      if (generationRef.current !== generation) return;
+      if (generationRef.current !== generation) {
+        throw new Error('Gold expedition is unavailable.');
+      }
+      if (!activeExpeditionMatchesDispatch(
+        goldExpedition,
+        siteId,
+        currentState.realm.ownCastle.castleId
+      )) throw new Error('Gold expedition is unavailable.');
+      // The exact private procedure has now proved the reducer outcome. Until
+      // this point every retry reuses the same key, including after a lost
+      // reducer response or a record-panel remount.
+      if (goldDispatchAttemptRef.current === attempt) {
+        goldDispatchAttemptRef.current = undefined;
+      }
       goldExpeditionStateRef.current = Object.freeze({ generation, value: goldExpedition });
       setState((latest) => {
         if (
@@ -403,18 +483,23 @@ export function WarpkeepSpacetimeProvider({
         ) return latest;
         return { ...latest, goldExpedition };
       });
-    } catch {
+    } catch (error) {
       // Reducer failures and timeouts are intentionally generic. Do not
       // expose server policy details or guess whether an ambiguous write won.
       if (generationRef.current === generation) {
-        throw new Error('Gold expedition is unavailable.');
+        if (error instanceof ResourceOperationDeadlineError) {
+          canonicalRealmSourceRef.current = undefined;
+          runActiveTeardown();
+          setState(backendError(currentState.identity));
+        }
       }
+      throw new Error('Gold expedition is unavailable.');
     } finally {
       if (goldExpeditionOperationGenerationRef.current === generation) {
         goldExpeditionOperationGenerationRef.current = undefined;
       }
     }
-  }, [runtime]);
+  }, [runActiveTeardown, runtime]);
 
   const claimGoldExpedition = useCallback(async () => {
     const generation = generationRef.current;
@@ -424,6 +509,7 @@ export function WarpkeepSpacetimeProvider({
     if (
       currentState.phase !== 'ready'
       || currentState.admission !== 'ready'
+      || currentState.realm === undefined
       || currentState.goldExpedition === undefined
       || connection === undefined
       || fid === undefined
@@ -437,8 +523,16 @@ export function WarpkeepSpacetimeProvider({
       const settled = await withResourceOperationDeadline(
         runtime.collectGoldExpedition(connection, fid)
       );
-      if (generationRef.current !== generation) return;
-      if (settled.resources.fid !== BigInt(fid)) {
+      if (generationRef.current !== generation) {
+        throw new Error('Gold expedition is unavailable.');
+      }
+      if (
+        settled.resources.fid !== BigInt(fid)
+        || !activeExpeditionBelongsToCastle(
+          settled.goldExpedition,
+          currentState.realm.ownCastle.castleId
+        )
+      ) {
         throw new Error('Gold expedition is unavailable.');
       }
       const retained = resourceStateRef.current?.generation === generation
@@ -472,9 +566,7 @@ export function WarpkeepSpacetimeProvider({
         };
       });
     } catch {
-      if (generationRef.current === generation) {
-        throw new Error('Gold expedition is unavailable.');
-      }
+      throw new Error('Gold expedition is unavailable.');
     } finally {
       if (goldExpeditionOperationGenerationRef.current === generation) {
         goldExpeditionOperationGenerationRef.current = undefined;
@@ -482,29 +574,48 @@ export function WarpkeepSpacetimeProvider({
     }
   }, [runtime]);
 
-  const dispatchFoodExpedition = useCallback(async (
-    siteId: string,
-    idempotencyKey: string
-  ) => {
+  const dispatchFoodExpedition = useCallback(async (siteId: string) => {
     const generation = generationRef.current;
     const currentState = stateRef.current;
     const connection = connectionRef.current;
     const fid = currentState.identity?.fid;
+    const retainedExpedition = foodExpeditionStateRef.current?.generation === generation
+      ? foodExpeditionStateRef.current.value
+      : undefined;
     if (
       currentState.phase !== 'ready'
       || currentState.admission !== 'ready'
+      || currentState.realm === undefined
       || currentState.foodExpedition === undefined
       || connection === undefined
       || fid === undefined
       || runtime.dispatchFoodExpedition === undefined
+      || retainedExpedition?.active === true
       || foodExpeditionOperationGenerationRef.current === generation
     ) throw new Error('Food expedition is unavailable.');
+    const attempt = dispatchAttemptFor(
+      foodDispatchAttemptRef.current,
+      generation,
+      siteId
+    );
+    if (attempt === undefined) throw new Error('Food expedition is unavailable.');
+    foodDispatchAttemptRef.current = attempt;
     foodExpeditionOperationGenerationRef.current = generation;
     try {
       const foodExpedition = await withResourceOperationDeadline(
-        runtime.dispatchFoodExpedition(connection, siteId, idempotencyKey)
+        runtime.dispatchFoodExpedition(connection, siteId, attempt.idempotencyKey)
       );
-      if (generationRef.current !== generation) return;
+      if (generationRef.current !== generation) {
+        throw new Error('Food expedition is unavailable.');
+      }
+      if (!activeExpeditionMatchesDispatch(
+        foodExpedition,
+        siteId,
+        currentState.realm.ownCastle.castleId
+      )) throw new Error('Food expedition is unavailable.');
+      if (foodDispatchAttemptRef.current === attempt) {
+        foodDispatchAttemptRef.current = undefined;
+      }
       foodExpeditionStateRef.current = Object.freeze({ generation, value: foodExpedition });
       setState((latest) => {
         if (
@@ -517,14 +628,21 @@ export function WarpkeepSpacetimeProvider({
         ) return latest;
         return { ...latest, foodExpedition };
       });
-    } catch {
-      if (generationRef.current === generation) throw new Error('Food expedition is unavailable.');
+    } catch (error) {
+      if (generationRef.current === generation) {
+        if (error instanceof ResourceOperationDeadlineError) {
+          canonicalRealmSourceRef.current = undefined;
+          runActiveTeardown();
+          setState(backendError(currentState.identity));
+        }
+      }
+      throw new Error('Food expedition is unavailable.');
     } finally {
       if (foodExpeditionOperationGenerationRef.current === generation) {
         foodExpeditionOperationGenerationRef.current = undefined;
       }
     }
-  }, [runtime]);
+  }, [runActiveTeardown, runtime]);
 
   const claimFoodExpedition = useCallback(async () => {
     const generation = generationRef.current;
@@ -534,6 +652,7 @@ export function WarpkeepSpacetimeProvider({
     if (
       currentState.phase !== 'ready'
       || currentState.admission !== 'ready'
+      || currentState.realm === undefined
       || currentState.foodExpedition === undefined
       || connection === undefined
       || fid === undefined
@@ -545,8 +664,14 @@ export function WarpkeepSpacetimeProvider({
       const settled = await withResourceOperationDeadline(
         runtime.collectFoodExpedition(connection, fid)
       );
-      if (generationRef.current !== generation) return;
-      if (settled.resources.fid !== BigInt(fid)) throw new Error('Food expedition is unavailable.');
+      if (generationRef.current !== generation) throw new Error('Food expedition is unavailable.');
+      if (
+        settled.resources.fid !== BigInt(fid)
+        || !activeExpeditionBelongsToCastle(
+          settled.foodExpedition,
+          currentState.realm.ownCastle.castleId
+        )
+      ) throw new Error('Food expedition is unavailable.');
       const retained = resourceStateRef.current?.generation === generation
         ? resourceStateRef.current.value
         : undefined;
@@ -575,7 +700,7 @@ export function WarpkeepSpacetimeProvider({
         };
       });
     } catch {
-      if (generationRef.current === generation) throw new Error('Food expedition is unavailable.');
+      throw new Error('Food expedition is unavailable.');
     } finally {
       if (foodExpeditionOperationGenerationRef.current === generation) {
         foodExpeditionOperationGenerationRef.current = undefined;
@@ -583,29 +708,48 @@ export function WarpkeepSpacetimeProvider({
     }
   }, [runtime]);
 
-  const dispatchWoodExpedition = useCallback(async (
-    siteId: string,
-    idempotencyKey: string
-  ) => {
+  const dispatchWoodExpedition = useCallback(async (siteId: string) => {
     const generation = generationRef.current;
     const currentState = stateRef.current;
     const connection = connectionRef.current;
     const fid = currentState.identity?.fid;
+    const retainedExpedition = woodExpeditionStateRef.current?.generation === generation
+      ? woodExpeditionStateRef.current.value
+      : undefined;
     if (
       currentState.phase !== 'ready'
       || currentState.admission !== 'ready'
+      || currentState.realm === undefined
       || currentState.woodExpedition === undefined
       || connection === undefined
       || fid === undefined
       || runtime.dispatchWoodExpedition === undefined
+      || retainedExpedition?.active === true
       || woodExpeditionOperationGenerationRef.current === generation
     ) throw new Error('Wood expedition is unavailable.');
+    const attempt = dispatchAttemptFor(
+      woodDispatchAttemptRef.current,
+      generation,
+      siteId
+    );
+    if (attempt === undefined) throw new Error('Wood expedition is unavailable.');
+    woodDispatchAttemptRef.current = attempt;
     woodExpeditionOperationGenerationRef.current = generation;
     try {
       const woodExpedition = await withResourceOperationDeadline(
-        runtime.dispatchWoodExpedition(connection, siteId, idempotencyKey)
+        runtime.dispatchWoodExpedition(connection, siteId, attempt.idempotencyKey)
       );
-      if (generationRef.current !== generation) return;
+      if (generationRef.current !== generation) {
+        throw new Error('Wood expedition is unavailable.');
+      }
+      if (!activeExpeditionMatchesDispatch(
+        woodExpedition,
+        siteId,
+        currentState.realm.ownCastle.castleId
+      )) throw new Error('Wood expedition is unavailable.');
+      if (woodDispatchAttemptRef.current === attempt) {
+        woodDispatchAttemptRef.current = undefined;
+      }
       woodExpeditionStateRef.current = Object.freeze({ generation, value: woodExpedition });
       setState((latest) => {
         if (
@@ -618,14 +762,21 @@ export function WarpkeepSpacetimeProvider({
         ) return latest;
         return { ...latest, woodExpedition };
       });
-    } catch {
-      if (generationRef.current === generation) throw new Error('Wood expedition is unavailable.');
+    } catch (error) {
+      if (generationRef.current === generation) {
+        if (error instanceof ResourceOperationDeadlineError) {
+          canonicalRealmSourceRef.current = undefined;
+          runActiveTeardown();
+          setState(backendError(currentState.identity));
+        }
+      }
+      throw new Error('Wood expedition is unavailable.');
     } finally {
       if (woodExpeditionOperationGenerationRef.current === generation) {
         woodExpeditionOperationGenerationRef.current = undefined;
       }
     }
-  }, [runtime]);
+  }, [runActiveTeardown, runtime]);
 
   const claimWoodExpedition = useCallback(async () => {
     const generation = generationRef.current;
@@ -635,6 +786,7 @@ export function WarpkeepSpacetimeProvider({
     if (
       currentState.phase !== 'ready'
       || currentState.admission !== 'ready'
+      || currentState.realm === undefined
       || currentState.woodExpedition === undefined
       || connection === undefined
       || fid === undefined
@@ -646,8 +798,14 @@ export function WarpkeepSpacetimeProvider({
       const settled = await withResourceOperationDeadline(
         runtime.collectWoodExpedition(connection, fid)
       );
-      if (generationRef.current !== generation) return;
-      if (settled.resources.fid !== BigInt(fid)) throw new Error('Wood expedition is unavailable.');
+      if (generationRef.current !== generation) throw new Error('Wood expedition is unavailable.');
+      if (
+        settled.resources.fid !== BigInt(fid)
+        || !activeExpeditionBelongsToCastle(
+          settled.woodExpedition,
+          currentState.realm.ownCastle.castleId
+        )
+      ) throw new Error('Wood expedition is unavailable.');
       const retained = resourceStateRef.current?.generation === generation
         ? resourceStateRef.current.value
         : undefined;
@@ -676,7 +834,7 @@ export function WarpkeepSpacetimeProvider({
         };
       });
     } catch {
-      if (generationRef.current === generation) throw new Error('Wood expedition is unavailable.');
+      throw new Error('Wood expedition is unavailable.');
     } finally {
       if (woodExpeditionOperationGenerationRef.current === generation) {
         woodExpeditionOperationGenerationRef.current = undefined;
@@ -733,10 +891,13 @@ export function WarpkeepSpacetimeProvider({
     resourceStateRef.current = undefined;
     goldExpeditionStateRef.current = undefined;
     goldExpeditionOperationGenerationRef.current = undefined;
+    goldDispatchAttemptRef.current = undefined;
     foodExpeditionStateRef.current = undefined;
     foodExpeditionOperationGenerationRef.current = undefined;
+    foodDispatchAttemptRef.current = undefined;
     woodExpeditionStateRef.current = undefined;
     woodExpeditionOperationGenerationRef.current = undefined;
+    woodDispatchAttemptRef.current = undefined;
     const previousState = stateRef.current;
     const canonicalRealmSource = [
       config.spacetimeUri,
@@ -830,17 +991,26 @@ export function WarpkeepSpacetimeProvider({
       if (goldExpeditionOperationGenerationRef.current === generation) {
         goldExpeditionOperationGenerationRef.current = undefined;
       }
+      if (goldDispatchAttemptRef.current?.generation === generation) {
+        goldDispatchAttemptRef.current = undefined;
+      }
       if (foodExpeditionStateRef.current?.generation === generation) {
         foodExpeditionStateRef.current = undefined;
       }
       if (foodExpeditionOperationGenerationRef.current === generation) {
         foodExpeditionOperationGenerationRef.current = undefined;
       }
+      if (foodDispatchAttemptRef.current?.generation === generation) {
+        foodDispatchAttemptRef.current = undefined;
+      }
       if (woodExpeditionStateRef.current?.generation === generation) {
         woodExpeditionStateRef.current = undefined;
       }
       if (woodExpeditionOperationGenerationRef.current === generation) {
         woodExpeditionOperationGenerationRef.current = undefined;
+      }
+      if (woodDispatchAttemptRef.current?.generation === generation) {
+        woodDispatchAttemptRef.current = undefined;
       }
       const observer = cleanupObserver;
       cleanupObserver = undefined;

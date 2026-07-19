@@ -2,7 +2,7 @@
 
 ## Status
 
-Generation v3 is the live Alpha 0.3.8 world definition. It is an additive
+Generation v3 was introduced in Alpha 0.3.8 and remains the Alpha 0.3.11 world definition. It is an additive
 expansion of the generation-v2 predecessor, not a second realm. The completed
 module publication and world-state transition were separately approved; this
 document grants no authority to publish or mutate production again.
@@ -100,7 +100,7 @@ that v4 aggregate before and after the transaction and requires it unchanged.
 
 ## Rollout boundary
 
-The completed Alpha 0.3.8 production sequence was intentionally split:
+The original Alpha 0.3.8 production sequence was intentionally split:
 
 1. Prove the exact current 1,261-cell founded aggregate.
 2. Publish the additive module with `--delete-data=never`.
@@ -118,7 +118,7 @@ The disposable loopback migration proof seeds a populated exact generation-v2
 fixture, proves routine-seed refusal, publishes the checked-out module without
 data deletion, runs the expansion, verifies preserved founding/static digests and
 realm timestamp, and proves an idempotent retry. This local proof is required
-release evidence but is not production approval.
+as a local release check but is not production approval.
 
 ## Client compatibility
 

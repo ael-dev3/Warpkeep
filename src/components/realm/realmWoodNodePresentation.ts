@@ -1,4 +1,5 @@
 import type { HexCoord } from '../../game/map/hexCoordinates';
+import { isCanonicalRealmWoodSiteCatalog } from './realmResourceSiteCatalogPolicy';
 
 /**
  * Browser-safe projection of the additive public Wood catalog. As with Gold
@@ -155,6 +156,7 @@ export function resolveRealmWoodNodePresentations(input: Readonly<{
     input.sites === undefined
     || input.occupations === undefined
     || input.sites.length > MAX_PUBLIC_WOOD_SITE_COUNT
+    || !isCanonicalRealmWoodSiteCatalog(input.sites)
   ) return Object.freeze([]);
 
   const siteIds = new Set<string>();

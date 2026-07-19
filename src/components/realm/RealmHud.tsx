@@ -75,13 +75,13 @@ const REALM_RESOURCE_TOOLTIP_ORDER: readonly RealmResourceTooltipKey[] = Object.
 
 const RESOURCE_TOOLTIP_COPY: Readonly<Record<RealmResourceTooltipKey, string>> = Object.freeze({
   food:
-    'Private keep resource. Your castle terrain determines Food yield in completed ten-minute server cycles. Collect settles the server-recorded amount; farms and spending are not live yet.',
+    'Keeps and future armies will need Food. Your keep earns a private terrain yield, and farm expeditions can gather more from available sites. Spending is not live yet.',
   wood:
-    'Private keep resource. Your castle terrain determines Wood yield in completed ten-minute server cycles. Collect settles the server-recorded amount; logging sites and construction are not live yet.',
+    'Wood is intended for construction and fortification. Your keep earns a private terrain yield, and logging expeditions can gather more from available sites. Spending is not live yet.',
   stone:
-    'Private keep resource. Your castle terrain determines Stone yield in completed ten-minute server cycles. Collect settles the server-recorded amount; quarries and construction are not live yet.',
+    'Stone is intended for strongholds and upgrades. It currently comes only from your keep\'s private terrain yield; quarry sites and Stone spending are not live yet.',
   gold:
-    'Private keep resource. Your castle terrain determines Gold yield in completed ten-minute server cycles. Collect settles the server-recorded amount; mines and wagon expeditions are not live yet.',
+    'Gold is intended for trade, upgrades, and command. It currently comes only from mine expeditions; terrain Gold and spending are not live.',
   marks:
     'Separate community-attribution balance. Marks currently have no live spending, conversion, transfer, redemption, or reward loop.'
 });

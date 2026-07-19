@@ -6,7 +6,6 @@ import { requireAdmittedPlayer, requireAllowedFid, requireWarpkeepJwt } from '..
 import { assertGenesisFounderForFid } from '../foundingAuthority';
 import { WARPKEEP_ALPHA_TERMS_VERSION } from '../entryAgreementPolicy';
 import { evaluatePlayerOwnership } from '../playerOwnershipPolicy';
-import { admissionProfileIsComplete } from '../profileAuthorityPolicy';
 import warpkeep from '../schema';
 
 export type AdmissionStatus =
@@ -115,9 +114,7 @@ export const bootstrapPlayerV2 = warpkeep.reducer(
     }
 
     const profile = ctx.db.realmProfileV1.fid.find(claims.fid);
-    if (profile === null || !admissionProfileIsComplete(profile)) {
-      throw new SenderError('FOUNDER_PROFILE_INCOMPLETE');
-    }
+    if (profile === null) throw new SenderError('STATE_INTEGRITY');
     ctx.db.playerOwnershipV2.insert({
       fid: claims.fid,
       identity: ctx.sender,

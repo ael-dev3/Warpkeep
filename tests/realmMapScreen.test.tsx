@@ -304,7 +304,7 @@ describe('RealmMapScreen', () => {
 
     const { explore } = openPlayerExplore();
     fireEvent.click(within(explore).getByRole('button', {
-      name: /Inspect @warpkeeper, Warpkeeper Bastion, q 0, r 0, your castle/i
+      name: /Inspect Hegemony Keep, Warpkeeper Bastion, q 0, r 0, your castle/i
     }));
     expect(screen.getByRole('dialog', { name: 'Warpkeeper Bastion' })).not.toBeNull();
 

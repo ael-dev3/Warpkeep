@@ -8,7 +8,6 @@ import {
 } from 'react';
 
 import {
-  createGoldExpeditionIdempotencyKey,
   goldExpeditionForNode,
   type GoldExpeditionPresentation,
   type ReadyGoldExpeditionPresentation
@@ -67,7 +66,7 @@ export type GoldMineInspectionPanelProps = Readonly<{
    * A guarded server reducer boundary supplied by the authenticated provider.
    * The panel never changes public occupation, Gold, or node availability.
    */
-  onDispatchGoldExpedition?: (siteId: string, idempotencyKey: string) => Promise<void>;
+  onDispatchGoldExpedition?: (siteId: string) => Promise<void>;
   /** Guarded owner-only settlement reducer; no browser balance mutation. */
   onClaimGoldExpedition?: () => Promise<void>;
   onRequestClose: () => void;
@@ -142,20 +141,50 @@ export function GoldMineInspectionPanel({
   focusTargetRef
 }: GoldMineInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [dispatchState, setDispatchState] = useState<'idle' | 'submitting' | 'failed'>('idle');
+  const [dispatchState, setDispatchState] = useState<
+    'idle' | 'submitting' | 'submitted' | 'failed'
+  >('idle');
   const [claimState, setClaimState] = useState<'idle' | 'submitting' | 'failed'>('idle');
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
   const scheduleTimestamp = node ? goldNodeNextAuthorityTimestamp(node) : undefined;
   const scheduleLabel = formatRemainingDuration(scheduleTimestamp);
   const ownerExpedition = visibleOwnerExpedition(node, privateExpedition);
+  const privateExpeditionActive = privateExpedition?.status === 'ready'
+    && privateExpedition.active;
+  const privateActiveSiteId = privateExpeditionActive
+    ? privateExpedition?.expedition?.siteId
+    : undefined;
+  const awaitingPublicOccupation = node?.availability === 'available'
+    && (
+      privateActiveSiteId === node.siteId
+      || (!privateExpeditionActive && dispatchState === 'submitted')
+    );
+  const expeditionActiveElsewhere = node?.availability === 'available'
+    && privateExpeditionActive
+    && privateActiveSiteId !== node.siteId;
   const canDispatch = node?.availability === 'available'
     && onDispatchGoldExpedition !== undefined
-    && dispatchState !== 'submitting';
+    && !privateExpeditionActive
+    && (dispatchState === 'idle' || dispatchState === 'failed');
   const canClaim = ownerExpedition !== undefined
     && ownerExpedition.pendingGold > 0n
     && onClaimGoldExpedition !== undefined
     && claimState !== 'submitting';
+  const dispatchLabel = dispatchState === 'submitting'
+    ? 'DISPATCHING WAGON…'
+    : awaitingPublicOccupation
+      ? 'AWAITING REALM…'
+      : expeditionActiveElsewhere
+        ? 'EXPEDITION ACTIVE'
+        : 'DISPATCH WAGON';
+  const dispatchStatus = awaitingPublicOccupation
+    ? 'The private Realm record is confirmed; awaiting the public occupation.'
+    : expeditionActiveElsewhere
+      ? 'Your Gold wagon already has an active expedition.'
+      : dispatchState === 'failed'
+        ? 'The Realm could not confirm this dispatch. Check the site state and try again.'
+        : 'Dispatch is confirmed only when the Realm publishes the occupation.';
 
   const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
     closeButtonRef.current = element;
@@ -173,18 +202,13 @@ export function GoldMineInspectionPanel({
 
   const dispatch = useCallback(async () => {
     if (!node || node.availability !== 'available' || !onDispatchGoldExpedition) return;
-    const idempotencyKey = createGoldExpeditionIdempotencyKey();
-    if (!idempotencyKey) {
-      setDispatchState('failed');
-      return;
-    }
     setDispatchState('submitting');
     try {
       // The reducer result is intentionally not reflected into this card.
       // Public subscription plus the exact private procedure are the only
       // paths that may confirm occupation/pending Gold afterward.
-      await onDispatchGoldExpedition(node.siteId, idempotencyKey);
-      setDispatchState('idle');
+      await onDispatchGoldExpedition(node.siteId);
+      setDispatchState('submitted');
     } catch {
       setDispatchState('failed');
     }
@@ -284,12 +308,10 @@ export function GoldMineInspectionPanel({
                 onClick={() => void dispatch()}
                 type="button"
               >
-                {dispatchState === 'submitting' ? 'DISPATCHING WAGON…' : 'DISPATCH WAGON'}
+                {dispatchLabel}
               </button>
               <p aria-live="polite" className="gold-mine-inspection__action-status">
-                {dispatchState === 'failed'
-                  ? 'The Realm could not confirm this dispatch. Check the site state and try again.'
-                  : 'Dispatch is confirmed only when the Realm publishes the occupation.'}
+                {dispatchStatus}
               </p>
             </div>
           ) : null}

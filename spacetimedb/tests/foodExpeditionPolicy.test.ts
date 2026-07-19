@@ -93,7 +93,7 @@ test('the Tier-I Food catalog is pinned to 96 broadly distributed lowland/meadow
 
   // The exact pool is itself reviewable: it is broad enough for the 96-site
   // farthest-point catalog and includes the outer authoritative generation.
-  assert.equal(GENESIS_TIER_I_FOOD_SITE_CANDIDATE_COUNT, 295);
+  assert.equal(GENESIS_TIER_I_FOOD_SITE_CANDIDATE_COUNT, 291);
   assert.equal(eligibleCandidates.length, GENESIS_TIER_I_FOOD_SITE_CANDIDATE_COUNT);
   assert.equal(CANONICAL_TIER_I_FOOD_SITES_V1.length, GENESIS_TIER_I_FOOD_SITE_COUNT);
   assert.equal(
@@ -130,8 +130,8 @@ test('the Tier-I Food catalog is pinned to 96 broadly distributed lowland/meadow
     CANONICAL_TIER_I_FOOD_SITES_V1.filter(site => (
       canonicalMetaForKey(`${site.q},${site.r}`)?.sector === sector
     )).length
-  )), [16, 13, 20, 17, 14, 16]);
-  assert.equal(FOOD_SITE_POLICY_VERSION, 'genesis-001-tier1-food-sites-v1');
+  )), [17, 12, 20, 16, 14, 17]);
+  assert.equal(FOOD_SITE_POLICY_VERSION, 'genesis-001-tier1-food-sites-v2');
 });
 
 test('Food timing is a deterministic round trip with exactly thirty days at one Food/minute', () => {

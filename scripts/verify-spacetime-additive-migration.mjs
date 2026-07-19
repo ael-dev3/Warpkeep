@@ -12,6 +12,12 @@ import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import {
+  ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION,
+  ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION,
+  formatAdditiveMigrationProofReceipt,
+} from './spacetime-additive-migration-proof.mjs';
+
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const fixtureModule = resolve(
   repositoryRoot,
@@ -47,12 +53,13 @@ const additiveV8SchemaFixture = resolve(
 );
 const additiveModule = resolve(repositoryRoot, 'spacetimedb');
 const command = process.env.SPACETIME_BIN || 'spacetime';
-const expectedCliVersion = '2.6.1';
+const expectedCliVersion = ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION;
 const expectedCliCommit = '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';
 const emptyDatabase = 'warpkeep-migration-empty';
 const nonemptyDatabase = 'warpkeep-migration-nonempty';
 const actualModuleDatabase = 'warpkeep-migration-actual-module';
 const resourceLifecycleDatabase = 'warpkeep-migration-resource-lifecycle';
+const expeditionLifecycleDatabase = 'warpkeep-migration-expedition-lifecycle';
 const worldExpansionDatabase = 'warpkeep-migration-world-expansion';
 const maximumOutputBytes = 1_000_000;
 const commandTimeoutMilliseconds = 120_000;
@@ -60,12 +67,16 @@ const procedureTimeoutMilliseconds = 5_000;
 const maximumProcedureResponseBytes = 16_384;
 const actualModuleFounderFid = 730_001;
 const actualModuleOtherFid = 730_002;
-const historicalEntryAgreementVersion = '2026-07-14';
-const alphaTermsVersion = '2026-07-18-hegemony-entry-agreement-v1';
+const historicalEntryAgreementVersions = Object.freeze([
+  '2026-07-18-hegemony-entry-agreement-v1',
+  '2026-07-14',
+]);
+const alphaTermsVersion = '2026-07-19-hegemony-entry-agreement-v2';
 const resourcePolicyVersion = 'genesis-resource-yield-v1';
 const marksPolicyVersion = 'snap-current-linked-wallet-1to1-v1';
 const profilePolicyVersion = 'trusted-snapchain-profile-v3';
 const resourceQuantumMicros = 600_000_000n;
+const expeditionScheduleWaitMilliseconds = 12 * 60 * 1_000;
 const maximumU64 = (1n << 64n) - 1n;
 const startingResourceBalances = Object.freeze({
   food: 0n,
@@ -84,6 +95,56 @@ const terrainResourceRates = Object.freeze({
   lake: Object.freeze({ food: 10n, wood: 4n, stone: 2n, gold: 0n }),
   'ancient-stone': Object.freeze({ food: 3n, wood: 4n, stone: 8n, gold: 0n }),
 });
+const expeditionResources = Object.freeze([
+  Object.freeze({
+    kind: 'gold',
+    siteId: 'genesis-001-tier1-gold-07',
+    routeSteps: 18n,
+    siteCount: 24n,
+    sitePolicyVersion: 'genesis-001-tier1-gold-sites-v3',
+    seedReducer: 'admin_seed_genesis_tier_i_gold_sites_v1',
+    dispatchReducer: 'dispatch_gold_expedition_v1',
+    collectReducer: 'collect_gold_expedition_v1',
+    stateProcedure: 'get_my_gold_expedition_state_v1',
+    siteTable: 'gold_site_v1',
+    occupationTable: 'gold_node_occupation_v1',
+    expeditionTable: 'gold_expedition_v1',
+    idempotencyTable: 'gold_expedition_idempotency_v1',
+    scheduleTable: 'gold_expedition_schedule_v_1',
+  }),
+  Object.freeze({
+    kind: 'food',
+    siteId: 'genesis-001-tier1-food-006',
+    routeSteps: 18n,
+    siteCount: 96n,
+    sitePolicyVersion: 'genesis-001-tier1-food-sites-v2',
+    seedReducer: 'admin_seed_genesis_tier_i_food_sites_v1',
+    dispatchReducer: 'dispatch_food_expedition_v1',
+    collectReducer: 'collect_food_expedition_v1',
+    stateProcedure: 'get_my_food_expedition_state_v1',
+    siteTable: 'food_site_v1',
+    occupationTable: 'food_node_occupation_v1',
+    expeditionTable: 'food_expedition_v1',
+    idempotencyTable: 'food_expedition_idempotency_v1',
+    scheduleTable: 'food_expedition_schedule_v_1',
+  }),
+  Object.freeze({
+    kind: 'wood',
+    siteId: 'genesis-001-tier1-wood-012',
+    routeSteps: 22n,
+    siteCount: 96n,
+    sitePolicyVersion: 'genesis-001-tier1-wood-sites-v2',
+    seedReducer: 'admin_seed_genesis_tier_i_wood_sites_v1',
+    dispatchReducer: 'dispatch_wood_expedition_v1',
+    collectReducer: 'collect_wood_expedition_v1',
+    stateProcedure: 'get_my_wood_expedition_state_v1',
+    siteTable: 'wood_site_v1',
+    occupationTable: 'wood_node_occupation_v1',
+    expeditionTable: 'wood_expedition_v1',
+    idempotencyTable: 'wood_expedition_idempotency_v1',
+    scheduleTable: 'wood_expedition_schedule_v_1',
+  }),
+]);
 const existingTables = Object.freeze([
   'allowed_fid',
   'world_tile',
@@ -980,14 +1041,22 @@ function adminServiceClaims() {
   return serviceClaims('service:hermes', ['warpkeep-admin'], 240);
 }
 
-function playerClaims(fid, subject = `farcaster:${fid}`, authEpoch = 1) {
+function playerClaims(
+  fid,
+  subject = `farcaster:${fid}`,
+  authEpoch = 1,
+  lifetimeSeconds = 240,
+) {
   if (
     !Number.isSafeInteger(fid)
     || fid <= 0
     || !Number.isSafeInteger(authEpoch)
     || authEpoch <= 0
+    || !Number.isSafeInteger(lifetimeSeconds)
+    || lifetimeSeconds <= 0
+    || lifetimeSeconds > 600
   ) fail('Disposable player claim was invalid.');
-  const base = serviceClaims(subject, [], 240);
+  const base = serviceClaims(subject, [], lifetimeSeconds);
   return {
     ...base,
     auth_version: 2,
@@ -1209,6 +1278,119 @@ function parseLoopbackJson(text, label) {
   }
 }
 
+function parseLoopbackOption(value, label, parseSome) {
+  // SpacetimeDB's procedure and reducer JSON surfaces have used direct,
+  // variant-tagged, and compact-array option representations. Accept only the
+  // exact shapes of those encodings, then validate the contained scalar.
+  if (value === null) return undefined;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return undefined;
+    if (value.length === 1) return parseSome(value[0]);
+    if (
+      value.length === 2
+      && (value[0] === 0 || (typeof value[0] === 'string' && value[0].toLowerCase() === 'some'))
+    ) return parseSome(value[1]);
+    if (
+      value.length === 2
+      && (value[0] === 1 || (typeof value[0] === 'string' && value[0].toLowerCase() === 'none'))
+      && (value[1] === null || (Array.isArray(value[1]) && value[1].length === 0))
+    ) return undefined;
+    fail(`Loopback ${label} option was invalid.`);
+  }
+  if (
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.keys(value).length === 1
+  ) {
+    if (Object.hasOwn(value, 'some')) return parseSome(value.some);
+    if (Object.hasOwn(value, 'none') && Array.isArray(value.none) && value.none.length === 0) {
+      return undefined;
+    }
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const tag = typeof value.tag === 'string' ? value.tag.toLowerCase() : undefined;
+    if (tag === 'some' && Object.keys(value).length === 2 && Object.hasOwn(value, 'value')) {
+      return parseSome(value.value);
+    }
+    if (
+      tag === 'none'
+      && (Object.keys(value).length === 1
+        || (Object.keys(value).length === 2 && Object.hasOwn(value, 'value')))
+    ) return undefined;
+  }
+  try {
+    return parseSome(value);
+  } catch (error) {
+    if (error instanceof MigrationProofError) throw error;
+    fail(`Loopback ${label} option was invalid.`);
+  }
+}
+
+function parseExpeditionState(text, resource) {
+  const value = parseLoopbackJson(text, `${resource.kind} expedition state`);
+  if (!Array.isArray(value) || value.length !== 15 || typeof value[0] !== 'boolean') {
+    fail(`Loopback ${resource.kind} expedition-state response contract was invalid.`);
+  }
+  const parseString = item => {
+    if (typeof item !== 'string' || item.length === 0) {
+      fail(`Loopback ${resource.kind} expedition string was invalid.`);
+    }
+    return item;
+  };
+  const parseUnsigned = item => readCanonicalUnsigned(
+    item,
+    maximumU64,
+    `${resource.kind} expedition integer`,
+  );
+  const state = Object.freeze({
+    active: value[0],
+    expeditionId: parseLoopbackOption(value[1], 'expedition ID', parseString),
+    siteId: parseLoopbackOption(value[2], 'expedition site', parseString),
+    originCastleId: parseLoopbackOption(value[3], 'expedition castle', parseUnsigned),
+    phase: parseLoopbackOption(value[4], 'expedition phase', parseString),
+    startedAtMicros: parseLoopbackOption(value[5], 'expedition start', parseUnsigned),
+    arrivesAtMicros: parseLoopbackOption(value[6], 'expedition arrival', parseUnsigned),
+    gatheringEndsAtMicros: parseLoopbackOption(value[7], 'expedition expiry', parseUnsigned),
+    returnsAtMicros: parseLoopbackOption(value[8], 'expedition return', parseUnsigned),
+    accrued: readCanonicalUnsigned(value[9], maximumU64, `${resource.kind} accrued resource`),
+    pending: readCanonicalUnsigned(value[10], maximumU64, `${resource.kind} pending resource`),
+    credited: readCanonicalUnsigned(value[11], maximumU64, `${resource.kind} credited resource`),
+    ratePerMinute: readCanonicalUnsigned(value[12], maximumU64, `${resource.kind} rate`),
+    gatheringDurationMicros: readCanonicalUnsigned(
+      value[13],
+      maximumU64,
+      `${resource.kind} gathering duration`,
+    ),
+    policyVersion: parseLoopbackOption(value[14], 'expedition policy', parseString),
+  });
+  if (
+    state.active
+      ? state.expeditionId === undefined
+        || state.siteId === undefined
+        || state.originCastleId === undefined
+        || state.phase === undefined
+        || state.startedAtMicros === undefined
+        || state.arrivesAtMicros === undefined
+        || state.gatheringEndsAtMicros === undefined
+        || state.returnsAtMicros === undefined
+        || state.policyVersion === undefined
+      : state.expeditionId !== undefined
+        || state.siteId !== undefined
+        || state.originCastleId !== undefined
+        || state.phase !== undefined
+        || state.startedAtMicros !== undefined
+        || state.arrivesAtMicros !== undefined
+        || state.gatheringEndsAtMicros !== undefined
+        || state.returnsAtMicros !== undefined
+        || state.policyVersion !== undefined
+        || state.accrued !== 0n
+        || state.pending !== 0n
+        || state.credited !== 0n
+  ) fail(`Loopback ${resource.kind} expedition-state presence contract was invalid.`);
+  return state;
+}
+
 function parseResourceState(text) {
   const value = parseLoopbackJson(text, 'resource-state');
   if (!Array.isArray(value) || value.length !== 17) {
@@ -1348,6 +1530,20 @@ async function founderAuthorityDigest(server, token, database) {
   return outputDigest(JSON.stringify(digests));
 }
 
+async function founderGameplayAuthorityDigest(server, token, database) {
+  const queries = Object.freeze({
+    castle: `SELECT * FROM castle WHERE owner_fid = ${actualModuleFounderFid}`,
+    claim: `SELECT * FROM castle_slot_claim_v1 WHERE owner_fid = ${actualModuleFounderFid}`,
+    marks: `SELECT * FROM mark_account_v1 WHERE fid = ${actualModuleFounderFid}`,
+    resources: `SELECT * FROM resource_account_v1 WHERE fid = ${actualModuleFounderFid}`,
+  });
+  const digests = {};
+  for (const [name, query] of Object.entries(queries)) {
+    digests[name] = outputDigest(await privateSql(server, token, database, query));
+  }
+  return outputDigest(JSON.stringify(digests));
+}
+
 async function privateSql(server, token, database, query) {
   const result = await runCommand([
     ...configArguments(token),
@@ -1386,6 +1582,50 @@ async function readActualResourceState(server, database, credential) {
     '[]',
     200,
   ));
+}
+
+async function readActualExpeditionState(server, database, credential, resource) {
+  return parseExpeditionState(await callLoopbackProcedure(
+    server,
+    database,
+    resource.stateProcedure,
+    credential,
+    '[]',
+    200,
+    true,
+    10_000,
+  ), resource);
+}
+
+async function waitForActualExpeditionState(
+  server,
+  database,
+  credentialFactory,
+  resource,
+  predicate,
+) {
+  const deadline = Date.now() + expeditionScheduleWaitMilliseconds;
+  let consecutiveTransportFailures = 0;
+  while (Date.now() < deadline) {
+    try {
+      const state = await readActualExpeditionState(
+        server,
+        database,
+        credentialFactory(),
+        resource,
+      );
+      consecutiveTransportFailures = 0;
+      if (predicate(state)) return state;
+    } catch (error) {
+      if (
+        !(error instanceof MigrationProofError)
+        || error.message !== 'Loopback procedure request failed within its fixed boundary.'
+        || ++consecutiveTransportFailures > 3
+      ) throw error;
+    }
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 5_000));
+  }
+  fail(`Actual ${resource.kind} schedule did not reach its bounded target state.`);
 }
 
 async function readActualAdminResourceStatus(server, database, credential) {
@@ -1694,8 +1934,8 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       || await actionCount(server, ownerToken, database, 'admit_founder_v1') !== 1n
     ) fail('Repeated profiled admission changed founder state or audit history.');
 
-    stage = 'atomic-founder-required-profile-clear-rollback';
-    const founderAuthorityBeforeRejectedClear = await founderAuthorityDigest(
+    stage = 'atomic-founder-profile-clear-preserves-authority';
+    const founderGameplayAuthorityBeforeClear = await founderGameplayAuthorityDigest(
       server,
       ownerToken,
       database,
@@ -1714,14 +1954,23 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
         { some: 'Required castle identity must remain complete' },
         profilePolicyVersion,
       ]),
-      530,
+      200,
     );
     await usePrivateInspectionModule();
+    const clearedProfileProjection = (await privateSql(
+      server,
+      ownerToken,
+      database,
+      `SELECT canonical_username, display_name, pfp_url FROM realm_profile_v1 WHERE fid = ${actualModuleFounderFid}`,
+    )).replace(/\u001b\[[0-9;]*m/g, '');
     if (
-      await founderAuthorityDigest(server, ownerToken, database)
-        !== founderAuthorityBeforeRejectedClear
-      || await actionCount(server, ownerToken, database, 'profile_snapshot_v1') !== 0n
-    ) fail('Rejected required-profile clear changed founder state or audit history.');
+      clearedProfileProjection.includes('migration.founder')
+      || clearedProfileProjection.includes('migration-founder.png')
+      || !clearedProfileProjection.includes('Rejected Clear Fixture')
+      || await founderGameplayAuthorityDigest(server, ownerToken, database)
+        !== founderGameplayAuthorityBeforeClear
+      || await actionCount(server, ownerToken, database, 'profile_snapshot_v1') !== 1n
+    ) fail('Trusted profile clear changed permanent gameplay authority.');
 
     stage = 'atomic-founder-legacy-reenable';
     const founderAuthorityBeforeReenable = await founderAuthorityDigest(
@@ -1771,17 +2020,9 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       || await actionCount(server, ownerToken, database, 'allow_fid') !== 1n
     ) fail('Legacy allow did not preserve and re-enable exactly one complete founder graph.');
 
-    stage = 'bootstrap-incomplete-profile-gate';
-    await callLoopbackReducer(
-      server,
-      database,
-      'fixture_clear_founder_pfp',
-      adminCredential(),
-      '[]',
-      200,
-    );
+    stage = 'bootstrap-presentation-independent-authority';
     await useActualModule();
-    const incompleteProfileStatus = parseLoopbackJson(await callLoopbackProcedure(
+    const presentationIndependentStatus = parseLoopbackJson(await callLoopbackProcedure(
       server,
       database,
       'admin_get_alpha_status_v3',
@@ -1790,27 +2031,27 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       200,
     ), 'incomplete founder profile aggregate');
     if (
-      !Array.isArray(incompleteProfileStatus)
-      || incompleteProfileStatus.length !== 40
+      !Array.isArray(presentationIndependentStatus)
+      || presentationIndependentStatus.length !== 40
       || readCanonicalUnsigned(
-        incompleteProfileStatus[29],
+        presentationIndependentStatus[29],
         maximumU64,
         'founder profile gap aggregate',
-      ) !== 1n
-    ) fail('Founder aggregate did not report the incomplete profile fixture.');
+      ) !== 0n
+    ) fail('Repairable profile presentation was folded into founder authority health.');
     await callLoopbackReducer(
       server,
       database,
       'bootstrap_player_v2',
       playerCredential(),
       '[]',
-      530,
+      200,
     );
     await usePrivateInspectionModule();
     if (
-      await countForFid(server, ownerToken, database, 'player_v2') !== 0n
-      || await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 0n
-    ) fail('Incomplete profile bootstrap created player authority state.');
+      await countForFid(server, ownerToken, database, 'player_v2') !== 1n
+      || await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 1n
+    ) fail('Structurally valid founder did not bootstrap independently of presentation.');
     await useActualModule();
     await callLoopbackReducer(
       server,
@@ -1828,7 +2069,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       200,
     );
     await usePrivateInspectionModule();
-    if (await actionCount(server, ownerToken, database, 'profile_snapshot_v1') !== 1n) {
+    if (await actionCount(server, ownerToken, database, 'profile_snapshot_v1') !== 2n) {
       fail('Exact-admin profile repair did not produce one audit transition.');
     }
 
@@ -1841,14 +2082,6 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       playerCredential(),
       '[]',
       500,
-    );
-    await callLoopbackReducer(
-      server,
-      database,
-      'accept_alpha_terms_v1',
-      playerCredential(),
-      JSON.stringify([alphaTermsVersion, true]),
-      530,
     );
     await callLoopbackReducer(
       server,
@@ -1944,14 +2177,16 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       JSON.stringify([alphaTermsVersion, false]),
       530,
     );
-    await callLoopbackReducer(
-      server,
-      database,
-      'accept_alpha_terms_v1',
-      playerCredential(),
-      JSON.stringify([historicalEntryAgreementVersion, true]),
-      530,
-    );
+    for (const historicalVersion of historicalEntryAgreementVersions) {
+      await callLoopbackReducer(
+        server,
+        database,
+        'accept_alpha_terms_v1',
+        playerCredential(),
+        JSON.stringify([historicalVersion, true]),
+        530,
+      );
+    }
     await usePrivateInspectionModule();
     if (await countForFid(server, ownerToken, database, 'alpha_terms_acceptance_v1') !== 0n) {
       fail('Rejected or historical entry-agreement fixture changed consent state.');
@@ -2221,6 +2456,366 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
   }
 }
 
+/**
+ * Exercise the real compiled Gold/Food/Wood dispatch boundary and the shortest
+ * real Gold scheduler lifecycle on an isolated loopback database. The pinned
+ * standalone server has no virtual clock, so this waits for the canonical Gold
+ * arrival and one positive whole-minute collection without rewriting any
+ * candidate-created timestamp.
+ */
+async function verifyActualModuleExpeditionLifecycles(
+  server,
+  database,
+  privateKey,
+  ownerToken,
+) {
+  let stage = 'seed-world';
+  let activeModule = 'actual';
+  const actualArtifactPath = join(additiveModule, 'dist', 'bundle.js');
+  const inspectionArtifactPath = join(additiveV8SchemaFixture, 'dist', 'bundle.js');
+  const useActualModule = async () => {
+    if (activeModule === 'actual') return;
+    await publishBuiltArtifact(server, ownerToken, actualArtifactPath, database);
+    activeModule = 'actual';
+  };
+  const useInspectionModule = async () => {
+    if (activeModule === 'inspection') return;
+    await publishBuiltArtifact(server, ownerToken, inspectionArtifactPath, database);
+    activeModule = 'inspection';
+  };
+  const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
+  const rotatingPlayerCredential = fid => {
+    let credential;
+    let refreshAt = 0;
+    return () => {
+      if (credential === undefined || Date.now() >= refreshAt) {
+        credential = createEphemeralJwt(privateKey, playerClaims(
+          fid,
+          `farcaster:${fid}`,
+          1,
+          540,
+        ));
+        refreshAt = Date.now() + 7 * 60 * 1_000;
+      }
+      return credential;
+    };
+  };
+  const founderCredential = rotatingPlayerCredential(actualModuleFounderFid);
+  const contenderCredential = rotatingPlayerCredential(actualModuleOtherFid);
+  const primaryKey = resource => `migration-${resource.kind}-primary-0001`;
+  const contenderKey = resource => `migration-${resource.kind}-contender-0001`;
+  const goldResource = expeditionResources.find(resource => resource.kind === 'gold');
+  if (goldResource === undefined) fail('Actual Gold expedition proof configuration was missing.');
+
+  try {
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_seed_world',
+      adminCredential(),
+      '[]',
+      200,
+      120_000,
+    );
+
+    stage = 'founders';
+    for (const [fid, username] of [
+      [actualModuleFounderFid, 'migration.expedition.one'],
+      [actualModuleOtherFid, 'migration.expedition.two'],
+    ]) {
+      await callLoopbackReducer(
+        server,
+        database,
+        'admin_admit_founder_v1',
+        adminCredential(),
+        JSON.stringify([
+          fid,
+          'disposable compiled expedition lifecycle proof',
+          username,
+          { some: username === 'migration.expedition.one'
+            ? 'Migration Expedition One'
+            : 'Migration Expedition Two' },
+          `https://profiles.example.com/${username}.png`,
+          { some: 'Disposable loopback-only expedition fixture' },
+          profilePolicyVersion,
+        ]),
+        200,
+      );
+    }
+    for (const credential of [founderCredential(), contenderCredential()]) {
+      await callLoopbackReducer(
+        server,
+        database,
+        'bootstrap_player_v2',
+        credential,
+        '[]',
+        200,
+      );
+      await callLoopbackReducer(
+        server,
+        database,
+        'accept_alpha_terms_v1',
+        credential,
+        JSON.stringify([alphaTermsVersion, true]),
+        200,
+      );
+    }
+
+    stage = 'site-seed';
+    for (const resource of expeditionResources) {
+      await callLoopbackReducer(
+        server,
+        database,
+        resource.seedReducer,
+        adminCredential(),
+        JSON.stringify([Number(resource.siteCount), resource.sitePolicyVersion]),
+        200,
+        120_000,
+      );
+    }
+    await useInspectionModule();
+    for (const resource of expeditionResources) {
+      if (await count(server, ownerToken, database, resource.siteTable) !== resource.siteCount) {
+        fail(`Actual ${resource.kind} catalog seed was incomplete.`);
+      }
+    }
+
+    stage = 'dispatch';
+    await useActualModule();
+    for (const resource of expeditionResources) {
+      await callLoopbackReducer(
+        server,
+        database,
+        resource.dispatchReducer,
+        founderCredential(),
+        JSON.stringify([resource.siteId, primaryKey(resource)]),
+        200,
+      );
+    }
+
+    stage = 'idempotent-replay-and-concurrent-reservation';
+    await Promise.all(expeditionResources.flatMap(resource => [
+      callLoopbackReducer(
+        server,
+        database,
+        resource.dispatchReducer,
+        founderCredential(),
+        JSON.stringify([resource.siteId, primaryKey(resource)]),
+        200,
+      ),
+      callLoopbackReducer(
+        server,
+        database,
+        resource.dispatchReducer,
+        contenderCredential(),
+        JSON.stringify([resource.siteId, contenderKey(resource)]),
+        530,
+      ),
+    ]));
+    // Do not republish the inspection fixture while candidate-created
+    // schedules are live: scheduled reducer lineage is module-version-bound.
+    // Candidate procedures prove the immediate owner/contender state here;
+    // exact private row counts are inspected only after executable checks end.
+    for (const resource of expeditionResources) {
+      const founderState = await readActualExpeditionState(
+        server,
+        database,
+        founderCredential(),
+        resource,
+      );
+      const contenderState = await readActualExpeditionState(
+        server,
+        database,
+        contenderCredential(),
+        resource,
+      );
+      if (
+        !founderState.active
+        || founderState.phase !== 'outbound'
+        || founderState.siteId !== resource.siteId
+        || contenderState.active
+      ) fail(`Actual ${resource.kind} dispatch replay or reservation was not atomic.`);
+    }
+
+    stage = 'canonical-schedule';
+    for (const resource of expeditionResources) {
+      const dispatched = await readActualExpeditionState(
+        server,
+        database,
+        founderCredential(),
+        resource,
+      );
+      const travelMicros = resource.routeSteps * 30_000_000n;
+      if (
+        !dispatched.active
+        || dispatched.phase !== 'outbound'
+        || dispatched.siteId !== resource.siteId
+        || dispatched.arrivesAtMicros - dispatched.startedAtMicros !== travelMicros
+        || dispatched.gatheringEndsAtMicros - dispatched.arrivesAtMicros
+          !== dispatched.gatheringDurationMicros
+        || dispatched.returnsAtMicros - dispatched.gatheringEndsAtMicros !== travelMicros
+        || dispatched.ratePerMinute !== 1n
+      ) fail(`Actual ${resource.kind} dispatch timeline was not server canonical.`);
+    }
+
+    stage = 'premature-collection-no-op';
+    const balancesBeforeCollection = (await readActualResourceState(
+      server,
+      database,
+      founderCredential(),
+    )).balances;
+    for (const resource of expeditionResources) {
+      await callLoopbackReducer(
+        server,
+        database,
+        resource.collectReducer,
+        founderCredential(),
+        '[]',
+        200,
+      );
+    }
+    const balancesAfterCollection = (await readActualResourceState(
+      server,
+      database,
+      founderCredential(),
+    )).balances;
+    assert.deepEqual(balancesAfterCollection, balancesBeforeCollection);
+    for (const resource of expeditionResources) {
+      const state = await readActualExpeditionState(
+        server,
+        database,
+        founderCredential(),
+        resource,
+      );
+      if (
+        !state.active
+        || state.phase !== 'outbound'
+        || state.accrued !== 0n
+        || state.credited !== 0n
+        || state.pending !== 0n
+      ) fail(`Actual ${resource.kind} premature collection was not a no-op.`);
+    }
+    for (const resource of expeditionResources) {
+      await callLoopbackReducer(
+        server,
+        database,
+        resource.collectReducer,
+        founderCredential(),
+        '[]',
+        200,
+      );
+    }
+    const balancesAfterReplayCollection = (await readActualResourceState(
+      server,
+      database,
+      founderCredential(),
+    )).balances;
+    assert.deepEqual(balancesAfterReplayCollection, balancesBeforeCollection);
+
+    stage = 'actual-gold-arrival';
+    const arrivedGold = await waitForActualExpeditionState(
+      server,
+      database,
+      founderCredential,
+      goldResource,
+      candidate => candidate.active && candidate.phase === 'gathering',
+    );
+    if (arrivedGold.siteId !== goldResource.siteId) {
+      fail('Actual Gold arrival changed its canonical site.');
+    }
+
+    stage = 'actual-gold-collection';
+    await waitForActualExpeditionState(
+      server,
+      database,
+      founderCredential,
+      goldResource,
+      candidate => candidate.active
+        && candidate.phase === 'gathering'
+        && candidate.pending > 0n,
+    );
+    const balancesBeforeGoldCollection = (await readActualResourceState(
+      server,
+      database,
+      founderCredential(),
+    )).balances;
+    await callLoopbackReducer(
+      server,
+      database,
+      goldResource.collectReducer,
+      founderCredential(),
+      '[]',
+      200,
+    );
+    const balancesAfterGoldCollection = (await readActualResourceState(
+      server,
+      database,
+      founderCredential(),
+    )).balances;
+    const collectedGold = await readActualExpeditionState(
+      server,
+      database,
+      founderCredential(),
+      goldResource,
+    );
+    if (
+      !collectedGold.active
+      || collectedGold.phase !== 'gathering'
+      || collectedGold.accrued === 0n
+      || collectedGold.credited !== collectedGold.accrued
+      || collectedGold.pending !== 0n
+      || balancesAfterGoldCollection.gold <= balancesBeforeGoldCollection.gold
+    ) fail('Actual Gold collection did not credit a positive whole-minute award.');
+    await callLoopbackReducer(
+      server,
+      database,
+      goldResource.collectReducer,
+      founderCredential(),
+      '[]',
+      200,
+    );
+    const balancesAfterGoldReplay = (await readActualResourceState(
+      server,
+      database,
+      founderCredential(),
+    )).balances;
+    assert.deepEqual(balancesAfterGoldReplay, balancesAfterGoldCollection);
+
+    stage = 'post-gold-collection-shape';
+    await useInspectionModule();
+    for (const resource of expeditionResources) {
+      const scheduleCount = await count(server, ownerToken, database, resource.scheduleTable);
+      if (
+        await count(server, ownerToken, database, resource.expeditionTable) !== 1n
+        || await count(server, ownerToken, database, resource.occupationTable) !== 1n
+        || await count(server, ownerToken, database, resource.idempotencyTable) !== 1n
+        || scheduleCount < 2n
+        || scheduleCount > 3n
+      ) fail(`Actual ${resource.kind} expedition shape was not preserved.`);
+    }
+    if (
+      await count(server, ownerToken, database, goldResource.scheduleTable) !== 2n
+      || countFromSql(await privateSql(
+        server,
+        ownerToken,
+        database,
+        `SELECT COUNT(*) AS warpkeep_count FROM ${goldResource.occupationTable} WHERE phase = 'gathering'`,
+      )) !== 1n
+    ) fail('Actual Gold arrival/collection shape was not preserved.');
+    // Thirty-day expiry, returning occupation, return completion, stale
+    // post-return delivery, and site reuse remain covered by pure authority
+    // regression tests, not misrepresented as actual-module scheduler proof.
+    return 'Gold/Food/Wood dispatch, schedules, replay/reservation, outbound no-op, actual Gold arrival, and positive collection replay';
+  } catch (error) {
+    if (error instanceof MigrationProofError) {
+      throw new MigrationProofError(
+        `Actual-module expedition lifecycle failed at ${stage}: ${error.message}`,
+      );
+    }
+    throw new MigrationProofError(`Actual-module expedition lifecycle failed at ${stage}.`);
+  }
+}
+
 async function generationV2PreservationDigests(server, ownerToken, database) {
   const queries = Object.freeze({
     occupiedWorld: "SELECT * FROM world_tile WHERE key = '0,0'",
@@ -2369,8 +2964,8 @@ async function verifyGenesisWorldExpansionLifecycle(
 
 export function containServerProcessErrors(serverProcess) {
   // `spawn` reports some startup failures asynchronously. Keep those failures
-  // inside the proof's generic readiness boundary instead of allowing an
-  // unhandled EventEmitter error to bypass `finally` cleanup.
+  // inside the proof's startup path instead of allowing an unhandled
+  // EventEmitter error to bypass `finally` cleanup.
   serverProcess.on('error', () => {});
   return serverProcess;
 }
@@ -2823,6 +3418,18 @@ async function main() {
       owner.token,
     );
     const builtArtifactPath = join(additiveModule, 'dist', 'bundle.js');
+    await publishBuiltArtifact(
+      server,
+      owner.token,
+      builtArtifactPath,
+      expeditionLifecycleDatabase,
+    );
+    const expeditionLifecycleProof = await verifyActualModuleExpeditionLifecycles(
+      server,
+      expeditionLifecycleDatabase,
+      privateKey,
+      owner.token,
+    );
     const builtArtifactDigest = createHash('sha256')
       .update(await readFile(builtArtifactPath))
       .digest('hex');
@@ -3071,9 +3678,8 @@ async function main() {
       builtArtifactDigest,
     );
 
-    console.log(
-      `Additive protocol-v8 migration proof passed with SpacetimeDB ${expectedCliVersion}: `
-      + 'the exact refs 0-18 deployed v3 prefix and every v3 row remained unchanged, '
+    console.log(formatAdditiveMigrationProofReceipt({
+      summary: 'the exact refs 0-18 deployed v3 prefix and every v3 row remained unchanged, '
       + 'private resource_account_v1 appended at exact product type ref 19, '
       + 'public Gold sites, occupancy, and safe lifecycle schedule projection plus private expedition and idempotency '
       + 'tables appended at exact refs 20-24, '
@@ -3086,14 +3692,17 @@ async function main() {
       + 'exact resolver HTTP lifecycle enforced without mutation, '
       + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `
       + `actual resource authority reducers exercised with ${resourceTimestampFixture} collection, `
+      + `actual expedition reducers exercised through ${expeditionLifecycleProof}; `
+      + 'the pinned local CLI exposes no deterministic clock advance, so the 30-day expiry, return, stale delivery, and reuse stages remain pure-authority coverage rather than an actual-module claim, '
       + 'caller bootstrap/terms/identity gates, Marks isolation, atomic profiled founding, '
-      + 'repeat-admission and required-profile clear rejection with exact rollback, '
-      + 'incomplete-profile monitoring and bootstrap rollback, '
+      + 'repeat-admission rejection plus trusted profile clear/repair preserving structural gameplay authority, '
+      + 'presentation-independent founder monitoring and bootstrap, '
       + 'legacy first-time admission rejection and complete-graph re-enable preservation, '
       + 'and guarded backfill rejection/idempotence held, '
       + 'prebuilt-artifact republish idempotent, populated v3-prefix state retained through v8, '
-      + `and guarded v7/v6/v5/v4/v3/v2 rollbacks refused before schema change. artifact_sha256=${builtArtifactDigest}`,
-    );
+      + 'and guarded v7/v6/v5/v4/v3/v2 rollbacks refused before schema change.',
+      artifactDigest: builtArtifactDigest,
+    }));
   } finally {
     disposableCliCredential = null;
     await cleanupMigrationProofResources(serverProcess, dataDirectory);
@@ -3104,7 +3713,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   main().catch(error => {
     console.error(error instanceof MigrationProofError
       ? error.message
-      : 'Additive protocol-v8 migration proof failed closed.');
+      : `Additive protocol-v${ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION} migration proof failed closed.`);
     process.exitCode = 1;
   });
 }

@@ -7,12 +7,42 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import {
+  GENESIS_WORLD_PUBLISH_STAGE,
+  RESOURCE_PUBLISH_ROLLOUT_STAGE,
+  alphaV8AggregateChildArguments,
+  parseMigrationProofReceipt,
+  parsePublishArguments,
+  publishChildEnvironment,
+  publishModule,
+  readFoundedPublishExpectations,
+  requireCanonicalPublishCoordinates,
+  validateIssuerDeployment,
+  verifyCanonicalDatabaseList,
+  verifyFreshAlphaStatusV8Aggregate,
+  verifyFreshFoundedProtocolV3Aggregate,
+  verifyFreshResourceProtocolV4PrebackfillAggregate,
+  verifyFreshResourceProtocolV4ReadyAggregate,
+  verifyMigrationArtifactReceipt,
+  verifyPinnedCliAttestation,
+  verifyPostPublishAlphaStatusV8Aggregate,
+  verifyPostPublishFoundedProtocolV3Aggregate,
+  verifyPostPublishResourceProtocolV4PrebackfillAggregate,
+  verifyPostPublishResourceProtocolV4ReadyAggregate,
+  verifyPostPublishResourcePublicationCheckpoints,
+  verifyPrivacySafeAlphaStatusV8Output,
+} from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
-import { GENESIS_WORLD_PUBLISH_STAGE, RESOURCE_PUBLISH_ROLLOUT_STAGE, parseMigrationProofReceipt, parsePublishArguments, publishChildEnvironment, publishModule, readFoundedPublishExpectations, requireCanonicalPublishCoordinates, validateIssuerDeployment, verifyCanonicalDatabaseList, verifyFreshFoundedProtocolV3Aggregate, verifyFreshResourceProtocolV4PrebackfillAggregate, verifyFreshResourceProtocolV4ReadyAggregate, verifyMigrationArtifactReceipt, verifyPinnedCliAttestation, verifyPostPublishFoundedProtocolV3Aggregate, verifyPostPublishResourceProtocolV4PrebackfillAggregate, verifyPostPublishResourceProtocolV4ReadyAggregate, verifyPostPublishResourcePublicationCheckpoints } from '../scripts/publish-spacetime-dev.mjs';
+import { ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { cleanupMigrationProofResources, containServerProcessErrors, stopServer } from '../scripts/verify-spacetime-additive-migration.mjs';
+import {
+  ALPHA_ACTIVATION_COMPONENTS,
+  ALPHA_ACTIVATION_SCHEMA_PROTOCOL_VERSION,
+} from '../spacetimedb/src/alphaActivationPolicy';
+import { WARPKEEP_BACKEND_PROTOCOL_VERSION } from '../spacetimedb/src/config';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const provenArtifactPath = resolve(repositoryRoot, 'spacetimedb/dist/bundle.js');
@@ -59,6 +89,50 @@ const AUTH_V2_SERVER_ONLY_ADMIN_PATHS = new Set([
   '/v1/admin/config-attestation',
 ]);
 let publicJwk: JsonWebKey;
+
+function alphaStatusV8(overrides: Record<string, unknown> = {}) {
+  const { gold, forest, food, wood } = ALPHA_ACTIVATION_COMPONENTS;
+  return {
+    schemaProtocolVersion: ALPHA_ACTIVATION_SCHEMA_PROTOCOL_VERSION,
+    backendProtocolVersion: WARPKEEP_BACKEND_PROTOCOL_VERSION,
+    goldSitePolicyVersion: gold.sitePolicyVersion,
+    goldExpeditionPolicyVersion: gold.expeditionPolicyVersion,
+    canonicalGoldSiteCatalogDigest: gold.siteCatalogDigest,
+    goldSites: '0',
+    canonicalGoldSites: '0',
+    goldOccupations: '0',
+    goldExpeditions: '0',
+    goldIdempotencyReceipts: '0',
+    goldSchedules: '0',
+    forestLayoutVersion: forest.layoutVersion,
+    forestPolicyVersion: forest.policyVersion,
+    canonicalForestLayoutDigest: forest.layoutDigest,
+    canonicalForestAssetCatalogDigest: forest.assetCatalogDigest,
+    forestLayouts: '0',
+    canonicalForestLayouts: '0',
+    forestInstances: '0',
+    canonicalForestInstances: '0',
+    foodSitePolicyVersion: food.sitePolicyVersion,
+    foodExpeditionPolicyVersion: food.expeditionPolicyVersion,
+    canonicalFoodSiteCatalogDigest: food.siteCatalogDigest,
+    foodSites: '0',
+    canonicalFoodSites: '0',
+    foodOccupations: '0',
+    foodExpeditions: '0',
+    foodIdempotencyReceipts: '0',
+    foodSchedules: '0',
+    woodSitePolicyVersion: wood.sitePolicyVersion,
+    woodExpeditionPolicyVersion: wood.expeditionPolicyVersion,
+    canonicalWoodSiteCatalogDigest: wood.siteCatalogDigest,
+    woodSites: '0',
+    canonicalWoodSites: '0',
+    woodOccupations: '0',
+    woodExpeditions: '0',
+    woodIdempotencyReceipts: '0',
+    woodSchedules: '0',
+    ...overrides,
+  };
+}
 
 beforeAll(async () => {
   const pair = await crypto.subtle.generateKey(
@@ -477,14 +551,29 @@ describe('activation publish safety', () => {
 
   it('binds an exact single migration receipt and rejects artifact changes before spawn', async () => {
     await withTestProvenArtifact(async receipt => {
-      const success = 'Additive protocol-v7 migration proof passed with SpacetimeDB 2.6.1: '
-        + `test-only receipt. artifact_sha256=${receipt.artifactDigest}\n`;
+      const success = `${formatAdditiveMigrationProofReceipt({
+        summary: 'test-only receipt.',
+        artifactDigest: receipt.artifactDigest,
+      })}\n`;
       const parsed = parseMigrationProofReceipt(success);
       expect(parsed).toEqual(receipt);
       expect(Object.isFrozen(parsed)).toBe(true);
       expect(() => parseMigrationProofReceipt('')).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(`${success}${success}`)).toThrow(/exact success receipt/i);
-      expect(() => parseMigrationProofReceipt(success.replace('2.6.1', '2.6.2')))
+      expect(() => parseMigrationProofReceipt(success.replace(
+        `protocol-v${ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION}`,
+        `protocol-v${ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION - 1}`,
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION,
+        '0.0.0',
+      )))
+        .toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace('artifact_sha256=', 'artifact_digest=')))
+        .toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(receipt.artifactDigest, '0'.repeat(64))))
+        .toThrow(/changed after migration/i);
+      expect(() => parseMigrationProofReceipt(success.replace(receipt.artifactDigest, 'not-a-digest')))
         .toThrow(/exact success receipt/i);
       expect(() => verifyMigrationArtifactReceipt({
         ...receipt,
@@ -637,11 +726,11 @@ describe('activation publish safety', () => {
     expect(readFoundedPublishExpectations({
       WARPKEEP_EXPECTED_FOUNDER_COUNT: '100',
       WARPKEEP_EXPECTED_PLAYER_COUNT: '100',
-      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '200',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '300',
     })).toEqual({
       expectedFounderCount: 100,
       expectedPlayerCount: 100,
-      expectedTermsAcceptanceCount: 200,
+      expectedTermsAcceptanceCount: 300,
     });
 
     expect(() => readFoundedPublishExpectations({
@@ -679,12 +768,12 @@ describe('activation publish safety', () => {
     expect(() => readFoundedPublishExpectations({
       WARPKEEP_EXPECTED_FOUNDER_COUNT: '3',
       WARPKEEP_EXPECTED_PLAYER_COUNT: '1',
-      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '3',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '4',
     })).toThrow(/expectations were invalid/i);
     expect(() => readFoundedPublishExpectations({
       WARPKEEP_EXPECTED_FOUNDER_COUNT: '100',
       WARPKEEP_EXPECTED_PLAYER_COUNT: '100',
-      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '201',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '301',
     })).toThrow(/EXPECTED_TERMS_ACCEPTANCE_COUNT.*canonical integer/i);
   });
 
@@ -983,6 +1072,59 @@ describe('activation publish safety', () => {
       'unknown',
       orderedFailureSpawn as never,
     )).toThrow(/rollout stage was invalid/i);
+  });
+
+  it('requires one closed, privacy-safe v8 checkpoint after publication and before seeding', () => {
+    const calls: unknown[][] = [];
+    const aggregate = alphaStatusV8();
+    const fakeSpawnSync = (...args: unknown[]) => {
+      calls.push(args);
+      return {
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(aggregate),
+        stderr: '',
+      };
+    };
+    const secret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+    expect(verifyFreshAlphaStatusV8Aggregate(secret, fakeSpawnSync)).toEqual(aggregate);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[0]).toBe(process.execPath);
+    expect(calls[0]?.[1]).toEqual(alphaV8AggregateChildArguments(
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+    ));
+    const options = calls[0]?.[2] as { env?: Record<string, string>; input?: string };
+    expect(options.input).toBe(secret);
+    expect(options.env).toEqual({
+      WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+      WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+      WARPKEEP_AUTH_BRIDGE_URL: ISSUER,
+      WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+    });
+    expect(JSON.stringify(calls[0]?.[1])).not.toContain(secret);
+    expect(JSON.stringify(options.env)).not.toContain(secret);
+    expect(() => verifyPostPublishAlphaStatusV8Aggregate(secret, fakeSpawnSync))
+      .not.toThrow();
+
+    for (const invalid of [
+      { ...aggregate, fid: '424242424242' },
+      { ...aggregate, goldSites: 0 },
+      { ...aggregate, goldSites: '00' },
+      { ...aggregate, goldSites: '18446744073709551616' },
+      { ...aggregate, schemaProtocolVersion: 7 },
+      { ...aggregate, canonicalGoldSiteCatalogDigest: 'not-a-digest' },
+    ]) {
+      expect(() => verifyPrivacySafeAlphaStatusV8Output(JSON.stringify(invalid)))
+        .toThrow();
+    }
+
+    const postPublishFailure = () => verifyPostPublishAlphaStatusV8Aggregate(
+      secret,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    );
+    expect(postPublishFailure).toThrow(/read-only v8 inspection.*before any component seed/i);
+    expect(postPublishFailure).not.toThrow(/private/i);
+    expect(postPublishFailure).not.toThrow(/retry/i);
   });
 
   it('enforces a hard deadline with graceful then forced termination', async () => {
@@ -1486,6 +1628,10 @@ describe('protected aggregate child isolation', () => {
     ...authenticatedGenesisV3FoundedAggregate,
     alphaTermsAcceptances: '2',
   });
+  const completeEntryAgreementHistoryAggregate = Object.freeze({
+    ...authenticatedGenesisV3FoundedAggregate,
+    alphaTermsAcceptances: '3',
+  });
   const genesisGenerationV3FoundedAggregate = Object.freeze({
     ...genesisV3FoundedAggregate,
     worldTiles: '10000',
@@ -1708,7 +1854,7 @@ describe('protected aggregate child isolation', () => {
     )).toThrow(/rollout stage/i);
   });
 
-  it('allows two immutable entry-agreement rows per player and rejects a third', () => {
+  it('allows every supported immutable entry-agreement row per player and rejects another', () => {
     expect(() => verifyExpectedAlphaV3Aggregate(
       JSON.stringify(historicalAndCurrentEntryAgreementAggregate),
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
@@ -1724,11 +1870,18 @@ describe('protected aggregate child isolation', () => {
       2,
     )).toThrow(/rollout stage/i);
     expect(() => verifyExpectedAlphaV3Aggregate(
-      JSON.stringify(historicalAndCurrentEntryAgreementAggregate),
+      JSON.stringify(completeEntryAgreementHistoryAggregate),
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
       1,
       3,
+    )).not.toThrow();
+    expect(() => verifyExpectedAlphaV3Aggregate(
+      JSON.stringify(completeEntryAgreementHistoryAggregate),
+      PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
+      3,
+      1,
+      4,
     )).toThrow(/entry-agreement row count was invalid/i);
   });
 
@@ -1747,7 +1900,7 @@ describe('protected aggregate child isolation', () => {
 
   it.each([
     ['player count', 4, 0],
-    ['entry-agreement row count', 1, 3],
+    ['entry-agreement row count', 1, 4],
   ])('rejects an expected %s above its bounded aggregate limit', (_label, players, terms) => {
     expect(() => verifyExpectedAlphaV3Aggregate(
       JSON.stringify(genesisV3FoundedAggregate),
@@ -2276,7 +2429,7 @@ describe('protected aggregate child isolation', () => {
       ])).toThrow(/canonical integer/i);
     });
 
-  it.each(['-1', '00', '01', '+1', '1.0', '1e2', '201', 'abc', ''])
+  it.each(['-1', '00', '01', '+1', '1.0', '1e2', '301', 'abc', ''])
     ('rejects noncanonical or globally out-of-range entry-agreement counts: %j', value => {
       expect(() => parseProductionVerifierArguments([
         '--require-genesis-v3-founded-aggregate',
@@ -2305,32 +2458,32 @@ describe('protected aggregate child isolation', () => {
     ])).toThrow(/cannot exceed/i);
   });
 
-  it('allows two immutable acceptance rows per player but fails closed above that bound', () => {
+  it('allows the complete immutable acceptance history per player but fails closed above it', () => {
     expect(parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=3',
       '--expected-player-count=1',
-      '--expected-terms-acceptance-count=2',
+      '--expected-terms-acceptance-count=3',
     ])).toMatchObject({
       expectedFounderCount: 3,
       expectedPlayerCount: 1,
-      expectedTermsAcceptanceCount: 2,
+      expectedTermsAcceptanceCount: 3,
     });
     expect(() => parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=3',
       '--expected-player-count=1',
-      '--expected-terms-acceptance-count=3',
+      '--expected-terms-acceptance-count=4',
     ])).toThrow(/supported immutable row history/i);
     expect(parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=100',
       '--expected-player-count=100',
-      '--expected-terms-acceptance-count=200',
+      '--expected-terms-acceptance-count=300',
     ])).toMatchObject({
       expectedFounderCount: 100,
       expectedPlayerCount: 100,
-      expectedTermsAcceptanceCount: 200,
+      expectedTermsAcceptanceCount: 300,
     });
   });
 

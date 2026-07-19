@@ -8,14 +8,13 @@ import {
   resolveRealmGoldWagonPose,
   type RealmGoldNodeOccupationPublicRecord
 } from '../src/components/realm/realmGoldNodePresentation';
+import { CANONICAL_TIER_I_GOLD_SITES_V1 } from '../spacetimedb/src/goldSitePolicy';
 
-const GOLD_SITE = Object.freeze({
-  siteId: 'genesis-001:gold:0001',
-  q: 4,
-  r: -2,
-  tier: 1,
-  active: true
-});
+const GOLD_SITES = CANONICAL_TIER_I_GOLD_SITES_V1;
+const GOLD_SITE = GOLD_SITES[0]!;
+const onlyGoldSite = (coord: Readonly<{ q: number; r: number }>) => (
+  coord.q === GOLD_SITE.q && coord.r === GOLD_SITE.r
+);
 
 const OCCUPATION = Object.freeze({
   siteId: GOLD_SITE.siteId,
@@ -37,16 +36,16 @@ const CASTLE = Object.freeze({
 describe('realm Gold-node presentation', () => {
   it('derives public availability and owner-only display context without exposing balances', () => {
     const nodes = resolveRealmGoldNodePresentations({
-      sites: [GOLD_SITE],
+      sites: GOLD_SITES,
       occupations: [OCCUPATION],
       castles: [CASTLE],
       ownCastleId: 7,
-      isPlayableCoord: () => true
+      isPlayableCoord: onlyGoldSite
     });
 
     expect(nodes).toEqual([{
       siteId: GOLD_SITE.siteId,
-      coord: { q: 4, r: -2 },
+      coord: { q: GOLD_SITE.q, r: GOLD_SITE.r },
       tier: 1,
       availability: 'gathering',
       occupation: OCCUPATION,
@@ -60,10 +59,10 @@ describe('realm Gold-node presentation', () => {
 
   it('keeps a node unavailable rather than falsely free when its public occupation cannot be joined to a castle', () => {
     const nodes = resolveRealmGoldNodePresentations({
-      sites: [GOLD_SITE],
+      sites: GOLD_SITES,
       occupations: [{ ...OCCUPATION, originCastleId: 999 }],
       castles: [CASTLE],
-      isPlayableCoord: () => true
+      isPlayableCoord: onlyGoldSite
     });
 
     expect(nodes).toHaveLength(1);
@@ -83,7 +82,7 @@ describe('realm Gold-node presentation', () => {
     })).toEqual([]);
 
     expect(resolveRealmGoldNodePresentations({
-      sites: [GOLD_SITE, GOLD_SITE],
+      sites: [...GOLD_SITES.slice(0, -1), GOLD_SITE],
       occupations: [],
       castles: [CASTLE]
     })).toEqual([]);
@@ -94,23 +93,25 @@ describe('realm Gold-node presentation', () => {
       gatheringEndsAtMicros: OCCUPATION.arrivesAtMicros - 1n
     };
     const nodes = resolveRealmGoldNodePresentations({
-      sites: [GOLD_SITE],
+      sites: GOLD_SITES,
       occupations: [contradictory],
-      castles: [CASTLE]
+      castles: [CASTLE],
+      isPlayableCoord: onlyGoldSite
     });
     expect(nodes[0]).toMatchObject({ availability: 'unavailable' });
 
     const equalBoundary = resolveRealmGoldNodePresentations({
-      sites: [GOLD_SITE],
+      sites: GOLD_SITES,
       occupations: [{ ...OCCUPATION, arrivesAtMicros: OCCUPATION.startedAtMicros }],
-      castles: [CASTLE]
+      castles: [CASTLE],
+      isPlayableCoord: onlyGoldSite
     });
     expect(equalBoundary[0]).toMatchObject({ availability: 'unavailable' });
   });
 
   it('uses persistent phase/timestamps for a local-only wagon pose without changing server state', () => {
     const outbound = resolveRealmGoldNodePresentations({
-      sites: [GOLD_SITE],
+      sites: GOLD_SITES,
       occupations: [{
         ...OCCUPATION,
         phase: 'outbound',
@@ -119,7 +120,8 @@ describe('realm Gold-node presentation', () => {
         gatheringEndsAtMicros: 2_592_000_110n,
         returnsAtMicros: 2_592_000_210n
       }],
-      castles: [CASTLE]
+      castles: [CASTLE],
+      isPlayableCoord: onlyGoldSite
     })[0]!;
     const outboundPose = resolveRealmGoldWagonPose(outbound, 60n);
     expect(outboundPose).toEqual({
@@ -127,20 +129,21 @@ describe('realm Gold-node presentation', () => {
       phase: 'outbound',
       progress: 0.5,
       from: { q: 0, r: 0 },
-      to: { q: 4, r: -2 }
+      to: { q: GOLD_SITE.q, r: GOLD_SITE.r }
     });
 
     const returning = resolveRealmGoldNodePresentations({
-      sites: [GOLD_SITE],
+      sites: GOLD_SITES,
       occupations: [{ ...OCCUPATION, phase: 'returning' }],
-      castles: [CASTLE]
+      castles: [CASTLE],
+      isPlayableCoord: onlyGoldSite
     })[0]!;
     const returningPose = resolveRealmGoldWagonPose(
       returning,
       OCCUPATION.gatheringEndsAtMicros + 1_000_000n
     );
     expect(returningPose?.phase).toBe('returning');
-    expect(returningPose?.from).toEqual({ q: 4, r: -2 });
+    expect(returningPose?.from).toEqual({ q: GOLD_SITE.q, r: GOLD_SITE.r });
     expect(returningPose?.to).toEqual({ q: 0, r: 0 });
     expect(returningPose?.progress).toBe(0.5);
   });

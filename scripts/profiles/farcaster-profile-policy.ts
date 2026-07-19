@@ -223,24 +223,6 @@ export function mergeWithLastKnownGood(
   });
 }
 
-/**
- * An authoritative removal is materially different from an unavailable or
- * incomplete response. Required castle identity must stop for review instead
- * of silently attesting stale attribution as current.
- */
-export function hasAuthoritativeRequiredProfileClear(
-  profile: TrustedPublicFarcasterProfile,
-): boolean {
-  const authoritativeFields = AUTHORITATIVE_PROFILE_FIELDS.get(profile);
-  return (
-    authoritativeFields?.has('canonicalUsername') === true
-    && profile.canonicalUsername === undefined
-  ) || (
-    authoritativeFields?.has('pfpUrl') === true
-    && profile.pfpUrl === undefined
-  );
-}
-
 export function profilesEqual(
   left: ExistingPublicProfile,
   right: ExistingPublicProfile,

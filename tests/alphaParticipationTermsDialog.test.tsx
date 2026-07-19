@@ -40,7 +40,7 @@ describe('AlphaParticipationTermsDialog', () => {
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.getAttribute('aria-describedby')).toBeTruthy();
     expect(screen.getByText(
-      'Warpkeep Alpha is experimental and currently developed by one person. Features, rules, availability, and progress may change or be reset at any time.'
+      /core strategy loop is not implemented yet/i
     )).not.toBeNull();
     expect(screen.getByText(
       'Participation alone will not earn tokens, airdrops, external rewards, or guaranteed financial gain. Experimental in-game Marks have no cash value and may change or reset.'
@@ -60,7 +60,7 @@ describe('AlphaParticipationTermsDialog', () => {
     renderDialog();
 
     const acceptance = screen.getByRole('checkbox', {
-      name: 'I have read and agree to the Alpha Terms and Hegemony Social Contract.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }) as HTMLInputElement;
     const continueButton = screen.getByRole('button', {
       name: 'CONTINUE TO SIGN-IN'

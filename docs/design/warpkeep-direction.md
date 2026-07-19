@@ -9,9 +9,9 @@ population feel like a real world before it grows into a broad strategy game.
 ## Current promise
 
 Genesis 001 provides the persistent world, castle identity, and presentation
-foundation. Its first bounded, caller-private terrain-yield and collection loop
-is live. Construction, combat, and social strategy systems are not yet
-playable, and the Alpha remains deliberately admission-gated.
+foundation. Private terrain yield and Gold, Food, and Wood expeditions are
+live; Stone sites, construction, combat, and social strategy are not. The Alpha
+remains deliberately admission-gated.
 
 ## Design principles
 
@@ -25,10 +25,9 @@ playable, and the Alpha remains deliberately admission-gated.
 
 ## Direction of travel
 
-The first broader loop joins today's private terrain yield to construction and
-a visible return to the same castle. Training, scouting, travel, conflict,
-alliances, seasons, and community rules follow only when the earlier loop is
-enjoyable and reliable.
+The next broader loop joins gathered resources to one visible castle
+improvement. Training, scouting, travel, conflict, alliances, seasons, and
+community rules follow only when the earlier loop is enjoyable and reliable.
 
 ## Non-goals
 

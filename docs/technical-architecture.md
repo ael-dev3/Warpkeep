@@ -56,8 +56,11 @@ only server-recorded production and never reveals another player's balances.
 Community Marks use separate accounting and currently have no spending,
 conversion, transfer, redemption, or reward loop.
 
-Resource nodes, construction, upgrades, units, combat, alliances, trading,
-chat, seasons, and governance are not playable yet.
+Gold Mines, Wheat Farms, and Logging Camps are public map projections. Their
+private expeditions are caller-bound and server-timed; public occupation rows
+show only the site, phase, timeline, and origin castle. Stone has no live site
+authority. Construction, upgrades, units, combat, alliances, trading, chat,
+seasons, and governance are not playable yet.
 
 ## Realm presentation
 
@@ -70,6 +73,10 @@ Castle models and their landscape bases are shared across founded sites through
 instancing and level-of-detail tiers. Selection, labels, camera focus, culling,
 and accessibility are presentation concerns; coordinates and ownership always
 come from server state.
+
+The shared forest and procedural grass are deterministic presentation layers.
+Graphics quality may change their detail, but never world membership,
+passability, resource placement, or authority.
 
 Runtime assets use immutable filenames and integrity checks. Source packages,
 reference masters, and provenance records stay separate from public runtime

@@ -197,7 +197,7 @@ describe('RealmHud', () => {
     expect(within(dialog).queryByRole('button', { name: /COLLECT YIELD/i })).toBeNull();
   });
 
-  it('explains live resource behavior on pointer, keyboard, and touch without claiming draft loops', () => {
+  it('explains current resource behavior on pointer, keyboard, and touch', () => {
     const base = createReadyResourceState();
     render(
       <RealmHud
@@ -230,8 +230,8 @@ describe('RealmHud', () => {
     fireEvent.pointerEnter(food, { pointerType: 'mouse' });
     let tooltip = screen.getByRole('tooltip');
     expect(tooltip.textContent).toContain('200 stored · 8 ready to collect');
-    expect(tooltip.textContent).toContain('completed ten-minute server cycles');
-    expect(tooltip.textContent).toContain('farms and spending are not live yet');
+    expect(tooltip.textContent).toContain('farm expeditions can gather more');
+    expect(tooltip.textContent).toContain('Spending is not live yet');
     expect(tooltip.getAttribute('aria-live')).toBe('off');
     expect(food.getAttribute('aria-describedby')).toBe(tooltip.id);
     expect(rail.getAttribute('data-tooltip-open')).toBe('food');
@@ -244,17 +244,19 @@ describe('RealmHud', () => {
 
     act(() => wood.focus());
     tooltip = screen.getByRole('tooltip');
-    expect(tooltip.textContent).toContain('logging sites and construction are not live yet');
+    expect(tooltip.textContent).toContain('logging expeditions can gather more');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('tooltip')).toBeNull();
     expect(document.activeElement).toBe(wood);
 
     act(() => stone.focus());
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('quarries and construction are not live yet');
+      .toContain('quarry sites and Stone spending are not live yet');
     act(() => gold.focus());
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('mines and wagon expeditions are not live yet');
+      .toContain('comes only from mine expeditions');
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('terrain Gold and spending are not live');
     act(() => marks.focus());
     expect(screen.getByRole('tooltip').textContent)
       .toContain('Separate community-attribution balance');

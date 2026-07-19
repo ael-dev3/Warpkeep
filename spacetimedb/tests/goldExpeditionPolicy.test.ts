@@ -16,12 +16,14 @@ import {
 } from '../src/goldExpeditionPolicy';
 import {
   CANONICAL_TIER_I_GOLD_SITES_V1,
+  GENESIS_TIER_I_GOLD_SITE_CANDIDATE_COUNT,
   GENESIS_TIER_I_GOLD_SITE_COUNT,
   GENESIS_TIER_I_GOLD_SITE_DIGEST,
   GOLD_SITE_POLICY_VERSION,
   canonicalPassableRouteSteps,
   canonicalTierIGoldSiteDigestInput,
 } from '../src/goldSitePolicy';
+import { hasCanonicalResourceSiteStaticConflict } from '../src/resourceSitePlacementPolicy';
 import { RESOURCE_BALANCE_CAP } from '../src/resourceAuthorityPolicy';
 import { canonicalMetaForKey } from '../src/world';
 
@@ -68,8 +70,10 @@ test('the Tier-I pilot is exactly 24 active resource-capable Genesis sites with 
     const meta = canonicalMetaForKey(`${site.q},${site.r}`);
     assert.equal(meta?.passable, true);
     assert.equal(meta?.staticContentKind, 'resource-capable');
+    assert.equal(hasCanonicalResourceSiteStaticConflict(site), false);
   }
-  assert.equal(GOLD_SITE_POLICY_VERSION, 'genesis-001-tier1-gold-sites-v2');
+  assert.equal(GENESIS_TIER_I_GOLD_SITE_CANDIDATE_COUNT, 628);
+  assert.equal(GOLD_SITE_POLICY_VERSION, 'genesis-001-tier1-gold-sites-v3');
 });
 
 test('a wagon route uses the canonical passable graph rather than a browser-supplied distance', () => {
@@ -134,6 +138,18 @@ test('corrupt cursors, unknown phase, and insufficient full-trip capacity fail c
   assert.equal(goldExpeditionStateIsConsistent(state()), true);
   assert.equal(goldExpeditionStateIsConsistent(state({ phase: 'teleporting' })), false);
   assert.equal(goldExpeditionStateIsConsistent(state({ creditedGold: 1n })), false);
+  assert.equal(goldExpeditionStateIsConsistent(state({
+    phase: 'returning',
+    settledThroughMicros: state().gatheringEndsAtMicros,
+    accruedGold: GOLD_GATHERING_TOTAL_GOLD - 1n,
+    creditedGold: GOLD_GATHERING_TOTAL_GOLD - 1n,
+  })), false);
+  assert.equal(goldExpeditionStateIsConsistent(state({
+    phase: 'returning',
+    settledThroughMicros: state().gatheringEndsAtMicros,
+    accruedGold: GOLD_GATHERING_TOTAL_GOLD,
+    creditedGold: GOLD_GATHERING_TOTAL_GOLD,
+  })), true);
   assert.throws(
     () => planGoldExpeditionAccrual(state({ phase: 'teleporting' }), START),
     (error: unknown) => error instanceof GoldExpeditionPolicyError

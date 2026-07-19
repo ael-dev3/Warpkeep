@@ -583,6 +583,9 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
       }
 
       let enabledAllowedFids = 0n;
+      // This deployed invariant remains structural. Repairable username/PFP
+      // health is reported by the private profile-maintenance operator and is
+      // never folded into a migration or gameplay readiness gate.
       let founderStateGaps = 0n;
       for (const row of tx.db.allowedFid.iter()) {
         if (row.enabled) enabledAllowedFids += 1n;
@@ -591,7 +594,6 @@ export const adminGetAlphaStatusV3 = warpkeep.procedure(
           tx.db.castle.ownerFid.find(row.fid) === null
           || tx.db.castleSlotClaimV1.ownerFid.find(row.fid) === null
           || profile === null
-          || !admissionProfileIsComplete(profile)
           || tx.db.markAccountV1.fid.find(row.fid) === null
         ) founderStateGaps += 1n;
       }
@@ -934,9 +936,10 @@ export const adminExpandGenesisWorldV3 = warpkeep.reducer(
 );
 
 /**
- * Legacy wire retained only for an already-profiled founder. First-time
+ * Legacy wire retained only for an already-founded player. First-time
  * admission must use the atomic profiled path below so a public castle can
- * never be created with an empty Farcaster presentation.
+ * never be created with an empty Farcaster presentation. Later presentation
+ * health is repairable and is not a re-enablement authority signal.
  */
 export const adminAllowFid = warpkeep.reducer(
   { name: 'admin_allow_fid' },
@@ -950,10 +953,6 @@ export const adminAllowFid = warpkeep.reducer(
 
     assertGenesisFounderForFid(ctx, fid);
     assertGenesisResourceForFid(ctx, fid);
-    const profile = ctx.db.realmProfileV1.fid.find(fid);
-    if (profile === null || !admissionProfileIsComplete(profile)) {
-      throw new SenderError('FOUNDER_PROFILE_INCOMPLETE');
-    }
     applyAllowedFidTransition(ctx, {
       fid,
       note: cleanNote,
@@ -1010,8 +1009,6 @@ export const adminAdmitFounderV1 = warpkeep.reducer(
       auditAction: 'admit_founder_v1',
     });
     ensureGenesisFounder(ctx, input.fid, normalized);
-    const existingProfile = ctx.db.realmProfileV1.fid.find(input.fid);
-    if (existingProfile === null) throw new SenderError('STATE_INTEGRITY');
     const verifiedProfile = ctx.db.realmProfileV1.fid.find(input.fid);
     if (
       verifiedProfile === null
@@ -1044,7 +1041,7 @@ export const adminUpsertRealmProfileV1 = warpkeep.reducer(
 
     let normalized;
     try {
-      normalized = normalizeAdmissionReadyTrustedProfile(input);
+      normalized = normalizeTrustedPublicProfile(input);
     } catch (error) {
       if (error instanceof ProfileAuthorityPolicyError) throw new SenderError(error.code);
       throw error;
@@ -1061,9 +1058,8 @@ export const adminUpsertRealmProfileV1 = warpkeep.reducer(
     const verifiedProfile = ctx.db.realmProfileV1.fid.find(input.fid);
     if (
       verifiedProfile === null
-      || !admissionProfileIsComplete(verifiedProfile)
       || !trustedProfilesEqual(verifiedProfile, normalized)
-    ) throw new SenderError('FOUNDER_PROFILE_INCOMPLETE');
+    ) throw new SenderError('STATE_INTEGRITY');
     audit(
       ctx,
       'profile_snapshot_v1',

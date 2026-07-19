@@ -12,8 +12,11 @@ contributors. This page routes deeper work without duplicating it.
   bridge, SpacetimeDB, rendering, and delivery
 - [Lowlands renderer](design/hegemony-lowlands-terrain.md) — terrain,
   presentation, and performance principles
+- [Lowlands audio](design/lowlands-audio.md) — scene transitions and runtime
+  sound boundaries
 - [Contributing](../CONTRIBUTING.md) — local setup, checks, privacy, and
   provenance expectations
+- [Code of Conduct](../CODE_OF_CONDUCT.md) — expectations for project spaces
 
 ## System guides
 
@@ -21,6 +24,8 @@ contributors. This page routes deeper work without duplicating it.
 - [Auth bridge](../services/auth-bridge/README.md)
 - [SpacetimeDB module](../spacetimedb/README.md)
 - [Community Marks policy](gameplay/marks-policy-v1.md)
+- [Marks and profile operators](operations/marks-operator.md)
+- [Local visual QA](operations/qa-observatory.md)
 - [Threat model](security/threat-model.md)
 - [Operations and recovery](operations/reconstruction/README.md)
 
@@ -33,7 +38,8 @@ contributors. This page routes deeper work without duplicating it.
 
 ## Project history
 
-The [changelog](../CHANGELOG.md) summarizes public versions. Git tags, GitHub
+The [changelog](../CHANGELOG.md) summarizes public versions, and the
+[versioning guide](releases/versioning.md) explains tags and builds. Git tags, GitHub
 Releases, merged pull requests, and commit history preserve detailed release
 and implementation records. Completed plans and duplicate patch reports are not
 kept on the current branch.

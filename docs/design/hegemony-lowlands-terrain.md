@@ -7,8 +7,10 @@ world tiles, public metadata, players, profiles, castles, and private resource
 state. The browser renders validated server data; it does not invent ownership,
 identity, castle coordinates, balances, or replacement geography.
 
-The current Realm supports exploration, castle inspection, and caller-private terrain yield. Resource
-nodes, roads, farms, units, travel, combat, fog of war, and alternate biomes are not part of this presentation.
+The current Realm supports exploration, castle inspection, caller-private
+terrain yield, roads, and shared Gold Mine, Wheat Farm, and Logging Camp sites.
+Units, combat, fog of war, and alternate biomes are not part of the current
+presentation.
 
 ## Realm loading
 
@@ -57,8 +59,9 @@ active quality profile, and clears castle foundations and scenic blockers.
 Detail updates are demand-driven and pause while the document is hidden.
 
 Metadata such as `resource-capable`, `core-capable`, and `reserve` describes
-future placement capacity only. The terrain renderer does not turn those flags
-into nodes, rewards, balances, or interactive targets.
+placement capacity only. Live resource sites come from separate, validated
+server catalogs; the terrain renderer never turns metadata flags into nodes,
+rewards, balances, or interactive targets.
 
 ## Castles and foundations
 

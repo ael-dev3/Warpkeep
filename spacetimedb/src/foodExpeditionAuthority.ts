@@ -302,9 +302,12 @@ function creditExpiredFood(
     creditedFood: accrual.accruedFood,
     updatedAt: ctx.timestamp,
   });
-  // The Wheat Farm opens at gathering completion while the private wagon
-  // continues returning. The next Food wagon may occupy the released site.
-  ctx.db.foodNodeOccupationV1.siteId.delete(occupation.siteId);
+  // Keep the lease until the wagon reaches its castle. Public presentation and
+  // server availability now describe the same round-trip lifecycle.
+  ctx.db.foodNodeOccupationV1.siteId.update({
+    ...occupation,
+    phase: 'returning',
+  });
 }
 
 function completeReturn(
@@ -316,11 +319,10 @@ function completeReturn(
   }
   if (expedition.phase !== 'returning') fail('FOOD_EXPEDITION_RETURN_STATE');
   const occupation = ctx.db.foodNodeOccupationV1.siteId.find(expedition.siteId);
-  // Another Food wagon may legally own the public lease while this completed
-  // wagon returns. Only an uncleared copy of this own lease is corruption.
-  if (occupation !== null && occupationMatchesExpedition(occupation, expedition)) {
-    fail('FOOD_OCCUPATION_INTEGRITY');
-  }
+  if (occupation === null) fail('FOOD_OCCUPATION_MISSING');
+  assertOccupationMatchesExpedition(occupation, expedition);
+  if (occupation.phase !== 'returning') fail('FOOD_OCCUPATION_PHASE_INVALID');
+  ctx.db.foodNodeOccupationV1.siteId.delete(occupation.siteId);
   ctx.db.foodExpeditionV1.expeditionId.delete(expedition.expeditionId);
 }
 
@@ -421,7 +423,7 @@ export function dispatchGenesisFoodExpedition(
   }
   for (const existing of ctx.db.foodExpeditionV1.siteId.filter(site.siteId)) {
     assertExpeditionState(existing);
-    if (existing.phase !== 'returning') fail('FOOD_SITE_EXPEDITION_CONFLICT');
+    fail('FOOD_SITE_EXPEDITION_CONFLICT');
   }
   if (ctx.db.foodExpeditionV1.originCastleId.find(resource.castle.castleId) !== null) {
     fail('FOOD_WAGON_ALREADY_DEPLOYED');

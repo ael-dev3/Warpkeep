@@ -183,21 +183,16 @@ export function publicProfileForCastle(
   ownIdentity?: RealmIdentity
 ): RealmCastlePublicPresentation {
   const authoritative = profiles.find((profile) => profile.fid === fid);
-  const player = players.find((candidate) => candidate.fid === fid);
-  const identity = ownIdentity?.fid === fid ? ownIdentity : undefined;
   if (authoritative) {
-    const profile = publicPresentationFromProfile(authoritative);
-    return {
-      ...profile,
-      canonicalUsername: profile.canonicalUsername
-        ?? normalizeRealmUsername(player?.username ?? identity?.username),
-      displayName: profile.displayName
-        ?? boundedDisplayText(player?.displayName ?? identity?.displayName, 80),
-      pfpUrl: profile.pfpUrl
-        ?? safeRealmProfileImageUrl(player?.pfpUrl ?? identity?.pfpUrl)
-    };
+    // Absence in the trusted Realm projection may be an authoritative profile
+    // clear. Never revive removed personal data from a legacy player row or a
+    // tab-local authentication presentation; the castle UI has a neutral keep
+    // label and monogram fallback.
+    return publicPresentationFromProfile(authoritative);
   }
 
+  const player = players.find((candidate) => candidate.fid === fid);
+  const identity = ownIdentity?.fid === fid ? ownIdentity : undefined;
   return {
     canonicalUsername: normalizeRealmUsername(player?.username ?? identity?.username),
     displayName: boundedDisplayText(player?.displayName ?? identity?.displayName, 80),

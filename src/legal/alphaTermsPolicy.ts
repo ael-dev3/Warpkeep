@@ -1,6 +1,6 @@
 /** Exact version of the Social Contract incorporated by the current Terms. */
 export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION =
-  '2026-07-18-hegemony-social-contract-v1';
+  '2026-07-19-hegemony-social-contract-v2';
 
 /**
  * Exact server-side identifier for the complete current entry-agreement bundle.
@@ -25,8 +25,8 @@ export const WARPKEEP_ALPHA_TERMS_VERSION = WARPKEEP_ENTRY_AGREEMENT_VERSION;
  * allowing the accepted document to drift behind an unchanged reducer value.
  */
 export const WARPKEEP_ALPHA_TERMS_TEXT_SHA256 =
-  '0c2fab74ee3eaf0f453503decb9eaafb65bb7ae226f99742b65797e89e3ab864';
+  '44d0043467b273293d59a2958e4837d13d289fd81eee708c7187d63a58659928';
 
 /** SHA-256 of the canonical Social Contract's normalized visible <main> text. */
 export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_TEXT_SHA256 =
-  'c6cd22628622aceaba25dd4f9cc5f609873f86a0e7d458c0e4bdf54c9b012571';
+  '676b53ce46eb57d99883e8731103779a658fc75a5e8ba5069cce0ab57d1268bc';

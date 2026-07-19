@@ -8,7 +8,6 @@ import {
 } from 'react';
 
 import {
-  createFoodExpeditionIdempotencyKey,
   foodExpeditionForNode,
   type FoodExpeditionPresentation,
   type ReadyFoodExpeditionPresentation
@@ -55,7 +54,7 @@ export type FoodFarmInspectionPanelProps = Readonly<{
   /** Exact caller-only procedure data, joined again to the public site. */
   privateExpedition?: FoodExpeditionPresentation;
   /** Authenticated provider boundary; no optimistic public node mutation. */
-  onDispatchFoodExpedition?: (siteId: string, idempotencyKey: string) => Promise<void>;
+  onDispatchFoodExpedition?: (siteId: string) => Promise<void>;
   /** Owner-only settlement boundary; resources refresh after server confirmation. */
   onClaimFoodExpedition?: () => Promise<void>;
   onRequestClose: () => void;
@@ -127,20 +126,50 @@ export function FoodFarmInspectionPanel({
   focusTargetRef
 }: FoodFarmInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [dispatchState, setDispatchState] = useState<'idle' | 'submitting' | 'failed'>('idle');
+  const [dispatchState, setDispatchState] = useState<
+    'idle' | 'submitting' | 'submitted' | 'failed'
+  >('idle');
   const [claimState, setClaimState] = useState<'idle' | 'submitting' | 'failed'>('idle');
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
   const scheduleTimestamp = node ? foodNodeNextAuthorityTimestamp(node) : undefined;
   const scheduleLabel = formatRemainingDuration(scheduleTimestamp);
   const ownerExpedition = visibleOwnerExpedition(node, privateExpedition);
+  const privateExpeditionActive = privateExpedition?.status === 'ready'
+    && privateExpedition.active;
+  const privateActiveSiteId = privateExpeditionActive
+    ? privateExpedition?.expedition?.siteId
+    : undefined;
+  const awaitingPublicOccupation = node?.availability === 'available'
+    && (
+      privateActiveSiteId === node.siteId
+      || (!privateExpeditionActive && dispatchState === 'submitted')
+    );
+  const expeditionActiveElsewhere = node?.availability === 'available'
+    && privateExpeditionActive
+    && privateActiveSiteId !== node.siteId;
   const canDispatch = node?.availability === 'available'
     && onDispatchFoodExpedition !== undefined
-    && dispatchState !== 'submitting';
+    && !privateExpeditionActive
+    && (dispatchState === 'idle' || dispatchState === 'failed');
   const canClaim = ownerExpedition !== undefined
     && ownerExpedition.pendingFood > 0n
     && onClaimFoodExpedition !== undefined
     && claimState !== 'submitting';
+  const dispatchLabel = dispatchState === 'submitting'
+    ? 'DISPATCHING WAGON…'
+    : awaitingPublicOccupation
+      ? 'AWAITING REALM…'
+      : expeditionActiveElsewhere
+        ? 'EXPEDITION ACTIVE'
+        : 'DISPATCH WAGON';
+  const dispatchStatus = awaitingPublicOccupation
+    ? 'The private Realm record is confirmed; awaiting the public occupation.'
+    : expeditionActiveElsewhere
+      ? 'Your Food wagon already has an active expedition.'
+      : dispatchState === 'failed'
+        ? 'The Realm could not confirm this dispatch. Check the Farm state and try again.'
+        : 'Dispatch is confirmed only when the Realm publishes the occupation.';
 
   const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
     closeButtonRef.current = element;
@@ -158,15 +187,10 @@ export function FoodFarmInspectionPanel({
 
   const dispatch = useCallback(async () => {
     if (!node || node.availability !== 'available' || !onDispatchFoodExpedition) return;
-    const idempotencyKey = createFoodExpeditionIdempotencyKey();
-    if (!idempotencyKey) {
-      setDispatchState('failed');
-      return;
-    }
     setDispatchState('submitting');
     try {
-      await onDispatchFoodExpedition(node.siteId, idempotencyKey);
-      setDispatchState('idle');
+      await onDispatchFoodExpedition(node.siteId);
+      setDispatchState('submitted');
     } catch {
       setDispatchState('failed');
     }
@@ -262,12 +286,10 @@ export function FoodFarmInspectionPanel({
                 onClick={() => void dispatch()}
                 type="button"
               >
-                {dispatchState === 'submitting' ? 'DISPATCHING WAGON…' : 'DISPATCH WAGON'}
+                {dispatchLabel}
               </button>
               <p aria-live="polite" className="gold-mine-inspection__action-status">
-                {dispatchState === 'failed'
-                  ? 'The Realm could not confirm this dispatch. Check the Farm state and try again.'
-                  : 'Dispatch is confirmed only when the Realm publishes the occupation.'}
+                {dispatchStatus}
               </p>
             </div>
           ) : null}

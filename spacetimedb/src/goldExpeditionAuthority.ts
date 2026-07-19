@@ -280,9 +280,13 @@ function creditExpiredGold(
     creditedGold: accrual.accruedGold,
     updatedAt: ctx.timestamp,
   });
-  // The mine becomes available when gathering ends. The wagon remains private
-  // in `gold_expedition_v1` until its deterministic return timestamp.
-  ctx.db.goldNodeOccupationV1.siteId.delete(occupation.siteId);
+  // Keep the public lease for the complete round trip. This makes the return
+  // wagon observable and prevents the site from appearing available while the
+  // server still holds the founder's one active Gold wagon.
+  ctx.db.goldNodeOccupationV1.siteId.update({
+    ...occupation,
+    phase: 'returning',
+  });
 }
 
 function completeReturn(
@@ -294,12 +298,10 @@ function completeReturn(
   }
   if (expedition.phase !== 'returning') fail('GOLD_EXPEDITION_RETURN_STATE');
   const occupation = ctx.db.goldNodeOccupationV1.siteId.find(expedition.siteId);
-  // A different public lease is legitimate: gathering release permits the next
-  // wagon to leave for this site while this wagon is still returning. Only an
-  // uncleared copy of this expedition's own lease is an integrity failure.
-  if (occupation !== null && occupationMatchesExpedition(occupation, expedition)) {
-    fail('GOLD_OCCUPATION_INTEGRITY');
-  }
+  if (occupation === null) fail('GOLD_OCCUPATION_MISSING');
+  assertOccupationMatchesExpedition(occupation, expedition);
+  if (occupation.phase !== 'returning') fail('GOLD_OCCUPATION_PHASE_INVALID');
+  ctx.db.goldNodeOccupationV1.siteId.delete(occupation.siteId);
   ctx.db.goldExpeditionV1.expeditionId.delete(expedition.expeditionId);
 }
 
@@ -401,10 +403,7 @@ export function dispatchGenesisGoldExpedition(
   }
   for (const existing of ctx.db.goldExpeditionV1.siteId.filter(site.siteId)) {
     assertExpeditionState(existing);
-    // A completed gathering has already released its public occupancy. Its
-    // return row remains only to keep that wagon unavailable to its owner; it
-    // must not reserve the Gold Mine against the next player.
-    if (existing.phase !== 'returning') fail('GOLD_SITE_EXPEDITION_CONFLICT');
+    fail('GOLD_SITE_EXPEDITION_CONFLICT');
   }
   if (ctx.db.goldExpeditionV1.originCastleId.find(input.castle.castleId) !== null) {
     fail('GOLD_WAGON_ALREADY_DEPLOYED');

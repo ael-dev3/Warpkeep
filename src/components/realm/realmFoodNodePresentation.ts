@@ -1,4 +1,5 @@
 import type { HexCoord } from '../../game/map/hexCoordinates';
+import { isCanonicalRealmFoodSiteCatalog } from './realmResourceSiteCatalogPolicy';
 
 /**
  * Browser-safe projection of the additive public Food catalog. Like Gold,
@@ -63,7 +64,7 @@ export type RealmFoodWagonPose = Readonly<{
 }>;
 
 const MAX_FOOD_SITE_IDENTIFIER_LENGTH = 96;
-/** Alpha 0.3.10 introduces only canonical Tier I Wheat Farms. */
+/** Alpha 0.3.11 introduces only canonical Tier I Wheat Farms. */
 const FOOD_NODE_TIER = 1;
 const MAX_PUBLIC_FOOD_SITE_COUNT = 10_000;
 const MINUTE_MICROS = 60_000_000n;
@@ -155,6 +156,7 @@ export function resolveRealmFoodNodePresentations(input: Readonly<{
     input.sites === undefined
     || input.occupations === undefined
     || input.sites.length > MAX_PUBLIC_FOOD_SITE_COUNT
+    || !isCanonicalRealmFoodSiteCatalog(input.sites)
   ) return Object.freeze([]);
 
   const siteIds = new Set<string>();

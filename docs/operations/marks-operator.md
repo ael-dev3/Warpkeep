@@ -1,6 +1,6 @@
 # Local Marks operator
 
-The Alpha 0.3.2 Marks operator is an offline-first, fail-closed macOS utility. It recognizes the canonical normal SNAP `Burned(...)` event on Ethereum mainnet and prepares privacy-safe 1:1 Mark-credit dry runs. It does not connect a browser wallet, initiate a burn, write directly to database tables, or make a production credit.
+The Marks operator is an offline-first, fail-closed macOS utility. It recognizes the canonical normal SNAP `Burned(...)` event on Ethereum mainnet and prepares privacy-safe 1:1 Mark-credit dry runs. It does not connect a browser wallet, initiate a burn, write directly to database tables, or make a production credit.
 
 `marks:apply` is deliberately unavailable. It always exits with
 `MARKS_APPLY_DISABLED`, even when `--confirm` is supplied. The deployed
@@ -112,7 +112,7 @@ owner-only stdin producer:
 ```json
 {
   "source": {
-    "sourceId": "owner-reviewed-snapchain-mainnet-v1"
+    "sourceId": "owner-reviewed-snapchain-mainnet-maintenance-v2"
   }
 }
 ```
@@ -122,22 +122,12 @@ authoritative founder. It validates every returned message against the expected
 FID, mainnet, and user-data contract, then retains only `USERNAME`, `DISPLAY`,
 `BIO`, and `PFP`; unrelated user-data fields are discarded and never persisted
 or reported. Redirects and pagination are rejected, response bodies and
-deadlines are bounded, and PFP URLs are re-sanitized. A successful complete
-current envelope can authoritatively clear optional display name or bio.
-Canonical username and PFP are required castle-identity anchors: an
-authoritative removal stops before plan creation, while an unavailable or
-incomplete response may retain their last-known-good reviewed values. Refresh
-also fails when any founded profile has no reviewed fallback. In particular, a
-structurally valid legacy founder can be repaired only when every missing or
-invalid required field is supplied by current authoritative data. A required
-field that is already valid may retain its sanitized reviewed last-known-good
-value when that one response is unavailable or incomplete; an authoritative
-clear still stops. A fully blank row therefore needs both current required
-fields. The operator never invents or promotes a stale missing required value.
-The exact-admin reducer accepts that narrow repair only when the reviewed
-intended result is complete and normalized. Player bootstrap, gameplay
-authority, and legacy admission re-enable remain blocked until repair is
-complete.
+deadlines are bounded, and PFP URLs are re-sanitized. A successful authoritative
+empty value clears that public field, including username or PFP; an unavailable
+field may retain its sanitized last-known-good value. Cleared presentation uses
+the Realm's neutral keep label and monogram. It does not revoke the admitted
+FID's private ownership or gameplay authority. Complete username and PFP remain
+mandatory only in the atomic new-founder admission path.
 
 The dry run reads the canonical current profile rows and writes a private
 `profiles-reviewed-plan-*.json` file in

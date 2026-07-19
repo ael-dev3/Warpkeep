@@ -12,10 +12,12 @@ import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
 import {
   admissionReadinessSummary,
   connect,
+  FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
   parseHermesArguments,
   privacySafeHermesErrorMessage,
   readStatus,
   requestAdminToken,
+  requireAlphaComponentActivationProductionTarget,
   requireCredentialedProductionTarget,
   requireFounderAdmissionProductionTarget,
   requireGenesisExpansionProductionTarget,
@@ -339,7 +341,7 @@ describe('Hermes machine-readable output', () => {
     const status = foundedGenerationV2Status();
     expect(verifyGenesisExpansionPreconditionV3(status)).toEqual(status);
 
-    expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM).toBe(2);
+    expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM).toBe(3);
     const retainedHistoryStatus = {
       ...status,
       alphaTermsAcceptances: status.playersV2
@@ -513,6 +515,7 @@ describe('Hermes command-line boundary', () => {
     expect(() => parseHermesArguments(['inspect-alpha', '--jsno'])).toThrow(/unknown or duplicate/i);
     expect(() => parseHermesArguments(['inspect-alpha', '--json', '--json'])).toThrow(/unknown or duplicate/i);
     expect(() => parseHermesArguments(['inspect-alpha', '--confirm'])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments(['inspect-alpha', '--dry-run'])).toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments(['allow-fid', '123', 'note', '--json'])).toThrow(/invalid for this operation/i);
     expect(parseHermesArguments(['admit-founder', '--input-stdin', '--dry-run'])).toMatchObject({
       command: 'admit-founder',
@@ -547,6 +550,27 @@ describe('Hermes command-line boundary', () => {
       inspection: true,
       machineReadableInspection: true,
     });
+    expect(parseHermesArguments(['inspect-alpha-v8', '--json'])).toMatchObject({
+      command: 'inspect-alpha-v8',
+      inspection: true,
+      machineReadableInspection: true,
+    });
+    expect(parseHermesArguments(['seed-alpha-component', 'gold', '--dry-run'])).toMatchObject({
+      command: 'seed-alpha-component',
+      inspection: false,
+      dryRun: true,
+    });
+    expect(parseHermesArguments(['seed-alpha-component', 'forest', '--confirm'])).toMatchObject({
+      command: 'seed-alpha-component',
+      confirmedByFlag: true,
+    });
+    expect(() => parseHermesArguments(['seed-alpha-component', 'stone', '--dry-run']))
+      .toThrow(/gold, forest, food, wood/i);
+    expect(() => parseHermesArguments(['seed-alpha-component', 'gold']))
+      .toThrow(/exactly one/i);
+    expect(() => parseHermesArguments([
+      'seed-alpha-component', 'gold', '--dry-run', '--confirm',
+    ])).toThrow(/exactly one/i);
     expect(parseHermesArguments(['backfill-resources', '4', '--confirm'])).toMatchObject({
       command: 'backfill-resources',
       inspection: false,
@@ -610,6 +634,21 @@ describe('Hermes atomic profiled admission boundary', () => {
       publicBio: 'Controlled public fixture',
     });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('binds new-founder resolution and reviewed plans to the admission-only source scope', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    expect(FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST).toMatch(/^[a-f0-9]{64}$/);
+    expect(source).toContain(
+      'trustedProfileTransportAttestation(TRUSTED_FOUNDER_ADMISSION_PURPOSE)',
+    );
+    expect(source).toContain(
+      'source: { sourceId: TRUSTED_PRODUCTION_FOUNDER_ADMISSION_SOURCE_ID }',
+    );
+    expect(source).toContain('purpose: TRUSTED_FOUNDER_ADMISSION_PURPOSE');
+    expect(source).not.toContain(
+      ['alpha-0.3.3', 'current-founded-public-profiles'].join('-'),
+    );
   });
 
   it('fails closed before admission when username or HTTPS PFP is unavailable', async () => {
@@ -734,6 +773,13 @@ describe('Hermes credential destination policy', () => {
       .toThrow(/immutable Warpkeep production database identity/i);
   });
 
+  it('pins confirmed Alpha component activation to the immutable database identity', () => {
+    const identity = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
+    expect(() => requireAlphaComponentActivationProductionTarget(identity)).not.toThrow();
+    expect(() => requireAlphaComponentActivationProductionTarget('warpkeep-89e4u'))
+      .toThrow(/Alpha component activation requires the immutable/i);
+  });
+
   it.each([
     ['bridge', { WARPKEEP_AUTH_BRIDGE_URL: 'https://lookalike.example' }],
     ['SpacetimeDB origin', { WARPKEEP_SPACETIMEDB_URI: 'https://lookalike.example' }],
@@ -798,38 +844,37 @@ describe('Hermes credential destination policy', () => {
     expect(result.stderr).toBe('');
   });
 
-  it('classifies protocol-v2 aggregate inspection as read-only', () => {
-    const result = runHermes(['inspect-alpha-v2', '--json', '--dry-run'], {
+  it.each(['v2', 'v3', 'v4', 'v8'])('rejects misleading dry-run use on read-only protocol-%s inspection', (version) => {
+    const result = runHermes([`inspect-alpha-${version}`, '--json', '--dry-run'], {
       WARPKEEP_AUTH_BRIDGE_URL: undefined,
       WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
     });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('"command":"inspect-alpha-v2"');
-    expect(result.stdout).toContain('"mutation":false');
-    expect(result.stderr).toBe('');
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('flag that is invalid for this operation');
   });
 
-  it('classifies protocol-v3 aggregate inspection as read-only', () => {
-    const result = runHermes(['inspect-alpha-v3', '--json', '--dry-run'], {
-      WARPKEEP_AUTH_BRIDGE_URL: undefined,
-      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+  it('dry-runs each Alpha component without credentials and requires explicit confirmation', () => {
+    for (const component of ['gold', 'forest', 'food', 'wood']) {
+      const result = runHermes(['seed-alpha-component', component, '--dry-run'], {
+        WARPKEEP_AUTH_BRIDGE_URL: undefined,
+        WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain('"command":"seed-alpha-component"');
+      expect(result.stdout).toContain(`"alphaComponent":"${component}"`);
+      expect(result.stdout).toContain('"mutation":true');
+      expect(result.stdout).toContain('"alphaStatusInspected":false');
+      expect(result.stdout).toContain('"credentialsAccessed":false');
+      expect(result.stdout).toContain('"mutationSubmitted":false');
+      expect(result.stderr).toBe('');
+    }
+    const refused = runHermes(['seed-alpha-component', 'gold'], {
+      WARPKEEP_HERMES_NONINTERACTIVE: 'yes',
     });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('"command":"inspect-alpha-v3"');
-    expect(result.stdout).toContain('"mutation":false');
-    expect(result.stderr).toBe('');
-  });
-
-  it('classifies protocol-v4 aggregate inspection as read-only', () => {
-    const result = runHermes(['inspect-alpha-v4', '--json', '--dry-run'], {
-      WARPKEEP_AUTH_BRIDGE_URL: undefined,
-      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
-    });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('"command":"inspect-alpha-v4"');
-    expect(result.stdout).toContain('"mutation":false');
-    expect(result.stderr).toBe('');
-  });
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain('exactly one of --dry-run or --confirm');
+  }, 15_000);
 
   it('validates and dry-runs the resource backfill without credentials or network use', () => {
     const result = runHermes(['backfill-resources', '4', '--dry-run', '--confirm'], {
@@ -851,7 +896,7 @@ describe('Hermes credential destination policy', () => {
       expect(rejected.status, count).toBe(1);
       expect(rejected.stderr, count).toContain('founder count from 1 to 100');
     }
-  });
+  }, 15_000);
 
   it('dry-runs the exact world expansion without credentials or network use', () => {
     const result = runHermes(['expand-world-v3', '--dry-run', '--confirm'], {

@@ -6,7 +6,7 @@ import {
 } from 'react';
 
 import { StaticProfileImageCanvas } from '../profile/StaticProfileImageCanvas';
-import type { RealmCastleProjection } from './RealmMapScreen';
+import type { RealmCastleProjection } from './realmMapProjectionStability';
 import {
   castleProfileLabel,
   castleProfileMonogram,

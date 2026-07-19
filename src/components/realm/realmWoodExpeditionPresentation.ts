@@ -2,6 +2,7 @@ import {
   isWoodNodeOccupationPhase,
   type WoodNodeOccupationPhase
 } from './realmWoodNodePresentation';
+import { createExpeditionIdempotencyKey } from '../../spacetime/expeditionIdempotencyKey';
 
 export const WOOD_EXPEDITION_POLICY_VERSION = 'genesis-wood-logging-camp-expedition-v1' as const;
 export const WOOD_EXPEDITION_RATE_PER_MINUTE = 1n;
@@ -9,7 +10,6 @@ export const WOOD_EXPEDITION_GATHERING_DURATION_MICROS =
   30n * 24n * 60n * 60n * 1_000_000n;
 
 const U64_MAX = (1n << 64n) - 1n;
-const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const WOOD_EXPEDITION_RESPONSE_KEYS = Object.freeze([
   'active',
   'expeditionId',
@@ -57,19 +57,7 @@ export type WoodExpeditionPresentation =
 
 /** Browser CSPRNG only; missing entropy disables dispatch instead of guessing. */
 export function createWoodExpeditionIdempotencyKey(): string | undefined {
-  const cryptoApi = globalThis.crypto;
-  if (!cryptoApi) return undefined;
-  if (typeof cryptoApi.randomUUID === 'function') {
-    const key = cryptoApi.randomUUID();
-    return UUID_V4_PATTERN.test(key) ? key.toLowerCase() : undefined;
-  }
-  if (typeof cryptoApi.getRandomValues !== 'function') return undefined;
-  const bytes = cryptoApi.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
-  const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
-  const key = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  return UUID_V4_PATTERN.test(key) ? key : undefined;
+  return createExpeditionIdempotencyKey();
 }
 
 function plainRecord(value: unknown): value is Record<string, unknown> {

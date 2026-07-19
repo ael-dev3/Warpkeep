@@ -12,6 +12,34 @@ import {
   REALM_GRASS_THREE_SHADER_CONTRACT
 } from '../src/components/realm/createRealmGrassMaterial';
 
+function projectWorldDirectionIntoLocalXZ(
+  worldDirection: THREE.Vector2,
+  localToWorld: THREE.Matrix4
+) {
+  const elements = localToWorld.elements;
+  const xx = elements[0]!;
+  const xz = elements[2]!;
+  const zx = elements[8]!;
+  const zz = elements[10]!;
+  const determinant = xx * zz - zx * xz;
+  if (Math.abs(determinant) <= 0.000001) return worldDirection.clone();
+  return new THREE.Vector2(
+    (zz * worldDirection.x - zx * worldDirection.y) / determinant,
+    (-xz * worldDirection.x + xx * worldDirection.y) / determinant
+  );
+}
+
+function projectLocalDirectionIntoWorldXZ(
+  localDirection: THREE.Vector2,
+  localToWorld: THREE.Matrix4
+) {
+  const elements = localToWorld.elements;
+  return new THREE.Vector2(
+    elements[0]! * localDirection.x + elements[8]! * localDirection.y,
+    elements[2]! * localDirection.x + elements[10]! * localDirection.y
+  );
+}
+
 describe('procedural grass material contract', () => {
   it('injects world-space wind only at the pinned Three.js shader hook', () => {
     const source = 'void main() {\n#include <begin_vertex>\n}';
@@ -20,7 +48,16 @@ describe('procedural grass material contract', () => {
     expect(injected).toContain('attribute float grassFlex;');
     expect(injected).toContain('uniform float uGrassTime;');
     expect(injected).toContain('modelMatrix * instanceMatrix');
-    expect(injected).toContain('transformed.xz += grassDirection');
+    expect(injected).toContain(
+      'mat2 grassLocalToWorldXZ = mat2(grassInstanceBasis[0].xz, grassInstanceBasis[2].xz);'
+    );
+    expect(injected).toContain('inverse(grassLocalToWorldXZ)');
+    expect(injected).toContain('grassWorldToLocalXZ * grassWorldDirection');
+    expect(injected).toContain('grassWorldToLocalXZ * grassWorldCrossDirection');
+    expect(injected).toContain('transformed.xz += grassLocalDirection');
+    expect(injected).toContain('transformed.xz += grassLocalCrossDirection');
+    expect(injected).toContain('dot(grassWorldPosition.xz, grassWorldDirection)');
+    expect(injected).not.toContain('transformed.xz += grassWorldDirection');
     expect(injected).toContain('pow(max(grassFlex, 0.0), 1.85)');
     expect(injected).toContain('transformed *= grassVisibleScale;');
     expect(injected).toContain('clamp((grassPrimary + grassSecondary * 0.28)');
@@ -34,6 +71,7 @@ describe('procedural grass material contract', () => {
 
     expect(layer.material).toBeInstanceOf(THREE.MeshStandardMaterial);
     expect(layer.material.customProgramCacheKey()).toBe(REALM_GRASS_SHADER_CACHE_KEY);
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('procedural-grass-v2');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain(REALM_GRASS_THREE_SHADER_CONTRACT);
     expect(layer.uniforms.uGrassWindStrength.value).toBeCloseTo(0.78);
     expect(layer.setTime(1.25)).toBe(true);
@@ -56,6 +94,41 @@ describe('procedural grass material contract', () => {
   it('clamps shader motion to the same maximum displacement used by active-layer bounds', () => {
     expect(REALM_GRASS_MAX_PRIMARY_BEND * Math.hypot(1, REALM_GRASS_CROSS_WIND_RATIO))
       .toBeCloseTo(REALM_GRASS_MAX_WIND_SWAY, 12);
+  });
+
+  it('projects one world wind direction through yawed and scaled instance bases', () => {
+    const worldDirection = new THREE.Vector2(0.78, 0.62).normalize();
+    const worldCrossDirection = new THREE.Vector2(
+      -worldDirection.y,
+      worldDirection.x
+    );
+    const modelMatrix = new THREE.Matrix4().compose(
+      new THREE.Vector3(4, 0, -7),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -0.31),
+      new THREE.Vector3(1.4, 1, 0.72)
+    );
+
+    for (const yaw of [0, Math.PI / 3, Math.PI / 2, Math.PI, -Math.PI * 0.71]) {
+      const instanceMatrix = new THREE.Matrix4().compose(
+        new THREE.Vector3(2, 0, 5),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw),
+        new THREE.Vector3(0.08, 0.44, 0.13)
+      );
+      const localToWorld = modelMatrix.clone().multiply(instanceMatrix);
+
+      for (const expectedWorldDirection of [worldDirection, worldCrossDirection]) {
+        const localDirection = projectWorldDirectionIntoLocalXZ(
+          expectedWorldDirection,
+          localToWorld
+        );
+        const restoredWorldDirection = projectLocalDirectionIntoWorldXZ(
+          localDirection,
+          localToWorld
+        );
+        expect(restoredWorldDirection.x).toBeCloseTo(expectedWorldDirection.x, 10);
+        expect(restoredWorldDirection.y).toBeCloseTo(expectedWorldDirection.y, 10);
+      }
+    }
   });
 
   it('settles selected and hovered flattening immediately when motion is reduced', () => {

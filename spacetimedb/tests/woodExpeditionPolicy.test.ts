@@ -134,8 +134,8 @@ test('the Tier-I Wood catalog is pinned to 96 broadly distributed forest sites',
     CANONICAL_TIER_I_WOOD_SITES_V1.filter(site => (
       canonicalMetaForKey(`${site.q},${site.r}`)?.sector === sector
     )).length
-  )), [14, 16, 20, 12, 18, 16]);
-  assert.equal(WOOD_SITE_POLICY_VERSION, 'genesis-001-tier1-wood-sites-v1');
+  )), [14, 17, 22, 11, 18, 14]);
+  assert.equal(WOOD_SITE_POLICY_VERSION, 'genesis-001-tier1-wood-sites-v2');
 });
 
 test('Wood timing is a deterministic round trip with exactly thirty days at one Wood/minute', () => {

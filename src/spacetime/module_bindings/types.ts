@@ -95,6 +95,47 @@ export const AdminAlphaStatusV4 = __t.object("AdminAlphaStatusV4", {
 });
 export type AdminAlphaStatusV4 = __Infer<typeof AdminAlphaStatusV4>;
 
+export const AdminAlphaStatusV8 = __t.object("AdminAlphaStatusV8", {
+  schemaProtocolVersion: __t.u32(),
+  backendProtocolVersion: __t.u32(),
+  goldSitePolicyVersion: __t.string(),
+  goldExpeditionPolicyVersion: __t.string(),
+  canonicalGoldSiteCatalogDigest: __t.string(),
+  goldSites: __t.u64(),
+  canonicalGoldSites: __t.u64(),
+  goldOccupations: __t.u64(),
+  goldExpeditions: __t.u64(),
+  goldIdempotencyReceipts: __t.u64(),
+  goldSchedules: __t.u64(),
+  forestLayoutVersion: __t.u32(),
+  forestPolicyVersion: __t.string(),
+  canonicalForestLayoutDigest: __t.string(),
+  canonicalForestAssetCatalogDigest: __t.string(),
+  forestLayouts: __t.u64(),
+  canonicalForestLayouts: __t.u64(),
+  forestInstances: __t.u64(),
+  canonicalForestInstances: __t.u64(),
+  foodSitePolicyVersion: __t.string(),
+  foodExpeditionPolicyVersion: __t.string(),
+  canonicalFoodSiteCatalogDigest: __t.string(),
+  foodSites: __t.u64(),
+  canonicalFoodSites: __t.u64(),
+  foodOccupations: __t.u64(),
+  foodExpeditions: __t.u64(),
+  foodIdempotencyReceipts: __t.u64(),
+  foodSchedules: __t.u64(),
+  woodSitePolicyVersion: __t.string(),
+  woodExpeditionPolicyVersion: __t.string(),
+  canonicalWoodSiteCatalogDigest: __t.string(),
+  woodSites: __t.u64(),
+  canonicalWoodSites: __t.u64(),
+  woodOccupations: __t.u64(),
+  woodExpeditions: __t.u64(),
+  woodIdempotencyReceipts: __t.u64(),
+  woodSchedules: __t.u64(),
+});
+export type AdminAlphaStatusV8 = __Infer<typeof AdminAlphaStatusV8>;
+
 export const AdminAudit = __t.object("AdminAudit", {
   id: __t.u64(),
   action: __t.string(),

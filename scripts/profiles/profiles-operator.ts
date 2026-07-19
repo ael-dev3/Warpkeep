@@ -6,7 +6,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { DbConnection, tables } from '../../src/spacetime/module_bindings';
-import { admissionProfileIsComplete } from '../../spacetimedb/src/profileAuthorityPolicy';
+import {
+  admissionProfileIsComplete,
+  normalizeTrustedPublicProfile,
+  trustedProfilesEqual,
+} from '../../spacetimedb/src/profileAuthorityPolicy';
 import {
   readAdminSecret,
   requestAdminToken,
@@ -24,7 +28,6 @@ import {
   FARCASTER_PROFILE_POLICY_VERSION,
   FarcasterPublicProfileError,
   buildTrustedPublicFarcasterProfile,
-  hasAuthoritativeRequiredProfileClear,
   mergeWithLastKnownGood,
   privacySafePublicProfileSummary,
   profilesEqual,
@@ -34,6 +37,7 @@ import {
 import {
   CONTROLLED_PROFILE_FIXTURE_SOURCE_ID,
   ProfileTransportError,
+  TRUSTED_PROFILE_MAINTENANCE_PURPOSE,
   fetchPublicProfileResponses,
   trustedProfileTransportAttestation,
   validateProfileSource,
@@ -98,7 +102,9 @@ type ReviewedPlanReference = Readonly<{
   sha256: string;
 }>;
 
-const SOURCE_CONFIGURATION_ATTESTATION = trustedProfileTransportAttestation();
+const SOURCE_CONFIGURATION_ATTESTATION = trustedProfileTransportAttestation(
+  TRUSTED_PROFILE_MAINTENANCE_PURPOSE,
+);
 const PROFILE_SOURCE_READY = SOURCE_CONFIGURATION_ATTESTATION.sourceStatus === 'owner-reviewed'
   && SOURCE_CONFIGURATION_ATTESTATION.baseUrl !== null;
 const SOURCE_CONFIGURATION_DIGEST = createHash('sha256').update(JSON.stringify({
@@ -148,7 +154,7 @@ export function parseProfileRequest(value: unknown): ProfileRequest {
     ...(typeof sourceInput.authorization === 'string' ? { authorization: sourceInput.authorization } : {}),
     ...(typeof sourceInput.apiKey === 'string' ? { apiKey: sourceInput.apiKey } : {}),
   });
-  validateProfileSource(source);
+  validateProfileSource(source, TRUSTED_PROFILE_MAINTENANCE_PURPOSE);
   return Object.freeze({ source });
 }
 
@@ -234,6 +240,7 @@ export async function resolveTrustedProfiles(
   for (const fid of request.fids) {
     const responses = await fetchPublicProfileResponses({
       source: request.source,
+      purpose: TRUSTED_PROFILE_MAINTENANCE_PURPOSE,
       fid,
       ...(fetchImpl ? { fetchImpl } : {}),
       controlledFixture: fetchImpl !== undefined
@@ -257,12 +264,18 @@ function completeness(profiles: readonly TrustedPublicFarcasterProfile[]) {
   });
 }
 
-function profileHasRequiredCastleIdentity(profile: ExistingPublicProfile): boolean {
-  return admissionProfileIsComplete(profile);
+function profileSetIsCanonical(profiles: CurrentProfileMap): boolean {
+  return [...profiles.values()].every((profile) => {
+    try {
+      return trustedProfilesEqual(profile, normalizeTrustedPublicProfile(profile));
+    } catch {
+      return false;
+    }
+  });
 }
 
-function profileSetHasRequiredCastleIdentity(profiles: CurrentProfileMap): boolean {
-  return [...profiles.values()].every(profileHasRequiredCastleIdentity);
+function profilesNeedingPresentationRepair(profiles: CurrentProfileMap): number {
+  return [...profiles.values()].filter(profile => !admissionProfileIsComplete(profile)).length;
 }
 
 function report(
@@ -465,26 +478,11 @@ export function planProfileUpdates(
   for (const resolved of profiles) {
     const existing = current.get(resolved.fid);
     if (!existing) throw new ProfilesOperatorError('PROFILES_FOUNDER_STATE_MISMATCH');
-    if (hasAuthoritativeRequiredProfileClear(resolved)) {
-      throw new ProfilesOperatorError('PROFILES_REQUIRED_CASTLE_IDENTITY_MISSING');
-    }
-    const lastKnownGoodMerged = mergeWithLastKnownGood(resolved, existing);
-    // Username and portrait are the minimum public identity attached to every
-    // founded castle. Unavailable data may retain reviewed identity anchors;
-    // authoritative removal already failed above. A newly founded blank
-    // projection has no fallback and fails below before plan creation.
-    const canonicalUsername = lastKnownGoodMerged.canonicalUsername ?? existing.canonicalUsername;
-    const merged: TrustedPublicFarcasterProfile = Object.freeze({
-      ...lastKnownGoodMerged,
-      canonicalUsername,
-      pfpUrl: lastKnownGoodMerged.pfpUrl ?? existing.pfpUrl,
-      farcasterProfileUrl: canonicalUsername === undefined
-        ? undefined
-        : `https://farcaster.xyz/${encodeURIComponent(canonicalUsername)}`,
-    });
-    if (!profileHasRequiredCastleIdentity(merged)) {
-      throw new ProfilesOperatorError('PROFILES_REQUIRED_CASTLE_IDENTITY_MISSING');
-    }
+    // A successful authoritative empty value is a removal request and must be
+    // projected as undefined. Only unavailable fields retain last-known-good
+    // presentation. Empty presentation remains a safe, repairable state after
+    // founding; the Realm renders its local non-personal keep fallback.
+    const merged = mergeWithLastKnownGood(resolved, existing);
     preservedFields += [
       resolved.canonicalUsername === undefined
         && existing.canonicalUsername !== undefined
@@ -615,8 +613,10 @@ async function runRefresh(arguments_: ParsedArguments, request: ProfileRequest) 
     currentProfilesWithDisplayName: [...current.values()].filter(profile => profile.displayName !== undefined).length,
     currentProfilesWithPfp: [...current.values()].filter(profile => profile.pfpUrl !== undefined).length,
     currentProfilesWithBio: [...current.values()].filter(profile => profile.publicBio !== undefined).length,
+    currentProfilesNeedingPresentationRepair: profilesNeedingPresentationRepair(current),
     ...completeness(profiles),
     intendedUpdates: updates.length,
+    intendedProfilesNeedingPresentationRepair: profilesNeedingPresentationRepair(intendedProfiles),
     unchangedProfiles: planned.unchangedProfiles,
     lastKnownGoodFieldsPreserved: planned.lastKnownGoodFieldsPreserved,
     reviewedPlanCreated: true,
@@ -702,8 +702,9 @@ async function runApply(
   let matchedUpdates = 0;
   let verificationAvailable = false;
   let founderSetVerified = false;
-  let profileCompletenessVerified = false;
+  let profileCanonicalityVerified = false;
   let profileStateVerified = false;
+  let postApplyProfilesNeedingPresentationRepair = 0;
   try {
     const current = await readCurrentProfilesTracked(mutationConnection);
     if (!planPreconditionsMatch(plan, current)) {
@@ -768,15 +769,16 @@ async function runApply(
       const verified = await readCurrentProfilesTracked(mutationConnection);
       verificationAvailable = true;
       founderSetVerified = founderSetMatches(plan, verified);
-      profileCompletenessVerified = profileSetHasRequiredCastleIdentity(verified);
+      profileCanonicalityVerified = profileSetIsCanonical(verified);
       profileStateVerified = foundedProfileStateDigest(verified) === plan.intendedProfileStateDigest;
+      postApplyProfilesNeedingPresentationRepair = profilesNeedingPresentationRepair(verified);
       matchedUpdates = plan.updates.filter((update) => {
         const observed = verified.get(BigInt(update.fid));
         return observed !== undefined && profilesEqual(observed, update.intended);
       }).length;
       if (
         founderSetVerified
-        && profileCompletenessVerified
+        && profileCanonicalityVerified
         && profileStateVerified
         && matchedUpdates === plan.updates.length
       ) {
@@ -806,7 +808,7 @@ async function runApply(
   if (
     !verificationAvailable
     || !founderSetVerified
-    || !profileCompletenessVerified
+    || !profileCanonicalityVerified
     || !profileStateVerified
     || matchedUpdates !== plan.updates.length
   ) finalOutcome = 'ambiguous';
@@ -825,8 +827,9 @@ async function runApply(
     postApplyMatchedUpdates: matchedUpdates,
     postApplyVerificationAvailable: verificationAvailable,
     postApplyFounderSetVerified: founderSetVerified,
-    postApplyProfileCompletenessVerified: profileCompletenessVerified,
+    postApplyProfileCanonicalityVerified: profileCanonicalityVerified,
     postApplyProfileStateVerified: profileStateVerified,
+    postApplyProfilesNeedingPresentationRepair,
     unchangedProfiles: plan.unchangedProfiles,
     lastKnownGoodFieldsPreserved: plan.lastKnownGoodFieldsPreserved,
     walletOperations: 0,

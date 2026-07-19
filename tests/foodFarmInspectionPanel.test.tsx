@@ -47,7 +47,7 @@ describe('FoodFarmInspectionPanel', () => {
     expect(screen.queryByRole('button', { name: /dispatch|claim/i })).toBeNull();
   });
 
-  it('sends only the public Food site id and a CSPRNG retry key, then gates claim on a matching owner record', async () => {
+  it('sends only the public Food site id, then gates claim on a matching owner record', async () => {
     const dispatch = vi.fn(async () => undefined);
     const claim = vi.fn(async () => undefined);
     const availableNode = {
@@ -68,10 +68,9 @@ describe('FoodFarmInspectionPanel', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'DISPATCH WAGON' }));
-    await waitFor(() => expect(dispatch).toHaveBeenCalledWith(
-      'genesis-001:food:0001',
-      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
-    ));
+    await waitFor(() => expect(dispatch).toHaveBeenCalledWith('genesis-001:food:0001'));
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'AWAITING REALM…' }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByText('Site state').nextElementSibling?.textContent).toBe('AVAILABLE');
     expect(screen.getByText('Gather rate').nextElementSibling?.textContent).toBe('+1 Food / minute');
 
@@ -92,6 +91,21 @@ describe('FoodFarmInspectionPanel', () => {
       gatheringDurationMicros: FOOD_EXPEDITION_GATHERING_DURATION_MICROS,
       expeditionPolicyVersion: FOOD_EXPEDITION_POLICY_VERSION
     });
+    rerender(
+      <FoodFarmInspectionPanel
+        key="private-confirmed"
+        id="food-farm-dispatch"
+        farm={{ name: 'Wheat Farm', tier: 1 }}
+        node={availableNode}
+        privateExpedition={active}
+        onDispatchFoodExpedition={dispatch}
+        onRequestClose={() => undefined}
+      />
+    );
+    expect(screen.getByRole('button', { name: 'AWAITING REALM…' }).hasAttribute('disabled'))
+      .toBe(true);
+    expect(dispatch).toHaveBeenCalledTimes(1);
+
     const occupiedNode = {
       ...availableNode,
       availability: 'gathering' as const,
@@ -109,6 +123,7 @@ describe('FoodFarmInspectionPanel', () => {
     };
     rerender(
       <FoodFarmInspectionPanel
+        key="private-confirmed"
         id="food-farm-dispatch"
         farm={{ name: 'Wheat Farm', tier: 1 }}
         node={occupiedNode}

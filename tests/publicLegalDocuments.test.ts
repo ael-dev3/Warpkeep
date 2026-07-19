@@ -132,31 +132,31 @@ describe('public Alpha legal documents', () => {
     expect(termsText).toContain('Marks are non-transferable, non-redeemable accounting units');
     expect(termsText).toContain('does not ask the browser to connect a wallet');
     expect(termsText).toContain('not sponsored, operated, or endorsed by Farcaster');
-    expect(termsText).toContain('not a legal-compliance certification');
-    expect(termsText).toContain('Admission is conditional rather than a permanent right');
-    expect(termsText).toContain('revocation of Hegemony admission removes game access');
+    expect(termsText).toContain('Formal legal review remains necessary');
+    expect(termsText).toContain('core strategy gameplay loop is not implemented yet');
+    expect(termsText).toContain('persistent visual preview of a living world');
+    expect(termsText).toContain('Warpkeep is open source');
+    expect(termsText).toContain('does not guarantee that a suggestion');
+    expect(termsText).toContain('Access is allowlist gated and conditional');
     expect(termsText).not.toContain('tokens, points, airdrops');
   });
 
-  it('states current Hegemony-only scope and keeps future concepts provisional', () => {
+  it('keeps the Hegemony covenant focused on current conduct instead of speculative lore', () => {
     for (const expected of [
       'Hegemony',
-      'Ousters',
-      'Core',
-      'provisional',
-      'nonplayable',
-      'not in active development',
-      'no access or feature promise',
-      'allowlist',
-      'admission',
-      'Dissent',
-      'Good-faith criticism',
+      'Admission is an invitation',
+      'Good-faith dissent',
+      'Criticizing Warpkeep',
       'threats',
-      'not a real-world political program',
+      'core strategy loop',
+      'no suggestion or contribution is guaranteed',
+      'Hegemony is game fiction',
+      'warn, limit, suspend, or revoke',
     ]) expect(socialContractText).toContain(expected);
 
-    expect(socialContractText).not.toContain('Hyperion');
-    expect(socialContractText).not.toContain('TechnoCore');
+    for (const speculativeConcept of ['Ousters', 'Core', 'Hyperion', 'TechnoCore']) {
+      expect(socialContractText).not.toContain(speculativeConcept);
+    }
   });
 
   it('keeps privacy disclosures factual while limiting entry-agreement evidence to the stated record', () => {
@@ -171,7 +171,8 @@ describe('public Alpha legal documents', () => {
       'Authority expires after at most ten minutes',
       'at most fifteen seconds',
       'frozen legacy public player schema',
-      'production verification requires it to remain empty',
+      'Private deployment checks read only its aggregate row count',
+      'require it to remain empty',
       'finalized public Ethereum mainnet events',
       'wallet associations remain private operator state',
       'browser never scans wallets',

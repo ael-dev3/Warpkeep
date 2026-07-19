@@ -54,9 +54,6 @@
     "profiles:refresh": "tsx scripts/profiles/profiles-operator.ts refresh",
     "profiles:apply": "tsx scripts/profiles/profiles-operator.ts apply",
     "profiles:inspect": "tsx scripts/profiles/profiles-operator.ts inspect",
-    "qa:observer:build-helper": "scripts/qa-observer/build-macos-helper.zsh",
-    "qa:observer:broker": "node scripts/qa-observer/qa-observer-broker.mjs",
-    "qa:observer:cycle": "node scripts/qa-observer/qa-cycle-runner.mjs",
     "qa:rendered-webgl": "node scripts/qa-observer/rendered-webgl-browser-probe.mjs",
     "verify:runtime-assets": "node scripts/verify-runtime-assets.mjs",
     "verify:gold-mine-candidates": "node scripts/verify-hegemony-gold-mine-candidates.mjs",
@@ -83,6 +80,8 @@
     "stdb:inspect-alpha-v2": "tsx scripts/hermes-admin.ts inspect-alpha-v2",
     "stdb:inspect-alpha-v3": "tsx scripts/hermes-admin.ts inspect-alpha-v3",
     "stdb:inspect-alpha-v4": "tsx scripts/hermes-admin.ts inspect-alpha-v4",
+    "stdb:inspect-alpha-v8": "tsx scripts/hermes-admin.ts inspect-alpha-v8",
+    "stdb:seed-alpha-component": "tsx scripts/hermes-admin.ts seed-alpha-component",
     "stdb:backfill-resources": "tsx scripts/hermes-admin.ts backfill-resources",
     "test": "vitest --run",
     "typecheck": "tsc -b"

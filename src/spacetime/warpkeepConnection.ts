@@ -68,6 +68,15 @@ import {
   isRealmWoodNodeOccupationPublicRecord,
   isRealmWoodSitePublicRecord
 } from '../components/realm/realmWoodNodePresentation';
+import {
+  REALM_FOOD_SITE_COUNT,
+  REALM_GOLD_SITE_COUNT,
+  REALM_WOOD_SITE_COUNT,
+  isCanonicalRealmFoodSiteCatalog,
+  isCanonicalRealmGoldSiteCatalog,
+  isCanonicalRealmWoodSiteCatalog
+} from '../components/realm/realmResourceSiteCatalogPolicy';
+import { GENESIS_FOREST_LAYOUT_V1_TREE_COUNT } from '../../spacetimedb/src/forestLayoutContract';
 
 export type WarpkeepConnectionCallbacks = Readonly<{
   onDisconnected?: () => void;
@@ -1044,6 +1053,7 @@ function readPublicGoldProjection(connection: WarpkeepConnection): Readonly<{
   const sites: WarpkeepGoldSite[] = [];
   const siteIds = new Set<string>();
   for (const rawRow of goldSiteTable.iter()) {
+    if (sites.length === REALM_GOLD_SITE_COUNT) return undefined;
     const row = asPublicGoldRow(rawRow);
     if (!row) return undefined;
     const site = {
@@ -1057,10 +1067,12 @@ function readPublicGoldProjection(connection: WarpkeepConnection): Readonly<{
     siteIds.add(site.siteId);
     sites.push(Object.freeze({ ...site }));
   }
+  if (!isCanonicalRealmGoldSiteCatalog(sites)) return undefined;
 
   const occupations: WarpkeepGoldNodeOccupation[] = [];
   const occupiedSiteIds = new Set<string>();
   for (const rawRow of goldOccupationTable.iter()) {
+    if (occupations.length === REALM_GOLD_SITE_COUNT) return undefined;
     const row = asPublicGoldRow(rawRow);
     if (!row) return undefined;
     const originCastleId = toSafeNumber(row.originCastleId as bigint | number | undefined);
@@ -1104,6 +1116,7 @@ function readPublicFoodProjection(connection: WarpkeepConnection): Readonly<{
   const sites: WarpkeepFoodSite[] = [];
   const siteIds = new Set<string>();
   for (const rawRow of foodSiteTable.iter()) {
+    if (sites.length === REALM_FOOD_SITE_COUNT) return undefined;
     const row = asPublicFoodRow(rawRow);
     if (!row) return undefined;
     const site = {
@@ -1117,9 +1130,11 @@ function readPublicFoodProjection(connection: WarpkeepConnection): Readonly<{
     siteIds.add(site.siteId);
     sites.push(Object.freeze({ ...site }));
   }
+  if (!isCanonicalRealmFoodSiteCatalog(sites)) return undefined;
   const occupations: WarpkeepFoodNodeOccupation[] = [];
   const occupiedSiteIds = new Set<string>();
   for (const rawRow of foodOccupationTable.iter()) {
+    if (occupations.length === REALM_FOOD_SITE_COUNT) return undefined;
     const row = asPublicFoodRow(rawRow);
     if (!row) return undefined;
     const occupation = {
@@ -1161,6 +1176,7 @@ function readPublicWoodProjection(connection: WarpkeepConnection): Readonly<{
   const sites: WarpkeepWoodSite[] = [];
   const siteIds = new Set<string>();
   for (const rawRow of woodSiteTable.iter()) {
+    if (sites.length === REALM_WOOD_SITE_COUNT) return undefined;
     const row = asPublicWoodRow(rawRow);
     if (!row) return undefined;
     const site = {
@@ -1174,9 +1190,11 @@ function readPublicWoodProjection(connection: WarpkeepConnection): Readonly<{
     siteIds.add(site.siteId);
     sites.push(Object.freeze({ ...site }));
   }
+  if (!isCanonicalRealmWoodSiteCatalog(sites)) return undefined;
   const occupations: WarpkeepWoodNodeOccupation[] = [];
   const occupiedSiteIds = new Set<string>();
   for (const rawRow of woodOccupationTable.iter()) {
+    if (occupations.length === REALM_WOOD_SITE_COUNT) return undefined;
     const row = asPublicWoodRow(rawRow);
     if (!row) return undefined;
     const occupation = {
@@ -1213,6 +1231,24 @@ const INVALID_PUBLIC_FOREST_PROJECTION: PublicForestProjection = Object.freeze({
 });
 
 /**
+ * Read no more than one overflow sentinel from an untrusted public iterator.
+ * A malformed subscription must not force the browser to allocate or sort an
+ * attacker-sized projection before exact forest cardinality is checked.
+ */
+function readBoundedPublicForestRows(
+  iterable: Iterable<unknown>,
+  expectedCount: number,
+  project: (value: unknown) => unknown
+): readonly unknown[] | undefined {
+  const rows: unknown[] = [];
+  for (const value of iterable) {
+    if (rows.length === expectedCount) return undefined;
+    rows.push(project(value));
+  }
+  return Object.freeze(rows);
+}
+
+/**
  * Read the paired public forest tables as a single visual projection. Unlike
  * the Gold catalog, malformed data is forwarded as present-invalid so the
  * policy layer can distinguish it from an old deployment without forest
@@ -1230,8 +1266,18 @@ function readPublicForestProjection(
     return INVALID_PUBLIC_FOREST_PROJECTION;
   }
 
-  const layoutRows = Object.freeze([...layoutTable.iter()].map(publicForestLayoutRecord));
-  const trees = Object.freeze([...treeTable.iter()].map(publicForestTreeRecord));
+  const layoutRows = readBoundedPublicForestRows(
+    layoutTable.iter(),
+    1,
+    publicForestLayoutRecord
+  );
+  if (layoutRows === undefined) return INVALID_PUBLIC_FOREST_PROJECTION;
+  const trees = readBoundedPublicForestRows(
+    treeTable.iter(),
+    GENESIS_FOREST_LAYOUT_V1_TREE_COUNT,
+    publicForestTreeRecord
+  );
+  if (trees === undefined) return INVALID_PUBLIC_FOREST_PROJECTION;
   // The renderer accepts exactly one metadata row and the exact canonical
   // instance count. Zero/multiple metadata rows stay as an explicit invalid
   // value instead of silently looking like a pre-v6 unavailable projection.

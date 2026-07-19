@@ -553,26 +553,6 @@ decoded RGBA hash, alpha profile, and visible bounds are recorded in the
 The runtime file remains under `LicenseRef-Warpkeep-Provenance-Required`; neither
 its location in `public/` nor the cleanup operation silently relicenses it.
 
-## Procedural grass and wind README preview
-
-On 18 July 2026, the Warpkeep project owner supplied an exact Realm screenshot
-of the procedural grass and wind draft and instructed that it be added to the
-root README. That instruction authorizes the exact checked-in PNG for
-documentation in this public Warpkeep repository; it does not establish
-underlying ownership or grant a separate open license for the embedded runtime
-assets, public profile imagery, names, or trademarks. The image is explicitly
-labeled as a development preview and does not claim that the visual layer is
-live in Alpha 0.3.8.
-
-| Intended use | Repository file | Technical record |
-| --- | --- | --- |
-| Root README development preview | `docs/reference/screenshots/2026-07-18-procedural-grass-wind-preview/warpkeep-procedural-grass-preview-eb156adea5befbd7.png` | 2198×1384 RGBA PNG, 3,261,945 bytes, SHA-256 `eb156adea5befbd786e13deb563fc118faecfafa52da86c9f49f0b5f1d39fb35`. |
-
-The screenshot remains `LicenseRef-Warpkeep-Provenance-Required` and is not a
-runtime dependency. Its [dated record](docs/reference/screenshots/2026-07-18-procedural-grass-wind-preview/)
-preserves the exact hash, display scope, privacy review, and authorization
-boundary. No general derivative or redistribution permission is granted.
-
 ## Trademark and endorsement note
 
 These licenses do not grant trademark rights or imply endorsement by the project. Forks, mods, and community realms should avoid presenting themselves as the canonical Warpkeep deployment unless explicitly authorized; see [`TRADEMARKS.md`](TRADEMARKS.md).

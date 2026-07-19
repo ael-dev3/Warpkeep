@@ -8,6 +8,7 @@ import {
   hexKey,
   neighboringHexes,
 } from './world';
+import { hasCanonicalResourceSiteStaticConflict } from './resourceSitePlacementPolicy';
 
 /**
  * Immutable Tier-I Gold-site catalog for the Genesis 001 pilot. This is not a
@@ -15,16 +16,16 @@ import {
  * public `gold_site_v1` table by an explicit admin-only transition.
  */
 /**
- * v2 pins the placement against the full generation-three 10,000-cell world.
- * The earlier v1 candidate only saw the 250-anchor generation-two prefix and
- * is intentionally not interchangeable with this unreleased policy.
+ * v3 pins the full generation-three world and shares the castle, corridor,
+ * and canonical-forest clearance policy used by every Tier-I site family.
+ * Earlier candidates are intentionally not interchangeable with this catalog.
  */
-export const GOLD_SITE_POLICY_VERSION = 'genesis-001-tier1-gold-sites-v2';
+export const GOLD_SITE_POLICY_VERSION = 'genesis-001-tier1-gold-sites-v3';
 export const GENESIS_TIER_I_GOLD_SITE_COUNT = 24;
 export const GENESIS_TIER_I_GOLD_SITE_TIER = 1;
 export const GOLD_SITE_SELECTION_CHANNEL = 'genesis-v3-tier1-gold-site';
 export const GENESIS_TIER_I_GOLD_SITE_DIGEST =
-  '8e88fe301269bf581a48d3c79242d2c0302d8447510138b8ea17de6abdf40818';
+  '84ea3eed9ff5cd3eb7e4704aee6fb562ef3f969c490e95d3bf88645abded7d7d';
 
 export type CanonicalGoldSiteV1 = Readonly<{
   siteId: string;
@@ -66,6 +67,7 @@ const tierOneCandidates = Object.freeze(
       || meta.realmId !== HEGEMONY_REALM_ID
       || !meta.passable
       || meta.staticContentKind !== 'resource-capable'
+      || hasCanonicalResourceSiteStaticConflict(tile)
     ) return [];
     return [Object.freeze({
       key: tile.key,
@@ -78,9 +80,12 @@ const tierOneCandidates = Object.freeze(
   )),
 );
 
-if (tierOneCandidates.length !== GENESIS_RESOURCE_SITE_COUNT) {
-  throw new Error('GENESIS_TIER_I_GOLD_SITE_CANDIDATE_DRIFT');
-}
+export const GENESIS_TIER_I_GOLD_SITE_CANDIDATE_COUNT = tierOneCandidates.length;
+
+if (
+  GENESIS_TIER_I_GOLD_SITE_CANDIDATE_COUNT >= GENESIS_RESOURCE_SITE_COUNT
+  || GENESIS_TIER_I_GOLD_SITE_CANDIDATE_COUNT < GENESIS_TIER_I_GOLD_SITE_COUNT
+) throw new Error('GENESIS_TIER_I_GOLD_SITE_CANDIDATE_CAPACITY');
 
 /**
  * Farthest-point selection avoids a pilot concentrated in one district while

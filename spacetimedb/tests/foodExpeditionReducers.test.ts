@@ -104,9 +104,21 @@ test('Food reducer inputs are caller-bound and its lifecycle is scheduler-only',
   const schema = source('../src/schema.ts');
   const scheduled = section(schema, 'export const runFoodExpeditionScheduleV1', 'for (const name of [');
   assert.match(scheduled, /name: 'run_food_expedition_schedule_v_1'/);
-  assert.match(scheduled, /if \(!ctx\.senderAuth\.isInternal\)/);
-  assert.match(scheduled, /FOOD_EXPEDITION_SCHEDULE_INTERNAL_ONLY/);
+  assert.doesNotMatch(scheduled, /senderAuth\.isInternal|connectionId|databaseIdentity/);
   assert.match(scheduled, /runFoodExpeditionSchedule\(ctx, arg\)/);
+
+  const authority = source('../src/foodExpeditionAuthority.ts');
+  const expiry = section(authority, 'function creditExpiredFood', 'function completeReturn');
+  assert.match(expiry, /foodNodeOccupationV1\.siteId\.update\(\{[\s\S]*phase: 'returning'/);
+  assert.doesNotMatch(expiry, /siteId\.delete\(occupation\.siteId\)/);
+  const completion = section(authority, 'function completeReturn', 'export type FoodSiteSeedPlan');
+  assert.match(completion, /assertOccupationMatchesExpedition\(occupation, expedition\)/);
+  assert.match(completion, /occupation\.phase !== 'returning'/);
+  assert.match(completion, /foodNodeOccupationV1\.siteId\.delete\(occupation\.siteId\)/);
+  assert.ok(
+    completion.indexOf('foodNodeOccupationV1.siteId.delete(occupation.siteId)')
+      < completion.indexOf('foodExpeditionV1.expeditionId.delete(expedition.expeditionId)'),
+  );
 });
 
 test('Food, Gold, and Wood wagons are independent while every passive settlement preserves paired reserves', () => {

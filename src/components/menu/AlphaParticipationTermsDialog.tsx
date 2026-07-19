@@ -118,13 +118,15 @@ export function AlphaParticipationTermsDialog({
             <p>
               Warpkeep Alpha is experimental and currently developed by one person. Features,
               rules, availability, and progress may change or be reset at any time.
+              The core strategy loop is not implemented yet; this is a persistent visual preview
+              of the living world being built.
             </p>
             <p>
               Participation alone will not earn tokens, airdrops, external rewards, or guaranteed
               financial gain. Experimental in-game Marks have no cash value and may change or reset.
             </p>
             <p className="warpkeep-alpha-terms__documents">
-              Review the full{' '}
+              You can review the full{' '}
               <a
                 aria-label="Read the Alpha Terms in a new tab"
                 href={WARPKEEP_ALPHA_TERMS_URL}
@@ -166,7 +168,7 @@ export function AlphaParticipationTermsDialog({
               ref={checkboxRef}
               type="checkbox"
             />
-            <span>I have read and agree to the Alpha Terms and Hegemony Social Contract.</span>
+            <span>I agree to the Alpha Terms and Hegemony Social Contract.</span>
           </label>
 
           <div className="warpkeep-alpha-terms__actions">

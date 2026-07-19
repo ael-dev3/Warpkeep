@@ -11,14 +11,15 @@ import {
   resolveRealmFoodWagonPose,
   type RealmFoodNodeOccupationPublicRecord
 } from '../src/components/realm/realmFoodNodePresentation';
+import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../spacetimedb/src/foodSitePolicy';
+import { CANONICAL_TIER_I_GOLD_SITES_V1 } from '../spacetimedb/src/goldSitePolicy';
 
-const FOOD_SITE = Object.freeze({
-  siteId: 'genesis-001:food:0001',
-  q: -4,
-  r: 3,
-  tier: 1,
-  active: true
-});
+const FOOD_SITES = CANONICAL_TIER_I_FOOD_SITES_V1;
+const FOOD_SITE = FOOD_SITES[0]!;
+const onlyFoodSite = (coord: Readonly<{ q: number; r: number }>) => (
+  coord.q === FOOD_SITE.q && coord.r === FOOD_SITE.r
+);
+const GOLD_SITE = CANONICAL_TIER_I_GOLD_SITES_V1[0]!;
 
 const FOOD_OCCUPATION = Object.freeze({
   siteId: FOOD_SITE.siteId,
@@ -40,16 +41,16 @@ const CASTLE = Object.freeze({
 describe('realm Food-node presentation', () => {
   it('derives the public one-Food-per-minute view without exposing private balances', () => {
     const nodes = resolveRealmFoodNodePresentations({
-      sites: [FOOD_SITE],
+      sites: FOOD_SITES,
       occupations: [FOOD_OCCUPATION],
       castles: [CASTLE],
       ownCastleId: 7,
-      isPlayableCoord: () => true
+      isPlayableCoord: onlyFoodSite
     });
 
     expect(nodes).toEqual([{
       siteId: FOOD_SITE.siteId,
-      coord: { q: -4, r: 3 },
+      coord: { q: FOOD_SITE.q, r: FOOD_SITE.r },
       tier: 1,
       availability: 'gathering',
       occupation: FOOD_OCCUPATION,
@@ -63,23 +64,17 @@ describe('realm Food-node presentation', () => {
 
   it('keeps malformed or absent Food data isolated from a valid Gold presentation', () => {
     const validGold = resolveRealmGoldNodePresentations({
-      sites: [{
-        siteId: 'genesis-001:gold:0001',
-        q: 4,
-        r: -2,
-        tier: 1,
-        active: true
-      }],
+      sites: CANONICAL_TIER_I_GOLD_SITES_V1,
       occupations: [],
       castles: [CASTLE],
-      isPlayableCoord: () => true
+      isPlayableCoord: (coord) => coord.q === GOLD_SITE.q && coord.r === GOLD_SITE.r
     });
-    expect(validGold).toMatchObject([{ siteId: 'genesis-001:gold:0001', availability: 'available' }]);
+    expect(validGold).toMatchObject([{ siteId: GOLD_SITE.siteId, availability: 'available' }]);
     const validFood = resolveRealmFoodNodePresentations({
-      sites: [FOOD_SITE],
+      sites: FOOD_SITES,
       occupations: [],
       castles: [CASTLE],
-      isPlayableCoord: () => true
+      isPlayableCoord: onlyFoodSite
     });
     expect(validFood).toMatchObject([{ siteId: FOOD_SITE.siteId, availability: 'available' }]);
 
@@ -89,28 +84,29 @@ describe('realm Food-node presentation', () => {
       castles: [CASTLE]
     })).toEqual([]);
     expect(resolveRealmFoodNodePresentations({
-      sites: [FOOD_SITE, FOOD_SITE],
+      sites: [...FOOD_SITES.slice(0, -1), FOOD_SITE],
       occupations: [],
       castles: [CASTLE]
     })).toEqual([]);
     expect(resolveRealmFoodNodePresentations({
-      sites: [FOOD_SITE],
+      sites: FOOD_SITES,
       occupations: [{ ...FOOD_OCCUPATION, arrivesAtMicros: FOOD_OCCUPATION.startedAtMicros }],
-      castles: [CASTLE]
+      castles: [CASTLE],
+      isPlayableCoord: onlyFoodSite
     })).toEqual([]);
     expect(resolveRealmFoodNodePresentations({
-      sites: [{ ...FOOD_SITE, tier: 2 }],
+      sites: [{ ...FOOD_SITE, tier: 2 }, ...FOOD_SITES.slice(1)],
       occupations: [],
       castles: [CASTLE]
     })).toEqual([]);
 
     // The valid Gold resolver is independent from the failed Food projection.
-    expect(validGold).toMatchObject([{ siteId: 'genesis-001:gold:0001', availability: 'available' }]);
+    expect(validGold).toMatchObject([{ siteId: GOLD_SITE.siteId, availability: 'available' }]);
   });
 
   it('renders a local-only server-timestamp wagon pose and caps Food display minutes', () => {
     const outbound = resolveRealmFoodNodePresentations({
-      sites: [FOOD_SITE],
+      sites: FOOD_SITES,
       occupations: [{
         ...FOOD_OCCUPATION,
         phase: 'outbound',
@@ -119,14 +115,15 @@ describe('realm Food-node presentation', () => {
         gatheringEndsAtMicros: 2_592_000_110n,
         returnsAtMicros: 2_592_000_210n
       }],
-      castles: [CASTLE]
+      castles: [CASTLE],
+      isPlayableCoord: onlyFoodSite
     })[0]!;
     expect(resolveRealmFoodWagonPose(outbound, 60n)).toEqual({
       siteId: FOOD_SITE.siteId,
       phase: 'outbound',
       progress: 0.5,
       from: { q: 0, r: 0 },
-      to: { q: -4, r: 3 }
+      to: { q: FOOD_SITE.q, r: FOOD_SITE.r }
     });
     expect(foodNodeCompletedMinutes(
       FOOD_OCCUPATION,

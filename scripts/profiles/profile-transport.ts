@@ -9,26 +9,48 @@ const MAXIMUM_ATTEMPTS = 2;
 const MAXIMUM_CURRENT_USER_DATA_MESSAGES = 100;
 const CONTROLLED_FIXTURE_BASE_URL = 'https://profile-fixture.invalid/';
 
-/**
- * The recorded owner-authorized profile-maintenance scope separately
- * verified the Farcaster-operated rho host, its TLS HTTP surface, and the
- * documented Snapchain user-data contract. Upstream pins this hostname for mainnet
- * replication and documents the HTTP contract/port, but does not itself claim
- * that the two are one public service. Keep those evidence claims separate.
- * Operators cannot replace this reviewed origin through argv, stdin, or
- * environment configuration, and any later source change invalidates plans.
- */
-export const TRUSTED_PRODUCTION_PROFILE_SOURCE_ID = 'owner-reviewed-snapchain-mainnet-v1';
+export const TRUSTED_PROFILE_MAINTENANCE_PURPOSE = 'founded-profile-maintenance';
+export const TRUSTED_FOUNDER_ADMISSION_PURPOSE = 'individually-approved-founder-admission';
+export type TrustedProfilePurpose =
+  | typeof TRUSTED_PROFILE_MAINTENANCE_PURPOSE
+  | typeof TRUSTED_FOUNDER_ADMISSION_PURPOSE;
+
+export const TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID =
+  'owner-reviewed-snapchain-mainnet-maintenance-v2';
+export const TRUSTED_PRODUCTION_FOUNDER_ADMISSION_SOURCE_ID =
+  'owner-reviewed-snapchain-mainnet-admission-v1';
 export const TRUSTED_PRODUCTION_PROFILE_SOURCE_STATUS: string = 'owner-reviewed';
 export const TRUSTED_PRODUCTION_SNAPCHAIN_BASE_URL: string | undefined = 'https://rho.farcaster.xyz:3381/';
+
+/**
+ * The shared transport evidence and each approved use are versioned
+ * separately. Maintenance covers already-founded public projections; founder
+ * admission is permitted only as part of the independently reviewed,
+ * FID-specific admission plan. A source ID for one purpose is invalid for the
+ * other, so a future call site cannot silently broaden the reviewed scope.
+ */
 export const TRUSTED_PRODUCTION_PROFILE_SOURCE_EVIDENCE = Object.freeze({
+  evidenceVersion: 'snapchain-profile-source-evidence-v2',
   repository: 'farcasterxyz/snapchain',
   commit: 'bee1d09c0a816d11e9f6fc63d539c321b084f352',
   hostnameProvenancePath: 'src/bootstrap/replication/rpc_client.rs',
   httpContractPath: 'site/docs/pages/reference/httpapi/httpapi.md',
   userDataContractPath: 'site/docs/pages/reference/httpapi/userdata.md',
   exactTlsSurfaceOwnerReviewedAt: '2026-07-14',
-  ownerApprovalScope: 'alpha-0.3.3-current-founded-public-profiles',
+  approvedUses: Object.freeze({
+    maintenance: Object.freeze({
+      purpose: TRUSTED_PROFILE_MAINTENANCE_PURPOSE,
+      sourceId: TRUSTED_PRODUCTION_PROFILE_MAINTENANCE_SOURCE_ID,
+      ownerApprovalScope: 'current-founded-public-profile-maintenance',
+      individualFounderApprovalRequired: false,
+    }),
+    founderAdmission: Object.freeze({
+      purpose: TRUSTED_FOUNDER_ADMISSION_PURPOSE,
+      sourceId: TRUSTED_PRODUCTION_FOUNDER_ADMISSION_SOURCE_ID,
+      ownerApprovalScope: 'individually-approved-new-founder-profile-resolution',
+      individualFounderApprovalRequired: true,
+    }),
+  }),
 });
 export const CONTROLLED_PROFILE_FIXTURE_SOURCE_ID = 'controlled-local-profile-fixture-v1';
 export const TRUSTED_PROFILE_ENDPOINT_PATH = 'v1/userDataByFid';
@@ -46,6 +68,16 @@ export type TrustedProfileSource = Readonly<{
   apiKey?: string;
 }>;
 
+function approvedUse(purpose: TrustedProfilePurpose) {
+  if (purpose === TRUSTED_PROFILE_MAINTENANCE_PURPOSE) {
+    return TRUSTED_PRODUCTION_PROFILE_SOURCE_EVIDENCE.approvedUses.maintenance;
+  }
+  if (purpose === TRUSTED_FOUNDER_ADMISSION_PURPOSE) {
+    return TRUSTED_PRODUCTION_PROFILE_SOURCE_EVIDENCE.approvedUses.founderAdmission;
+  }
+  throw new ProfileTransportError('PROFILE_SOURCE_PURPOSE_INVALID');
+}
+
 function cleanHeader(value: string | undefined): string | undefined {
   if (value === undefined) return undefined;
   if (!value || value.length > 8_192 || /[\r\n]/.test(value)) {
@@ -56,8 +88,10 @@ function cleanHeader(value: string | undefined): string | undefined {
 
 export function validateProfileSource(
   source: TrustedProfileSource,
+  purpose: TrustedProfilePurpose,
   controlledFixture = false,
 ): URL {
+  const use = approvedUse(purpose);
   if (source.authorization !== undefined && source.apiKey !== undefined) {
     throw new ProfileTransportError('PROFILE_SOURCE_CREDENTIAL_AMBIGUOUS');
   }
@@ -71,7 +105,7 @@ export function validateProfileSource(
     ) throw new ProfileTransportError('PROFILE_FIXTURE_SOURCE_INVALID');
     return new URL(CONTROLLED_FIXTURE_BASE_URL);
   }
-  if (source.sourceId !== TRUSTED_PRODUCTION_PROFILE_SOURCE_ID) {
+  if (source.sourceId !== use.sourceId) {
     throw new ProfileTransportError('PROFILE_SOURCE_NOT_PINNED');
   }
   if (source.authorization !== undefined || source.apiKey !== undefined) {
@@ -101,9 +135,13 @@ export function validateProfileSource(
   return configured;
 }
 
-export function trustedProfileTransportAttestation() {
+export function trustedProfileTransportAttestation(purpose: TrustedProfilePurpose) {
+  const use = approvedUse(purpose);
   return Object.freeze({
-    sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID,
+    purpose: use.purpose,
+    sourceId: use.sourceId,
+    ownerApprovalScope: use.ownerApprovalScope,
+    individualFounderApprovalRequired: use.individualFounderApprovalRequired,
     sourceStatus: TRUSTED_PRODUCTION_PROFILE_SOURCE_STATUS,
     baseUrl: TRUSTED_PRODUCTION_SNAPCHAIN_BASE_URL ?? null,
     endpointPath: TRUSTED_PROFILE_ENDPOINT_PATH,
@@ -167,12 +205,13 @@ async function boundedJson(response: Response): Promise<unknown> {
 
 async function fetchOne(
   source: TrustedProfileSource,
+  purpose: TrustedProfilePurpose,
   fid: bigint,
   fetchImpl: typeof fetch,
   timeoutMs: number,
   controlledFixture: boolean,
 ): Promise<unknown | undefined> {
-  const base = validateProfileSource(source, controlledFixture);
+  const base = validateProfileSource(source, purpose, controlledFixture);
   const url = new URL(TRUSTED_PROFILE_ENDPOINT_PATH, base);
   url.searchParams.set('fid', fid.toString());
   url.searchParams.set('pageSize', String(MAXIMUM_CURRENT_USER_DATA_MESSAGES));
@@ -215,6 +254,7 @@ async function fetchOne(
 
 export async function fetchPublicProfileResponses(input: Readonly<{
   source: TrustedProfileSource;
+  purpose: TrustedProfilePurpose;
   fid: bigint;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
@@ -234,6 +274,7 @@ export async function fetchPublicProfileResponses(input: Readonly<{
   }
   const response = await fetchOne(
     input.source,
+    input.purpose,
     input.fid,
     fetchImpl,
     timeoutMs,

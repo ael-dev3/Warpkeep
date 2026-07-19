@@ -497,6 +497,51 @@ describe('Warpkeep authenticated connection boundary', () => {
     composite.unsubscribe();
   });
 
+  it('bounds malformed forest iterators before allocating their full projection', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const { connection, core, pairedForest } = forestSubscriptionConnection(candidate);
+    const db = connection.db as unknown as Record<string, unknown>;
+    let layoutReads = 0;
+    db.realmForestLayoutV1 = {
+      iter: function* () {
+        while (true) {
+          layoutReads += 1;
+          if (layoutReads > 2) throw new Error('layout iterator read past overflow sentinel');
+          yield CANONICAL_GENESIS_FOREST_LAYOUT_V1;
+        }
+      }
+    };
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+    core.apply();
+    pairedForest.apply();
+
+    const oversizedLayout = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(layoutReads).toBe(2);
+    expect(oversizedLayout).not.toHaveProperty('forestLayout');
+    expect(oversizedLayout.forestTrees).toEqual([]);
+
+    let treeReads = 0;
+    db.realmForestLayoutV1 = {
+      iter: function* () { yield CANONICAL_GENESIS_FOREST_LAYOUT_V1; }
+    };
+    db.realmForestInstanceV1 = {
+      iter: function* () {
+        while (true) {
+          treeReads += 1;
+          if (treeReads > 211) throw new Error('tree iterator read past overflow sentinel');
+          yield CANONICAL_GENESIS_FOREST_INSTANCES_V1[0];
+        }
+      }
+    };
+
+    const oversizedTrees = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(treeReads).toBe(211);
+    expect(oversizedTrees).not.toHaveProperty('forestLayout');
+    expect(oversizedTrees.forestTrees).toEqual([]);
+
+    composite.unsubscribe();
+  });
+
   it('omits forest fields for a pre-v6 connection without the public pair', () => {
     const snapshot = readWarpkeepRealmSnapshot(
       connectionForCandidate(createCanonicalGenesisCandidate()),
@@ -717,7 +762,7 @@ describe('Warpkeep authenticated connection boundary', () => {
   it('pins the browser and authoritative module to the same Terms version', () => {
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(MODULE_ALPHA_TERMS_VERSION);
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(
-      '2026-07-18-hegemony-entry-agreement-v1'
+      '2026-07-19-hegemony-entry-agreement-v2'
     );
   });
 

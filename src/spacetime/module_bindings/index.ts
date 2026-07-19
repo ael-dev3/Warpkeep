@@ -67,6 +67,7 @@ import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedur
 import * as AdminGetAlphaStatusV2Procedure from "./admin_get_alpha_status_v_2_procedure";
 import * as AdminGetAlphaStatusV3Procedure from "./admin_get_alpha_status_v_3_procedure";
 import * as AdminGetAlphaStatusV4Procedure from "./admin_get_alpha_status_v_4_procedure";
+import * as AdminGetAlphaStatusV8Procedure from "./admin_get_alpha_status_v_8_procedure";
 import * as AdminGetFidAuthEpochProcedure from "./admin_get_fid_auth_epoch_procedure";
 import * as AdminGetSnapScanBatchAggregateV1Procedure from "./admin_get_snap_scan_batch_aggregate_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
@@ -409,6 +410,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_alpha_status_v2", AdminGetAlphaStatusV2Procedure.params, AdminGetAlphaStatusV2Procedure.returnType),
   __procedureSchema("admin_get_alpha_status_v3", AdminGetAlphaStatusV3Procedure.params, AdminGetAlphaStatusV3Procedure.returnType),
   __procedureSchema("admin_get_alpha_status_v4", AdminGetAlphaStatusV4Procedure.params, AdminGetAlphaStatusV4Procedure.returnType),
+  __procedureSchema("admin_get_alpha_status_v8", AdminGetAlphaStatusV8Procedure.params, AdminGetAlphaStatusV8Procedure.returnType),
   __procedureSchema("admin_get_fid_auth_epoch", AdminGetFidAuthEpochProcedure.params, AdminGetFidAuthEpochProcedure.returnType),
   __procedureSchema("admin_get_snap_scan_batch_aggregate_v1", AdminGetSnapScanBatchAggregateV1Procedure.params, AdminGetSnapScanBatchAggregateV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),

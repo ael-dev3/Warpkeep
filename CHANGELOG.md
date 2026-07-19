@@ -6,6 +6,19 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.11] — 2026-07-19
+
+- Opened Gold Mines, Wheat Farms, and Logging Camps across Genesis 001, giving
+  each founder three independent wagon expeditions to manage.
+- Made the Lowlands feel more alive with a shared forest and wind-swept grass,
+  while keeping its roads, terrain, castle sites, and ownership unchanged.
+- Added clear resource explanations and focused site records for mouse, touch,
+  and keyboard play. Stone remains a terrain resource without a live Quarry
+  loop.
+- Kept castle control durable when public Farcaster presentation changes,
+  improved interrupted-expedition recovery, and refreshed the Alpha entry
+  agreement in plain language.
+
 ## [0.3.8] — 2026-07-18
 
 - Expanded Genesis 001 to 10,000 persistent cells while preserving the
@@ -75,7 +88,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.8...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.11...HEAD
+[0.3.11]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.8...v0.3.11
 [0.3.8]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.6...v0.3.8
 [0.3.6]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...v0.3.6
 [0.3.5]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.4...v0.3.5

@@ -1,4 +1,5 @@
 import type { HexCoord } from '../../game/map/hexCoordinates';
+import { isCanonicalRealmGoldSiteCatalog } from './realmResourceSiteCatalogPolicy';
 
 /**
  * The browser-facing shape of the two public v5 Gold tables. These values are
@@ -157,6 +158,7 @@ export function resolveRealmGoldNodePresentations(input: Readonly<{
     input.sites === undefined
     || input.occupations === undefined
     || input.sites.length > MAX_PUBLIC_GOLD_SITE_COUNT
+    || !isCanonicalRealmGoldSiteCatalog(input.sites)
   ) return Object.freeze([]);
 
   const siteIds = new Set<string>();

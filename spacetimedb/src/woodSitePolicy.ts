@@ -1,18 +1,16 @@
-import {
-  CANONICAL_GENESIS_FOREST_INSTANCES_V1,
-} from './forestLayoutPolicy';
 import { CANONICAL_TIER_I_FOOD_SITES_V1 } from './foodSitePolicy';
 import { CANONICAL_TIER_I_GOLD_SITES_V1 } from './goldSitePolicy';
 import {
-  CANONICAL_CASTLE_SLOTS,
+  RESOURCE_SITE_CASTLE_CLEARANCE_STEPS,
+  RESOURCE_SITE_CORRIDOR_CLEARANCE_STEPS,
+  hasCanonicalResourceSiteStaticConflict,
+} from './resourceSitePlacementPolicy';
+import {
   CANONICAL_WORLD_TILES,
   HEGEMONY_REALM_ID,
   canonicalMetaForKey,
   deriveChannelSeed,
-  hasCanonicalTravelCorridorClearance,
   hexDistance,
-  hexKey,
-  neighboringHexes,
 } from './world';
 
 /**
@@ -21,14 +19,14 @@ import {
  * explicitly seeded into the public `wood_site_v1` table by an admin-only
  * transition.
  */
-export const WOOD_SITE_POLICY_VERSION = 'genesis-001-tier1-wood-sites-v1';
+export const WOOD_SITE_POLICY_VERSION = 'genesis-001-tier1-wood-sites-v2';
 export const GENESIS_TIER_I_WOOD_SITE_COUNT = 96;
 export const GENESIS_TIER_I_WOOD_SITE_TIER = 1;
 export const WOOD_SITE_SELECTION_CHANNEL = 'genesis-v3-tier1-wood-site';
-export const WOOD_SITE_CASTLE_CLEARANCE_STEPS = 2;
-export const WOOD_SITE_CORRIDOR_CLEARANCE_STEPS = 1;
+export const WOOD_SITE_CASTLE_CLEARANCE_STEPS = RESOURCE_SITE_CASTLE_CLEARANCE_STEPS;
+export const WOOD_SITE_CORRIDOR_CLEARANCE_STEPS = RESOURCE_SITE_CORRIDOR_CLEARANCE_STEPS;
 export const GENESIS_TIER_I_WOOD_SITE_DIGEST =
-  'c1b069db716a32363dc7528d544bf7e5a0c97afa0c8e3df5c712607d18da02c5';
+  '3f0ae99d2052c32b7fec9aec6126e86f53031c13d619fcef12dd42a02b4063d6';
 const GENESIS_TIER_I_WOOD_EXPECTED_CANDIDATE_COUNT = 144;
 
 export type CanonicalWoodSiteV1 = Readonly<{
@@ -63,19 +61,6 @@ const canonicalGoldSiteKeys = new Set(
 const canonicalFoodSiteKeys = new Set(
   CANONICAL_TIER_I_FOOD_SITES_V1.map(site => `${site.q},${site.r}`),
 );
-const canonicalForestClearanceTileKeys = new Set(
-  CANONICAL_GENESIS_FOREST_INSTANCES_V1.flatMap(instance => [
-    instance.tileKey,
-    ...neighboringHexes(instance).map(neighbor => hexKey(neighbor.q, neighbor.r)),
-  ]),
-);
-
-function isCastleClearance(candidate: Readonly<{ q: number; r: number }>): boolean {
-  return CANONICAL_CASTLE_SLOTS.some(slot => (
-    hexDistance(candidate, slot) <= WOOD_SITE_CASTLE_CLEARANCE_STEPS
-  ));
-}
-
 /**
  * Tier-I Logging Camps occupy traversable forest resource tiles. Their
  * exclusions keep camps distinct from Gold and Food sites, forest transforms,
@@ -93,9 +78,7 @@ const tierOneCandidates = Object.freeze(
       || meta.terrainKind !== 'forest'
       || canonicalGoldSiteKeys.has(tile.key)
       || canonicalFoodSiteKeys.has(tile.key)
-      || canonicalForestClearanceTileKeys.has(tile.key)
-      || isCastleClearance(tile)
-      || hasCanonicalTravelCorridorClearance(tile, WOOD_SITE_CORRIDOR_CLEARANCE_STEPS)
+      || hasCanonicalResourceSiteStaticConflict(tile)
     ) return [];
     return [Object.freeze({
       key: tile.key,

@@ -29,7 +29,9 @@
             This notice describes the personal data the current Warpkeep Alpha is designed to use,
             why it is used, where it goes, and the limits of retention and deletion.
           </p>
-          <p class="legal-page__version">Version 0.3.3 · Last updated 18 July 2026</p>
+          <p class="legal-page__version">
+            Alpha Privacy Notice revision 2026-07-19-v1 · Last updated 19 July 2026
+          </p>
           <p class="legal-page__notice">
             This is a factual, project-authored Alpha notice, not a legal-compliance certification
             or legal advice. Formal privacy review and a dedicated legal contact remain future work.
@@ -95,8 +97,8 @@
                 authenticates, and requests entry, SpacetimeDB stores private, immutable evidence
                 containing the verified FID, exact entry-agreement bundle version, and acceptance
                 time. The Alpha Terms incorporate Hegemony Social Contract version
-                <code>2026-07-18-hegemony-social-contract-v1</code> in entry-agreement bundle
-                <code>2026-07-18-hegemony-entry-agreement-v1</code>; the published browser policy
+                <code>2026-07-19-hegemony-social-contract-v2</code> in entry-agreement bundle
+                <code>2026-07-19-hegemony-entry-agreement-v2</code>; the published browser policy
                 cryptographically binds the exact visible Terms and Social Contract texts to their
                 reviewed hashes. This evidence is used to enforce the current entry agreement and
                 preserve an audit trail. It is not a public projection and does not contain the
@@ -141,8 +143,9 @@
                 The opaque-identity ownership mapping, allowlist, slot claim, authoritative Mark
                 account, and administrative audit rows are private. A frozen legacy public player
                 schema still contains its original public opaque-identity column for wire
-                compatibility. The current protocol never reads, writes, or subscribes to that
-                table, and production verification requires it to remain empty.
+                compatibility. Browsers and gameplay paths never write or subscribe to that table.
+                Private deployment checks read only its aggregate row count and require it to
+                remain empty.
               </li>
               <li>
                 <strong>SNAP burns and Marks:</strong> a privacy-bounded operator process may read

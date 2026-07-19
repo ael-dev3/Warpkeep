@@ -102,7 +102,7 @@ describe('WarpkeepMainMenu', () => {
     });
     expect((continueButton as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(within(terms).getByRole('checkbox', {
-      name: 'I understand and agree to these Alpha Terms.'
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
     }));
     fireEvent.click(continueButton);
 
@@ -131,11 +131,11 @@ describe('WarpkeepMainMenu', () => {
 
     act(() => patchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE FRONTIER STIRS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE FRONTIER STIRS' })).not.toBeNull();
     expect(document.activeElement).toBe(patchNotes);
   });
 
@@ -239,19 +239,19 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE FRONTIER STIRS' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE FRONTIER STIRS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' });
+    const notes = screen.getByRole('region', { name: 'THE FRONTIER STIRS' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
     expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.11');
-    expect(notes.textContent).toContain('Ninety-six deterministic Tier-I Logging Camps');
-    expect(notes.textContent).toContain('Gold/Food/forest/castle/corridor clearance');
+    expect(notes.textContent).toContain('Gold Mines, Wheat Farms, and Logging Camps');
+    expect(notes.textContent).toContain('Stone continues as keep terrain yield only');
     expect(notes.textContent).toContain(
-      'Undeployed candidate. Release requires additive module publication, owner-approved resource, Gold-site, forest-layout, Food-site, and Wood-site setup, aggregate verification, exact Pages deployment, and final owner approval.'
+      'The core strategy loop is still being built'
     );
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
@@ -259,7 +259,7 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE FRONTIER STIRS' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
@@ -272,19 +272,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE FRONTIER STIRS' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE FRONTIER STIRS' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE FRONTIER STIRS' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE FRONTIER STIRS' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -293,21 +293,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE FRONTIER STIRS' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' });
+    const panel = screen.getByRole('region', { name: 'THE FRONTIER STIRS' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE FRONTIER STIRS' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE FRONTIER STIRS' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'GENESIS WOOD EXPEDITIONS' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE FRONTIER STIRS' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

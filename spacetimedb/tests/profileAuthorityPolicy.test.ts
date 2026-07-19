@@ -122,6 +122,34 @@ test('admission-ready profile policy fails closed on missing required presentati
   );
 });
 
+test('maintenance normalization accepts canonical username and portrait clears after founding', () => {
+  const fullyCleared = normalizeTrustedPublicProfile({
+    canonicalUsername: undefined,
+    displayName: undefined,
+    pfpUrl: undefined,
+    publicBio: undefined,
+  });
+  assert.deepEqual(fullyCleared, {
+    canonicalUsername: undefined,
+    displayName: undefined,
+    pfpUrl: undefined,
+    publicBio: undefined,
+  });
+  assert.equal(admissionProfileIsComplete(fullyCleared), false);
+
+  const portraitCleared = normalizeTrustedPublicProfile({ canonicalUsername: 'keeper.eth' });
+  assert.equal(portraitCleared.canonicalUsername, 'keeper.eth');
+  assert.equal(portraitCleared.pfpUrl, undefined);
+  assert.equal(admissionProfileIsComplete(portraitCleared), false);
+
+  const usernameCleared = normalizeTrustedPublicProfile({
+    pfpUrl: 'https://images.example.test/avatar.png',
+  });
+  assert.equal(usernameCleared.canonicalUsername, undefined);
+  assert.equal(usernameCleared.pfpUrl, 'https://images.example.test/avatar.png');
+  assert.equal(admissionProfileIsComplete(usernameCleared), false);
+});
+
 test('admission profile completeness rejects merely present noncanonical fields', () => {
   assert.equal(admissionProfileIsComplete({
     canonicalUsername: 'keeper.eth',

@@ -302,9 +302,12 @@ function creditExpiredWood(
     creditedWood: accrual.accruedWood,
     updatedAt: ctx.timestamp,
   });
-  // The Logging Camp opens at gathering completion while the private wagon
-  // continues returning. The next Wood wagon may occupy the released site.
-  ctx.db.woodNodeOccupationV1.siteId.delete(occupation.siteId);
+  // Keep the lease until the wagon reaches its castle. Public presentation and
+  // server availability now describe the same round-trip lifecycle.
+  ctx.db.woodNodeOccupationV1.siteId.update({
+    ...occupation,
+    phase: 'returning',
+  });
 }
 
 function completeReturn(
@@ -316,11 +319,10 @@ function completeReturn(
   }
   if (expedition.phase !== 'returning') fail('WOOD_EXPEDITION_RETURN_STATE');
   const occupation = ctx.db.woodNodeOccupationV1.siteId.find(expedition.siteId);
-  // Another Wood wagon may legally own the public lease while this completed
-  // wagon returns. Only an uncleared copy of this own lease is corruption.
-  if (occupation !== null && occupationMatchesExpedition(occupation, expedition)) {
-    fail('WOOD_OCCUPATION_INTEGRITY');
-  }
+  if (occupation === null) fail('WOOD_OCCUPATION_MISSING');
+  assertOccupationMatchesExpedition(occupation, expedition);
+  if (occupation.phase !== 'returning') fail('WOOD_OCCUPATION_PHASE_INVALID');
+  ctx.db.woodNodeOccupationV1.siteId.delete(occupation.siteId);
   ctx.db.woodExpeditionV1.expeditionId.delete(expedition.expeditionId);
 }
 
@@ -421,7 +423,7 @@ export function dispatchGenesisWoodExpedition(
   }
   for (const existing of ctx.db.woodExpeditionV1.siteId.filter(site.siteId)) {
     assertExpeditionState(existing);
-    if (existing.phase !== 'returning') fail('WOOD_SITE_EXPEDITION_CONFLICT');
+    fail('WOOD_SITE_EXPEDITION_CONFLICT');
   }
   if (ctx.db.woodExpeditionV1.originCastleId.find(resource.castle.castleId) !== null) {
     fail('WOOD_WAGON_ALREADY_DEPLOYED');

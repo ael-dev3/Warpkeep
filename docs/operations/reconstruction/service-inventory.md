@@ -1,7 +1,7 @@
 # Service inventory
 
-> **Alpha 0.3.2 is live on backend protocol 3; recovery remains fail-closed.**
-> The 1,261-cell Genesis world and 100 close-outward castle slots are seeded,
+> **Alpha 0.3.11 uses backend protocol 3; recovery remains fail-closed.**
+> The 10,000-cell Genesis world and 100 permanent castle slots are seeded,
 > deliberately admitted founders hold their permanent castles, and Worker public
 > auth plus shared-alpha realm entry are enabled at their separately recorded production
 > coordinates. Exact founder counts and identities remain private. Recovery
@@ -9,18 +9,12 @@
 > every future republish, binding change, secret change, deploy, or enable
 > requires its own authority and verification.
 
-The checked-in Alpha 0.3.11 candidate is not part of that deployed inventory.
-It retains the separately approval-gated 10,000-cell generation-three target
-and its 2,000 resource-capable anchors, appends private
-`resource_account_v1` at schema ref 19, appends five Gold-expedition tables at
-refs 20–24, two decorative forest tables at refs 25–26, and five independent
-Food-expedition tables at refs 27–31, then five independent Wood-expedition
-tables at refs 32–36. Those tables define public site and identity-minimized
-occupation projections plus private expedition/idempotency authority and
-public-safe scheduler projections. Neither source presence nor local proof
-attests a production module publication, world transition, resource backfill,
-Gold/forest/Food/Wood setup, or deployment. Alpha 0.3.6 remains the verified
-public release.
+Schema generation 8 retains refs 0–19 and appends Gold expedition refs 20–24,
+shared forest refs 25–26, Food expedition refs 27–31, and Wood expedition refs
+32–36. Public rows are limited to site, identity-minimized occupation, forest,
+and public-safe scheduler projections; private expedition, idempotency, route,
+identity, and balance authority stays private. The private release record—not
+source presence—records which publication and component seeds are live.
 
 ## Repositories and workflows
 
@@ -45,8 +39,8 @@ security PRs in a public repository could disclose an unpatched issue; use a
 private, disclosure-safe remediation path.
 
 The `github-pages` environment should permit only the intended release branch.
-Record live repository rules, required checks, and environment policy in each
-recovery manifest rather than assuming a prior observation still applies.
+Record live repository rules, required checks, and environment policy in the
+private recovery record rather than assuming a prior observation still applies.
 
 ## GitHub Pages
 
@@ -67,7 +61,7 @@ Public Actions variables and safe recovery values:
 | `WARPKEEP_SPACETIMEDB_URI` | `https://maincloud.spacetimedb.com` |
 | `WARPKEEP_SPACETIMEDB_DATABASE` | `warpkeep-89e4u` |
 
-Recovery always starts with shared alpha disabled, even if the pre-incident value was `true`. Inspect the reviewed `.github/workflows/deploy-pages.yml`, restore the variables using [`deployment-recovery.md`](deployment-recovery.md), and deploy only with explicit approval. Keep the switch false through the v2 frontend deploy. A later enable requires a separate final approval after Worker/Maincloud/session/config-attestation gates. Repository variables are public configuration; Worker secrets never belong in this table or in GitHub Actions variables.
+Recovery always starts with shared alpha disabled, even if the pre-incident value was `true`. Inspect the reviewed `.github/workflows/deploy-pages.yml`, restore the variables using [`deployment-recovery.md`](deployment-recovery.md), and deploy only with explicit approval. Keep the switch false through the recovery frontend deploy. A later enable requires a separate final approval after Worker/Maincloud/session/config-attestation gates. Repository variables are public configuration; Worker secrets never belong in this table or in GitHub Actions variables.
 
 When shared alpha is enabled, the production frontend gate and Pages validator
 accept only the exact bridge/issuer, audience, Maincloud origin, and database in
@@ -83,7 +77,7 @@ development-only.
 - Compatibility flag: `nodejs_compat`
 - `workers_dev = false`
 - Checked-in/recovery default: `PUBLIC_AUTH_ENABLED=false`
-- Current Alpha 0.3.2 production state: `PUBLIC_AUTH_ENABLED=true`
+- Current Alpha 0.3.11 production state: `PUBLIC_AUTH_ENABLED=true`
 
 Durable Objects:
 
@@ -92,6 +86,8 @@ Durable Objects:
 - `SESSION_FAMILIES` → `SessionFamily` (additive migration `v3`; deployed at the
   recorded paused checkpoint and retained through enablement; any future
   binding/migration change requires separate approval)
+- `QA_CHALLENGE_REPLAY_GUARD` → `QaChallengeReplayGuard` (additive migration
+  `v4`; isolated from player auth and inactive while `QA_OBSERVER_ENABLED=false`)
 
 Unauthenticated metadata endpoints are `/healthz`,
 `/.well-known/openid-configuration`, and `/.well-known/jwks.json`. The deployed
@@ -106,7 +102,7 @@ separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 
 The server-only config attestation profile is `warpkeep-auth-v2`. Its
 fail-closed recovery target has `publicAuthEnabled: false`; the current Alpha
-0.3.2 active target has `publicAuthEnabled: true`. It covers
+0.3.11 active target has `publicAuthEnabled: true`. It covers
 issuer/origins/SIWF coordinates, gameplay key/Maincloud coordinates, the
 observer URI/database/audience tuple and gate, S256, the 600-second access TTL,
 15-second resolver TTL, five-second resolver timeout, five-minute challenge TTL,
@@ -158,20 +154,8 @@ still denied; see the resolver residual in
 [`threat-model.md`](../../security/threat-model.md).
 `admin_get_fid_auth_epoch` is retained only for rollback compatibility.
 
-Historical additive-v2 closed-admission aggregate recorded before the
-protocol-3 seed and founding rollout:
-
-```text
-61 world tiles
-0 legacy players / 0 v2 players / 0 private v2 ownerships
-0 consistent v2 player/ownership pairs
-0 orphaned v2 player rows / 0 orphaned v2 ownership rows
-0 allowlist rows / 0 enabled FIDs / 0 castles
-backend protocol 2 / world seed 3445214658 / HEGEMONY_GENESIS_001
-```
-
-Current Alpha 0.3.2 production instead has the complete 1,261-cell world,
-1,261 metadata rows, one realm, 100 immutable slots, and deliberately admitted
+Current Alpha 0.3.11 production has the complete 10,000-cell world,
+10,000 metadata rows, one realm, 100 immutable slots, and deliberately admitted
 founders with matching founding graphs. A recovery verifier must obtain the
 fresh privacy-safe aggregate and compare it with the private current-state
 record; it must not reuse the historical zero-admission values above.
@@ -186,7 +170,7 @@ browser never subscribes to it, and its required production count is zero.
 The deployed v2 schema appended two tables: public `player_v2`, which excludes
 opaque identity, and private `player_ownership_v2`, which contains the
 authorization binding. Protocol 3 later appended the 12 frozen tables at refs
-7–18. The checked-in Alpha 0.3.10 precursor appends private
+7–18. Later additive schema generations append private
 `resource_account_v1` at exact ref 19, then `gold_site_v1`,
 `gold_node_occupation_v1`, `gold_expedition_v1`,
 `gold_expedition_idempotency_v1`, and `gold_expedition_schedule_v_1` at refs
@@ -196,7 +180,7 @@ the Food equivalents `food_site_v1`, `food_node_occupation_v1`,
 `food_expedition_schedule_v_1` at refs 27–31. Only the site catalog,
 occupation, and deliberately public-safe schedule projection are browser-table
 shapes; FID-bound expedition, retry, accrual, and balance state remain private.
-The Alpha 0.3.11 candidate then appends the Wood equivalents `wood_site_v1`,
+Schema generation 8 then appends the Wood equivalents `wood_site_v1`,
 `wood_node_occupation_v1`, `wood_expedition_v1`,
 `wood_expedition_idempotency_v1`, and `wood_expedition_schedule_v_1` at refs
 32–36. Wood uses the same public-site/private-authority boundary; its scheduler
@@ -217,25 +201,22 @@ request it; the retired writer plus mandatory zero-row invariant is the
 compatibility safety boundary.
 
 The live `admin_get_alpha_status_v3` procedure covers the complete founded
-protocol-3 graph without exposing row identities. Candidate
+protocol-3 graph without exposing row identities.
 `admin_get_alpha_status_v4` is a separate closed counts-only resource contract:
 founder/castle/Mark coverage, resource coverage and invariant counts, protocol,
-and policy version. It is not evidence of the Alpha 0.3.10 Gold/Food or Alpha
-0.3.11 Wood catalog, occupation, private expedition, or paired Food/Wood
-reservation state. Gold, Food, and Wood rollouts each need their own reviewed
-aggregate contract and explicit owner approval. The generation-two and
+and policy version. `admin_get_alpha_status_v8` adds fixed component policies,
+digests, and aggregate/canonical-match counts for Gold, forest, Food, and Wood
+without returning row data. The generation-two and
 generation-three world gates remain separate exact contracts; a mixed tuple
 fails closed.
 
-`npm run stdb:verify-additive-migration` proves the exact prefix, append-only
-refs 0–36, empty and synthetic nonempty fixture preservation, idempotence,
-partial-state detection, guarded v8/v7/v6/v5/v4/v3/v2 rollback refusal, the
-populated exact generation-two-to-three world transition, the private resource
-lifecycle, and Gold/Food/Wood table visibility/order against disposable
-loopback databases with the pinned CLI. It does not seed, dispatch, or settle a
-Food/Wood expedition; focused authority, policy, and reducer-contract tests
-separately cover paired Food/Wood reservation preservation and concurrent Gold
-settlement. This local proof grants no production authority.
+`npm run stdb:verify-additive-migration` proves the frozen prefix, append-only
+refs 0–36, fixture preservation, idempotence, partial-state detection, guarded
+v8-through-v2 rollback refusal, the generation-two-to-three world transition,
+and private resource authority against disposable loopback databases. It also
+exercises real Gold, Food, and Wood dispatch and scheduling, including a real
+Gold arrival and collection; long expiry and return stages remain covered by
+pure authority tests. This local proof grants no production authority.
 If post-publish verification finds a mismatch, keep auth disabled and use a
 separately reviewed forward-compatible fix; never delete data, recreate the
 database, or roll the schema backward.

@@ -8,7 +8,6 @@ import {
 } from 'react';
 
 import {
-  createWoodExpeditionIdempotencyKey,
   woodExpeditionForNode,
   type ReadyWoodExpeditionPresentation,
   type WoodExpeditionPresentation
@@ -55,7 +54,7 @@ export type LoggingCampInspectionPanelProps = Readonly<{
   /** Exact caller-only procedure data, joined again to the public site. */
   privateExpedition?: WoodExpeditionPresentation;
   /** Authenticated provider boundary; no optimistic public node mutation. */
-  onDispatchWoodExpedition?: (siteId: string, idempotencyKey: string) => Promise<void>;
+  onDispatchWoodExpedition?: (siteId: string) => Promise<void>;
   /** Owner-only settlement boundary; resources refresh after server confirmation. */
   onClaimWoodExpedition?: () => Promise<void>;
   onRequestClose: () => void;
@@ -128,20 +127,50 @@ export function LoggingCampInspectionPanel({
   focusTargetRef
 }: LoggingCampInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const [dispatchState, setDispatchState] = useState<'idle' | 'submitting' | 'failed'>('idle');
+  const [dispatchState, setDispatchState] = useState<
+    'idle' | 'submitting' | 'submitted' | 'failed'
+  >('idle');
   const [claimState, setClaimState] = useState<'idle' | 'submitting' | 'failed'>('idle');
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
   const scheduleTimestamp = node ? woodNodeNextAuthorityTimestamp(node) : undefined;
   const scheduleLabel = formatRemainingDuration(scheduleTimestamp);
   const ownerExpedition = visibleOwnerExpedition(node, privateExpedition);
+  const privateExpeditionActive = privateExpedition?.status === 'ready'
+    && privateExpedition.active;
+  const privateActiveSiteId = privateExpeditionActive
+    ? privateExpedition?.expedition?.siteId
+    : undefined;
+  const awaitingPublicOccupation = node?.availability === 'available'
+    && (
+      privateActiveSiteId === node.siteId
+      || (!privateExpeditionActive && dispatchState === 'submitted')
+    );
+  const expeditionActiveElsewhere = node?.availability === 'available'
+    && privateExpeditionActive
+    && privateActiveSiteId !== node.siteId;
   const canDispatch = node?.availability === 'available'
     && onDispatchWoodExpedition !== undefined
-    && dispatchState !== 'submitting';
+    && !privateExpeditionActive
+    && (dispatchState === 'idle' || dispatchState === 'failed');
   const canClaim = ownerExpedition !== undefined
     && ownerExpedition.pendingWood > 0n
     && onClaimWoodExpedition !== undefined
     && claimState !== 'submitting';
+  const dispatchLabel = dispatchState === 'submitting'
+    ? 'DISPATCHING WAGON…'
+    : awaitingPublicOccupation
+      ? 'AWAITING REALM…'
+      : expeditionActiveElsewhere
+        ? 'EXPEDITION ACTIVE'
+        : 'DISPATCH WAGON';
+  const dispatchStatus = awaitingPublicOccupation
+    ? 'The private Realm record is confirmed; awaiting the public occupation.'
+    : expeditionActiveElsewhere
+      ? 'Your Wood wagon already has an active expedition.'
+      : dispatchState === 'failed'
+        ? 'The Realm could not confirm this dispatch. Check the Camp state and try again.'
+        : 'Dispatch is confirmed only when the Realm publishes the occupation.';
 
   const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
     closeButtonRef.current = element;
@@ -159,15 +188,10 @@ export function LoggingCampInspectionPanel({
 
   const dispatch = useCallback(async () => {
     if (!node || node.availability !== 'available' || !onDispatchWoodExpedition) return;
-    const idempotencyKey = createWoodExpeditionIdempotencyKey();
-    if (!idempotencyKey) {
-      setDispatchState('failed');
-      return;
-    }
     setDispatchState('submitting');
     try {
-      await onDispatchWoodExpedition(node.siteId, idempotencyKey);
-      setDispatchState('idle');
+      await onDispatchWoodExpedition(node.siteId);
+      setDispatchState('submitted');
     } catch {
       setDispatchState('failed');
     }
@@ -266,12 +290,10 @@ export function LoggingCampInspectionPanel({
                 onClick={() => void dispatch()}
                 type="button"
               >
-                {dispatchState === 'submitting' ? 'DISPATCHING WAGON…' : 'DISPATCH WAGON'}
+                {dispatchLabel}
               </button>
               <p aria-live="polite" className="gold-mine-inspection__action-status">
-                {dispatchState === 'failed'
-                  ? 'The Realm could not confirm this dispatch. Check the Camp state and try again.'
-                  : 'Dispatch is confirmed only when the Realm publishes the occupation.'}
+                {dispatchStatus}
               </p>
             </div>
           ) : null}

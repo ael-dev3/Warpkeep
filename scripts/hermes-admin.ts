@@ -14,6 +14,20 @@ import {
   type AdmissionReadyTrustedProfile,
 } from '../spacetimedb/src/profileAuthorityPolicy';
 import { GENESIS_RESOURCE_POLICY_VERSION } from '../spacetimedb/src/resourceAuthorityPolicy';
+import {
+  ALPHA_ACTIVATION_COMPONENTS,
+  type AlphaActivationComponent,
+} from '../spacetimedb/src/alphaActivationPolicy';
+import {
+  AlphaActivationControlError,
+  alphaComponentIsReady,
+  alphaComponentSeedReceipt,
+  parseAlphaActivationComponent,
+  projectAlphaStatusV8,
+  type AlphaStatusV8,
+  verifyAlphaComponentSeedPostcondition,
+  verifyAlphaComponentSeedPrecondition,
+} from './alpha-activation-controls';
 import { configureHermesMachineOutput } from './hermes-machine-output';
 import {
   buildTrustedPublicFarcasterProfile,
@@ -35,7 +49,8 @@ import {
 import {
   fetchPublicProfileResponses,
   ProfileTransportError,
-  TRUSTED_PRODUCTION_PROFILE_SOURCE_ID,
+  TRUSTED_FOUNDER_ADMISSION_PURPOSE,
+  TRUSTED_PRODUCTION_FOUNDER_ADMISSION_SOURCE_ID,
   trustedProfileTransportAttestation,
 } from './profiles/profile-transport';
 
@@ -50,9 +65,11 @@ type Command =
   | 'inspect-alpha-v2'
   | 'inspect-alpha-v3'
   | 'inspect-alpha-v4'
+  | 'inspect-alpha-v8'
+  | 'seed-alpha-component'
   | 'backfill-resources';
 
-type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4';
+type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4' | 'v8';
 
 const DEFAULT_DATABASE = 'warpkeep-89e4u';
 const DEFAULT_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
@@ -77,7 +94,7 @@ const HEGEMONY_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 export const FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST = createHash('sha256')
   .update(JSON.stringify({
     profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
-    transport: trustedProfileTransportAttestation(),
+    transport: trustedProfileTransportAttestation(TRUSTED_FOUNDER_ADMISSION_PURPOSE),
   }), 'utf8')
   .digest('hex');
 export const FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
@@ -126,6 +143,7 @@ export function privacySafeHermesErrorMessage(error: unknown): string {
     error instanceof HermesCliError
     || error instanceof HermesOperationTimeoutError
     || error instanceof HermesClaimedAdmissionOutcomeError
+    || error instanceof AlphaActivationControlError
   ) {
     return error.message;
   }
@@ -227,13 +245,15 @@ function commandFrom(value: string | undefined): Command {
     || value === 'inspect-alpha-v2'
     || value === 'inspect-alpha-v3'
     || value === 'inspect-alpha-v4'
+    || value === 'inspect-alpha-v8'
+    || value === 'seed-alpha-component'
     || value === 'backfill-resources'
   ) {
     return value;
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4> '
+    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder.',
@@ -259,18 +279,22 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
   const inspection = command === 'inspect-alpha'
     || command === 'inspect-alpha-v2'
     || command === 'inspect-alpha-v3'
-    || command === 'inspect-alpha-v4';
+    || command === 'inspect-alpha-v4'
+    || command === 'inspect-alpha-v8';
   const expectedPositionals = command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
     ? 3
-    : command === 'backfill-resources'
+    : command === 'backfill-resources' || command === 'seed-alpha-component'
       ? 2
     : 1;
   if (positional.length !== expectedPositionals) {
     fail('Hermes command received an unexpected number of positional arguments.');
   }
-  if ((inspection && flags.has('--confirm')) || (!inspection && flags.has('--json'))) {
+  if (
+    (inspection && (flags.has('--confirm') || flags.has('--dry-run')))
+    || (!inspection && flags.has('--json'))
+  ) {
     fail('Hermes command received a flag that is invalid for this operation.');
   }
   if (command === 'admit-founder') {
@@ -279,6 +303,14 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     }
     if (flags.has('--dry-run') === flags.has('--confirm')) {
       fail('Profiled admission requires exactly one of --dry-run or --confirm.');
+    }
+  } else if (command === 'seed-alpha-component') {
+    parseAlphaActivationComponent(positional[1]);
+    if (flags.has('--input-stdin') || flags.has('--json')) {
+      fail('Hermes command received a flag that is invalid for this operation.');
+    }
+    if (flags.has('--dry-run') === flags.has('--confirm')) {
+      fail('Alpha component seed requires exactly one of --dry-run or --confirm.');
     }
   } else if (flags.has('--input-stdin')) {
     fail('Hermes command received a flag that is invalid for this operation.');
@@ -307,7 +339,8 @@ export async function resolveAdmissionReadyFounderProfile(
 ): Promise<AdmissionReadyTrustedProfile> {
   try {
     const responses = await fetchPublicProfileResponses({
-      source: { sourceId: TRUSTED_PRODUCTION_PROFILE_SOURCE_ID },
+      source: { sourceId: TRUSTED_PRODUCTION_FOUNDER_ADMISSION_SOURCE_ID },
+      purpose: TRUSTED_FOUNDER_ADMISSION_PURPOSE,
       fid,
       fetchImpl,
     });
@@ -845,6 +878,13 @@ export function requireGenesisExpansionProductionTarget(database: string): void 
   }
 }
 
+/** Canonical economy/forest seeds may target only the attested identity. */
+export function requireAlphaComponentActivationProductionTarget(database: string): void {
+  if (database !== DEFAULT_DATABASE_IDENTITY) {
+    fail('Alpha component activation requires the immutable Warpkeep production database identity.');
+  }
+}
+
 export function withOperationTimeout<T>(operation: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_resolve, reject) => {
@@ -912,7 +952,14 @@ export async function readStatus(
   version: AlphaStatusVersion = 'v1',
   machineReadable = false,
   expectedResourceFounderCount?: bigint,
+  emit = true,
 ) {
+  if (version === 'v8') {
+    const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV8({}));
+    const verified = projectAlphaStatusV8(status);
+    if (emit) console.log(JSON.stringify(printable(verified)));
+    return verified;
+  }
   if (version === 'v4') {
     const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV4({}));
     const safeStatus = {
@@ -1035,6 +1082,7 @@ async function main() {
     command !== 'backfill-resources'
     && command !== 'expand-world-v3'
     && command !== 'admit-founder'
+    && command !== 'seed-alpha-component'
     && process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes'
   );
   const mutation = !inspection;
@@ -1048,6 +1096,9 @@ async function main() {
     : undefined;
   const expectedFounderCount = command === 'backfill-resources'
     ? readFounderCount(positional[1])
+    : undefined;
+  const alphaComponent: AlphaActivationComponent | undefined = command === 'seed-alpha-component'
+    ? parseAlphaActivationComponent(positional[1])
     : undefined;
   let note = command === 'allow-fid' || command === 'disable-fid'
     ? sanitizeNote(positional[2])
@@ -1105,6 +1156,10 @@ async function main() {
     requireGenesisExpansionProductionTarget(database);
   }
 
+  if (command === 'seed-alpha-component' && !dryRun) {
+    requireAlphaComponentActivationProductionTarget(database);
+  }
+
   if (!machineReadableInspection && !(command === 'admit-founder' && dryRun)) {
     console.log(`Warpkeep Hermes target: ${database} at ${uri}`);
   }
@@ -1116,6 +1171,9 @@ async function main() {
   // confirmed path consumes only an already reviewed plan and never refetches.
   if (command === 'admit-founder' && !dryRun && !confirmed) {
     fail('Refusing profiled admission without --confirm.');
+  }
+  if (command === 'seed-alpha-component' && !dryRun && !confirmed) {
+    fail('Refusing Alpha component seed without --confirm.');
   }
 
   let prevalidatedBridgeUrl: string | undefined;
@@ -1147,6 +1205,13 @@ async function main() {
       resourcePolicyVersion: command === 'backfill-resources'
         ? GENESIS_RESOURCE_POLICY_VERSION
         : undefined,
+      alphaComponent,
+      alphaComponentPolicy: alphaComponent === undefined
+        ? undefined
+        : ALPHA_ACTIVATION_COMPONENTS[alphaComponent],
+      alphaStatusInspected: command === 'seed-alpha-component' ? false : undefined,
+      credentialsAccessed: command === 'seed-alpha-component' ? false : undefined,
+      mutationSubmitted: command === 'seed-alpha-component' ? false : undefined,
       existingFounderReenableOnly: command === 'allow-fid' || undefined,
       mutation,
       dryRun: true,
@@ -1156,6 +1221,7 @@ async function main() {
   if (mutation && !confirmed) {
     fail(
       command === 'backfill-resources' || command === 'expand-world-v3'
+        || command === 'seed-alpha-component'
         ? 'Refusing mutation without --confirm.'
         : 'Refusing mutation without --confirm (or WARPKEEP_HERMES_NONINTERACTIVE=yes).',
     );
@@ -1249,6 +1315,44 @@ async function main() {
         expectedFounderCount,
         policyVersion: GENESIS_RESOURCE_POLICY_VERSION,
       }));
+    } else if (command === 'seed-alpha-component' && alphaComponent !== undefined) {
+      const before = verifyAlphaComponentSeedPrecondition(
+        await readStatus(connection, 'v8', false, undefined, false) as AlphaStatusV8,
+      );
+      if (!alphaComponentIsReady(before, alphaComponent)) {
+        if (alphaComponent === 'gold') {
+          const policy = ALPHA_ACTIVATION_COMPONENTS.gold;
+          await withOperationTimeout(connection.reducers.adminSeedGenesisTierIGoldSitesV1({
+            expectedSiteCount: BigInt(policy.siteCount),
+            policyVersion: policy.sitePolicyVersion,
+          }));
+        } else if (alphaComponent === 'forest') {
+          await withOperationTimeout(connection.reducers.adminSeedGenesisForestLayoutV1({}));
+        } else if (alphaComponent === 'food') {
+          const policy = ALPHA_ACTIVATION_COMPONENTS.food;
+          await withOperationTimeout(connection.reducers.adminSeedGenesisTierIFoodSitesV1({
+            expectedSiteCount: BigInt(policy.siteCount),
+            policyVersion: policy.sitePolicyVersion,
+          }));
+        } else {
+          const policy = ALPHA_ACTIVATION_COMPONENTS.wood;
+          await withOperationTimeout(connection.reducers.adminSeedGenesisTierIWoodSitesV1({
+            expectedSiteCount: BigInt(policy.siteCount),
+            policyVersion: policy.sitePolicyVersion,
+          }));
+        }
+      }
+      const after = verifyAlphaComponentSeedPostcondition(
+        await readStatus(connection, 'v8', false, undefined, false) as AlphaStatusV8,
+        before,
+        alphaComponent,
+      );
+      console.log(JSON.stringify(printable(alphaComponentSeedReceipt(
+        alphaComponent,
+        before,
+        after,
+      ))));
+      mutationStatusHandled = true;
     }
     const statusVersion: AlphaStatusVersion = command === 'inspect-alpha-v2'
       ? 'v2'
@@ -1256,6 +1360,8 @@ async function main() {
         ? 'v3'
         : command === 'inspect-alpha-v4' || command === 'backfill-resources'
           ? 'v4'
+          : command === 'inspect-alpha-v8'
+            ? 'v8'
           : 'v1';
     if (!mutationStatusHandled) {
       await readStatus(

@@ -3,15 +3,10 @@
 Warpkeep uses standard website Sign In with Farcaster (SIWF). It is not a Mini
 App, Quick Auth, wallet connection, or a client-only permanent identity system.
 
-> **Protocol-3 Alpha 0.3.8 is active; admission remains gated.** The additive
-> module, expanded Genesis 001, reviewed Worker, and exact-main frontend are live
-> at their separately recorded production coordinates. The Worker includes the
-> additive `SessionFamily` migration and independent managed session-cookie
-> secret. `PUBLIC_AUTH_ENABLED=true` and the exact frontend shared-alpha gate
-> were enabled after paused verification. Deliberately admitted founders occupy
-> the shared frontier; their identities are not part of this public integration
-> record. No further admission or production mutation is authorized by this
-> document.
+Alpha 0.3.11 uses backend protocol 3 and authentication contract v2; admission
+remains gated. Production configuration and founder identities belong in the
+private operator record, not this guide. This document describes the contract
+but does not authorize admission or a production change.
 
 ## Authority boundary
 
@@ -243,7 +238,7 @@ VITE_WARPKEEP_OIDC_AUDIENCE=warpkeep-spacetimedb
 
 The Worker configuration is documented in
 [`services/auth-bridge/README.md`](../services/auth-bridge/README.md). Its
-checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.8
+checked-in `PUBLIC_AUTH_ENABLED` remains false, while the recorded Alpha 0.3.11
 production override is true. Before any future enable, the server-only v2
 configuration attestation must match the reviewed issuer, origins, SIWF
 coordinates, key ID, Maincloud coordinates, S256 binding, 600-second access
@@ -259,48 +254,22 @@ may use the explicit localhost escape hatch. The Worker independently pins its
 production resolver to that exact Maincloud origin/database pair, while an
 explicit `ENVIRONMENT=development` bridge remains configurable for local tests.
 
-## Rollout and approval gates
+## Deployment boundary
 
-The v2 authentication/session rollout remains the preserved authority boundary
-under live protocol 3. Alpha 0.3.8 retains the additive module, founding,
-frontend, and public-entry gates at its recorded exact coordinates and adds the
-separately approved private-resource and generation-three world boundaries.
-The module preserves the exact five-table legacy prefix plus the deployed v2
-player/ownership pair, then appends twelve protocol-3 tables. The recorded
-guarded publication first ran
-`npm run stdb:verify-additive-migration` against its disposable loopback-only
-server and then bound that proof to the production artifact. The local proof
-checks schema signatures, retained empty and synthetic non-empty legacy rows,
-idempotent republish, v2 consistency, protocol-3 additive preservation, and
-guarded rollback refusal; it does not itself inspect or mutate Maincloud.
+Authentication contract v2 remains unchanged under backend protocol 3. Schema
+updates are additive, and browser, Worker, database, component activation, and
+public-entry changes are deployed separately. The checked-in Worker and client
+configuration remain disabled by default.
 
-The recorded production run obtained a fresh, bounded, read-only aggregate and
-stopped unless the legacy player count and enabled epoch-zero admission count
-were zero. The guarded publisher repeated that aggregate, pinned the reviewed
-CLI and existing database identity, and published only the digest-attested
-prebuilt artifact through `--js-path`, `--delete-data=never`, closed stdin, and
-no compatibility override. Any future republish requires fresh approval plus
-explicit canonical founder/player/Terms expectations from a private current
-inspection. The guarded publisher must verify the complete founded protocol-3
-aggregate against the immutable database identity before and after publication.
-The guarded publisher also requires explicit resource-lifecycle and Genesis
-world stages; neither may be inferred from the other or from local source.
-Historical counts never substitute for a fresh matching aggregate.
+Before a production change, use disposable migration tests and fresh bounded
+aggregate inspection, then verify OIDC metadata, resolver behavior, retired
+routes, configuration attestation, and the deployed source revision. Stop on
+any mismatch without enabling public authentication. Historical approvals,
+counts, or local test results are not reusable production authorization.
 
-The recorded checkpoints also completed the additive session-family Durable
-Object migration, independent managed cookie-secret setup, paused Worker and
-frontend deployments, exact protocol-3 aggregates, resolver, discovery/JWKS,
-retired-v1, ownership isolation, configuration attestation, ordered
-public-auth/shared-realm enablement, Genesis 001's 10,000 generation-three cells
-and 100 close-outward slots, the complete private resource-account graph, and
-deliberately approved founder admissions. Founder
-identities are intentionally omitted here. Further admissions, profile/wallet
-updates, credits, and world mutations remain separate owner-approved actions.
-Marks apply and spending remain disabled, and no scheduler is installed.
-
-See the [activation and recovery runbook](./operations/alpha-activation.md).
-Only the recorded exact current coordinates attest the backend checkpoint;
-historical records and arbitrary local checkouts do not.
+The maintained sequence is in the
+[activation and recovery runbook](./operations/alpha-activation.md). Founder
+identities and private operational records do not belong in this repository.
 
 ## Tests and manual QA
 

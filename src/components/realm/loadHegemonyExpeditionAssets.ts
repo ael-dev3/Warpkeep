@@ -129,6 +129,7 @@ type ExpeditionBinaryRequest = SharedRealmModelRequest<ArrayBuffer>;
 const binaryRequests = new Map<string, ExpeditionBinaryRequest>();
 
 type ExpeditionPrefabCacheEntry = {
+  abortController: AbortController;
   leaseCount: number;
   model?: HegemonyExpeditionModel;
   promise: Promise<HegemonyExpeditionModel>;
@@ -225,6 +226,7 @@ function requestAssetBinary(
     .finally(() => {
       request.settled = true;
       if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      if (binaryRequests.get(requestKey) === request) binaryRequests.delete(requestKey);
     })
     .catch((error: unknown) => {
       abortController.abort();
@@ -361,8 +363,10 @@ export async function acquireHegemonyExpeditionPrefab(
   const key = prefabCacheKey(options);
   let entry = prefabCache.get(key);
   if (!entry) {
-    const detachedOptions = { ...options, signal: undefined };
+    const abortController = new AbortController();
+    const detachedOptions = { ...options, signal: abortController.signal };
     const pending: ExpeditionPrefabCacheEntry = {
+      abortController,
       leaseCount: 0,
       releaseAfterLoad: false,
       promise: loadHegemonyExpeditionModel(detachedOptions)
@@ -398,6 +402,11 @@ export async function acquireHegemonyExpeditionPrefab(
       if (prefabCache.get(key) === entry) prefabCache.delete(key);
     } else {
       entry!.releaseAfterLoad = true;
+      // Remove the doomed entry before aborting it. A Realm recreated in the
+      // same task must start a fresh load instead of leasing this rejected
+      // promise while its cleanup handler is still queued.
+      if (prefabCache.get(key) === entry) prefabCache.delete(key);
+      entry!.abortController.abort();
     }
   };
 
@@ -438,15 +447,26 @@ export async function acquireHegemonyExpeditionPrefab(
 }
 
 export function clearHegemonyExpeditionAssetBinaryCacheForTests() {
+  for (const request of binaryRequests.values()) request.abortController.abort();
   binaryRequests.clear();
 }
 
 export function clearHegemonyExpeditionPrefabCacheForTests() {
   for (const entry of prefabCache.values()) {
     if (entry.model) disposeHegemonyExpeditionModel(entry.model);
-    else entry.releaseAfterLoad = true;
+    else {
+      entry.releaseAfterLoad = true;
+      entry.abortController.abort();
+    }
   }
   prefabCache.clear();
+}
+
+export function hegemonyExpeditionAssetCacheSizesForTests() {
+  return Object.freeze({
+    binaryRequests: binaryRequests.size,
+    prefabs: prefabCache.size,
+  });
 }
 
 export function disposeHegemonyExpeditionModel(model: HegemonyExpeditionModel) {

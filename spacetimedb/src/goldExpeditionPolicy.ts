@@ -141,13 +141,21 @@ export function goldExpeditionStateIsConsistent(
     || !isU64(state.accruedGold)
     || !isU64(state.creditedGold)
   ) return false;
-  return state.startedAtMicros < state.arrivesAtMicros
+  const timelineIsConsistent = state.startedAtMicros < state.arrivesAtMicros
     && state.arrivesAtMicros < state.gatheringEndsAtMicros
     && state.gatheringEndsAtMicros < state.returnsAtMicros
     && state.arrivesAtMicros <= state.settledThroughMicros
     && state.settledThroughMicros <= state.gatheringEndsAtMicros
     && state.creditedGold <= state.accruedGold
     && state.accruedGold <= GOLD_GATHERING_TOTAL_GOLD;
+  if (!timelineIsConsistent) return false;
+  // Returning begins only after the fixed award is fully settled and credited.
+  // A partial row would otherwise allow schedule completion to discard value.
+  return state.phase !== 'returning'
+    || (
+      state.accruedGold === GOLD_GATHERING_TOTAL_GOLD
+      && state.creditedGold === GOLD_GATHERING_TOTAL_GOLD
+    );
 }
 
 /**

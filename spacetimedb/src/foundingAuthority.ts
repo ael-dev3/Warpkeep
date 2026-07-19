@@ -104,7 +104,6 @@ export function assertGenesisFoundingGraph(
     if (
       profile === null
       || ctx.db.allowedFid.fid.find(account.fid) === null
-      || !admissionProfileIsComplete(profile)
       || !markAccountIsConsistent(account)
       || !profileProjectionIsConsistent(profile, account)
     ) fail();
@@ -183,13 +182,16 @@ export function assertGenesisFounderForProfileRepair(
   requireGenesisFounderStructureForFid(ctx, fid);
 }
 
-/** Player and gameplay gate: structural validity plus complete public identity. */
+/**
+ * Player and gameplay gate. Durable authority is the admitted FID and its
+ * permanent founder graph; repairable public presentation is deliberately not
+ * an authorization input after the atomic founding transaction commits.
+ */
 export function assertGenesisFounderForFid(
   ctx: WarpkeepReducerContext,
   fid: bigint,
 ): void {
-  const profile = requireGenesisFounderStructureForFid(ctx, fid);
-  if (!admissionProfileIsComplete(profile)) fail('FOUNDER_PROFILE_INCOMPLETE');
+  requireGenesisFounderStructureForFid(ctx, fid);
 }
 
 /**
