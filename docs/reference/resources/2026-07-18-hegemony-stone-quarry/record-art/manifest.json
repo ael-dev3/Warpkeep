@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "hegemony-stone-quarry-record-art-v1",
   "recordedAt": "2026-07-18",
-  "purpose": "Transparent decorative Stone Quarry art for the prepared, unmounted Stone Quarry inspection card",
+  "purpose": "Transparent decorative Stone Quarry art for the Stone Quarry inspection card",
   "projectAuthorization": {
     "authorizedBy": "Warpkeep project owner",
     "instructionDate": "2026-07-18",
@@ -90,12 +90,12 @@
   },
   "presentationBoundary": {
     "component": "src/components/realm/StoneQuarryInspectionPanel.tsx",
-    "currentRealmMount": "not mounted; a separate reviewed authoritative Stone-site integration is required",
-    "currentNodePlacement": "none — visual record only",
+    "currentRealmMount": "mounted by RealmMapScreen after canonical public Stone-site validation",
+    "currentNodePlacement": "server-governed public Stone site; browser UI does not seed or relocate it",
     "forbiddenClaims": [
-      "player inventory",
-      "reserve amount",
-      "owner",
+      "another player's inventory",
+      "unbounded reserve amount",
+      "browser-invented owner",
       "browser-derived gathering authority",
       "reward",
       "Marks linkage"

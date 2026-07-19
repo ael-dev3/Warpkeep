@@ -20,6 +20,7 @@ import * as GetMyAdmissionStatusV2Procedure from "../get_my_admission_status_v_2
 import * as GetMyFoodExpeditionStateV1Procedure from "../get_my_food_expedition_state_v_1_procedure";
 import * as GetMyGoldExpeditionStateV1Procedure from "../get_my_gold_expedition_state_v_1_procedure";
 import * as GetMyResourceStateV1Procedure from "../get_my_resource_state_v_1_procedure";
+import * as GetMyStoneExpeditionStateV1Procedure from "../get_my_stone_expedition_state_v_1_procedure";
 import * as GetMyWoodExpeditionStateV1Procedure from "../get_my_wood_expedition_state_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "../qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "../qa_observer_get_realm_snapshot_v_1_procedure";
@@ -52,6 +53,8 @@ export type GetMyGoldExpeditionStateV1Args = __Infer<typeof GetMyGoldExpeditionS
 export type GetMyGoldExpeditionStateV1Result = __Infer<typeof GetMyGoldExpeditionStateV1Procedure.returnType>;
 export type GetMyResourceStateV1Args = __Infer<typeof GetMyResourceStateV1Procedure.params>;
 export type GetMyResourceStateV1Result = __Infer<typeof GetMyResourceStateV1Procedure.returnType>;
+export type GetMyStoneExpeditionStateV1Args = __Infer<typeof GetMyStoneExpeditionStateV1Procedure.params>;
+export type GetMyStoneExpeditionStateV1Result = __Infer<typeof GetMyStoneExpeditionStateV1Procedure.returnType>;
 export type GetMyWoodExpeditionStateV1Args = __Infer<typeof GetMyWoodExpeditionStateV1Procedure.params>;
 export type GetMyWoodExpeditionStateV1Result = __Infer<typeof GetMyWoodExpeditionStateV1Procedure.returnType>;
 export type QaObserverGetRealmAttestationV2Args = __Infer<typeof QaObserverGetRealmAttestationV2Procedure.params>;

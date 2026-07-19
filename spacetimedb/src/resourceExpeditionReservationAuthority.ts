@@ -9,6 +9,10 @@ import {
   woodExpeditionStateIsConsistent,
 } from './woodExpeditionPolicy';
 import {
+  STONE_GATHERING_TOTAL_STONE,
+  stoneExpeditionStateIsConsistent,
+} from './stoneExpeditionPolicy';
+import {
   type ResourceAccountState,
   type ResourceSettlementPlan,
   planResourceSettlementWithExpeditionReservations,
@@ -36,6 +40,7 @@ function fail(code: string): never {
 export type ActiveExpeditionResourceReservations = Readonly<{
   food: bigint;
   wood: bigint;
+  stone: bigint;
 }>;
 
 /**
@@ -55,9 +60,14 @@ export function activeExpeditionResourceReservations(
   if (wood !== null && !woodExpeditionStateIsConsistent(wood)) {
     fail('WOOD_EXPEDITION_RESERVATION_STATE_INVALID');
   }
+  const stone = ctx.db.stoneExpeditionV1.fid.find(fid);
+  if (stone !== null && !stoneExpeditionStateIsConsistent(stone)) {
+    fail('STONE_EXPEDITION_RESERVATION_STATE_INVALID');
+  }
   return Object.freeze({
     food: food === null ? 0n : FOOD_GATHERING_TOTAL_FOOD - food.creditedFood,
     wood: wood === null ? 0n : WOOD_GATHERING_TOTAL_WOOD - wood.creditedWood,
+    stone: stone === null ? 0n : STONE_GATHERING_TOTAL_STONE - stone.creditedStone,
   });
 }
 

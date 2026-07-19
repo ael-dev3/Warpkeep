@@ -17,6 +17,8 @@ const PLAYER_TABLE_KEYS = [
   'realmForestLayoutV1',
   'realmProfileV1',
   'realmV1',
+  'stoneNodeOccupationV1',
+  'stoneSiteV1',
   'woodNodeOccupationV1',
   'woodSiteV1',
   'worldTile',
@@ -60,21 +62,25 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'collect_food_expedition_v1'")
     expect(playerBindings).toContain("'collect_gold_expedition_v1'")
     expect(playerBindings).toContain("'collect_wood_expedition_v1'")
+    expect(playerBindings).toContain("'collect_stone_expedition_v1'")
     expect(playerBindings).toContain("'collect_resources_v1'")
     expect(playerBindings).toContain("'dispatch_food_expedition_v1'")
     expect(playerBindings).toContain("'dispatch_gold_expedition_v1'")
     expect(playerBindings).toContain("'dispatch_wood_expedition_v1'")
+    expect(playerBindings).toContain("'dispatch_stone_expedition_v1'")
     expect(playerBindings).toContain("'get_alpha_backend_info'")
     expect(playerBindings).toContain("'get_my_admission_status_v2'")
     expect(playerBindings).toContain("'get_my_food_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_gold_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_wood_expedition_state_v1'")
+    expect(playerBindings).toContain("'get_my_stone_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_resource_state_v1'")
     expect(playerBindings).toContain("'realm_forest_layout_v1'")
     expect(playerBindings).toContain("'realm_forest_instance_v1'")
     expect(playerBindings).not.toContain('food_expedition_schedule_v_1')
     expect(playerBindings).not.toContain('gold_expedition_schedule_v_1')
     expect(playerBindings).not.toContain('wood_expedition_schedule_v_1')
+    expect(playerBindings).not.toContain('stone_expedition_schedule_v_1')
     expect(playerBindings).not.toMatch(/name:\s*'wood_expedition_v_1'/)
     expect(playerBindings).not.toContain('wood_expedition_idempotency_v1')
     expect(playerBindings).not.toContain('run_wood_expedition_schedule_v_1')
@@ -109,9 +115,11 @@ describe('player SpacetimeDB bindings', () => {
       'collectFoodExpeditionV1',
       'collectGoldExpeditionV1',
       'collectResourcesV1',
+      'collectStoneExpeditionV1',
       'collectWoodExpeditionV1',
       'dispatchFoodExpeditionV1',
       'dispatchGoldExpeditionV1',
+      'dispatchStoneExpeditionV1',
       'dispatchWoodExpeditionV1',
     ])
     expect(Object.keys(connection.procedures).sort()).toEqual([
@@ -120,6 +128,7 @@ describe('player SpacetimeDB bindings', () => {
       'getMyFoodExpeditionStateV1',
       'getMyGoldExpeditionStateV1',
       'getMyResourceStateV1',
+      'getMyStoneExpeditionStateV1',
       'getMyWoodExpeditionStateV1',
     ])
 

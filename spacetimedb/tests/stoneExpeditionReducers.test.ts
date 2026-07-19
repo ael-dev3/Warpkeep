@@ -34,18 +34,13 @@ function schemaRegistrations(text: string): string[] {
     .map(line => line.slice(0, -1));
 }
 
-test('v7 Food tables remain intact before the append-only v9 Stone suffix', () => {
+test('v9 Stone tables append after the complete v8 Wood suffix', () => {
   const schema = source('../src/schema.ts');
   const v4 = source('../migration-fixtures/additive-v4-schema/src/index.ts');
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-22), [
-    'goldSiteV1',
-    'goldNodeOccupationV1',
-    'goldExpeditionV1',
-    'goldExpeditionIdempotencyV1',
-    'goldExpeditionScheduleV1',
+  assert.deepEqual(registrations.slice(-17), [
     'realmForestLayoutV1',
     'realmForestInstanceV1',
     'foodSiteV1',
@@ -65,111 +60,112 @@ test('v7 Food tables remain intact before the append-only v9 Stone suffix', () =
     'stoneExpeditionScheduleV1',
   ]);
 
-  const site = tableDefinition(schema, 'foodSiteV1');
-  assert.match(site, /name: 'food_site_v1', public: true/);
+  const site = tableDefinition(schema, 'stoneSiteV1');
+  assert.match(site, /name: 'stone_site_v1', public: true/);
   assert.match(site, /siteId: t\.string\(\)\.primaryKey\(\),[\s\S]*q: t\.i32\(\),[\s\S]*r: t\.i32\(\),[\s\S]*tier: t\.u32\(\),[\s\S]*active: t\.bool\(\)/);
   assert.doesNotMatch(site, /\bfid\b|\bowner\w*\b|\bbalance\w*\b/i);
 
-  const occupation = tableDefinition(schema, 'foodNodeOccupationV1');
-  assert.match(occupation, /name: 'food_node_occupation_v1',[\s\S]*public: true/);
+  const occupation = tableDefinition(schema, 'stoneNodeOccupationV1');
+  assert.match(occupation, /name: 'stone_node_occupation_v1',[\s\S]*public: true/);
   assert.doesNotMatch(occupation, /\bfid\b|accrued|credited|idempotency|balance/i);
 
-  const expedition = tableDefinition(schema, 'foodExpeditionV1');
+  const expedition = tableDefinition(schema, 'stoneExpeditionV1');
   assert.doesNotMatch(expedition, /public:\s*true/);
   assert.match(expedition, /fid: t\.u64\(\)\.unique\(\)/);
   assert.match(expedition, /originCastleId: t\.u64\(\)\.unique\(\)/);
-  assert.match(expedition, /accruedFood: t\.u64\(\),[\s\S]*creditedFood: t\.u64\(\)/);
+  assert.match(expedition, /accruedStone: t\.u64\(\),[\s\S]*creditedStone: t\.u64\(\)/);
 
-  const schedule = tableDefinition(schema, 'foodExpeditionScheduleV1');
-  assert.match(schedule, /name: 'food_expedition_schedule_v_1'/);
+  const schedule = tableDefinition(schema, 'stoneExpeditionScheduleV1');
+  assert.match(schedule, /name: 'stone_expedition_schedule_v_1'/);
   assert.match(schedule, /public:\s*true/);
-  assert.match(schedule, /scheduled: \(\): any => runFoodExpeditionScheduleV1/);
+  assert.match(schedule, /scheduled: \(\): any => runStoneExpeditionScheduleV1/);
 });
 
-test('Food reducer inputs are caller-bound and its lifecycle is scheduler-only', () => {
-  const reducer = source('../src/reducers/foodExpeditions.ts');
+test('Stone reducer inputs are caller-bound and its lifecycle is scheduler-only', () => {
+  const reducer = source('../src/reducers/stoneExpeditions.ts');
   const dispatch = section(
     reducer,
-    'export const dispatchFoodExpeditionV1',
+    'export const dispatchStoneExpeditionV1',
     '/**\n * Explicit no-input claim',
   );
   const privateState = section(
     reducer,
-    'export const getMyFoodExpeditionStateV1',
+    'export const getMyStoneExpeditionStateV1',
     '/**\n * The browser supplies',
   );
-  assert.match(dispatch, /name: 'dispatch_food_expedition_v1'/);
+  assert.match(dispatch, /name: 'dispatch_stone_expedition_v1'/);
   assert.match(dispatch, /\{ siteId: t\.string\(\), idempotencyKey: t\.string\(\) \}/);
   assert.match(dispatch, /requireGameplayPlayerV1\(ctx\)/);
-  assert.match(dispatch, /dispatchGenesisFoodExpedition\(ctx, \{[\s\S]*fid: claims\.fid,[\s\S]*siteId,[\s\S]*idempotencyKey/);
-  assert.doesNotMatch(dispatch, /(?:q|r|fid|castleId|rate|time|duration|phase|food)\s*:\s*t\./i);
-  assert.match(privateState, /name: 'get_my_food_expedition_state_v1'/);
-  assert.match(privateState, /pendingFood: state\.pendingFood/);
+  assert.match(dispatch, /dispatchGenesisStoneExpedition\(ctx, \{[\s\S]*fid: claims\.fid,[\s\S]*siteId,[\s\S]*idempotencyKey/);
+  assert.doesNotMatch(dispatch, /(?:q|r|fid|castleId|rate|time|duration|phase|stone)\s*:\s*t\./i);
+  assert.match(privateState, /name: 'get_my_stone_expedition_state_v1'/);
+  assert.match(privateState, /pendingStone: state\.pendingStone/);
 
   const schema = source('../src/schema.ts');
-  const scheduled = section(schema, 'export const runFoodExpeditionScheduleV1', 'for (const name of [');
-  assert.match(scheduled, /name: 'run_food_expedition_schedule_v_1'/);
+  const scheduled = section(schema, 'export const runStoneExpeditionScheduleV1', 'for (const name of [');
+  assert.match(scheduled, /name: 'run_stone_expedition_schedule_v_1'/);
   assert.doesNotMatch(scheduled, /senderAuth\.isInternal|connectionId|databaseIdentity/);
-  assert.match(scheduled, /runFoodExpeditionSchedule\(ctx, arg\)/);
+  assert.match(scheduled, /runStoneExpeditionSchedule\(ctx, arg\)/);
 
-  const authority = source('../src/foodExpeditionAuthority.ts');
-  const expiry = section(authority, 'function creditExpiredFood', 'function completeReturn');
-  assert.match(expiry, /foodNodeOccupationV1\.siteId\.update\(\{[\s\S]*phase: 'returning'/);
+  const authority = source('../src/stoneExpeditionAuthority.ts');
+  const expiry = section(authority, 'function creditExpiredStone', 'function completeReturn');
+  assert.match(expiry, /stoneNodeOccupationV1\.siteId\.update\(\{[\s\S]*phase: 'returning'/);
   assert.doesNotMatch(expiry, /siteId\.delete\(occupation\.siteId\)/);
-  const completion = section(authority, 'function completeReturn', 'export type FoodSiteSeedPlan');
+  const completion = section(authority, 'function completeReturn', 'export type StoneSiteSeedPlan');
   assert.match(completion, /assertOccupationMatchesExpedition\(occupation, expedition\)/);
   assert.match(completion, /occupation\.phase !== 'returning'/);
-  assert.match(completion, /foodNodeOccupationV1\.siteId\.delete\(occupation\.siteId\)/);
+  assert.match(completion, /stoneNodeOccupationV1\.siteId\.delete\(occupation\.siteId\)/);
   assert.ok(
-    completion.indexOf('foodNodeOccupationV1.siteId.delete(occupation.siteId)')
-      < completion.indexOf('foodExpeditionV1.expeditionId.delete(expedition.expeditionId)'),
+    completion.indexOf('stoneNodeOccupationV1.siteId.delete(occupation.siteId)')
+      < completion.indexOf('stoneExpeditionV1.expeditionId.delete(expedition.expeditionId)'),
   );
 });
 
-test('Food, Gold, and Wood wagons are independent while every passive settlement preserves paired reserves', () => {
+test('Food, Stone, and Gold wagons are independent while every passive settlement preserves paired reserves', () => {
+  const stoneAuthority = source('../src/stoneExpeditionAuthority.ts');
   const foodAuthority = source('../src/foodExpeditionAuthority.ts');
-  const woodAuthority = source('../src/woodExpeditionAuthority.ts');
   const goldAuthority = source('../src/goldExpeditionAuthority.ts');
   const resources = source('../src/reducers/resources.ts');
   const reservation = source('../src/resourceExpeditionReservationAuthority.ts');
 
-  const foodDispatch = section(foodAuthority, 'export function dispatchGenesisFoodExpedition', '/**\n * Claim');
+  const stoneDispatch = section(stoneAuthority, 'export function dispatchGenesisStoneExpedition', '/**\n * Claim');
   const goldDispatch = section(goldAuthority, 'export function dispatchGenesisGoldExpedition', '/**\n * Claim');
-  assert.match(foodDispatch, /foodExpeditionV1\.originCastleId\.find/);
+  assert.match(stoneDispatch, /stoneExpeditionV1\.originCastleId\.find/);
   assert.match(goldDispatch, /goldExpeditionV1\.originCastleId\.find/);
   // Separate private tables deliberately permit the same founder/castle to
-  // have Food, Wood, and Gold wagons in flight at the same time.
-  assert.doesNotMatch(foodDispatch, /goldExpeditionV1/);
-  assert.doesNotMatch(goldDispatch, /foodExpeditionV1/);
+  // have one Stone wagon alongside independently bounded Food and Gold wagons.
+  assert.doesNotMatch(stoneDispatch, /goldExpeditionV1/);
+  assert.doesNotMatch(stoneDispatch, /foodExpeditionV1/);
+  assert.doesNotMatch(goldDispatch, /stoneExpeditionV1/);
 
   for (const [name, text] of [
     ['resource HUD/collector', resources],
     ['Gold lifecycle', goldAuthority],
     ['Food lifecycle', foodAuthority],
-    ['Wood lifecycle', woodAuthority],
+    ['Stone lifecycle', stoneAuthority],
   ] as const) {
     assert.match(
       text,
       /planResourceSettlementForActiveExpeditionReservations\(/,
-      `${name} must preserve active Food and Wood awards`,
+      `${name} must preserve active Food and Stone awards`,
     );
   }
   assert.match(reservation, /ctx\.db\.foodExpeditionV1\.fid\.find\(fid\)/);
-  assert.match(reservation, /ctx\.db\.woodExpeditionV1\.fid\.find\(fid\)/);
-  assert.match(reservation, /FOOD_GATHERING_TOTAL_FOOD - food\.creditedFood/);
+  assert.match(reservation, /ctx\.db\.stoneExpeditionV1\.fid\.find\(fid\)/);
+  assert.match(reservation, /STONE_GATHERING_TOTAL_STONE - stone\.creditedStone/);
   assert.match(reservation, /planResourceSettlementWithExpeditionReservations\(/);
 
-  const foodExpiry = section(foodAuthority, 'function creditExpiredFood', 'function completeReturn');
-  assert.match(foodExpiry, /planResourceSettlementForActiveExpeditionReservations\([\s\S]*now,/);
-  assert.doesNotMatch(foodExpiry, /planResourceSettlement\([\s\S]*gatheringEndsAtMicros/);
+  const stoneExpiry = section(stoneAuthority, 'function creditExpiredStone', 'function completeReturn');
+  assert.match(stoneExpiry, /planResourceSettlementForActiveExpeditionReservations\([\s\S]*now,/);
+  assert.doesNotMatch(stoneExpiry, /planResourceSettlement\([\s\S]*gatheringEndsAtMicros/);
   const goldExpiry = section(goldAuthority, 'function creditExpiredGold', 'function completeReturn');
   assert.match(goldExpiry, /planResourceSettlementForActiveExpeditionReservations\([\s\S]*now,/);
 
   const collect = section(resources, 'export const collectResourcesV1', '/**\n * Hermes-only');
-  assert.match(collect, /collectActiveFoodExpedition\(ctx, claims\.fid\)/);
+  assert.match(collect, /collectActiveStoneExpedition\(ctx, claims\.fid\)/);
   assert.match(collect, /collectActiveGoldExpedition\(ctx, claims\.fid\)/);
   assert.ok(
-    collect.indexOf('collectActiveFoodExpedition(ctx, claims.fid)')
+    collect.indexOf('collectActiveStoneExpedition(ctx, claims.fid)')
       < collect.indexOf('planResourceSettlementForActiveExpeditionReservations('),
   );
 });

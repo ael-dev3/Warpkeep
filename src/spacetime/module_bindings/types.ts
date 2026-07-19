@@ -420,6 +420,25 @@ export const MyResourceStateV1 = __t.object("MyResourceStateV1", {
 });
 export type MyResourceStateV1 = __Infer<typeof MyResourceStateV1>;
 
+export const MyStoneExpeditionStateV1 = __t.object("MyStoneExpeditionStateV1", {
+  active: __t.bool(),
+  expeditionId: __t.option(__t.string()),
+  siteId: __t.option(__t.string()),
+  originCastleId: __t.option(__t.u64()),
+  phase: __t.option(__t.string()),
+  startedAtMicros: __t.option(__t.u64()),
+  arrivesAtMicros: __t.option(__t.u64()),
+  gatheringEndsAtMicros: __t.option(__t.u64()),
+  returnsAtMicros: __t.option(__t.u64()),
+  accruedStone: __t.u64(),
+  pendingStone: __t.u64(),
+  creditedStone: __t.u64(),
+  rateStonePerMinute: __t.u64(),
+  gatheringDurationMicros: __t.u64(),
+  expeditionPolicyVersion: __t.option(__t.string()),
+});
+export type MyStoneExpeditionStateV1 = __Infer<typeof MyStoneExpeditionStateV1>;
+
 export const MyWoodExpeditionStateV1 = __t.object("MyWoodExpeditionStateV1", {
   active: __t.bool(),
   expeditionId: __t.option(__t.string()),
@@ -678,6 +697,63 @@ export const SnapScanCursorV1 = __t.object("SnapScanCursorV1", {
   scannedAt: __t.timestamp(),
 });
 export type SnapScanCursorV1 = __Infer<typeof SnapScanCursorV1>;
+
+export const StoneExpeditionIdempotencyV1 = __t.object("StoneExpeditionIdempotencyV1", {
+  requestKey: __t.string(),
+  fid: __t.u64(),
+  siteId: __t.string(),
+  expeditionId: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type StoneExpeditionIdempotencyV1 = __Infer<typeof StoneExpeditionIdempotencyV1>;
+
+export const StoneExpeditionScheduleV1 = __t.object("StoneExpeditionScheduleV1", {
+  scheduleId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  stage: __t.string(),
+});
+export type StoneExpeditionScheduleV1 = __Infer<typeof StoneExpeditionScheduleV1>;
+
+export const StoneExpeditionV1 = __t.object("StoneExpeditionV1", {
+  expeditionId: __t.string(),
+  fid: __t.u64(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+  settledThroughMicros: __t.u64(),
+  accruedStone: __t.u64(),
+  creditedStone: __t.u64(),
+  policyVersion: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type StoneExpeditionV1 = __Infer<typeof StoneExpeditionV1>;
+
+export const StoneNodeOccupationV1 = __t.object("StoneNodeOccupationV1", {
+  siteId: __t.string(),
+  originCastleId: __t.u64(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+});
+export type StoneNodeOccupationV1 = __Infer<typeof StoneNodeOccupationV1>;
+
+export const StoneSiteV1 = __t.object("StoneSiteV1", {
+  siteId: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  tier: __t.u32(),
+  active: __t.bool(),
+});
+export type StoneSiteV1 = __Infer<typeof StoneSiteV1>;
 
 export const WalletAttributionSnapshotV1 = __t.object("WalletAttributionSnapshotV1", {
   snapshotKey: __t.string(),

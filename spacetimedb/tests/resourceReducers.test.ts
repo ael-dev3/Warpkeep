@@ -42,7 +42,7 @@ function mutationTargets(text: string): string[] {
     .map(match => match[1]);
 }
 
-test('resource and Gold prefixes remain intact before the v6 forest, v7 Food, and v8 Wood appends', () => {
+test('resource and Gold prefixes remain intact before the v9 Stone append', () => {
   const schema = source('../src/schema.ts');
   const deployedV3 = source('../migration-fixtures/additive-v3-schema/src/index.ts');
   const deployedRegistrations = schemaRegistrations(deployedV3);
@@ -68,6 +68,11 @@ test('resource and Gold prefixes remain intact before the v6 forest, v7 Food, an
     'woodExpeditionV1',
     'woodExpeditionIdempotencyV1',
     'woodExpeditionScheduleV1',
+    'stoneSiteV1',
+    'stoneNodeOccupationV1',
+    'stoneExpeditionV1',
+    'stoneExpeditionIdempotencyV1',
+    'stoneExpeditionScheduleV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');

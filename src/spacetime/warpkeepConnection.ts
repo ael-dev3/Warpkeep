@@ -11,6 +11,8 @@ import type {
   WarpkeepFoodSite,
   WarpkeepWoodNodeOccupation,
   WarpkeepWoodSite,
+  WarpkeepStoneNodeOccupation,
+  WarpkeepStoneSite,
   WarpkeepGoldNodeOccupation,
   WarpkeepGoldSite,
   WarpkeepPlayer,
@@ -57,6 +59,10 @@ import {
   type ReadyWoodExpeditionPresentation
 } from '../components/realm/realmWoodExpeditionPresentation';
 import {
+  decodeStoneExpeditionPresentation,
+  type ReadyStoneExpeditionPresentation
+} from '../components/realm/realmStoneExpeditionPresentation';
+import {
   isRealmGoldNodeOccupationPublicRecord,
   isRealmGoldSitePublicRecord
 } from '../components/realm/realmGoldNodePresentation';
@@ -69,12 +75,18 @@ import {
   isRealmWoodSitePublicRecord
 } from '../components/realm/realmWoodNodePresentation';
 import {
+  isRealmStoneNodeOccupationPublicRecord,
+  isRealmStoneSitePublicRecord
+} from '../components/realm/realmStoneNodePresentation';
+import {
   REALM_FOOD_SITE_COUNT,
   REALM_GOLD_SITE_COUNT,
   REALM_WOOD_SITE_COUNT,
+  REALM_STONE_SITE_COUNT,
   isCanonicalRealmFoodSiteCatalog,
   isCanonicalRealmGoldSiteCatalog,
-  isCanonicalRealmWoodSiteCatalog
+  isCanonicalRealmWoodSiteCatalog,
+  isCanonicalRealmStoneSiteCatalog
 } from '../components/realm/realmResourceSiteCatalogPolicy';
 import { GENESIS_FOREST_LAYOUT_V1_TREE_COUNT } from '../../spacetimedb/src/forestLayoutContract';
 
@@ -119,6 +131,14 @@ type WoodProjectionAvailability =
   | typeof WOOD_PROJECTION_PENDING
   | typeof WOOD_PROJECTION_READY;
 const woodProjectionAvailability = new WeakMap<WarpkeepConnection, WoodProjectionAvailability>();
+const STONE_PROJECTION_UNAVAILABLE = 'unavailable' as const;
+const STONE_PROJECTION_PENDING = 'pending' as const;
+const STONE_PROJECTION_READY = 'ready' as const;
+type StoneProjectionAvailability =
+  | typeof STONE_PROJECTION_UNAVAILABLE
+  | typeof STONE_PROJECTION_PENDING
+  | typeof STONE_PROJECTION_READY;
+const stoneProjectionAvailability = new WeakMap<WarpkeepConnection, StoneProjectionAvailability>();
 const FOREST_PROJECTION_UNAVAILABLE = 'unavailable' as const;
 const FOREST_PROJECTION_PENDING = 'pending' as const;
 const FOREST_PROJECTION_READY = 'ready' as const;
@@ -137,6 +157,8 @@ const FOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const FOOD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const WOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const WOOD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
+const STONE_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
+const STONE_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
@@ -531,9 +553,75 @@ export async function collectWarpkeepWoodExpedition(
   return Object.freeze({ resources, woodExpedition });
 }
 
+type StoneProcedureSurface = Readonly<{
+  getMyStoneExpeditionStateV1?: (input: Readonly<Record<string, never>>) => Promise<unknown>;
+}>;
+
+type StoneReducerSurface = Readonly<{
+  dispatchStoneExpeditionV1?: (input: Readonly<{
+    siteId: string;
+    idempotencyKey: string;
+  }>) => Promise<unknown> | unknown;
+  collectStoneExpeditionV1?: (input: Readonly<Record<string, never>>) => Promise<unknown> | unknown;
+}>;
+
+function stoneProcedureSurface(connection: WarpkeepConnection) {
+  return connection.procedures as unknown as StoneProcedureSurface;
+}
+
+function stoneReducerSurface(connection: WarpkeepConnection) {
+  return connection.reducers as unknown as StoneReducerSurface;
+}
+
+/** Stone is an independent additive capability, like Food and Wood. */
+export async function readWarpkeepStoneExpeditionState(
+  connection: WarpkeepConnection
+): Promise<ReadyStoneExpeditionPresentation | undefined> {
+  const procedure = stoneProcedureSurface(connection).getMyStoneExpeditionStateV1;
+  if (typeof procedure !== 'function') return undefined;
+  const raw = await procedure({});
+  const decoded = decodeStoneExpeditionPresentation(raw);
+  return decoded.status === 'ready' ? decoded : undefined;
+}
+
+function assertStoneExpeditionDispatchInput(siteId: string, idempotencyKey: string) {
+  if (!STONE_SITE_ID_PATTERN.test(siteId) || !STONE_IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+    throw new Error('Stone expedition is unavailable.');
+  }
+}
+
+export async function dispatchWarpkeepStoneExpedition(
+  connection: WarpkeepConnection,
+  siteId: string,
+  idempotencyKey: string
+): Promise<ReadyStoneExpeditionPresentation | undefined> {
+  assertStoneExpeditionDispatchInput(siteId, idempotencyKey);
+  const reducer = stoneReducerSurface(connection).dispatchStoneExpeditionV1;
+  if (typeof reducer !== 'function') throw new Error('Stone expedition is unavailable.');
+  await reducer({ siteId, idempotencyKey });
+  return readWarpkeepStoneExpeditionState(connection);
+}
+
+export async function collectWarpkeepStoneExpedition(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<Readonly<{
+  resources: ReadyRealmResourcePresentation;
+  stoneExpedition: ReadyStoneExpeditionPresentation | undefined;
+}>> {
+  const reducer = stoneReducerSurface(connection).collectStoneExpeditionV1;
+  if (typeof reducer !== 'function') throw new Error('Stone expedition is unavailable.');
+  await reducer({});
+  const [resources, stoneExpedition] = await Promise.all([
+    readWarpkeepResourceState(connection, ownFid),
+    readWarpkeepStoneExpeditionState(connection)
+  ]);
+  return Object.freeze({ resources, stoneExpedition });
+}
+
 /**
  * Start the protocol-v3 core shared-state subscription and additive public
- * Gold/Food/Wood/forest subscriptions. The scheduler, forest seeding reducer, and every
+ * Gold/Food/Wood/Stone/forest subscriptions. The scheduler, forest seeding reducer, and every
  * private economy table remain outside the player graph. If an additive
  * schema is not deployed yet, the core Realm remains live but that visual
  * layer is empty rather than locally synthesized.
@@ -547,6 +635,7 @@ export function subscribeToWarpkeepRealm(
   goldProjectionAvailability.set(connection, GOLD_PROJECTION_PENDING);
   foodProjectionAvailability.set(connection, FOOD_PROJECTION_PENDING);
   woodProjectionAvailability.set(connection, WOOD_PROJECTION_PENDING);
+  stoneProjectionAvailability.set(connection, STONE_PROJECTION_PENDING);
   forestProjectionAvailability.set(connection, FOREST_PROJECTION_PENDING);
   const coreSubscription = connection
     .subscriptionBuilder()
@@ -657,6 +746,33 @@ export function subscribeToWarpkeepRealm(
     woodProjectionAvailability.set(connection, WOOD_PROJECTION_UNAVAILABLE);
   }
 
+  let stoneSubscription: SubscriptionHandle | undefined;
+  const stoneTables = publicStoneTables(connection);
+  const stoneBindings = publicStoneSubscriptionTables();
+  if (stoneTables !== undefined && stoneBindings !== undefined) {
+    try {
+      stoneSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          stoneProjectionAvailability.set(connection, STONE_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          stoneProjectionAvailability.set(connection, STONE_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          stoneBindings.stoneSiteV1,
+          stoneBindings.stoneNodeOccupationV1
+        ]);
+    } catch {
+      stoneProjectionAvailability.set(connection, STONE_PROJECTION_UNAVAILABLE);
+      if (coreApplied) onApplied();
+    }
+  } else {
+    stoneProjectionAvailability.set(connection, STONE_PROJECTION_UNAVAILABLE);
+  }
+
   let forestSubscription: SubscriptionHandle | undefined;
   const forestTables = publicForestTables(connection);
   // A pre-forest service (or a deliberately narrow test double) cannot make
@@ -691,6 +807,7 @@ export function subscribeToWarpkeepRealm(
       goldProjectionAvailability.delete(connection);
       foodProjectionAvailability.delete(connection);
       woodProjectionAvailability.delete(connection);
+      stoneProjectionAvailability.delete(connection);
       forestProjectionAvailability.delete(connection);
       try {
         try {
@@ -700,7 +817,11 @@ export function subscribeToWarpkeepRealm(
             try {
               foodSubscription?.unsubscribe();
             } finally {
-              woodSubscription?.unsubscribe();
+              try {
+                woodSubscription?.unsubscribe();
+              } finally {
+                stoneSubscription?.unsubscribe();
+              }
             }
           }
         } finally {
@@ -887,6 +1008,14 @@ function asPublicWoodRow(value: unknown): PublicWoodTableRow | undefined {
     : undefined;
 }
 
+type PublicStoneTableRow = Readonly<Record<string, unknown>>;
+
+function asPublicStoneRow(value: unknown): PublicStoneTableRow | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as PublicStoneTableRow
+    : undefined;
+}
+
 type PublicForestTableRow = Readonly<Record<string, unknown>>;
 
 function asPublicForestRow(value: unknown): PublicForestTableRow | undefined {
@@ -1006,6 +1135,15 @@ function publicWoodTables(connection: WarpkeepConnection) {
   return db;
 }
 
+function publicStoneTables(connection: WarpkeepConnection) {
+  const db = connection.db as unknown as Readonly<{
+    stoneSiteV1?: PublicFoodTable;
+    stoneNodeOccupationV1?: PublicFoodTable;
+  }> | undefined;
+  if (!db?.stoneSiteV1 || !db.stoneNodeOccupationV1) return undefined;
+  return db;
+}
+
 /**
  * Generated module bindings are intentionally optional at this browser
  * boundary during the additive rollout. Referencing through this narrow cast
@@ -1031,6 +1169,17 @@ function publicWoodSubscriptionTables() {
   return Object.freeze({
     woodSiteV1: tables.woodSiteV1,
     woodNodeOccupationV1: tables.woodNodeOccupationV1
+  });
+}
+
+/**
+ * Stone has canonical player bindings. A pre-v9 server fails only this paired
+ * subscription, leaving the core, Gold, Food, and Wood projections live.
+ */
+function publicStoneSubscriptionTables() {
+  return Object.freeze({
+    stoneSiteV1: tables.stoneSiteV1,
+    stoneNodeOccupationV1: tables.stoneNodeOccupationV1
   });
 }
 
@@ -1218,6 +1367,62 @@ function readPublicWoodProjection(connection: WarpkeepConnection): Readonly<{
   });
 }
 
+/** All-or-nothing Stone Quarry catalog projection. */
+function readPublicStoneProjection(connection: WarpkeepConnection): Readonly<{
+  sites: readonly WarpkeepStoneSite[];
+  occupations: readonly WarpkeepStoneNodeOccupation[];
+}> | undefined {
+  if (stoneProjectionAvailability.get(connection) !== STONE_PROJECTION_READY) return undefined;
+  const db = publicStoneTables(connection);
+  if (!db) return undefined;
+  const stoneSiteTable = db.stoneSiteV1;
+  const stoneOccupationTable = db.stoneNodeOccupationV1;
+  if (!stoneSiteTable || !stoneOccupationTable) return undefined;
+  const sites: WarpkeepStoneSite[] = [];
+  const siteIds = new Set<string>();
+  for (const rawRow of stoneSiteTable.iter()) {
+    if (sites.length === REALM_STONE_SITE_COUNT) return undefined;
+    const row = asPublicStoneRow(rawRow);
+    if (!row) return undefined;
+    const site = {
+      siteId: row.siteId,
+      q: row.q,
+      r: row.r,
+      tier: row.tier,
+      active: row.active
+    };
+    if (!isRealmStoneSitePublicRecord(site) || siteIds.has(site.siteId)) return undefined;
+    siteIds.add(site.siteId);
+    sites.push(Object.freeze({ ...site }));
+  }
+  if (!isCanonicalRealmStoneSiteCatalog(sites)) return undefined;
+  const occupations: WarpkeepStoneNodeOccupation[] = [];
+  const occupiedSiteIds = new Set<string>();
+  for (const rawRow of stoneOccupationTable.iter()) {
+    if (occupations.length === REALM_STONE_SITE_COUNT) return undefined;
+    const row = asPublicStoneRow(rawRow);
+    if (!row) return undefined;
+    const occupation = {
+      siteId: row.siteId,
+      originCastleId: toSafeNumber(row.originCastleId as bigint | number | undefined),
+      phase: row.phase,
+      startedAtMicros: row.startedAtMicros,
+      arrivesAtMicros: row.arrivesAtMicros,
+      gatheringEndsAtMicros: row.gatheringEndsAtMicros,
+      returnsAtMicros: row.returnsAtMicros
+    };
+    if (!isRealmStoneNodeOccupationPublicRecord(occupation) || occupiedSiteIds.has(occupation.siteId)) {
+      return undefined;
+    }
+    occupiedSiteIds.add(occupation.siteId);
+    occupations.push(Object.freeze({ ...occupation }));
+  }
+  return Object.freeze({
+    sites: Object.freeze(sites.sort((left, right) => left.siteId.localeCompare(right.siteId))),
+    occupations: Object.freeze(occupations.sort((left, right) => left.siteId.localeCompare(right.siteId)))
+  });
+}
+
 type PublicForestProjection = Readonly<{
   /** `undefined`/an array here intentionally means present-but-invalid. */
   layout: unknown;
@@ -1294,6 +1499,7 @@ export function readWarpkeepRealmSnapshot(
   const publicGold = readPublicGoldProjection(connection);
   const publicFood = readPublicFoodProjection(connection);
   const publicWood = readPublicWoodProjection(connection);
+  const publicStone = readPublicStoneProjection(connection);
   const publicForest = readPublicForestProjection(connection);
   const candidate: WarpkeepRealmSnapshotCandidate = {
     tiles: readWorldTiles(connection),
@@ -1313,6 +1519,10 @@ export function readWarpkeepRealmSnapshot(
     ...(publicWood === undefined ? {} : {
       woodSites: publicWood.sites,
       woodNodeOccupations: publicWood.occupations
+    }),
+    ...(publicStone === undefined ? {} : {
+      stoneSites: publicStone.sites,
+      stoneNodeOccupations: publicStone.occupations
     }),
     ...(publicForest === undefined ? {} : {
       forestLayout: publicForest.layout,
@@ -1396,6 +1606,13 @@ export function observeWarpkeepRealm(
   woodTables?.woodNodeOccupationV1?.onInsert?.(sync);
   woodTables?.woodNodeOccupationV1?.onDelete?.(sync);
   woodTables?.woodNodeOccupationV1?.onUpdate?.(sync);
+  const stoneTables = publicStoneTables(connection);
+  stoneTables?.stoneSiteV1?.onInsert?.(sync);
+  stoneTables?.stoneSiteV1?.onDelete?.(sync);
+  stoneTables?.stoneSiteV1?.onUpdate?.(sync);
+  stoneTables?.stoneNodeOccupationV1?.onInsert?.(sync);
+  stoneTables?.stoneNodeOccupationV1?.onDelete?.(sync);
+  stoneTables?.stoneNodeOccupationV1?.onUpdate?.(sync);
   const forestTables = publicForestTables(connection);
   forestTables?.realmForestLayoutV1?.onInsert?.(sync);
   forestTables?.realmForestLayoutV1?.onDelete?.(sync);
@@ -1439,9 +1656,15 @@ export function observeWarpkeepRealm(
     woodTables?.woodSiteV1?.removeOnInsert?.(sync);
     woodTables?.woodSiteV1?.removeOnDelete?.(sync);
     woodTables?.woodSiteV1?.removeOnUpdate?.(sync);
-    woodTables?.woodNodeOccupationV1?.removeOnInsert?.(sync);
-    woodTables?.woodNodeOccupationV1?.removeOnDelete?.(sync);
-    woodTables?.woodNodeOccupationV1?.removeOnUpdate?.(sync);
+  woodTables?.woodNodeOccupationV1?.removeOnInsert?.(sync);
+  woodTables?.woodNodeOccupationV1?.removeOnDelete?.(sync);
+  woodTables?.woodNodeOccupationV1?.removeOnUpdate?.(sync);
+    stoneTables?.stoneSiteV1?.removeOnInsert?.(sync);
+    stoneTables?.stoneSiteV1?.removeOnDelete?.(sync);
+    stoneTables?.stoneSiteV1?.removeOnUpdate?.(sync);
+    stoneTables?.stoneNodeOccupationV1?.removeOnInsert?.(sync);
+    stoneTables?.stoneNodeOccupationV1?.removeOnDelete?.(sync);
+    stoneTables?.stoneNodeOccupationV1?.removeOnUpdate?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnInsert?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnDelete?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnUpdate?.(sync);

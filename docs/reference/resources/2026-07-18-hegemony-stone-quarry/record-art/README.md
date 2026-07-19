@@ -1,8 +1,8 @@
 # Hegemony Stone Quarry inspection art
 
 This record identifies the supplied Stone Quarry artwork and the exact
-high-resolution transparent WebP prepared for the unmounted Stone Quarry
-inspection card. The original attachment, image-generation edit, and
+high-resolution transparent WebP prepared for the Stone Quarry inspection
+card. The original attachment, image-generation edit, and
 chroma-matte intermediate remain outside the repository; their hashes,
 dimensions, and complete bounded transformation are retained in
 [`manifest.json`](manifest.json).
@@ -32,6 +32,6 @@ and ground silhouette.
 `StoneQuarryInspectionPanel` displays this image as decorative, same-origin
 art with a pointer-inert art stage that rises above the card edge. Its broad
 Quarry silhouette is scaled within the existing responsive inspection shell.
-The panel is intentionally not mounted: a Stone-site catalog, map placement,
-renderer, server authority, gathering action, balance, reward, and deployment
-remain out of scope for this asset-only draft.
+The panel is now mounted from the canonical Stone-site map path. Public site
+availability and occupancy come from server rows, while dispatch, pending
+Stone, and settlement cross the authenticated provider boundary.

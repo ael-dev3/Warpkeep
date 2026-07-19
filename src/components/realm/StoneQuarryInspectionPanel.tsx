@@ -2,11 +2,21 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
   type ReactNode,
   type Ref
 } from 'react';
 
-import './GoldMineInspectionPanel.css';
+import {
+  stoneExpeditionForNode,
+  type ReadyStoneExpeditionPresentation,
+  type StoneExpeditionPresentation
+} from './realmStoneExpeditionPresentation';
+import {
+  stoneNodeAvailabilityLabel,
+  stoneNodeNextAuthorityTimestamp,
+  type RealmStoneNodePresentation
+} from './realmStoneNodePresentation';
 import './StoneQuarryInspectionPanel.css';
 
 function InspectionField({
@@ -31,29 +41,136 @@ function publicAssetUrl(path: string) {
   return `${base.endsWith('/') ? base : `${base}/`}${path.replace(/^\/+/, '')}`;
 }
 
+export type StoneQuarryInspectionRecord = Readonly<{
+  name: string;
+  tier: number;
+}>;
+
 export type StoneQuarryInspectionPanelProps = Readonly<{
   id: string;
-  /**
-   * The panel is decorative and currently unmounted. A separately reviewed,
-   * authoritative Stone-site integration must supply any future map trigger.
-   */
+  quarry: StoneQuarryInspectionRecord;
+  /** Validated public Stone site only; no balances or reducer authority. */
+  node?: RealmStoneNodePresentation;
+  /** Exact caller-only procedure data, joined again to the public site. */
+  privateExpedition?: StoneExpeditionPresentation;
+  /** Authenticated provider boundary; no optimistic public node mutation. */
+  onDispatchStoneExpedition?: (siteId: string) => Promise<void>;
+  /** Owner-only settlement boundary; resources refresh after server confirmation. */
+  onClaimStoneExpedition?: () => Promise<void>;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
 }>;
 
+function localNowMicros() {
+  return BigInt(Date.now()) * 1_000n;
+}
+
+function formatRemainingDuration(timestampMicros: bigint | undefined) {
+  if (timestampMicros === undefined) return undefined;
+  const remaining = timestampMicros - localNowMicros();
+  if (remaining <= 0n) return 'Awaiting Realm confirmation';
+  const totalMinutes = remaining / 60_000_000n;
+  const days = totalMinutes / 1_440n;
+  const hours = (totalMinutes % 1_440n) / 60n;
+  const minutes = totalMinutes % 60n;
+  if (days > 0n) return `${days}d ${hours}h remaining`;
+  if (hours > 0n) return `${hours}h ${minutes}m remaining`;
+  return `${minutes}m remaining`;
+}
+
+function nodeNotice(node: RealmStoneNodePresentation | undefined) {
+  if (!node) {
+    return 'This record presents the Stone Quarry only; it does not disclose player inventory or gathering authority.';
+  }
+  if (node.availability === 'available') {
+    return 'This Quarry is available. A dispatch exists only after the Realm records the occupation.';
+  }
+  if (node.availability === 'unavailable') {
+    return 'The public Stone state is incomplete. The Realm has not presented this Quarry as available.';
+  }
+  if (node.occupiedByViewer) {
+    return 'Your expedition is recorded by the Realm. Stone settlement remains server-authoritative.';
+  }
+  return 'This Quarry is occupied. Public occupancy is visible, but another player’s resources remain private.';
+}
+
+function visibleOwnerExpedition(
+  node: RealmStoneNodePresentation | undefined,
+  privateExpedition: StoneExpeditionPresentation | undefined
+): ReadyStoneExpeditionPresentation | undefined {
+  if (!node?.originCastle || !node.occupation || !node.occupiedByViewer) return undefined;
+  return stoneExpeditionForNode(privateExpedition, {
+    siteId: node.siteId,
+    originCastleId: node.originCastle.castleId,
+    phase: node.occupation.phase,
+    startedAtMicros: node.occupation.startedAtMicros,
+    arrivesAtMicros: node.occupation.arrivesAtMicros,
+    gatheringEndsAtMicros: node.occupation.gatheringEndsAtMicros,
+    returnsAtMicros: node.occupation.returnsAtMicros
+  });
+}
+
 /**
- * A high-resolution Stone Quarry visual record, prepared for a future
- * authoritative site integration. It intentionally exposes no placement,
- * availability, dispatch, balance, reward, or browser-owned game state.
+ * The Stone Quarry inspector uses the established public/private split:
+ * public rows choose availability, the owner-only procedure chooses pending
+ * Stone, and the only action crosses an authenticated provider boundary.
+ * The compact HUD Stone glyph is intentionally not represented as record art.
  */
 export function StoneQuarryInspectionPanel({
   id,
+  quarry,
+  node,
+  privateExpedition,
+  onDispatchStoneExpedition,
+  onClaimStoneExpedition,
   onRequestClose,
   focusTargetRef
 }: StoneQuarryInspectionPanelProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const [dispatchState, setDispatchState] = useState<
+    'idle' | 'submitting' | 'submitted' | 'failed'
+  >('idle');
+  const [claimState, setClaimState] = useState<'idle' | 'submitting' | 'failed'>('idle');
   const titleId = `${id}-title`;
   const descriptionId = `${id}-description`;
+  const scheduleTimestamp = node ? stoneNodeNextAuthorityTimestamp(node) : undefined;
+  const scheduleLabel = formatRemainingDuration(scheduleTimestamp);
+  const ownerExpedition = visibleOwnerExpedition(node, privateExpedition);
+  const privateExpeditionActive = privateExpedition?.status === 'ready'
+    && privateExpedition.active;
+  const privateActiveSiteId = privateExpeditionActive
+    ? privateExpedition?.expedition?.siteId
+    : undefined;
+  const awaitingPublicOccupation = node?.availability === 'available'
+    && (
+      privateActiveSiteId === node.siteId
+      || (!privateExpeditionActive && dispatchState === 'submitted')
+    );
+  const expeditionActiveElsewhere = node?.availability === 'available'
+    && privateExpeditionActive
+    && privateActiveSiteId !== node.siteId;
+  const canDispatch = node?.availability === 'available'
+    && onDispatchStoneExpedition !== undefined
+    && !privateExpeditionActive
+    && (dispatchState === 'idle' || dispatchState === 'failed');
+  const canClaim = ownerExpedition !== undefined
+    && ownerExpedition.pendingStone > 0n
+    && onClaimStoneExpedition !== undefined
+    && claimState !== 'submitting';
+  const dispatchLabel = dispatchState === 'submitting'
+    ? 'DISPATCHING WAGON…'
+    : awaitingPublicOccupation
+      ? 'AWAITING REALM…'
+      : expeditionActiveElsewhere
+        ? 'EXPEDITION ACTIVE'
+        : 'DISPATCH WAGON';
+  const dispatchStatus = awaitingPublicOccupation
+    ? 'The private Realm record is confirmed; awaiting the public occupation.'
+    : expeditionActiveElsewhere
+      ? 'Your Stone wagon already has an active expedition.'
+      : dispatchState === 'failed'
+        ? 'The Realm could not confirm this dispatch. Check the Quarry state and try again.'
+        : 'Dispatch is confirmed only when the Realm publishes the occupation.';
 
   const setCloseButtonRef = useCallback((element: HTMLButtonElement | null) => {
     closeButtonRef.current = element;
@@ -62,7 +179,34 @@ export function StoneQuarryInspectionPanel({
 
   useEffect(() => {
     closeButtonRef.current?.focus({ preventScroll: true });
-  }, [id]);
+  }, [quarry.name, quarry.tier, id]);
+
+  useEffect(() => {
+    setDispatchState('idle');
+    setClaimState('idle');
+  }, [node?.availability, node?.siteId]);
+
+  const dispatch = useCallback(async () => {
+    if (!node || node.availability !== 'available' || !onDispatchStoneExpedition) return;
+    setDispatchState('submitting');
+    try {
+      await onDispatchStoneExpedition(node.siteId);
+      setDispatchState('submitted');
+    } catch {
+      setDispatchState('failed');
+    }
+  }, [node, onDispatchStoneExpedition]);
+
+  const claim = useCallback(async () => {
+    if (!canClaim || !onClaimStoneExpedition) return;
+    setClaimState('submitting');
+    try {
+      await onClaimStoneExpedition();
+      setClaimState('idle');
+    } catch {
+      setClaimState('failed');
+    }
+  }, [canClaim, onClaimStoneExpedition]);
 
   return (
     <aside
@@ -102,25 +246,76 @@ export function StoneQuarryInspectionPanel({
             <span aria-hidden="true">×</span>
           </button>
           <div className="gold-mine-inspection__title-lockup">
-            <p>VISUAL REFERENCE</p>
-            <h2 id={titleId}>Stone Quarry</h2>
+            <p>TIER {quarry.tier} GATHERING SITE</p>
+            <h2 id={titleId}>{quarry.name}</h2>
           </div>
         </header>
 
         <div className="gold-mine-inspection__body">
           <p id={descriptionId} className="gold-mine-inspection__description">
-            A high-resolution Hegemony Quarry record prepared for visual review. No Stone site is
-            currently active in the Realm.
+            A Hegemony Stone Quarry positioned beneath the Realm canopy. Availability and
+            all gathering operations are determined by the Realm.
           </p>
-          <dl className="gold-mine-inspection__fields" aria-label="Stone Quarry visual record">
+          <dl className="gold-mine-inspection__fields" aria-label="Stone Quarry record">
             <InspectionField label="Resource">Stone</InspectionField>
-            <InspectionField label="Record state">Asset staged</InspectionField>
-            <InspectionField label="Realm site">Not integrated</InspectionField>
+            <InspectionField label="Node tier">{quarry.tier}</InspectionField>
+            {node ? (
+              <InspectionField label="Site state">
+                {stoneNodeAvailabilityLabel(node.availability)}
+              </InspectionField>
+            ) : null}
+            {node?.originCastle ? (
+              <InspectionField label="Occupied by">
+                {node.occupiedByViewer ? 'Your expedition' : node.originCastle.name}
+              </InspectionField>
+            ) : null}
+            {node ? (
+              <InspectionField label="Gather rate">+1 Stone / minute</InspectionField>
+            ) : null}
+            {ownerExpedition ? (
+              <InspectionField label="Pending Stone">
+                {ownerExpedition.pendingStone.toLocaleString('en-US')}
+              </InspectionField>
+            ) : null}
+            {scheduleLabel ? (
+              <InspectionField label="Realm schedule">{scheduleLabel}</InspectionField>
+            ) : null}
           </dl>
-          <p className="gold-mine-inspection__notice">
-            This reference does not create a map placement, gathering action, balance, reward, or
-            authority.
-          </p>
+          <p className="gold-mine-inspection__notice">{nodeNotice(node)}</p>
+          {node?.availability === 'available' && onDispatchStoneExpedition ? (
+            <div className="gold-mine-inspection__action">
+              <button
+                aria-describedby={descriptionId}
+                disabled={!canDispatch}
+                onClick={() => void dispatch()}
+                type="button"
+              >
+                {dispatchLabel}
+              </button>
+              <p aria-live="polite" className="gold-mine-inspection__action-status">
+                {dispatchStatus}
+              </p>
+            </div>
+          ) : null}
+          {ownerExpedition && onClaimStoneExpedition ? (
+            <div className="gold-mine-inspection__action gold-mine-inspection__action--claim">
+              <button
+                aria-describedby={descriptionId}
+                disabled={!canClaim}
+                onClick={() => void claim()}
+                type="button"
+              >
+                {claimState === 'submitting' ? 'CLAIMING STONE…' : 'CLAIM ACCRUED STONE'}
+              </button>
+              <p aria-live="polite" className="gold-mine-inspection__action-status">
+                {claimState === 'failed'
+                  ? 'The Realm could not confirm this claim. Try again after the record refreshes.'
+                  : canClaim
+                    ? 'Claim is confirmed only when the Realm refreshes your private resource record.'
+                    : 'Accrued Stone becomes claimable when the Realm reports a positive pending amount.'}
+              </p>
+            </div>
+          ) : null}
         </div>
       </div>
     </aside>

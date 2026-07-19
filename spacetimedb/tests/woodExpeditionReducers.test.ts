@@ -34,13 +34,13 @@ function schemaRegistrations(text: string): string[] {
     .map(line => line.slice(0, -1));
 }
 
-test('v8 Wood tables append after the complete v5 Gold, v6 forest, and v7 Food suffixes', () => {
+test('v8 Wood tables remain intact before the append-only v9 Stone suffix', () => {
   const schema = source('../src/schema.ts');
   const v4 = source('../migration-fixtures/additive-v4-schema/src/index.ts');
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-17), [
+  assert.deepEqual(registrations.slice(-22), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',
@@ -58,6 +58,11 @@ test('v8 Wood tables append after the complete v5 Gold, v6 forest, and v7 Food s
     'woodExpeditionV1',
     'woodExpeditionIdempotencyV1',
     'woodExpeditionScheduleV1',
+    'stoneSiteV1',
+    'stoneNodeOccupationV1',
+    'stoneExpeditionV1',
+    'stoneExpeditionIdempotencyV1',
+    'stoneExpeditionScheduleV1',
   ]);
 
   const site = tableDefinition(schema, 'woodSiteV1');

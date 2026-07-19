@@ -20,6 +20,7 @@ import AdminReplaceFidWalletSnapshotV1Reducer from "../admin_replace_fid_wallet_
 import AdminSeedGenesisForestLayoutV1Reducer from "../admin_seed_genesis_forest_layout_v_1_reducer";
 import AdminSeedGenesisTierIFoodSitesV1Reducer from "../admin_seed_genesis_tier_i_food_sites_v_1_reducer";
 import AdminSeedGenesisTierIGoldSitesV1Reducer from "../admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
+import AdminSeedGenesisTierIStoneSitesV1Reducer from "../admin_seed_genesis_tier_i_stone_sites_v_1_reducer";
 import AdminSeedGenesisTierIWoodSitesV1Reducer from "../admin_seed_genesis_tier_i_wood_sites_v_1_reducer";
 import AdminSeedWorldReducer from "../admin_seed_world_reducer";
 import AdminUpsertFidWalletAttributionV1Reducer from "../admin_upsert_fid_wallet_attribution_v_1_reducer";
@@ -29,9 +30,11 @@ import BootstrapPlayerV2Reducer from "../bootstrap_player_v_2_reducer";
 import CollectFoodExpeditionV1Reducer from "../collect_food_expedition_v_1_reducer";
 import CollectGoldExpeditionV1Reducer from "../collect_gold_expedition_v_1_reducer";
 import CollectResourcesV1Reducer from "../collect_resources_v_1_reducer";
+import CollectStoneExpeditionV1Reducer from "../collect_stone_expedition_v_1_reducer";
 import CollectWoodExpeditionV1Reducer from "../collect_wood_expedition_v_1_reducer";
 import DispatchFoodExpeditionV1Reducer from "../dispatch_food_expedition_v_1_reducer";
 import DispatchGoldExpeditionV1Reducer from "../dispatch_gold_expedition_v_1_reducer";
+import DispatchStoneExpeditionV1Reducer from "../dispatch_stone_expedition_v_1_reducer";
 import DispatchWoodExpeditionV1Reducer from "../dispatch_wood_expedition_v_1_reducer";
 
 export type AcceptAlphaTermsV1Params = __Infer<typeof AcceptAlphaTermsV1Reducer>;
@@ -48,6 +51,7 @@ export type AdminReplaceFidWalletSnapshotV1Params = __Infer<typeof AdminReplaceF
 export type AdminSeedGenesisForestLayoutV1Params = __Infer<typeof AdminSeedGenesisForestLayoutV1Reducer>;
 export type AdminSeedGenesisTierIFoodSitesV1Params = __Infer<typeof AdminSeedGenesisTierIFoodSitesV1Reducer>;
 export type AdminSeedGenesisTierIGoldSitesV1Params = __Infer<typeof AdminSeedGenesisTierIGoldSitesV1Reducer>;
+export type AdminSeedGenesisTierIStoneSitesV1Params = __Infer<typeof AdminSeedGenesisTierIStoneSitesV1Reducer>;
 export type AdminSeedGenesisTierIWoodSitesV1Params = __Infer<typeof AdminSeedGenesisTierIWoodSitesV1Reducer>;
 export type AdminSeedWorldParams = __Infer<typeof AdminSeedWorldReducer>;
 export type AdminUpsertFidWalletAttributionV1Params = __Infer<typeof AdminUpsertFidWalletAttributionV1Reducer>;
@@ -57,8 +61,10 @@ export type BootstrapPlayerV2Params = __Infer<typeof BootstrapPlayerV2Reducer>;
 export type CollectFoodExpeditionV1Params = __Infer<typeof CollectFoodExpeditionV1Reducer>;
 export type CollectGoldExpeditionV1Params = __Infer<typeof CollectGoldExpeditionV1Reducer>;
 export type CollectResourcesV1Params = __Infer<typeof CollectResourcesV1Reducer>;
+export type CollectStoneExpeditionV1Params = __Infer<typeof CollectStoneExpeditionV1Reducer>;
 export type CollectWoodExpeditionV1Params = __Infer<typeof CollectWoodExpeditionV1Reducer>;
 export type DispatchFoodExpeditionV1Params = __Infer<typeof DispatchFoodExpeditionV1Reducer>;
 export type DispatchGoldExpeditionV1Params = __Infer<typeof DispatchGoldExpeditionV1Reducer>;
+export type DispatchStoneExpeditionV1Params = __Infer<typeof DispatchStoneExpeditionV1Reducer>;
 export type DispatchWoodExpeditionV1Params = __Infer<typeof DispatchWoodExpeditionV1Reducer>;
 

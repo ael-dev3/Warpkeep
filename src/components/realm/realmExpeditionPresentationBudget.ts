@@ -1,7 +1,7 @@
 import type { RealmQuality } from './realmQuality';
 
 /**
- * One scene-wide ceiling for every expedition resource. Gold, Food, and Wood
+ * One scene-wide ceiling for every expedition resource. Gold, Food, Wood, and Stone
  * must share this allocator rather than each adding their own model, wagon,
  * or mixer ceiling to the same realm scene.
  */
@@ -48,6 +48,14 @@ export const HEGEMONY_LOGGING_CAMP_RENDER_LIMITS = Object.freeze({
   } as const)
 });
 
+export const HEGEMONY_STONE_QUARRY_RENDER_LIMITS = Object.freeze({
+  maximumRenderedNodes: Object.freeze({
+    high: 18,
+    balanced: 24,
+    reduced: 12
+  } as const)
+});
+
 export type RealmExpeditionLayerBudget = Readonly<{
   maximumRenderedNodes: number;
   maximumRenderedWagons: number;
@@ -61,15 +69,17 @@ export type RealmExpeditionSceneBudget = Readonly<{
   gold: RealmExpeditionLayerBudget;
   food: RealmExpeditionLayerBudget;
   wood: RealmExpeditionLayerBudget;
+  stone: RealmExpeditionLayerBudget;
 }>;
 
-type ExpeditionResource = 'gold' | 'food' | 'wood';
+type ExpeditionResource = 'gold' | 'food' | 'wood' | 'stone';
 type ResourceCounts = Readonly<Record<ExpeditionResource, number>>;
 type ResourceBudget = Readonly<Record<ExpeditionResource, number>>;
 const EXPEDITION_RESOURCES: readonly ExpeditionResource[] = Object.freeze([
   'gold',
   'food',
-  'wood'
+  'wood',
+  'stone'
 ]);
 
 function asCount(value: number) {
@@ -87,10 +97,11 @@ function splitBudget(total: number, counts: ResourceCounts): ResourceBudget {
   const normalized = Object.freeze({
     gold: asCount(counts.gold),
     food: asCount(counts.food),
-    wood: asCount(counts.wood)
+    wood: asCount(counts.wood),
+    stone: asCount(counts.stone)
   });
   const active = EXPEDITION_RESOURCES.filter((resource) => normalized[resource] > 0);
-  const allocations: Record<ExpeditionResource, number> = { gold: 0, food: 0, wood: 0 };
+  const allocations: Record<ExpeditionResource, number> = { gold: 0, food: 0, wood: 0, stone: 0 };
   if (boundedTotal <= 0 || active.length === 0) return Object.freeze(allocations);
   if (active.length === 1) {
     const resource = active[0]!;
@@ -140,22 +151,26 @@ export function createRealmExpeditionSceneBudget(input: Readonly<{
   goldNodeCount: number;
   foodNodeCount: number;
   woodNodeCount: number;
+  stoneNodeCount?: number;
   mobile: boolean;
 }>): RealmExpeditionSceneBudget {
   const counts = Object.freeze({
     gold: asCount(input.goldNodeCount),
     food: asCount(input.foodNodeCount),
-    wood: asCount(input.woodNodeCount)
+    wood: asCount(input.woodNodeCount),
+    stone: asCount(input.stoneNodeCount ?? 0)
   });
   const maximumSceneNodes = HEGEMONY_EXPEDITION_SCENE_LIMITS.maximumRenderedNodes[input.quality];
   const maximumFoodNodes = HEGEMONY_WHEAT_FARM_RENDER_LIMITS.maximumRenderedNodes[input.quality];
   const maximumWoodNodes = HEGEMONY_LOGGING_CAMP_RENDER_LIMITS.maximumRenderedNodes[input.quality];
+  const maximumStoneNodes = HEGEMONY_STONE_QUARRY_RENDER_LIMITS.maximumRenderedNodes[input.quality];
   const nodeCaps = splitBudget(
     maximumSceneNodes,
     Object.freeze({
       gold: counts.gold,
       food: Math.min(counts.food, maximumFoodNodes),
-      wood: Math.min(counts.wood, maximumWoodNodes)
+      wood: Math.min(counts.wood, maximumWoodNodes),
+      stone: Math.min(counts.stone, maximumStoneNodes)
     })
   );
   const wagonCaps = splitBudget(
@@ -185,6 +200,12 @@ export function createRealmExpeditionSceneBudget(input: Readonly<{
       wagonCaps.wood,
       detailedAnimationCaps.wood,
       animationCaps.wood
+    ),
+    stone: layerBudget(
+      nodeCaps.stone,
+      wagonCaps.stone,
+      detailedAnimationCaps.stone,
+      animationCaps.stone
     )
   });
 }

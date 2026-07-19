@@ -3,6 +3,7 @@ import type { ReadyRealmResourcePresentation } from '../components/realm/realmRe
 import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
 import type { ReadyFoodExpeditionPresentation } from '../components/realm/realmFoodExpeditionPresentation';
 import type { ReadyWoodExpeditionPresentation } from '../components/realm/realmWoodExpeditionPresentation';
+import type { ReadyStoneExpeditionPresentation } from '../components/realm/realmStoneExpeditionPresentation';
 
 export type WarpkeepAdmissionStatus =
   | 'not_admitted'
@@ -158,6 +159,26 @@ export type WarpkeepWoodNodeOccupation = Readonly<{
   returnsAtMicros: bigint;
 }>;
 
+/** Public v9 Stone Quarry-site projection. */
+export type WarpkeepStoneSite = Readonly<{
+  siteId: string;
+  q: number;
+  r: number;
+  tier: number;
+  active: boolean;
+}>;
+
+/** Public timing/occupancy only; Stone accrual remains caller-private. */
+export type WarpkeepStoneNodeOccupation = Readonly<{
+  siteId: string;
+  originCastleId: number;
+  phase: 'outbound' | 'gathering' | 'returning';
+  startedAtMicros: bigint;
+  arrivesAtMicros: bigint;
+  gatheringEndsAtMicros: bigint;
+  returnsAtMicros: bigint;
+}>;
+
 /**
  * Public, immutable realm-wide forest layout metadata. This is visual state
  * only: server-side seeding authority and all administrative reducers remain
@@ -219,6 +240,10 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   woodSites?: readonly WarpkeepWoodSite[];
   /** Omitted with `woodSites`; absent/invalid data renders no Wood nodes. */
   woodNodeOccupations?: readonly WarpkeepWoodNodeOccupation[];
+  /** Omitted while the additive public Stone projection is unavailable. */
+  stoneSites?: readonly WarpkeepStoneSite[];
+  /** Omitted with `stoneSites`; absent/invalid data renders no Stone nodes. */
+  stoneNodeOccupations?: readonly WarpkeepStoneNodeOccupation[];
   /**
    * Additive public forest metadata. The connection publishes the pair only
    * after one atomic subscription applies; a one-sided test/malformed value
@@ -257,6 +282,8 @@ export type WarpkeepBackendState = Readonly<{
   foodExpedition?: ReadyFoodExpeditionPresentation;
   /** Caller-only, exact procedure projection for the active Wood expedition. */
   woodExpedition?: ReadyWoodExpeditionPresentation;
+  /** Caller-only, exact procedure projection for the active Stone expedition. */
+  stoneExpedition?: ReadyStoneExpeditionPresentation;
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({

@@ -78,7 +78,7 @@ function visibleBounds(raw: Buffer, width: number, height: number) {
 }
 
 describe('Hegemony Stone Quarry record art', () => {
-  it('pins the narrow UI authorization without creating a Stone site', () => {
+  it('pins the narrow UI authorization while keeping gameplay server-owned', () => {
     expect(manifest.schemaVersion).toBe(1);
     expect(manifest.projectAuthorization.scope).toContain('PR #59');
     expect(manifest.projectAuthorization.scope).toContain('public Warpkeep GitHub repository');
@@ -89,9 +89,9 @@ describe('Hegemony Stone Quarry record art', () => {
     expect(manifest.licence.spdx).toBe('LicenseRef-Warpkeep-Provenance-Required');
     expect(manifest.sourceInputs.every((source) => source.repositoryRetained === false)).toBe(true);
     expect(manifest.presentationBoundary.currentRealmMount)
-      .toContain('not mounted');
+      .toContain('canonical public Stone-site validation');
     expect(manifest.presentationBoundary.currentNodePlacement)
-      .toContain('none');
+      .toContain('server-governed');
     expect(manifest.presentationBoundary.forbiddenClaims)
       .toContain('browser-derived gathering authority');
 
@@ -138,7 +138,7 @@ describe('Hegemony Stone Quarry record art', () => {
       .toBeGreaterThan(manifest.runtimeAsset.width * manifest.runtimeAsset.height * 0.5);
   });
 
-  it('keeps the future-facing panel local, decorative, and unmounted', () => {
+  it('keeps the panel decorative while wiring actions through the server boundary', () => {
     const component = readFileSync(
       resolve(ROOT, manifest.presentationBoundary.component),
       'utf8'
@@ -151,10 +151,11 @@ describe('Hegemony Stone Quarry record art', () => {
     expect(component).toContain('aria-hidden="true"');
     expect(component).toContain('decoding="async"');
     expect(component).toContain('draggable={false}');
-    expect(component).toContain('No Stone site is');
+    expect(component).toContain('onDispatchStoneExpedition');
+    expect(component).toContain('onClaimStoneExpedition');
+    expect(component).toContain('pendingStone');
     expect(component).not.toMatch(/https?:\/\//i);
-    expect(component).not.toMatch(/onDispatch|onClaim|pendingStone/i);
-    expect(css).toContain('scale(1.55)');
-    expect(map).not.toContain('StoneQuarryInspectionPanel');
+    expect(css).toContain('scale(1.055)');
+    expect(map).toContain('StoneQuarryInspectionPanel');
   });
 });
