@@ -21,7 +21,7 @@ and backend protocol versions are separate compatibility values.
 2. Deploy the intended service or client from that commit. A frontend merge does
    not authorize a Worker or database publication.
 3. Confirm the public build reports the intended commit.
-4. Create an annotated `vX.Y.Z` tag and GitHub Release.
+4. Create a `vX.Y.Z` tag and GitHub Release.
 5. Summarize player-facing changes in [`CHANGELOG.md`](../../CHANGELOG.md).
 
 Draft branches and pull requests describe work in progress. They are not part

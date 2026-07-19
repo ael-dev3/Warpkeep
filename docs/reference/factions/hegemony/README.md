@@ -1,16 +1,11 @@
-# Hegemony Faction Logos
+# Historical Hegemony logo candidates
 
-Official Hegemony identity assets.
+Two faction-logo PNGs were added early in the Alpha without a source record
+that established licensing authority. Neither image was used by the application,
+so both were removed from `public/` in Alpha 0.3.12 rather than shipped with
+every build.
 
-## Assets
-
-- [`logo-wordmark.png`](../../../../public/images/factions/hegemony/logo-wordmark.png) — official high-resolution faction logo / wordmark for public docs, faction pages, and promotional surfaces.
-- [`logo-ui.png`](../../../../public/images/factions/hegemony/logo-ui.png) — official simplified textless logo for in-game UI, compact badges, cards, and small faction identity surfaces.
-
-## Usage notes
-
-Use the wordmark when there is enough room for the full Hegemony identity. Use the textless UI logo in-game and anywhere the wordmark would become unreadable.
-
-## License and provenance
-
-These are project-provided PNG media assets. The existing record applies historical CC0 treatment, but source authority is not independently evidenced; do not assign a new license by assumption. See [`ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).
+The adjacent manifest retains their former paths, dimensions, byte counts, and
+SHA-256 digests. Git history preserves the original bytes if their provenance is
+resolved later. Do not restore, modify, or describe them as official assets
+without that evidence. See [`ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).
