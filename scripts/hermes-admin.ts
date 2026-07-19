@@ -19,6 +19,10 @@ import {
   type AlphaActivationComponent,
 } from '../spacetimedb/src/alphaActivationPolicy';
 import {
+  ALPHA_V10_ACTIVATION_COMPONENTS,
+  type AlphaV10ActivationComponent,
+} from '../spacetimedb/src/alphaV10ActivationPolicy';
+import {
   AlphaActivationControlError,
   alphaComponentIsReady,
   alphaComponentSeedReceipt,
@@ -29,6 +33,17 @@ import {
   verifyAlphaComponentSeedPrecondition,
 } from './alpha-activation-controls';
 import { configureHermesMachineOutput } from './hermes-machine-output';
+import {
+  AlphaV10ActivationControlError,
+  alphaV10ComponentIsReady,
+  alphaV10ComponentSeedReceipt,
+  parseAlphaV10ActivationComponent,
+  projectAlphaStatusV10,
+  verifyAlphaV10SeedPostcondition,
+  verifyWaterActivationPostcondition,
+  waterActivationReceipt,
+  type AlphaStatusV10,
+} from './alpha-v10-activation-controls';
 import {
   buildTrustedPublicFarcasterProfile,
   FarcasterPublicProfileError,
@@ -66,10 +81,13 @@ type Command =
   | 'inspect-alpha-v3'
   | 'inspect-alpha-v4'
   | 'inspect-alpha-v8'
+  | 'inspect-alpha-v10'
   | 'seed-alpha-component'
+  | 'activate-alpha-water'
   | 'backfill-resources';
 
-type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4' | 'v8';
+type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4' | 'v8' | 'v10';
+type SeedableAlphaComponent = AlphaActivationComponent | AlphaV10ActivationComponent;
 
 const DEFAULT_DATABASE = 'warpkeep-89e4u';
 const DEFAULT_DATABASE_IDENTITY = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
@@ -144,6 +162,7 @@ export function privacySafeHermesErrorMessage(error: unknown): string {
     || error instanceof HermesOperationTimeoutError
     || error instanceof HermesClaimedAdmissionOutcomeError
     || error instanceof AlphaActivationControlError
+    || error instanceof AlphaV10ActivationControlError
   ) {
     return error.message;
   }
@@ -246,14 +265,16 @@ function commandFrom(value: string | undefined): Command {
     || value === 'inspect-alpha-v3'
     || value === 'inspect-alpha-v4'
     || value === 'inspect-alpha-v8'
+    || value === 'inspect-alpha-v10'
     || value === 'seed-alpha-component'
+    || value === 'activate-alpha-water'
     || value === 'backfill-resources'
   ) {
     return value;
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8> '
+    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder.',
@@ -280,7 +301,8 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-alpha-v2'
     || command === 'inspect-alpha-v3'
     || command === 'inspect-alpha-v4'
-    || command === 'inspect-alpha-v8';
+    || command === 'inspect-alpha-v8'
+    || command === 'inspect-alpha-v10';
   const expectedPositionals = command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
@@ -305,12 +327,19 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
       fail('Profiled admission requires exactly one of --dry-run or --confirm.');
     }
   } else if (command === 'seed-alpha-component') {
-    parseAlphaActivationComponent(positional[1]);
+    parseSeedableAlphaComponent(positional[1]);
     if (flags.has('--input-stdin') || flags.has('--json')) {
       fail('Hermes command received a flag that is invalid for this operation.');
     }
     if (flags.has('--dry-run') === flags.has('--confirm')) {
       fail('Alpha component seed requires exactly one of --dry-run or --confirm.');
+    }
+  } else if (command === 'activate-alpha-water') {
+    if (flags.has('--input-stdin') || flags.has('--json')) {
+      fail('Hermes command received a flag that is invalid for this operation.');
+    }
+    if (flags.has('--dry-run') === flags.has('--confirm')) {
+      fail('Water activation requires exactly one of --dry-run or --confirm.');
     }
   } else if (flags.has('--input-stdin')) {
     fail('Hermes command received a flag that is invalid for this operation.');
@@ -326,6 +355,11 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     existingFounderReenableOnly: command === 'allow-fid',
     privateInputStdin: flags.has('--input-stdin'),
   });
+}
+
+export function parseSeedableAlphaComponent(value: string | undefined): SeedableAlphaComponent {
+  if (value === 'water' || value === 'stone') return parseAlphaV10ActivationComponent(value);
+  return parseAlphaActivationComponent(value);
 }
 
 /**
@@ -954,6 +988,12 @@ export async function readStatus(
   expectedResourceFounderCount?: bigint,
   emit = true,
 ) {
+  if (version === 'v10') {
+    const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV10({}));
+    const verified = projectAlphaStatusV10(status);
+    if (emit) console.log(JSON.stringify(printable(verified)));
+    return verified;
+  }
   if (version === 'v8') {
     const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV8({}));
     const verified = projectAlphaStatusV8(status);
@@ -1083,6 +1123,7 @@ async function main() {
     && command !== 'expand-world-v3'
     && command !== 'admit-founder'
     && command !== 'seed-alpha-component'
+    && command !== 'activate-alpha-water'
     && process.env.WARPKEEP_HERMES_NONINTERACTIVE === 'yes'
   );
   const mutation = !inspection;
@@ -1097,8 +1138,8 @@ async function main() {
   const expectedFounderCount = command === 'backfill-resources'
     ? readFounderCount(positional[1])
     : undefined;
-  const alphaComponent: AlphaActivationComponent | undefined = command === 'seed-alpha-component'
-    ? parseAlphaActivationComponent(positional[1])
+  const alphaComponent: SeedableAlphaComponent | undefined = command === 'seed-alpha-component'
+    ? parseSeedableAlphaComponent(positional[1])
     : undefined;
   let note = command === 'allow-fid' || command === 'disable-fid'
     ? sanitizeNote(positional[2])
@@ -1156,7 +1197,7 @@ async function main() {
     requireGenesisExpansionProductionTarget(database);
   }
 
-  if (command === 'seed-alpha-component' && !dryRun) {
+  if ((command === 'seed-alpha-component' || command === 'activate-alpha-water') && !dryRun) {
     requireAlphaComponentActivationProductionTarget(database);
   }
 
@@ -1174,6 +1215,9 @@ async function main() {
   }
   if (command === 'seed-alpha-component' && !dryRun && !confirmed) {
     fail('Refusing Alpha component seed without --confirm.');
+  }
+  if (command === 'activate-alpha-water' && !dryRun && !confirmed) {
+    fail('Refusing Water activation without --confirm.');
   }
 
   let prevalidatedBridgeUrl: string | undefined;
@@ -1208,10 +1252,15 @@ async function main() {
       alphaComponent,
       alphaComponentPolicy: alphaComponent === undefined
         ? undefined
-        : ALPHA_ACTIVATION_COMPONENTS[alphaComponent],
-      alphaStatusInspected: command === 'seed-alpha-component' ? false : undefined,
-      credentialsAccessed: command === 'seed-alpha-component' ? false : undefined,
-      mutationSubmitted: command === 'seed-alpha-component' ? false : undefined,
+        : alphaComponent === 'water' || alphaComponent === 'stone'
+          ? ALPHA_V10_ACTIVATION_COMPONENTS[alphaComponent]
+          : ALPHA_ACTIVATION_COMPONENTS[alphaComponent],
+      alphaStatusInspected: command === 'seed-alpha-component'
+        || command === 'activate-alpha-water' ? false : undefined,
+      credentialsAccessed: command === 'seed-alpha-component'
+        || command === 'activate-alpha-water' ? false : undefined,
+      mutationSubmitted: command === 'seed-alpha-component'
+        || command === 'activate-alpha-water' ? false : undefined,
       existingFounderReenableOnly: command === 'allow-fid' || undefined,
       mutation,
       dryRun: true,
@@ -1221,7 +1270,7 @@ async function main() {
   if (mutation && !confirmed) {
     fail(
       command === 'backfill-resources' || command === 'expand-world-v3'
-        || command === 'seed-alpha-component'
+        || command === 'seed-alpha-component' || command === 'activate-alpha-water'
         ? 'Refusing mutation without --confirm.'
         : 'Refusing mutation without --confirm (or WARPKEEP_HERMES_NONINTERACTIVE=yes).',
     );
@@ -1316,42 +1365,95 @@ async function main() {
         policyVersion: GENESIS_RESOURCE_POLICY_VERSION,
       }));
     } else if (command === 'seed-alpha-component' && alphaComponent !== undefined) {
-      const before = verifyAlphaComponentSeedPrecondition(
-        await readStatus(connection, 'v8', false, undefined, false) as AlphaStatusV8,
-      );
-      if (!alphaComponentIsReady(before, alphaComponent)) {
-        if (alphaComponent === 'gold') {
-          const policy = ALPHA_ACTIVATION_COMPONENTS.gold;
-          await withOperationTimeout(connection.reducers.adminSeedGenesisTierIGoldSitesV1({
-            expectedSiteCount: BigInt(policy.siteCount),
-            policyVersion: policy.sitePolicyVersion,
-          }));
-        } else if (alphaComponent === 'forest') {
-          await withOperationTimeout(connection.reducers.adminSeedGenesisForestLayoutV1({}));
-        } else if (alphaComponent === 'food') {
-          const policy = ALPHA_ACTIVATION_COMPONENTS.food;
-          await withOperationTimeout(connection.reducers.adminSeedGenesisTierIFoodSitesV1({
-            expectedSiteCount: BigInt(policy.siteCount),
-            policyVersion: policy.sitePolicyVersion,
-          }));
-        } else {
-          const policy = ALPHA_ACTIVATION_COMPONENTS.wood;
-          await withOperationTimeout(connection.reducers.adminSeedGenesisTierIWoodSitesV1({
-            expectedSiteCount: BigInt(policy.siteCount),
-            policyVersion: policy.sitePolicyVersion,
-          }));
+      if (alphaComponent === 'water' || alphaComponent === 'stone') {
+        const before = await readStatus(
+          connection,
+          'v10',
+          false,
+          undefined,
+          false,
+        ) as AlphaStatusV10;
+        if (!alphaV10ComponentIsReady(before, alphaComponent)) {
+          if (alphaComponent === 'water') {
+            await withOperationTimeout(connection.reducers.adminSeedGenesisWaterLayoutV1({}));
+          } else {
+            const policy = ALPHA_V10_ACTIVATION_COMPONENTS.stone;
+            await withOperationTimeout(connection.reducers.adminSeedGenesisTierIStoneSitesV1({
+              expectedSiteCount: BigInt(policy.siteCount),
+              policyVersion: policy.sitePolicyVersion,
+            }));
+          }
         }
+        const after = verifyAlphaV10SeedPostcondition(
+          await readStatus(connection, 'v10', false, undefined, false) as AlphaStatusV10,
+          before,
+          alphaComponent,
+        );
+        console.log(JSON.stringify(printable(alphaV10ComponentSeedReceipt(
+          alphaComponent,
+          before,
+          after,
+        ))));
+      } else {
+        const before = verifyAlphaComponentSeedPrecondition(
+          await readStatus(connection, 'v8', false, undefined, false) as AlphaStatusV8,
+        );
+        if (!alphaComponentIsReady(before, alphaComponent)) {
+          if (alphaComponent === 'gold') {
+            const policy = ALPHA_ACTIVATION_COMPONENTS.gold;
+            await withOperationTimeout(connection.reducers.adminSeedGenesisTierIGoldSitesV1({
+              expectedSiteCount: BigInt(policy.siteCount),
+              policyVersion: policy.sitePolicyVersion,
+            }));
+          } else if (alphaComponent === 'forest') {
+            await withOperationTimeout(connection.reducers.adminSeedGenesisForestLayoutV1({}));
+          } else if (alphaComponent === 'food') {
+            const policy = ALPHA_ACTIVATION_COMPONENTS.food;
+            await withOperationTimeout(connection.reducers.adminSeedGenesisTierIFoodSitesV1({
+              expectedSiteCount: BigInt(policy.siteCount),
+              policyVersion: policy.sitePolicyVersion,
+            }));
+          } else {
+            const policy = ALPHA_ACTIVATION_COMPONENTS.wood;
+            await withOperationTimeout(connection.reducers.adminSeedGenesisTierIWoodSitesV1({
+              expectedSiteCount: BigInt(policy.siteCount),
+              policyVersion: policy.sitePolicyVersion,
+            }));
+          }
+        }
+        const after = verifyAlphaComponentSeedPostcondition(
+          await readStatus(connection, 'v8', false, undefined, false) as AlphaStatusV8,
+          before,
+          alphaComponent,
+        );
+        console.log(JSON.stringify(printable(alphaComponentSeedReceipt(
+          alphaComponent,
+          before,
+          after,
+        ))));
       }
-      const after = verifyAlphaComponentSeedPostcondition(
-        await readStatus(connection, 'v8', false, undefined, false) as AlphaStatusV8,
+      mutationStatusHandled = true;
+    } else if (command === 'activate-alpha-water') {
+      const before = await readStatus(
+        connection,
+        'v10',
+        false,
+        undefined,
+        false,
+      ) as AlphaStatusV10;
+      if (!alphaV10ComponentIsReady(before, 'water')) {
+        throw new AlphaV10ActivationControlError(
+          'Water must be exactly seeded before it can be activated.',
+        );
+      }
+      if (!before.waterActivated) {
+        await withOperationTimeout(connection.reducers.adminActivateGenesisWaterLayoutV1({}));
+      }
+      const after = verifyWaterActivationPostcondition(
+        await readStatus(connection, 'v10', false, undefined, false) as AlphaStatusV10,
         before,
-        alphaComponent,
       );
-      console.log(JSON.stringify(printable(alphaComponentSeedReceipt(
-        alphaComponent,
-        before,
-        after,
-      ))));
+      console.log(JSON.stringify(printable(waterActivationReceipt(before, after))));
       mutationStatusHandled = true;
     }
     const statusVersion: AlphaStatusVersion = command === 'inspect-alpha-v2'
@@ -1362,6 +1464,8 @@ async function main() {
           ? 'v4'
           : command === 'inspect-alpha-v8'
             ? 'v8'
+            : command === 'inspect-alpha-v10'
+              ? 'v10'
           : 'v1';
     if (!mutationStatusHandled) {
       await readStatus(

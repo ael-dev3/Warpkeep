@@ -6,6 +6,7 @@ const webglState = vi.hoisted(() => ({
   instances: [] as Array<{
     dispose: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
+    setSize: ReturnType<typeof vi.fn>;
   }>
 }));
 
@@ -118,6 +119,7 @@ vi.mock('../src/components/realm/loadHegemonyExpeditionAssets', async (importOri
 import {
   createRealmScene,
   REALM_CASTLE_READABILITY_LIGHTING,
+  resolveRealmViewportSize,
   resolveRealmPinchGesture,
   type CreateRealmSceneOptions
 } from '../src/components/realm/createRealmScene';
@@ -281,6 +283,25 @@ describe('realm scene setup cleanup', () => {
       distance: Math.hypot(60, 40)
     });
     expect(resolveRealmPinchGesture(new Map([[1, { x: 40, y: 80 }]]))).toBeNull();
+  });
+
+  it('uses Safari\'s smaller visible viewport when a fixed canvas still spans the layout viewport', () => {
+    expect(resolveRealmViewportSize({
+      canvasWidth: 1_024,
+      canvasHeight: 900,
+      visualViewportWidth: 390,
+      visualViewportHeight: 500,
+      innerWidth: 1_024,
+      innerHeight: 900
+    })).toEqual({ width: 390, height: 500 });
+    expect(resolveRealmViewportSize({
+      canvasWidth: 0,
+      canvasHeight: 0,
+      visualViewportWidth: 390,
+      visualViewportHeight: 844,
+      innerWidth: 1_024,
+      innerHeight: 900
+    })).toEqual({ width: 390, height: 844 });
   });
 
   it('does not retain the removed CPU-decoration timer in any grass quality mode', () => {
@@ -672,6 +693,93 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('reconciles a live occupation without rebuilding the scene or camera', () => {
+    const canvas = document.createElement('canvas');
+    const surface = createRealmTerrainSurface('live-occupation-reconciliation', 1, 1);
+    const initialNode = movingResourceNode('live-gold-site');
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      surface,
+      quality: REALM_QUALITY_SPECS.high,
+      reducedMotion: true,
+      goldNodes: [initialNode]
+    }));
+    const renderer = webglState.instances.at(-1)!;
+    const before = sceneHandle.getCameraAttestation();
+    const buildSequence = sceneHandle.getSceneBuildSequence();
+    renderer.render.mockClear();
+
+    const gatheringNode = Object.freeze({
+      ...initialNode,
+      availability: 'gathering' as const,
+      occupation: Object.freeze({
+        ...initialNode.occupation,
+        phase: 'gathering' as const
+      })
+    });
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [gatheringNode],
+      foodNodes: [],
+      woodNodes: [],
+      stoneNodes: [],
+      observedAtMicros: 60_000_000n
+    });
+
+    const after = sceneHandle.getCameraAttestation();
+    expect(sceneHandle.getSceneBuildSequence()).toBe(buildSequence);
+    expect(after.sceneId).toBe(before.sceneId);
+    expect(after.canvasId).toBe(before.canvasId);
+    expect(after.mode).toBe(before.mode);
+    expect(after.position).toEqual(before.position);
+    expect(after.target).toEqual(before.target);
+    expect(after.zoom).toBe(before.zoom);
+    expect(renderer.render).toHaveBeenCalledOnce();
+    expect(canvas.dataset.realmDynamicReconciliationCount).toBe('1');
+    expect(canvas.dataset.realmDynamicReconciliationRejected).toBe('0');
+
+    sceneHandle.dispose();
+  });
+
+  it('rejects a mixed invalid resource snapshot before any layer mutates', () => {
+    const canvas = document.createElement('canvas');
+    const goldNode = movingResourceNode('atomic-gold-site');
+    const foodNode = movingResourceNode('atomic-food-site');
+    const onGoldNodePresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      quality: REALM_QUALITY_SPECS.high,
+      reducedMotion: true,
+      goldNodes: [goldNode],
+      foodNodes: [foodNode],
+      onGoldNodePresentationTelemetry
+    }));
+    const availableGoldNode = Object.freeze({
+      ...goldNode,
+      availability: 'available' as const,
+      occupation: undefined,
+      originCastle: undefined,
+      occupiedByViewer: false
+    });
+    const invalidFoodNode = Object.freeze({
+      ...foodNode,
+      coord: Object.freeze({ q: foodNode.coord.q + 1, r: foodNode.coord.r })
+    });
+
+    sceneHandle.reconcileLiveGatheringState({
+      goldNodes: [availableGoldNode],
+      foodNodes: [invalidFoodNode],
+      woodNodes: [],
+      stoneNodes: [],
+      observedAtMicros: 60_000_000n
+    });
+    expect(canvas.dataset.realmDynamicReconciliationCount).toBe('0');
+    expect(canvas.dataset.realmDynamicReconciliationRejected).toBe('1');
+
+    // A later render must still observe the original occupied Gold record.
+    sceneHandle.focusKeep();
+    expect(onGoldNodePresentationTelemetry.mock.calls.at(-1)?.[0].occupiedSiteCount).toBe(1);
+
+    sceneHandle.dispose();
+  });
+
   it('keeps the ambient loop stopped under reduced motion even with moving resource wagons', () => {
     const canvas = document.createElement('canvas');
     const surface = createRealmTerrainSurface('reduced-motion-moving-resources', 1, 1);
@@ -757,6 +865,34 @@ describe('realm scene setup cleanup', () => {
     expect(listenerCalls(canvasRemove, 'webglcontextlost')).toBe(1);
     expect(listenerCalls(windowRemove, 'resize')).toBe(1);
     expect(listenerCalls(documentRemove, 'visibilitychange')).toBe(4);
+  });
+
+  it('tracks Safari visual viewport changes and removes the listeners on disposal', () => {
+    const visualViewport = Object.assign(new EventTarget(), {
+      width: 390,
+      height: 844
+    });
+    vi.stubGlobal('visualViewport', visualViewport);
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      callback(0);
+      return 1;
+    });
+    const viewportAdd = vi.spyOn(visualViewport, 'addEventListener');
+    const viewportRemove = vi.spyOn(visualViewport, 'removeEventListener');
+    const canvas = document.createElement('canvas');
+    const scene = createRealmScene(createOptions(canvas));
+    const renderer = webglState.instances[0];
+
+    expect(renderer.setSize).toHaveBeenCalledWith(390, 844, false);
+    expect(listenerCalls(viewportAdd, 'resize')).toBe(1);
+    expect(listenerCalls(viewportAdd, 'scroll')).toBe(1);
+
+    visualViewport.dispatchEvent(new Event('resize'));
+    expect(renderer.setSize).toHaveBeenCalledWith(390, 844, false);
+
+    scene.dispose();
+    expect(listenerCalls(viewportRemove, 'resize')).toBe(1);
+    expect(listenerCalls(viewportRemove, 'scroll')).toBe(1);
   });
 
   it('clears stale castle hover before wheel-driven camera motion', () => {

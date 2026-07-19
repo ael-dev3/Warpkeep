@@ -4,9 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createRealmEnvironmentDepth,
   REALM_SUN_DIRECTION,
+  REALM_SUN_LIGHT_POSITION,
   sampleRealmSkyGradient
 } from '../src/components/realm/createRealmEnvironment';
 import { REALM_ENVIRONMENT_SPECS } from '../src/components/realm/realmQuality';
+import { GENESIS_WATER_SUN_DIRECTION_MICRO } from '../spacetimedb/src/waterWorld';
 
 describe('Realm procedural environment depth', () => {
   it('samples a deterministic bounded horizon-to-zenith gradient', () => {
@@ -153,5 +155,23 @@ describe('Realm procedural environment depth', () => {
 
     expect(THREE.MathUtils.radToDeg(highlightDirection.angleTo(sunDirection))).toBeLessThan(2);
     environment.dispose();
+  });
+
+  it('aligns the visible light with the public fixed-point environment vector', () => {
+    const authoritative = new THREE.Vector3(
+      GENESIS_WATER_SUN_DIRECTION_MICRO.x,
+      GENESIS_WATER_SUN_DIRECTION_MICRO.y,
+      GENESIS_WATER_SUN_DIRECTION_MICRO.z
+    ).normalize();
+    const visible = new THREE.Vector3(
+      REALM_SUN_LIGHT_POSITION.x,
+      REALM_SUN_LIGHT_POSITION.y,
+      REALM_SUN_LIGHT_POSITION.z
+    ).normalize();
+
+    expect(THREE.MathUtils.radToDeg(visible.angleTo(authoritative))).toBeLessThan(0.000001);
+    expect(visible.x).toBeCloseTo(REALM_SUN_DIRECTION.x, 12);
+    expect(visible.y).toBeCloseTo(REALM_SUN_DIRECTION.y, 12);
+    expect(visible.z).toBeCloseTo(REALM_SUN_DIRECTION.z, 12);
   });
 });

@@ -18,28 +18,26 @@ describe('latest in-menu patch notes', () => {
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
       releasedOn: '19 JUL 2026',
-      title: 'THE FRONTIER STIRS'
+      title: 'RIVERS OF GENESIS'
     });
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Gold Mines.*Wheat Farms.*Logging Camps.*shared map.*private.*server-governed wagon/i
+      /persistent ocean.*lakes.*rivers.*unchanged castles and roads/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /shared forest.*wind-tossed Lowlands.*terrain.*roads.*castle ownership.*resource authority unchanged/i
+      /Stone Quarries.*Gold Mines.*Wheat Farms.*Logging Camps.*private.*server-governed wagon expedition/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Stone continues as keep terrain yield only.*Quarry art is visual groundwork/i
+      /Grass reaches farther.*touch.*viewport.*Safari.*smaller screens/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /profile update or clear cannot take a founded keep away/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Construction.*upgrades.*armies.*combat.*trading.*not playable yet.*Community Marks remain separate.*no reward or financial promise/i
+      /Social Contract is shorter and clearer.*core strategy loop is still unfinished.*no promise of rewards or financial return/i
     );
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('living strategy world');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('core strategy loop');
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('living frontier');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
+    expect(getLatestPatchNotes('0.3.11')).toBeUndefined();
     expect(getLatestPatchNotes('0.3.8')).toBeUndefined();
     expect(getLatestPatchNotes('0.0.0')).toBeUndefined();
     expect(getLatestPatchNotes('__proto__')).toBeUndefined();

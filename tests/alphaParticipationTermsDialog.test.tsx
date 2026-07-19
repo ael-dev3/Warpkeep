@@ -46,8 +46,10 @@ describe('AlphaParticipationTermsDialog', () => {
       'Participation alone will not earn tokens, airdrops, external rewards, or guaranteed financial gain. Experimental in-game Marks have no cash value and may change or reset.'
     )).not.toBeNull();
     expect(screen.getByText(
-      'There is no promise of a future reward, payment, or profit.'
+      /There is no promise of a future reward, payment, or profit\./
     )).not.toBeNull();
+    expect(screen.queryByText(/entry-agreement bundle/i)).toBeNull();
+    expect(screen.queryByText(/SOCIAL-CONTRACT-V3/i)).toBeNull();
 
     const heading = screen.getByRole('heading', {
       level: 2,

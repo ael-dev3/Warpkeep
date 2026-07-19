@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+import { GENESIS_WATER_SUN_DIRECTION_MICRO } from '../../../spacetimedb/src/waterWorld';
 import {
   REALM_ENVIRONMENT_SPECS,
   type RealmQuality
@@ -19,17 +20,20 @@ const SUN_GLOW_ANGULAR_RADIUS = THREE.MathUtils.degToRad(7.5);
 const SUN_GLOW_COLOUR = new THREE.Color('#fff2c9');
 const SUN_GLOW_INTENSITY = 0.86;
 
-export const REALM_SUN_LIGHT_POSITION = Object.freeze({
-  x: 4.5,
-  y: 14,
-  z: 10.5
-});
+const SUN_LIGHT_DISTANCE = Math.hypot(4.5, 14, 10.5);
 
 const NORMALIZED_SUN_DIRECTION = new THREE.Vector3(
-  REALM_SUN_LIGHT_POSITION.x,
-  REALM_SUN_LIGHT_POSITION.y,
-  REALM_SUN_LIGHT_POSITION.z
+  GENESIS_WATER_SUN_DIRECTION_MICRO.x,
+  GENESIS_WATER_SUN_DIRECTION_MICRO.y,
+  GENESIS_WATER_SUN_DIRECTION_MICRO.z
 ).normalize();
+
+/** Scene light position derived from the public fixed-point environment row. */
+export const REALM_SUN_LIGHT_POSITION = Object.freeze({
+  x: NORMALIZED_SUN_DIRECTION.x * SUN_LIGHT_DISTANCE,
+  y: NORMALIZED_SUN_DIRECTION.y * SUN_LIGHT_DISTANCE,
+  z: NORMALIZED_SUN_DIRECTION.z * SUN_LIGHT_DISTANCE
+});
 
 /** Shared direction for the generated IBL highlight, visible disc and light. */
 export const REALM_SUN_DIRECTION = Object.freeze({

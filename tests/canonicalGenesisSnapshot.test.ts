@@ -17,6 +17,7 @@ import {
   CANONICAL_GENESIS_FOREST_LAYOUT_V1
 } from '../spacetimedb/src/forestLayoutPolicy';
 import {
+  CANONICAL_TEST_CASTLE_ID,
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate
 } from './fixtures/canonicalGenesisSnapshot';
@@ -129,6 +130,39 @@ describe('canonical Genesis 001 browser snapshot boundary', () => {
     });
     expect(malformed.forestLayout).toBeNull();
     expect(malformed.forestTrees).toEqual([]);
+  });
+
+  it('preserves and freezes only a paired Stone projection', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const stoneSites = [{
+      siteId: 'stone-001',
+      q: 22,
+      r: -14,
+      tier: 1,
+      active: true
+    }] as const;
+    const stoneNodeOccupations = [{
+      siteId: 'stone-001',
+      originCastleId: CANONICAL_TEST_CASTLE_ID,
+      phase: 'gathering' as const,
+      startedAtMicros: 1n,
+      arrivesAtMicros: 2n,
+      gatheringEndsAtMicros: 3n,
+      returnsAtMicros: 4n
+    }] as const;
+
+    const snapshot = validate({ ...candidate, stoneSites, stoneNodeOccupations });
+    expect(snapshot.stoneSites).toEqual(stoneSites);
+    expect(snapshot.stoneNodeOccupations).toEqual(stoneNodeOccupations);
+    expect(Object.isFrozen(snapshot.stoneSites)).toBe(true);
+    expect(Object.isFrozen(snapshot.stoneSites?.[0])).toBe(true);
+    expect(Object.isFrozen(snapshot.stoneNodeOccupations)).toBe(true);
+    expect(Object.isFrozen(snapshot.stoneNodeOccupations?.[0])).toBe(true);
+
+    expect(validate({ ...candidate, stoneSites })).not.toHaveProperty('stoneSites');
+    expect(validate({ ...candidate, stoneSites })).not.toHaveProperty(
+      'stoneNodeOccupations'
+    );
   });
 
   it('rejects any backend protocol other than protocol 3', () => {

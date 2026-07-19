@@ -49,6 +49,8 @@ export type RealmWoodNodePresentationTelemetry = Readonly<{
 export type RealmWoodNodeLayer = Readonly<{
   group: THREE.Group;
   update: (camera: THREE.PerspectiveCamera, nowMicros: bigint, elapsedSeconds: number) => boolean;
+  canReconcile: (sites: readonly RealmWoodNodeSceneRecord[]) => boolean;
+  reconcile: (sites: readonly RealmWoodNodeSceneRecord[]) => boolean;
   raycast: (raycaster: THREE.Raycaster) => RealmWoodNodeInstanceHit | null;
   setSelectedSiteId: (siteId: string | null) => void;
   hasMovingWagons: () => boolean;
@@ -64,15 +66,15 @@ export type CreateRealmWoodNodeLayerOptions = Readonly<{
   baseUrl: string;
   maxAnisotropy: number;
   reducedMotion: boolean;
-  /** Scene-owned Wood slice from the shared Gold/Food/Wood scene allocator. */
+  /** Scene-owned Wood slice from the shared Gold/Food/Wood/Stone scene allocator. */
   presentationBudget?: RealmExpeditionLayerBudget;
   onModelReady?: () => void;
 }>;
 
-type SceneNode = Readonly<{
+type SceneNode = {
   record: RealmWoodNodeSceneRecord;
   world: Readonly<{ x: number; y: number; z: number }>;
-}>;
+};
 
 type ModelKind = 'logging-camp' | 'wagon';
 type VisualInstance = Readonly<{
@@ -189,7 +191,7 @@ export function createRealmWoodNodeLayer(options: CreateRealmWoodNodeLayerOption
     if (siteIds.has(record.siteId)) continue;
     siteIds.add(record.siteId);
     const world = axialToWorld(record.coord, HEX_SIZE);
-    nodes.push(Object.freeze({
+    nodes.push({
       record,
       world: Object.freeze({
         x: world.x,
@@ -197,7 +199,7 @@ export function createRealmWoodNodeLayer(options: CreateRealmWoodNodeLayerOption
           + RESOURCE_GROUND_LIFT,
         z: world.z
       })
-    }));
+    });
   }
 
   const nodeBySiteId = new Map(nodes.map((node) => [node.record.siteId, node]));
@@ -242,16 +244,19 @@ export function createRealmWoodNodeLayer(options: CreateRealmWoodNodeLayerOption
   const occupiedRings = new THREE.InstancedMesh(occupiedGeometry, occupiedMaterial, nodes.length);
   occupiedRings.name = 'realm-wood-node-occupation-rings';
   occupiedRings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  let occupiedRingCount = 0;
-  nodes.forEach((node) => {
-    if (!['outbound', 'gathering', 'returning'].includes(node.record.availability)) return;
-    markerMatrix.makeRotationX(-Math.PI * 0.5);
-    markerMatrix.setPosition(node.world.x, node.world.y + 0.025, node.world.z);
-    occupiedRings.setMatrixAt(occupiedRingCount, markerMatrix);
-    occupiedRingCount += 1;
-  });
-  occupiedRings.count = occupiedRingCount;
-  occupiedRings.instanceMatrix.needsUpdate = true;
+  const syncOccupiedRings = () => {
+    let occupiedRingCount = 0;
+    nodes.forEach((node) => {
+      if (!['outbound', 'gathering', 'returning'].includes(node.record.availability)) return;
+      markerMatrix.makeRotationX(-Math.PI * 0.5);
+      markerMatrix.setPosition(node.world.x, node.world.y + 0.025, node.world.z);
+      occupiedRings.setMatrixAt(occupiedRingCount, markerMatrix);
+      occupiedRingCount += 1;
+    });
+    occupiedRings.count = occupiedRingCount;
+    occupiedRings.instanceMatrix.needsUpdate = true;
+  };
+  syncOccupiedRings();
   fallbackGroup.add(occupiedRings);
 
   const selectedRing = new THREE.Mesh(
@@ -478,6 +483,34 @@ export function createRealmWoodNodeLayer(options: CreateRealmWoodNodeLayerOption
     selectedRing.visible = node !== undefined;
     if (node) selectedRing.position.set(node.world.x, node.world.y + 0.026, node.world.z);
   };
+  const canReconcile = (sites: readonly RealmWoodNodeSceneRecord[]) => {
+    if (disposed || sites.length !== nodes.length) return false;
+    const seen = new Set<string>();
+    for (const site of sites) {
+      const current = nodeBySiteId.get(site.siteId);
+      if (
+        !current
+        || seen.has(site.siteId)
+        || site.coord.q !== current.record.coord.q
+        || site.coord.r !== current.record.coord.r
+        || site.tier !== current.record.tier
+      ) return false;
+      seen.add(site.siteId);
+    }
+    return true;
+  };
+  const reconcile = (sites: readonly RealmWoodNodeSceneRecord[]) => {
+    if (!canReconcile(sites)) return false;
+    const nextBySiteId = new Map(sites.map((site) => [site.siteId, site] as const));
+    for (const node of nodes) node.record = nextBySiteId.get(node.record.siteId)!;
+    markerPresentationSignature = '';
+    syncOccupiedRings();
+    telemetry = Object.freeze({
+      ...telemetry,
+      occupiedSiteCount: nodes.filter((node) => node.record.occupation !== undefined).length
+    });
+    return true;
+  };
   const update = (camera: THREE.PerspectiveCamera, nowMicros: bigint, elapsedSeconds: number) => {
     if (disposed) return false;
     const before = `${telemetry.renderedWoodCampCount}:${telemetry.renderedWagonCount}:${telemetry.animatedWagonCount}`;
@@ -513,6 +546,8 @@ export function createRealmWoodNodeLayer(options: CreateRealmWoodNodeLayerOption
   return Object.freeze({
     group,
     update,
+    canReconcile,
+    reconcile,
     raycast,
     setSelectedSiteId,
     hasMovingWagons: () => nodes.some((node) => node.record.availability === 'outbound' || node.record.availability === 'returning'),

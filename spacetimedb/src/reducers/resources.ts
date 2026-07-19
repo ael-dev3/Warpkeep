@@ -26,6 +26,11 @@ import {
   woodExpeditionErrorCode,
 } from '../woodExpeditionAuthority';
 import {
+  collectActiveStoneExpedition,
+  myStoneExpeditionState,
+  stoneExpeditionErrorCode,
+} from '../stoneExpeditionAuthority';
+import {
   ResourceExpeditionReservationAuthorityError,
   planResourceSettlementForActiveExpeditionReservations,
 } from '../resourceExpeditionReservationAuthority';
@@ -72,6 +77,8 @@ function senderPolicyError(error: unknown): never {
   if (foodExpeditionCode !== undefined) throw new SenderError(foodExpeditionCode);
   const woodExpeditionCode = woodExpeditionErrorCode(error);
   if (woodExpeditionCode !== undefined) throw new SenderError(woodExpeditionCode);
+  const stoneExpeditionCode = stoneExpeditionErrorCode(error);
+  if (stoneExpeditionCode !== undefined) throw new SenderError(stoneExpeditionCode);
   const goldExpeditionCode = goldExpeditionErrorCode(error);
   if (goldExpeditionCode !== undefined) throw new SenderError(goldExpeditionCode);
   if (
@@ -107,6 +114,7 @@ export const getMyResourceStateV1 = warpkeep.procedure(
       const expedition = myGoldExpeditionState(tx, claims.fid);
       const foodExpedition = myFoodExpeditionState(tx, claims.fid);
       const woodExpedition = myWoodExpeditionState(tx, claims.fid);
+      const stoneExpedition = myStoneExpeditionState(tx, claims.fid);
       return {
         fid: claims.fid,
         food: account.food,
@@ -120,7 +128,7 @@ export const getMyResourceStateV1 = warpkeep.procedure(
         // Wood follows the same private, server-time-only whole-minute
         // aggregation as Food; no public occupation row can alter this value.
         pendingWood: settlement.deltas.wood + woodExpedition.pendingWood,
-        pendingStone: settlement.deltas.stone,
+        pendingStone: settlement.deltas.stone + stoneExpedition.pendingStone,
         // Passive terrain Gold is zero under the Tier-I pilot. This private
         // aggregate nevertheless carries any whole-minute, unclaimed wagon
         // Gold so the existing HUD state cannot silently under-report it.
@@ -150,12 +158,13 @@ export const collectResourcesV1 = warpkeep.reducer(
       if (marksBefore === null || !markAccountIsConsistent(marksBefore)) {
         throw new SenderError('MARK_ACCOUNT_INVARIANT');
       }
-      // Claim both capacity-reserved expedition fields before one passive
-      // settlement at the same server moment. This prevents either a delayed
-      // Food/Wood schedule or a manual claim from consuming the other
+      // Claim all capacity-reserved expedition fields before one passive
+      // settlement at the same server moment. This prevents a delayed Food,
+      // Wood, or Stone schedule (or a manual claim) from consuming another
       // resource's remaining award with a capped passive update first.
       collectActiveFoodExpedition(ctx, claims.fid);
       collectActiveWoodExpedition(ctx, claims.fid);
+      collectActiveStoneExpedition(ctx, claims.fid);
       const resourceAfterExpeditions = assertGenesisResourceForFid(ctx, claims.fid);
       const settlement = planResourceSettlementForActiveExpeditionReservations(
         ctx,

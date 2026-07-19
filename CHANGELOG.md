@@ -6,6 +6,18 @@ full engineering record.
 
 ## [Unreleased]
 
+## [0.3.12] — 2026-07-19
+
+- Gave Genesis 001 a persistent coastline, lakes, and rivers, bringing water
+  through the Lowlands without moving its castles or roads.
+- Opened Stone Quarries as the fourth shared gathering destination, with an
+  independent wagon alongside Gold, Food, and Wood expeditions.
+- Extended grass across the Realm and improved touch, viewport, and Safari
+  behavior for a calmer experience on smaller screens.
+- Shortened the Hegemony Social Contract and made the Alpha's boundaries
+  clearer. The core strategy loop remains unfinished, and participation carries
+  no promise of rewards or financial return.
+
 ## [0.3.11] — 2026-07-19
 
 - Opened Gold Mines, Wheat Farms, and Logging Camps across Genesis 001, giving
@@ -88,7 +100,8 @@ full engineering record.
   Lowlands, a first keep, Farcaster sign-in, and an admission-gated shared-world
   foundation.
 
-[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.11...HEAD
+[Unreleased]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.12...HEAD
+[0.3.12]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.8...v0.3.11
 [0.3.8]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.6...v0.3.8
 [0.3.6]: https://github.com/ael-dev3/Warpkeep/compare/v0.3.5...v0.3.6

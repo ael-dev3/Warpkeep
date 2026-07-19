@@ -12,6 +12,8 @@ contributors. This page routes deeper work without duplicating it.
   bridge, SpacetimeDB, rendering, and delivery
 - [Lowlands renderer](design/hegemony-lowlands-terrain.md) — terrain,
   presentation, and performance principles
+- [Genesis water](design/genesis-water.md) — canonical coast, lake, and river
+  layout
 - [Lowlands audio](design/lowlands-audio.md) — scene transitions and runtime
   sound boundaries
 - [Contributing](../CONTRIBUTING.md) — local setup, checks, privacy, and
@@ -39,7 +41,6 @@ contributors. This page routes deeper work without duplicating it.
 ## Project history
 
 The [changelog](../CHANGELOG.md) summarizes public versions, and the
-[versioning guide](releases/versioning.md) explains tags and builds. Git tags, GitHub
-Releases, merged pull requests, and commit history preserve detailed release
-and implementation records. Completed plans and duplicate patch reports are not
-kept on the current branch.
+[versioning guide](releases/versioning.md) explains tags and builds. Git tags,
+GitHub Releases, merged pull requests, and commit history preserve the detailed
+implementation record.

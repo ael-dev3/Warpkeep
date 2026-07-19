@@ -34,7 +34,11 @@ import { createTerrainDecorationLayers } from './createTerrainDecorations';
 import { createRealmGrassLayer, type RealmGrassLayer, type RealmGrassTelemetry } from './createRealmGrassLayer';
 import { createRealmTerrainFeatureLayers } from './createRealmTerrainFeatures';
 import { createRealmForestLayer, type RealmForestLayer } from './realmForestLayer';
-import { createTerrainGeometryData, pointyHexCorners } from './createTerrainGeometry';
+import {
+  createTerrainGeometryData,
+  createTerrainOverviewHull,
+  pointyHexCorners
+} from './createTerrainGeometry';
 import {
   DEFAULT_CASTLE_LOD_POLICY,
   type CastleLod,
@@ -79,6 +83,11 @@ import {
 } from './realmCastleProjectionGeometry';
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from './realmAmbientScheduler';
 import {
+  createRealmWaterLayer,
+  type RealmWaterLayer
+} from './realmWaterLayer';
+import type { GenesisWaterCellV1 } from '../../../spacetimedb/src/waterWorld';
+import {
   createRealmGoldNodeLayer,
   HEGEMONY_EXPEDITION_ASSET_BUDGETS,
   type RealmGoldNodeLayer,
@@ -99,6 +108,13 @@ import {
   type RealmWoodNodePresentationTelemetry,
   type RealmWoodNodeSceneRecord
 } from './realmWoodNodeLayer';
+import {
+  createRealmStoneNodeLayer,
+  HEGEMONY_STONE_QUARRY_ASSET_BUDGETS,
+  type RealmStoneNodeLayer,
+  type RealmStoneNodePresentationTelemetry,
+  type RealmStoneNodeSceneRecord
+} from './realmStoneNodeLayer';
 import { createRealmExpeditionSceneBudget } from './realmExpeditionPresentationBudget';
 import {
   createRealmPointerGestureCoordinator,
@@ -125,6 +141,45 @@ const CAMERA_FILL_FACE_IRRADIANCE = 0.42;
 const CAMERA_FILL_INTENSITY = CAMERA_FILL_FACE_IRRADIANCE
   * Math.hypot(CAMERA_FILL_HORIZONTAL_DISTANCE, CAMERA_FILL_HEIGHT)
   / CAMERA_FILL_HORIZONTAL_DISTANCE;
+let nextRealmSceneBuildSequence = 1;
+/** Ordinary Realm view deliberately exposes a strategic neighborhood, not the full board. */
+export const REALM_STRATEGIC_OVERVIEW_RADIUS = 28;
+
+type RealmViewportDimensions = Readonly<{
+  canvasWidth: number;
+  canvasHeight: number;
+  visualViewportWidth?: number;
+  visualViewportHeight?: number;
+  innerWidth?: number;
+  innerHeight?: number;
+}>;
+
+function positiveViewportDimension(value: number | undefined) {
+  return Number.isFinite(value) && (value ?? 0) > 0 ? value! : undefined;
+}
+
+/**
+ * Safari may keep a fixed canvas at the layout-viewport size while its visible
+ * viewport shrinks for browser chrome or the software keyboard. Rendering to
+ * the smaller valid boundary keeps camera composition and pointer projection
+ * aligned with what the player can actually see.
+ */
+export function resolveRealmViewportSize(input: RealmViewportDimensions) {
+  const resolveAxis = (
+    canvasValue: number,
+    visualValue: number | undefined,
+    innerValue: number | undefined
+  ) => {
+    const canvas = positiveViewportDimension(canvasValue);
+    const visual = positiveViewportDimension(visualValue);
+    if (canvas !== undefined && visual !== undefined) return Math.min(canvas, visual);
+    return canvas ?? visual ?? positiveViewportDimension(innerValue) ?? 1;
+  };
+  return Object.freeze({
+    width: resolveAxis(input.canvasWidth, input.visualViewportWidth, input.innerWidth),
+    height: resolveAxis(input.canvasHeight, input.visualViewportHeight, input.innerHeight)
+  });
+}
 
 function localPresentationNowMicros() {
   const now = Date.now();
@@ -313,6 +368,7 @@ export type RealmInteractionTarget =
   | Readonly<{ kind: 'gold-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ kind: 'food-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ kind: 'wood-site'; siteId: string; coord: HexCoord }>
+  | Readonly<{ kind: 'stone-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ kind: 'terrain'; coord: HexCoord }>;
 
 export type RealmTerrainPresentationTelemetry = Readonly<{
@@ -348,6 +404,9 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
 
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
+  reconcileLiveGatheringState: (state: RealmLiveGatheringState) => void;
+  getCameraAttestation: () => RealmCameraAttestation;
+  getSceneBuildSequence: () => number;
   focusCastle: (castleId: number) => void;
   focusCell: (coord: HexCoord) => void;
   frameFoundingDistrict: () => void;
@@ -360,8 +419,34 @@ export type RealmSceneHandle = Readonly<{
   setSelectedGoldSiteId: (siteId: string | null) => void;
   setSelectedFoodSiteId: (siteId: string | null) => void;
   setSelectedWoodSiteId: (siteId: string | null) => void;
+  setSelectedStoneSiteId: (siteId: string | null) => void;
   setComposition: (composition: RealmCameraComposition) => void;
   showRealm: () => void;
+}>;
+
+export type RealmLiveGatheringState = Readonly<{
+  goldNodes: readonly RealmGoldNodeSceneRecord[];
+  foodNodes: readonly RealmFoodNodeSceneRecord[];
+  woodNodes: readonly RealmWoodNodeSceneRecord[];
+  stoneNodes: readonly RealmStoneNodeSceneRecord[];
+  observedAtMicros: bigint;
+}>;
+
+export type RealmCameraAttestation = Readonly<{
+  sceneBuildSequence: number;
+  sceneId: string;
+  canvasId: string;
+  mode: RealmCameraMode;
+  position: Readonly<{ x: number; y: number; z: number }>;
+  target: Readonly<{ x: number; y: number; z: number }>;
+  fov: number;
+  zoom: number;
+  selectedTerrainCoord: HexCoord | null;
+  selectedCastleId: number | null;
+  selectedGoldSiteId: string | null;
+  selectedFoodSiteId: string | null;
+  selectedWoodSiteId: string | null;
+  selectedStoneSiteId: string | null;
 }>;
 
 export function foundingDistrictZoomForViewport(
@@ -418,12 +503,16 @@ export type CreateRealmSceneOptions = Readonly<{
   foodNodes?: readonly RealmFoodNodeSceneRecord[];
   /** Validated public Wood sites/occupations; absent/malformed data renders no Wood nodes. */
   woodNodes?: readonly RealmWoodNodeSceneRecord[];
+  /** Validated public Stone sites/occupations; absent/malformed data renders no Stone nodes. */
+  stoneNodes?: readonly RealmStoneNodeSceneRecord[];
   /** Additive public `realm_forest_instance_v1` rows. */
   sharedForestTrees?: unknown;
   /** Additive public `realm_forest_layout_v1` metadata row. */
   sharedForestLayout?: unknown;
   /** Canonical realm id used to bind the shared forest table to this scene. */
   realmId?: string;
+  /** Complete, digest-validated public water projection; absent means water is unavailable. */
+  waterCells?: readonly GenesisWaterCellV1[];
   /**
    * Test/DEV-observer-only bridge for the retired deterministic preview.
    * Production player scenes must not synthesize a forest before the public
@@ -452,6 +541,7 @@ export type CreateRealmSceneOptions = Readonly<{
   onGoldNodePresentationTelemetry?: (telemetry: RealmGoldNodePresentationTelemetry) => void;
   onFoodNodePresentationTelemetry?: (telemetry: RealmFoodNodePresentationTelemetry) => void;
   onWoodNodePresentationTelemetry?: (telemetry: RealmWoodNodePresentationTelemetry) => void;
+  onStoneNodePresentationTelemetry?: (telemetry: RealmStoneNodePresentationTelemetry) => void;
   onRendererUnavailable: () => void;
   /** @deprecated Prefer onTargetSelect for castle identity-aware interaction. */
   onSelect: (coord: HexCoord) => void;
@@ -705,7 +795,7 @@ function reserveVisibleResourceTravelBelt(
  * untouched.
  */
 function forestPresentationProtectedTileKeys(
-  options: Pick<CreateRealmSceneOptions, 'goldNodes' | 'foodNodes' | 'woodNodes' | 'terrainMetadata'>,
+  options: Pick<CreateRealmSceneOptions, 'goldNodes' | 'foodNodes' | 'woodNodes' | 'stoneNodes' | 'terrainMetadata'>,
   terrainSemantics: ReturnType<typeof indexRealmTerrainSemantics>,
   placements: readonly TerrainStructurePlacement[],
   includeResourcePresentationReservations = true
@@ -739,7 +829,7 @@ function forestPresentationProtectedTileKeys(
     addForestPresentationDisc(protectedTileKeys, placement.coord, 1);
   });
   if (!includeResourcePresentationReservations) return protectedTileKeys;
-  [...(options.goldNodes ?? []), ...(options.foodNodes ?? []), ...(options.woodNodes ?? [])].forEach((node) => {
+  [...(options.goldNodes ?? []), ...(options.foodNodes ?? []), ...(options.woodNodes ?? []), ...(options.stoneNodes ?? [])].forEach((node) => {
     addForestPresentationDisc(protectedTileKeys, node.coord, 1);
     // Occupation-specific wagon routes are local, changing presentation. They
     // keep the legacy fallback clear, but cannot invalidate an otherwise
@@ -828,6 +918,7 @@ function initializeRealmScene(
   options: CreateRealmSceneOptions,
   cleanup: RealmSceneCleanup
 ): RealmSceneHandle {
+  const sceneBuildSequence = nextRealmSceneBuildSequence++;
   const renderPlan = resolveRealmRenderPlan(options.quality, {
     playableRadius: options.surface.playableMap.radius,
     renderRadius: options.surface.renderMap.radius,
@@ -856,6 +947,11 @@ function initializeRealmScene(
     }))
   ]);
   const scene = new THREE.Scene();
+  const canvasId = options.canvas.dataset.realmCanvasIdentity
+    ?? `realm-canvas-${sceneBuildSequence}`;
+  options.canvas.dataset.realmCanvasIdentity = canvasId;
+  options.canvas.dataset.realmSceneBuildSequence = String(sceneBuildSequence);
+  options.canvas.dataset.realmSceneIdentity = scene.uuid;
   scene.background = new THREE.Color(REALM_SKY_FALLBACK_COLOR);
   const fog = new THREE.Fog(
     REALM_SKY_FALLBACK_COLOR,
@@ -875,6 +971,8 @@ function initializeRealmScene(
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const lighting = REALM_LIGHTING_SPECS[options.quality.id];
   renderer.toneMappingExposure = lighting.toneMappingExposure;
+  const rendererContext = typeof renderer.getContext === 'function' ? renderer.getContext() : null;
+  const grassAlphaToCoverage = rendererContext?.getContextAttributes?.()?.antialias === true;
   options.canvas.dataset.realmLighting = REALM_CASTLE_READABILITY_LIGHTING.revision;
   renderer.shadowMap.enabled = renderPlan.dynamicShadows;
   renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -1013,6 +1111,40 @@ function initializeRealmScene(
   terrain.receiveShadow = renderPlan.dynamicShadows;
   scene.add(terrain);
 
+  let waterLayer: RealmWaterLayer | null = null;
+  if (options.waterCells !== undefined) {
+    try {
+      waterLayer = createRealmWaterLayer({
+        cells: options.waterCells,
+        quality: runtimeQuality,
+        reducedMotion: options.reducedMotion,
+        hexSize: HEX_SIZE,
+        heightAt: (coord) => terrainHeightAtWorld(
+          options.surface.renderMap,
+          axialToWorld(coord, HEX_SIZE),
+          HEX_SIZE,
+          terrainPlacements
+        )
+      });
+      scene.add(waterLayer.group);
+      options.canvas.dataset.waterPresentation = 'ready';
+      options.canvas.dataset.waterLayoutVersion = String(waterLayer.getTelemetry().layoutVersion);
+      options.canvas.dataset.waterTriangleCount = String(waterLayer.getTelemetry().triangleCount);
+      options.canvas.dataset.waterDrawCalls = String(waterLayer.getTelemetry().drawCalls);
+      cleanup.add(() => {
+        const layer = waterLayer;
+        if (!layer) return;
+        scene.remove(layer.group);
+        layer.dispose();
+        if (waterLayer === layer) waterLayer = null;
+      });
+    } catch {
+      options.canvas.dataset.waterPresentation = 'unavailable';
+    }
+  } else {
+    options.canvas.dataset.waterPresentation = 'unavailable';
+  }
+
   const decorations = createTerrainDecorationLayers(
     decorationData,
     options.surface.renderMap,
@@ -1107,11 +1239,17 @@ function initializeRealmScene(
           'wood',
           options.woodNodes ?? [],
           HEGEMONY_LOGGING_CAMP_ASSET_BUDGETS.loggingCampTargetFootprint
+        ),
+        ...grassExclusionsForResourceNodes(
+          'stone',
+          options.stoneNodes ?? [],
+          HEGEMONY_STONE_QUARRY_ASSET_BUDGETS.stoneQuarryTargetFootprint
         )
       ]),
       plan: renderPlan.grass,
       reducedMotion: options.reducedMotion,
-      hexSize: HEX_SIZE
+      hexSize: HEX_SIZE,
+      alphaToCoverage: grassAlphaToCoverage
     });
     cleanup.add(grassLayer.dispose);
     scene.add(grassLayer.group);
@@ -1124,11 +1262,22 @@ function initializeRealmScene(
     candidateCellCount: 0,
     activeCellCount: 0,
     instanceCount: 0,
+    bladeCount: 0,
     triangleCount: 0,
     drawCalls: 0,
+    variantCounts: Object.freeze([]),
     cacheEntries: 0,
     animated: false,
     targetAnimationCadence: renderPlan.grass.animationFrameCap,
+    averageRetainedPatchesPerActiveCell: 0,
+    averagePatchFootprint: 0,
+    averageBladeHeight: 0,
+    paletteLuminanceMin: 0,
+    paletteLuminanceMax: 0,
+    alphaHashActive: true,
+    alphaToCoverageActive: grassAlphaToCoverage,
+    shaderFallbackActive: false,
+    edgeFadeCount: 0,
     countsByTerrain: Object.freeze({
       meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
       'ancient-stone': 0, apron: 0
@@ -1299,12 +1448,16 @@ function initializeRealmScene(
   const woodNodeCoordinateKeys = new Set(
     (options.woodNodes ?? []).map((node) => hexKey(node.coord))
   );
+  const stoneNodeCoordinateKeys = new Set(
+    (options.stoneNodes ?? []).map((node) => hexKey(node.coord))
+  );
   const terrainOverlayCoord = (coord: HexCoord | null) => (
     coord
       && !occupiedCastleCoordinateKeys.has(hexKey(coord))
       && !goldNodeCoordinateKeys.has(hexKey(coord))
       && !foodNodeCoordinateKeys.has(hexKey(coord))
       && !woodNodeCoordinateKeys.has(hexKey(coord))
+      && !stoneNodeCoordinateKeys.has(hexKey(coord))
       ? coord
       : null
   );
@@ -1322,6 +1475,7 @@ function initializeRealmScene(
   let goldNodeLayer: RealmGoldNodeLayer | null = null;
   let foodNodeLayer: RealmFoodNodeLayer | null = null;
   let woodNodeLayer: RealmWoodNodeLayer | null = null;
+  let stoneNodeLayer: RealmStoneNodeLayer | null = null;
   let castleProjectionEnvelopeByLod: ReadonlyMap<
     CastleLod,
     RealmCastleProjectionEnvelope
@@ -1336,6 +1490,7 @@ function initializeRealmScene(
   let selectedGoldSiteId: string | undefined;
   let selectedFoodSiteId: string | undefined;
   let selectedWoodSiteId: string | undefined;
+  let selectedStoneSiteId: string | undefined;
   let selectedTerrainCoord: HexCoord | null = null;
   let hoveredTerrainCoord: HexCoord | null = null;
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
@@ -1359,11 +1514,13 @@ function initializeRealmScene(
   let lastGoldNodePresentationTelemetryKey = '';
   let lastFoodNodePresentationTelemetryKey = '';
   let lastWoodNodePresentationTelemetryKey = '';
+  let lastStoneNodePresentationTelemetryKey = '';
   const expeditionSceneBudget = createRealmExpeditionSceneBudget({
     quality: runtimeQuality.id,
     goldNodeCount: options.goldNodes?.length ?? 0,
     foodNodeCount: options.foodNodes?.length ?? 0,
     woodNodeCount: options.woodNodes?.length ?? 0,
+    stoneNodeCount: options.stoneNodes?.length ?? 0,
     mobile: isMobileExpeditionPresentation()
   });
   let presentedCastleIds: ReadonlySet<number> | null = null;
@@ -1379,6 +1536,8 @@ function initializeRealmScene(
       || goldNodeLayer?.hasMovingWagons() === true
       || foodNodeLayer?.hasMovingWagons() === true
       || woodNodeLayer?.hasMovingWagons() === true
+      || stoneNodeLayer?.hasMovingWagons() === true
+      || waterLayer?.isAnimationActive() === true
     );
   const disableGrassPresentation = () => {
     const layer = grassLayer;
@@ -1498,10 +1657,14 @@ function initializeRealmScene(
       emitTerrainPresentationTelemetry();
     }
     ambientScheduler?.setActive(ambientIsNeeded());
-    const viewportHeight = Math.max(
-      1,
-      options.canvas.clientHeight || window.innerHeight || 1
-    );
+    const viewportHeight = resolveRealmViewportSize({
+      canvasWidth: options.canvas.clientWidth,
+      canvasHeight: options.canvas.clientHeight,
+      visualViewportWidth: window.visualViewport?.width,
+      visualViewportHeight: window.visualViewport?.height,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight
+    }).height;
     castleLayer?.update(
       cameraController.camera,
       viewportHeight,
@@ -1535,6 +1698,11 @@ function initializeRealmScene(
       expeditionPresentationElapsedSeconds
     );
     woodNodeLayer?.update(
+      cameraController.camera,
+      expeditionPresentationNowMicros,
+      expeditionPresentationElapsedSeconds
+    );
+    stoneNodeLayer?.update(
       cameraController.camera,
       expeditionPresentationNowMicros,
       expeditionPresentationElapsedSeconds
@@ -1584,6 +1752,21 @@ function initializeRealmScene(
         options.onWoodNodePresentationTelemetry?.(woodNodeTelemetry);
       }
     }
+    const stoneNodeTelemetry = stoneNodeLayer?.getPresentationTelemetry();
+    if (stoneNodeTelemetry) {
+      const stoneNodeTelemetryKey = [
+        stoneNodeTelemetry.publicSiteCount,
+        stoneNodeTelemetry.occupiedSiteCount,
+        stoneNodeTelemetry.renderedStoneQuarryCount,
+        stoneNodeTelemetry.renderedWagonCount,
+        stoneNodeTelemetry.animatedWagonCount,
+        stoneNodeTelemetry.markerOnlySiteCount
+      ].join(':');
+      if (stoneNodeTelemetryKey !== lastStoneNodePresentationTelemetryKey) {
+        lastStoneNodePresentationTelemetryKey = stoneNodeTelemetryKey;
+        options.onStoneNodePresentationTelemetry?.(stoneNodeTelemetry);
+      }
+    }
     environmentGroup?.position.copy(cameraController.camera.position);
     try {
       renderer.render(scene, cameraController.camera);
@@ -1620,9 +1803,19 @@ function initializeRealmScene(
     cleanup.isDisposed,
     render
   );
+  const strategicOverviewMap = {
+    ...options.surface.renderMap,
+    radius: REALM_STRATEGIC_OVERVIEW_RADIUS,
+    cells: options.surface.renderMap.cells.filter((cell) => (
+      hexDistance(cell.coord, { q: 0, r: 0 }) <= REALM_STRATEGIC_OVERVIEW_RADIUS
+    ))
+  } as const;
   const cameraController = createRealmCameraController({
     bounds: terrainData.bounds,
-    overviewHull: terrainData.overviewHull,
+    // Keep the full generated terrain available to pan/clamp, but make the
+    // ordinary overview a readable strategic footprint. The authoritative
+    // water apron and outer fog remain outside the initial camera composition.
+    overviewHull: createTerrainOverviewHull(strategicOverviewMap, HEX_SIZE),
     keepFocus: {
       x: keepWorld.x,
       y: keepGroundY,
@@ -1716,6 +1909,29 @@ function initializeRealmScene(
     // failure leaves Wood empty without revoking Food, Gold, or core Realm.
     woodNodeLayer = null;
   }
+  try {
+    stoneNodeLayer = createRealmStoneNodeLayer({
+      sites: options.stoneNodes ?? [],
+      surface: options.surface,
+      terrainPlacements,
+      quality: runtimeQuality,
+      baseUrl: options.baseUrl,
+      maxAnisotropy: renderer.capabilities.getMaxAnisotropy(),
+      reducedMotion: options.reducedMotion,
+      presentationBudget: expeditionSceneBudget.stone,
+      onModelReady: render
+    });
+    scene.add(stoneNodeLayer.group);
+    cleanup.add(() => {
+      const layer = stoneNodeLayer;
+      if (!layer) return;
+      scene.remove(layer.group);
+      layer.dispose();
+      if (stoneNodeLayer === layer) stoneNodeLayer = null;
+    });
+  } catch {
+    stoneNodeLayer = null;
+  }
   const handleRenderVisibility = () => {
     if (!document.hidden && renderPendingWhileHidden && !cleanup.isDisposed()) render();
   };
@@ -1731,12 +1947,16 @@ function initializeRealmScene(
       const wagonsMoving = goldNodeLayer?.hasMovingWagons() === true;
       const foodWagonsMoving = foodNodeLayer?.hasMovingWagons() === true;
       const woodWagonsMoving = woodNodeLayer?.hasMovingWagons() === true;
+      const stoneWagonsMoving = stoneNodeLayer?.hasMovingWagons() === true;
+      const waterChanged = waterLayer?.updateEnvironment(elapsedSeconds) === true;
       if (
         grassChanged
         || terrainChanged
         || wagonsMoving
         || foodWagonsMoving
         || woodWagonsMoving
+        || stoneWagonsMoving
+        || waterChanged
       ) render();
     }
   });
@@ -1770,12 +1990,15 @@ function initializeRealmScene(
   let pendingHoverPoint: Readonly<{ x: number; y: number }> | null = null;
   let hoverAnimationFrame = 0;
   let resizeObserver: ResizeObserver | null = null;
+  let resizeFrame = 0;
   cleanup.add(() => {
     if (hoverAnimationFrame !== 0) window.cancelAnimationFrame(hoverAnimationFrame);
     hoverAnimationFrame = 0;
     pendingHoverPoint = null;
     if (directGestureFrame !== 0) window.cancelAnimationFrame(directGestureFrame);
     directGestureFrame = 0;
+    if (resizeFrame !== 0) window.cancelAnimationFrame(resizeFrame);
+    resizeFrame = 0;
     pendingDirectGesture = null;
     if (labelClickSuppressionTimer !== 0) window.clearTimeout(labelClickSuppressionTimer);
     labelClickSuppressionTimer = 0;
@@ -1837,6 +2060,14 @@ function initializeRealmScene(
         kind: 'wood-site',
         siteId: woodNodeHit.siteId,
         coord: woodNodeHit.coord
+      });
+    }
+    const stoneNodeHit = stoneNodeLayer?.raycast(raycaster);
+    if (stoneNodeHit) {
+      return Object.freeze({
+        kind: 'stone-site',
+        siteId: stoneNodeHit.siteId,
+        coord: stoneNodeHit.coord
       });
     }
     const intersections = raycaster.intersectObject(terrain, false);
@@ -2047,9 +2278,11 @@ function initializeRealmScene(
     selectedGoldSiteId = picked.kind === 'gold-site' ? picked.siteId : undefined;
     selectedFoodSiteId = picked.kind === 'food-site' ? picked.siteId : undefined;
     selectedWoodSiteId = picked.kind === 'wood-site' ? picked.siteId : undefined;
+    selectedStoneSiteId = picked.kind === 'stone-site' ? picked.siteId : undefined;
     goldNodeLayer?.setSelectedSiteId(selectedGoldSiteId ?? null);
     foodNodeLayer?.setSelectedSiteId(selectedFoodSiteId ?? null);
     woodNodeLayer?.setSelectedSiteId(selectedWoodSiteId ?? null);
+    stoneNodeLayer?.setSelectedSiteId(selectedStoneSiteId ?? null);
     dispatchSelect(picked);
     render();
     if (picked.kind === 'castle' && picked.castleId === options.ownCastleId) {
@@ -2218,8 +2451,15 @@ function initializeRealmScene(
 
   const resize = () => {
     if (cleanup.isDisposed()) return;
-    const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
-    const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
+    const visualViewport = window.visualViewport;
+    const { width, height } = resolveRealmViewportSize({
+      canvasWidth: options.canvas.clientWidth,
+      canvasHeight: options.canvas.clientHeight,
+      visualViewportWidth: visualViewport?.width,
+      visualViewportHeight: visualViewport?.height,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight
+    });
     renderer.setPixelRatio(resolveRealmPixelRatio(
       width,
       height,
@@ -2229,11 +2469,27 @@ function initializeRealmScene(
     renderer.setSize(width, height, false);
     cameraController.setViewport(width, height);
   };
-  resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
+  const scheduleResize = () => {
+    if (resizeFrame !== 0 || cleanup.isDisposed()) return;
+    resizeFrame = window.requestAnimationFrame(() => {
+      resizeFrame = 0;
+      resize();
+    });
+  };
+  resizeObserver = typeof ResizeObserver === 'undefined'
+    ? null
+    : new ResizeObserver(scheduleResize);
   if (resizeObserver) cleanup.add(() => resizeObserver?.disconnect());
   resizeObserver?.observe(options.canvas);
-  window.addEventListener('resize', resize);
-  cleanup.add(() => window.removeEventListener('resize', resize));
+  window.addEventListener('resize', scheduleResize);
+  cleanup.add(() => window.removeEventListener('resize', scheduleResize));
+  const visualViewport = window.visualViewport;
+  visualViewport?.addEventListener('resize', scheduleResize, { passive: true });
+  visualViewport?.addEventListener('scroll', scheduleResize, { passive: true });
+  cleanup.add(() => {
+    visualViewport?.removeEventListener('resize', scheduleResize);
+    visualViewport?.removeEventListener('scroll', scheduleResize);
+  });
   resize();
 
   const usedCastleLods = castleLodsForQuality(runtimeQuality);
@@ -2389,8 +2645,99 @@ function initializeRealmScene(
     cleanup.dispose();
   }
 
+  let liveReconciliationCount = 0;
+  let rejectedLiveReconciliationCount = 0;
+  const recordLiveReconciliationTelemetry = (accepted: boolean) => {
+    if (accepted) liveReconciliationCount += 1;
+    else rejectedLiveReconciliationCount += 1;
+    options.canvas.dataset.realmDynamicReconciliationCount = String(liveReconciliationCount);
+    options.canvas.dataset.realmDynamicReconciliationRejected = String(
+      rejectedLiveReconciliationCount
+    );
+  };
+  const matchesStaticCatalog = <T extends {
+    siteId: string;
+    coord: HexCoord;
+    tier: number;
+  }>(next: readonly T[], initial: readonly T[]) => {
+    if (next.length !== initial.length) return false;
+    const initialBySiteId = new Map(initial.map((record) => [record.siteId, record]));
+    const seen = new Set<string>();
+    for (const record of next) {
+      const initialRecord = initialBySiteId.get(record.siteId);
+      if (
+        !initialRecord
+        || seen.has(record.siteId)
+        || record.coord.q !== initialRecord.coord.q
+        || record.coord.r !== initialRecord.coord.r
+        || record.tier !== initialRecord.tier
+      ) return false;
+      seen.add(record.siteId);
+    }
+    return seen.size === initialBySiteId.size;
+  };
+  const reconcileLiveGatheringState = (state: RealmLiveGatheringState) => {
+    if (
+      cleanup.isDisposed()
+      || typeof state?.observedAtMicros !== 'bigint'
+      || state.observedAtMicros < 0n
+      || !Array.isArray(state.goldNodes)
+      || !Array.isArray(state.foodNodes)
+      || !Array.isArray(state.woodNodes)
+      || !Array.isArray(state.stoneNodes)
+      || !matchesStaticCatalog(state.goldNodes, options.goldNodes ?? [])
+      || !matchesStaticCatalog(state.foodNodes, options.foodNodes ?? [])
+      || !matchesStaticCatalog(state.woodNodes, options.woodNodes ?? [])
+      || !matchesStaticCatalog(state.stoneNodes, options.stoneNodes ?? [])
+    ) {
+      recordLiveReconciliationTelemetry(false);
+      return;
+    }
+    const accepted = (
+      goldNodeLayer?.canReconcile(state.goldNodes) ?? true
+    ) && (
+      foodNodeLayer?.canReconcile(state.foodNodes) ?? true
+    ) && (
+      woodNodeLayer?.canReconcile(state.woodNodes) ?? true
+    ) && (
+      stoneNodeLayer?.canReconcile(state.stoneNodes) ?? true
+    );
+    if (accepted) {
+      goldNodeLayer?.reconcile(state.goldNodes);
+      foodNodeLayer?.reconcile(state.foodNodes);
+      woodNodeLayer?.reconcile(state.woodNodes);
+      stoneNodeLayer?.reconcile(state.stoneNodes);
+    }
+    recordLiveReconciliationTelemetry(accepted);
+    if (accepted) render();
+  };
+  const getCameraAttestation = (): RealmCameraAttestation => {
+    const pose = cameraController.getPose();
+    return Object.freeze({
+      sceneBuildSequence,
+      sceneId: scene.uuid,
+      canvasId,
+      mode: cameraController.getMode(),
+      position: Object.freeze({ ...pose.position }),
+      target: Object.freeze({ ...pose.target }),
+      fov: pose.fov,
+      zoom: cameraController.getZoom(),
+      selectedTerrainCoord: selectedTerrainCoord
+        ? Object.freeze({ ...selectedTerrainCoord })
+        : null,
+      selectedCastleId: selectedCastleId ?? null,
+      selectedGoldSiteId: selectedGoldSiteId ?? null,
+      selectedFoodSiteId: selectedFoodSiteId ?? null,
+      selectedWoodSiteId: selectedWoodSiteId ?? null,
+      selectedStoneSiteId: selectedStoneSiteId ?? null
+    });
+  };
+
   return {
     dispose: disposeScene,
+    reconcileLiveGatheringState,
+    getCameraAttestation,
+    getSceneBuildSequence: () => sceneBuildSequence,
     focusCastle: (castleId) => {
       if (cleanup.isDisposed()) return;
       const castle = authoritativeCastles.find((candidate) => candidate.castleId === castleId);
@@ -2508,6 +2855,13 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       selectedWoodSiteId = siteId === null ? undefined : siteId;
       woodNodeLayer?.setSelectedSiteId(siteId);
+      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      render();
+    },
+    setSelectedStoneSiteId: (siteId) => {
+      if (cleanup.isDisposed()) return;
+      selectedStoneSiteId = siteId === null ? undefined : siteId;
+      stoneNodeLayer?.setSelectedSiteId(siteId);
       if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
       render();
     },

@@ -6,6 +6,7 @@ import {
 } from './hexCoordinates';
 import { deriveChannelSeed, seededUnitFloat } from './realmSeed';
 import { sampleLowlandsColor, type TerrainRgb } from './terrainColor';
+import { realmGrassPalette } from './realmGrassPalette';
 import { pointyHexBoundaryDistance, terrainHeightAtWorld } from './terrainHeight';
 import {
   EMPTY_TERRAIN_PLACEMENTS,
@@ -33,7 +34,7 @@ export type RealmGrassBiomeProfile = Readonly<{
   minimumSeparation: number;
 }>;
 
-const palette = (values: readonly TerrainRgb[]) => Object.freeze(values.map((value) => Object.freeze(value)));
+const palette = (values: readonly string[]) => realmGrassPalette(values);
 
 /**
  * The stable visual policy. Thresholds are intentionally ordered from lush
@@ -45,38 +46,38 @@ export const REALM_GRASS_BIOME_PROFILES: Readonly<
 > = Object.freeze({
   meadow: Object.freeze({
     kind: 'meadow', highCandidateCount: 30, completelyBareThreshold: 0.12, retention: 0.92,
-    height: Object.freeze([0.18, 0.30]), width: Object.freeze([0.12, 0.22]),
-    palette: palette([{ r: 0.48, g: 0.67, b: 0.23 }, { r: 0.62, g: 0.69, b: 0.28 }, { r: 0.67, g: 0.57, b: 0.27 }]),
+    height: Object.freeze([0.11, 0.19]), width: Object.freeze([0.34, 0.52]),
+    palette: palette(['#A8FF67', '#8EF04B', '#C0FF79', '#76DB39']),
     slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.07
   }),
   lowland: Object.freeze({
     kind: 'lowland', highCandidateCount: 24, completelyBareThreshold: 0.20, retention: 0.82,
-    height: Object.freeze([0.18, 0.30]), width: Object.freeze([0.12, 0.22]),
-    palette: palette([{ r: 0.30, g: 0.49, b: 0.20 }, { r: 0.39, g: 0.54, b: 0.22 }, { r: 0.60, g: 0.50, b: 0.24 }]),
+    height: Object.freeze([0.10, 0.18]), width: Object.freeze([0.32, 0.50]),
+    palette: palette(['#8AF052', '#70DC3D', '#A2F966', '#62C934']),
     slopeSoftLimit: 0.42, slopeHardLimit: 0.78, minimumSeparation: 0.075
   }),
   forest: Object.freeze({
     kind: 'forest', highCandidateCount: 20, completelyBareThreshold: 0.32, retention: 0.76,
-    height: Object.freeze([0.16, 0.27]), width: Object.freeze([0.12, 0.21]),
-    palette: palette([{ r: 0.18, g: 0.36, b: 0.19 }, { r: 0.25, g: 0.40, b: 0.20 }, { r: 0.38, g: 0.42, b: 0.20 }]),
+    height: Object.freeze([0.10, 0.17]), width: Object.freeze([0.30, 0.46]),
+    palette: palette(['#69D849', '#55C43D', '#7BE457', '#48B635']),
     slopeSoftLimit: 0.40, slopeHardLimit: 0.74, minimumSeparation: 0.08
   }),
   heath: Object.freeze({
     kind: 'heath', highCandidateCount: 14, completelyBareThreshold: 0.47, retention: 0.68,
-    height: Object.freeze([0.14, 0.24]), width: Object.freeze([0.11, 0.20]),
-    palette: palette([{ r: 0.36, g: 0.42, b: 0.20 }, { r: 0.45, g: 0.39, b: 0.37 }, { r: 0.41, g: 0.34, b: 0.45 }]),
+    height: Object.freeze([0.09, 0.16]), width: Object.freeze([0.28, 0.43]),
+    palette: palette(['#75D84B', '#65C93F', '#7BBC57']),
     slopeSoftLimit: 0.34, slopeHardLimit: 0.67, minimumSeparation: 0.085
   }),
   ridge: Object.freeze({
     kind: 'ridge', highCandidateCount: 4, completelyBareThreshold: 0.84, retention: 0.56,
-    height: Object.freeze([0.08, 0.16]), width: Object.freeze([0.08, 0.15]),
-    palette: palette([{ r: 0.46, g: 0.43, b: 0.27 }, { r: 0.36, g: 0.39, b: 0.25 }]),
+    height: Object.freeze([0.08, 0.13]), width: Object.freeze([0.24, 0.34]),
+    palette: palette(['#8EC85A', '#79B84D']),
     slopeSoftLimit: 0.22, slopeHardLimit: 0.44, minimumSeparation: 0.10
   }),
   'ancient-stone': Object.freeze({
     kind: 'ancient-stone', highCandidateCount: 2, completelyBareThreshold: 0.96, retention: 0.46,
-    height: Object.freeze([0.06, 0.12]), width: Object.freeze([0.07, 0.12]),
-    palette: palette([{ r: 0.39, g: 0.43, b: 0.31 }, { r: 0.50, g: 0.46, b: 0.30 }]),
+    height: Object.freeze([0.07, 0.11]), width: Object.freeze([0.22, 0.30]),
+    palette: palette(['#8EC85A', '#79B84D']),
     slopeSoftLimit: 0.18, slopeHardLimit: 0.34, minimumSeparation: 0.12
   }),
   lake: Object.freeze({
@@ -86,8 +87,8 @@ export const REALM_GRASS_BIOME_PROFILES: Readonly<
   }),
   apron: Object.freeze({
     kind: 'apron', highCandidateCount: 5, completelyBareThreshold: 0.65, retention: 0.52,
-    height: Object.freeze([0.08, 0.14]), width: Object.freeze([0.09, 0.16]),
-    palette: palette([{ r: 0.39, g: 0.46, b: 0.29 }, { r: 0.49, g: 0.48, b: 0.30 }]),
+    height: Object.freeze([0.08, 0.13]), width: Object.freeze([0.24, 0.36]),
+    palette: palette(['#75D84B', '#65C93F']),
     slopeSoftLimit: 0.30, slopeHardLimit: 0.58, minimumSeparation: 0.11
   })
 });
@@ -132,6 +133,7 @@ export type RealmGrassPoint = Readonly<{
   windPhase: number;
   stiffness: number;
   windScale: number;
+  variant: number;
   rank: number;
 }>;
 
@@ -481,12 +483,17 @@ export function generateRealmGrassCells(input: RealmGrassGenerationInput): Realm
           ) * Math.PI * 2,
           height: lerp(profile.height[0], profile.height[1], heightMix),
           width: lerp(profile.width[0], profile.width[1], widthMix),
-          tint: mixColor(groundTint, authoredTint, 0.66),
+          // Keep authored sRGB palette colours dominant; terrain contributes
+          // only a restrained local response so grass stays brighter below.
+          tint: mixColor(groundTint, authoredTint, 0.86),
           windPhase: phase,
           stiffness,
           windScale: terrainResponse * (0.86 + seededUnitFloat(
             deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-wind-scale-v1')
           ) * 0.28),
+          variant: Math.floor(seededUnitFloat(
+            deriveChannelSeed(cell.seed, candidateIndex, 0, 'realm-grass-geometry-variant-v1')
+          ) * 3),
           rank: candidate.rank
         }));
       }

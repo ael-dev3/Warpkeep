@@ -15,7 +15,7 @@ function plan(): RealmGrassRenderPlan {
     hysteresisRadius: 2,
     cacheLimit: 8,
     maximumActiveInstances: 96,
-    maximumActiveTriangles: 1_152
+    maximumActiveTriangles: 2_016
   });
 }
 
@@ -47,24 +47,36 @@ describe('camera-local procedural grass layer', () => {
     expect(telemetry.overviewHidden).toBe(false);
     expect(telemetry.instanceCount).toBeGreaterThan(0);
     expect(telemetry.instanceCount).toBeLessThanOrEqual(96);
-    expect(telemetry.triangleCount).toBeLessThanOrEqual(1_152);
-    expect(telemetry.drawCalls).toBe(1);
+    expect(telemetry.triangleCount).toBeLessThanOrEqual(2_016);
+    expect(telemetry.drawCalls).toBeLessThanOrEqual(2);
     expect(telemetry.cacheEntries).toBeLessThanOrEqual(8);
-    expect(layer.mesh.count).toBe(telemetry.instanceCount);
+    expect(layer.meshes.reduce((sum, currentMesh) => sum + currentMesh.count, 0))
+      .toBe(telemetry.instanceCount);
     expect(layer.mesh.geometry.getAttribute('grassPhase')).toBeDefined();
     expect(layer.mesh.geometry.getAttribute('grassEdgeFade')).toBeDefined();
+    expect(layer.mesh.geometry.getAttribute('grassBladeData')).toBeDefined();
     expect(layer.isAnimationActive()).toBe(true);
 
-    const matrixWrites = vi.spyOn(layer.mesh, 'setMatrixAt');
-    const matrixVersion = layer.mesh.instanceMatrix.version;
+    const populatedMesh = layer.meshes.find((currentMesh) => currentMesh.count > 0)!;
+    const material = populatedMesh.material as THREE.MeshStandardMaterial;
+    const geometryAttributeSlots = Object.values(populatedMesh.geometry.attributes)
+      .reduce((sum, attribute) => sum + Math.ceil(attribute.itemSize / 4), 0);
+    const activeAttributeSlots = geometryAttributeSlots + 4 + (populatedMesh.instanceColor ? 1 : 0);
+    expect(material.vertexColors).toBe(false);
+    expect(activeAttributeSlots).toBe(13);
+    expect(activeAttributeSlots).toBeLessThanOrEqual(16);
+
+    const matrixWrites = layer.meshes.map((currentMesh) => vi.spyOn(currentMesh, 'setMatrixAt'));
+    const matrixVersions = layer.meshes.map((currentMesh) => currentMesh.instanceMatrix.version);
     expect(layer.updateWind(0.5)).toBe(true);
     layer.setInteraction({ q: 0, r: 0 }, { q: 1, r: 0 });
-    expect(matrixWrites).not.toHaveBeenCalled();
-    expect(layer.mesh.instanceMatrix.version).toBe(matrixVersion);
+    matrixWrites.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+    layer.meshes.forEach((currentMesh, index) => expect(currentMesh.instanceMatrix.version)
+      .toBe(matrixVersions[index]));
     expect(layer.updateView(axialToWorld({ q: 1, r: 0 }, 1), 'keep')).toBe(false);
-    expect(matrixWrites).not.toHaveBeenCalled();
+    matrixWrites.forEach((spy) => expect(spy).not.toHaveBeenCalled());
     expect(layer.updateView(axialToWorld({ q: 2, r: 0 }, 1), 'keep')).toBe(true);
-    expect(matrixWrites).toHaveBeenCalled();
+    expect(matrixWrites.some((spy) => spy.mock.calls.length > 0)).toBe(true);
 
     const intersections: THREE.Intersection[] = [];
     layer.mesh.raycast(new THREE.Raycaster(), intersections);

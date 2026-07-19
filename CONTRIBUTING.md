@@ -1,8 +1,9 @@
 # Contributing to Warpkeep
 
 Thank you for helping build Warpkeep in the open. Contributions should keep the
-project commercially reusable, forkable, mod-friendly, and clear about
-provenance. Participation follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+software commercially reusable, forkable, mod-friendly, and clear about
+provenance. Media terms vary by asset and are recorded separately. Participation
+follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Before submitting
 

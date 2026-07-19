@@ -62,6 +62,12 @@ If the currently deployed module already exposes procedure v8, also run:
 npm run stdb:inspect-alpha-v8 -- --json
 ```
 
+For releases after the Water/Stone suffix has been published, also run:
+
+```sh
+npm run stdb:inspect-alpha-v10 -- --json
+```
+
 The first additive publication that introduces v8 cannot use it as a
 pre-publication check. Record counts privately. The v8 status contains only
 schema/backend versions, resource/forest policy identifiers and digests, and
@@ -90,13 +96,10 @@ Do not substitute raw `spacetime publish` commands. If publication times out or
 returns an ambiguous result, do not retry until fresh read-only inspection
 establishes the live schema and counts.
 
-After a successful publication response, the publisher itself reruns v3 and
-v4 and then requires the closed, aggregate-only v8 JSON envelope. Any failed or
-malformed post-publication check makes the handoff indeterminate and blocks all
-component seeds. The operator may repeat the three read-only commands for the
-private release record. Previously deployed table counts must be preserved,
-and newly appended component tables must initially be empty unless a prior
-approved activation already populated them.
+After publication, the publisher reruns v3, v4, v8, and v10 aggregate checks.
+A failed check blocks component setup. Previously deployed counts must remain
+unchanged; new component tables should be empty unless they were activated in
+an earlier release.
 
 ## 4. Activate reviewed components
 
@@ -108,16 +111,27 @@ npm run stdb:seed-alpha-component -- gold --dry-run
 npm run stdb:seed-alpha-component -- forest --dry-run
 npm run stdb:seed-alpha-component -- food --dry-run
 npm run stdb:seed-alpha-component -- wood --dry-run
+npm run stdb:seed-alpha-component -- water --dry-run
+npm run stdb:seed-alpha-component -- stone --dry-run
 ```
 
 The dry run reads no credential or production state and submits no mutation;
 it presents only the compiled policy and intended component. Use the real v8
 inspection above to decide whether activation is safe.
 
-Use `--confirm` only for the component currently approved. Each confirmed
-operation rechecks the complete v8 aggregate, performs an idempotent canonical
-seed only when empty, verifies unrelated counts did not change, and emits a
-privacy-safe receipt. Do not use it to repair partial or altered data.
+Use `--confirm` only for the component currently approved. Gold, forest, Food,
+and Wood use the v8 checkpoint; Water and Stone use v10. Each command seeds only
+an empty or already-complete component and checks that unrelated counts did not
+change. It will not repair partial or altered data.
+
+Water remains invisible after seeding. Inspect v10 again, review the local
+activation plan, then activate it separately:
+
+```sh
+npm run stdb:activate-alpha-water -- --dry-run
+npm run stdb:activate-alpha-water -- --confirm
+npm run stdb:inspect-alpha-v10 -- --json
+```
 
 See [Alpha component activation](alpha-component-activation.md) for the compact
 component-specific contract.

@@ -251,7 +251,11 @@ describe('RealmHud', () => {
 
     act(() => stone.focus());
     expect(screen.getByRole('tooltip').textContent)
-      .toContain('quarry sites and Stone spending are not live yet');
+      .toContain('private terrain yield');
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('Tier-I quarry expeditions can gather more');
+    expect(screen.getByRole('tooltip').textContent)
+      .toContain('Stone spending is not live yet');
     act(() => gold.focus());
     expect(screen.getByRole('tooltip').textContent)
       .toContain('comes only from mine expeditions');

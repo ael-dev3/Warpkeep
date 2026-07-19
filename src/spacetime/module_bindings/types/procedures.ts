@@ -11,8 +11,10 @@ import * as AdminGetAlphaStatusV2Procedure from "../admin_get_alpha_status_v_2_p
 import * as AdminGetAlphaStatusV3Procedure from "../admin_get_alpha_status_v_3_procedure";
 import * as AdminGetAlphaStatusV4Procedure from "../admin_get_alpha_status_v_4_procedure";
 import * as AdminGetAlphaStatusV8Procedure from "../admin_get_alpha_status_v_8_procedure";
+import * as AdminGetAlphaStatusV10Procedure from "../admin_get_alpha_status_v_10_procedure";
 import * as AdminGetFidAuthEpochProcedure from "../admin_get_fid_auth_epoch_procedure";
 import * as AdminGetSnapScanBatchAggregateV1Procedure from "../admin_get_snap_scan_batch_aggregate_v_1_procedure";
+import * as AdminInspectGenesisWaterLayoutV1Procedure from "../admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "../get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "../get_my_admission_status_procedure";
@@ -20,6 +22,7 @@ import * as GetMyAdmissionStatusV2Procedure from "../get_my_admission_status_v_2
 import * as GetMyFoodExpeditionStateV1Procedure from "../get_my_food_expedition_state_v_1_procedure";
 import * as GetMyGoldExpeditionStateV1Procedure from "../get_my_gold_expedition_state_v_1_procedure";
 import * as GetMyResourceStateV1Procedure from "../get_my_resource_state_v_1_procedure";
+import * as GetMyStoneExpeditionStateV1Procedure from "../get_my_stone_expedition_state_v_1_procedure";
 import * as GetMyWoodExpeditionStateV1Procedure from "../get_my_wood_expedition_state_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "../qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "../qa_observer_get_realm_snapshot_v_1_procedure";
@@ -34,10 +37,14 @@ export type AdminGetAlphaStatusV4Args = __Infer<typeof AdminGetAlphaStatusV4Proc
 export type AdminGetAlphaStatusV4Result = __Infer<typeof AdminGetAlphaStatusV4Procedure.returnType>;
 export type AdminGetAlphaStatusV8Args = __Infer<typeof AdminGetAlphaStatusV8Procedure.params>;
 export type AdminGetAlphaStatusV8Result = __Infer<typeof AdminGetAlphaStatusV8Procedure.returnType>;
+export type AdminGetAlphaStatusV10Args = __Infer<typeof AdminGetAlphaStatusV10Procedure.params>;
+export type AdminGetAlphaStatusV10Result = __Infer<typeof AdminGetAlphaStatusV10Procedure.returnType>;
 export type AdminGetFidAuthEpochArgs = __Infer<typeof AdminGetFidAuthEpochProcedure.params>;
 export type AdminGetFidAuthEpochResult = __Infer<typeof AdminGetFidAuthEpochProcedure.returnType>;
 export type AdminGetSnapScanBatchAggregateV1Args = __Infer<typeof AdminGetSnapScanBatchAggregateV1Procedure.params>;
 export type AdminGetSnapScanBatchAggregateV1Result = __Infer<typeof AdminGetSnapScanBatchAggregateV1Procedure.returnType>;
+export type AdminInspectGenesisWaterLayoutV1Args = __Infer<typeof AdminInspectGenesisWaterLayoutV1Procedure.params>;
+export type AdminInspectGenesisWaterLayoutV1Result = __Infer<typeof AdminInspectGenesisWaterLayoutV1Procedure.returnType>;
 export type AuthResolverGetFidAdmissionV2Args = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.params>;
 export type AuthResolverGetFidAdmissionV2Result = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.returnType>;
 export type GetAlphaBackendInfoArgs = __Infer<typeof GetAlphaBackendInfoProcedure.params>;
@@ -52,6 +59,8 @@ export type GetMyGoldExpeditionStateV1Args = __Infer<typeof GetMyGoldExpeditionS
 export type GetMyGoldExpeditionStateV1Result = __Infer<typeof GetMyGoldExpeditionStateV1Procedure.returnType>;
 export type GetMyResourceStateV1Args = __Infer<typeof GetMyResourceStateV1Procedure.params>;
 export type GetMyResourceStateV1Result = __Infer<typeof GetMyResourceStateV1Procedure.returnType>;
+export type GetMyStoneExpeditionStateV1Args = __Infer<typeof GetMyStoneExpeditionStateV1Procedure.params>;
+export type GetMyStoneExpeditionStateV1Result = __Infer<typeof GetMyStoneExpeditionStateV1Procedure.returnType>;
 export type GetMyWoodExpeditionStateV1Args = __Infer<typeof GetMyWoodExpeditionStateV1Procedure.params>;
 export type GetMyWoodExpeditionStateV1Result = __Infer<typeof GetMyWoodExpeditionStateV1Procedure.returnType>;
 export type QaObserverGetRealmAttestationV2Args = __Infer<typeof QaObserverGetRealmAttestationV2Procedure.params>;

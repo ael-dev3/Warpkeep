@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe('StoneQuarryInspectionPanel', () => {
-  it('presents a focus-safe high-resolution visual record without inventing a Stone site', async () => {
+  it('presents a focus-safe Stone record without inventing a public node', async () => {
     const escaped = vi.fn();
     const onRequestClose = vi.fn();
     const focusTargetRef = createRef<HTMLButtonElement>();
@@ -17,6 +17,7 @@ describe('StoneQuarryInspectionPanel', () => {
       <div onKeyDown={(event) => event.key === 'Escape' && escaped()}>
         <StoneQuarryInspectionPanel
           id="stone-quarry-record"
+          quarry={{ name: 'Stone Quarry', tier: 1 }}
           onRequestClose={onRequestClose}
           focusTargetRef={focusTargetRef}
         />
@@ -29,10 +30,8 @@ describe('StoneQuarryInspectionPanel', () => {
     expect(dialog.getAttribute('aria-modal')).toBe('false');
     expect(dialog.getAttribute('aria-labelledby')).toBe('stone-quarry-record-title');
     expect(dialog.getAttribute('aria-describedby')).toBe('stone-quarry-record-description');
-    expect(screen.getByText('VISUAL REFERENCE')).not.toBeNull();
     expect(screen.getByText('Resource').nextElementSibling?.textContent).toBe('Stone');
-    expect(screen.getByText('Record state').nextElementSibling?.textContent).toBe('Asset staged');
-    expect(screen.getByText('Realm site').nextElementSibling?.textContent).toBe('Not integrated');
+    expect(screen.getByText('Node tier').nextElementSibling?.textContent).toBe('1');
 
     const art = container.querySelector<HTMLImageElement>('.stone-quarry-inspection__hero-art');
     expect(art?.getAttribute('src')).toBe('/images/realm/hegemony-stone-quarry-record.webp');
@@ -52,9 +51,9 @@ describe('StoneQuarryInspectionPanel', () => {
     expect(onRequestClose).toHaveBeenCalledOnce();
 
     expect(screen.queryByRole('button', { name: /dispatch|claim|gather/i })).toBeNull();
-    expect(document.body.textContent).toContain('does not create a map placement');
+    expect(document.body.textContent).toContain('does not disclose player inventory');
     expect(document.body.textContent).not.toMatch(
-      /Inventory|Reserve|Owner|Wallet|Durability|Destroy|Health|Alliance/i
+      /Reserve|Wallet|Durability|Destroy|Health|Alliance/i
     );
   });
 });

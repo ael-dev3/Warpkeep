@@ -114,6 +114,40 @@ const ALPHA_V8_STATUS_KEYS = Object.freeze([
   ...ALPHA_V8_DIGEST_FIELDS,
   ...ALPHA_V8_COUNT_FIELDS,
 ].sort());
+const ALPHA_V10_COUNT_FIELDS = Object.freeze([
+  'waterLayouts',
+  'canonicalWaterLayouts',
+  'waterBodies',
+  'canonicalWaterBodies',
+  'waterCells',
+  'canonicalWaterCells',
+  'realmEnvironments',
+  'canonicalRealmEnvironments',
+  'stoneSites',
+  'canonicalStoneSites',
+  'stoneOccupations',
+  'stoneExpeditions',
+  'stoneIdempotencyReceipts',
+  'stoneSchedules',
+]);
+const ALPHA_V10_POLICY_FIELDS = Object.freeze([
+  'waterPolicyVersion',
+  'stoneSitePolicyVersion',
+  'stoneExpeditionPolicyVersion',
+]);
+const ALPHA_V10_DIGEST_FIELDS = Object.freeze([
+  'canonicalWaterLayoutDigest',
+  'canonicalStoneSiteCatalogDigest',
+]);
+const ALPHA_V10_STATUS_KEYS = Object.freeze([
+  'schemaProtocolVersion',
+  'backendProtocolVersion',
+  'waterLayoutVersion',
+  'waterActivated',
+  ...ALPHA_V10_POLICY_FIELDS,
+  ...ALPHA_V10_DIGEST_FIELDS,
+  ...ALPHA_V10_COUNT_FIELDS,
+].sort());
 const U64_MAXIMUM = (1n << 64n) - 1n;
 
 class SafePublishError extends Error {}
@@ -638,6 +672,15 @@ export function alphaV8AggregateChildArguments(tsxCli) {
   ];
 }
 
+export function alphaV10AggregateChildArguments(tsxCli) {
+  return [
+    tsxCli,
+    'scripts/hermes-admin.ts',
+    'inspect-alpha-v10',
+    '--json',
+  ];
+}
+
 /**
  * The Hermes child already verifies exact v8 policy identities and catalog
  * shape. This second boundary accepts only its closed, aggregate-only JSON
@@ -722,6 +765,79 @@ export function verifyFreshAlphaStatusV8Aggregate(
   return verifyPrivacySafeAlphaStatusV8Output(result.stdout);
 }
 
+/** Accept only the closed aggregate-only v10 JSON envelope from Hermes. */
+export function verifyPrivacySafeAlphaStatusV10Output(output) {
+  let status;
+  try {
+    status = JSON.parse(output);
+  } catch {
+    fail('Alpha procedure-v10 inspection did not return machine-readable JSON.');
+  }
+  if (!status || typeof status !== 'object' || Array.isArray(status)) {
+    fail('Alpha procedure-v10 inspection returned an invalid status object.');
+  }
+  const actualKeys = Object.keys(status).sort();
+  if (
+    actualKeys.length !== ALPHA_V10_STATUS_KEYS.length
+    || actualKeys.some((key, index) => key !== ALPHA_V10_STATUS_KEYS[index])
+  ) fail('Alpha procedure-v10 inspection returned unexpected fields.');
+  if (
+    status.schemaProtocolVersion !== 10
+    || status.backendProtocolVersion !== 3
+    || !Number.isSafeInteger(status.waterLayoutVersion)
+    || status.waterLayoutVersion < 1
+    || typeof status.waterActivated !== 'boolean'
+  ) fail('Alpha procedure-v10 inspection returned invalid protocol metadata.');
+  for (const field of ALPHA_V10_POLICY_FIELDS) {
+    if (
+      typeof status[field] !== 'string'
+      || !/^[a-z0-9][a-z0-9._:-]{0,127}$/i.test(status[field])
+    ) fail('Alpha procedure-v10 inspection returned an invalid policy identifier.');
+  }
+  for (const field of ALPHA_V10_DIGEST_FIELDS) {
+    if (typeof status[field] !== 'string' || !/^[0-9a-f]{64}$/.test(status[field])) {
+      fail('Alpha procedure-v10 inspection returned an invalid canonical digest.');
+    }
+  }
+  for (const field of ALPHA_V10_COUNT_FIELDS) {
+    const value = status[field];
+    if (
+      typeof value !== 'string'
+      || !/^(?:0|[1-9]\d*)$/.test(value)
+      || value.length > 20
+      || BigInt(value) > U64_MAXIMUM
+    ) fail('Alpha procedure-v10 inspection returned an invalid aggregate count.');
+  }
+  return Object.freeze({ ...status });
+}
+
+export function verifyFreshAlphaStatusV10Aggregate(
+  secret,
+  spawnSyncProcess = spawnSync,
+) {
+  const secretBytes = typeof secret === 'string' ? new TextEncoder().encode(secret).byteLength : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the fresh Alpha v10 checkpoint.');
+  }
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = runBoundedSync(
+    process.execPath,
+    alphaV10AggregateChildArguments(tsxCli),
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout: 30_000,
+    },
+    spawnSyncProcess,
+  );
+  return verifyPrivacySafeAlphaStatusV10Output(result.stdout);
+}
+
 export function verifyPostPublishFoundedProtocolV3Aggregate(
   secret,
   expectations,
@@ -789,6 +905,17 @@ export function verifyPostPublishAlphaStatusV8Aggregate(
   }
 }
 
+export function verifyPostPublishAlphaStatusV10Aggregate(
+  secret,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    return verifyFreshAlphaStatusV10Aggregate(secret, spawnSyncProcess);
+  } catch {
+    fail('Post-publication Alpha procedure-v10 checkpoint is indeterminate; a fresh read-only v10 inspection is required before Water or Stone activation.');
+  }
+}
+
 export function verifyPostPublishResourcePublicationCheckpoints(
   secret,
   expectations,
@@ -820,6 +947,7 @@ export function verifyPostPublishResourcePublicationCheckpoints(
     );
   }
   verifyPostPublishAlphaStatusV8Aggregate(secret, spawnSyncProcess);
+  verifyPostPublishAlphaStatusV10Aggregate(secret, spawnSyncProcess);
 }
 
 export async function publishModule(

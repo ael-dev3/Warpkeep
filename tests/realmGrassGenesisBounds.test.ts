@@ -47,20 +47,22 @@ import { createCanonicalGenesisSnapshot } from './fixtures/canonicalGenesisSnaps
 
 function digestPackedGrass(layer: RealmGrassLayer) {
   const digest = createHash('sha256');
-  const count = layer.mesh.count;
-  digest.update(String(count));
-  const matrixValues = layer.mesh.instanceMatrix.array;
-  digest.update(new Uint8Array(
-    matrixValues.buffer,
-    matrixValues.byteOffset,
-    count * 16 * matrixValues.BYTES_PER_ELEMENT
-  ));
-  const phases = layer.mesh.geometry.getAttribute('grassPhase').array;
-  digest.update(new Uint8Array(
-    phases.buffer,
-    phases.byteOffset,
-    count * phases.BYTES_PER_ELEMENT
-  ));
+  layer.meshes.forEach((mesh) => {
+    const count = mesh.count;
+    digest.update(String(count));
+    const matrixValues = mesh.instanceMatrix.array;
+    digest.update(new Uint8Array(
+      matrixValues.buffer,
+      matrixValues.byteOffset,
+      count * 16 * matrixValues.BYTES_PER_ELEMENT
+    ));
+    const phases = mesh.geometry.getAttribute('grassPhase').array;
+    digest.update(new Uint8Array(
+      phases.buffer,
+      phases.byteOffset,
+      count * phases.BYTES_PER_ELEMENT
+    ));
+  });
   return digest.digest('hex');
 }
 
@@ -116,9 +118,10 @@ describe('canonical Genesis 001 grass bounds', () => {
     expect(first.triangleCount).toBeLessThanOrEqual(
       REALM_GRASS_RENDER_PLANS.high.maximumActiveTriangles
     );
-    expect(first.drawCalls).toBeLessThanOrEqual(1);
+    expect(first.drawCalls).toBeLessThanOrEqual(3);
+    expect(first.variantCounts).toHaveLength(3);
     expect(digestPackedGrass(layer)).toBe(
-      'd096966756353ad1d09c90c68ef51a23a6348dc8b8105b638a47a624844401c3'
+      'd27befa17b44b0eaba5d24695c983c23c683c723472bb426e38d04ed2273594b'
     );
 
     layer.updateView(axialToWorld({ q: 30, r: -10 }, 1), 'keep');

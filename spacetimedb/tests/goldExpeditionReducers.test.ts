@@ -34,13 +34,13 @@ function schemaRegistrations(text: string): string[] {
     .map(line => line.slice(0, -1));
 }
 
-test('v5 Gold authority prefix remains intact before the v6 forest, v7 Food, and v8 Wood appends', () => {
+test('v5 Gold authority prefix remains intact through the v9 Water and v10 Stone appends', () => {
   const schema = source('../src/schema.ts');
   const v4 = source('../migration-fixtures/additive-v4-schema/src/index.ts');
   const registrations = schemaRegistrations(schema);
   const v4Registrations = schemaRegistrations(v4.replace('const db = schema({', 'const warpkeep = schema({'));
   assert.deepEqual(registrations.slice(0, v4Registrations.length), v4Registrations);
-  assert.deepEqual(registrations.slice(-17), [
+  assert.deepEqual(registrations.slice(-26), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',
@@ -58,8 +58,17 @@ test('v5 Gold authority prefix remains intact before the v6 forest, v7 Food, and
     'woodExpeditionV1',
     'woodExpeditionIdempotencyV1',
     'woodExpeditionScheduleV1',
+    'realmWaterLayoutV1',
+    'realmWaterBodyV1',
+    'realmWaterCellV1',
+    'realmEnvironmentV1',
+    'stoneSiteV1',
+    'stoneNodeOccupationV1',
+    'stoneExpeditionV1',
+    'stoneExpeditionIdempotencyV1',
+    'stoneExpeditionScheduleV1',
   ]);
-  assert.deepEqual(registrations.slice(-17, -12), [
+  assert.deepEqual(registrations.slice(-26, -21), [
     'goldSiteV1',
     'goldNodeOccupationV1',
     'goldExpeditionV1',

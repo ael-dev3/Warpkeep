@@ -10,6 +10,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   GENESIS_WORLD_PUBLISH_STAGE,
   RESOURCE_PUBLISH_ROLLOUT_STAGE,
+  alphaV10AggregateChildArguments,
   alphaV8AggregateChildArguments,
   parseMigrationProofReceipt,
   parsePublishArguments,
@@ -21,17 +22,20 @@ import {
   validateIssuerDeployment,
   verifyCanonicalDatabaseList,
   verifyFreshAlphaStatusV8Aggregate,
+  verifyFreshAlphaStatusV10Aggregate,
   verifyFreshFoundedProtocolV3Aggregate,
   verifyFreshResourceProtocolV4PrebackfillAggregate,
   verifyFreshResourceProtocolV4ReadyAggregate,
   verifyMigrationArtifactReceipt,
   verifyPinnedCliAttestation,
   verifyPostPublishAlphaStatusV8Aggregate,
+  verifyPostPublishAlphaStatusV10Aggregate,
   verifyPostPublishFoundedProtocolV3Aggregate,
   verifyPostPublishResourceProtocolV4PrebackfillAggregate,
   verifyPostPublishResourceProtocolV4ReadyAggregate,
   verifyPostPublishResourcePublicationCheckpoints,
   verifyPrivacySafeAlphaStatusV8Output,
+  verifyPrivacySafeAlphaStatusV10Output,
 } from '../scripts/publish-spacetime-dev.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
@@ -43,6 +47,10 @@ import {
   ALPHA_ACTIVATION_COMPONENTS,
   ALPHA_ACTIVATION_SCHEMA_PROTOCOL_VERSION,
 } from '../spacetimedb/src/alphaActivationPolicy';
+import {
+  ALPHA_V10_ACTIVATION_COMPONENTS,
+  ALPHA_V10_ACTIVATION_SCHEMA_PROTOCOL_VERSION,
+} from '../spacetimedb/src/alphaV10ActivationPolicy';
 import { WARPKEEP_BACKEND_PROTOCOL_VERSION } from '../spacetimedb/src/config';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -131,6 +139,36 @@ function alphaStatusV8(overrides: Record<string, unknown> = {}) {
     woodExpeditions: '0',
     woodIdempotencyReceipts: '0',
     woodSchedules: '0',
+    ...overrides,
+  };
+}
+
+function alphaStatusV10(overrides: Record<string, unknown> = {}) {
+  const { water, stone } = ALPHA_V10_ACTIVATION_COMPONENTS;
+  return {
+    schemaProtocolVersion: ALPHA_V10_ACTIVATION_SCHEMA_PROTOCOL_VERSION,
+    backendProtocolVersion: WARPKEEP_BACKEND_PROTOCOL_VERSION,
+    waterPolicyVersion: water.policyVersion,
+    waterLayoutVersion: water.layoutVersion,
+    canonicalWaterLayoutDigest: water.layoutDigest,
+    waterActivated: false,
+    waterLayouts: '0',
+    canonicalWaterLayouts: '0',
+    waterBodies: '0',
+    canonicalWaterBodies: '0',
+    waterCells: '0',
+    canonicalWaterCells: '0',
+    realmEnvironments: '0',
+    canonicalRealmEnvironments: '0',
+    stoneSitePolicyVersion: stone.sitePolicyVersion,
+    stoneExpeditionPolicyVersion: stone.expeditionPolicyVersion,
+    canonicalStoneSiteCatalogDigest: stone.siteCatalogDigest,
+    stoneSites: '0',
+    canonicalStoneSites: '0',
+    stoneOccupations: '0',
+    stoneExpeditions: '0',
+    stoneIdempotencyReceipts: '0',
+    stoneSchedules: '0',
     ...overrides,
   };
 }
@@ -800,12 +838,12 @@ describe('activation publish safety', () => {
     expect(() => readFoundedPublishExpectations({
       WARPKEEP_EXPECTED_FOUNDER_COUNT: '3',
       WARPKEEP_EXPECTED_PLAYER_COUNT: '1',
-      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '4',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '5',
     })).toThrow(/expectations were invalid/i);
     expect(() => readFoundedPublishExpectations({
       WARPKEEP_EXPECTED_FOUNDER_COUNT: '100',
       WARPKEEP_EXPECTED_PLAYER_COUNT: '100',
-      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '301',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '401',
     })).toThrow(/EXPECTED_TERMS_ACCEPTANCE_COUNT.*canonical integer/i);
   });
 
@@ -1155,6 +1193,59 @@ describe('activation publish safety', () => {
       (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
     );
     expect(postPublishFailure).toThrow(/read-only v8 inspection.*before any component seed/i);
+    expect(postPublishFailure).not.toThrow(/private/i);
+    expect(postPublishFailure).not.toThrow(/retry/i);
+  });
+
+  it('requires one closed, privacy-safe v10 checkpoint after publication', () => {
+    const calls: unknown[][] = [];
+    const aggregate = alphaStatusV10();
+    const fakeSpawnSync = (...args: unknown[]) => {
+      calls.push(args);
+      return {
+        status: 0,
+        signal: null,
+        stdout: JSON.stringify(aggregate),
+        stderr: '',
+      };
+    };
+    const secret = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+    expect(verifyFreshAlphaStatusV10Aggregate(secret, fakeSpawnSync)).toEqual(aggregate);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.[1]).toEqual(alphaV10AggregateChildArguments(
+      resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs'),
+    ));
+    const options = calls[0]?.[2] as { env?: Record<string, string>; input?: string };
+    expect(options.input).toBe(secret);
+    expect(options.env).toEqual({
+      WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+      WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+      WARPKEEP_AUTH_BRIDGE_URL: ISSUER,
+      WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+    });
+    expect(JSON.stringify(calls[0]?.[1])).not.toContain(secret);
+    expect(JSON.stringify(options.env)).not.toContain(secret);
+    expect(() => verifyPostPublishAlphaStatusV10Aggregate(secret, fakeSpawnSync))
+      .not.toThrow();
+
+    for (const invalid of [
+      { ...aggregate, fid: '424242424242' },
+      { ...aggregate, waterCells: 0 },
+      { ...aggregate, waterCells: '00' },
+      { ...aggregate, stoneSites: '18446744073709551616' },
+      { ...aggregate, schemaProtocolVersion: 9 },
+      { ...aggregate, waterActivated: 'false' },
+      { ...aggregate, canonicalWaterLayoutDigest: 'not-a-digest' },
+    ]) {
+      expect(() => verifyPrivacySafeAlphaStatusV10Output(JSON.stringify(invalid)))
+        .toThrow();
+    }
+
+    const postPublishFailure = () => verifyPostPublishAlphaStatusV10Aggregate(
+      secret,
+      (() => ({ status: 1, signal: null, stdout: 'private', stderr: 'private' })) as never,
+    );
+    expect(postPublishFailure).toThrow(/read-only v10 inspection.*Water or Stone activation/i);
     expect(postPublishFailure).not.toThrow(/private/i);
     expect(postPublishFailure).not.toThrow(/retry/i);
   });
@@ -1662,7 +1753,7 @@ describe('protected aggregate child isolation', () => {
   });
   const completeEntryAgreementHistoryAggregate = Object.freeze({
     ...authenticatedGenesisV3FoundedAggregate,
-    alphaTermsAcceptances: '3',
+    alphaTermsAcceptances: '4',
   });
   const genesisGenerationV3FoundedAggregate = Object.freeze({
     ...genesisV3FoundedAggregate,
@@ -1906,14 +1997,14 @@ describe('protected aggregate child isolation', () => {
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
       1,
-      3,
+      4,
     )).not.toThrow();
     expect(() => verifyExpectedAlphaV3Aggregate(
-      JSON.stringify(completeEntryAgreementHistoryAggregate),
+      JSON.stringify(authenticatedGenesisV3FoundedAggregate),
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
       1,
-      4,
+      5,
     )).toThrow(/entry-agreement row count was invalid/i);
   });
 
@@ -1931,11 +2022,11 @@ describe('protected aggregate child isolation', () => {
   });
 
   it.each([
-    ['player count', 4, 0],
-    ['entry-agreement row count', 1, 4],
-  ])('rejects an expected %s above its bounded aggregate limit', (_label, players, terms) => {
+    ['player count', genesisV3FoundedAggregate, 4, 0],
+    ['entry-agreement row count', authenticatedGenesisV3FoundedAggregate, 1, 5],
+  ])('rejects an expected %s above its bounded aggregate limit', (_label, aggregate, players, terms) => {
     expect(() => verifyExpectedAlphaV3Aggregate(
-      JSON.stringify(genesisV3FoundedAggregate),
+      JSON.stringify(aggregate),
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
       players,
@@ -2461,7 +2552,7 @@ describe('protected aggregate child isolation', () => {
       ])).toThrow(/canonical integer/i);
     });
 
-  it.each(['-1', '00', '01', '+1', '1.0', '1e2', '301', 'abc', ''])
+  it.each(['-1', '00', '01', '+1', '1.0', '1e2', '401', 'abc', ''])
     ('rejects noncanonical or globally out-of-range entry-agreement counts: %j', value => {
       expect(() => parseProductionVerifierArguments([
         '--require-genesis-v3-founded-aggregate',
@@ -2495,17 +2586,17 @@ describe('protected aggregate child isolation', () => {
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=3',
       '--expected-player-count=1',
-      '--expected-terms-acceptance-count=3',
+      '--expected-terms-acceptance-count=4',
     ])).toMatchObject({
       expectedFounderCount: 3,
       expectedPlayerCount: 1,
-      expectedTermsAcceptanceCount: 3,
+      expectedTermsAcceptanceCount: 4,
     });
     expect(() => parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=3',
       '--expected-player-count=1',
-      '--expected-terms-acceptance-count=4',
+      '--expected-terms-acceptance-count=5',
     ])).toThrow(/supported immutable row history/i);
     expect(parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',

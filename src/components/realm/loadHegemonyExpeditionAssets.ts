@@ -103,6 +103,26 @@ export const HEGEMONY_LOGGING_CAMP_RUNTIME_ASSETS: HegemonyExpeditionRuntimeAsse
     })
   });
 
+/** Digest-pinned public Stone Quarry runtime family. */
+export const HEGEMONY_STONE_QUARRY_RUNTIME_ASSETS: HegemonyExpeditionRuntimeAssetFamily =
+  Object.freeze({
+    high: Object.freeze({
+      path: 'models/hegemony/gathering-nodes/stone-quarry/hegemony-stone-quarry-high-a4a3258f1f28a7d8.glb',
+      bytes: 558_036,
+      sha256: 'a4a3258f1f28a7d85658b32a0257d3ca5cb810b8f7a010fd5ebbf7cde12c7537'
+    }),
+    balanced: Object.freeze({
+      path: 'models/hegemony/gathering-nodes/stone-quarry/hegemony-stone-quarry-balanced-44573c53850a31ec.glb',
+      bytes: 337_788,
+      sha256: '44573c53850a31ec0178f88918d18471309016a5b4edffdcf1d3e42670109925'
+    }),
+    compact: Object.freeze({
+      path: 'models/hegemony/gathering-nodes/stone-quarry/hegemony-stone-quarry-compact-b4dbbc1c55a67c12.glb',
+      bytes: 166_720,
+      sha256: 'b4dbbc1c55a67c120df2f2b54852e30a2de980254216821b4a599a10e2e5030e'
+    })
+  });
+
 export const HEGEMONY_SUPPLY_WAGON_RUNTIME_ASSETS: HegemonyExpeditionRuntimeAssetFamily =
   Object.freeze({
     high: Object.freeze({

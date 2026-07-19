@@ -4,9 +4,10 @@
  * policy because Node cannot import the SpacetimeDB TypeScript module directly.
  */
 export const WARPKEEP_ENTRY_AGREEMENT_VERSION =
-  '2026-07-19-hegemony-entry-agreement-v2';
+  '2026-07-19-hegemony-entry-agreement-v3';
 
 export const WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS = Object.freeze([
+  '2026-07-19-hegemony-entry-agreement-v2',
   '2026-07-18-hegemony-entry-agreement-v1',
   '2026-07-14',
 ]);

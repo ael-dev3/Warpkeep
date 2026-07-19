@@ -23,11 +23,18 @@ export type RealmWoodSiteTarget = Readonly<{
   coord: HexCoord;
 }>;
 
+/** Separate field prevents a Stone site id from selecting another panel. */
+export type RealmStoneSiteTarget = Readonly<{
+  stoneSiteId: string;
+  coord: HexCoord;
+}>;
+
 export type RealmInspectorTarget =
   | RealmCastleTarget
   | RealmGoldSiteTarget
   | RealmFoodSiteTarget
-  | RealmWoodSiteTarget;
+  | RealmWoodSiteTarget
+  | RealmStoneSiteTarget;
 
 export type RealmCameraTarget =
   | Readonly<{ kind: 'realm' }>
@@ -42,6 +49,7 @@ export type RealmKeyboardTarget =
   | Readonly<{ kind: 'gold-mine-inspector'; siteId: string }>
   | Readonly<{ kind: 'food-farm-inspector'; siteId: string }>
   | Readonly<{ kind: 'logging-camp-inspector'; siteId: string }>
+  | Readonly<{ kind: 'stone-quarry-inspector'; siteId: string }>
   | Readonly<{ kind: 'castle-label'; castleId: number }>
   | Readonly<{ kind: 'navigator' }>
   | Readonly<{ kind: 'navigator-trigger' }>;
@@ -71,6 +79,7 @@ export type RealmInteractionAction =
   | Readonly<{ type: 'activate-gold-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ type: 'activate-food-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ type: 'activate-wood-site'; siteId: string; coord: HexCoord }>
+  | Readonly<{ type: 'activate-stone-site'; siteId: string; coord: HexCoord }>
   | Readonly<{ type: 'close-inspector' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
@@ -104,6 +113,10 @@ function copyFoodSiteTarget(target: RealmFoodSiteTarget): RealmFoodSiteTarget {
 
 function copyWoodSiteTarget(target: RealmWoodSiteTarget): RealmWoodSiteTarget {
   return { woodSiteId: target.woodSiteId, coord: copyCoord(target.coord) };
+}
+
+function copyStoneSiteTarget(target: RealmStoneSiteTarget): RealmStoneSiteTarget {
+  return { stoneSiteId: target.stoneSiteId, coord: copyCoord(target.coord) };
 }
 
 function isCastleTarget(target: RealmInspectorTarget | null): target is RealmCastleTarget {
@@ -217,6 +230,23 @@ export function realmInteractionReducer(
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'logging-camp-inspector',
           siteId: target.woodSiteId
+        })
+      };
+    }
+
+    case 'activate-stone-site': {
+      const target = copyStoneSiteTarget({ stoneSiteId: action.siteId, coord: action.coord });
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: null,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: { kind: 'cell', coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'stone-quarry-inspector',
+          siteId: target.stoneSiteId
         })
       };
     }

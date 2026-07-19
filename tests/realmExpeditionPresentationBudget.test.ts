@@ -3,11 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   HEGEMONY_EXPEDITION_SCENE_LIMITS,
   HEGEMONY_LOGGING_CAMP_RENDER_LIMITS,
+  HEGEMONY_STONE_QUARRY_RENDER_LIMITS,
   HEGEMONY_WHEAT_FARM_RENDER_LIMITS,
   createRealmExpeditionSceneBudget
 } from '../src/components/realm/realmExpeditionPresentationBudget';
 
-describe('shared Gold, Food, and Wood expedition presentation budget', () => {
+describe('shared Gold, Food, Wood, and Stone expedition presentation budget', () => {
   it('keeps a Food-only High scene materially below the historic 72-mine cap', () => {
     const budget = createRealmExpeditionSceneBudget({
       quality: 'high',
@@ -101,12 +102,41 @@ describe('shared Gold, Food, and Wood expedition presentation budget', () => {
     );
   });
 
-  it('shares every ceiling across concurrent Gold, Food, and Wood layers', () => {
+  it('gives a Stone-only Realm its reviewed Quarry cap while retaining the shared ceiling', () => {
+    const budget = createRealmExpeditionSceneBudget({
+      quality: 'high',
+      goldNodeCount: 0,
+      foodNodeCount: 0,
+      woodNodeCount: 0,
+      stoneNodeCount: 96,
+      mobile: false
+    });
+
+    expect(budget.gold.maximumRenderedNodes).toBe(0);
+    expect(budget.food.maximumRenderedNodes).toBe(0);
+    expect(budget.wood.maximumRenderedNodes).toBe(0);
+    expect(budget.stone.maximumRenderedNodes).toBe(
+      HEGEMONY_STONE_QUARRY_RENDER_LIMITS.maximumRenderedNodes.high
+    );
+    expect(budget.stone.maximumRenderedNodes).toBe(18);
+    expect(budget.stone.maximumRenderedNodes).toBeLessThanOrEqual(
+      HEGEMONY_EXPEDITION_SCENE_LIMITS.maximumRenderedNodes.high
+    );
+    expect(budget.stone.maximumRenderedWagons).toBe(
+      HEGEMONY_EXPEDITION_SCENE_LIMITS.maximumRenderedWagons.high
+    );
+    expect(budget.stone.wagonAnimationBudget).toEqual(
+      HEGEMONY_EXPEDITION_SCENE_LIMITS.wagonAnimationBudget.desktop
+    );
+  });
+
+  it('shares every ceiling across concurrent Gold, Food, Wood, and Stone layers', () => {
     const desktop = createRealmExpeditionSceneBudget({
       quality: 'high',
       goldNodeCount: 96,
       foodNodeCount: 96,
       woodNodeCount: 96,
+      stoneNodeCount: 96,
       mobile: false
     });
     const mobile = createRealmExpeditionSceneBudget({
@@ -114,6 +144,7 @@ describe('shared Gold, Food, and Wood expedition presentation budget', () => {
       goldNodeCount: 96,
       foodNodeCount: 96,
       woodNodeCount: 96,
+      stoneNodeCount: 96,
       mobile: true
     });
 
@@ -121,24 +152,55 @@ describe('shared Gold, Food, and Wood expedition presentation budget', () => {
       desktop.gold.maximumRenderedNodes
       + desktop.food.maximumRenderedNodes
       + desktop.wood.maximumRenderedNodes
+      + desktop.stone.maximumRenderedNodes
     ).toBeLessThanOrEqual(HEGEMONY_EXPEDITION_SCENE_LIMITS.maximumRenderedNodes.high);
     expect(desktop.wood.maximumRenderedNodes).toBeLessThanOrEqual(
       HEGEMONY_LOGGING_CAMP_RENDER_LIMITS.maximumRenderedNodes.high
+    );
+    expect(desktop.stone.maximumRenderedNodes).toBeLessThanOrEqual(
+      HEGEMONY_STONE_QUARRY_RENDER_LIMITS.maximumRenderedNodes.high
     );
     expect(
       desktop.gold.maximumRenderedWagons
       + desktop.food.maximumRenderedWagons
       + desktop.wood.maximumRenderedWagons
+      + desktop.stone.maximumRenderedWagons
     ).toBeLessThanOrEqual(HEGEMONY_EXPEDITION_SCENE_LIMITS.maximumRenderedWagons.high);
     expect(
       desktop.gold.wagonAnimationBudget.total
       + desktop.food.wagonAnimationBudget.total
       + desktop.wood.wagonAnimationBudget.total
+      + desktop.stone.wagonAnimationBudget.total
     ).toBeLessThanOrEqual(HEGEMONY_EXPEDITION_SCENE_LIMITS.wagonAnimationBudget.desktop.total);
+    expect(
+      desktop.gold.wagonAnimationBudget.highOrBalanced
+      + desktop.food.wagonAnimationBudget.highOrBalanced
+      + desktop.wood.wagonAnimationBudget.highOrBalanced
+      + desktop.stone.wagonAnimationBudget.highOrBalanced
+    ).toBeLessThanOrEqual(HEGEMONY_EXPEDITION_SCENE_LIMITS.wagonAnimationBudget.desktop.highOrBalanced);
+    expect(
+      mobile.gold.maximumRenderedNodes
+      + mobile.food.maximumRenderedNodes
+      + mobile.wood.maximumRenderedNodes
+      + mobile.stone.maximumRenderedNodes
+    ).toBeLessThanOrEqual(HEGEMONY_EXPEDITION_SCENE_LIMITS.maximumRenderedNodes.balanced);
+    expect(
+      mobile.gold.maximumRenderedWagons
+      + mobile.food.maximumRenderedWagons
+      + mobile.wood.maximumRenderedWagons
+      + mobile.stone.maximumRenderedWagons
+    ).toBeLessThanOrEqual(HEGEMONY_EXPEDITION_SCENE_LIMITS.maximumRenderedWagons.balanced);
+    expect(
+      mobile.gold.wagonAnimationBudget.total
+      + mobile.food.wagonAnimationBudget.total
+      + mobile.wood.wagonAnimationBudget.total
+      + mobile.stone.wagonAnimationBudget.total
+    ).toBeLessThanOrEqual(HEGEMONY_EXPEDITION_SCENE_LIMITS.wagonAnimationBudget.mobile.total);
     expect(
       mobile.gold.wagonAnimationBudget.highOrBalanced
       + mobile.food.wagonAnimationBudget.highOrBalanced
       + mobile.wood.wagonAnimationBudget.highOrBalanced
+      + mobile.stone.wagonAnimationBudget.highOrBalanced
     ).toBeLessThanOrEqual(HEGEMONY_EXPEDITION_SCENE_LIMITS.wagonAnimationBudget.mobile.highOrBalanced);
   });
 });

@@ -5,7 +5,7 @@ OIDC access JWTs for Warpkeep's SpacetimeDB connection. It is isolated from the
 static browser app: browser code never receives a signing key, admin secret,
 Optimism RPC URL, resolver JWT, private Hermes JWT, or Maincloud credential.
 
-Alpha 0.3.11 uses authentication contract v2 and backend protocol 3. The
+Alpha 0.3.12 uses authentication contract v2 and backend protocol 3. The
 checked-in configuration fails closed: `wrangler.toml` keeps
 `PUBLIC_AUTH_ENABLED = "false"`, while any production enablement is a separate,
 privately recorded operation. World generation and resource features do not

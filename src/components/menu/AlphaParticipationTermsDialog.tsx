@@ -156,6 +156,7 @@ export function AlphaParticipationTermsDialog({
               {' '}before continuing.
             </p>
             <p className="warpkeep-alpha-terms__warning">
+              If these terms materially change, Warpkeep will ask you to accept them again.
               There is no promise of a future reward, payment, or profit.
             </p>
           </div>

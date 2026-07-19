@@ -53,10 +53,10 @@ describe('procedural biome grass generation', () => {
     data.points.forEach((point) => {
       const center = axialToWorld(point.coord, 1);
       expect(point.groundY).toBeTypeOf('number');
-      expect(point.height).toBeGreaterThanOrEqual(0.08);
-      expect(point.height).toBeLessThanOrEqual(0.30);
-      expect(point.width).toBeGreaterThanOrEqual(0.07);
-      expect(point.width).toBeLessThanOrEqual(0.22);
+      expect(point.height).toBeGreaterThanOrEqual(0.07);
+      expect(point.height).toBeLessThanOrEqual(0.19);
+      expect(point.width).toBeGreaterThanOrEqual(0.22);
+      expect(point.width).toBeLessThanOrEqual(0.52);
       expect(pointyHexBoundaryDistance({
         x: point.world.x - center.x,
         z: point.world.z - center.z

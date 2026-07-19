@@ -1,0 +1,12 @@
+title = "Warpkeep secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "One non-secret UUID used only as a reducer idempotency fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^4a9977d2-c7c4-4d63-8e65-f28f966c0c33$''']
+paths = ['''^tests/warpkeepConnection\.test\.ts$''']

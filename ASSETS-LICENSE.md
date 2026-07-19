@@ -127,14 +127,14 @@ The exact source attachment and image-generation/chroma-matte intermediates are
 not committed. Their hashes, prompt, cleanup parameters, decoded RGBA hash,
 alpha profile, and visible bounds are recorded in the dated [Gold Mine
 inspection-art record](docs/reference/resources/2026-07-18-hegemony-gold-mine/record-art/manifest.json).
-The reviewed draft integration mounts the card as decorative inspection art
+The live integration mounts the card as decorative inspection art
 only; it grants no resource, currency, reward, entitlement, map-placement, or
 Gold/Marks authority. No Pages deployment is authorized by this record.
 
 ## Hegemony Stone Quarry inspection artwork
 
-On 2026-07-18, the Warpkeep project owner supplied a Stone Quarry visual and
-instructed isolated draft PR #59 to prepare a high-resolution UI element in the
+On 2026-07-19, the Warpkeep project owner supplied a Stone Quarry visual and
+instructed draft PR #65 to prepare a high-resolution UI element in the
 same careful inspection-art pattern. That authorization covers this exact
 checked-in output in the public Warpkeep GitHub repository and an eventual
 official `warpkeep.com` Pages runtime after separately approved deployment. It
@@ -145,15 +145,15 @@ expose a balance, or activate gathering.
 
 | Intended use | Repository file | Technical record |
 | --- | --- | --- |
-| Decorative Stone Quarry inspection-card artwork | `public/images/realm/hegemony-stone-quarry-record.webp` | 1254×1254 transparent WebP, 134,508 bytes, SHA-256 `58725387db6218ccd5f47aea46a22db80161b232e6bb4de6f60c21068efe40fd`; generated from the supplied reference through the recorded image-edit and chroma-matte workflow. |
+| Decorative Stone Quarry inspection-card artwork | `public/images/realm/hegemony-stone-quarry-record.webp` | 1254×1254 transparent WebP, 186,736 bytes, SHA-256 `86b13c14a0eda7403c3583d886be3242e04d7ef9e442fcfdbcc054642421a70a`; generated from the supplied reference through the recorded image-edit and chroma-matte workflow. |
 
 The exact source attachment and image-generation/chroma-matte intermediates are
 not committed. Their hashes, prompt, cleanup parameters, decoded RGBA hash,
 alpha profile, and visible bounds are recorded in the dated [Stone Quarry
 inspection-art record](docs/reference/resources/2026-07-18-hegemony-stone-quarry/record-art/manifest.json).
-The prepared panel is deliberately unmounted until a separately reviewed
-authoritative Stone-site integration; it grants no resource, currency, reward,
-entitlement, map-placement, Stone/Marks authority, or Pages deployment.
+The prepared panel is mounted only through the separately reviewed canonical
+Stone-site integration; it grants no resource, currency, reward, entitlement,
+map-placement, Stone/Marks authority, or Pages deployment.
 
 ## Hegemony Gold Mine review candidates
 
@@ -264,7 +264,7 @@ The exact source attachment and image-generation/chroma-matte intermediates are
 not committed. Their hashes, transformation method, cleanup parameters,
 decoded RGBA hash, alpha profile, and visible bounds are recorded in the dated
 [Wheat Farm inspection-art record](docs/reference/resources/2026-07-18-hegemony-wheat-farm/record-art/manifest.json).
-The reviewed draft integration mounts the card as decorative inspection art
+The live integration mounts the card as decorative inspection art
 only; it grants no resource, currency, reward, entitlement, map-placement, or
 Food authority. No Pages deployment is authorized by this record.
 
@@ -288,7 +288,7 @@ The exact source attachment and alpha-matte intermediate are not committed.
 Their hashes, transformation method, decoded RGBA hash, alpha profile, and
 visible bounds are recorded in the dated [Logging Camp inspection-art
 record](docs/reference/resources/2026-07-18-hegemony-logging-camp/record-art/manifest.json).
-The reviewed draft integration mounts the card as decorative inspection art
+The live integration mounts the card as decorative inspection art
 only; it grants no resource, currency, reward, entitlement, map-placement, or
 Wood authority. No Pages deployment is authorized by this record.
 
