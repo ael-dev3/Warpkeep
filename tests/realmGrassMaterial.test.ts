@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createRealmGrassMaterial,
+  injectRealmGrassFragmentShader,
   injectRealmGrassVertexShader,
   REALM_GRASS_CROSS_WIND_RATIO,
   REALM_GRASS_INTERACTION_TRANSITION_SECONDS,
@@ -45,7 +46,9 @@ describe('procedural grass material contract', () => {
     const source = 'void main() {\n#include <begin_vertex>\n}';
     const injected = injectRealmGrassVertexShader(source);
 
-    expect(injected).toContain('attribute float grassFlex;');
+    expect(injected).toContain('attribute vec4 grassBladeData;');
+    expect(injected).not.toContain('attribute float grassFlex;');
+    expect(injected).not.toContain('attribute float grassBladeVertical;');
     expect(injected).toContain('uniform float uGrassTime;');
     expect(injected).toContain('modelMatrix * instanceMatrix');
     expect(injected).toContain(
@@ -58,18 +61,25 @@ describe('procedural grass material contract', () => {
     expect(injected).toContain('transformed.xz += grassLocalCrossDirection');
     expect(injected).toContain('dot(grassWorldPosition.xz, grassWorldDirection)');
     expect(injected).not.toContain('transformed.xz += grassWorldDirection');
+    expect(injected).toContain('float grassFlex = grassBladeData.y;');
+    expect(injected).toContain('float grassBladeVertical = grassBladeData.y;');
     expect(injected).toContain('pow(max(grassFlex, 0.0), 1.85)');
-    expect(injected).toContain('transformed *= grassVisibleScale;');
+    expect(injected).not.toContain('transformed *= grassVisibleScale;');
+    expect(injected).toContain('vGrassEdgeFade = clamp(grassEdgeFade, 0.0, 1.0);');
     expect(injected).toContain('clamp((grassPrimary + grassSecondary * 0.28)');
     expect(() => injectRealmGrassVertexShader('void main() {}'))
       .toThrow('REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED');
     expect(() => injectRealmGrassVertexShader(THREE.ShaderLib.standard.vertexShader)).not.toThrow();
+    expect(() => injectRealmGrassFragmentShader(THREE.ShaderLib.standard.fragmentShader)).not.toThrow();
   });
 
   it('keeps standard-material behavior while interaction and wind are uniform-only updates', () => {
     const layer = createRealmGrassMaterial(0.78);
 
     expect(layer.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(layer.material.vertexColors).toBe(false);
+    expect((layer.material as THREE.MeshStandardMaterial & { alphaHash?: boolean }).alphaHash).toBe(true);
+    expect((layer.material as THREE.MeshStandardMaterial & { alphaToCoverage?: boolean }).alphaToCoverage).toBe(false);
     expect(layer.material.customProgramCacheKey()).toBe(REALM_GRASS_SHADER_CACHE_KEY);
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('procedural-grass-v2');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain(REALM_GRASS_THREE_SHADER_CONTRACT);

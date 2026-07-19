@@ -108,7 +108,7 @@ test('legacy admission wires are inert and v2 bootstrap binds only the pre-found
   );
 });
 
-test('generated bindings contain the nineteen public projections and omit every private economy table', () => {
+test('generated bindings contain the public projections and omit every private economy table', () => {
   const bindingsRoot = new URL('../../src/spacetime/module_bindings/', import.meta.url);
   const index = readFileSync(new URL('index.ts', bindingsRoot), 'utf8');
   const legacyPlayer = readFileSync(new URL('player_table.ts', bindingsRoot), 'utf8');
@@ -136,10 +136,17 @@ test('generated bindings contain the nineteen public projections and omit every 
     'gold_site_v_1_table.ts',
     'player_table.ts',
     'player_v_2_table.ts',
+    'realm_environment_v_1_table.ts',
     'realm_forest_instance_v_1_table.ts',
     'realm_forest_layout_v_1_table.ts',
     'realm_profile_v_1_table.ts',
     'realm_v_1_table.ts',
+    'realm_water_body_v_1_table.ts',
+    'realm_water_cell_v_1_table.ts',
+    'realm_water_layout_v_1_table.ts',
+    'stone_expedition_schedule_v_1_table.ts',
+    'stone_node_occupation_v_1_table.ts',
+    'stone_site_v_1_table.ts',
     'wood_expedition_schedule_v_1_table.ts',
     'wood_node_occupation_v_1_table.ts',
     'wood_site_v_1_table.ts',
@@ -187,6 +194,18 @@ test('generated bindings contain the nineteen public projections and omit every 
     publicWoodSchedule,
     /\b(?:fid|requestKey|expeditionId|accruedWood|creditedWood|balance)\b/,
   );
+  const publicStoneSchedule = readFileSync(
+    new URL('stone_expedition_schedule_v_1_table.ts', bindingsRoot),
+    'utf8',
+  );
+  assert.match(
+    publicStoneSchedule,
+    /scheduleId:[\s\S]*scheduledAt:[\s\S]*originCastleId:[\s\S]*siteId:[\s\S]*stage:/,
+  );
+  assert.doesNotMatch(
+    publicStoneSchedule,
+    /\b(?:fid|requestKey|expeditionId|accruedStone|creditedStone|balance)\b/,
+  );
 
   const privateTableStems = [
     'admin_audit',
@@ -203,6 +222,8 @@ test('generated bindings contain the nineteen public projections and omit every 
     'snap_burn_credit_v_1',
     'snap_scan_batch_v_1',
     'snap_scan_cursor_v_1',
+    'stone_expedition_idempotency_v_1',
+    'stone_expedition_v_1',
     'wallet_attribution_snapshot_v_1',
     'wood_expedition_idempotency_v_1',
     'wood_expedition_v_1',

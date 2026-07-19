@@ -40,6 +40,7 @@ import type { ReadyRealmResourcePresentation } from '../src/components/realm/rea
 import type { ReadyGoldExpeditionPresentation } from '../src/components/realm/realmGoldExpeditionPresentation';
 import type { ReadyFoodExpeditionPresentation } from '../src/components/realm/realmFoodExpeditionPresentation';
 import type { ReadyWoodExpeditionPresentation } from '../src/components/realm/realmWoodExpeditionPresentation';
+import type { ReadyStoneExpeditionPresentation } from '../src/components/realm/realmStoneExpeditionPresentation';
 import {
   RESOURCE_OPERATION_TIMEOUT_MILLISECONDS,
   RESOURCE_REFRESH_INTERVAL_MILLISECONDS,
@@ -215,6 +216,34 @@ function woodExpeditionState(
   });
 }
 
+function stoneExpeditionState(
+  active = false,
+  pendingStone = 0n
+): ReadyStoneExpeditionPresentation {
+  return Object.freeze({
+    status: 'ready' as const,
+    active,
+    accruedStone: pendingStone,
+    pendingStone,
+    creditedStone: 0n,
+    rateStonePerMinute: 1n,
+    gatheringDurationMicros: 2_592_000_000_000n,
+    ...(active ? {
+      expedition: Object.freeze({
+        expeditionId: '00000000-0000-4000-8000-000000000004',
+        siteId: 'genesis-001:stone:0001',
+        originCastleId: 1,
+        phase: 'gathering' as const,
+        startedAtMicros: 10n,
+        arrivesAtMicros: 20n,
+        gatheringEndsAtMicros: 30n,
+        returnsAtMicros: 40n,
+        policyVersion: 'genesis-stone-quarry-expedition-v1' as const
+      })
+    } : {})
+  });
+}
+
 function resourceStateWithWood(
   fid: number,
   revision: bigint,
@@ -224,6 +253,18 @@ function resourceStateWithWood(
   return Object.freeze({
     ...base,
     balances: Object.freeze({ ...base.balances, wood })
+  });
+}
+
+function resourceStateWithStone(
+  fid: number,
+  revision: bigint,
+  stone: bigint
+): ReadyRealmResourcePresentation {
+  const base = createReadyResourceState(fid, revision);
+  return Object.freeze({
+    ...base,
+    balances: Object.freeze({ ...base.balances, stone })
   });
 }
 
@@ -272,6 +313,9 @@ function Probe() {
       <output data-testid="resource-wood">
         {backend.state.resources?.balances.wood.toString() ?? ''}
       </output>
+      <output data-testid="resource-stone">
+        {backend.state.resources?.balances.stone.toString() ?? ''}
+      </output>
       <output data-testid="gold-active">
         {backend.state.goldExpedition?.active === undefined
           ? ''
@@ -286,6 +330,11 @@ function Probe() {
         {backend.state.woodExpedition?.active === undefined
           ? ''
           : String(backend.state.woodExpedition.active)}
+      </output>
+      <output data-testid="stone-expedition-active">
+        {backend.state.stoneExpedition?.active === undefined
+          ? ''
+          : String(backend.state.stoneExpedition.active)}
       </output>
       <button type="button" onClick={backend.beginAlphaTermsAcceptance}>ACCEPT TERMS</button>
       <button type="button" onClick={() => void backend.collectResources()}>COLLECT</button>
@@ -318,6 +367,16 @@ function Probe() {
       </button>
       <button type="button" onClick={() => void backend.claimWoodExpedition()}>
         CLAIM WOOD
+      </button>
+      <button
+        type="button"
+        onClick={() => void backend.dispatchStoneExpedition('genesis-001:stone:0001')
+          .catch(() => undefined)}
+      >
+        DISPATCH STONE
+      </button>
+      <button type="button" onClick={() => void backend.claimStoneExpedition()}>
+        CLAIM STONE
       </button>
       <button type="button" onClick={backend.disconnect}>DISCONNECT</button>
     </>
@@ -361,6 +420,7 @@ describe('Warpkeep private resource lifecycle', () => {
     const gold = deferred<ReadyGoldExpeditionPresentation>();
     const food = deferred<ReadyFoodExpeditionPresentation>();
     const wood = deferred<ReadyWoodExpeditionPresentation>();
+    const stone = deferred<ReadyStoneExpeditionPresentation>();
     const starts: string[] = [];
     vi.mocked(runtime.readResourceState).mockImplementationOnce((_connection, fid) => {
       starts.push('resources');
@@ -380,6 +440,10 @@ describe('Warpkeep private resource lifecycle', () => {
         starts.push('wood');
         return wood.promise;
       }),
+      readStoneExpeditionState: vi.fn(() => {
+        starts.push('stone');
+        return stone.promise;
+      }),
       observeRealm: vi.fn(() => {
         starts.push('observe');
         return vi.fn();
@@ -395,7 +459,7 @@ describe('Warpkeep private resource lifecycle', () => {
     await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms'));
     fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
     await waitFor(() => expect(starts).toEqual([
-      'resources', 'gold', 'food', 'wood', 'observe', 'subscribe',
+      'resources', 'gold', 'food', 'wood', 'stone', 'observe', 'subscribe',
     ]));
     expect(screen.getByTestId('phase').textContent).toBe('opening-realm');
 
@@ -404,7 +468,14 @@ describe('Warpkeep private resource lifecycle', () => {
       gold.resolve(goldExpeditionState());
       food.resolve(foodExpeditionState());
       wood.resolve(woodExpeditionState());
-      await Promise.all([resources.promise, gold.promise, food.promise, wood.promise]);
+      stone.resolve(stoneExpeditionState());
+      await Promise.all([
+        resources.promise,
+        gold.promise,
+        food.promise,
+        wood.promise,
+        stone.promise
+      ]);
     });
     await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
   });
@@ -530,6 +601,27 @@ describe('Warpkeep private resource lifecycle', () => {
     expect(screen.getByTestId('wood-expedition-active').textContent).toBe('');
   });
 
+  it('keeps a failed Stone capability isolated from the other resources and the core Realm', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    Object.assign(runtime, {
+      readGoldExpeditionState: vi.fn(async () => goldExpeditionState()),
+      readFoodExpeditionState: vi.fn(async () => foodExpeditionState()),
+      readWoodExpeditionState: vi.fn(async () => woodExpeditionState()),
+      readStoneExpeditionState: vi.fn(async () => {
+        throw new Error('Stone procedure unavailable');
+      })
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('gold-active').textContent).toBe('false');
+    expect(screen.getByTestId('food-expedition-active').textContent).toBe('false');
+    expect(screen.getByTestId('wood-expedition-active').textContent).toBe('false');
+    expect(screen.getByTestId('stone-expedition-active').textContent).toBe('');
+  });
+
   it('exposes Food dispatch and claim only through refreshed private server projections', async () => {
     mockedFarcaster.current = authenticatedFarcaster();
     const { runtime } = createRuntimeHarness();
@@ -611,6 +703,44 @@ describe('Warpkeep private resource lifecycle', () => {
     expect(screen.getByTestId('wood-expedition-active').textContent).toBe('false');
   });
 
+  it('exposes Stone dispatch and claim only through refreshed private server projections', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    const inactiveStone = stoneExpeditionState();
+    const activeStone = stoneExpeditionState(true, 5n);
+    Object.assign(runtime, {
+      readStoneExpeditionState: vi.fn(async () => inactiveStone),
+      dispatchStoneExpedition: vi.fn(async () => activeStone),
+      collectStoneExpedition: vi.fn(async (_connection, fid: number) => Object.freeze({
+        resources: resourceStateWithStone(fid, 1n, 19n),
+        stoneExpedition: inactiveStone
+      }))
+    });
+    renderProvider(runtime);
+    await enterRealm();
+
+    expect(screen.getByTestId('stone-expedition-active').textContent).toBe('false');
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH STONE' }));
+    await waitFor(() => expect(runtime.dispatchStoneExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      'genesis-001:stone:0001',
+      expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    ));
+    await waitFor(() => expect(screen.getByTestId('stone-expedition-active').textContent).toBe('true'));
+    fireEvent.click(screen.getByRole('button', { name: 'DISPATCH STONE' }));
+    await flushProviderWork();
+    expect(runtime.dispatchStoneExpedition).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('resource-revision').textContent).toBe('0');
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLAIM STONE' }));
+    await waitFor(() => expect(runtime.collectStoneExpedition).toHaveBeenCalledWith(
+      expect.anything(),
+      12_345
+    ));
+    await waitFor(() => expect(screen.getByTestId('resource-stone').textContent).toBe('19'));
+    expect(screen.getByTestId('stone-expedition-active').textContent).toBe('false');
+  });
+
   it('retains one dispatch key per resource and site until private authority proves the outcome', async () => {
     mockedFarcaster.current = authenticatedFarcaster();
     const { runtime } = createRuntimeHarness();
@@ -623,36 +753,43 @@ describe('Warpkeep private resource lifecycle', () => {
     const dispatchWood = vi.fn()
       .mockRejectedValueOnce(new Error('response lost'))
       .mockResolvedValueOnce(woodExpeditionState(true));
+    const dispatchStone = vi.fn()
+      .mockRejectedValueOnce(new Error('response lost'))
+      .mockResolvedValueOnce(stoneExpeditionState(true));
     Object.assign(runtime, {
       readGoldExpeditionState: vi.fn(async () => goldExpeditionState()),
       readFoodExpeditionState: vi.fn(async () => foodExpeditionState()),
       readWoodExpeditionState: vi.fn(async () => woodExpeditionState()),
+      readStoneExpeditionState: vi.fn(async () => stoneExpeditionState()),
       dispatchGoldExpedition: dispatchGold,
       dispatchFoodExpedition: dispatchFood,
-      dispatchWoodExpedition: dispatchWood
+      dispatchWoodExpedition: dispatchWood,
+      dispatchStoneExpedition: dispatchStone
     });
     renderProvider(runtime);
     await enterRealm();
 
-    for (const label of ['DISPATCH GOLD', 'DISPATCH FOOD', 'DISPATCH WOOD']) {
+    for (const label of ['DISPATCH GOLD', 'DISPATCH FOOD', 'DISPATCH WOOD', 'DISPATCH STONE']) {
       fireEvent.click(screen.getByRole('button', { name: label }));
     }
     await waitFor(() => {
       expect(dispatchGold).toHaveBeenCalledTimes(1);
       expect(dispatchFood).toHaveBeenCalledTimes(1);
       expect(dispatchWood).toHaveBeenCalledTimes(1);
+      expect(dispatchStone).toHaveBeenCalledTimes(1);
     });
     await flushProviderWork();
-    for (const label of ['DISPATCH GOLD', 'DISPATCH FOOD', 'DISPATCH WOOD']) {
+    for (const label of ['DISPATCH GOLD', 'DISPATCH FOOD', 'DISPATCH WOOD', 'DISPATCH STONE']) {
       fireEvent.click(screen.getByRole('button', { name: label }));
     }
     await waitFor(() => {
       expect(dispatchGold).toHaveBeenCalledTimes(2);
       expect(dispatchFood).toHaveBeenCalledTimes(2);
       expect(dispatchWood).toHaveBeenCalledTimes(2);
+      expect(dispatchStone).toHaveBeenCalledTimes(2);
     });
 
-    for (const dispatch of [dispatchGold, dispatchFood, dispatchWood]) {
+    for (const dispatch of [dispatchGold, dispatchFood, dispatchWood, dispatchStone]) {
       const firstKey = dispatch.mock.calls[0]?.[2];
       expect(firstKey).toEqual(expect.stringMatching(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/

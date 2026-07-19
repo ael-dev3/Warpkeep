@@ -10,6 +10,9 @@ import {
   HEGEMONY_LOGGING_CAMP_ASSET_BUDGETS
 } from '../src/components/realm/realmWoodNodeLayer';
 import {
+  HEGEMONY_STONE_QUARRY_ASSET_BUDGETS
+} from '../src/components/realm/realmStoneNodeLayer';
+import {
   HEGEMONY_TREE_RUNTIME_ASSET_BY_ID
 } from '../src/components/realm/hegemonyTreeRuntimeAssets';
 import { axialToWorld } from '../src/game/map/hexCoordinates';
@@ -17,6 +20,7 @@ import { HEGEMONY_MAIN_CASTLE } from '../src/game/map/hegemonyLandmarks';
 import { CANONICAL_TIER_I_FOOD_SITES_V1 } from '../spacetimedb/src/foodSitePolicy';
 import { CANONICAL_GENESIS_FOREST_INSTANCES_V1 } from '../spacetimedb/src/forestLayoutPolicy';
 import { CANONICAL_TIER_I_GOLD_SITES_V1 } from '../spacetimedb/src/goldSitePolicy';
+import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../spacetimedb/src/stoneSitePolicy';
 import { CANONICAL_TIER_I_WOOD_SITES_V1 } from '../spacetimedb/src/woodSitePolicy';
 import { CANONICAL_CASTLE_SLOTS } from '../spacetimedb/src/world';
 
@@ -105,6 +109,11 @@ describe('canonical resource structure footprint policy', () => {
       'wood',
       HEGEMONY_LOGGING_CAMP_ASSET_BUDGETS.loggingCampTargetFootprint,
       CANONICAL_TIER_I_WOOD_SITES_V1
+    ),
+    ...siteCircles(
+      'stone',
+      HEGEMONY_STONE_QUARRY_ASSET_BUDGETS.stoneQuarryTargetFootprint,
+      CANONICAL_TIER_I_STONE_SITES_V1
     )
   ]);
 
@@ -117,7 +126,7 @@ describe('canonical resource structure footprint policy', () => {
     }
   });
 
-  it('keeps all Gold, Food, and Wood structure envelopes mutually disjoint', () => {
+  it('keeps all Gold, Food, Wood, and Stone structure envelopes mutually disjoint', () => {
     for (let leftIndex = 0; leftIndex < resourceCircles.length; leftIndex += 1) {
       for (
         let rightIndex = leftIndex + 1;

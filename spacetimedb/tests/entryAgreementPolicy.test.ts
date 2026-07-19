@@ -21,7 +21,7 @@ function source(path: string): string {
 test('the current Hegemony entry agreement preserves the deployed Terms-shaped version alias', () => {
   assert.equal(
     WARPKEEP_ENTRY_AGREEMENT_VERSION,
-    '2026-07-19-hegemony-entry-agreement-v2',
+    '2026-07-19-hegemony-entry-agreement-v3',
   );
   assert.equal(WARPKEEP_ALPHA_TERMS_VERSION, WARPKEEP_ENTRY_AGREEMENT_VERSION);
   assert.equal(REEXPORTED_ALPHA_TERMS_VERSION, WARPKEEP_ENTRY_AGREEMENT_VERSION);
@@ -30,6 +30,7 @@ test('the current Hegemony entry agreement preserves the deployed Terms-shaped v
 
 test('historical immutable evidence remains bounded and never becomes the current version', () => {
   assert.deepEqual(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS, [
+    '2026-07-19-hegemony-entry-agreement-v2',
     '2026-07-18-hegemony-entry-agreement-v1',
     '2026-07-14',
   ]);

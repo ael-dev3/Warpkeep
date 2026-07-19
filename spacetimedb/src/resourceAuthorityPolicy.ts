@@ -227,9 +227,9 @@ export function createInitialRealmResourceState(
 
 /**
  * Project passive resources without applying the inventory cap. This is not a
- * credit path and writes nothing; it exists so long-running Food and Wood
- * expeditions can reserve capacity for their own thirty-day awards and every
- * passive quantum through each immutable gathering deadline.
+ * credit path and writes nothing; it exists so long-running Food, Wood, and
+ * Stone expeditions can reserve capacity for their own thirty-day awards and
+ * every passive quantum through each immutable gathering deadline.
  */
 export function planRawResourceSettlement(
   state: ResourceAccountState,
@@ -290,7 +290,7 @@ export function planRawResourceSettlement(
  */
 function settleRealmResourcesWithExpeditionCaps(
   input: RealmResourceSettlementInput,
-  caps: Readonly<{ food: bigint; wood: bigint }>,
+  caps: Readonly<{ food: bigint; wood: bigint; stone: bigint }>,
 ): RealmResourceSettlementPlan {
   const { account, observedAtMicros } = input;
   if (account.policyVersion !== REALM_RESOURCE_POLICY_VERSION) {
@@ -311,6 +311,9 @@ function settleRealmResourcesWithExpeditionCaps(
   }
   if (!isU64(caps.wood) || caps.wood > REALM_RESOURCE_BALANCE_CAP || account.wood > caps.wood) {
     throw new ResourceAuthorityPolicyError('RESOURCE_WOOD_RESERVATION_BREACH');
+  }
+  if (!isU64(caps.stone) || caps.stone > REALM_RESOURCE_BALANCE_CAP || account.stone > caps.stone) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_STONE_RESERVATION_BREACH');
   }
   const rates = terrainRates(input.terrainKind);
 
@@ -355,7 +358,13 @@ function settleRealmResourcesWithExpeditionCaps(
     caps.wood,
     'RESOURCE_WOOD_RESERVATION_BREACH',
   );
-  const stone = nextBalance(account.stone, rates.stone, completedQuanta);
+  const stone = nextBalance(
+    account.stone,
+    rates.stone,
+    completedQuanta,
+    caps.stone,
+    'RESOURCE_STONE_RESERVATION_BREACH',
+  );
   const gold = nextBalance(account.gold, rates.gold, completedQuanta);
 
   return Object.freeze({
@@ -390,6 +399,7 @@ export function settleRealmResources(
   return settleRealmResourcesWithExpeditionCaps(input, {
     food: REALM_RESOURCE_BALANCE_CAP,
     wood: REALM_RESOURCE_BALANCE_CAP,
+    stone: REALM_RESOURCE_BALANCE_CAP,
   });
 }
 
@@ -404,15 +414,15 @@ export function planResourceSettlement(
 
 /**
  * Resource-specific reservation values are the exact uncredited awards from
- * private authority rows, never browser input. Passive Food and Wood each
- * stop below their own remaining award so either lifecycle can settle late
+ * private authority rows, never browser input. Passive Food, Wood, and Stone
+ * each stop below their own remaining award so any lifecycle can settle late
  * without overflowing its account field.
  */
 export function planResourceSettlementWithExpeditionReservations(
   state: ResourceAccountState,
   terrainKind: string,
   observedAtMicros: bigint,
-  reservations: Readonly<{ food: bigint; wood: bigint }>,
+  reservations: Readonly<{ food: bigint; wood: bigint; stone?: bigint }>,
 ): ResourceSettlementPlan {
   if (!isU64(reservations.food) || reservations.food > REALM_RESOURCE_BALANCE_CAP) {
     throw new ResourceAuthorityPolicyError('RESOURCE_FOOD_RESERVATION_INVALID');
@@ -420,19 +430,24 @@ export function planResourceSettlementWithExpeditionReservations(
   if (!isU64(reservations.wood) || reservations.wood > REALM_RESOURCE_BALANCE_CAP) {
     throw new ResourceAuthorityPolicyError('RESOURCE_WOOD_RESERVATION_INVALID');
   }
+  const stoneReservation = reservations.stone ?? 0n;
+  if (!isU64(stoneReservation) || stoneReservation > REALM_RESOURCE_BALANCE_CAP) {
+    throw new ResourceAuthorityPolicyError('RESOURCE_STONE_RESERVATION_INVALID');
+  }
   return settleRealmResourcesWithExpeditionCaps(
     { account: state, terrainKind, observedAtMicros },
     {
       food: REALM_RESOURCE_BALANCE_CAP - reservations.food,
       wood: REALM_RESOURCE_BALANCE_CAP - reservations.wood,
+      stone: REALM_RESOURCE_BALANCE_CAP - stoneReservation,
     },
   );
 }
 
 /**
  * Compatibility wrapper for the v7 Food-only authority surface. New
- * authority callers use the paired reservation API above so an active Wood
- * expedition is preserved as well.
+ * authority callers use the shared reservation API above so active Wood and
+ * Stone expeditions are preserved as well.
  */
 export function planResourceSettlementWithFoodReservation(
   state: ResourceAccountState,

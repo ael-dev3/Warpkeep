@@ -3,6 +3,7 @@ import type { ReadyRealmResourcePresentation } from '../components/realm/realmRe
 import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
 import type { ReadyFoodExpeditionPresentation } from '../components/realm/realmFoodExpeditionPresentation';
 import type { ReadyWoodExpeditionPresentation } from '../components/realm/realmWoodExpeditionPresentation';
+import type { ReadyStoneExpeditionPresentation } from '../components/realm/realmStoneExpeditionPresentation';
 
 export type WarpkeepAdmissionStatus =
   | 'not_admitted'
@@ -158,6 +159,26 @@ export type WarpkeepWoodNodeOccupation = Readonly<{
   returnsAtMicros: bigint;
 }>;
 
+/** Public v10 Stone Quarry-site projection. */
+export type WarpkeepStoneSite = Readonly<{
+  siteId: string;
+  q: number;
+  r: number;
+  tier: number;
+  active: boolean;
+}>;
+
+/** Public timing/occupancy only; Stone accrual remains caller-private. */
+export type WarpkeepStoneNodeOccupation = Readonly<{
+  siteId: string;
+  originCastleId: number;
+  phase: 'outbound' | 'gathering' | 'returning';
+  startedAtMicros: bigint;
+  arrivesAtMicros: bigint;
+  gatheringEndsAtMicros: bigint;
+  returnsAtMicros: bigint;
+}>;
+
 /**
  * Public, immutable realm-wide forest layout metadata. This is visual state
  * only: server-side seeding authority and all administrative reducers remain
@@ -194,6 +215,81 @@ export type WarpkeepForestTree = Readonly<{
   layoutVersion: number;
 }>;
 
+/** Public, fixed-point Genesis water layout metadata. */
+export type WarpkeepWaterLayout = Readonly<{
+  realmId: string;
+  layoutVersion: number;
+  policyVersion: string;
+  generationVersion: number;
+  canonicalLandCellCount: number;
+  oceanCellCount: number;
+  lakeCellCount: number;
+  lakeBodyCount: number;
+  riverCount: number;
+  riverCellCount: number;
+  seaLevelMilli: number;
+  seaLevelPolicyVersion: string;
+  fogStartDepthCells: number;
+  fogFullDepthCells: number;
+  hiddenBufferCells: number;
+  layoutDigest: string;
+  sourceCommit: string;
+  activated: boolean;
+}>;
+
+export type WarpkeepWaterBody = Readonly<{
+  bodyId: string;
+  realmId: string;
+  regime: string;
+  cellCount: number;
+  sourceCellKey: string;
+  mouthCellKey: string;
+  surfaceLevelMilli: number;
+  flowDirectionXQ15: number;
+  flowDirectionZQ15: number;
+  wavePreset: string;
+  ordinal: number;
+  seed: number;
+  generationVersion: number;
+  layoutVersion: number;
+}>;
+
+export type WarpkeepWaterCell = Readonly<{
+  cellKey: string;
+  realmId: string;
+  q: number;
+  r: number;
+  regime: string;
+  bodyId: string;
+  depthCells: number;
+  elevationMilli: number;
+  surfaceLevelMilli: number;
+  ring: number;
+  s: number;
+  underlyingTileKey?: string;
+  riverOrdinal?: number;
+  riverOrder?: number;
+  downstreamWaterCellKey?: string;
+  flowAccumulation: number;
+  depthClass: number;
+  oceanDepth: number;
+  bankSeed: number;
+  generationVersion: number;
+  fogBand: string;
+  layoutVersion: number;
+}>;
+
+/** Shared fixed-point atmosphere clock and sun vector for all water clients. */
+export type WarpkeepRealmEnvironment = Readonly<{
+  realmId: string;
+  environmentEpoch: bigint;
+  waterLayoutVersion: number;
+  seaLevelMilli: number;
+  sunDirectionXMicro: number;
+  sunDirectionYMicro: number;
+  sunDirectionZMicro: number;
+}>;
+
 /**
  * Untrusted projection assembled from the six public subscription tables.
  * It may represent a partially applied subscription and must not reach the
@@ -219,6 +315,10 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   woodSites?: readonly WarpkeepWoodSite[];
   /** Omitted with `woodSites`; absent/invalid data renders no Wood nodes. */
   woodNodeOccupations?: readonly WarpkeepWoodNodeOccupation[];
+  /** Omitted while the additive public Stone projection is unavailable. */
+  stoneSites?: readonly WarpkeepStoneSite[];
+  /** Omitted with `stoneSites`; absent/invalid data renders no Stone nodes. */
+  stoneNodeOccupations?: readonly WarpkeepStoneNodeOccupation[];
   /**
    * Additive public forest metadata. The connection publishes the pair only
    * after one atomic subscription applies; a one-sided test/malformed value
@@ -227,6 +327,11 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   forestLayout?: unknown;
   /** Paired public rows; absent or incompatible data renders no trees. */
   forestTrees?: readonly unknown[];
+  /** Paired public canonical water projection; malformed data stays present-invalid. */
+  waterLayout?: unknown;
+  waterBodies?: readonly unknown[];
+  waterCells?: readonly unknown[];
+  realmEnvironment?: unknown;
   ownCastle?: WarpkeepCastle;
 }>;
 
@@ -257,6 +362,8 @@ export type WarpkeepBackendState = Readonly<{
   foodExpedition?: ReadyFoodExpeditionPresentation;
   /** Caller-only, exact procedure projection for the active Wood expedition. */
   woodExpedition?: ReadyWoodExpeditionPresentation;
+  /** Caller-only, exact procedure projection for the active Stone expedition. */
+  stoneExpedition?: ReadyStoneExpeditionPresentation;
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({

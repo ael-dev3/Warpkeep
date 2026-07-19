@@ -35,6 +35,7 @@ import {
 
 // Import all reducer arg schemas
 import AcceptAlphaTermsV1Reducer from "./accept_alpha_terms_v_1_reducer";
+import AdminActivateGenesisWaterLayoutV1Reducer from "./admin_activate_genesis_water_layout_v_1_reducer";
 import AdminAdmitFounderV1Reducer from "./admin_admit_founder_v_1_reducer";
 import AdminAllowFidReducer from "./admin_allow_fid_reducer";
 import AdminBackfillResourceAccountsV1Reducer from "./admin_backfill_resource_accounts_v_1_reducer";
@@ -48,7 +49,9 @@ import AdminReplaceFidWalletSnapshotV1Reducer from "./admin_replace_fid_wallet_s
 import AdminSeedGenesisForestLayoutV1Reducer from "./admin_seed_genesis_forest_layout_v_1_reducer";
 import AdminSeedGenesisTierIFoodSitesV1Reducer from "./admin_seed_genesis_tier_i_food_sites_v_1_reducer";
 import AdminSeedGenesisTierIGoldSitesV1Reducer from "./admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
+import AdminSeedGenesisTierIStoneSitesV1Reducer from "./admin_seed_genesis_tier_i_stone_sites_v_1_reducer";
 import AdminSeedGenesisTierIWoodSitesV1Reducer from "./admin_seed_genesis_tier_i_wood_sites_v_1_reducer";
+import AdminSeedGenesisWaterLayoutV1Reducer from "./admin_seed_genesis_water_layout_v_1_reducer";
 import AdminSeedWorldReducer from "./admin_seed_world_reducer";
 import AdminUpsertFidWalletAttributionV1Reducer from "./admin_upsert_fid_wallet_attribution_v_1_reducer";
 import AdminUpsertRealmProfileV1Reducer from "./admin_upsert_realm_profile_v_1_reducer";
@@ -57,9 +60,11 @@ import BootstrapPlayerV2Reducer from "./bootstrap_player_v_2_reducer";
 import CollectFoodExpeditionV1Reducer from "./collect_food_expedition_v_1_reducer";
 import CollectGoldExpeditionV1Reducer from "./collect_gold_expedition_v_1_reducer";
 import CollectResourcesV1Reducer from "./collect_resources_v_1_reducer";
+import CollectStoneExpeditionV1Reducer from "./collect_stone_expedition_v_1_reducer";
 import CollectWoodExpeditionV1Reducer from "./collect_wood_expedition_v_1_reducer";
 import DispatchFoodExpeditionV1Reducer from "./dispatch_food_expedition_v_1_reducer";
 import DispatchGoldExpeditionV1Reducer from "./dispatch_gold_expedition_v_1_reducer";
+import DispatchStoneExpeditionV1Reducer from "./dispatch_stone_expedition_v_1_reducer";
 import DispatchWoodExpeditionV1Reducer from "./dispatch_wood_expedition_v_1_reducer";
 
 // Import all procedure arg schemas
@@ -68,8 +73,10 @@ import * as AdminGetAlphaStatusV2Procedure from "./admin_get_alpha_status_v_2_pr
 import * as AdminGetAlphaStatusV3Procedure from "./admin_get_alpha_status_v_3_procedure";
 import * as AdminGetAlphaStatusV4Procedure from "./admin_get_alpha_status_v_4_procedure";
 import * as AdminGetAlphaStatusV8Procedure from "./admin_get_alpha_status_v_8_procedure";
+import * as AdminGetAlphaStatusV10Procedure from "./admin_get_alpha_status_v_10_procedure";
 import * as AdminGetFidAuthEpochProcedure from "./admin_get_fid_auth_epoch_procedure";
 import * as AdminGetSnapScanBatchAggregateV1Procedure from "./admin_get_snap_scan_batch_aggregate_v_1_procedure";
+import * as AdminInspectGenesisWaterLayoutV1Procedure from "./admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "./get_my_admission_status_procedure";
@@ -77,6 +84,7 @@ import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_
 import * as GetMyFoodExpeditionStateV1Procedure from "./get_my_food_expedition_state_v_1_procedure";
 import * as GetMyGoldExpeditionStateV1Procedure from "./get_my_gold_expedition_state_v_1_procedure";
 import * as GetMyResourceStateV1Procedure from "./get_my_resource_state_v_1_procedure";
+import * as GetMyStoneExpeditionStateV1Procedure from "./get_my_stone_expedition_state_v_1_procedure";
 import * as GetMyWoodExpeditionStateV1Procedure from "./get_my_wood_expedition_state_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "./qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_snapshot_v_1_procedure";
@@ -92,10 +100,17 @@ import GoldNodeOccupationV1Row from "./gold_node_occupation_v_1_table";
 import GoldSiteV1Row from "./gold_site_v_1_table";
 import PlayerRow from "./player_table";
 import PlayerV2Row from "./player_v_2_table";
+import RealmEnvironmentV1Row from "./realm_environment_v_1_table";
 import RealmForestInstanceV1Row from "./realm_forest_instance_v_1_table";
 import RealmForestLayoutV1Row from "./realm_forest_layout_v_1_table";
 import RealmProfileV1Row from "./realm_profile_v_1_table";
 import RealmV1Row from "./realm_v_1_table";
+import RealmWaterBodyV1Row from "./realm_water_body_v_1_table";
+import RealmWaterCellV1Row from "./realm_water_cell_v_1_table";
+import RealmWaterLayoutV1Row from "./realm_water_layout_v_1_table";
+import StoneExpeditionScheduleV1Row from "./stone_expedition_schedule_v_1_table";
+import StoneNodeOccupationV1Row from "./stone_node_occupation_v_1_table";
+import StoneSiteV1Row from "./stone_site_v_1_table";
 import WoodExpeditionScheduleV1Row from "./wood_expedition_schedule_v_1_table";
 import WoodNodeOccupationV1Row from "./wood_node_occupation_v_1_table";
 import WoodSiteV1Row from "./wood_site_v_1_table";
@@ -253,6 +268,17 @@ const tablesSchema = __schema({
       { name: 'player_v2_fid_key', constraint: 'unique', columns: ['fid'] },
     ],
   }, PlayerV2Row),
+  realmEnvironmentV1: __table({
+    name: 'realm_environment_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_environment_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_environment_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmEnvironmentV1Row),
   realmForestInstanceV1: __table({
     name: 'realm_forest_instance_v1',
     indexes: [
@@ -300,6 +326,98 @@ const tablesSchema = __schema({
       { name: 'realm_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
     ],
   }, RealmV1Row),
+  realmWaterBodyV1: __table({
+    name: 'realm_water_body_v1',
+    indexes: [
+      { accessor: 'bodyId', name: 'realm_water_body_v1_body_id_idx_btree', algorithm: 'btree', columns: [
+        'bodyId',
+      ] },
+      { accessor: 'realmId', name: 'realm_water_body_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+      { accessor: 'byRealmAndRegime', name: 'realm_water_body_v1_realm_id_regime_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+        'regime',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_water_body_v1_body_id_key', constraint: 'unique', columns: ['bodyId'] },
+    ],
+  }, RealmWaterBodyV1Row),
+  realmWaterCellV1: __table({
+    name: 'realm_water_cell_v1',
+    indexes: [
+      { accessor: 'byBody', name: 'realm_water_cell_v1_body_id_idx_btree', algorithm: 'btree', columns: [
+        'bodyId',
+      ] },
+      { accessor: 'cellKey', name: 'realm_water_cell_v1_cell_key_idx_btree', algorithm: 'btree', columns: [
+        'cellKey',
+      ] },
+      { accessor: 'realmId', name: 'realm_water_cell_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+      { accessor: 'byRealmAndRegime', name: 'realm_water_cell_v1_realm_id_regime_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+        'regime',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_water_cell_v1_cell_key_key', constraint: 'unique', columns: ['cellKey'] },
+    ],
+  }, RealmWaterCellV1Row),
+  realmWaterLayoutV1: __table({
+    name: 'realm_water_layout_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_water_layout_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_water_layout_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmWaterLayoutV1Row),
+  stoneExpeditionScheduleV1: __table({
+    name: 'stone_expedition_schedule_v_1',
+    indexes: [
+      { accessor: 'originCastleId', name: 'stone_expedition_schedule_v_1_origin_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'originCastleId',
+      ] },
+      { accessor: 'scheduleId', name: 'stone_expedition_schedule_v_1_schedule_id_idx_btree', algorithm: 'btree', columns: [
+        'scheduleId',
+      ] },
+      { accessor: 'siteId', name: 'stone_expedition_schedule_v_1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'stone_expedition_schedule_v_1_schedule_id_key', constraint: 'unique', columns: ['scheduleId'] },
+    ],
+  }, StoneExpeditionScheduleV1Row),
+  stoneNodeOccupationV1: __table({
+    name: 'stone_node_occupation_v1',
+    indexes: [
+      { accessor: 'byOriginCastle', name: 'stone_node_occupation_v1_origin_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'originCastleId',
+      ] },
+      { accessor: 'siteId', name: 'stone_node_occupation_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'stone_node_occupation_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, StoneNodeOccupationV1Row),
+  stoneSiteV1: __table({
+    name: 'stone_site_v1',
+    indexes: [
+      { accessor: 'siteId', name: 'stone_site_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'stone_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, StoneSiteV1Row),
   woodExpeditionScheduleV1: __table({
     name: 'wood_expedition_schedule_v_1',
     indexes: [
@@ -376,6 +494,7 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("accept_alpha_terms_v1", AcceptAlphaTermsV1Reducer),
+  __reducerSchema("admin_activate_genesis_water_layout_v1", AdminActivateGenesisWaterLayoutV1Reducer),
   __reducerSchema("admin_admit_founder_v1", AdminAdmitFounderV1Reducer),
   __reducerSchema("admin_allow_fid", AdminAllowFidReducer),
   __reducerSchema("admin_backfill_resource_accounts_v1", AdminBackfillResourceAccountsV1Reducer),
@@ -389,7 +508,9 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_seed_genesis_forest_layout_v1", AdminSeedGenesisForestLayoutV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_food_sites_v1", AdminSeedGenesisTierIFoodSitesV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_gold_sites_v1", AdminSeedGenesisTierIGoldSitesV1Reducer),
+  __reducerSchema("admin_seed_genesis_tier_i_stone_sites_v1", AdminSeedGenesisTierIStoneSitesV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_wood_sites_v1", AdminSeedGenesisTierIWoodSitesV1Reducer),
+  __reducerSchema("admin_seed_genesis_water_layout_v1", AdminSeedGenesisWaterLayoutV1Reducer),
   __reducerSchema("admin_seed_world", AdminSeedWorldReducer),
   __reducerSchema("admin_upsert_fid_wallet_attribution_v1", AdminUpsertFidWalletAttributionV1Reducer),
   __reducerSchema("admin_upsert_realm_profile_v1", AdminUpsertRealmProfileV1Reducer),
@@ -398,9 +519,11 @@ const reducersSchema = __reducers(
   __reducerSchema("collect_food_expedition_v1", CollectFoodExpeditionV1Reducer),
   __reducerSchema("collect_gold_expedition_v1", CollectGoldExpeditionV1Reducer),
   __reducerSchema("collect_resources_v1", CollectResourcesV1Reducer),
+  __reducerSchema("collect_stone_expedition_v1", CollectStoneExpeditionV1Reducer),
   __reducerSchema("collect_wood_expedition_v1", CollectWoodExpeditionV1Reducer),
   __reducerSchema("dispatch_food_expedition_v1", DispatchFoodExpeditionV1Reducer),
   __reducerSchema("dispatch_gold_expedition_v1", DispatchGoldExpeditionV1Reducer),
+  __reducerSchema("dispatch_stone_expedition_v1", DispatchStoneExpeditionV1Reducer),
   __reducerSchema("dispatch_wood_expedition_v1", DispatchWoodExpeditionV1Reducer),
 );
 
@@ -411,8 +534,10 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_alpha_status_v3", AdminGetAlphaStatusV3Procedure.params, AdminGetAlphaStatusV3Procedure.returnType),
   __procedureSchema("admin_get_alpha_status_v4", AdminGetAlphaStatusV4Procedure.params, AdminGetAlphaStatusV4Procedure.returnType),
   __procedureSchema("admin_get_alpha_status_v8", AdminGetAlphaStatusV8Procedure.params, AdminGetAlphaStatusV8Procedure.returnType),
+  __procedureSchema("admin_get_alpha_status_v_10", AdminGetAlphaStatusV10Procedure.params, AdminGetAlphaStatusV10Procedure.returnType),
   __procedureSchema("admin_get_fid_auth_epoch", AdminGetFidAuthEpochProcedure.params, AdminGetFidAuthEpochProcedure.returnType),
   __procedureSchema("admin_get_snap_scan_batch_aggregate_v1", AdminGetSnapScanBatchAggregateV1Procedure.params, AdminGetSnapScanBatchAggregateV1Procedure.returnType),
+  __procedureSchema("admin_inspect_genesis_water_layout_v1", AdminInspectGenesisWaterLayoutV1Procedure.params, AdminInspectGenesisWaterLayoutV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
   __procedureSchema("get_my_admission_status", GetMyAdmissionStatusProcedure.params, GetMyAdmissionStatusProcedure.returnType),
@@ -420,6 +545,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_my_food_expedition_state_v1", GetMyFoodExpeditionStateV1Procedure.params, GetMyFoodExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_gold_expedition_state_v1", GetMyGoldExpeditionStateV1Procedure.params, GetMyGoldExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_resource_state_v1", GetMyResourceStateV1Procedure.params, GetMyResourceStateV1Procedure.returnType),
+  __procedureSchema("get_my_stone_expedition_state_v1", GetMyStoneExpeditionStateV1Procedure.params, GetMyStoneExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_wood_expedition_state_v1", GetMyWoodExpeditionStateV1Procedure.params, GetMyWoodExpeditionStateV1Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_attestation_v2", QaObserverGetRealmAttestationV2Procedure.params, QaObserverGetRealmAttestationV2Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_snapshot_v1", QaObserverGetRealmSnapshotV1Procedure.params, QaObserverGetRealmSnapshotV1Procedure.returnType),

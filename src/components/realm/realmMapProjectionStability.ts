@@ -9,6 +9,7 @@ import {
 import type { RealmPeerCastleMarker } from './createRealmScene';
 import type { RealmFoodNodePresentation } from './realmFoodNodePresentation';
 import type { RealmGoldNodePresentation } from './realmGoldNodePresentation';
+import type { RealmStoneNodePresentation } from './realmStoneNodePresentation';
 import type { RealmWoodNodePresentation } from './realmWoodNodePresentation';
 
 export type RealmCastleProjection = Readonly<{
@@ -72,6 +73,7 @@ export function useStablePeerCastleMarkers(
 type RealmGatheringNodePresentation =
   | RealmGoldNodePresentation
   | RealmFoodNodePresentation
+  | RealmStoneNodePresentation
   | RealmWoodNodePresentation;
 
 function sameGatheringNodes<T extends RealmGatheringNodePresentation>(
@@ -128,6 +130,31 @@ export function useStableGatheringNodes<T extends RealmGatheringNodePresentation
   const stableNodesRef = useRef(nodes);
   if (!sameGatheringNodes(stableNodesRef.current, nodes)) stableNodesRef.current = nodes;
   return stableNodesRef.current;
+}
+
+function sameGatheringNodeCatalog<T extends RealmGatheringNodePresentation>(
+  first: readonly T[],
+  second: readonly T[]
+) {
+  return first.length === second.length && first.every((node, index) => {
+    const candidate = second[index];
+    return candidate !== undefined
+      && node.siteId === candidate.siteId
+      && node.coord.q === candidate.coord.q
+      && node.coord.r === candidate.coord.r
+      && node.tier === candidate.tier;
+  });
+}
+
+/** Keep immutable site topology stable while occupation rows reconcile in-place. */
+export function useStableGatheringNodeCatalog<T extends RealmGatheringNodePresentation>(
+  nodes: readonly T[]
+) {
+  const stableCatalogRef = useRef(nodes);
+  if (!sameGatheringNodeCatalog(stableCatalogRef.current, nodes)) {
+    stableCatalogRef.current = nodes;
+  }
+  return stableCatalogRef.current;
 }
 
 /**

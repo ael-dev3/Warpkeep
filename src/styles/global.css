@@ -24,6 +24,40 @@ body {
   min-height: 100vh;
   margin: 0;
   background: #010207;
+  overscroll-behavior-y: none;
+}
+
+/* iOS Safari zooms the page when a focused editable control is smaller than
+   16px. Keep the app's compact visual scale while preserving a stable focus
+   and scroll experience on phones. */
+@media (max-width: 680px) {
+  :is(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea
+  ) {
+    font-size: 16px;
+  }
+}
+
+/* Every app surface that owns a scroll offset needs an explicit vertical
+   touch lane. Without it, Safari can route the gesture to the fixed Realm
+   canvas (which intentionally owns its own pan/pinch gestures) and the panel
+   appears frozen. */
+:is(
+  .warpkeep-patch-notes,
+  .warpkeep-alpha-terms,
+  .warpkeep-alpha-terms__panel,
+  .warpkeep-settings__panel,
+  .farcaster-auth-panel,
+  .realm-profile-menu__panel,
+  .realm-cell-navigator__dialog,
+  .castle-inspection__body,
+  .gold-mine-inspection__body,
+  .warpkeep-credits[data-presentation="reading"] .warpkeep-credits__viewport
+) {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 button {

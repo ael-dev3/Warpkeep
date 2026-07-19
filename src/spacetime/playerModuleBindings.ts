@@ -4,7 +4,7 @@
  *
  * The complete generated bindings remain the canonical schema artifact under
  * `module_bindings/` and are still used by server-side operators. The player
- * only needs the public realm tables plus six read procedures and nine
+ * only needs the public realm tables plus seven read procedures and ten
  * self-service reducers. Keeping that runtime projection separate prevents
  * private/admin and machine-bound QA procedure names from becoming part of
  * the public Vite graph while preserving generated-binding parity unchanged.
@@ -35,6 +35,7 @@ import BootstrapPlayerV2Reducer from './module_bindings/bootstrap_player_v_2_red
 import CollectFoodExpeditionV1Reducer from './module_bindings/collect_food_expedition_v_1_reducer'
 import CollectGoldExpeditionV1Reducer from './module_bindings/collect_gold_expedition_v_1_reducer'
 import CollectWoodExpeditionV1Reducer from './module_bindings/collect_wood_expedition_v_1_reducer'
+import CollectStoneExpeditionV1Reducer from './module_bindings/collect_stone_expedition_v_1_reducer'
 import CollectResourcesV1Reducer from './module_bindings/collect_resources_v_1_reducer'
 import CastleRow from './module_bindings/castle_table'
 import * as GetAlphaBackendInfoProcedure from './module_bindings/get_alpha_backend_info_procedure'
@@ -42,10 +43,12 @@ import * as GetMyAdmissionStatusV2Procedure from './module_bindings/get_my_admis
 import * as GetMyFoodExpeditionStateV1Procedure from './module_bindings/get_my_food_expedition_state_v_1_procedure'
 import * as GetMyGoldExpeditionStateV1Procedure from './module_bindings/get_my_gold_expedition_state_v_1_procedure'
 import * as GetMyWoodExpeditionStateV1Procedure from './module_bindings/get_my_wood_expedition_state_v_1_procedure'
+import * as GetMyStoneExpeditionStateV1Procedure from './module_bindings/get_my_stone_expedition_state_v_1_procedure'
 import * as GetMyResourceStateV1Procedure from './module_bindings/get_my_resource_state_v_1_procedure'
 import DispatchFoodExpeditionV1Reducer from './module_bindings/dispatch_food_expedition_v_1_reducer'
 import DispatchGoldExpeditionV1Reducer from './module_bindings/dispatch_gold_expedition_v_1_reducer'
 import DispatchWoodExpeditionV1Reducer from './module_bindings/dispatch_wood_expedition_v_1_reducer'
+import DispatchStoneExpeditionV1Reducer from './module_bindings/dispatch_stone_expedition_v_1_reducer'
 import FoodNodeOccupationV1Row from './module_bindings/food_node_occupation_v_1_table'
 import FoodSiteV1Row from './module_bindings/food_site_v_1_table'
 import GoldNodeOccupationV1Row from './module_bindings/gold_node_occupation_v_1_table'
@@ -55,10 +58,16 @@ import RealmForestInstanceV1Row from './module_bindings/realm_forest_instance_v_
 import RealmForestLayoutV1Row from './module_bindings/realm_forest_layout_v_1_table'
 import RealmProfileV1Row from './module_bindings/realm_profile_v_1_table'
 import RealmV1Row from './module_bindings/realm_v_1_table'
+import RealmEnvironmentV1Row from './module_bindings/realm_environment_v_1_table'
 import WorldTileMetaV1Row from './module_bindings/world_tile_meta_v_1_table'
 import WorldTileRow from './module_bindings/world_tile_table'
+import RealmWaterBodyV1Row from './module_bindings/realm_water_body_v_1_table'
+import RealmWaterCellV1Row from './module_bindings/realm_water_cell_v_1_table'
+import RealmWaterLayoutV1Row from './module_bindings/realm_water_layout_v_1_table'
 import WoodNodeOccupationV1Row from './module_bindings/wood_node_occupation_v_1_table'
 import WoodSiteV1Row from './module_bindings/wood_site_v_1_table'
+import StoneNodeOccupationV1Row from './module_bindings/stone_node_occupation_v_1_table'
+import StoneSiteV1Row from './module_bindings/stone_site_v_1_table'
 
 const tablesSchema = __schema({
   castle: __table({
@@ -196,6 +205,47 @@ const tablesSchema = __schema({
       { name: 'realm_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
     ],
   }, RealmV1Row),
+  realmEnvironmentV1: __table({
+    name: 'realm_environment_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_environment_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+    ],
+    constraints: [
+      { name: 'realm_environment_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmEnvironmentV1Row),
+  realmWaterBodyV1: __table({
+    name: 'realm_water_body_v1',
+    indexes: [
+      { accessor: 'bodyId', name: 'realm_water_body_v1_body_id_idx_btree', algorithm: 'btree', columns: ['bodyId'] },
+      { accessor: 'realmId', name: 'realm_water_body_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+      { accessor: 'byRealmAndRegime', name: 'realm_water_body_v1_realm_id_regime_idx_btree', algorithm: 'btree', columns: ['realmId', 'regime'] },
+    ],
+    constraints: [
+      { name: 'realm_water_body_v1_body_id_key', constraint: 'unique', columns: ['bodyId'] },
+    ],
+  }, RealmWaterBodyV1Row),
+  realmWaterCellV1: __table({
+    name: 'realm_water_cell_v1',
+    indexes: [
+      { accessor: 'byBody', name: 'realm_water_cell_v1_body_id_idx_btree', algorithm: 'btree', columns: ['bodyId'] },
+      { accessor: 'cellKey', name: 'realm_water_cell_v1_cell_key_idx_btree', algorithm: 'btree', columns: ['cellKey'] },
+      { accessor: 'realmId', name: 'realm_water_cell_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+      { accessor: 'byRealmAndRegime', name: 'realm_water_cell_v1_realm_id_regime_idx_btree', algorithm: 'btree', columns: ['realmId', 'regime'] },
+    ],
+    constraints: [
+      { name: 'realm_water_cell_v1_cell_key_key', constraint: 'unique', columns: ['cellKey'] },
+    ],
+  }, RealmWaterCellV1Row),
+  realmWaterLayoutV1: __table({
+    name: 'realm_water_layout_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_water_layout_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+    ],
+    constraints: [
+      { name: 'realm_water_layout_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmWaterLayoutV1Row),
   // The Wood catalog follows the same narrow boundary as Gold and Food:
   // public site geometry plus occupation timing, never the private ledger,
   // idempotency receipts, or scheduler surface.
@@ -224,6 +274,31 @@ const tablesSchema = __schema({
       { name: 'wood_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
     ],
   }, WoodSiteV1Row),
+  stoneNodeOccupationV1: __table({
+    name: 'stone_node_occupation_v1',
+    indexes: [
+      { accessor: 'byOriginCastle', name: 'stone_node_occupation_v1_origin_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'originCastleId',
+      ] },
+      { accessor: 'siteId', name: 'stone_node_occupation_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'stone_node_occupation_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, StoneNodeOccupationV1Row),
+  stoneSiteV1: __table({
+    name: 'stone_site_v1',
+    indexes: [
+      { accessor: 'siteId', name: 'stone_site_v1_site_id_idx_btree', algorithm: 'btree', columns: [
+        'siteId',
+      ] },
+    ],
+    constraints: [
+      { name: 'stone_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
+    ],
+  }, StoneSiteV1Row),
   worldTile: __table({
     name: 'world_tile',
     indexes: [
@@ -261,10 +336,12 @@ const reducersSchema = __reducers(
   __reducerSchema('collect_food_expedition_v1', CollectFoodExpeditionV1Reducer),
   __reducerSchema('collect_gold_expedition_v1', CollectGoldExpeditionV1Reducer),
   __reducerSchema('collect_wood_expedition_v1', CollectWoodExpeditionV1Reducer),
+  __reducerSchema('collect_stone_expedition_v1', CollectStoneExpeditionV1Reducer),
   __reducerSchema('collect_resources_v1', CollectResourcesV1Reducer),
   __reducerSchema('dispatch_food_expedition_v1', DispatchFoodExpeditionV1Reducer),
   __reducerSchema('dispatch_gold_expedition_v1', DispatchGoldExpeditionV1Reducer),
   __reducerSchema('dispatch_wood_expedition_v1', DispatchWoodExpeditionV1Reducer),
+  __reducerSchema('dispatch_stone_expedition_v1', DispatchStoneExpeditionV1Reducer),
 )
 
 const proceduresSchema = __procedures(
@@ -292,6 +369,11 @@ const proceduresSchema = __procedures(
     'get_my_wood_expedition_state_v1',
     GetMyWoodExpeditionStateV1Procedure.params,
     GetMyWoodExpeditionStateV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_stone_expedition_state_v1',
+    GetMyStoneExpeditionStateV1Procedure.params,
+    GetMyStoneExpeditionStateV1Procedure.returnType,
   ),
   __procedureSchema(
     'get_my_resource_state_v1',

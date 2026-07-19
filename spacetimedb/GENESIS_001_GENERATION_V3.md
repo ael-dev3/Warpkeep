@@ -2,7 +2,7 @@
 
 ## Status
 
-Generation v3 was introduced in Alpha 0.3.8 and remains the Alpha 0.3.11 world definition. It is an additive
+Generation v3 was introduced in Alpha 0.3.8 and remains the Alpha 0.3.12 world definition. It is an additive
 expansion of the generation-v2 predecessor, not a second realm. The completed
 module publication and world-state transition were separately approved; this
 document grants no authority to publish or mutate production again.

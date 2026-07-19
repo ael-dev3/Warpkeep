@@ -31,7 +31,7 @@ silhouette.
 
 `FoodFarmInspectionPanel` displays this image as decorative, same-origin art
 with a pointer-inert local art stage that rises slightly above the card edge.
-It is deliberately mounted only by the reviewed draft integration when a
+It is deliberately mounted only by the live integration when a
 validated public Food site is selected. It creates no map target, balance,
 gathering authority, or deployment approval. The 2D card does not promote the
 separate 3D Wheat Farm runtime assets into collision, placement, or economic

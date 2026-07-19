@@ -18,11 +18,13 @@ import {
   collectWarpkeepGoldExpedition,
   collectWarpkeepFoodExpedition,
   collectWarpkeepWoodExpedition,
+  collectWarpkeepStoneExpedition,
   collectWarpkeepResources,
   connectWarpkeep,
   dispatchWarpkeepGoldExpedition,
   dispatchWarpkeepFoodExpedition,
   dispatchWarpkeepWoodExpedition,
+  dispatchWarpkeepStoneExpedition,
   disconnectWarpkeep,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
@@ -30,6 +32,7 @@ import {
   readWarpkeepGoldExpeditionState,
   readWarpkeepFoodExpeditionState,
   readWarpkeepWoodExpeditionState,
+  readWarpkeepStoneExpeditionState,
   readWarpkeepResourceState,
   readWarpkeepRealmSnapshot,
   subscribeToWarpkeepRealm,
@@ -54,6 +57,7 @@ import type { ReadyRealmResourcePresentation } from '../components/realm/realmRe
 import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmGoldExpeditionPresentation';
 import type { ReadyFoodExpeditionPresentation } from '../components/realm/realmFoodExpeditionPresentation';
 import type { ReadyWoodExpeditionPresentation } from '../components/realm/realmWoodExpeditionPresentation';
+import type { ReadyStoneExpeditionPresentation } from '../components/realm/realmStoneExpeditionPresentation';
 import { createExpeditionIdempotencyKey } from './expeditionIdempotencyKey';
 
 /**
@@ -111,6 +115,10 @@ export type WarpkeepBackendControllerValue = Readonly<{
   dispatchWoodExpedition: (siteId: string) => Promise<void>;
   /** Settle only the caller's Wood expedition and refresh both private views. */
   claimWoodExpedition: () => Promise<void>;
+  /** Send a guarded Stone dispatch; public occupancy remains subscription-owned. */
+  dispatchStoneExpedition: (siteId: string) => Promise<void>;
+  /** Settle only the caller's Stone expedition and refresh both private views. */
+  claimStoneExpedition: () => Promise<void>;
 }>;
 
 /**
@@ -145,6 +153,10 @@ export type WarpkeepBackendRuntime = Readonly<{
   dispatchWoodExpedition?: typeof dispatchWarpkeepWoodExpedition;
   /** Optional during the additive Wood rollout or legacy test runtimes. */
   collectWoodExpedition?: typeof collectWarpkeepWoodExpedition;
+  /** Optional during the additive Stone rollout or legacy test runtimes. */
+  readStoneExpeditionState?: typeof readWarpkeepStoneExpeditionState;
+  dispatchStoneExpedition?: typeof dispatchWarpkeepStoneExpedition;
+  collectStoneExpedition?: typeof collectWarpkeepStoneExpedition;
   observeRealm: typeof observeWarpkeepRealm;
   readRealmSnapshot: typeof readWarpkeepRealmSnapshot;
   subscribeRealm: typeof subscribeToWarpkeepRealm;
@@ -168,6 +180,9 @@ const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.freeze({
   readWoodExpeditionState: readWarpkeepWoodExpeditionState,
   dispatchWoodExpedition: dispatchWarpkeepWoodExpedition,
   collectWoodExpedition: collectWarpkeepWoodExpedition,
+  readStoneExpeditionState: readWarpkeepStoneExpeditionState,
+  dispatchStoneExpedition: dispatchWarpkeepStoneExpedition,
+  collectStoneExpedition: collectWarpkeepStoneExpedition,
   observeRealm: observeWarpkeepRealm,
   readRealmSnapshot: readWarpkeepRealmSnapshot,
   subscribeRealm: subscribeToWarpkeepRealm
@@ -317,6 +332,12 @@ export function WarpkeepSpacetimeProvider({
   }> | undefined>(undefined);
   const woodExpeditionOperationGenerationRef = useRef<number | undefined>(undefined);
   const woodDispatchAttemptRef = useRef<ExpeditionDispatchAttempt | undefined>(undefined);
+  const stoneExpeditionStateRef = useRef<Readonly<{
+    generation: number;
+    value: ReadyStoneExpeditionPresentation | undefined;
+  }> | undefined>(undefined);
+  const stoneExpeditionOperationGenerationRef = useRef<number | undefined>(undefined);
+  const stoneDispatchAttemptRef = useRef<ExpeditionDispatchAttempt | undefined>(undefined);
   const processTermsAttemptRef = useRef<() => void>(() => undefined);
   stateRef.current = state;
 
@@ -343,6 +364,9 @@ export function WarpkeepSpacetimeProvider({
     woodExpeditionStateRef.current = undefined;
     woodExpeditionOperationGenerationRef.current = undefined;
     woodDispatchAttemptRef.current = undefined;
+    stoneExpeditionStateRef.current = undefined;
+    stoneExpeditionOperationGenerationRef.current = undefined;
+    stoneDispatchAttemptRef.current = undefined;
     canonicalRealmSourceRef.current = undefined;
     processTermsAttemptRef.current = () => undefined;
     runActiveTeardown();
@@ -842,6 +866,138 @@ export function WarpkeepSpacetimeProvider({
     }
   }, [runtime]);
 
+  const dispatchStoneExpedition = useCallback(async (siteId: string) => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    const retainedExpedition = stoneExpeditionStateRef.current?.generation === generation
+      ? stoneExpeditionStateRef.current.value
+      : undefined;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || currentState.realm === undefined
+      || currentState.stoneExpedition === undefined
+      || connection === undefined
+      || fid === undefined
+      || runtime.dispatchStoneExpedition === undefined
+      || retainedExpedition?.active === true
+      || stoneExpeditionOperationGenerationRef.current === generation
+    ) throw new Error('Stone expedition is unavailable.');
+    const attempt = dispatchAttemptFor(
+      stoneDispatchAttemptRef.current,
+      generation,
+      siteId
+    );
+    if (attempt === undefined) throw new Error('Stone expedition is unavailable.');
+    stoneDispatchAttemptRef.current = attempt;
+    stoneExpeditionOperationGenerationRef.current = generation;
+    try {
+      const stoneExpedition = await withResourceOperationDeadline(
+        runtime.dispatchStoneExpedition(connection, siteId, attempt.idempotencyKey)
+      );
+      if (generationRef.current !== generation) {
+        throw new Error('Stone expedition is unavailable.');
+      }
+      if (!activeExpeditionMatchesDispatch(
+        stoneExpedition,
+        siteId,
+        currentState.realm.ownCastle.castleId
+      )) throw new Error('Stone expedition is unavailable.');
+      if (stoneDispatchAttemptRef.current === attempt) {
+        stoneDispatchAttemptRef.current = undefined;
+      }
+      stoneExpeditionStateRef.current = Object.freeze({ generation, value: stoneExpedition });
+      setState((latest) => {
+        if (
+          generationRef.current !== generation
+          || latest.phase !== 'ready'
+          || latest.admission !== 'ready'
+          || latest.identity?.fid !== fid
+          || latest.realm === undefined
+          || latest.resources === undefined
+        ) return latest;
+        return { ...latest, stoneExpedition };
+      });
+    } catch (error) {
+      if (generationRef.current === generation && error instanceof ResourceOperationDeadlineError) {
+        canonicalRealmSourceRef.current = undefined;
+        runActiveTeardown();
+        setState(backendError(currentState.identity));
+      }
+      throw new Error('Stone expedition is unavailable.');
+    } finally {
+      if (stoneExpeditionOperationGenerationRef.current === generation) {
+        stoneExpeditionOperationGenerationRef.current = undefined;
+      }
+    }
+  }, [runActiveTeardown, runtime]);
+
+  const claimStoneExpedition = useCallback(async () => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || currentState.realm === undefined
+      || currentState.stoneExpedition === undefined
+      || connection === undefined
+      || fid === undefined
+      || runtime.collectStoneExpedition === undefined
+      || stoneExpeditionOperationGenerationRef.current === generation
+    ) throw new Error('Stone expedition is unavailable.');
+    stoneExpeditionOperationGenerationRef.current = generation;
+    try {
+      const settled = await withResourceOperationDeadline(
+        runtime.collectStoneExpedition(connection, fid)
+      );
+      if (generationRef.current !== generation) throw new Error('Stone expedition is unavailable.');
+      if (
+        settled.resources.fid !== BigInt(fid)
+        || !activeExpeditionBelongsToCastle(
+          settled.stoneExpedition,
+          currentState.realm.ownCastle.castleId
+        )
+      ) throw new Error('Stone expedition is unavailable.');
+      const retained = resourceStateRef.current?.generation === generation
+        ? resourceStateRef.current.value
+        : undefined;
+      if (!resourceProjectionIsAtLeastAsNew(settled.resources, retained)) return;
+      resourceStateRef.current = Object.freeze({ generation, value: settled.resources });
+      stoneExpeditionStateRef.current = Object.freeze({ generation, value: settled.stoneExpedition });
+      setState((latest) => {
+        const latestRetained = resourceStateRef.current?.generation === generation
+          ? resourceStateRef.current.value
+          : undefined;
+        if (
+          generationRef.current !== generation
+          || latest.phase !== 'ready'
+          || latest.admission !== 'ready'
+          || latest.identity?.fid !== fid
+          || latest.realm === undefined
+          || latest.resources === undefined
+          || latest.resources.fid !== settled.resources.fid
+          || !resourceProjectionIsAtLeastAsNew(settled.resources, latestRetained)
+          || !resourceProjectionIsAtLeastAsNew(settled.resources, latest.resources)
+        ) return latest;
+        return {
+          ...latest,
+          resources: settled.resources,
+          stoneExpedition: settled.stoneExpedition
+        };
+      });
+    } catch {
+      throw new Error('Stone expedition is unavailable.');
+    } finally {
+      if (stoneExpeditionOperationGenerationRef.current === generation) {
+        stoneExpeditionOperationGenerationRef.current = undefined;
+      }
+    }
+  }, [runtime]);
+
   const beginAlphaTermsAcceptance = useCallback(() => {
     termsAttemptRef.current += 1;
     processTermsAttemptRef.current();
@@ -898,6 +1054,9 @@ export function WarpkeepSpacetimeProvider({
     woodExpeditionStateRef.current = undefined;
     woodExpeditionOperationGenerationRef.current = undefined;
     woodDispatchAttemptRef.current = undefined;
+    stoneExpeditionStateRef.current = undefined;
+    stoneExpeditionOperationGenerationRef.current = undefined;
+    stoneDispatchAttemptRef.current = undefined;
     const previousState = stateRef.current;
     const canonicalRealmSource = [
       config.spacetimeUri,
@@ -1011,6 +1170,15 @@ export function WarpkeepSpacetimeProvider({
       }
       if (woodDispatchAttemptRef.current?.generation === generation) {
         woodDispatchAttemptRef.current = undefined;
+      }
+      if (stoneExpeditionStateRef.current?.generation === generation) {
+        stoneExpeditionStateRef.current = undefined;
+      }
+      if (stoneExpeditionOperationGenerationRef.current === generation) {
+        stoneExpeditionOperationGenerationRef.current = undefined;
+      }
+      if (stoneDispatchAttemptRef.current?.generation === generation) {
+        stoneDispatchAttemptRef.current = undefined;
       }
       const observer = cleanupObserver;
       cleanupObserver = undefined;
@@ -1171,6 +1339,9 @@ export function WarpkeepSpacetimeProvider({
           const woodExpedition = woodExpeditionStateRef.current?.generation === generation
             ? woodExpeditionStateRef.current.value
             : undefined;
+          const stoneExpedition = stoneExpeditionStateRef.current?.generation === generation
+            ? stoneExpeditionStateRef.current.value
+            : undefined;
           if (
             !current()
             || !subscriptionApplied
@@ -1195,7 +1366,8 @@ export function WarpkeepSpacetimeProvider({
               resources,
               ...(goldExpedition === undefined ? {} : { goldExpedition }),
               ...(foodExpedition === undefined ? {} : { foodExpedition }),
-              ...(woodExpedition === undefined ? {} : { woodExpedition })
+              ...(woodExpedition === undefined ? {} : { woodExpedition }),
+              ...(stoneExpedition === undefined ? {} : { stoneExpedition })
             });
           } catch {
             fail();
@@ -1250,6 +1422,11 @@ export function WarpkeepSpacetimeProvider({
               : withResourceOperationDeadline(
                 runtime.readWoodExpeditionState(activeConnection)
               ).catch(() => undefined);
+            const initialStoneExpeditionPromise = runtime.readStoneExpeditionState === undefined
+              ? Promise.resolve<ReadyStoneExpeditionPresentation | undefined>(undefined)
+              : withResourceOperationDeadline(
+                runtime.readStoneExpeditionState(activeConnection)
+              ).catch(() => undefined);
             // A synchronous observer/subscription exception can terminate this
             // generation before the await below. Pre-handle the same promise so
             // its eventual rejection cannot escape as an unhandled rejection;
@@ -1279,12 +1456,14 @@ export function WarpkeepSpacetimeProvider({
               initialResources,
               initialGoldExpedition,
               initialFoodExpedition,
-              initialWoodExpedition
+              initialWoodExpedition,
+              initialStoneExpedition
             ] = await Promise.all([
               initialResourcePromise,
               initialGoldExpeditionPromise,
               initialFoodExpeditionPromise,
-              initialWoodExpeditionPromise
+              initialWoodExpeditionPromise,
+              initialStoneExpeditionPromise
             ]);
             if (!current()) return;
             resourceStateRef.current = Object.freeze({
@@ -1302,6 +1481,10 @@ export function WarpkeepSpacetimeProvider({
             woodExpeditionStateRef.current = Object.freeze({
               generation,
               value: initialWoodExpedition
+            });
+            stoneExpeditionStateRef.current = Object.freeze({
+              generation,
+              value: initialStoneExpedition
             });
             realmActivated = true;
             const refreshResources = async () => {
@@ -1323,13 +1506,19 @@ export function WarpkeepSpacetimeProvider({
                   : withResourceOperationDeadline(
                     runtime.readWoodExpeditionState(activeConnection)
                   ).catch(() => undefined);
-                const [refreshed, refreshedGoldExpedition, refreshedFoodExpedition, refreshedWoodExpedition] = await Promise.all([
+                const stoneRefresh = runtime.readStoneExpeditionState === undefined
+                  ? Promise.resolve<ReadyStoneExpeditionPresentation | undefined>(undefined)
+                  : withResourceOperationDeadline(
+                    runtime.readStoneExpeditionState(activeConnection)
+                  ).catch(() => undefined);
+                const [refreshed, refreshedGoldExpedition, refreshedFoodExpedition, refreshedWoodExpedition, refreshedStoneExpedition] = await Promise.all([
                   withResourceOperationDeadline(
                     runtime.readResourceState(activeConnection, bridgeFid!)
                   ),
                   goldRefresh,
                   foodRefresh,
-                  woodRefresh
+                  woodRefresh,
+                  stoneRefresh
                 ]);
                 if (!current()) return;
                 if (refreshed.fid !== BigInt(bridgeFid!)) {
@@ -1352,6 +1541,10 @@ export function WarpkeepSpacetimeProvider({
                   generation,
                   value: refreshedWoodExpedition
                 });
+                stoneExpeditionStateRef.current = Object.freeze({
+                  generation,
+                  value: refreshedStoneExpedition
+                });
                 setState((latest) => {
                   const latestRetained = resourceStateRef.current?.generation === generation
                     ? resourceStateRef.current.value
@@ -1372,7 +1565,8 @@ export function WarpkeepSpacetimeProvider({
                     resources: refreshed,
                     goldExpedition: refreshedGoldExpedition,
                     foodExpedition: refreshedFoodExpedition,
-                    woodExpedition: refreshedWoodExpedition
+                    woodExpedition: refreshedWoodExpedition,
+                    stoneExpedition: refreshedStoneExpedition
                   };
                 });
               } catch {
@@ -1431,7 +1625,9 @@ export function WarpkeepSpacetimeProvider({
     dispatchFoodExpedition,
     claimFoodExpedition,
     dispatchWoodExpedition,
-    claimWoodExpedition
+    claimWoodExpedition,
+    dispatchStoneExpedition,
+    claimStoneExpedition
   }), [
     beginAlphaTermsAcceptance,
     cancelAlphaTermsAcceptance,
@@ -1439,11 +1635,13 @@ export function WarpkeepSpacetimeProvider({
     claimFoodExpedition,
     claimGoldExpedition,
     claimWoodExpedition,
+    claimStoneExpedition,
     collectResources,
     disconnect,
     dispatchGoldExpedition,
     dispatchFoodExpedition,
     dispatchWoodExpedition,
+    dispatchStoneExpedition,
     sharedAlphaAvailable,
     state
   ]);

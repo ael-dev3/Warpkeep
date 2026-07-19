@@ -79,7 +79,7 @@ const RESOURCE_TOOLTIP_COPY: Readonly<Record<RealmResourceTooltipKey, string>> =
   wood:
     'Wood is intended for construction and fortification. Your keep earns a private terrain yield, and logging expeditions can gather more from available sites. Spending is not live yet.',
   stone:
-    'Stone is intended for strongholds and upgrades. It currently comes only from your keep\'s private terrain yield; quarry sites and Stone spending are not live yet.',
+    'Stone is intended for strongholds and upgrades. Your keep earns a private terrain yield, and Tier-I quarry expeditions can gather more from available sites. Stone spending is not live yet.',
   gold:
     'Gold is intended for trade, upgrades, and command. It currently comes only from mine expeditions; terrain Gold and spending are not live.',
   marks:

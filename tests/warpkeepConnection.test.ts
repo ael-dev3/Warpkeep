@@ -13,16 +13,19 @@ import {
   connectWarpkeep,
   bootstrapWarpkeepPlayer,
   collectWarpkeepGoldExpedition,
+  collectWarpkeepStoneExpedition,
   collectWarpkeepWoodExpedition,
   collectWarpkeepResources,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
   dispatchWarpkeepGoldExpedition,
+  dispatchWarpkeepStoneExpedition,
   dispatchWarpkeepWoodExpedition,
   observeWarpkeepRealm,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepGoldExpeditionState,
+  readWarpkeepStoneExpeditionState,
   readWarpkeepWoodExpeditionState,
   readWarpkeepResourceState,
   readWarpkeepRealmSnapshot,
@@ -39,6 +42,7 @@ import {
   CANONICAL_GENESIS_FOREST_INSTANCES_V1,
   CANONICAL_GENESIS_FOREST_LAYOUT_V1
 } from '../spacetimedb/src/forestLayoutPolicy';
+import { CANONICAL_TIER_I_STONE_SITES_V1 } from '../spacetimedb/src/stoneSitePolicy';
 import {
   CANONICAL_TEST_FID,
   createCanonicalGenesisCandidate
@@ -169,6 +173,38 @@ function forestSubscriptionConnection(
       .mockReturnValueOnce(pairedForest.builder)
   } as unknown as WarpkeepConnection;
   return Object.freeze({ connection, core, pairedForest });
+}
+
+/** Core + paired Stone public projection with every unrelated additive layer absent. */
+function stoneSubscriptionConnection(
+  candidate: WarpkeepRealmSnapshotCandidate,
+  stone: Readonly<{
+    siteRows?: readonly unknown[];
+    occupationRows?: readonly unknown[];
+  }> = {}
+) {
+  const rows = rawRowsForCandidate(candidate);
+  const table = <T,>(values: readonly T[]) => ({
+    iter: function* () { yield* values; }
+  });
+  const core = callbackSubscriptionDouble();
+  const pairedStone = callbackSubscriptionDouble();
+  const connection = {
+    db: {
+      worldTile: table(rows.worldTile),
+      worldTileMetaV1: table(rows.worldTileMetaV1),
+      playerV2: table(rows.playerV2),
+      realmProfileV1: table(rows.realmProfileV1),
+      realmV1: table(rows.realmV1),
+      castle: table(rows.castle),
+      stoneSiteV1: table(stone.siteRows ?? CANONICAL_TIER_I_STONE_SITES_V1),
+      stoneNodeOccupationV1: table(stone.occupationRows ?? [])
+    },
+    subscriptionBuilder: vi.fn()
+      .mockReturnValueOnce(core.builder)
+      .mockReturnValueOnce(pairedStone.builder)
+  } as unknown as WarpkeepConnection;
+  return Object.freeze({ connection, core, pairedStone });
 }
 
 type RealmTableListener = (context: EventContext, ...rows: unknown[]) => void;
@@ -439,6 +475,69 @@ describe('Warpkeep authenticated connection boundary', () => {
     composite.unsubscribe();
     expect(coreSubscription.unsubscribe).toHaveBeenCalledTimes(1);
     expect(woodSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('reveals Stone only after its paired public subscription applies and releases both handles', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const occupation = {
+      siteId: CANONICAL_TIER_I_STONE_SITES_V1[0]!.siteId,
+      originCastleId: BigInt(candidate.castles[0]!.castleId),
+      phase: 'gathering',
+      startedAtMicros: 10n,
+      arrivesAtMicros: 20n,
+      gatheringEndsAtMicros: 30n,
+      returnsAtMicros: 40n
+    } as const;
+    const { connection, core, pairedStone } = stoneSubscriptionConnection(candidate, {
+      occupationRows: [occupation]
+    });
+    const onApplied = vi.fn();
+    const composite = subscribeToWarpkeepRealm(connection, onApplied, vi.fn());
+
+    expect(pairedStone.builder.subscribe).toHaveBeenCalledWith([
+      tables.stoneSiteV1,
+      tables.stoneNodeOccupationV1
+    ]);
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('stoneSites');
+
+    core.apply();
+    expect(onApplied).toHaveBeenCalledTimes(1);
+    expect(readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID))
+      .not.toHaveProperty('stoneSites');
+
+    pairedStone.apply();
+    expect(onApplied).toHaveBeenCalledTimes(2);
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot.stoneSites).toEqual(CANONICAL_TIER_I_STONE_SITES_V1);
+    expect(snapshot.stoneNodeOccupations).toEqual([{
+      ...occupation,
+      originCastleId: candidate.castles[0]!.castleId
+    }]);
+
+    composite.unsubscribe();
+    expect(core.subscription.unsubscribe).toHaveBeenCalledOnce();
+    expect(pairedStone.subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('fails the paired Stone projection closed when its canonical catalog drifts', () => {
+    const candidate = createCanonicalGenesisCandidate();
+    const movedSites = [
+      { ...CANONICAL_TIER_I_STONE_SITES_V1[0]!, q: CANONICAL_TIER_I_STONE_SITES_V1[0]!.q + 1 },
+      ...CANONICAL_TIER_I_STONE_SITES_V1.slice(1)
+    ];
+    const { connection, core, pairedStone } = stoneSubscriptionConnection(candidate, {
+      siteRows: movedSites
+    });
+    const composite = subscribeToWarpkeepRealm(connection, vi.fn(), vi.fn());
+    core.apply();
+    pairedStone.apply();
+
+    const snapshot = readWarpkeepRealmSnapshot(connection, CANONICAL_TEST_FID);
+    expect(snapshot).not.toHaveProperty('stoneSites');
+    expect(snapshot).not.toHaveProperty('stoneNodeOccupations');
+
+    composite.unsubscribe();
   });
 
   it('makes the paired shared forest visible only after its subscription applies', () => {
@@ -759,10 +858,80 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(connection.reducers.dispatchWoodExpeditionV1).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps Stone dispatch and settlement caller-bound, then reads exact private projections', async () => {
+    const resourceProjection = {
+      fid: BigInt(CANONICAL_TEST_FID),
+      food: 200n,
+      wood: 150n,
+      stone: 100n,
+      gold: 25n,
+      pendingFood: 8n,
+      pendingWood: 5n,
+      pendingStone: 3n,
+      pendingGold: 1n,
+      marksBalanceMicros: 12_500_000n,
+      observedAtMicros: 1_800_000_600_000_000n,
+      settledThroughMicros: 1_800_000_000_000_000n,
+      nextCollectAtMicros: 1_800_001_200_000_000n,
+      revision: 4n,
+      resourcePolicyVersion: 'genesis-resource-yield-v1',
+      marksPolicyVersion: 'snap-current-linked-wallet-1to1-v1',
+      terrainKind: 'lowland'
+    } as const;
+    const stoneProjection = {
+      active: false,
+      expeditionId: undefined,
+      siteId: undefined,
+      originCastleId: undefined,
+      phase: undefined,
+      startedAtMicros: undefined,
+      arrivesAtMicros: undefined,
+      gatheringEndsAtMicros: undefined,
+      returnsAtMicros: undefined,
+      accruedStone: 0n,
+      pendingStone: 0n,
+      creditedStone: 0n,
+      rateStonePerMinute: 1n,
+      gatheringDurationMicros: 2_592_000_000_000n,
+      expeditionPolicyVersion: undefined
+    } as const;
+    const connection = {
+      procedures: {
+        getMyResourceStateV1: vi.fn(async () => resourceProjection),
+        getMyStoneExpeditionStateV1: vi.fn(async () => stoneProjection)
+      },
+      reducers: {
+        dispatchStoneExpeditionV1: vi.fn(async () => undefined),
+        collectStoneExpeditionV1: vi.fn(async () => undefined)
+      }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepStoneExpeditionState(connection)).resolves
+      .toMatchObject({ active: false, pendingStone: 0n });
+    await expect(dispatchWarpkeepStoneExpedition(
+      connection,
+      'stone:genesis:001',
+      '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    )).resolves.toMatchObject({ active: false });
+    await expect(collectWarpkeepStoneExpedition(connection, CANONICAL_TEST_FID)).resolves
+      .toMatchObject({
+        resources: { fid: BigInt(CANONICAL_TEST_FID) },
+        stoneExpedition: { active: false }
+      });
+    expect(connection.reducers.dispatchStoneExpeditionV1).toHaveBeenCalledWith({
+      siteId: 'stone:genesis:001',
+      idempotencyKey: '4a9977d2-c7c4-4d63-8e65-f28f966c0c33'
+    });
+    expect(connection.reducers.collectStoneExpeditionV1).toHaveBeenCalledWith({});
+    await expect(dispatchWarpkeepStoneExpedition(connection, 'bad site', 'not-valid'))
+      .rejects.toThrow('Stone expedition is unavailable.');
+    expect(connection.reducers.dispatchStoneExpeditionV1).toHaveBeenCalledTimes(1);
+  });
+
   it('pins the browser and authoritative module to the same Terms version', () => {
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(MODULE_ALPHA_TERMS_VERSION);
     expect(BROWSER_ALPHA_TERMS_VERSION).toBe(
-      '2026-07-19-hegemony-entry-agreement-v2'
+      '2026-07-19-hegemony-entry-agreement-v3'
     );
   });
 
@@ -1020,6 +1189,32 @@ describe('Warpkeep authenticated connection boundary', () => {
 
     cleanup();
     for (const source of [forestLayout.table, forestInstances.table]) {
+      expect(source.removeOnInsert).toHaveBeenCalledOnce();
+      expect(source.removeOnDelete).toHaveBeenCalledOnce();
+      expect(source.removeOnUpdate).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('observes and releases both public Stone tables with the Realm lifecycle', () => {
+    const observed = observableConnectionForCandidate(createCanonicalGenesisCandidate());
+    const stoneSites = observableTableDouble(CANONICAL_TIER_I_STONE_SITES_V1);
+    const stoneOccupations = observableTableDouble<unknown>([]);
+    Object.assign(
+      (observed.connection.db as unknown as Record<string, unknown>),
+      {
+        stoneSiteV1: stoneSites.table,
+        stoneNodeOccupationV1: stoneOccupations.table
+      }
+    );
+    const cleanup = observeWarpkeepRealm(
+      observed.connection,
+      CANONICAL_TEST_FID,
+      vi.fn(),
+      vi.fn()
+    );
+
+    cleanup();
+    for (const source of [stoneSites.table, stoneOccupations.table]) {
       expect(source.removeOnInsert).toHaveBeenCalledOnce();
       expect(source.removeOnDelete).toHaveBeenCalledOnce();
       expect(source.removeOnUpdate).toHaveBeenCalledOnce();

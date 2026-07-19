@@ -20,6 +20,33 @@ export const AdminAlphaStatus = __t.object("AdminAlphaStatus", {
 });
 export type AdminAlphaStatus = __Infer<typeof AdminAlphaStatus>;
 
+export const AdminAlphaStatusV10 = __t.object("AdminAlphaStatusV10", {
+  schemaProtocolVersion: __t.u32(),
+  backendProtocolVersion: __t.u32(),
+  waterPolicyVersion: __t.string(),
+  waterLayoutVersion: __t.u32(),
+  canonicalWaterLayoutDigest: __t.string(),
+  waterActivated: __t.bool(),
+  waterLayouts: __t.u64(),
+  canonicalWaterLayouts: __t.u64(),
+  waterBodies: __t.u64(),
+  canonicalWaterBodies: __t.u64(),
+  waterCells: __t.u64(),
+  canonicalWaterCells: __t.u64(),
+  realmEnvironments: __t.u64(),
+  canonicalRealmEnvironments: __t.u64(),
+  stoneSitePolicyVersion: __t.string(),
+  stoneExpeditionPolicyVersion: __t.string(),
+  canonicalStoneSiteCatalogDigest: __t.string(),
+  stoneSites: __t.u64(),
+  canonicalStoneSites: __t.u64(),
+  stoneOccupations: __t.u64(),
+  stoneExpeditions: __t.u64(),
+  stoneIdempotencyReceipts: __t.u64(),
+  stoneSchedules: __t.u64(),
+});
+export type AdminAlphaStatusV10 = __Infer<typeof AdminAlphaStatusV10>;
+
 export const AdminAlphaStatusV2 = __t.object("AdminAlphaStatusV2", {
   worldTiles: __t.u64(),
   legacyPlayers: __t.u64(),
@@ -159,6 +186,26 @@ export const AdminSnapScanBatchAggregateV1 = __t.object("AdminSnapScanBatchAggre
   internallyConsistent: __t.bool(),
 });
 export type AdminSnapScanBatchAggregateV1 = __Infer<typeof AdminSnapScanBatchAggregateV1>;
+
+export const AdminWaterLayoutStatusV1 = __t.object("AdminWaterLayoutStatusV1", {
+  ready: __t.bool(),
+  activated: __t.bool(),
+  layoutVersion: __t.u32(),
+  layoutDigest: __t.string(),
+  canonicalLandCellCount: __t.u32(),
+  oceanCellCount: __t.u32(),
+  lakeCellCount: __t.u32(),
+  lakeBodyCount: __t.u32(),
+  riverCount: __t.u32(),
+  riverCellCount: __t.u32(),
+  waterBodies: __t.u64(),
+  canonicalWaterBodies: __t.u64(),
+  waterCells: __t.u64(),
+  canonicalWaterCells: __t.u64(),
+  environmentRows: __t.u64(),
+  sourceCommit: __t.string(),
+});
+export type AdminWaterLayoutStatusV1 = __Infer<typeof AdminWaterLayoutStatusV1>;
 
 export const AllowedFid = __t.object("AllowedFid", {
   fid: __t.u64(),
@@ -420,6 +467,25 @@ export const MyResourceStateV1 = __t.object("MyResourceStateV1", {
 });
 export type MyResourceStateV1 = __Infer<typeof MyResourceStateV1>;
 
+export const MyStoneExpeditionStateV1 = __t.object("MyStoneExpeditionStateV1", {
+  active: __t.bool(),
+  expeditionId: __t.option(__t.string()),
+  siteId: __t.option(__t.string()),
+  originCastleId: __t.option(__t.u64()),
+  phase: __t.option(__t.string()),
+  startedAtMicros: __t.option(__t.u64()),
+  arrivesAtMicros: __t.option(__t.u64()),
+  gatheringEndsAtMicros: __t.option(__t.u64()),
+  returnsAtMicros: __t.option(__t.u64()),
+  accruedStone: __t.u64(),
+  pendingStone: __t.u64(),
+  creditedStone: __t.u64(),
+  rateStonePerMinute: __t.u64(),
+  gatheringDurationMicros: __t.u64(),
+  expeditionPolicyVersion: __t.option(__t.string()),
+});
+export type MyStoneExpeditionStateV1 = __Infer<typeof MyStoneExpeditionStateV1>;
+
 export const MyWoodExpeditionStateV1 = __t.object("MyWoodExpeditionStateV1", {
   active: __t.bool(),
   expeditionId: __t.option(__t.string()),
@@ -541,6 +607,18 @@ export const QaObserverRealmV2 = __t.object("QaObserverRealmV2", {
 });
 export type QaObserverRealmV2 = __Infer<typeof QaObserverRealmV2>;
 
+export const RealmEnvironmentV1 = __t.object("RealmEnvironmentV1", {
+  realmId: __t.string(),
+  environmentEpoch: __t.u64(),
+  waterLayoutVersion: __t.u32(),
+  seaLevelMilli: __t.i32(),
+  sunDirectionXMicro: __t.i32(),
+  sunDirectionYMicro: __t.i32(),
+  sunDirectionZMicro: __t.i32(),
+  updatedAt: __t.timestamp(),
+});
+export type RealmEnvironmentV1 = __Infer<typeof RealmEnvironmentV1>;
+
 export const RealmForestInstanceV1 = __t.object("RealmForestInstanceV1", {
   treeId: __t.string(),
   realmId: __t.string(),
@@ -602,6 +680,74 @@ export const RealmV1 = __t.object("RealmV1", {
   createdAt: __t.timestamp(),
 });
 export type RealmV1 = __Infer<typeof RealmV1>;
+
+export const RealmWaterBodyV1 = __t.object("RealmWaterBodyV1", {
+  bodyId: __t.string(),
+  realmId: __t.string(),
+  regime: __t.string(),
+  cellCount: __t.u32(),
+  sourceCellKey: __t.string(),
+  mouthCellKey: __t.string(),
+  surfaceLevelMilli: __t.i32(),
+  flowDirectionXq15: __t.i32(),
+  flowDirectionZq15: __t.i32(),
+  wavePreset: __t.string(),
+  ordinal: __t.u32(),
+  seed: __t.u32(),
+  generationVersion: __t.u32(),
+  layoutVersion: __t.u32(),
+});
+export type RealmWaterBodyV1 = __Infer<typeof RealmWaterBodyV1>;
+
+export const RealmWaterCellV1 = __t.object("RealmWaterCellV1", {
+  cellKey: __t.string(),
+  realmId: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  regime: __t.string(),
+  bodyId: __t.string(),
+  depthCells: __t.u32(),
+  elevationMilli: __t.i32(),
+  surfaceLevelMilli: __t.i32(),
+  ring: __t.u32(),
+  s: __t.i32(),
+  underlyingTileKey: __t.option(__t.string()),
+  riverOrdinal: __t.option(__t.u32()),
+  riverOrder: __t.option(__t.u32()),
+  downstreamWaterCellKey: __t.option(__t.string()),
+  flowAccumulation: __t.u32(),
+  depthClass: __t.u32(),
+  oceanDepth: __t.u32(),
+  bankSeed: __t.u32(),
+  generationVersion: __t.u32(),
+  fogBand: __t.string(),
+  layoutVersion: __t.u32(),
+});
+export type RealmWaterCellV1 = __Infer<typeof RealmWaterCellV1>;
+
+export const RealmWaterLayoutV1 = __t.object("RealmWaterLayoutV1", {
+  realmId: __t.string(),
+  layoutVersion: __t.u32(),
+  policyVersion: __t.string(),
+  generationVersion: __t.u32(),
+  canonicalLandCellCount: __t.u32(),
+  oceanCellCount: __t.u32(),
+  lakeCellCount: __t.u32(),
+  lakeBodyCount: __t.u32(),
+  riverCount: __t.u32(),
+  riverCellCount: __t.u32(),
+  seaLevelMilli: __t.i32(),
+  seaLevelPolicyVersion: __t.string(),
+  fogStartDepthCells: __t.u32(),
+  fogFullDepthCells: __t.u32(),
+  hiddenBufferCells: __t.u32(),
+  layoutDigest: __t.string(),
+  sourceCommit: __t.string(),
+  activated: __t.bool(),
+  seededAt: __t.timestamp(),
+  activatedAt: __t.option(__t.timestamp()),
+});
+export type RealmWaterLayoutV1 = __Infer<typeof RealmWaterLayoutV1>;
 
 export const ResourceAccountV1 = __t.object("ResourceAccountV1", {
   fid: __t.u64(),
@@ -678,6 +824,63 @@ export const SnapScanCursorV1 = __t.object("SnapScanCursorV1", {
   scannedAt: __t.timestamp(),
 });
 export type SnapScanCursorV1 = __Infer<typeof SnapScanCursorV1>;
+
+export const StoneExpeditionIdempotencyV1 = __t.object("StoneExpeditionIdempotencyV1", {
+  requestKey: __t.string(),
+  fid: __t.u64(),
+  siteId: __t.string(),
+  expeditionId: __t.string(),
+  createdAt: __t.timestamp(),
+});
+export type StoneExpeditionIdempotencyV1 = __Infer<typeof StoneExpeditionIdempotencyV1>;
+
+export const StoneExpeditionScheduleV1 = __t.object("StoneExpeditionScheduleV1", {
+  scheduleId: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  stage: __t.string(),
+});
+export type StoneExpeditionScheduleV1 = __Infer<typeof StoneExpeditionScheduleV1>;
+
+export const StoneExpeditionV1 = __t.object("StoneExpeditionV1", {
+  expeditionId: __t.string(),
+  fid: __t.u64(),
+  originCastleId: __t.u64(),
+  siteId: __t.string(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+  settledThroughMicros: __t.u64(),
+  accruedStone: __t.u64(),
+  creditedStone: __t.u64(),
+  policyVersion: __t.string(),
+  createdAt: __t.timestamp(),
+  updatedAt: __t.timestamp(),
+});
+export type StoneExpeditionV1 = __Infer<typeof StoneExpeditionV1>;
+
+export const StoneNodeOccupationV1 = __t.object("StoneNodeOccupationV1", {
+  siteId: __t.string(),
+  originCastleId: __t.u64(),
+  phase: __t.string(),
+  startedAtMicros: __t.u64(),
+  arrivesAtMicros: __t.u64(),
+  gatheringEndsAtMicros: __t.u64(),
+  returnsAtMicros: __t.u64(),
+});
+export type StoneNodeOccupationV1 = __Infer<typeof StoneNodeOccupationV1>;
+
+export const StoneSiteV1 = __t.object("StoneSiteV1", {
+  siteId: __t.string(),
+  q: __t.i32(),
+  r: __t.i32(),
+  tier: __t.u32(),
+  active: __t.bool(),
+});
+export type StoneSiteV1 = __Infer<typeof StoneSiteV1>;
 
 export const WalletAttributionSnapshotV1 = __t.object("WalletAttributionSnapshotV1", {
   snapshotKey: __t.string(),

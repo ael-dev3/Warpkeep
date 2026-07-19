@@ -1,0 +1,40 @@
+{
+  "assetId": "warpkeep-genesis-001-canonical-water-v1",
+  "kind": "deterministic-world-layout",
+  "status": "draft-review",
+  "layoutVersion": 1,
+  "policyVersion": "genesis-001-canonical-water-v1",
+  "generationVersion": 3,
+  "sourceCommit": "f23643c0d07e91847cadd5445a294d965ad76e1c",
+  "canonicalLandCellCount": 10000,
+  "oceanRadiusCells": 65,
+  "oceanCellCount": 2871,
+  "lakeCellCount": 409,
+  "lakeBodyCount": 362,
+  "primaryRiverCount": 12,
+  "riverCellCount": 400,
+  "hydrologyEligibleLandCellCount": 8335,
+  "hydrologyPolicy": "coast-distance-parent-dag-v1",
+  "elevationDatumMilli": 1000,
+  "seaLevelMilli": 975,
+  "fog": {
+    "startDepthCells": 3,
+    "fullDepthCells": 5,
+    "hiddenBufferCells": 2
+  },
+  "layoutDigest": "e6e3601063254a232a80bcc2921e6717b7564f8fce7b276207ffca39c1843dba",
+  "dependentCatalogs": {
+    "tierIStoneSitePolicyVersion": "genesis-001-tier1-stone-sites-v3",
+    "tierIStoneSiteDigest": "22c902d5bfb033e7faf3eaa303e89228d9aad0cff712853618dc34b994d28467"
+  },
+  "schemaRefs": {
+    "realm_water_layout_v1": 37,
+    "realm_water_body_v1": 38,
+    "realm_water_cell_v1": 39,
+    "realm_environment_v1": 40
+  },
+  "notes": [
+    "Presentation and shared topology only; movement and gameplay authority are unchanged.",
+    "Do not seed, publish, or activate from this manifest without a reviewed production runbook."
+  ]
+}

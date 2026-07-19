@@ -32,7 +32,7 @@ export function hasCanonicalCastleClearance(
   ));
 }
 
-/** Static cross-family placement boundary shared by Gold, Food, and Wood. */
+/** Static cross-family placement boundary shared by Gold, Food, Wood, and Stone. */
 export function hasCanonicalResourceSiteStaticConflict(
   candidate: Readonly<{ q: number; r: number }>,
 ): boolean {

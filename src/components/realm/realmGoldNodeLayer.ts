@@ -60,6 +60,9 @@ export type RealmGoldNodeLayer = Readonly<{
   group: THREE.Group;
   /** The outer renderer supplies time only for local visual interpolation. */
   update: (camera: THREE.PerspectiveCamera, nowMicros: bigint, elapsedSeconds: number) => boolean;
+  /** Reconcile public occupation state without replacing static node objects. */
+  canReconcile: (sites: readonly RealmGoldNodeSceneRecord[]) => boolean;
+  reconcile: (sites: readonly RealmGoldNodeSceneRecord[]) => boolean;
   raycast: (raycaster: THREE.Raycaster) => RealmGoldNodeInstanceHit | null;
   setSelectedSiteId: (siteId: string | null) => void;
   hasMovingWagons: () => boolean;
@@ -84,10 +87,10 @@ export type CreateRealmGoldNodeLayerOptions = Readonly<{
   onModelReady?: () => void;
 }>;
 
-type SceneNode = Readonly<{
+type SceneNode = {
   record: RealmGoldNodeSceneRecord;
   world: Readonly<{ x: number; y: number; z: number }>;
-}>;
+};
 
 type ModelKind = 'gold-mine' | 'wagon';
 
@@ -236,7 +239,7 @@ export function createRealmGoldNodeLayer(
     if (siteIds.has(record.siteId)) continue;
     siteIds.add(record.siteId);
     const world = axialToWorld(record.coord, HEX_SIZE);
-    nodes.push(Object.freeze({
+    nodes.push({
       record,
       world: Object.freeze({
         x: world.x,
@@ -244,7 +247,7 @@ export function createRealmGoldNodeLayer(
           + RESOURCE_GROUND_LIFT,
         z: world.z
       })
-    }));
+    });
   }
 
   const nodeBySiteId = new Map(nodes.map((node) => [node.record.siteId, node]));
@@ -295,20 +298,23 @@ export function createRealmGoldNodeLayer(
   occupiedRings.name = 'realm-gold-node-occupation-rings';
   occupiedRings.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const ringMatrix = new THREE.Matrix4();
-  let occupiedRingCount = 0;
-  nodes.forEach((node) => {
-    if (
-      node.record.availability !== 'outbound'
-      && node.record.availability !== 'gathering'
-      && node.record.availability !== 'returning'
-    ) return;
-    ringMatrix.makeRotationX(-Math.PI * 0.5);
-    ringMatrix.setPosition(node.world.x, node.world.y + 0.025, node.world.z);
-    occupiedRings.setMatrixAt(occupiedRingCount, ringMatrix);
-    occupiedRingCount += 1;
-  });
-  occupiedRings.count = occupiedRingCount;
-  occupiedRings.instanceMatrix.needsUpdate = true;
+  const syncOccupiedRings = () => {
+    let occupiedRingCount = 0;
+    nodes.forEach((node) => {
+      if (
+        node.record.availability !== 'outbound'
+        && node.record.availability !== 'gathering'
+        && node.record.availability !== 'returning'
+      ) return;
+      ringMatrix.makeRotationX(-Math.PI * 0.5);
+      ringMatrix.setPosition(node.world.x, node.world.y + 0.025, node.world.z);
+      occupiedRings.setMatrixAt(occupiedRingCount, ringMatrix);
+      occupiedRingCount += 1;
+    });
+    occupiedRings.count = occupiedRingCount;
+    occupiedRings.instanceMatrix.needsUpdate = true;
+  };
+  syncOccupiedRings();
   fallbackGroup.add(occupiedRings);
 
   const selectedRing = new THREE.Mesh(
@@ -587,6 +593,36 @@ export function createRealmGoldNodeLayer(
     if (node) selectedRing.position.set(node.world.x, node.world.y + 0.026, node.world.z);
   };
 
+  const canReconcile = (sites: readonly RealmGoldNodeSceneRecord[]) => {
+    if (disposed || sites.length !== nodes.length) return false;
+    const seen = new Set<string>();
+    for (const site of sites) {
+      const current = nodeBySiteId.get(site.siteId);
+      if (
+        !current
+        || seen.has(site.siteId)
+        || site.coord.q !== current.record.coord.q
+        || site.coord.r !== current.record.coord.r
+        || site.tier !== current.record.tier
+      ) return false;
+      seen.add(site.siteId);
+    }
+    return true;
+  };
+
+  const reconcile = (sites: readonly RealmGoldNodeSceneRecord[]) => {
+    if (!canReconcile(sites)) return false;
+    const nextBySiteId = new Map(sites.map((site) => [site.siteId, site] as const));
+    for (const node of nodes) node.record = nextBySiteId.get(node.record.siteId)!;
+    markerPresentationSignature = '';
+    syncOccupiedRings();
+    telemetry = Object.freeze({
+      ...telemetry,
+      occupiedSiteCount: nodes.filter((node) => node.record.occupation !== undefined).length
+    });
+    return true;
+  };
+
   const update = (camera: THREE.PerspectiveCamera, nowMicros: bigint, elapsedSeconds: number) => {
     if (disposed) return false;
     const before = `${telemetry.renderedGoldMineCount}:${telemetry.renderedWagonCount}:${telemetry.animatedWagonCount}`;
@@ -636,6 +672,8 @@ export function createRealmGoldNodeLayer(
   return Object.freeze({
     group,
     update,
+    canReconcile,
+    reconcile,
     raycast,
     setSelectedSiteId,
     hasMovingWagons: () => nodes.some((node) => (

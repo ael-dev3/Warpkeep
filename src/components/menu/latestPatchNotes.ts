@@ -6,25 +6,24 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
-const ALPHA_0_3_11_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+const ALPHA_0_3_12_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '19 JUL 2026',
-  title: 'THE FRONTIER STIRS',
+  title: 'RIVERS OF GENESIS',
   summary:
-    'The first supply wagons now cross a greener Genesis 001, carrying its founding keeps one step closer to a living strategy world.',
+    'Water has found its way through Genesis 001, and Stone Quarries now call a fourth supply wagon into the living frontier.',
   highlights: Object.freeze([
-    'Gold Mines, Wheat Farms, and Logging Camps now belong to the shared map. Founders may send one private, server-governed wagon to each resource type.',
-    'A shared forest and wind-tossed Lowlands give the frontier more character while leaving terrain, roads, castle ownership, and resource authority unchanged.',
-    'Resource icons explain what is live, what remains private, and what is still being built. Stone continues as keep terrain yield only; Quarry art is visual groundwork.',
-    'Castle names and portraits remain public presentation, never ownership authority. A profile update or clear cannot take a founded keep away from its player.',
-    'Construction, upgrades, armies, combat, trading, and resource spending are not playable yet. Community Marks remain separate and carry no reward or financial promise.'
+    'A persistent ocean, lakes, and rivers now shape the Lowlands around its unchanged castles and roads.',
+    'Stone Quarries join Gold Mines, Wheat Farms, and Logging Camps. Each resource has its own private, server-governed wagon expedition.',
+    'Grass reaches farther across the Realm, while touch, viewport, and Safari refinements make the map calmer on smaller screens.',
+    'The Hegemony Social Contract is shorter and clearer. The core strategy loop is still unfinished, and Alpha participation carries no promise of rewards or financial return.'
   ]),
   alphaNotice:
-    'Alpha 0.3.11 is experimental. The core strategy loop is still being built, and the world may change with testing and community feedback.'
+    'Alpha 0.3.12 is an unfinished, evolving world. Community feedback helps shape what is built next.'
 });
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
-    '0.3.11': ALPHA_0_3_11_PATCH_NOTES
+    '0.3.12': ALPHA_0_3_12_PATCH_NOTES
   });
 
 export function getLatestPatchNotes(productVersion: string) {

@@ -12,7 +12,8 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 8 |
+| Append-only schema generation | 10 |
+| Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -50,7 +51,8 @@ Public subscriptions contain only shared-world presentation:
 - the canonical realm, terrain metadata, castle slots, castles, and active
   player/profile projections;
 - shared forest layout metadata and fixed tree instances;
-- Gold Mine, Wheat Farm, and Logging Camp catalogs;
+- Gold Mine, Wheat Farm, Logging Camp, and Stone Quarry catalogs;
+- activated Water layout, body/cell topology, and shared environment data;
 - identity-minimized site occupations containing a site, phase, public
   timeline, and origin castle;
 - public Community Marks projection only when its policy permits it.
@@ -72,11 +74,15 @@ The generation-three definition preserves every prior world row and the first
 founding sites. See [GENESIS_001_GENERATION_V3.md](GENESIS_001_GENERATION_V3.md)
 for the deterministic world contract.
 
+The activated Water layout adds a shared coastline, lakes, and rivers without
+regenerating the land world. Its public rows contain fixed topology and
+presentation parameters, not player state or per-frame simulation.
+
 Each founded castle has a private Food, Wood, Stone, and Gold account. Passive
 terrain production settles in completed ten-minute server quanta. Gold passive
 terrain production is disabled; Gold comes from its expedition authority.
 
-Gold, Food, and Wood each have an independent expedition:
+Gold, Food, Wood, and Stone each have an independent expedition:
 
 - the client submits only a canonical site ID;
 - the provider owns a random idempotency key and reuses it only for the same
@@ -86,10 +92,7 @@ Gold, Food, and Wood each have an independent expedition:
 - public occupation remains until the wagon completes its return;
 - settlement and return are server scheduled and exact-once;
 - private reservations prevent passive collection or another lifecycle from
-  truncating a valid Food or Wood award.
-
-Stone currently has passive terrain yield only. Quarry presentation assets do
-not create a Stone site, reducer, schedule, or reward path.
+  truncating a valid Food, Wood, or Stone award.
 
 ## Entry agreement and Marks
 
@@ -142,6 +145,7 @@ Read-only aggregate inspection:
 npm run stdb:inspect-alpha-v3 -- --json
 npm run stdb:inspect-alpha-v4 -- --json
 npm run stdb:inspect-alpha-v8 -- --json
+npm run stdb:inspect-alpha-v10 -- --json
 ```
 
 Component setup is separate from module publication and must be reviewed one
@@ -152,11 +156,17 @@ npm run stdb:seed-alpha-component -- gold --dry-run
 npm run stdb:seed-alpha-component -- forest --dry-run
 npm run stdb:seed-alpha-component -- food --dry-run
 npm run stdb:seed-alpha-component -- wood --dry-run
+npm run stdb:seed-alpha-component -- water --dry-run
+npm run stdb:seed-alpha-component -- stone --dry-run
 ```
 
 Confirmed commands require `--confirm`, the canonical production coordinates,
 and fresh pre/post aggregate checks. Partial or drifted catalogs fail closed;
 the tool does not repair or delete them.
+
+Water visibility is activated separately after a canonical seed and clean v10
+inspection with `npm run stdb:activate-alpha-water -- --dry-run`, followed by
+the same command with `--confirm` when approved.
 
 See the concise [component activation runbook](../docs/operations/alpha-component-activation.md),
 [deployment recovery guide](../docs/operations/reconstruction/deployment-recovery.md),

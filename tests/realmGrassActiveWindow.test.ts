@@ -23,19 +23,19 @@ describe('procedural grass active window', () => {
     ]))).toEqual({
       high: {
         activeRadius: 12,
-        maximumActiveInstances: 14_000,
-        maximumActiveTriangles: 210_000,
+        maximumActiveInstances: 7_000,
+        maximumActiveTriangles: 189_000,
         animationFrameCap: 24
       },
       balanced: {
         activeRadius: 9,
-        maximumActiveInstances: 7_000,
+        maximumActiveInstances: 4_000,
         maximumActiveTriangles: 84_000,
         animationFrameCap: 16
       },
       reduced: {
         activeRadius: 6,
-        maximumActiveInstances: 2_000,
+        maximumActiveInstances: 1_200,
         maximumActiveTriangles: 18_000,
         animationFrameCap: 0
       }

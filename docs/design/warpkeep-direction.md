@@ -9,9 +9,9 @@ population feel like a real world before it grows into a broad strategy game.
 ## Current promise
 
 Genesis 001 provides the persistent world, castle identity, and presentation
-foundation. Private terrain yield and Gold, Food, and Wood expeditions are
-live; Stone sites, construction, combat, and social strategy are not. The Alpha
-remains deliberately admission-gated.
+foundation. Water, private terrain yield, and Gold, Food, Wood, and Stone
+expeditions are live. Construction, combat, and social strategy are not. The
+Alpha remains deliberately admission-gated.
 
 ## Design principles
 

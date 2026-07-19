@@ -1,6 +1,6 @@
 # Service inventory
 
-> **Alpha 0.3.11 uses backend protocol 3; recovery remains fail-closed.**
+> **Alpha 0.3.12 uses backend protocol 3; recovery remains fail-closed.**
 > The 10,000-cell Genesis world and 100 permanent castle slots are seeded,
 > deliberately admitted founders hold their permanent castles, and Worker public
 > auth plus shared-alpha realm entry are enabled at their separately recorded production
@@ -9,12 +9,12 @@
 > every future republish, binding change, secret change, deploy, or enable
 > requires its own authority and verification.
 
-Schema generation 8 retains refs 0–19 and appends Gold expedition refs 20–24,
-shared forest refs 25–26, Food expedition refs 27–31, and Wood expedition refs
-32–36. Public rows are limited to site, identity-minimized occupation, forest,
-and public-safe scheduler projections; private expedition, idempotency, route,
-identity, and balance authority stays private. The private release record—not
-source presence—records which publication and component seeds are live.
+Schema generation 10 retains refs 0–36, appends Water refs 37–40, and appends
+Stone expedition refs 41–45. Public rows are limited to shared-world topology,
+sites, identity-minimized occupations, forest, and public-safe scheduler
+projections; private expedition, idempotency, route, identity, and balance
+authority stays private. The private release record—not source presence—records
+which publication and component seeds are live.
 
 ## Repositories and workflows
 
@@ -77,7 +77,7 @@ development-only.
 - Compatibility flag: `nodejs_compat`
 - `workers_dev = false`
 - Checked-in/recovery default: `PUBLIC_AUTH_ENABLED=false`
-- Current Alpha 0.3.11 production state: `PUBLIC_AUTH_ENABLED=true`
+- Current Alpha 0.3.12 production state: `PUBLIC_AUTH_ENABLED=true`
 
 Durable Objects:
 
@@ -102,7 +102,7 @@ separate server-only namespace. Secret names are `SIGNING_KEY_JWK`,
 
 The server-only config attestation profile is `warpkeep-auth-v2`. Its
 fail-closed recovery target has `publicAuthEnabled: false`; the current Alpha
-0.3.11 active target has `publicAuthEnabled: true`. It covers
+0.3.12 active target has `publicAuthEnabled: true`. It covers
 issuer/origins/SIWF coordinates, gameplay key/Maincloud coordinates, the
 observer URI/database/audience tuple and gate, S256, the 600-second access TTL,
 15-second resolver TTL, five-second resolver timeout, five-minute challenge TTL,
@@ -154,7 +154,7 @@ still denied; see the resolver residual in
 [`threat-model.md`](../../security/threat-model.md).
 `admin_get_fid_auth_epoch` is retained only for rollback compatibility.
 
-Current Alpha 0.3.11 production has the complete 10,000-cell world,
+Current Alpha 0.3.12 production has the complete 10,000-cell world,
 10,000 metadata rows, one realm, 100 immutable slots, and deliberately admitted
 founders with matching founding graphs. A recovery verifier must obtain the
 fresh privacy-safe aggregate and compare it with the private current-state
@@ -187,6 +187,10 @@ Schema generation 8 then appends the Wood equivalents `wood_site_v1`,
 projection is public-safe only and its reducer remains internal-only. The private
 resource settlement adapter derives Food and Wood's remaining awards together,
 so neither passive capacity reservation becomes observable or browser-controlled.
+Generation 9 appends `realm_water_layout_v1`, `realm_water_body_v1`,
+`realm_water_cell_v1`, and `realm_environment_v1` at refs 37–40. Generation 10
+appends the five Stone Quarry tables at refs 41–45 using the same
+public-site/private-authority boundary as the earlier expeditions.
 The private ownership table must have no generated browser table accessor.
 Bootstrap ignores optional profile-shaped JWT fields and explicitly inserts
 undefined `username`, `displayName`, and `pfpUrl`; profile changes require a
@@ -206,17 +210,19 @@ protocol-3 graph without exposing row identities.
 founder/castle/Mark coverage, resource coverage and invariant counts, protocol,
 and policy version. `admin_get_alpha_status_v8` adds fixed component policies,
 digests, and aggregate/canonical-match counts for Gold, forest, Food, and Wood
-without returning row data. The generation-two and
+without returning row data. `admin_get_alpha_status_v10` adds aggregate-only
+Water activation and Stone catalog/lifecycle checks. The generation-two and
 generation-three world gates remain separate exact contracts; a mixed tuple
 fails closed.
 
 `npm run stdb:verify-additive-migration` proves the frozen prefix, append-only
-refs 0–36, fixture preservation, idempotence, partial-state detection, guarded
-v8-through-v2 rollback refusal, the generation-two-to-three world transition,
-and private resource authority against disposable loopback databases. It also
-exercises real Gold, Food, and Wood dispatch and scheduling, including a real
-Gold arrival and collection; long expiry and return stages remain covered by
-pure authority tests. This local proof grants no production authority.
+refs 0–45, fixture preservation, idempotence, partial-state detection, guarded
+v10-through-v2 rollback refusal, the generation-two-to-three world transition,
+Water activation, and private resource authority against disposable loopback
+databases. It also exercises real Gold, Food, Wood, and Stone dispatch and
+scheduling, including a real Gold arrival and collection; long expiry and
+return stages remain covered by pure authority tests. This local proof grants
+no production authority.
 If post-publish verification finds a mismatch, keep auth disabled and use a
 separately reviewed forward-compatible fix; never delete data, recreate the
 database, or roll the schema backward.

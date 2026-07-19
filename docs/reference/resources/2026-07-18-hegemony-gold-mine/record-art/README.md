@@ -29,7 +29,7 @@ transparent breathing room around the mine, cart, rails, and rock silhouette.
 
 `GoldMineInspectionPanel` displays this image as decorative, same-origin art
 with a pointer-inert art stage that rises above the card edge. It is deliberately
-mounted only by the reviewed draft integration when a public Gold Mine site is
+mounted only by the live integration when a public Gold Mine site is
 selected. It creates no map target, balance, gathering authority, or deployment
 approval. The 2D card does not promote the separate 3D review candidates under
 `runtime-candidates/`.

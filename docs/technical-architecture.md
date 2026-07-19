@@ -56,11 +56,11 @@ only server-recorded production and never reveals another player's balances.
 Community Marks use separate accounting and currently have no spending,
 conversion, transfer, redemption, or reward loop.
 
-Gold Mines, Wheat Farms, and Logging Camps are public map projections. Their
-private expeditions are caller-bound and server-timed; public occupation rows
-show only the site, phase, timeline, and origin castle. Stone has no live site
-authority. Construction, upgrades, units, combat, alliances, trading, chat,
-seasons, and governance are not playable yet.
+Gold Mines, Wheat Farms, Logging Camps, and Stone Quarries are public map
+projections. Each resource has an independent private expedition that is bound
+to its caller and settled by server time. Public occupation rows show only the
+site, phase, timeline, and origin castle. Construction, upgrades, units, combat,
+alliances, trading, chat, seasons, and governance are not playable yet.
 
 ## Realm presentation
 
@@ -75,8 +75,9 @@ and accessibility are presentation concerns; coordinates and ownership always
 come from server state.
 
 The shared forest and procedural grass are deterministic presentation layers.
-Graphics quality may change their detail, but never world membership,
-passability, resource placement, or authority.
+The coast, lakes, and rivers are rendered from an activated canonical water
+layout held by SpacetimeDB. Graphics quality may change environmental detail,
+but never world membership, resource placement, or authority.
 
 Runtime assets use immutable filenames and integrity checks. Source packages,
 reference masters, and provenance records stay separate from public runtime
@@ -108,9 +109,9 @@ state.
 
 GitHub Actions builds the client, auth bridge, and SpacetimeDB module; runs the
 test and dependency checks; verifies generated bindings and asset provenance;
-and scans the repository with CodeQL. Pages deployment is limited to `main`.
-Worker publication, database publication, data migration, and admission changes
-remain separate operator actions.
+and scans code and committed history for security issues. Pages deployment is
+limited to `main`. Worker publication, database publication, data migration,
+and admission changes remain separate operator actions.
 
 ## Repository map
 

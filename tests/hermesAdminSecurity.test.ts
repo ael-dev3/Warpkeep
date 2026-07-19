@@ -341,7 +341,7 @@ describe('Hermes machine-readable output', () => {
     const status = foundedGenerationV2Status();
     expect(verifyGenesisExpansionPreconditionV3(status)).toEqual(status);
 
-    expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM).toBe(3);
+    expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM).toBe(4);
     const retainedHistoryStatus = {
       ...status,
       alphaTermsAcceptances: status.playersV2
@@ -555,6 +555,11 @@ describe('Hermes command-line boundary', () => {
       inspection: true,
       machineReadableInspection: true,
     });
+    expect(parseHermesArguments(['inspect-alpha-v10', '--json'])).toMatchObject({
+      command: 'inspect-alpha-v10',
+      inspection: true,
+      machineReadableInspection: true,
+    });
     expect(parseHermesArguments(['seed-alpha-component', 'gold', '--dry-run'])).toMatchObject({
       command: 'seed-alpha-component',
       inspection: false,
@@ -564,13 +569,27 @@ describe('Hermes command-line boundary', () => {
       command: 'seed-alpha-component',
       confirmedByFlag: true,
     });
-    expect(() => parseHermesArguments(['seed-alpha-component', 'stone', '--dry-run']))
+    expect(parseHermesArguments(['seed-alpha-component', 'stone', '--dry-run']))
+      .toMatchObject({ command: 'seed-alpha-component', dryRun: true });
+    expect(parseHermesArguments(['seed-alpha-component', 'water', '--confirm']))
+      .toMatchObject({ command: 'seed-alpha-component', confirmedByFlag: true });
+    expect(() => parseHermesArguments(['seed-alpha-component', 'iron', '--dry-run']))
       .toThrow(/gold, forest, food, wood/i);
     expect(() => parseHermesArguments(['seed-alpha-component', 'gold']))
       .toThrow(/exactly one/i);
     expect(() => parseHermesArguments([
       'seed-alpha-component', 'gold', '--dry-run', '--confirm',
     ])).toThrow(/exactly one/i);
+    expect(parseHermesArguments(['activate-alpha-water', '--dry-run'])).toMatchObject({
+      command: 'activate-alpha-water',
+      dryRun: true,
+    });
+    expect(parseHermesArguments(['activate-alpha-water', '--confirm'])).toMatchObject({
+      command: 'activate-alpha-water',
+      confirmedByFlag: true,
+    });
+    expect(() => parseHermesArguments(['activate-alpha-water']))
+      .toThrow(/exactly one/i);
     expect(parseHermesArguments(['backfill-resources', '4', '--confirm'])).toMatchObject({
       command: 'backfill-resources',
       inspection: false,
@@ -844,7 +863,7 @@ describe('Hermes credential destination policy', () => {
     expect(result.stderr).toBe('');
   });
 
-  it.each(['v2', 'v3', 'v4', 'v8'])('rejects misleading dry-run use on read-only protocol-%s inspection', (version) => {
+  it.each(['v2', 'v3', 'v4', 'v8', 'v10'])('rejects misleading dry-run use on read-only protocol-%s inspection', (version) => {
     const result = runHermes([`inspect-alpha-${version}`, '--json', '--dry-run'], {
       WARPKEEP_AUTH_BRIDGE_URL: undefined,
       WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
@@ -855,7 +874,7 @@ describe('Hermes credential destination policy', () => {
   });
 
   it('dry-runs each Alpha component without credentials and requires explicit confirmation', () => {
-    for (const component of ['gold', 'forest', 'food', 'wood']) {
+    for (const component of ['gold', 'forest', 'food', 'wood', 'water', 'stone']) {
       const result = runHermes(['seed-alpha-component', component, '--dry-run'], {
         WARPKEEP_AUTH_BRIDGE_URL: undefined,
         WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
@@ -874,6 +893,16 @@ describe('Hermes credential destination policy', () => {
     });
     expect(refused.status).toBe(1);
     expect(refused.stderr).toContain('exactly one of --dry-run or --confirm');
+
+    const water = runHermes(['activate-alpha-water', '--dry-run'], {
+      WARPKEEP_AUTH_BRIDGE_URL: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+    });
+    expect(water.status).toBe(0);
+    expect(water.stdout).toContain('"command":"activate-alpha-water"');
+    expect(water.stdout).toContain('"credentialsAccessed":false');
+    expect(water.stdout).toContain('"mutationSubmitted":false');
+    expect(water.stderr).toBe('');
   }, 15_000);
 
   it('validates and dry-runs the resource backfill without credentials or network use', () => {

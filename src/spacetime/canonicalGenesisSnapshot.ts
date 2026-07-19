@@ -11,6 +11,13 @@ import {
   type CanonicalWorldTile,
   type CanonicalWorldTileMeta
 } from '../../spacetimedb/src/world';
+import {
+  GENESIS_WATER_BODIES_V1,
+  GENESIS_WATER_CELLS_V1,
+  GENESIS_WATER_ENVIRONMENT_EPOCH,
+  GENESIS_WATER_LAYOUT_V1,
+  GENESIS_WATER_SUN_DIRECTION_MICRO
+} from '../../spacetimedb/src/waterWorld';
 
 import type {
   CanonicalWarpkeepRealmSnapshot,
@@ -171,6 +178,126 @@ function freezePresentationValue(value: unknown): unknown {
   }
   if (value !== null && typeof value === 'object') return Object.freeze({ ...value });
   return value;
+}
+
+function waterRowObject(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Readonly<Record<string, unknown>>
+    : undefined;
+}
+
+/**
+ * Water is additive, but unlike a local decorative hint its topology is an
+ * authority artifact. Accept only the complete reviewed row set and retain a
+ * present-invalid projection so the renderer cannot invent local shorelines.
+ */
+function validateWaterProjection(candidate: WarpkeepRealmSnapshotCandidate): {
+  layout?: unknown;
+  bodies?: readonly unknown[];
+  cells?: readonly unknown[];
+  realmEnvironment?: unknown;
+} {
+  const rawLayout = candidate.waterLayout;
+  const rawBodies = candidate.waterBodies;
+  const rawCells = candidate.waterCells;
+  const rawEnvironment = candidate.realmEnvironment;
+  if (
+    rawLayout === undefined
+    && rawBodies === undefined
+    && rawCells === undefined
+    && rawEnvironment === undefined
+  ) return {};
+  if (
+    !waterRowObject(rawLayout)
+    || !Array.isArray(rawBodies)
+    || !Array.isArray(rawCells)
+    || !waterRowObject(rawEnvironment)
+  ) {
+    return {
+      layout: freezePresentationValue(rawLayout),
+      bodies: Array.isArray(rawBodies) ? freezeRows(rawBodies) : undefined,
+      cells: Array.isArray(rawCells) ? freezeRows(rawCells) : undefined,
+      realmEnvironment: freezePresentationValue(rawEnvironment)
+    };
+  }
+  if (rawBodies.length !== GENESIS_WATER_BODIES_V1.length || rawCells.length !== GENESIS_WATER_CELLS_V1.length) {
+    return {
+      layout: freezePresentationValue(rawLayout),
+      bodies: freezeRows(rawBodies),
+      cells: freezeRows(rawCells),
+      realmEnvironment: freezePresentationValue(rawEnvironment)
+    };
+  }
+  const layout = rawLayout as Readonly<Record<string, unknown>>;
+  const layoutFields: readonly [string, unknown][] = [
+    ['realmId', GENESIS_WATER_LAYOUT_V1.realmId],
+    ['layoutVersion', GENESIS_WATER_LAYOUT_V1.layoutVersion],
+    ['policyVersion', GENESIS_WATER_LAYOUT_V1.policyVersion],
+    ['generationVersion', GENESIS_WATER_LAYOUT_V1.generationVersion],
+    ['canonicalLandCellCount', GENESIS_WATER_LAYOUT_V1.canonicalLandCellCount],
+    ['oceanCellCount', GENESIS_WATER_LAYOUT_V1.oceanCellCount],
+    ['lakeCellCount', GENESIS_WATER_LAYOUT_V1.lakeCellCount],
+    ['lakeBodyCount', GENESIS_WATER_LAYOUT_V1.lakeBodyCount],
+    ['riverCount', GENESIS_WATER_LAYOUT_V1.riverCount],
+    ['riverCellCount', GENESIS_WATER_LAYOUT_V1.riverCellCount],
+    ['seaLevelMilli', GENESIS_WATER_LAYOUT_V1.seaLevelMilli],
+    ['seaLevelPolicyVersion', GENESIS_WATER_LAYOUT_V1.seaLevelPolicyVersion],
+    ['fogStartDepthCells', GENESIS_WATER_LAYOUT_V1.fogStartDepthCells],
+    ['fogFullDepthCells', GENESIS_WATER_LAYOUT_V1.fogFullDepthCells],
+    ['hiddenBufferCells', GENESIS_WATER_LAYOUT_V1.hiddenBufferCells],
+    ['layoutDigest', GENESIS_WATER_LAYOUT_V1.layoutDigest],
+    ['sourceCommit', GENESIS_WATER_LAYOUT_V1.sourceCommit]
+  ];
+  const validLayout = layoutFields.every(([field, expected]) => layout[field] === expected)
+    && typeof layout.activated === 'boolean';
+  const environment = rawEnvironment as Readonly<Record<string, unknown>>;
+  const validEnvironment = environment.realmId === GENESIS_WATER_LAYOUT_V1.realmId
+    && environment.environmentEpoch === GENESIS_WATER_ENVIRONMENT_EPOCH
+    && environment.waterLayoutVersion === GENESIS_WATER_LAYOUT_V1.layoutVersion
+    && environment.seaLevelMilli === GENESIS_WATER_LAYOUT_V1.seaLevelMilli
+    && environment.sunDirectionXMicro === GENESIS_WATER_SUN_DIRECTION_MICRO.x
+    && environment.sunDirectionYMicro === GENESIS_WATER_SUN_DIRECTION_MICRO.y
+    && environment.sunDirectionZMicro === GENESIS_WATER_SUN_DIRECTION_MICRO.z;
+  const expectedBodies = new Map(GENESIS_WATER_BODIES_V1.map((body) => [body.bodyId, body]));
+  const validBodies = rawBodies.every((value) => {
+    const row = waterRowObject(value);
+    if (!row || typeof row.bodyId !== 'string') return false;
+    const expected = expectedBodies.get(row.bodyId);
+    return expected !== undefined
+      && row.realmId === expected.realmId
+      && row.regime === expected.regime
+      && row.cellCount === expected.cellCount
+      && row.sourceCellKey === expected.sourceCellKey
+      && row.mouthCellKey === expected.mouthCellKey
+      && row.surfaceLevelMilli === expected.surfaceLevelMilli
+      && row.seed === expected.seed
+      && row.layoutVersion === expected.layoutVersion;
+  });
+  const expectedCells = new Map(GENESIS_WATER_CELLS_V1.map((cell) => [cell.cellKey, cell]));
+  const validCells = rawCells.every((value) => {
+    const row = waterRowObject(value);
+    if (!row || typeof row.cellKey !== 'string') return false;
+    const expected = expectedCells.get(row.cellKey);
+    return expected !== undefined
+      && row.realmId === expected.realmId
+      && row.q === expected.q
+      && row.r === expected.r
+      && row.regime === expected.regime
+      && row.bodyId === expected.bodyId
+      && row.depthCells === expected.depthCells
+      && row.elevationMilli === expected.elevationMilli
+      && row.surfaceLevelMilli === expected.surfaceLevelMilli
+      && row.fogBand === expected.fogBand
+      && row.layoutVersion === expected.layoutVersion;
+  });
+  return {
+    layout: validLayout ? Object.freeze({ ...layout }) : freezePresentationValue(rawLayout),
+    bodies: validLayout && validBodies ? freezeRows(rawBodies) : freezeRows(rawBodies),
+    cells: validLayout && validCells ? freezeRows(rawCells) : freezeRows(rawCells),
+    realmEnvironment: validEnvironment
+      ? Object.freeze({ ...environment })
+      : freezePresentationValue(rawEnvironment)
+  };
 }
 
 function validateStaticWorld(candidate: WarpkeepRealmSnapshotCandidate) {
@@ -447,6 +574,16 @@ export function validateCanonicalGenesisSnapshot(
   const woodNodeOccupations = woodSites !== undefined
     ? freezeRows(candidate.woodNodeOccupations!)
     : undefined;
+  // Stone follows the same paired-projection boundary as the other resource
+  // families. Preserve it only when both public tables arrived so an atomic
+  // subscription can never expose a one-sided quarry state to the renderer.
+  const stoneSites = Array.isArray(candidate.stoneSites)
+    && Array.isArray(candidate.stoneNodeOccupations)
+    ? freezeRows(candidate.stoneSites)
+    : undefined;
+  const stoneNodeOccupations = stoneSites !== undefined
+    ? freezeRows(candidate.stoneNodeOccupations!)
+    : undefined;
   // The shared forest is another additive presentation pair. Keep each
   // field's presence intact for the browser-safe layout policy to verify. A
   // v6-but-unseeded `{ forestTrees: [] }`, a one-sided table, or malformed
@@ -460,6 +597,7 @@ export function validateCanonicalGenesisSnapshot(
   const forestTrees = rawForestTrees === undefined
     ? undefined
     : freezePresentationValue(rawForestTrees);
+  const waterProjection = validateWaterProjection(candidate);
   const frozenOwnCastle = castles.find((castle) => castle.castleId === ownCastle.castleId);
   if (frozenOwnCastle === undefined) fail();
 
@@ -479,8 +617,16 @@ export function validateCanonicalGenesisSnapshot(
     ...(foodNodeOccupations === undefined ? {} : { foodNodeOccupations }),
     ...(woodSites === undefined ? {} : { woodSites }),
     ...(woodNodeOccupations === undefined ? {} : { woodNodeOccupations }),
+    ...(stoneSites === undefined ? {} : { stoneSites }),
+    ...(stoneNodeOccupations === undefined ? {} : { stoneNodeOccupations }),
     ...(forestLayout === undefined ? {} : { forestLayout }),
     ...(forestTrees === undefined ? {} : { forestTrees }),
+    ...(waterProjection.layout === undefined ? {} : { waterLayout: waterProjection.layout }),
+    ...(waterProjection.bodies === undefined ? {} : { waterBodies: waterProjection.bodies }),
+    ...(waterProjection.cells === undefined ? {} : { waterCells: waterProjection.cells }),
+    ...(waterProjection.realmEnvironment === undefined ? {} : {
+      realmEnvironment: waterProjection.realmEnvironment
+    }),
     ownCastle: frozenOwnCastle
   } as BrandedSnapshot;
   Object.defineProperty(canonical, CANONICAL_SNAPSHOT_BRAND, {

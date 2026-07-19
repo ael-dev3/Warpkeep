@@ -35,8 +35,8 @@ pnpm --dir spacetimedb audit --audit-level high
 ```
 
 Confirm SpacetimeDB CLI 2.6.1. The disposable migration proof must preserve the
-deployed refs 0–36 and fixture rows, reject guarded v8-through-v2 rollback,
-prove the 1,261-to-10,000-cell transition and idempotent retry, exercise private
+deployed refs 0–45 and fixture rows, reject guarded v10-through-v2 rollback,
+prove the 1,261-to-10,000-cell transition, exercise Water activation and private
 resource authority, and complete a real scheduled Gold arrival and collection.
 The publisher must use the same prebuilt artifact through `--js-path`; it must
 not rebuild between proof and publication.
@@ -69,7 +69,9 @@ review threads before merge.
   founder, player, Terms, world, and resource expectations with every orphan,
   drift, ambiguity, and invariant counter at zero.
 - Component-v8 status matches the reviewed Gold, forest, Food, and Wood policy,
-  digest, and catalog counts. Stone has no live component seed.
+  digest, and catalog counts.
+- Alpha-v10 status matches the Water and Stone policies, digests, and canonical
+  counts; Water is active and the Stone catalog is complete.
 - The legacy public `player` table remains unused and empty; the browser uses
   `player_v2` and has no accessor for private ownership rows.
 - A clean browser completes sign-in, admission, Realm entry, reconnect, and

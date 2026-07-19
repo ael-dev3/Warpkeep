@@ -32,7 +32,7 @@ room around the lifting frame, log stack, wagon, and green site base.
 
 `LoggingCampInspectionPanel` displays this image as decorative, same-origin art
 with a pointer-inert local art stage that rises slightly above the card edge. It
-is mounted only by the reviewed draft integration for a validated public
+is mounted only by the live integration for a validated public
 Wood-site inspector. It creates no map target, balance, gathering authority,
 or deployment approval. The 2D card does not promote the separate 3D Logging
 Camp runtime assets into collision, placement, or economic authority.
