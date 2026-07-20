@@ -148,6 +148,7 @@ import type {
   RealmCastleProjectionFrame,
   RealmCastleScreenBounds
 } from './realmTypes';
+import type { RealmRendererFailure } from './realmRendererRecovery';
 
 const HEX_SIZE = 1;
 const OVERLAY_LIFT = 0.026;
@@ -416,6 +417,7 @@ export type RealmSceneHandle = Readonly<{
   dispose: () => void;
   reconcileLiveGatheringState: (state: RealmLiveGatheringState) => void;
   getCameraAttestation: () => RealmCameraAttestation;
+  restoreCameraAttestation?: (attestation: RealmCameraAttestation) => void;
   getSceneBuildSequence: () => number;
   focusCastle: (castleId: number) => void;
   focusCell: (coord: HexCoord) => void;
@@ -552,6 +554,12 @@ export type CreateRealmSceneOptions = Readonly<{
   onFoodNodePresentationTelemetry?: (telemetry: RealmFoodNodePresentationTelemetry) => void;
   onWoodNodePresentationTelemetry?: (telemetry: RealmWoodNodePresentationTelemetry) => void;
   onStoneNodePresentationTelemetry?: (telemetry: RealmStoneNodePresentationTelemetry) => void;
+  /** Structured renderer lifecycle signal. The scene remains alive during a
+   * recoverable context loss so camera/selection state can be attested. */
+  onRendererFailure?: (failure: RealmRendererFailure) => void;
+  onRendererContextRestored?: () => void;
+  /** Legacy callback retained for integrations that only understand a boolean
+   * renderer-unavailable signal. It is never used for context loss. */
   onRendererUnavailable: () => void;
   /** @deprecated Prefer onTargetSelect for castle identity-aware interaction. */
   onSelect: (coord: HexCoord) => void;
@@ -974,7 +982,7 @@ function initializeRealmScene(
   };
   // Pure quality policy is needed by the first resize/projection callback;
   // initialize it before any observer or render loop can run.
-  const castleLodPolicy = castleLodPolicyForQuality(runtimeQuality);
+  let castleLodPolicy = castleLodPolicyForQuality(runtimeQuality);
   const terrainSemantics = indexRealmTerrainSemantics(
     options.surface,
     options.terrainMetadata
@@ -1680,6 +1688,7 @@ function initializeRealmScene(
   let presentedCastleKey = '*';
   let renderPendingWhileHidden = false;
   let pendingCastlesReadyCount: number | null = null;
+  let contextLost = false;
   let ambientScheduler: RealmAmbientScheduler | null = null;
   const ambientIsNeeded = () => !options.reducedMotion
     && renderPlan.grass.animationFrameCap > 0
@@ -1800,6 +1809,7 @@ function initializeRealmScene(
   };
   const render = () => {
     if (cleanup.isDisposed()) return;
+    if (contextLost) return;
     if (document.hidden) {
       renderPendingWhileHidden = true;
       return;
@@ -1924,7 +1934,16 @@ function initializeRealmScene(
     try {
       renderer.render(scene, cameraController.camera);
     } catch (error) {
-      if (!isGrassShaderContractFailure(error) || !disableGrassPresentation()) throw error;
+      if (!isGrassShaderContractFailure(error) || !disableGrassPresentation()) {
+        options.onRendererFailure?.({
+          code: 'scene-build-failed',
+          retryable: true,
+          phase: 'ready',
+          message: error instanceof Error ? error.message : String(error)
+        });
+        disposeScene();
+        return;
+      }
       // `onBeforeCompile` runs during rendering. Retry the same frame without
       // only the grass layer if its pinned shader chunk contract has changed.
       renderer.render(scene, cameraController.camera);
@@ -1937,13 +1956,31 @@ function initializeRealmScene(
         && (presentedCastleIds === null || presentedCastleIds.size > 0)
         && (castleLayer?.getPacking().totalVisible ?? 0) === 0
       ) {
-        throw new Error('Hegemony castle instances produced no visible rendered packing.');
+        pendingCastlesReadyCount = null;
+        const failure: RealmRendererFailure = {
+          code: 'castle-pairing-failed',
+          retryable: false,
+          phase: 'loading',
+          message: 'Hegemony castle instances produced no visible rendered packing.'
+        };
+        options.onRendererFailure?.(failure);
+        options.onRendererUnavailable();
+        return;
       }
       if (
         castleCount > 0
         && !castleLayer?.hasExactCastleLandscapeBasePairing()
       ) {
-        throw new Error('Hegemony castle landscape-base presentation is incomplete.');
+        pendingCastlesReadyCount = null;
+        const failure: RealmRendererFailure = {
+          code: 'castle-pairing-failed',
+          retryable: false,
+          phase: 'loading',
+          message: 'Hegemony castle landscape-base presentation is incomplete.'
+        };
+        options.onRendererFailure?.(failure);
+        options.onRendererUnavailable();
+        return;
       }
       pendingCastlesReadyCount = null;
       options.onCastlesReady?.(castleCount);
@@ -2540,8 +2577,18 @@ function initializeRealmScene(
   const handleContextLost = (event: Event) => {
     event.preventDefault();
     if (cleanup.isDisposed()) return;
-    disposeScene();
-    options.onRendererUnavailable();
+    contextLost = true;
+    ambientScheduler?.setActive(false);
+    options.onRendererFailure?.({
+      code: 'context-lost',
+      retryable: true,
+      phase: pendingCastlesReadyCount === null ? 'ready' : 'loading',
+      message: 'The WebGL context was lost; waiting for the browser to restore it.'
+    });
+  };
+  const handleContextRestored = () => {
+    if (cleanup.isDisposed() || !contextLost) return;
+    options.onRendererContextRestored?.();
   };
 
   interactionRoot.addEventListener('pointerdown', handlePointerDown, {
@@ -2581,6 +2628,8 @@ function initializeRealmScene(
   cleanup.add(() => interactionRoot.removeEventListener('wheel', handleWheel, true));
   options.canvas.addEventListener('webglcontextlost', handleContextLost);
   cleanup.add(() => options.canvas.removeEventListener('webglcontextlost', handleContextLost));
+  options.canvas.addEventListener('webglcontextrestored', handleContextRestored);
+  cleanup.add(() => options.canvas.removeEventListener('webglcontextrestored', handleContextRestored));
 
   const resize = () => {
     if (cleanup.isDisposed()) return;
@@ -2653,35 +2702,55 @@ function initializeRealmScene(
     }
 
     const leases: HegemonyKeepPrefabLease[] = [];
-    let acquisitionStopped = false;
-    try {
-      await Promise.all(usedCastleLods.map(async (lod) => {
+    const compact = usedCastleLods.includes('compact') ? 'compact' : usedCastleLods[0];
+    if (!compact) throw new Error('No compact castle LOD is configured.');
+    const acquireWithRetry = async (lod: CastleLod) => {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
-          const lease = await prefabRepository.acquire(
-            lod,
-            castleLoadAbortController.signal
-          );
-          if (acquisitionStopped || cleanup.isDisposed()) {
-            releaseLeases([lease]);
-            return;
-          }
-          leases.push(lease);
+          return await prefabRepository.acquire(lod, castleLoadAbortController.signal);
         } catch (error) {
-          acquisitionStopped = true;
-          throw error;
+          lastError = error;
+          if (lod !== 'compact' || attempt !== 0) break;
         }
-      }));
-    } catch (error) {
-      acquisitionStopped = true;
-      releaseLeases(leases);
-      throw error;
+      }
+      throw lastError ?? new Error(`Unable to load castle ${lod} LOD.`);
+    };
+    const compactLease = await acquireWithRetry(compact);
+    if (cleanup.isDisposed()) {
+      releaseLeases([compactLease]);
+      return;
     }
+    leases.push(compactLease);
+    const optionalLods = usedCastleLods.filter((lod) => lod !== compact);
+    const optionalResults = await Promise.allSettled(
+      optionalLods.map((lod) => acquireWithRetry(lod))
+    );
+    optionalResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') leases.push(result.value);
+      else options.canvas.dataset[`realmCastle${optionalLods[index]}Lod`] = 'unavailable';
+    });
     if (cleanup.isDisposed()) {
       releaseLeases(leases);
       return;
     }
 
     const prefabs = new Map(leases.map((lease) => [lease.prefab.lod, lease.prefab]));
+    const activeLod = prefabs.has(castleLodPolicy.maximumLod)
+      ? castleLodPolicy.maximumLod
+      : prefabs.has('balanced') ? 'balanced' : 'compact';
+    castleLodPolicy = Object.freeze({
+      ...castleLodPolicy,
+      maximumLod: activeLod,
+      selectedMinimumLod: activeLod,
+      highInstanceBudget: activeLod === 'high'
+        ? DEFAULT_CASTLE_LOD_POLICY.highInstanceBudget
+        : 0,
+      balancedInstanceBudget: activeLod === 'compact'
+        ? 0
+        : DEFAULT_CASTLE_LOD_POLICY.balancedInstanceBudget
+    });
+    options.canvas.dataset.realmCastleActiveLod = activeLod;
     const nextProjectionEnvelopeByLod = new Map([...prefabs].map(([lod, prefab]) => [
       lod,
       prefab.projectionEnvelope
@@ -2763,15 +2832,21 @@ function initializeRealmScene(
     render();
   };
 
-  void initializeCastleInstances().catch(() => {
+  void initializeCastleInstances().catch((error) => {
     if (cleanup.isDisposed()) return;
     try {
       options.onKeepStatusChange('fallback');
     } catch {
       // Renderer fallback still has to engage when a status observer fails.
     }
-    disposeScene();
+    options.onRendererFailure?.({
+      code: 'castle-compact-load-failed',
+      retryable: true,
+      phase: 'loading',
+      message: error instanceof Error ? error.message : String(error)
+    });
     options.onRendererUnavailable();
+    disposeScene();
   });
 
   function disposeScene() {
@@ -2870,6 +2945,10 @@ function initializeRealmScene(
     dispose: disposeScene,
     reconcileLiveGatheringState,
     getCameraAttestation,
+    restoreCameraAttestation: (attestation) => {
+      if (cleanup.isDisposed()) return;
+      cameraController.restorePose?.(attestation);
+    },
     getSceneBuildSequence: () => sceneBuildSequence,
     focusCastle: (castleId) => {
       if (cleanup.isDisposed()) return;

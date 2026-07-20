@@ -983,6 +983,11 @@ export type RealmCameraController = Readonly<{
   panByPixels: (deltaX: number, deltaY: number) => void;
   projectPoint: (point: RealmCameraPoint) => RealmScreenProjection;
   recenterKeep: () => void;
+  restorePose?: (pose: Readonly<{
+    position: RealmCameraPoint;
+    target: RealmCameraPoint;
+    fov: number;
+  }>) => void;
   setComposition: (composition: RealmCameraComposition) => void;
   setKeepFocus: (focus: RealmKeepFocus) => void;
   setViewport: (width: number, height: number) => void;
@@ -1581,6 +1586,16 @@ export function createRealmCameraController(
       targetPan = { x: keepFocus.x, z: keepFocus.z };
       zoomAnchor = null;
       invalidate();
+    },
+    restorePose: (pose) => {
+      if (disposed) return;
+      camera.position.set(pose.position.x, pose.position.y, pose.position.z);
+      targetVector.set(pose.target.x, pose.target.y, pose.target.z);
+      camera.fov = clamp(finite(pose.fov, camera.fov), 1, 120);
+      camera.lookAt(targetVector);
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld(true);
+      options.render();
     },
     setComposition: (next) => {
       // Insets change the projection beneath a screen-space zoom anchor. Drop
