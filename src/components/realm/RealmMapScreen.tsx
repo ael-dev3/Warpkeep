@@ -615,7 +615,6 @@ function CanonicalRealmMapScreen({
   const rendererRecoveryTimerRef = useRef<number | null>(null);
   const rendererRecoveryNonceRef = useRef(0);
   const [rendererRecoveryNonce, setRendererRecoveryNonce] = useState(0);
-  const rendererEverReadyRef = useRef(false);
   const rendererAttestationRef = useRef<ReturnType<RealmSceneHandle['getCameraAttestation']> | null>(null);
   const [cameraMode, setCameraMode] = useState<RealmCameraMode>('realm');
   const [interaction, dispatchInteraction] = useReducer(
@@ -899,12 +898,17 @@ function CanonicalRealmMapScreen({
       ? failureInput as RealmRendererFailure
       : classifyRealmRendererFailure(failureInput, current.state);
     if (failure.code === 'webgl-unavailable') {
+      rendererModeRef.current = current.everReady ? 'loading' : 'fallback';
       setRendererLifecycle(transitionRealmRendererLifecycle(current, {
         type: 'webgl-unsupported',
         failure
       }));
       return;
     }
+    // Stop accepting pointer/camera mutations synchronously, before React has
+    // committed the loading/recovering state to the DOM. The scene itself
+    // applies the same guard while a WebGL context is lost.
+    rendererModeRef.current = 'loading';
     if (shouldRetryRealmRenderer(current, failure)) {
       const nextAttempt = current.attempt + 1;
       setRendererLifecycle(transitionRealmRendererLifecycle(current, {
@@ -943,12 +947,11 @@ function CanonicalRealmMapScreen({
       window.clearTimeout(rendererRecoveryTimerRef.current);
       rendererRecoveryTimerRef.current = null;
     }
-    const next: RealmRendererLifecycle = {
-      state: 'loading',
-      attempt: 0,
-      everReady: rendererEverReadyRef.current
-    };
-    setRendererLifecycle(next);
+    setRendererLifecycle(transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
+      type: 'load-start',
+      attempt: 0
+    }));
+    rendererModeRef.current = 'loading';
     rendererRecoveryNonceRef.current += 1;
     setRendererRecoveryNonce(rendererRecoveryNonceRef.current);
   }, []);
@@ -1383,7 +1386,6 @@ function CanonicalRealmMapScreen({
             return;
           }
           rendererModeRef.current = 'webgl';
-          rendererEverReadyRef.current = true;
           const activeLod = canvas.dataset.realmCastleActiveLod;
           setRendererLifecycle(transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
             type: 'ready',
@@ -1603,6 +1605,9 @@ function CanonicalRealmMapScreen({
     if (isPlayableRealmCoord(surface, next)) selectCoord(next);
   };
 
+  // The scene mirrors these counters onto the canvas so a context event can
+  // be diagnosed without exposing implementation details in user copy.
+  const canvasTelemetry = canvasRef.current?.dataset;
   return (
     <main
       ref={rootRef}
@@ -1613,6 +1618,10 @@ function CanonicalRealmMapScreen({
       data-renderer-ever-ready={String(rendererLifecycle.everReady)}
       data-renderer-recovery-attempt={String(rendererLifecycle.attempt)}
       data-renderer-failure={rendererLifecycle.failure?.code ?? 'none'}
+      data-renderer-failure-code={rendererLifecycle.failure?.code ?? 'none'}
+      data-renderer-generation={String(rendererLifecycle.generation)}
+      data-renderer-context-loss-count={canvasTelemetry?.realmRendererContextLossCount ?? '0'}
+      data-renderer-context-restore-count={canvasTelemetry?.realmRendererContextRestoreCount ?? '0'}
       data-renderer-degraded-quality={rendererLifecycle.degradedQuality ?? 'none'}
       data-quality={quality}
       tabIndex={0}
@@ -1869,9 +1878,6 @@ function CanonicalRealmMapScreen({
           <p className="realm-map-screen__fallback-copy">
             WebGL is unavailable on this device. Showing a bounded, accessible view of the
             canonical Genesis 001 region around your keep.
-            <span hidden>
-              Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.
-            </span>
           </p>
         </div>
       ) : null}
@@ -1883,20 +1889,20 @@ function CanonicalRealmMapScreen({
         >
           <div>
             {rendererLifecycle.state === 'failed' ? (
-              <strong role="alert">The 3D realm needs another attempt</strong>
+              <strong role="alert">THE REALM COULD NOT BE RESTORED</strong>
             ) : rendererLifecycle.state === 'recovering' ? (
-              <strong role="status">Recovering the 3D realm…</strong>
+              <strong role="status">RESTORING THE REALM…</strong>
             ) : (
               <strong role="status">Surveying the bright lowlands…</strong>
             )}
             <span>
               {rendererLifecycle.state === 'failed'
-                ? 'The renderer stopped before the world was ready. Your world state is safe.'
+                ? 'Warpkeep could not restart 3D rendering. Your server-owned progress was not changed.'
                 : rendererLifecycle.state === 'recovering'
-                  ? 'Restoring the graphics context without replacing the realm with a flat map.'
+                  ? 'The graphics device was interrupted. Your game state is safe while the realm is restored.'
                   : 'Preparing every canonical castle before the realm is revealed.'}
             </span>
-            {rendererLifecycle.state === 'failed' ? (
+            {rendererLifecycle.state === 'failed' && rendererLifecycle.failure?.retryable !== false ? (
               <button type="button" onClick={retryRenderer}>Retry 3D Realm</button>
             ) : null}
             <button type="button" onClick={onRequestReturn}>

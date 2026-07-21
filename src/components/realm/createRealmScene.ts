@@ -1689,6 +1689,8 @@ function initializeRealmScene(
   let renderPendingWhileHidden = false;
   let pendingCastlesReadyCount: number | null = null;
   let contextLost = false;
+  let contextLossCount = 0;
+  let contextRestoreCount = 0;
   let ambientScheduler: RealmAmbientScheduler | null = null;
   const ambientIsNeeded = () => !options.reducedMotion
     && renderPlan.grass.animationFrameCap > 0
@@ -2393,6 +2395,10 @@ function initializeRealmScene(
   };
 
   const handlePointerDown = (event: PointerEvent) => {
+    if (contextLost) {
+      event.preventDefault();
+      return;
+    }
     const lane = laneForTarget(event.target);
     if (!lane || (event.pointerType !== 'touch' && event.button !== 0)) return;
     if (pointerGestures.snapshot().pointerCount === 0) clearLabelClickSuppression();
@@ -2416,6 +2422,10 @@ function initializeRealmScene(
   };
 
   const handlePointerMove = (event: PointerEvent) => {
+    if (contextLost) {
+      event.preventDefault();
+      return;
+    }
     if (pointerGestures.snapshot().pointerCount === 0) {
       if (event.target === options.canvas) scheduleHover(event.clientX, event.clientY);
       return;
@@ -2461,6 +2471,10 @@ function initializeRealmScene(
   };
 
   const handlePointerUp = (event: PointerEvent) => {
+    if (contextLost) {
+      event.preventDefault();
+      return;
+    }
     const labelTarget = labelPointerTargets.get(event.pointerId);
     labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.end({
@@ -2482,6 +2496,10 @@ function initializeRealmScene(
   };
 
   const handlePointerCancel = (event: PointerEvent) => {
+    if (contextLost) {
+      event.preventDefault();
+      return;
+    }
     labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.cancel(event.pointerId);
     if (!result.accepted) return;
@@ -2492,6 +2510,7 @@ function initializeRealmScene(
   };
 
   const handleLostPointerCapture = (event: PointerEvent) => {
+    if (contextLost) return;
     labelPointerTargets.delete(event.pointerId);
     const result = pointerGestures.lostCapture(event.pointerId);
     if (!result.accepted) return;
@@ -2517,6 +2536,11 @@ function initializeRealmScene(
   };
 
   const handleLabelClickCapture = (event: MouseEvent) => {
+    if (contextLost) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     // Keyboard and assistive-technology activation carries no mouse click
     // count and must never be consumed by a prior pointer gesture.
     if (event.detail === 0 || !(event.target instanceof Element)) return;
@@ -2531,12 +2555,17 @@ function initializeRealmScene(
   };
 
   const handlePointerLeave = () => {
+    if (contextLost) return;
     if (pointerGestures.snapshot().pointerCount === 0) {
       cancelPendingHover();
       dispatchHover(null);
     }
   };
   const handleWheel = (event: WheelEvent) => {
+    if (contextLost) {
+      event.preventDefault();
+      return;
+    }
     const lane = laneForTarget(event.target);
     if (!lane) return;
     event.preventDefault();
@@ -2578,6 +2607,11 @@ function initializeRealmScene(
     event.preventDefault();
     if (cleanup.isDisposed()) return;
     contextLost = true;
+    contextLossCount += 1;
+    options.canvas.dataset.realmRendererContextLost = 'true';
+    options.canvas.dataset.realmRendererContextLossCount = String(contextLossCount);
+    options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
+    cancelAllPointers(pointerGestures.blur());
     ambientScheduler?.setActive(false);
     options.onRendererFailure?.({
       code: 'context-lost',
@@ -2588,6 +2622,12 @@ function initializeRealmScene(
   };
   const handleContextRestored = () => {
     if (cleanup.isDisposed() || !contextLost) return;
+    contextLost = false;
+    contextRestoreCount += 1;
+    options.canvas.dataset.realmRendererContextLost = 'false';
+    options.canvas.dataset.realmRendererContextLossCount = String(contextLossCount);
+    options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
+    ambientScheduler?.setActive(ambientIsNeeded());
     options.onRendererContextRestored?.();
   };
 
@@ -2712,6 +2752,10 @@ function initializeRealmScene(
         } catch (error) {
           lastError = error;
           if (lod !== 'compact' || attempt !== 0) break;
+          // Keep the retry bounded and deterministic. The short yield lets a
+          // transient browser fetch/decode stall settle without overlapping
+          // two requests for the same content-addressed lease.
+          await new Promise<void>((resolve) => window.setTimeout(resolve, 40));
         }
       }
       throw lastError ?? new Error(`Unable to load castle ${lod} LOD.`);

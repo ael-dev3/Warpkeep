@@ -921,6 +921,46 @@ describe('realm scene setup cleanup', () => {
     scene.dispose();
   });
 
+  it('suspends input and ambience during context loss, then reports restoration', () => {
+    const canvas = document.createElement('canvas');
+    const onRendererFailure = vi.fn();
+    const onRendererContextRestored = vi.fn();
+    const onRendererUnavailable = vi.fn();
+    const scene = createRealmScene(createOptions(canvas, {
+      onRendererFailure,
+      onRendererContextRestored,
+      onRendererUnavailable
+    }));
+    const ambient = ambientSchedulerState.creations.at(-1)!;
+
+    const lost = new Event('webglcontextlost', { cancelable: true });
+    canvas.dispatchEvent(lost);
+
+    expect(lost.defaultPrevented).toBe(true);
+    expect(canvas.dataset.realmRendererContextLost).toBe('true');
+    expect(canvas.dataset.realmRendererContextLossCount).toBe('1');
+    expect(ambient.isActive()).toBe(false);
+    expect(onRendererFailure).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'context-lost',
+      retryable: true
+    }));
+    expect(onRendererUnavailable).not.toHaveBeenCalled();
+
+    const wheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 120
+    });
+    canvas.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(true);
+
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(canvas.dataset.realmRendererContextLost).toBe('false');
+    expect(canvas.dataset.realmRendererContextRestoreCount).toBe('1');
+    expect(onRendererContextRestored).toHaveBeenCalledOnce();
+    scene.dispose();
+  });
+
   it('aborts a pending castle-family load when the Realm unmounts', async () => {
     const onRendererUnavailable = vi.fn();
     const scene = createRealmScene(createOptions(document.createElement('canvas'), {
