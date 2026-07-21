@@ -38,6 +38,7 @@ import { FoodFarmInspectionPanel } from './FoodFarmInspectionPanel';
 import { GoldMineInspectionPanel } from './GoldMineInspectionPanel';
 import { LoggingCampInspectionPanel } from './LoggingCampInspectionPanel';
 import { StoneQuarryInspectionPanel } from './StoneQuarryInspectionPanel';
+import { WaterInspectionPanel } from './WaterInspectionPanel';
 import { RealmAccessibilityControls } from './RealmAccessibilityControls';
 import {
   RealmCastleLabels,
@@ -54,6 +55,11 @@ import {
 } from './createRealmScene';
 import { resolveCanonicalWaterProjection } from './realmWaterProjection';
 import { projectRealmWaterRevisionTerrainMetadata } from './realmWaterTerrainProjection';
+import {
+  realmWaterNavigatorBodies,
+  resolveRealmWaterInspectionRecords,
+  type RealmWaterInspectionRecord
+} from './realmWaterInspectionPresentation';
 import {
   resolveRealmGoldNodePresentations,
   type RealmGoldNodePresentation
@@ -341,6 +347,20 @@ function CanonicalRealmMapScreen({
   const projectedTileMetadata = useMemo(
     () => projectRealmWaterRevisionTerrainMetadata(sharedTileMetadata, waterCells),
     [sharedTileMetadata, waterCells]
+  );
+  const waterRecords = useMemo(
+    () => resolveRealmWaterInspectionRecords(waterCells, projectedTileMetadata),
+    [projectedTileMetadata, waterCells]
+  );
+  const waterRecordsByKey = useMemo(
+    () => new Map(waterRecords.map((record) => [record.cellKey, record] as const)),
+    [waterRecords]
+  );
+  const waterRecordsByKeyRef = useRef<ReadonlyMap<string, RealmWaterInspectionRecord>>(waterRecordsByKey);
+  waterRecordsByKeyRef.current = waterRecordsByKey;
+  const navigatorWaterBodies = useMemo(
+    () => realmWaterNavigatorBodies(waterRecords),
+    [waterRecords]
   );
   const otherCastles = snapshot.castles;
   const surface = useMemo(
@@ -694,10 +714,15 @@ function CanonicalRealmMapScreen({
     && 'stoneSiteId' in selectedInspectorTarget
     ? stoneNodesBySiteId.get(selectedInspectorTarget.stoneSiteId)
     : undefined;
+  const inspectorWater = selectedInspectorTarget !== null
+    && 'cellKey' in selectedInspectorTarget
+    ? waterRecordsByKey.get(selectedInspectorTarget.cellKey)
+    : undefined;
   const goldNodeAtSelectedCell = goldNodes.find((node) => sameCoord(node.coord, selectedCoord));
   const foodNodeAtSelectedCell = foodNodes.find((node) => sameCoord(node.coord, selectedCoord));
   const woodNodeAtSelectedCell = woodNodes.find((node) => sameCoord(node.coord, selectedCoord));
   const stoneNodeAtSelectedCell = stoneNodes.find((node) => sameCoord(node.coord, selectedCoord));
+  const waterAtSelectedCell = waterRecords.find((record) => sameCoord(record.coord, selectedCoord));
   const ownProfile = profileRecords.get(ownCastle.castleId)?.profile;
   const focusedCastleId = interaction.cameraTarget.kind === 'castle'
     ? interaction.cameraTarget.castleId
@@ -767,6 +792,8 @@ function CanonicalRealmMapScreen({
     } else if (target.kind === 'logging-camp-inspector') {
       inspectorFocusRef.current?.focus({ preventScroll: true });
     } else if (target.kind === 'stone-quarry-inspector') {
+      inspectorFocusRef.current?.focus({ preventScroll: true });
+    } else if (target.kind === 'water-inspector') {
       inspectorFocusRef.current?.focus({ preventScroll: true });
     } else if (target.kind === 'castle-label') {
       const label = rootRef.current
@@ -868,6 +895,19 @@ function CanonicalRealmMapScreen({
       cameraIntent: focusSite ? 'focus-site' : 'preserve'
     });
     if (focusSite) sceneRef.current?.focusCell(node.coord);
+  }, []);
+
+  const selectWaterCell = useCallback((record: RealmWaterInspectionRecord, focusWater = true) => {
+    selectedCoordRef.current = { ...record.coord };
+    dispatchInteraction({
+      type: 'activate-water-cell',
+      cellKey: record.cellKey,
+      bodyId: record.bodyId,
+      regime: record.regime,
+      coord: record.coord,
+      cameraIntent: focusWater ? 'focus-water' : 'preserve'
+    });
+    if (focusWater) sceneRef.current?.focusWaterCell?.(record.cellKey);
   }, []);
 
   const openActiveWagon = useCallback((wagon: RealmActiveWagonMenuItem) => {
@@ -985,6 +1025,14 @@ function CanonicalRealmMapScreen({
     // The scene reserves its restrained ground outline for unoccupied terrain;
     // castle identity and raycasting provide the occupied-cell cue without a
     // depth-tested line cutting through the wider authored landscape base.
+    if (target?.kind === 'water-cell') {
+      updateHoveredCastleId(undefined);
+      hoveredCoordRef.current = null;
+      sceneRef.current?.setHoveredWaterCellKey?.(target.cellKey);
+      sceneRef.current?.setHovered(null);
+      return;
+    }
+    sceneRef.current?.setHoveredWaterCellKey?.(null);
     updateHoveredCoord(target?.coord ?? null);
     updateHoveredCastleId(target?.kind === 'castle' ? target.castleId : undefined);
   }, [updateHoveredCastleId, updateHoveredCoord]);
@@ -1016,8 +1064,13 @@ function CanonicalRealmMapScreen({
       if (node) selectStoneNode(node, target.source !== 'wagon');
       return;
     }
+    if (target.kind === 'water-cell') {
+      const record = waterRecordsByKeyRef.current.get(target.cellKey);
+      if (record) selectWaterCell(record);
+      return;
+    }
     selectCoord(target.coord);
-  }, [selectCastle, selectCoord, selectFoodNode, selectGoldNode, selectStoneNode, selectWoodNode]);
+  }, [selectCastle, selectCoord, selectFoodNode, selectGoldNode, selectStoneNode, selectWaterCell, selectWoodNode]);
 
   const updateCastleProjection = useCallback((frame: RealmCastleProjectionFrame) => {
     latestProjectionRef.current = frame;
@@ -1226,7 +1279,7 @@ function CanonicalRealmMapScreen({
       root.querySelectorAll<HTMLElement>(
         '.realm-hud, .realm-hud__actions, .realm-profile-trigger, .realm-resource-rail, '
         + '.castle-inspection, .gold-mine-inspection, .food-farm-inspection, .logging-camp-inspection, '
-        + '.stone-quarry-inspection, .realm-cell-navigator'
+        + '.stone-quarry-inspection, .realm-cell-navigator, .water-inspection'
       ).forEach((element) => observer?.observe(element));
     }
     window.addEventListener('resize', updateSceneComposition, { passive: true });
@@ -1458,10 +1511,18 @@ function CanonicalRealmMapScreen({
           ? interactionRef.current.inspectorTarget.stoneSiteId
           : null
       );
+      scene.setSelectedWaterCellKey?.(
+        interactionRef.current.inspectorOpen
+        && interactionRef.current.inspectorTarget !== null
+        && 'cellKey' in interactionRef.current.inspectorTarget
+          ? interactionRef.current.inspectorTarget.cellKey
+          : null
+      );
       scene.setHovered(hoveredCoordRef.current);
       const cameraTarget: RealmCameraTarget = interactionRef.current.cameraTarget;
       if (cameraTarget.kind === 'castle') scene.focusCastle(cameraTarget.castleId);
       else if (cameraTarget.kind === 'cell') scene.focusCell(cameraTarget.coord);
+      else if (cameraTarget.kind === 'water') scene.focusWaterCell?.(cameraTarget.cellKey);
       else if (cameraTarget.kind === 'keep') scene.recenterKeep();
       else if (cameraTarget.kind === 'founding-district') scene.frameFoundingDistrict();
       else scene.showRealm();
@@ -1517,6 +1578,10 @@ function CanonicalRealmMapScreen({
   useEffect(() => {
     sceneRef.current?.setSelectedStoneSiteId?.(inspectorStoneNode?.siteId ?? null);
   }, [inspectorStoneNode?.siteId]);
+
+  useEffect(() => {
+    sceneRef.current?.setSelectedWaterCellKey?.(inspectorWater?.cellKey ?? null);
+  }, [inspectorWater?.cellKey]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -1600,6 +1665,8 @@ function CanonicalRealmMapScreen({
         selectWoodNode(woodNodeAtSelectedCell);
       } else if (stoneNodeAtSelectedCell) {
         selectStoneNode(stoneNodeAtSelectedCell);
+      } else if (waterAtSelectedCell) {
+        selectWaterCell(waterAtSelectedCell);
       } else {
         sceneRef.current?.focusCell(selectedCoord);
         dispatchInteraction({
@@ -2047,10 +2114,27 @@ function CanonicalRealmMapScreen({
             />
           ) : null}
 
+          {inspectorWater ? (
+            <WaterInspectionPanel
+              id={`${inspectorId}-water-${inspectorWater.cellKey}`}
+              record={inspectorWater}
+              focusTargetRef={inspectorFocusRef}
+              onRequestClose={() => dispatchInteraction({ type: 'close-inspector' })}
+              onFocusCell={(cellKey) => {
+                const record = waterRecordsByKeyRef.current.get(cellKey);
+                if (record) selectWaterCell(record);
+              }}
+              onViewUnderlyingCell={inspectorWater.underlyingTileKey
+                ? () => selectCoord(inspectorWater.coord)
+                : undefined}
+            />
+          ) : null}
+
           <RealmAccessibilityControls
             id={navigatorId}
             open={interaction.navigatorOpen}
             castles={navigatorCastles}
+            waterBodies={navigatorWaterBodies}
             ownCastleId={observerMode ? undefined : ownCastle.castleId}
             selectedCastleId={selectedCastle?.castleId}
             triggerRef={navigatorTriggerRef}
@@ -2080,6 +2164,13 @@ function CanonicalRealmMapScreen({
             onActivateCastle={(entry) => {
               const castle = allCastles.find((candidate) => candidate.castleId === entry.castleId);
               if (castle) selectCastle(castle);
+            }}
+            onActivateWaterCell={(cellKey) => {
+              const record = waterRecordsByKeyRef.current.get(cellKey);
+              if (record) {
+                selectWaterCell(record);
+                dispatchInteraction({ type: 'close-navigator' });
+              }
             }}
             coordinateJump={{
               validate: (coord) => (

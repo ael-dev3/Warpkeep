@@ -36,13 +36,21 @@ export type RealmStoneSiteTarget = Readonly<{
   coord: HexCoord;
 }>;
 
+export type RealmWaterCellTarget = Readonly<{
+  cellKey: string;
+  bodyId: string;
+  regime: 'ocean' | 'river';
+  coord: HexCoord;
+}>;
+
 export type RealmInspectorTarget =
   | RealmWorkerTarget
   | RealmCastleTarget
   | RealmGoldSiteTarget
   | RealmFoodSiteTarget
   | RealmWoodSiteTarget
-  | RealmStoneSiteTarget;
+  | RealmStoneSiteTarget
+  | RealmWaterCellTarget;
 
 export type RealmCameraTarget =
   | Readonly<{ kind: 'realm' }>
@@ -50,7 +58,10 @@ export type RealmCameraTarget =
   | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
-  | Readonly<{ kind: 'worker'; workerId: string; coord: HexCoord }>;
+  | Readonly<{ kind: 'worker'; workerId: string; coord: HexCoord }>
+  // Water focus is bounded by the validated visible projection, not land
+  // passability; full-fog cells never become camera targets.
+  | Readonly<{ kind: 'water'; cellKey: string; coord: HexCoord }>;
 
 export type RealmKeyboardTarget =
   | Readonly<{ kind: 'map' }>
@@ -60,6 +71,7 @@ export type RealmKeyboardTarget =
   | Readonly<{ kind: 'food-farm-inspector'; siteId: string }>
   | Readonly<{ kind: 'logging-camp-inspector'; siteId: string }>
   | Readonly<{ kind: 'stone-quarry-inspector'; siteId: string }>
+  | Readonly<{ kind: 'water-inspector'; cellKey: string }>
   | Readonly<{ kind: 'castle-label'; castleId: number }>
   | Readonly<{ kind: 'navigator' }>
   | Readonly<{ kind: 'navigator-trigger' }>;
@@ -111,6 +123,14 @@ export type RealmInteractionAction =
       coord: HexCoord;
       cameraIntent?: 'focus-site' | 'preserve';
     }>
+  | Readonly<{
+      type: 'activate-water-cell';
+      cellKey: string;
+      bodyId: string;
+      regime: 'ocean' | 'river';
+      coord: HexCoord;
+      cameraIntent?: 'focus-water' | 'preserve';
+    }>
   | Readonly<{ type: 'close-inspector' }>
   | Readonly<{ type: 'recenter-keep'; coord: HexCoord }>
   | Readonly<{ type: 'set-camera-target'; target: RealmCameraTarget }>
@@ -159,6 +179,15 @@ function copyStoneSiteTarget(target: RealmStoneSiteTarget): RealmStoneSiteTarget
   return { stoneSiteId: target.stoneSiteId, coord: copyCoord(target.coord) };
 }
 
+function copyWaterCellTarget(target: RealmWaterCellTarget): RealmWaterCellTarget {
+  return {
+    cellKey: target.cellKey,
+    bodyId: target.bodyId,
+    regime: target.regime,
+    coord: copyCoord(target.coord)
+  };
+}
+
 function isCastleTarget(target: RealmInspectorTarget | null): target is RealmCastleTarget {
   return target !== null && 'castleId' in target;
 }
@@ -169,6 +198,7 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
   if (target.kind === 'worker') return { kind: 'worker', workerId: target.workerId, coord: copyCoord(target.coord) };
+  if (target.kind === 'water') return { kind: 'water', cellKey: target.cellKey, coord: copyCoord(target.coord) };
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
 }
 
@@ -311,6 +341,25 @@ export function realmInteractionReducer(
         keyboardIntent: withKeyboardIntent(state, {
           kind: 'stone-quarry-inspector',
           siteId: target.stoneSiteId
+        })
+      };
+    }
+
+    case 'activate-water-cell': {
+      const target = copyWaterCellTarget(action);
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: null,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: action.cameraIntent === 'preserve'
+          ? state.cameraTarget
+          : { kind: 'water', cellKey: target.cellKey, coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, {
+          kind: 'water-inspector',
+          cellKey: target.cellKey
         })
       };
     }

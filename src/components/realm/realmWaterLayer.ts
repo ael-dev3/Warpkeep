@@ -57,8 +57,20 @@ export type RealmWaterLayerTelemetry = Readonly<{
   fullFogOceanCellCount: number;
 }>;
 
+export type RealmWaterCellHit = Readonly<{
+  cellKey: string;
+  bodyId: string;
+  regime: 'ocean' | 'river';
+  coord: Readonly<{ q: number; r: number }>;
+  distance: number;
+}>;
+
 export type RealmWaterLayer = Readonly<{
   group: THREE.Group;
+  raycast: (raycaster: THREE.Raycaster) => RealmWaterCellHit | null;
+  getCellPresentation: (cellKey: string) => GenesisWaterCellV1 | undefined;
+  setSelectedCellKey: (cellKey: string | null) => void;
+  setHoveredCellKey: (cellKey: string | null) => void;
   updateEnvironment: (elapsedSeconds: number) => boolean;
   isAnimationActive: () => boolean;
   getTelemetry: () => RealmWaterLayerTelemetry;
@@ -134,6 +146,7 @@ function surfaceGeometry(
   geometry.setAttribute('waterDepth', new THREE.Float32BufferAttribute(waterDepth, 1));
   geometry.setAttribute('waterBankBlend', new THREE.Float32BufferAttribute(waterBankBlend, 1));
   geometry.setAttribute('waterFogMix', new THREE.Float32BufferAttribute(waterFogMix, 1));
+  geometry.userData.realmWaterCellKeys = cells.map((cell) => cell.cellKey);
   try {
     geometry.setIndex(indices);
     geometry.computeBoundingSphere();
@@ -269,6 +282,7 @@ function riverSurfaceGeometry(
   geometry.setAttribute('waterDepth', new THREE.Float32BufferAttribute(waterDepth, 1));
   geometry.setAttribute('waterBankBlend', new THREE.Float32BufferAttribute(waterBankBlend, 1));
   geometry.setAttribute('waterFogMix', new THREE.Float32BufferAttribute(waterFogMix, 1));
+  geometry.userData.realmWaterCellKeys = cells.map((cell) => cell.cellKey);
   try {
     geometry.setIndex(indices);
     geometry.computeBoundingSphere();
@@ -432,6 +446,84 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
   skirtMesh.name = 'canonical-ocean-downward-skirt';
   riverMesh.renderOrder = 2;
   skirtMesh.renderOrder = 1;
+  const cellsByKey = new Map(options.cells.map((cell) => [cell.cellKey, cell] as const));
+  const visiblePickCells = new Set(options.cells
+    .filter((cell) => cell.regime !== 'ocean' || cell.fogBand !== 'full')
+    .map((cell) => cell.cellKey));
+  const selectedWaterOverlay = new THREE.LineLoop(
+    new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({
+      color: '#e8fbce',
+      transparent: true,
+      opacity: 0.94,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false
+    })
+  );
+  const hoveredWaterOverlay = new THREE.LineLoop(
+    new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({
+      color: '#d3f4ec',
+      transparent: true,
+      opacity: 0.6,
+      depthTest: false,
+      depthWrite: false,
+      toneMapped: false
+    })
+  );
+  selectedWaterOverlay.name = 'selected-water-cell-outline';
+  hoveredWaterOverlay.name = 'hovered-water-cell-outline';
+  selectedWaterOverlay.renderOrder = 6;
+  hoveredWaterOverlay.renderOrder = 5;
+  selectedWaterOverlay.visible = false;
+  hoveredWaterOverlay.visible = false;
+  group.add(selectedWaterOverlay, hoveredWaterOverlay);
+  const updateWaterOverlay = (
+    overlay: THREE.LineLoop,
+    cellKey: string | null,
+    opacity: number
+  ) => {
+    const cell = cellKey ? cellsByKey.get(cellKey) : undefined;
+    if (!cell || !visiblePickCells.has(cell.cellKey)) {
+      overlay.visible = false;
+      return;
+    }
+    const center = axialToWorld({ q: cell.q, r: cell.r }, options.hexSize);
+    const corners = pointyHexCorners({ q: cell.q, r: cell.r }, options.hexSize);
+    const ground = cell.regime === 'river'
+      ? Math.max(
+        waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + WATER_Y_LIFT,
+        options.heightAtWorld(center) + 0.035
+      )
+      : waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + WATER_Y_LIFT;
+    const positions = new Float32Array(corners.length * 3);
+    corners.forEach((corner, index) => {
+      positions[index * 3] = corner.x;
+      positions[index * 3 + 1] = ground + (opacity > 0.8 ? 0.018 : 0.012);
+      positions[index * 3 + 2] = corner.z;
+    });
+    overlay.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    overlay.geometry.computeBoundingSphere();
+    (overlay.material as THREE.LineBasicMaterial).opacity = opacity;
+    overlay.visible = true;
+  };
+  const raycastMesh = (mesh: THREE.Mesh, raycaster: THREE.Raycaster) => {
+    const intersection = raycaster.intersectObject(mesh, false)[0];
+    if (!intersection || intersection.faceIndex === undefined || intersection.faceIndex === null) return null;
+    const keys = mesh.geometry.userData.realmWaterCellKeys as readonly string[] | undefined;
+    const cellKey = keys?.[Math.floor(intersection.faceIndex / 6)];
+    if (!cellKey || !visiblePickCells.has(cellKey)) return null;
+    const cell = cellsByKey.get(cellKey);
+    if (!cell || (cell.regime !== 'ocean' && cell.regime !== 'river')) return null;
+    return {
+      cellKey,
+      bodyId: cell.bodyId,
+      regime: cell.regime,
+      coord: { q: cell.q, r: cell.r },
+      distance: intersection.distance
+    } satisfies RealmWaterCellHit;
+  };
   group.add(oceanMesh, lakeMesh, riverMesh, skirtMesh);
   const triangleCount = (oceanGeometry.index?.count ?? 0) / 3
     + (lakeGeometry.index?.count ?? 0) / 3
@@ -440,6 +532,10 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
   const drawCalls = [oceanMesh, lakeMesh, riverMesh, skirtMesh]
     .filter((mesh) => (mesh.geometry.index?.count ?? 0) > 0).length;
   if (triangleCount > budget.triangles || drawCalls > budget.draws) {
+    selectedWaterOverlay.geometry.dispose();
+    (selectedWaterOverlay.material as THREE.Material).dispose();
+    hoveredWaterOverlay.geometry.dispose();
+    (hoveredWaterOverlay.material as THREE.Material).dispose();
     disposeResources();
     throw new Error('REALM_WATER_RENDER_BUDGET_EXCEEDED');
   }
@@ -474,7 +570,27 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      selectedWaterOverlay.geometry.dispose();
+      (selectedWaterOverlay.material as THREE.Material).dispose();
+      hoveredWaterOverlay.geometry.dispose();
+      (hoveredWaterOverlay.material as THREE.Material).dispose();
       disposeResources();
+    },
+    raycast: (raycaster) => {
+      if (disposed) return null;
+      const hits = [raycastMesh(oceanMesh, raycaster), raycastMesh(lakeMesh, raycaster), raycastMesh(riverMesh, raycaster)]
+        .filter((hit): hit is RealmWaterCellHit => hit !== null)
+        .sort((left, right) => left.distance - right.distance);
+      return hits[0] ?? null;
+    },
+    getCellPresentation: (cellKey) => cellsByKey.get(cellKey),
+    setSelectedCellKey: (cellKey) => {
+      if (disposed) return;
+      updateWaterOverlay(selectedWaterOverlay, cellKey, 0.94);
+    },
+    setHoveredCellKey: (cellKey) => {
+      if (disposed) return;
+      updateWaterOverlay(hoveredWaterOverlay, cellKey, 0.6);
     }
   };
 }

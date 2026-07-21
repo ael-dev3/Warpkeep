@@ -90,6 +90,7 @@ import {
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from './realmAmbientScheduler';
 import {
   createRealmWaterLayer,
+  waterSurfaceLevelToWorldY,
   type RealmWaterLayer
 } from './realmWaterLayer';
 import {
@@ -135,7 +136,8 @@ import {
 import {
   arbitrateRealmPick,
   type RealmInteractionTarget,
-  type RealmResourcePickHit
+  type RealmResourcePickHit,
+  type RealmWaterPickHit
 } from './realmPickArbitration';
 import {
   REALM_LIGHTING_SPECS,
@@ -421,6 +423,7 @@ export type RealmSceneHandle = Readonly<{
   getSceneBuildSequence: () => number;
   focusCastle: (castleId: number) => void;
   focusCell: (coord: HexCoord) => void;
+  focusWaterCell: (cellKey: string) => void;
   frameFoundingDistrict: () => void;
   focusKeep: () => void;
   recenterKeep: () => void;
@@ -432,6 +435,8 @@ export type RealmSceneHandle = Readonly<{
   setSelectedFoodSiteId: (siteId: string | null) => void;
   setSelectedWoodSiteId: (siteId: string | null) => void;
   setSelectedStoneSiteId: (siteId: string | null) => void;
+  setSelectedWaterCellKey: (cellKey: string | null) => void;
+  setHoveredWaterCellKey: (cellKey: string | null) => void;
   setComposition: (composition: RealmCameraComposition) => void;
   showRealm: () => void;
 }>;
@@ -1246,6 +1251,9 @@ function initializeRealmScene(
   scene.add(terrain);
 
   let waterLayer: RealmWaterLayer | null = null;
+  const waterCellByKey = new Map(
+    (options.waterCells ?? []).map((cell) => [cell.cellKey, cell] as const)
+  );
   if (options.waterCells !== undefined) {
     try {
       waterLayer = createRealmWaterLayer({
@@ -1612,6 +1620,11 @@ function initializeRealmScene(
   const stoneNodeCoordinateKeys = new Set(
     (options.stoneNodes ?? []).map((node) => hexKey(node.coord))
   );
+  const waterCellCoordinateKeys = new Set(
+    (options.waterCells ?? [])
+      .filter((cell) => cell.regime === 'ocean' || cell.regime === 'river')
+      .map((cell) => `${cell.q},${cell.r}`)
+  );
   const terrainOverlayCoord = (coord: HexCoord | null) => (
     coord
       && !occupiedCastleCoordinateKeys.has(hexKey(coord))
@@ -1619,6 +1632,7 @@ function initializeRealmScene(
       && !foodNodeCoordinateKeys.has(hexKey(coord))
       && !woodNodeCoordinateKeys.has(hexKey(coord))
       && !stoneNodeCoordinateKeys.has(hexKey(coord))
+      && !waterCellCoordinateKeys.has(hexKey(coord))
       ? coord
       : null
   );
@@ -2237,7 +2251,8 @@ function initializeRealmScene(
     const stoneNodeHit = stoneNodeLayer?.raycast(raycaster);
     if (stoneNodeHit) resourceHits.push({ kind: 'stone-site', ...stoneNodeHit });
     const castleHit = castleLayer?.raycast(raycaster);
-    const foregroundHit = arbitrateRealmPick({ resourceHits, castleHit });
+    const waterHit: RealmWaterPickHit | null = waterLayer?.raycast(raycaster) ?? null;
+    const foregroundHit = arbitrateRealmPick({ resourceHits, castleHit, waterHit });
     if (foregroundHit) return foregroundHit;
     const intersections = raycaster.intersectObject(terrain, false);
     for (const intersection of intersections) {
@@ -3028,6 +3043,28 @@ function initializeRealmScene(
         footprintDiameter: 1.24
       });
     },
+    focusWaterCell: (cellKey) => {
+      if (cleanup.isDisposed()) return;
+      const cell = waterCellByKey.get(cellKey);
+      if (!cell || (cell.regime === 'ocean' && cell.fogBand === 'full')) return;
+      const world = axialToWorld({ q: cell.q, r: cell.r }, HEX_SIZE);
+      const terrainY = terrainHeightAtWorld(
+        options.surface.renderMap,
+        world,
+        HEX_SIZE,
+        terrainPlacements
+      );
+      const surfaceY = cell.regime === 'river'
+        ? Math.max(waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + 0.035, terrainY + 0.04)
+        : waterSurfaceLevelToWorldY(cell.surfaceLevelMilli) + 0.035;
+      cameraController.focusAt({
+        x: world.x,
+        y: surfaceY,
+        z: world.z,
+        height: 0.18,
+        footprintDiameter: 1.24
+      });
+    },
     frameFoundingDistrict: () => {
       const width = Math.max(1, options.canvas.clientWidth || window.innerWidth || 1);
       const height = Math.max(1, options.canvas.clientHeight || window.innerHeight || 1);
@@ -3041,6 +3078,7 @@ function initializeRealmScene(
     recenterKeep: cameraController.recenterKeep,
     setHovered: (coord) => {
       if (cleanup.isDisposed()) return;
+      waterLayer?.setHoveredCellKey(null);
       hoveredTerrainCoord = coord;
       grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
       // A terrain hex runs through the wider authored landscape-base mesh.
@@ -3068,6 +3106,7 @@ function initializeRealmScene(
     },
     setSelected: (coord) => {
       if (cleanup.isDisposed()) return;
+      waterLayer?.setSelectedCellKey(null);
       selectedTerrainCoord = coord;
       grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
       selectedCastleId = coord
@@ -3087,6 +3126,7 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       selectedCastleId = castleId === null ? undefined : castleId;
       if (castleId !== null) {
+        waterLayer?.setSelectedCellKey(null);
         selectedTerrainCoord = null;
         grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
@@ -3097,28 +3137,68 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       selectedGoldSiteId = siteId === null ? undefined : siteId;
       goldNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setSelectedFoodSiteId: (siteId) => {
       if (cleanup.isDisposed()) return;
       selectedFoodSiteId = siteId === null ? undefined : siteId;
       foodNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setSelectedWoodSiteId: (siteId) => {
       if (cleanup.isDisposed()) return;
       selectedWoodSiteId = siteId === null ? undefined : siteId;
       woodNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setSelectedStoneSiteId: (siteId) => {
       if (cleanup.isDisposed()) return;
       selectedStoneSiteId = siteId === null ? undefined : siteId;
       stoneNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        waterLayer?.setSelectedCellKey(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
+      render();
+    },
+    setSelectedWaterCellKey: (cellKey) => {
+      if (cleanup.isDisposed()) return;
+      waterLayer?.setSelectedCellKey(cellKey);
+      if (cellKey !== null) {
+        selectedTerrainCoord = null;
+        selectedCastleId = undefined;
+        selectedGoldSiteId = undefined;
+        selectedFoodSiteId = undefined;
+        selectedWoodSiteId = undefined;
+        selectedStoneSiteId = undefined;
+        goldNodeLayer?.setSelectedSiteId(null);
+        foodNodeLayer?.setSelectedSiteId(null);
+        woodNodeLayer?.setSelectedSiteId(null);
+        stoneNodeLayer?.setSelectedSiteId(null);
+        grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
+      render();
+    },
+    setHoveredWaterCellKey: (cellKey) => {
+      if (cleanup.isDisposed()) return;
+      waterLayer?.setHoveredCellKey(cellKey);
+      if (cellKey !== null) {
+        hoveredTerrainCoord = null;
+        setOverlay(hoverOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setComposition: (composition) => cameraController.setComposition(composition),

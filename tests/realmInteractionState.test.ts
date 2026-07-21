@@ -86,6 +86,34 @@ describe('realm interaction state', () => {
     expect(resolveRealmEscape(state).state.keyboardIntent.target).toEqual({ kind: 'map' });
   });
 
+  it('opens a read-only water record and preserves its canonical body identity', () => {
+    const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
+      type: 'activate-water-cell',
+      cellKey: 'genesis-001:river:01:0001',
+      bodyId: 'genesis-001:river:01',
+      regime: 'river',
+      coord: { q: 4, r: -2 }
+    });
+
+    expect(state.selectedCell).toEqual({ q: 4, r: -2 });
+    expect(state.selectedCastle).toBeNull();
+    expect(state.inspectorTarget).toEqual({
+      cellKey: 'genesis-001:river:01:0001',
+      bodyId: 'genesis-001:river:01',
+      regime: 'river',
+      coord: { q: 4, r: -2 }
+    });
+    expect(state.cameraTarget).toEqual({
+      kind: 'water',
+      cellKey: 'genesis-001:river:01:0001',
+      coord: { q: 4, r: -2 }
+    });
+    expect(state.keyboardIntent).toEqual({
+      sequence: 1,
+      target: { kind: 'water-inspector', cellKey: 'genesis-001:river:01:0001' }
+    });
+  });
+
   it('opens a Food Farm inspector through a distinct target shape from Gold', () => {
     const state = realmInteractionReducer(createRealmInteractionState({ q: 0, r: 0 }), {
       type: 'activate-food-site',
