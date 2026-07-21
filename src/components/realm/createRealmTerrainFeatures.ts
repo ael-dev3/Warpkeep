@@ -26,12 +26,6 @@ function geometryForKind(kind: RealmTerrainFeatureKind) {
     geometry.translate(0, 0.17, 0);
     return geometry;
   }
-  if (kind === 'heath-bloom') {
-    const geometry = new THREE.DodecahedronGeometry(0.052, 0);
-    geometry.scale(1.45, 0.78, 1.45);
-    geometry.translate(0, 0.043, 0);
-    return geometry;
-  }
   if (kind === 'ridge-outcrop') {
     const geometry = new THREE.DodecahedronGeometry(0.14, 0);
     geometry.scale(1.28, 0.7, 0.92);
@@ -56,15 +50,6 @@ function materialForKind(kind: RealmTerrainFeatureKind): THREE.Material {
       metalness: 0
     });
   }
-  if (kind === 'heath-bloom') {
-    return new THREE.MeshStandardMaterial({
-      color: '#72527d',
-      emissive: '#2b1538',
-      emissiveIntensity: 0.12,
-      roughness: 0.88,
-      metalness: 0
-    });
-  }
   if (kind === 'ridge-outcrop') {
     return new THREE.MeshStandardMaterial({
       color: '#625f5b',
@@ -83,11 +68,11 @@ function materialForKind(kind: RealmTerrainFeatureKind): THREE.Material {
     });
   }
   return new THREE.MeshStandardMaterial({
-    color: '#5a5364',
-    emissive: '#291634',
-    emissiveIntensity: 0.1,
-    roughness: 0.78,
-    metalness: 0.08
+    color: '#667263',
+    emissive: '#1d2a20',
+    emissiveIntensity: 0.035,
+    roughness: 0.86,
+    metalness: 0.02
   });
 }
 
@@ -106,11 +91,15 @@ export function createRealmTerrainFeatureLayers(
   const scale = new THREE.Vector3();
   const axis = new THREE.Vector3(0, 1, 0);
   const meshes: THREE.InstancedMesh[] = [];
+  // Heath bloom remains in the historical type union for replay/fixture
+  // compatibility, but is no longer a live presentation primitive.
+  const renderablePoints = data.points.filter((point) => point.kind !== 'heath-bloom');
+  const counts = Object.freeze({ ...data.counts, 'heath-bloom': 0 });
   let disposed = false;
 
   try {
-    (Object.keys(data.counts) as RealmTerrainFeatureKind[]).forEach((kind) => {
-      const points = data.points.filter((point) => point.kind === kind);
+    (Object.keys(counts) as RealmTerrainFeatureKind[]).forEach((kind) => {
+      const points = renderablePoints.filter((point) => point.kind === kind);
       if (points.length === 0) return;
       const geometry = geometryForKind(kind);
       const material = materialForKind(kind);
@@ -173,9 +162,9 @@ export function createRealmTerrainFeatureLayers(
 
   return Object.freeze({
     group,
-    counts: data.counts,
+    counts,
     drawCalls: meshes.length,
-    instanceCount: data.points.length,
+    instanceCount: renderablePoints.length,
     dispose: () => {
       if (disposed) return;
       disposed = true;

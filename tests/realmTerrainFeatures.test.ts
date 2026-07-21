@@ -87,7 +87,10 @@ describe('semantic realm terrain features', () => {
     expect(high.points.length).toBeLessThanOrEqual(REALM_TERRAIN_FEATURE_BUDGETS.high);
     expect(balanced.points.length).toBeLessThanOrEqual(REALM_TERRAIN_FEATURE_BUDGETS.balanced);
     expect(reduced.points.length).toBeLessThanOrEqual(REALM_TERRAIN_FEATURE_BUDGETS.reduced);
-    expect(Object.values(high.counts).every((count) => count > 0)).toBe(true);
+    expect(high.counts['heath-bloom']).toBe(0);
+    expect(Object.entries(high.counts)
+      .filter(([kind]) => kind !== 'heath-bloom')
+      .every(([, count]) => count > 0)).toBe(true);
     expect(high.points.every((point) => !semantics.castleSlotKeys.has(hexKey(point.coord))))
       .toBe(true);
     expect(high.points.every((point) => (
@@ -133,6 +136,36 @@ describe('semantic realm terrain features', () => {
         .toBeLessThanOrEqual(plan.decorationInstanceBudget);
       expect(generic.points.length).toBeLessThanOrEqual(plan.stoneDecorationInstanceBudget);
     }
+  });
+
+  it('removes ordinary heath bloom geometry while keeping ancient stone readable', () => {
+    const { placements, semantics, surface } = canonicalInput();
+    const high = generateRealmTerrainFeatures(
+      surface.renderMap,
+      semantics.terrainKindsByKey,
+      'high',
+      1,
+      placements,
+      semantics.castleSlotKeys
+    );
+    expect(high.counts['heath-bloom']).toBe(0);
+    expect(high.points.some((point) => point.kind === 'heath-bloom')).toBe(false);
+
+    const layer = createRealmTerrainFeatureLayers(
+      high,
+      surface.renderMap,
+      REALM_QUALITY_SPECS.high,
+      1,
+      placements
+    );
+    const monolith = layer.group.children.find(
+      (child) => child.name === 'realm-ancient-monoliths'
+    ) as THREE.InstancedMesh | undefined;
+    expect(monolith).toBeDefined();
+    expect((monolith!.material as THREE.MeshStandardMaterial).color.g).toBeGreaterThan(
+      (monolith!.material as THREE.MeshStandardMaterial).color.r
+    );
+    layer.dispose();
   });
 
   it('preserves established generation-v2 semantic features and order inside radius twenty', () => {
@@ -199,7 +232,7 @@ describe('semantic realm terrain features', () => {
     expect(layer.group.name).toBe('realm-semantic-terrain-features');
     expect(layer.instanceCount).toBe(data.points.length);
     expect(layer.drawCalls).toBeGreaterThan(0);
-    expect(layer.drawCalls).toBeLessThanOrEqual(5);
+    expect(layer.drawCalls).toBeLessThanOrEqual(4);
     layer.group.children.forEach((child) => {
       const mesh = child as THREE.InstancedMesh;
       expect(mesh.boundingBox).not.toBeNull();

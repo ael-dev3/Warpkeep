@@ -45,11 +45,16 @@ export type RealmGrassTelemetry = Readonly<{
   averageBladeHeight: number;
   paletteLuminanceMin: number;
   paletteLuminanceMax: number;
+  paletteGreenMin: number;
+  paletteGreenMax: number;
   alphaHashActive: boolean;
   alphaToCoverageActive: boolean;
   shaderFallbackActive: boolean;
   edgeFadeCount: number;
+  candidateCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  activeCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   countsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  averageVegetationDensityByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   completelyBareActiveCells: number;
   rejectedByStructureClearance: number;
   rejectedBySlope: number;
@@ -117,11 +122,16 @@ function emptyTelemetry(plan: RealmGrassRenderPlan, alphaToCoverage = false): Re
     averageBladeHeight: 0,
     paletteLuminanceMin: 0,
     paletteLuminanceMax: 0,
+    paletteGreenMin: 0,
+    paletteGreenMax: 0,
     alphaHashActive: true,
     alphaToCoverageActive: alphaToCoverage,
     shaderFallbackActive: false,
     edgeFadeCount: 0,
+    candidateCellsByTerrain: Object.freeze(emptyCounts()),
+    activeCellsByTerrain: Object.freeze(emptyCounts()),
     countsByTerrain: Object.freeze(emptyCounts()),
+    averageVegetationDensityByTerrain: Object.freeze(emptyCounts()),
     completelyBareActiveCells: 0,
     rejectedByStructureClearance: 0,
     rejectedBySlope: 0,
@@ -253,11 +263,15 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     let completelyBareActiveCells = 0;
     let rejectedByStructureClearance = 0;
     let rejectedBySlope = 0;
+    const candidateCellsByTerrain = emptyCounts();
+    const activeCellsByTerrain = emptyCounts();
     window.cells.forEach((activeCell) => {
+      const data = cellDataFor(activeCell.cell);
+      candidateCellsByTerrain[data.terrainKind] += 1;
       // At zero fade the alpha-hashed geometry is fully discarded. Do not
       // spend cache/instance capacity on that invisible boundary ring.
       if (activeCell.edgeFade <= 0) return;
-      const data = cellDataFor(activeCell.cell);
+      activeCellsByTerrain[data.terrainKind] += 1;
       if (data.completelyBare) completelyBareActiveCells += 1;
       rejectedByStructureClearance += data.rejectedByStructure + data.rejectedByExclusion;
       rejectedBySlope += data.rejectedBySlope;
@@ -282,6 +296,8 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     let heightTotal = 0;
     let luminanceMin = Number.POSITIVE_INFINITY;
     let luminanceMax = 0;
+    let greenMin = Number.POSITIVE_INFINITY;
+    let greenMax = 0;
     let edgeFadeCount = 0;
     packedByVariant.forEach((variantPoints, variant) => {
       const currentMesh = meshes[variant]!;
@@ -304,6 +320,8 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
         const luminance = 0.2126 * point.tint.r + 0.7152 * point.tint.g + 0.0722 * point.tint.b;
         luminanceMin = Math.min(luminanceMin, luminance);
         luminanceMax = Math.max(luminanceMax, luminance);
+        greenMin = Math.min(greenMin, point.tint.g);
+        greenMax = Math.max(greenMax, point.tint.g);
         if (edgeFade < 0.999) edgeFadeCount += 1;
       });
       currentMesh.count = variantPoints.length;
@@ -347,11 +365,21 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       averageBladeHeight: packed.length > 0 ? heightTotal / packed.length : 0,
       paletteLuminanceMin: Number.isFinite(luminanceMin) ? luminanceMin : 0,
       paletteLuminanceMax: luminanceMax,
+      paletteGreenMin: Number.isFinite(greenMin) ? greenMin : 0,
+      paletteGreenMax: greenMax,
       alphaHashActive: alphaHash,
       alphaToCoverageActive: alphaCoverage,
       shaderFallbackActive: false,
       edgeFadeCount,
+      candidateCellsByTerrain: Object.freeze(candidateCellsByTerrain),
+      activeCellsByTerrain: Object.freeze(activeCellsByTerrain),
       countsByTerrain: Object.freeze(counts),
+      averageVegetationDensityByTerrain: Object.freeze(Object.fromEntries(
+        (Object.keys(candidateCellsByTerrain) as RealmGrassTerrainKind[]).map((kind) => [
+          kind,
+          counts[kind] / Math.max(1, activeCellsByTerrain[kind])
+        ])
+      ) as Record<RealmGrassTerrainKind, number>),
       completelyBareActiveCells,
       rejectedByStructureClearance,
       rejectedBySlope,

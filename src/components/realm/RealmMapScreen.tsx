@@ -805,6 +805,7 @@ function CanonicalRealmMapScreen({
     root.dataset.semanticTerrainKindCount = String(telemetry.semanticKindCount);
     root.dataset.semanticTerrainFeatureCount = String(telemetry.semanticFeatureCount);
     root.dataset.semanticTerrainFeatureDrawCalls = String(telemetry.semanticFeatureDrawCalls);
+    root.dataset.semanticTerrainFeatureCounts = JSON.stringify(telemetry.semanticFeatureCounts);
     root.dataset.totalTerrainDetailInstanceCount = String(telemetry.totalDetailInstanceCount);
     root.dataset.totalTerrainDetailDrawCalls = String(telemetry.totalDetailDrawCalls);
     root.dataset.forestPlacementSource = telemetry.forestPlacementSource;
@@ -817,7 +818,20 @@ function CanonicalRealmMapScreen({
     root.dataset.grassCacheEntries = String(telemetry.grassCacheEntries);
     root.dataset.grassAnimated = String(telemetry.grassAnimated);
     root.dataset.grassTargetAnimationCadence = String(telemetry.grassTargetAnimationCadence);
+    root.dataset.grassCandidateCellsByTerrain = JSON.stringify(telemetry.grassCandidateCellsByTerrain);
+    root.dataset.grassActiveCellsByTerrain = JSON.stringify(telemetry.grassActiveCellsByTerrain);
     root.dataset.grassCountsByTerrain = JSON.stringify(telemetry.grassCountsByTerrain);
+    root.dataset.grassAverageVegetationDensityByTerrain = JSON.stringify(
+      telemetry.grassAverageVegetationDensityByTerrain
+    );
+    root.dataset.grassPaletteLuminance = JSON.stringify({
+      min: telemetry.grassPaletteLuminanceMin,
+      max: telemetry.grassPaletteLuminanceMax
+    });
+    root.dataset.grassPaletteGreen = JSON.stringify({
+      min: telemetry.grassPaletteGreenMin,
+      max: telemetry.grassPaletteGreenMax
+    });
     root.dataset.grassCompletelyBareActiveCells = String(telemetry.grassCompletelyBareActiveCells);
     root.dataset.grassRejectedByStructureClearance = String(
       telemetry.grassRejectedByStructureClearance
@@ -936,6 +950,7 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.semanticTerrainKindCount = '0';
         rootRef.current.dataset.semanticTerrainFeatureCount = '0';
         rootRef.current.dataset.semanticTerrainFeatureDrawCalls = '0';
+        rootRef.current.dataset.semanticTerrainFeatureCounts = '{}';
         rootRef.current.dataset.totalTerrainDetailInstanceCount = '0';
         rootRef.current.dataset.totalTerrainDetailDrawCalls = '0';
         rootRef.current.dataset.forestPlacementSource = 'blocked';
@@ -948,7 +963,12 @@ function CanonicalRealmMapScreen({
         rootRef.current.dataset.grassCacheEntries = '0';
         rootRef.current.dataset.grassAnimated = 'false';
         rootRef.current.dataset.grassTargetAnimationCadence = '0';
+        rootRef.current.dataset.grassCandidateCellsByTerrain = '{}';
+        rootRef.current.dataset.grassActiveCellsByTerrain = '{}';
         rootRef.current.dataset.grassCountsByTerrain = '{}';
+        rootRef.current.dataset.grassAverageVegetationDensityByTerrain = '{}';
+        rootRef.current.dataset.grassPaletteLuminance = '{}';
+        rootRef.current.dataset.grassPaletteGreen = '{}';
         rootRef.current.dataset.grassCompletelyBareActiveCells = '0';
         rootRef.current.dataset.grassRejectedByStructureClearance = '0';
         rootRef.current.dataset.grassRejectedBySlope = '0';

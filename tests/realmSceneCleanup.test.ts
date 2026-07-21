@@ -347,6 +347,13 @@ describe('realm scene setup cleanup', () => {
       semanticKindCount: 1,
       semanticFeatureCount: 0,
       semanticFeatureDrawCalls: 0,
+      semanticFeatureCounts: {
+        'forest-tree': 0,
+        'heath-bloom': 0,
+        'ridge-outcrop': 0,
+        'lake-sheen': 0,
+        'ancient-monolith': 0
+      },
       totalDetailInstanceCount: expect.any(Number),
       totalDetailDrawCalls: expect.any(Number),
       forestPlacementSource: 'legacy-fallback',
@@ -359,6 +366,14 @@ describe('realm scene setup cleanup', () => {
       grassCacheEntries: 0,
       grassAnimated: false,
       grassTargetAnimationCadence: 0,
+      grassCandidateCellsByTerrain: {
+        meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+        'ancient-stone': 0, apron: 0
+      },
+      grassActiveCellsByTerrain: {
+        meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+        'ancient-stone': 0, apron: 0
+      },
       grassCountsByTerrain: {
         meadow: 0,
         lowland: 0,
@@ -369,6 +384,14 @@ describe('realm scene setup cleanup', () => {
         'ancient-stone': 0,
         apron: 0
       },
+      grassAverageVegetationDensityByTerrain: {
+        meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+        'ancient-stone': 0, apron: 0
+      },
+      grassPaletteLuminanceMin: 0,
+      grassPaletteLuminanceMax: 0,
+      grassPaletteGreenMin: 0,
+      grassPaletteGreenMax: 0,
       grassCompletelyBareActiveCells: 0,
       grassRejectedByStructureClearance: 0,
       grassRejectedBySlope: 0,

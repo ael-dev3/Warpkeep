@@ -18,7 +18,10 @@ import { resolveRealmSharedForestLayout } from '../../game/map/realmSharedForest
 import { generateTerrainDecorations } from '../../game/map/terrainDecorations';
 import type { RealmGrassExclusion, RealmGrassTerrainKind } from '../../game/map/realmGrass';
 import { generateRealmTerrainFeatures } from '../../game/map/realmTerrainFeatures';
-import type { RealmTerrainFeaturePoint } from '../../game/map/realmTerrainFeatures';
+import type {
+  RealmTerrainFeatureKind,
+  RealmTerrainFeaturePoint
+} from '../../game/map/realmTerrainFeatures';
 import {
   indexRealmTerrainSemantics,
   type RealmTerrainKind,
@@ -326,6 +329,7 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   semanticKindCount: number;
   semanticFeatureCount: number;
   semanticFeatureDrawCalls: number;
+  semanticFeatureCounts: Readonly<Record<RealmTerrainFeatureKind, number>>;
   totalDetailInstanceCount: number;
   totalDetailDrawCalls: number;
   /** Canonical shared rows render only when their full layout validates. */
@@ -339,7 +343,14 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassCacheEntries: number;
   grassAnimated: boolean;
   grassTargetAnimationCadence: number;
+  grassCandidateCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  grassActiveCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   grassCountsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  grassAverageVegetationDensityByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
+  grassPaletteLuminanceMin: number;
+  grassPaletteLuminanceMax: number;
+  grassPaletteGreenMin: number;
+  grassPaletteGreenMax: number;
   grassCompletelyBareActiveCells: number;
   grassRejectedByStructureClearance: number;
   grassRejectedBySlope: number;
@@ -1143,7 +1154,21 @@ function initializeRealmScene(
     alphaToCoverageActive: grassAlphaToCoverage,
     shaderFallbackActive: false,
     edgeFadeCount: 0,
+    paletteGreenMin: 0,
+    paletteGreenMax: 0,
+    candidateCellsByTerrain: Object.freeze({
+      meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+      'ancient-stone': 0, apron: 0
+    }),
+    activeCellsByTerrain: Object.freeze({
+      meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+      'ancient-stone': 0, apron: 0
+    }),
     countsByTerrain: Object.freeze({
+      meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
+      'ancient-stone': 0, apron: 0
+    }),
+    averageVegetationDensityByTerrain: Object.freeze({
       meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
       'ancient-stone': 0, apron: 0
     }),
@@ -1169,6 +1194,7 @@ function initializeRealmScene(
         + (currentForestTelemetry?.instanceCount ?? 0),
       semanticFeatureDrawCalls: semanticFeatures.drawCalls
         + (currentForestTelemetry?.drawCalls ?? 0),
+      semanticFeatureCounts: semanticFeatures.counts,
       totalDetailInstanceCount: decorationData.points.length
         + semanticFeatures.instanceCount
         + (currentForestTelemetry?.instanceCount ?? 0),
@@ -1187,7 +1213,14 @@ function initializeRealmScene(
       grassCacheEntries: grass.cacheEntries,
       grassAnimated: grass.animated,
       grassTargetAnimationCadence: grass.targetAnimationCadence,
+      grassCandidateCellsByTerrain: grass.candidateCellsByTerrain,
+      grassActiveCellsByTerrain: grass.activeCellsByTerrain,
       grassCountsByTerrain: grass.countsByTerrain,
+      grassAverageVegetationDensityByTerrain: grass.averageVegetationDensityByTerrain,
+      grassPaletteLuminanceMin: grass.paletteLuminanceMin,
+      grassPaletteLuminanceMax: grass.paletteLuminanceMax,
+      grassPaletteGreenMin: grass.paletteGreenMin,
+      grassPaletteGreenMax: grass.paletteGreenMax,
       grassCompletelyBareActiveCells: grass.completelyBareActiveCells,
       grassRejectedByStructureClearance: grass.rejectedByStructureClearance,
       grassRejectedBySlope: grass.rejectedBySlope,
@@ -1200,6 +1233,7 @@ function initializeRealmScene(
     const signature = [
       telemetry.semanticFeatureCount,
       telemetry.semanticFeatureDrawCalls,
+      Object.values(telemetry.semanticFeatureCounts).join(','),
       telemetry.totalDetailInstanceCount,
       telemetry.totalDetailDrawCalls,
       telemetry.forestPlacementSource,
@@ -1209,7 +1243,14 @@ function initializeRealmScene(
       telemetry.grassTriangleCount,
       telemetry.grassCacheEntries,
       telemetry.grassAnimated,
+      Object.values(telemetry.grassCandidateCellsByTerrain).join(','),
+      Object.values(telemetry.grassActiveCellsByTerrain).join(','),
       Object.values(telemetry.grassCountsByTerrain).join(','),
+      Object.values(telemetry.grassAverageVegetationDensityByTerrain).join(','),
+      telemetry.grassPaletteLuminanceMin,
+      telemetry.grassPaletteLuminanceMax,
+      telemetry.grassPaletteGreenMin,
+      telemetry.grassPaletteGreenMax,
       telemetry.grassCompletelyBareActiveCells,
       telemetry.grassRejectedByStructureClearance,
       telemetry.grassRejectedBySlope,

@@ -32,7 +32,12 @@ export type TerrainColorContext = Readonly<{
   placements?: readonly TerrainStructurePlacement[];
 }>;
 
-const TERRAIN_KIND_PALETTE: Readonly<Record<RealmTerrainKind, Readonly<{
+/**
+ * Presentation-only semantic tint policy. The terrain kind still comes from
+ * the validated world sidecar; these values only steer the surface shader
+ * toward a continuous, green-led Lowlands read.
+ */
+export const REALM_TERRAIN_KIND_PALETTE: Readonly<Record<RealmTerrainKind, Readonly<{
   color: TerrainRgb;
   strength: number;
 }>>> = Object.freeze({
@@ -41,11 +46,25 @@ const TERRAIN_KIND_PALETTE: Readonly<Record<RealmTerrainKind, Readonly<{
   // Keep canonical forest tiles vivid enough to read under a sunlit canopy;
   // the old near-black mix made real tree assets appear permanently shaded.
   forest: Object.freeze({ color: { r: 0.21, g: 0.45, b: 0.23 }, strength: 0.46 }),
-  heath: Object.freeze({ color: { r: 0.39, g: 0.3, b: 0.42 }, strength: 0.44 }),
+  heath: Object.freeze({ color: { r: 0.31, g: 0.46, b: 0.24 }, strength: 0.30 }),
   ridge: Object.freeze({ color: { r: 0.39, g: 0.38, b: 0.35 }, strength: 0.58 }),
   lake: Object.freeze({ color: { r: 0.22, g: 0.4, b: 0.46 }, strength: 0.72 }),
-  'ancient-stone': Object.freeze({ color: { r: 0.34, g: 0.31, b: 0.38 }, strength: 0.62 })
+  'ancient-stone': Object.freeze({ color: { r: 0.36, g: 0.40, b: 0.34 }, strength: 0.50 })
 });
+
+export type TerrainColorVisualMetrics = Readonly<{
+  luminance: number;
+  greenLead: number;
+}>;
+
+/** Stable palette metrics used by visual-contract tests and bounded QA logs. */
+export function terrainColorVisualMetrics(kind: RealmTerrainKind): TerrainColorVisualMetrics {
+  const color = REALM_TERRAIN_KIND_PALETTE[kind].color;
+  return Object.freeze({
+    luminance: 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b,
+    greenLead: color.g - Math.max(color.r, color.b)
+  });
+}
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
@@ -122,7 +141,7 @@ export function sampleLowlandsColor(
 
   const forestCanopy = clamp(context.forestCanopy ?? 0, 0, 1);
   if (context.terrainKind) {
-    const semantic = TERRAIN_KIND_PALETTE[context.terrainKind];
+    const semantic = REALM_TERRAIN_KIND_PALETTE[context.terrainKind];
     // Sparse canonical forest cells remain semantically forest, but a low
     // visual canopy keeps their ground from reading as isolated black-green
     // tiles between open meadows. The stable ecoregion field restores the full

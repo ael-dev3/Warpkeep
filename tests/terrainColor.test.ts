@@ -4,10 +4,24 @@ import { generateRealmTerrainMap, terrainCellByCoord } from '../src/game/map/gen
 import { axialToWorld } from '../src/game/map/hexCoordinates';
 import { HEGEMONY_GENESIS_001 } from '../src/game/map/realmSeed';
 import type { RealmTerrainKind } from '../src/game/map/realmTerrainSemantics';
-import { sampleLowlandsColor } from '../src/game/map/terrainColor';
+import {
+  REALM_TERRAIN_KIND_PALETTE,
+  sampleLowlandsColor,
+  terrainColorVisualMetrics
+} from '../src/game/map/terrainColor';
 import { createHegemonyKeepPlacement } from '../src/game/map/terrainPlacements';
 
 describe('lowlands terrain color', () => {
+  it('keeps heath green-led and ancient stone neutral rather than purple', () => {
+    const heath = REALM_TERRAIN_KIND_PALETTE.heath.color;
+    const stone = REALM_TERRAIN_KIND_PALETTE['ancient-stone'].color;
+    expect(heath.g).toBeGreaterThan(heath.r);
+    expect(heath.g).toBeGreaterThan(heath.b);
+    expect(stone.g).toBeGreaterThan(stone.b);
+    expect(terrainColorVisualMetrics('heath').greenLead).toBeGreaterThan(0);
+    expect(terrainColorVisualMetrics('ancient-stone').greenLead).toBeGreaterThan(-0.01);
+  });
+
   it('is deterministic, finite, and identical from either side of a shared edge', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 5);
     const first = terrainCellByCoord(map, { q: 0, r: 0 });

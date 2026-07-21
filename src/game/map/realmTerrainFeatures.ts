@@ -69,7 +69,9 @@ type RealmTerrainFeatureCandidate = Readonly<{
 
 function featureKindForTerrain(kind: RealmTerrainKind): RealmTerrainFeatureKind | undefined {
   if (kind === 'forest') return 'forest-tree';
-  if (kind === 'heath') return 'heath-bloom';
+  // Heath keeps its semantic identity and historical feature type for
+  // compatibility, but ordinary cells no longer receive a purple bloom.
+  if (kind === 'heath') return undefined;
   if (kind === 'ridge') return 'ridge-outcrop';
   if (kind === 'lake') return 'lake-sheen';
   if (kind === 'ancient-stone') return 'ancient-monolith';
@@ -88,7 +90,7 @@ function featureCountForCell(
       ? 1
       : 0;
   }
-  if (terrainKind === 'heath') return quality === 'reduced' ? 0 : 1;
+  if (terrainKind === 'heath') return 0;
   return featureKindForTerrain(terrainKind) === undefined ? 0 : 1;
 }
 
