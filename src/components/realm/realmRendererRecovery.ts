@@ -50,9 +50,9 @@ export function transitionRealmRendererLifecycle(
     | { type: 'probe-start' }
     | { type: 'webgl-unsupported'; failure?: RealmRendererFailure }
     | { type: 'load-start'; attempt?: number; generation?: number }
-    | { type: 'ready'; degradedQuality?: 'compact' | 'balanced' }
-    | { type: 'recover'; failure: RealmRendererFailure; attempt?: number }
-    | { type: 'failed'; failure: RealmRendererFailure }
+    | { type: 'ready'; degradedQuality?: 'compact' | 'balanced'; generation?: number }
+    | { type: 'recover'; failure: RealmRendererFailure; attempt?: number; generation?: number }
+    | { type: 'failed'; failure: RealmRendererFailure; generation?: number }
 ): RealmRendererLifecycle {
   switch (event.type) {
     case 'probe-start':
@@ -88,6 +88,12 @@ export function transitionRealmRendererLifecycle(
         failure: undefined
       });
     case 'ready':
+      // Late callbacks from a disposed scene must never publish readiness for
+      // a newer scene generation. Omitting generation keeps the reducer
+      // convenient for pure callers and legacy integrations.
+      if (event.generation !== undefined && event.generation !== current.generation) {
+        return current;
+      }
       return Object.freeze({
         ...current,
         state: 'ready',
@@ -96,6 +102,9 @@ export function transitionRealmRendererLifecycle(
         degradedQuality: event.degradedQuality
       });
     case 'recover':
+      if (event.generation !== undefined && event.generation !== current.generation) {
+        return current;
+      }
       return Object.freeze({
         ...current,
         state: 'recovering',
@@ -103,6 +112,9 @@ export function transitionRealmRendererLifecycle(
         failure: event.failure
       });
     case 'failed':
+      if (event.generation !== undefined && event.generation !== current.generation) {
+        return current;
+      }
       return Object.freeze({ ...current, state: 'failed', failure: event.failure });
     default:
       return current;

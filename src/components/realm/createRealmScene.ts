@@ -523,6 +523,8 @@ export type CreateRealmSceneOptions = Readonly<{
   sharedForestLayout?: unknown;
   /** Canonical realm id used to bind the shared forest table to this scene. */
   realmId?: string;
+  /** React-owned monotonic generation for stale callback suppression. */
+  rendererGeneration?: number;
   /** Complete, digest-validated public water projection; absent means water is unavailable. */
   waterCells?: readonly GenesisWaterCellV1[];
   /**
@@ -952,6 +954,7 @@ function initializeRealmScene(
   cleanup: RealmSceneCleanup
 ): RealmSceneHandle {
   const sceneBuildSequence = nextRealmSceneBuildSequence++;
+  const rendererGeneration = options.rendererGeneration ?? sceneBuildSequence;
   const noLakeRevisionActive = realmNoLakeRevisionActive(options.waterCells);
   const landRenderMap = realmLandPresentationMap(
     options.surface.renderMap,
@@ -1002,6 +1005,8 @@ function initializeRealmScene(
   options.canvas.dataset.realmCanvasIdentity = canvasId;
   options.canvas.dataset.realmSceneBuildSequence = String(sceneBuildSequence);
   options.canvas.dataset.realmSceneIdentity = scene.uuid;
+  options.canvas.dataset.realmRendererGeneration = String(rendererGeneration);
+  options.canvas.dataset.realmLastSuccessfulRenderedGeneration = '0';
   scene.background = new THREE.Color(REALM_SKY_FALLBACK_COLOR);
   const fog = new THREE.Fog(
     REALM_SKY_FALLBACK_COLOR,
@@ -1950,6 +1955,7 @@ function initializeRealmScene(
       // only the grass layer if its pinned shader chunk contract has changed.
       renderer.render(scene, cameraController.camera);
     }
+    options.canvas.dataset.realmLastSuccessfulRenderedGeneration = String(rendererGeneration);
     projectCastleLabels();
     if (pendingCastlesReadyCount !== null) {
       const castleCount = pendingCastlesReadyCount;
