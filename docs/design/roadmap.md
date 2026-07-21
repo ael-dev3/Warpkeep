@@ -1,5 +1,9 @@
 # Warpkeep roadmap
 
+The current pre-feature polish train is maintained in the [pre-feature polish
+roadmap](../planning/warpkeep-pre-feature-polish-roadmap.md). Follow its serial
+dependency order and guardrails before starting new horizontal systems.
+
 Warpkeep is building a persistent strategy world one playable loop at a time.
 Dates and feature order may change as the Alpha is tested.
 
