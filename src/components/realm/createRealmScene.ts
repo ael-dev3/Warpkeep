@@ -90,6 +90,7 @@ import {
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from './realmAmbientScheduler';
 import {
   createRealmWaterLayer,
+  REALM_WATER_ANIMATION_FRAME_CAPS,
   type RealmWaterLayer
 } from './realmWaterLayer';
 import {
@@ -308,6 +309,11 @@ function isGrassShaderContractFailure(error: unknown) {
     && error.message === 'REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED';
 }
 
+function isWaterShaderContractFailure(error: unknown) {
+  return error instanceof Error
+    && error.message === 'REALM_WATER_SHADER_CONTRACT_CHANGED';
+}
+
 type RealmCastleLabelScreenPoint = Readonly<{ x: number; y: number }>;
 
 function validScreenBounds(
@@ -430,6 +436,7 @@ export type RealmSceneHandle = Readonly<{
   setSelectedFoodSiteId: (siteId: string | null) => void;
   setSelectedWoodSiteId: (siteId: string | null) => void;
   setSelectedStoneSiteId: (siteId: string | null) => void;
+  setSelectedWaterCell: (cellKey: string | null) => void;
   setComposition: (composition: RealmCameraComposition) => void;
   showRealm: () => void;
 }>;
@@ -523,6 +530,10 @@ export type CreateRealmSceneOptions = Readonly<{
   realmId?: string;
   /** Complete, digest-validated public water projection; absent means water is unavailable. */
   waterCells?: readonly GenesisWaterCellV1[];
+  /** Validated body rows provide the canonical seed/preset for Water phase. */
+  waterBodies?: readonly unknown[];
+  /** Persisted environment boundary used to synchronize Water phase. */
+  waterEnvironment?: unknown;
   /**
    * Test/DEV-observer-only bridge for the retired deterministic preview.
    * Production player scenes must not synthesize a forest before the public
@@ -1245,6 +1256,8 @@ function initializeRealmScene(
         quality: runtimeQuality,
         reducedMotion: options.reducedMotion,
         hexSize: HEX_SIZE,
+        environment: options.waterEnvironment,
+        waterBodies: options.waterBodies,
         heightAtWorld: (world) => terrainHeightAtWorld(
           options.surface.renderMap,
           world,
@@ -1644,6 +1657,7 @@ function initializeRealmScene(
   let selectedFoodSiteId: string | undefined;
   let selectedWoodSiteId: string | undefined;
   let selectedStoneSiteId: string | undefined;
+  let selectedWaterCellKey: string | undefined;
   let selectedTerrainCoord: HexCoord | null = null;
   let hoveredTerrainCoord: HexCoord | null = null;
   let castleFocusSize: Readonly<{ height: number; footprintDiameter: number }> = Object.freeze({
@@ -1706,6 +1720,20 @@ function initializeRealmScene(
     options.canvas.dataset.grassPresentation = 'unavailable';
     ambientScheduler?.setActive(ambientIsNeeded());
     emitTerrainPresentationTelemetry();
+    return true;
+  };
+  const disableWaterPresentation = () => {
+    const layer = waterLayer;
+    if (!layer) return false;
+    waterLayer = null;
+    scene.remove(layer.group);
+    try {
+      layer.dispose();
+    } catch {
+      // A shader contract fallback must not strand the rest of the scene.
+    }
+    options.canvas.dataset.waterPresentation = 'unavailable';
+    ambientScheduler?.setActive(ambientIsNeeded());
     return true;
   };
   const projectionPoint = new THREE.Vector3();
@@ -1924,9 +1952,12 @@ function initializeRealmScene(
     try {
       renderer.render(scene, cameraController.camera);
     } catch (error) {
-      if (!isGrassShaderContractFailure(error) || !disableGrassPresentation()) throw error;
+      let disabled = false;
+      if (isGrassShaderContractFailure(error)) disabled = disableGrassPresentation();
+      if (isWaterShaderContractFailure(error)) disabled = disableWaterPresentation() || disabled;
+      if (!disabled) throw error;
       // `onBeforeCompile` runs during rendering. Retry the same frame without
-      // only the grass layer if its pinned shader chunk contract has changed.
+      // only the affected decorative layer(s); terrain and controls remain.
       renderer.render(scene, cameraController.camera);
     }
     projectCastleLabels();
@@ -2098,7 +2129,10 @@ function initializeRealmScene(
   document.addEventListener('visibilitychange', handleRenderVisibility);
   cleanup.add(() => document.removeEventListener('visibilitychange', handleRenderVisibility));
   ambientScheduler = createRealmAmbientScheduler({
-    frameCap: renderPlan.grass.animationFrameCap,
+    frameCap: Math.max(
+      renderPlan.grass.animationFrameCap,
+      REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
+    ),
     active: ambientIsNeeded(),
     onStep: (elapsedSeconds) => {
       if (cleanup.isDisposed()) return;
@@ -2200,6 +2234,16 @@ function initializeRealmScene(
     const castleHit = castleLayer?.raycast(raycaster);
     const foregroundHit = arbitrateRealmPick({ resourceHits, castleHit });
     if (foregroundHit) return foregroundHit;
+    const waterHit = waterLayer?.raycast(raycaster);
+    if (waterHit) {
+      return Object.freeze({
+        kind: 'water' as const,
+        cellKey: waterHit.cellKey,
+        regime: waterHit.regime,
+        coord: waterHit.coord,
+        distance: waterHit.distance
+      });
+    }
     const intersections = raycaster.intersectObject(terrain, false);
     for (const intersection of intersections) {
       const coord = worldToNearestAxial(
@@ -2412,10 +2456,12 @@ function initializeRealmScene(
     selectedFoodSiteId = picked.kind === 'food-site' ? picked.siteId : undefined;
     selectedWoodSiteId = picked.kind === 'wood-site' ? picked.siteId : undefined;
     selectedStoneSiteId = picked.kind === 'stone-site' ? picked.siteId : undefined;
+    selectedWaterCellKey = picked.kind === 'water' ? picked.cellKey : undefined;
     goldNodeLayer?.setSelectedSiteId(selectedGoldSiteId ?? null);
     foodNodeLayer?.setSelectedSiteId(selectedFoodSiteId ?? null);
     woodNodeLayer?.setSelectedSiteId(selectedWoodSiteId ?? null);
     stoneNodeLayer?.setSelectedSiteId(selectedStoneSiteId ?? null);
+    waterLayer?.setSelectedCellKey(selectedWaterCellKey ?? null);
     dispatchSelect(picked);
     render();
     if (picked.kind === 'castle' && picked.castleId === options.ownCastleId) {
@@ -2946,6 +2992,8 @@ function initializeRealmScene(
     setSelected: (coord) => {
       if (cleanup.isDisposed()) return;
       selectedTerrainCoord = coord;
+      selectedWaterCellKey = undefined;
+      waterLayer?.setSelectedCellKey(null);
       grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
       selectedCastleId = coord
         ? authoritativeCastles.find((castle) => (
@@ -2964,6 +3012,8 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       selectedCastleId = castleId === null ? undefined : castleId;
       if (castleId !== null) {
+        selectedWaterCellKey = undefined;
+        waterLayer?.setSelectedCellKey(null);
         selectedTerrainCoord = null;
         grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
         setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
@@ -2974,28 +3024,55 @@ function initializeRealmScene(
       if (cleanup.isDisposed()) return;
       selectedGoldSiteId = siteId === null ? undefined : siteId;
       goldNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        selectedWaterCellKey = undefined;
+        waterLayer?.setSelectedCellKey(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setSelectedFoodSiteId: (siteId) => {
       if (cleanup.isDisposed()) return;
       selectedFoodSiteId = siteId === null ? undefined : siteId;
       foodNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        selectedWaterCellKey = undefined;
+        waterLayer?.setSelectedCellKey(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setSelectedWoodSiteId: (siteId) => {
       if (cleanup.isDisposed()) return;
       selectedWoodSiteId = siteId === null ? undefined : siteId;
       woodNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        selectedWaterCellKey = undefined;
+        waterLayer?.setSelectedCellKey(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setSelectedStoneSiteId: (siteId) => {
       if (cleanup.isDisposed()) return;
       selectedStoneSiteId = siteId === null ? undefined : siteId;
       stoneNodeLayer?.setSelectedSiteId(siteId);
-      if (siteId !== null) setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      if (siteId !== null) {
+        selectedWaterCellKey = undefined;
+        waterLayer?.setSelectedCellKey(null);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
+      render();
+    },
+    setSelectedWaterCell: (cellKey) => {
+      if (cleanup.isDisposed()) return;
+      selectedWaterCellKey = cellKey === null ? undefined : cellKey;
+      waterLayer?.setSelectedCellKey(cellKey);
+      if (cellKey !== null) {
+        selectedTerrainCoord = null;
+        grassLayer?.setInteraction(selectedTerrainCoord, hoveredTerrainCoord);
+        setOverlay(selectedOverlay, options.surface, null, terrainPlacements);
+      }
       render();
     },
     setComposition: (composition) => cameraController.setComposition(composition),

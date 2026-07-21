@@ -920,6 +920,13 @@ function CanonicalRealmMapScreen({
       if (node) selectStoneNode(node, target.source !== 'wagon');
       return;
     }
+    if (target.kind === 'water') {
+      // Water selection is intentionally renderer-owned: ocean coordinates
+      // are outside playable terrain, while the exact canonical cell key must
+      // survive mesh subdivision and quality changes.
+      sceneRef.current?.setSelectedWaterCell(target.cellKey);
+      return;
+    }
     selectCoord(target.coord);
   }, [selectCastle, selectCoord, selectFoodNode, selectGoldNode, selectStoneNode, selectWoodNode]);
 
@@ -1271,6 +1278,8 @@ function CanonicalRealmMapScreen({
         sharedForestLayout: sharedForestProjection.layout,
         sharedForestTrees: sharedForestProjection.trees,
         waterCells,
+        waterEnvironment: snapshot.realmEnvironment,
+        waterBodies: snapshot.waterBodies,
         realmId: snapshot.realm.realmId,
         // The retired local planner is exposed only to the synthetic dev
         // observer. Player scenes wait for the paired shared public tables.
@@ -1351,7 +1360,7 @@ function CanonicalRealmMapScreen({
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
     };
-  }, [foodNodeCatalog, goldNodeCatalog, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, projectedTileMetadata, qualitySpec, reducedMotion, sharedForestProjection, snapshot.realm.realmId, stoneNodeCatalog, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, waterCells, woodNodeCatalog]);
+  }, [foodNodeCatalog, goldNodeCatalog, handleSceneTargetHover, handleSceneTargetSelect, hasNearbyFoundingKeeps, isSceneCoordPassable, keepCoord, markRendererUnavailable, observerMode, ownCastle.castleId, peerCastles, projectedTileMetadata, qualitySpec, reducedMotion, sharedForestProjection, snapshot.realm.realmId, snapshot.realmEnvironment, stoneNodeCatalog, surface, updateCastlePresentationTelemetry, updateCastleProjection, updateFoodNodePresentationTelemetry, updateGoldNodePresentationTelemetry, updateSceneComposition, updateStoneNodePresentationTelemetry, updateTerrainPresentationTelemetry, updateWoodNodePresentationTelemetry, waterCells, woodNodeCatalog]);
 
   useEffect(() => {
     sceneRef.current?.reconcileLiveGatheringState?.(liveGatheringState);

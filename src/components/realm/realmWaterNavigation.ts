@@ -15,6 +15,53 @@ export type RealmWaterNavigationEnvelope = Readonly<{
   blockedCenterCellKeys: ReadonlySet<string>;
 }>;
 
+export type RealmWaterBoundaryCoverageProof = Readonly<{
+  maximumVisibleHexRadius: number;
+  hiddenBufferCells: number;
+  maximumWaveDisplacement: number;
+  curtainBottom: number;
+  curtainTop: number;
+  covered: boolean;
+}>;
+
+/**
+ * Pure camera-boundary proof used by rendered QA. It intentionally accepts
+ * measured frustum extents instead of reading a camera or inventing topology.
+ */
+export function proveRealmWaterBoundaryCoverage(input: Readonly<{
+  maximumVisibleHexRadius: number;
+  hiddenBufferCells: number;
+  maximumWaveDisplacement: number;
+  curtainBottom: number;
+  curtainTop: number;
+  projectedMinimumY: number;
+  projectedMaximumY: number;
+}>): RealmWaterBoundaryCoverageProof {
+  const maximumVisibleHexRadius = Number.isFinite(input.maximumVisibleHexRadius)
+    ? Math.max(0, Math.trunc(input.maximumVisibleHexRadius)) : 0;
+  const hiddenBufferCells = Number.isFinite(input.hiddenBufferCells)
+    ? Math.max(0, Math.trunc(input.hiddenBufferCells)) : 0;
+  const maximumWaveDisplacement = Number.isFinite(input.maximumWaveDisplacement)
+    ? Math.max(0, input.maximumWaveDisplacement) : Number.POSITIVE_INFINITY;
+  const curtainBottom = Number.isFinite(input.curtainBottom) ? input.curtainBottom : 0;
+  const curtainTop = Number.isFinite(input.curtainTop) ? input.curtainTop : 0;
+  const projectedMinimumY = Number.isFinite(input.projectedMinimumY)
+    ? input.projectedMinimumY : Number.NEGATIVE_INFINITY;
+  const projectedMaximumY = Number.isFinite(input.projectedMaximumY)
+    ? input.projectedMaximumY : Number.POSITIVE_INFINITY;
+  return Object.freeze({
+    maximumVisibleHexRadius,
+    hiddenBufferCells,
+    maximumWaveDisplacement,
+    curtainBottom,
+    curtainTop,
+    covered: hiddenBufferCells >= 2
+      && maximumWaveDisplacement <= 0.35
+      && curtainBottom <= projectedMinimumY
+      && curtainTop >= projectedMaximumY
+  });
+}
+
 /** The validated projection returns this exact frozen catalog after activation. */
 export function realmNoLakeRevisionActive(
   cells: readonly GenesisWaterCellV1[] | undefined

@@ -8,6 +8,7 @@ import { GENESIS_WATER_REVISION_ENABLED_CELLS_V1 } from '../spacetimedb/src/wate
 import { hexDistance } from '../src/game/map/hexCoordinates';
 import { createRealmTerrainSurface } from '../src/game/map/realmTerrainSurface';
 import {
+  proveRealmWaterBoundaryCoverage,
   realmLandPresentationMap,
   realmNoLakeRevisionActive,
   realmWaterNavigationEnvelope
@@ -23,6 +24,27 @@ const LAND_BOUNDS = Object.freeze({
 });
 
 describe('persistent Water camera envelope', () => {
+  it('proves the hidden buffer and curtain cover measured frustum extents', () => {
+    expect(proveRealmWaterBoundaryCoverage({
+      maximumVisibleHexRadius: 28,
+      hiddenBufferCells: 2,
+      maximumWaveDisplacement: 0.12,
+      curtainBottom: -20,
+      curtainTop: 38,
+      projectedMinimumY: -5,
+      projectedMaximumY: 25
+    }).covered).toBe(true);
+    expect(proveRealmWaterBoundaryCoverage({
+      maximumVisibleHexRadius: 28,
+      hiddenBufferCells: 1,
+      maximumWaveDisplacement: 0.12,
+      curtainBottom: -20,
+      curtainTop: 38,
+      projectedMinimumY: -5,
+      projectedMaximumY: 25
+    }).covered).toBe(false);
+  });
+
   it('extends navigation across the ocean apron but stops the center at full fog', () => {
     const envelope = realmWaterNavigationEnvelope(GENESIS_WATER_CELLS_V1, LAND_BOUNDS);
     expect(envelope).toBeDefined();

@@ -14,6 +14,14 @@ export type RealmResourcePickHit = Readonly<{
   distance: number;
 }>;
 
+export type RealmWaterPickHit = Readonly<{
+  kind: 'water';
+  cellKey: string;
+  regime: 'ocean' | 'lake' | 'river';
+  coord: HexCoord;
+  distance: number;
+}>;
+
 export type RealmInteractionTarget =
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
   | Readonly<{
@@ -22,6 +30,7 @@ export type RealmInteractionTarget =
       coord: HexCoord;
       source: 'site' | 'wagon';
     }>
+  | RealmWaterPickHit
   | Readonly<{ kind: 'terrain'; coord: HexCoord }>;
 
 function nearestValidHit(

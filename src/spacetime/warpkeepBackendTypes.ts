@@ -288,6 +288,8 @@ export type WarpkeepRealmEnvironment = Readonly<{
   sunDirectionXMicro: number;
   sunDirectionYMicro: number;
   sunDirectionZMicro: number;
+  /** Persisted server timestamp used as the shared visual phase boundary. */
+  updatedAt?: unknown;
 }>;
 
 /** Public additive policy selecting a reviewed subset of immutable Water v1. */
