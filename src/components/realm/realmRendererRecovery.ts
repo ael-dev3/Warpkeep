@@ -30,6 +30,8 @@ export type RealmRendererFailure = Readonly<{
 export type RealmRendererLifecycle = Readonly<{
   state: RealmRendererLifecycleState;
   attempt: number;
+  /** Monotonic scene-generation identifier used to correlate DOM telemetry. */
+  generation: number;
   failure?: RealmRendererFailure;
   everReady: boolean;
   degradedQuality?: 'compact' | 'balanced';
@@ -39,7 +41,7 @@ export const REALM_RENDERER_MAX_RECOVERY_ATTEMPTS = 2;
 export const REALM_RENDERER_CONTEXT_RESTORE_TIMEOUT_MS = 8_000;
 
 export function initialRealmRendererLifecycle(): RealmRendererLifecycle {
-  return Object.freeze({ state: 'probing', attempt: 0, everReady: false });
+  return Object.freeze({ state: 'probing', attempt: 0, generation: 0, everReady: false });
 }
 
 export function transitionRealmRendererLifecycle(
@@ -47,7 +49,7 @@ export function transitionRealmRendererLifecycle(
   event:
     | { type: 'probe-start' }
     | { type: 'webgl-unsupported'; failure?: RealmRendererFailure }
-    | { type: 'load-start'; attempt?: number }
+    | { type: 'load-start'; attempt?: number; generation?: number }
     | { type: 'ready'; degradedQuality?: 'compact' | 'balanced' }
     | { type: 'recover'; failure: RealmRendererFailure; attempt?: number }
     | { type: 'failed'; failure: RealmRendererFailure }
@@ -56,6 +58,21 @@ export function transitionRealmRendererLifecycle(
     case 'probe-start':
       return Object.freeze({ ...current, state: 'probing', failure: undefined });
     case 'webgl-unsupported':
+      // A renderer that has already presented a frame must never be
+      // reclassified as a static unsupported device. That would silently
+      // replace a live world with an SVG after a transient runtime failure.
+      if (current.everReady) {
+        return Object.freeze({
+          ...current,
+          state: 'failed',
+          failure: {
+            code: 'renderer-construction-failed' as const,
+            retryable: true,
+            phase: current.state,
+            message: 'WebGL became unavailable after the Realm renderer was ready.'
+          }
+        });
+      }
       return Object.freeze({
         ...current,
         state: 'static-unsupported',
@@ -67,6 +84,7 @@ export function transitionRealmRendererLifecycle(
         ...current,
         state: 'loading',
         attempt: event.attempt ?? current.attempt,
+        generation: event.generation ?? current.generation + 1,
         failure: undefined
       });
     case 'ready':

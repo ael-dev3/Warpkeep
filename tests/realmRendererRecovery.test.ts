@@ -37,6 +37,39 @@ describe('Realm renderer recovery lifecycle', () => {
     expect(transitionRealmRendererLifecycle(recovering, { type: 'ready' }).state).toBe('ready');
   });
 
+  it('never downgrades a previously-ready renderer to static unsupported mode', () => {
+    const ready = transitionRealmRendererLifecycle(initialRealmRendererLifecycle(), {
+      type: 'ready'
+    });
+    const state = transitionRealmRendererLifecycle(ready, {
+      type: 'webgl-unsupported',
+      failure: {
+        code: 'webgl-unavailable',
+        retryable: false,
+        phase: 'probing'
+      }
+    });
+    expect(state.state).toBe('failed');
+    expect(state.state).not.toBe('static-unsupported');
+    expect(state.everReady).toBe(true);
+    expect(state.failure?.code).toBe('renderer-construction-failed');
+  });
+
+  it('increments the generation when a scene load begins', () => {
+    const initial = initialRealmRendererLifecycle();
+    const first = transitionRealmRendererLifecycle(initial, {
+      type: 'load-start',
+      attempt: 0
+    });
+    const second = transitionRealmRendererLifecycle(first, {
+      type: 'load-start',
+      attempt: 1,
+      generation: 9
+    });
+    expect(first.generation).toBe(1);
+    expect(second.generation).toBe(9);
+  });
+
   it('classifies integrity and pairing failures as explicit non-retryable failures', () => {
     expect(classifyRealmRendererFailure(new Error('sha256 integrity mismatch'), 'loading').code)
       .toBe('castle-integrity-failed');

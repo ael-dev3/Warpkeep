@@ -87,7 +87,10 @@ export function canUseWebGL() {
   if (cachedWebGlCapability !== undefined) return cachedWebGlCapability;
   try {
     const canvas = document.createElement('canvas');
-    const context = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+    // WebGL2 is the renderer's authoritative capability. WebGL1 can report a
+    // usable context while still lacking the instancing, texture, and shader
+    // contracts required by the Realm scene, so it must not enter the 3D path.
+    const context = canvas.getContext('webgl2');
     cachedWebGlCapability = Boolean(context);
   } catch {
     cachedWebGlCapability = false;

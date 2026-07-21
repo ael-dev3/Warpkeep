@@ -116,8 +116,11 @@ describe('RealmMapScreen', () => {
     expect(screen.getByRole('region', { name: 'Your resources' })).not.toBeNull();
     const fallback = screen.getByTestId('realm-static-fallback');
     expect(within(fallback).getByText(
-      'Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.'
+      'WebGL is unavailable on this device. Showing a bounded, accessible view of the canonical Genesis 001 region around your keep.'
     )).not.toBeNull();
+    expect(fallback.textContent).not.toContain(
+      'Detailed terrain is unavailable. Showing the canonical Genesis 001 realm map.'
+    );
     expect(fallback.textContent).not.toMatch(/\b(?:traversable cells|realm cells|rendered)\b/i);
     const polygons = container.querySelectorAll<SVGPolygonElement>(
       '.realm-map-screen__fallback-map polygon'
