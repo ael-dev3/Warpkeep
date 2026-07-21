@@ -16,6 +16,10 @@ import {
   runStoneExpeditionSchedule,
   stoneExpeditionErrorCode,
 } from './stoneExpeditionAuthority';
+import {
+  castleWorkerErrorCode,
+  runCastleWorkerSchedule,
+} from './castleWorkerAuthority';
 
 /**
  * Private closed-alpha admission list. This table is intentionally omitted
@@ -1001,6 +1005,171 @@ export const realmWaterRevisionV1 = table(
     activatedAt: t.option(t.timestamp()),
   },
 );
+
+/** Public singleton for the staged generic-worker readiness boundary. */
+export const realmWorkerSystemV1 = table(
+  { name: 'realm_worker_system_v1', public: true },
+  {
+    realmId: t.string().primaryKey(),
+    policyVersion: t.string(),
+    workersPerCastle: t.u32(),
+    expectedCastleCount: t.u32(),
+    expectedWorkerCount: t.u32(),
+    rosterDigest: t.string(),
+    mode: t.string(),
+    legacyDrainRequired: t.bool(),
+    createdAt: t.timestamp(),
+    activatedAt: t.option(t.timestamp()),
+  },
+);
+
+/** Public identity-safe worker roster and lifecycle presentation. */
+export const castleWorkerV1 = table(
+  {
+    name: 'castle_worker_v1',
+    public: true,
+    indexes: [{
+      accessor: 'byOriginCastle',
+      algorithm: 'btree',
+      columns: ['originCastleId'] as const,
+    }] as const,
+  },
+  {
+    workerId: t.string().primaryKey(),
+    originCastleId: t.u64(),
+    ordinal: t.u32(),
+    status: t.string(),
+    assignmentId: t.option(t.string()),
+    resourceKind: t.option(t.string()),
+    siteId: t.option(t.string()),
+    startedAtMicros: t.option(t.u64()),
+    arrivesAtMicros: t.option(t.u64()),
+    gatheringEndsAtMicros: t.option(t.u64()),
+    returnStartedAtMicros: t.option(t.u64()),
+    returnsAtMicros: t.option(t.u64()),
+    routeSteps: t.option(t.u32()),
+    returnStartProgressBasisPoints: t.option(t.u32()),
+    timelineRevision: t.u32(),
+    revision: t.u64(),
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+/** Private generic assignment authority. Never expose through subscriptions. */
+export const workerAssignmentV1 = table(
+  {
+    name: 'worker_assignment_v1',
+    indexes: [{
+      accessor: 'byFidAndPhase',
+      algorithm: 'btree',
+      columns: ['fid', 'phase'] as const,
+    }] as const,
+  },
+  {
+    assignmentId: t.string().primaryKey(),
+    workerId: t.string().unique(),
+    fid: t.u64(),
+    originCastleId: t.u64(),
+    resourceKind: t.string(),
+    siteId: t.string().index(),
+    phase: t.string(),
+    startedAtMicros: t.u64(),
+    arrivesAtMicros: t.u64(),
+    gatheringEndsAtMicros: t.u64(),
+    returnStartedAtMicros: t.option(t.u64()),
+    returnsAtMicros: t.u64(),
+    routeSteps: t.u32(),
+    returnStartProgressBasisPoints: t.u32(),
+    settledThroughMicros: t.u64(),
+    accruedAmount: t.u64(),
+    materializedAmount: t.u64(),
+    timelineRevision: t.u32(),
+    policyVersion: t.string(),
+    createdAt: t.timestamp(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+/** Public generic node lease. It is deleted when a worker starts returning. */
+export const workerNodeOccupationV1 = table(
+  {
+    name: 'worker_node_occupation_v1',
+    public: true,
+    indexes: [{
+      accessor: 'byOriginCastle',
+      algorithm: 'btree',
+      columns: ['originCastleId'] as const,
+    }, {
+      accessor: 'byWorker',
+      algorithm: 'btree',
+      columns: ['workerId'] as const,
+    }] as const,
+  },
+  {
+    nodeKey: t.string().primaryKey(),
+    resourceKind: t.string(),
+    siteId: t.string(),
+    workerId: t.string(),
+    workerOrdinal: t.u32(),
+    originCastleId: t.u64(),
+    assignmentId: t.string(),
+    phase: t.string(),
+    startedAtMicros: t.u64(),
+    arrivesAtMicros: t.u64(),
+    gatheringEndsAtMicros: t.u64(),
+    timelineRevision: t.u32(),
+  },
+);
+
+/** Private exactly-once command receipts for dispatch and recall commands. */
+export const workerCommandIdempotencyV1 = table(
+  {
+    name: 'worker_command_idempotency_v1',
+    indexes: [{
+      accessor: 'byFid',
+      algorithm: 'btree',
+      columns: ['fid'] as const,
+    }] as const,
+  },
+  {
+    requestKey: t.string().primaryKey(),
+    fid: t.u64(),
+    workerId: t.option(t.string()),
+    commandKind: t.string(),
+    resourceKind: t.option(t.string()),
+    siteId: t.option(t.string()),
+    assignmentId: t.option(t.string()),
+    resultRevision: t.u64(),
+    createdAt: t.timestamp(),
+  },
+);
+
+/** Public-safe lifecycle schedule projection for generic worker assignments. */
+export const workerAssignmentScheduleV1 = table(
+  {
+    name: 'worker_assignment_schedule_v_1',
+    public: true,
+    indexes: [{
+      accessor: 'byAssignment',
+      algorithm: 'btree',
+      columns: ['assignmentId'] as const,
+    }, {
+      accessor: 'byWorker',
+      algorithm: 'btree',
+      columns: ['workerId'] as const,
+    }] as const,
+    scheduled: (): any => runCastleWorkerScheduleV1,
+  },
+  {
+    scheduleId: t.u64().primaryKey().autoInc(),
+    scheduledAt: t.scheduleAt(),
+    assignmentId: t.string(),
+    workerId: t.string(),
+    timelineRevision: t.u32(),
+    stage: t.string(),
+  },
+);
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -1051,6 +1220,12 @@ const warpkeep = schema({
   stoneExpeditionIdempotencyV1,
   stoneExpeditionScheduleV1,
   realmWaterRevisionV1,
+  realmWorkerSystemV1,
+  castleWorkerV1,
+  workerAssignmentV1,
+  workerNodeOccupationV1,
+  workerCommandIdempotencyV1,
+  workerAssignmentScheduleV1,
 });
 
 /**
@@ -1124,6 +1299,21 @@ export const runStoneExpeditionScheduleV1 = warpkeep.reducer(
   },
 );
 
+/** Scheduler-only lifecycle reducer for staged generic castle workers. */
+export const runCastleWorkerScheduleV1 = warpkeep.reducer(
+  { name: 'run_worker_assignment_schedule_v_1' },
+  { arg: workerAssignmentScheduleV1.rowType },
+  (ctx, { arg }) => {
+    try {
+      runCastleWorkerSchedule(ctx, arg);
+    } catch (error) {
+      const code = castleWorkerErrorCode(error);
+      if (code !== undefined) throw new SenderError(code);
+      throw error;
+    }
+  },
+);
+
 // SpacetimeDB 2.6's default case converter separates a trailing digit from
 // its prefix (`v2` -> `v_2`). Pin every versioned wire spelling explicitly.
 for (const name of [
@@ -1168,6 +1358,13 @@ for (const name of [
   'admin_seed_genesis_water_layout_v1',
   'admin_activate_genesis_water_layout_v1',
   'admin_inspect_genesis_water_layout_v1',
+  'get_my_worker_roster_v1',
+  'get_my_resource_state_v2',
+  'dispatch_worker_v1',
+  'recall_worker_v1',
+  'recall_all_workers_v1',
+  'admin_get_worker_system_status_v1',
+  'admin_plan_worker_roster_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',
