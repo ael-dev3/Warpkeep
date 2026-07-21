@@ -83,15 +83,15 @@ const REALM_RESOURCE_TOOLTIP_ORDER: readonly RealmResourceTooltipKey[] = Object.
 
 const RESOURCE_TOOLTIP_COPY: Readonly<Record<RealmResourceTooltipKey, string>> = Object.freeze({
   food:
-    'Keeps and future armies will need Food. Your keep earns a private terrain yield, and farm expeditions can gather more from available sites. Spending is not live yet.',
+    'Food currently comes from your keep’s private terrain yield and gathering at Wheat Farms. No Food spending is live yet.',
   wood:
-    'Wood is intended for construction and fortification. Your keep earns a private terrain yield, and logging expeditions can gather more from available sites. Spending is not live yet.',
+    'Wood currently comes from your keep’s private terrain yield and gathering at Logging Camps. No Wood spending is live yet.',
   stone:
-    'Stone is intended for strongholds and upgrades. Your keep earns a private terrain yield, and Tier-I quarry expeditions can gather more from available sites. Stone spending is not live yet.',
+    'Stone currently comes from your keep’s private terrain yield and gathering at Stone Quarries. No Stone spending is live yet.',
   gold:
-    'Gold is intended for trade, upgrades, and command. It currently comes only from mine expeditions; terrain Gold and spending are not live.',
+    'Gold currently comes from gathering at Gold Mines; your keep’s terrain produces no Gold. No Gold spending is live yet.',
   marks:
-    'Separate community-attribution balance. Marks currently have no live spending, conversion, transfer, redemption, or reward loop.'
+    'Community Marks are a separate experimental accounting balance, not an economic resource. They currently have no spending, transfer, conversion, redemption, or reward loop.'
 });
 
 const RESOURCE_ICON_PATHS: Readonly<
