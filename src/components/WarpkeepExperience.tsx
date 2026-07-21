@@ -1128,6 +1128,15 @@ export function WarpkeepExperience() {
                 onClaimStoneExpedition={backend.state.stoneExpedition === undefined
                   ? undefined
                   : backend.claimStoneExpedition}
+                workerProjection={backend.state.workerProjection}
+                workerRoster={backend.state.workerRoster}
+                workerResourceState={backend.state.workerResourceState}
+                onRecallWorker={backend.state.workerProjection?.mode === 'active'
+                  ? backend.recallWorker
+                  : undefined}
+                onRecallAllWorkers={backend.state.workerProjection?.mode === 'active'
+                  ? backend.recallAllWorkers
+                  : undefined}
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}

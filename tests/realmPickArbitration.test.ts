@@ -13,6 +13,15 @@ const RESOURCE_KINDS = [
 ] as const satisfies readonly RealmResourcePickKind[];
 
 describe('realm scene pick arbitration', () => {
+  it('gives a worker identity lane priority over resource and castle colliders', () => {
+    expect(arbitrateRealmPick({
+      workerHits: [{ workerId: 'worker-1', workerOrdinal: 1, originCastleId: 77, coord: { q: 1, r: 0 }, distance: 20 }],
+      resourceHits: [],
+      castleHit: { castleId: 77, coord: { q: 0, r: 0 } },
+      terrainHit: { coord: { q: 2, r: 0 } }
+    })).toEqual({ kind: 'worker', workerId: 'worker-1', workerOrdinal: 1, originCastleId: 77, coord: { q: 1, r: 0 } });
+  });
+
   it.each(RESOURCE_KINDS)(
     'lets the nearest moving %s wagon win over castle, static site, and terrain',
     (kind) => {

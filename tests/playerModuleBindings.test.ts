@@ -8,6 +8,7 @@ import { DbConnection, tables as playerTables } from '../src/spacetime/playerMod
 
 const PLAYER_TABLE_KEYS = [
   'castle',
+  'castleWorkerV1',
   'foodNodeOccupationV1',
   'foodSiteV1',
   'goldNodeOccupationV1',
@@ -18,6 +19,7 @@ const PLAYER_TABLE_KEYS = [
   'realmForestLayoutV1',
   'realmProfileV1',
   'realmV1',
+  'realmWorkerSystemV1',
   'realmWaterBodyV1',
   'realmWaterCellV1',
   'realmWaterLayoutV1',
@@ -26,6 +28,7 @@ const PLAYER_TABLE_KEYS = [
   'stoneSiteV1',
   'woodNodeOccupationV1',
   'woodSiteV1',
+  'workerNodeOccupationV1',
   'worldTile',
   'worldTileMetaV1',
 ] as const
@@ -80,6 +83,11 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_wood_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_stone_expedition_state_v1'")
     expect(playerBindings).toContain("'get_my_resource_state_v1'")
+    expect(playerBindings).toContain("'get_my_resource_state_v2'")
+    expect(playerBindings).toContain("'get_my_worker_roster_v1'")
+    expect(playerBindings).toContain("'dispatch_worker_v1'")
+    expect(playerBindings).toContain("'recall_worker_v1'")
+    expect(playerBindings).toContain("'recall_all_workers_v1'")
     expect(playerBindings).toContain("'realm_forest_layout_v1'")
     expect(playerBindings).toContain("'realm_forest_instance_v1'")
     expect(playerBindings).toContain("'realm_water_revision_v1'")
@@ -103,6 +111,8 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).not.toContain('qa_observer_')
     expect(playerBindings).not.toContain('QA_OBSERVER')
     expect(playerBindings).not.toContain('/v1/qa/')
+    expect(playerBindings).not.toContain('worker_assignment_schedule_v_1')
+    expect(playerBindings).not.toContain('worker_assignment_idempotency_v_1')
   })
 
   it('exposes only the player reducer and procedure accessors at runtime', () => {
@@ -134,6 +144,9 @@ describe('player SpacetimeDB bindings', () => {
       'dispatchGoldExpeditionV1',
       'dispatchStoneExpeditionV1',
       'dispatchWoodExpeditionV1',
+      'dispatchWorkerV1',
+      'recallAllWorkersV1',
+      'recallWorkerV1',
     ])
     expect(Object.keys(connection.procedures).sort()).toEqual([
       'getAlphaBackendInfo',
@@ -141,8 +154,10 @@ describe('player SpacetimeDB bindings', () => {
       'getMyFoodExpeditionStateV1',
       'getMyGoldExpeditionStateV1',
       'getMyResourceStateV1',
+      'getMyResourceStateV2',
       'getMyStoneExpeditionStateV1',
       'getMyWoodExpeditionStateV1',
+      'getMyWorkerRosterV1',
     ])
 
     connection.disconnect()
