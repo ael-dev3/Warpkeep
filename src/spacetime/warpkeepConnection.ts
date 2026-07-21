@@ -84,6 +84,15 @@ import {
   isRealmStoneSitePublicRecord
 } from '../components/realm/realmStoneNodePresentation';
 import {
+  decodeRealmWorkerOccupations,
+  decodeRealmWorkerPublicRows,
+  decodeRealmWorkerSystem,
+  decodeWorkerResourceState,
+  decodeWorkerRoster,
+  type ReadyWorkerResourceState,
+  type WorkerRosterPresentation
+} from '../components/realm/realmWorkerPresentation';
+import {
   REALM_FOOD_SITE_COUNT,
   REALM_GOLD_SITE_COUNT,
   REALM_WOOD_SITE_COUNT,
@@ -165,6 +174,11 @@ type WaterProjectionAvailability =
   | typeof WATER_PROJECTION_PENDING
   | typeof WATER_PROJECTION_READY;
 const waterProjectionAvailability = new WeakMap<WarpkeepConnection, WaterProjectionAvailability>();
+const WORKER_PROJECTION_UNAVAILABLE = 'unavailable' as const;
+const WORKER_PROJECTION_PENDING = 'pending' as const;
+const WORKER_PROJECTION_READY = 'ready' as const;
+type WorkerProjectionAvailability = typeof WORKER_PROJECTION_UNAVAILABLE | typeof WORKER_PROJECTION_PENDING | typeof WORKER_PROJECTION_READY;
+const workerProjectionAvailability = new WeakMap<WarpkeepConnection, WorkerProjectionAvailability>();
 const GOLD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const GOLD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const FOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
@@ -173,6 +187,8 @@ const WOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const WOOD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const STONE_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const STONE_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
+const WORKER_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
+const WORKER_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
@@ -360,6 +376,76 @@ export async function readWarpkeepResourceState(
     throw new Error('Warpkeep resources are unavailable.');
   }
   return decoded;
+}
+
+/** Read the generic worker's caller-private roster; public rows never carry cargo. */
+export async function readWarpkeepWorkerRoster(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<WorkerRosterPresentation | undefined> {
+  if (!Number.isSafeInteger(ownFid) || ownFid <= 0) return undefined;
+  const procedure = (connection.procedures as unknown as {
+    getMyWorkerRosterV1?: (input: Readonly<Record<string, never>>) => Promise<unknown>;
+  }).getMyWorkerRosterV1;
+  if (typeof procedure !== 'function') return undefined;
+  return decodeWorkerRoster(await procedure({}), BigInt(ownFid));
+}
+
+/** v2 balances are the only resource values consumed by the active worker rail. */
+export async function readWarpkeepResourceStateV2(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<ReadyWorkerResourceState | undefined> {
+  if (!Number.isSafeInteger(ownFid) || ownFid <= 0) return undefined;
+  const procedure = (connection.procedures as unknown as {
+    getMyResourceStateV2?: (input: Readonly<Record<string, never>>) => Promise<unknown>;
+  }).getMyResourceStateV2;
+  if (typeof procedure !== 'function') return undefined;
+  return decodeWorkerResourceState(await procedure({}), BigInt(ownFid));
+}
+
+function workerReducerSurface(connection: WarpkeepConnection) {
+  return connection.reducers as unknown as {
+    dispatchWorkerV1?: (input: Readonly<{ workerId: string; resourceKind: string; siteId: string; idempotencyKey: string }>) => Promise<unknown> | unknown;
+    recallWorkerV1?: (input: Readonly<{ workerId: string; idempotencyKey: string }>) => Promise<unknown> | unknown;
+    recallAllWorkersV1?: (input: Readonly<{ idempotencyKey: string }>) => Promise<unknown> | unknown;
+  };
+}
+
+function assertWorkerIdempotency(workerId: string, idempotencyKey: string) {
+  if (!WORKER_ID_PATTERN.test(workerId) || !WORKER_IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+    throw new Error('Worker command is unavailable.');
+  }
+}
+
+export async function dispatchWarpkeepWorker(
+  connection: WarpkeepConnection,
+  workerId: string,
+  resourceKind: string,
+  siteId: string,
+  idempotencyKey: string
+) {
+  assertWorkerIdempotency(workerId, idempotencyKey);
+  if (!/^(food|wood|stone|gold)$/.test(resourceKind) || !/^[a-z0-9][a-z0-9:_-]{0,95}$/i.test(siteId)) {
+    throw new Error('Worker command is unavailable.');
+  }
+  const reducer = workerReducerSurface(connection).dispatchWorkerV1;
+  if (typeof reducer !== 'function') throw new Error('Worker command is unavailable.');
+  await reducer({ workerId, resourceKind, siteId, idempotencyKey });
+}
+
+export async function recallWarpkeepWorker(connection: WarpkeepConnection, workerId: string, idempotencyKey: string) {
+  assertWorkerIdempotency(workerId, idempotencyKey);
+  const reducer = workerReducerSurface(connection).recallWorkerV1;
+  if (typeof reducer !== 'function') throw new Error('Worker command is unavailable.');
+  await reducer({ workerId, idempotencyKey });
+}
+
+export async function recallAllWarpkeepWorkers(connection: WarpkeepConnection, idempotencyKey: string) {
+  if (!WORKER_IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) throw new Error('Worker command is unavailable.');
+  const reducer = workerReducerSurface(connection).recallAllWorkersV1;
+  if (typeof reducer !== 'function') throw new Error('Worker command is unavailable.');
+  await reducer({ idempotencyKey });
 }
 
 /** Settle server-authoritative yield, then fetch the exact committed view. */
@@ -788,6 +874,33 @@ export function subscribeToWarpkeepRealm(
     stoneProjectionAvailability.set(connection, STONE_PROJECTION_UNAVAILABLE);
   }
 
+  let workerSubscription: SubscriptionHandle | undefined;
+  const workerTables = publicWorkerTables(connection);
+  if (workerTables !== undefined) {
+    try {
+      workerSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          workerProjectionAvailability.set(connection, WORKER_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          workerProjectionAvailability.set(connection, WORKER_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          tables.realmWorkerSystemV1,
+          tables.castleWorkerV1,
+          tables.workerNodeOccupationV1
+        ]);
+    } catch {
+      workerProjectionAvailability.set(connection, WORKER_PROJECTION_UNAVAILABLE);
+      if (coreApplied) onApplied();
+    }
+  } else {
+    workerProjectionAvailability.set(connection, WORKER_PROJECTION_UNAVAILABLE);
+  }
+
   let forestSubscription: SubscriptionHandle | undefined;
   const forestTables = publicForestTables(connection);
   // A pre-forest service (or a deliberately narrow test double) cannot make
@@ -858,6 +971,7 @@ export function subscribeToWarpkeepRealm(
       foodProjectionAvailability.delete(connection);
       woodProjectionAvailability.delete(connection);
       stoneProjectionAvailability.delete(connection);
+      workerProjectionAvailability.delete(connection);
       forestProjectionAvailability.delete(connection);
       waterProjectionAvailability.delete(connection);
       try {
@@ -871,7 +985,11 @@ export function subscribeToWarpkeepRealm(
               try {
                 woodSubscription?.unsubscribe();
               } finally {
-                stoneSubscription?.unsubscribe();
+                try {
+                  stoneSubscription?.unsubscribe();
+                } finally {
+                  workerSubscription?.unsubscribe();
+                }
               }
             }
           }
@@ -1385,6 +1503,35 @@ function publicStoneSubscriptionTables() {
   });
 }
 
+type PublicWorkerTable = PublicFoodTable;
+function publicWorkerTables(connection: WarpkeepConnection) {
+  const db = connection.db as unknown as Readonly<{
+    realmWorkerSystemV1?: PublicWorkerTable;
+    castleWorkerV1?: PublicWorkerTable;
+    workerNodeOccupationV1?: PublicWorkerTable;
+  }> | undefined;
+  if (!db?.realmWorkerSystemV1 || !db.castleWorkerV1 || !db.workerNodeOccupationV1) return undefined;
+  return db;
+}
+
+function readPublicWorkerProjection(
+  connection: WarpkeepConnection,
+  castles: readonly WarpkeepCastle[],
+  ownCastleId: number
+) {
+  if (workerProjectionAvailability.get(connection) !== WORKER_PROJECTION_READY) return undefined;
+  const db = publicWorkerTables(connection);
+  if (!db) return undefined;
+  const systems = [...db.realmWorkerSystemV1!.iter()];
+  if (systems.length !== 1) return undefined;
+  const system = decodeRealmWorkerSystem(systems[0]);
+  const castleNames = new Map(castles.map((castle) => [castle.castleId, castle.name] as const));
+  const workers = decodeRealmWorkerPublicRows([...db.castleWorkerV1!.iter()], castleNames, ownCastleId);
+  const occupations = decodeRealmWorkerOccupations([...db.workerNodeOccupationV1!.iter()]);
+  if (!system || !workers || !occupations) return undefined;
+  return Object.freeze({ system, workers, occupations });
+}
+
 /**
  * Read the additive public Gold catalog as an all-or-nothing visual
  * projection. Any malformed or duplicate row omits the complete Gold layer;
@@ -1770,6 +1917,9 @@ export function readWarpkeepRealmSnapshot(
   const publicStone = readPublicStoneProjection(connection);
   const publicForest = readPublicForestProjection(connection);
   const publicWater = readPublicWaterProjection(connection);
+  const publicWorkers = ownCastle === undefined
+    ? undefined
+    : readPublicWorkerProjection(connection, castles, ownCastle.castleId);
   const candidate: WarpkeepRealmSnapshotCandidate = {
     tiles: readWorldTiles(connection),
     tileMetadata: readWorldTileMetadata(connection),
@@ -1805,6 +1955,11 @@ export function readWarpkeepRealmSnapshot(
       ...(publicWater.waterRevision === undefined ? {} : {
         waterRevision: publicWater.waterRevision
       })
+    }),
+    ...(publicWorkers === undefined ? {} : {
+      workerSystem: publicWorkers.system,
+      workerWorkers: publicWorkers.workers,
+      workerOccupations: publicWorkers.occupations
     }),
     ...(ownCastle ? { ownCastle } : {})
   };
@@ -1891,6 +2046,16 @@ export function observeWarpkeepRealm(
   stoneTables?.stoneNodeOccupationV1?.onInsert?.(sync);
   stoneTables?.stoneNodeOccupationV1?.onDelete?.(sync);
   stoneTables?.stoneNodeOccupationV1?.onUpdate?.(sync);
+  const workerTables = publicWorkerTables(connection);
+  workerTables?.realmWorkerSystemV1?.onInsert?.(sync);
+  workerTables?.realmWorkerSystemV1?.onDelete?.(sync);
+  workerTables?.realmWorkerSystemV1?.onUpdate?.(sync);
+  workerTables?.castleWorkerV1?.onInsert?.(sync);
+  workerTables?.castleWorkerV1?.onDelete?.(sync);
+  workerTables?.castleWorkerV1?.onUpdate?.(sync);
+  workerTables?.workerNodeOccupationV1?.onInsert?.(sync);
+  workerTables?.workerNodeOccupationV1?.onDelete?.(sync);
+  workerTables?.workerNodeOccupationV1?.onUpdate?.(sync);
   const forestTables = publicForestTables(connection);
   forestTables?.realmForestLayoutV1?.onInsert?.(sync);
   forestTables?.realmForestLayoutV1?.onDelete?.(sync);
@@ -1959,6 +2124,15 @@ export function observeWarpkeepRealm(
     stoneTables?.stoneNodeOccupationV1?.removeOnInsert?.(sync);
     stoneTables?.stoneNodeOccupationV1?.removeOnDelete?.(sync);
     stoneTables?.stoneNodeOccupationV1?.removeOnUpdate?.(sync);
+    workerTables?.realmWorkerSystemV1?.removeOnInsert?.(sync);
+    workerTables?.realmWorkerSystemV1?.removeOnDelete?.(sync);
+    workerTables?.realmWorkerSystemV1?.removeOnUpdate?.(sync);
+    workerTables?.castleWorkerV1?.removeOnInsert?.(sync);
+    workerTables?.castleWorkerV1?.removeOnDelete?.(sync);
+    workerTables?.castleWorkerV1?.removeOnUpdate?.(sync);
+    workerTables?.workerNodeOccupationV1?.removeOnInsert?.(sync);
+    workerTables?.workerNodeOccupationV1?.removeOnDelete?.(sync);
+    workerTables?.workerNodeOccupationV1?.removeOnUpdate?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnInsert?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnDelete?.(sync);
     forestTables?.realmForestLayoutV1?.removeOnUpdate?.(sync);

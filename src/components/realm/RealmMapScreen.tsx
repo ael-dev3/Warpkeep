@@ -155,6 +155,7 @@ import {
 } from './realmRendererRecovery';
 import './RealmMapScreen.css';
 import './RealmCastlePresentation.css';
+import type { ReadyWorkerProjection, ReadyWorkerResourceState, WorkerRosterPresentation } from './realmWorkerPresentation';
 
 export {
   BLOCKED_SHARED_FOREST_PROJECTION_SIGNATURE,
@@ -193,6 +194,11 @@ type RealmMapScreenProps = Readonly<{
   onDispatchStoneExpedition?: (siteId: string) => Promise<void>;
   /** Guarded owner-only Stone settlement reducer; never supplied to observers. */
   onClaimStoneExpedition?: () => Promise<void>;
+  workerProjection?: ReadyWorkerProjection;
+  workerRoster?: WorkerRosterPresentation;
+  workerResourceState?: ReadyWorkerResourceState;
+  onRecallWorker?: (workerId: string) => Promise<void>;
+  onRecallAllWorkers?: () => Promise<void>;
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   audioMuted?: boolean;
@@ -283,6 +289,11 @@ function CanonicalRealmMapScreen({
   stoneExpedition,
   onDispatchStoneExpedition,
   onClaimStoneExpedition,
+  workerProjection,
+  workerRoster,
+  workerResourceState,
+  onRecallWorker,
+  onRecallAllWorkers,
   graphicsPreference,
   resolvedGraphicsQuality,
   audioMuted,
@@ -2021,6 +2032,11 @@ function CanonicalRealmMapScreen({
               onRequestExplore={() => dispatchInteraction({ type: 'open-navigator' })}
               activeWagons={activeWagons}
               onOpenActiveWagon={openActiveWagon}
+              workerProjection={observerMode ? undefined : workerProjection}
+              workerRoster={observerMode ? undefined : workerRoster}
+              workerResourceState={observerMode ? undefined : workerResourceState}
+              onRecallWorker={observerMode ? undefined : onRecallWorker}
+              onRecallAllWorkers={observerMode ? undefined : onRecallAllWorkers}
               keepCoord={keepCoord}
               selectedCell={selectedCell}
               selectedTerrainKind={selectedTerrainKind}

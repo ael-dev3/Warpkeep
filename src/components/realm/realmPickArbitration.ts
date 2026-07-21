@@ -13,8 +13,16 @@ export type RealmResourcePickHit = Readonly<{
   source: 'site' | 'wagon';
   distance: number;
 }>;
+export type RealmWorkerPickHit = Readonly<{
+  workerId: string;
+  workerOrdinal: number;
+  originCastleId: number;
+  coord: HexCoord;
+  distance: number;
+}>;
 
 export type RealmInteractionTarget =
+  | Readonly<{ kind: 'worker'; workerId: string; workerOrdinal: number; originCastleId: number; coord: HexCoord }>
   | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
   | Readonly<{
       kind: RealmResourcePickKind;
@@ -47,9 +55,20 @@ function nearestValidHit(
  */
 export function arbitrateRealmPick(input: Readonly<{
   resourceHits: readonly RealmResourcePickHit[];
+  workerHits?: readonly RealmWorkerPickHit[];
   castleHit?: Readonly<{ castleId: number; coord: HexCoord }> | null;
   terrainHit?: Readonly<{ coord: HexCoord }> | null;
 }>): RealmInteractionTarget | null {
+  const worker = (input.workerHits ?? []).find((hit) => Number.isFinite(hit.distance) && hit.distance >= 0);
+  if (worker) {
+    return Object.freeze({
+      kind: 'worker',
+      workerId: worker.workerId,
+      workerOrdinal: worker.workerOrdinal,
+      originCastleId: worker.originCastleId,
+      coord: worker.coord
+    });
+  }
   const wagon = nearestValidHit(input.resourceHits, 'wagon');
   if (wagon) {
     return Object.freeze({

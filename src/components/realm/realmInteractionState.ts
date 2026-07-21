@@ -5,6 +5,13 @@ export type RealmCastleTarget = Readonly<{
   coord: HexCoord;
 }>;
 
+export type RealmWorkerTarget = Readonly<{
+  workerId: string;
+  workerOrdinal: number;
+  originCastleId: number;
+  coord: HexCoord;
+}>;
+
 /** A public world-site target; it contains no economy or authorization data. */
 export type RealmGoldSiteTarget = Readonly<{
   siteId: string;
@@ -30,6 +37,7 @@ export type RealmStoneSiteTarget = Readonly<{
 }>;
 
 export type RealmInspectorTarget =
+  | RealmWorkerTarget
   | RealmCastleTarget
   | RealmGoldSiteTarget
   | RealmFoodSiteTarget
@@ -41,11 +49,13 @@ export type RealmCameraTarget =
   | Readonly<{ kind: 'founding-district' }>
   | Readonly<{ kind: 'keep' }>
   | Readonly<{ kind: 'cell'; coord: HexCoord }>
-  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>;
+  | Readonly<{ kind: 'castle'; castleId: number; coord: HexCoord }>
+  | Readonly<{ kind: 'worker'; workerId: string; coord: HexCoord }>;
 
 export type RealmKeyboardTarget =
   | Readonly<{ kind: 'map' }>
   | Readonly<{ kind: 'inspector'; castleId: number }>
+  | Readonly<{ kind: 'worker-inspector'; workerId: string }>
   | Readonly<{ kind: 'gold-mine-inspector'; siteId: string }>
   | Readonly<{ kind: 'food-farm-inspector'; siteId: string }>
   | Readonly<{ kind: 'logging-camp-inspector'; siteId: string }>
@@ -76,6 +86,7 @@ export type RealmInteractionState = Readonly<{
 export type RealmInteractionAction =
   | Readonly<{ type: 'select-cell'; coord: HexCoord }>
   | Readonly<{ type: 'activate-castle'; castleId: number; coord: HexCoord }>
+  | Readonly<{ type: 'activate-worker'; workerId: string; workerOrdinal: number; originCastleId: number; coord: HexCoord }>
   | Readonly<{
       type: 'activate-gold-site';
       siteId: string;
@@ -123,6 +134,15 @@ function copyCastleTarget(target: RealmCastleTarget): RealmCastleTarget {
   return { castleId: target.castleId, coord: copyCoord(target.coord) };
 }
 
+function copyWorkerTarget(target: RealmWorkerTarget): RealmWorkerTarget {
+  return {
+    workerId: target.workerId,
+    workerOrdinal: target.workerOrdinal,
+    originCastleId: target.originCastleId,
+    coord: copyCoord(target.coord)
+  };
+}
+
 function copyGoldSiteTarget(target: RealmGoldSiteTarget): RealmGoldSiteTarget {
   return { siteId: target.siteId, coord: copyCoord(target.coord) };
 }
@@ -148,6 +168,7 @@ function copyCameraTarget(target: RealmCameraTarget): RealmCameraTarget {
   if (target.kind === 'founding-district') return { kind: 'founding-district' };
   if (target.kind === 'keep') return { kind: 'keep' };
   if (target.kind === 'cell') return { kind: 'cell', coord: copyCoord(target.coord) };
+  if (target.kind === 'worker') return { kind: 'worker', workerId: target.workerId, coord: copyCoord(target.coord) };
   return { kind: 'castle', castleId: target.castleId, coord: copyCoord(target.coord) };
 }
 
@@ -209,6 +230,20 @@ export function realmInteractionReducer(
           kind: 'inspector',
           castleId: target.castleId
         })
+      };
+    }
+
+    case 'activate-worker': {
+      const target = copyWorkerTarget(action);
+      return {
+        ...state,
+        selectedCell: copyCoord(target.coord),
+        selectedCastle: null,
+        inspectorTarget: target,
+        inspectorOpen: true,
+        cameraTarget: { kind: 'worker', workerId: target.workerId, coord: copyCoord(target.coord) },
+        navigatorOpen: false,
+        keyboardIntent: withKeyboardIntent(state, { kind: 'worker-inspector', workerId: target.workerId })
       };
     }
 

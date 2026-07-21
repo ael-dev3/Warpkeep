@@ -35,6 +35,14 @@ import {
   type RealmEconomicResourceKey
 } from './realmResourcePresentation';
 import './RealmPlayerChrome.css';
+import { WorkerCommandCenter } from './WorkerCommandCenter';
+import { WorkerInspectionPanel } from './WorkerInspectionPanel';
+import type {
+  ReadyWorkerProjection,
+  ReadyWorkerResourceState,
+  WorkerRosterPresentation,
+  RealmWorkerPublicPresentation
+} from './realmWorkerPresentation';
 
 type RealmHudProps = Readonly<{
   identity: RealmIdentity;
@@ -57,6 +65,11 @@ type RealmHudProps = Readonly<{
   onRequestExplore?: () => void;
   activeWagons?: readonly RealmActiveWagonMenuItem[];
   onOpenActiveWagon?: (wagon: RealmActiveWagonMenuItem) => void;
+  workerProjection?: ReadyWorkerProjection;
+  workerRoster?: WorkerRosterPresentation;
+  workerResourceState?: ReadyWorkerResourceState;
+  onRecallWorker?: (workerId: string) => Promise<void>;
+  onRecallAllWorkers?: () => Promise<void>;
   onRecenterKeep: () => void;
   onRequestReturn: () => void;
 }>;
@@ -142,8 +155,9 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
 }
 
 function RealmResourceRail({
-  resources
-}: Readonly<{ resources: ReadyRealmResourcePresentation }>) {
+  resources,
+  workerResourceState
+}: Readonly<{ resources: ReadyRealmResourcePresentation; workerResourceState?: ReadyWorkerResourceState }>) {
   const tooltipIdPrefix = `realm-resource-tooltip-${useId().replace(/:/g, '')}`;
   const railRef = useRef<HTMLElement>(null);
   const [activeTooltip, setActiveTooltip] = useState<RealmResourceTooltipKey | null>(null);
@@ -185,7 +199,9 @@ function RealmResourceRail({
     }
     return {
       label: RESOURCE_LABELS[resource],
-      status: `${formatExactRealmResourceQuantity(resources.balances[resource]) ?? '0'} stored · ${formatExactRealmResourceQuantity(resources.pendingBalances[resource]) ?? '0'} ready to collect`
+      status: workerResourceState
+        ? `${formatExactRealmResourceQuantity(workerResourceState.available[resource]) ?? '0'} available`
+        : `${formatExactRealmResourceQuantity(resources.balances[resource]) ?? '0'} stored · ${formatExactRealmResourceQuantity(resources.pendingBalances[resource]) ?? '0'} ready to collect`
     };
   };
 
@@ -219,14 +235,17 @@ function RealmResourceRail({
     >
       <ul>
         {REALM_ECONOMIC_RESOURCE_ORDER.map((resource) => {
-          const compact = formatCompactRealmResourceQuantity(resources.balances[resource])!;
-          const exact = formatExactRealmResourceQuantity(resources.balances[resource])!;
+          const railValue = workerResourceState?.available[resource] ?? resources.balances[resource];
+          const compact = formatCompactRealmResourceQuantity(railValue)!;
+          const exact = formatExactRealmResourceQuantity(railValue)!;
           const pending = formatExactRealmResourceQuantity(resources.pendingBalances[resource])!;
           return (
             <li key={resource}>
               <button
                 aria-describedby={tooltipId(resource)}
-                aria-label={`${RESOURCE_LABELS[resource]}: ${exact} stored; ${pending} ready to collect. Show resource details.`}
+                aria-label={workerResourceState
+                  ? `${RESOURCE_LABELS[resource]}: ${exact} available. Show resource details.`
+                  : `${RESOURCE_LABELS[resource]}: ${exact} stored; ${pending} ready to collect. Show resource details.`}
                 className="realm-resource-rail__trigger"
                 type="button"
                 {...triggerEvents(resource)}
@@ -436,10 +455,17 @@ export function RealmHud({
   onRequestExplore,
   activeWagons = [],
   onOpenActiveWagon,
+  workerProjection,
+  workerRoster,
+  workerResourceState,
+  onRecallWorker,
+  onRecallAllWorkers,
   onRecenterKeep,
   onRequestReturn
 }: RealmHudProps) {
   const [surface, setSurface] = useState<RealmMenuSurface>('closed');
+  const [workerSurface, setWorkerSurface] = useState<'closed' | 'center' | 'inspection'>('closed');
+  const [selectedWorker, setSelectedWorker] = useState<RealmWorkerPublicPresentation | undefined>(undefined);
   const [collecting, setCollecting] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
@@ -477,6 +503,8 @@ export function RealmHud({
   const pendingYield = resources !== undefined && REALM_ECONOMIC_RESOURCE_ORDER.some(
     (resource) => resources.pendingBalances[resource] > 0n
   );
+  const genericWorkersActive = workerProjection?.mode === 'active';
+  const availableWorkers = workerProjection?.workers.filter((worker) => worker.status === 'idle').length ?? 0;
 
   if (selectionAnnouncementRef.current.key !== selectionAnnouncementKey) {
     selectionAnnouncementRef.current = {
@@ -528,7 +556,19 @@ export function RealmHud({
         <CastleProfileAvatar profile={playerProfile} />
       </button>
 
-      {resources ? <RealmResourceRail resources={resources} /> : null}
+      {genericWorkersActive ? (
+        <button
+          aria-label={`Open workers, ${availableWorkers} of 4 available`}
+          aria-expanded={workerSurface !== 'closed'}
+          className="realm-worker-control"
+          onClick={() => setWorkerSurface((current) => current === 'closed' ? 'center' : 'closed')}
+          type="button"
+        >
+          <span aria-hidden="true">W</span><strong>{availableWorkers}/4</strong>
+        </button>
+      ) : null}
+
+      {resources ? <RealmResourceRail resources={resources} workerResourceState={genericWorkersActive ? workerResourceState : undefined} /> : null}
 
       <p
         aria-atomic="true"
@@ -545,8 +585,8 @@ export function RealmHud({
           canOpenSettings={onGraphicsPreferenceChange !== undefined}
           collecting={collecting}
           pendingYield={pendingYield}
-          canCollect={onCollectResources !== undefined}
-          activeWagons={activeWagons}
+          canCollect={!genericWorkersActive && onCollectResources !== undefined}
+          activeWagons={genericWorkersActive ? [] : activeWagons}
           onClose={() => setSurface('closed')}
           onCollect={() => void collect()}
           onExplore={() => closeThen(() => onRequestExplore?.())}
@@ -556,6 +596,26 @@ export function RealmHud({
           onRecenter={() => closeThen(onRecenterKeep)}
           onRequestReturn={() => closeThen(onRequestReturn)}
           onSettings={() => setSurface('settings')}
+        />
+      ) : null}
+
+      {genericWorkersActive && workerProjection && workerSurface === 'center' ? (
+        <WorkerCommandCenter
+          id="realm-worker-command-center"
+          onClose={() => setWorkerSurface('closed')}
+          onRecallAllWorkers={onRecallAllWorkers}
+          onRecallWorker={onRecallWorker}
+          onSelectWorker={(worker) => { setSelectedWorker(worker); setWorkerSurface('inspection'); }}
+          roster={workerRoster}
+          workers={workerProjection.workers}
+        />
+      ) : null}
+      {genericWorkersActive && selectedWorker && workerSurface === 'inspection' ? (
+        <WorkerInspectionPanel
+          id="realm-worker-inspection"
+          onRecallWorker={onRecallWorker}
+          onRequestClose={() => { setSelectedWorker(undefined); setWorkerSurface('center'); }}
+          worker={selectedWorker}
         />
       ) : null}
 

@@ -4,6 +4,14 @@ import type { ReadyGoldExpeditionPresentation } from '../components/realm/realmG
 import type { ReadyFoodExpeditionPresentation } from '../components/realm/realmFoodExpeditionPresentation';
 import type { ReadyWoodExpeditionPresentation } from '../components/realm/realmWoodExpeditionPresentation';
 import type { ReadyStoneExpeditionPresentation } from '../components/realm/realmStoneExpeditionPresentation';
+import type {
+  RealmWorkerNodeOccupation,
+  RealmWorkerPublicPresentation,
+  RealmWorkerSystemPresentation,
+  WorkerRosterPresentation,
+  ReadyWorkerResourceState,
+  ReadyWorkerProjection
+} from '../components/realm/realmWorkerPresentation';
 
 export type WarpkeepAdmissionStatus =
   | 'not_admitted'
@@ -179,6 +187,10 @@ export type WarpkeepStoneNodeOccupation = Readonly<{
   returnsAtMicros: bigint;
 }>;
 
+export type WarpkeepRealmWorkerSystem = RealmWorkerSystemPresentation;
+export type WarpkeepCastleWorker = RealmWorkerPublicPresentation;
+export type WarpkeepWorkerNodeOccupation = RealmWorkerNodeOccupation;
+
 /**
  * Public, immutable realm-wide forest layout metadata. This is visual state
  * only: server-side seeding authority and all administrative reducers remain
@@ -342,6 +354,10 @@ export type WarpkeepRealmSnapshotCandidate = Readonly<{
   stoneSites?: readonly WarpkeepStoneSite[];
   /** Omitted with `stoneSites`; absent/invalid data renders no Stone nodes. */
   stoneNodeOccupations?: readonly WarpkeepStoneNodeOccupation[];
+  /** Additive generic-worker public projection; absent keeps legacy mode. */
+  workerSystem?: WarpkeepRealmWorkerSystem;
+  workerWorkers?: readonly WarpkeepCastleWorker[];
+  workerOccupations?: readonly WarpkeepWorkerNodeOccupation[];
   /**
    * Additive public forest metadata. The connection publishes the pair only
    * after one atomic subscription applies; a one-sided test/malformed value
@@ -389,6 +405,11 @@ export type WarpkeepBackendState = Readonly<{
   woodExpedition?: ReadyWoodExpeditionPresentation;
   /** Caller-only, exact procedure projection for the active Stone expedition. */
   stoneExpedition?: ReadyStoneExpeditionPresentation;
+  /** Caller-private generic roster, never copied into the public snapshot. */
+  workerRoster?: WorkerRosterPresentation;
+  /** v2 resource balances used by the active worker HUD. */
+  workerResourceState?: ReadyWorkerResourceState;
+  workerProjection?: ReadyWorkerProjection;
 }>;
 
 export const IDLE_WARPKEEP_BACKEND_STATE: WarpkeepBackendState = Object.freeze({

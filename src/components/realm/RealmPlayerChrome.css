@@ -436,3 +436,4 @@
     transition: none;
   }
 }
+.realm-worker-control{position:fixed;top:clamp(.75rem,2.2vw,1.5rem);right:clamp(4.8rem,9vw,7rem);z-index:8;display:flex;align-items:center;gap:.3rem;min-width:3.15rem;min-height:2.8rem;padding:.35rem .55rem;border:1px solid rgb(240 207 130 / 58%);border-radius:999px;background:linear-gradient(180deg,rgb(49 34 63 / 94%),rgb(16 16 24 / 96%));color:#f7dda0;box-shadow:0 .35rem 1rem rgb(0 0 0 / 28%);font-size:.7rem;cursor:pointer}.realm-worker-control span{display:grid;width:1.35rem;height:1.35rem;place-items:center;border:1px solid rgb(205 158 240 / 56%);border-radius:50%;color:#d7b7ee;font-size:.63rem;font-weight:900}.realm-worker-control strong{font-size:.68rem;letter-spacing:.04em}.realm-worker-control:focus-visible{outline:2px solid #f5d994;outline-offset:2px}

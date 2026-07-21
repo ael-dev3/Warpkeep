@@ -596,6 +596,13 @@ export function validateCanonicalGenesisSnapshot(
   const stoneNodeOccupations = stoneSites !== undefined
     ? freezeRows(candidate.stoneNodeOccupations!)
     : undefined;
+  // Generic workers are a staged additive projection. Preserve only the
+  // complete public trio; absent or malformed rows keep the legacy renderer
+  // path instead of revoking the canonical world snapshot.
+  const rawWorkerSystem = candidate.workerSystem;
+  const workerSystem = rawWorkerSystem === undefined ? undefined : freezePresentationValue(rawWorkerSystem);
+  const workerWorkers = candidate.workerWorkers === undefined ? undefined : freezePresentationValue(candidate.workerWorkers);
+  const workerOccupations = candidate.workerOccupations === undefined ? undefined : freezePresentationValue(candidate.workerOccupations);
   // The shared forest is another additive presentation pair. Keep each
   // field's presence intact for the browser-safe layout policy to verify. A
   // v6-but-unseeded `{ forestTrees: [] }`, a one-sided table, or malformed
@@ -631,6 +638,9 @@ export function validateCanonicalGenesisSnapshot(
     ...(woodNodeOccupations === undefined ? {} : { woodNodeOccupations }),
     ...(stoneSites === undefined ? {} : { stoneSites }),
     ...(stoneNodeOccupations === undefined ? {} : { stoneNodeOccupations }),
+    ...(workerSystem === undefined ? {} : { workerSystem }),
+    ...(workerWorkers === undefined ? {} : { workerWorkers }),
+    ...(workerOccupations === undefined ? {} : { workerOccupations }),
     ...(forestLayout === undefined ? {} : { forestLayout }),
     ...(forestTrees === undefined ? {} : { forestTrees }),
     ...(waterProjection.layout === undefined ? {} : { waterLayout: waterProjection.layout }),
