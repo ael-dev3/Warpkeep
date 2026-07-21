@@ -612,6 +612,11 @@ function CanonicalRealmMapScreen({
   rendererModeRef.current = rendererMode;
   const rendererLifecycleRef = useRef(rendererLifecycle);
   rendererLifecycleRef.current = rendererLifecycle;
+  // Scene callbacks can arrive after React has already retired their effect.
+  // Keep the active generation in a synchronous ref so stale scenes cannot
+  // publish ready/failure state into a newer renderer.
+  const activeRendererGenerationRef = useRef(0);
+  const lastSuccessfulRendererGenerationRef = useRef(0);
   const rendererRecoveryTimerRef = useRef<number | null>(null);
   const rendererRecoveryNonceRef = useRef(0);
   const [rendererRecoveryNonce, setRendererRecoveryNonce] = useState(0);
@@ -899,10 +904,12 @@ function CanonicalRealmMapScreen({
       : classifyRealmRendererFailure(failureInput, current.state);
     if (failure.code === 'webgl-unavailable') {
       rendererModeRef.current = current.everReady ? 'loading' : 'fallback';
-      setRendererLifecycle(transitionRealmRendererLifecycle(current, {
+      const nextLifecycle = transitionRealmRendererLifecycle(current, {
         type: 'webgl-unsupported',
         failure
-      }));
+      });
+      rendererLifecycleRef.current = nextLifecycle;
+      setRendererLifecycle(nextLifecycle);
       return;
     }
     // Stop accepting pointer/camera mutations synchronously, before React has
@@ -911,11 +918,13 @@ function CanonicalRealmMapScreen({
     rendererModeRef.current = 'loading';
     if (shouldRetryRealmRenderer(current, failure)) {
       const nextAttempt = current.attempt + 1;
-      setRendererLifecycle(transitionRealmRendererLifecycle(current, {
+      const nextLifecycle = transitionRealmRendererLifecycle(current, {
         type: 'recover',
         failure,
         attempt: nextAttempt
-      }));
+      });
+      rendererLifecycleRef.current = nextLifecycle;
+      setRendererLifecycle(nextLifecycle);
       if (failure.code !== 'context-lost') {
         rendererRecoveryNonceRef.current += 1;
         setRendererRecoveryNonce(rendererRecoveryNonceRef.current);
@@ -931,15 +940,19 @@ function CanonicalRealmMapScreen({
             phase: latest.state,
             message: 'The browser did not restore the Realm graphics context in time.'
           };
-          setRendererLifecycle(transitionRealmRendererLifecycle(latest, {
+          const failedLifecycle = transitionRealmRendererLifecycle(latest, {
             type: 'failed',
             failure: timeoutFailure
-          }));
+          });
+          rendererLifecycleRef.current = failedLifecycle;
+          setRendererLifecycle(failedLifecycle);
         }, REALM_RENDERER_CONTEXT_RESTORE_TIMEOUT_MS);
       }
       return;
     }
-    setRendererLifecycle(transitionRealmRendererLifecycle(current, { type: 'failed', failure }));
+    const failedLifecycle = transitionRealmRendererLifecycle(current, { type: 'failed', failure });
+    rendererLifecycleRef.current = failedLifecycle;
+    setRendererLifecycle(failedLifecycle);
   }, []);
 
   const retryRenderer = useCallback(() => {
@@ -947,10 +960,12 @@ function CanonicalRealmMapScreen({
       window.clearTimeout(rendererRecoveryTimerRef.current);
       rendererRecoveryTimerRef.current = null;
     }
-    setRendererLifecycle(transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
+    const loadingLifecycle = transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
       type: 'load-start',
       attempt: 0
-    }));
+    });
+    rendererLifecycleRef.current = loadingLifecycle;
+    setRendererLifecycle(loadingLifecycle);
     rendererModeRef.current = 'loading';
     rendererRecoveryNonceRef.current += 1;
     setRendererRecoveryNonce(rendererRecoveryNonceRef.current);
@@ -1284,11 +1299,16 @@ function CanonicalRealmMapScreen({
     }
 
     let scene: RealmSceneHandle | null = null;
+    const rendererGeneration = rendererLifecycleRef.current.generation + 1;
+    const loadingLifecycle = transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
+      type: 'load-start',
+      attempt: rendererLifecycleRef.current.attempt,
+      generation: rendererGeneration
+    });
+    activeRendererGenerationRef.current = rendererGeneration;
+    rendererLifecycleRef.current = loadingLifecycle;
     try {
-      setRendererLifecycle(transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
-        type: 'load-start',
-        attempt: rendererLifecycleRef.current.attempt
-      }));
+      setRendererLifecycle(loadingLifecycle);
       latestProjectionRef.current = { width: 0, height: 0, castles: [] };
       labelMembershipSignatureRef.current = '';
       latestVisibleCastleLabelsRef.current = [];
@@ -1363,6 +1383,7 @@ function CanonicalRealmMapScreen({
         sharedForestTrees: sharedForestProjection.trees,
         waterCells,
         realmId: snapshot.realm.realmId,
+        rendererGeneration,
         // The retired local planner is exposed only to the synthetic dev
         // observer. Player scenes wait for the paired shared public tables.
         allowLegacyForestFallback: observerMode,
@@ -1376,6 +1397,7 @@ function CanonicalRealmMapScreen({
         onTargetHover: handleSceneTargetHover,
         onKeepStatusChange: () => undefined,
         onCastlesReady: (castleCount) => {
+          if (activeRendererGenerationRef.current !== rendererGeneration) return;
           if (castleCount !== expectedCastleCountRef.current) {
             markRendererFailure({
               code: 'castle-count-mismatch',
@@ -1387,8 +1409,10 @@ function CanonicalRealmMapScreen({
           }
           rendererModeRef.current = 'webgl';
           const activeLod = canvas.dataset.realmCastleActiveLod;
+          lastSuccessfulRendererGenerationRef.current = rendererGeneration;
           setRendererLifecycle(transitionRealmRendererLifecycle(rendererLifecycleRef.current, {
             type: 'ready',
+            generation: rendererGeneration,
             degradedQuality: activeLod === 'compact' || activeLod === 'balanced'
               ? activeLod
               : undefined
@@ -1402,8 +1426,13 @@ function CanonicalRealmMapScreen({
         onStoneNodePresentationTelemetry: updateStoneNodePresentationTelemetry,
         onTerrainPresentationTelemetry: updateTerrainPresentationTelemetry,
         onCastleProjection: updateCastleProjection,
-        onRendererFailure: markRendererFailure,
+        onRendererFailure: (failure) => {
+          if (activeRendererGenerationRef.current === rendererGeneration) {
+            markRendererFailure(failure);
+          }
+        },
         onRendererContextRestored: () => {
+          if (activeRendererGenerationRef.current !== rendererGeneration) return;
           if (rendererRecoveryTimerRef.current !== null) {
             window.clearTimeout(rendererRecoveryTimerRef.current);
             rendererRecoveryTimerRef.current = null;
@@ -1459,7 +1488,9 @@ function CanonicalRealmMapScreen({
         scene.restoreCameraAttestation?.(attestation);
       }
     } catch (error) {
-      markRendererFailure(classifyRealmRendererFailure(error, 'loading'));
+      if (activeRendererGenerationRef.current === rendererGeneration) {
+        markRendererFailure(classifyRealmRendererFailure(error, 'loading'));
+      }
     }
 
     return () => {
@@ -1472,6 +1503,9 @@ function CanonicalRealmMapScreen({
       }
       scene?.dispose();
       if (sceneRef.current === scene) sceneRef.current = null;
+      if (activeRendererGenerationRef.current === rendererGeneration) {
+        activeRendererGenerationRef.current = 0;
+      }
       if (rendererRecoveryTimerRef.current !== null) {
         window.clearTimeout(rendererRecoveryTimerRef.current);
         rendererRecoveryTimerRef.current = null;
@@ -1620,6 +1654,7 @@ function CanonicalRealmMapScreen({
       data-renderer-failure={rendererLifecycle.failure?.code ?? 'none'}
       data-renderer-failure-code={rendererLifecycle.failure?.code ?? 'none'}
       data-renderer-generation={String(rendererLifecycle.generation)}
+      data-renderer-last-successful-generation={String(lastSuccessfulRendererGenerationRef.current)}
       data-renderer-context-loss-count={canvasTelemetry?.realmRendererContextLossCount ?? '0'}
       data-renderer-context-restore-count={canvasTelemetry?.realmRendererContextRestoreCount ?? '0'}
       data-renderer-degraded-quality={rendererLifecycle.degradedQuality ?? 'none'}

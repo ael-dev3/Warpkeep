@@ -22,6 +22,50 @@ export type GraphicsCapabilityInput = Readonly<{
   maxTextureSize?: number;
 }>;
 
+export type WebGL2Capability = Readonly<{
+  available: boolean;
+  maxTextureSize?: number;
+}>;
+
+let cachedWebGL2Capability: WebGL2Capability | undefined;
+
+/**
+ * Probe the renderer contract once without mutating the context. The Realm
+ * and title renderer must share this capability result so a feature probe can
+ * never consume or deliberately lose the context that a real scene needs.
+ */
+export function probeWebGL2Capability(): WebGL2Capability {
+  if (cachedWebGL2Capability !== undefined) return cachedWebGL2Capability;
+  if (typeof document === 'undefined') return Object.freeze({ available: false });
+  try {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('webgl2');
+    if (!context) {
+      cachedWebGL2Capability = Object.freeze({ available: false });
+      return cachedWebGL2Capability;
+    }
+    let maxTextureSize: number | undefined;
+    try {
+      const measured = context.getParameter(context.MAX_TEXTURE_SIZE);
+      if (typeof measured === 'number' && Number.isFinite(measured) && measured > 0) {
+        maxTextureSize = measured;
+      }
+    } catch {
+      // A context can be usable even when a non-essential capability query is
+      // blocked by the browser; quality resolution handles an unknown size.
+    }
+    cachedWebGL2Capability = Object.freeze({ available: true, maxTextureSize });
+  } catch {
+    cachedWebGL2Capability = Object.freeze({ available: false });
+  }
+  return cachedWebGL2Capability;
+}
+
+/** Test-only reset; production callers should retain the shared probe cache. */
+export function resetWebGL2CapabilityForTests() {
+  cachedWebGL2Capability = undefined;
+}
+
 export type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export function isGraphicsPreference(value: unknown): value is GraphicsPreference {
@@ -110,17 +154,7 @@ export function browserGraphicsCapabilities(): GraphicsCapabilityInput {
   const navigatorWithMemory = typeof navigator === 'undefined'
     ? undefined
     : navigator as Navigator & { deviceMemory?: number };
-  let maxTextureSize: number | undefined;
-  if (typeof document !== 'undefined') {
-    try {
-      const probe = document.createElement('canvas');
-      const context = probe.getContext('webgl2');
-      maxTextureSize = context?.getParameter(context.MAX_TEXTURE_SIZE) as number | undefined;
-      context?.getExtension('WEBGL_lose_context')?.loseContext();
-    } catch {
-      maxTextureSize = undefined;
-    }
-  }
+  const maxTextureSize = probeWebGL2Capability().maxTextureSize;
   return {
     width: typeof window === 'undefined' ? 1280 : window.innerWidth,
     height: typeof window === 'undefined' ? 720 : window.innerHeight,

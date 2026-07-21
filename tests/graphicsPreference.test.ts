@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_GRAPHICS_PREFERENCE,
+  probeWebGL2Capability,
+  resetWebGL2CapabilityForTests,
   WARPKEEP_GRAPHICS_PREFERENCE_KEY,
   parseGraphicsPreference,
   readGraphicsPreference,
@@ -23,9 +25,27 @@ function memoryStorage() {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  resetWebGL2CapabilityForTests();
 });
 
 describe('graphics preference', () => {
+  it('shares one non-destructive WebGL2 capability probe', () => {
+    const context = {
+      MAX_TEXTURE_SIZE: 0x0d33,
+      getParameter: vi.fn(() => 8_192),
+      getExtension: vi.fn()
+    };
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockImplementation(((contextId: string) => (
+        contextId === 'webgl2' ? context : null
+      )) as typeof HTMLCanvasElement.prototype.getContext);
+
+    expect(probeWebGL2Capability()).toEqual({ available: true, maxTextureSize: 8_192 });
+    expect(probeWebGL2Capability()).toEqual({ available: true, maxTextureSize: 8_192 });
+    expect(getContext).toHaveBeenCalledTimes(1);
+    expect(context.getExtension).not.toHaveBeenCalled();
+  });
+
   it('validates and persists only the versioned visual preference', () => {
     const storage = memoryStorage();
     expect(parseGraphicsPreference('obsolete')).toBe(DEFAULT_GRAPHICS_PREFERENCE);

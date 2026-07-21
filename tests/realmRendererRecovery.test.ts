@@ -70,6 +70,33 @@ describe('Realm renderer recovery lifecycle', () => {
     expect(second.generation).toBe(9);
   });
 
+  it('ignores readiness, recovery, and failure callbacks from retired generations', () => {
+    const first = transitionRealmRendererLifecycle(initialRealmRendererLifecycle(), {
+      type: 'load-start',
+      generation: 1
+    });
+    const current = transitionRealmRendererLifecycle(first, {
+      type: 'load-start',
+      generation: 2
+    });
+    expect(transitionRealmRendererLifecycle(current, {
+      type: 'ready',
+      generation: 1
+    })).toBe(current);
+    expect(transitionRealmRendererLifecycle(current, {
+      type: 'recover',
+      generation: 1,
+      failure: { code: 'context-lost', retryable: true, phase: 'loading' }
+    })).toBe(current);
+    expect(transitionRealmRendererLifecycle(current, {
+      type: 'failed',
+      generation: 1,
+      failure: { code: 'scene-build-failed', retryable: true, phase: 'loading' }
+    })).toBe(current);
+    expect(current.state).toBe('loading');
+    expect(current.generation).toBe(2);
+  });
+
   it('classifies integrity and pairing failures as explicit non-retryable failures', () => {
     expect(classifyRealmRendererFailure(new Error('sha256 integrity mismatch'), 'loading').code)
       .toBe('castle-integrity-failed');

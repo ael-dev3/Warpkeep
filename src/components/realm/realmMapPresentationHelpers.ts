@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 
 import { axialToWorld, type HexCoord } from '../../game/map/hexCoordinates';
 import { terrainCellByCoord } from '../../game/map/generateTerrainMap';
+import {
+  probeWebGL2Capability,
+  resetWebGL2CapabilityForTests
+} from '../../settings/graphicsPreference';
 import type { RealmTerrainSurface } from '../../game/map/realmTerrainSurface';
 import type { TerrainCell } from '../../game/map/terrainTypes';
 import {
@@ -76,30 +80,12 @@ export function directionForKey(key: string): HexCoord | null {
   }
 }
 
-let cachedWebGlCapability: boolean | undefined;
-
-/**
- * Probe once per document without deliberately destroying a context. The old
- * probe used WEBGL_lose_context as a feature test, which could leave the next
- * real canvas in the exact terminal state we are trying to recover from.
- */
 export function canUseWebGL() {
-  if (cachedWebGlCapability !== undefined) return cachedWebGlCapability;
-  try {
-    const canvas = document.createElement('canvas');
-    // WebGL2 is the renderer's authoritative capability. WebGL1 can report a
-    // usable context while still lacking the instancing, texture, and shader
-    // contracts required by the Realm scene, so it must not enter the 3D path.
-    const context = canvas.getContext('webgl2');
-    cachedWebGlCapability = Boolean(context);
-  } catch {
-    cachedWebGlCapability = false;
-  }
-  return cachedWebGlCapability;
+  return probeWebGL2Capability().available;
 }
 
 export function resetWebGLCapabilityForTests() {
-  cachedWebGlCapability = undefined;
+  resetWebGL2CapabilityForTests();
 }
 
 export function pointsForSvg(coord: HexCoord) {
