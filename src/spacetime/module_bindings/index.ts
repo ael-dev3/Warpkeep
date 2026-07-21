@@ -68,6 +68,9 @@ import DispatchFoodExpeditionV1Reducer from "./dispatch_food_expedition_v_1_redu
 import DispatchGoldExpeditionV1Reducer from "./dispatch_gold_expedition_v_1_reducer";
 import DispatchStoneExpeditionV1Reducer from "./dispatch_stone_expedition_v_1_reducer";
 import DispatchWoodExpeditionV1Reducer from "./dispatch_wood_expedition_v_1_reducer";
+import DispatchWorkerV1Reducer from "./dispatch_worker_v_1_reducer";
+import RecallAllWorkersV1Reducer from "./recall_all_workers_v_1_reducer";
+import RecallWorkerV1Reducer from "./recall_worker_v_1_reducer";
 
 // Import all procedure arg schemas
 import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedure";
@@ -78,8 +81,10 @@ import * as AdminGetAlphaStatusV8Procedure from "./admin_get_alpha_status_v_8_pr
 import * as AdminGetAlphaStatusV10Procedure from "./admin_get_alpha_status_v_10_procedure";
 import * as AdminGetFidAuthEpochProcedure from "./admin_get_fid_auth_epoch_procedure";
 import * as AdminGetSnapScanBatchAggregateV1Procedure from "./admin_get_snap_scan_batch_aggregate_v_1_procedure";
+import * as AdminGetWorkerSystemStatusV1Procedure from "./admin_get_worker_system_status_v_1_procedure";
 import * as AdminInspectGenesisWaterLayoutV1Procedure from "./admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AdminInspectGenesisWaterRevisionV1Procedure from "./admin_inspect_genesis_water_revision_v_1_procedure";
+import * as AdminPlanWorkerRosterV1Procedure from "./admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "./get_my_admission_status_procedure";
@@ -87,14 +92,17 @@ import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_
 import * as GetMyFoodExpeditionStateV1Procedure from "./get_my_food_expedition_state_v_1_procedure";
 import * as GetMyGoldExpeditionStateV1Procedure from "./get_my_gold_expedition_state_v_1_procedure";
 import * as GetMyResourceStateV1Procedure from "./get_my_resource_state_v_1_procedure";
+import * as GetMyResourceStateV2Procedure from "./get_my_resource_state_v_2_procedure";
 import * as GetMyStoneExpeditionStateV1Procedure from "./get_my_stone_expedition_state_v_1_procedure";
 import * as GetMyWoodExpeditionStateV1Procedure from "./get_my_wood_expedition_state_v_1_procedure";
+import * as GetMyWorkerRosterV1Procedure from "./get_my_worker_roster_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "./qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_snapshot_v_1_procedure";
 
 // Import all table schema definitions
 import CastleRow from "./castle_table";
 import CastleSlotV1Row from "./castle_slot_v_1_table";
+import CastleWorkerV1Row from "./castle_worker_v_1_table";
 import FoodExpeditionScheduleV1Row from "./food_expedition_schedule_v_1_table";
 import FoodNodeOccupationV1Row from "./food_node_occupation_v_1_table";
 import FoodSiteV1Row from "./food_site_v_1_table";
@@ -112,12 +120,15 @@ import RealmWaterBodyV1Row from "./realm_water_body_v_1_table";
 import RealmWaterCellV1Row from "./realm_water_cell_v_1_table";
 import RealmWaterLayoutV1Row from "./realm_water_layout_v_1_table";
 import RealmWaterRevisionV1Row from "./realm_water_revision_v_1_table";
+import RealmWorkerSystemV1Row from "./realm_worker_system_v_1_table";
 import StoneExpeditionScheduleV1Row from "./stone_expedition_schedule_v_1_table";
 import StoneNodeOccupationV1Row from "./stone_node_occupation_v_1_table";
 import StoneSiteV1Row from "./stone_site_v_1_table";
 import WoodExpeditionScheduleV1Row from "./wood_expedition_schedule_v_1_table";
 import WoodNodeOccupationV1Row from "./wood_node_occupation_v_1_table";
 import WoodSiteV1Row from "./wood_site_v_1_table";
+import WorkerAssignmentScheduleV1Row from "./worker_assignment_schedule_v_1_table";
+import WorkerNodeOccupationV1Row from "./worker_node_occupation_v_1_table";
 import WorldTileRow from "./world_tile_table";
 import WorldTileMetaV1Row from "./world_tile_meta_v_1_table";
 
@@ -162,6 +173,20 @@ const tablesSchema = __schema({
       { name: 'castle_slot_v1_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
     ],
   }, CastleSlotV1Row),
+  castleWorkerV1: __table({
+    name: 'castle_worker_v1',
+    indexes: [
+      { accessor: 'byOriginCastle', name: 'castle_worker_v1_origin_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'originCastleId',
+      ] },
+      { accessor: 'workerId', name: 'castle_worker_v1_worker_id_idx_btree', algorithm: 'btree', columns: [
+        'workerId',
+      ] },
+    ],
+    constraints: [
+      { name: 'castle_worker_v1_worker_id_key', constraint: 'unique', columns: ['workerId'] },
+    ],
+  }, CastleWorkerV1Row),
   foodExpeditionScheduleV1: __table({
     name: 'food_expedition_schedule_v_1',
     indexes: [
@@ -391,6 +416,17 @@ const tablesSchema = __schema({
       { name: 'realm_water_revision_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
     ],
   }, RealmWaterRevisionV1Row),
+  realmWorkerSystemV1: __table({
+    name: 'realm_worker_system_v1',
+    indexes: [
+      { accessor: 'realmId', name: 'realm_worker_system_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_worker_system_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
+    ],
+  }, RealmWorkerSystemV1Row),
   stoneExpeditionScheduleV1: __table({
     name: 'stone_expedition_schedule_v_1',
     indexes: [
@@ -475,6 +511,40 @@ const tablesSchema = __schema({
       { name: 'wood_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
     ],
   }, WoodSiteV1Row),
+  workerAssignmentScheduleV1: __table({
+    name: 'worker_assignment_schedule_v_1',
+    indexes: [
+      { accessor: 'byAssignment', name: 'worker_assignment_schedule_v_1_assignment_id_idx_btree', algorithm: 'btree', columns: [
+        'assignmentId',
+      ] },
+      { accessor: 'scheduleId', name: 'worker_assignment_schedule_v_1_schedule_id_idx_btree', algorithm: 'btree', columns: [
+        'scheduleId',
+      ] },
+      { accessor: 'byWorker', name: 'worker_assignment_schedule_v_1_worker_id_idx_btree', algorithm: 'btree', columns: [
+        'workerId',
+      ] },
+    ],
+    constraints: [
+      { name: 'worker_assignment_schedule_v_1_schedule_id_key', constraint: 'unique', columns: ['scheduleId'] },
+    ],
+  }, WorkerAssignmentScheduleV1Row),
+  workerNodeOccupationV1: __table({
+    name: 'worker_node_occupation_v1',
+    indexes: [
+      { accessor: 'nodeKey', name: 'worker_node_occupation_v1_node_key_idx_btree', algorithm: 'btree', columns: [
+        'nodeKey',
+      ] },
+      { accessor: 'byOriginCastle', name: 'worker_node_occupation_v1_origin_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'originCastleId',
+      ] },
+      { accessor: 'byWorker', name: 'worker_node_occupation_v1_worker_id_idx_btree', algorithm: 'btree', columns: [
+        'workerId',
+      ] },
+    ],
+    constraints: [
+      { name: 'worker_node_occupation_v1_node_key_key', constraint: 'unique', columns: ['nodeKey'] },
+    ],
+  }, WorkerNodeOccupationV1Row),
   worldTile: __table({
     name: 'world_tile',
     indexes: [
@@ -542,6 +612,9 @@ const reducersSchema = __reducers(
   __reducerSchema("dispatch_gold_expedition_v1", DispatchGoldExpeditionV1Reducer),
   __reducerSchema("dispatch_stone_expedition_v1", DispatchStoneExpeditionV1Reducer),
   __reducerSchema("dispatch_wood_expedition_v1", DispatchWoodExpeditionV1Reducer),
+  __reducerSchema("dispatch_worker_v1", DispatchWorkerV1Reducer),
+  __reducerSchema("recall_all_workers_v1", RecallAllWorkersV1Reducer),
+  __reducerSchema("recall_worker_v1", RecallWorkerV1Reducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
@@ -554,8 +627,10 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_alpha_status_v_10", AdminGetAlphaStatusV10Procedure.params, AdminGetAlphaStatusV10Procedure.returnType),
   __procedureSchema("admin_get_fid_auth_epoch", AdminGetFidAuthEpochProcedure.params, AdminGetFidAuthEpochProcedure.returnType),
   __procedureSchema("admin_get_snap_scan_batch_aggregate_v1", AdminGetSnapScanBatchAggregateV1Procedure.params, AdminGetSnapScanBatchAggregateV1Procedure.returnType),
+  __procedureSchema("admin_get_worker_system_status_v1", AdminGetWorkerSystemStatusV1Procedure.params, AdminGetWorkerSystemStatusV1Procedure.returnType),
   __procedureSchema("admin_inspect_genesis_water_layout_v1", AdminInspectGenesisWaterLayoutV1Procedure.params, AdminInspectGenesisWaterLayoutV1Procedure.returnType),
   __procedureSchema("admin_inspect_genesis_water_revision_v_1", AdminInspectGenesisWaterRevisionV1Procedure.params, AdminInspectGenesisWaterRevisionV1Procedure.returnType),
+  __procedureSchema("admin_plan_worker_roster_v1", AdminPlanWorkerRosterV1Procedure.params, AdminPlanWorkerRosterV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
   __procedureSchema("get_my_admission_status", GetMyAdmissionStatusProcedure.params, GetMyAdmissionStatusProcedure.returnType),
@@ -563,8 +638,10 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_my_food_expedition_state_v1", GetMyFoodExpeditionStateV1Procedure.params, GetMyFoodExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_gold_expedition_state_v1", GetMyGoldExpeditionStateV1Procedure.params, GetMyGoldExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_resource_state_v1", GetMyResourceStateV1Procedure.params, GetMyResourceStateV1Procedure.returnType),
+  __procedureSchema("get_my_resource_state_v2", GetMyResourceStateV2Procedure.params, GetMyResourceStateV2Procedure.returnType),
   __procedureSchema("get_my_stone_expedition_state_v1", GetMyStoneExpeditionStateV1Procedure.params, GetMyStoneExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_wood_expedition_state_v1", GetMyWoodExpeditionStateV1Procedure.params, GetMyWoodExpeditionStateV1Procedure.returnType),
+  __procedureSchema("get_my_worker_roster_v1", GetMyWorkerRosterV1Procedure.params, GetMyWorkerRosterV1Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_attestation_v2", QaObserverGetRealmAttestationV2Procedure.params, QaObserverGetRealmAttestationV2Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_snapshot_v1", QaObserverGetRealmSnapshotV1Procedure.params, QaObserverGetRealmSnapshotV1Procedure.returnType),
 );

@@ -128,6 +128,7 @@ test('generated bindings contain the public projections and omit every private e
   const publicTableFiles = [
     'castle_slot_v_1_table.ts',
     'castle_table.ts',
+    'castle_worker_v_1_table.ts',
     'food_expedition_schedule_v_1_table.ts',
     'food_node_occupation_v_1_table.ts',
     'food_site_v_1_table.ts',
@@ -145,12 +146,15 @@ test('generated bindings contain the public projections and omit every private e
     'realm_water_cell_v_1_table.ts',
     'realm_water_layout_v_1_table.ts',
     'realm_water_revision_v_1_table.ts',
+    'realm_worker_system_v_1_table.ts',
     'stone_expedition_schedule_v_1_table.ts',
     'stone_node_occupation_v_1_table.ts',
     'stone_site_v_1_table.ts',
     'wood_expedition_schedule_v_1_table.ts',
     'wood_node_occupation_v_1_table.ts',
     'wood_site_v_1_table.ts',
+    'worker_assignment_schedule_v_1_table.ts',
+    'worker_node_occupation_v_1_table.ts',
     'world_tile_meta_v_1_table.ts',
     'world_tile_table.ts',
   ];

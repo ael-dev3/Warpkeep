@@ -2,6 +2,7 @@ import { SenderError, t } from 'spacetimedb/server';
 
 import { WARPKEEP_BACKEND_PROTOCOL_VERSION } from '../config';
 import { requireAdmin, requireGameplayPlayerV1 } from '../auth';
+import { castleWorkerErrorCode, settleAllWorkerAssignmentsForFid } from '../castleWorkerAuthority';
 import { markAccountIsConsistent } from '../marksAuthorityPolicy';
 import {
   ResourceAuthorityError,
@@ -73,6 +74,8 @@ const adminAlphaStatusV4 = t.object('AdminAlphaStatusV4', {
 });
 
 function senderPolicyError(error: unknown): never {
+  const workerCode = castleWorkerErrorCode(error);
+  if (workerCode !== undefined) throw new SenderError(workerCode);
   const foodExpeditionCode = foodExpeditionErrorCode(error);
   if (foodExpeditionCode !== undefined) throw new SenderError(foodExpeditionCode);
   const woodExpeditionCode = woodExpeditionErrorCode(error);
@@ -165,6 +168,10 @@ export const collectResourcesV1 = warpkeep.reducer(
       collectActiveFoodExpedition(ctx, claims.fid);
       collectActiveWoodExpedition(ctx, claims.fid);
       collectActiveStoneExpedition(ctx, claims.fid);
+      // Generic workers settle into the same private inventory at this exact
+      // server timestamp. This keeps the legacy collect reducer compatible
+      // while new clients use get_my_resource_state_v2 for no-write reads.
+      settleAllWorkerAssignmentsForFid(ctx, claims.fid);
       const resourceAfterExpeditions = assertGenesisResourceForFid(ctx, claims.fid);
       const settlement = planResourceSettlementForActiveExpeditionReservations(
         ctx,

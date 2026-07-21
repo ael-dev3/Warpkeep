@@ -69,6 +69,7 @@
     "stdb:generate": "node scripts/generate-spacetime-bindings.mjs",
     "stdb:verify-bindings": "node scripts/verify-spacetime-bindings.mjs",
     "stdb:verify-additive-migration": "node scripts/verify-spacetime-additive-migration.mjs",
+    "stdb:verify-worker-migration": "node scripts/verify-castle-worker-additive-migration.mjs",
     "stdb:publish:dev": "node scripts/publish-spacetime-dev.mjs",
     "stdb:seed-world": "tsx scripts/hermes-admin.ts seed-world",
     "stdb:expand-world-v3": "tsx scripts/hermes-admin.ts expand-world-v3",

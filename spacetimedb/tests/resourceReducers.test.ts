@@ -78,6 +78,12 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
     'stoneExpeditionIdempotencyV1',
     'stoneExpeditionScheduleV1',
     'realmWaterRevisionV1',
+    'realmWorkerSystemV1',
+    'castleWorkerV1',
+    'workerAssignmentV1',
+    'workerNodeOccupationV1',
+    'workerCommandIdempotencyV1',
+    'workerAssignmentScheduleV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');
