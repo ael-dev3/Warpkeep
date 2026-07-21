@@ -520,6 +520,39 @@
   font-weight: 800;
 }
 
+.realm-cell-navigator__water {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.8rem;
+}
+
+.realm-cell-navigator__water > span {
+  color: var(--realm-muted);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.realm-cell-navigator__water-row {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.58rem 0.65rem;
+  border: 1px solid rgb(145 217 216 / 22%);
+  border-radius: 0.35rem;
+  background: rgb(19 59 70 / 24%);
+}
+
+.realm-cell-navigator__water-row > div {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.realm-cell-navigator__water-row > div button {
+  width: auto;
+  padding: 0.28rem 0.45rem;
+  font-size: 0.625rem;
+}
+
 .realm-cell-navigator__community {
   display: grid;
   gap: 0.22rem;

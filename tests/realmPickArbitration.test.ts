@@ -105,4 +105,45 @@ describe('realm scene pick arbitration', () => {
       terrainHit: { coord: { q: -2, r: 1 } }
     })).toEqual({ kind: 'terrain', coord: { q: -2, r: 1 } });
   });
+
+  it('places a visible water cell after static sites and before terrain', () => {
+    expect(arbitrateRealmPick({
+      resourceHits: [],
+      waterHit: {
+        cellKey: 'genesis-001:river:01:0001',
+        bodyId: 'genesis-001:river:01',
+        regime: 'river',
+        coord: { q: 2, r: -1 },
+        distance: 8
+      },
+      terrainHit: { coord: { q: 2, r: -1 } }
+    })).toEqual({
+      kind: 'water-cell',
+      cellKey: 'genesis-001:river:01:0001',
+      bodyId: 'genesis-001:river:01',
+      regime: 'river',
+      coord: { q: 2, r: -1 }
+    });
+    expect(arbitrateRealmPick({
+      resourceHits: [{
+        kind: 'gold-site',
+        siteId: 'gold-1',
+        coord: { q: 2, r: -1 },
+        source: 'site',
+        distance: 12
+      }],
+      waterHit: {
+        cellKey: 'ocean:1',
+        bodyId: 'genesis-001:ocean',
+        regime: 'ocean',
+        coord: { q: 2, r: -1 },
+        distance: 1
+      }
+    })).toEqual({
+      kind: 'gold-site',
+      siteId: 'gold-1',
+      coord: { q: 2, r: -1 },
+      source: 'site'
+    });
+  });
 });

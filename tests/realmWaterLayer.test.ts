@@ -172,6 +172,39 @@ describe('Realm canonical water layer', () => {
     layer.dispose();
   });
 
+  it('maps bounded ray hits back to one visible water cell and excludes full fog', () => {
+    const layer = createRealmWaterLayer({
+      cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
+      quality: REALM_QUALITY_SPECS.reduced,
+      reducedMotion: true,
+      hexSize: 1,
+      heightAtWorld: canonicalHeightAtWorld
+    });
+    const river = activeRiverCells[0]!;
+    const riverWorld = axialToWorld(river, 1);
+    const raycaster = new THREE.Raycaster(
+      new THREE.Vector3(riverWorld.x, 10, riverWorld.z),
+      new THREE.Vector3(0, -1, 0)
+    );
+    expect(layer.raycast(raycaster)).toMatchObject({
+      cellKey: river.cellKey,
+      bodyId: river.bodyId,
+      regime: 'river',
+      coord: { q: river.q, r: river.r }
+    });
+    const fullFog = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
+      (cell) => cell.regime === 'ocean' && cell.fogBand === 'full'
+    );
+    expect(fullFog).toBeDefined();
+    const fogWorld = axialToWorld(fullFog!, 1);
+    const fogRaycaster = new THREE.Raycaster(
+      new THREE.Vector3(fogWorld.x, 10, fogWorld.z),
+      new THREE.Vector3(0, -1, 0)
+    );
+    expect(layer.raycast(fogRaycaster)).toBeNull();
+    layer.dispose();
+  });
+
   it('keeps every canonical river surface clear and every shared edge continuous', () => {
     const layer = createRealmWaterLayer({
       cells: GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
@@ -341,8 +374,8 @@ describe('Realm canonical water layer', () => {
         hexSize: 1,
         heightAtWorld: canonicalHeightAtWorld
       })).toThrow('REALM_WATER_RENDER_BUDGET_EXCEEDED');
-      expect(geometryDispose).toHaveBeenCalledTimes(4);
-      expect(materialDispose).toHaveBeenCalledTimes(4);
+      expect(geometryDispose).toHaveBeenCalledTimes(6);
+      expect(materialDispose).toHaveBeenCalledTimes(6);
     } finally {
       geometryDispose.mockRestore();
       materialDispose.mockRestore();

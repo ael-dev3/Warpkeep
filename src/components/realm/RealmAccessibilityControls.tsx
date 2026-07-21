@@ -25,6 +25,15 @@ export type RealmNavigatorCastle = Readonly<{
   r: number;
 }>;
 
+export type RealmNavigatorWaterBody = Readonly<{
+  bodyId: string;
+  label: string;
+  sourceCellKey: string;
+  mouthCellKey: string;
+  sourceCoord: HexCoord;
+  mouthCoord: HexCoord;
+}>;
+
 export type RealmNavigatorCloseReason = 'escape' | 'close-button' | 'camera-preset';
 
 export type RealmNavigatorCoordinateJump = Readonly<{
@@ -43,11 +52,13 @@ export type RealmAccessibilityControlsProps = Readonly<{
   id: string;
   open: boolean;
   castles: readonly RealmNavigatorCastle[];
+  waterBodies?: readonly RealmNavigatorWaterBody[];
   ownCastleId?: number;
   selectedCastleId?: number;
   onRequestOpen: () => void;
   onRequestClose: (reason: RealmNavigatorCloseReason) => void;
   onActivateCastle: (castle: RealmNavigatorCastle) => void;
+  onActivateWaterCell?: (cellKey: string) => void;
   coordinateJump?: RealmNavigatorCoordinateJump;
   cameraPresets?: readonly RealmNavigatorCameraPreset[];
   /** Player chrome may provide its own PFP launcher while reusing this dialog. */
@@ -75,11 +86,13 @@ export function RealmAccessibilityControls({
   id,
   open,
   castles,
+  waterBodies = [],
   ownCastleId,
   selectedCastleId,
   onRequestOpen,
   onRequestClose,
   onActivateCastle,
+  onActivateWaterCell,
   coordinateJump,
   cameraPresets = [],
   triggerVisible = true,
@@ -126,6 +139,16 @@ export function RealmAccessibilityControls({
       ? castles.filter((castle) => searchCopy(castle).includes(query))
       : castles;
   }, [castles, search]);
+  const visibleWaterBodies = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return query
+      ? waterBodies.filter((body) => (
+        `${body.label} ${body.sourceCoord.q},${body.sourceCoord.r} ${body.mouthCoord.q},${body.mouthCoord.r}`
+          .toLocaleLowerCase()
+          .includes(query)
+      ))
+      : waterBodies;
+  }, [search, waterBodies]);
 
   const handleDialogKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape') return;
@@ -164,7 +187,7 @@ export function RealmAccessibilityControls({
         <button
           ref={setTriggerRef}
           type="button"
-          aria-label={`Explore realm, ${castles.length} founded ${castles.length === 1 ? 'castle' : 'castles'}`}
+          aria-label={`Explore realm, ${castles.length} founded ${castles.length === 1 ? 'castle' : 'castles'}${waterBodies.length > 0 ? ` and ${waterBodies.length} public rivers` : ''}`}
           aria-controls={id}
           aria-expanded={open}
           aria-haspopup="dialog"
@@ -290,6 +313,26 @@ export function RealmAccessibilityControls({
                 : 'No founded castles are available.'}
             </p>
           )}
+
+          {visibleWaterBodies.length > 0 && onActivateWaterCell ? (
+            <section className="realm-cell-navigator__water" aria-label="Public rivers">
+              <span>PUBLIC WATER</span>
+              <ul className="realm-cell-navigator__castles">
+                {visibleWaterBodies.map((body) => (
+                  <li key={body.bodyId}>
+                    <div className="realm-cell-navigator__water-row">
+                      <strong>{body.label}</strong>
+                      <small>source {body.sourceCoord.q},{body.sourceCoord.r} · mouth {body.mouthCoord.q},{body.mouthCoord.r}</small>
+                      <div>
+                        <button type="button" onClick={() => onActivateWaterCell(body.sourceCellKey)}>SOURCE</button>
+                        <button type="button" onClick={() => onActivateWaterCell(body.mouthCellKey)}>MOUTH</button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           {coordinateJump ? (
             <form className="realm-cell-navigator__jump" onSubmit={handleJump}>
