@@ -117,6 +117,7 @@ export function WaterInspectionPanel({
                 <PublicField label="River cell" value={`${(record.riverOrder ?? 0) + 1} / ${record.riverCellCount}`} />
                 <PublicField label="Source → mouth" value={`${record.sourceCoord?.q},${record.sourceCoord?.r} → ${record.mouthCoord?.q},${record.mouthCoord?.r}`} />
                 <PublicField label="Flow" value={record.downstreamWaterCellKey ? 'downstream link recorded' : 'mouth reached'} />
+                <PublicField label="Underlying terrain" value={record.underlyingTileKey ?? 'not published'} />
                 <PublicField
                   label="Underlying land"
                   value={record.underlyingPassable === false
