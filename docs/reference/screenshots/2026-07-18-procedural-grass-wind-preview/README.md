@@ -1,25 +1,24 @@
-# Procedural grass and wind development preview
+# Realm Wheat Farm development preview
 
 ## Authorized use
 
-On 18 July 2026, the Warpkeep project owner supplied this exact screenshot and
-authorized its addition to the public Warpkeep repository and root README. It
-is documentation only and is not a runtime dependency or release claim.
+On 22 July 2026, the Warpkeep project owner supplied this exact screenshot and
+authorized its replacement use in the public Warpkeep repository and root
+README. It is documentation only and is not a runtime dependency or release
+claim.
 
 ## Technical record
 
 - Repository file: `warpkeep-procedural-grass-preview-eb156adea5befbd7.png`
-- Format: 2198×1384, 8-bit RGBA, non-interlaced PNG
-- Length: 3,261,945 bytes
-- SHA-256: `eb156adea5befbd786e13deb563fc118faecfafa52da86c9f49f0b5f1d39fb35`
+- Format: 2000×1264, 8-bit RGB, non-interlaced PNG
+- Length: 3,146,015 bytes
+- SHA-256: `f3b1f7e598c543d6c0e74813286da97d96b219ee56bc5d764c9853bfec27fe3e`
 
-The capture shows the procedural grass and wind draft on its Alpha 0.3.8 base.
-That visual layer is not live in Alpha 0.3.8. The capture also shows nearby
-founders' public profile labels, the selected castle's public record, the
-supplying player's zero-valued resource display, and zero-valued public
-Community Marks. It shows no numeric FID, wallet address, QR payload,
-authentication proof, bearer token, cookie, credential, private log, or admin
-output.
+The capture shows the Genesis 001 Lowlands with an open Wheat Farm inspection
+panel, map resources, and a gathering expedition presentation. It is a
+documentation preview and does not itself activate or authorize a gameplay
+state. It shows no numeric FID, wallet address, QR payload, authentication
+proof, bearer token, cookie, credential, private log, or admin output.
 
 ## Rights boundary
 

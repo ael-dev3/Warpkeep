@@ -6,9 +6,9 @@
 
 Genesis 001 is a persistent, invite-only 10,000-cell Lowlands realm with 100 permanent castle sites kept close to its founding district. Each founder signs in with a verified Farcaster identity, receives one durable keep, and can privately collect four resources from its terrain: Food / Wood / Stone / Gold. Alpha 0.3.8 is live but early; exploration and the private resource loop work today, while the intended core strategy loop is not playable yet. Warpkeep is a one-person experiment—not a finished MMO or financial product; there are no token rewards, no financial promises, and joining does not earn an airdrop or financial return or guarantee a reward or future value.
 
-![Development preview of Genesis 001 showing several founded keeps, procedural grass, and an open castle record.](docs/reference/screenshots/2026-07-18-procedural-grass-wind-preview/warpkeep-procedural-grass-preview-eb156adea5befbd7.png)
+![Development preview of Genesis 001 showing the Lowlands and an open Wheat Farm inspection panel.](docs/reference/screenshots/2026-07-18-procedural-grass-wind-preview/warpkeep-procedural-grass-preview-eb156adea5befbd7.png)
 
-*Development preview from the procedural grass and wind draft; this visual layer is not part of live Alpha 0.3.8 yet.*
+*Development preview of the Realm Wheat Farm inspection flow; this documentation image does not itself activate or authorize gameplay.*
 
 ## Quick start
 
