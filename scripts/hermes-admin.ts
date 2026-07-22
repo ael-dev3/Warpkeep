@@ -82,11 +82,12 @@ type Command =
   | 'inspect-alpha-v4'
   | 'inspect-alpha-v8'
   | 'inspect-alpha-v10'
+  | 'inspect-alpha-v12'
   | 'seed-alpha-component'
   | 'activate-alpha-water'
   | 'backfill-resources';
 
-type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4' | 'v8' | 'v10';
+type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4' | 'v8' | 'v10' | 'v12';
 type SeedableAlphaComponent = AlphaActivationComponent | AlphaV10ActivationComponent;
 
 const DEFAULT_DATABASE = 'warpkeep-89e4u';
@@ -108,6 +109,57 @@ const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = BigInt(
 );
 const HEGEMONY_WORLD_SEED = 3_445_214_658;
 const HEGEMONY_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
+const U64_MAXIMUM = (1n << 64n) - 1n;
+const WORKER_STATUS_V12_U64_FIELDS = Object.freeze([
+  'systemRows',
+  'expectedCastleCount',
+  'expectedWorkerCount',
+  'actualWorkerCount',
+  'castlesMissingWorkers',
+  'castlesWithExtraWorkers',
+  'duplicateOrdinals',
+  'malformedWorkerIds',
+  'invalidWorkerStates',
+  'idleWorkers',
+  'outboundWorkers',
+  'gatheringWorkers',
+  'returningWorkers',
+  'assignments',
+  'occupations',
+  'schedules',
+  'orphanWorkers',
+  'orphanAssignments',
+  'assignmentsMissingOccupation',
+  'assignmentsWithoutSingleSchedule',
+  'orphanOccupations',
+  'orphanSchedules',
+  'invalidSchedules',
+  'assignmentPublicMismatches',
+  'occupationSiteMismatches',
+  'invalidAssignments',
+  'idempotencyReceipts',
+  'invalidIdempotencyReceipts',
+  'idempotencyOverflowFids',
+  'legacyExpeditions',
+  'legacyOccupations',
+  'legacySchedules',
+] as const);
+const WORKER_STATUS_V12_BOOLEAN_FIELDS = Object.freeze([
+  'systemConfigValid',
+  'legacyDrainRequired',
+  'expectedCountsMatch',
+  'rosterDigestMatches',
+] as const);
+const WORKER_STATUS_V12_STRING_FIELDS = Object.freeze([
+  'mode',
+  'rosterDigest',
+  'rosterDigestExpected',
+] as const);
+const WORKER_STATUS_V12_KEYS = Object.freeze([
+  ...WORKER_STATUS_V12_U64_FIELDS,
+  ...WORKER_STATUS_V12_BOOLEAN_FIELDS,
+  ...WORKER_STATUS_V12_STRING_FIELDS,
+].sort());
 
 export const FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST = createHash('sha256')
   .update(JSON.stringify({
@@ -266,6 +318,7 @@ function commandFrom(value: string | undefined): Command {
     || value === 'inspect-alpha-v4'
     || value === 'inspect-alpha-v8'
     || value === 'inspect-alpha-v10'
+    || value === 'inspect-alpha-v12'
     || value === 'seed-alpha-component'
     || value === 'activate-alpha-water'
     || value === 'backfill-resources'
@@ -274,7 +327,7 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10> '
+    + '<seed-world|expand-world-v3|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder.',
@@ -302,7 +355,8 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-alpha-v3'
     || command === 'inspect-alpha-v4'
     || command === 'inspect-alpha-v8'
-    || command === 'inspect-alpha-v10';
+    || command === 'inspect-alpha-v10'
+    || command === 'inspect-alpha-v12';
   const expectedPositionals = command === 'allow-fid'
     || command === 'disable-fid'
     || command === 'bump-auth-epoch'
@@ -409,6 +463,51 @@ function printable(value: unknown): unknown {
     return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, printable(entry)]));
   }
   return value;
+}
+
+/**
+ * Keep the v12 operator surface aggregate-only and fail closed if the generated
+ * procedure contract changes. Raw u64 values must still be canonical SDK
+ * bigints here; decimal-string conversion happens only at the JSON boundary.
+ */
+export function projectWorkerSystemStatusV12(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail('Worker procedure-v12 returned an invalid status object.');
+  }
+  const status = value as Record<string, unknown>;
+  const actualKeys = Object.keys(status).sort();
+  if (
+    actualKeys.length !== WORKER_STATUS_V12_KEYS.length
+    || actualKeys.some((key, index) => key !== WORKER_STATUS_V12_KEYS[index])
+  ) {
+    fail('Worker procedure-v12 returned unexpected fields.');
+  }
+  for (const field of WORKER_STATUS_V12_U64_FIELDS) {
+    const count = status[field];
+    if (typeof count !== 'bigint' || count < 0n || count > U64_MAXIMUM) {
+      fail('Worker procedure-v12 returned an invalid aggregate count.');
+    }
+  }
+  for (const field of WORKER_STATUS_V12_BOOLEAN_FIELDS) {
+    if (typeof status[field] !== 'boolean') {
+      fail('Worker procedure-v12 returned an invalid status flag.');
+    }
+  }
+  if (
+    (status.mode !== 'absent' && status.mode !== 'staged' && status.mode !== 'active')
+    || (status.rosterDigest !== ''
+      && (typeof status.rosterDigest !== 'string'
+        || !/^[0-9a-f]{16}$/.test(status.rosterDigest)))
+    || typeof status.rosterDigestExpected !== 'string'
+    || !/^[0-9a-f]{16}$/.test(status.rosterDigestExpected)
+  ) {
+    fail('Worker procedure-v12 returned invalid worker metadata.');
+  }
+  return Object.freeze(Object.fromEntries(
+    [...WORKER_STATUS_V12_U64_FIELDS, ...WORKER_STATUS_V12_BOOLEAN_FIELDS,
+      ...WORKER_STATUS_V12_STRING_FIELDS]
+      .map(field => [field, status[field]]),
+  ));
 }
 
 type ResourceAggregateV4 = Readonly<{
@@ -988,6 +1087,12 @@ export async function readStatus(
   expectedResourceFounderCount?: bigint,
   emit = true,
 ) {
+  if (version === 'v12') {
+    const status = await withOperationTimeout(connection.procedures.adminGetWorkerSystemStatusV1({}));
+    const verified = projectWorkerSystemStatusV12(status);
+    if (emit) console.log(JSON.stringify(printable(verified)));
+    return verified;
+  }
   if (version === 'v10') {
     const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV10({}));
     const verified = projectAlphaStatusV10(status);
@@ -1466,6 +1571,8 @@ async function main() {
             ? 'v8'
             : command === 'inspect-alpha-v10'
               ? 'v10'
+              : command === 'inspect-alpha-v12'
+                ? 'v12'
           : 'v1';
     if (!mutationStatusHandled) {
       await readStatus(

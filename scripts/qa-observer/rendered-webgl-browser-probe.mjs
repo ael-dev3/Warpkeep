@@ -15,6 +15,10 @@ import { promisify } from 'node:util';
 
 import { analyzeRenderedWebglPngScreenshot } from './png-visual-aggregate.mjs';
 import {
+  WARPKEEP_LOCAL_VITE_FS_DENY,
+  warpkeepLocalPublicBoundaryPlugin,
+} from './local-vite-fs-deny.mjs';
+import {
   parseRenderedWebglQaObservation,
   RENDERED_WEBGL_QA_MAX_READY_MILLISECONDS,
   RENDERED_WEBGL_QA_ROUTE,
@@ -57,22 +61,17 @@ export const RENDERED_WEBGL_QA_CASE_COUNT = 14;
 // count prevents a complete generation-v2 surface (1,261 cells), a partial
 // expansion, or a mixed snapshot from being accepted as current render proof.
 export const RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT = 10_000;
+// The synthetic observer activates canonical Water revision v1. Its 409
+// former lake rows are presented as lowland, leaving exactly six live terrain
+// kinds while the immutable authority metadata remains seven-kind.
+export const RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT = 6;
 // Every projection-visible keeper name is locked to its castle foundation.
 // Dense overviews may overlap, but camera motion cannot aggregate, displace,
 // or hide founded identities.
 export const RENDERED_WEBGL_QA_LABEL_MAX_ANCHOR_DISPLACEMENT_PIXELS = 0;
 const RENDERED_WEBGL_QA_CLUSTER_MAX_ANCHOR_DISPLACEMENT_PIXELS = 112;
 export const RENDERED_WEBGL_QA_LABEL_COORDINATE_SERIALIZATION_EPSILON_PIXELS = 0.015;
-// Supplying `server.fs.deny` replaces Vite's defaults instead of appending to
-// them. Keep Vite 8's four reviewed defaults explicitly, then add the source
-// cache boundary required by the local LOD evidence route.
-export const RENDERED_WEBGL_QA_VITE_FS_DENY = Object.freeze([
-  '.env',
-  '.env.*',
-  '*.{crt,pem}',
-  '**/.git/**',
-  '**/.cache/**',
-]);
+export const RENDERED_WEBGL_QA_VITE_FS_DENY = WARPKEEP_LOCAL_VITE_FS_DENY;
 const RENDERED_WEBGL_QA_LABEL_ANGLE_TOLERANCE_RADIANS = 0.002;
 const RENDERED_WEBGL_QA_CASTLE_POINTER_ACTIVATION_CASE_ID = 'desktop-balanced';
 const RENDERED_WEBGL_QA_MAP_GESTURE_CASE_ID = 'desktop-balanced-player';
@@ -103,22 +102,34 @@ const RENDERED_WEBGL_QA_MAP_DRAG_OFFSETS = Object.freeze([
   Object.freeze({ x: 52, y: 14 }),
 ]);
 const RENDERED_WEBGL_QA_MAX_POINTER_COORDINATE_PIXELS = 10_000;
-// The canonical shared forest is a separate static world layer, not part of
-// the quality-scaled procedural feature budget. Presentation telemetry includes
-// it, so the browser ceiling must include its exact 210 instances as well.
+// Shared forest and the reviewed outer-Realm infill are separate real-tree
+// layers, not part of the quality-scaled procedural feature budget. Telemetry
+// includes both; mirror their exact source budgets rather than widening the
+// browser gate with an arbitrary allowance.
 const RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT = 210;
+const RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS = Object.freeze({
+  high: 240,
+  balanced: 90,
+  reduced: 0,
+});
 const TERRAIN_PRESENTATION_BUDGETS = Object.freeze({
   high: Object.freeze({
-    semanticFeatureCount: 1_100 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
-    totalDetailInstanceCount: 7_000 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
+    semanticFeatureCount: 1_100 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
+      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.high,
+    totalDetailInstanceCount: 7_000 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
+      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.high,
   }),
   balanced: Object.freeze({
-    semanticFeatureCount: 800 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
-    totalDetailInstanceCount: 5_500 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
+    semanticFeatureCount: 800 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
+      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.balanced,
+    totalDetailInstanceCount: 5_500 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
+      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.balanced,
   }),
   reduced: Object.freeze({
-    semanticFeatureCount: 400 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
-    totalDetailInstanceCount: 3_000 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT,
+    semanticFeatureCount: 400 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
+      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.reduced,
+    totalDetailInstanceCount: 3_000 + RENDERED_WEBGL_QA_SHARED_FOREST_INSTANCE_COUNT
+      + RENDERED_WEBGL_QA_FOREST_INFILL_INSTANCE_BUDGETS.reduced,
   }),
 });
 const LABEL_CULL_REASONS = new Set([
@@ -876,7 +887,8 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     candidate.environmentLighting !== 'procedural' ? 'environment-lighting' : '',
     candidate.semanticTerrainCellCount !== RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT
       ? 'semantic-terrain-cell-count' : '',
-    candidate.semanticTerrainKindCount !== 7 ? 'semantic-terrain-kind-count' : '',
+    candidate.semanticTerrainKindCount !== RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_KIND_COUNT
+      ? 'semantic-terrain-kind-count' : '',
     !terrainBudgets
       || !Number.isSafeInteger(candidate.semanticTerrainFeatureCount)
       || candidate.semanticTerrainFeatureCount < 1
@@ -1778,7 +1790,7 @@ async function createLoopbackViteServer(runtimeDirectory, localQaPlugins = []) {
       cacheDir: join(privateRuntime, 'vite-cache'),
       configFile: false,
       envFile: false,
-      plugins: [reactPlugin(), ...localQaPlugins],
+      plugins: [warpkeepLocalPublicBoundaryPlugin(), reactPlugin(), ...localQaPlugins],
       define: {
         __WARPKEEP_LOCAL_QA__: 'true',
         __WARPKEEP_PRODUCT_VERSION__: JSON.stringify(packageJson.version),
@@ -2149,8 +2161,11 @@ const READ_DOM_EXPRESSION = `(() => {
   const inspectorProfileImage = inspector?.querySelector(
     'canvas[data-profile-image-state]'
   );
+  // Water endpoint controls intentionally share some list styling. Count only
+  // the semantically named castle list so source/mouth buttons cannot inflate
+  // or invalidate the exact 100-castle accessibility gate.
   const exploreCastleButtons = [...document.querySelectorAll(
-    '.realm-cell-navigator__castles button'
+    '.realm-cell-navigator__castles[aria-label="Founded castles"] > li > button'
   )].filter(visible);
   const exploreAccessibleCastleButtons = exploreCastleButtons.filter((button) => (
     button instanceof HTMLButtonElement
@@ -2362,7 +2377,11 @@ async function waitForAcceptedRenderedDom(session, expected, state) {
           `overflow=${String(value.labelClusterOverflowCount)}`,
           `portrait=${String(value.inspectorProfileImageState)}`,
           `models=${String(value.presentedModelCount)}`,
-          `bases=${String(value.presentedLandscapeBaseCount)}`
+          `bases=${String(value.presentedLandscapeBaseCount)}`,
+          `terrainKinds=${String(value.semanticTerrainKindCount)}`,
+          `terrainFeatures=${String(value.semanticTerrainFeatureCount)}`,
+          `exploreCastles=${String(value.exploreCastleCount)}`,
+          `exploreAccessible=${String(value.exploreAccessibleCastleCount)}`
         ].join(',');
         try {
           parseRenderedWebglBrowserDom(value, expected);
