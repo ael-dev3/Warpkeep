@@ -159,6 +159,8 @@ describe('local QA production exclusion', () => {
     expect(runtimeGate).toContain("new Set(['localhost', '127.0.0.1', '::1', '[::1]'])");
     expect(viteConfig).toContain("input: resolve(process.cwd(), 'index.html')");
     expect(viteConfig).toContain("__WARPKEEP_LOCAL_QA__: JSON.stringify(command === 'serve')");
+    expect(viteConfig).toContain('warpkeep-local-serve-csp-boundary');
+    expect(viteConfig).toContain('data-warpkeep-production-csp');
     expect(existsSync(resolve(root, 'dev/realm-qa.html'))).toBe(false);
     expect(existsSync(resolve(root, 'src/dev/RealmQaHarness.tsx'))).toBe(false);
     expect(packageJson.scripts.build).toContain('verify-production-dist-exclusions.mjs');

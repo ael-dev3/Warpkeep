@@ -127,6 +127,9 @@ describe('Warpkeep document fallback', () => {
     const parsed = new DOMParser().parseFromString(indexHtml, 'text/html');
     const root = parsed.querySelector('#root');
     const status = root?.querySelector('[role="status"]');
+    const contentSecurityPolicy = parsed.querySelector(
+      'meta[http-equiv="Content-Security-Policy"]'
+    )?.getAttribute('content');
 
     expect(root?.querySelector('.warpkeep-boot')).not.toBeNull();
     expect(root?.querySelector('#warpkeep-boot-title')).toBeNull();
@@ -138,6 +141,15 @@ describe('Warpkeep document fallback', () => {
     expect(indexHtml).toContain('<meta name="referrer" content="no-referrer" />');
     expect(indexHtml).toContain('href="/favicon.svg"');
     expect(mainSource).toContain('WARPKEEP_ROOT_ERROR_HANDLERS');
+    expect(contentSecurityPolicy).toContain("default-src 'none'");
+    expect(contentSecurityPolicy).toContain("script-src 'self' 'wasm-unsafe-eval'");
+    expect(contentSecurityPolicy).toContain("script-src-attr 'none'");
+    expect(contentSecurityPolicy).not.toContain("'unsafe-eval'");
+    expect(contentSecurityPolicy).toContain("object-src 'none'");
+    expect(contentSecurityPolicy).toContain("frame-src 'none'");
+    expect(contentSecurityPolicy).toContain("form-action 'none'");
+    expect(contentSecurityPolicy).toContain('wss://maincloud.spacetimedb.com');
+    expect(parsed.querySelector('[data-warpkeep-production-csp]')).not.toBeNull();
   });
 
   it('provides actionable no-JavaScript guidance and motion-safe styling', () => {
