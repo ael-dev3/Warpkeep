@@ -125,7 +125,7 @@ describe('canonical Genesis 001 grass bounds', () => {
     expect(first.drawCalls).toBeLessThanOrEqual(3);
     expect(first.variantCounts).toHaveLength(3);
     expect(digestPackedGrass(layer)).toBe(
-      'd27befa17b44b0eaba5d24695c983c23c683c723472bb426e38d04ed2273594b'
+      '41d786fb5f5095bfbddb961b08f4ea363ed99c850865c1a0af8d85ef240b64ef'
     );
 
     layer.updateView(axialToWorld({ q: 30, r: -10 }, 1), 'keep');

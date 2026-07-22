@@ -50,6 +50,23 @@ describe('camera-local procedural grass layer', () => {
     expect(telemetry.triangleCount).toBeLessThanOrEqual(2_016);
     expect(telemetry.drawCalls).toBeLessThanOrEqual(2);
     expect(telemetry.cacheEntries).toBeLessThanOrEqual(8);
+    expect(Object.values(telemetry.candidateCellsByTerrain)
+      .reduce((total, count) => total + count, 0)).toBe(telemetry.candidateCellCount);
+    expect(Object.values(telemetry.activeCellsByTerrain)
+      .reduce((total, count) => total + count, 0)).toBeLessThanOrEqual(
+        telemetry.activeCellCount
+      );
+    expect(Object.values(telemetry.countsByTerrain)
+      .reduce((total, count) => total + count, 0)).toBe(telemetry.instanceCount);
+    expect(telemetry.averageRetainedPatchesByTerrain.meadow).toBeCloseTo(
+      telemetry.countsByTerrain.meadow / telemetry.activeCellsByTerrain.meadow,
+      10
+    );
+    expect(telemetry.paletteGreenMin).toBeGreaterThan(0);
+    expect(telemetry.paletteGreenMax).toBeGreaterThanOrEqual(telemetry.paletteGreenMin);
+    expect(telemetry.paletteLuminanceMax).toBeGreaterThanOrEqual(
+      telemetry.paletteLuminanceMin
+    );
     expect(layer.meshes.reduce((sum, currentMesh) => sum + currentMesh.count, 0))
       .toBe(telemetry.instanceCount);
     expect(layer.mesh.geometry.getAttribute('grassPhase')).toBeDefined();
