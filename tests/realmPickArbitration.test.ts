@@ -13,6 +13,19 @@ const RESOURCE_KINDS = [
 ] as const satisfies readonly RealmResourcePickKind[];
 
 describe('realm scene pick arbitration', () => {
+  it('gives a worker identity lane priority over resource and castle colliders', () => {
+    expect(arbitrateRealmPick({
+      workerHits: [
+        { workerId: 'worker-far', workerOrdinal: 2, originCastleId: 77, coord: { q: 2, r: 0 }, distance: 20 },
+        { workerId: 'worker-invalid', workerOrdinal: 3, originCastleId: 77, coord: { q: 3, r: 0 }, distance: -1 },
+        { workerId: 'worker-1', workerOrdinal: 1, originCastleId: 77, coord: { q: 1, r: 0 }, distance: 2 }
+      ],
+      resourceHits: [],
+      castleHit: { castleId: 77, coord: { q: 0, r: 0 } },
+      terrainHit: { coord: { q: 2, r: 0 } }
+    })).toEqual({ kind: 'worker', workerId: 'worker-1', workerOrdinal: 1, originCastleId: 77, coord: { q: 1, r: 0 } });
+  });
+
   it.each(RESOURCE_KINDS)(
     'lets the nearest moving %s wagon win over castle, static site, and terrain',
     (kind) => {
@@ -91,5 +104,46 @@ describe('realm scene pick arbitration', () => {
       resourceHits: [],
       terrainHit: { coord: { q: -2, r: 1 } }
     })).toEqual({ kind: 'terrain', coord: { q: -2, r: 1 } });
+  });
+
+  it('places a visible water cell after static sites and before terrain', () => {
+    expect(arbitrateRealmPick({
+      resourceHits: [],
+      waterHit: {
+        cellKey: 'genesis-001:river:01:0001',
+        bodyId: 'genesis-001:river:01',
+        regime: 'river',
+        coord: { q: 2, r: -1 },
+        distance: 8
+      },
+      terrainHit: { coord: { q: 2, r: -1 } }
+    })).toEqual({
+      kind: 'water-cell',
+      cellKey: 'genesis-001:river:01:0001',
+      bodyId: 'genesis-001:river:01',
+      regime: 'river',
+      coord: { q: 2, r: -1 }
+    });
+    expect(arbitrateRealmPick({
+      resourceHits: [{
+        kind: 'gold-site',
+        siteId: 'gold-1',
+        coord: { q: 2, r: -1 },
+        source: 'site',
+        distance: 12
+      }],
+      waterHit: {
+        cellKey: 'ocean:1',
+        bodyId: 'genesis-001:ocean',
+        regime: 'ocean',
+        coord: { q: 2, r: -1 },
+        distance: 1
+      }
+    })).toEqual({
+      kind: 'gold-site',
+      siteId: 'gold-1',
+      coord: { q: 2, r: -1 },
+      source: 'site'
+    });
   });
 });

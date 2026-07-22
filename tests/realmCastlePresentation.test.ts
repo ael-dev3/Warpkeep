@@ -369,6 +369,20 @@ describe('realm castle public presentation', () => {
     expect(projection.conservativeCastleBounds).toEqual(projection.castleBounds);
   });
 
+  it('marks castles outside the bounded fallback SVG crop as projection-ineligible', () => {
+    const viewBox = { x: -4, y: -4, width: 8, height: 8 };
+    expect(fallbackCastleProjection(
+      { castleId: 1, q: 0, r: 0 },
+      viewBox,
+      { width: 800, height: 600 }
+    ).visible).toBe(true);
+    expect(fallbackCastleProjection(
+      { castleId: 2, q: 20, r: 20 },
+      viewBox,
+      { width: 800, height: 600 }
+    ).visible).toBe(false);
+  });
+
   it('anchors labels below the calibrated foundation while retaining conservative bounds separately', () => {
     const conservative = { left: 360, top: 180, right: 440, bottom: 300 };
     const bounds = resolveCastleLabelOcclusionBounds(conservative, 240);

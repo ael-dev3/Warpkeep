@@ -113,7 +113,8 @@ describe('canonical Genesis 001 grass bounds', () => {
 
     layer.updateView({ x: 0, z: 0 }, 'keep');
     const first = layer.getTelemetry();
-    expect(first.activeCellCount).toBe(469);
+    expect(first.candidateCellCount).toBe(469);
+    expect(first.activeCellCount).toBe(397);
     expect(first.cacheEntries).toBeLessThanOrEqual(REALM_GRASS_RENDER_PLANS.high.cacheLimit);
     expect(first.cacheEntries).toBeLessThan(10_000);
     expect(first.instanceCount).toBeLessThanOrEqual(
@@ -125,12 +126,13 @@ describe('canonical Genesis 001 grass bounds', () => {
     expect(first.drawCalls).toBeLessThanOrEqual(3);
     expect(first.variantCounts).toHaveLength(3);
     expect(digestPackedGrass(layer)).toBe(
-      'd27befa17b44b0eaba5d24695c983c23c683c723472bb426e38d04ed2273594b'
+      '41d786fb5f5095bfbddb961b08f4ea363ed99c850865c1a0af8d85ef240b64ef'
     );
 
     layer.updateView(axialToWorld({ q: 30, r: -10 }, 1), 'keep');
     const traversed = layer.getTelemetry();
-    expect(traversed.activeCellCount).toBe(469);
+    expect(traversed.candidateCellCount).toBe(469);
+    expect(traversed.activeCellCount).toBe(397);
     expect(traversed.cacheEntries).toBeLessThanOrEqual(REALM_GRASS_RENDER_PLANS.high.cacheLimit);
     expect(traversed.cacheEntries).toBeLessThan(10_000);
     expect(traversed.instanceCount).toBeLessThanOrEqual(

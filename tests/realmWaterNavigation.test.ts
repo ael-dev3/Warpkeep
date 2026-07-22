@@ -70,7 +70,7 @@ describe('persistent Water camera envelope', () => {
     expect(surface.renderMap.cells).toHaveLength(10_981);
   });
 
-  it('wires the validated envelope into camera navigation without rewriting the water array', () => {
+  it('wires the validated envelope only while Water is visible without rewriting its rows', () => {
     const source = readFileSync(resolve(
       process.cwd(),
       'src/components/realm/createRealmScene.ts'
@@ -78,10 +78,11 @@ describe('persistent Water camera envelope', () => {
 
     expect(source).toContain('cells: options.waterCells');
     expect(source).not.toContain("filter((cell) => cell.regime !== 'lake')");
-    expect(source).toContain('bounds: waterNavigationEnvelope?.bounds ?? terrainData.bounds');
-    expect(source).toContain('maximumCenterHexRadius: waterNavigationEnvelope.maximumCenterHexRadius');
-    expect(source).toContain('hexSize: waterNavigationEnvelope.hexSize');
-    expect(source).toContain('blockedCenterCellKeys: waterNavigationEnvelope.blockedCenterCellKeys');
+    expect(source).toContain('const activeWaterNavigationEnvelope = waterLayer');
+    expect(source).toContain('bounds: activeWaterNavigationEnvelope?.bounds ?? terrainData.bounds');
+    expect(source).toContain('maximumCenterHexRadius: activeWaterNavigationEnvelope.maximumCenterHexRadius');
+    expect(source).toContain('hexSize: activeWaterNavigationEnvelope.hexSize');
+    expect(source).toContain('blockedCenterCellKeys: activeWaterNavigationEnvelope.blockedCenterCellKeys');
     expect(source).toContain('overviewHull: createTerrainOverviewHull(strategicOverviewMap, HEX_SIZE)');
   });
 
